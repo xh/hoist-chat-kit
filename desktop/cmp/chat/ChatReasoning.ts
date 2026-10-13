@@ -21,7 +21,6 @@ export interface ChatReasoningProps extends HoistProps {
  */
 export const [ChatReasoning, chatReasoning] = hoistCmp.withFactory<ChatReasoningProps>({
     displayName: 'ChatReasoning',
-    model: false,
     className: 'xh-chat-reasoning',
 
     render({className, part}) {
@@ -75,5 +74,6 @@ class ChatReasoningLocalModel extends HoistModel {
 
 function getDoneLabel({startedAt, endedAt}: ChatReasoningPart): string {
     const elapsed = startedAt != null && endedAt != null ? endedAt - startedAt : null;
-    return elapsed != null ? `Thought for ${formatElapsed(elapsed)}` : 'Thought process';
+    if (elapsed == null) return 'Thought process';
+    return elapsed < 1000 ? 'Thought briefly' : `Thought for ${formatElapsed(elapsed)}`;
 }

@@ -19,7 +19,6 @@ interface ChatCopyButtonProps extends HoistProps {
  */
 export const chatCopyButton = hoistCmp.factory<ChatCopyButtonProps>({
     displayName: 'ChatCopyButton',
-    model: false,
     className: 'xh-chat-copy-button',
 
     render({className, getCopyText, showText = false}) {

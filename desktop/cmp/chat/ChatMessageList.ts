@@ -118,12 +118,13 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                 }),
                 impl.isAtBottom
                     ? null
-                    : button({
+                    : div({
                           className: 'xh-chat-message-list__scroll-button',
-                          icon: Icon.arrowDown(),
-                          tooltip: 'Scroll to bottom',
-                          outlined: true,
-                          onClick: () => impl.scrollToBottom(true)
+                          item: button({
+                              icon: Icon.arrowDown(),
+                              tooltip: 'Scroll to bottom',
+                              onClick: () => impl.scrollToBottom(true)
+                          })
                       })
             ]
         });
@@ -165,6 +166,15 @@ class ChatMessageListLocalModel extends HoistModel {
             track: () => findLast(this.chatModel.messages, 'isUser')?.id,
             run: () => this.scrollToBottom()
         });
+
+        // Show the end of a finished reply - its action bar appears as the turn ends.
+        this.addReaction({
+            track: () => this.chatModel.isBusy,
+            run: isBusy => {
+                if (!isBusy && this.isSticky) this.scrollToBottom();
+            },
+            debounce: 0
+        });
     }
 
     scrollToBottom(smooth: boolean = false) {
@@ -196,8 +206,10 @@ class ChatMessageListLocalModel extends HoistModel {
         if (e.deltaY < 0) this.isSticky = false;
     };
 
-    onContentResize = () => this.followContent();
-    onViewportResize = () => this.followContent();
+    // Content grows below the fold as a reply streams, so follow it then. Otherwise content grows
+    // because the user opened something - a tool call, say - which must stay where it is.
+    onContentResize = () => this.followContent(this.chatModel.isBusy);
+    onViewportResize = () => this.followContent(true);
 
     onEditingChange = (message: ChatMessage, isEditing: boolean) => {
         this.setEditingId(isEditing ? message.id : null);
@@ -218,8 +230,8 @@ class ChatMessageListLocalModel extends HoistModel {
         this.isAtBottom = isAtBottom;
     }
 
-    private followContent() {
-        if (this.isSticky) {
+    private followContent(follow: boolean) {
+        if (this.isSticky && follow) {
             this.scrollToBottom();
         } else {
             this.onScroll();

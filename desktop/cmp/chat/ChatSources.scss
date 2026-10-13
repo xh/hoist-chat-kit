@@ -4,15 +4,18 @@
   min-width: 0;
 
   .xh-app & .xh-chat-sources__toggle.xh-button.bp6-button {
+    // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
+    // component styles in the dark theme - so set the variables, not the colors.
+    --xh-button-text-color: var(--xh-chat-muted-text-color);
+
     align-self: flex-start;
-    color: var(--xh-chat-muted-text-color);
     font-size: var(--xh-chat-meta-font-size-px);
     margin-left: calc(var(--xh-pad-half-px) * -1);
     min-height: 24px;
     padding: 2px var(--xh-pad-half-px);
 
     &:hover {
-      color: var(--xh-chat-text-color);
+      --xh-button-text-color: var(--xh-chat-text-color);
     }
   }
 

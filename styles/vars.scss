@@ -11,7 +11,7 @@ body {
   --xh-chat-bg: var(--chat-bg, var(--xh-bg));
   --xh-chat-content-max-width: var(--chat-content-max-width, 820px);
   --xh-chat-gutter-px: var(--chat-gutter-px, calc(var(--xh-pad) * 1.6px));
-  --xh-chat-message-gap-px: var(--chat-message-gap-px, calc(var(--xh-pad) * 2px));
+  --xh-chat-message-gap-px: var(--chat-message-gap-px, calc(var(--xh-pad) * 1.6px));
   --xh-chat-part-gap-px: var(--chat-part-gap-px, calc(var(--xh-pad) * 0.8px));
   --xh-chat-radius-px: var(--chat-radius-px, 8px);
 

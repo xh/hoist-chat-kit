@@ -25,7 +25,6 @@ export interface ChatSourcesProps extends HoistProps {
  */
 export const [ChatSources, chatSources] = hoistCmp.withFactory<ChatSourcesProps>({
     displayName: 'ChatSources',
-    model: false,
     className: 'xh-chat-sources',
 
     render({className, sources, defaultExpanded = false}) {

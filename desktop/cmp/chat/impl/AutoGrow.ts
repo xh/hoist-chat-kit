@@ -16,7 +16,8 @@ export function fitTextAreaToContent(el: HTMLElement, maxRows: number) {
             borders;
 
     // Collapse first, so that scrollHeight measures the content rather than the current size.
-    el.style.height = 'auto';
+    // Not to 'auto', which sizes a text area to its `rows` - two by default - not its content.
+    el.style.height = '0px';
     const contentHeight = el.scrollHeight + borders;
     el.style.height = `${Math.min(contentHeight, maxHeight)}px`;
     el.style.overflowY = contentHeight > maxHeight ? 'auto' : 'hidden';

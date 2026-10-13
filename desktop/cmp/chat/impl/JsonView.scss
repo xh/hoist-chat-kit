@@ -8,6 +8,7 @@
   margin: 0;
   max-height: 240px;
   overflow: auto;
+  scrollbar-width: thin;
   padding: var(--xh-pad-half-px) var(--xh-pad-px);
   white-space: pre-wrap;
   overflow-wrap: anywhere;

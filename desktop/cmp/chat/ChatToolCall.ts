@@ -1,4 +1,4 @@
-import {isEmpty} from 'lodash';
+import {compact, isArray, isEmpty} from 'lodash';
 import type {ReactElement, ReactNode} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
@@ -32,7 +32,6 @@ export interface ChatToolCallProps extends HoistProps {
  */
 export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallProps>({
     displayName: 'ChatToolCall',
-    model: false,
     className: 'xh-chat-tool-call',
 
     render({className, part, message, chatModel}) {
@@ -40,8 +39,11 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
             {toolName, state} = part,
             spec = chatModel.getToolSpec(toolName),
             isApproval = state === 'approval-requested',
-            isExpanded = impl.expanded ?? (isApproval || !!spec?.renderer),
-            summary = spec?.summary?.(part);
+            summary = spec?.summary?.(part),
+            body = spec?.renderer ? spec.renderer(part, {chatModel, message}) : defaultBody(part),
+            // A call with nothing to show yet - no input, no result - has no body to open.
+            hasBody = body != null && !(isArray(body) && isEmpty(body)),
+            isExpanded = hasBody && (impl.expanded ?? (isApproval || !!spec?.renderer));
 
         return div({
             className: `${className} xh-chat-tool-call--${state}`,
@@ -65,21 +67,14 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
                         className: 'xh-chat-tool-call__status',
                         items: [
                             statusIndicator(state),
-                            isExpanded ? Icon.chevronUp() : Icon.chevronDown()
+                            hasBody ? (isExpanded ? Icon.chevronUp() : Icon.chevronDown()) : null
                         ]
                     }),
-                    'aria-expanded': isExpanded,
-                    onClick: () => impl.setExpanded(!isExpanded)
+                    'aria-expanded': hasBody ? isExpanded : undefined,
+                    onClick: hasBody ? () => impl.setExpanded(!isExpanded) : undefined
                 }),
                 isApproval ? approvalBar(part, chatModel) : null,
-                isExpanded
-                    ? div({
-                          className: 'xh-chat-tool-call__body',
-                          item: spec?.renderer
-                              ? spec.renderer(part, {chatModel, message})
-                              : defaultBody(part)
-                      })
-                    : null
+                isExpanded ? div({className: 'xh-chat-tool-call__body', item: body}) : null
             ]
         });
     }
@@ -156,12 +151,12 @@ function approvalBar(part: ChatToolCallPart, chatModel: ChatModel): ReactNode {
     });
 }
 
-function defaultBody(part: ChatToolCallPart): ReactNode {
+function defaultBody(part: ChatToolCallPart): ReactNode[] {
     const {state, input, inputText, output, errorText} = part,
         inputValue = state === 'input-streaming' || input == null ? inputText : input,
         hasInput = !isEmpty(inputValue);
 
-    return [
+    return compact([
         hasInput ? section('Input', jsonView({value: inputValue})) : null,
         state === 'output-available' ? section('Output', jsonView({value: output})) : null,
         state === 'output-error'
@@ -176,7 +171,7 @@ function defaultBody(part: ChatToolCallPart): ReactNode {
                   div({className: 'xh-chat-tool-call__denied', item: errorText || 'Not run.'})
               )
             : null
-    ];
+    ]);
 }
 
 function section(label: string, content: ReactNode): ReactNode {

@@ -1,4 +1,4 @@
-import {last} from 'lodash';
+import {isEmpty, last} from 'lodash';
 import {type ReactElement, type ReactNode, useLayoutEffect, useMemo} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
@@ -74,18 +74,22 @@ export interface ChatMessageViewProps extends HoistProps {
  * and the time taken. Their parts render in order: markdown text, reasoning, tool calls, files and
  * app-rendered data, followed by the sources consulted.
  *
- * An action bar shows on hover: Copy on every message, Edit on user messages, and Regenerate on
- * the last assistant message. System messages show as a centered note.
+ * An action bar shows on hover - beside a user message's bubble, below an assistant message once
+ * its turn ends: Copy on every message, Edit on user messages, and Regenerate on the last
+ * assistant message. A last reply that failed before any content renders nothing, as the list's
+ * error banner reports it. System messages show as a centered note.
  */
 export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessageViewProps>({
     displayName: 'ChatMessageView',
-    model: false,
     className: 'xh-chat-message',
 
     render(props) {
         const {className, message, isLast = false} = props,
             impl = useLocalModel(ChatMessageViewLocalModel),
             modifiers = [`xh-chat-message--${message.role}`];
+
+        // A last reply that failed before any content is shown by the list's error banner alone.
+        if (isLast && message.status === 'error' && isEmpty(message.parts)) return null;
 
         if (message.isStreaming) modifiers.push('xh-chat-message--streaming');
         if (isLast) modifiers.push('xh-chat-message--last');
@@ -177,17 +181,25 @@ class ChatMessageViewLocalModel extends HoistModel {
 // User messages
 //------------------------
 function userContent(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNode[] {
-    const {message} = props,
+    const {message, chatModel, isLast} = props,
         files = message.parts.filter(it => it.type === 'file') as ChatFilePart[];
 
+    if (impl.isEditing) {
+        return [files.length ? fileRow(files) : null, editBox({impl, chatModel})];
+    }
+
+    // The action bar sits beside the bubble, not below it, so that it takes no space of its own.
     return [
         files.length ? fileRow(files) : null,
-        impl.isEditing
-            ? editBox({impl, chatModel: props.chatModel})
-            : div({className: 'xh-chat-message__bubble', item: message.text}),
-        impl.isEditing
-            ? null
-            : messageActions({message, chatModel: props.chatModel, isLast: props.isLast, impl})
+        div({
+            className: 'xh-chat-message__row',
+            items: [
+                message.text
+                    ? div({className: 'xh-chat-message__bubble', item: message.text})
+                    : null,
+                messageActions({message, chatModel, isLast, impl})
+            ]
+        })
     ];
 }
 
@@ -255,7 +267,8 @@ function assistantContent(props: ViewProps): ReactNode[] {
             ]
         }),
         sources.length ? chatSources({sources}) : null,
-        message.isStreaming
+        // Actions wait for the turn to end - including one paused for the user's approval.
+        message.isStreaming || message.status === 'paused'
             ? null
             : messageActions({
                   message,
@@ -439,7 +452,8 @@ const messageActions = hoistCmp.factory<MessageActionsProps>({
     render({message, chatModel, isLast, impl}) {
         const {isBusy} = chatModel,
             hasText = !!message.text.trim(),
-            canRegenerate = message.isAssistant && isLast && !isBusy;
+            // A failed last reply offers Retry in the list's error banner instead.
+            canRegenerate = message.isAssistant && isLast && !isBusy && message.status !== 'error';
 
         if (!hasText && !canRegenerate && !impl) return null;
 

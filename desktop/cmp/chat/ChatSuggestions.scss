@@ -5,10 +5,13 @@
   justify-content: center;
 
   .xh-app & .xh-chat-suggestions__chip.xh-button.bp6-button {
-    background-color: var(--xh-chat-chip-bg);
-    border-color: var(--xh-chat-border-color);
+    // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
+    // component styles in the dark theme - so set the variables, not the colors.
+    --xh-button-text-color: var(--xh-chat-text-color);
+    --xh-button-border-color: var(--xh-chat-border-color);
+    --xh-button-bg-darker: var(--xh-chat-chip-hover-bg);
+
     border-radius: 999px;
-    color: var(--xh-chat-text-color);
     max-width: 100%;
     min-height: 30px;
     padding: 4px calc(var(--xh-pad) * 1.2px);

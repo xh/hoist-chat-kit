@@ -7,8 +7,10 @@
   min-width: 0;
   position: relative;
 
+  // Text fades out over the last few pixels, rather than being cut off at the composer.
   &__viewport {
     flex: 1 1 0;
+    mask-image: linear-gradient(to bottom, black calc(100% - 12px), transparent);
     overflow-x: hidden;
     overflow-y: auto;
   }
@@ -25,19 +27,25 @@
     width: 100%;
   }
 
-  .xh-app & .xh-chat-message-list__scroll-button.xh-button.bp6-button {
+  // A solid, raised disc over the messages. The disc is a wrapper, as Hoist keeps the background
+  // of a minimal button transparent.
+  &__scroll-button {
     background-color: var(--xh-chat-bg);
-    border-color: var(--xh-chat-border-color);
+    border: var(--xh-border-width-px) solid var(--xh-chat-composer-border-color);
     border-radius: 50%;
     bottom: var(--xh-pad-px);
     box-shadow: var(--xh-chat-shadow);
-    height: 32px;
     left: 50%;
+    position: absolute;
+    transform: translateX(-50%);
+  }
+
+  .xh-app & .xh-chat-message-list__scroll-button .xh-button.bp6-button {
+    border-radius: 50%;
+    height: 32px;
     min-height: 32px;
     min-width: 32px;
     padding: 0;
-    position: absolute;
-    transform: translateX(-50%);
     width: 32px;
   }
 }

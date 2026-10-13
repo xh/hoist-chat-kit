@@ -21,13 +21,14 @@
     text-transform: lowercase;
   }
 
-  &__header .xh-chat-copy-button.bp6-button {
-    color: var(--xh-chat-muted-text-color);
+  .xh-app & .xh-chat-code-block__header .xh-chat-copy-button.xh-button.bp6-button {
+    --xh-button-text-color: var(--xh-chat-muted-text-color);
+
     font-size: var(--xh-chat-meta-font-size-px);
     min-height: 24px;
 
     &:hover {
-      color: var(--xh-chat-text-color);
+      --xh-button-text-color: var(--xh-chat-text-color);
     }
   }
 
@@ -38,6 +39,7 @@
     border-radius: 0;
     margin: 0;
     overflow-x: auto;
+    scrollbar-width: thin;
     padding: var(--xh-pad-px) calc(var(--xh-pad) * 1.2px);
 
     code {
