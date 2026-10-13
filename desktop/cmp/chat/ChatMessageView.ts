@@ -384,7 +384,10 @@ const dataPart = hoistCmp.factory<DataPartProps>({
     render({part, message, chatModel}) {
         const renderer = chatModel.dataRenderers?.[part.dataType];
         if (renderer) {
-            return div({className: 'xh-chat-message__data', item: renderer(part, message)});
+            return div({
+                className: 'xh-chat-message__data',
+                item: renderer(part, message, chatModel)
+            });
         }
 
         return div({

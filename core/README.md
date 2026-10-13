@@ -451,7 +451,7 @@ for the full doc comments.
 | `initialMessages` | `ChatMessageSpec[]` | Messages to start with, such as a greeting or restored history. Closed as by `loadMessages()`. |
 | `threadId` | `string` | Identifies the conversation to the backend. Default a new UUID. |
 | `composer` | `ChatComposerConfig` | Config for the managed `composerModel`. |
-| `dataRenderers` | `Record<string, ChatDataRenderer>` | Renderers for data parts, keyed by `dataType`. A renderer is `(part, message) => ReactNode`. |
+| `dataRenderers` | `Record<string, ChatDataRenderer>` | Renderers for data parts, keyed by `dataType`. A renderer is `(part, message, chatModel) => ReactNode`. |
 | `onTurnComplete` | `(message) => void` | Called when a turn ends - complete, failed or stopped - with its final message. Not called when a turn pauses. |
 
 `onTurnComplete` also runs for a turn that `clear()`, `loadMessages()`, `retryAsync()`,
@@ -581,6 +581,7 @@ The `state` of a tool call follows the Vercel AI SDK names, plus `running`:
 | `icon` | `ReactElement` | Icon of the tool call card. |
 | `summary` | `(part) => string` | One-line summary next to the title, for example the city looked up. |
 | `renderer` | `(part, context) => ReactNode` | Custom body for the card, in place of the input and output JSON. |
+| `display` | `'card' \| 'inline'` | `card` shows calls as a collapsible card. `inline` shows only the `renderer` output, above a small caption with the status and a toggle to view the input. Default `card`. |
 
 The `context` of `execute` is a `ChatToolContext`: `chatModel`, `toolCallId`, and a `signal`
 that aborts when the user stops the turn. The `context` of `renderer` is a

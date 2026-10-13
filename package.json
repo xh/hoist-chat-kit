@@ -18,6 +18,7 @@
     "core",
     "desktop",
     "docs",
+    "genui",
     "styles",
     "transport",
     "!**/*.spec.ts",

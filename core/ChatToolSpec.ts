@@ -64,6 +64,19 @@ export interface ChatToolSpec {
 
     /** Custom rendering for calls to this tool, in place of the default input/output display. */
     renderer?: (part: ChatToolCallPart, context: ChatToolRenderContext) => ReactNode;
+
+    /**
+     * How calls to this tool display:
+     *
+     *  - `card` - a collapsible card with the call's title, summary and status. Its body shows the
+     *    call's input and output, or the output of `renderer`.
+     *  - `inline` - the output of `renderer` alone, as part of the reply, above a small caption
+     *    with the title, the status while the call streams or runs, any error, and a toggle to view
+     *    the input. For tools that show UI to the user, such as those of a `ChatUiCatalog`.
+     *
+     * Default `card`.
+     */
+    display?: 'card' | 'inline';
 }
 
 /** Passed to {@link ChatToolSpec.execute}. */

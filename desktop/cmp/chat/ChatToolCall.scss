@@ -131,4 +131,39 @@
     color: var(--xh-chat-muted-text-color);
     white-space: pre-wrap;
   }
+
+  // An inline call shows its rendered output as part of the reply, with no card around it.
+  &--inline {
+    background-color: transparent;
+    border: none;
+    border-radius: 0;
+    gap: 4px;
+    overflow: visible;
+  }
+
+  &__caption {
+    align-items: center;
+    color: var(--xh-chat-muted-text-color);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: var(--xh-chat-meta-font-size-px);
+    gap: var(--xh-pad-px);
+    min-height: 24px;
+  }
+
+  &__caption &__title {
+    font-weight: normal;
+  }
+
+  .xh-app & .xh-chat-tool-call__input-toggle.xh-button.bp6-button {
+    --xh-button-text-color: var(--xh-chat-muted-text-color);
+
+    font-size: var(--xh-chat-meta-font-size-px);
+    min-height: 22px;
+    padding: 0 var(--xh-pad-half-px);
+
+    &:hover {
+      --xh-button-text-color: var(--xh-chat-text-color);
+    }
+  }
 }

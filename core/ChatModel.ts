@@ -62,8 +62,14 @@ export interface ChatModelConfig {
     onTurnComplete?: (message: ChatMessage) => void;
 }
 
-/** Renders a {@link ChatDataPart}. */
-export type ChatDataRenderer = (part: ChatDataPart, message: ChatMessage) => ReactNode;
+/**
+ * Renders a {@link ChatDataPart}, given the message that holds it and the chat that shows it.
+ */
+export type ChatDataRenderer = (
+    part: ChatDataPart,
+    message: ChatMessage,
+    chatModel: ChatModel
+) => ReactNode;
 
 /**
  * State of the conversation.

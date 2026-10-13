@@ -5,7 +5,13 @@ import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/co
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
 import {action, observable} from '@xh/hoist/mobx';
-import type {ChatMessage, ChatModel, ChatToolCallPart, ChatToolCallState} from '../../../core';
+import type {
+    ChatMessage,
+    ChatModel,
+    ChatToolCallPart,
+    ChatToolCallState,
+    ChatToolSpec
+} from '../../../core';
 import '../../../styles/vars.scss';
 import './ChatToolCall.scss';
 import {humanizeToolName} from './impl/ChatFormat';
@@ -28,7 +34,8 @@ export interface ChatToolCallProps extends HoistProps {
  * the tool's own rendering. A call waiting for approval shows Approve and Deny buttons.
  *
  * Display is configured per tool by its {@link ChatToolSpec}: `displayName`, `icon`, `summary`
- * and `renderer`.
+ * and `renderer`. A tool with `display: 'inline'` shows its renderer's output with no card, above a
+ * small caption with the title and status, and a toggle to view the input.
  */
 export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallProps>({
     displayName: 'ChatToolCall',
@@ -38,8 +45,13 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
         const impl = useLocalModel(ChatToolCallLocalModel),
             {toolName, state} = part,
             spec = chatModel.getToolSpec(toolName),
-            isApproval = state === 'approval-requested',
-            summary = spec?.summary?.(part),
+            isApproval = state === 'approval-requested';
+
+        if (spec?.display === 'inline') {
+            return inlineToolCall({className, part, message, chatModel, spec, impl});
+        }
+
+        const summary = spec?.summary?.(part),
             body = spec?.renderer ? spec.renderer(part, {chatModel, message}) : defaultBody(part),
             // A call with nothing to show yet - no input, no result - has no body to open.
             hasBody = body != null && !(isArray(body) && isEmpty(body)),
@@ -151,9 +163,63 @@ function approvalBar(part: ChatToolCallPart, chatModel: ChatModel): ReactNode {
     });
 }
 
+/**
+ * A call with `display: 'inline'` - the renderer's output, then a muted caption with the title,
+ * status, any error, and a toggle that shows the input.
+ */
+function inlineToolCall({
+    className,
+    part,
+    message,
+    chatModel,
+    spec,
+    impl
+}: ChatToolCallProps & {spec: ChatToolSpec; impl: ChatToolCallLocalModel}): ReactNode {
+    const {toolName, state, errorText} = part,
+        inputValue = getInputValue(part),
+        isInputShown = !!impl.expanded;
+
+    return div({
+        className: `${className} xh-chat-tool-call--inline xh-chat-tool-call--${state}`,
+        items: [
+            spec.renderer?.(part, {chatModel, message}),
+            div({
+                className: 'xh-chat-tool-call__caption',
+                items: [
+                    span({
+                        className: 'xh-chat-tool-call__title',
+                        item: spec.displayName ?? humanizeToolName(toolName)
+                    }),
+                    state !== 'output-available' ? statusIndicator(state) : null,
+                    !isEmpty(inputValue)
+                        ? button({
+                              className: 'xh-chat-tool-call__input-toggle',
+                              text: isInputShown ? 'Hide input' : 'View input',
+                              rightIcon: isInputShown ? Icon.chevronUp() : Icon.chevronDown(),
+                              'aria-expanded': isInputShown,
+                              onClick: () => impl.setExpanded(!isInputShown)
+                          })
+                        : null
+                ]
+            }),
+            state === 'approval-requested' ? approvalBar(part, chatModel) : null,
+            state === 'output-error'
+                ? div({className: 'xh-chat-tool-call__error', item: errorText || 'Tool failed.'})
+                : null,
+            isInputShown ? jsonView({value: inputValue}) : null
+        ]
+    });
+}
+
+/** The call's input - its raw text while it streams or if unparseable, else the parsed value. */
+function getInputValue(part: ChatToolCallPart): unknown {
+    const {state, input, inputText} = part;
+    return state === 'input-streaming' || input == null ? inputText : input;
+}
+
 function defaultBody(part: ChatToolCallPart): ReactNode[] {
-    const {state, input, inputText, output, errorText} = part,
-        inputValue = state === 'input-streaming' || input == null ? inputText : input,
+    const {state, output, errorText} = part,
+        inputValue = getInputValue(part),
         hasInput = !isEmpty(inputValue);
 
     return compact([
