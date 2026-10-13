@@ -80,6 +80,9 @@ jobs:
         - name: Unit tests
           run: pnpm test
 
+        - name: Build package
+          run: pnpm build
+
         - name: Prepare snapshot version
           id: snapshot
           # Pinned to commit SHA of xh/hoist-dev-utils master at time of pinning.

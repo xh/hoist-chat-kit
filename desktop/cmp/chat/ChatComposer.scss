@@ -1,0 +1,102 @@
+.xh-chat-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  position: relative;
+
+  &__top {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--xh-pad-half-px);
+  }
+
+  &__box {
+    background-color: var(--xh-chat-composer-bg);
+    border: var(--xh-border-width-px) solid var(--xh-chat-composer-border-color);
+    border-radius: var(--xh-chat-composer-radius-px);
+    box-shadow: var(--xh-chat-shadow);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+
+    &:focus-within {
+      border-color: var(--xh-chat-composer-focus-border-color);
+      box-shadow: var(--xh-chat-composer-focus-ring);
+    }
+  }
+
+  &__attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 8px 0;
+  }
+
+  // The text area sits borderless inside the box, which draws the border and focus ring.
+  &__box textarea.xh-chat-composer__input.bp6-input {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+    box-sizing: border-box;
+    color: var(--xh-chat-text-color);
+    font-size: var(--xh-chat-font-size-px);
+    line-height: 1.5;
+    min-height: calc(var(--xh-chat-font-size-px) * 1.5 + 14px);
+    padding: 10px 14px 4px;
+    width: 100%;
+  }
+
+  &__toolbar {
+    align-items: center;
+    display: flex;
+    gap: 4px;
+    min-width: 0;
+    padding: 4px 6px 6px;
+  }
+
+  &__spacer {
+    flex: 1;
+  }
+
+  &__file-input {
+    display: none;
+  }
+
+  .xh-app & .xh-chat-composer__attach.xh-button.bp6-button svg {
+    color: var(--xh-chat-muted-text-color);
+  }
+
+  .xh-app & .xh-chat-composer__send.xh-button.bp6-button {
+    border-radius: 50%;
+    flex: none;
+    height: 30px;
+    min-height: 30px;
+    min-width: 30px;
+    padding: 0;
+    width: 30px;
+  }
+
+  &--dragging &__box {
+    border-color: var(--xh-intent-primary);
+  }
+
+  &__drop-hint {
+    align-items: center;
+    background-color: color-mix(in srgb, var(--xh-chat-composer-bg) 85%, transparent);
+    border: 2px dashed var(--xh-intent-primary);
+    border-radius: var(--xh-chat-composer-radius-px);
+    color: var(--xh-intent-primary-text-color);
+    display: flex;
+    gap: var(--xh-pad-half-px);
+    inset: 0;
+    justify-content: center;
+    pointer-events: none;
+    position: absolute;
+  }
+}

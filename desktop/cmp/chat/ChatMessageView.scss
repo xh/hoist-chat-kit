@@ -1,0 +1,204 @@
+.xh-chat-message {
+  color: var(--xh-chat-text-color);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--xh-chat-font-size-px);
+  gap: 4px;
+  line-height: var(--xh-chat-line-height);
+  min-width: 0;
+
+  //------------------------
+  // User
+  //------------------------
+  &--user {
+    align-items: flex-end;
+  }
+
+  &__bubble {
+    background-color: var(--xh-chat-user-bg);
+    border-radius: var(--xh-chat-bubble-radius-px);
+    color: var(--xh-chat-user-text-color);
+    max-width: var(--xh-chat-bubble-max-width);
+    overflow-wrap: anywhere;
+    padding: 8px 14px;
+    white-space: pre-wrap;
+  }
+
+  &__files {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--xh-pad-half-px);
+    max-width: 100%;
+  }
+
+  &--user &__files {
+    justify-content: flex-end;
+  }
+
+  // Bubble with its action bar to the left, aligned to the bubble's last line.
+  &__row {
+    align-items: flex-end;
+    display: flex;
+    flex-direction: row-reverse;
+    gap: 4px;
+    min-width: 0;
+    width: 100%;
+  }
+
+  &__edit {
+    background-color: var(--xh-chat-user-bg);
+    border-radius: var(--xh-chat-bubble-radius-px);
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-pad-half-px);
+    padding: var(--xh-pad-half-px);
+    width: 100%;
+
+    .xh-text-area.bp6-input {
+      background-color: var(--xh-chat-composer-bg);
+      border-radius: var(--xh-chat-radius-px);
+      box-sizing: border-box;
+      font-size: var(--xh-chat-font-size-px);
+      line-height: 1.5;
+      min-height: calc(1.5em * 2 + 16px);
+      padding: 8px 10px;
+      width: 100%;
+    }
+  }
+
+  &__edit-actions {
+    display: flex;
+    gap: var(--xh-pad-half-px);
+    justify-content: flex-end;
+  }
+
+  //------------------------
+  // System
+  //------------------------
+  &__system {
+    align-self: center;
+    color: var(--xh-chat-muted-text-color);
+    font-size: var(--xh-chat-meta-font-size-px);
+    max-width: 90%;
+    text-align: center;
+    white-space: pre-wrap;
+  }
+
+  //------------------------
+  // Assistant
+  //------------------------
+  &__header {
+    align-items: center;
+    color: var(--xh-chat-muted-text-color);
+    display: flex;
+    font-size: var(--xh-chat-meta-font-size-px);
+    gap: 6px;
+    line-height: 20px;
+    min-width: 0;
+  }
+
+  &__avatar {
+    align-items: center;
+    background-color: var(--xh-intent-primary-trans1);
+    border-radius: 50%;
+    color: var(--xh-intent-primary-text-color);
+    display: flex;
+    flex: none;
+    font-size: 11px;
+    height: 20px;
+    justify-content: center;
+    width: 20px;
+  }
+
+  &__name {
+    color: var(--xh-chat-text-color);
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__elapsed::before {
+    content: '·';
+    margin-right: 6px;
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-chat-part-gap-px);
+    min-width: 0;
+  }
+
+  &__text {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  &__data {
+    min-width: 0;
+
+    &--unrendered {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+  }
+
+  &__data-type {
+    color: var(--xh-chat-muted-text-color);
+    font-family: var(--xh-chat-code-font-family);
+    font-size: var(--xh-chat-meta-font-size-px);
+  }
+
+  &__note {
+    align-items: center;
+    color: var(--xh-chat-muted-text-color);
+    display: flex;
+    font-size: var(--xh-chat-meta-font-size-px);
+    gap: 6px;
+
+    &--error {
+      color: var(--xh-chat-danger-color);
+    }
+  }
+
+  //------------------------
+  // Action bar
+  //------------------------
+  // Shown on hover or keyboard focus, and always for the last reply. Takes its space even when
+  // hidden, so that showing it never shifts the messages around it.
+  &__actions {
+    display: flex;
+    gap: 2px;
+    min-height: 26px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  &--assistant &__actions {
+    margin-left: -5px;
+  }
+
+  &:hover &__actions,
+  &:focus-within &__actions,
+  &--assistant.xh-chat-message--last &__actions {
+    opacity: 1;
+  }
+
+  .xh-app & .xh-chat-message__actions .xh-button.bp6-button {
+    min-height: 26px;
+    min-width: 26px;
+    padding: 0 5px;
+
+    svg {
+      color: var(--xh-chat-muted-text-color);
+    }
+
+    &:hover svg {
+      color: var(--xh-chat-text-color);
+    }
+  }
+}

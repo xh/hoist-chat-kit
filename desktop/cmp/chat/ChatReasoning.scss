@@ -1,0 +1,74 @@
+.xh-chat-reasoning {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  // A text-like disclosure toggle, muted so it sits behind the answer. Without text to show, a
+  // plain label takes its place.
+  &__toggle {
+    align-items: center;
+    align-self: flex-start;
+    color: var(--xh-chat-muted-text-color);
+    display: flex;
+    font-size: var(--xh-chat-font-size-px);
+    min-height: 26px;
+  }
+
+  .xh-app & .xh-chat-reasoning__toggle.xh-button.bp6-button {
+    // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
+    // component styles in the dark theme - so set the variables, not the colors.
+    --xh-button-text-color: var(--xh-chat-muted-text-color);
+
+    font-size: var(--xh-chat-font-size-px);
+    margin-left: calc(var(--xh-pad-half-px) * -1);
+    min-height: 26px;
+    padding: 2px var(--xh-pad-half-px);
+
+    &:hover {
+      --xh-button-text-color: var(--xh-chat-text-color);
+    }
+  }
+
+  &__body {
+    border-left: 2px solid var(--xh-chat-border-color);
+    margin: var(--xh-pad-half-px) 0 var(--xh-pad-half-px) 1px;
+    padding-left: calc(var(--xh-pad) * 1.2px);
+
+    .xh-chat-markdown {
+      color: var(--xh-chat-muted-text-color);
+      font-size: calc(var(--xh-chat-font-size-px) * 0.93);
+    }
+  }
+
+  // Shimmer a highlight across the label while the model thinks.
+  &--streaming .xh-chat-reasoning__label {
+    animation: xh-chat-shimmer 2s linear infinite;
+    background: linear-gradient(
+        90deg,
+        var(--xh-chat-muted-text-color) 0%,
+        var(--xh-chat-muted-text-color) 40%,
+        var(--xh-chat-shimmer-highlight) 50%,
+        var(--xh-chat-muted-text-color) 60%,
+        var(--xh-chat-muted-text-color) 100%
+      )
+      0 0 / 250% 100%;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+@keyframes xh-chat-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xh-chat-reasoning--streaming .xh-chat-reasoning__label {
+    animation: none;
+  }
+}

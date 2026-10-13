@@ -1,0 +1,115 @@
+// Theme variables for Hoist Chat Kit components.
+
+// Each `--xh-chat-*` variable defaults to a value built from Hoist's own theme variables, so the
+// chat follows an app's theme - light or dark - with no extra work. As with Hoist's variables, an
+// app overrides one by setting the same name without the `xh-` prefix, e.g. `--chat-user-bg`.
+
+body {
+  //------------------------
+  // Layout
+  //------------------------
+  --xh-chat-bg: var(--chat-bg, var(--xh-bg));
+  --xh-chat-content-max-width: var(--chat-content-max-width, 820px);
+  --xh-chat-gutter-px: var(--chat-gutter-px, calc(var(--xh-pad) * 1.6px));
+  --xh-chat-message-gap-px: var(--chat-message-gap-px, calc(var(--xh-pad) * 1.6px));
+  --xh-chat-part-gap-px: var(--chat-part-gap-px, calc(var(--xh-pad) * 0.8px));
+  --xh-chat-radius-px: var(--chat-radius-px, 8px);
+
+  //------------------------
+  // Text
+  //------------------------
+  --xh-chat-font-size-px: var(--chat-font-size-px, calc(var(--xh-font-size) * 1.05px));
+  --xh-chat-line-height: var(--chat-line-height, 1.6);
+  --xh-chat-text-color: var(--chat-text-color, var(--xh-text-color));
+  --xh-chat-muted-text-color: var(--chat-muted-text-color, var(--xh-text-color-muted));
+  --xh-chat-meta-font-size-px: var(--chat-meta-font-size-px, var(--xh-font-size-small-px));
+  --xh-chat-link-color: var(--chat-link-color, var(--xh-intent-primary-text-color));
+
+  //------------------------
+  // Borders and surfaces
+  //------------------------
+  // Softer than `--xh-border-color`, which reads as heavy around the many small cards in a chat.
+  --xh-chat-border-color: var(
+    --chat-border-color,
+    color-mix(in srgb, var(--xh-border-color) 55%, transparent)
+  );
+  --xh-chat-border: #{(var(--xh-border-width-px) solid var(--xh-chat-border-color))};
+  --xh-chat-surface-bg: var(
+    --chat-surface-bg,
+    color-mix(in srgb, var(--xh-bg-alt) 50%, var(--xh-bg))
+  );
+  --xh-chat-hover-bg: var(--chat-hover-bg, var(--xh-intent-neutral-trans1));
+  --xh-chat-shadow: var(
+    --chat-shadow,
+    #{0 1px 2px rgb(16 22 26 / 6%),
+    0 2px 8px rgb(16 22 26 / 4%)}
+  );
+
+  //------------------------
+  // User message bubble
+  //------------------------
+  --xh-chat-user-bg: var(--chat-user-bg, var(--xh-bg-alt));
+  --xh-chat-user-text-color: var(--chat-user-text-color, var(--xh-chat-text-color));
+  --xh-chat-bubble-radius-px: var(--chat-bubble-radius-px, 16px);
+  --xh-chat-bubble-max-width: var(--chat-bubble-max-width, 80%);
+
+  //------------------------
+  // Code
+  //------------------------
+  --xh-chat-code-font-family: var(--chat-code-font-family, var(--xh-font-family-mono));
+  --xh-chat-code-font-size-px: var(--chat-code-font-size-px, calc(var(--xh-font-size) * 0.92px));
+  --xh-chat-code-bg: var(--chat-code-bg, var(--xh-chat-surface-bg));
+  --xh-chat-code-header-bg: var(--chat-code-header-bg, var(--xh-bg-alt));
+  --xh-chat-inline-code-bg: var(--chat-inline-code-bg, var(--xh-intent-neutral-trans1));
+  --xh-chat-inline-code-text-color: var(
+    --chat-inline-code-text-color,
+    var(--xh-text-color-highlight)
+  );
+
+  //------------------------
+  // Composer
+  //------------------------
+  --xh-chat-composer-bg: var(--chat-composer-bg, var(--xh-input-bg));
+  --xh-chat-composer-border-color: var(--chat-composer-border-color, var(--xh-border-color));
+  --xh-chat-composer-focus-border-color: var(
+    --chat-composer-focus-border-color,
+    var(--xh-form-field-focused-border-color)
+  );
+  --xh-chat-composer-focus-ring: var(
+    --chat-composer-focus-ring,
+    #{0 0 0 3px var(--xh-intent-primary-trans1)}
+  );
+  --xh-chat-composer-radius-px: var(--chat-composer-radius-px, 14px);
+  --xh-chat-send-bg: var(--chat-send-bg, var(--xh-intent-primary));
+  --xh-chat-send-text-color: var(--chat-send-text-color, var(--xh-white));
+
+  //------------------------
+  // Chips (suggestions, citations, files)
+  //------------------------
+  --xh-chat-chip-bg: var(--chat-chip-bg, var(--xh-bg));
+  --xh-chat-chip-hover-bg: var(--chat-chip-hover-bg, var(--xh-bg-alt));
+  --xh-chat-citation-bg: var(--chat-citation-bg, var(--xh-intent-neutral-trans2));
+
+  //------------------------
+  // Tool call status
+  //------------------------
+  --xh-chat-success-color: var(--chat-success-color, var(--xh-intent-success-text-color));
+  --xh-chat-warning-color: var(--chat-warning-color, var(--xh-intent-warning-text-color));
+  --xh-chat-danger-color: var(--chat-danger-color, var(--xh-intent-danger-text-color));
+  --xh-chat-approval-bg: var(--chat-approval-bg, var(--xh-intent-warning-trans1));
+  --xh-chat-error-bg: var(--chat-error-bg, var(--xh-intent-danger-trans1));
+
+  //------------------------
+  // Motion
+  //------------------------
+  --xh-chat-shimmer-highlight: var(--chat-shimmer-highlight, var(--xh-text-color));
+
+  &.xh-dark {
+    --xh-chat-surface-bg: var(
+      --chat-surface-bg,
+      color-mix(in srgb, var(--xh-bg-alt) 60%, var(--xh-bg))
+    );
+    --xh-chat-shadow: var(--chat-shadow, #{0 1px 2px rgb(0 0 0 / 30%), 0 2px 8px rgb(0 0 0 / 20%)});
+    --xh-chat-chip-bg: var(--chat-chip-bg, var(--xh-chat-surface-bg));
+  }
+}

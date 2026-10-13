@@ -1,0 +1,166 @@
+.xh-chat-markdown {
+  color: var(--xh-chat-text-color);
+  font-size: var(--xh-chat-font-size-px);
+  line-height: var(--xh-chat-line-height);
+  min-width: 0;
+  overflow-wrap: anywhere;
+
+  // Spacing is set on each block's top edge, with the first block flush, so that streaming
+  // blocks - each its own markdown document - space exactly as the finished document does.
+  p,
+  ul,
+  ol,
+  blockquote,
+  pre,
+  table,
+  hr,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin: 0.75em 0 0;
+  }
+
+  > :first-child,
+  > :first-child > :first-child {
+    margin-top: 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    color: var(--xh-text-color-headings);
+    font-family: var(--xh-font-family-headings);
+    font-weight: 600;
+    line-height: 1.3;
+    margin-top: 1.1em;
+  }
+
+  h1 {
+    font-size: 1.4em;
+  }
+
+  h2 {
+    font-size: 1.25em;
+  }
+
+  h3 {
+    font-size: 1.1em;
+  }
+
+  h4,
+  h5,
+  h6 {
+    font-size: 1em;
+  }
+
+  ul,
+  ol {
+    padding-left: 1.6em;
+  }
+
+  li {
+    margin: 0.25em 0 0;
+
+    > p {
+      margin-top: 0.25em;
+    }
+
+    > ul,
+    > ol {
+      margin-top: 0.25em;
+    }
+  }
+
+  // GFM task lists.
+  li.task-list-item {
+    list-style: none;
+
+    input[type='checkbox'] {
+      margin: 0 0.5em 0 -1.4em;
+      vertical-align: middle;
+    }
+  }
+
+  a {
+    color: var(--xh-chat-link-color);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  strong {
+    font-weight: 600;
+  }
+
+  blockquote {
+    border-left: 3px solid var(--xh-chat-border-color);
+    color: var(--xh-chat-muted-text-color);
+    padding: 0 0 0 var(--xh-pad-px);
+  }
+
+  hr {
+    border: none;
+    border-top: var(--xh-chat-border);
+    margin: 1.25em 0;
+  }
+
+  // Inline code. Code blocks are styled by `pre` below, or by a `components.pre` override.
+  code {
+    background-color: var(--xh-chat-inline-code-bg);
+    border-radius: 4px;
+    color: var(--xh-chat-inline-code-text-color);
+    font-family: var(--xh-chat-code-font-family);
+    font-size: 0.88em;
+    padding: 0.1em 0.35em;
+  }
+
+  pre {
+    background-color: var(--xh-chat-code-bg);
+    border: var(--xh-chat-border);
+    border-radius: var(--xh-chat-radius-px);
+    overflow-x: auto;
+    padding: var(--xh-pad-px);
+
+    code {
+      background: none;
+      color: inherit;
+      font-size: var(--xh-chat-code-font-size-px);
+      padding: 0;
+    }
+  }
+
+  // Wide tables scroll within the message rather than widening it.
+  table {
+    border-collapse: collapse;
+    display: block;
+    font-size: 0.95em;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  th,
+  td {
+    border: var(--xh-chat-border);
+    padding: 0.35em 0.75em;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  th {
+    background-color: var(--xh-chat-surface-bg);
+    font-weight: 600;
+  }
+
+  img {
+    border-radius: var(--xh-chat-radius-px);
+    max-width: 100%;
+  }
+}

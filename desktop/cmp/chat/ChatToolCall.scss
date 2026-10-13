@@ -1,0 +1,134 @@
+.xh-chat-tool-call {
+  background-color: var(--xh-chat-bg);
+  border: var(--xh-chat-border);
+  border-radius: var(--xh-chat-radius-px);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--xh-font-size-px);
+  min-width: 0;
+  overflow: hidden;
+
+  // The header is a full-width button: icon, title and summary, then status and chevron.
+  .xh-app & .xh-chat-tool-call__header.xh-button.bp6-button {
+    // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
+    // component styles in the dark theme - so set the variables, not the colors.
+    --xh-button-text-color: var(--xh-chat-text-color);
+
+    border-radius: 0;
+    gap: var(--xh-pad-half-px);
+    justify-content: flex-start;
+    min-height: 34px;
+    padding: 0 var(--xh-pad-px);
+    width: 100%;
+
+    > .xh-icon,
+    > .svg-inline--fa {
+      color: var(--xh-chat-muted-text-color);
+      flex: none;
+    }
+
+    .bp6-button-text {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  &__heading {
+    display: flex;
+    gap: var(--xh-pad-half-px);
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  &__title {
+    flex: none;
+    font-weight: 500;
+  }
+
+  &__summary {
+    color: var(--xh-chat-muted-text-color);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__status {
+    align-items: center;
+    color: var(--xh-chat-muted-text-color);
+    display: flex;
+    flex: none;
+    gap: var(--xh-pad-px);
+  }
+
+  &__status-label {
+    align-items: center;
+    display: flex;
+    font-size: var(--xh-chat-meta-font-size-px);
+    gap: 5px;
+    white-space: nowrap;
+  }
+
+  &__status-icon {
+    color: var(--xh-chat-success-color);
+  }
+
+  &--output-error &__status-label {
+    color: var(--xh-chat-danger-color);
+  }
+
+  &--approval-requested {
+    border-color: var(--xh-chat-warning-color);
+  }
+
+  &--approval-requested &__status-label {
+    color: var(--xh-chat-warning-color);
+  }
+
+  &__approval {
+    align-items: center;
+    background-color: var(--xh-chat-approval-bg);
+    border-top: var(--xh-chat-border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--xh-pad-half-px);
+    padding: var(--xh-pad-half-px) var(--xh-pad-px);
+  }
+
+  &__approval-text {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  &__body {
+    border-top: var(--xh-chat-border);
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-pad-px);
+    padding: var(--xh-pad-px);
+  }
+
+  &__section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  &__section-label {
+    color: var(--xh-chat-muted-text-color);
+    font-size: var(--xh-chat-meta-font-size-px);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  &__error {
+    color: var(--xh-chat-danger-color);
+    white-space: pre-wrap;
+  }
+
+  &__denied {
+    color: var(--xh-chat-muted-text-color);
+    white-space: pre-wrap;
+  }
+}
