@@ -23,5 +23,7 @@ log. `planning/DESIGN.md` holds the build spec, and `DECISIONS.md` holds the des
 - Wrote the build spec and the first design decisions.
 - Wrote the contract types: parts, events, transport and codec interfaces, tool spec, message
   record, and the public API of `ChatModel` and `ChatComposerModel`.
+- Started four parallel work streams. Two failed at once with HTTP 429: the API key allows only
+  a few concurrent connections. Parallel work is now capped at two sub-agents at a time.
 - Gated CodeQL on repo visibility. Added a package build check to CI and to both deploy
   workflows.

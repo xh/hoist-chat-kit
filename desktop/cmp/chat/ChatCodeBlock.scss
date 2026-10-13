@@ -1,0 +1,62 @@
+.xh-chat-code-block {
+  background-color: var(--xh-chat-code-bg);
+  border: var(--xh-chat-border);
+  border-radius: var(--xh-chat-radius-px);
+  overflow: hidden;
+
+  &__header {
+    align-items: center;
+    background-color: var(--xh-chat-code-header-bg);
+    border-bottom: var(--xh-chat-border);
+    display: flex;
+    justify-content: space-between;
+    min-height: 30px;
+    padding: 0 2px 0 var(--xh-pad-px);
+  }
+
+  &__language {
+    color: var(--xh-chat-muted-text-color);
+    font-family: var(--xh-chat-code-font-family);
+    font-size: var(--xh-chat-meta-font-size-px);
+    text-transform: lowercase;
+  }
+
+  &__header .xh-chat-copy-button.bp6-button {
+    color: var(--xh-chat-muted-text-color);
+    font-size: var(--xh-chat-meta-font-size-px);
+    min-height: 24px;
+
+    &:hover {
+      color: var(--xh-chat-text-color);
+    }
+  }
+
+  // Two classes, to outrank the generic `pre` styles of an enclosing ChatMarkdown.
+  & &__body {
+    background: none;
+    border: none;
+    border-radius: 0;
+    margin: 0;
+    overflow-x: auto;
+    padding: var(--xh-pad-px) calc(var(--xh-pad) * 1.2px);
+
+    code {
+      background: none;
+      color: var(--xh-chat-text-color);
+      font-family: var(--xh-chat-code-font-family);
+      font-size: var(--xh-chat-code-font-size-px);
+      line-height: 1.5;
+      padding: 0;
+      white-space: pre;
+    }
+  }
+}
+
+// Space a code block within markdown as the markdown's own blocks are spaced.
+.xh-chat-markdown .xh-chat-code-block {
+  margin: 0.75em 0 0;
+}
+
+.xh-chat-markdown > .xh-chat-code-block:first-child {
+  margin-top: 0;
+}

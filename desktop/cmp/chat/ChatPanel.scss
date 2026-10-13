@@ -1,0 +1,15 @@
+.xh-chat-panel {
+  > .xh-panel__inner {
+    background-color: var(--xh-chat-bg);
+  }
+
+  // The composer shares the message column's width and gutter, so the two line up.
+  &__footer {
+    box-sizing: border-box;
+    flex: none;
+    margin: 0 auto;
+    max-width: var(--xh-chat-content-max-width);
+    padding: 0 var(--xh-chat-gutter-px) var(--xh-chat-gutter-px);
+    width: 100%;
+  }
+}

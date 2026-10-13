@@ -1,0 +1,43 @@
+.xh-chat-message-list {
+  background-color: var(--xh-chat-bg);
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+
+  &__viewport {
+    flex: 1 1 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  &__content {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-chat-message-gap-px);
+    margin: 0 auto;
+    max-width: var(--xh-chat-content-max-width);
+    min-height: 100%;
+    padding: var(--xh-chat-gutter-px);
+    width: 100%;
+  }
+
+  .xh-app & .xh-chat-message-list__scroll-button.xh-button.bp6-button {
+    background-color: var(--xh-chat-bg);
+    border-color: var(--xh-chat-border-color);
+    border-radius: 50%;
+    bottom: var(--xh-pad-px);
+    box-shadow: var(--xh-chat-shadow);
+    height: 32px;
+    left: 50%;
+    min-height: 32px;
+    min-width: 32px;
+    padding: 0;
+    position: absolute;
+    transform: translateX(-50%);
+    width: 32px;
+  }
+}

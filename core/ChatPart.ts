@@ -104,6 +104,9 @@ export interface ChatToolCallPart extends ChatPartBase {
 
     /** True if the backend ran the tool and streamed its result, rather than the browser. */
     providerExecuted?: boolean;
+
+    /** Opaque provider data for the call that must go back with the history. Never displayed. */
+    encryptedValue?: string;
 }
 
 /** A file attached by the user or produced by the model. */

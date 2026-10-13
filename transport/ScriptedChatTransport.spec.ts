@@ -1,0 +1,228 @@
+import {describe, expect, it, vi} from 'vitest';
+import {ChatMessage} from '../core';
+import {ChatStreamReducer} from '../core/impl/ChatStreamReducer';
+import type {ChatEvent} from './ChatEvent';
+import type {ChatRunRequest} from './ChatTransport';
+import {
+    errorEvents,
+    reasoningEvents,
+    ScriptedChatTransport,
+    scriptedDelay,
+    sourceEvents,
+    textEvents,
+    toolCallEvents
+} from './ScriptedChatTransport';
+
+/**
+ * ScriptedChatTransport drives the kit's own tests and the offline Toolbox demos. Its streams must
+ * be well-formed AG-UI runs that the chat reduces into the intended parts, paced like a real model,
+ * and it must stop at once when the user stops a turn.
+ */
+describe('ScriptedChatTransport', () => {
+    describe('run', () => {
+        it('plays one scripted response per call, inside RUN_STARTED and RUN_FINISHED', async () => {
+            const transport = new ScriptedChatTransport({
+                responses: [textEvents('One', {messageId: 'm1'}), textEvents('Two')],
+                delayMs: 0
+            });
+
+            const first = await collect(transport.run(request('r1'))),
+                second = await collect(transport.run(request('r2')));
+
+            expect(first.map(it => it.type)).toEqual([
+                'RUN_STARTED',
+                'TEXT_MESSAGE_START',
+                'TEXT_MESSAGE_CONTENT',
+                'TEXT_MESSAGE_END',
+                'RUN_FINISHED'
+            ]);
+            expect(first[0]).toEqual({type: 'RUN_STARTED', threadId: 't1', runId: 'r1'});
+            expect(second.at(-1)).toEqual({type: 'RUN_FINISHED', threadId: 't1', runId: 'r2'});
+            expect(transport.requests.map(it => it.runId)).toEqual(['r1', 'r2']);
+        });
+
+        it('keeps lifecycle events that a response provides', async () => {
+            const finished: ChatEvent = {
+                    type: 'RUN_FINISHED',
+                    threadId: 't1',
+                    runId: 'r1',
+                    usage: [{outputTokens: 3}]
+                },
+                transport = new ScriptedChatTransport({
+                    responses: [[textEvents('Hi'), finished]],
+                    delayMs: 0
+                });
+
+            const events = await collect(transport.run(request('r1')));
+
+            expect(events.filter(it => it.type === 'RUN_FINISHED')).toEqual([finished]);
+        });
+
+        it('ends the response after a RUN_ERROR', async () => {
+            const transport = new ScriptedChatTransport({
+                responses: [[errorEvents('Overloaded', 'overloaded'), textEvents('never sent')]],
+                delayMs: 0
+            });
+
+            const events = await collect(transport.run(request('r1')));
+
+            expect(events.map(it => it.type)).toEqual(['RUN_STARTED', 'RUN_ERROR']);
+            expect(events[1]).toMatchObject({message: 'Overloaded', code: 'overloaded'});
+        });
+
+        it('asks `respond` for each response', async () => {
+            const respond = vi.fn((req: ChatRunRequest, callIndex: number) =>
+                    textEvents(`Call ${callIndex} for ${req.runId}`)
+                ),
+                transport = new ScriptedChatTransport({respond, delayMs: 0});
+
+            const events = await collect(transport.run(request('r1')));
+
+            expect(respond).toHaveBeenCalledWith(transport.requests[0], 0);
+            expect(textOf(events)).toBe('Call 0 for r1');
+        });
+
+        it('passes an async iterable response through as is', async () => {
+            async function* stream(): AsyncGenerator<ChatEvent> {
+                yield* textEvents('Streamed');
+            }
+            const transport = new ScriptedChatTransport({responses: [stream()]});
+
+            const events = await collect(transport.run(request('r1')));
+
+            expect(textOf(events)).toBe('Streamed');
+        });
+
+        it('fails a call that has no scripted response', async () => {
+            const transport = new ScriptedChatTransport({responses: []});
+            await expect(collect(transport.run(request('r1')))).rejects.toThrow(
+                'no response for model call 1'
+            );
+        });
+    });
+
+    describe('pacing', () => {
+        it('waits delayMs before each event, plus any scripted delay', async () => {
+            vi.useFakeTimers();
+            const transport = new ScriptedChatTransport({
+                    responses: [[scriptedDelay(500), textEvents('Hi', {messageId: 'm1'})]],
+                    delayMs: 20
+                }),
+                received: ChatEvent[] = [],
+                done = drain(transport.run(request('r1')), received);
+
+            await vi.advanceTimersByTimeAsync(519);
+            expect(received).toEqual([]);
+
+            await vi.advanceTimersByTimeAsync(1);
+            expect(received.map(it => it.type)).toEqual(['RUN_STARTED', 'TEXT_MESSAGE_START']);
+
+            await vi.advanceTimersByTimeAsync(20);
+            expect(received.map(it => it.type)).toContain('TEXT_MESSAGE_CONTENT');
+
+            await vi.advanceTimersByTimeAsync(1000);
+            await done;
+            expect(received.at(-1).type).toBe('RUN_FINISHED');
+        });
+
+        it('stops with an abort error as soon as the signal aborts', async () => {
+            vi.useFakeTimers();
+            const controller = new AbortController(),
+                transport = new ScriptedChatTransport({
+                    responses: [textEvents('A long answer that takes a while to stream.')],
+                    delayMs: 1000
+                }),
+                received: ChatEvent[] = [],
+                done = drain(transport.run(request('r1', controller.signal)), received),
+                assertion = expect(done).rejects.toMatchObject({name: 'AbortError'});
+
+            await vi.advanceTimersByTimeAsync(2000);
+            controller.abort();
+            await assertion;
+
+            const count = received.length;
+            await vi.advanceTimersByTimeAsync(10_000);
+            expect(received).toHaveLength(count);
+            expect(vi.getTimerCount()).toBe(0);
+        });
+    });
+
+    describe('event builders', () => {
+        it('splits text into small chunks that rejoin to the original', () => {
+            const text = 'Here is **bold** text,\n\nand a second paragraph.',
+                deltas = textEvents(text, {chunkSize: 4})
+                    .filter(it => it.type === 'TEXT_MESSAGE_CONTENT')
+                    .map(it => (it as any).delta);
+
+            expect(deltas.length).toBeGreaterThan(8);
+            expect(deltas.every(it => it.trim().length <= 4)).toBe(true);
+            expect(deltas.join('')).toBe(text);
+        });
+
+        it('builds a multi-step conversation that the chat reduces into the intended parts', async () => {
+            const transport = new ScriptedChatTransport({
+                    responses: [
+                        [
+                            reasoningEvents('Need the forecast.', {encryptedValue: 'sig'}),
+                            toolCallEvents('getWeather', {city: 'Paris'}, {toolCallId: 'c1'}),
+                            toolCallEvents('webSearch', {q: 'Paris'}, {result: {hits: 2}})
+                        ],
+                        [
+                            textEvents('Sunny and **18°C**.'),
+                            sourceEvents([{url: 'https://example.com', title: 'Forecast'}])
+                        ]
+                    ],
+                    delayMs: 0
+                }),
+                stepOne = await collect(transport.run(request('r1'))),
+                stepTwo = await collect(transport.run(request('r2')));
+
+            let message = new ChatMessage({role: 'assistant', status: 'pending'});
+            message = new ChatStreamReducer(0).apply(message, stepOne);
+            message = new ChatStreamReducer(1).apply(message, stepTwo);
+
+            expect(message.parts).toMatchObject([
+                {
+                    type: 'reasoning',
+                    text: 'Need the forecast.',
+                    state: 'done',
+                    encryptedValue: 'sig'
+                },
+                {type: 'toolCall', id: 'c1', state: 'input-available', input: {city: 'Paris'}},
+                {
+                    type: 'toolCall',
+                    toolName: 'webSearch',
+                    state: 'output-available',
+                    output: {hits: 2},
+                    providerExecuted: true
+                },
+                {type: 'text', text: 'Sunny and **18°C**.', state: 'done', step: 1},
+                {type: 'source', url: 'https://example.com', title: 'Forecast', step: 1}
+            ]);
+        });
+    });
+});
+
+//------------------
+// Helpers
+//------------------
+function request(runId: string, signal = new AbortController().signal): ChatRunRequest {
+    return {threadId: 't1', runId, messages: [], tools: [], signal};
+}
+
+async function collect(events: AsyncIterable<ChatEvent>): Promise<ChatEvent[]> {
+    const ret: ChatEvent[] = [];
+    await drain(events, ret);
+    return ret;
+}
+
+async function drain(events: AsyncIterable<ChatEvent>, into: ChatEvent[]) {
+    for await (const event of events) into.push(event);
+}
+
+function textOf(events: ChatEvent[]): string {
+    return events
+        .filter(it => it.type === 'TEXT_MESSAGE_CONTENT')
+        .map(it => (it as any).delta)
+        .join('');
+}

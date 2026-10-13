@@ -1,0 +1,25 @@
+.xh-chat-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--xh-pad-half-px);
+  justify-content: center;
+
+  .xh-app & .xh-chat-suggestions__chip.xh-button.bp6-button {
+    background-color: var(--xh-chat-chip-bg);
+    border-color: var(--xh-chat-border-color);
+    border-radius: 999px;
+    color: var(--xh-chat-text-color);
+    max-width: 100%;
+    min-height: 30px;
+    padding: 4px calc(var(--xh-pad) * 1.2px);
+    white-space: normal;
+
+    > .svg-inline--fa {
+      color: var(--xh-chat-muted-text-color);
+    }
+
+    .bp6-button-text {
+      text-align: left;
+    }
+  }
+}
