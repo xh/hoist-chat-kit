@@ -1,0 +1,33 @@
+# pnpm settings (pnpm 11+ reads these from this file, not from a `pnpm` field in package.json).
+# This is a single-package repo - the file exists for settings only, not to define a workspace.
+
+# Dependency build scripts do not run unless reviewed here. Unreviewed scripts are a hard error
+# in CI. esbuild (via tsx, which powers the @xh/hoist MCP server and CLI tools) is allowed so its
+# platform binary install is guaranteed. The rest ship prebuilt output or only print a funding
+# message.
+allowBuilds:
+  '@parcel/watcher': false
+  browser-tabs-lock: false
+  core-js: false
+  esbuild: true
+
+# New deps added via `pnpm add` get caret ranges. `pnpm update` keeps whatever operator a dep
+# already declares.
+savePrefix: '^'
+
+# pnpm's minimum-release-age gate refuses freshly published versions as supply-chain protection.
+# Exempt XH's own packages - @xh/hoist SNAPSHOTs may be consumed minutes after publish.
+minimumReleaseAgeExclude:
+  - '@xh/*'
+
+# Several transitive deps of @xh/hoist (react-popper, react-onsenui, react-windowed-select) still
+# declare react/react-dom peer ranges capped at 18. Hoist runs React 19 - acknowledge that here
+# rather than surfacing unmet-peer warnings on every install.
+#
+# @vitest/mocker caps its optional msw peer below 3. Only Vitest's browser mode uses msw there, and
+# the unit tests run in jsdom, mocking the server with msw 3 directly.
+peerDependencyRules:
+  allowedVersions:
+    react: '19'
+    react-dom: '19'
+    '@vitest/mocker>msw': '3'

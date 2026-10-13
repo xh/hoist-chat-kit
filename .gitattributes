@@ -1,0 +1,2 @@
+# Shell hooks and launchers run under bash; a CRLF line ending breaks them on Linux/macOS.
+*.sh text eol=lf

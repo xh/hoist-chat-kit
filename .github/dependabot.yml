@@ -1,0 +1,40 @@
+version: 2
+# Auth for the private Font Awesome registry. The token lives in Dependabot
+# secrets (separate from Actions secrets) so the updater can resolve
+# @fortawesome/* packages from npm.fontawesome.com (pulled in transitively by @xh/hoist).
+registries:
+  fontawesome:
+    type: npm-registry
+    url: https://npm.fontawesome.com
+    token: ${{secrets.FONTAWESOME_PACKAGE_TOKEN}}
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "npm"
+    directory: "/"
+    target-branch: "develop"
+    registries:
+      - fontawesome
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    # @xh/hoist tracks the `next` dist-tag, moved by `pnpm update`, not by Dependabot.
+    ignore:
+      - dependency-name: "@xh/hoist"
+    # Group routine version bumps to keep the PR volume manageable. Major
+    # bumps are excluded so they always surface as their own PR for review.
+    groups:
+      # Vitest packages require each other's exact version, so they must
+      # move together - including for major bumps, which get a PR of their own.
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+      development-minor-and-patch:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"

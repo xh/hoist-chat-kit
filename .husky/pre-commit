@@ -1,0 +1,6 @@
+pnpm exec lint-staged
+
+# Only type-check if TS/JS/TSX/JSX files or package files are staged.
+if git diff --cached --name-only --diff-filter=ACMRD | grep -qE '\.(ts|tsx|js|jsx|mts|mjs)$|package\.json$|pnpm-(lock|workspace)\.yaml$|tsconfig.*\.json$'; then
+  pnpm typecheck
+fi

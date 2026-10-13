@@ -1,0 +1,38 @@
+# IDE Files
+.idea
+!/.idea/scopes/
+!/.idea/copyright/
+*.iml
+.vscode
+
+# Build / Libs
+build/
+node_modules/
+tsconfig.tsbuildinfo
+
+# Unit test reports
+.vitest/
+
+# Logs
+*.log
+
+# Claude Code local & runtime state (shared settings.json, hooks/, skills/, etc. stay tracked)
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/
+.claude/projects/
+.claude/agent-memory-local/
+
+# GSD project planning
+.planning/
+
+# Superpowers and other scratch (transient design/spec artifacts)
+docs/superpowers/
+.superpowers/
+.tmp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+ehthumbs.db
+Thumbs.db

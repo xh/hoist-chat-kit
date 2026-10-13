@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "jsx": "react",
+    "lib": ["dom", "es2022"],
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "noImplicitOverride": true,
+    "noUncheckedSideEffectImports": false,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "target": "ES2022",
+    "useDefineForClassFields": true
+  },
+  // Reference hoist-react as a composite build, as consuming apps do. Type-checking runs against
+  // the installed @xh/hoist, the same version CI and the release build check.
+  "references": [{"path": "./node_modules/@xh/hoist"}],
+  "include": ["./**/*"],
+  "exclude": ["node_modules", "build", ".*/**"]
+}

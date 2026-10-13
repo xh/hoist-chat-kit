@@ -1,0 +1,76 @@
+{
+  "name": "@xh/hoist-chat-kit",
+  "version": "1.0.0-SNAPSHOT",
+  "description": "Chat components for Hoist React applications.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xh/hoist-chat-kit.git"
+  },
+  "homepage": "https://xh.io",
+  "bugs": "https://github.com/xh/hoist-chat-kit/issues",
+  "author": "Extremely Heavy Industries, Inc.",
+  "license": "Apache-2.0",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "docs"
+  ],
+  "scripts": {
+    "lint": "pnpm lint:all",
+    "lint:all": "pnpm lint:code && pnpm lint:styles && pnpm lint:format",
+    "lint:code": "eslint .",
+    "lint:styles": "stylelint --allow-empty-input \"**/*.s?(a|c)ss\"",
+    "lint:format": "prettier --check .",
+    "typecheck": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,mts}": [
+      "prettier --write",
+      "eslint"
+    ],
+    "*.s?(a|c)ss": [
+      "prettier --write",
+      "stylelint"
+    ]
+  },
+  "peerDependencies": {
+    "@xh/hoist": ">=89.0.0-SNAPSHOT",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/lodash": "^4.17.26",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitest/ui": "^5.0.4",
+    "@xh/eslint-config": "^8.1.0",
+    "@xh/hoist": "next",
+    "@xh/hoist-dev-utils": "^16.1.0",
+    "ag-grid-community": "~36.2.0",
+    "ag-grid-react": "~36.2.0",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.13.0",
+    "husky": "^9.1.7",
+    "jsdom": "^30.1.2",
+    "lint-staged": "^17.6.0",
+    "msw": "^3.0.3",
+    "prettier": "^3.9.10",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "stylelint": "^17.16.0",
+    "stylelint-config-recommended-scss": "^17.0.1",
+    "type-fest": "^5.10.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  },
+  "packageManager": "pnpm@12.7.0+sha512.9c56477e360068d6e9dca6a92efb4e46b3dc5a52fcebf3d84d78b9736c0ded589a561621a52f68219a7a39facc63cdc079c3226ef9c9d5f02b79f74e69a807b6"
+}

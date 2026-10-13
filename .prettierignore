@@ -1,0 +1,9 @@
+/build
+/node_modules
+/.vitest
+/.idea
+/.claude
+/.github
+pnpm-lock.yaml
+pnpm-workspace.yaml
+*.md

@@ -1,0 +1,100 @@
+# CI - Validates formatting, linting, type-checking, and unit tests, and runs CodeQL analysis, on
+# PRs and pushes to develop.
+#
+# This workflow does not publish artifacts. For snapshot and release publishing, see Deploy
+# Snapshot and Deploy Release.
+
+name: CI
+
+on:
+    push:
+        branches: [ "develop" ]
+    pull_request:
+        branches: [ "develop" ]
+    schedule:
+        - cron: '23 10 * * 4'
+
+# Only the latest commit's result matters - cancel superseded runs for the same PR or branch.
+concurrency:
+    group: ci-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    lint:
+        # No need / benefit to run lint on a schedule.
+        if: github.event_name != 'schedule'
+
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+
+        steps:
+        - uses: actions/checkout@v7
+
+        # Installs the pnpm version pinned via the packageManager field in package.json.
+        - name: Setup pnpm
+          uses: pnpm/setup@v3
+          with:
+              # `install: false` - this workflow runs its own install step below, after
+              # Font Awesome registry auth, and with --frozen-lockfile.
+              install: false
+              # `node-version-file: false` - actions/setup-node below owns Node.
+              node-version-file: false
+
+        - name: Setup Node.js
+          uses: actions/setup-node@v7
+          with:
+              node-version-file: '.nvmrc'
+              cache: 'pnpm'
+
+        # Required because @xh/hoist (a devDependency, for type-checking and tests) depends on the
+        # private Font Awesome Pro registry.
+        - name: Configure Font Awesome registry auth
+          env:
+              FONTAWESOME_PACKAGE_TOKEN: ${{ secrets.FONTAWESOME_PACKAGE_TOKEN }}
+          run: echo "//npm.fontawesome.com/:_authToken=$FONTAWESOME_PACKAGE_TOKEN" >> .npmrc
+
+        - name: Install dependencies
+          run: pnpm install --frozen-lockfile
+
+        # Runs eslint, stylelint, and prettier --check (see package.json `lint:all`).
+        - name: Lint
+          run: pnpm lint
+
+        # A separate concern from linting: ESLint never reports compiler diagnostics, so a genuine
+        # type error passes `pnpm lint`.
+        - name: Type check
+          run: pnpm typecheck
+
+        - name: Unit tests
+          run: pnpm test
+
+        # Gates merges on a clean production-dependency audit for high and critical advisories.
+        # The first, un-gated run prints lower-severity findings in the step log for visibility
+        # without failing the build.
+        - name: Audit production dependencies
+          run: |
+              pnpm audit --prod || true
+              pnpm audit --prod --audit-level high
+
+    codeql:
+
+        runs-on: ubuntu-latest
+        permissions:
+            actions: read
+            contents: read
+            security-events: write
+
+        steps:
+        - uses: actions/checkout@v7
+
+        - name: Initialize CodeQL
+          uses: github/codeql-action/init@v4.38.2
+          with:
+              languages: javascript
+
+        - name: Autobuild
+          uses: github/codeql-action/autobuild@v4.38.2
+
+        - name: Perform CodeQL Analysis
+          uses: github/codeql-action/analyze@v4.38.2
