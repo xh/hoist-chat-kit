@@ -136,3 +136,40 @@ ship, and specs and planning files must not.
 
 **Why.** The kit ships source, so there is no compile output to build. A missing `files` entry
 is the failure a source package is most likely to ship by mistake.
+
+## D13. Finish reasons use the Vercel AI SDK vocabulary
+
+**Decision.** A codec maps the provider's stop reason to one of `stop`, `length`, `tool-calls`,
+`content-filter` or `other`, and records it as `metadata.finishReason` on the assistant message.
+The raw provider value goes in `metadata.stopReason`.
+
+**Why.** Apps that show "the reply was cut off" or "the model declined" need one set of values
+across providers. The AI SDK set is the one most chat code already knows.
+
+## D14. Streams abort through `fetchOpts.signal`, not `autoAbortKey`
+
+**Decision.** `HoistChatTransport` and `SseChatTransport` pass their own `AbortSignal` to the
+native fetch through `fetchOpts.signal`. They combine it with the turn's signal through
+`AbortSignal.any`.
+
+**Why.** Hoist releases an `autoAbortKey` as soon as the response headers arrive. After that,
+`XH.fetchService.abort(key)` returns false and the body keeps streaming, so the server keeps
+generating tokens. A signal on the native fetch cancels the body too.
+
+**Cost.** `AbortSignal.any` needs a 2024-or-later browser. The report proposes a `signal` option
+for Hoist's `FetchOptions`, plus abort support for streamed responses.
+
+## D15. Generative UI is a Hoist component catalog, with protocols as translators
+
+**Decision.** The next deliverable after the chat UI is a generative UI registry. An app
+registers Hoist components, such as a grid, a chart or a card, each with a typed props schema.
+The kit generates the model's instructions and tools from the catalog, checks each spec the
+model writes against it, and renders the result inline in the chat. Protocols such as OpenUI
+Lang and A2UI translate into the same catalog specs through an adapter. v1 ships the seam
+(`data` parts and `dataRenderers`) and points in this direction. The full registry follows.
+
+**Why.** A client chose OpenUI because Hoist had no answer for chat and generative UI. The chat
+UI answers the first half. The second half needs generative UI built on Hoist's own grids and
+charts, which are stronger than generic component kits for data-dense apps. A catalog the app
+controls keeps the model to known components and known props. XH has a proof of concept that
+renders Hoist grids and charts inline in a chat in this way, under tight constraints.

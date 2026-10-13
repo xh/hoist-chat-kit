@@ -17,8 +17,10 @@ export interface ChatCodec {
     /**
      * Create a decoder for one model call. Decoders may hold state across the records of a call,
      * such as block indexes or accumulated tool arguments.
+     *
+     * @param request - the call to decode, for decoders that stamp its ids on their events.
      */
-    createDecoder(): ChatDecoder;
+    createDecoder(request: ChatRunRequest): ChatDecoder;
 }
 
 /**
