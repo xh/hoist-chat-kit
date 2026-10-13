@@ -71,13 +71,13 @@ The translation then lives once, in tested TypeScript, rather than in each app's
 ## D6. NDJSON through `XH.fetchNdjson` is the default transport
 
 **Decision.** `HoistChatTransport` posts to a hoist-core endpoint and reads the reply with
-`XH.fetchNdjson`. It cancels through Hoist's `autoAbortKey` support.
+`XH.fetchNdjson`. D14 covers how it cancels a stream.
 
 **Why.** It reuses Hoist's auth, correlation IDs, tracing, activity tracking and error decoding.
 Hoist apps already have a hoist-core server, and `renderNDJSON` already pairs with
 `fetchNdjson`.
 
-**Gap.** `BaseController.renderNDJSON` buffers 8 KB before it flushes. Token streaming needs a
+**Gap.** `BaseController.renderNDJSON` buffers 32 KB before it flushes. Token streaming needs a
 flush after each line, so the Toolbox controller writes the stream itself. The report proposes a
 streaming option for hoist-core.
 
