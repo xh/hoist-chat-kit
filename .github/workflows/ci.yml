@@ -1,5 +1,5 @@
-# CI - Validates formatting, linting, type-checking, and unit tests, and runs CodeQL analysis, on
-# PRs and pushes to develop.
+# CI - Validates formatting, linting, type-checking, unit tests, and the packed package, and runs
+# CodeQL analysis, on PRs and pushes to develop.
 #
 # This workflow does not publish artifacts. For snapshot and release publishing, see Deploy
 # Snapshot and Deploy Release.
@@ -69,6 +69,11 @@ jobs:
         - name: Unit tests
           run: pnpm test
 
+        # The package ships as source, so its build is the packed tarball. This packs it and
+        # checks that every source package ships and that no specs or planning files do.
+        - name: Build package
+          run: pnpm build
+
         # Gates merges on a clean production-dependency audit for high and critical advisories.
         # The first, un-gated run prints lower-severity findings in the step log for visibility
         # without failing the build.
@@ -86,15 +91,28 @@ jobs:
             security-events: write
 
         steps:
+        # Code scanning needs GitHub Code Security, which private repos do not have by default.
+        # Skip the analysis while the repo is private, so it runs once the repo goes public. The
+        # check reads visibility from the API because scheduled runs carry no repository payload.
+        - name: Check repository visibility
+          id: visibility
+          env:
+              GH_TOKEN: ${{ github.token }}
+          run: echo "public=$(gh api repos/${{ github.repository }} --jq '.visibility == "public"')" >> "$GITHUB_OUTPUT"
+
         - uses: actions/checkout@v7
+          if: steps.visibility.outputs.public == 'true'
 
         - name: Initialize CodeQL
+          if: steps.visibility.outputs.public == 'true'
           uses: github/codeql-action/init@v4.38.2
           with:
               languages: javascript
 
         - name: Autobuild
+          if: steps.visibility.outputs.public == 'true'
           uses: github/codeql-action/autobuild@v4.38.2
 
         - name: Perform CodeQL Analysis
+          if: steps.visibility.outputs.public == 'true'
           uses: github/codeql-action/analyze@v4.38.2

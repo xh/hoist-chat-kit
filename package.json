@@ -14,7 +14,14 @@
     "access": "public"
   },
   "files": [
-    "docs"
+    "cmp",
+    "core",
+    "desktop",
+    "docs",
+    "styles",
+    "transport",
+    "!**/*.spec.ts",
+    "!**/*.spec.tsx"
   ],
   "scripts": {
     "lint": "pnpm lint:all",
@@ -26,6 +33,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
+    "build": "node scripts/check-package.mjs",
     "prepare": "husky"
   },
   "lint-staged": {
