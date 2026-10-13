@@ -1,4 +1,4 @@
-import type {PlainObject} from '@xh/hoist/core';
+import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRequest} from './ChatTransport';
 
@@ -11,14 +11,17 @@ import type {ChatRunRequest} from './ChatTransport';
  * Messages API, so a server can relay Anthropic's stream without translating it.
  */
 export interface ChatCodec {
-    /** Build the request body for one model call. */
-    encodeRequest(request: ChatRunRequest): PlainObject;
+    /**
+     * Build the request body for one step. May be async, for codecs that gather live context
+     * before each call.
+     */
+    encodeRequest(request: ChatRunRequest): Awaitable<PlainObject>;
 
     /**
-     * Create a decoder for one model call. Decoders may hold state across the records of a call,
-     * such as block indexes or accumulated tool arguments.
+     * Create a decoder for one step. Decoders may hold state across the records of a step, such
+     * as block indexes or accumulated tool arguments.
      *
-     * @param request - the call to decode, for decoders that stamp its ids on their events.
+     * @param request - the step to decode, for decoders that stamp its ids on their events.
      */
     createDecoder(request: ChatRunRequest): ChatDecoder;
 }

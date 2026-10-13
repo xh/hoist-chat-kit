@@ -71,7 +71,7 @@ export class ChatComposerModel extends HoistModel {
     /** True if the draft has no text and no attachments. */
     @computed
     get isEmpty(): boolean {
-        return !this.text.trim() && this.attachments.length === 0;
+        return !this.text.trim() && isEmpty(this.attachments);
     }
 
     /** True if the draft can be sent now. */

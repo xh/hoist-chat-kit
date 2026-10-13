@@ -1,5 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {describe, expect, it, vi} from 'vitest';
+import {describe, expect, it} from 'vitest';
 import {
     ChatMessage,
     type ChatPart,
@@ -21,7 +21,7 @@ import {AnthropicCodec} from './AnthropicCodec';
  */
 describe('AnthropicCodec', () => {
     describe('encodeRequest', () => {
-        it('builds a streaming Messages API body with model, system, messages and tools', () => {
+        it('builds a streaming Messages API body with model, system, messages and tools', async () => {
             const codec = new AnthropicCodec({
                     system: 'Be brief.',
                     model: 'claude-opus-5-5',
@@ -31,7 +31,7 @@ describe('AnthropicCodec', () => {
                         tools: [{type: 'web_search_20260209', name: 'web_search'}]
                     }
                 }),
-                body = codec.encodeRequest(
+                body = await codec.encodeRequest(
                     request([user('Hi')], {
                         tools: [{name: 'getWeather', description: 'Weather.', parameters: SCHEMA}]
                     })
@@ -51,22 +51,95 @@ describe('AnthropicCodec', () => {
             });
         });
 
-        it('leaves out the model, token limit and tools when the server owns them', () => {
-            const body = new AnthropicCodec().encodeRequest(request([user('Hi')]));
+        it('leaves out the model, token limit and tools when the server owns them', async () => {
+            const body = await encode(new AnthropicCodec(), [user('Hi')]);
             expect(Object.keys(body).sort()).toEqual(['messages', 'stream']);
         });
 
-        it('builds the system prompt per call, appending system messages from the history', () => {
-            const codec = new AnthropicCodec({system: req => `Run ${req.runId}.`}),
+        it('builds the system prompt per call, appending system messages from the history', async () => {
+            const codec = new AnthropicCodec({system: async req => `Run ${req.runId}.`}),
                 system = new ChatMessage({role: 'system', content: 'Use metric units.'});
 
-            const body = codec.encodeRequest(request([system, user('Hi')]));
+            const body = await encode(codec, [system, user('Hi')]);
 
             expect(body.system).toBe('Run r1.\n\nUse metric units.');
             expect(body.messages).toHaveLength(1);
         });
 
-        it('splits an assistant turn into assistant and tool_result turns per step', () => {
+        it('sends a system prompt given as blocks, with system messages as further blocks', async () => {
+            const codec = new AnthropicCodec({
+                    system: () => [
+                        {type: 'text', text: 'Static.'},
+                        {type: 'text', text: 'Live.'}
+                    ]
+                }),
+                system = new ChatMessage({role: 'system', content: 'Use metric units.'});
+
+            const body = await encode(codec, [system, user('Hi')]);
+
+            expect(body.system).toEqual([
+                {type: 'text', text: 'Static.'},
+                {type: 'text', text: 'Live.'},
+                {type: 'text', text: 'Use metric units.'}
+            ]);
+        });
+
+        it('takes the system prompt from params only when none is configured', async () => {
+            const params = {system: 'From params.'};
+
+            expect((await encode(new AnthropicCodec({params}), [user('Hi')])).system).toBe(
+                'From params.'
+            );
+            expect(
+                (await encode(new AnthropicCodec({params, system: 'Configured.'}), [user('Hi')]))
+                    .system
+            ).toBe('Configured.');
+        });
+
+        it('marks cache breakpoints on the last system block and the last tool', async () => {
+            const codec = new AnthropicCodec({
+                    system: 'Be brief.',
+                    cacheControl: true,
+                    params: {tools: [{type: 'web_search_20260209', name: 'web_search'}]}
+                }),
+                body = await codec.encodeRequest(
+                    request([user('Hi')], {tools: [{name: 'getWeather', parameters: SCHEMA}]})
+                );
+
+            expect(body.system).toEqual([
+                {type: 'text', text: 'Be brief.', cache_control: {type: 'ephemeral'}}
+            ]);
+            expect(body.tools).toEqual([
+                {type: 'web_search_20260209', name: 'web_search'},
+                {name: 'getWeather', input_schema: SCHEMA, cache_control: {type: 'ephemeral'}}
+            ]);
+        });
+
+        it('keeps a breakpoint the app placed on its own system block', async () => {
+            const marked = {type: 'text', text: 'Static.', cache_control: {type: 'ephemeral'}},
+                codec = new AnthropicCodec({system: [marked], cacheControl: true});
+
+            expect((await encode(codec, [user('Hi')])).system).toEqual([marked]);
+        });
+
+        it('passes the finished body through prepareBody', async () => {
+            const codec = new AnthropicCodec({
+                    model: 'claude-opus-5-5',
+                    prepareBody: async (body, req) => ({...body, metadata: {user_id: req.threadId}})
+                }),
+                body = await encode(codec, [user('Hi')]);
+
+            expect(body).toMatchObject({model: 'claude-opus-5-5', metadata: {user_id: 't1'}});
+        });
+
+        it('throws a clear error rather than encode a request with no user content', async () => {
+            const greeting = new ChatMessage({role: 'assistant', content: 'How can I help?'});
+            await expect(encode(new AnthropicCodec(), [greeting])).rejects.toThrow(
+                'no user content'
+            );
+        });
+
+        it('splits an assistant turn into assistant and tool_result turns per step', async () => {
             const assistant = new ChatMessage({
                 role: 'assistant',
                 parts: [
@@ -78,9 +151,11 @@ describe('AnthropicCodec', () => {
                 ]
             });
 
-            const {messages} = new AnthropicCodec().encodeRequest(
-                request([user('Weather?'), assistant, user('Thanks')])
-            );
+            const {messages} = await encode(new AnthropicCodec(), [
+                user('Weather?'),
+                assistant,
+                user('Thanks')
+            ]);
 
             expect(messages).toEqual([
                 {role: 'user', content: [{type: 'text', text: 'Weather?'}]},
@@ -110,16 +185,14 @@ describe('AnthropicCodec', () => {
             ]);
         });
 
-        it('ends a follow-up step with the tool results of the turn in progress', () => {
+        it('ends a follow-up step with the tool results of the turn in progress', async () => {
             const inProgress = new ChatMessage({
                 role: 'assistant',
                 status: 'streaming',
                 parts: [toolCall('call1', 0, {state: 'output-error', errorText: 'Failed.'})]
             });
 
-            const {messages} = new AnthropicCodec().encodeRequest(
-                request([user('Weather?'), inProgress])
-            );
+            const {messages} = await encode(new AnthropicCodec(), [user('Weather?'), inProgress]);
 
             expect(messages.at(-1)).toEqual({
                 role: 'user',
@@ -129,7 +202,33 @@ describe('AnthropicCodec', () => {
             });
         });
 
-        it('leaves out empty, pending and leading assistant messages, and unfinished calls', () => {
+        it('puts the tool results of a closed turn ahead of the next user text', async () => {
+            const closed = new ChatMessage({
+                role: 'assistant',
+                parts: [toolCall('call1', 0, {state: 'output-denied', errorText: 'Moved on.'})]
+            });
+
+            const {messages} = await encode(new AnthropicCodec(), [
+                user('Delete it'),
+                closed,
+                user('Never mind')
+            ]);
+
+            expect(messages.at(-1)).toEqual({
+                role: 'user',
+                content: [
+                    {
+                        type: 'tool_result',
+                        tool_use_id: 'call1',
+                        content: 'Moved on.',
+                        is_error: true
+                    },
+                    {type: 'text', text: 'Never mind'}
+                ]
+            });
+        });
+
+        it('leaves out empty, pending and leading assistant messages, and unfinished calls', async () => {
             const greeting = new ChatMessage({role: 'assistant', content: 'How can I help?'}),
                 unfinished = new ChatMessage({
                     role: 'assistant',
@@ -141,27 +240,29 @@ describe('AnthropicCodec', () => {
                 }),
                 pending = new ChatMessage({role: 'assistant', status: 'pending'});
 
-            const {messages} = new AnthropicCodec().encodeRequest(
-                request([greeting, user('Hi'), unfinished, pending])
-            );
+            const {messages} = await encode(new AnthropicCodec(), [
+                greeting,
+                user('Hi'),
+                unfinished,
+                pending
+            ]);
 
             expect(messages).toEqual([{role: 'user', content: [{type: 'text', text: 'Hi'}]}]);
         });
 
-        it('sends images, PDFs and text files as content blocks ahead of the text', () => {
-            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {}),
-                message = new ChatMessage({
-                    role: 'user',
-                    parts: [
-                        text('Summarize these.'),
-                        file('photo.png', 'image/png', {data: 'iVBO'}),
-                        file('report.pdf', 'application/pdf', {url: 'https://x/report.pdf'}),
-                        file('notes.txt', 'text/plain', {data: base64Utf8('Ünïcode notes')}),
-                        file('data.xlsx', 'application/vnd.ms-excel', {data: 'UEsD'})
-                    ]
-                });
+        it('sends images, PDFs and text files as content blocks ahead of the text', async () => {
+            const message = new ChatMessage({
+                role: 'user',
+                parts: [
+                    text('Summarize these.'),
+                    file('photo.png', 'image/png', {data: 'iVBO'}),
+                    file('report.pdf', 'application/pdf', {url: 'https://x/report.pdf'}),
+                    file('notes.txt', 'text/plain', {data: base64Utf8('Ünïcode notes')}),
+                    file('data.json', 'application/json', {data: base64Utf8('{"a": 1}')})
+                ]
+            });
 
-            const [{content}] = new AnthropicCodec().encodeRequest(request([message])).messages;
+            const [{content}] = (await encode(new AnthropicCodec(), [message])).messages;
 
             expect(content).toEqual([
                 {type: 'image', source: {type: 'base64', media_type: 'image/png', data: 'iVBO'}},
@@ -175,9 +276,67 @@ describe('AnthropicCodec', () => {
                     title: 'notes.txt',
                     source: {type: 'text', media_type: 'text/plain', data: 'Ünïcode notes'}
                 },
+                {
+                    type: 'document',
+                    title: 'data.json',
+                    source: {type: 'text', media_type: 'text/plain', data: '{"a": 1}'}
+                },
                 {type: 'text', text: 'Summarize these.'}
             ]);
-            expect(String(warn.mock.calls[0])).toContain("File 'data.xlsx' not sent");
+        });
+
+        it('names an attachment the API cannot take, so the model knows it was left out', async () => {
+            const message = new ChatMessage({
+                role: 'user',
+                parts: [file('data.xlsx', 'application/vnd.ms-excel', {data: 'UEsD'})]
+            });
+
+            const {messages} = await encode(new AnthropicCodec(), [message]);
+
+            expect(messages).toEqual([
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'text',
+                            text: "[Attachment 'data.xlsx' (application/vnd.ms-excel) not sent - the model cannot read this file type.]"
+                        }
+                    ]
+                }
+            ]);
+        });
+
+        it('sends a backend tool call with its result, and drops one that never got a result', async () => {
+            const assistant = new ChatMessage({
+                role: 'assistant',
+                parts: [
+                    toolCall('call1', 0, {
+                        providerExecuted: true,
+                        output: 'found',
+                        encryptedValue: 'sig-from-another-backend'
+                    }),
+                    toolCall('srvtoolu_2', 0, {
+                        providerExecuted: true,
+                        state: 'output-error',
+                        errorText: 'No result.'
+                    })
+                ]
+            });
+
+            const {messages} = await encode(new AnthropicCodec(), [user('Search'), assistant]);
+
+            expect(messages.slice(1)).toEqual([
+                {
+                    role: 'assistant',
+                    content: [
+                        {type: 'tool_use', id: 'call1', name: 'getWeather', input: {city: 'Paris'}}
+                    ]
+                },
+                {
+                    role: 'user',
+                    content: [{type: 'tool_result', tool_use_id: 'call1', content: 'found'}]
+                }
+            ]);
         });
     });
 
@@ -274,7 +433,7 @@ describe('AnthropicCodec', () => {
             expect(message.metadata.finishReason).toBe('tool-calls');
         });
 
-        it('keeps thinking signatures and redacted thinking for the next request', () => {
+        it('keeps thinking signatures and redacted thinking for the next request', async () => {
             const message = reduce([
                 messageStart(),
                 {
@@ -312,11 +471,22 @@ describe('AnthropicCodec', () => {
             ]);
 
             const [thinking, redacted] = message.parts as ChatReasoningPart[];
-            expect(thinking).toMatchObject({type: 'reasoning', text: 'GCD is 21.', state: 'done'});
-            expect(redacted).toMatchObject({type: 'reasoning', text: '', state: 'done'});
+            expect(thinking).toMatchObject({
+                type: 'reasoning',
+                text: 'GCD is 21.',
+                state: 'done',
+                encryptedValue: 'EqQB'
+            });
+            expect(redacted).toMatchObject({
+                type: 'reasoning',
+                text: '',
+                state: 'done',
+                providerData: {anthropic: {redactedData: 'EmwKAhgB'}}
+            });
+            expect(redacted.encryptedValue).toBeUndefined();
 
             // The parts round-trip into the blocks Anthropic requires back, unchanged.
-            const {messages} = new AnthropicCodec().encodeRequest(request([user('GCD?'), message]));
+            const {messages} = await encode(new AnthropicCodec(), [user('GCD?'), message]);
             expect(messages[1].content).toEqual([
                 {type: 'thinking', thinking: 'GCD is 21.', signature: 'EqQB'},
                 {type: 'redacted_thinking', data: 'EmwKAhgB'},
@@ -389,7 +559,7 @@ describe('AnthropicCodec', () => {
             ]);
         });
 
-        it('decodes server tool calls with their results, and sends them back verbatim', () => {
+        it('decodes server tool calls with their results, and sends them back verbatim', async () => {
             const resultBlock = {
                     type: 'web_search_tool_result',
                     tool_use_id: 'srvtoolu_1',
@@ -431,12 +601,12 @@ describe('AnthropicCodec', () => {
                 state: 'output-available',
                 input: {query: 'weather NYC'},
                 output: resultBlock.content,
-                providerExecuted: true
+                providerExecuted: true,
+                providerData: {anthropic: {resultBlock}}
             });
+            expect(call.encryptedValue).toBeUndefined();
 
-            const {messages} = new AnthropicCodec().encodeRequest(
-                request([user('Weather?'), message])
-            );
+            const {messages} = await encode(new AnthropicCodec(), [user('Weather?'), message]);
             expect(messages).toEqual([
                 {role: 'user', content: [{type: 'text', text: 'Weather?'}]},
                 {
@@ -450,6 +620,26 @@ describe('AnthropicCodec', () => {
                         },
                         resultBlock
                     ]
+                }
+            ]);
+        });
+
+        it('marks a server tool call as run by the backend from its start', () => {
+            const events = decode([
+                messageStart(),
+                {
+                    type: 'content_block_start',
+                    index: 0,
+                    content_block: {type: 'server_tool_use', id: 'srvtoolu_1', name: 'web_search'}
+                }
+            ]);
+
+            expect(events.slice(1)).toEqual([
+                {type: 'TOOL_CALL_START', toolCallId: 'srvtoolu_1', toolCallName: 'web_search'},
+                {
+                    type: 'CUSTOM',
+                    name: 'xh.chat.providerExecuted',
+                    value: {toolCallId: 'srvtoolu_1'}
                 }
             ]);
         });
@@ -575,6 +765,10 @@ function jsonDelta(index: number, partialJson: string): PlainObject {
 /** Base64 of the UTF-8 bytes of `value`, as a file read from disk would be. */
 function base64Utf8(value: string): string {
     return btoa(String.fromCharCode(...new TextEncoder().encode(value)));
+}
+
+function encode(codec: AnthropicCodec, messages: ChatMessage[]): Promise<PlainObject> {
+    return Promise.resolve(codec.encodeRequest(request(messages)));
 }
 
 /** Decode a recorded stream - the `data` of each SSE event, in order. */

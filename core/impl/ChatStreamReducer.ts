@@ -1,32 +1,47 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {logDebug} from '@xh/hoist/utils/js';
+import {logDebug, logWarn} from '@xh/hoist/utils/js';
 import {findLast, isPlainObject, isString, pick} from 'lodash';
 import type {ChatEvent} from '../../transport';
 import type {ChatMessage, ChatMessageSpec} from '../ChatMessage';
-import type {ChatPart, ChatReasoningPart, ChatTextPart, ChatToolCallPart} from '../ChatPart';
+import type {
+    ChatPart,
+    ChatProviderData,
+    ChatReasoningPart,
+    ChatTextPart,
+    ChatToolCallPart
+} from '../ChatPart';
 import {genChatId} from './ids';
 import {parsePartialJson} from './parsePartialJson';
 
 /**
- * Applies the {@link ChatEvent}s of one model call to the assistant message being built.
+ * Applies the {@link ChatEvent}s of one step - one model call - to the assistant message being
+ * built.
  *
- * Create one reducer per model call (step) and pass it each batch of events as they arrive. The
- * reducer never mutates its input: it returns a new message, holding new objects for only the
- * parts that changed, or the same message if nothing changed. Its own state maps the event ids of
- * the call onto part ids, so a backend may reuse ids from one call to the next.
+ * Create one reducer per step and pass it each batch of events as they arrive. The reducer never
+ * mutates its input: it returns a new message, holding new objects for only the parts that
+ * changed, or the same message if nothing changed. Its own state maps the text and reasoning
+ * message ids of the step onto part ids, so a backend may reuse those from one step to the next.
+ * Tool call parts take the tool call id as their own id, so tool call ids must be unique within a
+ * turn.
  *
  * Events the kit does not act on, and unknown event types, are ignored.
  * @internal
  */
 export class ChatStreamReducer {
-    /** Index of the model call within the turn - set as the `step` of each new part. */
+    /** Index of the step within the turn - set as the `step` of each new part. */
     readonly step: number;
+
+    /** True once the step's `RUN_FINISHED` event has arrived. */
+    get isRunFinished(): boolean {
+        return this.runFinished;
+    }
 
     private partIds = new Map<string, string>();
     private openTextId: string = null;
     private lastTextId: string = null;
     private openReasoningId: string = null;
     private lastToolCallId: string = null;
+    private runFinished = false;
 
     constructor(step: number) {
         this.step = step;
@@ -48,8 +63,10 @@ export class ChatStreamReducer {
     }
 
     /**
-     * Close out the model call when its stream ends: mark open text and reasoning parts done, and
-     * parse the input of any tool call whose arguments never saw an end event.
+     * Close out the step when its stream ends: mark open text and reasoning parts done, and parse
+     * the input of any tool call whose arguments never saw an end event. A stream that ended with
+     * neither `RUN_FINISHED` nor `RUN_ERROR` - such as a dropped connection - fails the message,
+     * with error code `incomplete-stream`.
      */
     finish(message: ChatMessage): ChatMessage {
         const draft = createDraft(message);
@@ -61,6 +78,10 @@ export class ChatStreamReducer {
                 this.endStreamingPart(draft, part.id);
             }
         });
+
+        if (!this.runFinished && draft.status !== 'error') {
+            setError(draft, 'The response ended before it was complete.', 'incomplete-stream');
+        }
         return commitDraft(message, draft);
     }
 
@@ -101,13 +122,15 @@ export class ChatStreamReducer {
                     }
                 });
                 break;
-            case 'REASONING_ENCRYPTED_VALUE':
-                if (event.subtype === 'message') {
-                    this.setEncryptedValue(draft, event.entityId, event.encryptedValue);
+            case 'REASONING_ENCRYPTED_VALUE': {
+                const {subtype, entityId, encryptedValue} = event;
+                if (subtype === 'message') {
+                    this.updateReasoning(draft, entityId, {encryptedValue});
                 } else {
-                    this.setToolCallEncryptedValue(draft, event.entityId, event.encryptedValue);
+                    this.updateToolCall(draft, entityId, {encryptedValue});
                 }
                 break;
+            }
 
             case 'TOOL_CALL_START':
                 this.startToolCall(draft, event.toolCallId, event.toolCallName);
@@ -150,7 +173,7 @@ export class ChatStreamReducer {
                 const {metadata} = draft,
                     finishReason =
                         event.metadata?.finishReason ??
-                        event.outcome?.type ??
+                        outcomeFinishReason(event.outcome?.type) ??
                         metadata.finishReason ??
                         null;
                 draft.metadata = {...metadata, ...event.metadata, finishReason};
@@ -158,12 +181,11 @@ export class ChatStreamReducer {
                     draft.metadata.usage = [...(metadata.usage ?? []), ...event.usage];
                 }
                 draft.changed = true;
+                this.runFinished = true;
                 break;
             }
             case 'RUN_ERROR':
-                draft.status = 'error';
-                draft.error = event.message ?? 'Unknown error.';
-                draft.changed = true;
+                setError(draft, event.message ?? 'Unknown error.', event.code);
                 break;
 
             default:
@@ -255,28 +277,12 @@ export class ChatStreamReducer {
         if (this.openReasoningId === id) this.openReasoningId = null;
     }
 
-    // Providers may send an encrypted value with no readable text (e.g. redacted thinking). It
-    // still has to go back with the history, so it gets a part of its own.
-    private setToolCallEncryptedValue(draft: Draft, toolCallId: string, encryptedValue: string) {
-        const part = getPart<ChatToolCallPart>(draft, toolCallId);
+    // Providers may send an encrypted value or provider data with no readable text (e.g. for
+    // redacted thinking). It still has to go back with the history, so it gets a part of its own.
+    private updateReasoning(draft: Draft, messageId: string, changes: Partial<ChatReasoningPart>) {
+        const part = this.findReasoning(draft, messageId);
         if (part) {
-            putPart(draft, {...part, encryptedValue});
-        } else {
-            logDebug(['Ignored encrypted value for unknown tool call', toolCallId], this);
-        }
-    }
-
-    private setEncryptedValue(draft: Draft, messageId: string, encryptedValue: string) {
-        const id = this.partIds.get(reasoningKey(messageId)),
-            part =
-                getPart<ChatReasoningPart>(draft, id) ??
-                (findLast(
-                    draft.parts,
-                    it => it.type === 'reasoning' && it.step === this.step
-                ) as ChatReasoningPart);
-
-        if (part) {
-            putPart(draft, {...part, encryptedValue});
+            putPart(draft, {...part, ...changes});
         } else {
             const now = Date.now();
             putPart(draft, {
@@ -287,8 +293,30 @@ export class ChatStreamReducer {
                 state: 'done',
                 startedAt: now,
                 endedAt: now,
-                encryptedValue
+                ...changes
             });
+        }
+    }
+
+    /** The reasoning part for a message id - or, failing that, the last one of this step. */
+    private findReasoning(draft: Draft, messageId: string): ChatReasoningPart {
+        const id = this.partIds.get(reasoningKey(messageId));
+        return (
+            getPart<ChatReasoningPart>(draft, id) ??
+            (findLast(
+                draft.parts,
+                it => it.type === 'reasoning' && it.step === this.step
+            ) as ChatReasoningPart) ??
+            null
+        );
+    }
+
+    private updateToolCall(draft: Draft, toolCallId: string, changes: Partial<ChatToolCallPart>) {
+        const part = getPart<ChatToolCallPart>(draft, toolCallId);
+        if (part) {
+            putPart(draft, {...part, ...changes});
+        } else {
+            logDebug(['Ignored update for unknown tool call', toolCallId], this);
         }
     }
 
@@ -296,7 +324,11 @@ export class ChatStreamReducer {
     // Tool calls
     //------------------
     private startToolCall(draft: Draft, toolCallId: string, toolName: string) {
-        if (toolCallId == null || getPart(draft, toolCallId)) return;
+        if (toolCallId == null) return;
+        if (getPart(draft, toolCallId)) {
+            logWarn(['Ignored tool call with an id already used in this turn', toolCallId], this);
+            return;
+        }
         putPart(draft, {
             type: 'toolCall',
             id: toolCallId,
@@ -391,8 +423,32 @@ export class ChatStreamReducer {
                     ...pick(value, FILE_KEYS)
                 });
                 break;
+            case 'xh.chat.providerData':
+                this.mergeProviderData(draft, value.subtype, value.entityId, value.data ?? {});
+                break;
+            case 'xh.chat.providerExecuted':
+                this.updateToolCall(draft, value.toolCallId, {providerExecuted: true});
+                break;
             default:
                 logDebug(['Ignored custom event', name], this);
+        }
+    }
+
+    // Merged by provider key, so that each provider's entry replaces only its own earlier one.
+    private mergeProviderData(
+        draft: Draft,
+        subtype: 'message' | 'tool-call',
+        entityId: string,
+        data: ChatProviderData
+    ) {
+        if (subtype === 'message') {
+            const part = this.findReasoning(draft, entityId);
+            this.updateReasoning(draft, entityId, {
+                providerData: {...part?.providerData, ...data}
+            });
+        } else {
+            const part = getPart<ChatToolCallPart>(draft, entityId);
+            this.updateToolCall(draft, entityId, {providerData: {...part?.providerData, ...data}});
         }
     }
 
@@ -460,6 +516,19 @@ function putPart(draft: Draft, part: ChatPart) {
         parts[idx] = part;
     }
     if (draft.status === 'pending') draft.status = 'streaming';
+    draft.changed = true;
+}
+
+/** The finish reason for an AG-UI `RUN_FINISHED` outcome, for runs that report no reason. */
+function outcomeFinishReason(outcomeType: string): string {
+    if (outcomeType == null) return null;
+    return outcomeType === 'success' ? 'stop' : 'other';
+}
+
+function setError(draft: Draft, error: string, errorCode: string) {
+    draft.status = 'error';
+    draft.error = error;
+    if (errorCode != null) draft.metadata = {...draft.metadata, errorCode};
     draft.changed = true;
 }
 

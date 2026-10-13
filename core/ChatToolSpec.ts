@@ -5,14 +5,18 @@ import type {ChatModel} from './ChatModel';
 import type {ChatToolCallPart} from './ChatPart';
 
 /**
- * Declares a tool the model can call, and how the chat displays its calls.
+ * Declares a tool the model can call, and how the chat displays its calls. A spec describes one of
+ * three kinds of tool:
  *
- * A spec with `execute` is a client tool: the {@link ChatModel} runs it in the browser when the
- * model calls it, sends the result back, and continues the turn. Client tools are how a model
- * acts on the app - changing a dashboard, opening a view, filtering a grid.
- *
- * A spec without `execute` describes a tool the backend runs. It configures only how calls to
- * that tool display, and is not sent to the model unless `sendToModel` is true.
+ *  - A client tool, with `execute`. The {@link ChatModel} runs it in the browser when the model
+ *    calls it, sends the result back, and continues the turn. Client tools are how a model acts on
+ *    the app - changing a dashboard, opening a view, filtering a grid.
+ *  - An interactive tool, with `interactive: true`. The user answers each call - through the tool
+ *    call card or a custom `renderer` - and the app passes the answer to
+ *    {@link ChatModel.addToolOutputAsync}. The turn pauses until every such call is answered.
+ *  - A backend tool, with neither. The backend runs it and streams its result, and the spec only
+ *    configures how its calls display. A call that ends its step with no result fails with an
+ *    error result, as a call to an unknown tool does, so the turn never waits on it.
  */
 export interface ChatToolSpec {
     /** Name the model calls the tool by. */
@@ -32,14 +36,20 @@ export interface ChatToolSpec {
     execute?: (input: PlainObject, context: ChatToolContext) => Awaitable<any>;
 
     /**
+     * True for a tool the user answers, rather than code - see the interactive tools above. Ignored
+     * if `execute` is set. Default false.
+     */
+    interactive?: boolean;
+
+    /**
      * True to have the user approve each call before it runs, or a function to decide per call.
      * Applies to client tools only. Default false.
      */
     needsApproval?: boolean | ((input: PlainObject) => boolean);
 
     /**
-     * True to send this tool to the model. Default true for client tools, false for display-only
-     * specs of backend tools.
+     * True to send this tool to the model. Default true for client and interactive tools, false
+     * for backend tools, whose specs the backend declares to the model itself.
      */
     sendToModel?: boolean;
 
@@ -58,7 +68,10 @@ export interface ChatToolSpec {
 
 /** Passed to {@link ChatToolSpec.execute}. */
 export interface ChatToolContext {
+    /** The chat whose model called the tool. */
     chatModel: ChatModel;
+
+    /** Id of the call being run. */
     toolCallId: string;
 
     /** Aborts if the user stops the turn. Long-running tools should honor it. */
@@ -67,6 +80,9 @@ export interface ChatToolContext {
 
 /** Passed to {@link ChatToolSpec.renderer}. */
 export interface ChatToolRenderContext {
+    /** The chat that holds the call. */
     chatModel: ChatModel;
+
+    /** The assistant message that holds the call. */
     message: ChatMessage;
 }

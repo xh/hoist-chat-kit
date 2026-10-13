@@ -4,9 +4,10 @@ import type {ChatEvent} from './ChatEvent';
 /**
  * Connection between a {@link ChatModel} and the backend that runs the model or agent.
  *
- * A transport runs one model call per {@link run} and yields {@link ChatEvent}s as they arrive.
- * The chat model drives the conversation - including any tool round trips - and never sees the
- * wire format, so the same UI works against a Hoist server, an AG-UI agent, or a scripted demo.
+ * A transport runs one step - one model call - per {@link run} and yields {@link ChatEvent}s as
+ * they arrive. The chat model drives the conversation - including any tool round trips - and never
+ * sees the wire format, so the same UI works against a Hoist server, an AG-UI agent, or a scripted
+ * demo.
  *
  * The kit provides {@link HoistChatTransport} (NDJSON from a hoist-core endpoint),
  * {@link SseChatTransport} (Server-Sent Events, e.g. from an AG-UI server), and
@@ -15,23 +16,24 @@ import type {ChatEvent} from './ChatEvent';
  */
 export interface ChatTransport {
     /**
-     * Run one model call.
+     * Run one step.
      *
      * Implementations must stop and settle promptly when `request.signal` aborts. They should
      * throw on a failure to connect, and either throw or yield a `RUN_ERROR` event for a failure
-     * mid-stream.
+     * mid-stream. A complete run ends with a `RUN_FINISHED` event. A stream that ends without one
+     * fails the turn as incomplete.
      *
      * @returns events in arrival order, ending when the run ends.
      */
     run(request: ChatRunRequest): AsyncIterable<ChatEvent>;
 }
 
-/** Everything a transport needs to run one model call. */
+/** Everything a transport needs to run one step. */
 export interface ChatRunRequest {
-    /** Identifies the conversation. Stable for the life of the chat. */
+    /** Identifies the conversation. Changes only when the chat is cleared or loaded. */
     threadId: string;
 
-    /** Identifies this model call. Unique per call. */
+    /** Identifies this step - unique per model call. Sent as the AG-UI run id. */
     runId: string;
 
     /**
@@ -43,6 +45,6 @@ export interface ChatRunRequest {
     /** Tools the model may call - only those to be sent to the model. */
     tools: ChatToolSpec[];
 
-    /** Aborts the call. */
+    /** Aborts the step. */
     signal: AbortSignal;
 }

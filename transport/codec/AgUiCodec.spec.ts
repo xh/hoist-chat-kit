@@ -32,7 +32,7 @@ describe('AgUiCodec', () => {
                 messages: [{id: 'u1', role: 'user', content: 'Hi'}],
                 tools: [
                     {name: 'getWeather', description: 'Weather for a city.', parameters: SCHEMA},
-                    {name: 'ping', description: '', parameters: undefined}
+                    {name: 'ping', description: '', parameters: {type: 'object', properties: {}}}
                 ],
                 context: [],
                 forwardedProps: {}

@@ -1,6 +1,9 @@
+import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
+    type ChatEvent,
+    type ChatTransport,
     errorEvents,
     reasoningEvents,
     ScriptedChatTransport,
@@ -8,8 +11,11 @@ import {
     textEvents,
     toolCallEvents
 } from '../transport';
+import type {ChatMessageSpec} from './ChatMessage';
 import {ChatModel, type ChatModelConfig} from './ChatModel';
-import type {ChatToolCallPart} from './ChatPart';
+import type {ChatFilePart, ChatToolCallPart} from './ChatPart';
+import {ChatRunError} from './ChatRunError';
+import type {ChatToolSpec} from './ChatToolSpec';
 
 /**
  * ChatModel's run loop, driven end to end by ScriptedChatTransport. Apps rely on it to stream
@@ -68,7 +74,8 @@ describe('ChatModel', () => {
                         {name: 'client', execute: () => 'ok'},
                         {name: 'display', displayName: 'Server tool'},
                         {name: 'declared', sendToModel: true},
-                        {name: 'hidden', execute: () => 'ok', sendToModel: false}
+                        {name: 'hidden', execute: () => 'ok', sendToModel: false},
+                        {name: 'interactive', interactive: true}
                     ],
                     initialMessages: [{role: 'assistant', content: 'Welcome!'}]
                 });
@@ -79,7 +86,7 @@ describe('ChatModel', () => {
             expect(request.threadId).toBe(model.threadId);
             expect(request.messages.map(it => it.role)).toEqual(['assistant', 'user', 'assistant']);
             expect(request.messages[2].parts).toEqual([]);
-            expect(request.tools.map(it => it.name)).toEqual(['client', 'declared']);
+            expect(request.tools.map(it => it.name)).toEqual(['client', 'declared', 'interactive']);
         });
 
         it('records elapsed time, finish reason and usage on the reply', async () => {
@@ -91,7 +98,7 @@ describe('ChatModel', () => {
                         threadId: 't',
                         runId: 'r',
                         usage: [{inputTokens: 5, outputTokens: 2}],
-                        metadata: {finishReason: 'end_turn'}
+                        metadata: {finishReason: 'stop'}
                     }
                 ]
             ]);
@@ -99,7 +106,7 @@ describe('ChatModel', () => {
             await model.sendAsync('Hi');
 
             expect(model.lastMessage.metadata).toMatchObject({
-                finishReason: 'end_turn',
+                finishReason: 'stop',
                 usage: [{inputTokens: 5, outputTokens: 2}]
             });
             expect(model.lastMessage.metadata.elapsedMs).toBeTypeOf('number');
@@ -116,6 +123,14 @@ describe('ChatModel', () => {
 
             expect(transport.requests).toHaveLength(1);
             expect(model.messages.map(it => it.text)).toEqual(['First', 'One.']);
+        });
+
+        it('throws on a missing transport or an invalid step limit', () => {
+            expect(() => new ChatModel({transport: null})).toThrow('requires a transport');
+            expect(() => new ChatModel({transport: scripted([]), maxSteps: null})).toThrow(
+                'maxSteps'
+            );
+            expect(() => new ChatModel({transport: scripted([]), maxSteps: 0})).toThrow('maxSteps');
         });
 
         it('calls onTurnComplete with the finished reply', async () => {
@@ -228,33 +243,160 @@ describe('ChatModel', () => {
                 errorText: 'Stopped by the user.'
             });
         });
+
+        it('aborts the signal passed to a running tool', async () => {
+            let toolSignal: AbortSignal;
+            const model = createModel({
+                transport: scripted([toolCallEvents('slow', {}, {toolCallId: 'c1'})]),
+                tools: [
+                    {
+                        name: 'slow',
+                        execute: (input, {signal}) => {
+                            toolSignal = signal;
+                            return new Promise(() => {});
+                        }
+                    }
+                ]
+            });
+
+            const done = model.sendAsync('Go');
+            await vi.waitFor(() => expect(toolCall(model, 'c1').state).toBe('running'));
+            expect(toolSignal.aborted).toBe(false);
+            model.stop();
+            await done;
+
+            expect(toolSignal.aborted).toBe(true);
+        });
+
+        it('lets a new turn start at once, ignoring the old stream as it settles', async () => {
+            let release: () => void;
+            const gate = new Promise<void>(resolve => (release = resolve));
+            async function* slowStream(): AsyncGenerator<ChatEvent> {
+                yield* textEvents('Old start.');
+                await gate;
+                yield* textEvents('Late.');
+            }
+            const transport = new ScriptedChatTransport({
+                    respond: (req, idx) => (idx === 0 ? slowStream() : textEvents('New.')),
+                    delayMs: 0
+                }),
+                model = createModel({transport});
+
+            const oldDone = model.sendAsync('Old');
+            await vi.waitFor(() => expect(model.lastMessage.text).toBe('Old start.'));
+            model.stop();
+            await model.sendAsync('New');
+            release();
+            await oldDone;
+
+            expect(model.messages.map(it => it.text)).toEqual(['Old', 'Old start.', 'New', 'New.']);
+            expect(model.messages.map(it => it.status)).toEqual([
+                'complete',
+                'aborted',
+                'complete',
+                'complete'
+            ]);
+        });
+
+        it('aborts the turn when the model is destroyed mid-turn', async () => {
+            const transport = scripted([toolCallEvents('slow', {}, {toolCallId: 'c1'})]),
+                model = new ChatModel({
+                    transport,
+                    tools: [{name: 'slow', execute: () => new Promise(() => {})}]
+                });
+
+            const done = model.sendAsync('Go');
+            await vi.waitFor(() => expect(toolCall(model, 'c1').state).toBe('running'));
+            model.destroy();
+            await done;
+
+            expect(transport.requests[0].signal.aborted).toBe(true);
+        });
     });
 
     describe('errors', () => {
-        it('fails the turn on RUN_ERROR, keeping content received so far', async () => {
-            const model = createModel([[textEvents('Partial'), errorEvents('Overloaded')]]);
+        it('fails the turn on RUN_ERROR, keeping content received so far and the error code', async () => {
+            const onTurnComplete = vi.fn(),
+                model = createModel({
+                    transport: scripted([
+                        [textEvents('Partial'), errorEvents('Overloaded', 'overloaded_error')]
+                    ]),
+                    onTurnComplete
+                });
 
             await model.sendAsync('Hi');
 
             expect(model.status).toBe('error');
-            expect(model.lastError.message).toBe('Overloaded');
-            expect(model.lastMessage).toMatchObject({status: 'error', error: 'Overloaded'});
+            expect(model.lastError).toBeInstanceOf(ChatRunError);
+            expect(model.lastError).toMatchObject({
+                message: 'Overloaded',
+                code: 'overloaded_error'
+            });
+            expect(model.lastMessage).toMatchObject({
+                status: 'error',
+                error: 'Overloaded',
+                metadata: {errorCode: 'overloaded_error'}
+            });
+            expect(model.lastMessage.text).toBe('Partial');
+            expect(onTurnComplete).toHaveBeenCalledExactlyOnceWith(model.lastMessage);
+        });
+
+        it('fails the turn on a RUN_ERROR after tools ran, keeping their results', async () => {
+            const model = createModel({
+                transport: scripted([
+                    toolCallEvents('getWeather', {city: 'Paris'}, {toolCallId: 'c1'}),
+                    errorEvents('Overloaded', 'overloaded_error')
+                ]),
+                tools: [{name: 'getWeather', execute: () => ({tempC: 18})}]
+            });
+
+            await model.sendAsync('Weather?');
+
+            expect(model.status).toBe('error');
+            expect(model.lastMessage.status).toBe('error');
+            expect(toolCall(model, 'c1')).toMatchObject({
+                state: 'output-available',
+                output: {tempC: 18}
+            });
+        });
+
+        it('fails the turn when the stream ends before the run finished', async () => {
+            const transport: ChatTransport = {
+                    async *run() {
+                        yield* textEvents('Partial');
+                    }
+                },
+                model = createModel({transport});
+
+            await model.sendAsync('Hi');
+
+            expect(model.status).toBe('error');
+            expect(model.lastError).toMatchObject({code: 'incomplete-stream'});
+            expect(model.lastMessage).toMatchObject({
+                status: 'error',
+                error: 'The response ended before it was complete.',
+                metadata: {errorCode: 'incomplete-stream'}
+            });
             expect(model.lastMessage.text).toBe('Partial');
         });
 
-        it('fails the turn when the transport throws', async () => {
-            const model = createModel({
-                transport: new ScriptedChatTransport({
-                    respond: () => {
-                        throw new Error('Connection refused');
-                    }
-                })
-            });
+        it('fails the turn when the transport throws, reporting it to Hoist', async () => {
+            const handleException = vi.spyOn(XH, 'handleException').mockImplementation(() => {}),
+                error = new Error('Connection refused'),
+                model = createModel({
+                    transport: new ScriptedChatTransport({
+                        respond: () => {
+                            throw error;
+                        }
+                    })
+                });
 
             await model.sendAsync('Hi');
 
             expect(model.status).toBe('error');
+            expect(model.lastError).toBe(error);
             expect(model.lastMessage.error).toBe('Connection refused');
+            expect(handleException).toHaveBeenCalledExactlyOnceWith(error, {showAlert: false});
         });
 
         it('re-runs the last user turn on retry, replacing the failed reply', async () => {
@@ -293,6 +435,38 @@ describe('ChatModel', () => {
             await model.editMessageAsync(model.messages[0].id, 'London?');
 
             expect(model.messages.map(it => it.text)).toEqual(['London?', 'London is grey.']);
+        });
+
+        it('keeps the files of an edited message', async () => {
+            const file: ChatFilePart = {
+                    type: 'file',
+                    id: 'f1',
+                    name: 'a.png',
+                    mediaType: 'image/png'
+                },
+                transport = scripted([textEvents('A cat.'), textEvents('A dog.')]),
+                model = createModel({transport});
+            await model.sendAsync({text: 'What is this?', files: [file]});
+
+            await model.editMessageAsync(model.messages[0].id, 'What animal is this?');
+
+            expect(transport.requests[1].messages[0].parts).toMatchObject([
+                file,
+                {type: 'text', text: 'What animal is this?'}
+            ]);
+        });
+
+        it('ignores regenerate for a reply with no user message before it', async () => {
+            const transport = scripted([]),
+                model = createModel({
+                    transport,
+                    initialMessages: [{role: 'assistant', content: 'Welcome!'}]
+                });
+
+            await model.regenerateAsync();
+
+            expect(transport.requests).toEqual([]);
+            expect(model.lastMessage.text).toBe('Welcome!');
         });
     });
 
@@ -349,6 +523,26 @@ describe('ChatModel', () => {
             expect(model.lastMessage.status).toBe('complete');
         });
 
+        it('fails a call to a backend tool that sent no result, so the turn never waits on it', async () => {
+            const transport = scripted([
+                    toolCallEvents('webSearch', {q: 'x'}, {toolCallId: 'c1'}),
+                    textEvents('Search is unavailable.')
+                ]),
+                model = createModel({
+                    transport,
+                    tools: [{name: 'webSearch', displayName: 'Web search'}]
+                });
+
+            await model.sendAsync('Search');
+
+            expect(toolCall(model, 'c1')).toMatchObject({
+                state: 'output-error',
+                errorText: "No result for tool 'webSearch' - the backend runs it, and sent none."
+            });
+            expect(transport.requests).toHaveLength(2);
+            expect(model.lastMessage.status).toBe('complete');
+        });
+
         it('fails a call to an unknown tool and lets the model recover', async () => {
             const transport = scripted([
                     toolCallEvents('teleport', {}, {toolCallId: 'c1'}),
@@ -396,6 +590,7 @@ describe('ChatModel', () => {
             expect(transport.requests).toHaveLength(3);
             expect(model.lastMessage.toolCalls.map(it => it.step)).toEqual([0, 1, 2]);
             expect(model.lastMessage.status).toBe('complete');
+            expect(model.lastMessage.metadata.finishReason).toBe('max-steps');
             expect(model.status).toBe('ready');
         });
     });
@@ -412,20 +607,32 @@ describe('ChatModel', () => {
                     tools: [{name: 'resetDashboard', execute, needsApproval: true}]
                 });
 
+            const statuses: string[] = [];
+            model.addReaction({
+                track: () => model.lastMessage?.status,
+                run: status => statuses.push(status)
+            });
+
             await model.sendAsync('Reset it');
 
             expect(model.status).toBe('ready');
             expect(model.isBusy).toBe(false);
+            expect(model.isAwaitingUser).toBe(true);
             expect(model.pendingApprovals.map(it => it.id)).toEqual(['c1']);
+            expect(model.waitingToolCalls.map(it => it.id)).toEqual(['c1']);
+            expect(model.lastMessage.status).toBe('paused');
+            expect(model.lastMessage.isStreaming).toBe(false);
             expect(execute).not.toHaveBeenCalled();
 
             await model.approveToolCallAsync('c1');
 
             expect(execute).toHaveBeenCalledOnce();
             expect(toolCall(model, 'c1').state).toBe('output-available');
+            expect(model.isAwaitingUser).toBe(false);
             expect(model.pendingApprovals).toEqual([]);
             expect(model.lastMessage).toMatchObject({status: 'complete'});
             expect(model.lastMessage.text).toBe('Your dashboard is reset.');
+            expect(statuses.slice(-3)).toEqual(['paused', 'streaming', 'complete']);
         });
 
         it('tells the model of a denial, without running the tool', async () => {
@@ -490,6 +697,27 @@ describe('ChatModel', () => {
             expect(abandoned.toolCalls[0].state).toBe('output-denied');
             expect(model.lastMessage.text).toBe('Sure.');
         });
+
+        it('denies waiting calls and ends the turn as aborted when stopped while paused', async () => {
+            const onTurnComplete = vi.fn(),
+                model = createModel({
+                    transport: scripted([toolCallEvents('remove', {}, {toolCallId: 'c1'})]),
+                    tools: [{name: 'remove', execute: () => 'ok', needsApproval: true}],
+                    onTurnComplete
+                });
+            await model.sendAsync('Remove it');
+
+            model.stop();
+
+            expect(model.status).toBe('ready');
+            expect(model.isAwaitingUser).toBe(false);
+            expect(model.lastMessage.status).toBe('aborted');
+            expect(toolCall(model, 'c1')).toMatchObject({
+                state: 'output-denied',
+                errorText: 'Stopped by the user.'
+            });
+            expect(onTurnComplete).toHaveBeenCalledExactlyOnceWith(model.lastMessage);
+        });
     });
 
     describe('addToolOutputAsync', () => {
@@ -498,11 +726,14 @@ describe('ChatModel', () => {
                     toolCallEvents('pickCity', {options: ['Paris', 'Rome']}, {toolCallId: 'c1'}),
                     textEvents('Rome it is.')
                 ]),
-                model = createModel({transport, tools: [{name: 'pickCity', sendToModel: true}]});
+                model = createModel({transport, tools: [{name: 'pickCity', interactive: true}]});
 
             await model.sendAsync('Help me pick');
             expect(model.status).toBe('ready');
+            expect(model.lastMessage.status).toBe('paused');
             expect(toolCall(model, 'c1').state).toBe('input-available');
+            expect(model.waitingToolCalls.map(it => it.id)).toEqual(['c1']);
+            expect(model.pendingApprovals).toEqual([]);
 
             await model.addToolOutputAsync('c1', {city: 'Rome'});
 
@@ -511,6 +742,25 @@ describe('ChatModel', () => {
                 output: {city: 'Rome'}
             });
             expect(model.lastMessage.text).toBe('Rome it is.');
+        });
+
+        it('fails a waiting call when the user sends a new message instead', async () => {
+            const model = createModel({
+                transport: scripted([
+                    toolCallEvents('pickCity', {}, {toolCallId: 'c1'}),
+                    textEvents('Okay.')
+                ]),
+                tools: [{name: 'pickCity', interactive: true}]
+            });
+            await model.sendAsync('Help me pick');
+
+            await model.sendAsync('Forget it');
+
+            expect(model.messages[1].toolCalls[0]).toMatchObject({
+                state: 'output-error',
+                errorText: 'No result - the conversation moved on.'
+            });
+            expect(model.lastMessage.text).toBe('Okay.');
         });
     });
 
@@ -531,6 +781,123 @@ describe('ChatModel', () => {
             model.loadMessages(specs);
             expect(model.lastMessage.text).toBe('Hello!');
         });
+
+        it('starts a new thread on clear, and takes the thread id of loaded messages', () => {
+            const model = createModel([]),
+                {threadId} = model;
+
+            model.clear();
+            expect(model.threadId).not.toBe(threadId);
+
+            model.loadMessages([{role: 'user', content: 'Hi'}], 'thread-7');
+            expect(model.threadId).toBe('thread-7');
+        });
+
+        it.each(['initialMessages', 'loadMessages'])(
+            'closes a message saved mid-stream, via %s',
+            via => {
+                const specs: ChatMessageSpec[] = [
+                        {role: 'user', content: 'Look it up'},
+                        {
+                            role: 'assistant',
+                            status: 'streaming',
+                            parts: [
+                                {
+                                    type: 'text',
+                                    id: 't1',
+                                    step: 0,
+                                    text: 'Partial',
+                                    state: 'streaming'
+                                },
+                                {...callPart('c1'), state: 'running'}
+                            ]
+                        }
+                    ],
+                    model =
+                        via === 'initialMessages'
+                            ? createModel({transport: scripted([]), initialMessages: specs})
+                            : createModel([]);
+                if (via === 'loadMessages') model.loadMessages(specs);
+
+                const {lastMessage} = model;
+                expect(lastMessage.status).toBe('aborted');
+                expect(lastMessage.isStreaming).toBe(false);
+                expect(lastMessage.parts).toMatchObject([
+                    {type: 'text', state: 'done'},
+                    {
+                        type: 'toolCall',
+                        state: 'output-error',
+                        errorText: 'Not completed - the response was interrupted.'
+                    }
+                ]);
+            }
+        );
+
+        it('closes a paused turn that is not at the end of the history', async () => {
+            const specs = await pausedTurnSpecs(),
+                model = createModel([]);
+
+            model.loadMessages([...specs, {role: 'user', content: 'Hi'}]);
+
+            expect(model.messages[1].status).toBe('complete');
+            expect(model.messages[1].toolCalls[0].state).toBe('output-denied');
+            expect(model.isAwaitingUser).toBe(false);
+        });
+
+        it('resumes a paused turn at the end of loaded history once approved', async () => {
+            const specs = await pausedTurnSpecs(),
+                execute = vi.fn(() => 'Removed.'),
+                transport = scripted([textEvents('It is gone.')]),
+                model = createModel({transport, tools: [removeTool({execute})]});
+
+            model.loadMessages(specs, 'thread-1');
+            expect(model.lastMessage.status).toBe('paused');
+            expect(model.pendingApprovals.map(it => it.id)).toEqual(['c1']);
+
+            await model.approveToolCallAsync('c1');
+
+            expect(execute).toHaveBeenCalledOnce();
+            expect(transport.requests[0].threadId).toBe('thread-1');
+            expect(model.lastMessage).toMatchObject({status: 'complete'});
+            expect(model.lastMessage.text).toBe('It is gone.');
+        });
+
+        it('resumes a paused turn at the end of loaded history once denied', async () => {
+            const specs = await pausedTurnSpecs(),
+                execute = vi.fn(),
+                transport = scripted([textEvents('Okay, I kept it.')]),
+                model = createModel({transport, tools: [removeTool({execute})]});
+            model.loadMessages(specs);
+
+            await model.denyToolCallAsync('c1', 'Keep it.');
+
+            expect(execute).not.toHaveBeenCalled();
+            expect(transport.requests[0].messages[1].toolCalls[0]).toMatchObject({
+                state: 'output-denied',
+                errorText: 'Keep it.'
+            });
+            expect(model.lastMessage.text).toBe('Okay, I kept it.');
+        });
+
+        it('closes a loaded paused turn when the user sends a new message instead', async () => {
+            const specs = await pausedTurnSpecs(),
+                execute = vi.fn(),
+                model = createModel({
+                    transport: scripted([textEvents('Sure.')]),
+                    tools: [removeTool({execute})]
+                });
+            model.loadMessages(specs);
+
+            await model.sendAsync('Never mind');
+
+            const closed = model.messages[1];
+            expect(closed.status).toBe('complete');
+            expect(closed.toolCalls[0].state).toBe('output-denied');
+            expect(model.lastMessage.text).toBe('Sure.');
+
+            await model.approveToolCallAsync('c1');
+            expect(execute).not.toHaveBeenCalled();
+        });
     });
 });
 
@@ -549,4 +916,32 @@ function createModel(config: ScriptedResponse[] | ChatModelConfig): ChatModel {
 
 function toolCall(model: ChatModel, id: string): ChatToolCallPart {
     return model.lastMessage.toolCalls.find(it => it.id === id);
+}
+
+function callPart(id: string): ChatToolCallPart {
+    return {
+        type: 'toolCall',
+        id,
+        step: 0,
+        toolName: 'lookup',
+        state: 'input-available',
+        inputText: '{}',
+        input: {},
+        output: null,
+        errorText: null
+    };
+}
+
+function removeTool(changes: Partial<ChatToolSpec> = {}): ChatToolSpec {
+    return {name: 'remove', execute: () => 'ok', needsApproval: true, ...changes};
+}
+
+/** Stored history - through JSON - that ends with a turn paused for approval of call 'c1'. */
+async function pausedTurnSpecs(): Promise<ChatMessageSpec[]> {
+    const model = createModel({
+        transport: scripted([toolCallEvents('remove', {}, {toolCallId: 'c1'})]),
+        tools: [removeTool()]
+    });
+    await model.sendAsync('Remove it');
+    return JSON.parse(JSON.stringify(model.getMessageSpecs()));
 }

@@ -1,32 +1,34 @@
-import {type Awaitable, type PlainObject, XH} from '@xh/hoist/core';
+import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
 import {flattenDeep, isArray, isString} from 'lodash';
+import {sleepAsync} from '../core/impl/abort';
+import {genChatId} from '../core/impl/ids';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRequest, ChatTransport} from './ChatTransport';
 
 /** Configuration for a {@link ScriptedChatTransport}. */
 export interface ScriptedChatTransportConfig {
     /**
-     * Response to each model call, in order. A call beyond the end of the list fails. Provide
-     * either this or `respond`.
+     * Response to each request - each step - in order, across all turns. A request beyond the end
+     * of the list fails. Provide either this or `respond`.
      */
     responses?: ScriptedResponse[];
 
     /**
-     * Build the response to a model call - for scripts that react to the user's message or to
-     * tool results in the request.
+     * Build the response to a request - for scripts that react to the user's message or to tool
+     * results in the request.
      *
-     * @param request - the request for the call.
-     * @param callIndex - zero-based count of calls this transport has run.
+     * @param request - the request for the step.
+     * @param requestIndex - zero-based count of the requests this transport has received.
      */
-    respond?: (request: ChatRunRequest, callIndex: number) => Awaitable<ScriptedResponse>;
+    respond?: (request: ChatRunRequest, requestIndex: number) => Awaitable<ScriptedResponse>;
 
     /** Pause before each scripted event, in milliseconds. Default 25. Use 0 in tests. */
     delayMs?: number;
 }
 
 /**
- * The scripted response to one model call. Either a list of events and pauses, which may nest
+ * The scripted response to one step. Either a list of events and pauses, which may nest
  * (as returned by the helpers in this module) and are paced by the transport, or an async
  * iterable of events, which sets its own pace.
  */
@@ -44,7 +46,7 @@ export interface ScriptedDelay {
  * Transport that plays back scripted events, for unit tests, demos, and offline development. It
  * needs no backend and no model.
  *
- * Each model call takes the next of the scripted `responses`, or the result of `respond`. The
+ * Each step takes the next of the scripted `responses`, or the result of `respond`. The
  * transport adds `RUN_STARTED` and `RUN_FINISHED` events where a response leaves them out, and
  * waits `delayMs` before each event for a realistic stream. Build responses with the helpers in
  * this module, which produce well-formed AG-UI event sequences:
@@ -69,7 +71,10 @@ export class ScriptedChatTransport implements ChatTransport {
     /** Pause before each scripted event, in milliseconds. */
     readonly delayMs: number;
 
-    /** Requests received, oldest first - for tests to inspect what the chat sent. */
+    /**
+     * Requests received, oldest first - for tests to inspect what the chat sent. Each request
+     * holds the history it carried, so the list grows with every step the transport runs.
+     */
     readonly requests: ChatRunRequest[] = [];
 
     constructor({responses = [], respond = null, delayMs = 25}: ScriptedChatTransportConfig = {}) {
@@ -80,10 +85,10 @@ export class ScriptedChatTransport implements ChatTransport {
 
     async *run(request: ChatRunRequest): AsyncGenerator<ChatEvent> {
         const {threadId, runId, signal} = request,
-            callIndex = this.requests.length;
+            requestIndex = this.requests.length;
         this.requests.push(request);
 
-        const response = await this.getResponseAsync(request, callIndex);
+        const response = await this.getResponseAsync(request, requestIndex);
         let isStarted = false;
         for await (const event of this.playAsync(response, signal)) {
             if (!isStarted && event.type !== 'RUN_STARTED') {
@@ -106,15 +111,15 @@ export class ScriptedChatTransport implements ChatTransport {
 
     private async getResponseAsync(
         request: ChatRunRequest,
-        callIndex: number
+        requestIndex: number
     ): Promise<ScriptedResponse> {
-        if (this.respond) return this.respond(request, callIndex);
+        if (this.respond) return this.respond(request, requestIndex);
 
         throwIf(
-            callIndex >= this.responses.length,
-            `ScriptedChatTransport has no response for model call ${callIndex + 1}.`
+            requestIndex >= this.responses.length,
+            `ScriptedChatTransport has no response for request ${requestIndex + 1}.`
         );
-        return this.responses[callIndex];
+        return this.responses[requestIndex];
     }
 
     private async *playAsync(
@@ -158,7 +163,7 @@ export interface ScriptedTextOptions {
  * and markdown syntax, as a model's tokens do.
  */
 export function textEvents(text: string, opts: ScriptedTextOptions = {}): ChatEvent[] {
-    const {messageId = XH.genId(), chunkSize = 5} = opts;
+    const {messageId = genChatId(), chunkSize = 5} = opts;
     return [
         {type: 'TEXT_MESSAGE_START', messageId, role: 'assistant'},
         ...chunkText(text, chunkSize).map((delta): ChatEvent => ({
@@ -178,7 +183,7 @@ export interface ScriptedReasoningOptions extends ScriptedTextOptions {
 
 /** Events that stream `text` as the model's reasoning, ahead of its answer. */
 export function reasoningEvents(text: string, opts: ScriptedReasoningOptions = {}): ChatEvent[] {
-    const {messageId = XH.genId(), chunkSize = 5, encryptedValue} = opts,
+    const {messageId = genChatId(), chunkSize = 5, encryptedValue} = opts,
         events: ChatEvent[] = [
             {type: 'REASONING_START', messageId},
             {type: 'REASONING_MESSAGE_START', messageId, role: 'reasoning'},
@@ -223,7 +228,7 @@ export function toolCallEvents(
     input: PlainObject = {},
     opts: ScriptedToolCallOptions = {}
 ): ChatEvent[] {
-    const {toolCallId = XH.genId(), chunkSize = 12, result} = opts,
+    const {toolCallId = genChatId(), chunkSize = 12, result} = opts,
         events: ChatEvent[] = [
             {type: 'TOOL_CALL_START', toolCallId, toolCallName: toolName},
             ...chunkText(JSON.stringify(input), chunkSize).map((delta): ChatEvent => ({
@@ -237,7 +242,7 @@ export function toolCallEvents(
     if (result !== undefined) {
         events.push({
             type: 'TOOL_CALL_RESULT',
-            messageId: XH.genId(),
+            messageId: genChatId(),
             toolCallId,
             content: isString(result) ? result : JSON.stringify(result),
             role: 'tool'
@@ -258,7 +263,7 @@ export function dataEvents(dataType: string, data: any, opts: {id?: string} = {}
     return [{type: 'CUSTOM', name: 'xh.chat.data', value: {id: opts.id, dataType, data}}];
 }
 
-/** An event for a failed model call. The transport ends the response after it. */
+/** An event for a failed step. The transport ends the response after it. */
 export function errorEvents(message: string, code?: string): ChatEvent[] {
     return [{type: 'RUN_ERROR', message, code}];
 }
@@ -274,22 +279,4 @@ export function scriptedDelay(delayMs: number): ScriptedDelay {
 /** Split text into chunks of up to `size` characters, each with its leading whitespace. */
 function chunkText(text: string, size: number): string[] {
     return text.match(new RegExp(`\\s*\\S{1,${size}}|\\s+$`, 'g')) ?? [];
-}
-
-function sleepAsync(ms: number, signal: AbortSignal): Promise<void> {
-    return new Promise((resolve, reject) => {
-        if (signal.aborted) {
-            reject(signal.reason);
-            return;
-        }
-        const onAbort = () => {
-                clearTimeout(timer);
-                reject(signal.reason);
-            },
-            timer = setTimeout(() => {
-                signal.removeEventListener('abort', onAbort);
-                resolve();
-            }, ms);
-        signal.addEventListener('abort', onAbort, {once: true});
-    });
 }

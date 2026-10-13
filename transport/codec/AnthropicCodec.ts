@@ -1,12 +1,15 @@
-import type {PlainObject} from '@xh/hoist/core';
-import {logWarn} from '@xh/hoist/utils/js';
+import type {Awaitable, PlainObject} from '@xh/hoist/core';
+import {throwIf} from '@xh/hoist/utils/js';
 import {
     compact,
     dropWhile,
     flatMap,
+    initial,
+    isArray,
     isEmpty,
     isFunction,
     isNil,
+    isString,
     last,
     omitBy,
     partition
@@ -24,13 +27,18 @@ import type {ChatEvent, ChatTokenUsage} from '../ChatEvent';
 import type {ChatRunRequest} from '../ChatTransport';
 import {partsBySteps, toolResultText} from '../impl/history';
 
+/** A system prompt for the Messages API - plain text, or a list of text blocks. */
+export type AnthropicSystemPrompt = string | PlainObject[];
+
 /** Configuration for an {@link AnthropicCodec}. */
 export interface AnthropicCodecConfig {
     /**
-     * System prompt - or a function to build it for each model call, so that it can describe the
-     * live state of the app. System messages in the history are appended to it.
+     * System prompt - text, or a list of Messages API text blocks - or a function to build it for
+     * each step, so that it can describe the live state of the app. The function may be async.
+     * System messages in the history are appended to it. Takes precedence over `params.system`.
      */
-    system?: string | ((request: ChatRunRequest) => string);
+    system?:
+        AnthropicSystemPrompt | ((request: ChatRunRequest) => Awaitable<AnthropicSystemPrompt>);
 
     /** Model to call, e.g. 'claude-opus-5-5'. Leave out if the server sets it. */
     model?: string;
@@ -47,6 +55,24 @@ export interface AnthropicCodecConfig {
      * the chat's own tools.
      */
     params?: PlainObject;
+
+    /**
+     * True to mark prompt cache breakpoints - `cache_control: {type: 'ephemeral'}` - on the last
+     * system block and the last tool definition, so that Anthropic caches the tools and system
+     * prompt across the steps and turns of a chat. Default false.
+     *
+     * A breakpoint caches everything before it, so it pays off only when what precedes it repeats.
+     * For a system prompt that ends with live state, return blocks from `system` with the static
+     * part first, and mark that block with `cache_control` yourself. Blocks already marked are
+     * left as they are.
+     */
+    cacheControl?: boolean;
+
+    /**
+     * Adjust the finished request body before it is sent - to add, change or reorder fields the
+     * other options do not cover. May be async.
+     */
+    prepareBody?: (body: PlainObject, request: ChatRunRequest) => Awaitable<PlainObject>;
 }
 
 /**
@@ -58,13 +84,17 @@ export interface AnthropicCodecConfig {
  * Requests are Messages API bodies with `stream: true`. The history is rebuilt as Anthropic turns:
  * each step of an assistant turn becomes an assistant turn - its thinking (with signatures), text
  * and tool calls - followed by a user turn with the results of its tool calls, flagged `is_error`
- * for failed and denied calls. Attached images, PDFs and text files are sent as image and document
- * blocks. Tools are sent as `{name, description, input_schema}`.
+ * for failed and denied calls. Attached images, PDFs and text files (including JSON, XML and
+ * similar types) are sent as image and document blocks. Other attachments are named in a text
+ * block, so that the model knows they were left out. Tools are sent as
+ * `{name, description, input_schema}`. A request whose history holds no user content throws, as
+ * the API would reject it.
  *
- * Decoding translates the stream into the kit's events: text, thinking (with its signature, or the
- * data of redacted thinking, kept on the reasoning part for the next request), tool calls with
- * their streamed input, server tool calls such as web search with their results, and citations as
- * `xh.chat.citation` events. `RUN_FINISHED` reports token usage, the model, and a finish reason:
+ * Decoding translates the stream into the kit's events: text, thinking with its signature, tool
+ * calls with their streamed input, server tool calls such as web search with their results, and
+ * citations as `xh.chat.citation` events. Data that must go back to Anthropic unchanged - the data
+ * of redacted thinking, and the result blocks of server tools - is kept on the part as
+ * `providerData.anthropic`. `RUN_FINISHED` reports token usage, the model, and a finish reason:
  *
  *  - `stop` - for `end_turn` and `stop_sequence`.
  *  - `length` - for `max_tokens` and `model_context_window_exceeded`.
@@ -75,43 +105,74 @@ export interface AnthropicCodecConfig {
  * Anthropic's own `stop_reason` is reported alongside, as `stopReason`. An `error` event becomes
  * `RUN_ERROR`, with the Anthropic error type as its code.
  *
+ * Not yet supported: continuing a `pause_turn` response. The API pauses a long server tool loop
+ * and expects the client to send the paused turn back to resume it. The turn currently ends at
+ * the pause, and a server tool call left without a result is dropped from the next request.
+ *
  * @see https://platform.claude.com/docs/en/build-with-claude/streaming
  */
 export class AnthropicCodec implements ChatCodec {
+    /** System prompt, or a function to build it per step. */
     readonly system: AnthropicCodecConfig['system'];
+
+    /** Model to call, or null if the server sets it. */
     readonly model: string;
+
+    /** Most tokens the model may generate per call, or null if the server sets it. */
     readonly maxTokens: number;
+
+    /** Other fields for the request body. */
     readonly params: PlainObject;
+
+    /** True to mark prompt cache breakpoints on the system prompt and tools. */
+    readonly cacheControl: boolean;
+
+    /** Final adjustment of the request body, or null. */
+    readonly prepareBody: AnthropicCodecConfig['prepareBody'];
 
     constructor({
         system = null,
         model = null,
         maxTokens = null,
-        params = {}
+        params = {},
+        cacheControl = false,
+        prepareBody = null
     }: AnthropicCodecConfig = {}) {
         this.system = system;
         this.model = model;
         this.maxTokens = maxTokens;
         this.params = params;
+        this.cacheControl = cacheControl;
+        this.prepareBody = prepareBody;
     }
 
-    encodeRequest(request: ChatRunRequest): PlainObject {
-        const {model, maxTokens, params} = this,
+    async encodeRequest(request: ChatRunRequest): Promise<PlainObject> {
+        const {model, maxTokens, params, cacheControl, prepareBody} = this,
+            messages = encodeMessages(request.messages);
+        throwIf(isEmpty(messages), 'AnthropicCodec cannot encode a request with no user content.');
+
+        let system = await this.getSystemAsync(request),
             tools = [...(params.tools ?? []), ...request.tools.map(encodeTool)];
-        return {
+        if (cacheControl) {
+            system = system && withCacheBreakpoint(toBlocks(system));
+            tools = withCacheBreakpoint(tools);
+        }
+
+        const body = {
             ...params,
             ...omitBy(
                 {
                     model,
                     max_tokens: maxTokens,
-                    system: this.getSystem(request),
-                    messages: encodeMessages(request.messages),
+                    system,
+                    messages,
                     tools: isEmpty(tools) ? null : tools,
                     stream: true
                 },
                 isNil
             )
         };
+        return prepareBody ? prepareBody(body, request) : body;
     }
 
     createDecoder(request: ChatRunRequest): ChatDecoder {
@@ -122,26 +183,33 @@ export class AnthropicCodec implements ChatCodec {
     //------------------
     // Implementation
     //------------------
-    private getSystem(request: ChatRunRequest): string {
-        const {system} = this,
-            prompts = request.messages.filter(it => it.role === 'system').map(it => it.text);
-        return (
-            compact([isFunction(system) ? system(request) : system, ...prompts]).join('\n\n') ||
-            null
-        );
+    private async getSystemAsync(request: ChatRunRequest): Promise<AnthropicSystemPrompt> {
+        const {system, params} = this,
+            base = (isFunction(system) ? await system(request) : system) ?? params.system ?? null,
+            prompts = request.messages
+                .filter(it => it.role === 'system' && it.text.trim())
+                .map(it => it.text);
+
+        if (isArray(base)) return [...base, ...textBlocks(prompts)];
+        return compact([base, ...prompts]).join('\n\n') || null;
     }
 }
 
 //------------------
 // Encoding
 //------------------
-/**
- * Marks the data of a redacted thinking block, stored as the reasoning part's encrypted value
- * alongside thinking signatures. Signatures are base64, so they never start with it.
- */
-const REDACTED_PREFIX = 'redacted_thinking:';
-
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+/** Media types, beyond `text/*`, whose content is text the model can read. */
+const TEXT_TYPES = [
+    'application/json',
+    'application/xml',
+    'application/javascript',
+    'application/yaml',
+    'application/x-yaml',
+    'application/sql',
+    'application/csv'
+];
 
 interface Turn {
     role: 'user' | 'assistant';
@@ -153,6 +221,21 @@ function encodeTool({name, description, parameters}: ChatToolSpec): PlainObject 
         {name, description, input_schema: parameters ?? {type: 'object', properties: {}}},
         isNil
     );
+}
+
+function textBlocks(texts: string[]): PlainObject[] {
+    return texts.map(text => ({type: 'text', text}));
+}
+
+function toBlocks(system: AnthropicSystemPrompt): PlainObject[] {
+    return isString(system) ? textBlocks([system]) : system;
+}
+
+/** The blocks with a prompt cache breakpoint on the last one, unless it already has one. */
+function withCacheBreakpoint(blocks: PlainObject[]): PlainObject[] {
+    const lastBlock = last(blocks);
+    if (!lastBlock || lastBlock.cache_control) return blocks;
+    return [...initial(blocks), {...lastBlock, cache_control: {type: 'ephemeral'}}];
 }
 
 /**
@@ -203,18 +286,25 @@ function encodeFile({name, mediaType, data, url}: ChatFilePart): PlainObject {
         data != null ? {type: 'base64', media_type: mediaType, data} : {type: 'url', url};
     if (IMAGE_TYPES.includes(mediaType)) return {type: 'image', source};
     if (mediaType === 'application/pdf') return {type: 'document', title: name, source};
-    if (mediaType.startsWith('text/') && data != null) {
+    if (isTextType(mediaType) && data != null) {
         return {
             type: 'document',
             title: name,
             source: {type: 'text', media_type: 'text/plain', data: decodeBase64Text(data)}
         };
     }
-    logWarn(
-        `File '${name}' not sent - the Messages API does not accept ${mediaType}.`,
-        'AnthropicCodec'
+    return {
+        type: 'text',
+        text: `[Attachment '${name}' (${mediaType}) not sent - the model cannot read this file type.]`
+    };
+}
+
+function isTextType(mediaType: string): boolean {
+    return (
+        mediaType.startsWith('text/') ||
+        TEXT_TYPES.includes(mediaType) ||
+        /\+(json|xml)$/.test(mediaType)
     );
-    return null;
 }
 
 function encodeAssistantPart(part: ChatPart): PlainObject[] {
@@ -223,21 +313,25 @@ function encodeAssistantPart(part: ChatPart): PlainObject[] {
             return compact([encodeText(part)]);
         case 'reasoning': {
             // Thinking without a signature (e.g. from an interrupted stream) would be rejected.
-            const {text, encryptedValue} = part;
+            const {text, encryptedValue, providerData} = part,
+                redactedData = providerData?.anthropic?.redactedData;
+            if (redactedData != null) return [{type: 'redacted_thinking', data: redactedData}];
             if (encryptedValue == null) return [];
-            return encryptedValue.startsWith(REDACTED_PREFIX)
-                ? [{type: 'redacted_thinking', data: encryptedValue.slice(REDACTED_PREFIX.length)}]
-                : [{type: 'thinking', thinking: text, signature: encryptedValue}];
+            return [{type: 'thinking', thinking: text, signature: encryptedValue}];
         }
         case 'toolCall': {
-            if (!isToolCallFinal(part)) return [];
             const {id, toolName: name, input} = part;
-            return isServerToolCall(part)
-                ? [
-                      {type: 'server_tool_use', id, name, input: input ?? {}},
-                      JSON.parse(part.encryptedValue)
-                  ]
-                : [{type: 'tool_use', id, name, input: input ?? {}}];
+            switch (getCallEncoding(part)) {
+                case 'server':
+                    return [
+                        {type: 'server_tool_use', id, name, input: input ?? {}},
+                        part.providerData.anthropic.resultBlock
+                    ];
+                case 'tool':
+                    return [{type: 'tool_use', id, name, input: input ?? {}}];
+                default:
+                    return [];
+            }
         }
         default:
             return [];
@@ -245,7 +339,7 @@ function encodeAssistantPart(part: ChatPart): PlainObject[] {
 }
 
 function encodeToolResult(part: ChatPart): PlainObject {
-    if (part.type !== 'toolCall' || !isToolCallFinal(part) || isServerToolCall(part)) return null;
+    if (part.type !== 'toolCall' || getCallEncoding(part) !== 'tool') return null;
     return omitBy(
         {
             type: 'tool_result',
@@ -257,9 +351,16 @@ function encodeToolResult(part: ChatPart): PlainObject {
     );
 }
 
-/** True for a call to an Anthropic server tool, whose result block the decoder kept verbatim. */
-function isServerToolCall(part: ChatToolCallPart): boolean {
-    return part.providerExecuted && part.encryptedValue != null;
+/**
+ * How a tool call goes back to Anthropic: as a server tool block followed by its verbatim result
+ * block, as a `tool_use` answered by a `tool_result`, or - for a call that is unfinished, or that
+ * the backend ran but never returned a result for - not at all.
+ */
+function getCallEncoding(part: ChatToolCallPart): 'server' | 'tool' {
+    if (!isToolCallFinal(part)) return null;
+    if (!part.providerExecuted) return 'tool';
+    if (part.providerData?.anthropic?.resultBlock) return 'server';
+    return part.state === 'output-available' ? 'tool' : null;
 }
 
 function decodeBase64Text(data: string): string {
@@ -371,18 +472,16 @@ class AnthropicDecoder {
             case 'thinking':
             case 'redacted_thinking': {
                 const messageId = `reasoning-${index}`;
-                this.blocks.set(index, {
-                    type,
-                    id: messageId,
-                    signature:
-                        type === 'thinking' ? block.signature || null : REDACTED_PREFIX + block.data
-                });
+                this.blocks.set(index, {type, id: messageId, signature: block.signature || null});
                 ret.push(
                     {type: 'REASONING_START', messageId},
                     {type: 'REASONING_MESSAGE_START', messageId, role: 'reasoning'}
                 );
                 if (block.thinking) {
                     ret.push({type: 'REASONING_MESSAGE_CONTENT', messageId, delta: block.thinking});
+                }
+                if (type === 'redacted_thinking') {
+                    ret.push(providerDataEvent('message', messageId, {redactedData: block.data}));
                 }
                 break;
             }
@@ -391,6 +490,14 @@ class AnthropicDecoder {
                 const {id: toolCallId, name: toolCallName, input} = block;
                 this.blocks.set(index, {type, id: toolCallId});
                 ret.push({type: 'TOOL_CALL_START', toolCallId, toolCallName});
+                // Anthropic runs server tools - the chat must never run them as client tools.
+                if (type === 'server_tool_use') {
+                    ret.push({
+                        type: 'CUSTOM',
+                        name: 'xh.chat.providerExecuted',
+                        value: {toolCallId}
+                    });
+                }
                 // A relayed message may carry the complete input up front, with no deltas.
                 if (!isEmpty(input)) {
                     ret.push({type: 'TOOL_CALL_ARGS', toolCallId, delta: JSON.stringify(input)});
@@ -410,12 +517,7 @@ class AnthropicDecoder {
                             role: 'tool'
                         },
                         // Kept verbatim - the next request must send the block back unchanged.
-                        {
-                            type: 'REASONING_ENCRYPTED_VALUE',
-                            subtype: 'tool-call',
-                            entityId: toolCallId,
-                            encryptedValue: JSON.stringify(block)
-                        }
+                        providerDataEvent('tool-call', toolCallId, {resultBlock: block})
                     );
                 }
                 this.blocks.set(index, {type, id: null});
@@ -505,6 +607,19 @@ class AnthropicDecoder {
             );
         return usage ? {metadata, usage: [decodeUsage(usage, model)]} : {metadata};
     }
+}
+
+/** An event that keeps Anthropic data on a part, for the next request to send back. */
+function providerDataEvent(
+    subtype: 'message' | 'tool-call',
+    entityId: string,
+    data: PlainObject
+): ChatEvent {
+    return {
+        type: 'CUSTOM',
+        name: 'xh.chat.providerData',
+        value: {subtype, entityId, data: {anthropic: data}}
+    };
 }
 
 /**

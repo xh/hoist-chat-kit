@@ -1,4 +1,5 @@
 import {noop} from 'lodash';
+import {raceAbort} from '../../core/impl/abort';
 
 /**
  * Iterate `source` until it ends or `signal` aborts. An abort ends iteration at once - throwing
@@ -20,20 +21,4 @@ export async function* abortable<T>(
         // Not awaited - a read abandoned by an abort settles only once its request is cancelled.
         source.return?.().catch(noop);
     }
-}
-
-//------------------
-// Implementation
-//------------------
-function raceAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-    return new Promise((resolve, reject) => {
-        if (signal.aborted) {
-            promise.catch(noop);
-            reject(signal.reason);
-            return;
-        }
-        const onAbort = () => reject(signal.reason);
-        signal.addEventListener('abort', onAbort, {once: true});
-        promise.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
-    });
 }

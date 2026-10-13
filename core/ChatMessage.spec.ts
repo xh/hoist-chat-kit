@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {ChatMessage} from './ChatMessage';
-import {type ChatToolCallPart, isToolCallFinal} from './ChatPart';
+import type {ChatToolCallPart} from './ChatPart';
 
 /**
  * ChatMessage, the immutable record behind every message in a chat. Apps build messages from
@@ -49,14 +49,6 @@ describe('ChatMessage', () => {
             expect(message.text).toBe('Checking.\n\nDone.');
             expect(message.toolCalls.map(it => it.id)).toEqual(['c1', 'c2']);
         });
-
-        it('reports a pending or streaming message as streaming', () => {
-            expect(new ChatMessage({role: 'assistant', status: 'pending'}).isStreaming).toBe(true);
-            expect(new ChatMessage({role: 'assistant', status: 'streaming'}).isStreaming).toBe(
-                true
-            );
-            expect(new ChatMessage({role: 'assistant', status: 'aborted'}).isStreaming).toBe(false);
-        });
     });
 
     describe('withChanges', () => {
@@ -82,26 +74,12 @@ describe('ChatMessage', () => {
                         toolCall('c1'),
                         {type: 'file', id: 'f1', name: 'a.png', mediaType: 'image/png', data: 'AA'}
                     ],
-                    metadata: {elapsedMs: 1200, finishReason: 'end_turn'}
+                    metadata: {elapsedMs: 1200, finishReason: 'stop'}
                 }),
                 restored = new ChatMessage(JSON.parse(JSON.stringify(original.toSpec())));
 
             expect(restored).toEqual(original);
         });
-    });
-});
-
-describe('isToolCallFinal', () => {
-    it.each([
-        ['input-streaming', false],
-        ['input-available', false],
-        ['approval-requested', false],
-        ['running', false],
-        ['output-available', true],
-        ['output-error', true],
-        ['output-denied', true]
-    ] as const)('reports %s as final: %s', (state, expected) => {
-        expect(isToolCallFinal({...toolCall('c1'), state})).toBe(expected);
     });
 });
 

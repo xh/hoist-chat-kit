@@ -142,6 +142,7 @@ is the failure a source package is most likely to ship by mistake.
 **Decision.** A codec maps the provider's stop reason to one of `stop`, `length`, `tool-calls`,
 `content-filter` or `other`, and records it as `metadata.finishReason` on the assistant message.
 The raw provider value goes in `metadata.stopReason`.
+`ChatModel` adds one value of its own, `max-steps`, for a turn that hit its `maxSteps` limit.
 
 **Why.** Apps that show "the reply was cut off" or "the model declined" need one set of values
 across providers. The AI SDK set is the one most chat code already knows.

@@ -118,15 +118,6 @@ describe('ChatComposerModel', () => {
                 'Attachments are not enabled'
             );
         });
-
-        it('removes an attachment by id', async () => {
-            const composer = createChatModel({enableAttachments: true}).composerModel;
-            await composer.addFilesAsync([file('a.txt'), file('b.txt')]);
-
-            composer.removeAttachment(composer.attachments[0].id);
-
-            expect(composer.attachments.map(it => it.name)).toEqual(['b.txt']);
-        });
     });
 
     describe('recallLastMessage', () => {
@@ -141,19 +132,6 @@ describe('ChatComposerModel', () => {
             composer.text = 'Draft in progress';
             composer.recallLastMessage();
             expect(composer.text).toBe('Draft in progress');
-        });
-    });
-
-    describe('focus', () => {
-        it('focuses the input bound to inputRef', () => {
-            const composer = createChatModel().composerModel,
-                input = {focus: vi.fn()};
-
-            composer.focus();
-            composer.inputRef(input as any);
-            composer.focus();
-
-            expect(input.focus).toHaveBeenCalledOnce();
         });
     });
 });

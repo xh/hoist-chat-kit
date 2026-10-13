@@ -1,4 +1,4 @@
-import {hoistCore, hoistError, initTestAppAsync} from '@xh/hoist/test-support';
+import {hoistCore, hoistError, initTestAppAsync, noContent} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, vi} from 'vitest';
 import {ChatMessage} from '../core';
 import type {ChatEvent} from './ChatEvent';
@@ -53,6 +53,40 @@ describe('SseChatTransport', () => {
             events = await collect(transport.run(request()));
 
         expect(events).toEqual([{type: 'RUN_ERROR', message: 'Boom', code: 'api_error'}]);
+    });
+
+    it('skips data that is not JSON, such as a plain-text keep-alive', async () => {
+        const stream = sseStream();
+        hoistCore.route('POST', 'agent', () => stream.response);
+        stream.write('data: ping\n\n', `data: ${JSON.stringify(TEXT_START)}\n\n`);
+        stream.close();
+
+        const events = await collect(new SseChatTransport({url: 'agent'}).run(request()));
+
+        expect(events).toEqual([TEXT_START]);
+    });
+
+    it('yields no events for an empty response', async () => {
+        hoistCore.route('POST', 'agent', () => noContent());
+
+        const events = await collect(new SseChatTransport({url: 'agent'}).run(request()));
+
+        expect(events).toEqual([]);
+    });
+
+    it('closes the connection when the caller stops reading early', async () => {
+        const stream = sseStream(),
+            signals = spyFetchSignals('agent');
+        hoistCore.route('POST', 'agent', () => stream.response);
+        stream.write(
+            `data: ${JSON.stringify(TEXT_START)}\n\ndata: ${JSON.stringify(TEXT_CONTENT)}\n\n`
+        );
+
+        for await (const event of new SseChatTransport({url: 'agent'}).run(request())) {
+            if (event.type === 'TEXT_MESSAGE_START') break;
+        }
+
+        expect(signals[0].aborted).toBe(true);
     });
 
     it('stops at once and closes the connection when the signal aborts mid-stream', async () => {

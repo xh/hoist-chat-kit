@@ -2,6 +2,7 @@ export * from './ChatCodec';
 export * from './ChatEvent';
 export * from './ChatTransport';
 export * from './HoistChatTransport';
+export * from './HttpChatTransport';
 export * from './ScriptedChatTransport';
 export * from './SseChatTransport';
 export * from './codec/AgUiCodec';

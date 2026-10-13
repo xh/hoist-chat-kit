@@ -20,7 +20,7 @@ import {
  */
 describe('ScriptedChatTransport', () => {
     describe('run', () => {
-        it('plays one scripted response per call, inside RUN_STARTED and RUN_FINISHED', async () => {
+        it('plays one scripted response per request, inside RUN_STARTED and RUN_FINISHED', async () => {
             const transport = new ScriptedChatTransport({
                 responses: [textEvents('One', {messageId: 'm1'}), textEvents('Two')],
                 delayMs: 0
@@ -71,15 +71,15 @@ describe('ScriptedChatTransport', () => {
         });
 
         it('asks `respond` for each response', async () => {
-            const respond = vi.fn((req: ChatRunRequest, callIndex: number) =>
-                    textEvents(`Call ${callIndex} for ${req.runId}`)
+            const respond = vi.fn((req: ChatRunRequest, requestIndex: number) =>
+                    textEvents(`Request ${requestIndex} for ${req.runId}`)
                 ),
                 transport = new ScriptedChatTransport({respond, delayMs: 0});
 
             const events = await collect(transport.run(request('r1')));
 
             expect(respond).toHaveBeenCalledWith(transport.requests[0], 0);
-            expect(textOf(events)).toBe('Call 0 for r1');
+            expect(textOf(events)).toBe('Request 0 for r1');
         });
 
         it('passes an async iterable response through as is', async () => {
@@ -93,10 +93,10 @@ describe('ScriptedChatTransport', () => {
             expect(textOf(events)).toBe('Streamed');
         });
 
-        it('fails a call that has no scripted response', async () => {
+        it('fails a request that has no scripted response', async () => {
             const transport = new ScriptedChatTransport({responses: []});
             await expect(collect(transport.run(request('r1')))).rejects.toThrow(
-                'no response for model call 1'
+                'no response for request 1'
             );
         });
     });

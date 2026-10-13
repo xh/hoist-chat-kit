@@ -8,8 +8,13 @@ import type {PlainObject} from '@xh/hoist/core';
  * reads rather than depending on `@ag-ui/core`. Events the kit does not act on are still accepted
  * and ignored.
  *
- * Kit-specific content (sources, citations, data parts, files) travels as AG-UI `CUSTOM` events
- * named with the `xh.chat.` prefix - see {@link ChatCustomEventName}.
+ * One AG-UI run is one step of a kit turn: a single model call, from `RUN_STARTED` to
+ * `RUN_FINISHED` or `RUN_ERROR`. AG-UI's own `STEP_STARTED` and `STEP_FINISHED` events mark
+ * stages within a run, such as the nodes of an agent graph. They are not kit steps, and the kit
+ * ignores them.
+ *
+ * Kit-specific content (sources, citations, data parts, files, provider data) travels as AG-UI
+ * `CUSTOM` events named with the `xh.chat.` prefix - see {@link ChatCustomEventName}.
  *
  * @see https://docs.ag-ui.com/concepts/events
  */
@@ -36,7 +41,7 @@ export type ChatEvent =
     | ToolCallChunkEvent
     | ToolCallResultEvent
     | ActivitySnapshotEvent
-    | CustomEvent
+    | ChatCustomEvent
     | IgnoredEvent;
 
 /** Discriminator values for {@link ChatEvent}. */
@@ -57,64 +62,100 @@ export interface ChatEventBase {
 //------------------
 // Lifecycle
 //------------------
+/** A run - one step of the turn - has started. */
 export interface RunStartedEvent extends ChatEventBase {
     type: 'RUN_STARTED';
     threadId: string;
     runId: string;
 }
 
+/**
+ * The run has finished normally. A stream that ends without this event, or `RUN_ERROR`, fails the
+ * turn as incomplete.
+ */
 export interface RunFinishedEvent extends ChatEventBase {
     type: 'RUN_FINISHED';
     threadId: string;
     runId: string;
+
+    /** The agent's result, if any. Not used by the kit. */
     result?: any;
+
+    /** How the run ended. Maps to the finish reason when `metadata.finishReason` is not given. */
     outcome?: {type: 'success' | 'interrupt' | 'cancelled'; [key: string]: any};
+
+    /** Token counts for the run, recorded as `metadata.usage` on the message. */
     usage?: ChatTokenUsage[];
 }
 
+/** The run has failed. Its `code` is recorded as `metadata.errorCode` on the message. */
 export interface RunErrorEvent extends ChatEventBase {
     type: 'RUN_ERROR';
+
+    /** Error text, shown to the user. */
     message: string;
+
+    /** Machine-readable error code, such as `overloaded_error`. */
     code?: string;
 }
 
+/** A stage within the run has started - not a kit step. Ignored. */
 export interface StepStartedEvent extends ChatEventBase {
     type: 'STEP_STARTED';
     stepName: string;
 }
 
+/** A stage within the run has finished - not a kit step. Ignored. */
 export interface StepFinishedEvent extends ChatEventBase {
     type: 'STEP_FINISHED';
     stepName: string;
 }
 
-/** Token counts for one model call, as reported on `RUN_FINISHED`. */
+/** Token counts for one step, as reported on `RUN_FINISHED`. */
 export interface ChatTokenUsage {
+    /** Provider that served the call, e.g. 'anthropic'. */
     provider?: string;
+
+    /** Model that served the call. */
     model?: string;
+
+    /** Input tokens, including those read from or written to a prompt cache. */
     inputTokens?: number;
+
+    /** Output tokens, including reasoning. */
     outputTokens?: number;
+
+    /** Input plus output tokens. */
     totalTokens?: number;
+
+    /** Output tokens spent on reasoning, where reported. */
     reasoningTokens?: number;
+
+    /** Input tokens read from a prompt cache. */
     cachedInputTokens?: number;
+
+    /** Input tokens written to a prompt cache. */
     cacheWriteInputTokens?: number;
 }
 
 //------------------
 // Text
 //------------------
+/** A text message has started. Its part opens with its first content. */
 export interface TextMessageStartEvent extends ChatEventBase {
     type: 'TEXT_MESSAGE_START';
     messageId: string;
     role?: 'developer' | 'system' | 'assistant' | 'user';
 }
 
+/** A fragment of a text message. */
 export interface TextMessageContentEvent extends ChatEventBase {
     type: 'TEXT_MESSAGE_CONTENT';
     messageId: string;
     delta: string;
 }
 
+/** A text message has ended. */
 export interface TextMessageEndEvent extends ChatEventBase {
     type: 'TEXT_MESSAGE_END';
     messageId: string;
@@ -131,40 +172,46 @@ export interface TextMessageChunkEvent extends ChatEventBase {
 //------------------
 // Reasoning
 //------------------
+/** A span of reasoning has started. */
 export interface ReasoningStartEvent extends ChatEventBase {
     type: 'REASONING_START';
     messageId: string;
 }
 
+/** A reasoning message, within a reasoning span, has started. */
 export interface ReasoningMessageStartEvent extends ChatEventBase {
     type: 'REASONING_MESSAGE_START';
     messageId: string;
     role: 'reasoning';
 }
 
+/** A fragment of a reasoning message. */
 export interface ReasoningMessageContentEvent extends ChatEventBase {
     type: 'REASONING_MESSAGE_CONTENT';
     messageId: string;
     delta: string;
 }
 
+/** A reasoning message has ended. */
 export interface ReasoningMessageEndEvent extends ChatEventBase {
     type: 'REASONING_MESSAGE_END';
     messageId: string;
 }
 
+/** Convenience form that opens, extends, or continues a reasoning message. */
 export interface ReasoningMessageChunkEvent extends ChatEventBase {
     type: 'REASONING_MESSAGE_CHUNK';
     messageId?: string;
     delta?: string;
 }
 
+/** A span of reasoning has ended. */
 export interface ReasoningEndEvent extends ChatEventBase {
     type: 'REASONING_END';
     messageId: string;
 }
 
-/** Opaque provider data for a reasoning message or tool call, such as a thinking signature. */
+/** A signature for a reasoning message or tool call, such as an Anthropic thinking signature. */
 export interface ReasoningEncryptedValueEvent extends ChatEventBase {
     type: 'REASONING_ENCRYPTED_VALUE';
     subtype: 'tool-call' | 'message';
@@ -175,6 +222,7 @@ export interface ReasoningEncryptedValueEvent extends ChatEventBase {
 //------------------
 // Tool calls
 //------------------
+/** The model has started a tool call. */
 export interface ToolCallStartEvent extends ChatEventBase {
     type: 'TOOL_CALL_START';
     toolCallId: string;
@@ -182,6 +230,7 @@ export interface ToolCallStartEvent extends ChatEventBase {
     parentMessageId?: string;
 }
 
+/** A fragment of a tool call's arguments. */
 export interface ToolCallArgsEvent extends ChatEventBase {
     type: 'TOOL_CALL_ARGS';
     toolCallId: string;
@@ -190,6 +239,7 @@ export interface ToolCallArgsEvent extends ChatEventBase {
     delta: string;
 }
 
+/** The model has finished writing a tool call's arguments. */
 export interface ToolCallEndEvent extends ChatEventBase {
     type: 'TOOL_CALL_END';
     toolCallId: string;
@@ -209,6 +259,8 @@ export interface ToolCallResultEvent extends ChatEventBase {
     type: 'TOOL_CALL_RESULT';
     messageId: string;
     toolCallId: string;
+
+    /** The result - JSON-parsed into the part's `output` when it parses. */
     content: string | PlainObject[];
     role?: 'tool';
 }
@@ -220,15 +272,23 @@ export interface ToolCallResultEvent extends ChatEventBase {
 export interface ActivitySnapshotEvent extends ChatEventBase {
     type: 'ACTIVITY_SNAPSHOT';
     messageId: string;
+
+    /** Kind of activity - becomes the `dataType` of its data part. */
     activityType: string;
     content: PlainObject;
+
+    /** False to keep the existing content of a part with the same id. Default true. */
     replace?: boolean;
 }
 
 //------------------
 // Extension
 //------------------
-export interface CustomEvent extends ChatEventBase {
+/**
+ * An application-defined event. The kit acts on those named in {@link ChatCustomEventName} and
+ * ignores the rest.
+ */
+export interface ChatCustomEvent extends ChatEventBase {
     type: 'CUSTOM';
     name: string;
     value: any;
@@ -256,6 +316,16 @@ export interface IgnoredEvent extends ChatEventBase {
  *    from the current text part.
  *  - `xh.chat.data` - value `{id?, dataType, data}`, adds or replaces a data part.
  *  - `xh.chat.file` - value `{id?, name, mediaType, size?, url?, data?}`, appends a file part.
+ *  - `xh.chat.providerData` - value `{subtype: 'message' | 'tool-call', entityId, data}`, merges
+ *    `data` into the `providerData` of a reasoning part or tool call, by provider key. Ids follow
+ *    `REASONING_ENCRYPTED_VALUE`.
+ *  - `xh.chat.providerExecuted` - value `{toolCallId}`, marks a tool call as run by the backend
+ *    before its result arrives, so that the chat never runs it as a client tool.
  */
 export type ChatCustomEventName =
-    'xh.chat.source' | 'xh.chat.citation' | 'xh.chat.data' | 'xh.chat.file';
+    | 'xh.chat.source'
+    | 'xh.chat.citation'
+    | 'xh.chat.data'
+    | 'xh.chat.file'
+    | 'xh.chat.providerData'
+    | 'xh.chat.providerExecuted';

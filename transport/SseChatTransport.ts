@@ -1,32 +1,15 @@
-import {type PlainObject, XH} from '@xh/hoist/core';
-import type {PromiseTimeoutSpec} from '@xh/hoist/promise';
-import type {ChatCodec} from './ChatCodec';
-import type {ChatEvent} from './ChatEvent';
-import type {ChatRunRequest, ChatTransport} from './ChatTransport';
-import {AgUiCodec} from './codec/AgUiCodec';
-import {type SseEvent, SseParser} from './impl/SseParser';
-import {abortable} from './impl/streams';
+import {XH} from '@xh/hoist/core';
+import type {FetchOptions} from '@xh/hoist/svc';
+import {logDebug} from '@xh/hoist/utils/js';
+import {
+    HttpChatTransport,
+    type HttpChatRecord,
+    type HttpChatTransportConfig
+} from './HttpChatTransport';
+import {SseParser} from './impl/SseParser';
 
 /** Configuration for a {@link SseChatTransport}. */
-export interface SseChatTransportConfig {
-    /** Endpoint to post to. Relative urls resolve against `XH.baseUrl`. */
-    url: string;
-
-    /** Encodes requests and decodes the data of each event. Default an {@link AgUiCodec}. */
-    codec?: ChatCodec;
-
-    /** Extra headers for each request, e.g. to authenticate with an agent server. */
-    headers?: PlainObject;
-
-    /** Query string parameters for each request. */
-    params?: PlainObject;
-
-    /**
-     * Time to wait for the server to start its response. Default the `FetchService` default. No
-     * timeout applies once the response is streaming.
-     */
-    timeout?: PromiseTimeoutSpec;
-}
+export interface SseChatTransportConfig extends HttpChatTransportConfig {}
 
 /**
  * Transport for a backend that streams Server-Sent Events - an AG-UI agent server, or a proxy
@@ -41,61 +24,34 @@ export interface SseChatTransportConfig {
  *  - It responds with `text/event-stream`. The `data` of each event is one JSON record in the
  *    codec's format - AG-UI events by default, or Anthropic stream events with an
  *    {@link AnthropicCodec}. The `event` name is passed to the codec along with the data.
- *    Comments (keep-alives) and `[DONE]` sentinels are skipped.
- *  - It ends the response when the model call ends, and should stop work when the client
- *    disconnects. The transport closes the connection when the user stops the turn.
+ *    Comments (keep-alives), `[DONE]` sentinels and data that is not JSON are skipped.
+ *  - It ends the response when the step ends, after the codec's closing record -
+ *    `RUN_FINISHED` in AG-UI, `message_stop` from Anthropic. A response that ends without one
+ *    fails the turn as incomplete. It should stop work when the client disconnects. The transport
+ *    closes the connection when the user stops the turn.
  */
-export class SseChatTransport implements ChatTransport {
-    readonly url: string;
-    readonly codec: ChatCodec;
-    readonly headers: PlainObject;
-    readonly params: PlainObject;
-    readonly timeout: PromiseTimeoutSpec;
+export class SseChatTransport extends HttpChatTransport {
+    protected override async *fetchRecords(opts: FetchOptions): AsyncGenerator<HttpChatRecord> {
+        const response: Response = await XH.fetch({
+            ...opts,
+            headers: {Accept: 'text/event-stream', ...opts.headers}
+        });
+        if (!response.body) return;
 
-    constructor({
-        url,
-        codec = new AgUiCodec(),
-        headers = null,
-        params = null,
-        timeout
-    }: SseChatTransportConfig) {
-        this.url = url;
-        this.codec = codec;
-        this.headers = headers;
-        this.params = params;
-        // Left undefined when not configured, as null would disable the FetchService timeout.
-        this.timeout = timeout;
-    }
-
-    async *run(request: ChatRunRequest): AsyncGenerator<ChatEvent> {
-        const {url, codec, headers, params, timeout} = this,
-            {signal} = request;
-        signal.throwIfAborted();
-
-        // A signal of our own also closes the connection when the caller stops reading early.
-        const aborter = new AbortController(),
-            decode = codec.createDecoder(request);
-        try {
-            const response: Response = await XH.fetch({
-                url,
-                method: 'POST',
-                body: JSON.stringify(codec.encodeRequest(request)),
-                headers: {
-                    'Content-Type': 'application/json',
-                    Accept: 'text/event-stream',
-                    ...headers
-                },
-                params,
-                timeout,
-                fetchOpts: {signal: AbortSignal.any([signal, aborter.signal])}
-            });
-
-            for await (const {event, data} of abortable(readEvents(response), signal)) {
+        const reader = response.body.getReader(),
+            parser = new SseParser();
+        while (true) {
+            const {done, value} = await reader.read();
+            if (done) return;
+            for (const {event, data} of parser.feed(value)) {
                 if (data === '[DONE]') continue;
-                yield* decode(JSON.parse(data), event);
+                const record = parseJson(data);
+                if (record) {
+                    yield {data: record, eventName: event};
+                } else {
+                    logDebug(['Skipped SSE data that is not JSON', data], this);
+                }
             }
-        } finally {
-            aborter.abort();
         }
     }
 }
@@ -103,12 +59,10 @@ export class SseChatTransport implements ChatTransport {
 //------------------
 // Implementation
 //------------------
-async function* readEvents(response: Response): AsyncGenerator<SseEvent> {
-    const reader = response.body.getReader(),
-        parser = new SseParser();
-    while (true) {
-        const {done, value} = await reader.read();
-        if (done) return;
-        yield* parser.feed(value);
+function parseJson(data: string): any {
+    try {
+        return JSON.parse(data);
+    } catch (ignored) {
+        return null;
     }
 }

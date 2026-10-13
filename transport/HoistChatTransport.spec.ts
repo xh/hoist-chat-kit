@@ -23,13 +23,20 @@ describe('HoistChatTransport', () => {
         stream.push(TEXT_START, TEXT_CONTENT, FINISHED);
         stream.close();
 
-        const transport = new HoistChatTransport({url: 'chat', params: {agent: 'weather'}}),
+        const transport = new HoistChatTransport({
+                url: 'chat',
+                params: {agent: 'weather'},
+                headers: {'X-Agent-Key': 'k1'}
+            }),
             events = await collect(transport.run(request()));
 
         expect(events).toEqual([TEXT_START, TEXT_CONTENT, FINISHED]);
 
         const [req] = hoistCore.requestsTo('chat');
-        expect(req.headers['content-type']).toBe('application/json');
+        expect(req.headers).toMatchObject({
+            'content-type': 'application/json',
+            'x-agent-key': 'k1'
+        });
         expect(req.query).toEqual({agent: 'weather'});
         expect(req.json).toMatchObject({
             threadId: 't1',
@@ -51,6 +58,17 @@ describe('HoistChatTransport', () => {
 
         stream.close();
         expect((await events.next()).done).toBe(true);
+    });
+
+    it('awaits a codec that builds its request asynchronously', async () => {
+        const stream = ndjsonStream();
+        hoistCore.route('POST', 'chat', () => stream.response);
+        stream.close();
+
+        const codec = new AnthropicCodec({system: async () => 'Live context.'});
+        await collect(new HoistChatTransport({url: 'chat', codec}).run(request()));
+
+        expect(hoistCore.requestsTo('chat')[0].json).toMatchObject({system: 'Live context.'});
     });
 
     it('decodes each line with the configured codec', async () => {

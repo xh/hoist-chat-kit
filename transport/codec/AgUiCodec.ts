@@ -42,7 +42,7 @@ export interface AgUiContext {
 /**
  * Codec for the AG-UI protocol (version 1.0) - the default codec of the kit's HTTP transports.
  *
- * Each model call is sent as an AG-UI `RunAgentInput`:
+ * Each step is sent as an AG-UI `RunAgentInput`:
  *
  * ```
  * {threadId, runId, protocolVersion: '1.0', state: {}, messages, tools, context, forwardedProps}
@@ -53,13 +53,17 @@ export interface AgUiContext {
  * assistant turn becomes a `reasoning` message per reasoning part (with its `encryptedValue`), an
  * `assistant` message with its text as `content` and its finished tool calls as `toolCalls`, and a
  * `tool` message per call with its result - and `error`, for a failed or denied call. Tools are
- * sent as `{name, description, parameters}`.
+ * sent as `{name, description, parameters}`, with an empty object schema for a tool that has no
+ * `parameters`.
  *
  * The kit's events are AG-UI events, so decoding passes each record through as is. Records of an
  * unknown `type` are dropped.
  */
 export class AgUiCodec implements ChatCodec {
+    /** Ambient information for the agent, or a function to build it per run. */
     readonly context: AgUiCodecConfig['context'];
+
+    /** Values passed to the agent untouched, or a function to build them per run. */
     readonly forwardedProps: AgUiCodecConfig['forwardedProps'];
 
     constructor({context = null, forwardedProps = null}: AgUiCodecConfig = {}) {
@@ -76,9 +80,11 @@ export class AgUiCodec implements ChatCodec {
             protocolVersion: '1.0',
             state: {},
             messages: flatMap(messages, encodeMessage),
-            tools: tools.map(({name, description, parameters}) =>
-                omitBy({name, description: description ?? '', parameters}, isNil)
-            ),
+            tools: tools.map(({name, description, parameters}) => ({
+                name,
+                description: description ?? '',
+                parameters: parameters ?? {type: 'object', properties: {}}
+            })),
             context: (isFunction(context) ? context(request) : context) ?? [],
             forwardedProps:
                 (isFunction(forwardedProps) ? forwardedProps(request) : forwardedProps) ?? {}

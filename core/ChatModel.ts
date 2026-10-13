@@ -1,23 +1,25 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {HoistModel, managed} from '@xh/hoist/core';
+import {HoistModel, managed, XH} from '@xh/hoist/core';
 import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
+import {throwIf} from '@xh/hoist/utils/js';
 import {findLast, findLastIndex, isEmpty, isFunction, isString, maxBy} from 'lodash';
 import type {ReactNode} from 'react';
 import type {ChatEvent, ChatRunRequest, ChatTransport} from '../transport';
 import {ChatComposerModel, type ChatComposerConfig} from './ChatComposerModel';
 import {ChatMessage, type ChatMessageSpec} from './ChatMessage';
-import type {
-    ChatDataPart,
-    ChatFilePart,
-    ChatPart,
-    ChatTextPart,
-    ChatToolCallPart,
-    ChatToolCallState
-} from './ChatPart';
+import type {ChatDataPart, ChatFilePart, ChatPart, ChatToolCallPart} from './ChatPart';
+import {ChatRunError} from './ChatRunError';
 import type {ChatToolSpec} from './ChatToolSpec';
+import {isAbortError, raceAbort} from './impl/abort';
 import {ChatStreamReducer} from './impl/ChatStreamReducer';
 import {genChatId} from './impl/ids';
-import {getClientToolCalls, settleOpenParts, updatePart} from './impl/messageUtils';
+import {
+    createTextPart,
+    getClientToolCalls,
+    settleOpenParts,
+    settleStreamingParts,
+    updatePart
+} from './impl/messageUtils';
 
 /** Configuration for a {@link ChatModel}. */
 export interface ChatModelConfig {
@@ -28,12 +30,15 @@ export interface ChatModelConfig {
     tools?: ChatToolSpec[];
 
     /**
-     * Maximum model calls in one assistant turn. Each round of client tool calls takes one more.
-     * Default 10.
+     * Maximum steps - model calls - in one assistant turn. Each round of client tool calls takes
+     * one more. Default 10.
      */
     maxSteps?: number;
 
-    /** Messages to start with, such as a greeting or restored history. */
+    /**
+     * Messages to start with, such as a greeting or restored history. Messages left in progress
+     * are closed, as with {@link ChatModel.loadMessages}.
+     */
     initialMessages?: ChatMessageSpec[];
 
     /** Identifies the conversation to the backend. Default a new UUID. */
@@ -48,7 +53,12 @@ export interface ChatModelConfig {
      */
     dataRenderers?: Record<string, ChatDataRenderer>;
 
-    /** Called when an assistant turn ends - complete, failed, or stopped. */
+    /**
+     * Called when an assistant turn ends - complete, failed, or stopped - with its final message.
+     * Not called when a turn pauses for the user, but called when a paused turn is later closed.
+     * Also called for a turn that `clear`, `loadMessages`, `retryAsync`, `regenerateAsync` or
+     * `editMessageAsync` stops or closes, just before its message is discarded.
+     */
     onTurnComplete?: (message: ChatMessage) => void;
 }
 
@@ -58,7 +68,8 @@ export type ChatDataRenderer = (part: ChatDataPart, message: ChatMessage) => Rea
 /**
  * State of the conversation.
  *
- *  - `ready` - idle, and ready for the user's next message.
+ *  - `ready` - idle, and ready for the user's next message. A turn paused for the user is ready -
+ *    see {@link ChatModel.isAwaitingUser}.
  *  - `submitted` - a turn has started and no content has arrived yet.
  *  - `streaming` - content is arriving, or client tools are running.
  *  - `error` - the last turn failed. See `lastError`.
@@ -67,8 +78,13 @@ export type ChatStatus = 'ready' | 'submitted' | 'streaming' | 'error';
 
 /** A user message to send - see {@link ChatModel.sendAsync}. */
 export interface ChatSendSpec {
+    /** Text of the message. Trimmed. */
     text?: string;
+
+    /** Files to attach, sent ahead of the text. */
     files?: ChatFilePart[];
+
+    /** App data to record on the user message. */
     metadata?: PlainObject;
 }
 
@@ -77,11 +93,16 @@ export interface ChatSendSpec {
  * current turn, and the run loop that streams responses and executes client tools.
  *
  * Each user message starts a turn, which builds one assistant message. A turn makes one or more
- * model calls ("steps") through the {@link ChatTransport}. When a step ends with calls to client
- * tools - those with an `execute` function - the model runs them in order and makes another call
- * with their results, up to `maxSteps`. A turn pauses, with status 'ready', while tool calls wait
- * for the user: for approval (see {@link ChatToolSpec.needsApproval}), or for a result given via
- * {@link addToolOutputAsync}. It resumes once every waiting call is answered.
+ * steps - model calls - through the {@link ChatTransport}. When a step ends with calls to client
+ * tools - those with an `execute` function - the chat runs them in order and starts another step
+ * with their results, up to `maxSteps`.
+ *
+ * A turn pauses while tool calls wait for the user: for approval (see
+ * {@link ChatToolSpec.needsApproval}), or for the result of an interactive tool (see
+ * {@link ChatToolSpec.interactive}), given via {@link addToolOutputAsync}. While paused, the chat
+ * is `ready`, its last message is `paused`, and {@link waitingToolCalls} lists the calls to answer.
+ * The turn resumes once every waiting call is answered. Sending a new message instead closes the
+ * waiting calls, so that the history stays valid for the model.
  *
  * Only one turn runs at a time. Render the model with a desktop `ChatPanel`, or with the
  * lower-level message list and composer components.
@@ -92,10 +113,16 @@ export class ChatModel extends HoistModel {
     //-----------------------
     // Immutable Properties
     //-----------------------
+    /** Connection to the backend that runs the model or agent. */
     readonly transport: ChatTransport;
+
+    /** Tools the model may call, and display config for tools the backend runs. */
     readonly tools: ChatToolSpec[];
+
+    /** Maximum steps - model calls - in one assistant turn. */
     readonly maxSteps: number;
-    readonly threadId: string;
+
+    /** Renderers for data parts, keyed by `dataType`. */
     readonly dataRenderers: Record<string, ChatDataRenderer>;
 
     /** Draft text and attachments for the next message. */
@@ -104,13 +131,22 @@ export class ChatModel extends HoistModel {
     //-----------------------
     // Observable State
     //-----------------------
+    /**
+     * Identifies the conversation to the backend. A new id is generated by `clear`, and by
+     * `loadMessages` unless it is given one. (observable)
+     */
+    @observable accessor threadId: string;
+
     /** Conversation history, oldest first. Replaced, never mutated, on change. (observable) */
     @observableRef accessor messages: ChatMessage[] = [];
 
     /** State of the conversation. (observable) */
     @observable accessor status: ChatStatus = 'ready';
 
-    /** Error from the last turn, or null. (observable) */
+    /**
+     * Error from the last turn, or null. A {@link ChatRunError} for an error the run reported, else
+     * the error thrown - such as a Hoist `FetchException`. (observable)
+     */
     @observableRef accessor lastError: Error = null;
 
     /** True while a turn is in progress. A turn paused for the user is not busy. */
@@ -131,13 +167,27 @@ export class ChatModel extends HoistModel {
         return this.messages[this.messages.length - 1] ?? null;
     }
 
-    /** Tool calls waiting for the user to approve or deny them. */
+    /**
+     * Tool calls the paused turn is waiting on - calls to approve or deny, and calls to
+     * interactive tools awaiting their result. Empty unless a turn is paused.
+     */
+    @computed
+    get waitingToolCalls(): ChatToolCallPart[] {
+        const {lastMessage} = this;
+        if (this.isBusy || !lastMessage?.isAssistant) return [];
+        return lastMessage.toolCalls.filter(it => this.isWaitingToolCall(it));
+    }
+
+    /** True if a turn is paused, waiting for the user to answer its tool calls. */
+    @computed
+    get isAwaitingUser(): boolean {
+        return !isEmpty(this.waitingToolCalls);
+    }
+
+    /** Tool calls waiting for the user to approve or deny them - a subset of `waitingToolCalls`. */
     @computed
     get pendingApprovals(): ChatToolCallPart[] {
-        const {lastMessage} = this;
-        return lastMessage?.isAssistant
-            ? lastMessage.toolCalls.filter(it => it.state === 'approval-requested')
-            : [];
+        return this.waitingToolCalls.filter(it => it.state === 'approval-requested');
     }
 
     constructor(config: ChatModelConfig) {
@@ -152,14 +202,19 @@ export class ChatModel extends HoistModel {
             dataRenderers = {},
             onTurnComplete
         } = config;
+        throwIf(!transport, 'ChatModel requires a transport.');
+        throwIf(!(maxSteps >= 1), 'ChatModel maxSteps must be at least 1.');
+
         this.transport = transport;
         this.tools = tools;
         this.maxSteps = maxSteps;
         this.threadId = threadId ?? genChatId();
         this.dataRenderers = dataRenderers;
         this.onTurnComplete = onTurnComplete;
-        this.modelTools = tools.filter(it => it.sendToModel ?? it.execute != null);
-        this.messages = initialMessages.map(it => new ChatMessage(it));
+        this.modelTools = tools.filter(
+            it => it.sendToModel ?? (it.execute != null || !!it.interactive)
+        );
+        this.messages = restoreMessages(initialMessages);
         this.composerModel = new ChatComposerModel({...composer, chatModel: this});
     }
 
@@ -181,8 +236,9 @@ export class ChatModel extends HoistModel {
      * Defaults to the composer's draft, which is then cleared. Does nothing while busy, or if
      * there is no text or file to send.
      *
-     * Tool calls left waiting for the user by the previous turn are closed - approvals as denied -
-     * so that the history stays valid for the model.
+     * Tool calls left waiting for the user by the previous turn - including one restored with
+     * `loadMessages` - are closed, approvals as denied, so that the history stays valid for the
+     * model.
      *
      * @returns a promise that resolves when the turn ends or pauses, however it ends.
      */
@@ -205,13 +261,17 @@ export class ChatModel extends HoistModel {
         if (text) parts.push(createTextPart(text));
         if (isEmpty(parts)) return;
 
-        if (fromComposer) composerModel.clear();
-        this.closePausedTurn();
         const message = new ChatMessage({role: 'user', parts, metadata: spec.metadata});
-        await this.runNewTurnAsync([...this.messages, message]);
+        await this.runNewTurnAsync(() => {
+            if (fromComposer) composerModel.clear();
+            return [...this.messages, message];
+        });
     }
 
-    /** Stop the current turn. Content received so far is kept, with status 'aborted'. */
+    /**
+     * Stop the current turn, running or paused. Content received so far is kept, with status
+     * 'aborted'.
+     */
     stop() {
         const {turn} = this;
         if (!turn) return;
@@ -219,24 +279,26 @@ export class ChatModel extends HoistModel {
         this.endTurn(turn, 'aborted');
     }
 
-    /** Re-run the last user turn after an error, replacing the failed reply. */
+    /**
+     * Re-run the last user message, replacing everything after it - typically the reply that
+     * failed. See `onTurnComplete` for a turn this closes.
+     */
     async retryAsync(): Promise<void> {
         if (this.isTurnRunning) return;
-        this.closePausedTurn();
 
-        const {messages} = this,
-            idx = findLastIndex(messages, it => it.isUser);
+        const idx = findLastIndex(this.messages, it => it.isUser);
         if (idx === -1) return;
-        await this.runNewTurnAsync(messages.slice(0, idx + 1));
+        await this.runNewTurnAsync(() => this.messages.slice(0, idx + 1));
     }
 
     /**
-     * Replace an assistant reply with a new one, discarding any later messages.
+     * Replace an assistant reply with a new one, discarding any later messages. Ignored for a
+     * reply with no user message before it, such as a greeting.
+     *
      * @param messageId - default the last assistant message.
      */
     async regenerateAsync(messageId?: string): Promise<void> {
         if (this.isTurnRunning) return;
-        this.closePausedTurn();
 
         const {messages} = this,
             idx = findLastIndex(messages, it =>
@@ -246,7 +308,11 @@ export class ChatModel extends HoistModel {
             this.logWarn('Regenerate ignored - no such assistant message.', messageId);
             return;
         }
-        await this.runNewTurnAsync(messages.slice(0, idx));
+        if (!messages.slice(0, idx).some(it => it.isUser)) {
+            this.logDebug('Regenerate ignored - no user message before the reply.');
+            return;
+        }
+        await this.runNewTurnAsync(() => this.messages.slice(0, idx));
     }
 
     /**
@@ -255,11 +321,9 @@ export class ChatModel extends HoistModel {
      */
     async editMessageAsync(messageId: string, text: string): Promise<void> {
         if (this.isTurnRunning) return;
-        this.closePausedTurn();
 
-        const {messages} = this,
-            idx = findLastIndex(messages, it => it.id === messageId),
-            message = messages[idx];
+        const idx = findLastIndex(this.messages, it => it.id === messageId),
+            message = this.messages[idx];
         if (!message?.isUser) {
             this.logWarn('Edit ignored - no such user message.', messageId);
             return;
@@ -268,7 +332,10 @@ export class ChatModel extends HoistModel {
         const parts: ChatPart[] = message.parts.filter(it => it.type !== 'text');
         if (text?.trim()) parts.push(createTextPart(text.trim()));
         if (isEmpty(parts)) return;
-        await this.runNewTurnAsync([...messages.slice(0, idx), message.withChanges({parts})]);
+        await this.runNewTurnAsync(() => [
+            ...this.messages.slice(0, idx),
+            message.withChanges({parts})
+        ]);
     }
 
     /**
@@ -276,7 +343,7 @@ export class ChatModel extends HoistModel {
      * once no other call is waiting.
      */
     async approveToolCallAsync(toolCallId: string): Promise<void> {
-        const turn = this.getPausedTurn(toolCallId, 'approval-requested');
+        const turn = this.getPausedTurn(toolCallId, it => it.state === 'approval-requested');
         if (!turn) return;
 
         turn.approvedIds.add(toolCallId);
@@ -289,7 +356,7 @@ export class ChatModel extends HoistModel {
      * given reason, once no other call is waiting.
      */
     async denyToolCallAsync(toolCallId: string, reason?: string): Promise<void> {
-        const turn = this.getPausedTurn(toolCallId, 'approval-requested');
+        const turn = this.getPausedTurn(toolCallId, it => it.state === 'approval-requested');
         if (!turn) return;
 
         this.updateToolCall(turn, toolCallId, {
@@ -300,29 +367,45 @@ export class ChatModel extends HoistModel {
     }
 
     /**
-     * Provide the result of a tool call the user answers interactively - for tools rendered as a
-     * form or a choice - and continue the turn.
-     *
-     * Such tools are declared with a {@link ChatToolSpec} that has no `execute`. A turn whose
-     * model call ends with a call to one pauses until this method gives its result.
+     * Provide the result of a call to an interactive tool - one the user answers through its tool
+     * call card or a custom renderer, declared with {@link ChatToolSpec.interactive}. The turn
+     * continues once no other call is waiting.
      */
     async addToolOutputAsync(toolCallId: string, output: any): Promise<void> {
-        const turn = this.getPausedTurn(toolCallId, 'input-available');
+        const turn = this.getPausedTurn(
+            toolCallId,
+            it => it.state === 'input-available' && this.isInteractive(it)
+        );
         if (!turn) return;
 
         this.updateToolCall(turn, toolCallId, {state: 'output-available', output});
         await this.resumeTurnAsync(turn);
     }
 
-    /** Remove all messages. Stops any turn in progress. */
+    /** Remove all messages and start a new thread. Stops any turn in progress. */
     clear() {
         this.loadMessages([]);
     }
 
-    /** Replace the conversation with the given messages. Stops any turn in progress. */
-    loadMessages(specs: ChatMessageSpec[]) {
+    /**
+     * Replace the conversation with the given messages, as a new thread. Stops any turn in
+     * progress.
+     *
+     * Messages saved while in progress are closed, so the conversation can continue: a message
+     * that was pending or streaming becomes 'aborted', with its unfinished tool calls failed. A
+     * paused turn at the end of the history stays paused, so the user can still answer its tool
+     * calls - or send a new message, which closes them. A paused turn earlier in the history is
+     * closed.
+     *
+     * @param threadId - id of the loaded conversation, to send to the backend. Default a new id.
+     */
+    @action
+    loadMessages(specs: ChatMessageSpec[], threadId?: string) {
         this.stop();
-        this.resetMessages(specs.map(it => new ChatMessage(it)));
+        this.threadId = threadId ?? genChatId();
+        this.messages = restoreMessages(specs);
+        this.status = 'ready';
+        this.lastError = null;
     }
 
     /** The conversation as plain objects, for storage. */
@@ -353,22 +436,26 @@ export class ChatModel extends HoistModel {
         return this.turn === turn;
     }
 
-    private async runNewTurnAsync(history: ChatMessage[]) {
-        const message = new ChatMessage({role: 'assistant', status: 'pending'}),
-            turn: ChatTurn = {
-                messageId: message.id,
-                step: 0,
-                startedAt: Date.now(),
-                abortController: new AbortController(),
-                isRunning: true,
-                approvedIds: new Set(),
-                reducer: null,
-                pendingEvents: [],
-                flushTimer: null
-            };
+    private isInteractive(call: ChatToolCallPart): boolean {
+        const spec = this.getToolSpec(call.toolName);
+        return !!spec?.interactive && !spec.execute;
+    }
 
-        this.turn = turn;
-        this.beginTurn([...history, message]);
+    /** True for a call that a paused turn waits on - for approval, or for the user's result. */
+    private isWaitingToolCall(call: ChatToolCallPart): boolean {
+        return (
+            !call.providerExecuted &&
+            (call.state === 'approval-requested' ||
+                (call.state === 'input-available' && this.isInteractive(call)))
+        );
+    }
+
+    /**
+     * Start a turn on the history built by `getHistory`, run once the previous turn - if paused -
+     * is closed.
+     */
+    private async runNewTurnAsync(getHistory: () => ChatMessage[]) {
+        const turn = this.startTurn(getHistory);
         await this.runTurnAsync(turn, false);
     }
 
@@ -386,9 +473,11 @@ export class ChatModel extends HoistModel {
             if (!isResume) await this.runStepAsync(turn);
 
             while (this.isCurrent(turn)) {
-                const {status, error} = this.getTurnMessage(turn);
+                const {status, error, metadata} = this.getTurnMessage(turn);
                 if (status === 'error') {
-                    this.endTurn(turn, 'error', new Error(error));
+                    const runError = new ChatRunError(error, metadata.errorCode ?? null);
+                    this.logError('Turn failed', runError);
+                    this.endTurn(turn, 'error', runError);
                     return;
                 }
 
@@ -405,6 +494,11 @@ export class ChatModel extends HoistModel {
                 }
                 if (turn.step + 1 >= this.maxSteps) {
                     this.logWarn(`Turn ended at the limit of ${this.maxSteps} steps.`);
+                    this.updateTurnMessage(turn, message =>
+                        message.withChanges({
+                            metadata: {...message.metadata, finishReason: 'max-steps'}
+                        })
+                    );
                     this.endTurn(turn, 'complete');
                     return;
                 }
@@ -413,11 +507,13 @@ export class ChatModel extends HoistModel {
                 await this.runStepAsync(turn);
             }
         } catch (e) {
-            if (this.isCurrent(turn)) this.endTurn(turn, 'error', e);
+            if (!this.isCurrent(turn)) return;
+            if (!isAbortError(e)) XH.handleException(e, {showAlert: false});
+            this.endTurn(turn, 'error', e);
         }
     }
 
-    /** Make one model call, streaming its events into the turn's message. */
+    /** Make one step - one model call - streaming its events into the turn's message. */
     private async runStepAsync(turn: ChatTurn) {
         turn.reducer = new ChatStreamReducer(turn.step);
         const request: ChatRunRequest = {
@@ -442,8 +538,8 @@ export class ChatModel extends HoistModel {
     }
 
     /**
-     * Resolve the client tool calls of the turn's current step: fail calls to unknown tools, ask
-     * for approval where required, then run the rest in order.
+     * Resolve the client tool calls of the turn's current step: fail calls that nothing will
+     * answer, ask for approval where required, then run the rest in order.
      *
      * @returns 'done' if the step made no client tool calls, 'paused' if calls wait on the user,
      *      else 'continue' - the results go back to the model in another step.
@@ -460,12 +556,15 @@ export class ChatModel extends HoistModel {
                     state: 'output-error',
                     errorText: `No handler for tool '${call.toolName}'.`
                 });
-            } else if (
-                spec.execute &&
-                !turn.approvedIds.has(call.id) &&
-                needsApproval(spec, call)
-            ) {
-                this.updateToolCall(turn, call.id, {state: 'approval-requested'});
+            } else if (spec.execute) {
+                if (!turn.approvedIds.has(call.id) && needsApproval(spec, call)) {
+                    this.updateToolCall(turn, call.id, {state: 'approval-requested'});
+                }
+            } else if (!spec.interactive) {
+                this.updateToolCall(turn, call.id, {
+                    state: 'output-error',
+                    errorText: `No result for tool '${call.toolName}' - the backend runs it, and sent none.`
+                });
             }
         });
         if (this.hasWaitingToolCalls(turn)) return 'paused';
@@ -485,10 +584,10 @@ export class ChatModel extends HoistModel {
         this.updateToolCall(turn, call.id, {state: 'running'});
         try {
             // Race the abort, so that stop() ends the turn even if the tool ignores the signal.
-            const output = await Promise.race([
-                execute(call.input ?? {}, context),
-                rejectOnAbort(signal)
-            ]);
+            const output = await raceAbort(
+                Promise.resolve(execute(call.input ?? {}, context)),
+                signal
+            );
             if (this.isCurrent(turn)) {
                 this.updateToolCall(turn, call.id, {
                     state: 'output-available',
@@ -497,6 +596,7 @@ export class ChatModel extends HoistModel {
             }
         } catch (e) {
             if (this.isCurrent(turn)) {
+                this.logWarn(`Tool '${call.toolName}' failed`, e);
                 this.updateToolCall(turn, call.id, {
                     state: 'output-error',
                     errorText: errorText(e)
@@ -505,50 +605,50 @@ export class ChatModel extends HoistModel {
         }
     }
 
-    /** True if any tool call in the turn's current step waits for approval or a user result. */
+    /** True if any tool call in the turn's current step waits for the user. */
     private hasWaitingToolCalls(turn: ChatTurn): boolean {
-        return getClientToolCalls(this.getTurnMessage(turn), turn.step).some(
-            it =>
-                it.state === 'approval-requested' ||
-                (it.state === 'input-available' && !this.getToolSpec(it.toolName)?.execute)
+        return getClientToolCalls(this.getTurnMessage(turn), turn.step).some(it =>
+            this.isWaitingToolCall(it)
         );
     }
 
-    /** The paused turn holding a tool call in the given state - restored if history was loaded. */
-    private getPausedTurn(toolCallId: string, state: ChatToolCallState): ChatTurn {
-        const {lastMessage} = this,
-            call = lastMessage?.toolCalls.find(it => it.id === toolCallId);
+    /**
+     * The paused turn holding the given tool call, if the call is in the expected state. Restores
+     * the turn of a paused message loaded with the history.
+     */
+    private getPausedTurn(
+        toolCallId: string,
+        isExpected: (call: ChatToolCallPart) => boolean
+    ): ChatTurn {
+        const call = this.lastMessage?.toolCalls.find(it => it.id === toolCallId),
+            turn = !this.isTurnRunning && call && isExpected(call) ? this.getOrRestoreTurn() : null;
 
-        if (this.isTurnRunning || call?.state !== state) {
+        if (!turn) {
             this.logWarn(`Tool call ignored - '${toolCallId}' is not waiting for the user.`);
-            return null;
         }
+        return turn;
+    }
 
-        this.turn ??= {
-            messageId: lastMessage.id,
-            step: maxBy(lastMessage.parts, 'step')?.step ?? 0,
-            startedAt: Date.now(),
-            abortController: new AbortController(),
-            isRunning: false,
-            approvedIds: new Set(),
-            reducer: null,
-            pendingEvents: [],
-            flushTimer: null
-        };
+    /** The current turn, or one rebuilt for a paused message at the end of the history. */
+    private getOrRestoreTurn(): ChatTurn {
+        if (this.turn) return this.turn;
+
+        const {lastMessage} = this;
+        if (lastMessage?.status !== 'paused') return null;
+
+        this.turn = createTurn(lastMessage, maxBy(lastMessage.parts, 'step')?.step ?? 0, false);
         return this.turn;
     }
 
     /** End a paused turn because the user moved on. Its waiting tool calls are closed. */
     private closePausedTurn() {
-        if (this.turn) this.endTurn(this.turn, 'complete');
+        const turn = this.getOrRestoreTurn();
+        if (turn) this.endTurn(turn, 'complete');
     }
 
-    private endTurn(turn: ChatTurn, status: 'complete' | 'error' | 'aborted', error: Error = null) {
+    private endTurn(turn: ChatTurn, status: 'complete' | 'error' | 'aborted', error: any = null) {
         this.flush(turn);
-        if (error) {
-            error = error instanceof Error ? error : new Error(String(error));
-            this.logError('Turn failed', error);
-        }
+        if (error && !(error instanceof Error)) error = new Error(String(error));
 
         const message = this.settleTurn(turn, status, error);
         if (!message) return;
@@ -562,11 +662,18 @@ export class ChatModel extends HoistModel {
     //------------------------
     // Observable state changes
     //------------------------
+    /** Close any paused turn, then start a new one on the history from `getHistory`. */
     @action
-    private beginTurn(messages: ChatMessage[]) {
-        this.messages = messages;
+    private startTurn(getHistory: () => ChatMessage[]): ChatTurn {
+        this.closePausedTurn();
+
+        const message = new ChatMessage({role: 'assistant', status: 'pending'}),
+            turn = createTurn(message, 0, true);
+        this.turn = turn;
+        this.messages = [...getHistory(), message];
         this.status = 'submitted';
         this.lastError = null;
+        return turn;
     }
 
     @action
@@ -581,6 +688,9 @@ export class ChatModel extends HoistModel {
     private pauseTurn(turn: ChatTurn) {
         turn.isRunning = false;
         this.status = 'ready';
+        this.updateTurnMessage(turn, message =>
+            settleStreamingParts(message).withChanges({status: 'paused'})
+        );
     }
 
     @action
@@ -633,13 +743,6 @@ export class ChatModel extends HoistModel {
         if (message) this.replaceMessage(fn(message));
     }
 
-    @action
-    private resetMessages(messages: ChatMessage[]) {
-        this.messages = messages;
-        this.status = 'ready';
-        this.lastError = null;
-    }
-
     private replaceMessage(message: ChatMessage) {
         const idx = findLastIndex(this.messages, it => it.id === message.id);
         if (idx === -1 || this.messages[idx] === message) return;
@@ -664,15 +767,16 @@ const STREAM_FLUSH_MS = 32;
 const SETTLE_REASONS = {
     complete: 'No result - the conversation moved on.',
     aborted: 'Stopped by the user.',
-    error: 'Not completed - the turn failed.'
+    error: 'Not completed - the turn failed.',
+    interrupted: 'Not completed - the response was interrupted.'
 };
 
-/** State of one assistant turn, from the first model call to the end of the last. */
+/** State of one assistant turn, from its first step to its last. */
 interface ChatTurn {
     /** The assistant message the turn builds. */
     messageId: string;
 
-    /** Index of the current model call. */
+    /** Index of the current step. */
     step: number;
 
     startedAt: number;
@@ -689,19 +793,47 @@ interface ChatTurn {
     flushTimer: ReturnType<typeof setTimeout>;
 }
 
+function createTurn(message: ChatMessage, step: number, isRunning: boolean): ChatTurn {
+    return {
+        messageId: message.id,
+        step,
+        startedAt: message.createdAt,
+        abortController: new AbortController(),
+        isRunning,
+        approvedIds: new Set(),
+        reducer: null,
+        pendingEvents: [],
+        flushTimer: null
+    };
+}
+
+/** Messages from stored specs, with anything left in progress closed - see `loadMessages`. */
+function restoreMessages(specs: ChatMessageSpec[]): ChatMessage[] {
+    const messages = specs.map(it => new ChatMessage(it)),
+        lastIdx = messages.length - 1;
+
+    return messages.map((message, idx) => {
+        switch (message.status) {
+            case 'paused':
+                return idx === lastIdx && message.isAssistant
+                    ? settleStreamingParts(message)
+                    : settleOpenParts(message, SETTLE_REASONS.complete).withChanges({
+                          status: 'complete'
+                      });
+            case 'pending':
+            case 'streaming':
+                return settleOpenParts(message, SETTLE_REASONS.interrupted).withChanges({
+                    status: 'aborted'
+                });
+            default:
+                return settleOpenParts(message, SETTLE_REASONS.interrupted);
+        }
+    });
+}
+
 function needsApproval(spec: ChatToolSpec, call: ChatToolCallPart): boolean {
     const {needsApproval} = spec;
     return isFunction(needsApproval) ? needsApproval(call.input ?? {}) : !!needsApproval;
-}
-
-function createTextPart(text: string): ChatTextPart {
-    return {type: 'text', id: genChatId(), text, state: 'done'};
-}
-
-function rejectOnAbort(signal: AbortSignal): Promise<never> {
-    return new Promise((_, reject) =>
-        signal.addEventListener('abort', () => reject(signal.reason), {once: true})
-    );
 }
 
 function errorText(e: any): string {
