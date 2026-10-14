@@ -261,6 +261,26 @@ describe('ChatUiCatalog documents', () => {
             expect(catalog.migrateDocument(old).elements.top.props.text).toBe('now');
         });
 
+        it("renders a document with no version of its own through its message's version", () => {
+            const catalog = createCatalog({
+                    migrations: {
+                        v1: d => ({
+                            ...d,
+                            catalogVersion: null,
+                            elements: renameNotes(d, 'v1', 'now')
+                        })
+                    }
+                }),
+                context = {
+                    ...documentContext(),
+                    chatModel: {
+                        getMessage: () => ({metadata: {catalogVersion: 'v1'}})
+                    } as unknown as ChatModel
+                };
+
+            expect(markup(catalog.renderDocument(doc({top: noteEl('v1')}), context))).toBe('(now)');
+        });
+
         it('leaves a current document, or one with no migration, as it is', () => {
             const migrate = vi.fn(),
                 catalog = createCatalog({migrations: {v1: migrate}}),
@@ -569,6 +589,29 @@ describe('ChatUiCatalog documents', () => {
             expect(markup(catalog.renderDocument(tableDoc('sales'), documentContext()))).toBe(
                 'ready:A,B of 3'
             );
+        });
+
+        it("reads the chat's own registry when the catalog has no artifacts config", () => {
+            const catalog = createCatalog({components: [TABLE]}),
+                chatModel = new ChatModel({
+                    transport: new ScriptedChatTransport(),
+                    initialMessages: [
+                        {
+                            role: 'assistant',
+                            parts: [],
+                            metadata: {
+                                artifacts: [
+                                    {id: 'sales', columns: COLUMNS, rows: [{r: 'A'}], totalRows: 1}
+                                ]
+                            }
+                        }
+                    ]
+                });
+            onTestFinished(() => chatModel.destroy());
+
+            expect(
+                markup(catalog.renderDocument(tableDoc('sales'), {...documentContext(), chatModel}))
+            ).toBe('ready:A of 1');
         });
 
         it('resolves a reference to a missing artifact as missing, or waiting while streaming', () => {

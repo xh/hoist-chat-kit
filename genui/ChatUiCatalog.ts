@@ -8,6 +8,7 @@ import {
     XH
 } from '@xh/hoist/core';
 import {genDisplayName} from '@xh/hoist/data';
+import {untracked} from '@xh/hoist/mobx';
 import {logError, logWarn, throwIf} from '@xh/hoist/utils/js';
 import {
     castArray,
@@ -78,7 +79,7 @@ export type ChatUiDeliveryMode = 'tools' | 'tags' | 'document';
 
 /** Options for {@link ChatUiCatalog.toPrompt} and {@link ChatUiCatalog.toToolSchemas}. */
 export interface ChatUiPromptOptions {
-    /** The delivery modes to explain, or to export tools for. Default `['tools']`. */
+    /** The delivery modes to explain, or to export tools for. Default the catalog's `modes`. */
     modes?: ChatUiDeliveryMode[];
 
     /** App rules, added to the end of the prompt's list of rules. */
@@ -96,6 +97,14 @@ export interface ChatUiToolSchema {
 export interface ChatUiCatalogConfig {
     /** Components the model can show. Names and tool names must be unique. */
     components: ChatUiComponentSpec<any>[];
+
+    /**
+     * How the model delivers UI in the chats that use the catalog. Sets the default modes of
+     * `instructions`, `toPrompt()` and `toToolSchemas()`, and the tools a client-mode
+     * {@link ChatModel} sends: the component tools for `tools`, and the document tool for
+     * `document`. Default `['tools']`.
+     */
+    modes?: ChatUiDeliveryMode[];
 
     /**
      * Guidance for the model, added to the end of the generated prompt - for example which
@@ -117,7 +126,7 @@ export interface ChatUiCatalogConfig {
 
     /**
      * The artifact registry of a chat, for components that take data by reference. Called as
-     * each component renders. Default none: reference props resolve to `waiting` or `missing`.
+     * each component renders. Default the chat's own registry - see {@link ChatModel.artifacts}.
      */
     artifacts?: (chatModel: ChatModel) => ChatArtifactRegistry;
 
@@ -152,8 +161,8 @@ export interface ChatUiCatalogConfig {
  * stream in.
  *
  * Every answer is a {@link ChatUiDocument}, delivered in one of four ways - see the genui README.
- * In a chat that runs its own tool loop, pass the catalog's `tools` to the {@link ChatModel}, and
- * its `instructions` to the model with the system prompt:
+ * Pass the catalog to the {@link ChatModel}, which adds its tools, and its `instructions` to the
+ * model with the system prompt:
  *
  * ```ts
  * const catalog = new ChatUiCatalog({components: [metricsSpec, positionsSpec]});
@@ -163,7 +172,8 @@ export interface ChatUiCatalogConfig {
  *         url: 'chat',
  *         codec: new AnthropicCodec({system: `${appPrompt}\n\n${catalog.instructions}`})
  *     }),
- *     tools: [...appTools, ...catalog.tools]
+ *     tools: appTools,
+ *     catalog
  * });
  * ```
  *
@@ -185,33 +195,36 @@ export class ChatUiCatalog {
     readonly components: ChatUiComponentSpec[];
 
     /**
-     * One client tool per component, for {@link ChatModelConfig.tools}. Each tool checks the props
-     * it is called with and confirms the render to the model, and displays its calls as the
-     * rendered component.
+     * One client tool per component, which a client-mode chat with the catalog sends for the
+     * `tools` mode. Each tool checks the props it is called with and confirms the render to the
+     * model, and displays its calls as the rendered component.
      */
     readonly tools: ChatToolSpec[];
 
     /**
      * The document tool, `show_ui`, whose input is a {@link ChatUiDocument} over the catalog's
-     * components - for nested answers. A client tool, as those in `tools`. Add it to the chat's
-     * tools beside them, and explain it with the `document` mode of `toPrompt()`.
+     * components - for nested answers. A client tool, as those in `tools`, which a client-mode
+     * chat with the catalog sends for the `document` mode.
      */
     readonly documentTool: ChatToolSpec;
 
     /**
      * The catalog's tools, the document tool last, as display-only specs for a chat whose server
-     * runs the tool loop and registers the tools itself. Each displays its calls as `tools` do,
-     * with no `execute`, and is not sent to the model.
+     * runs the tool loop and registers the tools itself. A server-mode chat with the catalog adds
+     * them. Each displays its calls as `tools` do, with no `execute`, and is not sent to the
+     * model.
      */
     readonly displayTools: ChatToolSpec[];
 
     /**
-     * Text for the system prompt that explains the catalog to the model, for the `tools` mode:
-     * when to show UI, the rules to follow, and each component's tool with its example props.
-     * Ends with the `instructions` given in the config, if any. Each component's description
-     * goes to the model once, in its tool. See `toPrompt()` for the other modes.
+     * Text for the system prompt that explains the catalog to the model, for its `modes`: when
+     * to show UI, the rules to follow, and how to show each component. Ends with the
+     * `instructions` given in the config, if any. The same as `toPrompt()` with no options.
      */
     readonly instructions: string;
+
+    /** How the model delivers UI in the chats that use the catalog. */
+    readonly modes: ChatUiDeliveryMode[];
 
     /**
      * A stable hash of the catalog's content - the names, descriptions, schemas, examples and
@@ -232,6 +245,7 @@ export class ChatUiCatalog {
     constructor(config: ChatUiCatalogConfig) {
         const {
             components,
+            modes = DEFAULT_MODES,
             instructions = null,
             tagPrefix = 'ui-',
             documentToolName = 'show_ui',
@@ -253,12 +267,17 @@ export class ChatUiCatalog {
             'ChatUiCatalog component names and tool names must be unique.'
         );
         throwIf(
+            isEmpty(modes) || !modes.every(it => DELIVERY_MODES.includes(it)),
+            `ChatUiCatalog modes must be one or more of ${DELIVERY_MODES.join(', ')}.`
+        );
+        throwIf(
             !TAG_PREFIX_RE.test(tagPrefix),
             `ChatUiCatalog tagPrefix '${tagPrefix}' must start with a letter, and hold only ` +
                 'letters, digits, _ and -.'
         );
 
         this.components = components;
+        this.modes = uniq(modes);
         this.componentsByName = keyBy(components, 'name');
         this.configInstructions = instructions;
         this.tagPrefix = tagPrefix;
@@ -285,6 +304,7 @@ export class ChatUiCatalog {
                 slots: it.slots,
                 dataProps: it.dataProps
             })),
+            modes: this.modes,
             instructions,
             tagPrefix,
             documentToolName,
@@ -379,7 +399,8 @@ export class ChatUiCatalog {
     //------------------------
     /**
      * Render a document, with each element inside an error boundary. The document is migrated and
-     * repaired first. While it is partial, an element that has not arrived renders as a
+     * repaired first. A document with no `catalogVersion` takes that of the message that holds it,
+     * as {@link ChatModel} records it on each reply that shows catalog UI. While it is partial, an element that has not arrived renders as a
      * placeholder. An element with an unknown component or invalid props renders as a fallback -
      * a caption, with the problems and the input behind a disclosure - and logs a warning once.
      * So does a document whose structure is broken.
@@ -392,7 +413,7 @@ export class ChatUiCatalog {
 
         let repaired: ChatUiDocument;
         try {
-            repaired = this.repairDocument(this.migrateDocument(doc));
+            repaired = this.repairDocument(this.migrateDocument(withMessageVersion(doc, context)));
         } catch (e) {
             logError(['Could not migrate a document', e], 'ChatUiCatalog');
             return this.renderFallback(
@@ -607,10 +628,10 @@ export class ChatUiCatalog {
      * runs the tool loop to register as display tools.
      *
      * @param opts - `modes` selects the tools: `tools` for one per component, `document` for the
-     *      document tool. Default `['tools']`.
+     *      document tool. Default the catalog's `modes`.
      */
     toToolSchemas(opts: Pick<ChatUiPromptOptions, 'modes'> = {}): ChatUiToolSchema[] {
-        const {modes = DEFAULT_MODES} = opts;
+        const {modes = this.modes} = opts;
         return [
             ...(modes.includes('tools') ? this.tools : []),
             ...(modes.includes('document') ? [this.documentTool] : [])
@@ -623,10 +644,11 @@ export class ChatUiCatalog {
      * component with its description and props, and the tag grammar the parser reads, so the
      * prompt and the parser come from one source.
      *
-     * @param opts - the delivery `modes` to explain, default `['tools']`, and app `rules` to add.
+     * @param opts - the delivery `modes` to explain, default the catalog's `modes`, and app
+     *      `rules` to add.
      */
     toPrompt(opts: ChatUiPromptOptions = {}): string {
-        const {modes = DEFAULT_MODES, rules = []} = opts;
+        const {modes = this.modes, rules = []} = opts;
         return createPrompt(this.promptSource, modes, rules);
     }
 
@@ -815,7 +837,7 @@ export class ChatUiCatalog {
                 node,
                 context,
                 catalog: this,
-                registry: this.getArtifacts?.(context.chatModel) ?? NO_ARTIFACTS,
+                registry: this.getRegistry(context.chatModel),
                 children: renderIds(element.children),
                 slots: mapValues(element.slots ?? {}, renderIds)
             })
@@ -845,10 +867,22 @@ export class ChatUiCatalog {
         return fragment({key, item: this.fallbackRenderer(spec)});
     }
 
+    private getRegistry(chatModel: ChatModel): ChatArtifactRegistry {
+        const {getArtifacts} = this;
+        return (getArtifacts ? getArtifacts(chatModel) : chatModel?.artifacts) ?? NO_ARTIFACTS;
+    }
+
     private getCaption(name: string): string {
         return name
             ? `This ${genDisplayName(name).toLowerCase()} could not be displayed.`
             : CAPTION;
+    }
+
+    /** True for a complete document that a migration of the catalog would change. */
+    private needsMigration(doc: ChatUiDocument, context: ChatUiDocumentContext): boolean {
+        if (context.isPartial || isEmpty(this.migrations)) return false;
+        const versioned = withMessageVersion(doc, context);
+        return this.migrateDocument(versioned) !== versioned;
     }
 
     private async confirmAsync(spec: MessageSpec): Promise<boolean> {
@@ -870,16 +904,20 @@ export class ChatUiCatalog {
             },
             renderer: (part, context) => {
                 const input = part.input ?? {},
-                    isPartial = part.state === 'input-streaming';
+                    isPartial = part.state === 'input-streaming',
+                    doc = toChatUiDocument(name, input),
+                    renderContext = {...context, part, isPartial};
+
+                // A call from an older catalog renders through its migrations, with a fallback
+                // if it still fails.
+                if (this.needsMigration(doc, renderContext)) {
+                    return this.renderDocument(doc, renderContext);
+                }
 
                 // Render only props that are valid, or could still become valid as they stream.
                 // The call's status shows why invalid props did not render.
                 if (!isEmpty(this.validate(name, input, {isPartial}))) return null;
-                return this.renderDocument(toChatUiDocument(name, input), {
-                    ...context,
-                    part,
-                    isPartial
-                });
+                return this.renderDocument(doc, renderContext);
             }
         };
     }
@@ -900,13 +938,18 @@ export class ChatUiCatalog {
             },
             renderer: (part, context) => {
                 const isPartial = part.state === 'input-streaming',
-                    doc = part.input as ChatUiDocument;
+                    doc = part.input as ChatUiDocument,
+                    renderContext = {...context, part, isPartial};
 
                 // As for a component tool, a complete document that fails renders nothing.
-                if (!isPartial && !isEmpty(this.validateDocument(this.repairDocument(doc)))) {
+                if (
+                    !isPartial &&
+                    !this.needsMigration(doc, renderContext) &&
+                    !isEmpty(this.validateDocument(this.repairDocument(doc)))
+                ) {
                     return null;
                 }
-                return this.renderDocument(doc, {...context, part, isPartial});
+                return this.renderDocument(doc, renderContext);
             }
         };
     }
@@ -976,6 +1019,7 @@ const DEFAULT_LIMITS: Required<ChatUiLimits> = {
         maxInlineRows: 500
     },
     DEFAULT_MODES: ChatUiDeliveryMode[] = ['tools'],
+    DELIVERY_MODES: ChatUiDeliveryMode[] = ['tools', 'tags', 'document'],
     DEFAULT_PAGE_SIZE = 100,
     MAX_MIGRATIONS = 20,
     MAX_CONTEXT_LENGTH = 2000,
@@ -1038,6 +1082,19 @@ function invalidInputError(subject: string, errors: string[]): Error {
 function pluralizeElements(doc: ChatUiDocument): string {
     const count = Object.keys(doc.elements).length;
     return count === 1 ? 'a UI of 1 component' : `a UI of ${count} components`;
+}
+
+/**
+ * A document with the `catalogVersion` of the message that holds it, if it has none of its own.
+ * Read untracked: a reply records the version as its turn ends, and a live reply was written
+ * against the current catalog, so a renderer need not re-render when the record lands.
+ */
+function withMessageVersion(doc: ChatUiDocument, context: ChatPartRenderContext): ChatUiDocument {
+    if (!isPlainObject(doc) || doc.catalogVersion != null) return doc;
+    const catalogVersion = untracked(
+        () => context.chatModel?.getMessage(context.messageId)?.metadata?.catalogVersion
+    );
+    return catalogVersion != null ? {...doc, catalogVersion} : doc;
 }
 
 function isMessageStreaming(context: ChatPartRenderContext): boolean {

@@ -74,6 +74,7 @@ ChatRunRequest
 ├── newMessages: ChatMessage[]                  # What the server has not seen
 ├── replacedMessageId: string                   # The reply a retry or regenerate replaces
 ├── runOptions: PlainObject                     # Options the user picked, copied at send
+├── catalogVersion: string                      # Version of the chat's generative UI catalog
 ├── tools: ChatToolSpec[]                       # Tools to send to the model
 ├── context: ChatRunContext[]                   # Live context from the context providers
 └── signal: AbortSignal                         # Aborts the step, with a ChatAbortError
@@ -192,7 +193,8 @@ and mark that block with `cache_control` yourself. The live block after it then 
 on each step, and the static part comes from the cache.
 
 The chat's live context, from its `contextProviders`, goes last in the system prompt, as one
-unmarked text block per provider. The static prompt keeps its breakpoint. The history comes after
+unmarked text block per provider. The structured context of a user message, from
+`metadata.context`, goes after its text as a `<message-context>` block of JSON. The static prompt keeps its breakpoint. The history comes after
 the system prompt, so a change of context means that the step reads the history fresh.
 
 ```typescript
@@ -280,7 +282,8 @@ new HoistChatTransport({
 
 - **`system`** - a string, or a function of the request that returns one. The function can be
   async. System messages in the history and the chat's live context follow it, in one `system`
-  message.
+  message. The structured context of a user message, from `metadata.context`, follows its text
+  as a `<message-context>` block of JSON.
 - **`model`** - leave it out when the server or gateway sets it.
 - **`params`** - other body fields, such as `temperature`, `max_completion_tokens` or
   `reasoning_effort`. Tools in `params.tools` go ahead of the chat's own tools.
@@ -351,7 +354,8 @@ parts when they have attachments. Each step of an assistant turn becomes three k
 `reasoning` message per reasoning part, an `assistant` message with its text and its finished
 `toolCalls`, and a `tool` message per call result. A failed or denied call also carries `error`.
 Tools go out as `{name, description, parameters}`. `context`, `forwardedProps` and `state` take a
-value, or a function that builds the value for each step. `state` defaults to `{}`.
+value, or a function that builds the value for each step. `state` defaults to `{}`. The structured
+context of the turn's user message, from `metadata.context`, goes last in `context`, as JSON.
 
 Decoding passes each record through as a `ChatEvent`. The decoder drops records of an unknown
 `type`.
@@ -373,6 +377,7 @@ codec works unchanged. A server-mode codec sends these fields instead:
 | `stepIndex` | Zero-based index of the step within its turn. |
 | `replacedMessageId` | The reply that a `retry` or `regenerate` replaces, or null. |
 | `runOptions` | The options the user picked, copied when the message was sent, or null. |
+| `catalogVersion` | Version of the chat's generative UI catalog, or null. The server compares it with the version of the catalog export it loaded. |
 
 A backend with an idempotency key keys runs by `turnId` and `trigger`. It replays a finished run
 for a `retry`, and starts a new run for a `regenerate` or an `edit`.
@@ -395,8 +400,8 @@ the client gave them. The turn goes in `forwardedProps`, merged under any props 
 }
 ```
 
-`replacedMessageId` joins them for a retry or regenerate. `runOptions` is left out when it is
-null. A key the app sets in its own `forwardedProps` wins over the kit's.
+`replacedMessageId` joins them for a retry or regenerate. `catalogVersion` joins them for a chat
+with a catalog. `runOptions` is left out when it is null. A key the app sets in its own `forwardedProps` wins over the kit's.
 
 `AnthropicCodec` serves client mode only. The Messages API keeps no state, so it needs the whole
 history, and the codec throws for a server-mode request. Use `AgUiCodec`, or write a codec for
@@ -410,6 +415,8 @@ What a server-mode backend sends back:
   message. They become `metadata.serverId`. A `messageId` in the `result` of `RUN_FINISHED` also
   works, for the reply.
 - `xh.chat.textReplace` to reset the answer (`text: ''`) or to send its final text whole.
+- `xh.chat.artifact`, or `metadata.artifacts` on a `TOOL_CALL_RESULT`, for result sets that
+  generative UI components show by reference.
 - `RUN_ERROR` with `metadata.retryAfterSeconds`, to ask for a wait before a retry.
 
 A stop closes the connection and calls `cancelAsync()`. With a `cancelUrl`, the HTTP transports
@@ -949,6 +956,7 @@ Content that AG-UI has no event for travels as a `CUSTOM` event with a name that
 | `xh.chat.toolError` | `{toolCallId, message}` | Fails a tool call the backend ran, in place of its result. `output-error`, with `message` as `errorText`. |
 | `xh.chat.textReplace` | `{text}` | Sets the text of the open text part, or else of the reply's last text part. Adds a part if the reply has no text. `text: ''` resets the answer. |
 | `xh.chat.message` | `{role, serverId}` | Records the server's id for the reply (`role: 'assistant'`) or the user message (`role: 'user'`), as `metadata.serverId`. |
+| `xh.chat.artifact` | `{id, columns, rows?, totalRows, metadata?}` | Records a result set on the reply's `metadata.artifacts`, replacing one with the same `id`, and adds it to the chat's `artifacts`. A `TOOL_CALL_RESULT` with a list in `metadata.artifacts` does the same. See [Show data by reference](../genui/README.md#show-data-by-reference). |
 
 A Hoist server that emits AG-UI events can send a data part like this:
 

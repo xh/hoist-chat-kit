@@ -118,6 +118,28 @@ describe('AnthropicCodec', () => {
             ]);
         });
 
+        it('sends the context of a user message as a block after its text', async () => {
+            const question = new ChatMessage({
+                    role: 'user',
+                    content: 'Why did it drop?',
+                    metadata: {context: {ticker: 'XYZ'}}
+                }),
+                body = await encode(new AnthropicCodec(), [question]);
+
+            expect(body.messages).toEqual([
+                {
+                    role: 'user',
+                    content: [
+                        {type: 'text', text: 'Why did it drop?'},
+                        {
+                            type: 'text',
+                            text: '<message-context>\n{"ticker":"XYZ"}\n</message-context>'
+                        }
+                    ]
+                }
+            ]);
+        });
+
         it('sends live context as the system prompt when the app has none', async () => {
             const body = await new AnthropicCodec().encodeRequest(
                 request([user('Hi')], {context: [{name: 'note', description: null, value: 'X'}]})
@@ -819,6 +841,7 @@ function request(messages: ChatMessage[], changes: Partial<ChatRunRequest> = {})
         newMessages: [],
         replacedMessageId: null,
         runOptions: null,
+        catalogVersion: null,
         tools: [],
         context: [],
         signal: new AbortController().signal,

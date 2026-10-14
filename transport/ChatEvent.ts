@@ -272,6 +272,9 @@ export interface ToolCallChunkEvent extends ChatEventBase {
  * `metadata.error` (the error text) or `metadata.isError: true` (with the error text as `content`)
  * fails the call: its part moves to `output-error`, with the text as `errorText`. The
  * `xh.chat.toolError` custom event does the same for a backend that cannot set `metadata`.
+ *
+ * A result may also carry the result sets the tool produced, as `metadata.artifacts` - a list of
+ * `ChatArtifact`. They are recorded on the reply as the `xh.chat.artifact` event records them.
  */
 export interface ToolCallResultEvent extends ChatEventBase {
     type: 'TOOL_CALL_RESULT';
@@ -282,8 +285,8 @@ export interface ToolCallResultEvent extends ChatEventBase {
     content: string | PlainObject[];
     role?: 'tool';
 
-    /** Set `error` or `isError` to report that the tool failed - see above. */
-    metadata?: PlainObject & {error?: string; isError?: boolean};
+    /** Set `error` or `isError` to report that the tool failed, and `artifacts` to add data. */
+    metadata?: PlainObject & {error?: string; isError?: boolean; artifacts?: PlainObject[]};
 }
 
 //------------------
@@ -350,6 +353,10 @@ export interface IgnoredEvent extends ChatEventBase {
  *    final text whole.
  *  - `xh.chat.message` - value `{role: 'assistant' | 'user', serverId}`, records the server's id
  *    for the turn's reply or its user message, as `metadata.serverId`.
+ *  - `xh.chat.artifact` - value `{id, columns, rows?, totalRows, metadata?}`, a result set that
+ *    generative UI components show by reference - see `ChatArtifact`. Recorded on the reply in
+ *    `metadata.artifacts`, replacing one with the same id, and added to the chat's artifact
+ *    registry.
  */
 export type ChatCustomEventName =
     | 'xh.chat.source'
@@ -360,4 +367,5 @@ export type ChatCustomEventName =
     | 'xh.chat.providerExecuted'
     | 'xh.chat.toolError'
     | 'xh.chat.textReplace'
-    | 'xh.chat.message';
+    | 'xh.chat.message'
+    | 'xh.chat.artifact';

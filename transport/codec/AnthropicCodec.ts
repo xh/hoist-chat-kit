@@ -30,7 +30,7 @@ import {
 import type {ChatCodec, ChatDecoder} from '../ChatCodec';
 import type {ChatEvent, ChatTokenUsage, ToolCallResultEvent} from '../ChatEvent';
 import type {ChatRunRequest} from '../ChatTransport';
-import {contextText} from '../impl/context';
+import {contextText, messageContextText} from '../impl/context';
 import {decodeBase64Text, IMAGE_TYPES, isTextType, omittedFileText} from '../impl/files';
 import {partsBySteps, toolResultText} from '../impl/history';
 
@@ -322,7 +322,7 @@ function encodeMessages(messages: ChatMessage[]): Turn[] {
 
     messages.forEach(message => {
         if (message.role === 'user') {
-            push('user', encodeUserContent(message.parts));
+            push('user', encodeUserContent(message));
         } else if (message.role === 'assistant') {
             partsBySteps(message).forEach(parts => {
                 push('assistant', flatMap(parts, encodeAssistantPart));
@@ -334,13 +334,18 @@ function encodeMessages(messages: ChatMessage[]): Turn[] {
     return dropWhile(turns, it => it.role !== 'user');
 }
 
-/** Attachments ahead of text, as Anthropic recommends. */
-function encodeUserContent(parts: ChatPart[]): PlainObject[] {
-    const [files, others] = partition(parts, it => it.type === 'file') as [
-        ChatFilePart[],
-        ChatPart[]
-    ];
-    return compact([...files.map(encodeFile), ...others.map(encodeText)]);
+/** Attachments ahead of text, as Anthropic recommends, and the message's context after it. */
+function encodeUserContent(message: ChatMessage): PlainObject[] {
+    const [files, others] = partition(message.parts, it => it.type === 'file') as [
+            ChatFilePart[],
+            ChatPart[]
+        ],
+        context = messageContextText(message);
+    return compact([
+        ...files.map(encodeFile),
+        ...others.map(encodeText),
+        context ? {type: 'text', text: context} : null
+    ]);
 }
 
 function encodeText(part: ChatPart): PlainObject {

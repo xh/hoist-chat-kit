@@ -14,7 +14,7 @@ import {genChatId} from '../../impl/ids';
 import type {ChatCodec, ChatDecoder} from '../ChatCodec';
 import type {ChatEvent, ChatTokenUsage, RunFinishedEvent} from '../ChatEvent';
 import type {ChatRunRequest} from '../ChatTransport';
-import {contextText} from '../impl/context';
+import {contextText, messageContextText} from '../impl/context';
 import {decodeBase64Text, IMAGE_TYPES, isTextType, omittedFileText} from '../impl/files';
 import {partsBySteps, toolResultText} from '../impl/history';
 
@@ -194,7 +194,7 @@ function encodeTool({name, description, parameters}: ChatToolSpec): PlainObject 
 function encodeMessage(message: ChatMessage): PlainObject[] {
     switch (message.role) {
         case 'user': {
-            const content = encodeUserContent(message.parts);
+            const content = encodeUserContent(message);
             return isEmpty(content) ? [] : [{role: 'user', content}];
         }
         case 'assistant':
@@ -204,12 +204,19 @@ function encodeMessage(message: ChatMessage): PlainObject[] {
     }
 }
 
-/** User content as plain text, or as a list of parts when the message has attachments. */
-function encodeUserContent(parts: ChatPart[]): string | PlainObject[] {
-    if (parts.every(it => it.type === 'text')) return joinText(parts as ChatTextPart[]);
+/**
+ * User content as plain text, or as a list of parts when the message has attachments. The
+ * message's context follows its text.
+ */
+function encodeUserContent(message: ChatMessage): string | PlainObject[] {
+    const {parts} = message,
+        context = messageContextText(message);
+    if (parts.every(it => it.type === 'text')) {
+        return compact([joinText(parts as ChatTextPart[]), context]).join('\n\n');
+    }
 
-    return compact(
-        parts.map(part => {
+    return compact([
+        ...parts.map(part => {
             switch (part.type) {
                 case 'text':
                     return part.text.trim() ? {type: 'text', text: part.text} : null;
@@ -218,8 +225,9 @@ function encodeUserContent(parts: ChatPart[]): string | PlainObject[] {
                 default:
                     return null;
             }
-        })
-    );
+        }),
+        context ? {type: 'text', text: context} : null
+    ]);
 }
 
 function encodeFile({name, mediaType, data, url}: ChatFilePart): PlainObject {

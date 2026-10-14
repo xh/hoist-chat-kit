@@ -396,6 +396,7 @@ function request(signal: AbortSignal = new AbortController().signal): ChatRunReq
         newMessages: [message],
         replacedMessageId: null,
         runOptions: null,
+        catalogVersion: null,
         tools: [],
         context: [],
         signal

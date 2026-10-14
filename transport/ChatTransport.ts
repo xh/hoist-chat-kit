@@ -106,6 +106,13 @@ export interface ChatRunRequest {
      */
     runOptions: PlainObject;
 
+    /**
+     * Version of the chat's generative UI catalog - see `ChatUiCatalog.version` - or null if it
+     * has none. A server that registers the catalog's tools from an export compares it with its
+     * own, to detect drift.
+     */
+    catalogVersion: string;
+
     /** Tools the model may call - only those to be sent to the model. */
     tools: ChatToolSpec[];
 

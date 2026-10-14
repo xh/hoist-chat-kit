@@ -25,8 +25,17 @@ export interface ParseTagsContext {
  */
 export function parseTags(text: string, ctx: ParseTagsContext): ChatUiTextSegment[] {
     const {prefix, isStreaming} = ctx,
-        opener = `<${prefix}`,
-        codeRanges = findCodeRanges(text ?? ''),
+        opener = `<${prefix}`;
+    // Text with no tag in it, as most is, needs no scan for code - unless it streams, and may
+    // end in a tag opening still being written.
+    if (
+        !text?.includes(opener) &&
+        !(isStreaming && text?.includes('<', text.length - opener.length))
+    ) {
+        return text ? [{type: 'markdown', text}] : [];
+    }
+
+    const codeRanges = findCodeRanges(text ?? ''),
         segments: ChatUiTextSegment[] = [];
 
     let pos = 0,

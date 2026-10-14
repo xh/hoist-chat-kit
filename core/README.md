@@ -495,6 +495,10 @@ functions are not stored, so a reply loaded from history cannot be undone.
 If an undo function throws, the undo stops, a toast reports it, and the changes not yet undone
 stay, so the user can try again. With `track` on, an undo tracks as `Turn undone`.
 
+`chatToolResult()` also takes `artifacts`, the result sets a tool produced for generative UI
+components to show by reference. See
+[Show data by reference](../genui/README.md#show-data-by-reference).
+
 ### Let the user answer a tool call
 
 An interactive tool has no `execute`. The user answers each call through the tool's `renderer`,
@@ -671,6 +675,8 @@ for the full doc comments.
 |----------|------|-------------|
 | `transport` | `ChatTransport` | Connection to the backend. Required. See [`/transport/`](../transport/README.md). |
 | `tools` | `ChatToolSpec[]` | Tools the model can call, and display config for backend tools. Names must be unique. Default none. |
+| `catalog` | `ChatUiCatalog` | Generative UI components the model can show. The chat adds the catalog's tools for its history mode, renders its tags and documents, and sends its version. See [`/genui/`](../genui/README.md#configuration-pattern). Default none. |
+| `dataSource` | `ChatDataSource` | Loads the rows of artifacts not yet in the browser, for the `artifacts` registry. Default none. |
 | `contextProviders` | `ChatContextProvider[]` | Live context to send with every step. See [Send live context with every step](#send-live-context-with-every-step). Default none. |
 | `maxSteps` | `number` | Most model calls in one turn. Each round of client tool calls takes one more. Default 10. |
 | `initialMessages` | `ChatMessageSpec[]` | Messages to start with, such as a greeting or restored history. Closed as by `loadMessages()`. |
@@ -709,7 +715,8 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `pendingApprovals` | `ChatToolCallPart[]` | The calls in `waitingToolCalls` that wait for approval. |
 | `undoableMessageId` | `string` | The reply whose changes the user can undo now, or null. |
 | `composerModel` | `ChatComposerModel` | Draft of the next message. |
-| `transport`, `tools`, `maxSteps`, `historyMode`, `feedback`, `dataRenderers` | - | The config values, read-only. `feedback` has its defaults applied. |
+| `artifacts` | `ChatArtifactRegistry` | Result sets that generative UI components show by reference. Fed by each reply and by loaded history. `clear()` and `loadMessages()` empty it. |
+| `transport`, `tools`, `catalog`, `maxSteps`, `historyMode`, `feedback`, `dataRenderers` | - | The config values, read-only. `tools` includes the catalog's tools, and `feedback` has its defaults applied. |
 
 ### ChatModel methods
 
@@ -745,7 +752,7 @@ The tool call methods log a warning and do nothing if the call does not wait on 
 |----------|------|-------------|
 | `text` | `string` | Message text. Trimmed. |
 | `files` | `ChatFilePart[]` | Files to attach, sent ahead of the text. |
-| `metadata` | `PlainObject` | App data to record on the user message. |
+| `metadata` | `PlainObject` | App data to record on the user message. A `context` key holds structured context for the model, such as the record a button acted on. Codecs send it beside the text. |
 
 ### ChatMessage
 
@@ -785,9 +792,12 @@ The kit records these keys in the `metadata` of an assistant message:
 | `detached` | True on a reply left running on the server by `detach()`, `clear()` or `loadMessages()`, in server mode. |
 | `undone` | True on a reply whose changes the user undid with `undoTurnAsync()`. |
 | `feedback` | The user's rating, as `{rating, comment?}`. |
+| `artifacts` | `ChatArtifact[]` that the reply's tools produced, for generative UI. Restored to `artifacts` with the history. |
+| `catalogVersion` | Version of the chat's catalog, on a reply that shows its UI. |
 
 A user message records `runOptions`, the copy of the options it was sent with, and `serverId`
-when the server reports one.
+when the server reports one. A message sent by a generative UI `send` action records its
+structured `context`.
 
 A backend can add its own keys through the `metadata` of its `RUN_FINISHED` event. The chat
 merges them into the message.

@@ -36,6 +36,28 @@ describe('ChatUiCatalog export', () => {
         });
     });
 
+    describe('modes', () => {
+        it('sets the default modes of the instructions, the prompt and the tool schemas', () => {
+            const catalog = createCatalog({modes: ['tags', 'document']});
+
+            expect(catalog.instructions).toBe(catalog.toPrompt({modes: ['tags', 'document']}));
+            expect(catalog.instructions).toContain('### Component tags');
+            expect(catalog.instructions).not.toContain('### Component tools');
+            expect(catalog.toToolSchemas().map(it => it.name)).toEqual(['show_ui']);
+        });
+
+        it('requires one or more known modes', () => {
+            expect(() => createCatalog({modes: []})).toThrow('one or more of');
+            expect(() => createCatalog({modes: ['tools', 'html' as any]})).toThrow(
+                'one or more of'
+            );
+        });
+
+        it('changes the version', () => {
+            expect(createCatalog({modes: ['tags']}).version).not.toBe(createCatalog().version);
+        });
+    });
+
     describe('toPrompt', () => {
         it('explains the tools mode by default, as the instructions do', () => {
             const catalog = createCatalog();

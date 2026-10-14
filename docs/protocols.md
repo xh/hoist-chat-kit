@@ -150,7 +150,8 @@ new ChatModel({
         url: 'llm/stream',
         codec: new AnthropicCodec({system: `${appPrompt}\n\n${catalog.instructions}`})
     }),
-    tools: [...appTools, ...catalog.tools]
+    tools: appTools,
+    catalog
 });
 ```
 
@@ -169,7 +170,7 @@ each adapter, which translates the payload and renders the resulting components:
 ```typescript
 new ChatModel({
     transport,
-    tools: catalog.tools,
+    catalog,
     dataRenderers: catalog.createDataRenderers([a2uiAdapter, openUiAdapter])
 });
 ```

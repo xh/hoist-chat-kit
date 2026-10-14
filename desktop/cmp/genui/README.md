@@ -98,7 +98,8 @@ const chatModel = new ChatModel({
         url: 'llm/stream',
         codec: new AnthropicCodec({system: `${appPrompt}\n\n${catalog.instructions}`})
     }),
-    tools: [...appTools, ...catalog.tools]
+    tools: appTools,
+    catalog
 });
 ```
 

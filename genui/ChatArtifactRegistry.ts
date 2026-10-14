@@ -1,8 +1,9 @@
 import {HoistBase, type PlainObject} from '@xh/hoist/core';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
-import {castArray, isArray, isFinite, isString} from 'lodash';
+import {castArray} from 'lodash';
 import {CHAT_DATA_ROW_ID, type ChatDataColumn, type ChatDataFrame} from './ChatData';
+import {isChatArtifact} from './impl/artifacts';
 
 /**
  * A result set that a tool produced, for a component to show by reference. The model names the
@@ -145,10 +146,7 @@ export class ChatArtifactRegistry extends HoistBase {
     add(artifacts: ChatArtifact | ChatArtifact[]) {
         const added = castArray(artifacts);
         added.forEach(it =>
-            throwIf(
-                !isString(it?.id) || !isArray(it.columns) || !isFinite(it.totalRows),
-                'A ChatArtifact requires an id, columns and totalRows.'
-            )
+            throwIf(!isChatArtifact(it), 'A ChatArtifact requires an id, columns and totalRows.')
         );
         this.artifacts = {
             ...this.artifacts,

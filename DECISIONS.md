@@ -692,3 +692,41 @@ docs and the specs. D49 kept the alias only because another work package owned t
 
 **Alternatives.** Remove the alias at once. The kit has no release yet, but apps already build on
 its snapshots, so a warning gives them a release to move.
+
+## D54. Choices in the generative UI wiring of `ChatModel`
+
+**Decision.** WP 7 step 1 wires a catalog into `ChatModel`, with these choices:
+
+- The catalog's `modes` select its tools. A client-mode chat sends the component tools for
+  `tools`, and the document tool for `document`. A server-mode chat adds the display tools for
+  every mode. The modes also become the default of `toPrompt()` and `toToolSchemas()`, so the
+  prompt and the tools agree.
+- A catalog tool the app also lists in `tools`, as the same object, is added once. One that
+  shares only its name with an app tool throws.
+- Every chat has an artifact registry, with or without a catalog. A catalog with no `artifacts`
+  config reads the chat's registry.
+- `catalogVersion` is a field of `ChatRunRequest`, not a key in `runOptions`. `AgUiCodec` sends
+  it in `forwardedProps` in server mode, beside the turn's ids. `runOptions` stays the user's
+  choices, copied onto the user message. A retry then sends the current version, not the one of
+  the first send.
+- A reply records `metadata.catalogVersion` when its turn ends, if it calls a catalog tool, holds
+  an `xh.chat.ui` data part, or has a component tag in its text. A document with no version of its
+  own takes the version of its message, read untracked. A live reply uses the current catalog, so
+  its renderers need not re-render when the version lands.
+- A chat with a catalog renders `xh.chat.ui` data parts with no extra config. App data renderers
+  take precedence.
+- `AgUiCodec` sends the context of the turn's user message as a `context` entry, on each step of
+  the turn. Earlier messages' context is not sent: a server-mode backend has seen it, and AG-UI
+  has no field for it on a message. `AnthropicCodec` and `ChatCompletionsCodec` add a
+  `<message-context>` block after the text of each user message with context, so the whole history
+  keeps it.
+- `ChatModel` has no `callToolAsync()`. A tool call that the model never made is not valid
+  history: the model would see a result for a call it did not make. In server mode, the server
+  owns the history and the tool loop, and the browser cannot add a call to it. The `callTool`
+  action runs a client tool outside the history, as D47 says.
+
+**Why.** Each keeps the contract of `planning/GENUI-2.md`, and closes a gap that the wiring
+leaves open.
+
+**Alternatives.** Always send the document tool. Its schema is a union of every component, which
+costs tokens on every step of a chat that never nests components.

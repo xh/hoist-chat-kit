@@ -2,6 +2,7 @@ import type {PlainObject} from '@xh/hoist/core';
 import {logDebug} from '@xh/hoist/utils/js';
 import {
     compact,
+    find,
     flatMap,
     groupBy,
     has,
@@ -24,7 +25,7 @@ import {
 import type {ChatCodec, ChatDecoder} from '../ChatCodec';
 import type {ChatEvent, ChatEventType} from '../ChatEvent';
 import type {ChatRunRequest} from '../ChatTransport';
-import {contextValueText} from '../impl/context';
+import {contextValueText, messageContext} from '../impl/context';
 import {partsBySteps, toolResultText} from '../impl/history';
 
 /** Configuration for an {@link AgUiCodec}. */
@@ -74,7 +75,8 @@ export interface AgUiContext {
  * sent as `{name, description, parameters}`, with an empty object schema for a tool that has no
  * `parameters`. The chat's live context - see `ChatModelConfig.contextProviders` - follows the
  * codec's own `context` entries, one per provider: its description (or else its name), and its
- * value as text, or as JSON for an object.
+ * value as text, or as JSON for an object. The structured context of the turn's user message,
+ * from its `metadata.context`, goes last, as JSON.
  *
  * In server mode the agent holds the history, so `messages` carries only what it has not seen:
  * the user message on the first step of a turn, or the last step of the reply - its tool calls
@@ -82,10 +84,11 @@ export interface AgUiContext {
  * `forwardedProps`, alongside any the app adds:
  *
  * ```
- * {turnId, trigger, runOptions, replacedMessageId}
+ * {turnId, trigger, runOptions, replacedMessageId, catalogVersion}
  * ```
  *
- * `replacedMessageId` is sent only for a retry or regenerate. The app's own `forwardedProps` take
+ * `replacedMessageId` is sent only for a retry or regenerate, and `catalogVersion` only for a chat
+ * with a generative UI catalog. The app's own `forwardedProps` take
  * precedence over these keys.
  *
  * The kit's events are AG-UI events, so decoding passes each record through as is. Records of an
@@ -129,7 +132,8 @@ export class AgUiCodec implements ChatCodec {
                 ...map(request.context, it => ({
                     description: it.description ?? it.name,
                     value: contextValueText(it.value)
-                }))
+                })),
+                ...encodeMessageContext(request)
             ],
             forwardedProps: this.getForwardedProps(request)
         };
@@ -152,9 +156,9 @@ export class AgUiCodec implements ChatCodec {
                 (isFunction(forwardedProps) ? forwardedProps(request) : forwardedProps) ?? {};
         if (request.historyMode !== 'server') return appProps;
 
-        const {turnId, trigger, runOptions, replacedMessageId} = request;
+        const {turnId, trigger, runOptions, replacedMessageId, catalogVersion} = request;
         return {
-            ...omitBy({turnId, trigger, runOptions, replacedMessageId}, isNil),
+            ...omitBy({turnId, trigger, runOptions, replacedMessageId, catalogVersion}, isNil),
             ...appProps
         };
     }
@@ -212,6 +216,14 @@ function encodeMessage(message: ChatMessage): PlainObject[] {
                 encodeAssistantStep(parts, idx ? `${id}-${idx}` : id)
             );
     }
+}
+
+/** The structured context of the turn's user message, as a context entry of each step. */
+function encodeMessageContext({messages, turnId}: ChatRunRequest): AgUiContext[] {
+    const context = messageContext(find(messages, {id: turnId}));
+    return context
+        ? [{description: MESSAGE_CONTEXT_DESCRIPTION, value: JSON.stringify(context)}]
+        : [];
 }
 
 /** A message the server has not seen - all of a user message, or the last step of a reply. */
@@ -312,4 +324,5 @@ function joinText(parts: ChatTextPart[]): string {
     return parts.map(it => it.text).join('\n\n');
 }
 
-const MEDIA_PART_TYPES = ['image', 'audio', 'video'];
+const MEDIA_PART_TYPES = ['image', 'audio', 'video'],
+    MESSAGE_CONTEXT_DESCRIPTION = "Context of the user's message, such as the item it is about";

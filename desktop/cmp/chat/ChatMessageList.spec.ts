@@ -15,6 +15,7 @@ import {
     type ChatTextPart,
     type ChatToolCallPart
 } from '../../../core';
+import {ChatUiCatalog} from '../../../genui';
 import {ScriptedChatTransport, textEvents, toolCallEvents} from '../../../transport';
 import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
 
@@ -49,6 +50,34 @@ describe('ChatMessageList', () => {
         expect(
             screen.getByText('Get forecast', {selector: '.xh-chat-tool-call__title'})
         ).toBeTruthy();
+    });
+
+    it("renders component tags in a reply's text through the chat's catalog", () => {
+        const catalog = new ChatUiCatalog({
+                modes: ['tags'],
+                components: [
+                    {
+                        name: 'badge',
+                        description: 'A badge.',
+                        props: {
+                            type: 'object',
+                            required: ['label'],
+                            properties: {label: {type: 'string'}}
+                        },
+                        render: ({label}) => div({className: 'test-badge', item: label})
+                    }
+                ]
+            }),
+            tag = catalog.formatTag('badge', {label: 'Top seller'}),
+            chatModel = createModel({catalog}, [
+                reply([text('t1', `Before the badge.\n\n${tag}\n\nAfter **it**.`)])
+            ]);
+        renderList(chatModel);
+
+        expect(screen.getByText('Top seller', {selector: '.test-badge'})).toBeTruthy();
+        expect(screen.getByText('Before the badge.')).toBeTruthy();
+        expect(screen.getByText('it', {selector: 'strong'})).toBeTruthy();
+        expect(document.body.textContent).not.toContain('<ui-badge');
     });
 
     it('mounts a tool renderer only while its card is open', () => {

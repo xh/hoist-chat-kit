@@ -22,27 +22,18 @@ then `planning/PLAN-2.md`. Everything listed as done is committed, pushed and gr
 | 4 | Thread list, workspace and feedback UI | Not started. Waits for the design handoff |
 | 5 | Server-mode demo and recipe | Backend and client plumbing done in Toolbox (`client-app/src/examples/chatkit/guide/`), excluded from the build until the kit publishes. UI and recipe doc not started |
 | 6 | Activity timeline | Not started. Waits for the design handoff |
-| 7 | Generative UI by reference | Core done in `genui/` (document model, tags, artifact registry, view spec, typed actions, export). Wiring into `ChatModel` not done (see below). Desktop components not started |
+| 7 | Generative UI by reference | Core done in `genui/` (document model, tags, artifact registry, view spec, typed actions, export), and wired into `ChatModel` (D54). Desktop components not started |
 | 8 | Composer extensibility | `sendBlocker` done. The rest waits for the design handoff |
 | 9 | Component helpers | Core done: context providers, undo, preview, `ChatCompletionsCodec`, `ChatService`, `gridTools`, `dashCanvasTools`. Assistant model and docked UI not started |
 | T | Toolbox mergeable on the published kit | Done |
 
 ## Next steps, in order
 
-1. **Wire generative UI into `ChatModel`.** Items 1 to 3 of the last task, which were drafted and
-   reverted:
-   - `ChatModelConfig.catalog`: client mode adds `tools` (and `documentTool`), server mode adds
-     `displayTools`. Add by identity, and throw on a name clash with an app tool.
-   - One `@managed artifacts` registry per chat, with `dataSource` on `ChatModelConfig`. Feed it
-     from a new `xh.chat.artifact` event, from `metadata.artifacts` on `TOOL_CALL_RESULT`, and
-     from restored history. The catalog's `artifacts` defaults to `chatModel.artifacts`.
-   - Tags in markdown, rendered in the text part of `ChatMessageView` through the chat's catalog.
-   - `runOptions.catalogVersion` on each request. `catalogVersion` on messages that render
-     catalog UI.
-   - Message `context` from typed `send` actions: an AG-UI `context` entry, and a
-     `<message-context>` block in the Anthropic and chat completions codecs.
-   - Leave `callToolAsync` out, and document why: a call the model never made is not valid
-     history, and in server mode the server owns the history.
+1. **Wire generative UI into `ChatModel`.** Done in the session of 2026-10-14 (afternoon), D54.
+   Not yet committed at the time of writing. `catalog` and `dataSource` on `ChatModelConfig`,
+   `ChatModel.artifacts`, `ChatUiCatalogConfig.modes`, `chatToolResult({artifacts})`, the
+   `xh.chat.artifact` event, tags in `ChatMessageView`, `ChatRunRequest.catalogVersion`, and
+   message context in the three codecs.
 2. **Review pass** over everything on `feature/server-mode` (server mode, threads, genui core,
    helpers), in the style of `planning/reviews/`. Fix its findings.
 3. **Merge `feature/server-mode` to `develop`** through a PR, which publishes a snapshot. Then in

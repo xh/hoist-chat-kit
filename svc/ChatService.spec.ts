@@ -143,6 +143,7 @@ function request(): ChatRunRequest {
         newMessages: [message],
         replacedMessageId: null,
         runOptions: null,
+        catalogVersion: null,
         tools: [],
         context: [],
         signal: new AbortController().signal

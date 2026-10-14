@@ -1,4 +1,5 @@
 import type {Awaitable} from '@xh/hoist/core';
+import type {ChatArtifact} from '../genui/ChatArtifactRegistry';
 
 /**
  * Reverts the change that one tool call made - see {@link chatToolResult}. May be async. Throw to
@@ -13,6 +14,13 @@ export interface ChatToolResultOptions {
      * call, so the user can undo the reply's changes - see {@link ChatModel.undoTurnAsync}.
      */
     undo?: ChatToolUndo;
+
+    /**
+     * Result sets the call produced, for generative UI components to show by reference. The chat
+     * records them on the reply, as `metadata.artifacts`, and adds them to its artifact registry -
+     * see {@link ChatModel.artifacts}. Tell the model each artifact's id in the `output`.
+     */
+    artifacts?: ChatArtifact[];
 }
 
 /**
@@ -26,14 +34,19 @@ export class ChatToolResult {
     /** Reverts the change the call made, or null. */
     readonly undo: ChatToolUndo;
 
-    constructor(output: any, {undo = null}: ChatToolResultOptions = {}) {
+    /** Result sets the call produced, or null. */
+    readonly artifacts: ChatArtifact[];
+
+    constructor(output: any, {undo = null, artifacts = null}: ChatToolResultOptions = {}) {
         this.output = output;
         this.undo = undo;
+        this.artifacts = artifacts;
     }
 }
 
 /**
- * Wrap a tool's result with options for the chat - such as how to undo the change it made:
+ * Wrap a tool's result with options for the chat - such as how to undo the change it made, or
+ * the result sets it produced:
  *
  * ```
  * execute: ({colIds}) => {

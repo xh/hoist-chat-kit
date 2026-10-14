@@ -59,6 +59,23 @@ describe('ChatCompletionsCodec', () => {
             expect(body).toEqual({messages: [{role: 'user', content: 'Hi'}], stream: true});
         });
 
+        it('sends the context of a user message after its text', async () => {
+            const question = new ChatMessage({
+                    role: 'user',
+                    content: 'Why did it drop?',
+                    metadata: {context: {ticker: 'XYZ'}}
+                }),
+                body = await new ChatCompletionsCodec().encodeRequest(request([question]));
+
+            expect(body.messages).toEqual([
+                {
+                    role: 'user',
+                    content:
+                        'Why did it drop?\n\n<message-context>\n{"ticker":"XYZ"}\n</message-context>'
+                }
+            ]);
+        });
+
         it('builds the system prompt per call, then system messages, then live context', async () => {
             const codec = new ChatCompletionsCodec({system: async req => `Run ${req.runId}.`}),
                 system = new ChatMessage({role: 'system', content: 'Use metric units.'}),
@@ -464,6 +481,7 @@ function request(messages: ChatMessage[], changes: Partial<ChatRunRequest> = {})
         newMessages: [],
         replacedMessageId: null,
         runOptions: null,
+        catalogVersion: null,
         tools: [],
         context: [],
         signal: new AbortController().signal,

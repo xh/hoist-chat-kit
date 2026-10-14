@@ -5,6 +5,8 @@ import {
     differenceBy,
     findLast,
     findLastIndex,
+    intersection,
+    isArray,
     isEmpty,
     isFunction,
     isString,
@@ -20,6 +22,14 @@ import type {PlainObject, TrackOptions} from '@xh/hoist/core';
 import {HoistModel, managed, XH} from '@xh/hoist/core';
 import {action, bindable, bindableRef, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {apiDeprecated, throwIf} from '@xh/hoist/utils/js';
+import {
+    ChatArtifactRegistry,
+    type ChatArtifact,
+    type ChatDataSource
+} from '../genui/ChatArtifactRegistry';
+import type {ChatUiCatalog} from '../genui/ChatUiCatalog';
+import {CHAT_UI_DOCUMENT_DATA_TYPE} from '../genui/ChatUiDocument';
+import {isChatArtifact, mergeArtifacts} from '../genui/impl/artifacts';
 import type {
     ChatEvent,
     ChatRunContext,
@@ -61,6 +71,28 @@ export interface ChatModelConfig {
 
     /** Tools the model may call, and display config for tools the backend runs. */
     tools?: ChatToolSpec[];
+
+    /**
+     * Generative UI components the model can show - see `ChatUiCatalog`. The chat adds the
+     * catalog's tools to its own, so the app lists only its own `tools`:
+     *
+     *  - In client mode, the component tools for the catalog's `tools` mode, and the document
+     *    tool for its `document` mode.
+     *  - In server mode, the catalog's display tools. The server registers the tools and answers
+     *    their calls. The chat renders the calls, and never sends these tools to the model.
+     *
+     * Text in replies renders the catalog's component tags, data parts of type `xh.chat.ui`
+     * render as documents, and each request carries the catalog's version - see
+     * `ChatRunRequest.catalogVersion`. Throws if a catalog tool has the name of another tool in
+     * `tools`. Default none.
+     */
+    catalog?: ChatUiCatalog;
+
+    /**
+     * Loads the rows of artifacts that are not yet in the browser - see {@link ChatModel.artifacts}.
+     * Default none: components show only the rows sent inline.
+     */
+    dataSource?: ChatDataSource;
 
     /**
      * Live context to send with every step, such as the state of a component that the model's
@@ -264,8 +296,23 @@ export class ChatModel extends HoistModel {
     /** Connection to the backend that runs the model or agent. */
     readonly transport: ChatTransport;
 
-    /** Tools the model may call, and display config for tools the backend runs. */
+    /**
+     * Tools the model may call, and display config for tools the backend runs. Includes the tools
+     * of the `catalog`.
+     */
     readonly tools: ChatToolSpec[];
+
+    /** Generative UI components the model can show, or null. */
+    readonly catalog: ChatUiCatalog;
+
+    /**
+     * Result sets that generative UI components show by reference, by id - see
+     * `ChatArtifactRegistry`. Fed by each reply's `xh.chat.artifact` events and tool results, by
+     * client tools that return artifacts with {@link chatToolResult}, and by the
+     * `metadata.artifacts` of messages loaded as history. Cleared with the thread, by `clear` and
+     * `loadMessages`.
+     */
+    @managed readonly artifacts: ChatArtifactRegistry;
 
     /** Live context to send with every step. */
     readonly contextProviders: ChatContextProvider[];
@@ -402,7 +449,9 @@ export class ChatModel extends HoistModel {
         super();
         const {
             transport,
-            tools = [],
+            tools: appTools = [],
+            catalog = null,
+            dataSource = null,
             contextProviders = [],
             maxSteps = 10,
             initialMessages = [],
@@ -423,6 +472,20 @@ export class ChatModel extends HoistModel {
             historyMode !== 'client' && historyMode !== 'server',
             `ChatModel historyMode must be 'client' or 'server' - got '${historyMode}'.`
         );
+        // Catalog tools that the app also listed, by identity, are added once.
+        const catalogTools = getCatalogTools(catalog, historyMode).filter(
+                it => !appTools.includes(it)
+            ),
+            clashes = intersection(
+                appTools.map(it => it.name),
+                catalogTools.map(it => it.name)
+            ),
+            tools = [...appTools, ...catalogTools];
+        throwIf(
+            !isEmpty(clashes),
+            `ChatModel tools ${clashes.join(', ')} have the names of catalog tools. Rename them, ` +
+                'or leave catalog tools out of the tools config - the chat adds them.'
+        );
         const dupeNames = keys(pickBy(countBy(tools, 'name'), count => count > 1));
         throwIf(
             !isEmpty(dupeNames),
@@ -431,6 +494,8 @@ export class ChatModel extends HoistModel {
 
         this.transport = transport;
         this.tools = tools;
+        this.catalog = catalog;
+        this.artifacts = new ChatArtifactRegistry({dataSource});
         this.contextProviders = contextProviders;
         this.maxSteps = maxSteps;
         this.historyMode = historyMode;
@@ -441,13 +506,14 @@ export class ChatModel extends HoistModel {
         this.runOptions = runOptions;
         this.textTransform = textTransform;
         this.trackOptions = track === true ? {} : track || null;
-        this.dataRenderers = dataRenderers;
+        this.dataRenderers = {...catalog?.createDataRenderers(), ...dataRenderers};
         this.sendBlockers = sendBlocker ? [sendBlocker] : [];
         this.onTurnComplete = onTurnComplete;
         this.modelTools = tools.filter(
             it => it.sendToModel ?? (it.execute != null || !!it.interactive)
         );
         this.messages = restoreMessages(initialMessages);
+        this.addArtifactsOf(this.messages);
         tools.forEach(it => {
             apiDeprecated('ChatToolSpec.approvalPreview', {
                 test: it.approvalPreview,
@@ -841,7 +907,9 @@ export class ChatModel extends HoistModel {
     @action
     prependMessages(specs: ChatMessageSpec[]) {
         const older = restoreMessages(differenceBy(specs, this.messages, 'id'), false);
-        if (!isEmpty(older)) this.messages = [...older, ...this.messages];
+        if (isEmpty(older)) return;
+        this.messages = [...older, ...this.messages];
+        this.addArtifactsOf(older);
     }
 
     /** The conversation as plain objects, for storage. */
@@ -1028,6 +1096,7 @@ export class ChatModel extends HoistModel {
                 newMessages: [this.getMessage(isFirstStep ? turnId : turn.messageId)],
                 replacedMessageId: turn.replacedMessageId,
                 runOptions: turn.runOptions,
+                catalogVersion: this.catalog?.version ?? null,
                 tools: this.modelTools,
                 context: [],
                 signal: turn.abortController.signal
@@ -1115,6 +1184,9 @@ export class ChatModel extends HoistModel {
             const result = await raceAbort(pending, signal),
                 output = result instanceof ChatToolResult ? result.output : result;
             if (this.isCurrent(turn)) {
+                if (result instanceof ChatToolResult && result.artifacts) {
+                    this.recordArtifacts(turn, result.artifacts);
+                }
                 this.updateToolCall(turn, call.id, {
                     state: 'output-available',
                     output: output ?? null
@@ -1265,6 +1337,8 @@ export class ChatModel extends HoistModel {
         this._threadId = threadId ?? genChatId();
         this.isThreadIdProvisional = threadId == null;
         this.messages = restoreMessages(specs);
+        this.artifacts.clear();
+        this.addArtifactsOf(this.messages);
         this.undoStacks = {};
         this.hasOlderMessages = false;
         this.status = 'ready';
@@ -1343,6 +1417,8 @@ export class ChatModel extends HoistModel {
         if (turn.reducer) message = turn.reducer.settleText(message);
         const metadata: PlainObject = {...message.metadata, elapsedMs: stopTurnClock(turn)};
         if (detached) metadata.detached = true;
+        // Stored with the reply, so that its UI can migrate once the catalog changes.
+        if (this.showsCatalogUi(message)) metadata.catalogVersion = this.catalog.version;
 
         const settled = settleOpenParts(message, SETTLE_REASONS[status]).withChanges({
             status,
@@ -1364,6 +1440,7 @@ export class ChatModel extends HoistModel {
 
         const message = turn.reducer.apply(this.getTurnMessage(turn), events);
         this.replaceMessage(message);
+        this.addArtifactsOf([message]);
         this.applyServerIds(turn);
         if (message.status === 'streaming' && this.status === 'submitted') {
             this.status = 'streaming';
@@ -1395,6 +1472,47 @@ export class ChatModel extends HoistModel {
             this.logDebug('Adopted the server thread id', threadId);
             this._threadId = threadId;
         }
+    }
+
+    /** Record artifacts that a client tool produced on the turn's reply, and in the registry. */
+    @action
+    private recordArtifacts(turn: ChatTurn, artifacts: ChatArtifact[]) {
+        this.updateTurnMessage(turn, message => {
+            const current = message.metadata.artifacts,
+                merged = mergeArtifacts(current, artifacts);
+            return merged === current || isEmpty(merged)
+                ? message
+                : message.withChanges({metadata: {...message.metadata, artifacts: merged}});
+        });
+        const message = this.getTurnMessage(turn);
+        if (message) this.addArtifactsOf([message]);
+    }
+
+    /** Add the artifacts recorded on messages to the registry, skipping those it holds already. */
+    private addArtifactsOf(messages: ChatMessage[]) {
+        const added = messages
+            .flatMap(it => (isArray(it.metadata.artifacts) ? it.metadata.artifacts : []))
+            .filter(it => isChatArtifact(it) && this.artifacts.get(it.id) !== it);
+        if (!isEmpty(added)) this.artifacts.add(added);
+    }
+
+    /** True if a message shows UI from the chat's catalog - a call to its tools, a tag or a document. */
+    private showsCatalogUi(message: ChatMessage): boolean {
+        const {catalog} = this;
+        if (!catalog) return false;
+
+        return message.parts.some(part => {
+            switch (part.type) {
+                case 'toolCall':
+                    return catalog.displayTools.some(it => it.name === part.toolName);
+                case 'data':
+                    return part.dataType === CHAT_UI_DOCUMENT_DATA_TYPE;
+                case 'text':
+                    return catalog.parseTags(part.text).some(it => it.type !== 'markdown');
+                default:
+                    return false;
+            }
+        });
     }
 
     @action
@@ -1591,6 +1709,18 @@ function restoreMessages(specs: ChatMessageSpec[], isLatest: boolean = true): Ch
                 return settleOpenParts(message, SETTLE_REASONS.interrupted);
         }
     });
+}
+
+/** The tools a catalog adds to a chat - see {@link ChatModelConfig.catalog}. */
+function getCatalogTools(catalog: ChatUiCatalog, historyMode: ChatHistoryMode): ChatToolSpec[] {
+    if (!catalog) return [];
+    if (historyMode === 'server') return catalog.displayTools;
+
+    const {modes} = catalog;
+    return [
+        ...(modes.includes('tools') ? catalog.tools : []),
+        ...(modes.includes('document') ? [catalog.documentTool] : [])
+    ];
 }
 
 function needsApproval(spec: ChatToolSpec, call: ChatToolCallPart): boolean {

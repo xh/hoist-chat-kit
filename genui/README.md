@@ -176,8 +176,8 @@ avoid most of this cost: a tag costs no call, and a reference costs a few tokens
 
 ## Configuration Pattern
 
-Create the catalog once, for example on the model that owns the chat. Pass its `tools` to the
-`ChatModel`, and its `instructions` to the model with the system prompt:
+Create the catalog once, for example on the model that owns the chat. Pass it to the `ChatModel`
+as `catalog`, and pass its `instructions` to the model with the system prompt:
 
 ```typescript
 import {ChatModel} from '@xh/hoist-chat-kit/core';
@@ -187,12 +187,9 @@ import {AnthropicCodec, HoistChatTransport} from '@xh/hoist-chat-kit/transport';
 import {HoistModel, managed} from '@xh/hoist/core';
 
 export class AnalystModel extends HoistModel {
-    @managed readonly artifacts = new ChatArtifactRegistry({dataSource: resultSetSource});
-
     readonly catalog = new ChatUiCatalog({
         components: [chatUiGridSpec({maxRows: 50}), chatUiChartSpec(), positionCardSpec],
         instructions: 'Use a grid for positions and trades, and a chart for performance.',
-        artifacts: () => this.artifacts,
         urlAllowList: ['https://research.example.com']
     });
 
@@ -204,27 +201,46 @@ export class AnalystModel extends HoistModel {
                 cacheControl: true
             })
         }),
-        tools: [...appTools, ...this.catalog.tools],
+        tools: appTools,
+        catalog: this.catalog,
+        dataSource: resultSetSource,
         // Each component a reply shows takes a step.
         maxSteps: 16
     });
 }
 ```
 
-Tool names must be unique across the app's tools and the catalog's. The `ChatModel` constructor
-throws if two tools share a name.
+The chat adds the catalog's tools to its own, by its history mode:
 
-For other delivery modes, add the document tool and explain the modes in the prompt:
+| History mode | Tools the chat adds |
+|--------------|---------------------|
+| `client` | The component tools for the `tools` mode, and `show_ui` for the `document` mode. The browser runs them. |
+| `server` | The `displayTools`. The server registers the tools and answers their calls. The chat renders each call, and never sends these tools to the model. |
+
+A catalog tool must not share its name with an app tool. The `ChatModel` constructor throws if
+one does. A catalog tool that the app also lists in `tools` is added once.
+
+The catalog's `modes` set how the model delivers UI. They select the tools the chat sends, and
+the default modes of `instructions`, `toPrompt()` and `toToolSchemas()`:
 
 ```typescript
-tools: [...appTools, ...catalog.tools, catalog.documentTool],
-// in the system prompt
-catalog.toPrompt({modes: ['tools', 'document'], rules: ['Show at most three components.']})
+const catalog = new ChatUiCatalog({
+    components,
+    modes: ['tools', 'tags', 'document']
+});
+// in the system prompt, with the modes above
+catalog.toPrompt({rules: ['Show at most three components.']})
 ```
 
-`ChatModel` does not yet take a catalog. Until it does, the app owns one `ChatArtifactRegistry`
-per chat and returns it from the catalog's `artifacts` function. A later release adds the catalog
-to the chat's config, with a registry that each chat manages.
+The chat also does the rest of the wiring:
+
+- Each chat manages its own artifact registry, `chatModel.artifacts`, which the catalog reads by
+  default. Give the chat a `dataSource` for rows not yet in the browser.
+- The desktop message view renders component tags in the text of a reply, and data parts of type
+  `xh.chat.ui` as documents.
+- Each request carries `catalog.version`, as `ChatRunRequest.catalogVersion`.
+- A reply that shows catalog UI records the catalog's version as `metadata.catalogVersion`. A
+  stored reply renders through the catalog's `migrations` from that version.
 
 ## Common Usage Patterns
 
@@ -295,13 +311,14 @@ const stackSpec: ChatUiComponentSpec<{gap?: number}> = {
 ```
 
 The model nests components with the `show_ui` tool, or a server sends a document as an
-`xh.chat.ui` data part. Register the data renderer for that part with
-`createDataRenderers()`.
+`xh.chat.ui` data part. A chat with a catalog renders that part. Without one, register the data
+renderer with `createDataRenderers()`.
 
 ### Read tags in a markdown answer
 
-A server agent can place components in its answer text, where they belong. The text renderer
-splits a text part with `parseTags()` and renders each segment:
+A server agent can place components in its answer text, where they belong. The desktop message
+view renders the tags of each reply in a chat with a catalog. A custom text renderer splits a text
+part with `parseTags()` and renders each segment:
 
 ```typescript
 const segments = catalog.parseTags(part.text, {isStreaming: part.state === 'streaming'});
@@ -351,17 +368,37 @@ Render by the handle's `state`:
 - `ready` - the first page is in `frame`. Page through the rest with `loadRangeAsync()`.
 - `missing`, `tooLarge` or `failed` - show a short note in place of the data.
 
-Feed the registry as artifacts arrive, for example from a tool result, and give it a data source
-for rows not yet in the browser:
+Each `ChatModel` keeps the artifacts of its thread in `chatModel.artifacts`. The chat adds them
+as they arrive:
+
+- An `xh.chat.artifact` event, with the artifact as its value.
+- A backend tool result with `metadata.artifacts`, a list of artifacts.
+- A client tool that returns `chatToolResult(output, {artifacts})`.
+- Stored messages, which keep the artifacts of each reply in `metadata.artifacts`.
+
+`clear()` and `loadMessages()` empty the registry. Give the chat a data source for rows not yet
+in the browser:
 
 ```typescript
-const artifacts = new ChatArtifactRegistry({
+const chatModel = new ChatModel({
+    transport,
+    catalog,
     dataSource: {
         loadAsync: async ({artifactId, offset, limit, signal}) =>
             fromColumnar(await XH.fetchJson({url: 'results/page', params: {artifactId, offset, limit}, signal}))
     }
 });
-artifacts.add({id: 'q3_sales', columns, rows: firstRows, totalRows: 1240});
+```
+
+A client tool tells the model the id of each artifact it returns:
+
+```typescript
+execute: async ({query}) => {
+    const result = await runQueryAsync(query);
+    return chatToolResult(`Saved ${result.totalRows} rows as ${result.id}.`, {
+        artifacts: [{id: result.id, columns: result.columns, rows: result.rows.slice(0, 200), totalRows: result.totalRows}]
+    });
+}
 ```
 
 The registry loads each range once. A second request for a range in flight shares the first, and
@@ -453,13 +490,13 @@ writeFileSync(
 );
 ```
 
-The browser sends only `catalog.version`, for example in the run options. The server compares it
-with the version in its export to detect drift. In the browser, give the chat the catalog's
-`displayTools`. They render each call as the client tools do, with no `execute`, and are not sent
-to the model.
+The browser sends only `catalog.version`. `AgUiCodec` sends it in `forwardedProps`, with the
+turn's ids. The server compares it with the version in its export to detect drift. In the
+browser, give a server-mode `ChatModel` the catalog. The chat adds the catalog's `displayTools`,
+which render each call as the client tools do, with no `execute`, and are not sent to the model.
 
 `version` is an FNV-1a hash of the catalog's content: the names, descriptions, schemas, examples,
-slots and data props of its components, its instructions, its tag prefix and its limits. Render
+slots and data props of its components, its modes, its instructions, its tag prefix and its limits. Render
 functions do not count. A document keeps the `catalogVersion` it was written against.
 `migrations` upgrade a stored document from an older version.
 
@@ -494,13 +531,14 @@ function toElement(c: PlainObject): ChatUiElement {
 
 const chatModel = new ChatModel({
     transport,
-    tools: catalog.tools,
+    catalog,
     dataRenderers: catalog.createDataRenderers([reportAdapter])
 });
 ```
 
 `createDataRenderers()` also returns a renderer for documents sent as they are, with the
-`dataType` `xh.chat.ui`. The catalog repairs and checks each document before it renders.
+`dataType` `xh.chat.ui`. A chat with a catalog adds that renderer itself. The catalog repairs and
+checks each document before it renders.
 
 ## Properties/API Reference
 
@@ -509,11 +547,12 @@ const chatModel = new ChatModel({
 | Property | Type | Description |
 |----------|------|-------------|
 | `components` | `ChatUiComponentSpec[]` | Components the model can show. Names and tool names must be unique. Required. |
+| `modes` | `ChatUiDeliveryMode[]` | How the model delivers UI: `tools`, `tags`, `document`. Sets the tools a client-mode chat sends, and the default modes of the prompt and the export. Default `['tools']`. |
 | `instructions` | `string` | Guidance for the model, added to the end of the generated prompt. |
 | `tagPrefix` | `string` | Prefix of component tags in markdown. Default `ui-`. |
 | `documentToolName` | `string` | Name of the document tool. Default `show_ui`. |
 | `limits` | `ChatUiLimits` | Caps on elements, depth and inline rows. |
-| `artifacts` | `(chatModel) => ChatArtifactRegistry` | The artifact registry of a chat, for reference props. Default none. |
+| `artifacts` | `(chatModel) => ChatArtifactRegistry` | The artifact registry of a chat, for reference props. Default `chatModel.artifacts`. |
 | `actionHandlers` | `Record<string, ChatUiActionHandler>` | Handlers for `app` actions, by name. |
 | `urlAllowList` | `string[] \| (url: URL) => boolean` | Origins, or a check, for URLs that actions and components may open. Default none. |
 | `migrations` | `Record<string, (doc) => ChatUiDocument>` | Upgrades for stored documents, keyed by the version they upgrade from. |

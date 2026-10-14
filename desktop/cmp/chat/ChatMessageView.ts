@@ -1,4 +1,4 @@
-import {isEmpty, isEqual, last, sumBy} from 'lodash';
+import {findLastIndex, isEmpty, isEqual, last, sumBy} from 'lodash';
 import {type ReactElement, type ReactNode, useLayoutEffect, useMemo} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
@@ -24,6 +24,7 @@ import {
     type ChatPartRenderContext,
     type ChatReasoningPart,
     type ChatSourcePart,
+    type ChatTextPart,
     isToolCallFinal
 } from '../../../core';
 import '../../../styles/vars.scss';
@@ -141,7 +142,8 @@ export interface ChatMessageViewProps extends HoistProps {
  * and the time taken. Their parts render in order: markdown text, reasoning, tool calls, files and
  * app-rendered data, followed by the sources consulted. Consecutive tool calls of one step fold
  * into a single "Used 3 tools" row. With `citationMarkers` on, `[1]` in the text renders as a
- * button for the source it cites.
+ * button for the source it cites. In a chat with a generative UI catalog, component tags in the
+ * text render as their components.
  *
  * Each part renders as a memoized component that receives the part and a render context that is
  * stable for the life of the message, so a part re-renders only when it changes - not on every
@@ -462,6 +464,7 @@ function renderPartGroup(
             return chatToolCallGroup({parts: group.parts, context});
         case 'text':
             return textPart({
+                part: group,
                 text: group.text,
                 isStreaming: group.state === 'streaming',
                 citations: group.citations,
@@ -495,6 +498,8 @@ function getResetKey(group: ChatPartGroup): any {
 }
 
 interface TextPartProps extends HoistProps {
+    /** The part, for the components of its tags. */
+    part: ChatTextPart;
     text: string;
     isStreaming: boolean;
     citations: ChatCitation[];
@@ -514,6 +519,7 @@ const textPart = hoistCmp.factory<TextPartProps>({
     model: false,
 
     render({
+        part,
         text,
         isStreaming,
         citations,
@@ -547,19 +553,48 @@ const textPart = hoistCmp.factory<TextPartProps>({
                         ? {sources: markerSources, onClick, renderMarker: renderCitationMarker}
                         : null,
                 [markerSources, onClick]
-            );
+            ),
+            {catalog} = context.chatModel,
+            segments = useMemo(
+                () => catalog?.parseTags(text, {isStreaming}) ?? null,
+                [catalog, text, isStreaming]
+            ),
+            // Only the end of the text streams, and citations trail its last markdown.
+            markdown = (content: string, isEnd: boolean, isLastMarkdown: boolean, key?: string) =>
+                chatMarkdown({
+                    key,
+                    content,
+                    isStreaming: isStreaming && isEnd,
+                    components,
+                    allowImages,
+                    trailingContent: isLastMarkdown ? trailingContent : null,
+                    citations: markers,
+                    markdownPlugins
+                });
 
+        // Text with no component tags - the common case - renders as one block of markdown.
+        if (!segments?.some(it => it.type !== 'markdown')) {
+            return div({className: 'xh-chat-message__text', item: markdown(text, true, true)});
+        }
+
+        // Segments only grow at the end as the text streams, so their index is a stable key.
+        const lastMarkdownIdx = findLastIndex(segments, it => it.type === 'markdown');
         return div({
             className: 'xh-chat-message__text',
-            item: chatMarkdown({
-                content: text,
-                isStreaming,
-                components,
-                allowImages,
-                trailingContent,
-                citations: markers,
-                markdownPlugins
-            })
+            items: segments.map((segment, idx) =>
+                segment.type === 'markdown'
+                    ? markdown(
+                          segment.text,
+                          idx === segments.length - 1,
+                          idx === lastMarkdownIdx,
+                          `s${idx}`
+                      )
+                    : div({
+                          key: `s${idx}`,
+                          className: 'xh-chat-message__ui',
+                          item: catalog.renderSegment(segment, {...context, part})
+                      })
+            )
         });
     }
 });

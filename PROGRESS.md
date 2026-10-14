@@ -18,6 +18,9 @@ log. `planning/DESIGN.md` holds the build spec, and `DECISIONS.md` holds the des
 
 ### 2026-10-14
 
+- Wired generative UI into `ChatModel`: the `catalog` and `dataSource` configs, a managed
+  artifact registry per chat, tags rendered in replies, the catalog version on requests and
+  replies, and message context in the codecs (D54). 922 tests.
 - Read the feedback packet from three enterprise apps and wrote plan 2: server-owned
   conversations become first-class beside client-owned ones (D19 to D29). Filed
   xh/hoist-core#618 and xh/hoist-react#4855.

@@ -11,6 +11,7 @@ import type {
     ChatTextPart,
     ChatToolCallPart
 } from '../ChatPart';
+import {mergeArtifacts} from '../../genui/impl/artifacts';
 import {genChatId} from '../../impl/ids';
 import {parsePartialJson} from './parsePartialJson';
 
@@ -207,6 +208,7 @@ export class ChatStreamReducer {
                 } else {
                     this.setToolResult(draft, toolCallId, content);
                 }
+                if (metadata?.artifacts != null) addArtifacts(draft, metadata.artifacts);
                 break;
             }
 
@@ -558,6 +560,9 @@ export class ChatStreamReducer {
                     ...pick(value, FILE_KEYS)
                 });
                 break;
+            case 'xh.chat.artifact':
+                addArtifacts(draft, value);
+                break;
             case 'xh.chat.providerData':
                 this.mergeProviderData(draft, value.subtype, value.entityId, value.data ?? {});
                 break;
@@ -669,6 +674,13 @@ function outcomeFinishReason(outcomeType: string): string {
 function setMetadata(draft: Draft, changes: PlainObject) {
     draft.metadata = {...draft.metadata, ...changes};
     draft.changed = true;
+}
+
+/** Record artifacts on the reply, as `metadata.artifacts` - see `ChatArtifact`. */
+function addArtifacts(draft: Draft, artifacts: unknown) {
+    const current = draft.metadata.artifacts,
+        merged = mergeArtifacts(current, artifacts);
+    if (merged !== current && merged.length) setMetadata(draft, {artifacts: merged});
 }
 
 function setError(draft: Draft, error: string, errorCode: string) {

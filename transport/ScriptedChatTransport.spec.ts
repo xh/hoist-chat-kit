@@ -310,6 +310,7 @@ function request(runId: string, signal = new AbortController().signal): ChatRunR
         newMessages: [],
         replacedMessageId: null,
         runOptions: null,
+        catalogVersion: null,
         tools: [],
         context: [],
         signal

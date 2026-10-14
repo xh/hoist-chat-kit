@@ -58,6 +58,21 @@ describe('AgUiCodec', () => {
             });
         });
 
+        it("sends the context of the turn's user message as a context entry", () => {
+            const question = new ChatMessage({
+                    id: 'u1',
+                    role: 'user',
+                    content: 'Why did it drop?',
+                    metadata: {context: {ticker: 'XYZ'}}
+                }),
+                body = new AgUiCodec().encodeRequest(request([question]));
+
+            expect(body.messages).toEqual([{id: 'u1', role: 'user', content: 'Why did it drop?'}]);
+            expect(body.context).toEqual([
+                {description: expect.stringMatching(/user's message/), value: '{"ticker":"XYZ"}'}
+            ]);
+        });
+
         it('builds context and forwarded props per run when given functions', () => {
             const codec = new AgUiCodec({
                     context: req => [{description: 'Run', value: req.runId}],
@@ -264,6 +279,22 @@ describe('AgUiCodec', () => {
             ]);
         });
 
+        it('sends the catalog version with the turn', () => {
+            const question = user('Hi'),
+                body = new AgUiCodec().encodeRequest(
+                    request([question], {
+                        historyMode: 'server',
+                        newMessages: [question],
+                        catalogVersion: 'v1'
+                    })
+                );
+            expect(body.forwardedProps).toEqual({
+                turnId: 'u1',
+                trigger: 'submit',
+                catalogVersion: 'v1'
+            });
+        });
+
         it('leaves forwardedProps to the app in client mode', () => {
             const body = new AgUiCodec({forwardedProps: {tenant: 'emea'}}).encodeRequest(
                 request([user('Hi')], {runOptions: {scope: ['doc-1']}})
@@ -303,6 +334,7 @@ function request(messages: ChatMessage[], changes: Partial<ChatRunRequest> = {})
         newMessages: [],
         replacedMessageId: null,
         runOptions: null,
+        catalogVersion: null,
         tools: [],
         context: [],
         signal: new AbortController().signal,
