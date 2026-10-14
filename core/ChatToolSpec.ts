@@ -112,6 +112,9 @@ export interface ChatToolContext {
     /** Id of the call being run. */
     toolCallId: string;
 
-    /** Aborts if the user stops the turn. Long-running tools should honor it. */
+    /**
+     * Aborts if the turn stops, with a {@link ChatAbortError} as its reason. Long-running tools
+     * should honor it.
+     */
     signal: AbortSignal;
 }

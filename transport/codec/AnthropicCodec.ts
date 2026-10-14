@@ -119,6 +119,10 @@ export interface AnthropicCodecConfig {
  * Anthropic's own `stop_reason` is reported alongside, as `stopReason`. An `error` event becomes
  * `RUN_ERROR`, with the Anthropic error type as its code.
  *
+ * A client-mode codec: the Messages API keeps no state, so every request must carry the whole
+ * history. A request from a chat in server mode throws - pair a server-owned conversation with
+ * {@link AgUiCodec}, or a codec for the agent service's own format.
+ *
  * Not yet supported: continuing a `pause_turn` response. The API pauses a long server tool loop
  * and expects the client to send the paused turn back to resume it. The turn currently ends at
  * the pause, and a server tool call left without a result is dropped from the next request.
@@ -161,6 +165,10 @@ export class AnthropicCodec implements ChatCodec {
     }
 
     async encodeRequest(request: ChatRunRequest): Promise<PlainObject> {
+        throwIf(
+            request.historyMode === 'server',
+            "AnthropicCodec needs the whole history, so it cannot serve a chat with historyMode 'server'."
+        );
         const {model, maxTokens, params, cacheControl, prepareBody} = this,
             messages = encodeMessages(request.messages);
         throwIf(isEmpty(messages), 'AnthropicCodec cannot encode a request with no user content.');

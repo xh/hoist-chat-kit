@@ -125,6 +125,9 @@ describe('ScriptedChatTransport', () => {
                 [3, 2, 0, 1]
             ]);
             expect(contexts[3].userMessage.text).toBe('Second');
+            expect(contexts.map(it => it.userMessage.id)).toEqual(
+                transport.requests.map(it => it.turnId)
+            );
         });
 
         it('builds citation events that attach to the text before them', async () => {
@@ -216,6 +219,27 @@ describe('ScriptedChatTransport', () => {
     });
 
     describe('event builders', () => {
+        it('builds source events with their citation marker and metadata', async () => {
+            const reducer = new ChatStreamReducer(0),
+                message = reducer.apply(
+                    new ChatMessage({role: 'assistant', status: 'pending'}),
+                    sourceEvents([
+                        {id: 's1', title: 'Guide', marker: 2, metadata: {documentId: 'd-7'}}
+                    ])
+                );
+
+            expect(message.parts).toEqual([
+                {
+                    type: 'source',
+                    id: 's1',
+                    step: 0,
+                    title: 'Guide',
+                    marker: 2,
+                    metadata: {documentId: 'd-7'}
+                }
+            ]);
+        });
+
         it('splits text into small chunks that rejoin to the original', () => {
             const text = 'Here is **bold** text,\n\nand a second paragraph.',
                 deltas = textEvents(text, {chunkSize: 4})
@@ -275,7 +299,20 @@ describe('ScriptedChatTransport', () => {
 // Helpers
 //------------------
 function request(runId: string, signal = new AbortController().signal): ChatRunRequest {
-    return {threadId: 't1', runId, messages: [], tools: [], signal};
+    return {
+        threadId: 't1',
+        runId,
+        historyMode: 'client',
+        trigger: 'submit',
+        turnId: null,
+        stepIndex: 0,
+        messages: [],
+        newMessages: [],
+        replacedMessageId: null,
+        runOptions: null,
+        tools: [],
+        signal
+    };
 }
 
 async function collect(events: AsyncIterable<ChatEvent>): Promise<ChatEvent[]> {

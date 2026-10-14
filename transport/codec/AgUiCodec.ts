@@ -1,6 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {logDebug} from '@xh/hoist/utils/js';
-import {compact, flatMap, groupBy, has, isEmpty, isFunction, isNil, omitBy} from 'lodash';
+import {compact, flatMap, groupBy, has, isEmpty, isFunction, isNil, last, omitBy} from 'lodash';
 import {
     type ChatFilePart,
     type ChatMessage,
@@ -62,6 +62,18 @@ export interface AgUiContext {
  * sent as `{name, description, parameters}`, with an empty object schema for a tool that has no
  * `parameters`.
  *
+ * In server mode the agent holds the history, so `messages` carries only what it has not seen:
+ * the user message on the first step of a turn, or the last step of the reply - its tool calls
+ * and the results the client gave them - on a `continue` step. The turn's ids and options go in
+ * `forwardedProps`, alongside any the app adds:
+ *
+ * ```
+ * {turnId, trigger, runOptions, replacedMessageId}
+ * ```
+ *
+ * `replacedMessageId` is sent only for a retry or regenerate. The app's own `forwardedProps` take
+ * precedence over these keys.
+ *
  * The kit's events are AG-UI events, so decoding passes each record through as is. Records of an
  * unknown `type` are dropped.
  */
@@ -82,22 +94,24 @@ export class AgUiCodec implements ChatCodec {
     }
 
     encodeRequest(request: ChatRunRequest): PlainObject {
-        const {threadId, runId, messages, tools} = request,
-            {context, forwardedProps, state} = this;
+        const {threadId, runId, historyMode, messages, newMessages, tools} = request,
+            {context, state} = this,
+            isServerMode = historyMode === 'server';
         return {
             threadId,
             runId,
             protocolVersion: '1.0',
             state: (isFunction(state) ? state(request) : state) ?? {},
-            messages: flatMap(messages, encodeMessage),
+            messages: isServerMode
+                ? flatMap(newMessages, encodeNewMessage)
+                : flatMap(messages, encodeMessage),
             tools: tools.map(({name, description, parameters}) => ({
                 name,
                 description: description ?? '',
                 parameters: parameters ?? {type: 'object', properties: {}}
             })),
             context: (isFunction(context) ? context(request) : context) ?? [],
-            forwardedProps:
-                (isFunction(forwardedProps) ? forwardedProps(request) : forwardedProps) ?? {}
+            forwardedProps: this.getForwardedProps(request)
         };
     }
 
@@ -106,6 +120,22 @@ export class AgUiCodec implements ChatCodec {
             if (has(EVENT_TYPES, raw?.type)) return [raw as ChatEvent];
             logDebug(['Ignored record of unknown type', raw?.type], this);
             return [];
+        };
+    }
+
+    //------------------
+    // Implementation
+    //------------------
+    private getForwardedProps(request: ChatRunRequest): PlainObject {
+        const {forwardedProps} = this,
+            appProps =
+                (isFunction(forwardedProps) ? forwardedProps(request) : forwardedProps) ?? {};
+        if (request.historyMode !== 'server') return appProps;
+
+        const {turnId, trigger, runOptions, replacedMessageId} = request;
+        return {
+            ...omitBy({turnId, trigger, runOptions, replacedMessageId}, isNil),
+            ...appProps
         };
     }
 }
@@ -162,6 +192,14 @@ function encodeMessage(message: ChatMessage): PlainObject[] {
                 encodeAssistantStep(parts, idx ? `${id}-${idx}` : id)
             );
     }
+}
+
+/** A message the server has not seen - all of a user message, or the last step of a reply. */
+function encodeNewMessage(message: ChatMessage): PlainObject[] {
+    if (!message.isAssistant || message.isEmpty) return encodeMessage(message);
+    const steps = partsBySteps(message),
+        stepIdx = steps.length - 1;
+    return encodeAssistantStep(last(steps), stepIdx ? `${message.id}-${stepIdx}` : message.id);
 }
 
 /** User content as plain text, or as a list of parts when the message has attachments. */

@@ -1,11 +1,12 @@
 import type {Awaitable, PlainObject, TrackOptions} from '@xh/hoist/core';
+import {XH} from '@xh/hoist/core';
 import type {PromiseTimeoutSpec} from '@xh/hoist/promise';
 import type {FetchOptions} from '@xh/hoist/svc';
 import {throwIf} from '@xh/hoist/utils/js';
 import {isFunction} from 'lodash';
 import type {ChatCodec} from './ChatCodec';
 import type {ChatEvent} from './ChatEvent';
-import type {ChatRunRequest, ChatTransport} from './ChatTransport';
+import type {ChatRunRef, ChatRunRequest, ChatTransport} from './ChatTransport';
 import {AgUiCodec} from './codec/AgUiCodec';
 import {abortable} from './impl/streams';
 
@@ -54,6 +55,14 @@ export interface HttpChatTransportConfig {
      * the connection and fails the step with error code `stalled`. Default none.
      */
     idleTimeout?: number;
+
+    /**
+     * Endpoint to post to when the user stops a run, for a backend that does not stop when the
+     * client disconnects - or a function of the run to build it. The body is the run's ids,
+     * `{threadId, runId, turnId}`, and the request carries the `headers` and `params` of the
+     * stopped step. Default none: a stop only closes the connection.
+     */
+    cancelUrl?: string | ((run: ChatRunRef) => Awaitable<string>);
 }
 
 /** One record read from a streamed response, for the codec to decode. */
@@ -75,7 +84,8 @@ export interface HttpChatRecord {
  * throws Hoist's usual `FetchException`, with the server's error details.
  *
  * The base class owns the request, the decoding and the cancellation: a stop - or a caller that
- * stops reading early - closes the connection, so the server can stop generating. A subclass
+ * stops reading early - closes the connection, so the server can stop generating. For a backend
+ * that keeps running after a disconnect, a `cancelUrl` also posts a cancel on a stop. A subclass
  * supplies the framing, by implementing {@link fetchRecords}.
  *
  * A failed request throws as is, so a `FetchException` keeps Hoist's `isRoutine` flag from the
@@ -106,6 +116,9 @@ export abstract class HttpChatTransport implements ChatTransport {
     /** Longest wait for data from the server, in milliseconds, or null for no limit. */
     readonly idleTimeout: number;
 
+    /** Endpoint to post a cancel to, a function to build it, or null. */
+    readonly cancelUrl: HttpChatTransportConfig['cancelUrl'];
+
     constructor({
         url,
         codec = new AgUiCodec(),
@@ -113,7 +126,8 @@ export abstract class HttpChatTransport implements ChatTransport {
         params = null,
         track = null,
         timeout,
-        idleTimeout = null
+        idleTimeout = null,
+        cancelUrl = null
     }: HttpChatTransportConfig) {
         throwIf(!url, 'A chat transport url is required.');
         this.url = url;
@@ -124,6 +138,7 @@ export abstract class HttpChatTransport implements ChatTransport {
         // Left undefined when not configured, as null would disable the FetchService timeout.
         this.timeout = timeout;
         this.idleTimeout = idleTimeout;
+        this.cancelUrl = cancelUrl;
     }
 
     async *run(request: ChatRunRequest): AsyncGenerator<ChatEvent> {
@@ -186,6 +201,20 @@ export abstract class HttpChatTransport implements ChatTransport {
             clearTimeout(idleTimer);
             aborter.abort();
         }
+    }
+
+    /** Post the run's ids to the `cancelUrl`, if one is configured. */
+    async cancelAsync(run: ChatRunRef): Promise<void> {
+        const {cancelUrl} = this;
+        if (!cancelUrl) return;
+
+        const {threadId, runId, turnId, request} = run,
+            [url, headers, params] = await Promise.all([
+                isFunction(cancelUrl) ? cancelUrl(run) : cancelUrl,
+                request ? resolveValue(this.headers, request) : null,
+                request ? resolveValue(this.params, request) : null
+            ]);
+        await XH.postJson({url, body: {threadId, runId, turnId}, headers, params});
     }
 
     /**

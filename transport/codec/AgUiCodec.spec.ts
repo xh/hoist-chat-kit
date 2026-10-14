@@ -1,3 +1,4 @@
+import {findLast} from 'lodash';
 import {describe, expect, it} from 'vitest';
 import {ChatMessage, type ChatPart, type ChatToolCallPart} from '../../core';
 import type {ChatRunRequest} from '../ChatTransport';
@@ -176,6 +177,83 @@ describe('AgUiCodec', () => {
         });
     });
 
+    describe('encodeRequest in server mode', () => {
+        it('sends only the new user message, with the turn in forwardedProps', () => {
+            const earlier = new ChatMessage({id: 'u0', role: 'user', content: 'Earlier'}),
+                question = user('Hi'),
+                body = new AgUiCodec({forwardedProps: {tenant: 'emea'}}).encodeRequest(
+                    request([earlier, question], {
+                        historyMode: 'server',
+                        newMessages: [question],
+                        runOptions: {scope: ['doc-1']}
+                    })
+                );
+
+            expect(body.messages).toEqual([{id: 'u1', role: 'user', content: 'Hi'}]);
+            expect(body.forwardedProps).toEqual({
+                turnId: 'u1',
+                trigger: 'submit',
+                runOptions: {scope: ['doc-1']},
+                tenant: 'emea'
+            });
+        });
+
+        it('sends the replaced reply on a regenerate, and lets the app override a key', () => {
+            const question = user('Hi'),
+                body = new AgUiCodec({forwardedProps: () => ({trigger: 'custom'})}).encodeRequest(
+                    request([question], {
+                        historyMode: 'server',
+                        trigger: 'regenerate',
+                        newMessages: [question],
+                        replacedMessageId: 'a0'
+                    })
+                );
+
+            expect(body.forwardedProps).toEqual({
+                turnId: 'u1',
+                trigger: 'custom',
+                replacedMessageId: 'a0'
+            });
+        });
+
+        it('sends the last step of the reply, with its tool results, on a continue step', () => {
+            const reply = new ChatMessage({
+                    id: 'a1',
+                    role: 'assistant',
+                    status: 'streaming',
+                    parts: [
+                        {type: 'text', id: 'x-0', step: 0, text: 'Checking.', state: 'done'},
+                        toolCall('call1', 0, {output: {tempC: 18}})
+                    ]
+                }),
+                {messages} = new AgUiCodec().encodeRequest(
+                    request([user('Hi'), reply], {
+                        historyMode: 'server',
+                        trigger: 'continue',
+                        stepIndex: 1,
+                        newMessages: [reply]
+                    })
+                );
+
+            expect(messages).toEqual([
+                {
+                    id: 'a1',
+                    role: 'assistant',
+                    content: 'Checking.',
+                    toolCalls: [expect.objectContaining({id: 'call1'})]
+                },
+                {id: 'call1-result', role: 'tool', toolCallId: 'call1', content: '{"tempC":18}'}
+            ]);
+        });
+
+        it('leaves forwardedProps to the app in client mode', () => {
+            const body = new AgUiCodec({forwardedProps: {tenant: 'emea'}}).encodeRequest(
+                request([user('Hi')], {runOptions: {scope: ['doc-1']}})
+            );
+            expect(body.forwardedProps).toEqual({tenant: 'emea'});
+        });
+    });
+
     describe('createDecoder', () => {
         it('passes known events through unchanged and drops unknown records', () => {
             const decode = new AgUiCodec().createDecoder(),
@@ -199,7 +277,14 @@ function request(messages: ChatMessage[], changes: Partial<ChatRunRequest> = {})
     return {
         threadId: 't1',
         runId: 'r1',
+        historyMode: 'client',
+        trigger: 'submit',
+        turnId: findLast(messages, it => it.isUser)?.id ?? null,
+        stepIndex: 0,
         messages,
+        newMessages: [],
+        replacedMessageId: null,
+        runOptions: null,
         tools: [],
         signal: new AbortController().signal,
         ...changes

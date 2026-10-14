@@ -3,6 +3,7 @@ import {logDebug, logWarn} from '@xh/hoist/utils/js';
 import {findLast, isPlainObject, isString, pick} from 'lodash';
 import type {ChatEvent} from '../../transport';
 import type {ChatMessage, ChatMessageSpec} from '../ChatMessage';
+import type {ChatTextTransform} from '../ChatModel';
 import type {
     ChatPart,
     ChatProviderData,
@@ -24,6 +25,10 @@ import {parsePartialJson} from './parsePartialJson';
  * Tool call parts take the tool call id as their own id, so tool call ids must be unique within a
  * turn.
  *
+ * Text parts store the result of the `textTransform`, if one is given. The reducer keeps the raw
+ * text of each part it writes, and transforms the whole of it on each change, so a transform sees
+ * the complete text so far rather than its own earlier output.
+ *
  * Events the kit does not act on, and unknown event types, are ignored.
  * @internal
  */
@@ -36,15 +41,36 @@ export class ChatStreamReducer {
         return this.runFinished;
     }
 
+    /** Thread id reported by the step's `RUN_STARTED` event, or null. */
+    get runThreadId(): string {
+        return this.threadId;
+    }
+
+    /** Run id reported by the step's `RUN_STARTED` event, or null. */
+    get runId(): string {
+        return this.startedRunId;
+    }
+
+    /** Server id of the turn's user message, from an `xh.chat.message` event, or null. */
+    get userServerId(): string {
+        return this.userMessageServerId;
+    }
+
+    private readonly textTransform: ChatTextTransform;
     private partIds = new Map<string, string>();
+    private rawTexts = new Map<string, string>();
     private openTextId: string = null;
     private lastTextId: string = null;
     private openReasoningId: string = null;
     private lastToolCallId: string = null;
     private runFinished = false;
+    private threadId: string = null;
+    private startedRunId: string = null;
+    private userMessageServerId: string = null;
 
-    constructor(step: number) {
+    constructor(step: number, opts: {textTransform?: ChatTextTransform} = {}) {
         this.step = step;
+        this.textTransform = opts.textTransform ?? null;
     }
 
     /** Apply a batch of events, returning the updated message. */
@@ -59,6 +85,7 @@ export class ChatStreamReducer {
             if (isPlainObject(input)) putPart(draft, {...part, input});
         });
 
+        this.transformTexts(draft, message);
         return commitDraft(message, draft);
     }
 
@@ -82,6 +109,22 @@ export class ChatStreamReducer {
         if (!this.runFinished && draft.status !== 'error') {
             setError(draft, 'The response ended before it was complete.', 'incomplete-stream');
         }
+        this.transformTexts(draft, message);
+        return commitDraft(message, draft);
+    }
+
+    /**
+     * Mark the step's streaming text parts done, for a turn that ends before its stream does, so
+     * that the `textTransform` sees their final text.
+     */
+    settleText(message: ChatMessage): ChatMessage {
+        const draft = createDraft(message);
+        draft.parts.forEach(part => {
+            if (part.step === this.step && part.type === 'text') {
+                this.endStreamingPart(draft, part.id);
+            }
+        });
+        this.transformTexts(draft, message);
         return commitDraft(message, draft);
     }
 
@@ -178,6 +221,11 @@ export class ChatStreamReducer {
                 this.applyCustom(draft, event.name, event.value ?? {});
                 break;
 
+            case 'RUN_STARTED':
+                this.threadId = event.threadId ?? null;
+                this.startedRunId = event.runId ?? null;
+                if (event.runId != null) setMetadata(draft, {runId: event.runId});
+                break;
             case 'RUN_FINISHED': {
                 const {metadata} = draft,
                     finishReason =
@@ -189,13 +237,21 @@ export class ChatStreamReducer {
                 if (event.usage) {
                     draft.metadata.usage = [...(metadata.usage ?? []), ...event.usage];
                 }
+                // A fallback for agents that report the message's id only at the end.
+                const serverId = event.result?.messageId;
+                if (serverId != null && metadata.serverId == null) {
+                    draft.metadata.serverId = serverId;
+                }
                 draft.changed = true;
                 this.runFinished = true;
                 break;
             }
-            case 'RUN_ERROR':
+            case 'RUN_ERROR': {
                 setError(draft, event.message ?? 'Unknown error.', event.code);
+                const retryAfterSeconds = event.metadata?.retryAfterSeconds;
+                if (retryAfterSeconds != null) setMetadata(draft, {retryAfterSeconds});
                 break;
+            }
 
             default:
                 logDebug(['Ignored event', event.type], this);
@@ -221,13 +277,52 @@ export class ChatStreamReducer {
         if (!delta) return;
 
         const part = getPart<ChatTextPart>(draft, id);
-        putPart(
+        this.putText(
             draft,
-            part
-                ? {...part, text: part.text + delta}
-                : {type: 'text', id, step: this.step, text: delta, state: 'streaming'}
+            part ?? {type: 'text', id, step: this.step, text: '', state: 'streaming'},
+            this.getRawText(part) + delta
         );
         this.openTextId = this.lastTextId = id;
+    }
+
+    // Replaces the text of the open text part, or else of the turn's last text part. An open part
+    // with no content yet, or a turn with no text, gets a new part.
+    private replaceText(draft: Draft, text: string) {
+        const {openTextId} = this,
+            part =
+                openTextId != null
+                    ? getPart<ChatTextPart>(draft, openTextId)
+                    : (findLast(draft.parts, it => it.type === 'text') as ChatTextPart);
+        if (part) {
+            this.putText(draft, part, text);
+        } else if (text) {
+            this.appendText(draft, null, text);
+        }
+    }
+
+    /** Store a text part with new raw text, to be transformed when the batch is committed. */
+    private putText(draft: Draft, part: ChatTextPart, rawText: string) {
+        this.rawTexts.set(part.id, rawText);
+        putPart(draft, {...part, text: rawText});
+        draft.dirtyTexts.add(part.id);
+    }
+
+    private getRawText(part: ChatTextPart): string {
+        return part ? (this.rawTexts.get(part.id) ?? part.text) : '';
+    }
+
+    // Transforms once per batch, rather than once per fragment.
+    private transformTexts(draft: Draft, message: ChatMessage) {
+        const {textTransform} = this;
+        if (!textTransform) return;
+        draft.dirtyTexts.forEach(id => {
+            const part = getPart<ChatTextPart>(draft, id),
+                text = textTransform(this.getRawText(part), {
+                    message,
+                    isStreaming: part.state === 'streaming'
+                });
+            putPart(draft, {...part, text});
+        });
     }
 
     private endText(draft: Draft, messageId: string) {
@@ -418,6 +513,17 @@ export class ChatStreamReducer {
             case 'xh.chat.source':
                 putPart(draft, {type: 'source', id, step, ...pick(value, SOURCE_KEYS)});
                 break;
+            case 'xh.chat.textReplace':
+                this.replaceText(draft, value.text ?? '');
+                break;
+            case 'xh.chat.message':
+                if (value.serverId == null) break;
+                if (value.role === 'user') {
+                    this.userMessageServerId = value.serverId;
+                } else {
+                    setMetadata(draft, {serverId: value.serverId});
+                }
+                break;
             case 'xh.chat.citation': {
                 const part = getPart<ChatTextPart>(draft, this.openTextId ?? this.lastTextId);
                 if (!part) {
@@ -485,19 +591,20 @@ export class ChatStreamReducer {
     private endStreamingPart(draft: Draft, id: string) {
         const part = getPart<ChatTextPart | ChatReasoningPart>(draft, id);
         if (part?.state !== 'streaming') return;
-        putPart(
-            draft,
-            part.type === 'reasoning'
-                ? {...part, state: 'done', endedAt: Date.now()}
-                : {...part, state: 'done'}
-        );
+        if (part.type === 'reasoning') {
+            putPart(draft, {...part, state: 'done', endedAt: Date.now()});
+        } else {
+            putPart(draft, {...part, state: 'done'});
+            // The transform sees the final text with `isStreaming: false`.
+            draft.dirtyTexts.add(id);
+        }
     }
 }
 
 //------------------
 // Implementation
 //------------------
-const SOURCE_KEYS = ['url', 'title', 'snippet'],
+const SOURCE_KEYS = ['url', 'title', 'snippet', 'marker', 'metadata'],
     CITATION_KEYS = ['title', 'url', 'citedText', 'sourceId'],
     FILE_KEYS = ['size', 'url', 'data'];
 
@@ -509,6 +616,7 @@ interface Draft {
     metadata: PlainObject;
     changed: boolean;
     dirtyToolCalls: Set<string>;
+    dirtyTexts: Set<string>;
 }
 
 function createDraft(message: ChatMessage): Draft {
@@ -519,7 +627,8 @@ function createDraft(message: ChatMessage): Draft {
         error,
         metadata,
         changed: false,
-        dirtyToolCalls: new Set()
+        dirtyToolCalls: new Set(),
+        dirtyTexts: new Set()
     };
 }
 
@@ -550,6 +659,11 @@ function putPart(draft: Draft, part: ChatPart) {
 function outcomeFinishReason(outcomeType: string): string {
     if (outcomeType == null) return null;
     return outcomeType === 'success' ? 'stop' : 'other';
+}
+
+function setMetadata(draft: Draft, changes: PlainObject) {
+    draft.metadata = {...draft.metadata, ...changes};
+    draft.changed = true;
 }
 
 function setError(draft: Draft, error: string, errorCode: string) {

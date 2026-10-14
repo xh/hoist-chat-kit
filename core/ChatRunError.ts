@@ -13,9 +13,17 @@ export class ChatRunError extends Error {
      */
     readonly code: string;
 
-    constructor(message: string, code: string = null) {
+    /**
+     * Seconds the backend asks the client to wait before it retries, from the `metadata` of its
+     * `RUN_ERROR` - for example while an earlier attempt at the same turn still runs. Recorded on
+     * the message as `metadata.retryAfterSeconds`. Null if the backend gave none.
+     */
+    readonly retryAfterSeconds: number;
+
+    constructor(message: string, code: string = null, retryAfterSeconds: number = null) {
         super(message);
         this.name = 'ChatRunError';
         this.code = code;
+        this.retryAfterSeconds = retryAfterSeconds;
     }
 }

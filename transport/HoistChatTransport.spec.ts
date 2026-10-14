@@ -176,6 +176,65 @@ describe('HoistChatTransport', () => {
         expect(req.query).toEqual({run: 'r1'});
     });
 
+    describe('cancelAsync', () => {
+        it('posts the run ids to the cancelUrl, with the headers of the stopped step', async () => {
+            hoistCore.route('POST', 'chat/cancel/srv-run', () => null);
+            const transport = new HoistChatTransport({
+                url: 'chat',
+                headers: req => ({'X-Turn': req.turnId}),
+                cancelUrl: run => `chat/cancel/${run.runId}`
+            });
+
+            await transport.cancelAsync({
+                threadId: 't1',
+                runId: 'srv-run',
+                turnId: 'u1',
+                request: request()
+            });
+
+            const [req] = hoistCore.requestsTo('chat/cancel/srv-run');
+            expect(req.json).toEqual({threadId: 't1', runId: 'srv-run', turnId: 'u1'});
+            expect(req.headers).toMatchObject({'x-turn': 'u1'});
+        });
+
+        it('does nothing without a cancelUrl', async () => {
+            const transport = new HoistChatTransport({url: 'chat'});
+            await expect(
+                transport.cancelAsync({threadId: 't1', runId: 'r1', turnId: 'u1'})
+            ).resolves.toBeUndefined();
+        });
+
+        it('cancels the run when the user stops a turn', async () => {
+            const stream = ndjsonStream();
+            hoistCore.route('POST', 'chat', () => stream.response);
+            hoistCore.route('POST', 'chat/cancel', () => null);
+            stream.push(
+                {type: 'RUN_STARTED', threadId: 't1', runId: 'srv-run'},
+                TEXT_START,
+                TEXT_CONTENT
+            );
+
+            const chatModel = new ChatModel({
+                transport: new HoistChatTransport({url: 'chat', cancelUrl: 'chat/cancel'}),
+                historyMode: 'server'
+            });
+            onTestFinished(() => chatModel.destroy());
+
+            const done = chatModel.sendAsync('Hi');
+            await vi.waitFor(() => expect(chatModel.lastMessage.text).toBe('Hello'));
+            chatModel.stop();
+            await done;
+            await hoistCore.settleAsync();
+
+            const [req] = hoistCore.requestsTo('chat/cancel');
+            expect(req.json).toEqual({
+                threadId: chatModel.threadId,
+                runId: 'srv-run',
+                turnId: chatModel.messages[0].id
+            });
+        });
+    });
+
     describe('idle timeout', () => {
         it('fails the step as stalled, and closes the connection, when no data arrives', async () => {
             const stream = ndjsonStream(),
@@ -325,10 +384,18 @@ const TEXT_START: ChatEvent = {type: 'TEXT_MESSAGE_START', messageId: 'm1', role
     FINISHED: ChatEvent = {type: 'RUN_FINISHED', threadId: 't1', runId: 'r1'};
 
 function request(signal: AbortSignal = new AbortController().signal): ChatRunRequest {
+    const message = new ChatMessage({id: 'u1', role: 'user', content: 'Hi'});
     return {
         threadId: 't1',
         runId: 'r1',
-        messages: [new ChatMessage({role: 'user', content: 'Hi'})],
+        historyMode: 'client',
+        trigger: 'submit',
+        turnId: 'u1',
+        stepIndex: 0,
+        messages: [message],
+        newMessages: [message],
+        replacedMessageId: null,
+        runOptions: null,
         tools: [],
         signal
     };

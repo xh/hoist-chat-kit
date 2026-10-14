@@ -1,3 +1,4 @@
+import {findLast} from 'lodash';
 import type {PlainObject} from '@xh/hoist/core';
 import {describe, expect, it} from 'vitest';
 import {
@@ -175,6 +176,12 @@ describe('AnthropicCodec', () => {
                 body = await encode(codec, [user('Hi')]);
 
             expect(body).toMatchObject({model: 'claude-opus-5-5', metadata: {user_id: 't1'}});
+        });
+
+        it('refuses a chat in server mode, as the API needs the whole history', async () => {
+            await expect(
+                new AnthropicCodec().encodeRequest(request([user('Hi')], {historyMode: 'server'}))
+            ).rejects.toThrow("historyMode 'server'");
         });
 
         it('throws a clear error rather than encode a request with no user content', async () => {
@@ -774,7 +781,14 @@ function request(messages: ChatMessage[], changes: Partial<ChatRunRequest> = {})
     return {
         threadId: 't1',
         runId: 'r1',
+        historyMode: 'client',
+        trigger: 'submit',
+        turnId: findLast(messages, it => it.isUser)?.id ?? null,
+        stepIndex: 0,
         messages,
+        newMessages: [],
+        replacedMessageId: null,
+        runOptions: null,
         tools: [],
         signal: new AbortController().signal,
         ...changes

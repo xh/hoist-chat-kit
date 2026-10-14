@@ -1,9 +1,7 @@
-import type {PlainObject} from '@xh/hoist/core';
-import {HoistModel, managed, XH} from '@xh/hoist/core';
-import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
-import {throwIf} from '@xh/hoist/utils/js';
 import {
+    cloneDeep,
     countBy,
+    differenceBy,
     findLast,
     findLastIndex,
     isEmpty,
@@ -11,11 +9,30 @@ import {
     isString,
     keys,
     maxBy,
+    omit,
     pickBy
 } from 'lodash';
 import type {ReactNode} from 'react';
-import type {ChatEvent, ChatRunRequest, ChatTransport} from '../transport';
+import type {PlainObject, TrackOptions} from '@xh/hoist/core';
+import {HoistModel, managed, XH} from '@xh/hoist/core';
+import {action, bindable, bindableRef, computed, observable, observableRef} from '@xh/hoist/mobx';
+import {throwIf} from '@xh/hoist/utils/js';
+import type {
+    ChatEvent,
+    ChatRunRef,
+    ChatRunRequest,
+    ChatRunTrigger,
+    ChatTransport
+} from '../transport';
+import {ChatAbortError, type ChatAbortReason} from './ChatAbortError';
 import {ChatComposerModel, type ChatComposerConfig} from './ChatComposerModel';
+import type {
+    ChatFeedback,
+    ChatFeedbackConfig,
+    ChatFeedbackRating,
+    ChatFeedbackSpec,
+    ChatFeedbackSubmitter
+} from './ChatFeedback';
 import {ChatMessage, type ChatMessageSpec} from './ChatMessage';
 import type {ChatDataPart, ChatFilePart, ChatPart, ChatToolCallPart} from './ChatPart';
 import {ChatRunError} from './ChatRunError';
@@ -51,8 +68,44 @@ export interface ChatModelConfig {
      */
     initialMessages?: ChatMessageSpec[];
 
-    /** Identifies the conversation to the backend. Default a new UUID. */
+    /**
+     * Identifies the conversation to the backend. Default a new UUID. In server mode, a new
+     * thread's id may be replaced once by the server's - see {@link ChatModel.threadId}.
+     */
     threadId?: string;
+
+    /**
+     * Who owns the conversation history. Default 'client'.
+     *
+     *  - `client` - the browser holds the history, and each request carries all of it. Suits a
+     *    helper agent whose backend keeps no state.
+     *  - `server` - a backend agent service holds the history and the threads. Each request
+     *    carries only what the server has not seen, with the turn's ids, and the server's thread
+     *    and message ids are recorded as they arrive. A stop asks the transport to cancel the run,
+     *    while a clear, a load or a detach leaves it running on the server.
+     */
+    historyMode?: ChatHistoryMode;
+
+    /** Initial value of {@link ChatModel.runOptions}. Default null. */
+    runOptions?: PlainObject;
+
+    /**
+     * Rewrites model text as it streams, before it is stored - for example to strip markup that
+     * a model leaks, such as `<thinking>` tags. Called on each change to a text part of a reply,
+     * with all of the part's text so far, and once more when the part is done. Must be pure and
+     * fast. Not applied to user messages, or to messages loaded as history.
+     */
+    textTransform?: ChatTextTransform;
+
+    /** Feedback on assistant messages - see {@link ChatModel.submitFeedbackAsync}. */
+    feedback?: ChatFeedbackConfig;
+
+    /**
+     * True, or options, to record each finished turn with Hoist activity tracking. Each turn
+     * tracks once, in category `Chat`, with its timing, step and tool call counts, finish reason,
+     * error code and ids - never message text. Feedback is tracked too. Default false.
+     */
+    track?: boolean | ChatTrackOptions;
 
     /** Config for the managed {@link ChatComposerModel}. */
     composer?: ChatComposerConfig;
@@ -79,6 +132,24 @@ export interface ChatModelConfig {
      */
     onTurnComplete?: (message: ChatMessage) => void;
 }
+
+/** Who owns the conversation history - see {@link ChatModelConfig.historyMode}. */
+export type ChatHistoryMode = 'client' | 'server';
+
+/** Rewrites model text before it is stored - see {@link ChatModelConfig.textTransform}. */
+export type ChatTextTransform = (text: string, context: ChatTextTransformContext) => string;
+
+/** Passed to a {@link ChatTextTransform}. */
+export interface ChatTextTransformContext {
+    /** The assistant message being built, as it was before the change. */
+    message: ChatMessage;
+
+    /** True while more text may arrive for the part, false for its final text. */
+    isStreaming: boolean;
+}
+
+/** Activity tracking options for a chat - see {@link ChatModelConfig.track}. */
+export interface ChatTrackOptions extends Pick<TrackOptions, 'category' | 'severity' | 'logData'> {}
 
 /**
  * Renders a {@link ChatDataPart} - see {@link ChatModelConfig.dataRenderers}.
@@ -144,6 +215,11 @@ export interface ChatSendSpec {
  * The turn resumes once every waiting call is answered. Sending a new message instead closes the
  * waiting calls, so that the history stays valid for the model.
  *
+ * The chat serves two shapes of conversation - see {@link ChatModelConfig.historyMode}. In client
+ * mode the browser owns the history. In server mode an agent service owns it, and the chat sends
+ * each turn's new message and records the server's ids. Kit message ids never change: server ids
+ * are kept in `metadata.serverId` and `metadata.runId`.
+ *
  * Only one turn runs at a time. Render the model with a desktop `ChatPanel`, or with the
  * lower-level message list and composer components.
  */
@@ -162,6 +238,12 @@ export class ChatModel extends HoistModel {
     /** Maximum steps - model calls - in one assistant turn. */
     readonly maxSteps: number;
 
+    /** Who owns the conversation history. */
+    readonly historyMode: ChatHistoryMode;
+
+    /** Feedback config, with its defaults applied. */
+    readonly feedback: ChatFeedbackConfig;
+
     /** Renderers for data parts, keyed by `dataType`. */
     readonly dataRenderers: Record<string, ChatDataRenderer>;
 
@@ -173,12 +255,31 @@ export class ChatModel extends HoistModel {
     //-----------------------
     /**
      * Identifies the conversation to the backend. A new id is generated by `clear`, and by
-     * `loadMessages` unless it is given one. (observable)
+     * `loadMessages` unless it is given one. In server mode, the first run of a new thread may
+     * report the server's id for it on `RUN_STARTED`, which replaces this one, once. Set only by
+     * the chat. (observable)
      */
-    @observable accessor threadId: string;
+    get threadId(): string {
+        return this._threadId;
+    }
 
     /** Conversation history, oldest first. Replaced, never mutated, on change. (observable) */
     @observableRef accessor messages: ChatMessage[] = [];
+
+    /**
+     * Options for the next turn that the user picks in the UI, such as a document scope, an agent
+     * profile or tool toggles. `sendAsync` records a copy on the user message, as
+     * `metadata.runOptions`, and every request of the turn carries that copy, so a change while a
+     * turn runs never reaches it. A retry, regenerate or edit re-runs with the copy recorded on
+     * its user message. Replace the value to change it. (bindable)
+     */
+    @bindableRef accessor runOptions: PlainObject;
+
+    /**
+     * True if the backend holds messages older than the first one loaded - set by the code that
+     * pages in history, such as a thread layer, alongside {@link prependMessages}. (bindable)
+     */
+    @bindable accessor hasOlderMessages: boolean = false;
 
     /** State of the conversation. (observable) */
     @observable accessor status: ChatStatus = 'ready';
@@ -236,6 +337,12 @@ export class ChatModel extends HoistModel {
         return this.waitingToolCalls.filter(it => it.state === 'approval-requested');
     }
 
+    /** True if the chat can submit feedback - from `feedback.submitAsync`, or the thread layer. */
+    @computed
+    get canSubmitFeedback(): boolean {
+        return !!(this.feedback.submitAsync ?? this.feedbackSubmitter);
+    }
+
     constructor(config: ChatModelConfig) {
         super();
         const {
@@ -244,6 +351,11 @@ export class ChatModel extends HoistModel {
             maxSteps = 10,
             initialMessages = [],
             threadId,
+            historyMode = 'client',
+            runOptions = null,
+            textTransform = null,
+            feedback,
+            track = false,
             composer,
             dataRenderers = {},
             sendBlocker,
@@ -251,6 +363,10 @@ export class ChatModel extends HoistModel {
         } = config;
         throwIf(!transport, 'ChatModel requires a transport.');
         throwIf(!(maxSteps >= 1), 'ChatModel maxSteps must be at least 1.');
+        throwIf(
+            historyMode !== 'client' && historyMode !== 'server',
+            `ChatModel historyMode must be 'client' or 'server' - got '${historyMode}'.`
+        );
         const dupeNames = keys(pickBy(countBy(tools, 'name'), count => count > 1));
         throwIf(
             !isEmpty(dupeNames),
@@ -260,7 +376,14 @@ export class ChatModel extends HoistModel {
         this.transport = transport;
         this.tools = tools;
         this.maxSteps = maxSteps;
-        this.threadId = threadId ?? genChatId();
+        this.historyMode = historyMode;
+        this.feedback = {commentOn: 'negative', requireComment: false, ...feedback};
+        this._threadId = threadId ?? genChatId();
+        // An id given with history is the backend's. A new thread's may yet be replaced by it.
+        this.isThreadIdProvisional = threadId == null || isEmpty(initialMessages);
+        this.runOptions = runOptions;
+        this.textTransform = textTransform;
+        this.trackOptions = track === true ? {} : track || null;
         this.dataRenderers = dataRenderers;
         this.sendBlocker = sendBlocker;
         this.onTurnComplete = onTurnComplete;
@@ -282,7 +405,7 @@ export class ChatModel extends HoistModel {
     override destroy() {
         const {turn} = this;
         if (turn) {
-            turn.abortController.abort();
+            turn.abortController.abort(new ChatAbortError('destroy'));
             clearTimeout(turn.flushTimer);
             this.turn = null;
         }
@@ -326,8 +449,10 @@ export class ChatModel extends HoistModel {
         if (text) parts.push(createTextPart(text));
         if (isEmpty(parts)) return;
 
-        const message = new ChatMessage({role: 'user', parts, metadata: spec.metadata});
-        await this.runNewTurnAsync(() => {
+        const runOptions = cloneDeep(this.runOptions),
+            metadata = runOptions != null ? {...spec.metadata, runOptions} : spec.metadata,
+            message = new ChatMessage({role: 'user', parts, metadata});
+        await this.runNewTurnAsync('submit', () => {
             if (fromComposer) composerModel.clear();
             return [...this.messages, message];
         });
@@ -335,13 +460,20 @@ export class ChatModel extends HoistModel {
 
     /**
      * Stop the current turn, running or paused. Content received so far is kept, with status
-     * 'aborted'.
+     * 'aborted'. If a step is in flight, the chat also asks the transport to cancel the run - see
+     * {@link ChatTransport.cancelAsync}.
      */
     stop() {
-        const {turn} = this;
-        if (!turn) return;
-        turn.abortController.abort();
-        this.endTurn(turn, 'aborted');
+        this.abortTurn('stop');
+    }
+
+    /**
+     * Stop following the current turn, without cancelling it. The message is kept as 'aborted',
+     * as with `stop`. In server mode, a turn with a step in flight is marked `metadata.detached`,
+     * as the server finishes it on its own, and a reload of the thread later shows its answer.
+     */
+    detach() {
+        this.abortTurn('detach');
     }
 
     /**
@@ -351,9 +483,15 @@ export class ChatModel extends HoistModel {
     async retryAsync(): Promise<void> {
         if (this.isTurnRunning) return;
 
-        const idx = findLastIndex(this.messages, it => it.isUser);
+        const {messages} = this,
+            idx = findLastIndex(messages, it => it.isUser);
         if (idx === -1) return;
-        await this.runNewTurnAsync(() => this.messages.slice(0, idx + 1));
+        const replaced = messages.slice(idx + 1).find(it => it.isAssistant);
+        await this.runNewTurnAsync(
+            'retry',
+            () => this.messages.slice(0, idx + 1),
+            replaced?.id ?? null
+        );
     }
 
     /**
@@ -377,7 +515,11 @@ export class ChatModel extends HoistModel {
             this.logDebug('Regenerate ignored - no user message before the reply.');
             return;
         }
-        await this.runNewTurnAsync(() => this.messages.slice(0, idx));
+        await this.runNewTurnAsync(
+            'regenerate',
+            () => this.messages.slice(0, idx),
+            messages[idx].id
+        );
     }
 
     /**
@@ -397,7 +539,7 @@ export class ChatModel extends HoistModel {
         const parts: ChatPart[] = message.parts.filter(it => it.type !== 'text');
         if (text?.trim()) parts.push(createTextPart(text.trim()));
         if (isEmpty(parts)) return;
-        await this.runNewTurnAsync(() => [
+        await this.runNewTurnAsync('edit', () => [
             ...this.messages.slice(0, idx),
             message.withChanges({parts})
         ]);
@@ -447,9 +589,90 @@ export class ChatModel extends HoistModel {
         await this.resumeTurnAsync(turn);
     }
 
+    /**
+     * Rate an assistant message, or clear its rating. The rating shows at once, as
+     * `metadata.feedback`, and is then sent through `feedback.submitAsync`, or else the thread
+     * layer's submitter. If the submit fails, the rating reverts - unless the user has rated the
+     * message again since - and a toast says so. History restores a rating from the same key.
+     *
+     * @param rating - the rating, or null to clear it.
+     * @param comment - the user's comment. Required for a rating that asks for one, if
+     *      `feedback.requireComment` is set.
+     * @returns a promise that resolves once the submit ends, whether or not it succeeded.
+     */
+    async submitFeedbackAsync(
+        messageId: string,
+        rating: ChatFeedbackRating,
+        comment?: string
+    ): Promise<void> {
+        const message = this.getMessage(messageId);
+        if (!message?.isAssistant) {
+            this.logWarn('Feedback ignored - no such assistant message.', messageId);
+            return;
+        }
+
+        const submitAsync = this.feedback.submitAsync ?? this.feedbackSubmitter,
+            {requireComment, commentOn} = this.feedback;
+        comment = comment?.trim() || null;
+        throwIf(
+            !submitAsync,
+            'ChatModel cannot submit feedback - configure feedback.submitAsync, or use the chat ' +
+                'in a thread layer that supplies a submitter.'
+        );
+        throwIf(
+            rating && requireComment && !comment && (commentOn === 'both' || commentOn === rating),
+            `A comment is required with ${rating} feedback.`
+        );
+
+        const prior: ChatFeedback = message.metadata.feedback ?? null,
+            feedback: ChatFeedback = rating ? (comment ? {rating, comment} : {rating}) : null,
+            {threadId} = this,
+            spec: ChatFeedbackSpec = {
+                threadId,
+                messageId,
+                serverId: message.metadata.serverId ?? null,
+                runId: message.metadata.runId ?? null,
+                rating: rating ?? null,
+                comment
+            };
+
+        this.setFeedback(messageId, feedback);
+        try {
+            await submitAsync(spec);
+        } catch (e) {
+            if ((this.getMessage(messageId)?.metadata.feedback ?? null) === feedback) {
+                this.setFeedback(messageId, prior);
+            }
+            XH.handleException(e, {
+                message: 'Your feedback was not saved. Try again.',
+                alertType: 'toast'
+            });
+            return;
+        }
+
+        this.trackActivity('Feedback submitted', {
+            rating: spec.rating,
+            hasComment: !!comment,
+            threadId,
+            messageId,
+            serverId: spec.serverId,
+            runId: spec.runId,
+            historyMode: this.historyMode
+        });
+    }
+
+    /**
+     * Supply the feedback submitter to use when `feedback.submitAsync` is not configured. A
+     * thread layer calls this when it creates the chat, with its store's submitter.
+     */
+    @action
+    setFeedbackSubmitter(submitAsync: ChatFeedbackSubmitter) {
+        this.feedbackSubmitter = submitAsync;
+    }
+
     /** Remove all messages and start a new thread. Stops any turn in progress. */
     clear() {
-        this.loadMessages([]);
+        this.replaceThread([], null, 'clear');
     }
 
     /**
@@ -462,15 +685,24 @@ export class ChatModel extends HoistModel {
      * calls - or send a new message, which closes them. A paused turn earlier in the history is
      * closed.
      *
+     * In server mode, a turn still running on the server is detached rather than cancelled - see
+     * {@link detach}.
+     *
      * @param threadId - id of the loaded conversation, to send to the backend. Default a new id.
      */
-    @action
     loadMessages(specs: ChatMessageSpec[], threadId?: string) {
-        this.stop();
-        this.threadId = threadId ?? genChatId();
-        this.messages = restoreMessages(specs);
-        this.status = 'ready';
-        this.lastError = null;
+        this.replaceThread(specs, threadId, 'load');
+    }
+
+    /**
+     * Add older messages ahead of the conversation, for history loaded a page at a time. Messages
+     * already present, by id, are skipped. Messages left in progress are closed, as with
+     * `loadMessages`. Set {@link hasOlderMessages} alongside, to show whether more remain.
+     */
+    @action
+    prependMessages(specs: ChatMessageSpec[]) {
+        const older = restoreMessages(differenceBy(specs, this.messages, 'id'), false);
+        if (!isEmpty(older)) this.messages = [...older, ...this.messages];
     }
 
     /** The conversation as plain objects, for storage. */
@@ -494,6 +726,14 @@ export class ChatModel extends HoistModel {
     private readonly sendBlocker: () => string;
     private readonly onTurnComplete: (message: ChatMessage) => void;
     private readonly modelTools: ChatToolSpec[];
+    private readonly textTransform: ChatTextTransform;
+    private readonly trackOptions: ChatTrackOptions;
+
+    @observable private accessor _threadId: string;
+    @observableRef private accessor feedbackSubmitter: ChatFeedbackSubmitter = null;
+
+    // True until the first run of a new thread, whose server may report its own id for it.
+    private isThreadIdProvisional: boolean;
 
     // Current turn - running or paused. Not observable, so it can guard against a second send in
     // the same tick, before any MobX state could change.
@@ -525,8 +765,12 @@ export class ChatModel extends HoistModel {
      * Start a turn on the history built by `getHistory`, run once the previous turn - if paused -
      * is closed.
      */
-    private async runNewTurnAsync(getHistory: () => ChatMessage[]) {
-        const turn = this.startTurn(getHistory);
+    private async runNewTurnAsync(
+        trigger: ChatRunTrigger,
+        getHistory: () => ChatMessage[],
+        replacedMessageId: string = null
+    ) {
+        const turn = this.startTurn(trigger, getHistory, replacedMessageId);
         await this.runTurnAsync(turn, false);
     }
 
@@ -548,7 +792,11 @@ export class ChatModel extends HoistModel {
                 // An error the backend reported in the stream - or a stream that ended early - is
                 // conversation state, shown with Retry, not an exception to report.
                 if (status === 'error') {
-                    const runError = new ChatRunError(error, metadata.errorCode ?? null);
+                    const runError = new ChatRunError(
+                        error,
+                        metadata.errorCode ?? null,
+                        metadata.retryAfterSeconds ?? null
+                    );
                     this.logWarn('Turn failed', runError);
                     this.endTurn(turn, 'error', runError);
                     return;
@@ -590,21 +838,35 @@ export class ChatModel extends HoistModel {
 
     /** Make one step - one model call - streaming its events into the turn's message. */
     private async runStepAsync(turn: ChatTurn) {
-        turn.reducer = new ChatStreamReducer(turn.step);
-        const request: ChatRunRequest = {
-            threadId: this.threadId,
-            runId: genChatId(),
-            messages: this.messages,
-            tools: this.modelTools,
-            signal: turn.abortController.signal
-        };
+        const {step, turnId} = turn,
+            isFirstStep = step === 0,
+            request: ChatRunRequest = {
+                threadId: this.threadId,
+                runId: genChatId(),
+                historyMode: this.historyMode,
+                trigger: isFirstStep ? turn.trigger : 'continue',
+                turnId,
+                stepIndex: step,
+                messages: this.messages,
+                newMessages: [this.getMessage(isFirstStep ? turnId : turn.messageId)],
+                replacedMessageId: turn.replacedMessageId,
+                runOptions: turn.runOptions,
+                tools: this.modelTools,
+                signal: turn.abortController.signal
+            };
+        turn.reducer = new ChatStreamReducer(step, {textTransform: this.textTransform});
+        turn.request = request;
 
-        // Batch events, so a fast stream re-renders at most once per STREAM_FLUSH_MS.
-        for await (const event of this.transport.run(request)) {
-            if (!this.isCurrent(turn)) return;
-            turn.pendingEvents.push(event);
-            if (event.type === 'RUN_ERROR') break;
-            turn.flushTimer ??= setTimeout(() => this.flush(turn), STREAM_FLUSH_MS);
+        try {
+            // Batch events, so a fast stream re-renders at most once per STREAM_FLUSH_MS.
+            for await (const event of this.transport.run(request)) {
+                if (!this.isCurrent(turn)) return;
+                turn.pendingEvents.push(event);
+                if (event.type === 'RUN_ERROR') break;
+                turn.flushTimer ??= setTimeout(() => this.flush(turn), STREAM_FLUSH_MS);
+            }
+        } finally {
+            turn.request = null;
         }
 
         if (!this.isCurrent(turn)) return;
@@ -708,10 +970,16 @@ export class ChatModel extends HoistModel {
     private getOrRestoreTurn(): ChatTurn {
         if (this.turn) return this.turn;
 
-        const {lastMessage} = this;
+        const {lastMessage, messages} = this;
         if (lastMessage?.status !== 'paused') return null;
 
-        this.turn = createTurn(lastMessage, maxBy(lastMessage.parts, 'step')?.step ?? 0, false);
+        const userMessage = findLast(messages, it => it.isUser) ?? null;
+        this.turn = createTurn(lastMessage, maxBy(lastMessage.parts, 'step')?.step ?? 0, false, {
+            trigger: 'continue',
+            turnId: userMessage?.id ?? null,
+            replacedMessageId: null,
+            runOptions: this.getTurnRunOptions(userMessage)
+        });
         return this.turn;
     }
 
@@ -721,12 +989,52 @@ export class ChatModel extends HoistModel {
         if (turn) this.endTurn(turn, 'complete');
     }
 
-    private endTurn(turn: ChatTurn, status: 'complete' | 'error' | 'aborted', error: any = null) {
+    /**
+     * End the current turn early. A stop cancels a step in flight. In server mode, any other
+     * reason leaves a step in flight to finish on the server, and marks its message detached.
+     */
+    private abortTurn(reason: ChatAbortReason) {
+        const {turn} = this;
+        if (!turn) return;
+
+        // Apply events already received, so the run ref holds any server ids they reported.
+        this.flush(turn);
+        const run = reason === 'stop' ? this.getRunRef(turn) : null,
+            detached = reason !== 'stop' && !!turn.request && this.historyMode === 'server';
+
+        turn.abortController.abort(new ChatAbortError(reason));
+        this.endTurn(turn, 'aborted', null, detached);
+        if (run) this.cancelRun(run);
+    }
+
+    /** The run of the step in flight, or null if no step is in flight. */
+    private getRunRef(turn: ChatTurn): ChatRunRef {
+        const {request, reducer, turnId} = turn;
+        if (!request) return null;
+        return {threadId: this.threadId, runId: reducer.runId ?? request.runId, turnId, request};
+    }
+
+    private cancelRun(run: ChatRunRef) {
+        const {transport} = this;
+        if (!transport.cancelAsync) return;
+        // A promise of its own, so that a cancel which throws at once is logged the same way.
+        new Promise(resolve => resolve(transport.cancelAsync(run))).catch(e =>
+            this.logWarn('Failed to cancel the run', run.runId, e)
+        );
+    }
+
+    private endTurn(
+        turn: ChatTurn,
+        status: 'complete' | 'error' | 'aborted',
+        error: any = null,
+        detached: boolean = false
+    ) {
         this.flush(turn);
         if (error && !(error instanceof Error)) error = new Error(String(error));
 
-        const message = this.settleTurn(turn, status, error);
+        const message = this.settleTurn(turn, status, error, detached);
         if (!message) return;
+        this.trackTurn(turn, message);
         try {
             this.onTurnComplete?.(message);
         } catch (e) {
@@ -734,18 +1042,65 @@ export class ChatModel extends HoistModel {
         }
     }
 
+    private trackTurn(turn: ChatTurn, message: ChatMessage) {
+        const {toolCalls, metadata, status} = message;
+        this.trackActivity(
+            TURN_TRACK_MESSAGES[status],
+            {
+                elapsedMs: metadata.elapsedMs,
+                steps: turn.step + 1,
+                toolCalls: toolCalls.length,
+                toolErrors: toolCalls.filter(it => it.state === 'output-error').length,
+                finishReason: metadata.finishReason ?? null,
+                errorCode: metadata.errorCode ?? null,
+                threadId: this.threadId,
+                runId: metadata.runId ?? null,
+                historyMode: this.historyMode
+            },
+            metadata.elapsedMs
+        );
+    }
+
+    private trackActivity(message: string, data: PlainObject, elapsed?: number) {
+        const {trackOptions} = this;
+        if (!trackOptions) return;
+        XH.track({category: 'Chat', ...trackOptions, message, data, elapsed});
+    }
+
     //------------------------
     // Observable state changes
     //------------------------
+    @action
+    private replaceThread(specs: ChatMessageSpec[], threadId: string, reason: ChatAbortReason) {
+        this.abortTurn(reason);
+        this._threadId = threadId ?? genChatId();
+        this.isThreadIdProvisional = threadId == null;
+        this.messages = restoreMessages(specs);
+        this.hasOlderMessages = false;
+        this.status = 'ready';
+        this.lastError = null;
+    }
+
     /** Close any paused turn, then start a new one on the history from `getHistory`. */
     @action
-    private startTurn(getHistory: () => ChatMessage[]): ChatTurn {
+    private startTurn(
+        trigger: ChatRunTrigger,
+        getHistory: () => ChatMessage[],
+        replacedMessageId: string
+    ): ChatTurn {
         this.closePausedTurn();
 
-        const message = new ChatMessage({role: 'assistant', status: 'pending'}),
-            turn = createTurn(message, 0, true);
+        const history = getHistory(),
+            userMessage = findLast(history, it => it.isUser),
+            message = new ChatMessage({role: 'assistant', status: 'pending'}),
+            turn = createTurn(message, 0, true, {
+                trigger,
+                turnId: userMessage.id,
+                replacedMessageId,
+                runOptions: this.getTurnRunOptions(userMessage)
+            });
         this.turn = turn;
-        this.messages = [...getHistory(), message];
+        this.messages = [...history, message];
         this.status = 'submitted';
         this.lastError = null;
         return turn;
@@ -778,20 +1133,26 @@ export class ChatModel extends HoistModel {
     private settleTurn(
         turn: ChatTurn,
         status: 'complete' | 'error' | 'aborted',
-        error: Error
+        error: Error,
+        detached: boolean
     ): ChatMessage {
         clearTimeout(turn.flushTimer);
         this.turn = null;
         this.status = status === 'error' ? 'error' : 'ready';
         this.lastError = error;
 
-        const message = this.getTurnMessage(turn);
+        let message = this.getTurnMessage(turn);
         if (!message) return null;
+
+        // A turn that ends before its stream does gives the text transform its final call.
+        if (turn.reducer) message = turn.reducer.settleText(message);
+        const metadata: PlainObject = {...message.metadata, elapsedMs: stopTurnClock(turn)};
+        if (detached) metadata.detached = true;
 
         const settled = settleOpenParts(message, SETTLE_REASONS[status]).withChanges({
             status,
             error: error ? errorText(error) : null,
-            metadata: {...message.metadata, elapsedMs: stopTurnClock(turn)}
+            metadata
         });
         this.replaceMessage(settled);
         return settled;
@@ -808,9 +1169,43 @@ export class ChatModel extends HoistModel {
 
         const message = turn.reducer.apply(this.getTurnMessage(turn), events);
         this.replaceMessage(message);
+        this.applyServerIds(turn);
         if (message.status === 'streaming' && this.status === 'submitted') {
             this.status = 'streaming';
         }
+    }
+
+    /** Adopt a new thread's server id, and record the server id of the turn's user message. */
+    private applyServerIds(turn: ChatTurn) {
+        const {runThreadId, userServerId} = turn.reducer;
+        if (this.historyMode === 'server' && this.isThreadIdProvisional && runThreadId != null) {
+            this.isThreadIdProvisional = false;
+            if (runThreadId !== this.threadId) {
+                this.logDebug('Adopted the server thread id', runThreadId);
+                this._threadId = runThreadId;
+            }
+        }
+
+        const userMessage = userServerId != null ? this.getMessage(turn.turnId) : null;
+        if (userMessage && userMessage.metadata.serverId !== userServerId) {
+            this.replaceMessage(
+                userMessage.withChanges({
+                    metadata: {...userMessage.metadata, serverId: userServerId}
+                })
+            );
+        }
+    }
+
+    @action
+    private setFeedback(messageId: string, feedback: ChatFeedback) {
+        const message = this.getMessage(messageId);
+        if (!message) return;
+        const {metadata} = message;
+        this.replaceMessage(
+            message.withChanges({
+                metadata: feedback ? {...metadata, feedback} : omit(metadata, 'feedback')
+            })
+        );
     }
 
     @action
@@ -836,6 +1231,11 @@ export class ChatModel extends HoistModel {
     private getTurnMessage(turn: ChatTurn): ChatMessage {
         return this.getMessage(turn.messageId);
     }
+
+    /** The options a turn runs with - those recorded on its user message, or the current ones. */
+    private getTurnRunOptions(userMessage: ChatMessage): PlainObject {
+        return userMessage?.metadata.runOptions ?? cloneDeep(this.runOptions) ?? null;
+    }
 }
 
 //------------------
@@ -843,6 +1243,13 @@ export class ChatModel extends HoistModel {
 //------------------
 /** Longest wait before streamed events are applied to the message. */
 const STREAM_FLUSH_MS = 32;
+
+/** Activity tracking message for a finished turn, by how it ended. */
+const TURN_TRACK_MESSAGES = {
+    complete: 'Turn complete',
+    error: 'Turn failed',
+    aborted: 'Turn stopped'
+};
 
 /** Error text for tool calls left unfinished when a turn ends, by how it ended. */
 const SETTLE_REASONS = {
@@ -856,6 +1263,21 @@ const SETTLE_REASONS = {
 interface ChatTurn {
     /** The assistant message the turn builds. */
     messageId: string;
+
+    /** Id of the user message the turn answers - see `ChatRunRequest.turnId`. */
+    turnId: string;
+
+    /** What started the turn. Steps after the first are sent as `continue`. */
+    trigger: ChatRunTrigger;
+
+    /** The assistant message the turn replaces, for a retry or regenerate. */
+    replacedMessageId: string;
+
+    /** Copy of the run options the turn was sent with. */
+    runOptions: PlainObject;
+
+    /** Request of the step in flight, or null between steps. */
+    request: ChatRunRequest;
 
     /** Index of the current step. */
     step: number;
@@ -882,9 +1304,16 @@ interface ChatTurn {
     flushTimer: ReturnType<typeof setTimeout>;
 }
 
-function createTurn(message: ChatMessage, step: number, isRunning: boolean): ChatTurn {
+function createTurn(
+    message: ChatMessage,
+    step: number,
+    isRunning: boolean,
+    context: Pick<ChatTurn, 'turnId' | 'trigger' | 'replacedMessageId' | 'runOptions'>
+): ChatTurn {
     return {
+        ...context,
         messageId: message.id,
+        request: null,
         step,
         // A turn restored while paused resumes from the time recorded when it paused.
         activeMs: isRunning ? 0 : (message.metadata?.elapsedMs ?? 0),
@@ -907,15 +1336,20 @@ function stopTurnClock(turn: ChatTurn): number {
     return turn.activeMs;
 }
 
-/** Messages from stored specs, with anything left in progress closed - see `loadMessages`. */
-function restoreMessages(specs: ChatMessageSpec[]): ChatMessage[] {
+/**
+ * Messages from stored specs, with anything left in progress closed - see `loadMessages`.
+ *
+ * @param isLatest - true if the specs end the conversation, so a paused turn at their end stays
+ *      paused. False for older history, which closes it.
+ */
+function restoreMessages(specs: ChatMessageSpec[], isLatest: boolean = true): ChatMessage[] {
     const messages = specs.map(it => new ChatMessage(it)),
         lastIdx = messages.length - 1;
 
     return messages.map((message, idx) => {
         switch (message.status) {
             case 'paused':
-                return idx === lastIdx && message.isAssistant
+                return isLatest && idx === lastIdx && message.isAssistant
                     ? settleStreamingParts(message)
                     : settleOpenParts(message, SETTLE_REASONS.complete).withChanges({
                           status: 'complete'

@@ -62,7 +62,11 @@ export interface ChatEventBase {
 //------------------
 // Lifecycle
 //------------------
-/** A run - one step of the turn - has started. */
+/**
+ * A run - one step of the turn - has started. Its `runId` is recorded on the message as
+ * `metadata.runId`. In server mode, the first run of a new thread may report the server's own
+ * `threadId`, which the chat adopts.
+ */
 export interface RunStartedEvent extends ChatEventBase {
     type: 'RUN_STARTED';
     threadId: string;
@@ -78,7 +82,10 @@ export interface RunFinishedEvent extends ChatEventBase {
     threadId: string;
     runId: string;
 
-    /** The agent's result, if any. Not used by the kit. */
+    /**
+     * The agent's result, if any. A `messageId` in it is recorded as the reply's
+     * `metadata.serverId`, unless an `xh.chat.message` event reported one first.
+     */
     result?: any;
 
     /** How the run ended. Maps to the finish reason when `metadata.finishReason` is not given. */
@@ -88,7 +95,11 @@ export interface RunFinishedEvent extends ChatEventBase {
     usage?: ChatTokenUsage[];
 }
 
-/** The run has failed. Its `code` is recorded as `metadata.errorCode` on the message. */
+/**
+ * The run has failed. Its `code` is recorded as `metadata.errorCode` on the message. A
+ * `metadata.retryAfterSeconds` - the wait the backend asks for before a retry - is recorded on
+ * the message too, and becomes `ChatRunError.retryAfterSeconds`.
+ */
 export interface RunErrorEvent extends ChatEventBase {
     type: 'RUN_ERROR';
 
@@ -321,7 +332,8 @@ export interface IgnoredEvent extends ChatEventBase {
 /**
  * Names of the `CUSTOM` events with which a backend sends kit-specific content:
  *
- *  - `xh.chat.source` - value `{id?, url?, title?, snippet?}`, appends a source part.
+ *  - `xh.chat.source` - value `{id?, url?, title?, snippet?, marker?, metadata?}`, appends a
+ *    source part. `marker` is the number that cites it in the text, as in `[1]`.
  *  - `xh.chat.citation` - value `{id?, title?, url?, citedText?, sourceId?}`, cites a source
  *    from the current text part.
  *  - `xh.chat.data` - value `{id?, dataType, data}`, adds or replaces a data part.
@@ -333,6 +345,11 @@ export interface IgnoredEvent extends ChatEventBase {
  *    before its result arrives, so that the chat never runs it as a client tool.
  *  - `xh.chat.toolError` - value `{toolCallId, message}`, fails a tool call the backend ran, in
  *    place of its result. The part moves to `output-error`, with `message` as its `errorText`.
+ *  - `xh.chat.textReplace` - value `{text}`, sets the text of the open text part, or else of the
+ *    reply's last text part. Covers a backend that resets its answer (`text: ''`) or sends its
+ *    final text whole.
+ *  - `xh.chat.message` - value `{role: 'assistant' | 'user', serverId}`, records the server's id
+ *    for the turn's reply or its user message, as `metadata.serverId`.
  */
 export type ChatCustomEventName =
     | 'xh.chat.source'
@@ -341,4 +358,6 @@ export type ChatCustomEventName =
     | 'xh.chat.file'
     | 'xh.chat.providerData'
     | 'xh.chat.providerExecuted'
-    | 'xh.chat.toolError';
+    | 'xh.chat.toolError'
+    | 'xh.chat.textReplace'
+    | 'xh.chat.message';
