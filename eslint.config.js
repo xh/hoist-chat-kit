@@ -15,5 +15,5 @@ module.exports = defineConfig([
             globals: globals.node
         }
     },
-    globalIgnores(['.vitest/**/*', 'build/**/*', 'node_modules/**/*'])
+    globalIgnores(['.tmp/**/*', '.vitest/**/*', 'build/**/*', 'node_modules/**/*'])
 ]);
