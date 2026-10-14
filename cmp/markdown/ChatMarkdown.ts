@@ -1,22 +1,73 @@
-import {findLast, findLastIndex, isFunction} from 'lodash';
+import {compact, findLast, findLastIndex, isEqual, isFunction} from 'lodash';
 import {
     type ComponentProps,
     type JSX,
     type MouseEvent,
+    type ReactElement,
     type ReactNode,
     useMemo,
     useRef
 } from 'react';
-import {a, div, img, span} from '@xh/hoist/cmp/layout';
+import {a, div, fragment, img, span} from '@xh/hoist/cmp/layout';
 import {Markdown, markdown} from '@xh/hoist/cmp/markdown';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
+import {useCached} from '@xh/hoist/utils/react';
+import type {ChatSourcePart} from '../../core';
 import {classNames} from '../../impl/ClassNames';
+import {htmlButton} from '../../impl/HtmlTags';
 import '../../styles/vars.scss';
 import './ChatMarkdown.scss';
+import {
+    CITATION_TAG,
+    findCitedSource,
+    getExcerpt,
+    openSourceUrl,
+    remarkCitations
+} from './impl/CitationMarkers';
 import {closeMarkdownSyntax, isProseBlock, splitMarkdownBlocks} from './impl/StreamingMarkdown';
 
 type ReactMarkdownOptions = NonNullable<ComponentProps<typeof Markdown>['reactMarkdownOptions']>;
+
+/**
+ * A list of unified plugins, each a plugin or a `[plugin, options]` pair - the form that
+ * `remark-*` and `rehype-*` packages take.
+ */
+export type ChatMarkdownPluggableList = NonNullable<ReactMarkdownOptions['remarkPlugins']>;
+
+/**
+ * Plugins to add to the markdown pipeline, after the kit's own - for example `remark-math` and
+ * `rehype-katex` for math.
+ */
+export interface ChatMarkdownPlugins {
+    /** Plugins that transform the markdown tree (mdast), such as `remark-math`. */
+    remark?: ChatMarkdownPluggableList;
+
+    /** Plugins that transform the HTML tree (hast), such as `rehype-katex`. */
+    rehype?: ChatMarkdownPluggableList;
+}
+
+/** Sources that citation markers in the text refer to - see {@link ChatMarkdownProps.citations}. */
+export interface ChatMarkdownCitations {
+    /**
+     * Sources the text may cite, in the order reported. `[n]` cites the source with `marker` n, or
+     * the nth source when no source has a marker.
+     */
+    sources: ChatSourcePart[];
+
+    /**
+     * Called when the user clicks a citation marker. Default opens the source's `url` in a new
+     * tab. Read on each click, so it need not be stable.
+     */
+    onClick?: (source: ChatSourcePart) => void;
+
+    /**
+     * Wraps the button of each cited source, for example in a tooltip of the platform's own.
+     * Without it, the button shows the source title and excerpt as a native browser tooltip.
+     * Read as each marker renders, so it need not be stable.
+     */
+    renderMarker?: (marker: ReactElement, source: ChatSourcePart) => ReactNode;
+}
 
 /**
  * Components to render in place of standard HTML elements, keyed by tag name - for example
@@ -78,6 +129,22 @@ export interface ChatMarkdownProps extends HoistProps {
      * the content. Memoize it, as a new value re-renders the block that holds it.
      */
     trailingContent?: ReactNode;
+
+    /**
+     * Sources for citation markers. When set, `[1]` and `[1, 2]` in the text render as compact
+     * buttons for the sources they cite, with each number in its own button. A marker with a
+     * number that cites no source stays as written, as does a marker in code or in a link.
+     *
+     * The text re-parses when the sources change, so keep the array stable while they stay the
+     * same. A new array of the same sources is fine.
+     */
+    citations?: ChatMarkdownCitations;
+
+    /**
+     * Plugins to add to the markdown pipeline, after the kit's own - see
+     * {@link ChatMarkdownPlugins}. Pass a stable object, such as a module-level constant.
+     */
+    markdownPlugins?: ChatMarkdownPlugins;
 }
 
 /**
@@ -91,6 +158,9 @@ export interface ChatMarkdownProps extends HoistProps {
  * memoized, so only the last block re-renders as text streams in. Content with reference-style
  * link definitions or footnotes renders as one document once streaming ends, so that references
  * resolve across blocks.
+ *
+ * With `citations` set, citation markers such as `[1]` render as buttons for the sources they
+ * cite. `markdownPlugins` adds remark and rehype plugins, such as those for math.
  */
 export const [ChatMarkdown, chatMarkdown] = hoistCmp.withFactory<ChatMarkdownProps>({
     displayName: 'ChatMarkdown',
@@ -105,29 +175,42 @@ export const [ChatMarkdown, chatMarkdown] = hoistCmp.withFactory<ChatMarkdownPro
         lineBreaks = true,
         allowImages = false,
         onLinkClick,
-        trailingContent
+        trailingContent,
+        citations,
+        markdownPlugins
     }) {
         // Callbacks are read through refs, so that a new function does not re-parse every block.
         const linkClickRef = useRef(onLinkClick),
             imagePolicyRef = useRef(allowImages),
-            trailingRef = useRef(trailingContent);
+            trailingRef = useRef(trailingContent),
+            citationsRef = useRef(citations);
         linkClickRef.current = onLinkClick;
         imagePolicyRef.current = allowImages;
         trailingRef.current = trailingContent;
+        citationsRef.current = citations;
 
-        const imagePolicyKey = isFunction(allowImages) ? 'fn' : !!allowImages,
+        // Kept stable while the sources stay the same, so that the blocks re-parse only when the
+        // sources change - not on every streamed flush.
+        const sources = useCached(citations?.sources ?? null, isEqual),
+            imagePolicyKey = isFunction(allowImages) ? 'fn' : !!allowImages,
             reactMarkdownOptions = useMemo(
                 () => ({
                     components: {
                         a: createLink(linkClickRef),
                         img: createImage(imagePolicyRef),
                         [TRAILER_TAG]: createTrailer(trailingRef),
+                        [CITATION_TAG]: createCitation(citationsRef),
                         ...components
-                    } as ChatMarkdownComponents
+                    } as ChatMarkdownComponents,
+                    remarkPlugins: compact([
+                        sources ? [remarkCitations, {sources}] : null,
+                        ...(markdownPlugins?.remark ?? [])
+                    ]) as ChatMarkdownPluggableList,
+                    rehypePlugins: markdownPlugins?.rehype ?? []
                 }),
                 // The policy is read through its ref - only a change of kind needs new options.
                 // eslint-disable-next-line react-hooks/exhaustive-deps
-                [components, imagePolicyKey]
+                [components, imagePolicyKey, sources, markdownPlugins]
             ),
             blocks = useMemo(
                 () =>
@@ -144,7 +227,10 @@ export const [ChatMarkdown, chatMarkdown] = hoistCmp.withFactory<ChatMarkdownPro
             trailerIdx = hasTrailer ? (proseIdx >= 0 ? proseIdx : lastIdx) : -1,
             // A new object when the content changes, so that the memoized block re-renders.
             trailerOptions = useMemo(
-                () => ({...reactMarkdownOptions, rehypePlugins: [rehypeTrailer]}),
+                () => ({
+                    ...reactMarkdownOptions,
+                    rehypePlugins: [rehypeTrailer, ...reactMarkdownOptions.rehypePlugins]
+                }),
                 // eslint-disable-next-line react-hooks/exhaustive-deps
                 [reactMarkdownOptions, trailingContent]
             );
@@ -273,3 +359,40 @@ function findListTarget(list: HastNode): HastNode {
 function isList(node: HastNode): boolean {
     return node.tagName === 'ul' || node.tagName === 'ol';
 }
+
+// Renders the element that the citation plugin puts in place of a marker, as a button per number.
+function createCitation(citationsRef: {current: ChatMarkdownCitations}) {
+    return ({'data-markers': markers}: {'data-markers'?: string}): ReactNode => {
+        const {sources, onClick, renderMarker} = citationsRef.current ?? NO_CITATIONS,
+            numbers: number[] = String(markers ?? '')
+                .split(' ')
+                .map(it => parseInt(it, 10));
+
+        return span({
+            className: CITATION_CLS,
+            items: numbers.map(number => {
+                const source = findCitedSource(sources, number);
+                if (!source) return `[${number}]`;
+
+                const {title, url} = source,
+                    label = title || url || 'Untitled',
+                    excerpt = getExcerpt(source),
+                    marker = htmlButton({
+                        key: number,
+                        type: 'button',
+                        className: `${CITATION_CLS}-marker`,
+                        'aria-label': `Source ${number}: ${label}`,
+                        title: renderMarker ? null : compact([label, excerpt]).join('\n\n'),
+                        onClick: () => (onClick ?? openSourceUrl)(source),
+                        item: String(number)
+                    });
+                return renderMarker
+                    ? fragment({key: number, item: renderMarker(marker, source)})
+                    : marker;
+            })
+        });
+    };
+}
+
+const CITATION_CLS = 'xh-chat-markdown__citation',
+    NO_CITATIONS: ChatMarkdownCitations = {sources: []};
