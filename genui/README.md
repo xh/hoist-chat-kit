@@ -137,7 +137,7 @@ or is denied. A failed call shows a short message for the user, such as "Could n
 The error text, which is written for the model, shows behind the "View input" toggle, with the
 input. The toggle appears when the user hovers over or focuses the component. A denied call
 renders no component, nor does a call that waits for approval, unless its tool sets
-`approvalPreview`.
+`preview: true`.
 
 ### Each render is a model call
 

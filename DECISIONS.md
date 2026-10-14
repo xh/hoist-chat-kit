@@ -680,3 +680,15 @@ test, saw two finishes.
 
 **Alternatives.** Wait for the usage chunk with no flush. A gateway that ignores `stream_options`
 would then never finish, and every turn would fail as `incomplete-stream`.
+
+## D53. `preview` replaces `approvalPreview`
+
+**Decision.** `ChatToolSpec.approvalPreview` is deprecated. It still works, and `ChatModel` logs a
+deprecation warning once for a tool that sets it. The generative UI docs name `preview: true`.
+
+**Why.** `preview: true` does all that `approvalPreview` did, and `preview` also takes a function
+of the input for a tool that renders no output of its own. Two options for one behavior split the
+docs and the specs. D49 kept the alias only because another work package owned the docs.
+
+**Alternatives.** Remove the alias at once. The kit has no release yet, but apps already build on
+its snapshots, so a warning gives them a release to move.

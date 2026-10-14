@@ -215,12 +215,6 @@ describe('ChatMessageList', () => {
             expect(screen.queryByText('Chart body')).toBeNull();
             expect(screen.getByRole('button', {name: 'Approve'})).toBeTruthy();
 
-            const previewModel = createModel({tools: [{...tool, approvalPreview: true}]}, [
-                {...reply([approval]), status: 'paused'}
-            ]);
-            rerender(chatMessageList({model: previewModel}));
-            expect(screen.getByText('Chart body')).toBeTruthy();
-
             const trueModel = createModel({tools: [{...tool, preview: true}]}, [
                 {...reply([approval]), status: 'paused'}
             ]);

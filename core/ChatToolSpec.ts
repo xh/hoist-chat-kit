@@ -64,7 +64,7 @@ export interface ChatToolSpec {
      */
     preview?: boolean | ((input: PlainObject) => ReactNode);
 
-    /** Same as `preview: true`. Prefer `preview`. */
+    /** @deprecated - use `preview: true`. */
     approvalPreview?: boolean;
 
     /**

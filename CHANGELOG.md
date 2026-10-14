@@ -79,7 +79,6 @@
 * Added bindable `enableAttachments`, `accept`, `maxFiles` and `maxFileSize` on
   `ChatComposerModel`, so that apps can change them after construction.
 * Added `state` to `AgUiCodec`, a value or a function of the request, sent as the run's `state`.
-* Added `ChatToolSpec.approvalPreview`, which renders an inline call while it waits for approval.
 * Added `ChatUiComponentSpec.result`, the text sent to the model once a component shows.
 * Added `isChatImageAllowed()`, which applies an image policy to a URL.
 * Added `ChatModelConfig.historyMode`. In `server` mode an agent service owns the history, each
@@ -127,7 +126,8 @@
 * Added undo for client tools. A tool returns `chatToolResult(output, {undo})`, and
   `ChatModel.undoTurnAsync()` undoes the latest reply's changes, from an Undo action on the reply.
 * Added `ChatToolSpec.preview`, which shows what a call will change on its approval card.
-  `preview: true` does what `approvalPreview` does.
+  `preview: true` renders an inline call while it waits. It replaces `approvalPreview`, which is
+  deprecated and logs a warning.
 * Added `ChatCompletionsCodec`, for model gateways that speak the OpenAI chat completions format,
   such as Azure OpenAI and LiteLLM.
 * Added `flush()` to `ChatDecoder`, for events a decoder holds back until its stream ends.
