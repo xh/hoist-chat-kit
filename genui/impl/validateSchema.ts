@@ -22,6 +22,12 @@ export interface ValidateSchemaOptions {
      * more than one `oneOf` branch. Default false.
      */
     isPartial?: boolean;
+
+    /**
+     * Path of the value within a larger document, prefixed to each problem - for example
+     * `elements.chart.props`. Default none.
+     */
+    path?: string;
 }
 
 /**
@@ -41,7 +47,7 @@ export function validateSchema(
     opts: ValidateSchemaOptions = {}
 ): string[] {
     const errors: string[] = [];
-    checkValue(value, schema, '', !!opts.isPartial, errors);
+    checkValue(value, schema, opts.path ?? '', !!opts.isPartial, errors);
     return errors;
 }
 
@@ -85,6 +91,33 @@ export function findSchemaProblems(schema: PlainObject, path: string = ''): stri
         )
     );
     return ret;
+}
+
+/**
+ * Path to a property - `rows[3].value`, or `rows[3]["first name"]` for a non-identifier key.
+ * @internal
+ */
+export function propPath(path: string, key: string): string {
+    if (!IDENTIFIER_RE.test(key)) return `${path}[${JSON.stringify(key)}]`;
+    return path ? `${path}.${key}` : key;
+}
+
+/**
+ * A problem with the value at `path`, in the kit's `path: message` form.
+ * @internal
+ */
+export function formatError(path: string, msg: string): string {
+    return path ? `${path}: ${msg}` : msg;
+}
+
+/**
+ * The JSON type of a value, for messages - `null`, `array`, or its `typeof`.
+ * @internal
+ */
+export function typeOf(value: unknown): string {
+    if (value === null) return 'null';
+    if (isArray(value)) return 'array';
+    return typeof value;
 }
 
 //------------------
@@ -308,26 +341,10 @@ function isType(value: unknown, type: JsonType): boolean {
     }
 }
 
-function typeOf(value: unknown): string {
-    if (value === null) return 'null';
-    if (isArray(value)) return 'array';
-    return typeof value;
-}
-
 /** True if `value` equals `allowed` - or, for a partial string, could still become it. */
 function matchesValue(value: unknown, allowed: unknown, isPartial: boolean): boolean {
     if (isPartial && isString(value) && isString(allowed)) return allowed.startsWith(value);
     return isEqual(value, allowed);
-}
-
-/** Path to a property - `rows[3].value`, or `rows[3]["first name"]` for a non-identifier key. */
-function propPath(path: string, key: string): string {
-    if (!IDENTIFIER_RE.test(key)) return `${path}[${JSON.stringify(key)}]`;
-    return path ? `${path}.${key}` : key;
-}
-
-function formatError(path: string, msg: string): string {
-    return path ? `${path}: ${msg}` : msg;
 }
 
 const IDENTIFIER_RE = /^[A-Za-z_$][\w$]*$/;
