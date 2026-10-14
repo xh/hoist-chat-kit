@@ -16,6 +16,18 @@ log. `planning/DESIGN.md` holds the build spec, and `DECISIONS.md` holds the des
 
 ## Log
 
+### 2026-10-14
+
+- Read the feedback packet from three enterprise apps and wrote plan 2: server-owned
+  conversations become first-class beside client-owned ones (D19 to D29). Filed
+  xh/hoist-core#618 and xh/hoist-react#4855.
+- Merged slice 2 (#6). Made the Toolbox branch build on the published kit.
+- On `feature/server-mode`: fixed the packet's open defects, built the run lifecycle, the thread
+  layer, citation markers, the generative UI core and the helper agent core. 897 tests.
+- Built the guideline assistant backend and client plumbing in Toolbox.
+- Stopped at a clean point to move to a subscription session. `planning/HANDOFF.md` lists the
+  next steps.
+
 ### 2026-10-13
 
 - Ran the final reviews (kit-wide, and Toolbox plus live UX) and fixed their findings. 390 tests.
