@@ -27,7 +27,7 @@ describe('ChatUiCatalog actions', () => {
 
         it('sends structured context on the message metadata, never in its text', async () => {
             const chatModel = createChatModel(),
-                context = {accountId: 'A-17', ids: [1, 2]};
+                context = {accountId: 'A-17', quarter: 3};
             await runAsync({type: 'send', text: 'Close these.', context}, {chatModel});
 
             expect(chatModel.messages[0].text).toBe('Close these.');
@@ -35,7 +35,7 @@ describe('ChatUiCatalog actions', () => {
             expect(chatModel.messages[0].text).not.toContain('A-17');
         });
 
-        it('refuses text past the length cap, and large context', async () => {
+        it('refuses text past the length cap, and context the user could not read', async () => {
             const chatModel = createChatModel(),
                 send = vi.spyOn(chatModel, 'sendAsync');
 
@@ -43,8 +43,15 @@ describe('ChatUiCatalog actions', () => {
                 runAsync({type: 'send', text: 'x'.repeat(201)}, {chatModel})
             ).rejects.toThrow('text: expected at most 200 characters');
             await expect(
-                runAsync({type: 'send', text: 'Go', context: {blob: 'x'.repeat(3000)}}, {chatModel})
-            ).rejects.toThrow('context is longer than 2000 characters');
+                runAsync({type: 'send', text: 'Go', context: {blob: 'x'.repeat(101)}}, {chatModel})
+            ).rejects.toThrow('context.blob: expected at most 100 characters');
+            await expect(
+                runAsync({type: 'send', text: 'Go', context: {ids: [1, 2]}}, {chatModel})
+            ).rejects.toThrow('context.ids: expected');
+            const many = Object.fromEntries([...Array(9).keys()].map(it => [`k${it}`, it]));
+            await expect(
+                runAsync({type: 'send', text: 'Go', context: many}, {chatModel})
+            ).rejects.toThrow('context has more than 8 entries');
             expect(send).not.toHaveBeenCalled();
         });
     });
@@ -77,6 +84,12 @@ describe('ChatUiCatalog actions', () => {
             ['a relative URL', () => true, '/admin', false]
         ])('checks %s', (_, urlAllowList, url, allowed) => {
             expect(createCatalog({urlAllowList}).isUrlAllowed(url)).toBe(allowed);
+        });
+
+        it('takes each allow list entry as its origin, and refuses one that is not a URL', () => {
+            const catalog = createCatalog({urlAllowList: ['https://example.com/reports/']});
+            expect(catalog.isUrlAllowed('https://example.com/r?id=1')).toBe(true);
+            expect(() => createCatalog({urlAllowList: ['example.com']})).toThrow('is not a URL');
         });
 
         it('opens an allowed URL in a new window, and refuses others', async () => {
@@ -167,6 +180,30 @@ describe('ChatUiCatalog actions', () => {
         });
     });
 
+    describe('callTool refusals', () => {
+        it('refuses a tool whose schema the catalog cannot fully check', async () => {
+            const chatModel = createChatModel([
+                {
+                    name: 'loose',
+                    parameters: {type: 'object', allOf: [{required: ['id']}]},
+                    execute: () => 'Ran.'
+                }
+            ]);
+            await expect(runAsync({type: 'callTool', name: 'loose'}, {chatModel})).rejects.toThrow(
+                'keywords the catalog cannot check'
+            );
+        });
+
+        it('refuses while the chat is busy', async () => {
+            const chatModel = createChatModel([{name: 'go', execute: () => 'Ran.'}]),
+                sent = chatModel.sendAsync('Hi');
+            await expect(runAsync({type: 'callTool', name: 'go'}, {chatModel})).rejects.toThrow(
+                'Wait for the reply to finish.'
+            );
+            await sent;
+        });
+    });
+
     describe('app', () => {
         it('runs the handler for its name, with the params and the chat', async () => {
             const handler = vi.fn(() => 'done'),
@@ -180,6 +217,12 @@ describe('ChatUiCatalog actions', () => {
                 )
             ).toBe('done');
             expect(handler).toHaveBeenCalledWith({format: 'xlsx'}, {chatModel, messageId: 'm1'});
+        });
+
+        it('refuses an action named for a member every object inherits', async () => {
+            await expect(runAsync({type: 'app', name: 'constructor'})).rejects.toThrow(
+                "No handler for app action 'constructor'."
+            );
         });
 
         it('refuses an action with no handler', async () => {
@@ -257,6 +300,10 @@ describe('ChatUiCatalog actions', () => {
     describe('describeChatUiAction', () => {
         it.each<[ChatUiAction, string]>([
             [{type: 'send', text: 'Show trades.'}, 'Sends: "Show trades."'],
+            [
+                {type: 'send', text: 'Explain it.', context: {ticker: 'XYZ', quarter: 3}},
+                'Sends: "Explain it.", with ticker: XYZ, quarter: 3'
+            ],
             [{type: 'openUrl', url: 'https://x.io/r'}, 'Opens https://x.io/r'],
             [{type: 'navigate', route: 'default.trades'}, 'Goes to default.trades'],
             [{type: 'callTool', name: 'filter_grid'}, 'Runs the tool filter_grid'],

@@ -11,7 +11,7 @@ import type {
     ChatTextPart,
     ChatToolCallPart
 } from '../ChatPart';
-import {mergeArtifacts} from '../../genui/impl/artifacts';
+import {mergeArtifacts} from '../../impl/artifacts';
 import {genChatId} from '../../impl/ids';
 import {parsePartialJson} from './parsePartialJson';
 

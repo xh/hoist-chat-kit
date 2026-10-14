@@ -26,7 +26,12 @@ import {
 import {type ReactNode, useEffect} from 'react';
 import type {ChatDataRenderer, ChatModel, ChatPartRenderContext, ChatToolSpec} from '../core';
 import {ChatArtifactRegistry, type ChatDataHandle} from './ChatArtifactRegistry';
-import {type ChatUiAction, type ChatUiActionHandler, chatUiActionSchema} from './ChatUiAction';
+import {
+    CHAT_UI_MAX_CONTEXT_ENTRIES,
+    type ChatUiAction,
+    type ChatUiActionHandler,
+    chatUiActionSchema
+} from './ChatUiAction';
 import type {ChatUiAdapter} from './ChatUiAdapter';
 import type {
     ChatUiComponentSpec,
@@ -44,7 +49,11 @@ import {
     type ChatUiNode,
     toChatUiDocument
 } from './ChatUiDocument';
-import type {ChatUiParseTagsOptions, ChatUiTextSegment} from './ChatUiTextSegment';
+import type {
+    ChatUiComponentSegment,
+    ChatUiParseTagsOptions,
+    ChatUiTextSegment
+} from './ChatUiTextSegment';
 import {
     createDocumentSchema,
     createDocumentToolDescription,
@@ -58,6 +67,7 @@ import {
     findStructureProblems,
     repairDocument
 } from './impl/documentStructure';
+import {getOwn} from '../impl/objects';
 import {hashJson} from './impl/hash';
 import {parseTags} from './impl/parseTags';
 import {
@@ -135,8 +145,9 @@ export interface ChatUiCatalogConfig {
 
     /**
      * The URLs that `openUrl` actions, and the link props of components, may open - a list of
-     * origins, such as `https://example.com`, or a function of the parsed URL. Only `http` and
-     * `https` URLs are ever allowed. Default none.
+     * origins, such as `https://example.com`, or a function of the parsed URL. Each entry counts as
+     * its origin, so a path in it is ignored. Only `http` and `https` URLs are ever allowed.
+     * Default none.
      */
     urlAllowList?: string[] | ((url: URL) => boolean);
 
@@ -285,7 +296,7 @@ export class ChatUiCatalog {
         this.limits = {...DEFAULT_LIMITS, ...limits};
         this.getArtifacts = artifacts;
         this.actionHandlers = actionHandlers;
-        this.urlAllowList = urlAllowList;
+        this.urlAllowList = isArray(urlAllowList) ? urlAllowList.map(toOrigin) : urlAllowList;
         this.migrations = migrations;
         this.fallbackRenderer = fallback;
         this.placeholderRenderer = placeholder;
@@ -314,7 +325,7 @@ export class ChatUiCatalog {
 
     /** The spec for a component, by name, or null. */
     getComponent(name: string): ChatUiComponentSpec {
-        return (isString(name) && this.componentsByName[name]) || null;
+        return getOwn(this.componentsByName, name);
     }
 
     //------------------------
@@ -386,7 +397,7 @@ export class ChatUiCatalog {
         let ret = doc;
         for (let step = 0; step < MAX_MIGRATIONS; step++) {
             const from = isPlainObject(ret) ? ret.catalogVersion : null,
-                migrate = from && from !== this.version ? this.migrations[from] : null;
+                migrate = from && from !== this.version ? getOwn(this.migrations, from) : null;
             if (!migrate) break;
             ret = migrate(ret);
             if (ret?.catalogVersion === from) break;
@@ -400,9 +411,10 @@ export class ChatUiCatalog {
     /**
      * Render a document, with each element inside an error boundary. The document is migrated and
      * repaired first. A document with no `catalogVersion` takes that of the message that holds it,
-     * as {@link ChatModel} records it on each reply that shows catalog UI. While it is partial, an element that has not arrived renders as a
-     * placeholder. An element with an unknown component or invalid props renders as a fallback -
-     * a caption, with the problems and the input behind a disclosure - and logs a warning once.
+     * as {@link ChatModel} records it on each reply that shows catalog UI. While it is partial, an
+     * element that has not arrived renders as a placeholder. An element with an unknown component
+     * or invalid props renders as a fallback - a caption, with the problems and the input behind
+     * a disclosure - and logs a warning once.
      * So does a document whose structure is broken.
      *
      * @param doc - the document to render.
@@ -447,12 +459,15 @@ export class ChatUiCatalog {
      *      written as a placeholder segment.
      */
     parseTags(text: string, opts: ChatUiParseTagsOptions = {}): ChatUiTextSegment[] {
-        return parseTags(text, {
+        const segments = parseTags(text, {
             prefix: this.tagPrefix,
             isStreaming: !!opts.isStreaming,
             getComponent: name => this.getComponent(name),
             validate: (name, props) => this.validate(name, props)
         });
+        // A tag parses the same way each time, so a component keeps the same props object as the
+        // text after it streams in, and need not reload its data on each change.
+        return segments.map(it => (it.type === 'component' ? this.cacheSegment(it) : it));
     }
 
     /**
@@ -477,7 +492,13 @@ export class ChatUiCatalog {
             }
             case 'placeholder':
                 return this.renderPlaceholder(segment.component);
-            case 'fallback':
+            case 'fallback': {
+                // A tag stored before the catalog changed renders through its migrations.
+                const doc = toChatUiDocument(segment.name, segment.props ?? {}),
+                    docContext = {...context, isPartial: false};
+                if (segment.props && this.needsMigration(doc, docContext)) {
+                    return this.renderDocument(doc, docContext);
+                }
                 return this.renderFallback(
                     {
                         component: segment.component,
@@ -487,6 +508,7 @@ export class ChatUiCatalog {
                     },
                     context
                 );
+            }
             default:
                 return null;
         }
@@ -521,7 +543,15 @@ export class ChatUiCatalog {
                                 [`Could not translate '${adapter.dataType}' data`, e],
                                 'ChatUiCatalog'
                             );
-                            return null;
+                            return this.renderFallback(
+                                {
+                                    component: null,
+                                    caption: CAPTION,
+                                    errors: [(e as Error)?.message ?? String(e)],
+                                    input: part.data
+                                },
+                                {...context, part}
+                            );
                         }
                         return this.renderDocument(doc, {...context, part, isPartial: false});
                     }
@@ -541,7 +571,9 @@ export class ChatUiCatalog {
      *  - `openUrl` - opens the URL in a new tab, if `urlAllowList` allows it.
      *  - `navigate` - routes the app with `XH.navigate()`.
      *  - `callTool` - runs a client tool of the chat, once its input passes the tool's schema. A
-     *    tool that needs approval asks the user first. Resolves to the tool's result.
+     *    tool that needs approval asks the user first. Resolves to the tool's result. Refused
+     *    while the chat is busy, and for a tool whose schema uses keywords the catalog cannot
+     *    check. The call is not part of the history, so an undo the tool returns is not kept.
      *  - `app` - runs the handler in `actionHandlers` for its name. Resolves to its result.
      *
      * An action with `confirm` asks the user first, with `XH.confirm()`, and does nothing if they
@@ -560,8 +592,8 @@ export class ChatUiCatalog {
                 const {text, context: messageContext} = action;
                 throwIf(
                     messageContext != null &&
-                        JSON.stringify(messageContext).length > MAX_CONTEXT_LENGTH,
-                    `Invalid action: context is longer than ${MAX_CONTEXT_LENGTH} characters.`
+                        Object.keys(messageContext).length > CHAT_UI_MAX_CONTEXT_ENTRIES,
+                    `Invalid action: context has more than ${CHAT_UI_MAX_CONTEXT_ENTRIES} entries.`
                 );
                 if (!(await this.confirmAsync(action.confirm))) return null;
                 return chatModel.sendAsync(
@@ -581,6 +613,14 @@ export class ChatUiCatalog {
                 const tool = chatModel.getToolSpec(action.name),
                     input = action.input ?? {};
                 throwIf(!tool?.execute, `No client tool named '${action.name}'.`);
+                throwIf(chatModel.isBusy, 'Wait for the reply to finish.');
+                // The check must cover the whole schema, or invalid input would reach the tool.
+                const schemaProblems = tool.parameters ? findSchemaProblems(tool.parameters) : [];
+                throwIf(
+                    !isEmpty(schemaProblems),
+                    `Tool '${action.name}' cannot run from an action: its schema uses keywords ` +
+                        `the catalog cannot check - ${schemaProblems.join('; ')}.`
+                );
                 const inputErrors = tool.parameters ? validateSchema(input, tool.parameters) : [];
                 throwIf(
                     !isEmpty(inputErrors),
@@ -594,7 +634,7 @@ export class ChatUiCatalog {
                 });
             }
             case 'app': {
-                const handler = this.actionHandlers[action.name];
+                const handler = getOwn(this.actionHandlers, action.name);
                 throwIf(!handler, `No handler for app action '${action.name}'.`);
                 if (!(await this.confirmAsync(action.confirm))) return null;
                 return handler(action.params ?? {}, context);
@@ -664,8 +704,12 @@ export class ChatUiCatalog {
     private readonly fallbackRenderer: (spec: ChatUiFallbackSpec) => ReactNode;
     private readonly placeholderRenderer: (spec: ChatUiPlaceholderSpec) => ReactNode;
 
-    // Fallbacks already logged, so that each logs once, however often it renders.
+    // Fallbacks already logged, so that each logs once, however often it renders. Bounded, as a
+    // catalog lives as long as the app.
     private readonly loggedFallbacks = new Set<string>();
+
+    // Component segments by their tag, most recent last - see `parseTags()`.
+    private readonly segmentCache = new Map<string, ChatUiComponentSegment>();
 
     private get promptSource() {
         return {
@@ -817,9 +861,10 @@ export class ChatUiCatalog {
                 (ids ?? []).map(childId => this.renderElement(doc, childId, context)),
             node: ChatUiNode = {...element, id, props: element.props ?? {}};
 
-        // An element that threw while partial gets another try once complete.
+        // An element that threw while partial gets another try once complete. Keyed by component
+        // too, as a name that streams may grow into another, whose hooks would not match.
         return chatUiElementBoundary({
-            key: id,
+            key: `${id}|${component.name}`,
             resetKey: isPartial,
             renderError: e =>
                 this.renderFallback(
@@ -861,10 +906,22 @@ export class ChatUiCatalog {
     ): ReactNode {
         const logKey = [context.messageId, context.part?.id, key, ...spec.errors].join('|');
         if (!this.loggedFallbacks.has(logKey)) {
+            if (this.loggedFallbacks.size >= MAX_LOGGED_FALLBACKS) this.loggedFallbacks.clear();
             this.loggedFallbacks.add(logKey);
             logWarn([spec.caption, spec.errors.join('; ')], 'ChatUiCatalog');
         }
         return fragment({key, item: this.fallbackRenderer(spec)});
+    }
+
+    private cacheSegment(segment: ChatUiComponentSegment): ChatUiComponentSegment {
+        const {segmentCache} = this,
+            cached = segmentCache.get(segment.source);
+        if (cached) return cached;
+        if (segmentCache.size >= MAX_CACHED_SEGMENTS) {
+            segmentCache.delete(segmentCache.keys().next().value);
+        }
+        segmentCache.set(segment.source, segment);
+        return segment;
     }
 
     private getRegistry(chatModel: ChatModel): ChatArtifactRegistry {
@@ -914,9 +971,15 @@ export class ChatUiCatalog {
                     return this.renderDocument(doc, renderContext);
                 }
 
-                // Render only props that are valid, or could still become valid as they stream.
-                // The call's status shows why invalid props did not render.
-                if (!isEmpty(this.validate(name, input, {isPartial}))) return null;
+                // Render only props that are valid, or could still become valid as they stream. A
+                // failed call's status shows why its props did not render. A call with a result -
+                // a display tool's acknowledgment, or a call stored before the catalog changed -
+                // renders a fallback.
+                if (!isEmpty(this.validate(name, input, {isPartial}))) {
+                    return part.state === 'output-available'
+                        ? this.renderDocument(doc, renderContext)
+                        : null;
+                }
                 return this.renderDocument(doc, renderContext);
             }
         };
@@ -941,9 +1004,11 @@ export class ChatUiCatalog {
                     doc = part.input as ChatUiDocument,
                     renderContext = {...context, part, isPartial};
 
-                // As for a component tool, a complete document that fails renders nothing.
+                // As for a component tool, a complete document that fails renders nothing, unless
+                // its call has a result.
                 if (
                     !isPartial &&
+                    part.state !== 'output-available' &&
                     !this.needsMigration(doc, renderContext) &&
                     !isEmpty(this.validateDocument(this.repairDocument(doc)))
                 ) {
@@ -1022,7 +1087,8 @@ const DEFAULT_LIMITS: Required<ChatUiLimits> = {
     DELIVERY_MODES: ChatUiDeliveryMode[] = ['tools', 'tags', 'document'],
     DEFAULT_PAGE_SIZE = 100,
     MAX_MIGRATIONS = 20,
-    MAX_CONTEXT_LENGTH = 2000,
+    MAX_CACHED_SEGMENTS = 200,
+    MAX_LOGGED_FALLBACKS = 1000,
     TAG_PREFIX_RE = /^[A-Za-z][A-Za-z0-9_-]*$/,
     CAPTION = 'This content could not be displayed.',
     TOOL_NOTE = 'Calling this tool shows the component to the user, inline in the chat.',
@@ -1048,6 +1114,10 @@ function checkComponent(component: ChatUiComponentSpec) {
         `ChatUiCatalog component '${name}' requires a name, props and render.`
     );
 
+    throwIf(
+        props.type !== 'object',
+        `ChatUiCatalog component '${name}' must have a props schema of type 'object'.`
+    );
     const problems = findSchemaProblems(props);
     throwIf(
         !isEmpty(problems),
@@ -1068,6 +1138,15 @@ function checkComponent(component: ChatUiComponentSpec) {
                 'props schema must type as a string - the id of an artifact.'
         );
     });
+}
+
+/** The origin of an allow list entry, so that `https://example.com/` matches as written. */
+function toOrigin(entry: string): string {
+    try {
+        return new URL(entry).origin;
+    } catch (e) {
+        throw new Error(`ChatUiCatalog urlAllowList entry '${entry}' is not a URL.`, {cause: e});
+    }
 }
 
 function toDisplayTool(tool: ChatToolSpec): ChatToolSpec {

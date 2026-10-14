@@ -1,7 +1,9 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {div} from '@xh/hoist/cmp/layout';
 import {button} from '@xh/hoist/desktop/cmp/button';
+import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
+import {useEffect} from 'react';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {runInAction} from '@xh/hoist/mobx';
 import {
@@ -78,6 +80,51 @@ describe('ChatMessageList', () => {
         expect(screen.getByText('Before the badge.')).toBeTruthy();
         expect(screen.getByText('it', {selector: 'strong'})).toBeTruthy();
         expect(document.body.textContent).not.toContain('<ui-badge');
+    });
+
+    it('keeps a tag component mounted while the text after it streams', () => {
+        const mounts = vi.fn(),
+            badge = {
+                name: 'badge',
+                description: 'A badge.',
+                props: {type: 'object', properties: {label: {type: 'string'}}},
+                render: ({label}) => badgeView({label, onMount: mounts})
+            },
+            catalog = new ChatUiCatalog({modes: ['tags'], components: [badge]}),
+            tag = catalog.formatTag('badge', {label: 'Top'}),
+            chatModel = createModel({catalog}, []);
+        showLiveReply(chatModel, [liveText('t1', 'Here: <ui-badge lab')]);
+        renderList(chatModel);
+        expect(screen.queryByText('Top')).toBeNull();
+
+        act(() => showLiveReply(chatModel, [liveText('t1', `Here: ${tag}`)]));
+        act(() => showLiveReply(chatModel, [liveText('t1', `Here: ${tag} and more`)]));
+        act(() => showLiveReply(chatModel, [liveText('t1', `Here: ${tag} and more text.`)]));
+
+        expect(screen.getByText('Top')).toBeTruthy();
+        expect(mounts).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows the structured context sent with a user's message", () => {
+        const chatModel = createModel({}, [
+            {
+                role: 'user',
+                parts: [{type: 'text', id: 't1', text: 'Explain it.', state: 'done'}],
+                metadata: {context: {ticker: 'XYZ', quarter: 3}}
+            }
+        ]);
+        renderList(chatModel);
+
+        expect(screen.getByText('ticker: XYZ, quarter: 3')).toBeTruthy();
+    });
+
+    it('shows a data part whose type names a member every object inherits as JSON', () => {
+        const chatModel = createModel({}, [
+            reply([{type: 'data', id: 'd1', dataType: 'constructor', data: {a: 1}}])
+        ]);
+        renderList(chatModel);
+
+        expect(screen.getByText('constructor')).toBeTruthy();
     });
 
     it('mounts a tool renderer only while its card is open', () => {
@@ -588,6 +635,24 @@ function showLiveReply(chatModel: ChatModel, parts: ChatPart[]) {
 function loadReply(chatModel: ChatModel, parts: ChatPart[]) {
     chatModel.loadMessages([reply(parts)], chatModel.threadId);
 }
+
+function liveText(id: string, content: string): ChatPart {
+    return {type: 'text', id, text: content, state: 'streaming', step: 0};
+}
+
+interface BadgeViewProps extends HoistProps {
+    label: string;
+    onMount: () => void;
+}
+
+const badgeView = hoistCmp.factory<BadgeViewProps>({
+    displayName: 'TestBadge',
+    model: false,
+    render({label, onMount}) {
+        useEffect(() => onMount(), []); // eslint-disable-line react-hooks/exhaustive-deps
+        return div(label);
+    }
+});
 
 function text(id: string, content: string): ChatPart {
     return {type: 'text', id, text: content, state: 'done', step: 0};

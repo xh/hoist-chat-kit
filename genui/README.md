@@ -82,13 +82,14 @@ container lists its `slots`, and a component that shows an artifact lists its `d
     "root": "summary",
     "elements": {
         "summary": {"component": "stack", "props": {}, "children": ["kpis", "trend"]},
-        "kpis": {"component": "metrics", "props": {"items": [{"label": "Revenue", "value": 1250000}]}},
-        "trend": {"component": "chart", "props": {"data": "q3_sales", "type": "line", "x": "day", "y": ["revenue"]}}
+        "kpis": {"component": "kpis", "props": {"data": "q3_totals"}},
+        "trend": {"component": "trendChart", "props": {"data": "q3_sales", "x": "day", "y": ["revenue"]}}
     }
 }
 ```
 
-Elements refer to their children by id, so a document can stream in any order. Each element
+`stack`, `kpis` and `trendChart` here are app components that take data by reference, not the
+built-in ones. Elements refer to their children by id, so a document can stream in any order. Each element
 has a `component`, its `props`, and the ids of its `children` or of the elements in each named
 slot. An element has at most one parent.
 
@@ -135,9 +136,8 @@ it. The output is the progress, so the quiet status line under it is mostly empt
 "Rendering…" while the input streams, and a note while the call waits for approval or after it fails
 or is denied. A failed call shows a short message for the user, such as "Could not show the chart.".
 The error text, which is written for the model, shows behind the "View input" toggle, with the
-input. The toggle appears when the user hovers over or focuses the component. A denied call
-renders no component, nor does a call that waits for approval, unless its tool sets
-`preview: true`.
+input. The toggle appears when the user hovers over or focuses the component. A denied call renders
+no component, nor does a call that waits for approval, unless its tool sets `preview: true`.
 
 ### Each render is a model call
 
@@ -171,8 +171,13 @@ avoid most of this cost: a tag costs no call, and a reference costs a few tokens
 - For data the model should not see, a component takes a reference in its props and loads the
   data itself.
 - A `send` action shows exactly what it sends. The built-in card shows each action in its
-  tooltip, and a sent message as the user's own, capped at 200 characters. Structured context
-  goes on the message's `metadata.context`, never inside its text.
+  tooltip, and a sent message as the user's own, capped at 200 characters. Structured context is
+  a flat object of at most 8 short values, such as record ids. It goes on the message's
+  `metadata.context`, never inside its text, and shows under the sent message and in the tooltip.
+- Tag names, action names and data types are looked up as own properties only, so a name such as
+  `constructor` is unknown, never a member that every object inherits.
+- Tags in fenced and inline code stay text. Tags in an indented code block render, so tell the
+  model to fence code.
 
 ## Configuration Pattern
 
@@ -424,12 +429,19 @@ const view: ChatChartView = {
     top: 10,
     units: 'millions'
 };
-const sliced = applyDataView(handle.frame, view);
+// A view must see every row, or its sort and top N work on the first page alone.
+const sliced = handle.isComplete ? applyDataView(handle.frame, view) : null;
 ```
+
+A view applies to the rows of the frame it gets. A handle's `frame` holds the first page, so give
+the data prop a `pageSize` as large as the most rows the component shows, and apply the view only
+when `handle.isComplete` is true. For a larger artifact, load all of it with `loadRangeAsync(0,
+handle.totalRows)`, or have the server compute the slice and return it as a new artifact.
 
 Filters take `eq`, `neq`, `gt`, `gte`, `lt`, `lte`, `in` and `notNull`, and nothing else. A value
 converts to its column's type, so `"2024"` matches 2024. `units` scales the `y` columns of a
-chart, or the numeric columns of a table other than those formatted as `percent` or `none`. A
+chart, or the `number` columns of a table other than those formatted as `percent` or `none`.
+`integer` columns, which often hold years and counts, keep their values. A
 view that names an unknown column throws. Check it first with `findDataViewProblems()`. Merge
 `CHAT_DATA_VIEW_PROPERTIES` or `CHAT_CHART_VIEW_PROPERTIES` into a component's props schema to
 offer the grammar to the model. A chart and a table can show different views of one artifact.
@@ -454,7 +466,7 @@ button({
 
 | Type | Does |
 |------|------|
-| `send` | Sends `text` as the user's message, with `context` on its `metadata.context` |
+| `send` | Sends `text` as the user's message, with a flat `context` of at most 8 short values on its `metadata.context` |
 | `openUrl` | Opens `url` in a new tab, if `urlAllowList` allows it |
 | `navigate` | Routes the app to `route`, with `params`, through `XH.navigate()` |
 | `callTool` | Runs a client tool of the chat with `input`, once the input passes the tool's schema |
@@ -462,7 +474,9 @@ button({
 
 Each action may add a `label` and a `confirm: {title, message}`. An action with `confirm` asks the
 user with `XH.confirm()` first, and does nothing if they cancel. A `callTool` action for a tool
-with `needsApproval` asks first, with the tool's `approvalPrompt`. `runActionAsync()` rejects an
+with `needsApproval` asks first, with the tool's `approvalPrompt`. A `callTool` action waits while
+the chat is busy, and refuses a tool whose schema uses keywords the catalog cannot check. Its call
+is not part of the history, so an undo the tool returns is not kept. `runActionAsync()` rejects an
 action that fails its checks. Treat every payload as untrusted, also in an `app` handler.
 
 ### Export the catalog for a server
@@ -496,8 +510,8 @@ browser, give a server-mode `ChatModel` the catalog. The chat adds the catalog's
 which render each call as the client tools do, with no `execute`, and are not sent to the model.
 
 `version` is an FNV-1a hash of the catalog's content: the names, descriptions, schemas, examples,
-slots and data props of its components, its modes, its instructions, its tag prefix and its limits. Render
-functions do not count. A document keeps the `catalogVersion` it was written against.
+slots and data props of its components, its modes, its instructions, its tag prefix and its limits.
+Render functions do not count. A document keeps the `catalogVersion` it was written against.
 `migrations` upgrade a stored document from an older version.
 
 ### Adapt a protocol's UI payload

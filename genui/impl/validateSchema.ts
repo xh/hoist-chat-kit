@@ -341,9 +341,15 @@ function isType(value: unknown, type: JsonType): boolean {
     }
 }
 
-/** True if `value` equals `allowed` - or, for a partial string, could still become it. */
+/**
+ * True if `value` equals `allowed` - or, for a partial string or number, could still become it,
+ * as `1` may become `10`.
+ */
 function matchesValue(value: unknown, allowed: unknown, isPartial: boolean): boolean {
     if (isPartial && isString(value) && isString(allowed)) return allowed.startsWith(value);
+    if (isPartial && isNumber(value) && isNumber(allowed)) {
+        return String(allowed).startsWith(String(value));
+    }
     return isEqual(value, allowed);
 }
 

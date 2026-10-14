@@ -1,6 +1,6 @@
 import {logWarn} from '@xh/hoist/utils/js';
 import {isArray, isFinite, isString, keyBy} from 'lodash';
-import type {ChatArtifact} from '../ChatArtifactRegistry';
+import type {ChatArtifact} from '../genui/ChatArtifactRegistry';
 
 /**
  * True for a value with the shape of a {@link ChatArtifact} - an id, columns and a row count.

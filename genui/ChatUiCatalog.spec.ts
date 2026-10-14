@@ -119,6 +119,20 @@ describe('ChatUiCatalog', () => {
         });
     });
 
+    describe('props schema', () => {
+        it('requires an object schema, which the checks of each prop rely on', () => {
+            expect(
+                () => new ChatUiCatalog({components: [{...NOTE, props: {properties: {}}}]})
+            ).toThrow("must have a props schema of type 'object'");
+        });
+
+        it('lets a number still streaming match an enum it could still become', () => {
+            const catalog = catalogWithProp({type: 'integer', enum: [10, 20]});
+            expect(catalog.validate('note', {value: 1}, {isPartial: true})).toEqual([]);
+            expect(catalog.validate('note', {value: 1})).toEqual(['value: expected one of 10, 20']);
+        });
+    });
+
     describe('execute', () => {
         it('confirms valid props to the model', async () => {
             const tool = createCatalog().tools[0];
@@ -255,6 +269,20 @@ describe('ChatUiCatalog', () => {
                 tool.renderer(callPart('output-error', {items: []}), renderContext())
             ).toBeNull();
             expect(render).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('renderer for a call with a result', () => {
+        it('renders a fallback for invalid props, as a display tool call gets no error', () => {
+            const tool = createCatalog().displayTools[0],
+                html = markup(
+                    tool.renderer(
+                        callPart('output-available', {items: [{label: 'A', value: 'x'}]}),
+                        renderContext()
+                    )
+                );
+            expect(html).toContain('could not be displayed');
+            expect(html).toContain('expected number, got string');
         });
     });
 

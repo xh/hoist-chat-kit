@@ -29,7 +29,7 @@ import {
 } from '../genui/ChatArtifactRegistry';
 import type {ChatUiCatalog} from '../genui/ChatUiCatalog';
 import {CHAT_UI_DOCUMENT_DATA_TYPE} from '../genui/ChatUiDocument';
-import {isChatArtifact, mergeArtifacts} from '../genui/impl/artifacts';
+import {isChatArtifact, mergeArtifacts} from '../impl/artifacts';
 import type {
     ChatEvent,
     ChatRunContext,
@@ -1432,7 +1432,11 @@ export class ChatModel extends HoistModel {
         const metadata: PlainObject = {...message.metadata, elapsedMs: stopTurnClock(turn)};
         if (detached) metadata.detached = true;
         // Stored with the reply, so that its UI can migrate once the catalog changes.
-        if (this.showsCatalogUi(message)) metadata.catalogVersion = this.catalog.version;
+        try {
+            if (this.showsCatalogUi(message)) metadata.catalogVersion = this.catalog.version;
+        } catch (e) {
+            this.logError('Could not check the reply for catalog UI', e);
+        }
 
         const settled = settleOpenParts(message, SETTLE_REASONS[status]).withChanges({
             status,

@@ -26,7 +26,7 @@ import {
 } from 'lodash';
 import {type ChatContextProvider, chatToolResult, type ChatToolSpec} from '../core';
 import type {ChatToolGroup} from './ChatToolGroup';
-import {arraySchema, enumSchema, joinNames, objectSchema} from './impl/schema';
+import {arraySchema, enumSchema, joinNames, objectSchema} from '../impl/toolSchema';
 
 /**
  * What a {@link gridTools} group can do to its grid:

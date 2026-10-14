@@ -46,7 +46,9 @@ import {chatErrorBoundary} from './impl/ChatErrorBoundary';
 import {formatElapsed} from './impl/ChatFormat';
 import {chatToolCallGroup} from './impl/ChatToolCallGroup';
 import {chatTypingIndicator} from './impl/ChatTypingIndicator';
+import {formatChatUiContext} from '../../../genui/ChatUiAction';
 import {classNames} from '../../../impl/ClassNames';
+import {getOwn} from '../../../impl/objects';
 import {type ChatPartGroup, groupParts} from './impl/groupParts';
 import {jsonView} from './impl/JsonView';
 import {useChatMarkdownComponents} from './impl/MarkdownComponents';
@@ -298,10 +300,12 @@ function userContent(
 
     // The action bar sits beside the bubble, not below it, so that it takes no space of its own.
     // A message of files alone has no bubble, and the bar sits beside the files.
-    const actions = actionBar({message, context, isLast, impl, extraActions: messageActions});
+    const actions = actionBar({message, context, isLast, impl, extraActions: messageActions}),
+        contextNote = messageContextNote(message);
     if (!message.text) {
         return [
-            div({className: 'xh-chat-message__row', items: [fileRow(files, allowImages), actions]})
+            div({className: 'xh-chat-message__row', items: [fileRow(files, allowImages), actions]}),
+            contextNote
         ];
     }
     return [
@@ -309,8 +313,20 @@ function userContent(
         div({
             className: 'xh-chat-message__row',
             items: [div({className: 'xh-chat-message__bubble', item: message.text}), actions]
-        })
+        }),
+        contextNote
     ];
+}
+
+/**
+ * The structured context sent with a user message, such as the record a button acted on. The
+ * model sees it with the message, so the user does too.
+ */
+function messageContextNote(message: ChatMessage): ReactNode {
+    const text = formatChatUiContext(message.metadata.context);
+    return text
+        ? div({className: 'xh-chat-message__context', title: 'Sent with the message', item: text})
+        : null;
 }
 
 interface EditBoxProps extends HoistProps {
@@ -612,7 +628,7 @@ const dataPart = hoistCmp.factory<DataPartProps>({
     className: 'xh-chat-message__data',
 
     render({className, part, context}) {
-        const renderer = context.chatModel.dataRenderers?.[part.dataType];
+        const renderer = getOwn(context.chatModel.dataRenderers, part.dataType);
         if (renderer) return div({className, item: renderer(part, context)});
 
         return div({

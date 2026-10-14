@@ -101,7 +101,11 @@ export interface ChatUiDataPropSpec {
     /** Name of the prop. */
     name: string;
 
-    /** Rows in the first page, loaded before the component renders. Default 100. */
+    /**
+     * Rows in the first page. If the artifact holds those rows inline, they are ready at once.
+     * Otherwise the component renders first, in the `loading` state, and the first page loads once
+     * it mounts. Default 100.
+     */
     pageSize?: number;
 
     /** Most rows the component can show. A larger artifact is `tooLarge`. Default no limit. */

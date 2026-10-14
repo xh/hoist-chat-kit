@@ -44,10 +44,13 @@ export interface ChatUiPlaceholderSegment {
 export interface ChatUiFallbackSegment {
     type: 'fallback';
 
-    /** Name of the component the tag names, or null if it names none. */
+    /** Name of the component the tag names, or null if it names no catalog component. */
     component: string;
 
-    /** The props parsed from the tag, if any. */
+    /** The component name in the tag, as written - a catalog component's or not. */
+    name: string;
+
+    /** The props parsed from the tag, if its attributes could be read. */
     props: PlainObject;
 
     /** What is wrong, in the kit's `path: message` form. */

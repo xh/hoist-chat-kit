@@ -24,7 +24,7 @@ import {
 import type {ChatContextProvider, ChatToolSpec} from '../../core';
 import {chatToolResult} from '../../core';
 import type {ChatToolGroup} from '../../assist';
-import {arraySchema, enumSchema, joinNames, objectSchema} from '../../assist/impl/schema';
+import {arraySchema, enumSchema, joinNames, objectSchema} from '../../impl/toolSchema';
 
 /**
  * What a {@link dashCanvasTools} group can do to its dashboard:
@@ -338,7 +338,7 @@ class DashCanvasTools {
             execute: ({widget, x, y, width, height}) => {
                 const {dashCanvasModel} = this,
                     {columns} = dashCanvasModel;
-                throwIf(dashCanvasModel.layoutLocked, 'The dashboard layout is locked.');
+                this.checkLayoutUnlocked();
                 this.requireView(widget);
 
                 const current = dashCanvasModel.layout.find(it => it.i === widget),
@@ -441,6 +441,7 @@ class DashCanvasTools {
                 input?.widgets ? pluralize('widget', input.widgets.length, true) : null,
             execute: ({widgets}) => {
                 this.checkContentUnlocked();
+                this.checkLayoutUnlocked();
                 widgets.forEach(({type, settings}) => {
                     this.requireAddableSpec(type);
                     this.checkSettings(type, settings);
@@ -505,6 +506,9 @@ class DashCanvasTools {
             approvalPrompt: 'Reset the dashboard to its defaults? This discards your changes.',
             preview: () => `Will replace ${this.allWidgetsText()}.`,
             execute: () => {
+                // A reset also restores the lock flags, which could unlock a locked dashboard.
+                this.checkContentUnlocked();
+                this.checkLayoutUnlocked();
                 const undo = this.stateUndo();
                 this.dashCanvasModel.restoreDefaults();
                 return chatToolResult('Reset the dashboard to its defaults.', {undo});
@@ -665,6 +669,10 @@ class DashCanvasTools {
             );
         }
         return view;
+    }
+
+    private checkLayoutUnlocked() {
+        throwIf(this.dashCanvasModel.layoutLocked, 'The dashboard layout is locked.');
     }
 
     private checkContentUnlocked() {

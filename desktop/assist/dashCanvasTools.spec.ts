@@ -152,6 +152,19 @@ describe('dashCanvasTools', () => {
             );
         });
 
+        it('keeps a dashboard with a locked layout from being rebuilt or reset', async () => {
+            const dashModel = createDash();
+            dashModel.layoutLocked = true;
+
+            await expect(
+                run(dashModel, 'set_dashboard', {widgets: [{type: 'chart'}]})
+            ).rejects.toThrow('The dashboard layout is locked.');
+            await expect(run(dashModel, 'reset_dashboard', {})).rejects.toThrow(
+                'The dashboard layout is locked.'
+            );
+            expect(dashModel.layoutLocked).toBe(true);
+        });
+
         it('removes widgets, and undoes it', async () => {
             const dashModel = createDash(),
                 result = await run(dashModel, 'remove_widgets', {widgets: ['summary_0']});

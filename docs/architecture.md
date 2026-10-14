@@ -19,14 +19,18 @@ catalog sits beside the models, and builds on their tools.
 │                     ChatToolCall, ChatUiGrid, ChatUiChart, ...           │
 │                     Render the models. Never see a wire format.          │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ Models              core/                 genui/         threads/        │
+│ Models              core/     genui/     threads/     assist/     svc/   │
+│                     desktop/assist/                                      │
 │                     ChatModel, ChatMessage, ChatPart, ChatToolSpec,      │
-│                     ChatUiCatalog, ChatThreadsModel. Own the state, the  │
-│                     turn loop and the threads. Platform-neutral.         │
+│                     ChatUiCatalog, ChatThreadsModel, gridTools,          │
+│                     ChatService. Own the state, the turn loop, the       │
+│                     threads and the tools. Platform-neutral, apart from  │
+│                     desktop/assist/.                                     │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ Transports, codecs  transport/                                           │
 │                     HoistChatTransport, SseChatTransport,                │
-│                     ScriptedChatTransport, AgUiCodec, AnthropicCodec.    │
+│                     ScriptedChatTransport, AgUiCodec, AnthropicCodec,    │
+│                     ChatCompletionsCodec.                                │
 │                     Turn a backend's stream into ChatEvents.             │
 └──────────────────────────────────────────────────────────────────────────┘
                                      │
@@ -45,7 +49,11 @@ top-level `impl/` folder. They are internal, and no package reaches into another
   `ChatMessage` records, and runs client tools. See [`/core/`](../core/README.md). A
   `ChatUiCatalog` turns app components into tools the model calls to show UI. See
   [`/genui/`](../genui/README.md). A `ChatThreadsModel` lists the threads a backend stores, and
-  holds a `ChatModel` for each open one. See [`/threads/`](../threads/README.md).
+  holds a `ChatModel` for each open one. See [`/threads/`](../threads/README.md). `ChatService`
+  builds a transport for the app's configured LLM backend. See [`/svc/`](../svc/README.md).
+- **Tool groups** derive tools from one Hoist component's model, for a helper agent beside it.
+  `gridTools` is platform-neutral, in `/assist/`. `dashCanvasTools` acts on a desktop
+  `DashCanvasModel`, so it lives in `/desktop/assist/`. See [`/assist/`](../assist/README.md).
 - **Components** render the models with Hoist components and element factories. The desktop
   components live in [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md), and the built-in
   generative UI components in [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md). The
@@ -203,7 +211,9 @@ its render, renderer included.
 | Data renderers | `ChatModelConfig.dataRenderers` | Render app content and generative UI from data parts, by `dataType` |
 | Transports | `ChatModelConfig.transport` | Connect to any backend, or implement `ChatTransport` |
 | Codecs | `HttpChatTransportConfig.codec` | Speak a new wire format, or implement `ChatCodec` |
-| Live context | `system` on `AnthropicCodec`, `context` on `AgUiCodec` | Describe the app's current state to the model before each step |
+| Live context | `ChatModelConfig.contextProviders`, as `ChatContextProvider[]` | Describe the app's current state to the model before each step. Each codec sends it in its own format |
+| Undo | `chatToolResult(output, {undo})` from a tool's `execute` | Let the user undo the changes a reply made, with `undoTurnAsync()` |
+| Send blocker | `ChatModelConfig.sendBlocker`, or `addSendBlocker()` | Hold sends while the app is not ready, and show the reason in the composer |
 | Lifecycle | `onTurnComplete`, observable `status` and `lastError` | Save history, show toasts, react to errors |
 | History mode | `ChatModelConfig.historyMode` | Let an agent service own the history and the threads |
 | Run options | `ChatModel.runOptions` | Send per-turn choices, such as a document scope, fixed at send time |
@@ -213,6 +223,8 @@ its render, renderer included.
 | Telemetry | `ChatModelConfig.track` | Record each finished turn with Hoist activity tracking |
 | Component slots | `ChatPanel` and `ChatComposer` props | Add header buttons, composer toolbars, an empty state and suggestions |
 | Markdown | `markdownComponents` on the message list | Replace how markdown elements render, such as code blocks |
+| Markdown plugins | `markdownPlugins` on the message list | Add remark and rehype plugins, such as math with KaTeX |
+| Citation markers | `citationMarkers` and `onSourceClick` on the message list | Render `[n]` markers in the text as buttons for their sources, and handle a click |
 | Theme | `--xh-chat-*` CSS variables | Change colors, widths and radii, with light and dark defaults |
 
 The component slots and the theme variables are covered in
@@ -220,18 +232,23 @@ The component slots and the theme variables are covered in
 
 ## Platform Split
 
-The kit ships desktop components now. `core/`, `genui/`, `transport/` and `cmp/` import nothing
-from `@xh/hoist/desktop`. A mobile package, `mobile/cmp/chat`, can follow with no change to the
-models, the transports or the markdown renderer.
+The kit ships desktop components now. `core/`, `genui/`, `threads/`, `assist/`, `svc/`,
+`transport/` and `cmp/` import nothing from `@xh/hoist/desktop`. A mobile package,
+`mobile/cmp/chat`, can follow with no change to the models, the transports or the markdown
+renderer.
 
 | Package | Platform | Contents |
 |---------|----------|----------|
 | `core/` | Neutral | Models, messages, parts and tools |
 | `transport/` | Neutral | Transports, codecs and events |
 | `genui/` | Neutral | The generative UI catalog, component specs and adapters |
+| `threads/` | Neutral | The thread layer: a store adapter and one chat per open thread |
+| `assist/` | Neutral | Tool groups for helper agents, such as `gridTools` |
+| `svc/` | Neutral | `ChatService`, which builds a transport from the `chatConfig` soft config |
 | `cmp/markdown/` | Neutral | The streaming markdown renderer |
 | `desktop/cmp/chat/` | Desktop | Panel, message list, composer, tool cards and the rest |
 | `desktop/cmp/genui/` | Desktop | The built-in grid, chart, metrics and card components |
+| `desktop/assist/` | Desktop | `dashCanvasTools`, the tool group for a `DashCanvasModel` |
 | `styles/` | Neutral | The `--xh-chat-*` CSS variables |
 
 App code follows the same split. Put tool specs, prompts and data renderers in shared code when
@@ -242,7 +259,11 @@ desktop code.
 
 - [`/core/`](../core/README.md) - `ChatModel`, messages, parts and tools
 - [`/genui/`](../genui/README.md) - the generative UI catalog
+- [`/threads/`](../threads/README.md) - the thread layer
+- [`/assist/`](../assist/README.md) - tool groups for helper agents
+- [`/svc/`](../svc/README.md) - the chat service
 - [`/transport/`](../transport/README.md) - transports, codecs and server contracts
 - [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) - desktop components
 - [`/cmp/markdown/`](../cmp/markdown/README.md) - streaming markdown
-- [Protocols](./protocols.md) - AG-UI, Anthropic, generative UI and the Vercel AI SDK vocabulary
+- [Protocols](./protocols.md) - AG-UI, Anthropic, OpenAI, generative UI and the Vercel AI SDK
+  vocabulary

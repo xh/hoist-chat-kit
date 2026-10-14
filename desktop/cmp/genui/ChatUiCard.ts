@@ -203,16 +203,19 @@ export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
                 validActions.length
                     ? div({
                           className: 'xh-chat-ui-card__actions',
-                          items: validActions.map((action, idx) =>
-                              button({
+                          items: validActions.map((action, idx) => {
+                              // A blocked chat ignores a send, so say why the button waits.
+                              const isMessaging = MESSAGING_ACTIONS.has(action.type),
+                                  blockedReason = isMessaging ? chatModel.sendBlockedReason : null;
+                              return button({
                                   key: idx,
                                   text: action.label,
-                                  tooltip: describeChatUiAction(action),
+                                  tooltip: blockedReason ?? describeChatUiAction(action),
                                   outlined: true,
-                                  disabled: chatModel.isBusy && MESSAGING_ACTIONS.has(action.type),
+                                  disabled: isMessaging && (chatModel.isBusy || !!blockedReason),
                                   onClick: () => runActionAsync(action).catchDefault()
-                              })
-                          )
+                              });
+                          })
                       })
                     : null
             ]

@@ -18,13 +18,8 @@ import {classNames} from '../../impl/ClassNames';
 import {htmlButton} from '../../impl/HtmlTags';
 import '../../styles/vars.scss';
 import './ChatMarkdown.scss';
-import {
-    CITATION_TAG,
-    findCitedSource,
-    getExcerpt,
-    openSourceUrl,
-    remarkCitations
-} from './impl/CitationMarkers';
+import {findCitedSource, getExcerpt, openSourceUrl} from '../../impl/sources';
+import {CITATION_TAG, remarkCitations} from './impl/CitationMarkers';
 import {closeMarkdownSyntax, isProseBlock, splitMarkdownBlocks} from './impl/StreamingMarkdown';
 
 type ReactMarkdownOptions = NonNullable<ComponentProps<typeof Markdown>['reactMarkdownOptions']>;

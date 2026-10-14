@@ -153,11 +153,21 @@ describe('ChatUiCatalog documents', () => {
             ]);
         });
 
+        it('waits for the last child id of the last element, which may be cut short', () => {
+            const catalog = createCatalog(),
+                cut = doc({top: stack(['n1']), n1: noteEl('a'), n12: stack(['n1'])});
+
+            expect(catalog.validateDocument(cut, {isPartial: true})).toEqual([]);
+            expect(catalog.validateDocument(cut)).toEqual([
+                "elements.n12.children[0]: 'n1' is already a child of 'top'"
+            ]);
+        });
+
         it('still reports what no further streaming could fix', () => {
             const catalog = createCatalog();
-            expect(catalog.validateDocument(doc({top: stack(['top'])}), {isPartial: true})).toEqual(
-                ["elements.top.children[0]: 'top' is the root of the document"]
-            );
+            expect(
+                catalog.validateDocument(doc({top: stack(['top', 'a'])}), {isPartial: true})
+            ).toEqual(["elements.top.children[0]: 'top' is the root of the document"]);
             expect(
                 catalog.validateDocument(doc({top: {component: 'zzz'}} as any), {isPartial: true})
             ).toEqual(["elements.top.component: unknown component 'zzz'"]);
@@ -279,6 +289,27 @@ describe('ChatUiCatalog documents', () => {
                 };
 
             expect(markup(catalog.renderDocument(doc({top: noteEl('v1')}), context))).toBe('(now)');
+        });
+
+        it("renders a stored tag for a renamed component through the catalog's migrations", () => {
+            const catalog = createCatalog({
+                    migrations: {
+                        v1: d => ({
+                            ...d,
+                            catalogVersion: null,
+                            elements: {root: {...d.elements.root, component: 'note'}}
+                        })
+                    }
+                }),
+                [segment] = catalog.parseTags('<ui-memo text="hi"/>'),
+                context = {
+                    ...documentContext(),
+                    chatModel: {
+                        getMessage: () => ({metadata: {catalogVersion: 'v1'}})
+                    } as unknown as ChatModel
+                };
+
+            expect(markup(catalog.renderSegment(segment, context))).toBe('(hi)');
         });
 
         it('leaves a current document, or one with no migration, as it is', () => {

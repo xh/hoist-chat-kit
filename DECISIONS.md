@@ -229,6 +229,9 @@ would say it, and keeps any detail it needs in the conversation.
 action, and the user still has to read the prompt. Show only the tooltip. A user who does not
 hover would not see the prompt before it goes.
 
+Amended by [D56](#d56-fixes-from-review-5-of-generative-ui): a `send` action may carry a small,
+visible `context` of record ids.
+
 ## D18. Generative UI names carry the `ChatUi` prefix
 
 **Decision.** Every public generative UI name starts with `ChatUi` or `chatUi`. Types are
@@ -758,3 +761,31 @@ costs tokens on every step of a chat that never nests components.
 
 **Alternatives.** For live context, mid-conversation system messages. Not every gateway accepts a
 system message after the first.
+
+## D56. Fixes from review 5 of generative UI
+
+**Decision.** Review 5 (`planning/reviews/review-5-genui-components.md`) led to these changes:
+
+- The `context` of a `send` action is a flat object of at most 8 short values, such as record
+  ids. The button's tooltip shows it, and the message view shows it under the sent message. The
+  codecs send it to the model. This amends D17: the context is no longer hidden, so it cannot
+  carry an instruction the user does not see.
+- Component, handler, migration, artifact and data renderer names are looked up as own
+  properties. A tag such as `<ui-constructor/>` is an unknown component.
+- A tag attribute named `__proto__` fails, and every props schema must have `type: 'object'`.
+- A catalog call that has a result but fails its props renders the fallback. A server's display
+  tool answers before the browser checks, so the inline status cannot report the failure.
+- A view applies only to the rows it gets. `ChatDataHandle.isComplete` says when the first page
+  holds them all. `units` scales `number` columns, not `integer` ones.
+- A stored tag for an older catalog runs through the migrations before it falls back. The parser
+  keeps the name and props of a tag for an unknown component, so a migration can rename it.
+- The catalog caches each component segment by its tag, so a tag keeps its props object while the
+  text after it streams.
+- A `callTool` action waits while the chat is busy, and refuses a tool whose schema the catalog
+  cannot check fully. It keeps no undo, as the call is not in the history.
+- Shared internal helpers live in the top-level `impl/`, so no package reaches into another's.
+
+**Why.** Each fixes a defect the review found, or closes a gap between the code and its docs.
+
+**Alternatives.** For the context, leave it out of the card's default schema. A button that acts
+on a record then has to spell the record's id out in its text.

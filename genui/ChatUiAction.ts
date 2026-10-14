@@ -1,4 +1,5 @@
 import type {Awaitable, PlainObject} from '@xh/hoist/core';
+import {isEmpty, isPlainObject} from 'lodash';
 import type {ChatPartRenderContext} from '../core';
 
 /** The kinds of {@link ChatUiAction}. */
@@ -92,6 +93,23 @@ export interface ChatUiActionSchemaOptions {
 /** Most characters in the text of a `send` action, so the user can read all of it. */
 export const CHAT_UI_MAX_SEND_LENGTH = 200;
 
+/** Most entries in the `context` of a `send` action, so the user can read all of it. */
+export const CHAT_UI_MAX_CONTEXT_ENTRIES = 8;
+
+/** Most characters in a text value of the `context` of a `send` action. */
+export const CHAT_UI_MAX_CONTEXT_VALUE_LENGTH = 100;
+
+/**
+ * The `context` of a `send` action in plain words, such as `ticker: XYZ, quarter: 3` - for the
+ * tooltip of its button, and for the message it sends. Null for no context.
+ */
+export function formatChatUiContext(context: PlainObject): string {
+    if (!isPlainObject(context) || isEmpty(context)) return null;
+    return Object.entries(context)
+        .map(([key, value]) => `${key}: ${value}`)
+        .join(', ');
+}
+
 /**
  * A JSON Schema for a {@link ChatUiAction}, for the props of a component that takes actions.
  *
@@ -121,8 +139,10 @@ export function chatUiActionSchema(opts: ChatUiActionSchemaOptions = {}): PlainO
  */
 export function describeChatUiAction(action: ChatUiAction): string {
     switch (action.type) {
-        case 'send':
-            return `Sends: "${action.text}"`;
+        case 'send': {
+            const context = formatChatUiContext(action.context);
+            return `Sends: "${action.text}"${context ? `, with ${context}` : ''}`;
+        }
         case 'openUrl':
             return `Opens ${action.url}`;
         case 'navigate':
@@ -169,7 +189,14 @@ const ACTION_FIELDS: Record<ChatUiActionType, {required: string[]; properties: P
             },
             context: {
                 type: 'object',
-                description: 'Structured data sent with the message, such as record ids.'
+                additionalProperties: {
+                    type: ['string', 'number', 'boolean'],
+                    maxLength: CHAT_UI_MAX_CONTEXT_VALUE_LENGTH
+                },
+                description:
+                    'Ids of what the message is about, such as a record id, as a flat object of ' +
+                    `at most ${CHAT_UI_MAX_CONTEXT_ENTRIES} short values. The user sees them ` +
+                    'with the message.'
             }
         }
     },

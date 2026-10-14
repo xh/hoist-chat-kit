@@ -3,7 +3,8 @@ import {action, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
 import {castArray} from 'lodash';
 import {CHAT_DATA_ROW_ID, type ChatDataColumn, type ChatDataFrame} from './ChatData';
-import {isChatArtifact} from './impl/artifacts';
+import {getOwn} from '../impl/objects';
+import {isChatArtifact} from '../impl/artifacts';
 
 /**
  * A result set that a tool produced, for a component to show by reference. The model names the
@@ -86,6 +87,13 @@ export interface ChatDataHandle {
     /** The first page of rows, once `ready`. Else null. */
     frame: ChatDataFrame;
 
+    /**
+     * True if `frame` holds every row of the artifact, so that a view - see `applyDataView()` -
+     * can filter, sort and rank the whole result. Raise the data prop's `pageSize` to the most rows
+     * the component shows, to load all of a small artifact in its first page.
+     */
+    isComplete: boolean;
+
     /** Number of rows in the whole result, once the artifact is known. Else null. */
     totalRows: number;
 
@@ -140,7 +148,8 @@ export class ChatArtifactRegistry extends HoistBase {
     }
 
     /**
-     * Add artifacts, or replace those with the same ids. Rows already loaded for an id are kept.
+     * Add artifacts, or replace those with the same ids. Rows already loaded from the data source
+     * for an id are kept. A replaced artifact's inline rows are read afresh.
      */
     @action
     add(artifacts: ChatArtifact | ChatArtifact[]) {
@@ -148,6 +157,10 @@ export class ChatArtifactRegistry extends HoistBase {
         added.forEach(it =>
             throwIf(!isChatArtifact(it), 'A ChatArtifact requires an id, columns and totalRows.')
         );
+        added.forEach(it => {
+            const prior = getOwn(this.artifacts, it.id);
+            if (prior && prior !== it) this.dropInlineFrames(it.id);
+        });
         this.artifacts = {
             ...this.artifacts,
             ...Object.fromEntries(added.map(it => [it.id, it]))
@@ -156,7 +169,7 @@ export class ChatArtifactRegistry extends HoistBase {
 
     /** An artifact by id, or null. Observable. */
     get(id: string): ChatArtifact {
-        return this.artifacts[id] ?? null;
+        return getOwn(this.artifacts, id);
     }
 
     /**
@@ -204,6 +217,7 @@ export class ChatArtifactRegistry extends HoistBase {
                 state: null,
                 artifact,
                 frame: null,
+                isComplete: false,
                 totalRows: artifact?.totalRows ?? null,
                 error: null,
                 loadRangeAsync: (offset, limit) => this.loadRangeAsync(id, offset, limit)
@@ -214,11 +228,11 @@ export class ChatArtifactRegistry extends HoistBase {
 
         const range = this.getRange(artifact, 0, pageSize);
         if (range.isInline) {
-            return {...handle, state: 'ready', frame: this.getInlineFrame(artifact, range)};
+            return withFrame(handle, this.getInlineFrame(artifact, range));
         }
 
         const load = this.loadStates[range.key];
-        if (load?.frame) return {...handle, state: 'ready', frame: load.frame};
+        if (load?.frame) return withFrame(handle, load.frame);
         if (load?.error) return {...handle, state: 'failed', error: load.error};
         return {...handle, state: 'loading'};
     }
@@ -277,6 +291,13 @@ export class ChatArtifactRegistry extends HoistBase {
         return ret;
     }
 
+    private dropInlineFrames(id: string) {
+        const prefix = `${id}|`;
+        for (const key of [...this.inlineFrames.keys()]) {
+            if (key.startsWith(prefix)) this.inlineFrames.delete(key);
+        }
+    }
+
     private async fetchRangeAsync(
         artifact: ChatArtifact,
         range: ChatDataRange
@@ -332,6 +353,11 @@ export class ChatArtifactRegistry extends HoistBase {
 // Implementation
 //------------------
 const DEFAULT_PAGE_SIZE = 100;
+
+/** A handle made ready with its first page of rows. */
+function withFrame(handle: ChatDataHandle, frame: ChatDataFrame): ChatDataHandle {
+    return {...handle, state: 'ready', frame, isComplete: frame.rows.length >= frame.totalRows};
+}
 
 interface ChatDataRange {
     key: string;

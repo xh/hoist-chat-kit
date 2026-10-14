@@ -12,7 +12,7 @@ change. Check each project's own docs for its current state.
 |----------|------------|-------|------------|
 | [AG-UI](#ag-ui) | Event stream between an agent backend and a frontend | Wire events | **Built.** The kit's own event vocabulary. |
 | [Anthropic Messages API](#anthropic-messages-api) | Claude's request format and SSE stream | Provider format | **Built.** `AnthropicCodec`. |
-| [OpenAI](#openai) | The Responses and Chat Completions streams | Provider format | **Not built.** A codec can add it. |
+| [OpenAI](#openai) | The Responses and Chat Completions streams | Provider format | **Chat Completions built.** `ChatCompletionsCodec`. A codec can add Responses. |
 | [A2UI](#a2ui) | Declarative JSON UI, drawn from a client catalog | UI payload | **Adapter seam built.** An app adapter maps it to catalog components. |
 | [OpenUI (Thesys)](#openui-thesys) | Generative UI framework and streaming UI language | UI payload | **Adapter seam built.** An app adapter maps it to catalog components. |
 | [MCP Apps](#mcp-apps) | MCP tools that return sandboxed HTML views | UI payload | **Seam built.** Host not planned for now. |
@@ -92,37 +92,49 @@ encoding, prompt caching and the other codec options.
 
 ## OpenAI
 
-**Status in the kit: not built.** No OpenAI codec ships yet.
+**Status in the kit: Chat Completions built.** `ChatCompletionsCodec` in `/transport/`. No codec
+for the Responses API ships yet.
 
-A codec for OpenAI would plug in beside `AnthropicCodec`, with no change to the models or the
-components. A server would relay the OpenAI stream, and the codec would translate it.
+`ChatCompletionsCodec` builds a chat completions request body from the chat history, and decodes
+the streamed `chat.completion.chunk` records into `ChatEvent`s. Most model gateways speak this
+format, such as Azure OpenAI, LiteLLM, Portkey and internal model services. A server relays the
+request to the gateway and relays the stream back, as for `AnthropicCodec`. `ChatService` builds
+this transport when the `chatConfig` soft config names the `openai-chat` codec. See
+[Bring your own LLM](../transport/README.md#bring-your-own-llm).
 
-An OpenAI codec would:
+The API keeps no state, so each request carries the whole history. The codec therefore throws for
+a chat with `historyMode: 'server'`.
 
-1. Encode the history as OpenAI input. Each step of an assistant turn becomes the model's output
-   items and its function calls, followed by the function call results.
-2. Decode the stream events into `ChatEvent`s, keyed by the item and output index of each event.
-3. Map the OpenAI end states to the kit's finish reasons, and keep the raw value as
-   `metadata.stopReason`.
-4. Keep reasoning data that must go back with the history in `providerData.openai`.
+| Chat Completions stream | Kit events |
+|-------------------------|------------|
+| First chunk | `RUN_STARTED` |
+| `delta.content`, `delta.refusal` | `TEXT_MESSAGE_START`, `TEXT_MESSAGE_CONTENT` |
+| `delta.reasoning_content`, which some gateways and open models add | `REASONING_START`, `REASONING_MESSAGE_CONTENT` |
+| First `tool_calls[i]` fragment, with the call's id and name | `TOOL_CALL_START` |
+| `tool_calls[i].function.arguments` | `TOOL_CALL_ARGS` |
+| `finish_reason` | `TEXT_MESSAGE_END`, `REASONING_END` and `TOOL_CALL_END`, then `RUN_FINISHED` with the finish reason, `stopReason` and model |
+| Usage chunk, with `includeUsage` | The usage on `RUN_FINISHED`, which the codec holds back until the usage arrives |
+| A record with an `error`, or an SSE event named `error` | `RUN_ERROR`, with the error's `code` or `type` as its code |
 
-This table sketches the mapping. It comes from the OpenAI SDK event names, and the kit has not
-tested it.
+Chat Completions has no standard field for citations, so this codec sends none.
 
-| Kit event | Responses API | Chat Completions |
-|-----------|---------------|------------------|
-| `RUN_STARTED` | `response.created` | First chunk |
-| `TEXT_MESSAGE_CONTENT` | `response.output_text.delta` | `choices[].delta.content` |
-| `REASONING_MESSAGE_CONTENT` | `response.reasoning_summary_text.delta` | No standard field |
-| `TOOL_CALL_START` | `response.output_item.added` with a `function_call` item | First `tool_calls[i]` fragment |
-| `TOOL_CALL_ARGS` | `response.function_call_arguments.delta` | `tool_calls[i].function.arguments` |
-| `TOOL_CALL_END` | `response.function_call_arguments.done` | `finish_reason` of `tool_calls` |
-| `xh.chat.citation` | `response.output_text.annotation.added` | None |
-| `RUN_FINISHED` | `response.completed`, `response.incomplete` | `finish_reason`, then `[DONE]` |
-| `RUN_ERROR` | `response.failed`, `error` | An error body |
+A codec for the Responses API would plug in beside the others, with no change to the models or
+the components. It would encode the history as Responses input items, and decode each stream
+event by its item and output index. It would keep reasoning data that must go back with the
+history in `providerData.openai`. This table sketches the mapping. It comes from the OpenAI SDK
+event names, and the kit has not tested it.
 
-Chat Completions also serves many OpenAI-compatible vendors. A Chat Completions codec would cover
-them, apart from vendor-specific fields such as non-standard reasoning deltas.
+| Kit event | Responses API |
+|-----------|---------------|
+| `RUN_STARTED` | `response.created` |
+| `TEXT_MESSAGE_CONTENT` | `response.output_text.delta` |
+| `REASONING_MESSAGE_CONTENT` | `response.reasoning_summary_text.delta` |
+| `TOOL_CALL_START` | `response.output_item.added` with a `function_call` item |
+| `TOOL_CALL_ARGS` | `response.function_call_arguments.delta` |
+| `TOOL_CALL_END` | `response.function_call_arguments.done` |
+| `xh.chat.citation` | `response.output_text.annotation.added` |
+| `RUN_FINISHED` | `response.completed`, `response.incomplete` |
+| `RUN_ERROR` | `response.failed`, `error` |
 
 ## Generative UI
 
@@ -130,7 +142,9 @@ Generative UI lets a model put real UI in the chat, such as a grid, a chart or a
 only text. Three protocols compete here: A2UI, OpenUI and MCP Apps.
 
 **Status in the kit: built.** A `ChatUiCatalog` lets the model show the app's own Hoist
-components, and an adapter seam lets A2UI and OpenUI payloads draw with them.
+components, and an adapter seam lets A2UI and OpenUI payloads draw with them. The model can
+deliver UI in four ways: component tools, display tools, tags in markdown and UI documents. See
+[Four delivery modes](../genui/README.md#four-delivery-modes).
 
 ### The catalog: components as tools
 
@@ -160,6 +174,25 @@ puts Hoist's own grids and charts in the chat, which suit data-dense apps better
 component kits do. The built-in grid, chart, KPI tiles and card are in
 [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md). See [`/genui/`](../genui/README.md) for
 the catalog, its safety model, and the cost of each render.
+
+### Other delivery modes
+
+The catalog's `modes` set how the model delivers UI. Component tools are the default. The other
+modes put the same components in a reply:
+
+- **Tags in markdown.** The model writes a tag such as `<ui-grid data="sales"/>` in its answer
+  text, and the message view renders the component in its place. Tags cost the fewest tokens.
+  See [Read tags in a markdown answer](../genui/README.md#read-tags-in-a-markdown-answer).
+- **The `show_ui` document tool.** The model sends a document, a flat map of elements that nest
+  by id, for an answer with a layout. A server can also send a document as an `xh.chat.ui` data
+  part. See [The document model](../genui/README.md#the-document-model).
+- **Display tools.** In server mode, the server registers the catalog's tools and answers their
+  calls. The chat renders each call from its input. See
+  [Export the catalog for a server](../genui/README.md#export-the-catalog-for-a-server).
+
+In every mode, a component can show data by reference. A tool stores its result as an artifact,
+and the model names the artifact in a prop, not the rows. The kit loads the rows in pages. See
+[Show data by reference](../genui/README.md#show-data-by-reference).
 
 ### Protocol adapters
 

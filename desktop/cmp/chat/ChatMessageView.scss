@@ -147,6 +147,13 @@
     min-width: 0;
   }
 
+  &__context {
+    color: var(--xh-chat-muted-text-color);
+    font-size: var(--xh-chat-meta-font-size-px);
+    max-width: var(--xh-chat-bubble-max-width);
+    overflow-wrap: anywhere;
+  }
+
   &__data {
     min-width: 0;
 

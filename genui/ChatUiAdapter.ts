@@ -7,12 +7,12 @@ import type {ChatUiDocument} from './ChatUiDocument';
  * part, and the catalog renders the document in its place, so that a protocol's UI draws with the
  * app's own Hoist components.
  *
- * Register adapters through the catalog, as data renderers for the chat:
+ * Pass the catalog to the chat, and register adapters through it as data renderers:
  *
  * ```ts
  * const chatModel = new ChatModel({
  *     transport,
- *     tools: catalog.tools,
+ *     catalog,
  *     dataRenderers: catalog.createDataRenderers([myProtocolAdapter])
  * });
  * ```

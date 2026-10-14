@@ -9,13 +9,16 @@ import type {PlainObject} from '@xh/hoist/core';
  * Elements refer to their children by id, so a document streams in any order. While it streams, a
  * child that has not arrived renders as a placeholder.
  *
+ * In this example, `stack`, `kpis` and `trendChart` are app components. The last two show the
+ * `q3_sales` artifact by reference.
+ *
  * ```json
  * {
  *     "root": "summary",
  *     "elements": {
- *         "summary": {"component": "stack", "props": {}, "children": ["kpis", "trend"]},
- *         "kpis": {"component": "metrics", "props": {"items": [{"label": "Revenue", "value": 1.2e6}]}},
- *         "trend": {"component": "chart", "props": {"data": "q3_sales", "type": "line", "x": "day", "y": ["revenue"]}}
+ *         "summary": {"component": "stack", "props": {}, "children": ["totals", "trend"]},
+ *         "totals": {"component": "kpis", "props": {"data": "q3_sales"}},
+ *         "trend": {"component": "trendChart", "props": {"data": "q3_sales", "y": "revenue"}}
  *     }
  * }
  * ```
@@ -74,7 +77,7 @@ export interface ChatUiLimits {
 
     /**
      * Most items in any array prop of one element, such as the rows of an inline grid, whatever
-     * its schema allows. Default 200. Large data belongs in an artifact - see
+     * its schema allows. Default 500. Large data belongs in an artifact - see
      * {@link ChatUiComponentSpec.dataProps}.
      */
     maxInlineRows?: number;

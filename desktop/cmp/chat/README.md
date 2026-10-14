@@ -214,8 +214,8 @@ chatPanel({
 
 `messageActions` adds buttons to each message's action bar, after Copy, Edit, Regenerate and
 Undo. Undo shows on a reply whose changes the user can undo - see `ChatModel.canUndoTurn()`. The
-function receives the message and its render context, and returns elements. Keep the feedback state in
-your own model, so it survives a re-render and can go to your server.
+function receives the message and its render context, and returns elements. Keep the feedback
+state in your own model, so it survives a re-render and can go to your server.
 
 ```typescript
 export class AssistantModel extends HoistModel {

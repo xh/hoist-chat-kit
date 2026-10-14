@@ -125,12 +125,12 @@ describe('applyDataView', () => {
     });
 
     describe('units', () => {
-        it('scales the numeric columns of a table, but not percents or plain numbers', () => {
+        it('scales the number columns of a table, but not percents, plain numbers or integers', () => {
             const result = applyDataView(FRAME, {units: 'millions', top: 1});
 
             expect(result.rows[0]).toMatchObject({
                 sales: 3,
-                units: 0.00003,
+                units: 30,
                 margin: 0.2,
                 year: 2023
             });
@@ -138,10 +138,7 @@ describe('applyDataView', () => {
                 type: 'number',
                 units: 'millions'
             });
-            expect(result.columns.find(it => it.name === 'units')).toMatchObject({
-                type: 'number',
-                units: 'millions'
-            });
+            expect(result.columns.find(it => it.name === 'units').units).toBeUndefined();
             expect(result.columns.find(it => it.name === 'year').units).toBeUndefined();
         });
 

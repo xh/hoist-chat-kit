@@ -35,6 +35,36 @@ describe('ChatArtifactRegistry', () => {
         });
     });
 
+    describe('add again', () => {
+        it("reads a replaced artifact's inline rows afresh", () => {
+            const registry = createRegistry({artifacts: [{...artifact('a', 1), rows: rows(1)}]});
+            expect(registry.getHandle('a').frame.rows).toHaveLength(1);
+
+            registry.add({...artifact('a', 3), rows: rows(3)});
+
+            expect(registry.getHandle('a').frame.rows).toHaveLength(3);
+        });
+
+        it("never takes a name inherited by every object as an artifact's id", () => {
+            expect(createRegistry().get('constructor')).toBeNull();
+            expect(createRegistry().getHandle('toString').state).toBe('missing');
+        });
+    });
+
+    describe('isComplete', () => {
+        it('is true only when the first page holds every row, for views over the whole result', () => {
+            const registry = createRegistry({
+                artifacts: [
+                    {...artifact('small', 3), rows: rows(3)},
+                    {...artifact('big', 300), rows: rows(300)}
+                ]
+            });
+            expect(registry.getHandle('small').isComplete).toBe(true);
+            expect(registry.getHandle('big').isComplete).toBe(false);
+            expect(registry.getHandle('big', {pageSize: 300}).isComplete).toBe(true);
+        });
+    });
+
     describe('loadRangeAsync', () => {
         it('serves inline rows with no load, with a synthetic id per row', async () => {
             const loadAsync = vi.fn(),

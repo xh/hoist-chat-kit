@@ -213,8 +213,12 @@ export function findDataViewProblems(
  * Apply a view to a frame: filter, then sort, then keep the top rows, then scale numbers to the
  * unit, then select the columns. A pure function - the frame is left as it was.
  *
- * Numbers scale in the columns a view plots - the `y` columns of a chart, or every numeric column
+ * Numbers scale in the columns a view plots - the `y` columns of a chart, or the `number` columns
  * of a table but those formatted as `percent` or `none`. A scaled column notes its `units`.
+ *
+ * A view sees only the rows of the frame it is given. Apply it to a complete frame - one whose
+ * rows are all of the artifact's, as {@link ChatDataHandle.isComplete} reports - or the filter,
+ * the sort and `top` work on a part of the data, and `totalRows` counts only that part.
  *
  * @returns a new frame. Its `totalRows` counts the rows that pass the filter, before `top`.
  * @throws if the view does not fit the frame - see {@link findDataViewProblems}.
@@ -305,7 +309,8 @@ function isNumericType(type: ChatDataColumnType): boolean {
 
 function isScaled(column: ChatDataColumn, view: ChatDataView): boolean {
     if (isChartView(view)) return view.y.includes(column.name);
-    return isNumericType(column.type) && !UNSCALED_FORMATS.includes(column.format);
+    // Integer columns hold years, counts and ids more often than amounts, so they keep their values.
+    return column.type === 'number' && !UNSCALED_FORMATS.includes(column.format);
 }
 
 /** A value converted to its column's type, for comparison - or null if empty. */

@@ -228,6 +228,17 @@ describe('ChatModel catalog', () => {
             expect(model.lastMessage.metadata.catalogVersion).toBe(catalog.version);
         });
 
+        it('completes a reply whose tag names a member every object inherits', async () => {
+            const {model} = createModel({
+                catalog: createCatalog({modes: ['tags']}),
+                responses: [textEvents('Odd: <ui-constructor/>.')]
+            });
+
+            await model.sendAsync('Hi');
+
+            expect(model.lastMessage.status).toBe('complete');
+        });
+
         it('records no version on a reply that shows no catalog UI', async () => {
             const {model} = createModel({
                 catalog: createCatalog(),

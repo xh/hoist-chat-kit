@@ -92,8 +92,8 @@ export class PositionsPanelModel extends HoistModel {
 }
 ```
 
-Pass `group.suggestions` to a `chatPanel` or a `chatEmptyState` as its `suggestions`. Render the chat
-with the desktop chat components - see [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md).
+Pass `group.suggestions` to a `chatPanel` or a `chatEmptyState` as its `suggestions`. Render the
+chat with the desktop chat components - see [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md).
 
 ## Common Usage Patterns
 

@@ -2,6 +2,7 @@ import type {PlainObject} from '@xh/hoist/core';
 import {castArray, isEmpty} from 'lodash';
 import type {ChatUiComponentSpec} from '../ChatUiComponentSpec';
 import type {ChatUiTextSegment} from '../ChatUiTextSegment';
+import {getOwn} from '../../impl/objects';
 import {formatError} from './validateSchema';
 
 /** What {@link parseTags} needs from its catalog. */
@@ -35,7 +36,7 @@ export function parseTags(text: string, ctx: ParseTagsContext): ChatUiTextSegmen
         return text ? [{type: 'markdown', text}] : [];
     }
 
-    const codeRanges = findCodeRanges(text ?? ''),
+    const codeRanges = findCodeRanges(text ?? '', isStreaming),
         segments: ChatUiTextSegment[] = [];
 
     let pos = 0,
@@ -190,10 +191,8 @@ function parseTag(
     source: string,
     ctx: ParseTagsContext
 ): ChatUiTextSegment {
-    const spec = ctx.getComponent(name);
-    if (!spec) return fallback(name, null, [`unknown component '${name}'`], source, ctx);
-
-    const attributes = readAttributes(openTag, ctx.prefix.length + name.length + 1);
+    const spec = ctx.getComponent(name),
+        attributes = readAttributes(openTag, ctx.prefix.length + name.length + 1);
     if (!attributes) {
         return fallback(
             name,
@@ -206,14 +205,21 @@ function parseTag(
 
     const props: PlainObject = {},
         errors: string[] = [],
-        properties = spec.props.properties ?? {};
+        properties = spec?.props.properties ?? {};
     attributes.forEach(({name: attr, value}) => {
+        // Assigned, this name would set the prototype of the props, and hide them from the checks.
+        if (attr === '__proto__') {
+            errors.push(formatError(attr, 'not a valid prop name'));
+            return;
+        }
         try {
-            props[attr] = toPropValue(value, properties[attr]);
+            props[attr] = toPropValue(value, getOwn(properties, attr));
         } catch (e) {
             errors.push(formatError(attr, `invalid JSON - ${(e as Error).message}`));
         }
     });
+    // An unknown component keeps its props, for a migration of the catalog to rename it.
+    if (!spec) return fallback(name, props, [`unknown component '${name}'`], source, ctx);
     errors.push(...ctx.validate(name, props));
 
     return isEmpty(errors)
@@ -298,6 +304,7 @@ function fallback(
     return {
         type: 'fallback',
         component: ctx.getComponent(name) ? name : null,
+        name,
         props,
         errors,
         source
@@ -307,9 +314,10 @@ function fallback(
 /**
  * Ranges of the text inside fenced code blocks and inline code spans, as `[start, end)`. An
  * unclosed fence runs to the end of the text. A backtick run with no closing run of the same
- * length is plain text.
+ * length is plain text - unless the text still streams and the run is in its last paragraph,
+ * where the closing run may yet arrive. Indented code blocks are not detected.
  */
-function findCodeRanges(text: string): [number, number][] {
+function findCodeRanges(text: string, isStreaming: boolean): [number, number][] {
     const fenced: [number, number][] = [];
     let offset = 0,
         fence: {char: string; length: number; start: number} = null;
@@ -340,7 +348,14 @@ function findCodeRanges(text: string): [number, number][] {
     for (let idx = 0; idx < runs.length; idx++) {
         const open = runs[idx],
             closeIdx = runs.findIndex((it, i) => i > idx && it[0].length === open[0].length);
-        if (closeIdx < 0) continue;
+        if (closeIdx < 0) {
+            // A code span never crosses a blank line, so only the last paragraph can still close.
+            if (isStreaming && !text.includes('\n\n', open.index)) {
+                ret.push([open.index, text.length]);
+                break;
+            }
+            continue;
+        }
         const close = runs[closeIdx];
         ret.push([open.index, close.index + close[0].length]);
         idx = closeIdx;

@@ -1,5 +1,5 @@
-import {find} from 'lodash';
 import type {ChatSourcePart} from '../../../core';
+import {findCitedSource} from '../../../impl/sources';
 
 /**
  * Tag of the element that a citation marker becomes in the parsed markdown. Its `data-markers`
@@ -7,50 +7,6 @@ import type {ChatSourcePart} from '../../../core';
  * @internal
  */
 export const CITATION_TAG = 'xh-chat-citation';
-
-/**
- * The source that `[number]` cites: the source with that `marker`, or - when no source has a
- * marker - the source at that position, counting from 1. Null if none.
- * @internal
- */
-export function findCitedSource(sources: ChatSourcePart[], number: number): ChatSourcePart {
-    if (!sources?.length) return null;
-    return hasMarkers(sources)
-        ? (find(sources, {marker: number}) ?? null)
-        : (sources[number - 1] ?? null);
-}
-
-/**
- * The number that cites a source in the text - its `marker`, or its position, counting from 1,
- * when no source has a marker. Null for a source without a marker among sources that have them.
- * @internal
- */
-export function getCitationNumber(sources: ChatSourcePart[], source: ChatSourcePart): number {
-    if (hasMarkers(sources)) return source.marker ?? null;
-    const idx = sources.indexOf(source);
-    return idx >= 0 ? idx + 1 : null;
-}
-
-/**
- * The excerpt of a source to show with a citation: its `metadata.excerpt`, else its `snippet`.
- * @internal
- */
-export function getExcerpt(source: ChatSourcePart): string {
-    return source.metadata?.excerpt ?? source.snippet ?? null;
-}
-
-/**
- * Open a source's `url` in a new tab - the default action for a click on a citation or source.
- * @internal
- */
-export function openSourceUrl({url}: ChatSourcePart) {
-    if (url) window.open(url, '_blank', 'noopener,noreferrer');
-}
-
-/** True if any of the sources has a `marker`. @internal */
-export function hasMarkers(sources: ChatSourcePart[]): boolean {
-    return !!sources?.some(it => it.marker != null);
-}
 
 /** Options for {@link remarkCitations}. @internal */
 export interface RemarkCitationsOptions {

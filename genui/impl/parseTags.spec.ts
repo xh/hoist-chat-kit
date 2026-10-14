@@ -192,6 +192,47 @@ describe('parseTags', () => {
         });
     });
 
+    describe('untrusted names', () => {
+        it('treats a name inherited by every object as unknown, never as a component', () => {
+            for (const name of ['constructor', 'toString', '__proto__']) {
+                const [segment] = catalog.parseTags(`<ui-${name}/>`);
+                expect(segment).toMatchObject({
+                    type: 'fallback',
+                    component: null,
+                    errors: [`unknown component '${name}'`]
+                });
+            }
+            expect(catalog.validate('constructor', {})).toEqual([
+                "Unknown component 'constructor'."
+            ]);
+        });
+
+        it('refuses a __proto__ attribute, which would hide the props from the checks', () => {
+            const [segment] = catalog.parseTags(`<ui-note __proto__='{"text":"x"}'/>`);
+            expect(segment).toMatchObject({
+                type: 'fallback',
+                errors: expect.arrayContaining(['__proto__: not a valid prop name'])
+            });
+        });
+
+        it('keeps the name and props of a tag for an unknown component, for migrations', () => {
+            const [segment] = catalog.parseTags(`<ui-table data="sales" top='5'/>`);
+            expect(segment).toMatchObject({
+                type: 'fallback',
+                component: null,
+                name: 'table',
+                props: {data: 'sales', top: 5}
+            });
+        });
+
+        it('returns the same segment for the same tag, so its props keep their identity', () => {
+            const text = 'See <ui-note text="a"/>',
+                [, first] = catalog.parseTags(text),
+                [, second] = catalog.parseTags(`${text} and more.`);
+            expect(second).toBe(first);
+        });
+    });
+
     describe('markdown that is not a tag', () => {
         it.each([
             ['a tag in a fenced block', '```\n<ui-note text="a"/>\n```'],
@@ -227,6 +268,21 @@ describe('parseTags', () => {
             expect(catalog.parseTags(text, {isStreaming: true})).toEqual([
                 {type: 'markdown', text: 'Here:\n'},
                 {type: 'placeholder', component: 'grid', source: '<ui-grid data="sal'}
+            ]);
+        });
+
+        it('treats an inline code span still open at the end as code', () => {
+            const text = 'Write `<ui-note text="a"/>',
+                later = `${text} later.\n\n<ui-note text="b"/>`;
+            expect(catalog.parseTags(text, {isStreaming: true})).toEqual([
+                {type: 'markdown', text}
+            ]);
+            // A code span never crosses a blank line, so the backtick turns out to be plain text.
+            expect(catalog.parseTags(later, {isStreaming: true}).map(it => it.type)).toEqual([
+                'markdown',
+                'component',
+                'markdown',
+                'component'
             ]);
         });
 

@@ -3,11 +3,7 @@ import type {Key, MouseEvent, ReactElement, ReactNode} from 'react';
 import {a, div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {tooltip} from '@xh/hoist/kit/blueprint';
-import {
-    getCitationNumber,
-    getExcerpt,
-    hasMarkers
-} from '../../../../cmp/markdown/impl/CitationMarkers';
+import {getCitationNumber, getExcerpt, hasMarkers} from '../../../../impl/sources';
 import type {ChatCitation, ChatPart, ChatSourcePart} from '../../../../core';
 import {htmlButton} from '../../../../impl/HtmlTags';
 import '../../../../styles/vars.scss';
@@ -43,7 +39,9 @@ export interface ChatReference {
  *
  * Numbers stay stable while the message streams. Text only grows, so a citation keeps the number
  * it first took, and no two references share one. Sources that arrive after the text match the
- * numbers their citations already hold.
+ * numbers their citations already hold. One case can renumber: with `citationMarkers` on and no
+ * source `marker`, sources take their positions first, so a citation numbered before its source
+ * arrives may move to the source's number.
  * @internal
  */
 export function collectReferences(parts: ChatPart[], citationMarkers = false): ChatReference[] {

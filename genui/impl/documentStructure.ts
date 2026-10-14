@@ -1,5 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {isArray, isPlainObject, isString, pick, uniq} from 'lodash';
+import {isArray, isPlainObject, isString, last, pick, uniq} from 'lodash';
 import type {ChatUiDocument, ChatUiElement} from '../ChatUiDocument';
 import type {ChatUiComponentSpec} from '../ChatUiComponentSpec';
 import {formatError, propPath, typeOf} from './validateSchema';
@@ -15,6 +15,9 @@ export interface StructureOptions {
 export interface ChildRef {
     id: string;
     path: string;
+
+    /** True for the last id of its list. */
+    isLast: boolean;
 }
 
 /**
@@ -57,10 +60,14 @@ export function findStructureProblems(doc: unknown, opts: StructureOptions): str
     }
 
     // Each element belongs to at most one parent, and the root to none. A child listed twice
-    // would render twice, and a chain of such diamonds grows the render exponentially.
-    const parentOf: Record<string, string> = {};
+    // would render twice, and a chain of such diamonds grows the render exponentially. While the
+    // document streams, the last id of each list of the last element may be cut short, such as
+    // `n1` on its way to `n12`, so it is checked once complete.
+    const parentOf: Record<string, string> = {},
+        streamingId = isPartial ? last(ids) : null;
     ids.forEach(id =>
         getChildRefs(elements[id], elementPath(id)).forEach(ref => {
+            if (id === streamingId && ref.isLast) return;
             if (ref.id === root) {
                 ret.push(formatError(ref.path, `'${ref.id}' is the root of the document`));
             } else if (Object.hasOwn(parentOf, ref.id)) {
@@ -122,7 +129,9 @@ export function getChildRefs(element: unknown, path: string): ChildRef[] {
         refs = (list: unknown, listPath: string): ChildRef[] =>
             isArray(list)
                 ? list.flatMap((id, idx) =>
-                      isString(id) ? [{id, path: `${listPath}[${idx}]`}] : []
+                      isString(id)
+                          ? [{id, path: `${listPath}[${idx}]`, isLast: idx === list.length - 1}]
+                          : []
                   )
                 : [];
 

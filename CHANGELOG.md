@@ -74,8 +74,11 @@
   from `xh.chat.artifact` events, tool results, `chatToolResult({artifacts})` and loaded history.
 * Added `ChatUiCatalogConfig.modes`, the delivery modes a catalog uses. They set the tools a
   client-mode chat sends, and the default modes of `toPrompt()` and `toToolSchemas()`.
-* Added message context to the codecs. The context of a `send` action goes to the model as an
-  AG-UI context entry, or as a `<message-context>` block after the message text.
+* Added message context to the codecs. The context of a `send` action - a few short values such as
+  record ids - shows under the sent message, and goes to the model as an AG-UI context entry, or as
+  a `<message-context>` block after the message text.
+* Added `ChatDataHandle.isComplete`, which says when a handle's first page holds every row, so a
+  view can sort and rank the whole result.
 * Added `url`, `headers` and `params` as functions of the request, sync or async, on the HTTP
   transports, for example to send a fresh token with each step.
 * Added `idleTimeout` to the HTTP transports. A stream that sends nothing for longer fails with

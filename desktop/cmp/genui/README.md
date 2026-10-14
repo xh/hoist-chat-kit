@@ -188,9 +188,10 @@ shows the full value. The model sends the full number.
 A card shows one record. Each action is a typed `ChatUiAction` with a `label`, shown as a button
 that runs it through the catalog's `runActionAsync()`. By default the card takes `send` actions
 only. A `send` action sends its `text` as the user's own message, with any structured `context` on
-the message's `metadata.context`. The button's tooltip describes the action before the click, and
-the sent text shows in the chat after it. Sent text is at most 200 characters. Buttons that send a
-message or run a tool are disabled while the chat is busy.
+the message's `metadata.context`. The context is a flat object of at most 8 short values, such as
+record ids. The button's tooltip describes the action and its context before the click, and the
+chat shows both after it. Sent text is at most 200 characters. Buttons that send a message or run
+a tool are disabled while the chat is busy, or while a send blocker gives a reason to wait.
 
 ```json
 {

@@ -190,6 +190,28 @@ describe('generative UI components', () => {
             expect(sendButton.disabled).toBe(true);
             expect(openButton.disabled).toBe(false);
         });
+
+        it('disables actions that message the chat while sends are blocked, and says why', () => {
+            const chatModel = createChatModel(),
+                runActionAsync = vi.fn();
+            chatModel.addSendBlocker(() => 'Choose a document first.');
+            render(
+                chatUiCard({
+                    title: 'Acme Corp',
+                    fields: [],
+                    actions: [send, open],
+                    chatModel,
+                    runActionAsync
+                })
+            );
+
+            const sendButton = screen.getByRole('button', {
+                    name: 'Show trades'
+                }) as HTMLButtonElement,
+                openButton = screen.getByRole('button', {name: 'Open report'}) as HTMLButtonElement;
+            expect(sendButton.disabled).toBe(true);
+            expect(openButton.disabled).toBe(false);
+        });
     });
 });
 

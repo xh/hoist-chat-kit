@@ -1,11 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import type {ChatSourcePart} from '../../../core';
-import {
-    findCitedSource,
-    getCitationNumber,
-    type MdastNode,
-    remarkCitations
-} from './CitationMarkers';
+import {findCitedSource, getCitationNumber} from '../../../impl/sources';
+import {type MdastNode, remarkCitations} from './CitationMarkers';
 
 /**
  * Citation markers such as `[1]` in model text become buttons for the sources they cite. Apps rely
