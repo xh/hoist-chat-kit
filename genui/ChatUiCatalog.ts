@@ -7,7 +7,7 @@ import type {ReactNode} from 'react';
 import type {ChatDataRenderer, ChatToolSpec} from '../core';
 import type {ChatUiAdapter} from './ChatUiAdapter';
 import type {ChatUiComponentSpec, ChatUiNode, ChatUiRenderContext} from './ChatUiComponentSpec';
-import {validateSchema} from './impl/validateSchema';
+import {findSchemaProblems, validateSchema} from './impl/validateSchema';
 
 /** Configuration for a {@link ChatUiCatalog}. */
 export interface ChatUiCatalogConfig {
@@ -68,8 +68,9 @@ export class ChatUiCatalog {
 
     /**
      * Text for the system prompt that explains the catalog to the model: when to show UI, the
-     * rules to follow, and each component with its description and example. Ends with the
-     * `instructions` given in the config, if any.
+     * rules to follow, and each component's tool with its example props. Ends with the
+     * `instructions` given in the config, if any. Each component's description goes to the model
+     * once, in its tool.
      */
     readonly instructions: string;
 
@@ -87,22 +88,32 @@ export class ChatUiCatalog {
                 uniq(components.map(getToolName)).length !== components.length,
             'ChatUiCatalog component names and tool names must be unique.'
         );
+        components.forEach(it => {
+            const problems = findSchemaProblems(it.props);
+            throwIf(
+                !isEmpty(problems),
+                `ChatUiCatalog component '${it.name}' has a props schema the catalog cannot ` +
+                    `check: ${problems.join('; ')}. The catalog checks a subset of JSON Schema, ` +
+                    'and a keyword it skips would let invalid props through. Rewrite the schema ' +
+                    'with the supported keywords, and move other rules to `validate`.'
+            );
+        });
 
         this.components = components;
+        this.componentsByName = keyBy(components, 'name');
         this.tools = components.map(it => this.createTool(it));
         this.instructions = createInstructions(components, instructions);
     }
 
     /** The spec for a component, by name, or null. */
     getComponent(name: string): ChatUiComponentSpec {
-        return this.components.find(it => it.name === name) ?? null;
+        return this.componentsByName[name] ?? null;
     }
 
     /**
-     * Check props for a component against its `props` schema, then its `validate` function. The
-     * schema check covers a subset of JSON Schema: `type`, `required`, `properties`,
-     * `additionalProperties`, `enum`, `const`, `items`, `minItems`, `maxItems`, `minLength`,
-     * `maxLength`, `minimum`, `maximum`, `pattern`, `anyOf` and `oneOf`. Other keywords are ignored.
+     * Check props for a component against its `props` schema and, if they pass, its `validate`
+     * function. The schema check covers a subset of JSON Schema, listed in the genui README. The
+     * constructor refuses a schema that uses a keyword outside it which affects validity.
      *
      * @param name - name of the component.
      * @param props - the props to check.
@@ -174,6 +185,8 @@ export class ChatUiCatalog {
     //------------------
     // Implementation
     //------------------
+    private readonly componentsByName: Record<string, ChatUiComponentSpec>;
+
     private renderNodes(
         nodes: ChatUiNode[],
         context: Omit<ChatUiRenderContext, 'children'>
@@ -182,7 +195,7 @@ export class ChatUiCatalog {
     }
 
     private createTool(component: ChatUiComponentSpec): ChatToolSpec {
-        const {name, description, props} = component;
+        const {name, description, props, result} = component;
         return {
             name: getToolName(component),
             displayName: genDisplayName(name),
@@ -197,7 +210,7 @@ export class ChatUiCatalog {
                         `Invalid props - nothing was shown. Fix and retry:\n${problems}`
                     );
                 }
-                return `Rendered ${name} for the user.`;
+                return result ? result(input) : `Rendered ${name} for the user.`;
             },
             renderer: (part, context) => {
                 const input = part.input ?? {},
@@ -256,7 +269,8 @@ function createInstructions(components: ChatUiComponentSpec[], appInstructions: 
             '- Show one component per call. To show several, make several calls.',
             '- Write the props in the order the schema lists them - for example the columns ' +
                 'before the rows - so that the component can render as you write.',
-            '- Keep the data within the limits of the schema, such as the most rows or items. ' +
+            '- Keep the data within the limits of the schema, such as the maximum number of ' +
+                'rows or items. ' +
                 'Pick the most relevant data, or summarize it, rather than exceed a limit.',
             '- Prefer a component for tabular and numeric results, such as a list of records, ' +
                 'a set of figures, or a series over time.',
@@ -264,12 +278,12 @@ function createInstructions(components: ChatUiComponentSpec[], appInstructions: 
                 'a component shows.',
             '- If a call fails, correct the props named in the error and call the tool again.',
             '',
+            // Each tool's description says when to use it, so the list adds only examples.
             'Components:'
         ].join('\n'),
         ...components.map(it =>
             compact([
                 `### ${getToolName(it)}`,
-                it.description.trim(),
                 it.example ? `Example props: ${JSON.stringify(it.example)}` : null
             ]).join('\n')
         ),

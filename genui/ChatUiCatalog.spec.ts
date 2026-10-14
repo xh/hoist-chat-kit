@@ -57,12 +57,81 @@ describe('ChatUiCatalog', () => {
         });
     });
 
+    describe('schema check', () => {
+        it.each([
+            ['$ref', {$ref: '#/$defs/row'}],
+            ['$defs', {$defs: {row: {type: 'string'}}}],
+            ['allOf', {allOf: [{type: 'string'}]}],
+            ['not', {not: {type: 'string'}}],
+            ['if', {if: {type: 'string'}, then: {minLength: 1}}],
+            ['exclusiveMinimum', {type: 'number', exclusiveMinimum: 0}],
+            ['uniqueItems', {type: 'array', uniqueItems: true}],
+            ['multipleOf', {type: 'number', multipleOf: 5}],
+            ['prefixItems', {type: 'array', prefixItems: [{type: 'string'}]}],
+            ['array-form items', {type: 'array', items: [{type: 'string'}]}],
+            ['patternProperties', {type: 'object', patternProperties: {'^x': {}}}],
+            ['dependentRequired', {type: 'object', dependentRequired: {a: ['b']}}]
+        ])('refuses a schema that uses %s, which it cannot check', (keyword, schema) => {
+            expect(() => catalogWithProp(schema)).toThrow(`${keyword} at properties.value`);
+        });
+
+        it('finds unsupported keywords in nested subschemas, and names each path', () => {
+            const props = {
+                type: 'object',
+                properties: {
+                    rows: {type: 'array', items: {type: 'object', minProperties: 1}},
+                    mode: {anyOf: [{type: 'string'}, {type: 'number', exclusiveMaximum: 9}]}
+                }
+            };
+            expect(() => new ChatUiCatalog({components: [{...NOTE, props}]})).toThrow(
+                'minProperties at properties.rows.items; ' +
+                    'exclusiveMaximum at properties.mode.anyOf[1]'
+            );
+        });
+
+        it('allows annotations such as title, description, default and format', () => {
+            expect(() =>
+                catalogWithProp({
+                    type: 'string',
+                    title: 'Value',
+                    description: 'A value.',
+                    default: 'x',
+                    format: 'date',
+                    examples: ['y']
+                })
+            ).not.toThrow();
+        });
+
+        it('refuses a pattern that does not compile as a Unicode regular expression', () => {
+            expect(() => catalogWithProp({type: 'string', pattern: '^\\_+$'})).toThrow(
+                "is not a valid regular expression with the 'u' flag"
+            );
+        });
+
+        it('rejects inherited keys as unknown under additionalProperties false', () => {
+            const props = {...NOTE.props, additionalProperties: false},
+                catalog = new ChatUiCatalog({components: [{...NOTE, props}]});
+            ['toString', 'constructor', '__proto__'].forEach(key =>
+                expect(catalog.validate('note', JSON.parse(`{"text": "x", "${key}": 1}`))).toEqual([
+                    `${key}: unknown property`
+                ])
+            );
+        });
+    });
+
     describe('execute', () => {
         it('confirms valid props to the model', async () => {
             const tool = createCatalog().tools[0];
             expect(await execute(tool, {items: [{label: 'Revenue', value: 12}]})).toBe(
                 'Rendered metrics for the user.'
             );
+        });
+
+        it('tells the model what it showed, with the component result function', async () => {
+            const tool = new ChatUiCatalog({
+                components: [{...NOTE, result: ({text}) => `Showed a note: ${text}`}]
+            }).tools[0];
+            expect(await execute(tool, {text: 'Hi'})).toBe('Showed a note: Hi');
         });
 
         it('throws an error that lists each problem, so the model can correct itself', async () => {
@@ -105,7 +174,7 @@ describe('ChatUiCatalog', () => {
     });
 
     describe('instructions', () => {
-        it('describes when to show UI, the rules, and each component with its example', () => {
+        it('describes when to show UI, the rules, and each component tool with its example', () => {
             const {instructions} = createCatalog({
                 instructions: 'Use metrics for portfolio summaries.'
             });
@@ -115,12 +184,17 @@ describe('ChatUiCatalog', () => {
             expect(instructions).toContain('within the limits of the schema');
             expect(instructions).toContain('Prefer a component for tabular and numeric results');
             expect(instructions).toContain('Use text for explanation');
-            expect(instructions).toContain('### show_metrics\nA row of KPI tiles.');
             expect(instructions).toContain(
-                'Example props: {"items":[{"label":"Revenue","value":1250000}]}'
+                '### show_metrics\nExample props: {"items":[{"label":"Revenue","value":1250000}]}'
             );
-            expect(instructions).toContain('### add_note\nA short note.');
+            expect(instructions).toContain('### add_note');
             expect(instructions.endsWith('Use metrics for portfolio summaries.')).toBe(true);
+        });
+
+        it('sends each component description once, in its tool', () => {
+            const catalog = createCatalog();
+            expect(catalog.instructions).not.toContain('A row of KPI tiles.');
+            expect(catalog.tools[0].description).toContain('A row of KPI tiles.');
         });
     });
 
@@ -381,6 +455,13 @@ const NOTE: ChatUiComponentSpec<{text: string}> = {
     props: {type: 'object', required: ['text'], properties: {text: {type: 'string'}}},
     render: ({text}) => `(${text})`
 };
+
+/** A catalog with one component whose `value` prop has the given schema. */
+function catalogWithProp(schema: PlainObject): ChatUiCatalog {
+    return new ChatUiCatalog({
+        components: [{...NOTE, props: {type: 'object', properties: {value: schema}}}]
+    });
+}
 
 function createCatalog(
     config: {components?: ChatUiComponentSpec<any>[]; instructions?: string} = {}

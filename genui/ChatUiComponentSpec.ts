@@ -47,7 +47,8 @@ export interface ChatUiComponentSpec<P = PlainObject> {
     /**
      * JSON Schema for the props - sent to the model as the tool's input schema, and checked before
      * the component renders. Keep it tight: enums, required fields, and bounded arrays and strings.
-     * The catalog checks a subset of JSON Schema - see {@link ChatUiCatalog.validate}.
+     * The catalog checks a subset of JSON Schema, and refuses a schema that relies on other
+     * keywords - see {@link ChatUiCatalog.validate}.
      */
     props: PlainObject;
 
@@ -63,6 +64,13 @@ export interface ChatUiComponentSpec<P = PlainObject> {
      * such as `useLocalModel()` for a `GridModel` or `ChartModel` that the component owns.
      */
     render: (props: P, context: ChatUiRenderContext) => ReactNode;
+
+    /**
+     * The result sent to the model once the component shows, so that it knows what the user sees
+     * - for example `Showed 12 positions, largest first.`. Default a line that names the
+     * component.
+     */
+    result?: (props: P) => string;
 
     /** Example props, shown to the model in the catalog's instructions. Keep it small. */
     example?: P;

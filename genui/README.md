@@ -33,8 +33,11 @@ Key features:
   row and a chart draws as its points arrive.
 - **Errors the model can fix** - invalid props fail the call with a list of problems, each with
   the path of the prop at fault. The model corrects the props and calls again.
-- **Generated instructions** - the catalog writes the system prompt text that explains each
-  component to the model, with an example.
+- **Generated instructions** - the catalog writes the system prompt text that explains when to
+  show UI, with an example for each component. Each component's description reaches the model
+  once, in its tool.
+- **A checked schema** - the catalog refuses a props schema that relies on a JSON Schema keyword
+  it does not check, so no invalid props get through unnoticed.
 - **Protocol adapters** - a `ChatUiAdapter` translates the UI payload of a protocol, such as
   OpenUI or A2UI, into catalog components. The protocol's UI then draws with Hoist components.
 
@@ -54,7 +57,8 @@ ChatUiCatalog
 
 A `ChatUiComponentSpec` declares one component. It has a `name`, a `description` for the
 model, and a JSON Schema for its `props`. It can add a `validate` function, for checks the
-schema cannot express, and an `example`. Its `render` function returns the component.
+schema cannot express, an `example`, and a `result` that tells the model what it showed. Its
+`render` function returns the component.
 
 ### How a call becomes a component
 
@@ -65,8 +69,8 @@ schema cannot express, and an `example`. Its `render` function returns the compo
    streaming props could still pass. If they could still become valid, it calls the spec's
    `render` with `isPartial: true`.
 4. Once the input is complete, the chat runs the tool. Its `execute` checks the props in full,
-   then the spec's `validate`. Valid props return "Rendered grid for the user." to the model.
-   Invalid props throw an error that lists each problem.
+   then the spec's `validate`. Valid props return the spec's `result` to the model, or by
+   default "Rendered grid for the user.". Invalid props throw an error that lists each problem.
 5. The renderer draws the complete props with `isPartial: false`. Invalid props render nothing.
 
 Per-component tools are more reliable than one `render_ui` tool that takes a union of every
@@ -286,6 +290,7 @@ invalid props renders nothing, with a warning in the console. A container compon
 | `props` | `PlainObject` | JSON Schema for the props - the tool's input schema. Required. |
 | `validate` | `(props) => string[]` | Checks the schema cannot express. Runs on complete props only. |
 | `render` | `(props, context) => ReactNode` | Render the component. May use hooks. Required. |
+| `result` | `(props) => string` | The result sent to the model once the component shows. Default "Rendered `<name>` for the user." |
 | `example` | `P` | Example props, shown to the model in the instructions. |
 
 ### ChatUiRenderContext
@@ -302,8 +307,13 @@ Passed to `render`. Extends the chat's `ChatPartRenderContext`, which holds `cha
 ### Supported JSON Schema keywords
 
 The catalog checks props with a built-in subset of JSON Schema, and adds no validator
-dependency. Other keywords, such as `format` or `exclusiveMinimum`, are sent to the model but
-not checked.
+dependency. Its constructor walks each props schema and throws on any keyword that affects
+validity but that it does not check, such as `$ref`, `$defs`, `allOf`, `not`, `if`,
+`exclusiveMinimum`, `uniqueItems`, `multipleOf`, `minProperties`, `prefixItems`, array-form
+`items` or `patternProperties`. The error names each keyword and where it sits. Annotations,
+such as `title`, `description`, `default` and `format`, are sent to the model and not checked.
+The constructor also compiles each `pattern` with the `u` flag, and throws on one that does not
+compile. Pair a `pattern` with a `maxLength`, as a long string makes a costly match.
 
 | Keyword | Checked | While partial |
 |---------|---------|---------------|
@@ -366,10 +376,11 @@ later step resends it. Bound every array and every free-text string.
 Each component a reply shows takes one of the chat's `maxSteps`. A reply that shows four
 components and calls two app tools needs at least seven steps. Raise `maxSteps` to suit.
 
-### Expecting other schema keywords to be enforced
+### Using schema keywords the catalog does not check
 
-Keywords outside the supported subset reach the model but are not checked. Use `validate` for
-any rule the subset cannot express.
+The catalog throws on a schema keyword it cannot check, rather than let invalid props through.
+Schema generators emit `$ref` and `$defs` for shared types. Inline those types, and move any
+rule the subset cannot express, such as unique items, to `validate`.
 
 ## Related Packages
 

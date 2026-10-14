@@ -28,7 +28,8 @@ export interface ValidateSchemaOptions {
  * Check a value against a JSON Schema, for the subset of keywords the kit supports: `type`
  * (including a list of types), `required`, `properties`, `additionalProperties` (false or a
  * schema), `enum`, `const`, `items`, `minItems`, `maxItems`, `minLength`, `maxLength`, `minimum`,
- * `maximum`, `pattern`, `anyOf` and `oneOf`. Other keywords are ignored.
+ * `maximum`, `pattern`, `anyOf` and `oneOf`. Other keywords are ignored - check a schema with
+ * {@link findSchemaProblems} first, to refuse one that relies on them.
  *
  * @returns readable problems, each prefixed with the path of the value at fault - for example
  *      `rows[3].value: expected number, got string`. Empty if the value is valid.
@@ -44,9 +45,83 @@ export function validateSchema(
     return errors;
 }
 
+/**
+ * Find what {@link validateSchema} cannot check in a schema: keywords that affect whether a value
+ * is valid but that the checker does not implement, and patterns that do not compile as Unicode
+ * regular expressions. Walks every subschema. Compiles and caches each pattern as it goes, so that
+ * validation reuses it.
+ *
+ * Keywords that only annotate, such as `title`, `description`, `default` or `format`, are fine.
+ *
+ * @returns readable problems, each naming the keyword and the path of the subschema at fault -
+ *      for example `$ref at properties.rows.items`. Empty if the checker covers the schema.
+ * @internal
+ */
+export function findSchemaProblems(schema: PlainObject, path: string = ''): string[] {
+    if (!isPlainObject(schema)) return [];
+
+    const at = path ? ` at ${path}` : '',
+        child = (key: string) => (path ? `${path}.${key}` : key),
+        ret = UNSUPPORTED_KEYWORDS.filter(it => Object.hasOwn(schema, it)).map(it => `${it}${at}`),
+        {properties, additionalProperties, items, pattern} = schema;
+
+    if (isArray(items)) ret.push(`array-form items${at}`);
+    if (pattern != null && !getPattern(pattern)) {
+        ret.push(`pattern /${pattern}/${at} is not a valid regular expression with the 'u' flag`);
+    }
+
+    if (isPlainObject(properties)) {
+        Object.entries(properties).forEach(([key, it]) =>
+            ret.push(...findSchemaProblems(it, child(`properties.${key}`)))
+        );
+    }
+    ret.push(
+        ...findSchemaProblems(additionalProperties, child('additionalProperties')),
+        ...findSchemaProblems(isArray(items) ? null : items, child('items'))
+    );
+    ['anyOf', 'oneOf'].forEach(key =>
+        castArray(schema[key] ?? []).forEach((it, idx) =>
+            ret.push(...findSchemaProblems(it, child(`${key}[${idx}]`)))
+        )
+    );
+    return ret;
+}
+
 //------------------
 // Implementation
 //------------------
+// Keywords that affect validity, which the checker does not implement. A schema that uses one
+// would pass values it should reject, so the catalog refuses it.
+const UNSUPPORTED_KEYWORDS = [
+    '$ref',
+    '$dynamicRef',
+    '$defs',
+    'definitions',
+    'allOf',
+    'not',
+    'if',
+    'then',
+    'else',
+    'exclusiveMinimum',
+    'exclusiveMaximum',
+    'multipleOf',
+    'uniqueItems',
+    'contains',
+    'minContains',
+    'maxContains',
+    'prefixItems',
+    'additionalItems',
+    'unevaluatedItems',
+    'unevaluatedProperties',
+    'minProperties',
+    'maxProperties',
+    'patternProperties',
+    'propertyNames',
+    'dependentRequired',
+    'dependentSchemas',
+    'dependencies'
+];
+
 type JsonType = 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';
 
 function checkValue(
@@ -126,7 +201,7 @@ function checkObject(
     Object.entries(value).forEach(([key, propValue]) => {
         if (propValue === undefined) return;
         const keyPath = propPath(path, key);
-        if (key in properties) {
+        if (Object.hasOwn(properties, key)) {
             checkValue(propValue, properties[key], keyPath, isPartial, errors);
         } else if (additionalProperties === false) {
             errors.push(formatError(keyPath, 'unknown property'));
@@ -257,7 +332,8 @@ function formatError(path: string, msg: string): string {
 
 const IDENTIFIER_RE = /^[A-Za-z_$][\w$]*$/;
 
-// Compiled schema patterns, so that each compiles once. Null for a pattern that does not compile.
+// Compiled schema patterns, so that each compiles once - when the catalog checks its schemas. Null
+// for a pattern that does not compile.
 const PATTERNS = new Map<string, RegExp>();
 
 function getPattern(pattern: string): RegExp {
