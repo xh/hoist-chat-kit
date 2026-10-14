@@ -97,6 +97,36 @@ describe('AnthropicCodec', () => {
             ).toBe('Configured.');
         });
 
+        it('appends live context as uncached system blocks, after the cache breakpoint', async () => {
+            const codec = new AnthropicCodec({system: 'Be brief.', cacheControl: true}),
+                body = await codec.encodeRequest(
+                    request([user('Hi')], {
+                        context: [
+                            {name: 'grid', description: 'The grid.', value: {groupBy: ['region']}},
+                            {name: 'note', description: null, value: 'Plain text.'}
+                        ]
+                    })
+                );
+
+            expect(body.system).toEqual([
+                {type: 'text', text: 'Be brief.', cache_control: {type: 'ephemeral'}},
+                {
+                    type: 'text',
+                    text: '<context name="grid">\nThe grid.\n{"groupBy":["region"]}\n</context>'
+                },
+                {type: 'text', text: '<context name="note">\nPlain text.\n</context>'}
+            ]);
+        });
+
+        it('sends live context as the system prompt when the app has none', async () => {
+            const body = await new AnthropicCodec().encodeRequest(
+                request([user('Hi')], {context: [{name: 'note', description: null, value: 'X'}]})
+            );
+            expect(body.system).toEqual([
+                {type: 'text', text: '<context name="note">\nX\n</context>'}
+            ]);
+        });
+
         it('marks cache breakpoints on the history, the last system block and the last tool', async () => {
             const codec = new AnthropicCodec({
                     system: 'Be brief.',
@@ -790,6 +820,7 @@ function request(messages: ChatMessage[], changes: Partial<ChatRunRequest> = {})
         replacedMessageId: null,
         runOptions: null,
         tools: [],
+        context: [],
         signal: new AbortController().signal,
         ...changes
     };

@@ -1,6 +1,17 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {logDebug} from '@xh/hoist/utils/js';
-import {compact, flatMap, groupBy, has, isEmpty, isFunction, isNil, last, omitBy} from 'lodash';
+import {
+    compact,
+    flatMap,
+    groupBy,
+    has,
+    isEmpty,
+    isFunction,
+    isNil,
+    last,
+    map,
+    omitBy
+} from 'lodash';
 import {
     type ChatFilePart,
     type ChatMessage,
@@ -13,6 +24,7 @@ import {
 import type {ChatCodec, ChatDecoder} from '../ChatCodec';
 import type {ChatEvent, ChatEventType} from '../ChatEvent';
 import type {ChatRunRequest} from '../ChatTransport';
+import {contextValueText} from '../impl/context';
 import {partsBySteps, toolResultText} from '../impl/history';
 
 /** Configuration for an {@link AgUiCodec}. */
@@ -60,7 +72,9 @@ export interface AgUiContext {
  * `assistant` message with its text as `content` and its finished tool calls as `toolCalls`, and a
  * `tool` message per call with its result - and `error`, for a failed or denied call. Tools are
  * sent as `{name, description, parameters}`, with an empty object schema for a tool that has no
- * `parameters`.
+ * `parameters`. The chat's live context - see `ChatModelConfig.contextProviders` - follows the
+ * codec's own `context` entries, one per provider: its description (or else its name), and its
+ * value as text, or as JSON for an object.
  *
  * In server mode the agent holds the history, so `messages` carries only what it has not seen:
  * the user message on the first step of a turn, or the last step of the reply - its tool calls
@@ -110,7 +124,13 @@ export class AgUiCodec implements ChatCodec {
                 description: description ?? '',
                 parameters: parameters ?? {type: 'object', properties: {}}
             })),
-            context: (isFunction(context) ? context(request) : context) ?? [],
+            context: [
+                ...((isFunction(context) ? context(request) : context) ?? []),
+                ...map(request.context, it => ({
+                    description: it.description ?? it.name,
+                    value: contextValueText(it.value)
+                }))
+            ],
             forwardedProps: this.getForwardedProps(request)
         };
     }

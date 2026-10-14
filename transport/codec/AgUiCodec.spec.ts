@@ -11,6 +11,24 @@ import {AgUiCodec} from './AgUiCodec';
  */
 describe('AgUiCodec', () => {
     describe('encodeRequest', () => {
+        it('sends live context after its own, with descriptions and values as text', () => {
+            const codec = new AgUiCodec({context: [{description: 'App.', value: 'From app.'}]}),
+                body = codec.encodeRequest(
+                    request([user('Hi')], {
+                        context: [
+                            {name: 'grid', description: 'The grid.', value: {sortBy: ['name']}},
+                            {name: 'note', description: null, value: 'Plain text.'}
+                        ]
+                    })
+                );
+
+            expect(body.context).toEqual([
+                {description: 'App.', value: 'From app.'},
+                {description: 'The grid.', value: '{"sortBy":["name"]}'},
+                {description: 'note', value: 'Plain text.'}
+            ]);
+        });
+
         it('encodes a RunAgentInput with the run ids, tools, and empty defaults', () => {
             const body = new AgUiCodec().encodeRequest(
                 request([user('Hi')], {
@@ -286,6 +304,7 @@ function request(messages: ChatMessage[], changes: Partial<ChatRunRequest> = {})
         replacedMessageId: null,
         runOptions: null,
         tools: [],
+        context: [],
         signal: new AbortController().signal,
         ...changes
     };

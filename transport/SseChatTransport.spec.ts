@@ -155,6 +155,7 @@ function request(signal: AbortSignal = new AbortController().signal): ChatRunReq
         replacedMessageId: null,
         runOptions: null,
         tools: [],
+        context: [],
         signal
     };
 }

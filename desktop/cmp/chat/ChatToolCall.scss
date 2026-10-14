@@ -123,6 +123,11 @@
     min-width: 120px;
   }
 
+  &__preview {
+    color: var(--xh-chat-muted-text-color);
+    margin-top: var(--xh-pad-half-px);
+  }
+
   &__body {
     border-top: var(--xh-chat-border);
     display: flex;

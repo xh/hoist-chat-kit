@@ -30,6 +30,8 @@ import {
 import type {ChatCodec, ChatDecoder} from '../ChatCodec';
 import type {ChatEvent, ChatTokenUsage, ToolCallResultEvent} from '../ChatEvent';
 import type {ChatRunRequest} from '../ChatTransport';
+import {contextText} from '../impl/context';
+import {decodeBase64Text, IMAGE_TYPES, isTextType, omittedFileText} from '../impl/files';
 import {partsBySteps, toolResultText} from '../impl/history';
 
 /** A system prompt for the Messages API - plain text, or a list of text blocks. */
@@ -78,7 +80,7 @@ export interface AnthropicCodecConfig {
      * after the last one, unmarked. For a system prompt that ends with live state, return blocks
      * from `system` with the static part first, and mark that block with `cache_control` yourself:
      * the live block after it is then sent fresh each step, and the static part comes from the
-     * cache.
+     * cache. Context from the chat's context providers is placed this way for you.
      */
     cacheControl?: boolean;
 
@@ -95,10 +97,12 @@ export interface AnthropicCodecConfig {
  * leaves it out), then relays the `data` of each SSE event it receives - one JSON object per NDJSON
  * line with {@link HoistChatTransport}, or the SSE stream unchanged with {@link SseChatTransport}.
  *
- * Requests are Messages API bodies with `stream: true`. The history is rebuilt as Anthropic turns:
- * each step of an assistant turn becomes an assistant turn - its thinking (with signatures), text
- * and tool calls - followed by a user turn with the results of its tool calls, flagged `is_error`
- * for failed and denied calls. Attached images, PDFs and text files (including JSON, XML and
+ * Requests are Messages API bodies with `stream: true`. The chat's live context - see
+ * `ChatModelConfig.contextProviders` - goes last in the system prompt, as one text block per
+ * provider, after the app's blocks and any cache breakpoint. The history is rebuilt as Anthropic
+ * turns: each step of an assistant turn becomes an assistant turn - its thinking (with
+ * signatures), text and tool calls - followed by a user turn with the results of its tool calls,
+ * flagged `is_error` for failed and denied calls. Attached images, PDFs and text files (including JSON, XML and
  * similar types) are sent as image and document blocks. Other attachments are named in a text
  * block, so that the model knows they were left out. Tools are sent as
  * `{name, description, input_schema}`. A request whose history holds no user content throws, as
@@ -178,6 +182,13 @@ export class AnthropicCodec implements ChatCodec {
         if (cacheControl) {
             ({system, tools} = addCacheBreakpoints(system, tools, messages));
         }
+        // Context changes from step to step, so it goes after any breakpoint, unmarked.
+        if (!isEmpty(request.context)) {
+            system = [
+                ...(system ? toBlocks(system) : []),
+                ...textBlocks(request.context.map(contextText))
+            ];
+        }
 
         const body = {
             ...params,
@@ -219,19 +230,6 @@ export class AnthropicCodec implements ChatCodec {
 //------------------
 // Encoding
 //------------------
-const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-
-/** Media types, beyond `text/*`, whose content is text the model can read. */
-const TEXT_TYPES = [
-    'application/json',
-    'application/xml',
-    'application/javascript',
-    'application/yaml',
-    'application/x-yaml',
-    'application/sql',
-    'application/csv'
-];
-
 interface Turn {
     role: 'user' | 'assistant';
     content: PlainObject[];
@@ -361,18 +359,7 @@ function encodeFile({name, mediaType, data, url}: ChatFilePart): PlainObject {
             source: {type: 'text', media_type: 'text/plain', data: decodeBase64Text(data)}
         };
     }
-    return {
-        type: 'text',
-        text: `[Attachment '${name}' (${mediaType}) not sent - the model cannot read this file type.]`
-    };
-}
-
-function isTextType(mediaType: string): boolean {
-    return (
-        mediaType.startsWith('text/') ||
-        TEXT_TYPES.includes(mediaType) ||
-        /\+(json|xml)$/.test(mediaType)
-    );
+    return {type: 'text', text: omittedFileText(name, mediaType)};
 }
 
 function encodeAssistantPart(part: ChatPart): PlainObject[] {
@@ -429,10 +416,6 @@ function getCallEncoding(part: ChatToolCallPart): 'server' | 'tool' {
     if (!part.providerExecuted) return 'tool';
     if (part.providerData?.anthropic?.resultBlock) return 'server';
     return part.state === 'output-available' ? 'tool' : null;
-}
-
-function decodeBase64Text(data: string): string {
-    return new TextDecoder().decode(Uint8Array.from(atob(data), c => c.charCodeAt(0)));
 }
 
 //------------------

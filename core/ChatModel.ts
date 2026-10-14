@@ -1,5 +1,6 @@
 import {
     cloneDeep,
+    compact,
     countBy,
     differenceBy,
     findLast,
@@ -9,7 +10,9 @@ import {
     isString,
     keys,
     maxBy,
+    noop,
     omit,
+    pick,
     pickBy
 } from 'lodash';
 import type {ReactNode} from 'react';
@@ -19,6 +22,7 @@ import {action, bindable, bindableRef, computed, observable, observableRef} from
 import {throwIf} from '@xh/hoist/utils/js';
 import type {
     ChatEvent,
+    ChatRunContext,
     ChatRunRef,
     ChatRunRequest,
     ChatRunTrigger,
@@ -26,6 +30,7 @@ import type {
 } from '../transport';
 import {ChatAbortError, type ChatAbortReason} from './ChatAbortError';
 import {ChatComposerModel, type ChatComposerConfig} from './ChatComposerModel';
+import type {ChatContextProvider} from './ChatContextProvider';
 import type {
     ChatFeedback,
     ChatFeedbackConfig,
@@ -36,6 +41,7 @@ import type {
 import {ChatMessage, type ChatMessageSpec} from './ChatMessage';
 import type {ChatDataPart, ChatFilePart, ChatPart, ChatToolCallPart} from './ChatPart';
 import {ChatRunError} from './ChatRunError';
+import {ChatToolResult, type ChatToolUndo} from './ChatToolResult';
 import type {ChatToolSpec} from './ChatToolSpec';
 import {isAbortError, raceAbort} from '../impl/abort';
 import {ChatStreamReducer} from './impl/ChatStreamReducer';
@@ -55,6 +61,13 @@ export interface ChatModelConfig {
 
     /** Tools the model may call, and display config for tools the backend runs. */
     tools?: ChatToolSpec[];
+
+    /**
+     * Live context to send with every step, such as the state of a component that the model's
+     * tools act on. Each provider runs before each step, so the model sees changes made since the
+     * last one, and the results travel as `ChatRunRequest.context`. Default none.
+     */
+    contextProviders?: ChatContextProvider[];
 
     /**
      * Maximum steps - model calls - in one assistant turn. Each round of client tool calls takes
@@ -230,6 +243,10 @@ export interface ChatSendSpec {
  * The turn resumes once every waiting call is answered. Sending a new message instead closes the
  * waiting calls, so that the history stays valid for the model.
  *
+ * A client tool makes its change undoable by returning {@link chatToolResult} with an `undo`
+ * function. The user can then undo the changes of the latest reply that made any - see
+ * {@link undoTurnAsync}.
+ *
  * The chat serves two shapes of conversation - see {@link ChatModelConfig.historyMode}. In client
  * mode the browser owns the history. In server mode an agent service owns it, and the chat sends
  * each turn's new message and records the server's ids. Kit message ids never change: server ids
@@ -249,6 +266,9 @@ export class ChatModel extends HoistModel {
 
     /** Tools the model may call, and display config for tools the backend runs. */
     readonly tools: ChatToolSpec[];
+
+    /** Live context to send with every step. */
+    readonly contextProviders: ChatContextProvider[];
 
     /** Maximum steps - model calls - in one assistant turn. */
     readonly maxSteps: number;
@@ -366,11 +386,24 @@ export class ChatModel extends HoistModel {
         return !!(this.feedback.submitAsync ?? this.feedbackSubmitter);
     }
 
+    /**
+     * Id of the reply whose changes the user can undo now, or null - see {@link undoTurnAsync}.
+     * Only the latest reply that holds undoable changes qualifies, once its turn has ended, and
+     * only while no turn is running or waiting for the user.
+     */
+    @computed
+    get undoableMessageId(): string {
+        if (this.isBusy || this.isAwaitingUser || this.isUndoing) return null;
+        const message = findLast(this.messages, it => !isEmpty(this.undoStacks[it.id]));
+        return message && !message.isStreaming && message.status !== 'paused' ? message.id : null;
+    }
+
     constructor(config: ChatModelConfig) {
         super();
         const {
             transport,
             tools = [],
+            contextProviders = [],
             maxSteps = 10,
             initialMessages = [],
             threadId,
@@ -398,6 +431,7 @@ export class ChatModel extends HoistModel {
 
         this.transport = transport;
         this.tools = tools;
+        this.contextProviders = contextProviders;
         this.maxSteps = maxSteps;
         this.historyMode = historyMode;
         this.feedback = {commentOn: 'negative', requireComment: false, ...feedback};
@@ -615,6 +649,60 @@ export class ChatModel extends HoistModel {
     }
 
     /**
+     * True if the user can undo the changes of a reply now - see {@link undoableMessageId}. Reads
+     * observable state, so a component that calls it re-renders when the answer changes.
+     */
+    canUndoTurn(messageId: string): boolean {
+        return messageId != null && this.undoableMessageId === messageId;
+    }
+
+    /**
+     * Undo the changes that the tool calls of a reply made, newest first, by running the undo
+     * functions they returned through {@link chatToolResult}. The reply is then marked
+     * `metadata.undone`. Does nothing unless {@link canUndoTurn} is true for the reply.
+     *
+     * Undo functions live in memory only, so a reply loaded from history cannot be undone. If one
+     * throws, the undo stops there and a toast reports it. The changes not yet undone stay, so the
+     * user can try again.
+     */
+    async undoTurnAsync(messageId: string): Promise<void> {
+        if (!this.canUndoTurn(messageId)) {
+            this.logWarn('Undo ignored - the reply has no changes to undo now.', messageId);
+            return;
+        }
+
+        const undos = this.undoStacks[messageId];
+        this.setUndoing(true);
+        try {
+            for (const [idx, undo] of undos.entries()) {
+                try {
+                    await undo();
+                } catch (e) {
+                    this.setUndoStack(messageId, undos.slice(idx));
+                    XH.handleException(e, {
+                        message: 'The change could not be undone.',
+                        alertType: 'toast'
+                    });
+                    return;
+                }
+            }
+            this.markUndone(messageId);
+        } finally {
+            this.setUndoing(false);
+        }
+
+        const {metadata} = this.getMessage(messageId) ?? {};
+        this.trackActivity('Turn undone', {
+            changes: undos.length,
+            threadId: this.threadId,
+            messageId,
+            serverId: metadata?.serverId ?? null,
+            runId: metadata?.runId ?? null,
+            historyMode: this.historyMode
+        });
+    }
+
+    /**
      * Rate an assistant message, or clear its rating. The rating shows at once, as
      * `metadata.feedback`, and is then sent through `feedback.submitAsync`, or else the thread
      * layer's submitter. If the submit fails, the rating reverts - unless the user has rated the
@@ -779,6 +867,10 @@ export class ChatModel extends HoistModel {
     @observableRef private accessor sendBlockers: Array<() => string>;
     private threadCreator: ChatThreadCreator = null;
 
+    // Undo functions of each reply's tool calls, newest first, keyed by message id.
+    @observableRef private accessor undoStacks: Record<string, ChatToolUndo[]> = {};
+    @observable private accessor isUndoing: boolean = false;
+
     // True until the first run of a new thread, whose server may report its own id for it.
     private isThreadIdProvisional: boolean;
 
@@ -900,6 +992,22 @@ export class ChatModel extends HoistModel {
         if (this.isCurrent(turn) && threadId != null) this.adoptThreadId(threadId);
     }
 
+    /** Run the context providers for a step, in order, skipping any that return null. */
+    private async getContextAsync(request: ChatRunRequest): Promise<ChatRunContext[]> {
+        const {contextProviders} = this,
+            values = await raceAbort(
+                Promise.all(contextProviders.map(it => it.getContext(request))),
+                request.signal
+            );
+        return compact(
+            contextProviders.map(({name, description}, idx) =>
+                values[idx] != null
+                    ? {name, description: description ?? null, value: values[idx]}
+                    : null
+            )
+        );
+    }
+
     /** Make one step - one model call - streaming its events into the turn's message. */
     private async runStepAsync(turn: ChatTurn) {
         const {step, turnId} = turn,
@@ -916,8 +1024,14 @@ export class ChatModel extends HoistModel {
                 replacedMessageId: turn.replacedMessageId,
                 runOptions: turn.runOptions,
                 tools: this.modelTools,
+                context: [],
                 signal: turn.abortController.signal
             };
+        if (!isEmpty(this.contextProviders)) {
+            request.context = await this.getContextAsync(request);
+            if (!this.isCurrent(turn)) return;
+        }
+
         turn.reducer = new ChatStreamReducer(step, {textTransform: this.textTransform});
         turn.request = request;
 
@@ -984,11 +1098,17 @@ export class ChatModel extends HoistModel {
 
         this.updateToolCall(turn, call.id, {state: 'running'});
         try {
+            const pending = Promise.resolve(execute(call.input ?? {}, context));
+            // Keep the undo even if the turn stops first, as the tool's change may still land.
+            pending.then(result => {
+                if (result instanceof ChatToolResult && result.undo) {
+                    this.addUndo(turn.messageId, result.undo);
+                }
+            }, noop);
+
             // Race the abort, so that stop() ends the turn even if the tool ignores the signal.
-            const output = await raceAbort(
-                Promise.resolve(execute(call.input ?? {}, context)),
-                signal
-            );
+            const result = await raceAbort(pending, signal),
+                output = result instanceof ChatToolResult ? result.output : result;
             if (this.isCurrent(turn)) {
                 this.updateToolCall(turn, call.id, {
                     state: 'output-available',
@@ -1140,6 +1260,7 @@ export class ChatModel extends HoistModel {
         this._threadId = threadId ?? genChatId();
         this.isThreadIdProvisional = threadId == null;
         this.messages = restoreMessages(specs);
+        this.undoStacks = {};
         this.hasOlderMessages = false;
         this.status = 'ready';
         this.lastError = null;
@@ -1165,6 +1286,11 @@ export class ChatModel extends HoistModel {
             });
         this.turn = turn;
         this.messages = [...history, message];
+        // Replies discarded by a retry, regenerate or edit take their undo functions with them.
+        this.undoStacks = pick(
+            this.undoStacks,
+            history.map(it => it.id)
+        );
         this.status = 'submitted';
         this.lastError = null;
         return turn;
@@ -1263,6 +1389,33 @@ export class ChatModel extends HoistModel {
         if (threadId !== this.threadId) {
             this.logDebug('Adopted the server thread id', threadId);
             this._threadId = threadId;
+        }
+    }
+
+    @action
+    private addUndo(messageId: string, undo: ChatToolUndo) {
+        if (!this.getMessage(messageId)) return;
+        this.setUndoStack(messageId, [undo, ...(this.undoStacks[messageId] ?? [])]);
+    }
+
+    @action
+    private setUndoStack(messageId: string, undos: ChatToolUndo[]) {
+        this.undoStacks = {...this.undoStacks, [messageId]: undos};
+    }
+
+    @action
+    private setUndoing(isUndoing: boolean) {
+        this.isUndoing = isUndoing;
+    }
+
+    @action
+    private markUndone(messageId: string) {
+        this.undoStacks = omit(this.undoStacks, messageId);
+        const message = this.getMessage(messageId);
+        if (message) {
+            this.replaceMessage(
+                message.withChanges({metadata: {...message.metadata, undone: true}})
+            );
         }
     }
 

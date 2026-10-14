@@ -110,9 +110,30 @@ export interface ChatRunRequest {
     tools: ChatToolSpec[];
 
     /**
+     * Live context for this step, from the chat's context providers, in their configured order -
+     * see `ChatModelConfig.contextProviders`. Empty if the chat has none.
+     */
+    context: ChatRunContext[];
+
+    /**
      * Aborts the step. Its `reason` is a `ChatAbortError`, which says why the turn stopped.
      */
     signal: AbortSignal;
+}
+
+/**
+ * One piece of live context for a step, from a `ChatContextProvider`. Codecs send each piece to
+ * the model in their own format: an AG-UI `context` entry, or a section of the system prompt.
+ */
+export interface ChatRunContext {
+    /** Name of the provider, such as 'grid'. */
+    name: string;
+
+    /** What the context is, for the model - or null. */
+    description: string;
+
+    /** The context - text, or an object that codecs send as JSON. */
+    value: string | PlainObject;
 }
 
 /** Identifies a run to cancel or resume - see {@link ChatTransport.cancelAsync}. */

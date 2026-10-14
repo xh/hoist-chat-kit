@@ -161,15 +161,25 @@ function approvalBar(
     spec: ChatToolSpec,
     {chatModel}: ChatPartRenderContext
 ): ReactNode {
-    const {approvalPrompt} = spec ?? {},
+    const {approvalPrompt, preview} = spec ?? {},
+        input = part.input ?? {},
         prompt = isFunction(approvalPrompt)
-            ? approvalPrompt(part.input ?? {})
-            : (approvalPrompt ?? 'Allow this action to run?');
+            ? approvalPrompt(input)
+            : (approvalPrompt ?? 'Allow this action to run?'),
+        previewContent = isFunction(preview) ? preview(input) : null;
 
     return div({
         className: 'xh-chat-tool-call__approval',
         items: [
-            div({className: 'xh-chat-tool-call__approval-text', item: prompt}),
+            div({
+                className: 'xh-chat-tool-call__approval-text',
+                items: [
+                    prompt,
+                    previewContent != null
+                        ? div({className: 'xh-chat-tool-call__preview', item: previewContent})
+                        : null
+                ]
+            }),
             button({
                 text: 'Deny',
                 outlined: true,
@@ -198,7 +208,7 @@ interface InlineToolCallArgs extends ChatToolCallProps {
  * hover or focus.
  *
  * A denied call renders no output, as the user refused what it would show. A call waiting for
- * approval renders none either, unless its spec sets `approvalPreview`.
+ * approval renders none either, unless its spec sets `preview: true`.
  */
 function inlineToolCall({ref, className, part, context, spec, impl}: InlineToolCallArgs) {
     const {state, errorText} = part,
@@ -211,7 +221,7 @@ function inlineToolCall({ref, className, part, context, spec, impl}: InlineToolC
         showsOutput =
             !!spec.renderer &&
             state !== 'output-denied' &&
-            (state !== 'approval-requested' || !!spec.approvalPreview);
+            (state !== 'approval-requested' || spec.preview === true || !!spec.approvalPreview);
 
     return div({
         ref,

@@ -7,6 +7,7 @@ import {runInAction} from '@xh/hoist/mobx';
 import {
     ChatMessage,
     type ChatMessageSpec,
+    chatToolResult,
     ChatModel,
     type ChatModelConfig,
     type ChatPart,
@@ -14,7 +15,7 @@ import {
     type ChatTextPart,
     type ChatToolCallPart
 } from '../../../core';
-import {ScriptedChatTransport} from '../../../transport';
+import {ScriptedChatTransport, textEvents, toolCallEvents} from '../../../transport';
 import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
 
 /**
@@ -219,6 +220,12 @@ describe('ChatMessageList', () => {
             ]);
             rerender(chatMessageList({model: previewModel}));
             expect(screen.getByText('Chart body')).toBeTruthy();
+
+            const trueModel = createModel({tools: [{...tool, preview: true}]}, [
+                {...reply([approval]), status: 'paused'}
+            ]);
+            rerender(chatMessageList({model: trueModel}));
+            expect(screen.getByText('Chart body')).toBeTruthy();
         });
 
         it('shows a short message on failure, with the error for the model behind View input', () => {
@@ -236,6 +243,49 @@ describe('ChatMessageList', () => {
             fireEvent.click(screen.getByRole('button', {name: /View input/}));
             expect(screen.getByText(/Invalid props/)).toBeTruthy();
         });
+    });
+
+    it('shows what a call will do under its approval prompt, from the tool preview', () => {
+        const approval = {...call('c1', 'hide_columns'), state: 'approval-requested' as const},
+            chatModel = createModel(
+                {
+                    tools: [
+                        {
+                            name: 'hide_columns',
+                            execute: () => 'ok',
+                            needsApproval: true,
+                            preview: input => `Will hide the ${input.city} column.`
+                        }
+                    ]
+                },
+                [{...reply([approval]), status: 'paused'}]
+            );
+        renderList(chatModel);
+
+        expect(screen.getByText('Allow this action to run?')).toBeTruthy();
+        expect(screen.getByText('Will hide the Tokyo column.')).toBeTruthy();
+    });
+
+    it('offers Undo on a reply whose tool calls made undoable changes', async () => {
+        const undo = vi.fn(),
+            chatModel = createModel(
+                {
+                    transport: new ScriptedChatTransport({
+                        responses: [toolCallEvents('hide', {}), textEvents('Done.')],
+                        delayMs: 0
+                    }),
+                    tools: [{name: 'hide', execute: () => chatToolResult('Hidden.', {undo})}]
+                },
+                []
+            );
+        await chatModel.sendAsync('Hide it');
+        renderList(chatModel);
+
+        await act(() => fireEvent.click(screen.getByRole('button', {name: 'Undo changes'})));
+
+        expect(undo).toHaveBeenCalledOnce();
+        expect(chatModel.lastMessage.metadata.undone).toBe(true);
+        expect(screen.queryByRole('button', {name: 'Undo changes'})).toBeNull();
     });
 
     it('asks for approval with the tool approvalPrompt, in place of the generic question', () => {

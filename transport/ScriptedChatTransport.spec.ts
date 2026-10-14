@@ -311,6 +311,7 @@ function request(runId: string, signal = new AbortController().signal): ChatRunR
         replacedMessageId: null,
         runOptions: null,
         tools: [],
+        context: [],
         signal
     };
 }

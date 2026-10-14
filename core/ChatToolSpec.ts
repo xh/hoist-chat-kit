@@ -30,7 +30,8 @@ export interface ChatToolSpec {
     /**
      * Run the tool. The return value is the result sent to the model: strings as is, anything
      * else as JSON. A thrown error becomes an error result, which the model sees and can recover
-     * from.
+     * from. Return {@link chatToolResult} to pass the chat options with the result, such as how
+     * to undo the change the call made.
      */
     execute?: (input: PlainObject, context: ChatToolContext) => Awaitable<any>;
 
@@ -55,10 +56,15 @@ export interface ChatToolSpec {
     approvalPrompt?: string | ((input: PlainObject) => ReactNode);
 
     /**
-     * True to render a call with `display: 'inline'` while it waits for approval, as a preview of
-     * what it will show. Default false: the call renders nothing until approved, and nothing if
+     * What a call will do, shown on its approval card while it waits for approval. A function of
+     * the call's input, which may return rich content - such as "Will hide 3 columns: Id, Seller
+     * and Region." Or true, for a tool with `display: 'inline'`, to render the call's own output
+     * as the preview. Default none: an inline call renders nothing until approved, and nothing if
      * denied.
      */
+    preview?: boolean | ((input: PlainObject) => ReactNode);
+
+    /** Same as `preview: true`. Prefer `preview`. */
     approvalPreview?: boolean;
 
     /**
@@ -96,7 +102,7 @@ export interface ChatToolSpec {
      *    the call's progress, so a status line shows only while the input streams, while the call
      *    waits for approval, and if it fails or is denied. A quiet toggle to view the input shows
      *    on hover. A denied call renders nothing, and so does a call waiting for approval,
-     *    unless `approvalPreview` is set. For tools that show UI to the user, such as those of a
+     *    unless `preview` is true. For tools that show UI to the user, such as those of a
      *    `ChatUiCatalog`.
      *
      * Default `card`.

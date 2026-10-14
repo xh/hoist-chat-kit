@@ -655,9 +655,10 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
             hasText = !!message.text.trim(),
             // A failed last reply offers Retry in the list's error banner instead.
             canRegenerate = message.isAssistant && isLast && !isBusy && message.status !== 'error',
+            canUndo = chatModel.canUndoTurn(message.id),
             appActions = extraActions?.(message, context) ?? [];
 
-        if (!hasText && !canRegenerate && !impl && isEmpty(appActions)) return null;
+        if (!hasText && !canRegenerate && !canUndo && !impl && isEmpty(appActions)) return null;
 
         return div({
             className: 'xh-chat-message__actions',
@@ -679,6 +680,14 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
                           tooltip: 'Regenerate',
                           'aria-label': 'Regenerate',
                           onClick: () => chatModel.regenerateAsync(message.id).catchDefault()
+                      })
+                    : null,
+                canUndo
+                    ? button({
+                          icon: Icon.undo(),
+                          tooltip: 'Undo changes',
+                          'aria-label': 'Undo changes',
+                          onClick: () => chatModel.undoTurnAsync(message.id).catchDefault()
                       })
                     : null,
                 ...appActions
