@@ -213,7 +213,7 @@ class ChatMessageViewLocalModel extends HoistModel {
     submitEdit() {
         const {message, chatModel} = this.props,
             text = this.draft.trim();
-        if (!text || chatModel.isBusy) return;
+        if (!text || chatModel.isBusy || chatModel.sendBlockedReason) return;
         this.setEditing(false);
         chatModel.composerModel.focus();
         chatModel.editMessageAsync(message.id, text).catchDefault();
@@ -282,6 +282,9 @@ interface EditBoxProps extends HoistProps {
     chatModel: ChatModel;
 }
 
+/** Rows the edit box grows to before it scrolls. */
+const EDIT_MAX_ROWS = 12;
+
 const editBox = hoistCmp.factory<EditBoxProps>({
     displayName: 'ChatMessageEditBox',
     model: false,
@@ -289,7 +292,10 @@ const editBox = hoistCmp.factory<EditBoxProps>({
     render({impl, chatModel}) {
         const {draft, inputRef} = impl;
 
-        useLayoutEffect(() => fitTextAreaToContent(inputRef.current, 12), [draft, inputRef]);
+        useLayoutEffect(
+            () => fitTextAreaToContent(inputRef.current, EDIT_MAX_ROWS),
+            [draft, inputRef]
+        );
 
         return div({
             className: 'xh-chat-message__edit',
@@ -314,7 +320,9 @@ const editBox = hoistCmp.factory<EditBoxProps>({
                             text: 'Send',
                             intent: 'primary',
                             minimal: false,
-                            disabled: !draft.trim() || chatModel.isBusy,
+                            tooltip: chatModel.sendBlockedReason,
+                            disabled:
+                                !draft.trim() || chatModel.isBusy || !!chatModel.sendBlockedReason,
                             onClick: () => impl.submitEdit()
                         })
                     ]

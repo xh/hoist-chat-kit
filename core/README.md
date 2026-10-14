@@ -474,6 +474,7 @@ for the full doc comments.
 | `initialMessages` | `ChatMessageSpec[]` | Messages to start with, such as a greeting or restored history. Closed as by `loadMessages()`. |
 | `threadId` | `string` | Identifies the conversation to the backend. Default a new UUID. |
 | `composer` | `ChatComposerConfig` | Config for the managed `composerModel`. |
+| `sendBlocker` | `() => string` | Returns why sending must wait, or null to allow it. Read as a computed value. While blocked, the composer disables Send and shows the reason, and `sendAsync` and `editMessageAsync` do nothing. |
 | `dataRenderers` | `Record<string, ChatDataRenderer>` | Renderers for data parts, keyed by `dataType`. A renderer is `(part, context) => ReactNode`, with a `ChatPartRenderContext`. |
 | `onTurnComplete` | `(message) => void` | Called when a turn ends - complete, failed or stopped - with its final message. Not called when a turn pauses. |
 
@@ -490,6 +491,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `lastError` | `Error` | Error from the last turn, or null. Observable. |
 | `threadId` | `string` | Current thread. Observable. `clear()` and `loadMessages()` change it. |
 | `isBusy` | `boolean` | True for `submitted` or `streaming`. False while a turn is paused. |
+| `sendBlockedReason` | `string` | Why sending must wait, from the `sendBlocker`, or null. |
 | `isEmpty` | `boolean` | True if there are no messages. |
 | `lastMessage` | `ChatMessage` | The newest message, or null. |
 | `waitingToolCalls` | `ChatToolCallPart[]` | Calls the paused turn waits on. Empty unless paused. |
@@ -502,7 +504,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 
 | Method | Description |
 |--------|-------------|
-| `sendAsync(input?)` | Send a string, a `ChatSendSpec`, or the composer draft. Ignored while busy or when empty. |
+| `sendAsync(input?)` | Send a string, a `ChatSendSpec`, or the composer draft. Ignored while busy, while blocked by the `sendBlocker`, or when empty. |
 | `stop()` | Stop the current turn, running or paused. Content stays, and the message becomes `aborted`. |
 | `retryAsync()` | Re-run the last user message, replacing everything after it. |
 | `regenerateAsync(messageId?)` | Replace an assistant reply, by default the last one. Ignored for a reply with no user message before it. |
@@ -634,14 +636,17 @@ component. See [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#customize-th
 | `maxFiles` | `number` | Most files per message. Default 10. |
 | `maxFileSize` | `number` | Largest file, in bytes. Default 10 MB. |
 
+All four are also `@bindable` members of the model, so an app can change them after
+construction, for example to allow files only while an agent that reads them is selected.
+
 | Member | Description |
 |--------|-------------|
 | `text` | Draft text. `@bindable` - assign it directly. |
 | `attachments` | Files attached to the draft, as `ChatFilePart[]`. |
 | `isEmpty` | True if the draft has no text and no files. |
-| `canSend` | True if the draft is not empty and the chat is not busy. |
+| `canSend` | True if the draft is not empty, the chat is not busy, and the `sendBlocker` gives no reason to wait. |
 | `submitAsync()` | Send the draft, if it can be sent. |
-| `addFilesAsync(files)` | Read files into base64 parts. Files that break the rules are left out, with a warning toast. Throws if attachments are off. |
+| `addFilesAsync(files)` | Read files into base64 parts. Files that break the rules are left out, and `attachmentErrors` names them. Throws if attachments are off. |
 | `removeAttachment(id)` | Remove one attachment. |
 | `clear()` | Clear the text and the attachments. |
 | `recallLastMessage()` | Put the text of the last user message into an empty draft. |

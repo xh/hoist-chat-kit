@@ -58,6 +58,14 @@ export interface ChatModelConfig {
     composer?: ChatComposerConfig;
 
     /**
+     * Decides whether the user may send now. Return the reason sending must wait - such as
+     * 'Choose a document first.' - or null to allow it. Read as a computed value, so the composer
+     * updates as the observables it reads change. While it returns a reason, the composer
+     * disables Send and shows the reason, and `sendAsync` and `editMessageAsync` do nothing.
+     */
+    sendBlocker?: () => string;
+
+    /**
      * Renderers for data parts, keyed by `dataType`. Data parts carry app- and protocol-defined
      * content, such as generative UI. Parts without a renderer display as JSON.
      */
@@ -187,6 +195,12 @@ export class ChatModel extends HoistModel {
         return this.status === 'submitted' || this.status === 'streaming';
     }
 
+    /** Why sending must wait, from the `sendBlocker`, or null if the user may send. */
+    @computed
+    get sendBlockedReason(): string {
+        return this.sendBlocker?.() || null;
+    }
+
     /** True if the conversation has no messages. */
     @computed
     get isEmpty(): boolean {
@@ -232,6 +246,7 @@ export class ChatModel extends HoistModel {
             threadId,
             composer,
             dataRenderers = {},
+            sendBlocker,
             onTurnComplete
         } = config;
         throwIf(!transport, 'ChatModel requires a transport.');
@@ -247,6 +262,7 @@ export class ChatModel extends HoistModel {
         this.maxSteps = maxSteps;
         this.threadId = threadId ?? genChatId();
         this.dataRenderers = dataRenderers;
+        this.sendBlocker = sendBlocker;
         this.onTurnComplete = onTurnComplete;
         this.modelTools = tools.filter(
             it => it.sendToModel ?? (it.execute != null || !!it.interactive)
@@ -278,8 +294,8 @@ export class ChatModel extends HoistModel {
     //------------------
     /**
      * Send a user message and stream the reply, running any client tools the model calls.
-     * Defaults to the composer's draft, which is then cleared. Does nothing while busy, or if
-     * there is no text or file to send.
+     * Defaults to the composer's draft, which is then cleared. Does nothing while busy, while the
+     * `sendBlocker` gives a reason to wait, or if there is no text or file to send.
      *
      * Tool calls left waiting for the user by the previous turn - including one restored with
      * `loadMessages` - are closed, approvals as denied, so that the history stays valid for the
@@ -290,6 +306,10 @@ export class ChatModel extends HoistModel {
     async sendAsync(input?: string | ChatSendSpec): Promise<void> {
         if (this.isTurnRunning) {
             this.logDebug('Send ignored - a turn is already in progress.');
+            return;
+        }
+        if (this.sendBlockedReason) {
+            this.logDebug('Send ignored - blocked.', this.sendBlockedReason);
             return;
         }
 
@@ -365,7 +385,7 @@ export class ChatModel extends HoistModel {
      * attached to the message are kept.
      */
     async editMessageAsync(messageId: string, text: string): Promise<void> {
-        if (this.isTurnRunning) return;
+        if (this.isTurnRunning || this.sendBlockedReason) return;
 
         const idx = findLastIndex(this.messages, it => it.id === messageId),
             message = this.messages[idx];
@@ -471,6 +491,7 @@ export class ChatModel extends HoistModel {
     //------------------
     // Implementation
     //------------------
+    private readonly sendBlocker: () => string;
     private readonly onTurnComplete: (message: ChatMessage) => void;
     private readonly modelTools: ChatToolSpec[];
 

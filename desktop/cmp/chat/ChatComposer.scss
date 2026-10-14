@@ -50,6 +50,16 @@
     min-width: 0;
   }
 
+  // Read by assistive technology only - sighted users see the reason as the button's tooltip.
+  &__send-reason {
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+
   &__attachments {
     display: flex;
     flex-wrap: wrap;

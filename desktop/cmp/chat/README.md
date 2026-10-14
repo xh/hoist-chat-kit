@@ -167,6 +167,17 @@ Attachments are a model setting: set `composer: {enableAttachments: true}` on th
 on the composer. A paste that carries text stays a paste, even when the clipboard also holds an
 image of the copied cells.
 
+To hold the user back until the app is ready, set `sendBlocker` on the `ChatModelConfig`. It
+returns the reason sending must wait, or null. The composer disables Send, shows the reason as
+the button's tooltip, and announces it to screen readers:
+
+```typescript
+new ChatModel({
+    transport,
+    sendBlocker: () => (this.documentId ? null : 'Choose a document first.')
+});
+```
+
 ### Replace the empty state
 
 `suggestions` adds prompt chips to the default empty state. For your own heading and text, pass

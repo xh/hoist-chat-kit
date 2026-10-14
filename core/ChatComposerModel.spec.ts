@@ -1,3 +1,4 @@
+import {observable, runInAction} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ScriptedChatTransport, textEvents} from '../transport';
@@ -38,6 +39,29 @@ describe('ChatComposerModel', () => {
         });
     });
 
+    describe('sendBlocker', () => {
+        it('blocks sending while it gives a reason, and follows the state it reads', async () => {
+            const state = observable({hasDocument: false}),
+                chatModel = new ChatModel({
+                    transport: new ScriptedChatTransport({responses: [textEvents('Hi.')]}),
+                    sendBlocker: () => (state.hasDocument ? null : 'Choose a document first.')
+                }),
+                composer = chatModel.composerModel;
+            onTestFinished(() => chatModel.destroy());
+
+            composer.text = 'Summarize it';
+            expect(chatModel.sendBlockedReason).toBe('Choose a document first.');
+            expect(composer.canSend).toBe(false);
+
+            await chatModel.sendAsync('Summarize it');
+            expect(chatModel.messages).toEqual([]);
+
+            runInAction(() => (state.hasDocument = true));
+            expect(chatModel.sendBlockedReason).toBeNull();
+            expect(composer.canSend).toBe(true);
+        });
+    });
+
     describe('submitAsync', () => {
         it('sends the draft and clears it', async () => {
             const chatModel = createChatModel(),
@@ -48,6 +72,24 @@ describe('ChatComposerModel', () => {
 
             expect(chatModel.messages[0].text).toBe('Hello');
             expect(composer.text).toBe('');
+        });
+    });
+
+    describe('settings', () => {
+        it('applies attachment settings changed after construction', async () => {
+            const composer = createChatModel().composerModel;
+            await expect(composer.addFilesAsync([file('a.txt')])).rejects.toThrow('not enabled');
+
+            composer.enableAttachments = true;
+            composer.maxFiles = 1;
+            composer.accept = ['.csv'];
+            await composer.addFilesAsync([file('a.csv'), file('b.csv'), file('c.txt')]);
+
+            expect(composer.attachments.map(it => it.name)).toEqual(['a.csv']);
+            expect(composer.attachmentErrors).toEqual([
+                "'c.txt' is not an accepted file type.",
+                'File limit of 1 reached - 1 file not added.'
+            ]);
         });
     });
 

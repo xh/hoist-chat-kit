@@ -88,6 +88,18 @@ describe('ChatComposer', () => {
         rerender(chatComposer({model: chatModel.composerModel, placeholder: 'Ask away'}));
         expect(input().getAttribute('placeholder')).toBe('Ask away');
     });
+
+    it('disables Send while a send blocker gives a reason, and states the reason', () => {
+        const chatModel = createModel({sendBlocker: () => 'Choose a document first.'});
+        renderComposer(chatModel);
+        typeDraft(chatModel, 'Summarize it');
+
+        const send = screen.getByRole('button', {name: 'Send'});
+        expect(send.hasAttribute('disabled')).toBe(true);
+        expect(send.getAttribute('title')).toBe('Choose a document first.');
+        expect(screen.getByRole('status').textContent).toBe('Choose a document first.');
+        expect(send.getAttribute('aria-describedby')).toBe(screen.getByRole('status').id);
+    });
 });
 
 //------------------
