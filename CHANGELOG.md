@@ -51,6 +51,23 @@
   components through `ChatUiCatalog.createDataRenderers()`.
 * Added `chatUiFrame`, `fmtChatUiNumber` and the number format schemas, so that app components
   match the built-in ones.
+* Added `ChatUiDocument`, a flat, id-keyed answer of nested components. `validateDocument()`,
+  `repairDocument()` and `renderDocument()` check, fix and render one, with a placeholder for an
+  element still streaming and a fallback for one that fails.
+* Added the `show_ui` document tool, for nested answers, and `displayTools`, which display a
+  catalog's calls in a chat whose server runs the tool loop.
+* Added component tags in markdown. `ChatUiCatalog.parseTags()` reads `<ui-NAME .../>` tags with
+  the browser's XML parser, holds back a tag still streaming, and ignores tags in code.
+* Added data by reference. A component's `dataProps` name an artifact in a `ChatArtifactRegistry`,
+  which loads each range of rows once through the app's `ChatDataSource`.
+* Added `ChatDataView`, `ChatChartView` and `applyDataView()`, a closed grammar that filters,
+  sorts and scales an artifact for a table or a chart.
+* Added typed `ChatUiAction`s, run with `context.runActionAsync()`. `openUrl` opens only URLs that
+  `urlAllowList` allows. Card buttons take typed actions: `send` only, unless `actionTypes` allows
+  more.
+* Added `toToolSchemas()`, `toPrompt()` and `version` to `ChatUiCatalog`, so a server can register
+  the catalog from a build-time export and detect drift.
+* Added caps on elements, nesting and inline rows per answer, and an error boundary per element.
 * Added `url`, `headers` and `params` as functions of the request, sync or async, on the HTTP
   transports, for example to send a fresh token with each step.
 * Added `idleTimeout` to the HTTP transports. A stream that sends nothing for longer fails with

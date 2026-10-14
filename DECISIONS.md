@@ -557,3 +557,35 @@ by one list covers that case, and a newer rename survives an older one that fail
   thread runs (D35). A paused turn can still resume.
 
 **Why.** Each fills a gap the spec leaves open, without changing its contract.
+
+## D47. Choices in the generative UI core
+
+**Decision.** WP 7 step 1 builds sections 1 to 4 and 6 to 8 of `planning/GENUI-2.md`, with these
+choices where the spec is open or differs from the kit's conventions:
+
+- Components run actions with `context.runActionAsync()`, not `runAction()`, as every method
+  that returns a promise takes the `Async` suffix.
+- `tools` holds the component tools only. The document tool is `documentTool`, and the
+  display-only specs for a server-run loop are `displayTools`. `toPrompt()` and `toToolSchemas()`
+  default to the `tools` mode, so a catalog sends what it sent before.
+- An element has at most one parent. A child listed under two parents renders twice, and a chain
+  of such diamonds grows the render exponentially.
+- The catalog reaches a chat's artifacts through its `artifacts` config, a function of the
+  `ChatModel`. `ChatModel` does not change, and a later `ChatModelConfig.catalog` can supply the
+  chat's own registry.
+- A tag attribute for a prop that takes only strings keeps its text as written. For a prop that
+  takes no strings, a number, boolean or null parses as JSON. An open tag closed at once, as
+  `<ui-x ...></ui-x>`, counts as self-closing, and a backslash escapes a tag.
+- `maxInlineRows` defaults to 500, so the built-in chart's 500 points pass. The element and depth
+  caps default to 50 and 8.
+- `openUrl` allows no URL until the app sets `urlAllowList`, and never one that is not `http` or
+  `https`. A `send` action's context is capped at 2,000 characters of JSON.
+- `callTool` runs a client tool of the chat, outside the history, and refuses a backend tool.
+- `applyDataView()` throws for a view that names an unknown column. Its `totalRows` counts the
+  rows that pass the filter, before `top`. A scaled column notes its `units`.
+- `fallback` and `placeholder` on the catalog config let the desktop step draw both with Hoist
+  components, as `genui` is platform-neutral.
+- The card allows `send` actions only, unless its `actionTypes` option allows more.
+
+**Why.** Each keeps the spec's contract, follows a kit convention, or closes a gap the spec leaves
+open.

@@ -51,6 +51,9 @@ its tools.
 | Let the model show Hoist components inline in its reply | [`/genui/`](../genui/README.md) |
 | Write a catalog component of your own | [`/genui/`](../genui/README.md#write-a-component-spec) |
 | Adapt A2UI, OpenUI or another protocol's UI payload | [`/genui/`](../genui/README.md#adapt-a-protocols-ui-payload) |
+| Show grids and charts over a result set by reference | [`/genui/`](../genui/README.md#show-data-by-reference) |
+| Put components in a markdown answer as tags | [`/genui/`](../genui/README.md#read-tags-in-a-markdown-answer) |
+| Export a catalog for a server that runs the tool loop | [`/genui/`](../genui/README.md#export-the-catalog-for-a-server) |
 | Render app content in the chat as a data part | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#render-a-tool-call-as-ui) |
 | Learn how AG-UI, A2UI, OpenUI or MCP Apps relate to the kit | [Protocols](./protocols.md) |
 | Put a chat panel on screen, with a clear button | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) |
@@ -72,7 +75,7 @@ its tools.
 | [`/core/`](../core/README.md) | Platform-neutral chat models: conversation state, the turn loop, messages, parts, tools and the composer | ChatModel, ChatMessage, ChatPart, ChatToolSpec, ChatComposerModel, ChatRunError, turns, steps, approvals, interactive tools, persistence, finish reasons, historyMode, runOptions, stop and detach, feedback, textTransform, activity tracking |
 | [`/threads/`](../threads/README.md) | Platform-neutral thread layer: a store adapter, one chat per open thread, background turns, paging, search, edits with rollback and deep links | ChatThreadsModel, ChatThreadStore, ChatThreadSummary, LocalChatThreadStore, groupThreadsByRecency, background turns, runningThreadIds, createThreadAsync, re-keying, optimistic rename and delete, paged history, search, route binding, concurrency rules |
 | [`/transport/`](../transport/README.md) | Transports and codecs that turn a backend's stream into AG-UI events, with server contracts | ChatTransport, HoistChatTransport, SseChatTransport, ScriptedChatTransport, HttpChatTransport, AgUiCodec, AnthropicCodec, ChatEvent, xh.chat events, NDJSON, Grails controller, prompt caching, citationEvents, server-owned conversations, turnId, newMessages, cancelUrl |
-| [`/genui/`](../genui/README.md) | Generative UI: a catalog of app components the model can show inline, with protocol adapters | ChatUiCatalog, ChatUiComponentSpec, ChatUiRenderContext, ChatUiAdapter, ChatUiNode, JSON Schema subset, partial props, instructions, inline display |
+| [`/genui/`](../genui/README.md) | Generative UI: a catalog of app components the model can show inline, as tools, tags or nested documents, with data by reference, typed actions and a server export | ChatUiCatalog, ChatUiComponentSpec, ChatUiDocument, ChatUiRenderContext, ChatArtifactRegistry, ChatDataView, ChatUiAction, ChatUiAdapter, parseTags, show_ui, JSON Schema subset, partial props, inline display |
 
 ### Components
 
