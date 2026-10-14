@@ -34,13 +34,15 @@ then `planning/PLAN-2.md`. Everything listed as done is committed, pushed and gr
    `ChatModel.artifacts`, `ChatUiCatalogConfig.modes`, `chatToolResult({artifacts})`, the
    `xh.chat.artifact` event, tags in `ChatMessageView`, `ChatRunRequest.catalogVersion`, and
    message context in the three codecs.
-2. **Review pass** over everything on `feature/server-mode` (server mode, threads, genui core,
-   helpers), in the style of `planning/reviews/`. Fix its findings.
-3. **Merge `feature/server-mode` to `develop`** through a PR, which publishes a snapshot. Then in
-   Toolbox: `pnpm update @xh/hoist-chat-kit`, remove the three exclusions of the `guide/` folder
-   (in `tsconfig.json`, `vitest.config.mts` and `eslint.config.js`), and fix
+2. **Review pass.** Done: `planning/reviews/review-5-server-mode.md` and
+   `review-5-genui-components.md`. Every finding fixed (D55, D56). 953 tests.
+3. **Merge `feature/server-mode` to `develop`.** PR #7 is open, CI green, mergeable. Waiting for
+   Anselm to review and merge, as merging publishes a snapshot. Then in Toolbox:
+   `pnpm update @xh/hoist-chat-kit`, remove the three exclusions of the `guide/` folder (in
+   `tsconfig.json`, `vitest.config.mts` and `eslint.config.js`), and fix
    `chatkit/demos/genUiDemo.ts`, whose card actions use the removed `prompt` field and must
-   become typed `send` actions.
+   become typed `send` actions. A ChatModel there can now take `catalog` in place of
+   `tools: catalog.tools`.
 4. **Design handoff.** Check `.tmp/design/`, the Claude Design output, before building WP 4, 6,
    the WP 7 desktop components, WP 8, and the WP 9 assistant UI. Treat it as the visual spec.
 5. Then WP 4 to 9 in the order of `PLAN-2.md`, then a final review, docs and a report.
