@@ -1,3 +1,5 @@
+@use '../../../styles/mixins' as *;
+
 .xh-chat-code-block {
   background-color: var(--xh-chat-code-bg);
   border: var(--xh-chat-border);
@@ -21,7 +23,7 @@
     text-transform: lowercase;
   }
 
-  .xh-app & .xh-chat-code-block__header .xh-chat-copy-button.xh-button.bp6-button {
+  @include hoist-button('.xh-chat-copy-button', '.xh-chat-code-block__header') {
     --xh-button-text-color: var(--xh-chat-muted-text-color);
 
     font-size: var(--xh-chat-meta-font-size-px);

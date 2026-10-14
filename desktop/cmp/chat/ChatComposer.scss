@@ -1,3 +1,5 @@
+@use '../../../styles/mixins' as *;
+
 .xh-chat-composer {
   display: flex;
   flex-direction: column;
@@ -98,13 +100,15 @@
     display: none;
   }
 
-  .xh-app & .xh-chat-composer__attach.xh-button.bp6-button svg {
-    color: var(--xh-chat-muted-text-color);
+  @include hoist-button('.xh-chat-composer__attach') {
+    svg {
+      color: var(--xh-chat-muted-text-color);
+    }
   }
 
   // The send button takes its colors from the chat's send variables, through Hoist's button
   // variables - the light theme reads the lighter shades, the dark theme the darker ones.
-  .xh-app & .xh-chat-composer__send.xh-button.bp6-button {
+  @include hoist-button('.xh-chat-composer__send') {
     border-radius: 50%;
     flex: none;
     height: 30px;

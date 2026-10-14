@@ -1,3 +1,5 @@
+@use '../../../styles/mixins' as *;
+
 .xh-chat-message {
   color: var(--xh-chat-text-color);
   display: flex;
@@ -192,7 +194,7 @@
     opacity: 1;
   }
 
-  .xh-app & .xh-chat-message__actions .xh-button.bp6-button {
+  @include hoist-button(null, '.xh-chat-message__actions') {
     min-height: 26px;
     min-width: 26px;
     padding: 0 5px;

@@ -1,3 +1,5 @@
+@use '../../../styles/mixins' as *;
+
 .xh-chat-message-list {
   background-color: var(--xh-chat-bg);
   display: flex;
@@ -51,7 +53,7 @@
     transform: translateX(-50%);
   }
 
-  .xh-app & .xh-chat-message-list__scroll-button .xh-button.bp6-button {
+  @include hoist-button(null, '.xh-chat-message-list__scroll-button') {
     border-radius: 50%;
     height: 32px;
     min-height: 32px;

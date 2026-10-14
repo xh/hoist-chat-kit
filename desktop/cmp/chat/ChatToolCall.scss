@@ -1,3 +1,5 @@
+@use '../../../styles/mixins' as *;
+
 .xh-chat-tool-call {
   background-color: var(--xh-chat-bg);
   border: var(--xh-chat-border);
@@ -28,7 +30,7 @@
     }
   }
 
-  .xh-app & .xh-chat-tool-call__header.xh-button.bp6-button {
+  @include hoist-button('.xh-chat-tool-call__header') {
     // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
     // component styles in the dark theme - so set the variables, not the colors.
     --xh-button-text-color: var(--xh-chat-text-color);
@@ -200,7 +202,7 @@
     }
   }
 
-  .xh-app & .xh-chat-tool-call__input-toggle.xh-button.bp6-button {
+  @include hoist-button('.xh-chat-tool-call__input-toggle') {
     --xh-button-text-color: var(--xh-chat-muted-text-color);
     --xh-button-bg-darker: transparent;
 
@@ -243,18 +245,23 @@
     padding: 0 var(--xh-pad-half-px);
   }
 
-  .xh-app &--grouped .xh-chat-tool-call__header.xh-button.bp6-button {
-    border-radius: var(--xh-chat-radius-px);
-  }
-
   &--grouped &__title {
     font-weight: normal;
   }
 
   // In a group, the status follows the label, rather than sitting at the far edge of the row.
-  &--grouped &__header > .xh-chat-tool-call__heading,
-  .xh-app &--grouped .xh-chat-tool-call__header.xh-button.bp6-button .bp6-button-text {
+  &--grouped &__header > .xh-chat-tool-call__heading {
     flex: 0 1 auto;
+  }
+
+  &--grouped {
+    @include hoist-button('.xh-chat-tool-call__header') {
+      border-radius: var(--xh-chat-radius-px);
+
+      .bp6-button-text {
+        flex: 0 1 auto;
+      }
+    }
   }
 
   &--grouped &__body {
@@ -270,7 +277,7 @@
   font-size: var(--xh-font-size-px);
   min-width: 0;
 
-  .xh-app & .xh-chat-tool-call-group__header.xh-button.bp6-button {
+  @include hoist-button('.xh-chat-tool-call-group__header') {
     --xh-button-text-color: var(--xh-chat-muted-text-color);
     --xh-button-bg-darker: var(--xh-chat-hover-bg);
 

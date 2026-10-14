@@ -2,7 +2,7 @@ import {hoistCmp, HoistModel, type HoistProps, useLocalModel, XH} from '@xh/hois
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
 import {action, observable} from '@xh/hoist/mobx';
-import {copyToClipboard, debounced} from '@xh/hoist/utils/js';
+import {copyToClipboard} from '@xh/hoist/utils/js';
 
 interface ChatCopyButtonProps extends HoistProps {
     /** Function returning the text to copy. */
@@ -45,7 +45,8 @@ class ChatCopyButtonLocalModel extends HoistModel {
         try {
             await copyToClipboard(text);
             this.setCopied(true);
-            this.resetCopied();
+            clearTimeout(this.resetTimer);
+            this.resetTimer = setTimeout(() => this.setCopied(false), 1500);
         } catch (e) {
             XH.handleException(e, {
                 message: 'Could not copy to the clipboard.',
@@ -55,13 +56,15 @@ class ChatCopyButtonLocalModel extends HoistModel {
         }
     }
 
+    override destroy() {
+        clearTimeout(this.resetTimer);
+        super.destroy();
+    }
+
+    private resetTimer: ReturnType<typeof setTimeout> = null;
+
     @action
     private setCopied(copied: boolean) {
         this.copied = copied;
-    }
-
-    @debounced(1500)
-    private resetCopied() {
-        this.setCopied(false);
     }
 }

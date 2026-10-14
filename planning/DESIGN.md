@@ -309,8 +309,8 @@ export interface ChatCodec {
   server proxy Anthropic with no translation of its own.
 
 Server contract for `HoistChatTransport`: a controller that reads the JSON body and writes one
-JSON object per line, flushing after each. hoist-core's `renderNDJSON` buffers 8 KB before
-flushing, so a token stream needs its own flush (see Toolbox `LlmController.stream`). That gap
+JSON object per line, flushing after each. hoist-core's `renderNDJSON` flushes after the first
+row, then every 32 KB, so a token stream needs its own flush (see Toolbox `LlmController.stream`). That gap
 goes in the report.
 
 ## 7. Components (desktop)

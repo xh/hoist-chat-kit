@@ -1,9 +1,11 @@
+@use '../../../styles/mixins' as *;
+
 .xh-chat-sources {
   display: flex;
   flex-direction: column;
   min-width: 0;
 
-  .xh-app & .xh-chat-sources__toggle.xh-button.bp6-button {
+  @include hoist-button('.xh-chat-sources__toggle') {
     // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
     // component styles in the dark theme - so set the variables, not the colors.
     --xh-button-text-color: var(--xh-chat-muted-text-color);
