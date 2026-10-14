@@ -306,6 +306,8 @@ the report specifies what hoist-core should add.
 
 **Why.** It is hoist-core code, owned by the hoist-core team.
 
+**Status.** Filed as [xh/hoist-core#618](https://github.com/xh/hoist-core/issues/618).
+
 ## D26. Snapshots now, a beta tag when the v1.0 API settles
 
 **Decision.** The kit keeps publishing `-SNAPSHOT` builds under `next`. An app that needs
