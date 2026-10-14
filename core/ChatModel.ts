@@ -2,7 +2,17 @@ import type {PlainObject} from '@xh/hoist/core';
 import {HoistModel, managed, XH} from '@xh/hoist/core';
 import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
-import {findLast, findLastIndex, isEmpty, isFunction, isString, maxBy} from 'lodash';
+import {
+    countBy,
+    findLast,
+    findLastIndex,
+    isEmpty,
+    isFunction,
+    isString,
+    keys,
+    maxBy,
+    pickBy
+} from 'lodash';
 import type {ReactNode} from 'react';
 import type {ChatEvent, ChatRunRequest, ChatTransport} from '../transport';
 import {ChatComposerModel, type ChatComposerConfig} from './ChatComposerModel';
@@ -10,9 +20,9 @@ import {ChatMessage, type ChatMessageSpec} from './ChatMessage';
 import type {ChatDataPart, ChatFilePart, ChatPart, ChatToolCallPart} from './ChatPart';
 import {ChatRunError} from './ChatRunError';
 import type {ChatToolSpec} from './ChatToolSpec';
-import {isAbortError, raceAbort} from './impl/abort';
+import {isAbortError, raceAbort} from '../impl/abort';
 import {ChatStreamReducer} from './impl/ChatStreamReducer';
-import {genChatId} from './impl/ids';
+import {genChatId} from '../impl/ids';
 import {
     createTextPart,
     getClientToolCalls,
@@ -62,8 +72,30 @@ export interface ChatModelConfig {
     onTurnComplete?: (message: ChatMessage) => void;
 }
 
-/** Renders a {@link ChatDataPart}. */
-export type ChatDataRenderer = (part: ChatDataPart, message: ChatMessage) => ReactNode;
+/**
+ * Renders a {@link ChatDataPart} - see {@link ChatModelConfig.dataRenderers}.
+ *
+ * The chat renders the result as the body of a component of its own, so the renderer may call
+ * React hooks, such as `useLocalModel()` for a model it owns. It re-renders only when its part
+ * changes, or when an observable it reads changes.
+ */
+export type ChatDataRenderer = (part: ChatDataPart, context: ChatPartRenderContext) => ReactNode;
+
+/**
+ * Passed to the renderers of a message's parts - {@link ChatToolSpec.renderer} and
+ * {@link ChatDataRenderer}.
+ *
+ * The context is stable for the life of its message, while the message itself is replaced on every
+ * streamed change. A renderer that needs the whole message reads it with
+ * `chatModel.getMessage(messageId)`, and then re-renders whenever the message changes.
+ */
+export interface ChatPartRenderContext {
+    /** The chat that shows the part - for example to send a message or answer a tool call. */
+    chatModel: ChatModel;
+
+    /** Id of the message that holds the part. */
+    messageId: string;
+}
 
 /**
  * State of the conversation.
@@ -158,7 +190,7 @@ export class ChatModel extends HoistModel {
     /** True if the conversation has no messages. */
     @computed
     get isEmpty(): boolean {
-        return this.messages.length === 0;
+        return isEmpty(this.messages);
     }
 
     /** The most recent message, or null. */
@@ -204,6 +236,11 @@ export class ChatModel extends HoistModel {
         } = config;
         throwIf(!transport, 'ChatModel requires a transport.');
         throwIf(!(maxSteps >= 1), 'ChatModel maxSteps must be at least 1.');
+        const dupeNames = keys(pickBy(countBy(tools, 'name'), count => count > 1));
+        throwIf(
+            !isEmpty(dupeNames),
+            `ChatModel tool names must be unique - found ${dupeNames.join(', ')} more than once.`
+        );
 
         this.transport = transport;
         this.tools = tools;
@@ -215,6 +252,14 @@ export class ChatModel extends HoistModel {
             it => it.sendToModel ?? (it.execute != null || !!it.interactive)
         );
         this.messages = restoreMessages(initialMessages);
+        tools.forEach(it => {
+            if (it.interactive && !it.execute && !it.renderer) {
+                this.logWarn(
+                    `Interactive tool '${it.name}' has no renderer. The default tool call card ` +
+                        'cannot answer it, so its calls wait with no way for the user to resume.'
+                );
+            }
+        });
         this.composerModel = new ChatComposerModel({...composer, chatModel: this});
     }
 
@@ -413,6 +458,11 @@ export class ChatModel extends HoistModel {
         return this.messages.map(it => it.toSpec());
     }
 
+    /** A message in the conversation, by id, or null. Reads the observable `messages`. */
+    getMessage(id: string): ChatMessage {
+        return findLast(this.messages, it => it.id === id) ?? null;
+    }
+
     /** The spec for a tool, by name, or null. */
     getToolSpec(name: string): ChatToolSpec {
         return this.tools.find(it => it.name === name) ?? null;
@@ -474,9 +524,11 @@ export class ChatModel extends HoistModel {
 
             while (this.isCurrent(turn)) {
                 const {status, error, metadata} = this.getTurnMessage(turn);
+                // An error the backend reported in the stream - or a stream that ended early - is
+                // conversation state, shown with Retry, not an exception to report.
                 if (status === 'error') {
                     const runError = new ChatRunError(error, metadata.errorCode ?? null);
-                    this.logError('Turn failed', runError);
+                    this.logWarn('Turn failed', runError);
                     this.endTurn(turn, 'error', runError);
                     return;
                 }
@@ -508,6 +560,8 @@ export class ChatModel extends HoistModel {
             }
         } catch (e) {
             if (!this.isCurrent(turn)) return;
+            // Hoist's handler logs a routine exception - such as a rate limit - quietly, and
+            // reports the rest as client errors. The chat shows the error itself.
             if (!isAbortError(e)) XH.handleException(e, {showAlert: false});
             this.endTurn(turn, 'error', e);
         }
@@ -678,6 +732,7 @@ export class ChatModel extends HoistModel {
 
     @action
     private markResumed(turn: ChatTurn) {
+        turn.runningSince = Date.now();
         this.status = 'streaming';
         this.updateTurnMessage(turn, message =>
             message.status === 'streaming' ? message : message.withChanges({status: 'streaming'})
@@ -688,8 +743,13 @@ export class ChatModel extends HoistModel {
     private pauseTurn(turn: ChatTurn) {
         turn.isRunning = false;
         this.status = 'ready';
+        // Time spent waiting for the user is not time taken by the reply.
+        const elapsedMs = stopTurnClock(turn);
         this.updateTurnMessage(turn, message =>
-            settleStreamingParts(message).withChanges({status: 'paused'})
+            settleStreamingParts(message).withChanges({
+                status: 'paused',
+                metadata: {...message.metadata, elapsedMs}
+            })
         );
     }
 
@@ -710,7 +770,7 @@ export class ChatModel extends HoistModel {
         const settled = settleOpenParts(message, SETTLE_REASONS[status]).withChanges({
             status,
             error: error ? errorText(error) : null,
-            metadata: {...message.metadata, elapsedMs: Date.now() - turn.startedAt}
+            metadata: {...message.metadata, elapsedMs: stopTurnClock(turn)}
         });
         this.replaceMessage(settled);
         return settled;
@@ -753,7 +813,7 @@ export class ChatModel extends HoistModel {
     }
 
     private getTurnMessage(turn: ChatTurn): ChatMessage {
-        return findLast(this.messages, it => it.id === turn.messageId) ?? null;
+        return this.getMessage(turn.messageId);
     }
 }
 
@@ -779,7 +839,15 @@ interface ChatTurn {
     /** Index of the current step. */
     step: number;
 
-    startedAt: number;
+    /**
+     * Time the turn has run, in milliseconds, up to `runningSince`. Excludes time paused for the
+     * user, so that it measures the reply alone.
+     */
+    activeMs: number;
+
+    /** When the turn last started or resumed running, or null while paused. */
+    runningSince: number;
+
     abortController: AbortController;
 
     /** False while paused for the user. */
@@ -797,7 +865,9 @@ function createTurn(message: ChatMessage, step: number, isRunning: boolean): Cha
     return {
         messageId: message.id,
         step,
-        startedAt: message.createdAt,
+        // A turn restored while paused resumes from the time recorded when it paused.
+        activeMs: isRunning ? 0 : (message.metadata?.elapsedMs ?? 0),
+        runningSince: isRunning ? message.createdAt : null,
         abortController: new AbortController(),
         isRunning,
         approvedIds: new Set(),
@@ -805,6 +875,15 @@ function createTurn(message: ChatMessage, step: number, isRunning: boolean): Cha
         pendingEvents: [],
         flushTimer: null
     };
+}
+
+/** Stop the clock of a turn, and return the time it has run. */
+function stopTurnClock(turn: ChatTurn): number {
+    if (turn.runningSince != null) {
+        turn.activeMs += Date.now() - turn.runningSince;
+        turn.runningSince = null;
+    }
+    return turn.activeMs;
 }
 
 /** Messages from stored specs, with anything left in progress closed - see `loadMessages`. */

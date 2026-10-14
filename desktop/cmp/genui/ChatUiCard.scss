@@ -1,0 +1,53 @@
+.xh-chat-ui-card {
+  .xh-chat-ui-frame__body {
+    gap: var(--xh-pad-px);
+    padding: var(--xh-pad-px) calc(var(--xh-pad) * 1.4px);
+  }
+
+  &__header {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--xh-pad) * 0.25px);
+  }
+
+  &__title {
+    font-size: calc(var(--xh-font-size) * 1.2px);
+    font-weight: 600;
+  }
+
+  &__subtitle {
+    color: var(--xh-chat-muted-text-color);
+  }
+
+  &__fields {
+    display: grid;
+    gap: var(--xh-pad-px) calc(var(--xh-pad) * 2px);
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+
+  &__field {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--xh-pad) * 0.25px);
+    min-width: 0;
+  }
+
+  &__label {
+    color: var(--xh-chat-muted-text-color);
+    font-size: var(--xh-chat-meta-font-size-px);
+  }
+
+  &__value {
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+  }
+
+  &__actions {
+    border-top: var(--xh-chat-border);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--xh-pad-half-px);
+    padding-top: var(--xh-pad-px);
+  }
+}

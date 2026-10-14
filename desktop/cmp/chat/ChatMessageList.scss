@@ -7,12 +7,23 @@
   min-width: 0;
   position: relative;
 
-  // Text fades out over the last few pixels, rather than being cut off at the composer.
   &__viewport {
     flex: 1 1 0;
-    mask-image: linear-gradient(to bottom, black calc(100% - 12px), transparent);
     overflow-x: hidden;
     overflow-y: auto;
+
+    // Text fades out over the last few pixels, rather than being cut off at the composer. A
+    // sticky overlay within the scroll area, so that it never covers the scrollbar.
+    &::after {
+      background: linear-gradient(to bottom, transparent, var(--xh-chat-bg));
+      bottom: 0;
+      content: '';
+      display: block;
+      height: 12px;
+      margin-top: -12px;
+      pointer-events: none;
+      position: sticky;
+    }
   }
 
   &__content {

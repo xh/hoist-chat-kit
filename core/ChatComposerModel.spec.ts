@@ -1,4 +1,3 @@
-import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ScriptedChatTransport, textEvents} from '../transport';
@@ -70,12 +69,11 @@ describe('ChatComposerModel', () => {
             expect(composer.isEmpty).toBe(false);
         });
 
-        it('rejects files of other types, with a warning toast', async () => {
-            const toast = vi.spyOn(XH, 'warningToast').mockReturnValue(null),
-                composer = createChatModel({
-                    enableAttachments: true,
-                    accept: ['image/*', '.CSV']
-                }).composerModel;
+        it('rejects files of other types, and names them in attachmentErrors', async () => {
+            const composer = createChatModel({
+                enableAttachments: true,
+                accept: ['image/*', '.CSV']
+            }).composerModel;
 
             await composer.addFilesAsync([
                 file('chart.png', 'image/png'),
@@ -84,32 +82,35 @@ describe('ChatComposerModel', () => {
             ]);
 
             expect(composer.attachments.map(it => it.name)).toEqual(['chart.png', 'data.csv']);
-            expect(toast).toHaveBeenCalledExactlyOnceWith(
+            expect(composer.attachmentErrors).toEqual([
                 "'virus.exe' is not an accepted file type."
-            );
+            ]);
+
+            await composer.addFilesAsync([file('more.png', 'image/png')]);
+            expect(composer.attachmentErrors).toEqual([]);
         });
 
         it('rejects files over the size limit', async () => {
-            const toast = vi.spyOn(XH, 'warningToast').mockReturnValue(null),
-                composer = createChatModel({
-                    enableAttachments: true,
-                    maxFileSize: 1024
-                }).composerModel;
+            const composer = createChatModel({
+                enableAttachments: true,
+                maxFileSize: 1024
+            }).composerModel;
 
             await composer.addFilesAsync([file('big.pdf', 'application/pdf', 'x'.repeat(2048))]);
 
             expect(composer.attachments).toEqual([]);
-            expect(toast).toHaveBeenCalledWith("'big.pdf' is larger than 1 KB.");
+            expect(composer.attachmentErrors).toEqual(["'big.pdf' is larger than 1 KB."]);
         });
 
         it('stops at the file limit', async () => {
-            const toast = vi.spyOn(XH, 'warningToast').mockReturnValue(null),
-                composer = createChatModel({enableAttachments: true, maxFiles: 2}).composerModel;
+            const composer = createChatModel({enableAttachments: true, maxFiles: 2}).composerModel;
 
             await composer.addFilesAsync([file('a.txt'), file('b.txt'), file('c.txt')]);
 
             expect(composer.attachments.map(it => it.name)).toEqual(['a.txt', 'b.txt']);
-            expect(toast).toHaveBeenCalledWith('File limit of 2 reached - 1 file not added.');
+            expect(composer.attachmentErrors).toEqual([
+                'File limit of 2 reached - 1 file not added.'
+            ]);
         });
 
         it('throws when attachments are not enabled', async () => {

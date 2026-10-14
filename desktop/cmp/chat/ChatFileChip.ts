@@ -2,11 +2,13 @@ import {div, img, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
-import '../../../styles/vars.scss';
 import type {ChatFilePart} from '../../../core';
+import '../../../styles/vars.scss';
 import './ChatFileChip.scss';
 import {formatFileSize} from './impl/ChatFormat';
+import {classNames} from '../../../impl/ClassNames';
 
+/** Props for {@link ChatFileChip}. */
 export interface ChatFileChipProps extends HoistProps {
     /** The file to show. */
     file: ChatFilePart;
@@ -25,12 +27,13 @@ export const [ChatFileChip, chatFileChip] = hoistCmp.withFactory<ChatFileChipPro
     model: false,
     className: 'xh-chat-file-chip',
 
-    render({className, file, onRemove}) {
+    render({className, file, onRemove}, ref) {
         const {name, mediaType, size} = file,
             previewSrc = getPreviewSrc(file);
 
         return div({
-            className: onRemove ? `${className} xh-chat-file-chip--removable` : className,
+            ref,
+            className: classNames(className, {'xh-chat-file-chip--removable': !!onRemove}),
             title: name,
             items: [
                 previewSrc
@@ -54,6 +57,7 @@ export const [ChatFileChip, chatFileChip] = hoistCmp.withFactory<ChatFileChipPro
                           className: 'xh-chat-file-chip__remove',
                           icon: Icon.x(),
                           tooltip: `Remove ${name}`,
+                          'aria-label': `Remove ${name}`,
                           onClick: () => onRemove(file)
                       })
                     : null

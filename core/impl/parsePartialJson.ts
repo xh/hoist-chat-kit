@@ -3,8 +3,9 @@
  *
  * Complete JSON parses as usual. Incomplete JSON is cut back to its last complete value and closed,
  * so `{"city": "New Yo` gives `{city: 'New Yo'}` and `{"a": 1, "b` gives `{a: 1}`. An unterminated
- * string value is kept, which lets a UI show text arguments as they arrive. Partial keys, numbers
- * and literals are dropped until they complete.
+ * string value is kept, which lets a UI show text arguments as they arrive. A trailing number is
+ * kept once it parses, so `{"days": 12` gives `{days: 12}`, though more digits may follow. Partial
+ * keys and literals, and a number that does not parse yet, such as `1.` or `-`, are dropped.
  *
  * @returns the parsed value, or null if no value can be recovered.
  * @internal

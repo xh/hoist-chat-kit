@@ -277,7 +277,8 @@ describe('ChatModel', () => {
                 yield* textEvents('Late.');
             }
             const transport = new ScriptedChatTransport({
-                    respond: (req, idx) => (idx === 0 ? slowStream() : textEvents('New.')),
+                    respond: (req, {requestIndex}) =>
+                        requestIndex === 0 ? slowStream() : textEvents('New.'),
                     delayMs: 0
                 }),
                 model = createModel({transport});
@@ -471,6 +472,15 @@ describe('ChatModel', () => {
     });
 
     describe('client tools', () => {
+        it('requires unique tool names, so that no call reaches the wrong tool', () => {
+            expect(() =>
+                createModel({
+                    transport: scripted([]),
+                    tools: [{name: 'lookup'}, {name: 'show_grid'}, {name: 'lookup'}]
+                })
+            ).toThrow('found lookup more than once');
+        });
+
         it('runs client tools and sends their results back in another step', async () => {
             const execute = vi.fn(({city}) => ({city, tempC: 18})),
                 transport = scripted([
@@ -596,6 +606,38 @@ describe('ChatModel', () => {
     });
 
     describe('approvals', () => {
+        it('times the reply without the time it waited for approval', async () => {
+            vi.useFakeTimers({toFake: ['Date']});
+            onTestFinished(() => {
+                vi.useRealTimers();
+            });
+            vi.setSystemTime(0);
+
+            const advance = (ms: number) => vi.setSystemTime(Date.now() + ms),
+                transport = new ScriptedChatTransport({
+                    delayMs: 0,
+                    respond: (req, {stepIndex}) => {
+                        advance(300);
+                        return stepIndex === 0
+                            ? toolCallEvents('remove', {}, {toolCallId: 'c1'})
+                            : textEvents('Removed.');
+                    }
+                }),
+                model = createModel({
+                    transport,
+                    tools: [removeTool({execute: () => advance(500)})]
+                });
+
+            await model.sendAsync('Remove it');
+            expect(model.lastMessage.metadata.elapsedMs).toBe(300);
+
+            advance(60_000); // The user takes a minute to decide.
+            await model.approveToolCallAsync('c1');
+
+            expect(model.lastMessage.status).toBe('complete');
+            expect(model.lastMessage.metadata.elapsedMs).toBe(1100);
+        });
+
         it('pauses for approval, then runs the tool and continues once approved', async () => {
             const execute = vi.fn(() => 'Dashboard reset.'),
                 transport = scripted([
@@ -720,7 +762,34 @@ describe('ChatModel', () => {
         });
     });
 
+    describe('getMessage', () => {
+        it('returns a message by id, as it now is, or null', async () => {
+            const model = createModel([textEvents('Hello there.')]);
+            await model.sendAsync('Hi');
+
+            const reply = model.lastMessage;
+            expect(model.getMessage(reply.id)).toBe(reply);
+            expect(model.getMessage('missing')).toBeNull();
+        });
+    });
+
     describe('addToolOutputAsync', () => {
+        it('warns of an interactive tool with no renderer, which no one could answer', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            onTestFinished(() => warn.mockRestore());
+
+            createModel({
+                transport: scripted([]),
+                tools: [
+                    {name: 'ask', interactive: true},
+                    {name: 'pick', interactive: true, renderer: () => null}
+                ]
+            });
+
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(String(warn.mock.calls[0])).toContain("Interactive tool 'ask' has no renderer");
+        });
+
         it('pauses for a tool the user answers, then continues with the answer', async () => {
             const transport = scripted([
                     toolCallEvents('pickCity', {options: ['Paris', 'Rome']}, {toolCallId: 'c1'}),

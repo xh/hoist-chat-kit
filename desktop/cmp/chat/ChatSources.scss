@@ -7,6 +7,7 @@
     // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
     // component styles in the dark theme - so set the variables, not the colors.
     --xh-button-text-color: var(--xh-chat-muted-text-color);
+    --xh-button-bg-darker: var(--xh-chat-hover-bg);
 
     align-self: flex-start;
     font-size: var(--xh-chat-meta-font-size-px);
@@ -46,7 +47,7 @@
     justify-content: center;
     margin-top: 1px;
     min-width: 18px;
-    padding: 0 4px;
+    padding: 0 calc(var(--xh-pad) * 0.4px);
   }
 
   &__text {
@@ -85,62 +86,5 @@
     flex-basis: 100%;
     font-size: var(--xh-chat-meta-font-size-px);
     overflow: hidden;
-  }
-}
-
-.xh-chat-citations {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-
-  &__chip {
-    align-items: center;
-    background-color: var(--xh-chat-citation-bg);
-    border-radius: 4px;
-    color: var(--xh-chat-text-color);
-    cursor: default;
-    display: inline-flex;
-    font-size: var(--xh-chat-meta-font-size-px);
-    height: 18px;
-    justify-content: center;
-    min-width: 18px;
-    padding: 0 5px;
-    text-decoration: none;
-  }
-
-  a.xh-chat-citations__chip {
-    cursor: pointer;
-
-    &:hover {
-      background-color: var(--xh-intent-primary-trans2);
-      color: var(--xh-chat-text-color);
-      text-decoration: none;
-    }
-  }
-
-  &__tip {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    max-width: 320px;
-  }
-
-  &__tip-title {
-    font-weight: 600;
-  }
-
-  &__tip-host {
-    color: var(--xh-chat-muted-text-color);
-  }
-
-  &__tip-quote {
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 4;
-    border-left: 2px solid var(--xh-chat-border-color);
-    color: var(--xh-chat-muted-text-color);
-    display: -webkit-box;
-    margin-top: 4px;
-    overflow: hidden;
-    padding-left: var(--xh-pad-half-px);
   }
 }

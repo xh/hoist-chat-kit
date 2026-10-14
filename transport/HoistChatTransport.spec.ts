@@ -1,7 +1,7 @@
-import type {PlainObject} from '@xh/hoist/core';
+import {type PlainObject, XH} from '@xh/hoist/core';
 import {hoistCore, hoistError, initTestAppAsync} from '@xh/hoist/test-support';
-import {beforeAll, describe, expect, it, vi} from 'vitest';
-import {ChatMessage} from '../core';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
+import {ChatMessage, ChatModel, ChatRunError} from '../core';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRequest} from './ChatTransport';
 import {AnthropicCodec} from './codec/AnthropicCodec';
@@ -141,11 +141,118 @@ describe('HoistChatTransport', () => {
             isFetchAborted: false
         });
     });
+
+    it('builds headers per request from a function', async () => {
+        const stream = ndjsonStream();
+        hoistCore.route('POST', 'chat', () => stream.response);
+        stream.close();
+
+        const transport = new HoistChatTransport({
+            url: 'chat',
+            headers: req => ({'X-Thread-Id': req.threadId, 'X-Run-Id': req.runId})
+        });
+        await collect(transport.run(request()));
+
+        expect(hoistCore.requestsTo('chat')[0].headers).toMatchObject({
+            'x-thread-id': 't1',
+            'x-run-id': 'r1'
+        });
+    });
+
+    /**
+     * How failures reach Hoist's exception pipeline. Apps rely on errors within the stream staying
+     * conversation state, and on routine server exceptions - such as a rate limit - never being
+     * logged or emailed as client errors.
+     */
+    describe('errors in a chat', () => {
+        it('keeps a routine server exception routine, so it is not logged as a client error', async () => {
+            const {handleException, logOnServer} = spyExceptionPipeline();
+            hoistCore.route('POST', 'chat', () =>
+                hoistError(429, {
+                    name: 'RoutineRuntimeException',
+                    message: 'Rate limit reached - try again in a minute.',
+                    isRoutine: true
+                })
+            );
+            const chatModel = createChat();
+
+            await chatModel.sendAsync('Hi');
+
+            expect(chatModel.lastError).toMatchObject({httpStatus: 429, isRoutine: true});
+            expect(chatModel.lastMessage.error).toBe('Rate limit reached - try again in a minute.');
+            expect(handleException).toHaveBeenCalledExactlyOnceWith(chatModel.lastError, {
+                showAlert: false
+            });
+            expect(logOnServer).not.toHaveBeenCalled();
+        });
+
+        it('reports an unexpected server exception as a client error', async () => {
+            const {logOnServer} = spyExceptionPipeline();
+            hoistCore.route('POST', 'chat', () => hoistError(500, {message: 'Boom'}));
+            const chatModel = createChat();
+
+            await chatModel.sendAsync('Hi');
+
+            expect(chatModel.lastError).toMatchObject({httpStatus: 500, isRoutine: false});
+            expect(logOnServer).toHaveBeenCalledOnce();
+        });
+
+        it('shows an error event within the stream, without reporting an exception', async () => {
+            const {handleException} = spyExceptionPipeline(),
+                stream = ndjsonStream();
+            hoistCore.route('POST', 'chat', () => stream.response);
+            stream.push(
+                {type: 'message_start', message: {id: 'msg1', model: 'claude', usage: {}}},
+                {type: 'error', error: {type: 'rate_limit_error', message: 'Slow down.'}}
+            );
+            stream.close();
+            const chatModel = createChat(new AnthropicCodec());
+
+            await chatModel.sendAsync('Hi');
+
+            expect(chatModel.lastError).toBeInstanceOf(ChatRunError);
+            expect(chatModel.lastError).toMatchObject({code: 'rate_limit_error'});
+            expect(handleException).not.toHaveBeenCalled();
+        });
+
+        it('shows a stream that ends early, without reporting an exception', async () => {
+            const {handleException} = spyExceptionPipeline(),
+                stream = ndjsonStream();
+            hoistCore.route('POST', 'chat', () => stream.response);
+            stream.push(TEXT_START, TEXT_CONTENT);
+            stream.close();
+            const chatModel = createChat();
+
+            await chatModel.sendAsync('Hi');
+
+            expect(chatModel.lastError).toMatchObject({code: 'incomplete-stream'});
+            expect(handleException).not.toHaveBeenCalled();
+        });
+    });
 });
 
 //------------------
 // Helpers
 //------------------
+function createChat(codec?: AnthropicCodec): ChatModel {
+    const chatModel = new ChatModel({transport: new HoistChatTransport({url: 'chat', codec})});
+    onTestFinished(() => chatModel.destroy());
+    return chatModel;
+}
+
+/** Spies on Hoist's exception handling, with the real handler but no server logging. */
+function spyExceptionPipeline() {
+    const handleException = vi.spyOn(XH, 'handleException'),
+        logOnServer = vi.spyOn(XH.exceptionHandler, 'logOnServerAsync').mockResolvedValue(true),
+        logError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    onTestFinished(() => {
+        handleException.mockRestore();
+        logOnServer.mockRestore();
+        logError.mockRestore();
+    });
+    return {handleException, logOnServer};
+}
+
 const TEXT_START: ChatEvent = {type: 'TEXT_MESSAGE_START', messageId: 'm1', role: 'assistant'},
     TEXT_CONTENT: ChatEvent = {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'Hello'},
     FINISHED: ChatEvent = {type: 'RUN_FINISHED', threadId: 't1', runId: 'r1'};

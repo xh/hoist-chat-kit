@@ -10,7 +10,7 @@ import type {
     ChatTextPart,
     ChatToolCallPart
 } from '../ChatPart';
-import {genChatId} from './ids';
+import {genChatId} from '../../impl/ids';
 import {parsePartialJson} from './parsePartialJson';
 
 /**

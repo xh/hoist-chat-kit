@@ -6,8 +6,8 @@ Chat components for [Hoist React](https://github.com/xh/hoist-react) application
 
 Hoist Chat Kit is a companion library to Hoist React (`@xh/hoist`), published to npm as
 `@xh/hoist-chat-kit`. It gives a Hoist app a complete chat with an LLM or an agent. It holds the
-models, the transports that stream replies from a backend, and the desktop components. Its code follows
-Hoist's own conventions, so it reads and behaves like the rest of a Hoist app.
+models, the transports that stream replies from a backend, and the desktop components. Its code
+follows Hoist's own conventions, so it reads and behaves like the rest of a Hoist app.
 
 ## Features
 
@@ -15,10 +15,14 @@ Hoist's own conventions, so it reads and behaves like the rest of a Hoist app.
   the server stops generating.
 - **A client-side tool loop** - the model calls tools that run in the browser and act on the app.
   It can filter a grid, change a dashboard, or open a view.
-- **Human in the loop** - tool calls can wait for the user to approve them, or for the user to
-  answer them.
-- **Rich message parts** - markdown text, reasoning, tool call cards, files, sources with
-  citations, and app-defined data parts for generative UI.
+- **Human in the loop** - tool calls can wait for the user to approve them, with a question
+  that suits each call, or for the user to answer them.
+- **Generative UI** - the model shows the app's own Hoist components inline in its reply: grids,
+  charts, KPI tiles and cards, or components the app writes. A catalog the app controls limits
+  the model to known components with checked props, and adapters draw A2UI or OpenUI payloads
+  with the same components.
+- **Rich message parts** - markdown text, reasoning, tool call cards, files, sources with inline
+  citations, and app-defined data parts.
 - **Conversation actions** - stop, retry, regenerate, edit a past message, and persist history.
 - **Protocol-neutral** - AG-UI events are the wire vocabulary. Codecs translate AG-UI and the
   Anthropic Messages API, and you can add your own.
@@ -109,7 +113,9 @@ tasks to the right doc.
 | [Architecture](./docs/architecture.md) | Layers, the flow of one turn, render performance, extension points |
 | [`/core/`](./core/README.md) | `ChatModel`, messages and parts, tools, approvals, persistence, errors |
 | [`/transport/`](./transport/README.md) | Transports, codecs, `ChatEvent`, server contracts, the Grails example |
+| [`/genui/`](./genui/README.md) | The generative UI catalog, component specs and protocol adapters |
 | [`/desktop/cmp/chat/`](./desktop/cmp/chat/README.md) | Desktop components and theming |
+| [`/desktop/cmp/genui/`](./desktop/cmp/genui/README.md) | The built-in grid, chart, KPI tile and card components |
 | [`/cmp/markdown/`](./cmp/markdown/README.md) | The streaming markdown renderer |
 | [Protocols](./docs/protocols.md) | AG-UI, Anthropic, OpenAI, A2UI, OpenUI, MCP Apps, the Vercel AI SDK |
 
@@ -126,8 +132,8 @@ pnpm test        # unit tests (Vitest), on the @xh/hoist test kit
 pnpm build       # pack the package and check what it ships
 ```
 
-[CLAUDE.md](./CLAUDE.md) holds the full development guide: architecture, conventions, testing, and
-the Git and release workflow. It serves human and AI developers alike.
+`CLAUDE.md`, at the root of the repository, holds the full development guide: architecture,
+conventions, testing, and the Git and release workflow. It serves human and AI developers alike.
 
 ------------------------------------------
 

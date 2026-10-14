@@ -2,23 +2,21 @@ import {div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
-import {ChatModel} from '../../../core';
-import '../../../styles/vars.scss';
+import {ChatModel} from '../../../../core';
+import '../../../../styles/vars.scss';
 import './ChatErrorBanner.scss';
 
-export interface ChatErrorBannerProps extends HoistProps<ChatModel> {
-    /**
-     * Called when the user chooses to edit their last message. Shows an Edit button when
-     * provided.
-     */
+interface ChatErrorBannerProps extends HoistProps<ChatModel> {
+    /** Called when the user chooses to edit their last message. Shows an Edit button if given. */
     onEdit?: () => void;
 }
 
 /**
  * The error that ended the last turn, with a button to retry it. Renders nothing unless the
  * conversation's status is 'error'.
+ * @internal
  */
-export const [ChatErrorBanner, chatErrorBanner] = hoistCmp.withFactory<ChatErrorBannerProps>({
+export const chatErrorBanner = hoistCmp.factory<ChatErrorBannerProps>({
     displayName: 'ChatErrorBanner',
     model: uses(ChatModel),
     className: 'xh-chat-error-banner',

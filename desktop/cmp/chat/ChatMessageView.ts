@@ -1,48 +1,65 @@
-import {isEmpty, last} from 'lodash';
+import {isEmpty, isEqual, last, sumBy} from 'lodash';
 import {type ReactElement, type ReactNode, useLayoutEffect, useMemo} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
-import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
+import {hoistCmp, HoistModel, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {textArea} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {action, bindable, observable} from '@xh/hoist/mobx';
-import {createObservableRef} from '@xh/hoist/utils/react';
-import {type ChatMarkdownComponents, chatMarkdown} from '../../../cmp/markdown';
+import {createObservableRef, useCached} from '@xh/hoist/utils/react';
+import {
+    type ChatImagePolicy,
+    type ChatMarkdownComponents,
+    chatMarkdown
+} from '../../../cmp/markdown';
 import {
     type ChatCitation,
     type ChatDataPart,
     type ChatFilePart,
     type ChatMessage,
     type ChatModel,
-    type ChatPart,
-    type ChatSourcePart,
+    type ChatPartRenderContext,
+    type ChatReasoningPart,
     isToolCallFinal
 } from '../../../core';
 import '../../../styles/vars.scss';
 import {chatFileChip} from './ChatFileChip';
 import './ChatMessageView.scss';
 import {chatReasoning} from './ChatReasoning';
-import {chatCitations, chatSources} from './ChatSources';
+import {chatSources} from './ChatSources';
 import {chatToolCall} from './ChatToolCall';
-import {chatTypingIndicator} from './ChatTypingIndicator';
 import {fitTextAreaToContent, isImeComposing} from './impl/AutoGrow';
+import {
+    type ChatReference,
+    chatCitations,
+    collectReferences,
+    toSourceList
+} from './impl/ChatCitations';
 import {chatCopyButton} from './impl/ChatCopyButton';
 import {formatElapsed} from './impl/ChatFormat';
+import {chatToolCallGroup} from './impl/ChatToolCallGroup';
+import {chatTypingIndicator} from './impl/ChatTypingIndicator';
+import {classNames} from '../../../impl/ClassNames';
+import {type ChatPartGroup, groupParts} from './impl/groupParts';
 import {jsonView} from './impl/JsonView';
-import {CHAT_MARKDOWN_COMPONENTS} from './impl/MarkdownComponents';
+import {useChatMarkdownComponents} from './impl/MarkdownComponents';
 
+/**
+ * Renders extra content for a message - action buttons or header items. Receives the message and
+ * its stable render context.
+ */
+export type ChatMessageRenderFn = (
+    message: ChatMessage,
+    context: ChatPartRenderContext
+) => ReactNode[];
+
+/** Props for {@link ChatMessageView}. */
 export interface ChatMessageViewProps extends HoistProps {
     /** The message to show. */
     message: ChatMessage;
 
     /** The conversation holding the message - for its tools, renderers and actions. */
     chatModel: ChatModel;
-
-    /**
-     * True if this is the last message in the conversation. Its actions stay visible, and an
-     * assistant message offers Regenerate.
-     */
-    isLast?: boolean;
 
     /** Name shown on assistant messages. Default 'Assistant'. */
     assistantName?: string;
@@ -56,13 +73,33 @@ export interface ChatMessageViewProps extends HoistProps {
      */
     markdownComponents?: ChatMarkdownComponents;
 
+    /** Images to load - see {@link ChatMarkdownProps.allowImages}. Default false. */
+    allowImages?: ChatImagePolicy;
+
+    /** Buttons to add to the action bar, after the built-in ones. Pass a stable function. */
+    messageActions?: ChatMessageRenderFn;
+
+    /** Items to add to an assistant message's header. Pass a stable function. */
+    messageHeaderItems?: ChatMessageRenderFn;
+
+    /**
+     * True if this is the last message in the conversation. Its actions stay visible, and an
+     * assistant message offers Regenerate.
+     * @internal
+     */
+    isLast?: boolean;
+
     /**
      * True to show a user message in edit mode. Pair with `onEditingChange` to control editing
      * from outside - left unset, the view manages its own edit state.
+     * @internal
      */
     isEditing?: boolean;
 
-    /** Called when the user starts or ends editing a user message. */
+    /**
+     * Called when the user starts or ends editing a user message.
+     * @internal
+     */
     onEditingChange?: (message: ChatMessage, isEditing: boolean) => void;
 }
 
@@ -72,36 +109,47 @@ export interface ChatMessageViewProps extends HoistProps {
  * User messages show as a right-aligned bubble of plain text, with any attached files above it.
  * Assistant messages span the full width with no bubble, under a header with the assistant's name
  * and the time taken. Their parts render in order: markdown text, reasoning, tool calls, files and
- * app-rendered data, followed by the sources consulted.
+ * app-rendered data, followed by the sources consulted. Consecutive tool calls of one step fold
+ * into a single "Used 3 tools" row.
+ *
+ * Each part renders as a memoized component that receives the part and a render context that is
+ * stable for the life of the message, so a part re-renders only when it changes - not on every
+ * streamed change to the message.
  *
  * An action bar shows on hover - beside a user message's bubble, below an assistant message once
- * its turn ends: Copy on every message, Edit on user messages, and Regenerate on the last
- * assistant message. A last reply that failed before any content renders nothing, as the list's
- * error banner reports it. System messages show as a centered note.
+ * its turn ends: Copy on every message, Edit on user messages, Regenerate on the last assistant
+ * message, then any `messageActions`. A last reply that failed before any content renders nothing,
+ * as the list's error banner reports it. System messages show as a centered note.
  */
 export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessageViewProps>({
     displayName: 'ChatMessageView',
     className: 'xh-chat-message',
 
-    render(props) {
-        const {className, message, isLast = false} = props,
+    render(props, ref) {
+        const {className, message, chatModel, isLast = false} = props,
             impl = useLocalModel(ChatMessageViewLocalModel),
-            modifiers = [`xh-chat-message--${message.role}`];
+            context = useMemo<ChatPartRenderContext>(
+                () => ({chatModel, messageId: message.id}),
+                [chatModel, message.id]
+            ),
+            // Kept stable while unchanged, so cited text parts skip render as the message streams.
+            references = useCached(collectReferences(message.parts), isEqual);
 
         // A last reply that failed before any content is shown by the list's error banner alone.
         if (isLast && message.status === 'error' && isEmpty(message.parts)) return null;
 
-        if (message.isStreaming) modifiers.push('xh-chat-message--streaming');
-        if (isLast) modifiers.push('xh-chat-message--last');
-        if (impl.isEditing) modifiers.push('xh-chat-message--editing');
-
         return div({
-            className: [className, ...modifiers].join(' '),
+            ref,
+            className: classNames(className, `xh-chat-message--${message.role}`, {
+                'xh-chat-message--streaming': message.isStreaming,
+                'xh-chat-message--last': isLast,
+                'xh-chat-message--editing': impl.isEditing
+            }),
             items: message.isUser
-                ? userContent(props, impl)
+                ? userContent(props, impl, context)
                 : message.role === 'system'
                   ? div({className: 'xh-chat-message__system', item: message.text})
-                  : assistantContent(props)
+                  : assistantContent(props, context, references)
         });
     }
 });
@@ -117,7 +165,8 @@ class ChatMessageViewLocalModel extends HoistModel {
     @bindable accessor draft: string = '';
     @observable accessor localEditing = false;
 
-    inputRef = createObservableRef<HTMLInputElement>();
+    readonly inputRef = createObservableRef<HTMLInputElement>();
+    readonly editButtonRef = createObservableRef<HTMLElement>();
 
     get props(): ViewProps {
         return this.componentProps as ViewProps;
@@ -138,6 +187,17 @@ class ChatMessageViewLocalModel extends HoistModel {
             },
             fireImmediately: true
         });
+
+        // A cancelled edit returns focus to the Edit button, which mounts once the box closes.
+        this.addReaction({
+            track: () => this.editButtonRef.current,
+            run: el => {
+                if (el && this.isFocusPending) {
+                    this.isFocusPending = false;
+                    el.focus();
+                }
+            }
+        });
     }
 
     startEdit() {
@@ -145,6 +205,7 @@ class ChatMessageViewLocalModel extends HoistModel {
     }
 
     cancelEdit() {
+        this.isFocusPending = true;
         this.setEditing(false);
     }
 
@@ -153,6 +214,7 @@ class ChatMessageViewLocalModel extends HoistModel {
             text = this.draft.trim();
         if (!text || chatModel.isBusy) return;
         this.setEditing(false);
+        chatModel.composerModel.focus();
         chatModel.editMessageAsync(message.id, text).catchDefault();
     }
 
@@ -165,6 +227,8 @@ class ChatMessageViewLocalModel extends HoistModel {
             this.submitEdit();
         }
     };
+
+    private isFocusPending = false;
 
     @action
     private setEditing(isEditing: boolean) {
@@ -180,25 +244,32 @@ class ChatMessageViewLocalModel extends HoistModel {
 //------------------------
 // User messages
 //------------------------
-function userContent(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNode[] {
-    const {message, chatModel, isLast} = props,
+function userContent(
+    props: ViewProps,
+    impl: ChatMessageViewLocalModel,
+    context: ChatPartRenderContext
+): ReactNode[] {
+    const {message, isLast, messageActions} = props,
         files = message.parts.filter(it => it.type === 'file') as ChatFilePart[];
 
     if (impl.isEditing) {
-        return [files.length ? fileRow(files) : null, editBox({impl, chatModel})];
+        return [
+            files.length ? fileRow(files) : null,
+            editBox({impl, chatModel: context.chatModel})
+        ];
     }
 
     // The action bar sits beside the bubble, not below it, so that it takes no space of its own.
+    // A message of files alone has no bubble, and the bar sits beside the files.
+    const actions = actionBar({message, context, isLast, impl, extraActions: messageActions});
+    if (!message.text) {
+        return [div({className: 'xh-chat-message__row', items: [fileRow(files), actions]})];
+    }
     return [
         files.length ? fileRow(files) : null,
         div({
             className: 'xh-chat-message__row',
-            items: [
-                message.text
-                    ? div({className: 'xh-chat-message__bubble', item: message.text})
-                    : null,
-                messageActions({message, chatModel, isLast, impl})
-            ]
+            items: [div({className: 'xh-chat-message__bubble', item: message.text}), actions]
         })
     ];
 }
@@ -229,6 +300,7 @@ const editBox = hoistCmp.factory<EditBoxProps>({
                     width: null,
                     height: null,
                     inputRef,
+                    domAttrs: {'aria-label': 'Edit message'},
                     onKeyDown: impl.onEditKeyDown
                 }),
                 div({
@@ -252,89 +324,103 @@ const editBox = hoistCmp.factory<EditBoxProps>({
 //------------------------
 // Assistant messages
 //------------------------
-function assistantContent(props: ViewProps): ReactNode[] {
-    const {message} = props,
-        sources = message.parts.filter(it => it.type === 'source') as ChatSourcePart[];
+function assistantContent(
+    props: ViewProps,
+    context: ChatPartRenderContext,
+    references: ChatReference[]
+): ReactNode[] {
+    const {message, isLast, assistantName, messageActions} = props;
 
     return [
-        messageHeader(props),
+        messageHeader(props, context),
         div({
             className: 'xh-chat-message__body',
             items: [
-                ...groupParts(message.parts).map(group => renderPartGroup(group, props, sources)),
-                isAwaitingContent(message) ? chatTypingIndicator({key: 'typing'}) : null,
+                ...groupParts(message.parts, context.chatModel).map(group =>
+                    renderPartGroup(group, props, context, references)
+                ),
+                isAwaitingContent(message)
+                    ? chatTypingIndicator({
+                          key: 'typing',
+                          label: `${assistantName ?? 'Assistant'} is responding`
+                      })
+                    : null,
                 statusNote(props)
             ]
         }),
-        sources.length ? chatSources({sources}) : null,
+        references.length ? chatSources({sources: toSourceList(references)}) : null,
         // Actions wait for the turn to end - including one paused for the user's approval.
         message.isStreaming || message.status === 'paused'
             ? null
-            : messageActions({
-                  message,
-                  chatModel: props.chatModel,
-                  isLast: props.isLast,
-                  impl: null
-              })
+            : actionBar({message, context, isLast, impl: null, extraActions: messageActions})
     ];
 }
 
-function messageHeader({message, assistantName, assistantIcon}: ViewProps): ReactNode {
-    const elapsed = message.isStreaming ? null : formatElapsed(message.metadata?.elapsedMs);
+function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactNode {
+    const {message, assistantName, assistantIcon, messageHeaderItems} = props,
+        isDone = !message.isStreaming,
+        elapsed = isDone ? formatElapsed(message.metadata?.elapsedMs) : null,
+        thought = isDone ? formatElapsed(getHiddenThoughtMs(message)) : null;
+
     return div({
         className: 'xh-chat-message__header',
         items: [
             span({className: 'xh-chat-message__avatar', item: assistantIcon ?? Icon.ai()}),
             span({className: 'xh-chat-message__name', item: assistantName ?? 'Assistant'}),
             elapsed
+                ? span({className: 'xh-chat-message__meta', title: 'Time taken', item: elapsed})
+                : null,
+            thought
                 ? span({
-                      className: 'xh-chat-message__elapsed',
-                      title: 'Time taken',
-                      item: elapsed
+                      className: 'xh-chat-message__meta',
+                      title: 'Time spent thinking',
+                      item: `Thought for ${thought}`
                   })
-                : null
+                : null,
+            ...(messageHeaderItems?.(message, context) ?? [])
         ]
     });
 }
 
-// Consecutive files render together as one row of chips. Sources render after the body.
-type PartGroup = ChatPart | ChatFilePart[];
-
-function groupParts(parts: ChatPart[]): PartGroup[] {
-    const ret: PartGroup[] = [];
-    parts.forEach(part => {
-        if (part.type === 'source') return;
-        const prev = last(ret);
-        if (part.type === 'file' && Array.isArray(prev)) {
-            prev.push(part);
-        } else {
-            ret.push(part.type === 'file' ? [part] : part);
-        }
-    });
-    return ret;
+/**
+ * Time spent on reasoning with no text to show, which renders no disclosure of its own - or null.
+ */
+function getHiddenThoughtMs(message: ChatMessage): number {
+    const parts = message.parts.filter(
+        it => it.type === 'reasoning' && !it.text?.trim() && it.endedAt != null
+    ) as ChatReasoningPart[];
+    return parts.length ? sumBy(parts, it => it.endedAt - it.startedAt) : null;
 }
 
-function renderPartGroup(group: PartGroup, props: ViewProps, sources: ChatSourcePart[]) {
-    if (Array.isArray(group)) return fileRow(group);
-
-    const {message, chatModel} = props;
+function renderPartGroup(
+    group: ChatPartGroup,
+    props: ViewProps,
+    context: ChatPartRenderContext,
+    references: ChatReference[]
+): ReactNode {
+    const {markdownComponents, allowImages} = props;
     switch (group.type) {
+        case 'fileGroup':
+            return fileRow(group.parts);
+        case 'toolCallGroup':
+            return chatToolCallGroup({key: group.id, parts: group.parts, context});
         case 'text':
             return textPart({
                 key: group.id,
                 text: group.text,
                 isStreaming: group.state === 'streaming',
                 citations: group.citations,
-                // Only cited text needs the sources - passing them otherwise defeats memoization.
-                sources: group.citations?.length ? sources : null,
-                markdownComponents: props.markdownComponents
+                // Only cited text needs the references - passing them otherwise defeats memoization.
+                references: group.citations?.length ? references : null,
+                markdownComponents,
+                allowImages
             });
         case 'reasoning':
-            return chatReasoning({key: group.id, part: group});
+            return chatReasoning({key: group.id, part: group, markdownComponents, allowImages});
         case 'toolCall':
-            return chatToolCall({key: group.id, part: group, message, chatModel});
+            return chatToolCall({key: group.id, part: group, context});
         case 'data':
-            return dataPart({key: group.id, part: group, message, chatModel});
+            return dataPart({key: group.id, part: group, context});
         default:
             return null;
     }
@@ -344,51 +430,54 @@ interface TextPartProps extends HoistProps {
     text: string;
     isStreaming: boolean;
     citations: ChatCitation[];
-    sources: ChatSourcePart[];
+    references: ChatReference[];
     markdownComponents: ChatMarkdownComponents;
+    allowImages: ChatImagePolicy;
 }
 
 const textPart = hoistCmp.factory<TextPartProps>({
     displayName: 'ChatTextPart',
     model: false,
 
-    render({text, isStreaming, citations, sources, markdownComponents}) {
-        const components = useMemo(
-            () =>
-                markdownComponents
-                    ? {...CHAT_MARKDOWN_COMPONENTS, ...markdownComponents}
-                    : CHAT_MARKDOWN_COMPONENTS,
-            [markdownComponents]
-        );
+    render({text, isStreaming, citations, references, markdownComponents, allowImages}) {
+        const components = useChatMarkdownComponents(markdownComponents),
+            // Inline at the end of the last paragraph - memoized, as each new value re-renders it.
+            trailingContent = useMemo(
+                () => (citations?.length ? chatCitations({citations, references}) : null),
+                [citations, references]
+            );
 
         return div({
             className: 'xh-chat-message__text',
-            items: [
-                chatMarkdown({content: text, isStreaming, components}),
-                citations?.length ? chatCitations({citations, sources}) : null
-            ]
+            item: chatMarkdown({
+                content: text,
+                isStreaming,
+                components,
+                allowImages,
+                trailingContent
+            })
         });
     }
 });
 
 interface DataPartProps extends HoistProps {
     part: ChatDataPart;
-    message: ChatMessage;
-    chatModel: ChatModel;
+    context: ChatPartRenderContext;
 }
 
+// The renderer runs as this component's render, so hooks it calls belong to the part. Takes any
+// model in context, as `useLocalModel()` needs a component with a model spec.
 const dataPart = hoistCmp.factory<DataPartProps>({
     displayName: 'ChatDataPart',
-    model: false,
+    model: uses('*', {optional: true}),
+    className: 'xh-chat-message__data',
 
-    render({part, message, chatModel}) {
-        const renderer = chatModel.dataRenderers?.[part.dataType];
-        if (renderer) {
-            return div({className: 'xh-chat-message__data', item: renderer(part, message)});
-        }
+    render({className, part, context}) {
+        const renderer = context.chatModel.dataRenderers?.[part.dataType];
+        if (renderer) return div({className, item: renderer(part, context)});
 
         return div({
-            className: 'xh-chat-message__data xh-chat-message__data--unrendered',
+            className: classNames(className, 'xh-chat-message__data--unrendered'),
             items: [
                 div({className: 'xh-chat-message__data-type', item: part.dataType}),
                 jsonView({value: part.data})
@@ -436,26 +525,31 @@ function statusNote({message, isLast}: ViewProps): ReactNode {
 //------------------------
 // Action bar
 //------------------------
-interface MessageActionsProps extends HoistProps {
+interface ActionBarProps extends HoistProps {
     message: ChatMessage;
-    chatModel: ChatModel;
+    context: ChatPartRenderContext;
     isLast: boolean;
 
     /** Local model of a user message, to start editing it - null for assistant messages. */
     impl: ChatMessageViewLocalModel;
+
+    /** App actions, added after the built-in ones. */
+    extraActions: ChatMessageRenderFn;
 }
 
-const messageActions = hoistCmp.factory<MessageActionsProps>({
+const actionBar = hoistCmp.factory<ActionBarProps>({
     displayName: 'ChatMessageActions',
     model: false,
 
-    render({message, chatModel, isLast, impl}) {
-        const {isBusy} = chatModel,
+    render({message, context, isLast, impl, extraActions}) {
+        const {chatModel} = context,
+            {isBusy} = chatModel,
             hasText = !!message.text.trim(),
             // A failed last reply offers Retry in the list's error banner instead.
-            canRegenerate = message.isAssistant && isLast && !isBusy && message.status !== 'error';
+            canRegenerate = message.isAssistant && isLast && !isBusy && message.status !== 'error',
+            appActions = extraActions?.(message, context) ?? [];
 
-        if (!hasText && !canRegenerate && !impl) return null;
+        if (!hasText && !canRegenerate && !impl && isEmpty(appActions)) return null;
 
         return div({
             className: 'xh-chat-message__actions',
@@ -463,8 +557,10 @@ const messageActions = hoistCmp.factory<MessageActionsProps>({
                 hasText ? chatCopyButton({getCopyText: () => message.text}) : null,
                 impl
                     ? button({
+                          ref: impl.editButtonRef,
                           icon: Icon.edit(),
                           tooltip: 'Edit',
+                          'aria-label': 'Edit',
                           disabled: isBusy,
                           onClick: () => impl.startEdit()
                       })
@@ -473,9 +569,11 @@ const messageActions = hoistCmp.factory<MessageActionsProps>({
                     ? button({
                           icon: Icon.refresh(),
                           tooltip: 'Regenerate',
+                          'aria-label': 'Regenerate',
                           onClick: () => chatModel.regenerateAsync(message.id).catchDefault()
                       })
-                    : null
+                    : null,
+                ...appActions
             ]
         });
     }

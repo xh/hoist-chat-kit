@@ -2,6 +2,7 @@ import type {PlainObject, TrackOptions} from '@xh/hoist/core';
 import type {PromiseTimeoutSpec} from '@xh/hoist/promise';
 import type {FetchOptions} from '@xh/hoist/svc';
 import {throwIf} from '@xh/hoist/utils/js';
+import {isFunction} from 'lodash';
 import type {ChatCodec} from './ChatCodec';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRequest, ChatTransport} from './ChatTransport';
@@ -16,8 +17,11 @@ export interface HttpChatTransportConfig {
     /** Encodes requests and decodes the streamed records. Default an {@link AgUiCodec}. */
     codec?: ChatCodec;
 
-    /** Extra headers for each request, e.g. to authenticate with an agent server. */
-    headers?: PlainObject;
+    /**
+     * Extra headers for each request, e.g. to authenticate with an agent server - or a function
+     * to build them per request, e.g. to send the thread and run ids for the server to count turns.
+     */
+    headers?: PlainObject | ((request: ChatRunRequest) => PlainObject);
 
     /** Query string parameters for each request. */
     params?: PlainObject;
@@ -50,6 +54,12 @@ export interface HttpChatRecord {
  * The base class owns the request, the decoding and the cancellation: a stop - or a caller that
  * stops reading early - closes the connection, so the server can stop generating. A subclass
  * supplies the framing, by implementing {@link fetchRecords}.
+ *
+ * A failed request throws as is, so a `FetchException` keeps Hoist's `isRoutine` flag from the
+ * server. The chat reports it with `XH.handleException`, which logs a routine exception quietly,
+ * not as a client error. An error the backend reports within the stream - an AG-UI `RUN_ERROR`,
+ * or an Anthropic `error` event - is part of the conversation instead: the chat shows it, with
+ * Retry, and never reports it as an exception.
  */
 export abstract class HttpChatTransport implements ChatTransport {
     /** Endpoint to post to. */
@@ -58,8 +68,8 @@ export abstract class HttpChatTransport implements ChatTransport {
     /** Encodes requests and decodes the streamed records. */
     readonly codec: ChatCodec;
 
-    /** Extra headers for each request, or null. */
-    readonly headers: PlainObject;
+    /** Extra headers for each request, a function to build them, or null. */
+    readonly headers: HttpChatTransportConfig['headers'];
 
     /** Query string parameters for each request, or null. */
     readonly params: PlainObject;
@@ -106,7 +116,10 @@ export abstract class HttpChatTransport implements ChatTransport {
                 url,
                 method: 'POST',
                 body: JSON.stringify(body),
-                headers: {'Content-Type': 'application/json', ...headers},
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(isFunction(headers) ? headers(request) : headers)
+                },
                 params,
                 track,
                 timeout,

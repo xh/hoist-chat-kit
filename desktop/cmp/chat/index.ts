@@ -1,7 +1,7 @@
+export * from './ChatClearButton';
 export * from './ChatCodeBlock';
 export * from './ChatComposer';
 export * from './ChatEmptyState';
-export * from './ChatErrorBanner';
 export * from './ChatFileChip';
 export * from './ChatMessageList';
 export * from './ChatMessageView';
@@ -10,4 +10,3 @@ export * from './ChatReasoning';
 export * from './ChatSources';
 export * from './ChatSuggestions';
 export * from './ChatToolCall';
-export * from './ChatTypingIndicator';

@@ -19,6 +19,7 @@ export interface ChatSuggestion {
     icon?: ReactElement;
 }
 
+/** Props for {@link ChatSuggestions}. */
 export interface ChatSuggestionsProps extends HoistProps<ChatModel> {
     /** Prompts to offer, as specs or as plain strings. */
     suggestions: Array<ChatSuggestion | string>;
@@ -29,31 +30,36 @@ export interface ChatSuggestionsProps extends HoistProps<ChatModel> {
 
 /**
  * Suggested prompts, as chips that send the prompt when clicked. Disabled while a reply is in
- * progress.
+ * progress. Sending a prompt moves focus to the composer, ready for a follow-up.
  */
 export const [ChatSuggestions, chatSuggestions] = hoistCmp.withFactory<ChatSuggestionsProps>({
     displayName: 'ChatSuggestions',
     model: uses(ChatModel),
     className: 'xh-chat-suggestions',
 
-    render({model, className, suggestions, onSelect}) {
+    render({model, className, suggestions, onSelect}, ref) {
         if (!suggestions?.length) return null;
 
         return div({
+            ref,
             className,
-            items: suggestions.map(it => {
+            items: suggestions.map((it, idx) => {
                 const suggestion: ChatSuggestion = isString(it) ? {text: it} : it;
                 return button({
-                    key: suggestion.text,
+                    key: `${idx}-${suggestion.text}`,
                     className: 'xh-chat-suggestions__chip',
                     text: suggestion.text,
                     icon: suggestion.icon,
                     outlined: true,
                     disabled: model.isBusy,
-                    onClick: () =>
-                        onSelect
-                            ? onSelect(suggestion)
-                            : model.sendAsync(suggestion.prompt ?? suggestion.text).catchDefault()
+                    onClick: () => {
+                        if (onSelect) {
+                            onSelect(suggestion);
+                            return;
+                        }
+                        model.composerModel.focus();
+                        model.sendAsync(suggestion.prompt ?? suggestion.text).catchDefault();
+                    }
                 });
             })
         });

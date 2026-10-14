@@ -119,7 +119,9 @@
         "client tools",
         "interactive tools",
         "approvals",
-        "persistence"
+        "persistence",
+        "approvalPrompt",
+        "elapsedMs"
       ]
     },
     {
@@ -151,7 +153,75 @@
         "cacheControl",
         "prepareBody",
         "textEvents",
-        "toolCallEvents"
+        "toolCallEvents",
+        "citationEvents",
+        "ScriptedRequestContext",
+        "respond",
+        "headers",
+        "prompt caching"
+      ]
+    },
+    {
+      "id": "genui/README.md",
+      "title": "Generative UI",
+      "mcpCategory": "package",
+      "viewerCategory": "core",
+      "description": "Generative UI: a catalog of app components the model can show inline, with protocol adapters.",
+      "keywords": [
+        "ChatUiCatalog",
+        "ChatUiComponentSpec",
+        "ChatUiRenderContext",
+        "ChatUiAdapter",
+        "ChatUiNode",
+        "generative UI",
+        "catalog",
+        "show_",
+        "JSON Schema",
+        "validate",
+        "isPartial",
+        "partial props",
+        "instructions",
+        "inline",
+        "display",
+        "createDataRenderers",
+        "renderNode",
+        "A2UI",
+        "OpenUI",
+        "maxSteps",
+        "safety"
+      ]
+    },
+    {
+      "id": "desktop/cmp/genui/README.md",
+      "title": "Desktop Generative UI Components",
+      "mcpCategory": "package",
+      "viewerCategory": "desktop",
+      "description": "Built-in generative UI components for a ChatUiCatalog: a Hoist grid, a Hoist chart, KPI tiles and a detail card.",
+      "keywords": [
+        "chatUiGridSpec",
+        "chatUiChartSpec",
+        "chatUiMetricsSpec",
+        "chatUiCardSpec",
+        "ChatUiGrid",
+        "ChatUiChart",
+        "ChatUiMetrics",
+        "ChatUiCard",
+        "ChatUiCatalog",
+        "generative UI",
+        "show_grid",
+        "show_chart",
+        "GridModel",
+        "ChartModel",
+        "Highcharts",
+        "number format",
+        "streaming",
+        "ChatUiFrame",
+        "chatUiSkeleton",
+        "fmtChatUiNumber",
+        "CHAT_UI_NUMBER_FORMAT_SCHEMA",
+        "compact",
+        "autosize",
+        "pie"
       ]
     },
     {
@@ -173,12 +243,25 @@
         "ChatFileChip",
         "ChatEmptyState",
         "ChatSuggestions",
-        "ChatErrorBanner",
-        "ChatTypingIndicator",
         "composerProps",
         "messageListProps",
         "theming",
-        "--xh-chat"
+        "--xh-chat",
+        "ChatPartRenderContext",
+        "messageActions",
+        "messageHeaderItems",
+        "allowImages",
+        "tool call group",
+        "renderer",
+        "placeholder",
+        "maxRows",
+        "feedback",
+        "ChatClearButton",
+        "chatClearButton",
+        "approvalPrompt",
+        "inline tool call",
+        "citations",
+        "attachmentErrors"
       ]
     },
     {
@@ -197,7 +280,13 @@
         "block memoization",
         "code blocks",
         "links",
-        "GFM"
+        "GFM",
+        "allowImages",
+        "ChatImagePolicy",
+        "images",
+        "onLinkClick",
+        "trailingContent",
+        "citations"
       ]
     }
   ]

@@ -1,8 +1,9 @@
 import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
-import {flattenDeep, isArray, isString} from 'lodash';
-import {sleepAsync} from '../core/impl/abort';
-import {genChatId} from '../core/impl/ids';
+import {findLast, flattenDeep, isArray, isString, last, maxBy} from 'lodash';
+import type {ChatMessage} from '../core';
+import {sleepAsync} from '../impl/abort';
+import {genChatId} from '../impl/ids';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRequest, ChatTransport} from './ChatTransport';
 
@@ -19,12 +20,40 @@ export interface ScriptedChatTransportConfig {
      * results in the request.
      *
      * @param request - the request for the step.
-     * @param requestIndex - zero-based count of the requests this transport has received.
+     * @param context - where the request falls in the conversation: its turn, its step within
+     *      the turn, and how many times the user message has been answered before.
      */
-    respond?: (request: ChatRunRequest, requestIndex: number) => Awaitable<ScriptedResponse>;
+    respond?: (
+        request: ChatRunRequest,
+        context: ScriptedRequestContext
+    ) => Awaitable<ScriptedResponse>;
 
     /** Pause before each scripted event, in milliseconds. Default 25. Use 0 in tests. */
     delayMs?: number;
+}
+
+/** Where a request falls in the conversation - passed to {@link ScriptedChatTransportConfig.respond}. */
+export interface ScriptedRequestContext {
+    /** Zero-based count of the requests this transport has received before this one. */
+    requestIndex: number;
+
+    /** Zero-based count of the turns this transport has answered before this one. */
+    turnIndex: number;
+
+    /**
+     * Zero-based index of the step within its turn - 0 for the first model call, 1 for the call
+     * that follows the first round of client tool calls, and so on.
+     */
+    stepIndex: number;
+
+    /** The user message the turn answers, or null if the history has none. */
+    userMessage: ChatMessage;
+
+    /**
+     * Zero-based count of the earlier turns that answered the same user message - 1 for the first
+     * retry or regenerate. Lets a script fail the first attempt and succeed on retry.
+     */
+    attempt: number;
 }
 
 /**
@@ -85,10 +114,10 @@ export class ScriptedChatTransport implements ChatTransport {
 
     async *run(request: ChatRunRequest): AsyncGenerator<ChatEvent> {
         const {threadId, runId, signal} = request,
-            requestIndex = this.requests.length;
+            context = this.createContext(request);
         this.requests.push(request);
 
-        const response = await this.getResponseAsync(request, requestIndex);
+        const response = await this.getResponseAsync(request, context);
         let isStarted = false;
         for await (const event of this.playAsync(response, signal)) {
             if (!isStarted && event.type !== 'RUN_STARTED') {
@@ -109,11 +138,39 @@ export class ScriptedChatTransport implements ChatTransport {
     private readonly responses: ScriptedResponse[];
     private readonly respond: ScriptedChatTransportConfig['respond'];
 
+    // Turns answered so far, and the count of turns per user message.
+    private turnCount = 0;
+    private readonly turnsByMessage = new Map<string, number>();
+
+    // The step of a request follows from the reply it builds - the last message - which holds the
+    // parts of the turn's earlier steps.
+    private createContext(request: ChatRunRequest): ScriptedRequestContext {
+        const {messages} = request,
+            reply = last(messages),
+            lastStep = reply?.isAssistant ? maxBy(reply.parts, it => it.step ?? 0)?.step : null,
+            stepIndex = lastStep != null ? lastStep + 1 : 0,
+            userMessage = findLast(messages, it => it.isUser) ?? null,
+            messageKey = userMessage?.id ?? '';
+
+        if (stepIndex === 0) {
+            this.turnCount++;
+            this.turnsByMessage.set(messageKey, (this.turnsByMessage.get(messageKey) ?? 0) + 1);
+        }
+        return {
+            requestIndex: this.requests.length,
+            turnIndex: this.turnCount - 1,
+            stepIndex,
+            userMessage,
+            attempt: (this.turnsByMessage.get(messageKey) ?? 1) - 1
+        };
+    }
+
     private async getResponseAsync(
         request: ChatRunRequest,
-        requestIndex: number
+        context: ScriptedRequestContext
     ): Promise<ScriptedResponse> {
-        if (this.respond) return this.respond(request, requestIndex);
+        const {requestIndex} = context;
+        if (this.respond) return this.respond(request, context);
 
         throwIf(
             requestIndex >= this.responses.length,
@@ -256,6 +313,44 @@ export function sourceEvents(
     sources: Array<{id?: string; url?: string; title?: string; snippet?: string}>
 ): ChatEvent[] {
     return sources.map(value => ({type: 'CUSTOM', name: 'xh.chat.source', value}));
+}
+
+/** A citation, as written by {@link citationEvents}. */
+export interface ScriptedCitation {
+    /** Id of the citation. Default generated. */
+    id?: string;
+
+    /** Id of a source, from {@link sourceEvents}, that the citation refers to. */
+    sourceId?: string;
+
+    /** Title of the cited source. */
+    title?: string;
+
+    /** Location of the cited source. */
+    url?: string;
+
+    /** The quoted passage that supports the text. */
+    citedText?: string;
+}
+
+/**
+ * Events that cite sources for the text just written. Each citation attaches to the text part
+ * that precedes it, and shows as a numbered chip at the end of its last paragraph:
+ *
+ * ```ts
+ * [
+ *     textEvents('Hoist apps stream replies as NDJSON.'),
+ *     citationEvents([{sourceId: 'docs', title: 'Transport docs'}]),
+ *     sourceEvents([{id: 'docs', url: 'https://xh.io/docs', title: 'Transport docs'}])
+ * ]
+ * ```
+ */
+export function citationEvents(citations: ScriptedCitation[]): ChatEvent[] {
+    return citations.map(({id = genChatId(), ...rest}) => ({
+        type: 'CUSTOM',
+        name: 'xh.chat.citation',
+        value: {id, ...rest}
+    }));
 }
 
 /** An event for an app-defined data part, rendered by the chat's renderer for `dataType`. */

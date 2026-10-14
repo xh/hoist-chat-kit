@@ -1,7 +1,7 @@
 # Agent-to-UI Protocols
 
 How Hoist Chat Kit relates to the protocols and vocabularies that connect agents and models to a
-UI. Each section marks what the kit builds now and what is planned.
+UI. Each section marks what the kit builds now, and what an app or a later release can add.
 
 The status of each outside protocol is as of October 2026. These protocols are young and still
 change. Check each project's own docs for its current state.
@@ -13,8 +13,8 @@ change. Check each project's own docs for its current state.
 | [AG-UI](#ag-ui) | Event stream between an agent backend and a frontend | Wire events | **Built.** The kit's own event vocabulary. |
 | [Anthropic Messages API](#anthropic-messages-api) | Claude's request format and SSE stream | Provider format | **Built.** `AnthropicCodec`. |
 | [OpenAI](#openai) | The Responses and Chat Completions streams | Provider format | **Not built.** A codec can add it. |
-| [A2UI](#a2ui) | Declarative JSON UI, drawn from a client catalog | UI payload | **Seam built.** Renderer planned. |
-| [OpenUI (Thesys)](#openui-thesys) | Generative UI framework and streaming UI language | UI payload | **Seam built.** Renderer planned. |
+| [A2UI](#a2ui) | Declarative JSON UI, drawn from a client catalog | UI payload | **Adapter seam built.** An app adapter maps it to catalog components. |
+| [OpenUI (Thesys)](#openui-thesys) | Generative UI framework and streaming UI language | UI payload | **Adapter seam built.** An app adapter maps it to catalog components. |
 | [MCP Apps](#mcp-apps) | MCP tools that return sandboxed HTML views | UI payload | **Seam built.** Host not planned for now. |
 | [Vercel AI SDK](#vercel-ai-sdk-vocabulary) | `UIMessage` parts and tool states | Message model | **Built.** The kit's part and state names. |
 
@@ -129,9 +129,57 @@ them, apart from vendor-specific fields such as non-standard reasoning deltas.
 Generative UI lets a model put real UI in the chat, such as a grid, a chart or a form, and not
 only text. Three protocols compete here: A2UI, OpenUI and MCP Apps.
 
-**Status in the kit: the seam is built. A Hoist component catalog is the next deliverable.**
+**Status in the kit: built.** A `ChatUiCatalog` lets the model show the app's own Hoist
+components, and an adapter seam lets A2UI and OpenUI payloads draw with them.
 
-### The seam: data parts and `dataRenderers`
+### The catalog: components as tools
+
+An app registers Hoist components in a `ChatUiCatalog`, each with a typed props schema. The
+catalog turns each component into a client tool, `show_<name>`, with `display: 'inline'`. It
+also writes the model's instructions. The model calls a tool with the component's props, and the
+chat renders the component inline in the reply as the props stream. The catalog checks the props
+against the schema, and returns any problems to the model so it can correct them.
+
+```typescript
+const catalog = new ChatUiCatalog({
+    components: [chatUiMetricsSpec(), chatUiGridSpec({maxRows: 50}), chatUiChartSpec()]
+});
+
+new ChatModel({
+    transport: new HoistChatTransport({
+        url: 'llm/stream',
+        codec: new AnthropicCodec({system: `${appPrompt}\n\n${catalog.instructions}`})
+    }),
+    tools: [...appTools, ...catalog.tools]
+});
+```
+
+A catalog that the app controls keeps the model to known components and known props. It also
+puts Hoist's own grids and charts in the chat, which suit data-dense apps better than generic
+component kits do. The built-in grid, chart, KPI tiles and card are in
+[`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md). See [`/genui/`](../genui/README.md) for
+the catalog, its safety model, and the cost of each render.
+
+### Protocol adapters
+
+A `ChatUiAdapter` translates a protocol's UI payload into catalog components. The payload
+arrives in a data part with the adapter's `dataType`. The catalog registers a data renderer for
+each adapter, which translates the payload and renders the resulting components:
+
+```typescript
+new ChatModel({
+    transport,
+    tools: catalog.tools,
+    dataRenderers: catalog.createDataRenderers([a2uiAdapter, openUiAdapter])
+});
+```
+
+The kit ships the interface and no adapter. Each protocol names its components its own way, and
+an app maps those names to the components in its catalog. See
+[Adapt a protocol's UI payload](../genui/README.md#adapt-a-protocols-ui-payload) for a worked
+adapter.
+
+### The seam below: data parts and `dataRenderers`
 
 A `ChatDataPart` carries content that the app or a protocol defines, keyed by `dataType`. A
 backend sends one as an `xh.chat.data` event or an AG-UI `ACTIVITY_SNAPSHOT`. The app registers
@@ -143,29 +191,14 @@ new ChatModel({
     transport,
     dataRenderers: {
         // App content: a chart the backend chose to show.
-        'price-chart': part => priceChart({symbol: part.data.symbol}),
-        // A protocol payload, drawn by a renderer the app supplies.
-        'a2ui-surface': part => a2uiSurface({messages: part.data})
+        'price-chart': part => priceChart({symbol: part.data.symbol})
     }
 });
 ```
 
-A tool's `renderer` is the second seam. It draws a tool call as UI. Examples are a chart of the
+A tool's `renderer` is a second seam. It draws a tool call as UI. Examples are a chart of the
 data that the tool returned, or a form that answers an interactive tool. See
 [`/core/`](../core/README.md#let-the-user-answer-a-tool-call).
-
-### Next: a Hoist component catalog
-
-The planned registry lets an app register Hoist components, such as a grid, a chart or a card,
-each with a typed props schema. The kit then generates the model's instructions and tools from
-the catalog. It checks each spec that the model writes against the catalog, and renders the
-result inline in the chat. Protocols such as A2UI and OpenUI Lang translate into the same catalog
-specs through an adapter.
-
-A catalog that the app controls keeps the model to known components and known props. It also
-puts Hoist's own grids and charts in the chat, which suit data-dense apps better than generic
-component kits do. XH has a proof of concept that renders Hoist grids and charts inline in a
-chat in this way.
 
 ### A2UI
 
@@ -175,9 +208,9 @@ trusts. It sends no code. As of October 2026, v0.9.1 is the production version, 
 release candidate. The project calls itself an early-stage public preview, and an official React
 renderer is planned but not released.
 
-**In the kit:** an A2UI payload can arrive as a data part today, and an app can render it with
-its own renderer. The kit ships no A2UI renderer. The planned catalog fits A2UI's model well,
-because both map component names to native components.
+**In the kit:** an A2UI payload arrives as a data part. A `ChatUiAdapter` maps its components to
+catalog components, which then render it with Hoist components. The kit ships no A2UI adapter.
+A2UI's model fits the catalog well, because both map component names to native components.
 
 ### OpenUI (Thesys)
 
@@ -188,9 +221,9 @@ generates a system prompt from it, and draws each component as its lines arrive.
 "Open UI" here means Thesys OpenUI. The W3C Open UI community group works on standard HTML
 controls and does not relate to agents.
 
-**In the kit:** an OpenUI payload can arrive as a data part, for an app renderer to draw. The kit
-ships no OpenUI renderer. The planned catalog follows the same idea, a registered component
-library with typed props, on Hoist components.
+**In the kit:** an OpenUI payload arrives as a data part, and a `ChatUiAdapter` maps it to catalog
+components. The kit ships no OpenUI adapter. The catalog follows the same idea as OpenUI, a
+registered component library with typed props and a generated prompt, on Hoist components.
 
 ### MCP Apps
 

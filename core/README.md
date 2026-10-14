@@ -171,7 +171,7 @@ export class AssistantModel extends HoistModel {
                 codec: new AnthropicCodec({system: () => this.buildSystemPrompt()})
             }),
             tools: this.createTools(),
-            composer: {placeholder: 'Ask about your portfolio...'},
+            composer: {enableAttachments: true, accept: ['image/*', '.csv']},
             onTurnComplete: message => this.logDebug('Turn done', message.metadata)
         });
     }
@@ -277,14 +277,24 @@ Set `needsApproval` on a client tool. Use a function to decide per call.
     description: 'Place an order for a security.',
     parameters: ORDER_SCHEMA,
     needsApproval: input => input.quantity * input.price > 10_000,
+    approvalPrompt: ({side, quantity, symbol}) =>
+        `${side} ${fmtNumber(quantity, {asHtml: true})} ${symbol} at market?`,
     execute: input => this.orderService.placeOrderAsync(input)
 }
 ```
 
-The call moves to `approval-requested` and the turn pauses. The desktop tool call card shows
-Approve and Deny buttons, which call `approveToolCallAsync()` and `denyToolCallAsync()`. When no
-call waits any longer, the turn resumes. The chat runs approved calls and tells the model about
-denied ones, with the reason given to `denyToolCallAsync()` or a default text.
+The call moves to `approval-requested` and the turn pauses. The desktop tool call card asks the
+tool's `approvalPrompt`, or a generic "Allow this action to run?". Its Approve and Deny buttons call
+`approveToolCallAsync()` and `denyToolCallAsync()`. When no call waits any longer, the turn resumes.
+The chat runs approved calls and tells the model about denied ones, with the reason given to
+`denyToolCallAsync()` or a default text.
+
+Write `approvalPrompt` in the user's terms. Say what the call does, and name any work it
+discards, such as "Discard unsaved changes and reset the dashboard?". A function of the input
+may return rich content, such as an order ticket. A `renderer` on the tool also shows in the
+card while it waits, under the prompt.
+
+The time a turn waits for the user does not count toward the reply's `metadata.elapsedMs`.
 
 ### Let the user answer a tool call
 
@@ -309,6 +319,7 @@ const askUser: ChatToolSpec = {
     },
     interactive: true,
     displayName: 'Question',
+    // Renders as a component of its own, with the call and a stable render context.
     renderer: (part, {chatModel}) => {
         const {question, options} = part.input ?? {};
         if (part.state === 'output-available') return div(`You chose: ${part.output}`);
@@ -330,13 +341,15 @@ const askUser: ChatToolSpec = {
 ```
 
 **Avoid:** an interactive tool with no `renderer`. The default tool call card has no controls
-for an answer, so the turn waits with no way for the user to resume it.
+for an answer, so the turn waits with no way for the user to resume it. `ChatModel` logs a
+warning for such a tool when it is created.
 
 ### Persist and restore a conversation
 
 `getMessageSpecs()` returns the conversation as plain objects. `loadMessages()` restores it as a
-new thread, or under the `threadId` you pass. Save in `onTurnComplete`, which runs once per turn
-with the final message.
+new thread, or under the `threadId` you pass. Save from a reaction to the thread and its
+messages that skips while a turn is busy. It then saves each finished or paused turn, and a
+`clear()`, but not every streamed change.
 
 ```typescript
 constructor() {
@@ -345,8 +358,13 @@ constructor() {
     this.chatModel = new ChatModel({
         transport: this.createTransport(),
         threadId: saved?.threadId,
-        initialMessages: saved?.messages ?? [],
-        onTurnComplete: () => this.save()
+        initialMessages: saved?.messages ?? []
+    });
+    this.addReaction({
+        track: () => [this.chatModel.threadId, this.chatModel.messages, this.chatModel.isBusy],
+        run: ([threadId, messages, isBusy]) => {
+            if (!isBusy) this.save();
+        }
     });
 }
 
@@ -355,6 +373,10 @@ private save() {
     XH.localStorageService.set(STORAGE_KEY, {threadId, messages: this.chatModel.getMessageSpecs()});
 }
 ```
+
+**Avoid:** saving only in `onTurnComplete`. A `clear()` with no turn running fires no turn, so a
+reload restores the cleared chat. A `clear()` during a turn fires `onTurnComplete` just before
+the wipe, so it saves the old messages.
 
 A restored message that was still `pending` or `streaming` becomes `aborted`, and its unfinished
 tool calls fail. A turn paused at the end of the history stays paused, so the user can still
@@ -429,7 +451,7 @@ sends one as an `xh.chat.data` event or an AG-UI `ACTIVITY_SNAPSHOT`. Register a
 new ChatModel({
     transport,
     dataRenderers: {
-        'price-chart': (part, message) => priceChart({symbol: part.data.symbol})
+        'price-chart': (part, context) => priceChart({symbol: part.data.symbol})
     }
 });
 ```
@@ -446,12 +468,12 @@ for the full doc comments.
 | Property | Type | Description |
 |----------|------|-------------|
 | `transport` | `ChatTransport` | Connection to the backend. Required. See [`/transport/`](../transport/README.md). |
-| `tools` | `ChatToolSpec[]` | Tools the model can call, and display config for backend tools. Default none. |
+| `tools` | `ChatToolSpec[]` | Tools the model can call, and display config for backend tools. Names must be unique. Default none. |
 | `maxSteps` | `number` | Most model calls in one turn. Each round of client tool calls takes one more. Default 10. |
 | `initialMessages` | `ChatMessageSpec[]` | Messages to start with, such as a greeting or restored history. Closed as by `loadMessages()`. |
 | `threadId` | `string` | Identifies the conversation to the backend. Default a new UUID. |
 | `composer` | `ChatComposerConfig` | Config for the managed `composerModel`. |
-| `dataRenderers` | `Record<string, ChatDataRenderer>` | Renderers for data parts, keyed by `dataType`. A renderer is `(part, message) => ReactNode`. |
+| `dataRenderers` | `Record<string, ChatDataRenderer>` | Renderers for data parts, keyed by `dataType`. A renderer is `(part, context) => ReactNode`, with a `ChatPartRenderContext`. |
 | `onTurnComplete` | `(message) => void` | Called when a turn ends - complete, failed or stopped - with its final message. Not called when a turn pauses. |
 
 `onTurnComplete` also runs for a turn that `clear()`, `loadMessages()`, `retryAsync()`,
@@ -490,6 +512,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `clear()` | Remove all messages and start a new thread. |
 | `loadMessages(specs, threadId?)` | Replace the conversation. Default a new thread id. |
 | `getMessageSpecs()` | The conversation as `ChatMessageSpec[]`, for storage. |
+| `getMessage(id)` | A message by id, as it is now, or null. |
 | `getToolSpec(name)` | The spec for a tool, or null. |
 
 The tool call methods log a warning and do nothing if the call does not wait on the user.
@@ -528,7 +551,7 @@ The kit records these keys in the `metadata` of an assistant message:
 
 | Key | Description |
 |-----|-------------|
-| `elapsedMs` | Time from the start of the turn to its end. |
+| `elapsedMs` | Time the turn ran, from its start to its end, less any time it spent paused for the user. Set on a paused message too. |
 | `finishReason` | Why the model stopped. See [Handle errors and finish reasons](#handle-errors-and-finish-reasons). |
 | `stopReason` | The provider's own stop reason, when the codec reports it. |
 | `usage` | `ChatTokenUsage[]`, one entry per step that reported token counts. |
@@ -576,28 +599,38 @@ The `state` of a tool call follows the Vercel AI SDK names, plus `running`:
 | `execute` | `(input, context) => Awaitable<any>` | Runs a client tool. Strings go to the model as is, anything else as JSON. A thrown error becomes an error result. |
 | `interactive` | `boolean` | True for a tool the user answers. Ignored if `execute` is set. Default false. |
 | `needsApproval` | `boolean \| (input) => boolean` | True, or a function, to ask the user before each call runs. Client tools only. Default false. |
+| `approvalPrompt` | `string \| (input) => ReactNode` | The question that asks for approval, in place of the generic one. |
 | `sendToModel` | `boolean` | True to send the tool to the model. Default true for client and interactive tools, false for backend tools. |
 | `displayName` | `string` | Title of the tool call card. Default the name, humanized. |
 | `icon` | `ReactElement` | Icon of the tool call card. |
 | `summary` | `(part) => string` | One-line summary next to the title, for example the city looked up. |
-| `renderer` | `(part, context) => ReactNode` | Custom body for the card, in place of the input and output JSON. |
+| `renderer` | `(part, context) => ReactNode` | Custom body for the card, in place of the input and output JSON. Required for an interactive tool. |
+| `display` | `'card' \| 'inline'` | `card` shows calls as a collapsible card. `inline` shows only the `renderer` output, with a status only while the input streams, while the call waits for approval, or once it fails or is denied. Default `card`. |
 
 The `context` of `execute` is a `ChatToolContext`: `chatModel`, `toolCallId`, and a `signal`
-that aborts when the user stops the turn. The `context` of `renderer` is a
-`ChatToolRenderContext`: `chatModel` and the `message` that holds the call.
+that aborts when the user stops the turn.
+
+The `context` of `renderer`, and of a data renderer, is a `ChatPartRenderContext`: `chatModel`
+and the `messageId` of the message that holds the part. The context stays the same object while
+the message streams, so a part re-renders only when it changes. A renderer that needs the whole
+message reads `chatModel.getMessage(messageId)`, and then re-renders on every change to it.
+
+The chat renders each renderer as a component of its own, so a renderer may call hooks, such as
+`useLocalModel()` for a model it owns. A card's renderer mounts only while the card is open. See
+[`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#render-a-tool-call-as-ui).
 
 ### ChatComposerConfig and ChatComposerModel
 
 Pass the config as `ChatModelConfig.composer`. The `ChatModel` creates and manages the composer.
+Presentation settings, such as `placeholder` and `maxRows`, are props of the `ChatComposer`
+component. See [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#customize-the-composer).
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `placeholder` | `string` | Prompt in the empty input. Default `'Send a message...'`. |
 | `enableAttachments` | `boolean` | True to let the user attach files. Default false. |
 | `accept` | `string[]` | MIME types (`image/*`, `application/pdf`) or extensions (`.csv`). Default any. |
 | `maxFiles` | `number` | Most files per message. Default 10. |
 | `maxFileSize` | `number` | Largest file, in bytes. Default 10 MB. |
-| `maxRows` | `number` | Rows the input grows to before it scrolls. Default 10. |
 
 | Member | Description |
 |--------|-------------|
@@ -693,6 +726,7 @@ previous call, or check `isBusy`, before you send from code.
 - [`/transport/`](../transport/README.md) - transports, codecs, `ChatEvent`, and server contracts
 - [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) - desktop components that render a
   `ChatModel`
+- [`/genui/`](../genui/README.md) - the generative UI catalog, whose components are inline tools
 - [`/cmp/markdown/`](../cmp/markdown/README.md) - the streaming markdown renderer
 - [Architecture](../docs/architecture.md) - layers, the flow of one turn, and render performance
 - [Protocols](../docs/protocols.md) - AG-UI, Anthropic, generative UI, and the Vercel AI SDK

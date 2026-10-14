@@ -7,7 +7,7 @@
   gap: var(--xh-pad-half-px);
   max-width: 220px;
   min-width: 0;
-  padding: 4px;
+  padding: calc(var(--xh-pad) * 0.4px);
   position: relative;
 
   &__thumb,

@@ -1,0 +1,61 @@
+// Inline at the end of the paragraph the citations support.
+.xh-chat-citations {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: calc(var(--xh-pad) * 0.3px);
+  margin-left: calc(var(--xh-pad) * 0.4px);
+  line-height: 1;
+  vertical-align: baseline;
+
+  &__chip {
+    align-items: center;
+    background-color: var(--xh-chat-citation-bg);
+    border-radius: 4px;
+    color: var(--xh-chat-text-color);
+    cursor: default;
+    display: inline-flex;
+    font-size: var(--xh-chat-meta-font-size-px);
+    height: 16px;
+    line-height: 1;
+    justify-content: center;
+    min-width: 16px;
+    padding: 0 calc(var(--xh-pad) * 0.5px);
+    text-decoration: none;
+  }
+
+  a.xh-chat-citations__chip {
+    cursor: pointer;
+
+    &:hover {
+      background-color: var(--xh-intent-primary-trans2);
+      color: var(--xh-chat-text-color);
+      text-decoration: none;
+    }
+  }
+
+  &__tip {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--xh-pad) * 0.25px);
+    max-width: 320px;
+  }
+
+  &__tip-title {
+    font-weight: 600;
+  }
+
+  &__tip-host {
+    color: var(--xh-chat-muted-text-color);
+  }
+
+  &__tip-quote {
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    border-left: 2px solid var(--xh-chat-border-color);
+    color: var(--xh-chat-muted-text-color);
+    display: -webkit-box;
+    margin-top: calc(var(--xh-pad) * 0.4px);
+    overflow: hidden;
+    padding-left: var(--xh-pad-half-px);
+  }
+}

@@ -50,8 +50,8 @@ export function splitMarkdownBlocks(text: string): string[] {
  * Close any markdown syntax left open at the end of a streaming block, so that it renders as it
  * will once complete rather than flashing raw markers.
  *
- * Closes an open code fence, inline code, bold, italic, strikethrough and a link with a partial
- * URL. Removes an opening marker with nothing after it yet, and a partial image. Leaves the text
+ * Closes an open code fence, inline code, bold and italic (with `*` or `_`), strikethrough and a
+ * link with a partial URL. Removes an opening marker with nothing after it yet, and a partial image. Leaves the text
  * inside code untouched.
  *
  * @internal
@@ -83,6 +83,17 @@ export function closeMarkdownSyntax(text: string): string {
     return text.slice(0, proseStart) + closeInlineSyntax(prose);
 }
 
+/**
+ * True if a block, as split by {@link splitMarkdownBlocks}, opens with prose - a paragraph or a
+ * list - rather than a code block, table, quote, heading or rule.
+ *
+ * @internal
+ */
+export function isProseBlock(block: string): boolean {
+    const firstLine = block?.split('\n').find(it => it.trim());
+    return !!firstLine && !NON_PROSE_START.test(firstLine);
+}
+
 //------------------
 // Implementation
 //------------------
@@ -98,7 +109,10 @@ interface Opener {
 const FENCE_OPEN = /^\s*(`{3,}|~{3,})([^`]*)$/,
     FENCE_CLOSE = /^\s*(`{3,}|~{3,})\s*$/,
     LIST_ITEM = /^\s{0,3}([-*+]|\d{1,9}[.)])\s/,
-    WHITESPACE = /\s/;
+    WHITESPACE = /\s/,
+    WORD_CHAR = /[\p{L}\p{N}]/u,
+    // A code fence or indented code, a table, a quote, a heading, or a thematic break.
+    NON_PROSE_START = /^(\s{0,3}(`{3,}|~{3,}|\||>|#{1,6}(\s|$)|([-*_])(\s*\4){2,}\s*$)|\s{4})/;
 
 function parseFenceOpen(line: string): Fence {
     const match = FENCE_OPEN.exec(line);
@@ -112,9 +126,10 @@ function closesFence(line: string, fence: Fence): boolean {
     return marker[0] === fence.marker[0] && marker.length >= fence.marker.length;
 }
 
+// A list may follow a lead-in line in the same block ("Intro:\n- a"), so test the last line too.
 function continuesBlock(prev: string, next: string): boolean {
     if (/^[ \t]/.test(next)) return true;
-    return LIST_ITEM.test(prev) && LIST_ITEM.test(next);
+    return LIST_ITEM.test(next) && (LIST_ITEM.test(prev) || LIST_ITEM.test(last(prev.split('\n'))));
 }
 
 function runLength(text: string, start: number, char: string): number {
@@ -125,8 +140,12 @@ function runLength(text: string, start: number, char: string): number {
 
 function emphasisTokens(char: string, run: number): string[] {
     if (char === '~') return run >= 2 ? ['~~'] : [];
-    if (run === 1) return ['*'];
-    return run === 2 ? ['**'] : ['**', '*'];
+    if (run === 1) return [char];
+    return run === 2 ? [char + char] : [char + char, char];
+}
+
+function isWordChar(char: string): boolean {
+    return char != null && WORD_CHAR.test(char);
 }
 
 function closeInlineSyntax(text: string): string {
@@ -161,14 +180,22 @@ function closeInlineSyntax(text: string): string {
                 continue;
 
             case '*':
+            case '_':
             case '~': {
                 // A marker at the very end may yet open something, so treat it as an opener -
-                // with nothing after it, it is then removed rather than shown raw.
+                // with nothing after it, it is then removed rather than shown raw. Underscores
+                // open and close only at word boundaries, so `snake_case` is left alone.
                 const run = runLength(text, i, char),
                     prev = text[i - 1],
                     next = text[i + run],
-                    canOpen = next == null || !WHITESPACE.test(next),
-                    canClose = prev != null && !WHITESPACE.test(prev);
+                    isUnderscore = char === '_',
+                    canOpen =
+                        (next == null || !WHITESPACE.test(next)) &&
+                        !(isUnderscore && isWordChar(prev)),
+                    canClose =
+                        prev != null &&
+                        !WHITESPACE.test(prev) &&
+                        !(isUnderscore && isWordChar(next));
 
                 for (const token of emphasisTokens(char, run)) {
                     const openIdx = findLastIndex(openers, {token});

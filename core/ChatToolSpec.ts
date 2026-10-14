@@ -1,7 +1,6 @@
 import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import type {ReactElement, ReactNode} from 'react';
-import type {ChatMessage} from './ChatMessage';
-import type {ChatModel} from './ChatModel';
+import type {ChatModel, ChatPartRenderContext} from './ChatModel';
 import type {ChatToolCallPart} from './ChatPart';
 
 /**
@@ -48,6 +47,14 @@ export interface ChatToolSpec {
     needsApproval?: boolean | ((input: PlainObject) => boolean);
 
     /**
+     * The question that asks the user to approve a call, in place of the generic "Allow this tool
+     * to run?" - a string, or a function of the call's input, which may return rich content. Say
+     * what the call will do in the user's terms, such as "Sell 2,000 NVDA at market?", and name any
+     * work it discards.
+     */
+    approvalPrompt?: string | ((input: PlainObject) => ReactNode);
+
+    /**
      * True to send this tool to the model. Default true for client and interactive tools, false
      * for backend tools, whose specs the backend declares to the model itself.
      */
@@ -62,8 +69,30 @@ export interface ChatToolSpec {
     /** One-line summary of a call, shown next to its title - e.g. the city it looked up. */
     summary?: (part: ChatToolCallPart) => string;
 
-    /** Custom rendering for calls to this tool, in place of the default input/output display. */
-    renderer?: (part: ChatToolCallPart, context: ChatToolRenderContext) => ReactNode;
+    /**
+     * Custom rendering for calls to this tool, in place of the default input and output display.
+     * Required for an interactive tool, as the default card cannot answer a call.
+     *
+     * The chat renders the result as the body of a component of its own, mounted only while the
+     * body shows - not while its card is collapsed. The renderer may therefore call React hooks,
+     * such as `useLocalModel()` for a model it owns, as long as it follows the rules of hooks. It
+     * re-renders only when its part changes, or when an observable it reads changes.
+     */
+    renderer?: (part: ChatToolCallPart, context: ChatPartRenderContext) => ReactNode;
+
+    /**
+     * How calls to this tool display:
+     *
+     *  - `card` - a collapsible card with the call's title, summary and status. Its body shows the
+     *    call's input and output, or the output of `renderer`.
+     *  - `inline` - the output of `renderer` alone, as part of the reply. The rendered output is
+     *    the call's progress, so a status line shows only while the input streams, while the call
+     *    waits for approval, and if it fails or is denied. A quiet toggle to view the input shows
+     *    on hover. For tools that show UI to the user, such as those of a `ChatUiCatalog`.
+     *
+     * Default `card`.
+     */
+    display?: 'card' | 'inline';
 }
 
 /** Passed to {@link ChatToolSpec.execute}. */
@@ -76,13 +105,4 @@ export interface ChatToolContext {
 
     /** Aborts if the user stops the turn. Long-running tools should honor it. */
     signal: AbortSignal;
-}
-
-/** Passed to {@link ChatToolSpec.renderer}. */
-export interface ChatToolRenderContext {
-    /** The chat that holds the call. */
-    chatModel: ChatModel;
-
-    /** The assistant message that holds the call. */
-    message: ChatMessage;
 }

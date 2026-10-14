@@ -1,4 +1,4 @@
-import {isValidElement, type ReactElement} from 'react';
+import {isValidElement, type ReactElement, useMemo} from 'react';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import type {ChatMarkdownComponents} from '../../../../cmp/markdown';
 import {chatCodeBlock} from '../ChatCodeBlock';
@@ -27,3 +27,17 @@ const MarkdownPre = hoistCmp<HoistProps>({
  * @internal
  */
 export const CHAT_MARKDOWN_COMPONENTS: ChatMarkdownComponents = {pre: MarkdownPre};
+
+/**
+ * The kit's markdown components, with an app's overrides merged over them. Memoized, so that
+ * markdown blocks see a stable object while the overrides stay the same.
+ * @internal
+ */
+export function useChatMarkdownComponents(
+    overrides: ChatMarkdownComponents
+): ChatMarkdownComponents {
+    return useMemo(
+        () => (overrides ? {...CHAT_MARKDOWN_COMPONENTS, ...overrides} : CHAT_MARKDOWN_COMPONENTS),
+        [overrides]
+    );
+}
