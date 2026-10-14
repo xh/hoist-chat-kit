@@ -76,5 +76,3 @@ then `planning/PLAN-2.md`. Everything listed as done is committed, pushed and gr
   a time worked reliably.
 - Commit signing through 1Password can fail when it is locked. Commit unsigned
   (`git -c commit.gpgsign=false commit`) rather than stop.
-- Spend tracking in `~/.claude/session-costs/` applied to the API-key sessions. A subscription
-  session has no per-token cost to track.
