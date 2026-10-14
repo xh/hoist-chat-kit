@@ -116,9 +116,10 @@ const CAPABILITY_PHRASES: Record<GridToolCapability, string> = {
 };
 
 function createPrompt(description: string, capabilities: GridToolCapability[]): string {
-    const grid = description ? `a grid - ${description}` : 'a grid';
+    const grid = description ? `a grid - ${description}` : 'a grid',
+        phrases = joinNames(capabilities.map(it => CAPABILITY_PHRASES[it]));
     return [
-        `You help the user arrange ${grid}. Your tools can ${joinNames(capabilities.map(it => CAPABILITY_PHRASES[it]))}.`,
+        `You help the user arrange ${grid}. Your tools can ${phrases}.`,
         "Each message comes with the grid's current state. Read it rather than asking the user.",
         'Tools take column ids. Use column names when you write to the user.',
         'Make the changes the user asks for without asking first - the user can undo them.'
@@ -427,10 +428,11 @@ class GridTools {
                         abs: !!absolute
                     }))
                 );
+                const sortNames = sorts.map(
+                    it => `${this.columnName(it.column)} (${it.direction})`
+                );
                 return chatToolResult(
-                    isEmpty(sorts)
-                        ? 'Cleared sorting.'
-                        : `Sorted by ${sorts.map(it => `${this.columnName(it.column)} (${it.direction})`).join(', then ')}.`,
+                    isEmpty(sorts) ? 'Cleared sorting.' : `Sorted by ${sortNames.join(', then ')}.`,
                     {undo: () => gridModel.setSortBy(prior)}
                 );
             }
