@@ -96,25 +96,13 @@ WP 0 to 3 and T need no design and can start now. WP 4 to 8 start when the desig
 - Client names. Kit and Toolbox docs describe the shapes generically ("a guideline assistant over
   a document library"), never the client or its vendor.
 
-## 6. Questions for Anselm
+## 6. Answers from Anselm, 2026-10-14
 
-1. **Budget.** About $270 remains of the first $500. WP 0 to 5 fit in that by my rough guess (a
-   guess, not a measurement). WP 6 to 9 need more. Should this iteration stop after WP 5, or is
-   there a new budget for the full v1.0?
-2. **hoist-core companion.** May the kit work stream build `renderSSE()`, a streaming
-   `renderNDJSON()` and a streaming proxy mode in hoist-core, on a branch with a PR, or does the
-   hoist-core team own it?
-3. **Pre-1.0 releases.** App 2 asks for tagged releases to pin. The brief allows snapshots only.
-   May I cut a tagged pre-release (for example `1.0.0-beta.1`) when WP 5 lands?
-4. **Toolbox base.** The Toolbox branch stacks on `weatherv2`, which is 57 commits ahead of
-   `develop` and unmerged. Leave it stacked, or move the chat work onto `develop`?
+1. **Budget.** $700 more on top of the $242 spent, for the full v1.0: WP 0 to 9.
+2. **hoist-core companion.** The hoist-core team owns it (D25). The report specifies it.
+3. **Pre-releases.** The lead's choice: snapshots now, pinnable by exact version, and a beta tag
+   when the v1.0 API settles (D26).
+4. **Toolbox base.** The chat work stays stacked on `weatherv2`.
 
-Defaults taken without asking, each recorded in DECISIONS:
-
-- The Hoist floor is 89.0.0, now that it is released. Apps on 88 upgrade first.
-- No Python reference agent in v1.0. A published event contract and recorded conformance streams
-  instead.
-- A scripted analytics demo with a fake `ChatDataSource` exercises data by reference before an
-  enterprise app tries it.
-- AG-UI interrupts are the first path for server-side human-in-the-loop, with
-  `xh.chat.interrupt` as the fallback where an agent cannot emit them.
+The defaults taken without asking are D27 (Hoist 89 floor), D28 (no Python reference agent), D29
+(AG-UI interrupts first), and a scripted analytics demo with a fake `ChatDataSource` in WP 7.

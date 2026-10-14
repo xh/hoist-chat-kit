@@ -238,3 +238,104 @@ component it renders.
 
 **Alternatives.** `chatGridComponent()` and the like. It reads well alone, but adds a third
 naming scheme beside `ChatUiGrid` and `ChatUiComponentSpec`, and hides that the result is a spec.
+
+## D19. Two conversation shapes, both first-class
+
+**Decision.** `ChatModel` gains `historyMode: 'client' | 'server'`, default `client`. Client mode
+is the first slice's behavior: the browser holds the history and runs the tool loop. In server
+mode the request carries only the new messages, a `trigger` (`submit`, `retry`, `regenerate` or
+`edit`) and a stable `turnId`. The server's thread, message and run ids replace the browser's.
+
+**Why.** Three enterprise apps reviewed the kit, and all three keep the conversation in a separate
+agent service that owns the loop, the tools and the threads. None runs a tool in the browser. The
+client shape still serves helper agents on Hoist components, so neither shape replaces the other.
+Updates D7.
+
+## D20. A thread layer in the kit
+
+**Decision.** `ChatThreadStore` is an adapter the app implements against its backend: list,
+load, rename and delete threads. `ChatThreadsModel` holds one `ChatModel` per open thread, so a
+turn keeps running in the background while the user reads another thread. `chatThreadList`
+renders the list. The concurrency rules one app's tests pin down become the model's spec.
+
+**Why.** All three apps built a thread sidebar by hand, each with the same race bugs to avoid. A
+store adapter keeps the kit out of each backend's storage format.
+
+## D21. A workspace shell
+
+**Decision.** `chatWorkspace` lays out a thread sidebar, the conversation and an optional side
+panel, on Hoist `PanelModel`, sized to its parent.
+
+**Why.** One app's largest cost was working around a third-party chat shell: CSS overrides, DOM
+observers and a rebuilt composer. Another built the same layout on Hoist `Panel` by hand.
+
+## D22. Generative UI binds data by reference, through four delivery modes
+
+**Decision.** One catalog, delivered four ways: display tools that the server answers, client
+tools (built), component tags in markdown, and a UI document in the text stream. A `ref` prop
+names an artifact, such as a result set from a tool. The kit resolves it through an artifact
+registry and an app-supplied `ChatDataSource` that fetches by page. The catalog exports its tool
+schemas, prompt and a version hash, so a server agent can register it. Updates D15.
+
+**Why.** In both apps that use generative UI, the model writes a view over data that a server tool
+produced, and the client fetches and formats the rows. That keeps large data out of the token
+stream and keeps numbers exact. A server-run loop also cannot take client tools.
+
+## D23. An activity timeline, and one tool display setting
+
+**Decision.** Agentic replies show their tool calls, reasoning and narration in one collapsible
+timeline, with nested sub-agents. `ChatToolSpec.display` becomes one enum: `card`, `inline`,
+`timeline`, `answer`, `pinned` or `hidden`.
+
+**Why.** An agent that makes twenty calls per reply cannot show twenty cards, and both data apps
+built a timeline by hand.
+
+## D24. Bring your own LLM
+
+**Decision.** A kit `ChatService` resolves a default transport from server config, so a helper
+agent needs no wiring of its own. A `ChatCompletionsCodec` covers OpenAI-compatible gateways.
+
+**Why.** Enterprises choose their own model and gateway, and most gateways speak the OpenAI chat
+completions format. The codec and transport split (D5) is the seam that makes this cheap.
+
+## D25. The hoist-core streaming companion belongs to hoist-core
+
+**Decision.** The kit does not build `renderSSE()`, a streaming `renderNDJSON()` or a streaming
+proxy mode. It keeps the documented relay controller in the transport README and in Toolbox, and
+the report specifies what hoist-core should add.
+
+**Why.** It is hoist-core code, owned by the hoist-core team.
+
+## D26. Snapshots now, a beta tag when the v1.0 API settles
+
+**Decision.** The kit keeps publishing `-SNAPSHOT` builds under `next`. An app that needs
+stability pins an exact snapshot version, such as `1.0.0-SNAPSHOT.1791997893569`. The first tagged
+pre-release (`1.0.0-beta.1`) follows when the plan 2 API settles.
+
+**Why.** Exact snapshot versions are immutable on npm, so apps can pin today with no release
+process. A tag earlier than that would promise a stability that the server-mode work is about to
+break.
+
+## D27. The Hoist floor is 89.0.0
+
+**Decision.** The kit requires `@xh/hoist` 89.0.0 or later. Apps on 88 upgrade first.
+
+**Why.** Hoist 89 is the first release with the unit test kit the kit's tests use, and it is now
+released.
+
+## D28. No Python reference agent in v1.0
+
+**Decision.** The kit publishes its event contract (AG-UI plus `xh.chat.*`) and recorded streams
+for conformance tests. It does not ship a Python reference agent.
+
+**Why.** Agent services use many frameworks. A contract and recorded streams serve all of them,
+and a service team can run them in its own CI.
+
+## D29. AG-UI interrupts first for server-side human-in-the-loop
+
+**Decision.** A server agent asks the user a question through the AG-UI interrupt outcome, and the
+kit resumes the run with a structured answer. Where an agent cannot emit AG-UI interrupts, it
+sends an `xh.chat.interrupt` custom event.
+
+**Why.** AG-UI 1.0 standardizes the interrupt outcome and resume entries. A fallback keeps agents
+on older adapters working.
