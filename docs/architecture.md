@@ -1,8 +1,8 @@
 # Architecture
 
-This doc describes the structure of Hoist Chat Kit. It covers the layers and the flow of one turn
-from the composer to the rendered parts. It also covers render performance, and where an app
-plugs in.
+This doc describes the structure of Hoist Chat Kit. It covers the layers, the flow of one turn
+from the composer to the rendered parts, and the two shapes of conversation the kit serves. It
+also covers render performance, and where an app plugs in.
 
 ## Layers
 
@@ -19,14 +19,18 @@ catalog sits beside the models, and builds on their tools.
 │                     ChatToolCall, ChatUiGrid, ChatUiChart, ...           │
 │                     Render the models. Never see a wire format.          │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ Models              core/                 genui/                         │
+│ Models              core/     genui/     threads/     assist/     svc/   │
+│                     desktop/assist/                                      │
 │                     ChatModel, ChatMessage, ChatPart, ChatToolSpec,      │
-│                     ChatUiCatalog. Own the state and the turn loop.      │
-│                     Platform-neutral.                                    │
+│                     ChatUiCatalog, ChatThreadsModel, gridTools,          │
+│                     ChatService. Own the state, the turn loop, the       │
+│                     threads and the tools. Platform-neutral, apart from  │
+│                     desktop/assist/.                                     │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ Transports, codecs  transport/                                           │
 │                     HoistChatTransport, SseChatTransport,                │
-│                     ScriptedChatTransport, AgUiCodec, AnthropicCodec.    │
+│                     ScriptedChatTransport, AgUiCodec, AnthropicCodec,    │
+│                     ChatCompletionsCodec.                                │
 │                     Turn a backend's stream into ChatEvents.             │
 └──────────────────────────────────────────────────────────────────────────┘
                                      │
@@ -44,7 +48,12 @@ top-level `impl/` folder. They are internal, and no package reaches into another
 - **Models** hold the conversation. `ChatModel` runs each turn, applies the events to immutable
   `ChatMessage` records, and runs client tools. See [`/core/`](../core/README.md). A
   `ChatUiCatalog` turns app components into tools the model calls to show UI. See
-  [`/genui/`](../genui/README.md).
+  [`/genui/`](../genui/README.md). A `ChatThreadsModel` lists the threads a backend stores, and
+  holds a `ChatModel` for each open one. See [`/threads/`](../threads/README.md). `ChatService`
+  builds a transport for the app's configured LLM backend. See [`/svc/`](../svc/README.md).
+- **Tool groups** derive tools from one Hoist component's model, for a helper agent beside it.
+  `gridTools` is platform-neutral, in `/assist/`. `dashCanvasTools` acts on a desktop
+  `DashCanvasModel`, so it lives in `/desktop/assist/`. See [`/assist/`](../assist/README.md).
 - **Components** render the models with Hoist components and element factories. The desktop
   components live in [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md), and the built-in
   generative UI components in [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md). The
@@ -68,7 +77,7 @@ ChatComposerModel       submitAsync() - canSend?
 ChatModel.sendAsync()   1. Append the user message and an empty assistant message
      │                  2. Clear the draft. status = 'submitted'
      ▼
-ChatModel (step loop)   3. Build a ChatRunRequest: threadId, runId, messages, tools, signal
+ChatModel (step loop)   3. Build a ChatRunRequest: thread, run and turn ids, messages, tools
      │
      ▼
 HttpChatTransport       4. codec.encodeRequest(request) - the JSON body
@@ -109,6 +118,45 @@ The chat closes any open part, so the history stays valid for the next request. 
 
 Only one turn runs at a time. The chat guards against a second send with a plain field, not with
 MobX state, so two sends in the same tick cannot both start.
+
+## Two Conversation Shapes
+
+A conversation has one owner of its history, set by `ChatModelConfig.historyMode`.
+
+| | Client mode (default) | Server mode |
+|---|---|---|
+| Who owns the history | The browser | An agent service |
+| Who runs the tool loop | The chat, with client tools | The agent. The chat can still run client tools |
+| Each request carries | The whole history | The new messages, with the turn's ids |
+| Threads | One per `ChatModel`, saved by the app | Saved by the server, listed by a thread layer |
+| A stop | Closes the connection | Closes the connection, and asks the transport to cancel the run |
+| A clear, load or detach | Closes the connection | Leaves the run going on the server |
+| Example | A helper agent on a dashboard, whose backend relays a model API | A document assistant on an agent service |
+
+In client mode, the chat is the source of truth. Each step resends the whole conversation, and
+`getMessageSpecs()` and `loadMessages()` persist it.
+
+In server mode, the agent service is the source of truth, and the chat is a view of it. Each
+request still holds the whole history in `messages`, so the request type stays the same. A
+server-mode codec sends `newMessages` instead: the user message on the first step, or the client's
+tool results on a later one. It also sends the turn's ids:
+
+- `turnId` is the id of the user message the turn answers. A retry sends it again, so a backend
+  with an idempotency key can replay the result rather than start a second run.
+- `trigger` says what started the step: `submit`, `retry`, `regenerate`, `edit` or `continue`.
+- `runOptions` is the copy of the user's per-turn options, taken when the message was sent.
+
+Kit ids never change. A message keeps the id the kit gave it, so React keys and renderers never
+remap. The server's ids arrive in the stream and land in `metadata.serverId` and
+`metadata.runId`. History loaded from the server uses the server's ids as kit ids, so the two
+agree from then on. The thread id is the one exception. The first run of a new thread may report
+the server's id on `RUN_STARTED`, and the chat adopts it, once.
+
+A model, never a component, owns each run. A remount never cancels it. A stop cancels it on the
+server. A detach, a clear or a load only stops the chat from following it. The server keeps its
+answer for the next load of the thread. See [Stop or detach a
+turn](../core/README.md#stop-or-detach-a-turn) and [Server-owned
+conversations](../transport/README.md#server-owned-conversations).
 
 ## Immutable Messages and Render Performance
 
@@ -163,10 +211,20 @@ its render, renderer included.
 | Data renderers | `ChatModelConfig.dataRenderers` | Render app content and generative UI from data parts, by `dataType` |
 | Transports | `ChatModelConfig.transport` | Connect to any backend, or implement `ChatTransport` |
 | Codecs | `HttpChatTransportConfig.codec` | Speak a new wire format, or implement `ChatCodec` |
-| Live context | `system` on `AnthropicCodec`, `context` on `AgUiCodec` | Describe the app's current state to the model before each step |
+| Live context | `ChatModelConfig.contextProviders`, as `ChatContextProvider[]` | Describe the app's current state to the model before each step. Each codec sends it in its own format |
+| Undo | `chatToolResult(output, {undo})` from a tool's `execute` | Let the user undo the changes a reply made, with `undoTurnAsync()` |
+| Send blocker | `ChatModelConfig.sendBlocker`, or `addSendBlocker()` | Hold sends while the app is not ready, and show the reason in the composer |
 | Lifecycle | `onTurnComplete`, observable `status` and `lastError` | Save history, show toasts, react to errors |
+| History mode | `ChatModelConfig.historyMode` | Let an agent service own the history and the threads |
+| Run options | `ChatModel.runOptions` | Send per-turn choices, such as a document scope, fixed at send time |
+| Cancel | `ChatTransport.cancelAsync`, or `cancelUrl` on the HTTP transports | Stop a run on a backend that keeps going after a disconnect |
+| Text transform | `ChatModelConfig.textTransform` | Strip markup a model leaks, before the text is stored |
+| Feedback | `ChatModelConfig.feedback` | Send ratings and comments on replies to the backend |
+| Telemetry | `ChatModelConfig.track` | Record each finished turn with Hoist activity tracking |
 | Component slots | `ChatPanel` and `ChatComposer` props | Add header buttons, composer toolbars, an empty state and suggestions |
 | Markdown | `markdownComponents` on the message list | Replace how markdown elements render, such as code blocks |
+| Markdown plugins | `markdownPlugins` on the message list | Add remark and rehype plugins, such as math with KaTeX |
+| Citation markers | `citationMarkers` and `onSourceClick` on the message list | Render `[n]` markers in the text as buttons for their sources, and handle a click |
 | Theme | `--xh-chat-*` CSS variables | Change colors, widths and radii, with light and dark defaults |
 
 The component slots and the theme variables are covered in
@@ -174,18 +232,23 @@ The component slots and the theme variables are covered in
 
 ## Platform Split
 
-The kit ships desktop components now. `core/`, `genui/`, `transport/` and `cmp/` import nothing
-from `@xh/hoist/desktop`. A mobile package, `mobile/cmp/chat`, can follow with no change to the
-models, the transports or the markdown renderer.
+The kit ships desktop components now. `core/`, `genui/`, `threads/`, `assist/`, `svc/`,
+`transport/` and `cmp/` import nothing from `@xh/hoist/desktop`. A mobile package,
+`mobile/cmp/chat`, can follow with no change to the models, the transports or the markdown
+renderer.
 
 | Package | Platform | Contents |
 |---------|----------|----------|
 | `core/` | Neutral | Models, messages, parts and tools |
 | `transport/` | Neutral | Transports, codecs and events |
 | `genui/` | Neutral | The generative UI catalog, component specs and adapters |
+| `threads/` | Neutral | The thread layer: a store adapter and one chat per open thread |
+| `assist/` | Neutral | Tool groups for helper agents, such as `gridTools` |
+| `svc/` | Neutral | `ChatService`, which builds a transport from the `chatConfig` soft config |
 | `cmp/markdown/` | Neutral | The streaming markdown renderer |
 | `desktop/cmp/chat/` | Desktop | Panel, message list, composer, tool cards and the rest |
 | `desktop/cmp/genui/` | Desktop | The built-in grid, chart, metrics and card components |
+| `desktop/assist/` | Desktop | `dashCanvasTools`, the tool group for a `DashCanvasModel` |
 | `styles/` | Neutral | The `--xh-chat-*` CSS variables |
 
 App code follows the same split. Put tool specs, prompts and data renderers in shared code when
@@ -196,7 +259,11 @@ desktop code.
 
 - [`/core/`](../core/README.md) - `ChatModel`, messages, parts and tools
 - [`/genui/`](../genui/README.md) - the generative UI catalog
+- [`/threads/`](../threads/README.md) - the thread layer
+- [`/assist/`](../assist/README.md) - tool groups for helper agents
+- [`/svc/`](../svc/README.md) - the chat service
 - [`/transport/`](../transport/README.md) - transports, codecs and server contracts
 - [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) - desktop components
 - [`/cmp/markdown/`](../cmp/markdown/README.md) - streaming markdown
-- [Protocols](./protocols.md) - AG-UI, Anthropic, generative UI and the Vercel AI SDK vocabulary
+- [Protocols](./protocols.md) - AG-UI, Anthropic, OpenAI, generative UI and the Vercel AI SDK
+  vocabulary

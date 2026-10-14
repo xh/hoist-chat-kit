@@ -5,10 +5,10 @@
 | [Overview](#overview) | What the components do, and the key features |
 | [Architecture](#architecture) | The component tree, and how a message renders its parts |
 | [Configuration Pattern](#configuration-pattern) | Putting a `ChatModel` on screen with `ChatPanel` |
-| [Common Usage Patterns](#common-usage-patterns) | Composer, empty state, actions, renderers, images, layout |
+| [Common Usage Patterns](#common-usage-patterns) | Composer, empty state, actions, renderers, images, citations, plugins, layout |
 | [Properties/API Reference](#propertiesapi-reference) | Props of each component |
 | [Theming](#theming) | The `--xh-chat-*` CSS variables and their overrides |
-| [Extension Points](#extension-points) | Slots, renderers and markdown components |
+| [Extension Points](#extension-points) | Slots, renderers, source clicks and markdown |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
 | [Related Packages](#related-packages) | Models, transports, markdown and Hoist packages |
 
@@ -32,9 +32,13 @@ Key features:
 - **Inline generative UI** - a tool with `display: 'inline'` shows its rendered output as part
   of the reply, with a status only while it streams, waits or fails.
 - **Citations in place** - numbered citation chips sit at the end of the paragraph they support,
-  and keep their numbers while the reply streams. The source list shares the numbers.
+  and keep their numbers while the reply streams. With `citationMarkers` on, `[1]` in the text
+  renders as a button for its source. The source list shares the numbers.
 - **Renderers as components** - a tool `renderer` or a data renderer renders as a component of
   its own, so it can use hooks such as `useLocalModel()`.
+- **Contained render errors** - each message and each part renders inside an error boundary. A
+  renderer that throws shows a short note in place of its part, and the rest of the conversation
+  still renders.
 - **Safe markdown** - raw HTML renders as text, and model-written images do not load unless the
   app allows them.
 - **App slots** - toolbar items in the composer, an empty state with suggestions, message
@@ -59,7 +63,7 @@ ChatPanel (Panel)                       # uses(ChatModel)
 │   │   │   ├── files                   # ChatFileChip row
 │   │   │   └── data                    # ChatModelConfig.dataRenderers
 │   │   ├── ChatSources                 # "3 sources" list
-│   │   └── action bar                  # Copy, Edit, Regenerate, then messageActions
+│   │   └── action bar                  # Copy, Edit, Regenerate, Undo, then messageActions
 │   └── error banner                    # The error that ended the last turn, with Retry
 └── ChatComposer                        # uses(ChatComposerModel), or the chat's composerModel
 ```
@@ -74,6 +78,15 @@ message id, so it stays the same object while the message streams.
 Tool renderers, data renderers, `messageActions` and `messageHeaderItems` all receive this
 context. A renderer that needs the whole message reads `chatModel.getMessage(messageId)`. It
 then re-renders whenever the message changes, so do this only when you need to.
+
+### Render errors
+
+Every message, and every part within it, renders inside Hoist's `ErrorBoundary`. A tool
+renderer, a data renderer, an inline component or the markdown of one part may throw, and only
+that part fails. It shows "This part could not be displayed." with the error message in a
+Details disclosure. Hoist's exception handler logs the error, with no alert. A streaming part that
+failed renders again when its state changes, for example when its input completes. A data part
+renders again when it is replaced.
 
 ### Scroll behavior
 
@@ -91,6 +104,17 @@ part that ends in a code block, a table or a quote puts them on the last paragra
 Numbers run across the whole reply, in order of first citation, and never change once given.
 Sources that arrive after the text take the numbers of their citations. The "3 sources" list
 shows the same numbers, with any source cited but not listed.
+
+Some backends cite inline instead, as `[1]` or `[1, 2]` in the text. With `citationMarkers` on,
+each marker renders as a button for the source it cites, with a tooltip that shows the source's
+title, host and excerpt. See [Citation markers](../../../cmp/markdown/README.md#citation-markers)
+for how markers match sources. Sources then take the numbers that cite them: their `marker`, or
+their position when no source has a marker. Citation chips and the source list use the same
+numbers, so `[2]`, its chip and the second list entry agree. The chips keep working with markers
+on.
+
+A click on a source in the list, a chip or a marker calls `onSourceClick`. Without it, a click
+opens the source's `url` in a new tab.
 
 ## Configuration Pattern
 
@@ -155,6 +179,17 @@ Attachments are a model setting: set `composer: {enableAttachments: true}` on th
 on the composer. A paste that carries text stays a paste, even when the clipboard also holds an
 image of the copied cells.
 
+To hold the user back until the app is ready, set `sendBlocker` on the `ChatModelConfig`. It
+returns the reason sending must wait, or null. The composer disables Send, shows the reason as
+the button's tooltip, and announces it to screen readers:
+
+```typescript
+new ChatModel({
+    transport,
+    sendBlocker: () => (this.documentId ? null : 'Choose a document first.')
+});
+```
+
 ### Replace the empty state
 
 `suggestions` adds prompt chips to the default empty state. For your own heading and text, pass
@@ -177,9 +212,10 @@ chatPanel({
 
 ### Add message actions, such as feedback
 
-`messageActions` adds buttons to each message's action bar, after Copy, Edit and Regenerate. It
-receives the message and its render context, and returns elements. Keep the feedback state in
-your own model, so it survives a re-render and can go to your server.
+`messageActions` adds buttons to each message's action bar, after Copy, Edit, Regenerate and
+Undo. Undo shows on a reply whose changes the user can undo - see `ChatModel.canUndoTurn()`. The
+function receives the message and its render context, and returns elements. Keep the feedback
+state in your own model, so it survives a re-render and can go to your server.
 
 ```typescript
 export class AssistantModel extends HoistModel {
@@ -256,7 +292,9 @@ A tool with `display: 'inline'` shows its renderer's output as part of the reply
 output is the call's progress. A quiet status line shows under it only while the input streams or
 waits for approval, and after the call fails or is denied. A failed call shows a short message for
 the user, with the error for the model behind a "View input" toggle that appears on hover. A
-`ChatUiCatalog` declares its tools this way - see [`/genui/`](../../../genui/README.md).
+denied call renders no output. A call that waits for approval renders none either, unless the
+tool sets `preview: true` to show what it will display. A `ChatUiCatalog` declares its
+tools this way - see [`/genui/`](../../../genui/README.md).
 
 An interactive tool needs a renderer, because the default card has no controls for an answer.
 `ChatModel` logs a warning for an interactive tool with no `renderer`. While a call waits for
@@ -295,8 +333,50 @@ chatPanel({model: chatModel, allowImages: src => src.startsWith('/api/charts/')}
 chatPanel({model: chatModel, allowImages: true});
 ```
 
+The same setting covers file parts with an image at a URL, such as a file a backend sends with
+`xh.chat.file`. Their chips show an icon in place of a thumbnail until allowed. An image with
+inline `data`, such as the user's own attachment, always shows, as it loads nothing.
+
 `ChatPanel` passes `allowImages` to the message list. On a custom layout, set it on
 `chatMessageList`.
+
+### Show citation markers and open sources in the app
+
+Turn on `citationMarkers` when the backend writes `[n]` markers in its text. Give each source a
+`marker` if the numbers do not follow the order of the sources. Pass `onSourceClick` to open a
+source in the app, for example in a document viewer. A source with no `url` is then clickable
+too.
+
+```typescript
+chatPanel({
+    model: chatModel,
+    citationMarkers: true,
+    onSourceClick: this.openSource
+});
+
+// An arrow function field, so that it stays the same function.
+openSource = (source: ChatSourcePart) => {
+    this.documentViewerModel.open(source.metadata.documentId, source.metadata.page);
+};
+```
+
+### Render math and other markdown extensions
+
+`markdownPlugins` adds remark and rehype plugins to the markdown of assistant text and
+reasoning, after the kit's own. The kit takes no math dependency. To render math with KaTeX, add
+`remark-math`, `rehype-katex` and `katex` to the app:
+
+```typescript
+import rehypeKatex from 'rehype-katex';
+import remarkMath from 'remark-math';
+import 'katex/dist/katex.min.css';
+
+const MATH_PLUGINS: ChatMarkdownPlugins = {remark: [remarkMath], rehype: [rehypeKatex]};
+
+chatPanel({model: chatModel, markdownPlugins: MATH_PLUGINS});
+```
+
+Define the object once, at module level, so the markdown blocks stay memoized.
 
 ### Replace markdown elements
 
@@ -351,7 +431,10 @@ Accepts all `PanelProps` except `model`, `modelConfig` and `modelRef`.
 | `model` | `ChatModel` | The chat to render. Found in context if not given. |
 | `emptyState` | `ReactNode` | Content for a conversation with no messages, in place of the default. |
 | `suggestions` | `Array<ChatSuggestion \| string>` | Prompt chips for the default empty state. |
-| `allowImages` | `boolean \| (src) => boolean` | Model-written images to load. Default false. |
+| `allowImages` | `boolean \| (src) => boolean` | Model-written images, and file images at a URL, to load. Default false. |
+| `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
+| `onSourceClick` | `(source, context) => void` | Called when the user clicks a source, a citation chip or a marker. Default opens the source's `url` in a new tab. Pass a stable function. |
+| `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
 | `composerProps` | `ChatComposerProps` | Props for the composer. |
 | `messageListProps` | `ChatMessageListProps` | Props for the message list. |
 
@@ -367,8 +450,11 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `assistantName` | `string` | Name on assistant messages. Default `'Assistant'`. |
 | `assistantIcon` | `ReactElement` | Icon on assistant messages. Default a sparkles icon. |
 | `markdownComponents` | `ChatMarkdownComponents` | Markdown element overrides. Pass a stable object. |
-| `allowImages` | `boolean \| (src) => boolean` | Model-written images to load. Default false. |
-| `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit and Regenerate. Pass a stable function. |
+| `allowImages` | `boolean \| (src) => boolean` | Model-written images, and file images at a URL, to load. Default false. |
+| `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
+| `onSourceClick` | `(source, context) => void` | Called when the user clicks a source, a citation chip or a marker. Default opens the source's `url` in a new tab. Pass a stable function. |
+| `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
+| `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit, Regenerate and Undo. Pass a stable function. |
 | `messageHeaderItems` | `(message, context) => ReactNode[]` | Items in an assistant message's header. Pass a stable function. |
 
 ### ChatComposer
@@ -400,7 +486,7 @@ Use it directly only for a list of your own.
 |----------|------|-------------|
 | `message` | `ChatMessage` | The message to show. |
 | `chatModel` | `ChatModel` | The chat that holds the message. |
-| `assistantName`, `assistantIcon`, `markdownComponents`, `allowImages`, `messageActions`, `messageHeaderItems` | - | As on `ChatMessageList`. |
+| `assistantName`, `assistantIcon`, `markdownComponents`, `allowImages`, `citationMarkers`, `onSourceClick`, `markdownPlugins`, `messageActions`, `messageHeaderItems` | - | As on `ChatMessageList`. |
 
 ### Part components
 
@@ -408,10 +494,10 @@ Use it directly only for a list of your own.
 |-----------|-------|-----------|
 | `ChatToolCall` | `part`, `context` | Show a tool call card, for example inside a renderer of your own. |
 | `ChatClearButton` | `chatModel`, and any `ButtonProps` | Clear the conversation, from a panel header. |
-| `ChatReasoning` | `part`, `markdownComponents`, `allowImages` | Show a reasoning part. |
-| `ChatSources` | `sources`, `defaultExpanded` | Show a list of sources. |
+| `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |
+| `ChatSources` | `sources`, `defaultExpanded`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
 | `ChatCodeBlock` | `content`, `language` | Show code with a copy button. |
-| `ChatFileChip` | `file`, `onRemove` | Show a file, with a remove button when `onRemove` is set. |
+| `ChatFileChip` | `file`, `onRemove`, `allowImages` | Show a file, with a remove button when `onRemove` is set. An image at a URL shows a thumbnail only if `allowImages` permits it. |
 | `ChatEmptyState` | `icon`, `title`, `text`, `suggestions` | Welcome the user to an empty chat. |
 | `ChatSuggestions` | `suggestions`, `onSelect` | Show prompt chips. `onSelect` replaces the default send. |
 
@@ -459,17 +545,19 @@ chat. Class names follow BEM under `xh-chat-`, for example `xh-chat-message__bub
 - **Tool display** - `displayName`, `icon`, `summary`, `renderer` and `display` on
   `ChatToolSpec`. See [`/core/`](../../../core/README.md#chattoolspec).
 - **Data renderers** - `ChatModelConfig.dataRenderers`, for app content and generative UI.
-- **Markdown** - `markdownComponents` for element overrides, and `allowImages` for the image
-  policy.
+- **Sources** - `citationMarkers` for inline `[n]` markers, and `onSourceClick` to open a
+  source in the app.
+- **Markdown** - `markdownComponents` for element overrides, `markdownPlugins` for remark and
+  rehype plugins, and `allowImages` for the image policy.
 - **Theme** - the `--chat-*` overrides above, and the BEM class names.
 
 ## Common Pitfalls
 
 ### Passing a new function or object on every render
 
-`messageActions`, `messageHeaderItems` and `markdownComponents` are props of memoized
-components. A new value on each render re-renders every message, and a new
-`markdownComponents` re-parses every markdown block.
+`messageActions`, `messageHeaderItems`, `onSourceClick`, `markdownComponents` and
+`markdownPlugins` are props of memoized components. A new value on each render re-renders every
+message. A new `markdownComponents` or `markdownPlugins` also re-parses every markdown block.
 
 ```typescript
 // ✅ Do: An arrow function field on your model, or a module-level constant

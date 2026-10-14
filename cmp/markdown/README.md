@@ -3,10 +3,10 @@
 | Section | Description |
 |---------|-------------|
 | [Overview](#overview) | What `ChatMarkdown` does, and the key features |
-| [Architecture](#architecture) | Block rendering, syntax closing and the image policy |
-| [Common Usage Patterns](#common-usage-patterns) | Streaming text, element overrides, images, links |
+| [Architecture](#architecture) | Block rendering, syntax closing, the image policy and citation markers |
+| [Common Usage Patterns](#common-usage-patterns) | Streaming text, element overrides, images, links, citations, plugins |
 | [Properties/API Reference](#propertiesapi-reference) | `ChatMarkdownProps` |
-| [Extension Points](#extension-points) | Components and policies |
+| [Extension Points](#extension-points) | Components, plugins and policies |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
 | [Related Packages](#related-packages) | Chat components and Hoist's `Markdown` |
 
@@ -28,6 +28,10 @@ Key features:
 - **Safe output** - raw HTML renders as plain text. Images do not load unless `allowImages`
   permits them. Links open in a new tab, with `rel="noopener noreferrer"`.
 - **Element overrides** - `components` replaces how any element renders, keyed by tag name.
+- **Citation markers** - with `citations` set, `[1]` and `[1, 2]` in the text render as compact
+  buttons for the sources they cite.
+- **App plugins** - `markdownPlugins` adds remark and rehype plugins, such as those for math.
+  The kit takes no math dependency.
 
 ## Architecture
 
@@ -58,6 +62,27 @@ document or a tool result can steer the model. Such a reply can put data in an i
 the request then sends the data to that server. So `ChatMarkdown` does not load images by
 default. Each image shows as a link, labeled with its alt text, that the user can choose to
 open. A link needs a click, so the user sees the URL before anything loads.
+
+### Citation markers
+
+With `citations` set, a remark plugin reads the parsed markdown and replaces each marker in the
+text, such as `[1]`, `[1, 2]` or `[1][2]`, with a citation element. `[n]` cites the source with
+`marker` n. When no source has a marker, `[n]` cites the nth source, counting from 1.
+
+The plugin skips code, inline code, links and link references, so `arr[1]` and `[1](url)` stay
+as written. Footnote syntax (`[^1]`) never matches. A marker converts only if every number in it
+cites a source. So `[3]` with two sources, and `[1, 3]`, stay plain text. While text streams, a
+partial marker such as a trailing `[1` stays plain text until its closing bracket arrives.
+
+Each number renders as its own button, labeled for screen readers as "Source 1: <title>". A
+click calls `citations.onClick`, or opens the source's `url` in a new tab. The button shows the
+source title and excerpt as a native tooltip. The excerpt is `metadata.excerpt`, or else the
+source's `snippet`. `citations.renderMarker` wraps each button, for example in a tooltip of the
+platform's own. The desktop chat uses it for a Blueprint tooltip.
+
+The plugin needs the sources to decide which markers convert, so the blocks re-parse when the
+sources change. `ChatMarkdown` compares the sources by value, so a new array of the same
+sources on each streamed flush costs nothing.
 
 ## Common Usage Patterns
 
@@ -128,6 +153,44 @@ chatMarkdown({content, isStreaming, trailingContent: chips});
 
 Memoize the content. A new value re-renders the block that holds it.
 
+### Render citation markers
+
+Pass the sources the text may cite. Give each source a `marker` when the model numbers its
+sources itself. Without markers, `[n]` cites the nth source.
+
+```typescript
+chatMarkdown({
+    content: 'Loans above the limit need a second review [2].',
+    isStreaming,
+    citations: {
+        sources: message.parts.filter(it => it.type === 'source'),
+        onClick: source => this.openDocument(source.metadata.documentId)
+    }
+});
+```
+
+### Add markdown plugins
+
+`markdownPlugins` takes remark plugins, which transform the markdown tree, and rehype plugins,
+which transform the HTML tree. Each list runs after the kit's own plugins. Define the object
+once, at module level.
+
+To render math with KaTeX, add `remark-math`, `rehype-katex` and `katex` to the app, and load
+the KaTeX stylesheet:
+
+```typescript
+import rehypeKatex from 'rehype-katex';
+import remarkMath from 'remark-math';
+import 'katex/dist/katex.min.css';
+
+const MATH_PLUGINS: ChatMarkdownPlugins = {remark: [remarkMath], rehype: [rehypeKatex]};
+
+chatMarkdown({content, isStreaming, markdownPlugins: MATH_PLUGINS});
+```
+
+On the desktop chat, pass the same object as `markdownPlugins` on `chatPanel` or
+`chatMessageList`.
+
 ## Properties/API Reference
 
 See `ChatMarkdown.ts` for the full doc comments.
@@ -141,17 +204,32 @@ See `ChatMarkdown.ts` for the full doc comments.
 | `allowImages` | `boolean \| (src) => boolean` | Images to load. A blocked image shows as a link. Default false. |
 | `onLinkClick` | `(href, e) => void` | Called when the user clicks a link, before it opens. |
 | `trailingContent` | `ReactNode` | Inline content at the end of the last paragraph or list item, such as citation chips. Memoize it. |
+| `citations` | `ChatMarkdownCitations` | Sources for citation markers. Default null, which leaves markers as written. |
+| `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins, run after the kit's own. Pass a stable object. |
+
+`ChatMarkdownCitations` has these fields:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `sources` | `ChatSourcePart[]` | Sources the text may cite, in the order reported. |
+| `onClick` | `(source) => void` | Called when the user clicks a marker. Default opens the source's `url` in a new tab. |
+| `renderMarker` | `(marker, source) => ReactNode` | Wraps the button of each cited source, for example in a tooltip. Replaces the native tooltip. |
 
 `ChatMarkdown` calls an `allowImages` function as each image renders, and `onLinkClick` as each
-link is clicked. A new function on each render therefore costs nothing. A change from `false` to
+link is clicked. It reads the `citations` callbacks the same way. A new function on each render
+therefore costs nothing. A change from `false` to
 `true`, or to a function, re-renders the blocks.
 
 ## Extension Points
 
 - **`components`** - render any element with your own component, such as charts for code fences
   of a given language.
-- **`allowImages`** - set the image policy per chat, or per source URL.
+- **`allowImages`** - set the image policy per chat, or per source URL. `isChatImageAllowed()`
+  applies a policy to a URL, for components of your own that show images.
 - **`onLinkClick`** - route links into the app.
+- **`citations`** - route citation clicks into the app, and wrap markers in a tooltip of your own.
+- **`markdownPlugins`** - add remark and rehype plugins, such as `remark-math` and
+  `rehype-katex`. A plugin can render its own elements through `components`.
 - **Styles** - the markdown styles sit under `.xh-chat-markdown` and use the `--xh-chat-*`
   theme variables. See [`/desktop/cmp/chat/`](../../desktop/cmp/chat/README.md#theming).
 
@@ -168,6 +246,18 @@ chatMarkdown({content, components: COMPONENTS});
 // ❌ Don't: An inline object, new on every render
 chatMarkdown({content, components: {pre: myCodeBlock}});
 ```
+
+### Passing a new markdownPlugins object on every render
+
+The block cache keys on `markdownPlugins`, as it does on `components`. A new object re-parses
+every block on every render. Use a module-level constant.
+
+### Sanitizing away the citation elements
+
+A citation marker renders through a custom element, `xh-chat-citation`. A rehype sanitizer in
+`markdownPlugins.rehype`, such as `rehype-sanitize` with its default schema, unwraps unknown
+elements, so the markers show as plain `[1]` again. Add the element and its `data-markers`
+attribute to the schema.
 
 ### Leaving isStreaming on after the text is complete
 

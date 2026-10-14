@@ -1,18 +1,18 @@
 import type {ChatUiCatalog} from './ChatUiCatalog';
-import type {ChatUiNode} from './ChatUiComponentSpec';
+import type {ChatUiDocument} from './ChatUiDocument';
 
 /**
- * Translates the UI payload of a generative UI protocol, such as OpenUI Lang or A2UI, into
- * components from a {@link ChatUiCatalog}. The payload arrives in a data part, and the catalog
- * renders the translated components in its place, so that a protocol's UI draws with the app's
- * own Hoist components.
+ * Translates the UI payload of a generative UI protocol, such as OpenUI Lang or A2UI, into a
+ * {@link ChatUiDocument} of components from a {@link ChatUiCatalog}. The payload arrives in a data
+ * part, and the catalog renders the document in its place, so that a protocol's UI draws with the
+ * app's own Hoist components.
  *
- * Register adapters through the catalog, as data renderers for the chat:
+ * Pass the catalog to the chat, and register adapters through it as data renderers:
  *
  * ```ts
  * const chatModel = new ChatModel({
  *     transport,
- *     tools: catalog.tools,
+ *     catalog,
  *     dataRenderers: catalog.createDataRenderers([myProtocolAdapter])
  * });
  * ```
@@ -22,12 +22,13 @@ export interface ChatUiAdapter {
     dataType: string;
 
     /**
-     * Translate a payload into catalog components, in display order. Map the protocol's component
-     * names to catalog names, and leave out anything the catalog cannot show. The catalog checks
-     * each node's props before it renders.
+     * Translate a payload into a document of catalog components. Map the protocol's component
+     * names to catalog names, and its component ids to element ids. Leave out anything the
+     * catalog cannot show. The catalog repairs and checks the document before it renders, and
+     * renders an element that fails its checks as a fallback.
      *
      * @param payload - the `data` of the data part.
      * @param catalog - the catalog that renders the result - for example to look up components.
      */
-    translate(payload: any, catalog: ChatUiCatalog): ChatUiNode[];
+    translate(payload: any, catalog: ChatUiCatalog): ChatUiDocument;
 }

@@ -3,11 +3,12 @@ import {div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, uses} from '@xh/hoist/core';
 import {panel, type PanelProps} from '@xh/hoist/desktop/cmp/panel';
 import {getTestId} from '@xh/hoist/utils/js';
-import type {ChatImagePolicy} from '../../../cmp/markdown';
+import type {ChatImagePolicy, ChatMarkdownPlugins} from '../../../cmp/markdown';
 import {ChatModel} from '../../../core';
 import '../../../styles/vars.scss';
 import {chatComposer, type ChatComposerProps} from './ChatComposer';
 import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
+import type {ChatSourceClickFn} from './ChatMessageView';
 import './ChatPanel.scss';
 import type {ChatSuggestion} from './ChatSuggestions';
 import {refuseFileDrop} from './impl/FileDrop';
@@ -26,6 +27,24 @@ export interface ChatPanelProps
      * sends a request that could leak data. See {@link ChatMarkdownProps.allowImages}.
      */
     allowImages?: ChatImagePolicy;
+
+    /**
+     * True to render citation markers in assistant text, such as `[1]`, as buttons for the sources
+     * they cite. See {@link ChatMessageListProps.citationMarkers}. Default false.
+     */
+    citationMarkers?: boolean;
+
+    /**
+     * Called when the user clicks a source, a citation chip or a citation marker. Default opens the
+     * source's `url` in a new tab. Pass a stable function.
+     */
+    onSourceClick?: ChatSourceClickFn;
+
+    /**
+     * Plugins to add to the markdown pipeline of assistant messages, such as those for math. See
+     * {@link ChatMarkdownPlugins}. Pass a stable object.
+     */
+    markdownPlugins?: ChatMarkdownPlugins;
 
     /** Props for the composer - for example `placeholder`, or `leftItems` for a model picker. */
     composerProps?: Omit<ChatComposerProps, 'model' | 'modelConfig' | 'modelRef'>;
@@ -58,6 +77,9 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
             emptyState,
             suggestions,
             allowImages,
+            citationMarkers,
+            onSourceClick,
+            markdownPlugins,
             composerProps,
             messageListProps,
             testId,
@@ -74,6 +96,9 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                     emptyState,
                     suggestions,
                     allowImages,
+                    citationMarkers,
+                    onSourceClick,
+                    markdownPlugins,
                     testId: getTestId(testId, 'messages'),
                     ...messageListProps
                 }),

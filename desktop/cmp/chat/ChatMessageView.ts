@@ -1,4 +1,4 @@
-import {isEmpty, isEqual, last, sumBy} from 'lodash';
+import {findLastIndex, isEmpty, isEqual, last, sumBy} from 'lodash';
 import {type ReactElement, type ReactNode, useLayoutEffect, useMemo} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
@@ -9,7 +9,9 @@ import {action, bindable, observable} from '@xh/hoist/mobx';
 import {createObservableRef, useCached} from '@xh/hoist/utils/react';
 import {
     type ChatImagePolicy,
+    type ChatMarkdownCitations,
     type ChatMarkdownComponents,
+    type ChatMarkdownPlugins,
     chatMarkdown
 } from '../../../cmp/markdown';
 import {
@@ -18,8 +20,11 @@ import {
     type ChatFilePart,
     type ChatMessage,
     type ChatModel,
+    type ChatPart,
     type ChatPartRenderContext,
     type ChatReasoningPart,
+    type ChatSourcePart,
+    type ChatTextPart,
     isToolCallFinal
 } from '../../../core';
 import '../../../styles/vars.scss';
@@ -33,13 +38,17 @@ import {
     type ChatReference,
     chatCitations,
     collectReferences,
+    renderCitationMarker,
     toSourceList
 } from './impl/ChatCitations';
 import {chatCopyButton} from './impl/ChatCopyButton';
+import {chatErrorBoundary} from './impl/ChatErrorBoundary';
 import {formatElapsed} from './impl/ChatFormat';
 import {chatToolCallGroup} from './impl/ChatToolCallGroup';
 import {chatTypingIndicator} from './impl/ChatTypingIndicator';
+import {formatChatUiContext} from '../../../genui/ChatUiAction';
 import {classNames} from '../../../impl/ClassNames';
+import {getOwn} from '../../../impl/objects';
 import {type ChatPartGroup, groupParts} from './impl/groupParts';
 import {jsonView} from './impl/JsonView';
 import {useChatMarkdownComponents} from './impl/MarkdownComponents';
@@ -52,6 +61,12 @@ export type ChatMessageRenderFn = (
     message: ChatMessage,
     context: ChatPartRenderContext
 ) => ReactNode[];
+
+/**
+ * Handles a click on a source - in the source list, on a citation chip, or on a citation marker.
+ * Receives the source and the render context of its message.
+ */
+export type ChatSourceClickFn = (source: ChatSourcePart, context: ChatPartRenderContext) => void;
 
 /** Props for {@link ChatMessageView}. */
 export interface ChatMessageViewProps extends HoistProps {
@@ -75,6 +90,24 @@ export interface ChatMessageViewProps extends HoistProps {
 
     /** Images to load - see {@link ChatMarkdownProps.allowImages}. Default false. */
     allowImages?: ChatImagePolicy;
+
+    /**
+     * True to render citation markers in assistant text, such as `[1]` and `[1, 2]`, as buttons for
+     * the message's sources - see {@link ChatMarkdownProps.citations}. Default false.
+     */
+    citationMarkers?: boolean;
+
+    /**
+     * Called when the user clicks a source, a citation chip or a citation marker. Default opens the
+     * source's `url` in a new tab. Pass a stable function.
+     */
+    onSourceClick?: ChatSourceClickFn;
+
+    /**
+     * Plugins to add to the markdown pipeline of assistant text and reasoning - see
+     * {@link ChatMarkdownPlugins}. Pass a stable object.
+     */
+    markdownPlugins?: ChatMarkdownPlugins;
 
     /** Buttons to add to the action bar, after the built-in ones. Pass a stable function. */
     messageActions?: ChatMessageRenderFn;
@@ -110,7 +143,9 @@ export interface ChatMessageViewProps extends HoistProps {
  * Assistant messages span the full width with no bubble, under a header with the assistant's name
  * and the time taken. Their parts render in order: markdown text, reasoning, tool calls, files and
  * app-rendered data, followed by the sources consulted. Consecutive tool calls of one step fold
- * into a single "Used 3 tools" row.
+ * into a single "Used 3 tools" row. With `citationMarkers` on, `[1]` in the text renders as a
+ * button for the source it cites. In a chat with a generative UI catalog, component tags in the
+ * text render as their components.
  *
  * Each part renders as a memoized component that receives the part and a render context that is
  * stable for the life of the message, so a part re-renders only when it changes - not on every
@@ -126,14 +161,18 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
     className: 'xh-chat-message',
 
     render(props, ref) {
-        const {className, message, chatModel, isLast = false} = props,
+        const {className, message, chatModel, isLast = false, citationMarkers = false} = props,
             impl = useLocalModel(ChatMessageViewLocalModel),
             context = useMemo<ChatPartRenderContext>(
                 () => ({chatModel, messageId: message.id}),
                 [chatModel, message.id]
             ),
             // Kept stable while unchanged, so cited text parts skip render as the message streams.
-            references = useCached(collectReferences(message.parts), isEqual);
+            references = useCached(collectReferences(message.parts, citationMarkers), isEqual),
+            markerSources = useCached(
+                citationMarkers ? (message.parts.filter(isSource) as ChatSourcePart[]) : null,
+                isEqual
+            );
 
         // A last reply that failed before any content is shown by the list's error banner alone.
         if (isLast && message.status === 'error' && isEmpty(message.parts)) return null;
@@ -149,7 +188,7 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
                 ? userContent(props, impl, context)
                 : message.role === 'system'
                   ? div({className: 'xh-chat-message__system', item: message.text})
-                  : assistantContent(props, context, references)
+                  : assistantContent(props, context, references, markerSources)
         });
     }
 });
@@ -212,7 +251,7 @@ class ChatMessageViewLocalModel extends HoistModel {
     submitEdit() {
         const {message, chatModel} = this.props,
             text = this.draft.trim();
-        if (!text || chatModel.isBusy) return;
+        if (!text || chatModel.isBusy || chatModel.sendBlockedReason) return;
         this.setEditing(false);
         chatModel.composerModel.focus();
         chatModel.editMessageAsync(message.id, text).catchDefault();
@@ -249,35 +288,54 @@ function userContent(
     impl: ChatMessageViewLocalModel,
     context: ChatPartRenderContext
 ): ReactNode[] {
-    const {message, isLast, messageActions} = props,
+    const {message, isLast, messageActions, allowImages} = props,
         files = message.parts.filter(it => it.type === 'file') as ChatFilePart[];
 
     if (impl.isEditing) {
         return [
-            files.length ? fileRow(files) : null,
+            files.length ? fileRow(files, allowImages) : null,
             editBox({impl, chatModel: context.chatModel})
         ];
     }
 
     // The action bar sits beside the bubble, not below it, so that it takes no space of its own.
     // A message of files alone has no bubble, and the bar sits beside the files.
-    const actions = actionBar({message, context, isLast, impl, extraActions: messageActions});
+    const actions = actionBar({message, context, isLast, impl, extraActions: messageActions}),
+        contextNote = messageContextNote(message);
     if (!message.text) {
-        return [div({className: 'xh-chat-message__row', items: [fileRow(files), actions]})];
+        return [
+            div({className: 'xh-chat-message__row', items: [fileRow(files, allowImages), actions]}),
+            contextNote
+        ];
     }
     return [
-        files.length ? fileRow(files) : null,
+        files.length ? fileRow(files, allowImages) : null,
         div({
             className: 'xh-chat-message__row',
             items: [div({className: 'xh-chat-message__bubble', item: message.text}), actions]
-        })
+        }),
+        contextNote
     ];
+}
+
+/**
+ * The structured context sent with a user message, such as the record a button acted on. The
+ * model sees it with the message, so the user does too.
+ */
+function messageContextNote(message: ChatMessage): ReactNode {
+    const text = formatChatUiContext(message.metadata.context);
+    return text
+        ? div({className: 'xh-chat-message__context', title: 'Sent with the message', item: text})
+        : null;
 }
 
 interface EditBoxProps extends HoistProps {
     impl: ChatMessageViewLocalModel;
     chatModel: ChatModel;
 }
+
+/** Rows the edit box grows to before it scrolls. */
+const EDIT_MAX_ROWS = 12;
 
 const editBox = hoistCmp.factory<EditBoxProps>({
     displayName: 'ChatMessageEditBox',
@@ -286,7 +344,10 @@ const editBox = hoistCmp.factory<EditBoxProps>({
     render({impl, chatModel}) {
         const {draft, inputRef} = impl;
 
-        useLayoutEffect(() => fitTextAreaToContent(inputRef.current, 12), [draft, inputRef]);
+        useLayoutEffect(
+            () => fitTextAreaToContent(inputRef.current, EDIT_MAX_ROWS),
+            [draft, inputRef]
+        );
 
         return div({
             className: 'xh-chat-message__edit',
@@ -311,7 +372,9 @@ const editBox = hoistCmp.factory<EditBoxProps>({
                             text: 'Send',
                             intent: 'primary',
                             minimal: false,
-                            disabled: !draft.trim() || chatModel.isBusy,
+                            tooltip: chatModel.sendBlockedReason,
+                            disabled:
+                                !draft.trim() || chatModel.isBusy || !!chatModel.sendBlockedReason,
                             onClick: () => impl.submitEdit()
                         })
                     ]
@@ -327,9 +390,10 @@ const editBox = hoistCmp.factory<EditBoxProps>({
 function assistantContent(
     props: ViewProps,
     context: ChatPartRenderContext,
-    references: ChatReference[]
+    references: ChatReference[],
+    markerSources: ChatSourcePart[]
 ): ReactNode[] {
-    const {message, isLast, assistantName, messageActions} = props;
+    const {message, isLast, assistantName, messageActions, onSourceClick} = props;
 
     return [
         messageHeader(props, context),
@@ -337,7 +401,11 @@ function assistantContent(
             className: 'xh-chat-message__body',
             items: [
                 ...groupParts(message.parts, context.chatModel).map(group =>
-                    renderPartGroup(group, props, context, references)
+                    chatErrorBoundary({
+                        key: group.id,
+                        resetKey: getResetKey(group),
+                        item: renderPartGroup(group, props, context, references, markerSources)
+                    })
                 ),
                 isAwaitingContent(message)
                     ? chatTypingIndicator({
@@ -348,7 +416,12 @@ function assistantContent(
                 statusNote(props)
             ]
         }),
-        references.length ? chatSources({sources: toSourceList(references)}) : null,
+        references.length
+            ? chatSources({
+                  sources: toSourceList(references),
+                  onSourceClick: onSourceClick ? source => onSourceClick(source, context) : null
+              })
+            : null,
         // Actions wait for the turn to end - including one paused for the user's approval.
         message.isStreaming || message.status === 'paused'
             ? null
@@ -396,42 +469,64 @@ function renderPartGroup(
     group: ChatPartGroup,
     props: ViewProps,
     context: ChatPartRenderContext,
-    references: ChatReference[]
+    references: ChatReference[],
+    markerSources: ChatSourcePart[]
 ): ReactNode {
-    const {markdownComponents, allowImages} = props;
+    const {markdownComponents, allowImages, markdownPlugins, onSourceClick} = props;
     switch (group.type) {
         case 'fileGroup':
-            return fileRow(group.parts);
+            return fileRow(group.parts, allowImages);
         case 'toolCallGroup':
-            return chatToolCallGroup({key: group.id, parts: group.parts, context});
+            return chatToolCallGroup({parts: group.parts, context});
         case 'text':
             return textPart({
-                key: group.id,
+                part: group,
                 text: group.text,
                 isStreaming: group.state === 'streaming',
                 citations: group.citations,
                 // Only cited text needs the references - passing them otherwise defeats memoization.
                 references: group.citations?.length ? references : null,
+                markerSources,
+                onSourceClick,
+                context,
                 markdownComponents,
+                markdownPlugins,
                 allowImages
             });
         case 'reasoning':
-            return chatReasoning({key: group.id, part: group, markdownComponents, allowImages});
+            return chatReasoning({part: group, markdownComponents, markdownPlugins, allowImages});
         case 'toolCall':
-            return chatToolCall({key: group.id, part: group, context});
+            return chatToolCall({part: group, context});
         case 'data':
-            return dataPart({key: group.id, part: group, context});
+            return dataPart({part: group, context});
         default:
             return null;
     }
 }
 
+/**
+ * When a part that failed to render gets another try: a streaming part when its state moves on,
+ * and a data part when it is replaced.
+ */
+function getResetKey(group: ChatPartGroup): any {
+    if ('state' in group) return group.state;
+    return group.type === 'data' ? group : null;
+}
+
 interface TextPartProps extends HoistProps {
+    /** The part, for the components of its tags. */
+    part: ChatTextPart;
     text: string;
     isStreaming: boolean;
     citations: ChatCitation[];
     references: ChatReference[];
+
+    /** Sources for citation markers in the text - null unless `citationMarkers` is on. */
+    markerSources: ChatSourcePart[];
+    onSourceClick: ChatSourceClickFn;
+    context: ChatPartRenderContext;
     markdownComponents: ChatMarkdownComponents;
+    markdownPlugins: ChatMarkdownPlugins;
     allowImages: ChatImagePolicy;
 }
 
@@ -439,23 +534,83 @@ const textPart = hoistCmp.factory<TextPartProps>({
     displayName: 'ChatTextPart',
     model: false,
 
-    render({text, isStreaming, citations, references, markdownComponents, allowImages}) {
+    render({
+        part,
+        text,
+        isStreaming,
+        citations,
+        references,
+        markerSources,
+        onSourceClick,
+        context,
+        markdownComponents,
+        markdownPlugins,
+        allowImages
+    }) {
         const components = useChatMarkdownComponents(markdownComponents),
+            onClick = useMemo(
+                () =>
+                    onSourceClick
+                        ? (source: ChatSourcePart) => onSourceClick(source, context)
+                        : null,
+                [onSourceClick, context]
+            ),
             // Inline at the end of the last paragraph - memoized, as each new value re-renders it.
             trailingContent = useMemo(
-                () => (citations?.length ? chatCitations({citations, references}) : null),
-                [citations, references]
-            );
+                () =>
+                    citations?.length
+                        ? chatCitations({citations, references, onSourceClick: onClick})
+                        : null,
+                [citations, references, onClick]
+            ),
+            markers = useMemo<ChatMarkdownCitations>(
+                () =>
+                    markerSources
+                        ? {sources: markerSources, onClick, renderMarker: renderCitationMarker}
+                        : null,
+                [markerSources, onClick]
+            ),
+            {catalog} = context.chatModel,
+            segments = useMemo(
+                () => catalog?.parseTags(text, {isStreaming}) ?? null,
+                [catalog, text, isStreaming]
+            ),
+            // Only the end of the text streams, and citations trail its last markdown.
+            markdown = (content: string, isEnd: boolean, isLastMarkdown: boolean, key?: string) =>
+                chatMarkdown({
+                    key,
+                    content,
+                    isStreaming: isStreaming && isEnd,
+                    components,
+                    allowImages,
+                    trailingContent: isLastMarkdown ? trailingContent : null,
+                    citations: markers,
+                    markdownPlugins
+                });
 
+        // Text with no component tags - the common case - renders as one block of markdown.
+        if (!segments?.some(it => it.type !== 'markdown')) {
+            return div({className: 'xh-chat-message__text', item: markdown(text, true, true)});
+        }
+
+        // Segments only grow at the end as the text streams, so their index is a stable key.
+        const lastMarkdownIdx = findLastIndex(segments, it => it.type === 'markdown');
         return div({
             className: 'xh-chat-message__text',
-            item: chatMarkdown({
-                content: text,
-                isStreaming,
-                components,
-                allowImages,
-                trailingContent
-            })
+            items: segments.map((segment, idx) =>
+                segment.type === 'markdown'
+                    ? markdown(
+                          segment.text,
+                          idx === segments.length - 1,
+                          idx === lastMarkdownIdx,
+                          `s${idx}`
+                      )
+                    : div({
+                          key: `s${idx}`,
+                          className: 'xh-chat-message__ui',
+                          item: catalog.renderSegment(segment, {...context, part})
+                      })
+            )
         });
     }
 });
@@ -473,7 +628,7 @@ const dataPart = hoistCmp.factory<DataPartProps>({
     className: 'xh-chat-message__data',
 
     render({className, part, context}) {
-        const renderer = context.chatModel.dataRenderers?.[part.dataType];
+        const renderer = getOwn(context.chatModel.dataRenderers, part.dataType);
         if (renderer) return div({className, item: renderer(part, context)});
 
         return div({
@@ -486,12 +641,16 @@ const dataPart = hoistCmp.factory<DataPartProps>({
     }
 });
 
-function fileRow(files: ChatFilePart[]): ReactNode {
+function fileRow(files: ChatFilePart[], allowImages: ChatImagePolicy): ReactNode {
     return div({
         key: `files-${files[0].id}`,
         className: 'xh-chat-message__files',
-        items: files.map(file => chatFileChip({key: file.id, file}))
+        items: files.map(file => chatFileChip({key: file.id, file, allowImages}))
     });
+}
+
+function isSource(part: ChatPart): boolean {
+    return part.type === 'source';
 }
 
 // True while the assistant is working with nothing new to show - before its first content, or
@@ -547,9 +706,10 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
             hasText = !!message.text.trim(),
             // A failed last reply offers Retry in the list's error banner instead.
             canRegenerate = message.isAssistant && isLast && !isBusy && message.status !== 'error',
+            canUndo = chatModel.canUndoTurn(message.id),
             appActions = extraActions?.(message, context) ?? [];
 
-        if (!hasText && !canRegenerate && !impl && isEmpty(appActions)) return null;
+        if (!hasText && !canRegenerate && !canUndo && !impl && isEmpty(appActions)) return null;
 
         return div({
             className: 'xh-chat-message__actions',
@@ -571,6 +731,14 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
                           tooltip: 'Regenerate',
                           'aria-label': 'Regenerate',
                           onClick: () => chatModel.regenerateAsync(message.id).catchDefault()
+                      })
+                    : null,
+                canUndo
+                    ? button({
+                          icon: Icon.undo(),
+                          tooltip: 'Undo changes',
+                          'aria-label': 'Undo changes',
+                          onClick: () => chatModel.undoTurnAsync(message.id).catchDefault()
                       })
                     : null,
                 ...appActions

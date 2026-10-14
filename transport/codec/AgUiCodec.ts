@@ -1,6 +1,18 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {logDebug} from '@xh/hoist/utils/js';
-import {compact, flatMap, groupBy, has, isEmpty, isFunction, isNil, omitBy} from 'lodash';
+import {
+    compact,
+    find,
+    flatMap,
+    groupBy,
+    has,
+    isEmpty,
+    isFunction,
+    isNil,
+    last,
+    map,
+    omitBy
+} from 'lodash';
 import {
     type ChatFilePart,
     type ChatMessage,
@@ -13,6 +25,7 @@ import {
 import type {ChatCodec, ChatDecoder} from '../ChatCodec';
 import type {ChatEvent, ChatEventType} from '../ChatEvent';
 import type {ChatRunRequest} from '../ChatTransport';
+import {contextValueText, messageContext} from '../impl/context';
 import {partsBySteps, toolResultText} from '../impl/history';
 
 /** Configuration for an {@link AgUiCodec}. */
@@ -28,6 +41,12 @@ export interface AgUiCodecConfig {
      * or a function to build them per run. Default none.
      */
     forwardedProps?: PlainObject | ((request: ChatRunRequest) => PlainObject);
+
+    /**
+     * The agent's state, sent as the `state` of each run - or a function to build it per run, e.g.
+     * from the app's current selection. Default an empty object.
+     */
+    state?: PlainObject | ((request: ChatRunRequest) => PlainObject);
 }
 
 /** A named piece of ambient information for an AG-UI agent. */
@@ -45,7 +64,7 @@ export interface AgUiContext {
  * Each step is sent as an AG-UI `RunAgentInput`:
  *
  * ```
- * {threadId, runId, protocolVersion: '1.0', state: {}, messages, tools, context, forwardedProps}
+ * {threadId, runId, protocolVersion: '1.0', state, messages, tools, context, forwardedProps}
  * ```
  *
  * The history becomes AG-UI messages. User messages carry their text as `content`, or a list of
@@ -54,7 +73,24 @@ export interface AgUiContext {
  * `assistant` message with its text as `content` and its finished tool calls as `toolCalls`, and a
  * `tool` message per call with its result - and `error`, for a failed or denied call. Tools are
  * sent as `{name, description, parameters}`, with an empty object schema for a tool that has no
- * `parameters`.
+ * `parameters`. The chat's live context - see `ChatModelConfig.contextProviders` - follows the
+ * codec's own `context` entries, one per provider: its description (or else its name), and its
+ * value as text, or as JSON for an object. The structured context of the turn's user message,
+ * from its `metadata.context`, goes last, as JSON.
+ *
+ * In server mode the agent holds the history, so `messages` carries only what it has not seen:
+ * the user message on the first step of a turn, or, on a `continue` step, the client tool calls
+ * of the reply's last step and the results the client gave them. The step's text, and the calls
+ * the server ran, are left out. The turn's ids and options go in
+ * `forwardedProps`, alongside any the app adds:
+ *
+ * ```
+ * {turnId, trigger, runOptions, replacedMessageId, catalogVersion}
+ * ```
+ *
+ * `replacedMessageId` is sent only for a retry or regenerate, and `catalogVersion` only for a chat
+ * with a generative UI catalog. The app's own `forwardedProps` take
+ * precedence over these keys.
  *
  * The kit's events are AG-UI events, so decoding passes each record through as is. Records of an
  * unknown `type` are dropped.
@@ -66,28 +102,41 @@ export class AgUiCodec implements ChatCodec {
     /** Values passed to the agent untouched, or a function to build them per run. */
     readonly forwardedProps: AgUiCodecConfig['forwardedProps'];
 
-    constructor({context = null, forwardedProps = null}: AgUiCodecConfig = {}) {
+    /** The agent's state, or a function to build it per run. */
+    readonly state: AgUiCodecConfig['state'];
+
+    constructor({context = null, forwardedProps = null, state = null}: AgUiCodecConfig = {}) {
         this.context = context;
         this.forwardedProps = forwardedProps;
+        this.state = state;
     }
 
     encodeRequest(request: ChatRunRequest): PlainObject {
-        const {threadId, runId, messages, tools} = request,
-            {context, forwardedProps} = this;
+        const {threadId, runId, historyMode, messages, newMessages, tools} = request,
+            {context, state} = this,
+            isServerMode = historyMode === 'server';
         return {
             threadId,
             runId,
             protocolVersion: '1.0',
-            state: {},
-            messages: flatMap(messages, encodeMessage),
+            state: (isFunction(state) ? state(request) : state) ?? {},
+            messages: isServerMode
+                ? flatMap(newMessages, encodeNewMessage)
+                : flatMap(messages, encodeMessage),
             tools: tools.map(({name, description, parameters}) => ({
                 name,
                 description: description ?? '',
                 parameters: parameters ?? {type: 'object', properties: {}}
             })),
-            context: (isFunction(context) ? context(request) : context) ?? [],
-            forwardedProps:
-                (isFunction(forwardedProps) ? forwardedProps(request) : forwardedProps) ?? {}
+            context: [
+                ...((isFunction(context) ? context(request) : context) ?? []),
+                ...map(request.context, it => ({
+                    description: it.description ?? it.name,
+                    value: contextValueText(it.value)
+                })),
+                ...encodeMessageContext(request)
+            ],
+            forwardedProps: this.getForwardedProps(request)
         };
     }
 
@@ -96,6 +145,22 @@ export class AgUiCodec implements ChatCodec {
             if (has(EVENT_TYPES, raw?.type)) return [raw as ChatEvent];
             logDebug(['Ignored record of unknown type', raw?.type], this);
             return [];
+        };
+    }
+
+    //------------------
+    // Implementation
+    //------------------
+    private getForwardedProps(request: ChatRunRequest): PlainObject {
+        const {forwardedProps} = this,
+            appProps =
+                (isFunction(forwardedProps) ? forwardedProps(request) : forwardedProps) ?? {};
+        if (request.historyMode !== 'server') return appProps;
+
+        const {turnId, trigger, runOptions, replacedMessageId, catalogVersion} = request;
+        return {
+            ...omitBy({turnId, trigger, runOptions, replacedMessageId, catalogVersion}, isNil),
+            ...appProps
         };
     }
 }
@@ -152,6 +217,27 @@ function encodeMessage(message: ChatMessage): PlainObject[] {
                 encodeAssistantStep(parts, idx ? `${id}-${idx}` : id)
             );
     }
+}
+
+/** The structured context of the turn's user message, as a context entry of each step. */
+function encodeMessageContext({messages, turnId}: ChatRunRequest): AgUiContext[] {
+    const context = messageContext(find(messages, {id: turnId}));
+    return context
+        ? [{description: MESSAGE_CONTEXT_DESCRIPTION, value: JSON.stringify(context)}]
+        : [];
+}
+
+/**
+ * A message the server has not seen - all of a user message, or the calls of a reply's last step
+ * that the client answered, with their results. The server wrote the rest of the step, and ran
+ * its own calls, so it holds them already.
+ */
+function encodeNewMessage(message: ChatMessage): PlainObject[] {
+    if (!message.isAssistant || message.isEmpty) return encodeMessage(message);
+    const steps = partsBySteps(message),
+        stepIdx = steps.length - 1,
+        clientCalls = last(steps).filter(it => it.type === 'toolCall' && !it.providerExecuted);
+    return encodeAssistantStep(clientCalls, stepIdx ? `${message.id}-${stepIdx}` : message.id);
 }
 
 /** User content as plain text, or as a list of parts when the message has attachments. */
@@ -244,4 +330,5 @@ function joinText(parts: ChatTextPart[]): string {
     return parts.map(it => it.text).join('\n\n');
 }
 
-const MEDIA_PART_TYPES = ['image', 'audio', 'video'];
+const MEDIA_PART_TYPES = ['image', 'audio', 'video'],
+    MESSAGE_CONTEXT_DESCRIPTION = "Context of the user's message, such as the item it is about";

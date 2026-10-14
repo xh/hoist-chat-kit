@@ -15,6 +15,7 @@
   },
   "files": [
     "CHANGELOG.md",
+    "assist",
     "cmp",
     "core",
     "desktop",
@@ -22,6 +23,8 @@
     "genui",
     "impl",
     "styles",
+    "svc",
+    "threads",
     "transport",
     "!**/*.spec.ts",
     "!**/*.spec.tsx"

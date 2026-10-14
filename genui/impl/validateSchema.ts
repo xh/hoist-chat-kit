@@ -22,13 +22,20 @@ export interface ValidateSchemaOptions {
      * more than one `oneOf` branch. Default false.
      */
     isPartial?: boolean;
+
+    /**
+     * Path of the value within a larger document, prefixed to each problem - for example
+     * `elements.chart.props`. Default none.
+     */
+    path?: string;
 }
 
 /**
  * Check a value against a JSON Schema, for the subset of keywords the kit supports: `type`
  * (including a list of types), `required`, `properties`, `additionalProperties` (false or a
  * schema), `enum`, `const`, `items`, `minItems`, `maxItems`, `minLength`, `maxLength`, `minimum`,
- * `maximum`, `pattern`, `anyOf` and `oneOf`. Other keywords are ignored.
+ * `maximum`, `pattern`, `anyOf` and `oneOf`. Other keywords are ignored - check a schema with
+ * {@link findSchemaProblems} first, to refuse one that relies on them.
  *
  * @returns readable problems, each prefixed with the path of the value at fault - for example
  *      `rows[3].value: expected number, got string`. Empty if the value is valid.
@@ -40,13 +47,114 @@ export function validateSchema(
     opts: ValidateSchemaOptions = {}
 ): string[] {
     const errors: string[] = [];
-    checkValue(value, schema, '', !!opts.isPartial, errors);
+    checkValue(value, schema, opts.path ?? '', !!opts.isPartial, errors);
     return errors;
+}
+
+/**
+ * Find what {@link validateSchema} cannot check in a schema: keywords that affect whether a value
+ * is valid but that the checker does not implement, and patterns that do not compile as Unicode
+ * regular expressions. Walks every subschema. Compiles and caches each pattern as it goes, so that
+ * validation reuses it.
+ *
+ * Keywords that only annotate, such as `title`, `description`, `default` or `format`, are fine.
+ *
+ * @returns readable problems, each naming the keyword and the path of the subschema at fault -
+ *      for example `$ref at properties.rows.items`. Empty if the checker covers the schema.
+ * @internal
+ */
+export function findSchemaProblems(schema: PlainObject, path: string = ''): string[] {
+    if (!isPlainObject(schema)) return [];
+
+    const at = path ? ` at ${path}` : '',
+        child = (key: string) => (path ? `${path}.${key}` : key),
+        ret = UNSUPPORTED_KEYWORDS.filter(it => Object.hasOwn(schema, it)).map(it => `${it}${at}`),
+        {properties, additionalProperties, items, pattern} = schema;
+
+    if (isArray(items)) ret.push(`array-form items${at}`);
+    if (pattern != null && !getPattern(pattern)) {
+        ret.push(`pattern /${pattern}/${at} is not a valid regular expression with the 'u' flag`);
+    }
+
+    if (isPlainObject(properties)) {
+        Object.entries(properties).forEach(([key, it]) =>
+            ret.push(...findSchemaProblems(it, child(`properties.${key}`)))
+        );
+    }
+    ret.push(
+        ...findSchemaProblems(additionalProperties, child('additionalProperties')),
+        ...findSchemaProblems(isArray(items) ? null : items, child('items'))
+    );
+    ['anyOf', 'oneOf'].forEach(key =>
+        castArray(schema[key] ?? []).forEach((it, idx) =>
+            ret.push(...findSchemaProblems(it, child(`${key}[${idx}]`)))
+        )
+    );
+    return ret;
+}
+
+/**
+ * Path to a property - `rows[3].value`, or `rows[3]["first name"]` for a non-identifier key.
+ * @internal
+ */
+export function propPath(path: string, key: string): string {
+    if (!IDENTIFIER_RE.test(key)) return `${path}[${JSON.stringify(key)}]`;
+    return path ? `${path}.${key}` : key;
+}
+
+/**
+ * A problem with the value at `path`, in the kit's `path: message` form.
+ * @internal
+ */
+export function formatError(path: string, msg: string): string {
+    return path ? `${path}: ${msg}` : msg;
+}
+
+/**
+ * The JSON type of a value, for messages - `null`, `array`, or its `typeof`.
+ * @internal
+ */
+export function typeOf(value: unknown): string {
+    if (value === null) return 'null';
+    if (isArray(value)) return 'array';
+    return typeof value;
 }
 
 //------------------
 // Implementation
 //------------------
+// Keywords that affect validity, which the checker does not implement. A schema that uses one
+// would pass values it should reject, so the catalog refuses it.
+const UNSUPPORTED_KEYWORDS = [
+    '$ref',
+    '$dynamicRef',
+    '$defs',
+    'definitions',
+    'allOf',
+    'not',
+    'if',
+    'then',
+    'else',
+    'exclusiveMinimum',
+    'exclusiveMaximum',
+    'multipleOf',
+    'uniqueItems',
+    'contains',
+    'minContains',
+    'maxContains',
+    'prefixItems',
+    'additionalItems',
+    'unevaluatedItems',
+    'unevaluatedProperties',
+    'minProperties',
+    'maxProperties',
+    'patternProperties',
+    'propertyNames',
+    'dependentRequired',
+    'dependentSchemas',
+    'dependencies'
+];
+
 type JsonType = 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null';
 
 function checkValue(
@@ -126,7 +234,7 @@ function checkObject(
     Object.entries(value).forEach(([key, propValue]) => {
         if (propValue === undefined) return;
         const keyPath = propPath(path, key);
-        if (key in properties) {
+        if (Object.hasOwn(properties, key)) {
             checkValue(propValue, properties[key], keyPath, isPartial, errors);
         } else if (additionalProperties === false) {
             errors.push(formatError(keyPath, 'unknown property'));
@@ -233,31 +341,22 @@ function isType(value: unknown, type: JsonType): boolean {
     }
 }
 
-function typeOf(value: unknown): string {
-    if (value === null) return 'null';
-    if (isArray(value)) return 'array';
-    return typeof value;
-}
-
-/** True if `value` equals `allowed` - or, for a partial string, could still become it. */
+/**
+ * True if `value` equals `allowed` - or, for a partial string or number, could still become it,
+ * as `1` may become `10`.
+ */
 function matchesValue(value: unknown, allowed: unknown, isPartial: boolean): boolean {
     if (isPartial && isString(value) && isString(allowed)) return allowed.startsWith(value);
+    if (isPartial && isNumber(value) && isNumber(allowed)) {
+        return String(allowed).startsWith(String(value));
+    }
     return isEqual(value, allowed);
-}
-
-/** Path to a property - `rows[3].value`, or `rows[3]["first name"]` for a non-identifier key. */
-function propPath(path: string, key: string): string {
-    if (!IDENTIFIER_RE.test(key)) return `${path}[${JSON.stringify(key)}]`;
-    return path ? `${path}.${key}` : key;
-}
-
-function formatError(path: string, msg: string): string {
-    return path ? `${path}: ${msg}` : msg;
 }
 
 const IDENTIFIER_RE = /^[A-Za-z_$][\w$]*$/;
 
-// Compiled schema patterns, so that each compiles once. Null for a pattern that does not compile.
+// Compiled schema patterns, so that each compiles once - when the catalog checks its schemas. Null
+// for a pattern that does not compile.
 const PATTERNS = new Map<string, RegExp>();
 
 function getPattern(pattern: string): RegExp {

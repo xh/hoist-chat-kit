@@ -1,0 +1,34 @@
+// Shared mixins for Hoist Chat Kit styles. Load with `@use '<path>/styles/mixins' as *;`.
+
+// Style a Hoist button within the current component. Hoist scopes its button rules under `.xh-app`
+// and targets `.xh-button.bp6-button`, so a component's override must match that specificity to
+// win. Pass the button's own class, an ancestor class within the component, or both.
+@mixin hoist-button($button, $ancestor: null) {
+  .xh-app & #{$ancestor} #{$button}.xh-button.bp6-button {
+    @content;
+  }
+}
+
+// A small numbered chip that cites a source - inline in the text, or after the paragraph it
+// supports. Shared by citation markers and citation chips, so that the two match.
+@mixin citation-chip {
+  align-items: center;
+  background-color: var(--xh-chat-citation-bg);
+  border-radius: 4px;
+  color: var(--xh-chat-text-color);
+  display: inline-flex;
+  font-size: var(--xh-chat-meta-font-size-px);
+  height: 16px;
+  justify-content: center;
+  line-height: 1;
+  min-width: 16px;
+  padding: 0 calc(var(--xh-pad) * 0.5px);
+  text-decoration: none;
+}
+
+// The hover state of a citation chip that opens its source.
+@mixin citation-chip-hover {
+  background-color: var(--xh-intent-primary-trans2);
+  color: var(--xh-chat-text-color);
+  text-decoration: none;
+}

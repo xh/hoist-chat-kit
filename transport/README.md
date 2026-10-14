@@ -5,7 +5,7 @@
 | [Overview](#overview) | How the chat gets events from a backend, and the key features |
 | [Architecture](#architecture) | Transports, codecs, `ChatEvent`, and how they fit together |
 | [Configuration Pattern](#configuration-pattern) | Choosing and configuring a transport and a codec |
-| [Common Usage Patterns](#common-usage-patterns) | Hoist servers, Anthropic, AG-UI agents, scripted demos and tests |
+| [Common Usage Patterns](#common-usage-patterns) | Hoist servers, Anthropic, bring your own LLM, AG-UI agents, server-owned conversations, scripted demos and tests |
 | [Server Contracts](#server-contracts) | What each transport expects from its backend |
 | [Hoist Server Example](#hoist-server-example) | A hoist-core controller that relays an Anthropic stream |
 | [Properties/API Reference](#propertiesapi-reference) | Config tables, the event vocabulary, and `xh.chat.*` events |
@@ -28,20 +28,28 @@ Key features:
   1.0 events with the same type strings and field names. Any AG-UI agent server works with the
   kit, with no adapter.
 - **Transports carry, codecs translate** - the framing (NDJSON or Server-Sent Events) and the
-  format (AG-UI or Anthropic) vary on their own. Pick one of each.
+  format (AG-UI, Anthropic or OpenAI chat completions) vary on their own. Pick one of each.
 - **`HoistChatTransport`** - NDJSON from your own hoist-core server, through `XH.fetchNdjson`,
   with Hoist's auth headers, correlation IDs, tracing, activity tracking and error handling.
 - **`SseChatTransport`** - Server-Sent Events (SSE) from an AG-UI agent server or an SSE proxy.
 - **`AnthropicCodec`** - lets a server relay Claude's stream line by line, with nothing to
   translate. The kit translates the stream in tested TypeScript.
+- **`ChatCompletionsCodec`** - the same for the OpenAI chat completions format, which most model
+  gateways speak. See [Bring your own LLM](#bring-your-own-llm).
+- **Live context** - each request carries the output of the chat's context providers, and each
+  codec sends it to the model in its own format.
 - **`ScriptedChatTransport`** - canned events with realistic pacing, for demos and unit tests.
 - **Real cancellation** - a stop closes the HTTP connection, so the server can stop generating
-  tokens.
+  tokens. A `cancelUrl` also posts a cancel, for a backend that keeps running after a disconnect.
+- **Both conversation shapes** - each request carries the whole history for a stateless backend,
+  and the new messages and the turn's ids for an agent service that owns the history.
 
 ## Architecture
 
 ```
 ChatTransport (interface)
+├── cancelAsync?(run): Promise<void>            # Cancel a run the user stopped
+├── resume?(run, signal)                        # Reserved - reattach to a running run
 └── run(request): AsyncIterable<ChatEvent>      # One step - one model call
     │
     ├── HttpChatTransport (abstract)            # POST a JSON body, read a streamed response
@@ -55,13 +63,21 @@ ChatCodec (interface)
 ├── encodeRequest(request): body                # May be async
 ├── createDecoder(request): ChatDecoder         # One decoder per step, may hold state
 ├── AgUiCodec                                   # AG-UI RunAgentInput, events pass through
-└── AnthropicCodec                              # Messages API body, Anthropic stream events
+├── AnthropicCodec                              # Messages API body, Anthropic stream events
+└── ChatCompletionsCodec                        # Chat completions body, OpenAI chunks
 
 ChatRunRequest
 ├── threadId, runId                             # Conversation and step ids
+├── historyMode: 'client' | 'server'            # Who owns the history
+├── trigger, turnId, stepIndex                  # What started the step, and its turn
 ├── messages: ChatMessage[]                     # History, ending with the reply being built
+├── newMessages: ChatMessage[]                  # What the server has not seen
+├── replacedMessageId: string                   # The reply a retry or regenerate replaces
+├── runOptions: PlainObject                     # Options the user picked, copied at send
+├── catalogVersion: string                      # Version of the chat's generative UI catalog
 ├── tools: ChatToolSpec[]                       # Tools to send to the model
-└── signal: AbortSignal                         # Aborts the step
+├── context: ChatRunContext[]                   # Live context from the context providers
+└── signal: AbortSignal                         # Aborts the step, with a ChatAbortError
 ```
 
 For each step, `ChatModel` builds a `ChatRunRequest` and iterates `transport.run()`. An HTTP
@@ -84,6 +100,8 @@ Pick a transport by where the events come from, then a codec by their format.
 | Your hoist-core server emits AG-UI events, for example from its own agent | `HoistChatTransport` | `AgUiCodec` (default) |
 | An AG-UI agent server, such as LangGraph, Mastra or Pydantic AI | `SseChatTransport` | `AgUiCodec` (default) |
 | A proxy that relays Anthropic's SSE stream unchanged | `SseChatTransport` | `AnthropicCodec` |
+| Your hoist-core server relays an OpenAI-compatible gateway | `HoistChatTransport` | `ChatCompletionsCodec` |
+| The app's configured backend, for a helper agent | `XH.chatService.createTransport()` | Set by config |
 | No backend - a demo, a test, or offline work | `ScriptedChatTransport` | None |
 | Anything else, such as a WebSocket | Your own `ChatTransport` | Your choice |
 
@@ -97,9 +115,25 @@ const transport = new HoistChatTransport({
     codec: new AnthropicCodec({system: SYSTEM_PROMPT}),  // Default an AgUiCodec
     params: {agent: 'portfolio'},                        // Query string
     track: {category: 'Chat', message: 'Assistant call'},
-    timeout: 60_000                                      // Until the response starts
+    timeout: 60_000,                                     // Until the response starts
+    idleTimeout: 90_000                                  // Longest silence while it streams
 });
 ```
+
+`url`, `headers` and `params` each take a value, or a function of the request that returns one.
+The function may be async, for example to fetch a short-lived token before each step:
+
+```typescript
+new SseChatTransport({
+    url: req => `https://agents.example.com/threads/${req.threadId}/runs`,
+    headers: async () => ({Authorization: `Bearer ${await tokenService.getTokenAsync()}`})
+});
+```
+
+`idleTimeout` fails a step whose server goes quiet, with error code `stalled`. Any data resets
+it. A server that can go quiet for long, such as an agent that runs a slow tool, sends
+heartbeats: an SSE comment, or an NDJSON record of the form `{"type": "xh.heartbeat"}`. The
+transport reads a heartbeat as data, never decodes it, and resets the timer.
 
 ## Common Usage Patterns
 
@@ -158,6 +192,15 @@ your system prompt ends with live state, return blocks from `system` with the st
 and mark that block with `cache_control` yourself. The live block after it then goes out fresh
 on each step, and the static part comes from the cache.
 
+The chat's live context, from its `contextProviders`, goes at the end of the last user turn, as
+one unmarked text block per provider, after the history's breakpoint. Each step sends it fresh,
+and the next step reads the history before it from the cache. In the system prompt, it would come
+before the history, and each change would void the cached history.
+
+The structured context of a user message, from `metadata.context`, goes after the message's text
+as a `<message-context>` block of JSON. It stays with the message, so it is cached with the
+history.
+
 ```typescript
 new AnthropicCodec({
     system: () => [
@@ -202,6 +245,92 @@ reads and writes count within `inputTokens`, as AG-UI counts them.
 server tool loop and expects the client to send the paused turn back. The kit ends the turn at
 the pause.
 
+### Bring your own LLM
+
+An enterprise picks its own model and gateway, and configures it once, on the server. The kit
+owns the tools and the prompts. Most gateways speak the OpenAI chat completions format, such as
+Azure OpenAI, LiteLLM, Portkey and internal model services. `ChatCompletionsCodec` speaks it, so a
+hoist-core relay can forward the gateway's stream with nothing to translate.
+
+The app names its backend in a client-visible soft config, `chatConfig`, and installs the kit's
+`ChatService`, which reads it. See [`/svc/`](../svc/README.md).
+
+```json
+{"enabled": true, "url": "llm/stream", "codec": "openai-chat"}
+```
+
+`XH.chatService.createTransport()` then builds a `HoistChatTransport` with the codec that the
+config names: `anthropic`, `openai-chat` or `agui`. A helper agent needs no other wiring:
+
+```typescript
+new ChatModel({
+    transport: XH.chatService.createTransport({system: HELPER_PROMPT}),
+    tools: group.tools,
+    contextProviders: [group.contextProvider]
+});
+```
+
+To use the codec directly:
+
+```typescript
+new HoistChatTransport({
+    url: 'llm/stream',
+    codec: new ChatCompletionsCodec({
+        system: 'You help the user arrange their dashboard.',
+        params: {temperature: 0.2}
+    })
+});
+```
+
+`ChatCompletionsCodec` options:
+
+- **`system`** - a string, or a function of the request that returns one. The function can be
+  async. System messages in the history follow it, in one `system` message.
+- **`model`** - leave it out when the server or gateway sets it.
+- **`params`** - other body fields, such as `temperature`, `max_completion_tokens` or
+  `reasoning_effort`. Tools in `params.tools` go ahead of the chat's own tools.
+- **`includeUsage`** - true, the default, to ask for token counts with
+  `stream_options: {include_usage: true}`. Set it false for a gateway that rejects
+  `stream_options`.
+- **`prepareBody`** - a function that adjusts the finished body before it goes out.
+
+The chat's live context goes last, as a `user` message with one tagged section per provider, so
+that a gateway's prefix cache still covers the history. The structured context of a user message,
+from `metadata.context`, follows its text as a `<message-context>` block of JSON.
+
+How the codec encodes the history:
+
+- Each step of an assistant turn becomes an `assistant` message, with its text and its finished
+  tool calls as `tool_calls`. A `tool` message with the result follows each call. The format has
+  no error flag, so the result of a failed call starts with `Error:`.
+- Reasoning does not go back to the model.
+- Images become `image_url` parts. PDFs with inline data become `file` parts. Text files become
+  text. Other files become a text note, so the model knows the file was left out.
+
+The codec decodes text, `refusal` text, and tool calls. A tool call arrives in fragments by
+`index`. The first fragment holds the call's id and name, and later ones stream its arguments.
+Some gateways and open models add `reasoning_content`, which the codec decodes as reasoning.
+
+The chunk that carries `finish_reason` ends the step with `RUN_FINISHED`, as the `[DONE]`
+sentinel never reaches a codec. With `includeUsage`, the token counts come in a chunk of their own
+after it. The codec holds `RUN_FINISHED` back until that chunk, or the end of the stream, and
+sends one `RUN_FINISHED` with the counts. A record with an `error` becomes `RUN_ERROR`, with the
+error's `code`, or else its `type`, as its code.
+
+| `finish_reason` | `finishReason` |
+|-----------------|----------------|
+| `stop` | `stop` |
+| `length` | `length` |
+| `tool_calls`, `function_call` | `tool-calls` |
+| `content_filter` | `content-filter` |
+| Anything else | `other` |
+
+A relay for a gateway follows the [Hoist Server Example](#hoist-server-example), with three
+changes. It posts to the gateway's `/chat/completions` endpoint with the gateway's key. It writes
+the `data` of each SSE event as one NDJSON line. It drops the `[DONE]` line, which is not JSON.
+
+Like `AnthropicCodec`, the codec needs the whole history, so it throws for a chat in server mode.
+
 ### Connect to an AG-UI agent server
 
 ```typescript
@@ -213,7 +342,8 @@ new ChatModel({
         headers: {Authorization: `Bearer ${token}`},
         codec: new AgUiCodec({
             context: () => [{description: 'Selected sector', value: this.selectedSector}],
-            forwardedProps: {tenant: 'emea'}
+            forwardedProps: {tenant: 'emea'},
+            state: () => ({selectedSector: this.selectedSector})
         })
     })
 });
@@ -222,18 +352,93 @@ new ChatModel({
 `AgUiCodec` sends each step as an AG-UI `RunAgentInput`:
 
 ```
-{threadId, runId, protocolVersion: '1.0', state: {}, messages, tools, context, forwardedProps}
+{threadId, runId, protocolVersion: '1.0', state, messages, tools, context, forwardedProps}
 ```
 
 User messages carry their text as `content`, or a list of text, image, audio, video and document
 parts when they have attachments. Each step of an assistant turn becomes three kinds of message: a
 `reasoning` message per reasoning part, an `assistant` message with its text and its finished
 `toolCalls`, and a `tool` message per call result. A failed or denied call also carries `error`.
-Tools go out as `{name, description, parameters}`. `context` and `forwardedProps` take a value, or a
-function that builds the value for each step.
+Tools go out as `{name, description, parameters}`. `context`, `forwardedProps` and `state` take a
+value, or a function that builds the value for each step. `state` defaults to `{}`. The structured
+context of the turn's user message, from `metadata.context`, goes last in `context`, as JSON.
 
 Decoding passes each record through as a `ChatEvent`. The decoder drops records of an unknown
 `type`.
+
+In server mode, `AgUiCodec` sends only the new messages, and puts the turn in `forwardedProps`.
+See [Server-owned conversations](#server-owned-conversations).
+
+### Server-owned conversations
+
+With `historyMode: 'server'` on the `ChatModel`, an agent service owns the history, the threads
+and the tool loop. Each request still holds the whole history in `messages`, so a client-mode
+codec works unchanged. A server-mode codec sends these fields instead:
+
+| Field | Value |
+|-------|-------|
+| `newMessages` | What the server has not seen: the user message on the first step of a turn, or the reply on a `continue` step, whose last step holds the client's tool results. |
+| `turnId` | Id of the user message the turn answers. The same for every step of the turn, and for a retry, regenerate or edit of it. |
+| `trigger` | `submit`, `retry`, `regenerate`, `edit`, or `continue` for a later step of a turn. |
+| `stepIndex` | Zero-based index of the step within its turn. |
+| `replacedMessageId` | The reply that a `retry` or `regenerate` replaces, or null. |
+| `runOptions` | The options the user picked, copied when the message was sent, or null. |
+| `catalogVersion` | Version of the chat's generative UI catalog, or null. The server compares it with the version of the catalog export it loaded. |
+
+A backend with an idempotency key keys runs by `turnId` and `trigger`. It replays a finished run
+for a `retry`, and starts a new run for a `regenerate` or an `edit`.
+
+`AgUiCodec` encodes a server-mode request as a `RunAgentInput` whose `messages` holds only the
+new messages. On a `continue` step, that is the client tool calls of the reply's last step, with
+the results the client gave them. The server wrote the step's text and ran its own calls, so they
+are left out. The turn goes in `forwardedProps`, merged under any props the app sets:
+
+```json
+{
+    "threadId": "7f3c...",
+    "runId": "b21e...",
+    "messages": [{"id": "9a4d...", "role": "user", "content": "Which form applies?"}],
+    "forwardedProps": {
+        "turnId": "9a4d...",
+        "trigger": "submit",
+        "runOptions": {"documentIds": ["doc-1"]},
+        "tenant": "emea"
+    }
+}
+```
+
+`replacedMessageId` joins them for a retry or regenerate. `catalogVersion` joins them for a chat
+with a catalog. `runOptions` is left out when it is null. A key the app sets in its own `forwardedProps` wins over the kit's.
+
+`AnthropicCodec` serves client mode only. The Messages API keeps no state, so it needs the whole
+history, and the codec throws for a server-mode request. Use `AgUiCodec`, or write a codec for
+the agent service's own format.
+
+What a server-mode backend sends back:
+
+- `RUN_STARTED` with its own `threadId`, if it mints thread ids. The chat adopts the id from the
+  first run of a new thread, once. Its `runId` becomes the reply's `metadata.runId`.
+- `xh.chat.message` with `{role, serverId}`, for the server's ids of the reply and the user
+  message. They become `metadata.serverId`. A `messageId` in the `result` of `RUN_FINISHED` also
+  works, for the reply.
+- `xh.chat.textReplace` to reset the answer (`text: ''`) or to send its final text whole.
+- `xh.chat.artifact`, or `metadata.artifacts` on a `TOOL_CALL_RESULT`, for result sets that
+  generative UI components show by reference.
+- `RUN_ERROR` with `metadata.retryAfterSeconds`, to ask for a wait before a retry.
+
+A stop closes the connection and calls `cancelAsync()`. With a `cancelUrl`, the HTTP transports
+post `{threadId, runId, turnId}` there, with the `headers` and `params` of the stopped step. The
+`runId` is the one the server reported on `RUN_STARTED`. A detach, a clear or a load also closes
+the connection, but sends no cancel. So a backend that supports them must keep a run going when
+the client disconnects, and save its answer for the next load of the thread.
+
+```typescript
+new SseChatTransport({
+    url: 'https://agents.example.com/runs',
+    cancelUrl: run => `https://agents.example.com/runs/${run.runId}/cancel`,
+    headers: async () => ({Authorization: `Bearer ${await tokenService.getTokenAsync()}`})
+});
+```
 
 ### Script a demo or a test
 
@@ -291,7 +496,9 @@ new ScriptedChatTransport({
 
 The helpers are `textEvents()`, `reasoningEvents()`, `toolCallEvents()`, `sourceEvents()`,
 `citationEvents()`, `dataEvents()`, `errorEvents()` and `scriptedDelay()`. A citation attaches to
-the text part before it, and refers to a source by `sourceId` or by `url`. Pass a `result` to
+the text part before it, and refers to a source by `sourceId` or by `url`. A source can carry a
+`marker`, the number that cites it as `[n]` in the text, and `metadata`. Pass
+`{retryAfterSeconds}` as the third argument of `errorEvents()` to ask for a wait before a retry. Pass a `result` to
 `toolCallEvents()` to simulate a tool that the backend runs. A response can also be an async
 iterable of events, which sets its own pace.
 
@@ -347,6 +554,10 @@ events. The `AnthropicCodec` produces them from Anthropic's stream.
 - A tool that the backend runs must send its result as `TOOL_CALL_RESULT` in the same step.
   Otherwise the chat fails the call, or runs it if a client tool has the same name. Send
   `xh.chat.providerExecuted` to mark a call as the backend's before its result arrives.
+- A backend tool that fails reports it on its result, as AG-UI's event has no error field. Set
+  `metadata.error` to the error text, or set `metadata.isError: true` and send the error text as
+  `content`. A backend that cannot set `metadata` sends `xh.chat.toolError` in place of the
+  result. Either way the call shows as failed, and the model sees the error.
 - Tool arguments must parse as a JSON object. An empty argument string counts as `{}`. Anything
   else fails the call with `Invalid tool input`.
 - `RUN_FINISHED` can carry `usage` and `metadata`. The chat records both on the message. Set
@@ -370,6 +581,8 @@ events. The `AnthropicCodec` produces them from Anthropic's stream.
   error.
 - It should stop work when the client disconnects. The transport closes the connection when the
   user stops the turn.
+- During a long silence it may send `{"type": "xh.heartbeat"}` lines, which reset
+  `idleTimeout` and are never decoded.
 
 ### SseChatTransport
 
@@ -379,7 +592,7 @@ events. The `AnthropicCodec` produces them from Anthropic's stream.
 - It responds with `text/event-stream`. The `data` of each event is one JSON record in the
   codec's format. The transport passes the `event` name to the codec with the data.
 - The transport skips comments, which serve as keep-alives, the `[DONE]` sentinel, and data that
-  is not JSON.
+  is not JSON. Any data, a comment included, resets `idleTimeout`.
 - It ends the response when the step ends, after the codec's closing record, and it should stop
   work when the client disconnects.
 
@@ -387,7 +600,8 @@ events. The `AnthropicCodec` produces them from Anthropic's stream.
 
 No server. Each step takes the next response from `responses`, or the result of `respond`. A
 request past the end of `responses` fails with `ScriptedChatTransport has no response for request
-<n>.`. The transport stops at once, with an abort error, when the request's signal aborts.
+<n>.`. The transport stops at once, with an abort error, when the request's signal aborts. The
+`userMessage` and `attempt` of its `respond` context follow the request's `turnId`.
 
 ## Hoist Server Example
 
@@ -501,7 +715,12 @@ import static java.nio.charset.StandardCharsets.UTF_8
 
 /**
  * Relays the Anthropic Messages API as a token stream. The API key lives in the `chatApiKey`
- * config, so it never reaches the client. The server also sets the model and token limit.
+ * config, so it never reaches the client.
+ *
+ * The browser builds the request body, so the service treats it as untrusted. It forwards only
+ * `system`, `messages`, `tools` and `tool_choice`, rejects any other key, and sets `model`,
+ * `max_tokens` and `stream` itself. It accepts only client tools, which have no `type`, and caps
+ * the size of the body.
  */
 class ChatService extends BaseService {
 
@@ -536,15 +755,16 @@ class ChatService extends BaseService {
         def key = configService.getPwd('chatApiKey')
         if (!key?.trim()) throw new DataNotAvailableException('Chat API key not configured.')
 
+        def json = JSONSerializer.serialize(createBody(request))
+        if (json.length() > MAX_BODY_CHARS) {
+            throw new RoutineRuntimeException('This conversation is too large to send. Clear it to start again.')
+        }
+
         def post = new HttpPost('https://api.anthropic.com/v1/messages')
         post.setHeader('Content-Type', 'application/json')
         post.setHeader('x-api-key', key)
         post.setHeader('anthropic-version', '2023-06-01')
-        post.setEntity(new StringEntity(JSONSerializer.serialize(request + [
-            model     : configService.getString('chatModel'),
-            max_tokens: configService.getInt('chatMaxTokens'),
-            stream    : true
-        ]), UTF_8))
+        post.setEntity(new StringEntity(json, UTF_8))
 
         CloseableHttpResponse response = null
         boolean complete = false
@@ -567,6 +787,28 @@ class ChatService extends BaseService {
             if (!complete) post.abort()
             try { response?.close() } catch (Exception ignored) {}
         }
+    }
+
+    /** The body to send upstream - the client's allowed keys, plus the server's own settings. */
+    private Map createBody(Map request) {
+        // A codec may send `model`, `max_tokens` and `stream`. The server sets them itself.
+        def disallowed = request.keySet() - CLIENT_KEYS - ['model', 'max_tokens', 'stream']
+        if (disallowed) {
+            throw new RoutineRuntimeException("Request key(s) not accepted: ${disallowed.join(', ')}.")
+        }
+        if (!request.messages) throw new RoutineRuntimeException('Request has no messages.')
+
+        // Server tools, such as web search or code execution, carry a `type`. They cost extra and
+        // reach other systems, so only the server may add them.
+        if ((request.tools ?: []).any { it.type }) {
+            throw new RoutineRuntimeException('Request includes server tools, which are not accepted.')
+        }
+
+        return request.subMap(CLIENT_KEYS) + [
+            model     : configService.getString('chatModel'),
+            max_tokens: configService.getInt('chatMaxTokens'),
+            stream    : true
+        ]
     }
 
     /** Parse the SSE stream. Returns true if it ended normally, false if `onEvent` stopped it. */
@@ -593,12 +835,24 @@ class ChatService extends BaseService {
         streamClient.close()
         super.destroy()
     }
+
+    /** Request keys forwarded from the client. */
+    private static final List<String> CLIENT_KEYS = ['system', 'messages', 'tools', 'tool_choice']
+
+    private static final int MAX_BODY_CHARS = 4_000_000
 }
 ```
 
-The browser builds the request body, so treat it as untrusted. The service above sets `model`,
-`max_tokens` and `stream` itself. Add checks for anything else that costs money or reaches other
-systems, such as server tools in `tools`. The Toolbox service also adds a per-user rate limit.
+The browser builds the request body, so the service treats it as untrusted. It builds the
+upstream body from an allowlist, rejects tools the client should not choose, and caps the size.
+Add checks for anything else that costs money or reaches other systems. The Toolbox service also
+caps the number of messages, adds a per-user rate limit, and takes other request params, such as
+`thinking`, and any server tools only from config.
+
+Gate the endpoint by role, as `@AccessRequiresRole` does above, so that only the users meant to
+reach the model can. If the server relays to an agent service of your own rather than to
+Anthropic, it forwards who the user is: the server sets the identity headers on the upstream call,
+from the authenticated Hoist user. They never come from the browser, which could set any value.
 
 If tokens still arrive in bursts, check each layer between the server and the browser for
 buffering or compression. Watch the response in the browser's network panel to confirm that
@@ -615,12 +869,14 @@ Shared by `HoistChatTransport` and `SseChatTransport`.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `url` | `string` | Endpoint to post to. Relative URLs resolve against `XH.baseUrl`. Required. |
+| `url` | `string \| (request) => Awaitable<string>` | Endpoint to post to, or a function that builds it per request. Relative URLs resolve against `XH.baseUrl`. Required. |
 | `codec` | `ChatCodec` | Encodes requests and decodes records. Default a new `AgUiCodec`. |
-| `headers` | `PlainObject \| (request) => PlainObject` | Extra headers for each request, for example to authenticate with an agent server. A function builds them per request, for example to send the `threadId` and `runId`, so the server can count turns rather than calls. |
-| `params` | `PlainObject` | Query string parameters for each request. |
+| `headers` | `PlainObject \| (request) => Awaitable<PlainObject>` | Extra headers for each request, for example to authenticate with an agent server. A function builds them per request, for example to send a fresh token, or the `threadId` and `runId` so the server can count turns rather than calls. |
+| `params` | `PlainObject \| (request) => Awaitable<PlainObject>` | Query string parameters for each request, or a function that builds them per request. |
 | `track` | `string \| TrackOptions` | Track each step with Hoist activity tracking, as `FetchOptions.track` does. |
 | `timeout` | `PromiseTimeoutSpec` | Wait for the response to start. Default the `FetchService` default. No timeout applies once the response streams. |
+| `idleTimeout` | `number` | Longest wait for data, in milliseconds, from the request to the first record and between records. Fails the step with code `stalled`. Default none. |
+| `cancelUrl` | `string \| (run) => Awaitable<string>` | Endpoint to post `{threadId, runId, turnId}` to when the user stops a run, with the `headers` and `params` of the stopped step. Default none. |
 
 ### AnthropicCodecConfig
 
@@ -633,12 +889,23 @@ Shared by `HoistChatTransport` and `SseChatTransport`.
 | `cacheControl` | `boolean` | True to mark cache breakpoints on the history, the last system block unless the app marks one, and the last tool, up to the limit of 4. Default false. |
 | `prepareBody` | `(body, request) => Awaitable<PlainObject>` | Adjust the finished body. |
 
+### ChatCompletionsCodecConfig
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `system` | `string \| (request) => Awaitable<string>` | System prompt, or a function that builds it per step. History system messages and live context follow it. |
+| `model` | `string` | Model to call. Leave out if the server sets it. |
+| `params` | `PlainObject` | Other body fields. Tools listed here go ahead of the chat's tools. Default `{}`. |
+| `includeUsage` | `boolean` | True to send `stream_options: {include_usage: true}`. Default true. |
+| `prepareBody` | `(body, request) => Awaitable<PlainObject>` | Adjust the finished body. |
+
 ### AgUiCodecConfig
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `context` | `AgUiContext[] \| (request) => AgUiContext[]` | Ambient information for the agent, as `{description, value}` items. Default none. |
+| `context` | `AgUiContext[] \| (request) => AgUiContext[]` | Ambient information for the agent, as `{description, value}` items. The chat's live context follows these entries. Default none. |
 | `forwardedProps` | `PlainObject \| (request) => PlainObject` | App values passed to the agent untouched. Default none. |
+| `state` | `PlainObject \| (request) => PlainObject` | The agent's state, sent as `state`. Default `{}`. |
 
 ### ScriptedChatTransportConfig
 
@@ -654,9 +921,9 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 
 | Event | Fields used | Effect on the assistant message |
 |-------|-------------|---------------------------------|
-| `RUN_STARTED` | `threadId`, `runId` | None |
-| `RUN_FINISHED` | `outcome?`, `usage?`, `metadata?` | Records `finishReason`, `usage` and any `metadata`. Marks the step complete. |
-| `RUN_ERROR` | `message`, `code?` | Fails the message, with `metadata.errorCode`. |
+| `RUN_STARTED` | `threadId`, `runId` | Records `metadata.runId`. In server mode, the first run of a new thread may set the chat's `threadId`. |
+| `RUN_FINISHED` | `outcome?`, `usage?`, `metadata?`, `result?` | Records `finishReason`, `usage` and any `metadata`. A `result.messageId` sets `metadata.serverId`, if no event set it. Marks the step complete. |
+| `RUN_ERROR` | `message`, `code?`, `metadata?` | Fails the message, with `metadata.errorCode`. Records `metadata.retryAfterSeconds` if given. |
 | `TEXT_MESSAGE_START` | `messageId` | Opens a text part on its first content. |
 | `TEXT_MESSAGE_CONTENT` | `messageId`, `delta` | Appends to the text part. |
 | `TEXT_MESSAGE_END` | `messageId` | Marks the text part `done`. |
@@ -670,7 +937,7 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 | `TOOL_CALL_ARGS` | `toolCallId`, `delta` | Appends to `inputText`, with a best-effort parse into `input`. |
 | `TOOL_CALL_END` | `toolCallId` | Parses the input. `input-available`, or `output-error` for bad JSON. |
 | `TOOL_CALL_CHUNK` | `toolCallId?`, `toolCallName?`, `delta?` | Starts or appends. |
-| `TOOL_CALL_RESULT` | `toolCallId`, `content` | `output-available`, with `providerExecuted: true`. JSON content is parsed. |
+| `TOOL_CALL_RESULT` | `toolCallId`, `content`, `metadata?` | `output-available`, with `providerExecuted: true`. JSON content is parsed. `output-error` if `metadata.error` or `metadata.isError` is set. |
 | `ACTIVITY_SNAPSHOT` | `messageId`, `activityType`, `content`, `replace?` | Adds or replaces a data part, with `dataType` set to `activityType`. |
 | `CUSTOM` | `name`, `value` | The `xh.chat.*` events below. Others are ignored. |
 
@@ -687,12 +954,16 @@ Content that AG-UI has no event for travels as a `CUSTOM` event with a name that
 
 | `name` | `value` | Effect |
 |--------|---------|--------|
-| `xh.chat.source` | `{id?, url?, title?, snippet?}` | Appends a source part. |
+| `xh.chat.source` | `{id?, url?, title?, snippet?, marker?, metadata?}` | Appends a source part. `marker` is the number that cites it in the text, as in `[1]`. |
 | `xh.chat.citation` | `{id?, title?, url?, citedText?, sourceId?}` | Adds a citation to the open text part, or else the last one. |
 | `xh.chat.data` | `{id?, dataType, data}` | Adds a data part, or replaces the one with the same `id`. |
 | `xh.chat.file` | `{id?, name, mediaType, size?, url?, data?}` | Appends a file part. |
 | `xh.chat.providerData` | `{subtype, entityId, data}` | Merges `data` into the `providerData` of a reasoning part or a tool call, by provider key. |
 | `xh.chat.providerExecuted` | `{toolCallId}` | Marks a tool call as run by the backend, before its result arrives. |
+| `xh.chat.toolError` | `{toolCallId, message}` | Fails a tool call the backend ran, in place of its result. `output-error`, with `message` as `errorText`. |
+| `xh.chat.textReplace` | `{text}` | Sets the text of the open text part, or else of the reply's last text part. Adds a part if the reply has no text. `text: ''` resets the answer. |
+| `xh.chat.message` | `{role, serverId}` | Records the server's id for the reply (`role: 'assistant'`) or the user message (`role: 'user'`), as `metadata.serverId`. |
+| `xh.chat.artifact` | `{id, columns, rows?, totalRows, metadata?}` | Records a result set on the reply's `metadata.artifacts`, replacing one with the same `id`, and adds it to the chat's `artifacts`. A `TOOL_CALL_RESULT` with a list in `metadata.artifacts` does the same. See [Show data by reference](../genui/README.md#show-data-by-reference). |
 
 A Hoist server that emits AG-UI events can send a data part like this:
 
@@ -708,9 +979,13 @@ Implement `ChatTransport` for a backend that the HTTP transports do not cover, s
 WebSocket or an SDK with its own client. `run()` must:
 
 1. Yield `ChatEvent`s in arrival order, and end when the run ends.
-2. Stop and settle at once when `request.signal` aborts.
+2. Stop and settle at once when `request.signal` aborts. The signal's `reason` is a
+   `ChatAbortError`, whose `reason` says why: `stop`, `detach`, `clear`, `load` or `destroy`.
 3. Throw on a failure to connect. For a failure mid-stream, throw or yield `RUN_ERROR`.
 4. End a complete run with `RUN_FINISHED`.
+
+Implement `cancelAsync(run)` too if the backend keeps running after a disconnect. The chat calls
+it when the user stops a step in flight, and logs a failure at warn level.
 
 ```typescript
 import type {ChatEvent, ChatRunRequest, ChatTransport} from '@xh/hoist-chat-kit/transport';
@@ -739,14 +1014,16 @@ stream.
 
 ### Write a custom codec
 
-Implement `ChatCodec` to speak a new wire format over the existing transports. For example, an
-OpenAI codec would encode the history as OpenAI messages and decode the OpenAI stream into
-`ChatEvent`s. See [Protocols](../docs/protocols.md#openai).
+Implement `ChatCodec` to speak a new wire format over the existing transports. For example, a
+codec for the OpenAI Responses API would encode the history as Responses input items and decode
+its stream into `ChatEvent`s. See [Protocols](../docs/protocols.md#openai).
 
 - `encodeRequest(request)` returns the body for one step. It can be async.
 - `createDecoder(request)` returns a function for one step. The function takes a record and the
   SSE event name, if any, and returns zero or more events. It can hold state across the records
-  of a step, such as block indexes.
+  of a step, such as block indexes. To hold events back until the stream ends, give the function
+  a `flush()` that returns them. The HTTP transports call it after the last record.
+- Send exactly one `RUN_FINISHED` per step.
 - Map the provider's stop reason to the `finishReason` values, and keep the raw value as
   `metadata.stopReason`.
 - Keep provider data that must go back with the history in `providerData`, under the provider's
@@ -776,9 +1053,10 @@ calls from 1 in each step loses every call after the first step.
 
 ### Capturing live state once in a codec option
 
-The codec and its options live as long as the transport. Build live content inside the `system`,
-`context` or `forwardedProps` function, which runs per step. Do not rebuild the transport to
-change the prompt.
+The codec and its options live as long as the transport. Send live state through the chat's
+`contextProviders`, which run before every step, or build it inside the `system`, `context` or
+`forwardedProps` function, which also runs per step. Do not rebuild the transport to change the
+prompt.
 
 ```typescript
 // ✅ Do: Read live state in the function

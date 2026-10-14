@@ -40,6 +40,9 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
  * card. Enter sends and Shift+Enter starts a new line. Up arrow in an empty input recalls the last
  * message. While a reply streams, the send button becomes a stop button, and Escape stops it too.
  *
+ * While the chat's `sendBlocker` gives a reason to wait, the send button is disabled, with the
+ * reason as its tooltip and its accessible description.
+ *
  * When the model enables attachments, files can be added with the attach button, by pasting, or
  * by dropping them on the composer. They show as chips above the input until sent. Files left out
  * - of the wrong type, too large, or over the limit - are named under the chips.
@@ -126,7 +129,7 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                                 ...castArray(leftItems),
                                 div({className: 'xh-chat-composer__spacer'}),
                                 ...castArray(rightItems),
-                                sendButton(composerModel)
+                                ...sendButton(composerModel, impl)
                             ]
                         })
                     ]
@@ -190,27 +193,47 @@ function attachmentErrorRow(composerModel: ChatComposerModel): ReactNode {
     });
 }
 
-function sendButton(composerModel: ChatComposerModel): ReactNode {
-    const {chatModel, canSend} = composerModel;
-    return chatModel.isBusy
-        ? button({
-              className: 'xh-chat-composer__send xh-chat-composer__send--stop',
-              icon: Icon.stop({prefix: 'fas'}),
-              tooltip: 'Stop',
-              'aria-label': 'Stop',
-              minimal: false,
-              onClick: () => chatModel.stop()
-          })
-        : button({
-              className: 'xh-chat-composer__send',
-              icon: Icon.arrowUp(),
-              tooltip: 'Send',
-              'aria-label': 'Send',
-              minimal: false,
-              disabled: !canSend,
-              onClick: () => {
-                  composerModel.focus();
-                  composerModel.submitAsync().catchDefault();
-              }
-          });
+// A send blocker's reason shows as the disabled button's tooltip, and in a status element that
+// describes the button for assistive technology.
+function sendButton(composerModel: ChatComposerModel, impl: ChatComposerLocalModel): ReactNode[] {
+    const {chatModel, canSend} = composerModel,
+        {sendBlockedReason} = chatModel,
+        reasonId = `${impl.xhId}-send-reason`;
+
+    if (chatModel.isBusy) {
+        return [
+            button({
+                key: 'stop',
+                className: 'xh-chat-composer__send xh-chat-composer__send--stop',
+                icon: Icon.stop({prefix: 'fas'}),
+                tooltip: 'Stop',
+                'aria-label': 'Stop',
+                minimal: false,
+                onClick: () => chatModel.stop()
+            })
+        ];
+    }
+    return [
+        div({
+            key: 'reason',
+            id: reasonId,
+            className: 'xh-chat-composer__send-reason',
+            role: 'status',
+            item: sendBlockedReason
+        }),
+        button({
+            key: 'send',
+            className: 'xh-chat-composer__send',
+            icon: Icon.arrowUp(),
+            tooltip: sendBlockedReason ?? 'Send',
+            'aria-label': 'Send',
+            'aria-describedby': sendBlockedReason ? reasonId : undefined,
+            minimal: false,
+            disabled: !canSend,
+            onClick: () => {
+                composerModel.focus();
+                composerModel.submitAsync().catchDefault();
+            }
+        })
+    ];
 }

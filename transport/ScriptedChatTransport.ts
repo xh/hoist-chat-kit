@@ -1,6 +1,6 @@
 import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
-import {findLast, flattenDeep, isArray, isString, last, maxBy} from 'lodash';
+import {findLast, flattenDeep, isArray, isString} from 'lodash';
 import type {ChatMessage} from '../core';
 import {sleepAsync} from '../impl/abort';
 import {genChatId} from '../impl/ids';
@@ -42,11 +42,11 @@ export interface ScriptedRequestContext {
 
     /**
      * Zero-based index of the step within its turn - 0 for the first model call, 1 for the call
-     * that follows the first round of client tool calls, and so on.
+     * that follows the first round of client tool calls, and so on. The request's `stepIndex`.
      */
     stepIndex: number;
 
-    /** The user message the turn answers, or null if the history has none. */
+    /** The user message the turn answers - the one with the request's `turnId` - or null. */
     userMessage: ChatMessage;
 
     /**
@@ -142,15 +142,10 @@ export class ScriptedChatTransport implements ChatTransport {
     private turnCount = 0;
     private readonly turnsByMessage = new Map<string, number>();
 
-    // The step of a request follows from the reply it builds - the last message - which holds the
-    // parts of the turn's earlier steps.
     private createContext(request: ChatRunRequest): ScriptedRequestContext {
-        const {messages} = request,
-            reply = last(messages),
-            lastStep = reply?.isAssistant ? maxBy(reply.parts, it => it.step ?? 0)?.step : null,
-            stepIndex = lastStep != null ? lastStep + 1 : 0,
-            userMessage = findLast(messages, it => it.isUser) ?? null,
-            messageKey = userMessage?.id ?? '';
+        const {messages, stepIndex, turnId} = request,
+            userMessage = findLast(messages, it => it.id === turnId) ?? null,
+            messageKey = turnId ?? '';
 
         if (stepIndex === 0) {
             this.turnCount++;
@@ -308,10 +303,32 @@ export function toolCallEvents(
     return events;
 }
 
-/** Events for sources the model consulted, shown with its answer. */
-export function sourceEvents(
-    sources: Array<{id?: string; url?: string; title?: string; snippet?: string}>
-): ChatEvent[] {
+/** A source, as written by {@link sourceEvents}. */
+export interface ScriptedSource {
+    /** Id of the source. Default generated. */
+    id?: string;
+
+    /** Location of the source. */
+    url?: string;
+
+    /** Title to display for the source. */
+    title?: string;
+
+    /** Short excerpt of the source. */
+    snippet?: string;
+
+    /** Number that cites the source in the text, as in `[1]`. */
+    marker?: number;
+
+    /** App-defined data about the source, such as a document id or an `excerpt`. */
+    metadata?: PlainObject;
+}
+
+/**
+ * Events for sources the model consulted, shown with its answer. Give each a `marker` to cite it
+ * as `[n]` in the text.
+ */
+export function sourceEvents(sources: ScriptedSource[]): ChatEvent[] {
     return sources.map(value => ({type: 'CUSTOM', name: 'xh.chat.source', value}));
 }
 
@@ -358,9 +375,25 @@ export function dataEvents(dataType: string, data: any, opts: {id?: string} = {}
     return [{type: 'CUSTOM', name: 'xh.chat.data', value: {id: opts.id, dataType, data}}];
 }
 
-/** An event for a failed step. The transport ends the response after it. */
-export function errorEvents(message: string, code?: string): ChatEvent[] {
-    return [{type: 'RUN_ERROR', message, code}];
+/**
+ * An event for a failed step. The transport ends the response after it.
+ *
+ * @param opts - `retryAfterSeconds`, the wait the backend asks for before a retry.
+ */
+export function errorEvents(
+    message: string,
+    code?: string,
+    opts: {retryAfterSeconds?: number} = {}
+): ChatEvent[] {
+    const {retryAfterSeconds} = opts;
+    return [
+        {
+            type: 'RUN_ERROR',
+            message,
+            code,
+            ...(retryAfterSeconds != null ? {metadata: {retryAfterSeconds}} : {})
+        }
+    ];
 }
 
 /** A pause in a scripted response, on top of the transport's `delayMs`. */

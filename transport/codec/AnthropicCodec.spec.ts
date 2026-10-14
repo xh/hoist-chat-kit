@@ -1,3 +1,4 @@
+import {findLast, last} from 'lodash';
 import type {PlainObject} from '@xh/hoist/core';
 import {describe, expect, it} from 'vitest';
 import {
@@ -96,6 +97,78 @@ describe('AnthropicCodec', () => {
             ).toBe('Configured.');
         });
 
+        it('appends live context to the last user turn, after the cache breakpoint', async () => {
+            const codec = new AnthropicCodec({system: 'Be brief.', cacheControl: true}),
+                body = await codec.encodeRequest(
+                    request([user('Hi')], {
+                        context: [
+                            {name: 'grid', description: 'The grid.', value: {groupBy: ['region']}},
+                            {name: 'note', description: null, value: 'Plain text.'}
+                        ]
+                    })
+                );
+
+            expect(body.system).toEqual([
+                {type: 'text', text: 'Be brief.', cache_control: {type: 'ephemeral'}}
+            ]);
+            expect(body.messages).toEqual([
+                {
+                    role: 'user',
+                    content: [
+                        {type: 'text', text: 'Hi', cache_control: {type: 'ephemeral'}},
+                        {
+                            type: 'text',
+                            text: '<context name="grid">\nThe grid.\n{"groupBy":["region"]}\n</context>'
+                        },
+                        {type: 'text', text: '<context name="note">\nPlain text.\n</context>'}
+                    ]
+                }
+            ]);
+        });
+
+        it('keeps the history before the context the same from step to step', async () => {
+            const codec = new AnthropicCodec({cacheControl: true}),
+                reply = new ChatMessage({
+                    role: 'assistant',
+                    parts: [toolCall('call1', 0, {output: 'Done.'})]
+                }),
+                first = await codec.encodeRequest(
+                    request([user('Hi')], {context: [{name: 'n', description: null, value: 'A'}]})
+                ),
+                second = await codec.encodeRequest(
+                    request([user('Hi'), reply], {
+                        context: [{name: 'n', description: null, value: 'B'}]
+                    })
+                );
+
+            expect(second.messages[0].content).toEqual([{type: 'text', text: 'Hi'}]);
+            expect(first.messages[0].content[0].text).toBe('Hi');
+            expect(second.system).toBeUndefined();
+            expect((last(second.messages[2].content) as PlainObject).text).toContain('B');
+        });
+
+        it('sends the context of a user message as a block after its text', async () => {
+            const question = new ChatMessage({
+                    role: 'user',
+                    content: 'Why did it drop?',
+                    metadata: {context: {ticker: 'XYZ'}}
+                }),
+                body = await encode(new AnthropicCodec(), [question]);
+
+            expect(body.messages).toEqual([
+                {
+                    role: 'user',
+                    content: [
+                        {type: 'text', text: 'Why did it drop?'},
+                        {
+                            type: 'text',
+                            text: '<message-context>\n{"ticker":"XYZ"}\n</message-context>'
+                        }
+                    ]
+                }
+            ]);
+        });
+
         it('marks cache breakpoints on the history, the last system block and the last tool', async () => {
             const codec = new AnthropicCodec({
                     system: 'Be brief.',
@@ -175,6 +248,12 @@ describe('AnthropicCodec', () => {
                 body = await encode(codec, [user('Hi')]);
 
             expect(body).toMatchObject({model: 'claude-opus-5-5', metadata: {user_id: 't1'}});
+        });
+
+        it('refuses a chat in server mode, as the API needs the whole history', async () => {
+            await expect(
+                new AnthropicCodec().encodeRequest(request([user('Hi')], {historyMode: 'server'}))
+            ).rejects.toThrow("historyMode 'server'");
         });
 
         it('throws a clear error rather than encode a request with no user content', async () => {
@@ -669,6 +748,52 @@ describe('AnthropicCodec', () => {
             ]);
         });
 
+        it.each([
+            [
+                'an error object as its content',
+                {content: {type: 'web_search_tool_result_error', error_code: 'max_uses_exceeded'}},
+                'The tool failed: max_uses_exceeded.'
+            ],
+            [
+                'is_error',
+                {is_error: true, content: [{type: 'text', text: 'Server unreachable.'}]},
+                'Server unreachable.'
+            ]
+        ])('fails a server tool call whose result block has %s', async (_, fields, errorText) => {
+            const resultBlock = {
+                    type: 'web_search_tool_result',
+                    tool_use_id: 'srvtoolu_1',
+                    ...fields
+                },
+                message = reduce([
+                    messageStart(),
+                    {
+                        type: 'content_block_start',
+                        index: 0,
+                        content_block: {
+                            type: 'server_tool_use',
+                            id: 'srvtoolu_1',
+                            name: 'web_search'
+                        }
+                    },
+                    {type: 'content_block_stop', index: 0},
+                    {type: 'content_block_start', index: 1, content_block: resultBlock},
+                    {type: 'content_block_stop', index: 1},
+                    messageDelta('end_turn'),
+                    {type: 'message_stop'}
+                ]);
+
+            expect(message.parts[0]).toMatchObject({
+                state: 'output-error',
+                errorText,
+                providerData: {anthropic: {resultBlock}}
+            });
+
+            // The failed result still goes back verbatim, as the API expects.
+            const {messages} = await encode(new AnthropicCodec(), [user('Weather?'), message]);
+            expect(messages[1].content[1]).toEqual(resultBlock);
+        });
+
         it('marks a server tool call as run by the backend from its start', () => {
             const events = decode([
                 messageStart(),
@@ -728,8 +853,17 @@ function request(messages: ChatMessage[], changes: Partial<ChatRunRequest> = {})
     return {
         threadId: 't1',
         runId: 'r1',
+        historyMode: 'client',
+        trigger: 'submit',
+        turnId: findLast(messages, it => it.isUser)?.id ?? null,
+        stepIndex: 0,
         messages,
+        newMessages: [],
+        replacedMessageId: null,
+        runOptions: null,
+        catalogVersion: null,
         tools: [],
+        context: [],
         signal: new AbortController().signal,
         ...changes
     };

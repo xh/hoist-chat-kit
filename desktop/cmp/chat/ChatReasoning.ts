@@ -6,6 +6,7 @@ import {action, observable} from '@xh/hoist/mobx';
 import {
     type ChatImagePolicy,
     type ChatMarkdownComponents,
+    type ChatMarkdownPlugins,
     chatMarkdown
 } from '../../../cmp/markdown';
 import type {ChatReasoningPart} from '../../../core';
@@ -25,6 +26,9 @@ export interface ChatReasoningProps extends HoistProps {
 
     /** Images to load in the reasoning text - see {@link ChatMarkdownProps.allowImages}. */
     allowImages?: ChatImagePolicy;
+
+    /** Plugins to add to the markdown pipeline. Pass a stable object. */
+    markdownPlugins?: ChatMarkdownPlugins;
 }
 
 /**
@@ -40,7 +44,7 @@ export const [ChatReasoning, chatReasoning] = hoistCmp.withFactory<ChatReasoning
     displayName: 'ChatReasoning',
     className: 'xh-chat-reasoning',
 
-    render({className, part, markdownComponents, allowImages}, ref) {
+    render({className, part, markdownComponents, markdownPlugins, allowImages}, ref) {
         const impl = useLocalModel(ChatReasoningLocalModel),
             components = useChatMarkdownComponents(markdownComponents),
             {text, state} = part,
@@ -76,7 +80,13 @@ export const [ChatReasoning, chatReasoning] = hoistCmp.withFactory<ChatReasoning
                 isExpanded
                     ? div({
                           className: 'xh-chat-reasoning__body',
-                          item: chatMarkdown({content: text, isStreaming, components, allowImages})
+                          item: chatMarkdown({
+                              content: text,
+                              isStreaming,
+                              components,
+                              markdownPlugins,
+                              allowImages
+                          })
                       })
                     : null
             ]

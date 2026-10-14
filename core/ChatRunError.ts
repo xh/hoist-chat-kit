@@ -8,13 +8,23 @@
 export class ChatRunError extends Error {
     /**
      * Machine-readable error code - the backend's (an AG-UI `RUN_ERROR` code, or the Anthropic
-     * error type), or `incomplete-stream` for a stream that ended early. Null if none was given.
+     * error type), `incomplete-stream` for a stream that ended early, `empty-response` for a run
+     * that finished with no content, or `stalled` for a stream that sent nothing for longer than
+     * the transport's `idleTimeout`. Null if none was given.
      */
     readonly code: string;
 
-    constructor(message: string, code: string = null) {
+    /**
+     * Seconds the backend asks the client to wait before it retries, from the `metadata` of its
+     * `RUN_ERROR` - for example while an earlier attempt at the same turn still runs. Recorded on
+     * the message as `metadata.retryAfterSeconds`. Null if the backend gave none.
+     */
+    readonly retryAfterSeconds: number;
+
+    constructor(message: string, code: string = null, retryAfterSeconds: number = null) {
         super(message);
         this.name = 'ChatRunError';
         this.code = code;
+        this.retryAfterSeconds = retryAfterSeconds;
     }
 }

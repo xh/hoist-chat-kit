@@ -57,12 +57,95 @@ describe('ChatUiCatalog', () => {
         });
     });
 
+    describe('schema check', () => {
+        it.each([
+            ['$ref', {$ref: '#/$defs/row'}],
+            ['$defs', {$defs: {row: {type: 'string'}}}],
+            ['allOf', {allOf: [{type: 'string'}]}],
+            ['not', {not: {type: 'string'}}],
+            ['if', {if: {type: 'string'}, then: {minLength: 1}}],
+            ['exclusiveMinimum', {type: 'number', exclusiveMinimum: 0}],
+            ['uniqueItems', {type: 'array', uniqueItems: true}],
+            ['multipleOf', {type: 'number', multipleOf: 5}],
+            ['prefixItems', {type: 'array', prefixItems: [{type: 'string'}]}],
+            ['array-form items', {type: 'array', items: [{type: 'string'}]}],
+            ['patternProperties', {type: 'object', patternProperties: {'^x': {}}}],
+            ['dependentRequired', {type: 'object', dependentRequired: {a: ['b']}}]
+        ])('refuses a schema that uses %s, which it cannot check', (keyword, schema) => {
+            expect(() => catalogWithProp(schema)).toThrow(`${keyword} at properties.value`);
+        });
+
+        it('finds unsupported keywords in nested subschemas, and names each path', () => {
+            const props = {
+                type: 'object',
+                properties: {
+                    rows: {type: 'array', items: {type: 'object', minProperties: 1}},
+                    mode: {anyOf: [{type: 'string'}, {type: 'number', exclusiveMaximum: 9}]}
+                }
+            };
+            expect(() => new ChatUiCatalog({components: [{...NOTE, props}]})).toThrow(
+                'minProperties at properties.rows.items; ' +
+                    'exclusiveMaximum at properties.mode.anyOf[1]'
+            );
+        });
+
+        it('allows annotations such as title, description, default and format', () => {
+            expect(() =>
+                catalogWithProp({
+                    type: 'string',
+                    title: 'Value',
+                    description: 'A value.',
+                    default: 'x',
+                    format: 'date',
+                    examples: ['y']
+                })
+            ).not.toThrow();
+        });
+
+        it('refuses a pattern that does not compile as a Unicode regular expression', () => {
+            expect(() => catalogWithProp({type: 'string', pattern: '^\\_+$'})).toThrow(
+                "is not a valid regular expression with the 'u' flag"
+            );
+        });
+
+        it('rejects inherited keys as unknown under additionalProperties false', () => {
+            const props = {...NOTE.props, additionalProperties: false},
+                catalog = new ChatUiCatalog({components: [{...NOTE, props}]});
+            ['toString', 'constructor', '__proto__'].forEach(key =>
+                expect(catalog.validate('note', JSON.parse(`{"text": "x", "${key}": 1}`))).toEqual([
+                    `${key}: unknown property`
+                ])
+            );
+        });
+    });
+
+    describe('props schema', () => {
+        it('requires an object schema, which the checks of each prop rely on', () => {
+            expect(
+                () => new ChatUiCatalog({components: [{...NOTE, props: {properties: {}}}]})
+            ).toThrow("must have a props schema of type 'object'");
+        });
+
+        it('lets a number still streaming match an enum it could still become', () => {
+            const catalog = catalogWithProp({type: 'integer', enum: [10, 20]});
+            expect(catalog.validate('note', {value: 1}, {isPartial: true})).toEqual([]);
+            expect(catalog.validate('note', {value: 1})).toEqual(['value: expected one of 10, 20']);
+        });
+    });
+
     describe('execute', () => {
         it('confirms valid props to the model', async () => {
             const tool = createCatalog().tools[0];
             expect(await execute(tool, {items: [{label: 'Revenue', value: 12}]})).toBe(
                 'Rendered metrics for the user.'
             );
+        });
+
+        it('tells the model what it showed, with the component result function', async () => {
+            const tool = new ChatUiCatalog({
+                components: [{...NOTE, result: ({text}) => `Showed a note: ${text}`}]
+            }).tools[0];
+            expect(await execute(tool, {text: 'Hi'})).toBe('Showed a note: Hi');
         });
 
         it('throws an error that lists each problem, so the model can correct itself', async () => {
@@ -105,7 +188,7 @@ describe('ChatUiCatalog', () => {
     });
 
     describe('instructions', () => {
-        it('describes when to show UI, the rules, and each component with its example', () => {
+        it('describes when to show UI, the rules, and each component tool with its example', () => {
             const {instructions} = createCatalog({
                 instructions: 'Use metrics for portfolio summaries.'
             });
@@ -115,12 +198,17 @@ describe('ChatUiCatalog', () => {
             expect(instructions).toContain('within the limits of the schema');
             expect(instructions).toContain('Prefer a component for tabular and numeric results');
             expect(instructions).toContain('Use text for explanation');
-            expect(instructions).toContain('### show_metrics\nA row of KPI tiles.');
             expect(instructions).toContain(
-                'Example props: {"items":[{"label":"Revenue","value":1250000}]}'
+                '#### show_metrics\nExample props: {"items":[{"label":"Revenue","value":1250000}]}'
             );
-            expect(instructions).toContain('### add_note\nA short note.');
+            expect(instructions).toContain('#### add_note');
             expect(instructions.endsWith('Use metrics for portfolio summaries.')).toBe(true);
+        });
+
+        it('sends each component description once, in its tool', () => {
+            const catalog = createCatalog();
+            expect(catalog.instructions).not.toContain('A row of KPI tiles.');
+            expect(catalog.tools[0].description).toContain('A row of KPI tiles.');
         });
     });
 
@@ -137,12 +225,18 @@ describe('ChatUiCatalog', () => {
                 part = callPart(state, {items: [{label: 'A', value: 1}]});
 
             expect(markup(tool.renderer(part, context))).toBe('tiles');
-            expect(render).toHaveBeenCalledWith(part.input, {
-                ...context,
-                part,
-                isPartial,
-                children: []
-            });
+            expect(render).toHaveBeenCalledWith(
+                part.input,
+                expect.objectContaining({
+                    ...context,
+                    part,
+                    isPartial,
+                    element: {id: 'root', component: 'metrics', props: part.input},
+                    children: [],
+                    slots: {},
+                    data: {}
+                })
+            );
         });
 
         it('renders streaming props that are incomplete but could still become valid', () => {
@@ -178,25 +272,58 @@ describe('ChatUiCatalog', () => {
         });
     });
 
+    describe('renderer for a call with a result', () => {
+        it('renders a fallback for invalid props, as a display tool call gets no error', () => {
+            const tool = createCatalog().displayTools[0],
+                html = markup(
+                    tool.renderer(
+                        callPart('output-available', {items: [{label: 'A', value: 'x'}]}),
+                        renderContext()
+                    )
+                );
+            expect(html).toContain('could not be displayed');
+            expect(html).toContain('expected number, got string');
+        });
+    });
+
     describe('createDataRenderers', () => {
         const PANEL: ChatUiComponentSpec = {
                 name: 'panel',
                 description: 'A titled container.',
                 props: {type: 'object', required: ['title'], properties: {title: {type: 'string'}}},
+                slots: ['default'],
                 render: ({title}, {children}) =>
                     fragment({items: [`[${title}: `, ...children, ']']})
             },
             ADAPTER: ChatUiAdapter = {
                 dataType: 'test-ui',
-                translate: payload =>
-                    payload.panels.map(it => ({
-                        component: 'panel',
-                        props: {title: it.title},
-                        children: it.notes.map(text => ({component: 'note', props: {text}}))
-                    }))
+                translate: payload => ({
+                    root: 'top',
+                    elements: {
+                        top: {component: 'panel', props: {title: 'All'}, children: ['q3', 'q4']},
+                        ...Object.fromEntries(
+                            payload.panels.map(it => [
+                                it.title.toLowerCase(),
+                                {
+                                    component: 'panel',
+                                    props: {title: it.title},
+                                    children: it.notes.map((_, idx) => `${it.title}-${idx}`)
+                                }
+                            ])
+                        ),
+                        ...Object.fromEntries(
+                            payload.panels.flatMap(it =>
+                                it.notes.map((text, idx) => [
+                                    `${it.title}-${idx}`,
+                                    {component: 'note', props: {text}}
+                                ])
+                            )
+                        )
+                    }
+                })
             };
 
-        it('renders translated nodes, with their children, through the catalog', () => {
+        it('renders translated documents, with their children, through the catalog', () => {
             const catalog = createCatalog({components: [PANEL, NOTE]}),
                 renderers = catalog.createDataRenderers([ADAPTER]),
                 part = dataPart({
@@ -207,11 +334,33 @@ describe('ChatUiCatalog', () => {
                 }),
                 context = renderContext();
 
-            expect(Object.keys(renderers)).toEqual(['test-ui']);
-            expect(markup(renderers['test-ui'](part, context))).toBe('[Q3: (up)(flat)][Q4: ]');
+            expect(Object.keys(renderers)).toEqual(['xh.chat.ui', 'test-ui']);
+            expect(markup(renderers['test-ui'](part, context))).toBe(
+                '[All: [Q3: (up)(flat)][Q4: ]]'
+            );
         });
 
-        it('passes the data part and the chat to each component', () => {
+        it('renders documents sent as xh.chat.ui data parts, with no adapter', () => {
+            const catalog = createCatalog({components: [PANEL, NOTE]}),
+                part: ChatDataPart = {
+                    type: 'data',
+                    id: 'd1',
+                    dataType: 'xh.chat.ui',
+                    data: {
+                        root: 'p',
+                        elements: {
+                            p: {component: 'panel', props: {title: 'T'}, children: ['n']},
+                            n: {component: 'note', props: {text: 'hi'}}
+                        }
+                    }
+                };
+
+            expect(markup(catalog.createDataRenderers()['xh.chat.ui'](part, renderContext()))).toBe(
+                '[T: (hi)]'
+            );
+        });
+
+        it('passes the data part, the chat and the element to each component', () => {
             const render = vi.fn(() => 'note'),
                 catalog = createCatalog({components: [PANEL, {...NOTE, render}]}),
                 part = dataPart({panels: [{title: 'Q3', notes: ['up']}]}),
@@ -221,33 +370,61 @@ describe('ChatUiCatalog', () => {
 
             expect(render).toHaveBeenCalledWith(
                 {text: 'up'},
-                {
+                expect.objectContaining({
                     ...context,
                     part,
                     isPartial: false,
+                    element: {id: 'Q3-0', component: 'note', props: {text: 'up'}},
                     children: []
-                }
+                })
             );
         });
 
-        it('leaves out nodes with unknown components or invalid props', () => {
+        it('renders a fallback for elements with unknown components or invalid props', () => {
             const warn = vi.spyOn(console, 'warn').mockImplementation(() => {}),
                 catalog = createCatalog({components: [PANEL, NOTE]}),
                 adapter: ChatUiAdapter = {
                     dataType: 'test-ui',
-                    translate: () => [
-                        {component: 'note', props: {text: 'kept'}},
-                        {component: 'note', props: {text: 7}},
-                        {component: 'chart', props: {}}
-                    ]
+                    translate: () => ({
+                        root: 'top',
+                        elements: {
+                            top: {
+                                component: 'panel',
+                                props: {title: 'T'},
+                                children: ['a', 'b', 'c']
+                            },
+                            a: {component: 'note', props: {text: 'kept'}},
+                            b: {component: 'note', props: {text: 7}},
+                            c: {component: 'chart', props: {}}
+                        }
+                    })
                 },
                 context = renderContext();
             onTestFinished(() => warn.mockRestore());
 
-            const result = catalog.createDataRenderers([adapter])['test-ui'](dataPart({}), context);
+            const html = markup(
+                catalog.createDataRenderers([adapter])['test-ui'](dataPart({}), context)
+            );
 
-            expect(markup(result)).toBe('(kept)');
+            expect(html).toContain('(kept)');
+            expect(html).toContain('This note could not be displayed.');
+            expect(html).toContain('elements.b.props.text: expected string, got number');
+            expect(html).toContain('elements.c.component: unknown component &#x27;chart&#x27;');
             expect(warn).toHaveBeenCalledTimes(2);
+        });
+
+        it('logs each fallback once, however often it renders', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {}),
+                catalog = createCatalog(),
+                part = dataPart(null),
+                context = renderContext(),
+                doc = {root: 'x', elements: {x: {component: 'chart', props: {}}}};
+            onTestFinished(() => warn.mockRestore());
+
+            markup(catalog.renderDocument(doc, {...context, part, isPartial: false}));
+            markup(catalog.renderDocument(doc, {...context, part, isPartial: false}));
+
+            expect(warn).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -381,6 +558,13 @@ const NOTE: ChatUiComponentSpec<{text: string}> = {
     props: {type: 'object', required: ['text'], properties: {text: {type: 'string'}}},
     render: ({text}) => `(${text})`
 };
+
+/** A catalog with one component whose `value` prop has the given schema. */
+function catalogWithProp(schema: PlainObject): ChatUiCatalog {
+    return new ChatUiCatalog({
+        components: [{...NOTE, props: {type: 'object', properties: {value: schema}}}]
+    });
+}
 
 function createCatalog(
     config: {components?: ChatUiComponentSpec<any>[]; instructions?: string} = {}

@@ -159,6 +159,132 @@ describe('HoistChatTransport', () => {
         });
     });
 
+    it('builds the url, headers and params per request from async functions', async () => {
+        const stream = ndjsonStream();
+        hoistCore.route('POST', 'chat/t1', () => stream.response);
+        stream.close();
+
+        const transport = new HoistChatTransport({
+            url: async req => `chat/${req.threadId}`,
+            headers: async () => ({Authorization: 'Bearer fresh'}),
+            params: req => ({run: req.runId})
+        });
+        await collect(transport.run(request()));
+
+        const [req] = hoistCore.requestsTo('chat/t1');
+        expect(req.headers).toMatchObject({authorization: 'Bearer fresh'});
+        expect(req.query).toEqual({run: 'r1'});
+    });
+
+    describe('cancelAsync', () => {
+        it('posts the run ids to the cancelUrl, with the headers of the stopped step', async () => {
+            hoistCore.route('POST', 'chat/cancel/srv-run', () => null);
+            const transport = new HoistChatTransport({
+                url: 'chat',
+                headers: req => ({'X-Turn': req.turnId}),
+                cancelUrl: run => `chat/cancel/${run.runId}`
+            });
+
+            await transport.cancelAsync({
+                threadId: 't1',
+                runId: 'srv-run',
+                turnId: 'u1',
+                request: request()
+            });
+
+            const [req] = hoistCore.requestsTo('chat/cancel/srv-run');
+            expect(req.json).toEqual({threadId: 't1', runId: 'srv-run', turnId: 'u1'});
+            expect(req.headers).toMatchObject({'x-turn': 'u1'});
+        });
+
+        it('does nothing without a cancelUrl', async () => {
+            const transport = new HoistChatTransport({url: 'chat'});
+            await expect(
+                transport.cancelAsync({threadId: 't1', runId: 'r1', turnId: 'u1'})
+            ).resolves.toBeUndefined();
+        });
+
+        it('cancels the run when the user stops a turn', async () => {
+            const stream = ndjsonStream();
+            hoistCore.route('POST', 'chat', () => stream.response);
+            hoistCore.route('POST', 'chat/cancel', () => null);
+            stream.push(
+                {type: 'RUN_STARTED', threadId: 't1', runId: 'srv-run'},
+                TEXT_START,
+                TEXT_CONTENT
+            );
+
+            const chatModel = new ChatModel({
+                transport: new HoistChatTransport({url: 'chat', cancelUrl: 'chat/cancel'}),
+                historyMode: 'server'
+            });
+            onTestFinished(() => chatModel.destroy());
+
+            const done = chatModel.sendAsync('Hi');
+            await vi.waitFor(() => expect(chatModel.lastMessage.text).toBe('Hello'));
+            chatModel.stop();
+            await done;
+            await hoistCore.settleAsync();
+
+            const [req] = hoistCore.requestsTo('chat/cancel');
+            expect(req.json).toEqual({
+                threadId: chatModel.threadId,
+                runId: 'srv-run',
+                turnId: chatModel.messages[0].id
+            });
+        });
+    });
+
+    describe('idle timeout', () => {
+        it('fails the step as stalled, and closes the connection, when no data arrives', async () => {
+            const stream = ndjsonStream(),
+                signals = spyFetchSignals('chat');
+            hoistCore.route('POST', 'chat', () => stream.response);
+            stream.push(TEXT_START);
+
+            const events = await collect(
+                new HoistChatTransport({url: 'chat', idleTimeout: 50}).run(request())
+            );
+
+            expect(events).toEqual([
+                TEXT_START,
+                {type: 'RUN_ERROR', message: 'The server stopped responding.', code: 'stalled'}
+            ]);
+            expect(signals[0].aborted).toBe(true);
+        });
+
+        it('resets on each heartbeat record, which is never decoded', async () => {
+            const stream = ndjsonStream();
+            hoistCore.route('POST', 'chat', () => stream.response);
+
+            const events = collect(
+                new HoistChatTransport({url: 'chat', idleTimeout: 120}).run(request())
+            );
+            for (let i = 0; i < 4; i++) {
+                await sleep(50);
+                stream.push({type: 'xh.heartbeat'});
+            }
+            stream.push(TEXT_START, FINISHED);
+            stream.close();
+
+            expect(await events).toEqual([TEXT_START, FINISHED]);
+        });
+
+        it('fails the turn with a ChatRunError coded stalled', async () => {
+            const stream = ndjsonStream();
+            hoistCore.route('POST', 'chat', () => stream.response);
+            const chatModel = new ChatModel({
+                transport: new HoistChatTransport({url: 'chat', idleTimeout: 50})
+            });
+            onTestFinished(() => chatModel.destroy());
+
+            await chatModel.sendAsync('Hi');
+
+            expect(chatModel.lastError).toBeInstanceOf(ChatRunError);
+            expect(chatModel.lastError).toMatchObject({code: 'stalled'});
+        });
+    });
+
     /**
      * How failures reach Hoist's exception pipeline. Apps rely on errors within the stream staying
      * conversation state, and on routine server exceptions - such as a rate limit - never being
@@ -258,11 +384,21 @@ const TEXT_START: ChatEvent = {type: 'TEXT_MESSAGE_START', messageId: 'm1', role
     FINISHED: ChatEvent = {type: 'RUN_FINISHED', threadId: 't1', runId: 'r1'};
 
 function request(signal: AbortSignal = new AbortController().signal): ChatRunRequest {
+    const message = new ChatMessage({id: 'u1', role: 'user', content: 'Hi'});
     return {
         threadId: 't1',
         runId: 'r1',
-        messages: [new ChatMessage({role: 'user', content: 'Hi'})],
+        historyMode: 'client',
+        trigger: 'submit',
+        turnId: 'u1',
+        stepIndex: 0,
+        messages: [message],
+        newMessages: [message],
+        replacedMessageId: null,
+        runOptions: null,
+        catalogVersion: null,
         tools: [],
+        context: [],
         signal
     };
 }
@@ -278,6 +414,10 @@ function ndjsonStream() {
             records.forEach(it => controller.enqueue(encoder.encode(JSON.stringify(it) + '\n'))),
         close: () => controller.close()
     };
+}
+
+function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function collect(events: AsyncIterable<ChatEvent>): Promise<ChatEvent[]> {

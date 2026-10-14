@@ -62,7 +62,11 @@ export interface ChatEventBase {
 //------------------
 // Lifecycle
 //------------------
-/** A run - one step of the turn - has started. */
+/**
+ * A run - one step of the turn - has started. Its `runId` is recorded on the message as
+ * `metadata.runId`. In server mode, the first run of a new thread may report the server's own
+ * `threadId`, which the chat adopts.
+ */
 export interface RunStartedEvent extends ChatEventBase {
     type: 'RUN_STARTED';
     threadId: string;
@@ -70,15 +74,18 @@ export interface RunStartedEvent extends ChatEventBase {
 }
 
 /**
- * The run has finished normally. A stream that ends without this event, or `RUN_ERROR`, fails the
- * turn as incomplete.
+ * The run has finished normally. A stream sends it once, as its last event. A stream that ends
+ * without this event, or `RUN_ERROR`, fails the turn as incomplete.
  */
 export interface RunFinishedEvent extends ChatEventBase {
     type: 'RUN_FINISHED';
     threadId: string;
     runId: string;
 
-    /** The agent's result, if any. Not used by the kit. */
+    /**
+     * The agent's result, if any. A `messageId` in it is recorded as the reply's
+     * `metadata.serverId`, unless an `xh.chat.message` event reported one first.
+     */
     result?: any;
 
     /** How the run ended. Maps to the finish reason when `metadata.finishReason` is not given. */
@@ -88,7 +95,11 @@ export interface RunFinishedEvent extends ChatEventBase {
     usage?: ChatTokenUsage[];
 }
 
-/** The run has failed. Its `code` is recorded as `metadata.errorCode` on the message. */
+/**
+ * The run has failed. Its `code` is recorded as `metadata.errorCode` on the message. A
+ * `metadata.retryAfterSeconds` - the wait the backend asks for before a retry - is recorded on
+ * the message too, and becomes `ChatRunError.retryAfterSeconds`.
+ */
 export interface RunErrorEvent extends ChatEventBase {
     type: 'RUN_ERROR';
 
@@ -254,7 +265,17 @@ export interface ToolCallChunkEvent extends ChatEventBase {
     delta?: string;
 }
 
-/** Result of a tool the backend ran. */
+/**
+ * Result of a tool the backend ran.
+ *
+ * AG-UI's event has no error field, so the kit reads a failure from `metadata`. A result with
+ * `metadata.error` (the error text) or `metadata.isError: true` (with the error text as `content`)
+ * fails the call: its part moves to `output-error`, with the text as `errorText`. The
+ * `xh.chat.toolError` custom event does the same for a backend that cannot set `metadata`.
+ *
+ * A result may also carry the result sets the tool produced, as `metadata.artifacts` - a list of
+ * `ChatArtifact`. They are recorded on the reply as the `xh.chat.artifact` event records them.
+ */
 export interface ToolCallResultEvent extends ChatEventBase {
     type: 'TOOL_CALL_RESULT';
     messageId: string;
@@ -263,6 +284,9 @@ export interface ToolCallResultEvent extends ChatEventBase {
     /** The result - JSON-parsed into the part's `output` when it parses. */
     content: string | PlainObject[];
     role?: 'tool';
+
+    /** Set `error` or `isError` to report that the tool failed, and `artifacts` to add data. */
+    metadata?: PlainObject & {error?: string; isError?: boolean; artifacts?: PlainObject[]};
 }
 
 //------------------
@@ -311,7 +335,8 @@ export interface IgnoredEvent extends ChatEventBase {
 /**
  * Names of the `CUSTOM` events with which a backend sends kit-specific content:
  *
- *  - `xh.chat.source` - value `{id?, url?, title?, snippet?}`, appends a source part.
+ *  - `xh.chat.source` - value `{id?, url?, title?, snippet?, marker?, metadata?}`, appends a
+ *    source part. `marker` is the number that cites it in the text, as in `[1]`.
  *  - `xh.chat.citation` - value `{id?, title?, url?, citedText?, sourceId?}`, cites a source
  *    from the current text part.
  *  - `xh.chat.data` - value `{id?, dataType, data}`, adds or replaces a data part.
@@ -321,6 +346,17 @@ export interface IgnoredEvent extends ChatEventBase {
  *    `REASONING_ENCRYPTED_VALUE`.
  *  - `xh.chat.providerExecuted` - value `{toolCallId}`, marks a tool call as run by the backend
  *    before its result arrives, so that the chat never runs it as a client tool.
+ *  - `xh.chat.toolError` - value `{toolCallId, message}`, fails a tool call the backend ran, in
+ *    place of its result. The part moves to `output-error`, with `message` as its `errorText`.
+ *  - `xh.chat.textReplace` - value `{text}`, sets the text of the open text part, or else of the
+ *    reply's last text part. Covers a backend that resets its answer (`text: ''`) or sends its
+ *    final text whole.
+ *  - `xh.chat.message` - value `{role: 'assistant' | 'user', serverId}`, records the server's id
+ *    for the turn's reply or its user message, as `metadata.serverId`.
+ *  - `xh.chat.artifact` - value `{id, columns, rows?, totalRows, metadata?}`, a result set that
+ *    generative UI components show by reference - see `ChatArtifact`. Recorded on the reply in
+ *    `metadata.artifacts`, replacing one with the same id, and added to the chat's artifact
+ *    registry.
  */
 export type ChatCustomEventName =
     | 'xh.chat.source'
@@ -328,4 +364,8 @@ export type ChatCustomEventName =
     | 'xh.chat.data'
     | 'xh.chat.file'
     | 'xh.chat.providerData'
-    | 'xh.chat.providerExecuted';
+    | 'xh.chat.providerExecuted'
+    | 'xh.chat.toolError'
+    | 'xh.chat.textReplace'
+    | 'xh.chat.message'
+    | 'xh.chat.artifact';

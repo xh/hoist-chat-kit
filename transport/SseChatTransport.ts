@@ -24,7 +24,8 @@ export interface SseChatTransportConfig extends HttpChatTransportConfig {}
  *  - It responds with `text/event-stream`. The `data` of each event is one JSON record in the
  *    codec's format - AG-UI events by default, or Anthropic stream events with an
  *    {@link AnthropicCodec}. The `event` name is passed to the codec along with the data.
- *    Comments (keep-alives), `[DONE]` sentinels and data that is not JSON are skipped.
+ *    Comments (keep-alives), `[DONE]` sentinels and data that is not JSON are skipped. Any data
+ *    resets the `idleTimeout`, so a comment serves as a heartbeat.
  *  - It ends the response when the step ends, after the codec's closing record -
  *    `RUN_FINISHED` in AG-UI, `message_stop` from Anthropic. A response that ends without one
  *    fails the turn as incomplete. It should stop work when the client disconnects. The transport
@@ -43,15 +44,21 @@ export class SseChatTransport extends HttpChatTransport {
         while (true) {
             const {done, value} = await reader.read();
             if (done) return;
+
+            // Data with no record in it - a keep-alive comment, a part of an event, `[DONE]` or
+            // data that is not JSON - still shows the server is there, for the idle timeout.
+            let hasRecord = false;
             for (const {event, data} of parser.feed(value)) {
                 if (data === '[DONE]') continue;
                 const record = parseJson(data);
                 if (record) {
+                    hasRecord = true;
                     yield {data: record, eventName: event};
                 } else {
                     logDebug(['Skipped SSE data that is not JSON', data], this);
                 }
             }
+            if (!hasRecord) yield {data: null};
         }
     }
 }

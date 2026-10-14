@@ -1,3 +1,5 @@
+@use '../../../styles/mixins' as *;
+
 .xh-chat-file-chip {
   align-items: center;
   background-color: var(--xh-chat-chip-bg);
@@ -56,8 +58,7 @@
     font-size: var(--xh-chat-meta-font-size-px);
   }
 
-  // Hoist's button rules are scoped under `.xh-app` - match that scope to size this one down.
-  .xh-app & .xh-chat-file-chip__remove.xh-button.bp6-button {
+  @include hoist-button('.xh-chat-file-chip__remove') {
     --xh-button-text-color: var(--xh-chat-muted-text-color);
 
     flex: none;

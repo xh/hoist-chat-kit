@@ -30,7 +30,8 @@ export interface ChatToolSpec {
     /**
      * Run the tool. The return value is the result sent to the model: strings as is, anything
      * else as JSON. A thrown error becomes an error result, which the model sees and can recover
-     * from.
+     * from. Return {@link chatToolResult} to pass the chat options with the result, such as how
+     * to undo the change the call made.
      */
     execute?: (input: PlainObject, context: ChatToolContext) => Awaitable<any>;
 
@@ -53,6 +54,18 @@ export interface ChatToolSpec {
      * work it discards.
      */
     approvalPrompt?: string | ((input: PlainObject) => ReactNode);
+
+    /**
+     * What a call will do, shown on its approval card while it waits for approval. A function of
+     * the call's input, which may return rich content - such as "Will hide 3 columns: Id, Seller
+     * and Region." Or true, for a tool with `display: 'inline'`, to render the call's own output
+     * as the preview. Default none: an inline call renders nothing until approved, and nothing if
+     * denied.
+     */
+    preview?: boolean | ((input: PlainObject) => ReactNode);
+
+    /** @deprecated - use `preview: true`. */
+    approvalPreview?: boolean;
 
     /**
      * True to send this tool to the model. Default true for client and interactive tools, false
@@ -88,7 +101,9 @@ export interface ChatToolSpec {
      *  - `inline` - the output of `renderer` alone, as part of the reply. The rendered output is
      *    the call's progress, so a status line shows only while the input streams, while the call
      *    waits for approval, and if it fails or is denied. A quiet toggle to view the input shows
-     *    on hover. For tools that show UI to the user, such as those of a `ChatUiCatalog`.
+     *    on hover. A denied call renders nothing, and so does a call waiting for approval,
+     *    unless `preview` is true. For tools that show UI to the user, such as those of a
+     *    `ChatUiCatalog`.
      *
      * Default `card`.
      */
@@ -103,6 +118,9 @@ export interface ChatToolContext {
     /** Id of the call being run. */
     toolCallId: string;
 
-    /** Aborts if the user stops the turn. Long-running tools should honor it. */
+    /**
+     * Aborts if the turn stops, with a {@link ChatAbortError} as its reason. Long-running tools
+     * should honor it.
+     */
     signal: AbortSignal;
 }

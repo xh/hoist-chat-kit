@@ -1,3 +1,4 @@
+import {findLast} from 'lodash';
 import {describe, expect, it} from 'vitest';
 import {ChatMessage, type ChatPart, type ChatToolCallPart} from '../../core';
 import type {ChatRunRequest} from '../ChatTransport';
@@ -10,6 +11,24 @@ import {AgUiCodec} from './AgUiCodec';
  */
 describe('AgUiCodec', () => {
     describe('encodeRequest', () => {
+        it('sends live context after its own, with descriptions and values as text', () => {
+            const codec = new AgUiCodec({context: [{description: 'App.', value: 'From app.'}]}),
+                body = codec.encodeRequest(
+                    request([user('Hi')], {
+                        context: [
+                            {name: 'grid', description: 'The grid.', value: {sortBy: ['name']}},
+                            {name: 'note', description: null, value: 'Plain text.'}
+                        ]
+                    })
+                );
+
+            expect(body.context).toEqual([
+                {description: 'App.', value: 'From app.'},
+                {description: 'The grid.', value: '{"sortBy":["name"]}'},
+                {description: 'note', value: 'Plain text.'}
+            ]);
+        });
+
         it('encodes a RunAgentInput with the run ids, tools, and empty defaults', () => {
             const body = new AgUiCodec().encodeRequest(
                 request([user('Hi')], {
@@ -39,6 +58,21 @@ describe('AgUiCodec', () => {
             });
         });
 
+        it("sends the context of the turn's user message as a context entry", () => {
+            const question = new ChatMessage({
+                    id: 'u1',
+                    role: 'user',
+                    content: 'Why did it drop?',
+                    metadata: {context: {ticker: 'XYZ'}}
+                }),
+                body = new AgUiCodec().encodeRequest(request([question]));
+
+            expect(body.messages).toEqual([{id: 'u1', role: 'user', content: 'Why did it drop?'}]);
+            expect(body.context).toEqual([
+                {description: expect.stringMatching(/user's message/), value: '{"ticker":"XYZ"}'}
+            ]);
+        });
+
         it('builds context and forwarded props per run when given functions', () => {
             const codec = new AgUiCodec({
                     context: req => [{description: 'Run', value: req.runId}],
@@ -48,6 +82,14 @@ describe('AgUiCodec', () => {
 
             expect(body.context).toEqual([{description: 'Run', value: 'r1'}]);
             expect(body.forwardedProps).toEqual({threadId: 't1'});
+        });
+
+        it('sends the agent state as a value, or built per run by a function', () => {
+            const fixed = new AgUiCodec({state: {sector: 'Energy'}}),
+                built = new AgUiCodec({state: req => ({run: req.runId})});
+
+            expect(fixed.encodeRequest(request([user('Hi')])).state).toEqual({sector: 'Energy'});
+            expect(built.encodeRequest(request([user('Hi')])).state).toEqual({run: 'r1'});
         });
 
         it('sends user attachments as content parts', () => {
@@ -168,6 +210,99 @@ describe('AgUiCodec', () => {
         });
     });
 
+    describe('encodeRequest in server mode', () => {
+        it('sends only the new user message, with the turn in forwardedProps', () => {
+            const earlier = new ChatMessage({id: 'u0', role: 'user', content: 'Earlier'}),
+                question = user('Hi'),
+                body = new AgUiCodec({forwardedProps: {tenant: 'emea'}}).encodeRequest(
+                    request([earlier, question], {
+                        historyMode: 'server',
+                        newMessages: [question],
+                        runOptions: {scope: ['doc-1']}
+                    })
+                );
+
+            expect(body.messages).toEqual([{id: 'u1', role: 'user', content: 'Hi'}]);
+            expect(body.forwardedProps).toEqual({
+                turnId: 'u1',
+                trigger: 'submit',
+                runOptions: {scope: ['doc-1']},
+                tenant: 'emea'
+            });
+        });
+
+        it('sends the replaced reply on a regenerate, and lets the app override a key', () => {
+            const question = user('Hi'),
+                body = new AgUiCodec({forwardedProps: () => ({trigger: 'custom'})}).encodeRequest(
+                    request([question], {
+                        historyMode: 'server',
+                        trigger: 'regenerate',
+                        newMessages: [question],
+                        replacedMessageId: 'a0'
+                    })
+                );
+
+            expect(body.forwardedProps).toEqual({
+                turnId: 'u1',
+                trigger: 'custom',
+                replacedMessageId: 'a0'
+            });
+        });
+
+        it('sends only the client tool calls of the last step, with their results, on a continue step', () => {
+            const reply = new ChatMessage({
+                    id: 'a1',
+                    role: 'assistant',
+                    status: 'streaming',
+                    parts: [
+                        {type: 'text', id: 'x-0', step: 0, text: 'Checking.', state: 'done'},
+                        toolCall('srv1', 0, {output: 'From the server.', providerExecuted: true}),
+                        toolCall('call1', 0, {output: {tempC: 18}})
+                    ]
+                }),
+                {messages} = new AgUiCodec().encodeRequest(
+                    request([user('Hi'), reply], {
+                        historyMode: 'server',
+                        trigger: 'continue',
+                        stepIndex: 1,
+                        newMessages: [reply]
+                    })
+                );
+
+            expect(messages).toEqual([
+                {
+                    id: 'a1',
+                    role: 'assistant',
+                    toolCalls: [expect.objectContaining({id: 'call1'})]
+                },
+                {id: 'call1-result', role: 'tool', toolCallId: 'call1', content: '{"tempC":18}'}
+            ]);
+        });
+
+        it('sends the catalog version with the turn', () => {
+            const question = user('Hi'),
+                body = new AgUiCodec().encodeRequest(
+                    request([question], {
+                        historyMode: 'server',
+                        newMessages: [question],
+                        catalogVersion: 'v1'
+                    })
+                );
+            expect(body.forwardedProps).toEqual({
+                turnId: 'u1',
+                trigger: 'submit',
+                catalogVersion: 'v1'
+            });
+        });
+
+        it('leaves forwardedProps to the app in client mode', () => {
+            const body = new AgUiCodec({forwardedProps: {tenant: 'emea'}}).encodeRequest(
+                request([user('Hi')], {runOptions: {scope: ['doc-1']}})
+            );
+            expect(body.forwardedProps).toEqual({tenant: 'emea'});
+        });
+    });
+
     describe('createDecoder', () => {
         it('passes known events through unchanged and drops unknown records', () => {
             const decode = new AgUiCodec().createDecoder(),
@@ -191,8 +326,17 @@ function request(messages: ChatMessage[], changes: Partial<ChatRunRequest> = {})
     return {
         threadId: 't1',
         runId: 'r1',
+        historyMode: 'client',
+        trigger: 'submit',
+        turnId: findLast(messages, it => it.isUser)?.id ?? null,
+        stepIndex: 0,
         messages,
+        newMessages: [],
+        replacedMessageId: null,
+        runOptions: null,
+        catalogVersion: null,
         tools: [],
+        context: [],
         signal: new AbortController().signal,
         ...changes
     };

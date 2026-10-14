@@ -36,8 +36,8 @@ Key features:
   themes, so they follow the light and dark themes.
 - **Numbers that never cut short** - a KPI tile shows a large value in a compact form, such as
   `$48.5B`, with the full value in a tooltip. Grid columns size to their content.
-- **Follow-up actions** - card buttons send a prompt as the user's next message. The user sees
-  the prompt before and after the click.
+- **Follow-up actions** - card buttons run typed actions. By default each one sends a message as
+  the user's next turn, and its tooltip shows what the click does.
 
 ## Architecture
 
@@ -98,7 +98,8 @@ const chatModel = new ChatModel({
         url: 'llm/stream',
         codec: new AnthropicCodec({system: `${appPrompt}\n\n${catalog.instructions}`})
     }),
-    tools: [...appTools, ...catalog.tools]
+    tools: appTools,
+    catalog
 });
 ```
 
@@ -184,19 +185,27 @@ of its value, unless the model sets `deltaFormat`. A large `number` or `currency
 100,000 up, shows to three significant digits with a `K`, `M`, `B` or `T` suffix. Its tooltip
 shows the full value. The model sends the full number.
 
-A card shows one record. Each action is a button that sends its `prompt` through
-`ChatModel.sendAsync()`, as the user's own message. The prompt shows in the button's tooltip
-before the click, and in the chat after it, so the user sees exactly what an action sends.
-Prompts are at most 200 characters. The buttons are disabled while the chat is busy.
+A card shows one record. Each action is a typed `ChatUiAction` with a `label`, shown as a button
+that runs it through the catalog's `runActionAsync()`. By default the card takes `send` actions
+only. A `send` action sends its `text` as the user's own message, with any structured `context` on
+the message's `metadata.context`. The context is a flat object of at most 8 short values, such as
+record ids. The button's tooltip describes the action and its context before the click, and the
+chat shows both after it. Sent text is at most 200 characters. Buttons that send a message or run
+a tool are disabled while the chat is busy, or while a send blocker gives a reason to wait.
 
 ```json
 {
     "title": "Acme Corp",
     "subtitle": "Counterparty - Tier 1",
     "fields": [{"label": "Exposure", "value": 4200000, "format": "currency", "decimals": 0}],
-    "actions": [{"text": "Show trades", "prompt": "Show my open trades with Acme Corp."}]
+    "actions": [
+        {"type": "send", "label": "Show trades", "text": "Show my open trades with Acme Corp.", "context": {"counterpartyId": 4417}}
+    ]
 }
 ```
+
+Pass `actionTypes` to allow more kinds of action, such as `navigate` or `app`. See [Run
+actions](../../../genui/README.md#run-actions) for each type and its checks.
 
 ### Render a component directly
 
@@ -206,7 +215,13 @@ renderer. Pass the props the model would write:
 ```typescript
 chatUiGrid({columns, rows, maxHeight: 240});
 chatUiMetrics({metrics});
-chatUiCard({title, fields, actions, chatModel});
+chatUiCard({
+    title,
+    fields,
+    actions,
+    chatModel,
+    runActionAsync: action => catalog.runActionAsync(action, {chatModel, messageId})
+});
 ```
 
 ## Properties/API Reference
@@ -238,6 +253,7 @@ text that tells the model when to use the component.
 | `chatUiMetricsSpec` | `maxItems` | `number` | Most tiles. Default 8. |
 | `chatUiCardSpec` | `maxFields` | `number` | Most fields. Default 16. |
 | | `maxActions` | `number` | Most actions. Default 4. |
+| | `actionTypes` | `ChatUiActionType[]` | Kinds of action the model may put on the card. Default `['send']`. |
 
 ### Component props
 
@@ -246,7 +262,7 @@ text that tells the model when to use the component.
 | `ChatUiGrid` | `title`, `columns`, `rows`, `sortBy` | `isPartial`, `maxHeight` |
 | `ChatUiChart` | `title`, `type`, `xAxis`, `yAxis`, `series` | `isPartial`, `height` |
 | `ChatUiMetrics` | `metrics` | `isPartial` |
-| `ChatUiCard` | `title`, `subtitle`, `fields`, `actions` | `chatModel`, `isPartial` |
+| `ChatUiCard` | `title`, `subtitle`, `fields`, `actions` | `chatModel`, `runActionAsync`, `isPartial` |
 
 See the TSDoc in each source file for the full shape of the props.
 

@@ -2,6 +2,7 @@ import {div, img, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
+import {type ChatImagePolicy, isChatImageAllowed} from '../../../cmp/markdown';
 import type {ChatFilePart} from '../../../core';
 import '../../../styles/vars.scss';
 import './ChatFileChip.scss';
@@ -15,21 +16,29 @@ export interface ChatFileChipProps extends HoistProps {
 
     /** Called when the user removes the file. Shows a remove button when provided. */
     onRemove?: (file: ChatFilePart) => void;
+
+    /**
+     * Images at a URL to load as a thumbnail. Default false, as loading one sends a request that
+     * could leak data - see {@link ChatMarkdownProps.allowImages}. An image with inline `data`,
+     * such as the user's own attachment, always shows.
+     */
+    allowImages?: ChatImagePolicy;
 }
 
 /**
  * A compact chip for a file attached to a message - a thumbnail for an image, otherwise an icon
- * for its type - with its name and size. Shows a remove button when `onRemove` is provided, as in
- * the composer's attachment tray.
+ * for its type - with its name and size. An image at a URL shows a thumbnail only if
+ * `allowImages` permits it. Shows a remove button when `onRemove` is provided, as in the
+ * composer's attachment tray.
  */
 export const [ChatFileChip, chatFileChip] = hoistCmp.withFactory<ChatFileChipProps>({
     displayName: 'ChatFileChip',
     model: false,
     className: 'xh-chat-file-chip',
 
-    render({className, file, onRemove}, ref) {
+    render({className, file, onRemove, allowImages = false}, ref) {
         const {name, mediaType, size} = file,
-            previewSrc = getPreviewSrc(file);
+            previewSrc = getPreviewSrc(file, allowImages);
 
         return div({
             ref,
@@ -69,10 +78,10 @@ export const [ChatFileChip, chatFileChip] = hoistCmp.withFactory<ChatFileChipPro
 //------------------
 // Implementation
 //------------------
-function getPreviewSrc({mediaType, url, data}: ChatFilePart): string {
+function getPreviewSrc({mediaType, url, data}: ChatFilePart, allowImages: ChatImagePolicy): string {
     if (!mediaType?.startsWith('image/')) return null;
     if (data) return `data:${mediaType};base64,${data}`;
-    return url ?? null;
+    return isChatImageAllowed(allowImages, url) ? url : null;
 }
 
 function formatMediaType(mediaType: string): string {

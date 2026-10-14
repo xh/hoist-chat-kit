@@ -1,6 +1,6 @@
 import type {HoistInputModel} from '@xh/hoist/cmp/input';
 import {HoistModel} from '@xh/hoist/core';
-import {action, bindable, computed, observableRef} from '@xh/hoist/mobx';
+import {action, bindable, bindableRef, computed, observableRef} from '@xh/hoist/mobx';
 import {pluralize, throwIf} from '@xh/hoist/utils/js';
 import {createObservableRef} from '@xh/hoist/utils/react';
 import {findLast, isEmpty, round, take} from 'lodash';
@@ -32,6 +32,9 @@ export interface ChatComposerConfig {
 /**
  * Model for the message composer: the draft text and attachments of the next user message.
  * Created and managed by {@link ChatModel} as its `composerModel`.
+ *
+ * The attachment settings are bindable, so an app can change them after construction - for
+ * example to allow files only for an agent that reads them.
  */
 export class ChatComposerModel extends HoistModel {
     declare config: ChatComposerConfig;
@@ -40,10 +43,6 @@ export class ChatComposerModel extends HoistModel {
     // Immutable Properties
     //-----------------------
     readonly chatModel: ChatModel;
-    readonly enableAttachments: boolean;
-    readonly accept: string[];
-    readonly maxFiles: number;
-    readonly maxFileSize: number;
 
     /**
      * Ref to the Hoist input that edits the draft. A composer component sets it as the input's
@@ -54,6 +53,21 @@ export class ChatComposerModel extends HoistModel {
     //-----------------------
     // Observable State
     //-----------------------
+    /**
+     * True to let the user attach files. Turning it off hides the attach button and refuses new
+     * files, and leaves any files already attached in the draft. (bindable)
+     */
+    @bindable accessor enableAttachments: boolean;
+
+    /** File types to accept, as MIME types or extensions, or null for any. (bindable) */
+    @bindableRef accessor accept: string[];
+
+    /** Maximum files per message. (bindable) */
+    @bindable accessor maxFiles: number;
+
+    /** Maximum size per file, in bytes. (bindable) */
+    @bindable accessor maxFileSize: number;
+
     /** Draft message text. (observable) */
     @bindable accessor text: string = '';
 
@@ -72,10 +86,14 @@ export class ChatComposerModel extends HoistModel {
         return !this.text.trim() && isEmpty(this.attachments);
     }
 
-    /** True if the draft can be sent now. */
+    /**
+     * True if the draft can be sent now: it has content, no reply is in progress, and the chat's
+     * `sendBlocker` gives no reason to wait.
+     */
     @computed
     get canSend(): boolean {
-        return !this.isEmpty && !this.chatModel.isBusy;
+        const {chatModel} = this;
+        return !this.isEmpty && !chatModel.isBusy && !chatModel.sendBlockedReason;
     }
 
     constructor(config: ChatComposerConfig) {

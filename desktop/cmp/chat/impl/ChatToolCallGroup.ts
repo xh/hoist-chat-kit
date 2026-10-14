@@ -9,6 +9,7 @@ import {pluralize} from '@xh/hoist/utils/js';
 import {type ChatPartRenderContext, type ChatToolCallPart, isToolCallFinal} from '../../../../core';
 import {chatToolCall} from '../ChatToolCall';
 import {classNames} from '../../../../impl/ClassNames';
+import {chatErrorBoundary} from './ChatErrorBoundary';
 import {getToolTitle} from './ToolCallStatus';
 
 interface ChatToolCallGroupProps extends HoistProps {
@@ -73,11 +74,14 @@ export const chatToolCallGroup = hoistCmp.factory<ChatToolCallGroupProps>({
                     ? div({
                           className: 'xh-chat-tool-call-group__items',
                           items: parts.map(part =>
-                              chatToolCall({
+                              chatErrorBoundary({
                                   key: part.id,
-                                  className: 'xh-chat-tool-call--grouped',
-                                  part,
-                                  context
+                                  resetKey: part.state,
+                                  item: chatToolCall({
+                                      className: 'xh-chat-tool-call--grouped',
+                                      part,
+                                      context
+                                  })
                               })
                           )
                       })

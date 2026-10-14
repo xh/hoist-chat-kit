@@ -32,6 +32,7 @@ describe('ChatStreamReducer', () => {
             ]);
 
             expect(message.metadata).toEqual({
+                runId: 'r',
                 finishReason: 'stop',
                 model: 'claude',
                 usage: [{inputTokens: 10, outputTokens: 20}]
@@ -69,14 +70,71 @@ describe('ChatStreamReducer', () => {
             expect(message.metadata.errorCode).toBe('rate_limit_error');
         });
 
-        it('leaves the message unchanged for lifecycle-only events', () => {
+        it('leaves the message unchanged for stage events', () => {
             const message = pendingMessage(),
                 result = new ChatStreamReducer(0).apply(message, [
-                    {type: 'RUN_STARTED', threadId: 't', runId: 'r'},
                     {type: 'STEP_STARTED', stepName: 'plan'},
                     {type: 'STEP_FINISHED', stepName: 'plan'}
                 ]);
             expect(result).toBe(message);
+        });
+
+        it('records the run id of RUN_STARTED, and reports its thread id', () => {
+            const reducer = new ChatStreamReducer(0),
+                message = reducer.apply(pendingMessage(), [
+                    {type: 'RUN_STARTED', threadId: 'server-thread', runId: 'server-run'}
+                ]);
+
+            expect(message.metadata).toEqual({runId: 'server-run'});
+            expect(message.parts).toEqual([]);
+            expect(message.status).toBe('pending');
+            expect(reducer.runThreadId).toBe('server-thread');
+            expect(reducer.runId).toBe('server-run');
+        });
+
+        it('records the server id of the reply from xh.chat.message', () => {
+            const reducer = new ChatStreamReducer(0),
+                message = reducer.apply(pendingMessage(), [
+                    custom('xh.chat.message', {role: 'assistant', serverId: 'q-7'}),
+                    {type: 'RUN_FINISHED', threadId: 't', runId: 'r', result: {messageId: 'other'}}
+                ]);
+
+            expect(message.metadata.serverId).toBe('q-7');
+            expect(reducer.userServerId).toBeNull();
+        });
+
+        it('takes the server id of the reply from RUN_FINISHED when no event reported one', () => {
+            const message = reduce([
+                {type: 'RUN_FINISHED', threadId: 't', runId: 'r', result: {messageId: 'q-8'}}
+            ]);
+            expect(message.metadata.serverId).toBe('q-8');
+        });
+
+        it('reports the server id of the user message, leaving the reply alone', () => {
+            const reducer = new ChatStreamReducer(0),
+                message = pendingMessage(),
+                result = reducer.apply(message, [
+                    custom('xh.chat.message', {role: 'user', serverId: 'u-7'})
+                ]);
+
+            expect(result).toBe(message);
+            expect(reducer.userServerId).toBe('u-7');
+        });
+
+        it('records the wait the backend asks for on RUN_ERROR', () => {
+            const message = reduce([
+                {
+                    type: 'RUN_ERROR',
+                    message: 'Still answering.',
+                    code: 'duplicate_in_progress',
+                    metadata: {retryAfterSeconds: 20}
+                }
+            ]);
+
+            expect(message).toMatchObject({
+                status: 'error',
+                metadata: {errorCode: 'duplicate_in_progress', retryAfterSeconds: 20}
+            });
         });
     });
 
@@ -140,6 +198,105 @@ describe('ChatStreamReducer', () => {
                 {text: 'Step one.', step: 0},
                 {text: 'Step two.', step: 1}
             ]);
+        });
+    });
+
+    describe('text replace', () => {
+        it('empties the open text part on a reset, and appends what follows', () => {
+            const reducer = new ChatStreamReducer(0);
+            let message = reducer.apply(pendingMessage(), [
+                {type: 'TEXT_MESSAGE_CHUNK', delta: 'A first try'},
+                custom('xh.chat.textReplace', {text: ''})
+            ]);
+            expect(message.parts).toMatchObject([{type: 'text', text: '', state: 'streaming'}]);
+
+            message = reducer.apply(message, [{type: 'TEXT_MESSAGE_CHUNK', delta: 'The answer.'}]);
+            expect(message.parts).toHaveLength(1);
+            expect(message.text).toBe('The answer.');
+        });
+
+        it('sets the final text of the last text part when none is open', () => {
+            const reducer = new ChatStreamReducer(0),
+                message = reducer.apply(pendingMessage(), [
+                    ...text('m1', 'Streamed [1].'),
+                    custom('xh.chat.textReplace', {text: 'Final [1].'})
+                ]);
+
+            expect(message.parts).toMatchObject([
+                {type: 'text', text: 'Final [1].', state: 'done'}
+            ]);
+        });
+
+        it('adds a text part when the reply has none', () => {
+            const reducer = new ChatStreamReducer(0),
+                message = reducer.apply(pendingMessage(), [
+                    custom('xh.chat.textReplace', {text: 'Only the final text.'})
+                ]);
+
+            expect(message.text).toBe('Only the final text.');
+            expect(reducer.finish(message).parts[0]).toMatchObject({state: 'done'});
+        });
+
+        it('adds no part for an empty replace when the reply has no text', () => {
+            const message = pendingMessage(),
+                result = new ChatStreamReducer(0).apply(message, [
+                    custom('xh.chat.textReplace', {text: ''})
+                ]);
+            expect(result).toBe(message);
+        });
+    });
+
+    describe('text transform', () => {
+        it('transforms all the text so far on each change, never its own output', () => {
+            const calls = [],
+                textTransform = (text: string, {isStreaming}) => {
+                    calls.push([text, isStreaming]);
+                    return text.replace(/<thinking>[\s\S]*?(<\/thinking>|$)/g, '');
+                },
+                reducer = new ChatStreamReducer(0, {textTransform});
+
+            let message = reducer.apply(pendingMessage(), [
+                {type: 'TEXT_MESSAGE_START', messageId: 'm1'},
+                {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: '<thinking>Plan'}
+            ]);
+            expect(message.text).toBe('');
+
+            message = reducer.apply(message, [
+                {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: ' it.</thinking>Paris'},
+                {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: ' is sunny.'}
+            ]);
+            expect(message.text).toBe('Paris is sunny.');
+
+            message = reducer.apply(message, [{type: 'TEXT_MESSAGE_END', messageId: 'm1'}]);
+            expect(message.text).toBe('Paris is sunny.');
+            expect(calls).toEqual([
+                ['<thinking>Plan', true],
+                ['<thinking>Plan it.</thinking>Paris is sunny.', true],
+                ['<thinking>Plan it.</thinking>Paris is sunny.', false]
+            ]);
+        });
+
+        it('transforms text set by a replace', () => {
+            const reducer = new ChatStreamReducer(0, {textTransform: it => it.toUpperCase()}),
+                message = reducer.apply(pendingMessage(), [
+                    custom('xh.chat.textReplace', {text: 'final'})
+                ]);
+            expect(message.text).toBe('FINAL');
+        });
+
+        it('gives the final text to the transform when a turn ends before its stream', () => {
+            const textTransform = vi.fn((text: string) => text),
+                reducer = new ChatStreamReducer(0, {textTransform}),
+                streamed = reducer.apply(pendingMessage(), [
+                    {type: 'TEXT_MESSAGE_CHUNK', delta: 'Partial'}
+                ]),
+                settled = reducer.settleText(streamed);
+
+            expect(settled.parts).toMatchObject([{type: 'text', state: 'done'}]);
+            expect(textTransform).toHaveBeenLastCalledWith('Partial', {
+                message: streamed,
+                isStreaming: false
+            });
         });
     });
 
@@ -343,6 +500,49 @@ describe('ChatStreamReducer', () => {
             expect((message.parts[0] as ChatToolCallPart).output).toBe('Done.');
         });
 
+        it.each([
+            ['metadata.error', {error: 'Quota exceeded.'}, 'ignored', 'Quota exceeded.'],
+            ['metadata.isError', {isError: true}, 'Quota exceeded.', 'Quota exceeded.'],
+            ['metadata.isError with no content', {isError: true}, '', 'The tool failed.']
+        ])('fails a backend call whose result sets %s', (_, metadata, content, errorText) => {
+            const message = reduce([
+                ...toolCall('c1', 'webSearch', '{}'),
+                {type: 'TOOL_CALL_RESULT', messageId: 'res1', toolCallId: 'c1', content, metadata}
+            ]);
+            expect(message.parts[0]).toMatchObject({
+                state: 'output-error',
+                output: null,
+                errorText,
+                providerExecuted: true
+            });
+        });
+
+        it('reads the error text of an isError result from its text parts', () => {
+            const message = reduce([
+                ...toolCall('c1', 'webSearch', '{}'),
+                {
+                    type: 'TOOL_CALL_RESULT',
+                    messageId: 'res1',
+                    toolCallId: 'c1',
+                    content: [{type: 'text', text: 'Index offline.'}],
+                    metadata: {isError: true}
+                }
+            ]);
+            expect((message.parts[0] as ChatToolCallPart).errorText).toBe('Index offline.');
+        });
+
+        it('fails a backend call on xh.chat.toolError', () => {
+            const message = reduce([
+                ...toolCall('c1', 'webSearch', '{}'),
+                custom('xh.chat.toolError', {toolCallId: 'c1', message: 'Index offline.'})
+            ]);
+            expect(message.parts[0]).toMatchObject({
+                state: 'output-error',
+                errorText: 'Index offline.',
+                providerExecuted: true
+            });
+        });
+
         it('marks a call as run by the backend on xh.chat.providerExecuted', () => {
             const message = reduce([
                 {type: 'TOOL_CALL_START', toolCallId: 'c1', toolCallName: 'webSearch'},
@@ -416,7 +616,14 @@ describe('ChatStreamReducer', () => {
 
         it('adds source, data and file parts from xh.chat events', () => {
             const message = reduce([
-                custom('xh.chat.source', {id: 's1', url: 'https://xh.io', title: 'XH'}),
+                custom('xh.chat.source', {
+                    id: 's1',
+                    url: 'https://xh.io',
+                    title: 'XH',
+                    marker: 1,
+                    metadata: {documentId: 'd-7', excerpt: 'Hoist is fast.'},
+                    ignored: true
+                }),
                 custom('xh.chat.data', {id: 'd1', dataType: 'chart', data: {series: []}}),
                 custom('xh.chat.file', {name: 'a.png', mediaType: 'image/png', url: '/a.png'})
             ]);
@@ -431,7 +638,9 @@ describe('ChatStreamReducer', () => {
                 id: 's1',
                 step: 0,
                 url: 'https://xh.io',
-                title: 'XH'
+                title: 'XH',
+                marker: 1,
+                metadata: {documentId: 'd-7', excerpt: 'Hoist is fast.'}
             });
             expect(data).toMatchObject({type: 'data', id: 'd1', dataType: 'chart'});
             expect(file).toMatchObject({type: 'file', name: 'a.png', url: '/a.png'});

@@ -31,6 +31,23 @@ its tools.
 | Let the user answer a tool call | [`/core/`](../core/README.md#let-the-user-answer-a-tool-call) |
 | Save and restore a conversation | [`/core/`](../core/README.md#persist-and-restore-a-conversation) |
 | Handle errors, retries and finish reasons | [`/core/`](../core/README.md#handle-errors-and-finish-reasons) |
+| Connect to an agent service that owns the history and threads | [`/core/`](../core/README.md#run-a-server-owned-conversation) |
+| Send per-turn options, such as a document scope | [`/core/`](../core/README.md#pick-options-per-turn) |
+| Stop a run, or leave it running on the server | [`/core/`](../core/README.md#stop-or-detach-a-turn) |
+| Send ratings and comments on replies | [`/core/`](../core/README.md#rate-a-reply) |
+| Describe the app's live state to the model at every step | [`/core/`](../core/README.md#send-live-context-with-every-step) |
+| Let the user undo the changes a reply made | [`/core/`](../core/README.md#undo-a-replys-changes) |
+| Add a helper agent beside a grid or a dashboard | [`/assist/`](../assist/README.md) |
+| Let the model arrange a grid: columns, sorts, groups, filters | [`/assist/`](../assist/README.md#arrange-a-grid) |
+| Let the model arrange a `DashCanvas` and its views | [`/assist/`](../assist/README.md#arrange-a-dashboard) |
+| Use the app's configured LLM backend, with no wiring | [`/svc/`](../svc/README.md) |
+| Connect to an OpenAI-compatible model gateway | [`/transport/`](../transport/README.md#bring-your-own-llm) |
+| List a user's stored threads, and switch between them | [`/threads/`](../threads/README.md) |
+| Implement a thread store for your backend | [`/threads/`](../threads/README.md#configuration-pattern) |
+| Run turns in the background while the user reads another thread | [`/threads/`](../threads/README.md#let-turns-run-in-the-background) |
+| Link to a thread with a route parameter | [`/threads/`](../threads/README.md#link-to-a-thread) |
+| Group a thread list into Today, Yesterday and older | [`/threads/`](../threads/README.md#group-the-list-by-recency) |
+| Encode a request for a server-owned conversation | [`/transport/`](../transport/README.md#server-owned-conversations) |
 | Connect to a hoist-core server | [`/transport/`](../transport/README.md#relay-claude-through-a-hoist-server) |
 | Write a Grails controller that streams a model reply | [`/transport/`](../transport/README.md#hoist-server-example) |
 | Call Claude, with a system prompt and prompt caching | [`/transport/`](../transport/README.md#relay-claude-through-a-hoist-server) |
@@ -41,6 +58,9 @@ its tools.
 | Let the model show Hoist components inline in its reply | [`/genui/`](../genui/README.md) |
 | Write a catalog component of your own | [`/genui/`](../genui/README.md#write-a-component-spec) |
 | Adapt A2UI, OpenUI or another protocol's UI payload | [`/genui/`](../genui/README.md#adapt-a-protocols-ui-payload) |
+| Show grids and charts over a result set by reference | [`/genui/`](../genui/README.md#show-data-by-reference) |
+| Put components in a markdown answer as tags | [`/genui/`](../genui/README.md#read-tags-in-a-markdown-answer) |
+| Export a catalog for a server that runs the tool loop | [`/genui/`](../genui/README.md#export-the-catalog-for-a-server) |
 | Render app content in the chat as a data part | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#render-a-tool-call-as-ui) |
 | Learn how AG-UI, A2UI, OpenUI or MCP Apps relate to the kit | [Protocols](./protocols.md) |
 | Put a chat panel on screen, with a clear button | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) |
@@ -59,9 +79,12 @@ its tools.
 
 | Package | Description | Key Topics |
 |---------|-------------|------------|
-| [`/core/`](../core/README.md) | Platform-neutral chat models: conversation state, the turn loop, messages, parts, tools and the composer | ChatModel, ChatMessage, ChatPart, ChatToolSpec, ChatComposerModel, ChatRunError, turns, steps, approvals, interactive tools, persistence, finish reasons |
-| [`/transport/`](../transport/README.md) | Transports and codecs that turn a backend's stream into AG-UI events, with server contracts | ChatTransport, HoistChatTransport, SseChatTransport, ScriptedChatTransport, HttpChatTransport, AgUiCodec, AnthropicCodec, ChatEvent, xh.chat events, NDJSON, Grails controller, prompt caching, citationEvents |
-| [`/genui/`](../genui/README.md) | Generative UI: a catalog of app components the model can show inline, with protocol adapters | ChatUiCatalog, ChatUiComponentSpec, ChatUiRenderContext, ChatUiAdapter, ChatUiNode, JSON Schema subset, partial props, instructions, inline display |
+| [`/core/`](../core/README.md) | Platform-neutral chat models: conversation state, the turn loop, messages, parts, tools and the composer | ChatModel, ChatMessage, ChatPart, ChatToolSpec, ChatComposerModel, ChatRunError, ChatContextProvider, contextProviders, chatToolResult, undoTurnAsync, preview, turns, steps, approvals, interactive tools, persistence, finish reasons, historyMode, runOptions, stop and detach, feedback, textTransform, activity tracking |
+| [`/threads/`](../threads/README.md) | Platform-neutral thread layer: a store adapter, one chat per open thread, background turns, paging, search, edits with rollback and deep links | ChatThreadsModel, ChatThreadStore, ChatThreadSummary, LocalChatThreadStore, groupThreadsByRecency, background turns, runningThreadIds, createThreadAsync, re-keying, optimistic rename and delete, paged history, search, route binding, concurrency rules |
+| [`/transport/`](../transport/README.md) | Transports and codecs that turn a backend's stream into AG-UI events, with server contracts | ChatTransport, HoistChatTransport, SseChatTransport, ScriptedChatTransport, HttpChatTransport, AgUiCodec, AnthropicCodec, ChatCompletionsCodec, bring your own LLM, OpenAI chat completions, ChatRunContext, ChatEvent, xh.chat events, NDJSON, Grails controller, prompt caching, citationEvents, server-owned conversations, turnId, newMessages, cancelUrl |
+| [`/svc/`](../svc/README.md) | `ChatService`, which resolves the app's default LLM backend from the `chatConfig` soft config | ChatService, XH.chatService, chatConfig, ChatConfig, isEnabled, createTransport, bring your own LLM, codec, anthropic, openai-chat, agui |
+| [`/assist/`](../assist/README.md), [`/desktop/assist/`](../assist/README.md#arrange-a-dashboard) | Tool groups for component helper agents: `gridTools`, and `dashCanvasTools` in `/desktop/assist/` | ChatToolGroup, gridTools, dashCanvasTools, GridToolCapability, DashCanvasToolCapability, settingsSchema, helper agents, GridModel, DashCanvasModel, ViewManagerModel, undo, context provider, suggestions |
+| [`/genui/`](../genui/README.md) | Generative UI: a catalog of app components the model can show inline, as tools, tags or nested documents, with data by reference, typed actions and a server export | ChatUiCatalog, ChatUiComponentSpec, ChatUiDocument, ChatUiRenderContext, ChatArtifactRegistry, ChatDataView, ChatUiAction, ChatUiAdapter, parseTags, show_ui, JSON Schema subset, partial props, inline display |
 
 ### Components
 
@@ -75,7 +98,7 @@ its tools.
 
 | Concept | Description | Key Topics |
 |---------|-------------|------------|
-| [Architecture](./architecture.md) | The kit's layers, the flow of one turn, render performance, extension seams and the platform split | layers, turn flow, immutable messages, flush batching, memoization, extension points, desktop, mobile |
+| [Architecture](./architecture.md) | The kit's layers, the flow of one turn, the two conversation shapes, render performance, extension seams and the platform split | layers, turn flow, conversation shapes, server mode, immutable messages, flush batching, memoization, extension points, desktop, mobile |
 | [Protocols](./protocols.md) | How AG-UI, Anthropic, OpenAI, A2UI, OpenUI, MCP Apps and the Vercel AI SDK relate to the kit | AG-UI, Anthropic, OpenAI, A2UI, OpenUI, MCP Apps, generative UI, data parts, Vercel AI SDK, tool states |
 
 ## Conventions

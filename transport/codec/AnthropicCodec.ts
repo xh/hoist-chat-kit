@@ -1,6 +1,7 @@
 import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
 import {
+    castArray,
     compact,
     dropWhile,
     findLast,
@@ -11,6 +12,7 @@ import {
     isEmpty,
     isFunction,
     isNil,
+    isPlainObject,
     isString,
     last,
     omitBy,
@@ -26,8 +28,10 @@ import {
     isToolCallFinal
 } from '../../core';
 import type {ChatCodec, ChatDecoder} from '../ChatCodec';
-import type {ChatEvent, ChatTokenUsage} from '../ChatEvent';
+import type {ChatEvent, ChatTokenUsage, ToolCallResultEvent} from '../ChatEvent';
 import type {ChatRunRequest} from '../ChatTransport';
+import {contextText, messageContextText} from '../impl/context';
+import {decodeBase64Text, IMAGE_TYPES, isTextType, omittedFileText} from '../impl/files';
 import {partsBySteps, toolResultText} from '../impl/history';
 
 /** A system prompt for the Messages API - plain text, or a list of text blocks. */
@@ -76,7 +80,7 @@ export interface AnthropicCodecConfig {
      * after the last one, unmarked. For a system prompt that ends with live state, return blocks
      * from `system` with the static part first, and mark that block with `cache_control` yourself:
      * the live block after it is then sent fresh each step, and the static part comes from the
-     * cache.
+     * cache. Context from the chat's context providers goes after the history's breakpoint for you.
      */
     cacheControl?: boolean;
 
@@ -93,18 +97,21 @@ export interface AnthropicCodecConfig {
  * leaves it out), then relays the `data` of each SSE event it receives - one JSON object per NDJSON
  * line with {@link HoistChatTransport}, or the SSE stream unchanged with {@link SseChatTransport}.
  *
- * Requests are Messages API bodies with `stream: true`. The history is rebuilt as Anthropic turns:
- * each step of an assistant turn becomes an assistant turn - its thinking (with signatures), text
- * and tool calls - followed by a user turn with the results of its tool calls, flagged `is_error`
- * for failed and denied calls. Attached images, PDFs and text files (including JSON, XML and
+ * Requests are Messages API bodies with `stream: true`. The chat's live context - see
+ * `ChatModelConfig.contextProviders` - goes at the end of the last user turn, as one text block
+ * per provider, after the history's cache breakpoint. Each step sends it fresh, and the step after
+ * reads the history from the cache. The history is rebuilt as Anthropic
+ * turns: each step of an assistant turn becomes an assistant turn - its thinking (with
+ * signatures), text and tool calls - followed by a user turn with the results of its tool calls,
+ * flagged `is_error` for failed and denied calls. Attached images, PDFs and text files (including JSON, XML and
  * similar types) are sent as image and document blocks. Other attachments are named in a text
  * block, so that the model knows they were left out. Tools are sent as
  * `{name, description, input_schema}`. A request whose history holds no user content throws, as
  * the API would reject it.
  *
  * Decoding translates the stream into the kit's events: text, thinking with its signature, tool
- * calls with their streamed input, server tool calls such as web search with their results, and
- * citations as `xh.chat.citation` events. Data that must go back to Anthropic unchanged - the data
+ * calls with their streamed input, server tool calls such as web search with their results (a
+ * result block that reports an error fails its call), and citations as `xh.chat.citation` events. Data that must go back to Anthropic unchanged - the data
  * of redacted thinking, and the result blocks of server tools - is kept on the part as
  * `providerData.anthropic`. `RUN_FINISHED` reports token usage, the model, and a finish reason:
  *
@@ -116,6 +123,10 @@ export interface AnthropicCodecConfig {
  *
  * Anthropic's own `stop_reason` is reported alongside, as `stopReason`. An `error` event becomes
  * `RUN_ERROR`, with the Anthropic error type as its code.
+ *
+ * A client-mode codec: the Messages API keeps no state, so every request must carry the whole
+ * history. A request from a chat in server mode throws - pair a server-owned conversation with
+ * {@link AgUiCodec}, or a codec for the agent service's own format.
  *
  * Not yet supported: continuing a `pause_turn` response. The API pauses a long server tool loop
  * and expects the client to send the paused turn back to resume it. The turn currently ends at
@@ -159,6 +170,10 @@ export class AnthropicCodec implements ChatCodec {
     }
 
     async encodeRequest(request: ChatRunRequest): Promise<PlainObject> {
+        throwIf(
+            request.historyMode === 'server',
+            "AnthropicCodec needs the whole history, so it cannot serve a chat with historyMode 'server'."
+        );
         const {model, maxTokens, params, cacheControl, prepareBody} = this,
             messages = encodeMessages(request.messages);
         throwIf(isEmpty(messages), 'AnthropicCodec cannot encode a request with no user content.');
@@ -167,6 +182,13 @@ export class AnthropicCodec implements ChatCodec {
             tools = [...(params.tools ?? []), ...request.tools.map(encodeTool)];
         if (cacheControl) {
             ({system, tools} = addCacheBreakpoints(system, tools, messages));
+        }
+        // Context changes from step to step, so it goes after the history's breakpoint, unmarked.
+        // In the system prompt, it would come before the history and void its cache.
+        if (!isEmpty(request.context)) {
+            findLast(messages, {role: 'user'}).content.push(
+                ...textBlocks(request.context.map(contextText))
+            );
         }
 
         const body = {
@@ -209,19 +231,6 @@ export class AnthropicCodec implements ChatCodec {
 //------------------
 // Encoding
 //------------------
-const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-
-/** Media types, beyond `text/*`, whose content is text the model can read. */
-const TEXT_TYPES = [
-    'application/json',
-    'application/xml',
-    'application/javascript',
-    'application/yaml',
-    'application/x-yaml',
-    'application/sql',
-    'application/csv'
-];
-
 interface Turn {
     role: 'user' | 'assistant';
     content: PlainObject[];
@@ -314,7 +323,7 @@ function encodeMessages(messages: ChatMessage[]): Turn[] {
 
     messages.forEach(message => {
         if (message.role === 'user') {
-            push('user', encodeUserContent(message.parts));
+            push('user', encodeUserContent(message));
         } else if (message.role === 'assistant') {
             partsBySteps(message).forEach(parts => {
                 push('assistant', flatMap(parts, encodeAssistantPart));
@@ -326,13 +335,18 @@ function encodeMessages(messages: ChatMessage[]): Turn[] {
     return dropWhile(turns, it => it.role !== 'user');
 }
 
-/** Attachments ahead of text, as Anthropic recommends. */
-function encodeUserContent(parts: ChatPart[]): PlainObject[] {
-    const [files, others] = partition(parts, it => it.type === 'file') as [
-        ChatFilePart[],
-        ChatPart[]
-    ];
-    return compact([...files.map(encodeFile), ...others.map(encodeText)]);
+/** Attachments ahead of text, as Anthropic recommends, and the message's context after it. */
+function encodeUserContent(message: ChatMessage): PlainObject[] {
+    const [files, others] = partition(message.parts, it => it.type === 'file') as [
+            ChatFilePart[],
+            ChatPart[]
+        ],
+        context = messageContextText(message);
+    return compact([
+        ...files.map(encodeFile),
+        ...others.map(encodeText),
+        context ? {type: 'text', text: context} : null
+    ]);
 }
 
 function encodeText(part: ChatPart): PlainObject {
@@ -351,18 +365,7 @@ function encodeFile({name, mediaType, data, url}: ChatFilePart): PlainObject {
             source: {type: 'text', media_type: 'text/plain', data: decodeBase64Text(data)}
         };
     }
-    return {
-        type: 'text',
-        text: `[Attachment '${name}' (${mediaType}) not sent - the model cannot read this file type.]`
-    };
-}
-
-function isTextType(mediaType: string): boolean {
-    return (
-        mediaType.startsWith('text/') ||
-        TEXT_TYPES.includes(mediaType) ||
-        /\+(json|xml)$/.test(mediaType)
-    );
+    return {type: 'text', text: omittedFileText(name, mediaType)};
 }
 
 function encodeAssistantPart(part: ChatPart): PlainObject[] {
@@ -419,10 +422,6 @@ function getCallEncoding(part: ChatToolCallPart): 'server' | 'tool' {
     if (!part.providerExecuted) return 'tool';
     if (part.providerData?.anthropic?.resultBlock) return 'server';
     return part.state === 'output-available' ? 'tool' : null;
-}
-
-function decodeBase64Text(data: string): string {
-    return new TextDecoder().decode(Uint8Array.from(atob(data), c => c.charCodeAt(0)));
 }
 
 //------------------
@@ -565,15 +564,18 @@ class AnthropicDecoder {
             default:
                 // Server tool results (web search, web fetch, code execution...) arrive whole.
                 if (block.tool_use_id) {
-                    const toolCallId = block.tool_use_id;
-                    ret.push(
-                        {
+                    const toolCallId = block.tool_use_id,
+                        error = serverToolError(block),
+                        result: ToolCallResultEvent = {
                             type: 'TOOL_CALL_RESULT',
                             messageId: `result-${index}`,
                             toolCallId,
                             content: JSON.stringify(block.content ?? null),
                             role: 'tool'
-                        },
+                        };
+                    if (error != null) result.metadata = {error};
+                    ret.push(
+                        result,
                         // Kept verbatim - the next request must send the block back unchanged.
                         providerDataEvent('tool-call', toolCallId, {resultBlock: block})
                     );
@@ -665,6 +667,26 @@ class AnthropicDecoder {
             );
         return usage ? {metadata, usage: [decodeUsage(usage, model)]} : {metadata};
     }
+}
+
+/**
+ * The error text of a server tool result block that reports a failure, else null. A failed web
+ * search, web fetch or code execution has an error object as its `content`, such as
+ * `{type: 'web_search_tool_result_error', error_code: 'max_uses_exceeded'}`. A failed MCP call
+ * sets `is_error`, with the error text in its `content`.
+ */
+function serverToolError(block: PlainObject): string {
+    const {content, is_error} = block;
+    if (isPlainObject(content) && content.error_code != null) {
+        return `The tool failed: ${content.error_code}.`;
+    }
+    if (is_error) {
+        const text = isString(content)
+            ? content
+            : compact(castArray(content).map(it => it?.text)).join('\n');
+        return text || 'The tool failed.';
+    }
+    return null;
 }
 
 /** An event that keeps Anthropic data on a part, for the next request to send back. */

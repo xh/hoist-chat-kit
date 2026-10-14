@@ -1,6 +1,10 @@
 import type {PlainObject} from '@xh/hoist/core';
 import type {ReactNode} from 'react';
-import type {ChatDataPart, ChatPartRenderContext, ChatToolCallPart} from '../core';
+import type {ChatDataPart, ChatPartRenderContext, ChatTextPart, ChatToolCallPart} from '../core';
+import type {ChatDataHandle} from './ChatArtifactRegistry';
+import type {ChatUiAction} from './ChatUiAction';
+import type {ChatUiCatalog} from './ChatUiCatalog';
+import type {ChatUiNode} from './ChatUiDocument';
 
 /**
  * Declares a component that the model can show in the chat, as part of a {@link ChatUiCatalog}.
@@ -47,7 +51,8 @@ export interface ChatUiComponentSpec<P = PlainObject> {
     /**
      * JSON Schema for the props - sent to the model as the tool's input schema, and checked before
      * the component renders. Keep it tight: enums, required fields, and bounded arrays and strings.
-     * The catalog checks a subset of JSON Schema - see {@link ChatUiCatalog.validate}.
+     * The catalog checks a subset of JSON Schema, and refuses a schema that relies on other
+     * keywords - see {@link ChatUiCatalog.validate}.
      */
     props: PlainObject;
 
@@ -64,42 +69,109 @@ export interface ChatUiComponentSpec<P = PlainObject> {
      */
     render: (props: P, context: ChatUiRenderContext) => ReactNode;
 
+    /**
+     * The result sent to the model once the component shows, so that it knows what the user sees
+     * - for example `Showed 12 positions, largest first.`. Default a line that names the
+     * component.
+     */
+    result?: (props: P) => string;
+
     /** Example props, shown to the model in the catalog's instructions. Keep it small. */
     example?: P;
+
+    /**
+     * The child lists the component takes, for a container in a nested answer: `default` for its
+     * `children`, and other names for named slots, such as `header` or `actions`. The rendered
+     * lists reach `render` as `context.children` and `context.slots`. Default none - a component
+     * with no children.
+     */
+    slots?: string[];
+
+    /**
+     * Props that name data by reference - an artifact a tool produced - rather than hold it. Type
+     * each as a string in `props`. The catalog resolves each one to a {@link ChatDataHandle} in
+     * `context.data`, and loads its first page of rows. Give a name, or a spec with the page size
+     * and row limit of the component.
+     */
+    dataProps?: (string | ChatUiDataPropSpec)[];
+}
+
+/** A reference prop of a component, with how much of its data the component shows. */
+export interface ChatUiDataPropSpec {
+    /** Name of the prop. */
+    name: string;
+
+    /**
+     * Rows in the first page. If the artifact holds those rows inline, they are ready at once.
+     * Otherwise the component renders first, in the `loading` state, and the first page loads once
+     * it mounts. Default 100.
+     */
+    pageSize?: number;
+
+    /** Most rows the component can show. A larger artifact is `tooLarge`. Default no limit. */
+    maxRows?: number;
 }
 
 /**
  * Passed to {@link ChatUiComponentSpec.render}: the render context of the part that holds the
- * component - `chatModel` and `messageId` - plus the part itself and the state of its props.
+ * component - `chatModel` and `messageId` - plus the part itself, the element, its rendered
+ * children, the data behind its reference props, and a way to run actions.
  */
-export interface ChatUiRenderContext extends ChatPartRenderContext {
-    /**
-     * The part that holds the component: the tool call that showed it, or - for a component
-     * translated by a {@link ChatUiAdapter} - the data part that carried the protocol payload.
-     */
-    part: ChatToolCallPart | ChatDataPart;
+export interface ChatUiRenderContext extends ChatUiDocumentContext {
+    /** The catalog that renders the component - for example to check a URL. */
+    catalog: ChatUiCatalog;
 
-    /** True while the props are still streaming. */
-    isPartial: boolean;
+    /** The element the component renders for, with its id. */
+    element: ChatUiNode;
 
-    /**
-     * The rendered child components of a {@link ChatUiNode}, for a container component translated
-     * by an adapter. Empty for a component shown by a tool call.
-     */
+    /** The rendered child elements, for a component whose `slots` include `default`. */
     children: ReactNode[];
+
+    /** The rendered elements of each named slot, for a component that takes them. */
+    slots: Record<string, ReactNode[]>;
+
+    /** The data behind each reference prop that has a value, by prop name - see `dataProps`. */
+    data: Record<string, ChatDataHandle>;
+
+    /**
+     * Run an action the model wrote, such as the click of a button - see
+     * {@link ChatUiCatalog.runActionAsync}. Rejects an action that fails its checks.
+     */
+    runActionAsync(action: ChatUiAction): Promise<unknown>;
 }
 
-/**
- * One component to render, with its props and any child components - the output of a
- * {@link ChatUiAdapter}. Render a node, and its children, with {@link ChatUiCatalog.renderNode}.
- */
-export interface ChatUiNode {
-    /** Name of a component in the catalog. */
+/** Passed to {@link ChatUiCatalog.renderDocument}: where the document shows, and its state. */
+export interface ChatUiDocumentContext extends ChatPartRenderContext {
+    /**
+     * The part that holds the answer: the tool call that showed it, the data part that carried
+     * it, or the text part that holds its tag.
+     */
+    part: ChatToolCallPart | ChatDataPart | ChatTextPart;
+
+    /** True while the answer is still streaming, so that any element or prop may be incomplete. */
+    isPartial: boolean;
+}
+
+/** Passed to {@link ChatUiCatalogConfig.fallback}: an element that cannot render. */
+export interface ChatUiFallbackSpec {
+    /** Name of the catalog component, if the element names one. Else null. */
     component: string;
 
-    /** Props for the component, checked against its schema before it renders. */
-    props: PlainObject;
+    /** A line for the user, such as `This chart could not be displayed.`. */
+    caption: string;
 
-    /** Child components, rendered first and passed to the parent as `context.children`. */
-    children?: ChatUiNode[];
+    /** What is wrong, in the kit's `path: message` form. */
+    errors: string[];
+
+    /** What the model wrote - the element, the document, or the tag. */
+    input: unknown;
+}
+
+/** Passed to {@link ChatUiCatalogConfig.placeholder}: an element still streaming in. */
+export interface ChatUiPlaceholderSpec {
+    /** Name of the catalog component, once known. Else null. */
+    component: string;
+
+    /** The component's name for display, such as `Chart`, once known. Else null. */
+    displayName: string;
 }

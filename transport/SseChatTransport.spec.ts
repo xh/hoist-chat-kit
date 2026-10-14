@@ -66,6 +66,23 @@ describe('SseChatTransport', () => {
         expect(events).toEqual([TEXT_START]);
     });
 
+    it('resets the idle timeout on a keep-alive comment', async () => {
+        const stream = sseStream();
+        hoistCore.route('POST', 'agent', () => stream.response);
+
+        const events = collect(
+            new SseChatTransport({url: 'agent', idleTimeout: 120}).run(request())
+        );
+        for (let i = 0; i < 4; i++) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            stream.write(': ping\n\n');
+        }
+        stream.write(`data: ${JSON.stringify(TEXT_START)}\n\n`);
+        stream.close();
+
+        expect(await events).toEqual([TEXT_START]);
+    });
+
     it('yields no events for an empty response', async () => {
         hoistCore.route('POST', 'agent', () => noContent());
 
@@ -125,11 +142,21 @@ const TEXT_START: ChatEvent = {type: 'TEXT_MESSAGE_START', messageId: 'm1', role
     TEXT_CONTENT: ChatEvent = {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'Hello'};
 
 function request(signal: AbortSignal = new AbortController().signal): ChatRunRequest {
+    const message = new ChatMessage({id: 'u1', role: 'user', content: 'Hi'});
     return {
         threadId: 't1',
         runId: 'r1',
-        messages: [new ChatMessage({role: 'user', content: 'Hi'})],
+        historyMode: 'client',
+        trigger: 'submit',
+        turnId: 'u1',
+        stepIndex: 0,
+        messages: [message],
+        newMessages: [message],
+        replacedMessageId: null,
+        runOptions: null,
+        catalogVersion: null,
         tools: [],
+        context: [],
         signal
     };
 }

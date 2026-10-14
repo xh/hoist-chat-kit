@@ -101,7 +101,7 @@ export default ({envMode}) =>
     });
 ```
 
-Toolbox compiles the kit this way. Its Weather V2 example uses the kit for its Dashboard Agent.
+Toolbox compiles the kit this way on its `feature/weatherv2-chat-kit` branch, where the Weather V2 Dashboard Agent and a Chat Kit demo app run on the kit.
 
 ## Documentation
 
@@ -113,6 +113,8 @@ tasks to the right doc.
 | [Architecture](./docs/architecture.md) | Layers, the flow of one turn, render performance, extension points |
 | [`/core/`](./core/README.md) | `ChatModel`, messages and parts, tools, approvals, persistence, errors |
 | [`/transport/`](./transport/README.md) | Transports, codecs, `ChatEvent`, server contracts, the Grails example |
+| [`/svc/`](./svc/README.md) | `ChatService`, the app's configured LLM backend |
+| [`/assist/`](./assist/README.md) | Tool groups for helper agents beside a grid or a dashboard |
 | [`/genui/`](./genui/README.md) | The generative UI catalog, component specs and protocol adapters |
 | [`/desktop/cmp/chat/`](./desktop/cmp/chat/README.md) | Desktop components and theming |
 | [`/desktop/cmp/genui/`](./desktop/cmp/genui/README.md) | The built-in grid, chart, KPI tile and card components |

@@ -1,3 +1,5 @@
+@use '../../../styles/mixins' as *;
+
 .xh-chat-reasoning {
   display: flex;
   flex-direction: column;
@@ -15,7 +17,7 @@
     min-height: 28px;
   }
 
-  .xh-app & .xh-chat-reasoning__toggle.xh-button.bp6-button {
+  @include hoist-button('.xh-chat-reasoning__toggle') {
     // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
     // component styles in the dark theme - so set the variables, not the colors.
     --xh-button-text-color: var(--xh-chat-muted-text-color);

@@ -1,3 +1,5 @@
+@use '../../../styles/mixins' as *;
+
 .xh-chat-message {
   color: var(--xh-chat-text-color);
   display: flex;
@@ -141,6 +143,17 @@
     min-width: 0;
   }
 
+  &__ui {
+    min-width: 0;
+  }
+
+  &__context {
+    color: var(--xh-chat-muted-text-color);
+    font-size: var(--xh-chat-meta-font-size-px);
+    max-width: var(--xh-chat-bubble-max-width);
+    overflow-wrap: anywhere;
+  }
+
   &__data {
     min-width: 0;
 
@@ -192,7 +205,7 @@
     opacity: 1;
   }
 
-  .xh-app & .xh-chat-message__actions .xh-button.bp6-button {
+  @include hoist-button(null, '.xh-chat-message__actions') {
     min-height: 26px;
     min-width: 26px;
     padding: 0 5px;
