@@ -600,12 +600,13 @@ The `state` of a tool call follows the Vercel AI SDK names, plus `running`:
 | `interactive` | `boolean` | True for a tool the user answers. Ignored if `execute` is set. Default false. |
 | `needsApproval` | `boolean \| (input) => boolean` | True, or a function, to ask the user before each call runs. Client tools only. Default false. |
 | `approvalPrompt` | `string \| (input) => ReactNode` | The question that asks for approval, in place of the generic one. |
+| `approvalPreview` | `boolean` | True to render an inline call while it waits for approval, as a preview. Default false. |
 | `sendToModel` | `boolean` | True to send the tool to the model. Default true for client and interactive tools, false for backend tools. |
 | `displayName` | `string` | Title of the tool call card. Default the name, humanized. |
 | `icon` | `ReactElement` | Icon of the tool call card. |
 | `summary` | `(part) => string` | One-line summary next to the title, for example the city looked up. |
 | `renderer` | `(part, context) => ReactNode` | Custom body for the card, in place of the input and output JSON. Required for an interactive tool. |
-| `display` | `'card' \| 'inline'` | `card` shows calls as a collapsible card. `inline` shows only the `renderer` output, with a status only while the input streams, while the call waits for approval, or once it fails or is denied. Default `card`. |
+| `display` | `'card' \| 'inline'` | `card` shows calls as a collapsible card. `inline` shows only the `renderer` output, with a status only while the input streams, while the call waits for approval, or once it fails or is denied. A denied call renders no output. Default `card`. |
 
 The `context` of `execute` is a `ChatToolContext`: `chatModel`, `toolCallId`, and a `signal`
 that aborts when the user stops the turn.

@@ -268,7 +268,9 @@ A tool with `display: 'inline'` shows its renderer's output as part of the reply
 output is the call's progress. A quiet status line shows under it only while the input streams or
 waits for approval, and after the call fails or is denied. A failed call shows a short message for
 the user, with the error for the model behind a "View input" toggle that appears on hover. A
-`ChatUiCatalog` declares its tools this way - see [`/genui/`](../../../genui/README.md).
+denied call renders no output. A call that waits for approval renders none either, unless the
+tool sets `approvalPreview: true` to show what it will display. A `ChatUiCatalog` declares its
+tools this way - see [`/genui/`](../../../genui/README.md).
 
 An interactive tool needs a renderer, because the default card has no controls for an answer.
 `ChatModel` logs a warning for an interactive tool with no `renderer`. While a call waits for

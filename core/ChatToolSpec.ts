@@ -55,6 +55,13 @@ export interface ChatToolSpec {
     approvalPrompt?: string | ((input: PlainObject) => ReactNode);
 
     /**
+     * True to render a call with `display: 'inline'` while it waits for approval, as a preview of
+     * what it will show. Default false: the call renders nothing until approved, and nothing if
+     * denied.
+     */
+    approvalPreview?: boolean;
+
+    /**
      * True to send this tool to the model. Default true for client and interactive tools, false
      * for backend tools, whose specs the backend declares to the model itself.
      */
@@ -88,7 +95,9 @@ export interface ChatToolSpec {
      *  - `inline` - the output of `renderer` alone, as part of the reply. The rendered output is
      *    the call's progress, so a status line shows only while the input streams, while the call
      *    waits for approval, and if it fails or is denied. A quiet toggle to view the input shows
-     *    on hover. For tools that show UI to the user, such as those of a `ChatUiCatalog`.
+     *    on hover. A denied call renders nothing, and so does a call waiting for approval,
+     *    unless `approvalPreview` is set. For tools that show UI to the user, such as those of a
+     *    `ChatUiCatalog`.
      *
      * Default `card`.
      */

@@ -196,6 +196,9 @@ interface InlineToolCallArgs extends ChatToolCallProps {
  * a status only while the input streams, or if the call fails or is denied - the rendered output
  * is the progress otherwise. A toggle to view the input, and the details of any error, shows on
  * hover or focus.
+ *
+ * A denied call renders no output, as the user refused what it would show. A call waiting for
+ * approval renders none either, unless its spec sets `approvalPreview`.
  */
 function inlineToolCall({ref, className, part, context, spec, impl}: InlineToolCallArgs) {
     const {state, errorText} = part,
@@ -204,7 +207,11 @@ function inlineToolCall({ref, className, part, context, spec, impl}: InlineToolC
         status = inlineStatus?.type === 'approval' ? null : inlineStatus,
         inputValue = getInputValue(part),
         hasDetails = !isEmpty(inputValue) || (state === 'output-error' && !!errorText),
-        isInputShown = hasDetails && !!impl.expanded;
+        isInputShown = hasDetails && !!impl.expanded,
+        showsOutput =
+            !!spec.renderer &&
+            state !== 'output-denied' &&
+            (state !== 'approval-requested' || !!spec.approvalPreview);
 
     return div({
         ref,
@@ -214,7 +221,7 @@ function inlineToolCall({ref, className, part, context, spec, impl}: InlineToolC
             `xh-chat-tool-call--${state}`
         ),
         items: [
-            spec.renderer ? toolCallBody({part, spec, context}) : null,
+            showsOutput ? toolCallBody({part, spec, context}) : null,
             state === 'approval-requested' ? approvalBar(part, spec, context) : null,
             div({
                 className: classNames('xh-chat-tool-call__caption', {

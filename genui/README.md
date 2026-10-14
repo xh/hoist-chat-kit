@@ -83,7 +83,9 @@ it. The output is the progress, so the quiet status line under it is mostly empt
 "Rendering…" while the input streams, and a note while the call waits for approval or after it fails
 or is denied. A failed call shows a short message for the user, such as "Could not show the chart.".
 The error text, which is written for the model, shows behind the "View input" toggle, with the
-input. The toggle appears when the user hovers over or focuses the component.
+input. The toggle appears when the user hovers over or focuses the component. A denied call
+renders no component, nor does a call that waits for approval, unless its tool sets
+`approvalPreview`.
 
 ### Each render is a model call
 

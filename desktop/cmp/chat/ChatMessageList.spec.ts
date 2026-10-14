@@ -153,6 +153,37 @@ describe('ChatMessageList', () => {
             expect(screen.getByText('Rendering…')).toBeTruthy();
         });
 
+        it('renders nothing for a denied call', () => {
+            const denied = {
+                    ...call('c1', 'show_chart'),
+                    state: 'output-denied' as const,
+                    errorText: 'The user denied this call.'
+                },
+                chatModel = createModel({tools: [chartTool]}, [reply([denied])]);
+            renderList(chatModel);
+
+            expect(screen.queryByText('Chart body')).toBeNull();
+            expect(screen.getByText('Denied - not shown.')).toBeTruthy();
+        });
+
+        it('renders a call waiting for approval only if its spec opts into a preview', () => {
+            const approval = {...call('c1', 'show_chart'), state: 'approval-requested' as const},
+                tool = {...chartTool, execute: () => 'ok', needsApproval: true},
+                chatModel = createModel({tools: [tool]}, [
+                    {...reply([approval]), status: 'paused'}
+                ]),
+                {rerender} = renderList(chatModel);
+
+            expect(screen.queryByText('Chart body')).toBeNull();
+            expect(screen.getByRole('button', {name: 'Approve'})).toBeTruthy();
+
+            const previewModel = createModel({tools: [{...tool, approvalPreview: true}]}, [
+                {...reply([approval]), status: 'paused'}
+            ]);
+            rerender(chatMessageList({model: previewModel}));
+            expect(screen.getByText('Chart body')).toBeTruthy();
+        });
+
         it('shows a short message on failure, with the error for the model behind View input', () => {
             const failed = {
                     ...call('c1', 'show_chart'),
