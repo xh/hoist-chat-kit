@@ -7,3 +7,4 @@ export * from './ScriptedChatTransport';
 export * from './SseChatTransport';
 export * from './codec/AgUiCodec';
 export * from './codec/AnthropicCodec';
+export * from './codec/ChatCompletionsCodec';
