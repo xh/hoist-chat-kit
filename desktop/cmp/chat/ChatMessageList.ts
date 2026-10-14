@@ -12,6 +12,7 @@ import './ChatMessageList.scss';
 import {type ChatMessageRenderFn, chatMessageView} from './ChatMessageView';
 import type {ChatSuggestion} from './ChatSuggestions';
 import {chatErrorBanner} from './impl/ChatErrorBanner';
+import {chatErrorBoundary} from './impl/ChatErrorBoundary';
 import {ChatMessageListLocalModel} from './impl/ChatMessageListLocalModel';
 import {refuseFileDrop} from './impl/FileDrop';
 
@@ -117,19 +118,23 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                             ? [emptyState ?? chatEmptyState({suggestions})]
                             : [
                                   ...messages.map((message, idx) =>
-                                      chatMessageView({
+                                      chatErrorBoundary({
                                           key: message.id,
-                                          message,
-                                          chatModel: model,
-                                          isLast: idx === lastIdx,
-                                          assistantName,
-                                          assistantIcon,
-                                          markdownComponents,
-                                          allowImages,
-                                          messageActions,
-                                          messageHeaderItems,
-                                          isEditing: impl.editingId === message.id,
-                                          onEditingChange: impl.onEditingChange
+                                          subject: 'message',
+                                          resetKey: message.status,
+                                          item: chatMessageView({
+                                              message,
+                                              chatModel: model,
+                                              isLast: idx === lastIdx,
+                                              assistantName,
+                                              assistantIcon,
+                                              markdownComponents,
+                                              allowImages,
+                                              messageActions,
+                                              messageHeaderItems,
+                                              isEditing: impl.editingId === message.id,
+                                              onEditingChange: impl.onEditingChange
+                                          })
                                       })
                                   ),
                                   chatErrorBanner({key: 'error', onEdit: impl.editLastUserMessage})

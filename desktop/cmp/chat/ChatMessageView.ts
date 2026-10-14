@@ -36,6 +36,7 @@ import {
     toSourceList
 } from './impl/ChatCitations';
 import {chatCopyButton} from './impl/ChatCopyButton';
+import {chatErrorBoundary} from './impl/ChatErrorBoundary';
 import {formatElapsed} from './impl/ChatFormat';
 import {chatToolCallGroup} from './impl/ChatToolCallGroup';
 import {chatTypingIndicator} from './impl/ChatTypingIndicator';
@@ -337,7 +338,11 @@ function assistantContent(
             className: 'xh-chat-message__body',
             items: [
                 ...groupParts(message.parts, context.chatModel).map(group =>
-                    renderPartGroup(group, props, context, references)
+                    chatErrorBoundary({
+                        key: group.id,
+                        resetKey: getResetKey(group),
+                        item: renderPartGroup(group, props, context, references)
+                    })
                 ),
                 isAwaitingContent(message)
                     ? chatTypingIndicator({
@@ -403,10 +408,9 @@ function renderPartGroup(
         case 'fileGroup':
             return fileRow(group.parts);
         case 'toolCallGroup':
-            return chatToolCallGroup({key: group.id, parts: group.parts, context});
+            return chatToolCallGroup({parts: group.parts, context});
         case 'text':
             return textPart({
-                key: group.id,
                 text: group.text,
                 isStreaming: group.state === 'streaming',
                 citations: group.citations,
@@ -416,14 +420,23 @@ function renderPartGroup(
                 allowImages
             });
         case 'reasoning':
-            return chatReasoning({key: group.id, part: group, markdownComponents, allowImages});
+            return chatReasoning({part: group, markdownComponents, allowImages});
         case 'toolCall':
-            return chatToolCall({key: group.id, part: group, context});
+            return chatToolCall({part: group, context});
         case 'data':
-            return dataPart({key: group.id, part: group, context});
+            return dataPart({part: group, context});
         default:
             return null;
     }
+}
+
+/**
+ * When a part that failed to render gets another try: a streaming part when its state moves on,
+ * and a data part when it is replaced.
+ */
+function getResetKey(group: ChatPartGroup): any {
+    if ('state' in group) return group.state;
+    return group.type === 'data' ? group : null;
 }
 
 interface TextPartProps extends HoistProps {

@@ -210,6 +210,103 @@ describe('ChatMessageList', () => {
         expect(chips.textContent).toBe('1');
     });
 
+    describe('render errors', () => {
+        // React logs each caught render error to the console - expected here.
+        beforeEach(() => {
+            vi.spyOn(console, 'error').mockImplementation(() => {});
+        });
+
+        it('replaces a part whose renderer throws with a note, and renders the rest', () => {
+            const chatModel = createModel(
+                {
+                    dataRenderers: {
+                        kpi: () => {
+                            throw new Error('Bad KPI');
+                        }
+                    }
+                },
+                [
+                    reply([
+                        text('t1', 'Before'),
+                        {type: 'data', id: 'd1', dataType: 'kpi', data: {}},
+                        text('t2', 'After')
+                    ])
+                ]
+            );
+            renderList(chatModel);
+
+            expect(screen.getByText('Before')).toBeTruthy();
+            expect(screen.getByText('After')).toBeTruthy();
+            expect(screen.getByText('This part could not be displayed.')).toBeTruthy();
+            expect(screen.getByText('Bad KPI', {selector: 'pre'})).toBeTruthy();
+        });
+
+        it('contains a throwing tool renderer to its own call within a group', () => {
+            const chatModel = createModel(
+                {
+                    tools: [
+                        {
+                            name: 'chart',
+                            renderer: () => {
+                                throw new Error('Bad chart');
+                            }
+                        }
+                    ]
+                },
+                [reply([call('c1', 'get_weather'), call('c2', 'chart')])]
+            );
+            renderList(chatModel);
+
+            fireEvent.click(screen.getByRole('button', {name: /Used 2 tools/}));
+            expect(
+                screen.getByText('Get weather', {selector: '.xh-chat-tool-call__title'})
+            ).toBeTruthy();
+            expect(screen.getByText('This part could not be displayed.')).toBeTruthy();
+        });
+
+        it('renders a failed streaming part again once its state moves on', () => {
+            let fail = true;
+            const chatModel = createModel(
+                {
+                    tools: [
+                        {
+                            name: 'show_chart',
+                            display: 'inline',
+                            renderer: () => {
+                                if (fail) throw new Error('Partial props');
+                                return div('Chart body');
+                            }
+                        }
+                    ]
+                },
+                []
+            );
+            showLiveReply(chatModel, [{...call('c1', 'show_chart'), state: 'input-streaming'}]);
+            renderList(chatModel);
+            expect(screen.getByText('This part could not be displayed.')).toBeTruthy();
+
+            fail = false;
+            act(() => showLiveReply(chatModel, [call('c1', 'show_chart')]));
+            expect(screen.getByText('Chart body')).toBeTruthy();
+            expect(screen.queryByText('This part could not be displayed.')).toBeNull();
+        });
+
+        it('replaces a message that throws outside its parts with a note', () => {
+            const chatModel = createModel({}, [
+                {id: 'u1', role: 'user', parts: [text('t0', 'Question')]},
+                reply([text('t1', 'Answer')])
+            ]);
+            renderList(chatModel, {
+                messageHeaderItems: () => {
+                    throw new Error('Bad header');
+                }
+            });
+
+            expect(screen.getByText('Question')).toBeTruthy();
+            expect(screen.getByText('This message could not be displayed.')).toBeTruthy();
+        });
+    });
+
     it('adds app message actions after the built-in ones, with the message and its context', () => {
         const messageActions = vi.fn(() => [button({key: 'up', text: 'Helpful'})]),
             chatModel = createModel({}, [reply([text('t1', 'Answer')])]);

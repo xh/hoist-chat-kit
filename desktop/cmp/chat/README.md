@@ -35,6 +35,9 @@ Key features:
   and keep their numbers while the reply streams. The source list shares the numbers.
 - **Renderers as components** - a tool `renderer` or a data renderer renders as a component of
   its own, so it can use hooks such as `useLocalModel()`.
+- **Contained render errors** - each message and each part renders inside an error boundary. A
+  renderer that throws shows a short note in place of its part, and the rest of the conversation
+  still renders.
 - **Safe markdown** - raw HTML renders as text, and model-written images do not load unless the
   app allows them.
 - **App slots** - toolbar items in the composer, an empty state with suggestions, message
@@ -74,6 +77,15 @@ message id, so it stays the same object while the message streams.
 Tool renderers, data renderers, `messageActions` and `messageHeaderItems` all receive this
 context. A renderer that needs the whole message reads `chatModel.getMessage(messageId)`. It
 then re-renders whenever the message changes, so do this only when you need to.
+
+### Render errors
+
+Every message, and every part within it, renders inside Hoist's `ErrorBoundary`. A tool
+renderer, a data renderer, an inline component or the markdown of one part may throw, and only
+that part fails. It shows "This part could not be displayed." with the error message in a
+Details disclosure. Hoist's exception handler logs the error, with no alert. A streaming part that
+failed renders again when its state changes, for example when its input completes. A data part
+renders again when it is replaced.
 
 ### Scroll behavior
 
