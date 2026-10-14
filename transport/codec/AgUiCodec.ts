@@ -79,8 +79,9 @@ export interface AgUiContext {
  * from its `metadata.context`, goes last, as JSON.
  *
  * In server mode the agent holds the history, so `messages` carries only what it has not seen:
- * the user message on the first step of a turn, or the last step of the reply - its tool calls
- * and the results the client gave them - on a `continue` step. The turn's ids and options go in
+ * the user message on the first step of a turn, or, on a `continue` step, the client tool calls
+ * of the reply's last step and the results the client gave them. The step's text, and the calls
+ * the server ran, are left out. The turn's ids and options go in
  * `forwardedProps`, alongside any the app adds:
  *
  * ```
@@ -226,12 +227,17 @@ function encodeMessageContext({messages, turnId}: ChatRunRequest): AgUiContext[]
         : [];
 }
 
-/** A message the server has not seen - all of a user message, or the last step of a reply. */
+/**
+ * A message the server has not seen - all of a user message, or the calls of a reply's last step
+ * that the client answered, with their results. The server wrote the rest of the step, and ran
+ * its own calls, so it holds them already.
+ */
 function encodeNewMessage(message: ChatMessage): PlainObject[] {
     if (!message.isAssistant || message.isEmpty) return encodeMessage(message);
     const steps = partsBySteps(message),
-        stepIdx = steps.length - 1;
-    return encodeAssistantStep(last(steps), stepIdx ? `${message.id}-${stepIdx}` : message.id);
+        stepIdx = steps.length - 1,
+        clientCalls = last(steps).filter(it => it.type === 'toolCall' && !it.providerExecuted);
+    return encodeAssistantStep(clientCalls, stepIdx ? `${message.id}-${stepIdx}` : message.id);
 }
 
 /** User content as plain text, or as a list of parts when the message has attachments. */

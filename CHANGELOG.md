@@ -117,7 +117,8 @@
 * Added `markdownPlugins`, which adds app remark and rehype plugins after the kit's own, for
   example `remark-math` and `rehype-katex` for math.
 * Added `ChatThreadsModel` and the `ChatThreadStore` adapter, a thread layer for conversations a
-  backend stores. It holds a chat per open thread, so turns run on in the background.
+  backend stores. It holds a chat per open thread, so turns run on in the background. A turn that
+  pauses for the user keeps its chat, and shows in `awaitingThreadIds`.
 * Added paged thread lists, server-side search, paged history, deep links, and rename, pin and
   delete that show at once and roll back with a toast if the store fails.
 * Added `groupThreadsByRecency()`, which groups threads into Pinned, Today, Yesterday and older
@@ -129,8 +130,8 @@
 * Added the `empty-response` error code. A run that finishes with nothing in the reply now fails,
   with Retry, rather than show a blank message.
 * Added `ChatModelConfig.contextProviders`, which send live context, such as the state of a grid,
-  with every step. `AgUiCodec` sends them as `context` entries, and `AnthropicCodec` as uncached
-  system blocks after the cache breakpoint.
+  with every step. `AgUiCodec` sends them as `context` entries. `AnthropicCodec` and
+  `ChatCompletionsCodec` send them after the history, so that the cached history stays valid.
 * Added undo for client tools. A tool returns `chatToolResult(output, {undo})`, and
   `ChatModel.undoTurnAsync()` undoes the latest reply's changes, from an Undo action on the reply.
 * Added `ChatToolSpec.preview`, which shows what a call will change on its approval card.

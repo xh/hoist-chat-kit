@@ -1,4 +1,4 @@
-import {findLast} from 'lodash';
+import {findLast, last} from 'lodash';
 import type {PlainObject} from '@xh/hoist/core';
 import {describe, expect, it} from 'vitest';
 import {
@@ -97,7 +97,7 @@ describe('AnthropicCodec', () => {
             ).toBe('Configured.');
         });
 
-        it('appends live context as uncached system blocks, after the cache breakpoint', async () => {
+        it('appends live context to the last user turn, after the cache breakpoint', async () => {
             const codec = new AnthropicCodec({system: 'Be brief.', cacheControl: true}),
                 body = await codec.encodeRequest(
                     request([user('Hi')], {
@@ -109,13 +109,42 @@ describe('AnthropicCodec', () => {
                 );
 
             expect(body.system).toEqual([
-                {type: 'text', text: 'Be brief.', cache_control: {type: 'ephemeral'}},
-                {
-                    type: 'text',
-                    text: '<context name="grid">\nThe grid.\n{"groupBy":["region"]}\n</context>'
-                },
-                {type: 'text', text: '<context name="note">\nPlain text.\n</context>'}
+                {type: 'text', text: 'Be brief.', cache_control: {type: 'ephemeral'}}
             ]);
+            expect(body.messages).toEqual([
+                {
+                    role: 'user',
+                    content: [
+                        {type: 'text', text: 'Hi', cache_control: {type: 'ephemeral'}},
+                        {
+                            type: 'text',
+                            text: '<context name="grid">\nThe grid.\n{"groupBy":["region"]}\n</context>'
+                        },
+                        {type: 'text', text: '<context name="note">\nPlain text.\n</context>'}
+                    ]
+                }
+            ]);
+        });
+
+        it('keeps the history before the context the same from step to step', async () => {
+            const codec = new AnthropicCodec({cacheControl: true}),
+                reply = new ChatMessage({
+                    role: 'assistant',
+                    parts: [toolCall('call1', 0, {output: 'Done.'})]
+                }),
+                first = await codec.encodeRequest(
+                    request([user('Hi')], {context: [{name: 'n', description: null, value: 'A'}]})
+                ),
+                second = await codec.encodeRequest(
+                    request([user('Hi'), reply], {
+                        context: [{name: 'n', description: null, value: 'B'}]
+                    })
+                );
+
+            expect(second.messages[0].content).toEqual([{type: 'text', text: 'Hi'}]);
+            expect(first.messages[0].content[0].text).toBe('Hi');
+            expect(second.system).toBeUndefined();
+            expect((last(second.messages[2].content) as PlainObject).text).toContain('B');
         });
 
         it('sends the context of a user message as a block after its text', async () => {
@@ -137,15 +166,6 @@ describe('AnthropicCodec', () => {
                         }
                     ]
                 }
-            ]);
-        });
-
-        it('sends live context as the system prompt when the app has none', async () => {
-            const body = await new AnthropicCodec().encodeRequest(
-                request([user('Hi')], {context: [{name: 'note', description: null, value: 'X'}]})
-            );
-            expect(body.system).toEqual([
-                {type: 'text', text: '<context name="note">\nX\n</context>'}
             ]);
         });
 

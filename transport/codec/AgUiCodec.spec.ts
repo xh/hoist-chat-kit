@@ -249,13 +249,14 @@ describe('AgUiCodec', () => {
             });
         });
 
-        it('sends the last step of the reply, with its tool results, on a continue step', () => {
+        it('sends only the client tool calls of the last step, with their results, on a continue step', () => {
             const reply = new ChatMessage({
                     id: 'a1',
                     role: 'assistant',
                     status: 'streaming',
                     parts: [
                         {type: 'text', id: 'x-0', step: 0, text: 'Checking.', state: 'done'},
+                        toolCall('srv1', 0, {output: 'From the server.', providerExecuted: true}),
                         toolCall('call1', 0, {output: {tempC: 18}})
                     ]
                 }),
@@ -272,7 +273,6 @@ describe('AgUiCodec', () => {
                 {
                     id: 'a1',
                     role: 'assistant',
-                    content: 'Checking.',
                     toolCalls: [expect.objectContaining({id: 'call1'})]
                 },
                 {id: 'call1-result', role: 'tool', toolCallId: 'call1', content: '{"tempC":18}'}

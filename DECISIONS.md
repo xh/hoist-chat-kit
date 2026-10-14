@@ -457,6 +457,9 @@ through `initialMessages` or `loadMessages()`, is the backend's and never change
 mints its own on the first turn. Adopting only once keeps a misbehaving agent from moving a
 thread that the thread layer has already keyed.
 
+Amended by [D55](#d55-fixes-from-review-5-of-server-mode): history means messages with a user
+message. A greeting alone leaves the id provisional.
+
 ## D40. `AnthropicCodec` is a client-mode codec
 
 **Decision.** `AnthropicCodec.encodeRequest()` throws for a request with `historyMode: 'server'`.
@@ -617,7 +620,8 @@ replies.
   so a chat without providers starts each step as before.
 - `AgUiCodec` sends a provider's description, or else its name, as the AG-UI `description`, and a
   string value as is. `AnthropicCodec` and `ChatCompletionsCodec` send each provider as a
-  `<context name="...">` section of the system prompt.
+  `<context name="...">` section. Placed in the system prompt at first, and moved after the
+  history by [D55](#d55-fixes-from-review-5-of-server-mode).
 - `ChatToolSpec.preview` is `boolean | (input) => ReactNode`. True replaces `approvalPreview`,
   which stays as an alias because the generative UI docs still name it, and another work package
   owns them.
@@ -730,3 +734,27 @@ leaves open.
 
 **Alternatives.** Always send the document tool. Its schema is a union of every component, which
 costs tokens on every step of a chat that never nests components.
+
+## D55. Fixes from review 5 of server mode
+
+**Decision.** Review 5 (`planning/reviews/review-5-server-mode.md`) led to these changes:
+
+- A thread id given with `initialMessages` or `loadMessages()` is the backend's only if the
+  messages hold a user message. A greeting alone is not history, so a new thread with a greeting
+  still calls its thread creator and adopts the id from `RUN_STARTED`. This amends D39.
+- The thread layer keeps a chat open while its turn waits for the user, and lists it in
+  `awaitingThreadIds`. A closed chat would lose the question, and the store has no record of it.
+- A delete of a thread whose create is in flight waits for the create, and deletes the backend's
+  id too.
+- In server mode, `AgUiCodec` sends only the client tool calls of a `continue` step, with their
+  results. The server wrote the rest of the step and ran its own calls.
+- `AnthropicCodec` puts live context at the end of the last user turn, after the history's
+  breakpoint. `ChatCompletionsCodec` sends it as a last `user` message. In the system prompt, it
+  came before the history, so each change voided the cached history. This replaces the placement
+  of D49.
+- Sends wait while an undo runs, so that a new turn's tools cannot act on what the undo restores.
+
+**Why.** Each fixes a defect the review found. The scratch tests that confirmed them are now specs.
+
+**Alternatives.** For live context, mid-conversation system messages. Not every gateway accepts a
+system message after the first.

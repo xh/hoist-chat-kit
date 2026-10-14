@@ -139,6 +139,33 @@ describe('ChatModel undo', () => {
         expect(model.lastMessage.metadata.undone).toBe(true);
     });
 
+    it('blocks sends while an undo runs', async () => {
+        let finishUndo: () => void;
+        const {model} = createModel(
+            [
+                {
+                    name: 'slow',
+                    execute: () =>
+                        chatToolResult('Done.', {
+                            undo: () => new Promise<void>(resolve => (finishUndo = resolve))
+                        })
+                }
+            ],
+            [toolCallEvents('slow'), textEvents('Ok.'), textEvents('Again.')]
+        );
+        await model.sendAsync('Change it');
+        const reply = model.lastMessage,
+            undone = model.undoTurnAsync(reply.id);
+
+        expect(model.sendBlockedReason).toBe('Wait for the changes to be undone.');
+        await model.sendAsync('Next');
+        expect(model.lastMessage).toBe(reply);
+
+        finishUndo();
+        await undone;
+        expect(model.sendBlockedReason).toBeNull();
+    });
+
     it('drops the undo functions of replies that a regenerate or clear discards', async () => {
         const state = createState(),
             {model} = createModel(

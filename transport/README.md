@@ -192,10 +192,14 @@ your system prompt ends with live state, return blocks from `system` with the st
 and mark that block with `cache_control` yourself. The live block after it then goes out fresh
 on each step, and the static part comes from the cache.
 
-The chat's live context, from its `contextProviders`, goes last in the system prompt, as one
-unmarked text block per provider. The structured context of a user message, from
-`metadata.context`, goes after its text as a `<message-context>` block of JSON. The static prompt keeps its breakpoint. The history comes after
-the system prompt, so a change of context means that the step reads the history fresh.
+The chat's live context, from its `contextProviders`, goes at the end of the last user turn, as
+one unmarked text block per provider, after the history's breakpoint. Each step sends it fresh,
+and the next step reads the history before it from the cache. In the system prompt, it would come
+before the history, and each change would void the cached history.
+
+The structured context of a user message, from `metadata.context`, goes after the message's text
+as a `<message-context>` block of JSON. It stays with the message, so it is cached with the
+history.
 
 ```typescript
 new AnthropicCodec({
@@ -281,9 +285,7 @@ new HoistChatTransport({
 `ChatCompletionsCodec` options:
 
 - **`system`** - a string, or a function of the request that returns one. The function can be
-  async. System messages in the history and the chat's live context follow it, in one `system`
-  message. The structured context of a user message, from `metadata.context`, follows its text
-  as a `<message-context>` block of JSON.
+  async. System messages in the history follow it, in one `system` message.
 - **`model`** - leave it out when the server or gateway sets it.
 - **`params`** - other body fields, such as `temperature`, `max_completion_tokens` or
   `reasoning_effort`. Tools in `params.tools` go ahead of the chat's own tools.
@@ -291,6 +293,10 @@ new HoistChatTransport({
   `stream_options: {include_usage: true}`. Set it false for a gateway that rejects
   `stream_options`.
 - **`prepareBody`** - a function that adjusts the finished body before it goes out.
+
+The chat's live context goes last, as a `user` message with one tagged section per provider, so
+that a gateway's prefix cache still covers the history. The structured context of a user message,
+from `metadata.context`, follows its text as a `<message-context>` block of JSON.
 
 How the codec encodes the history:
 
@@ -383,8 +389,9 @@ A backend with an idempotency key keys runs by `turnId` and `trigger`. It replay
 for a `retry`, and starts a new run for a `regenerate` or an `edit`.
 
 `AgUiCodec` encodes a server-mode request as a `RunAgentInput` whose `messages` holds only the
-new messages. On a `continue` step, that is the reply's last step: its tool calls and the results
-the client gave them. The turn goes in `forwardedProps`, merged under any props the app sets:
+new messages. On a `continue` step, that is the client tool calls of the reply's last step, with
+the results the client gave them. The server wrote the step's text and ran its own calls, so they
+are left out. The turn goes in `forwardedProps`, merged under any props the app sets:
 
 ```json
 {
@@ -1007,9 +1014,9 @@ stream.
 
 ### Write a custom codec
 
-Implement `ChatCodec` to speak a new wire format over the existing transports. For example, an
-OpenAI codec would encode the history as OpenAI messages and decode the OpenAI stream into
-`ChatEvent`s. See [Protocols](../docs/protocols.md#openai).
+Implement `ChatCodec` to speak a new wire format over the existing transports. For example, a
+codec for the OpenAI Responses API would encode the history as Responses input items and decode
+its stream into `ChatEvent`s. See [Protocols](../docs/protocols.md#openai).
 
 - `encodeRequest(request)` returns the body for one step. It can be async.
 - `createDecoder(request)` returns a function for one step. The function takes a record and the

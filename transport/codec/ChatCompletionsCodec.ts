@@ -58,8 +58,9 @@ export interface ChatCompletionsCodecConfig {
  * {@link HoistChatTransport}, or the SSE stream unchanged with {@link SseChatTransport}.
  *
  * Requests are chat completions bodies with `stream: true`. They open with one `system` message:
- * the system prompt, then any system messages from the history, then the chat's live context -
- * see `ChatModelConfig.contextProviders` - as one tagged section per provider. Each step of an
+ * the system prompt, then any system messages from the history. The chat's live context - see
+ * `ChatModelConfig.contextProviders` - goes last, as a `user` message with one tagged section per
+ * provider, so that a gateway's prefix cache still covers the history. Each step of an
  * assistant turn becomes an `assistant` message with its text and its finished tool calls as
  * `tool_calls`, followed by a `tool` message per call with its result. A failed call's result
  * reads `Error: ...`, as the format has no error flag. Reasoning is not sent back. Attached
@@ -131,7 +132,8 @@ export class ChatCompletionsCodec implements ChatCodec {
             system = await this.getSystemAsync(request),
             messages = [
                 ...(system ? [{role: 'system', content: system}] : []),
-                ...flatMap(request.messages, encodeMessage)
+                ...flatMap(request.messages, encodeMessage),
+                ...encodeContext(request)
             ],
             tools = [...(params.tools ?? []), ...request.tools.map(encodeTool)];
 
@@ -173,7 +175,7 @@ export class ChatCompletionsCodec implements ChatCodec {
                 .filter(it => it.role === 'system' && it.text.trim())
                 .map(it => it.text);
 
-        return compact([base, ...prompts, ...request.context.map(contextText)]).join('\n\n');
+        return compact([base, ...prompts]).join('\n\n');
     }
 }
 
@@ -188,6 +190,15 @@ function encodeTool({name, description, parameters}: ChatToolSpec): PlainObject 
             isNil
         )
     };
+}
+
+/**
+ * The chat's live context, as a last user message. It changes from step to step, so it goes after
+ * the history, where it leaves the cached prefix of the request intact.
+ */
+function encodeContext(request: ChatRunRequest): PlainObject[] {
+    if (isEmpty(request.context)) return [];
+    return [{role: 'user', content: request.context.map(contextText).join('\n\n')}];
 }
 
 /** A message of the history - system messages go into the system prompt instead. */

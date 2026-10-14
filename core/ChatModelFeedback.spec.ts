@@ -74,6 +74,25 @@ describe('ChatModel feedback and paged history', () => {
             });
         });
 
+        it('keeps a newer cleared rating when an older clear fails', async () => {
+            spyHandleException();
+            let reject: (e: Error) => void;
+            const submitAsync = vi
+                    .fn<(spec: ChatFeedbackSpec) => Promise<void>>()
+                    .mockResolvedValueOnce(undefined)
+                    .mockImplementationOnce(() => new Promise((_, it) => (reject = it)))
+                    .mockResolvedValue(undefined),
+                model = createModel({feedback: {submitAsync}});
+            await model.submitFeedbackAsync('a1', 'positive');
+
+            const first = model.submitFeedbackAsync('a1', null);
+            await model.submitFeedbackAsync('a1', null);
+            reject(new Error('Timed out'));
+            await first;
+
+            expect(model.getMessage('a1').metadata).not.toHaveProperty('feedback');
+        });
+
         it('clears a rating with null', async () => {
             const submitAsync = vi.fn(async () => {}),
                 model = createModel({feedback: {submitAsync}});

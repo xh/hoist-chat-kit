@@ -9,7 +9,8 @@ import {
     ScriptedChatTransport,
     type ScriptedRequestContext,
     type ScriptedResponse,
-    textEvents
+    textEvents,
+    toolCallEvents
 } from '../transport';
 import {type ChatThreadsConfig, ChatThreadsModel} from './ChatThreadsModel';
 import {type LocalChatThread, LocalChatThreadStore} from './LocalChatThreadStore';
@@ -385,6 +386,94 @@ describe('ChatThreadsModel', () => {
             await done;
             expect(chatModel.isDestroyed).toBe(true);
             expect(model.runningThreadIds).toEqual([]);
+        });
+
+        it('keeps a chat whose turn waits for the user, and lists it as awaiting', async () => {
+            const {model} = setup({
+                    respond: () => toolCallEvents('delete_rows', {count: 3}),
+                    chat: {
+                        tools: [{name: 'delete_rows', needsApproval: true, execute: () => 'Done.'}]
+                    }
+                }),
+                chatModel = model.newThread();
+            await chatModel.sendAsync('Delete the rows');
+            expect(chatModel.isAwaitingUser).toBe(true);
+
+            await model.selectThreadAsync('t1');
+
+            expect(chatModel.isDestroyed).toBe(false);
+            expect(model.awaitingThreadIds).toEqual([chatModel.threadId]);
+            expect(model.runningThreadIds).toEqual([]);
+        });
+
+        it('creates a new thread on the backend even when its chat starts with a greeting', async () => {
+            const {model, store} = setup({
+                    store: new LocalChatThreadStore({mintIds: true}),
+                    chat: {initialMessages: [{role: 'assistant', content: 'Ask me anything.'}]}
+                }),
+                chatModel = model.newThread(),
+                localId = chatModel.threadId;
+
+            await chatModel.sendAsync('Hello');
+
+            expect(createCalls(store)).toHaveLength(1);
+            expect(chatModel.threadId).not.toBe(localId);
+            expect(store.getThread(chatModel.threadId)).not.toBeNull();
+        });
+
+        it("deletes a thread's backend thread when the delete comes during its create", async () => {
+            const {model, store} = setup({store: new LocalChatThreadStore({mintIds: true})}),
+                chatModel = model.newThread(),
+                localId = chatModel.threadId;
+            store.hold('createThreadAsync');
+            const sent = chatModel.sendAsync('Hello');
+            await vi.waitFor(() => expect(store.heldCalls('createThreadAsync')).toHaveLength(1));
+
+            const deleted = model.deleteThreadsAsync([localId]);
+            store.heldCalls('createThreadAsync')[0].release();
+            await Promise.all([sent, deleted]);
+            await model.refreshAsync();
+
+            const [deletedIds] = store.calls.find(it => it.method === 'deleteThreadsAsync').args;
+            expect(deletedIds).toHaveLength(2);
+            expect(deletedIds[0]).toBe(localId);
+            expect(store.getThread(deletedIds[1])).toBeNull();
+            expect(model.threads).toEqual([]);
+        });
+
+        it('stops and cancels a background turn when its thread is deleted', async () => {
+            const turns = new TurnGates(),
+                {model, transport} = setup({respond: turns.respond}),
+                cancelAsync = vi.fn(async () => {});
+            Object.assign(transport, {cancelAsync});
+            const chatModel = model.newThread(),
+                threadId = chatModel.threadId,
+                sent = chatModel.sendAsync('Long question');
+            await model.selectThreadAsync('t1');
+            await vi.waitFor(() => expect(chatModel.status).toBe('submitted'));
+
+            await model.deleteThreadsAsync([threadId]);
+            turns.open(threadId);
+            await sent;
+
+            expect(chatModel.isDestroyed).toBe(true);
+            expect(chatModel.lastMessage.status).toBe('aborted');
+            expect(cancelAsync).toHaveBeenCalledExactlyOnceWith(
+                expect.objectContaining({threadId})
+            );
+        });
+
+        it('stops the turns of its chats when it is destroyed', async () => {
+            const turns = new TurnGates(),
+                {model} = setup({respond: turns.respond}),
+                chatModel = model.newThread(),
+                sent = chatModel.sendAsync('Long question');
+
+            model.destroy();
+            turns.open(chatModel.threadId);
+            await sent;
+
+            expect(chatModel.isDestroyed).toBe(true);
         });
 
         it('includes runs the store reports in the running threads', async () => {

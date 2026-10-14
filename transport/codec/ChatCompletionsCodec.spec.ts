@@ -76,7 +76,7 @@ describe('ChatCompletionsCodec', () => {
             ]);
         });
 
-        it('builds the system prompt per call, then system messages, then live context', async () => {
+        it('builds the system prompt per call, then system messages, and sends live context last', async () => {
             const codec = new ChatCompletionsCodec({system: async req => `Run ${req.runId}.`}),
                 system = new ChatMessage({role: 'system', content: 'Use metric units.'}),
                 body = await codec.encodeRequest(
@@ -89,14 +89,14 @@ describe('ChatCompletionsCodec', () => {
                 );
 
             expect(body.messages).toEqual([
+                {role: 'system', content: 'Run r1.\n\nUse metric units.'},
+                {role: 'user', content: 'Hi'},
                 {
-                    role: 'system',
+                    role: 'user',
                     content:
-                        'Run r1.\n\nUse metric units.\n\n' +
                         '<context name="grid">\nThe grid.\n{"sortBy":["name"]}\n</context>\n\n' +
                         '<context name="note">\nPlain text.\n</context>'
-                },
-                {role: 'user', content: 'Hi'}
+                }
             ]);
         });
 

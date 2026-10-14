@@ -56,6 +56,7 @@ ChatThreadsModel (HoistModel)
 │   ├── chatModel                     # The selected thread's ChatModel
 │   ├── selectedSummary               # The selected thread's summary
 │   ├── runningThreadIds              # Threads with a turn running, here or on the server
+│   ├── awaitingThreadIds             # Threads whose turn waits for the user
 │   ├── hasMoreThreads                # True if the store has another page
 │   ├── loadError                     # Why the selected thread's history failed, or null
 │   └── canRename / canDelete / canPin
@@ -80,10 +81,11 @@ ChatThreadStore (implemented by the app)
 ### Open chats
 
 The threads model holds a `ChatModel` for each open thread. It keeps a chat while the chat is
-selected or busy, and destroys it when it is neither. A turn therefore keeps running after the
-user switches away. When the turn ends, the model closes the chat and reloads the list, because
-the backend may have titled the thread. The model keeps a closed thread's draft and run options,
-and gives them back when the thread opens again.
+selected, busy, or paused for the user, and destroys it otherwise. A turn therefore keeps running
+after the user switches away, and a turn that waits for an approval keeps its question. When the
+turn ends, the model closes the chat and reloads the list, because the backend may have titled the
+thread. The model keeps a closed thread's draft and run options, and gives them back when the thread
+opens again.
 
 The app builds each chat with `createChatModel`. The threads model then wires three seams on
 it:
@@ -221,6 +223,10 @@ Turns run in the background by default. The list shows a running indicator for e
 `runningThreadIds`. That includes a thread whose summary has `isRunning` from the store, such as
 a turn that a closed chat left running on the server.
 
+A background turn that pauses for an approval, or for the answer to an interactive tool, waits
+for the user. Its chat stays open, and its id is in `awaitingThreadIds`. Show it in the list, so
+the user knows the thread needs them.
+
 For a backend that runs one turn per user, set `allowConcurrentTurns: false`. Each other thread
 then shows "Wait for the reply in another conversation to finish." in place of Send.
 
@@ -322,7 +328,7 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`.
 | Property | Type | Description |
 |----------|------|-------------|
 | `store` | `ChatThreadStore` | Adapter to the backend. Required. |
-| `createChatModel` | `({threadId, isNew}) => ChatModel` | Builds the chat for a thread. Must pass `threadId` to the `ChatModel`. `isNew` is false for a thread whose history is about to load. Required. |
+| `createChatModel` | `({threadId, isNew}) => ChatModel` | Builds the chat for a thread. Must pass `threadId` to the `ChatModel`. `isNew` is false for a thread whose history is about to load. A new thread may start with a greeting in `initialMessages`. Required. |
 | `pageSize` | `number` | Threads per page. Default 50. |
 | `historyPageSize` | `number` | Messages per page of history. Default 50. |
 | `allowConcurrentTurns` | `boolean` | False to block sends while any thread runs. Default true. |
@@ -338,6 +344,7 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`.
 | `selectedSummary` | `ChatThreadSummary` | The selected thread's summary, or null if it is not in the list. |
 | `search` | `string` | Text to search for. Bindable. |
 | `runningThreadIds` | `string[]` | Threads with a turn running here, or reported running by the store. |
+| `awaitingThreadIds` | `string[]` | Threads whose turn is paused for the user. Their chats stay open. |
 | `hasMoreThreads` | `boolean` | True if the store has another page of threads. |
 | `loadError` | `Error` | Why the selected thread's history failed to load, or null. |
 | `listError` | `Error` | Error from the last list load, or null. The list keeps its threads. |
@@ -436,10 +443,11 @@ A chat closes when it is neither selected nor busy, and a closed chat is destroy
 The model shows a thread as empty only for an empty page or a 404. Any other error blocks sends
 on the thread. A store whose backend reports a missing thread some other way should map it.
 
-### Retrying a turn while turns may not overlap
+### Resuming a paused turn while turns may not overlap
 
-With `allowConcurrentTurns: false`, a send waits while another thread runs. A retry or
-regenerate does not, as with any send blocker.
+With `allowConcurrentTurns: false`, a send, retry, regenerate or edit waits while another thread
+runs. Approving a tool call, or answering an interactive tool, does not wait. A paused turn can
+therefore resume while another thread runs.
 
 ## Related Packages
 

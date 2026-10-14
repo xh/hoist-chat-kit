@@ -4,11 +4,13 @@ import {
     differenceBy,
     findLast,
     isEmpty,
+    isEqual,
     keys,
     omit,
     pickBy,
     some,
-    union
+    union,
+    uniq
 } from 'lodash';
 import type {LoadSpec, PlainObject} from '@xh/hoist/core';
 import {HoistModel, managed, TaskObserver, XH} from '@xh/hoist/core';
@@ -180,6 +182,17 @@ export class ChatThreadsModel extends HoistModel {
                 .map(it => it.chatModel.threadId),
             remote = this.threads.filter(it => it.isRunning).map(it => it.id);
         return union(local, remote);
+    }
+
+    /**
+     * Ids of the threads whose turn is paused, waiting for the user to approve a tool call or
+     * answer an interactive tool. Their chats stay open in the background until the user does.
+     */
+    @computed
+    get awaitingThreadIds(): string[] {
+        return Object.values(this.openThreads)
+            .filter(it => it.chatModel.isAwaitingUser)
+            .map(it => it.chatModel.threadId);
     }
 
     /** True if the store has more threads to list - see {@link loadMoreThreadsAsync}. */
@@ -397,7 +410,7 @@ export class ChatThreadsModel extends HoistModel {
             threadIds.length > 1
                 ? 'The conversations were not deleted.'
                 : 'The conversation was not deleted.',
-            () => this.store.deleteThreadsAsync(threadIds)
+            () => this.deleteFromStoreAsync(threadIds)
         );
     }
 
@@ -433,6 +446,9 @@ export class ChatThreadsModel extends HoistModel {
 
     // Drafts and run options of closed threads, for when they open again.
     private readonly drafts = new Map<string, ThreadDraft>();
+
+    // The run options each chat was built with, so that a draft keeps only the user's changes.
+    private readonly defaultRunOptions = new WeakMap<ChatModel, PlainObject>();
 
     @computed
     private get selectedThread(): OpenThread {
@@ -477,6 +493,7 @@ export class ChatThreadsModel extends HoistModel {
             onBusyChange: it => this.onBusyChange(it)
         });
         chatModel.addSendBlocker(() => this.getSendBlockedReason(thread));
+        this.defaultRunOptions.set(chatModel, chatModel.runOptions ?? null);
         this.restoreDraft(threadId, chatModel);
         this.putOpenThread(threadId, thread);
         return thread;
@@ -515,6 +532,19 @@ export class ChatThreadsModel extends HoistModel {
             this.threadCreates.set(localId, ret);
         }
         return ret;
+    }
+
+    /**
+     * Delete threads from the store, with the backend's ids for those whose create is in flight or
+     * done. A thread deleted during its first turn's create still has its backend thread deleted.
+     */
+    private async deleteFromStoreAsync(threadIds: string[]): Promise<void> {
+        const creates = threadIds.map(id => this.threadCreates.get(id)).filter(Boolean);
+        if (isEmpty(creates)) return this.store.deleteThreadsAsync(threadIds);
+
+        threadIds.forEach(id => this.threadCreates.delete(id));
+        const created = await Promise.all(creates.map(it => it.catch(() => null)));
+        return this.store.deleteThreadsAsync(uniq([...threadIds, ...compact(created)]));
     }
 
     @action
@@ -562,12 +592,18 @@ export class ChatThreadsModel extends HoistModel {
         this.openThreads = {...this.openThreads, [threadId]: thread};
     }
 
-    /** Close the chats that are neither selected nor running a turn, keeping their drafts. */
+    /**
+     * Close the chats that are not selected, and neither run a turn nor wait for the user, keeping
+     * their drafts.
+     */
     @action
     private closeIdleThreads() {
         const idle = pickBy(
             this.openThreads,
-            (thread, id) => id !== this.selectedThreadId && !thread.chatModel.isBusy
+            (thread, id) =>
+                id !== this.selectedThreadId &&
+                !thread.chatModel.isBusy &&
+                !thread.chatModel.isAwaitingUser
         );
         if (isEmpty(idle)) return;
 
@@ -590,9 +626,12 @@ export class ChatThreadsModel extends HoistModel {
         this.openThreads = omit(this.openThreads, threadIds);
     }
 
+    /** Keep the draft of a closed chat, if the user changed its text or run options. */
     private saveDraft(threadId: string, chatModel: ChatModel) {
-        const {composerModel, runOptions} = chatModel;
-        if (composerModel.text || runOptions != null) {
+        const {composerModel, runOptions} = chatModel,
+            isChanged =
+                composerModel.text || !isEqual(runOptions, this.defaultRunOptions.get(chatModel));
+        if (isChanged) {
             this.drafts.set(threadId, {text: composerModel.text, runOptions});
         }
     }

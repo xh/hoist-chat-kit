@@ -462,7 +462,7 @@ new ChatModel({
 
 `getContext` returns text or an object, and it may be async. Return null to send nothing for a
 step. A provider that throws fails the turn, with Retry. Each codec sends the context in its own
-format: an AG-UI `context` entry, or a section of the system prompt. See
+format: an AG-UI `context` entry, or tagged text after the history. See
 [`/transport/`](../transport/README.md).
 
 Context leaves the browser on every step and counts toward the token budget. Describe structure,
@@ -687,7 +687,7 @@ for the full doc comments.
 | `feedback` | `ChatFeedbackConfig` | `submitAsync`, `commentOn` (default `negative`) and `requireComment` (default false). |
 | `track` | `boolean \| ChatTrackOptions` | True, or `{category, severity, logData}`, to track each finished turn. Default false. |
 | `composer` | `ChatComposerConfig` | Config for the managed `composerModel`. |
-| `sendBlocker` | `() => string` | Returns why sending must wait, or null to allow it. Read as a computed value. While blocked, the composer disables Send and shows the reason, and `sendAsync` and `editMessageAsync` do nothing. |
+| `sendBlocker` | `() => string` | Returns why sending must wait, or null to allow it. Read as a computed value. While blocked, the composer disables Send and shows the reason, and `sendAsync`, `editMessageAsync`, `retryAsync` and `regenerateAsync` do nothing. Blockers added with `addSendBlocker()` work the same way. |
 | `dataRenderers` | `Record<string, ChatDataRenderer>` | Renderers for data parts, keyed by `dataType`. A renderer is `(part, context) => ReactNode`, with a `ChatPartRenderContext`. |
 | `onTurnComplete` | `(message) => void` | Called when a turn ends - complete, failed or stopped - with its final message. Not called when a turn pauses. |
 
@@ -707,7 +707,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `hasOlderMessages` | `boolean` | True if older history remains to page in. `@bindable`. Default false. |
 | `canSubmitFeedback` | `boolean` | True if `feedback.submitAsync` or a thread layer submitter is set. |
 | `isBusy` | `boolean` | True for `submitted` or `streaming`. False while a turn is paused. |
-| `sendBlockedReason` | `string` | Why sending must wait, from the `sendBlocker`, or null. |
+| `sendBlockedReason` | `string` | Why sending must wait - while an undo runs, or from the `sendBlocker` or an added blocker - or null. |
 | `isEmpty` | `boolean` | True if there are no messages. |
 | `lastMessage` | `ChatMessage` | The newest message, or null. |
 | `waitingToolCalls` | `ChatToolCallPart[]` | Calls the paused turn waits on. Empty unless paused. |

@@ -1,7 +1,6 @@
 import {XH} from '@xh/hoist/core';
 import type {FetchOptions} from '@xh/hoist/svc';
 import {logDebug} from '@xh/hoist/utils/js';
-import {isEmpty} from 'lodash';
 import {
     HttpChatTransport,
     type HttpChatRecord,
@@ -46,19 +45,20 @@ export class SseChatTransport extends HttpChatTransport {
             const {done, value} = await reader.read();
             if (done) return;
 
-            const events = parser.feed(value);
-            // Data with no complete event, such as a keep-alive comment, still shows the server
-            // is there - for the idle timeout.
-            if (isEmpty(events)) yield {data: null};
-            for (const {event, data} of events) {
+            // Data with no record in it - a keep-alive comment, a part of an event, `[DONE]` or
+            // data that is not JSON - still shows the server is there, for the idle timeout.
+            let hasRecord = false;
+            for (const {event, data} of parser.feed(value)) {
                 if (data === '[DONE]') continue;
                 const record = parseJson(data);
                 if (record) {
+                    hasRecord = true;
                     yield {data: record, eventName: event};
                 } else {
                     logDebug(['Skipped SSE data that is not JSON', data], this);
                 }
             }
+            if (!hasRecord) yield {data: null};
         }
     }
 }
