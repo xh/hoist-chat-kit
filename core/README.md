@@ -5,7 +5,7 @@
 | [Overview](#overview) | What the core models do, and the key features |
 | [Architecture](#architecture) | `ChatModel`, `ChatMessage`, parts, tools, and the turn loop |
 | [Configuration Pattern](#configuration-pattern) | Creating a `ChatModel` with a transport, tools, and a composer |
-| [Common Usage Patterns](#common-usage-patterns) | Sending, tools, approvals, interactive tools, persistence, errors |
+| [Common Usage Patterns](#common-usage-patterns) | Sending, tools, approvals, server-owned conversations, feedback, persistence, errors |
 | [Properties/API Reference](#propertiesapi-reference) | Config, state, methods, statuses, parts, and metadata |
 | [Extension Points](#extension-points) | Tools, data renderers, transports, and app metadata |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -30,7 +30,11 @@ Key features:
   chat runs it in the browser, sends the result back, and continues, up to `maxSteps`.
 - **Human in the loop** - tool calls can wait for the user to approve them, or for the user to
   answer them. The turn pauses and resumes when the user responds.
-- **Conversation actions** - stop, retry, regenerate, and edit a past message.
+- **Two conversation shapes** - the browser owns the history, or an agent service owns it and
+  the chat sends only each new message. See [Run a server-owned
+  conversation](#run-a-server-owned-conversation).
+- **Conversation actions** - stop, detach, retry, regenerate, and edit a past message.
+- **Feedback** - rate a reply, with an optional comment, through an app or thread layer submitter.
 - **Persistence** - `getMessageSpecs()` returns the conversation as JSON, and `loadMessages()`
   restores it.
 - **`ChatComposerModel`** - the draft text and file attachments of the next message.
@@ -46,21 +50,28 @@ ChatModel (HoistModel)
 ├── status: ChatStatus                # 'ready' | 'submitted' | 'streaming' | 'error'
 ├── lastError: Error                  # Error from the last turn, or null
 ├── threadId: string                  # Identifies the conversation to the backend
+├── historyMode: ChatHistoryMode      # 'client' | 'server' - who owns the history
+├── runOptions: PlainObject           # Options for the next turn (bindable)
+├── hasOlderMessages: boolean         # More history to page in (bindable)
 ├── Computed:
 │   ├── isBusy                        # True while a turn runs - false while paused
 │   ├── isAwaitingUser                # True while a turn waits on the user
 │   ├── waitingToolCalls              # Calls the paused turn waits on
-│   └── pendingApprovals              # The subset that waits for approve or deny
+│   ├── pendingApprovals              # The subset that waits for approve or deny
+│   └── canSubmitFeedback             # True if a feedback submitter is set
 └── Methods:
     ├── sendAsync()                   # Send a message and stream the reply
     ├── stop()                        # Stop the current turn, keep its content
+    ├── detach()                      # Stop following the turn, leave it running on the server
     ├── retryAsync()                  # Re-run the last user message
     ├── regenerateAsync()             # Replace an assistant reply
     ├── editMessageAsync()            # Change a user message and re-run from it
     ├── approveToolCallAsync()        # Approve a waiting call
     ├── denyToolCallAsync()           # Deny a waiting call
     ├── addToolOutputAsync()          # Answer a call to an interactive tool
+    ├── submitFeedbackAsync()         # Rate a reply, or clear its rating
     ├── loadMessages() / clear()      # Replace the conversation, as a new thread
+    ├── prependMessages()             # Add a page of older history
     └── getMessageSpecs()             # The conversation as JSON, for storage
 
 ChatMessage (immutable)
@@ -267,6 +278,128 @@ await chatModel.editMessageAsync(message.id, text);  // New text, same files, re
 Both discard the messages after the point they re-run from. The desktop components wire these
 actions to the error banner and the message hover bar.
 
+### Run a server-owned conversation
+
+Set `historyMode: 'server'` when an agent service owns the history, the threads and the tool
+loop. The browser then sends one message per turn and renders the stream. Client mode, the
+default, suits a helper agent whose backend keeps no state.
+
+```typescript
+this.chatModel = new ChatModel({
+    transport: new SseChatTransport({
+        url: 'https://agents.example.com/runs',
+        cancelUrl: 'https://agents.example.com/runs/cancel'
+    }),
+    historyMode: 'server'
+});
+```
+
+In server mode:
+
+- Each `ChatRunRequest` still holds the whole history in `messages`. A codec sends
+  `newMessages` instead: the user message on the first step, or the reply with its tool results
+  on a later step. The request also names the turn, with `turnId`, `trigger` and `stepIndex`. See
+  [`/transport/`](../transport/README.md#server-owned-conversations).
+- The chat records the server's ids, and never changes its own. `RUN_STARTED` sets the reply's
+  `metadata.runId`. An `xh.chat.message` event, or `result.messageId` on `RUN_FINISHED`, sets
+  `metadata.serverId` on the reply or the user message.
+- The first run of a new thread may report the server's own thread id on `RUN_STARTED`. The
+  chat adopts it, once, and `threadId` changes. A thread loaded with its id keeps that id.
+- `stop()` asks the transport to cancel the run. `detach()`, `clear()` and `loadMessages()` leave
+  it running on the server, and mark the reply `metadata.detached`. A reload of the thread later
+  shows the server's answer.
+
+`turnId` is the id of the user message the turn answers. A retry of the turn sends the same id,
+with `trigger: 'retry'`, so a backend that keys runs by it can replay the result rather than
+start a second run.
+
+### Pick options per turn
+
+`runOptions` holds what the user picks for the next turn, such as a document scope or an agent
+profile. Bind a picker to it. Each send records a copy on the user message, as
+`metadata.runOptions`, and every request of the turn carries that copy. A change in the picker
+while a turn runs therefore never reaches it. A retry, regenerate or edit uses the copy recorded
+on its user message.
+
+```typescript
+// Replace the value - the chat reads it once per send.
+chatModel.runOptions = {documentIds: selectedIds, profile: 'thorough'};
+```
+
+### Stop or detach a turn
+
+| Action | Message | Cancel sent | Server mode |
+|--------|---------|-------------|-------------|
+| `stop()` | `aborted` | Yes, while a step is in flight | The run should end |
+| `detach()` | `aborted` | No | The run goes on. The reply gets `metadata.detached: true` |
+| `clear()`, `loadMessages()` | Discarded | No | As for `detach()` |
+| `destroy()` | Discarded | No | The run goes on |
+
+The turn's signal aborts with a `ChatAbortError`. Its `name` is `AbortError`, and its `reason` is
+`stop`, `detach`, `clear`, `load` or `destroy`. A client tool can read the reason from
+`context.signal.reason`. In client mode, a detach and a clear only abort, as a stop does, with no
+cancel.
+
+### Rate a reply
+
+`submitFeedbackAsync()` stores the rating on the message at once, as `metadata.feedback`, then
+sends it. If the submit fails, the rating reverts and a toast says so. A rating the user gave
+since then stays. History restores a rating from the same key.
+
+```typescript
+new ChatModel({
+    transport,
+    feedback: {
+        submitAsync: spec => XH.postJson({url: 'chat/feedback', body: spec}),
+        commentOn: 'negative',
+        requireComment: true
+    }
+});
+
+await chatModel.submitFeedbackAsync(message.id, 'negative', 'The rate is out of date.');
+await chatModel.submitFeedbackAsync(message.id, null);  // Clear the rating
+```
+
+The submitter gets a `ChatFeedbackSpec`: the `threadId`, the kit `messageId`, the `serverId` and
+`runId` from the message's metadata, the `rating` and the `comment`. With no `submitAsync`, the
+chat uses the submitter that a thread layer passes to `setFeedbackSubmitter()`.
+`canSubmitFeedback` is false when there is neither, and `submitFeedbackAsync()` then throws.
+
+### Clean up model text
+
+`textTransform` rewrites the text of a reply before the chat stores it, for example to strip
+markup that a model leaks. It gets all of a part's text so far on each change, and the final text
+once more with `isStreaming: false`. Keep it pure and fast, because it runs on every flush.
+
+```typescript
+new ChatModel({
+    transport,
+    textTransform: text => text.replace(/<thinking>[\s\S]*?(<\/thinking>|$)/g, '')
+});
+```
+
+It does not apply to user messages, or to messages loaded as history.
+
+### Track turns
+
+Set `track: true`, or pass `{category, severity, logData}`, to record each finished turn with
+Hoist activity tracking. Each turn tracks once, in category `Chat` by default, as `Turn
+complete`, `Turn failed` or `Turn stopped`. Its data holds `elapsedMs`, `steps`, `toolCalls`,
+`toolErrors`, `finishReason`, `errorCode`, `threadId`, `runId` and `historyMode`. It never holds
+message text. A submitted rating tracks as `Feedback submitted`, without its comment.
+
+### Page in older history
+
+A thread layer that loads history a page at a time calls `prependMessages()` with each older
+page, and sets `hasOlderMessages` to show whether more remain. The chat skips messages already
+present, by id.
+
+```typescript
+const page = await store.loadMessagesAsync({threadId, cursor});
+chatModel.prependMessages(page.messages);
+chatModel.hasOlderMessages = !!page.nextCursor;
+```
+
 ### Ask for approval before a tool runs
 
 Set `needsApproval` on a client tool. Use a function to decide per call.
@@ -413,6 +546,7 @@ this.addReaction({
 | `ChatRunError` with code `incomplete-stream` | The stream ended with neither `RUN_FINISHED` nor `RUN_ERROR`, for example on a dropped connection |
 | `ChatRunError` with code `stalled` | The server sent nothing for longer than the transport's `idleTimeout` |
 | `ChatRunError` with a null code | The run reported an error with no code |
+| `ChatRunError` with `retryAfterSeconds` | The run asked for a wait before a retry, through `metadata.retryAfterSeconds` on `RUN_ERROR` |
 | Hoist `FetchException` | The request failed before or during the stream, for example a 500 from the server |
 | Any other `Error` | A codec or transport threw, for example `AnthropicCodec` with a history that has no user content |
 
@@ -473,6 +607,11 @@ for the full doc comments.
 | `maxSteps` | `number` | Most model calls in one turn. Each round of client tool calls takes one more. Default 10. |
 | `initialMessages` | `ChatMessageSpec[]` | Messages to start with, such as a greeting or restored history. Closed as by `loadMessages()`. |
 | `threadId` | `string` | Identifies the conversation to the backend. Default a new UUID. |
+| `historyMode` | `'client' \| 'server'` | Who owns the history. Default `client`. See [Run a server-owned conversation](#run-a-server-owned-conversation). |
+| `runOptions` | `PlainObject` | Initial value of `runOptions`. Default null. |
+| `textTransform` | `(text, context) => string` | Rewrites reply text before it is stored. `context` holds the `message` and `isStreaming`. |
+| `feedback` | `ChatFeedbackConfig` | `submitAsync`, `commentOn` (default `negative`) and `requireComment` (default false). |
+| `track` | `boolean \| ChatTrackOptions` | True, or `{category, severity, logData}`, to track each finished turn. Default false. |
 | `composer` | `ChatComposerConfig` | Config for the managed `composerModel`. |
 | `sendBlocker` | `() => string` | Returns why sending must wait, or null to allow it. Read as a computed value. While blocked, the composer disables Send and shows the reason, and `sendAsync` and `editMessageAsync` do nothing. |
 | `dataRenderers` | `Record<string, ChatDataRenderer>` | Renderers for data parts, keyed by `dataType`. A renderer is `(part, context) => ReactNode`, with a `ChatPartRenderContext`. |
@@ -489,7 +628,10 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `messages` | `ChatMessage[]` | History, oldest first. Observable. Replaced, never mutated. |
 | `status` | `ChatStatus` | `ready`, `submitted`, `streaming` or `error`. Observable. |
 | `lastError` | `Error` | Error from the last turn, or null. Observable. |
-| `threadId` | `string` | Current thread. Observable. `clear()` and `loadMessages()` change it. |
+| `threadId` | `string` | Current thread. Observable. `clear()` and `loadMessages()` change it. In server mode, the first run of a new thread can change it once. Read-only. |
+| `runOptions` | `PlainObject` | Options for the next turn. `@bindableRef` - replace the value to change it. |
+| `hasOlderMessages` | `boolean` | True if older history remains to page in. `@bindable`. Default false. |
+| `canSubmitFeedback` | `boolean` | True if `feedback.submitAsync` or a thread layer submitter is set. |
 | `isBusy` | `boolean` | True for `submitted` or `streaming`. False while a turn is paused. |
 | `sendBlockedReason` | `string` | Why sending must wait, from the `sendBlocker`, or null. |
 | `isEmpty` | `boolean` | True if there are no messages. |
@@ -498,14 +640,15 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `isAwaitingUser` | `boolean` | True if a turn is paused for the user. |
 | `pendingApprovals` | `ChatToolCallPart[]` | The calls in `waitingToolCalls` that wait for approval. |
 | `composerModel` | `ChatComposerModel` | Draft of the next message. |
-| `transport`, `tools`, `maxSteps`, `dataRenderers` | - | The config values, read-only. |
+| `transport`, `tools`, `maxSteps`, `historyMode`, `feedback`, `dataRenderers` | - | The config values, read-only. `feedback` has its defaults applied. |
 
 ### ChatModel methods
 
 | Method | Description |
 |--------|-------------|
 | `sendAsync(input?)` | Send a string, a `ChatSendSpec`, or the composer draft. Ignored while busy, while blocked by the `sendBlocker`, or when empty. |
-| `stop()` | Stop the current turn, running or paused. Content stays, and the message becomes `aborted`. |
+| `stop()` | Stop the current turn, running or paused. Content stays, and the message becomes `aborted`. Asks the transport to cancel a step in flight. |
+| `detach()` | Stop following the current turn, with no cancel. In server mode the reply gets `metadata.detached`. |
 | `retryAsync()` | Re-run the last user message, replacing everything after it. |
 | `regenerateAsync(messageId?)` | Replace an assistant reply, by default the last one. Ignored for a reply with no user message before it. |
 | `editMessageAsync(messageId, text)` | Change the text of a user message, keep its files, and re-run from it. |
@@ -514,6 +657,9 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `addToolOutputAsync(toolCallId, output)` | Give the result of a call to an interactive tool. |
 | `clear()` | Remove all messages and start a new thread. |
 | `loadMessages(specs, threadId?)` | Replace the conversation. Default a new thread id. |
+| `prependMessages(specs)` | Add older messages ahead of the conversation, skipping ids already present. |
+| `submitFeedbackAsync(messageId, rating, comment?)` | Rate a reply, or clear its rating with null. Shows at once, and reverts if the submit fails. |
+| `setFeedbackSubmitter(submitAsync)` | Set the submitter to use when `feedback.submitAsync` is not configured. For a thread layer. |
 | `getMessageSpecs()` | The conversation as `ChatMessageSpec[]`, for storage. |
 | `getMessage(id)` | A message by id, as it is now, or null. |
 | `getToolSpec(name)` | The spec for a tool, or null. |
@@ -560,6 +706,14 @@ The kit records these keys in the `metadata` of an assistant message:
 | `usage` | `ChatTokenUsage[]`, one entry per step that reported token counts. |
 | `model` | The model that served the call, when the codec reports it. |
 | `errorCode` | Code of a failed run. |
+| `retryAfterSeconds` | Wait the backend asked for before a retry, on a failed run. |
+| `runId` | Id of the latest run, from `RUN_STARTED`. |
+| `serverId` | The server's id for the message, from `xh.chat.message` or `RUN_FINISHED`. Also set on a user message. |
+| `detached` | True on a reply left running on the server by `detach()`, `clear()` or `loadMessages()`, in server mode. |
+| `feedback` | The user's rating, as `{rating, comment?}`. |
+
+A user message records `runOptions`, the copy of the options it was sent with, and `serverId`
+when the server reports one.
 
 A backend can add its own keys through the `metadata` of its `RUN_FINISHED` event. The chat
 merges them into the message.
@@ -575,7 +729,7 @@ Every part has an `id`, unique within its message, and a `step`. User message pa
 | `reasoning` | `text`, `state`, `startedAt`, `endedAt`, `encryptedValue?`, `providerData?` | The model's thinking. `encryptedValue` holds a signature that goes back with the history. |
 | `toolCall` | `toolName`, `state`, `inputText`, `input`, `output`, `errorText`, `providerExecuted?` | The `id` is the provider's tool call id. |
 | `file` | `name`, `mediaType`, `size?`, `url?`, `data?` | `data` is base64. |
-| `source` | `url?`, `title?`, `snippet?` | A source the model consulted. |
+| `source` | `url?`, `title?`, `snippet?`, `marker?`, `metadata?` | A source the model consulted. `marker` is the number that cites it in the text, as in `[1]`. |
 | `data` | `dataType`, `data` | App or protocol content, drawn by `dataRenderers`. |
 
 The `state` of a tool call follows the Vercel AI SDK names, plus `running`:
@@ -664,6 +818,8 @@ construction, for example to allow files only while an agent that reads them is 
   the turn.
 - **Metadata** - record app data on a user message through `ChatSendSpec.metadata`. A backend
   adds keys to an assistant message through the `metadata` of `RUN_FINISHED`.
+- **Text transform** - rewrite model text before it is stored, with `textTransform`.
+- **Feedback** - send ratings to your backend with `feedback.submitAsync`.
 - **Message records** - build history in code with `ChatMessageSpec` and `loadMessages()`, for
   example a greeting, or a thread loaded from your server.
 

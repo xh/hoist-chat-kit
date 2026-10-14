@@ -5,7 +5,7 @@
 | [Overview](#overview) | How the chat gets events from a backend, and the key features |
 | [Architecture](#architecture) | Transports, codecs, `ChatEvent`, and how they fit together |
 | [Configuration Pattern](#configuration-pattern) | Choosing and configuring a transport and a codec |
-| [Common Usage Patterns](#common-usage-patterns) | Hoist servers, Anthropic, AG-UI agents, scripted demos and tests |
+| [Common Usage Patterns](#common-usage-patterns) | Hoist servers, Anthropic, AG-UI agents, server-owned conversations, scripted demos and tests |
 | [Server Contracts](#server-contracts) | What each transport expects from its backend |
 | [Hoist Server Example](#hoist-server-example) | A hoist-core controller that relays an Anthropic stream |
 | [Properties/API Reference](#propertiesapi-reference) | Config tables, the event vocabulary, and `xh.chat.*` events |
@@ -36,12 +36,16 @@ Key features:
   translate. The kit translates the stream in tested TypeScript.
 - **`ScriptedChatTransport`** - canned events with realistic pacing, for demos and unit tests.
 - **Real cancellation** - a stop closes the HTTP connection, so the server can stop generating
-  tokens.
+  tokens. A `cancelUrl` also posts a cancel, for a backend that keeps running after a disconnect.
+- **Both conversation shapes** - each request carries the whole history for a stateless backend,
+  and the new messages and the turn's ids for an agent service that owns the history.
 
 ## Architecture
 
 ```
 ChatTransport (interface)
+├── cancelAsync?(run): Promise<void>            # Cancel a run the user stopped
+├── resume?(run, signal)                        # Reserved - reattach to a running run
 └── run(request): AsyncIterable<ChatEvent>      # One step - one model call
     │
     ├── HttpChatTransport (abstract)            # POST a JSON body, read a streamed response
@@ -59,9 +63,14 @@ ChatCodec (interface)
 
 ChatRunRequest
 ├── threadId, runId                             # Conversation and step ids
+├── historyMode: 'client' | 'server'            # Who owns the history
+├── trigger, turnId, stepIndex                  # What started the step, and its turn
 ├── messages: ChatMessage[]                     # History, ending with the reply being built
+├── newMessages: ChatMessage[]                  # What the server has not seen
+├── replacedMessageId: string                   # The reply a retry or regenerate replaces
+├── runOptions: PlainObject                     # Options the user picked, copied at send
 ├── tools: ChatToolSpec[]                       # Tools to send to the model
-└── signal: AbortSignal                         # Aborts the step
+└── signal: AbortSignal                         # Aborts the step, with a ChatAbortError
 ```
 
 For each step, `ChatModel` builds a `ChatRunRequest` and iterates `transport.run()`. An HTTP
@@ -252,6 +261,76 @@ value, or a function that builds the value for each step. `state` defaults to `{
 Decoding passes each record through as a `ChatEvent`. The decoder drops records of an unknown
 `type`.
 
+In server mode, `AgUiCodec` sends only the new messages, and puts the turn in `forwardedProps`.
+See [Server-owned conversations](#server-owned-conversations).
+
+### Server-owned conversations
+
+With `historyMode: 'server'` on the `ChatModel`, an agent service owns the history, the threads
+and the tool loop. Each request still holds the whole history in `messages`, so a client-mode
+codec works unchanged. A server-mode codec sends these fields instead:
+
+| Field | Value |
+|-------|-------|
+| `newMessages` | What the server has not seen: the user message on the first step of a turn, or the reply on a `continue` step, whose last step holds the client's tool results. |
+| `turnId` | Id of the user message the turn answers. The same for every step of the turn, and for a retry, regenerate or edit of it. |
+| `trigger` | `submit`, `retry`, `regenerate`, `edit`, or `continue` for a later step of a turn. |
+| `stepIndex` | Zero-based index of the step within its turn. |
+| `replacedMessageId` | The reply that a `retry` or `regenerate` replaces, or null. |
+| `runOptions` | The options the user picked, copied when the message was sent, or null. |
+
+A backend with an idempotency key keys runs by `turnId` and `trigger`. It replays a finished run
+for a `retry`, and starts a new run for a `regenerate` or an `edit`.
+
+`AgUiCodec` encodes a server-mode request as a `RunAgentInput` whose `messages` holds only the
+new messages. On a `continue` step, that is the reply's last step: its tool calls and the results
+the client gave them. The turn goes in `forwardedProps`, merged under any props the app sets:
+
+```json
+{
+    "threadId": "7f3c...",
+    "runId": "b21e...",
+    "messages": [{"id": "9a4d...", "role": "user", "content": "Which form applies?"}],
+    "forwardedProps": {
+        "turnId": "9a4d...",
+        "trigger": "submit",
+        "runOptions": {"documentIds": ["doc-1"]},
+        "tenant": "emea"
+    }
+}
+```
+
+`replacedMessageId` joins them for a retry or regenerate. `runOptions` is left out when it is
+null. A key the app sets in its own `forwardedProps` wins over the kit's.
+
+`AnthropicCodec` serves client mode only. The Messages API keeps no state, so it needs the whole
+history, and the codec throws for a server-mode request. Use `AgUiCodec`, or write a codec for
+the agent service's own format.
+
+What a server-mode backend sends back:
+
+- `RUN_STARTED` with its own `threadId`, if it mints thread ids. The chat adopts the id from the
+  first run of a new thread, once. Its `runId` becomes the reply's `metadata.runId`.
+- `xh.chat.message` with `{role, serverId}`, for the server's ids of the reply and the user
+  message. They become `metadata.serverId`. A `messageId` in the `result` of `RUN_FINISHED` also
+  works, for the reply.
+- `xh.chat.textReplace` to reset the answer (`text: ''`) or to send its final text whole.
+- `RUN_ERROR` with `metadata.retryAfterSeconds`, to ask for a wait before a retry.
+
+A stop closes the connection and calls `cancelAsync()`. With a `cancelUrl`, the HTTP transports
+post `{threadId, runId, turnId}` there, with the `headers` and `params` of the stopped step. The
+`runId` is the one the server reported on `RUN_STARTED`. A detach, a clear or a load also closes
+the connection, but sends no cancel. So a backend that supports them must keep a run going when
+the client disconnects, and save its answer for the next load of the thread.
+
+```typescript
+new SseChatTransport({
+    url: 'https://agents.example.com/runs',
+    cancelUrl: run => `https://agents.example.com/runs/${run.runId}/cancel`,
+    headers: async () => ({Authorization: `Bearer ${await tokenService.getTokenAsync()}`})
+});
+```
+
 ### Script a demo or a test
 
 `ScriptedChatTransport` plays back events with no backend. Give it one response per step, in
@@ -308,7 +387,9 @@ new ScriptedChatTransport({
 
 The helpers are `textEvents()`, `reasoningEvents()`, `toolCallEvents()`, `sourceEvents()`,
 `citationEvents()`, `dataEvents()`, `errorEvents()` and `scriptedDelay()`. A citation attaches to
-the text part before it, and refers to a source by `sourceId` or by `url`. Pass a `result` to
+the text part before it, and refers to a source by `sourceId` or by `url`. A source can carry a
+`marker`, the number that cites it as `[n]` in the text, and `metadata`. Pass
+`{retryAfterSeconds}` as the third argument of `errorEvents()` to ask for a wait before a retry. Pass a `result` to
 `toolCallEvents()` to simulate a tool that the backend runs. A response can also be an async
 iterable of events, which sets its own pace.
 
@@ -410,7 +491,8 @@ events. The `AnthropicCodec` produces them from Anthropic's stream.
 
 No server. Each step takes the next response from `responses`, or the result of `respond`. A
 request past the end of `responses` fails with `ScriptedChatTransport has no response for request
-<n>.`. The transport stops at once, with an abort error, when the request's signal aborts.
+<n>.`. The transport stops at once, with an abort error, when the request's signal aborts. The
+`userMessage` and `attempt` of its `respond` context follow the request's `turnId`.
 
 ## Hoist Server Example
 
@@ -685,6 +767,7 @@ Shared by `HoistChatTransport` and `SseChatTransport`.
 | `track` | `string \| TrackOptions` | Track each step with Hoist activity tracking, as `FetchOptions.track` does. |
 | `timeout` | `PromiseTimeoutSpec` | Wait for the response to start. Default the `FetchService` default. No timeout applies once the response streams. |
 | `idleTimeout` | `number` | Longest wait for data, in milliseconds, from the request to the first record and between records. Fails the step with code `stalled`. Default none. |
+| `cancelUrl` | `string \| (run) => Awaitable<string>` | Endpoint to post `{threadId, runId, turnId}` to when the user stops a run, with the `headers` and `params` of the stopped step. Default none. |
 
 ### AnthropicCodecConfig
 
@@ -719,9 +802,9 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 
 | Event | Fields used | Effect on the assistant message |
 |-------|-------------|---------------------------------|
-| `RUN_STARTED` | `threadId`, `runId` | None |
-| `RUN_FINISHED` | `outcome?`, `usage?`, `metadata?` | Records `finishReason`, `usage` and any `metadata`. Marks the step complete. |
-| `RUN_ERROR` | `message`, `code?` | Fails the message, with `metadata.errorCode`. |
+| `RUN_STARTED` | `threadId`, `runId` | Records `metadata.runId`. In server mode, the first run of a new thread may set the chat's `threadId`. |
+| `RUN_FINISHED` | `outcome?`, `usage?`, `metadata?`, `result?` | Records `finishReason`, `usage` and any `metadata`. A `result.messageId` sets `metadata.serverId`, if no event set it. Marks the step complete. |
+| `RUN_ERROR` | `message`, `code?`, `metadata?` | Fails the message, with `metadata.errorCode`. Records `metadata.retryAfterSeconds` if given. |
 | `TEXT_MESSAGE_START` | `messageId` | Opens a text part on its first content. |
 | `TEXT_MESSAGE_CONTENT` | `messageId`, `delta` | Appends to the text part. |
 | `TEXT_MESSAGE_END` | `messageId` | Marks the text part `done`. |
@@ -752,13 +835,15 @@ Content that AG-UI has no event for travels as a `CUSTOM` event with a name that
 
 | `name` | `value` | Effect |
 |--------|---------|--------|
-| `xh.chat.source` | `{id?, url?, title?, snippet?}` | Appends a source part. |
+| `xh.chat.source` | `{id?, url?, title?, snippet?, marker?, metadata?}` | Appends a source part. `marker` is the number that cites it in the text, as in `[1]`. |
 | `xh.chat.citation` | `{id?, title?, url?, citedText?, sourceId?}` | Adds a citation to the open text part, or else the last one. |
 | `xh.chat.data` | `{id?, dataType, data}` | Adds a data part, or replaces the one with the same `id`. |
 | `xh.chat.file` | `{id?, name, mediaType, size?, url?, data?}` | Appends a file part. |
 | `xh.chat.providerData` | `{subtype, entityId, data}` | Merges `data` into the `providerData` of a reasoning part or a tool call, by provider key. |
 | `xh.chat.providerExecuted` | `{toolCallId}` | Marks a tool call as run by the backend, before its result arrives. |
 | `xh.chat.toolError` | `{toolCallId, message}` | Fails a tool call the backend ran, in place of its result. `output-error`, with `message` as `errorText`. |
+| `xh.chat.textReplace` | `{text}` | Sets the text of the open text part, or else of the reply's last text part. Adds a part if the reply has no text. `text: ''` resets the answer. |
+| `xh.chat.message` | `{role, serverId}` | Records the server's id for the reply (`role: 'assistant'`) or the user message (`role: 'user'`), as `metadata.serverId`. |
 
 A Hoist server that emits AG-UI events can send a data part like this:
 
@@ -774,9 +859,13 @@ Implement `ChatTransport` for a backend that the HTTP transports do not cover, s
 WebSocket or an SDK with its own client. `run()` must:
 
 1. Yield `ChatEvent`s in arrival order, and end when the run ends.
-2. Stop and settle at once when `request.signal` aborts.
+2. Stop and settle at once when `request.signal` aborts. The signal's `reason` is a
+   `ChatAbortError`, whose `reason` says why: `stop`, `detach`, `clear`, `load` or `destroy`.
 3. Throw on a failure to connect. For a failure mid-stream, throw or yield `RUN_ERROR`.
 4. End a complete run with `RUN_FINISHED`.
+
+Implement `cancelAsync(run)` too if the backend keeps running after a disconnect. The chat calls
+it when the user stops a step in flight, and logs a failure at warn level.
 
 ```typescript
 import type {ChatEvent, ChatRunRequest, ChatTransport} from '@xh/hoist-chat-kit/transport';

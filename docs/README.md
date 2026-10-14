@@ -31,6 +31,11 @@ its tools.
 | Let the user answer a tool call | [`/core/`](../core/README.md#let-the-user-answer-a-tool-call) |
 | Save and restore a conversation | [`/core/`](../core/README.md#persist-and-restore-a-conversation) |
 | Handle errors, retries and finish reasons | [`/core/`](../core/README.md#handle-errors-and-finish-reasons) |
+| Connect to an agent service that owns the history and threads | [`/core/`](../core/README.md#run-a-server-owned-conversation) |
+| Send per-turn options, such as a document scope | [`/core/`](../core/README.md#pick-options-per-turn) |
+| Stop a run, or leave it running on the server | [`/core/`](../core/README.md#stop-or-detach-a-turn) |
+| Send ratings and comments on replies | [`/core/`](../core/README.md#rate-a-reply) |
+| Encode a request for a server-owned conversation | [`/transport/`](../transport/README.md#server-owned-conversations) |
 | Connect to a hoist-core server | [`/transport/`](../transport/README.md#relay-claude-through-a-hoist-server) |
 | Write a Grails controller that streams a model reply | [`/transport/`](../transport/README.md#hoist-server-example) |
 | Call Claude, with a system prompt and prompt caching | [`/transport/`](../transport/README.md#relay-claude-through-a-hoist-server) |
@@ -59,8 +64,8 @@ its tools.
 
 | Package | Description | Key Topics |
 |---------|-------------|------------|
-| [`/core/`](../core/README.md) | Platform-neutral chat models: conversation state, the turn loop, messages, parts, tools and the composer | ChatModel, ChatMessage, ChatPart, ChatToolSpec, ChatComposerModel, ChatRunError, turns, steps, approvals, interactive tools, persistence, finish reasons |
-| [`/transport/`](../transport/README.md) | Transports and codecs that turn a backend's stream into AG-UI events, with server contracts | ChatTransport, HoistChatTransport, SseChatTransport, ScriptedChatTransport, HttpChatTransport, AgUiCodec, AnthropicCodec, ChatEvent, xh.chat events, NDJSON, Grails controller, prompt caching, citationEvents |
+| [`/core/`](../core/README.md) | Platform-neutral chat models: conversation state, the turn loop, messages, parts, tools and the composer | ChatModel, ChatMessage, ChatPart, ChatToolSpec, ChatComposerModel, ChatRunError, turns, steps, approvals, interactive tools, persistence, finish reasons, historyMode, runOptions, stop and detach, feedback, textTransform, activity tracking |
+| [`/transport/`](../transport/README.md) | Transports and codecs that turn a backend's stream into AG-UI events, with server contracts | ChatTransport, HoistChatTransport, SseChatTransport, ScriptedChatTransport, HttpChatTransport, AgUiCodec, AnthropicCodec, ChatEvent, xh.chat events, NDJSON, Grails controller, prompt caching, citationEvents, server-owned conversations, turnId, newMessages, cancelUrl |
 | [`/genui/`](../genui/README.md) | Generative UI: a catalog of app components the model can show inline, with protocol adapters | ChatUiCatalog, ChatUiComponentSpec, ChatUiRenderContext, ChatUiAdapter, ChatUiNode, JSON Schema subset, partial props, instructions, inline display |
 
 ### Components
@@ -75,7 +80,7 @@ its tools.
 
 | Concept | Description | Key Topics |
 |---------|-------------|------------|
-| [Architecture](./architecture.md) | The kit's layers, the flow of one turn, render performance, extension seams and the platform split | layers, turn flow, immutable messages, flush batching, memoization, extension points, desktop, mobile |
+| [Architecture](./architecture.md) | The kit's layers, the flow of one turn, the two conversation shapes, render performance, extension seams and the platform split | layers, turn flow, conversation shapes, server mode, immutable messages, flush batching, memoization, extension points, desktop, mobile |
 | [Protocols](./protocols.md) | How AG-UI, Anthropic, OpenAI, A2UI, OpenUI, MCP Apps and the Vercel AI SDK relate to the kit | AG-UI, Anthropic, OpenAI, A2UI, OpenUI, MCP Apps, generative UI, data parts, Vercel AI SDK, tool states |
 
 ## Conventions

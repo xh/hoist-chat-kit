@@ -1,8 +1,8 @@
 # Architecture
 
-This doc describes the structure of Hoist Chat Kit. It covers the layers and the flow of one turn
-from the composer to the rendered parts. It also covers render performance, and where an app
-plugs in.
+This doc describes the structure of Hoist Chat Kit. It covers the layers, the flow of one turn
+from the composer to the rendered parts, and the two shapes of conversation the kit serves. It
+also covers render performance, and where an app plugs in.
 
 ## Layers
 
@@ -68,7 +68,7 @@ ChatComposerModel       submitAsync() - canSend?
 ChatModel.sendAsync()   1. Append the user message and an empty assistant message
      │                  2. Clear the draft. status = 'submitted'
      ▼
-ChatModel (step loop)   3. Build a ChatRunRequest: threadId, runId, messages, tools, signal
+ChatModel (step loop)   3. Build a ChatRunRequest: thread, run and turn ids, messages, tools
      │
      ▼
 HttpChatTransport       4. codec.encodeRequest(request) - the JSON body
@@ -109,6 +109,45 @@ The chat closes any open part, so the history stays valid for the next request. 
 
 Only one turn runs at a time. The chat guards against a second send with a plain field, not with
 MobX state, so two sends in the same tick cannot both start.
+
+## Two Conversation Shapes
+
+A conversation has one owner of its history, set by `ChatModelConfig.historyMode`.
+
+| | Client mode (default) | Server mode |
+|---|---|---|
+| Who owns the history | The browser | An agent service |
+| Who runs the tool loop | The chat, with client tools | The agent. The chat can still run client tools |
+| Each request carries | The whole history | The new messages, with the turn's ids |
+| Threads | One per `ChatModel`, saved by the app | Saved by the server, listed by a thread layer |
+| A stop | Closes the connection | Closes the connection, and asks the transport to cancel the run |
+| A clear, load or detach | Closes the connection | Leaves the run going on the server |
+| Example | A helper agent on a dashboard, whose backend relays a model API | A document assistant on an agent service |
+
+In client mode, the chat is the source of truth. Each step resends the whole conversation, and
+`getMessageSpecs()` and `loadMessages()` persist it.
+
+In server mode, the agent service is the source of truth, and the chat is a view of it. Each
+request still holds the whole history in `messages`, so the request type stays the same. A
+server-mode codec sends `newMessages` instead: the user message on the first step, or the client's
+tool results on a later one. It also sends the turn's ids:
+
+- `turnId` is the id of the user message the turn answers. A retry sends it again, so a backend
+  with an idempotency key can replay the result rather than start a second run.
+- `trigger` says what started the step: `submit`, `retry`, `regenerate`, `edit` or `continue`.
+- `runOptions` is the copy of the user's per-turn options, taken when the message was sent.
+
+Kit ids never change. A message keeps the id the kit gave it, so React keys and renderers never
+remap. The server's ids arrive in the stream and land in `metadata.serverId` and
+`metadata.runId`. History loaded from the server uses the server's ids as kit ids, so the two
+agree from then on. The thread id is the one exception. The first run of a new thread may report
+the server's id on `RUN_STARTED`, and the chat adopts it, once.
+
+A model, never a component, owns each run. A remount never cancels it. A stop cancels it on the
+server. A detach, a clear or a load only stops the chat from following it. The server keeps its
+answer for the next load of the thread. See [Stop or detach a
+turn](../core/README.md#stop-or-detach-a-turn) and [Server-owned
+conversations](../transport/README.md#server-owned-conversations).
 
 ## Immutable Messages and Render Performance
 
@@ -165,6 +204,12 @@ its render, renderer included.
 | Codecs | `HttpChatTransportConfig.codec` | Speak a new wire format, or implement `ChatCodec` |
 | Live context | `system` on `AnthropicCodec`, `context` on `AgUiCodec` | Describe the app's current state to the model before each step |
 | Lifecycle | `onTurnComplete`, observable `status` and `lastError` | Save history, show toasts, react to errors |
+| History mode | `ChatModelConfig.historyMode` | Let an agent service own the history and the threads |
+| Run options | `ChatModel.runOptions` | Send per-turn choices, such as a document scope, fixed at send time |
+| Cancel | `ChatTransport.cancelAsync`, or `cancelUrl` on the HTTP transports | Stop a run on a backend that keeps going after a disconnect |
+| Text transform | `ChatModelConfig.textTransform` | Strip markup a model leaks, before the text is stored |
+| Feedback | `ChatModelConfig.feedback` | Send ratings and comments on replies to the backend |
+| Telemetry | `ChatModelConfig.track` | Record each finished turn with Hoist activity tracking |
 | Component slots | `ChatPanel` and `ChatComposer` props | Add header buttons, composer toolbars, an empty state and suggestions |
 | Markdown | `markdownComponents` on the message list | Replace how markdown elements render, such as code blocks |
 | Theme | `--xh-chat-*` CSS variables | Change colors, widths and radii, with light and dark defaults |
