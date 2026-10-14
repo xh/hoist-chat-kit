@@ -3,6 +3,8 @@ import {throwIf} from '@xh/hoist/utils/js';
 import {
     compact,
     dropWhile,
+    findLast,
+    findLastIndex,
     flatMap,
     initial,
     isArray,
@@ -12,7 +14,8 @@ import {
     isString,
     last,
     omitBy,
-    partition
+    partition,
+    sumBy
 } from 'lodash';
 import {
     type ChatFilePart,
@@ -57,14 +60,23 @@ export interface AnthropicCodecConfig {
     params?: PlainObject;
 
     /**
-     * True to mark prompt cache breakpoints - `cache_control: {type: 'ephemeral'}` - on the last
-     * system block and the last tool definition, so that Anthropic caches the tools and system
-     * prompt across the steps and turns of a chat. Default false.
+     * True to mark prompt cache breakpoints - `cache_control: {type: 'ephemeral'}` - so that
+     * Anthropic caches the prompt across the steps and turns of a chat. Default false. Marks:
      *
-     * A breakpoint caches everything before it, so it pays off only when what precedes it repeats.
-     * For a system prompt that ends with live state, return blocks from `system` with the static
-     * part first, and mark that block with `cache_control` yourself. Blocks already marked are
-     * left as they are.
+     *  - the last block of the history, so that each step and turn reads the conversation so far
+     *    from the cache, and writes only what it adds.
+     *  - the last system block - unless the app marks any system block itself, in which case its
+     *    placement stands and no system block is added.
+     *  - the last tool definition.
+     *
+     * Anthropic allows at most 4 breakpoints per request, counting those the app sets. Marks are
+     * added in the order above until the limit is reached.
+     *
+     * A breakpoint caches everything before it, so a block that changes on every step must come
+     * after the last one, unmarked. For a system prompt that ends with live state, return blocks
+     * from `system` with the static part first, and mark that block with `cache_control` yourself:
+     * the live block after it is then sent fresh each step, and the static part comes from the
+     * cache.
      */
     cacheControl?: boolean;
 
@@ -124,7 +136,7 @@ export class AnthropicCodec implements ChatCodec {
     /** Other fields for the request body. */
     readonly params: PlainObject;
 
-    /** True to mark prompt cache breakpoints on the system prompt and tools. */
+    /** True to mark prompt cache breakpoints on the history, system prompt and tools. */
     readonly cacheControl: boolean;
 
     /** Final adjustment of the request body, or null. */
@@ -154,8 +166,7 @@ export class AnthropicCodec implements ChatCodec {
         let system = await this.getSystemAsync(request),
             tools = [...(params.tools ?? []), ...request.tools.map(encodeTool)];
         if (cacheControl) {
-            system = system && withCacheBreakpoint(toBlocks(system));
-            tools = withCacheBreakpoint(tools);
+            ({system, tools} = addCacheBreakpoints(system, tools, messages));
         }
 
         const body = {
@@ -231,11 +242,58 @@ function toBlocks(system: AnthropicSystemPrompt): PlainObject[] {
     return isString(system) ? textBlocks([system]) : system;
 }
 
-/** The blocks with a prompt cache breakpoint on the last one, unless it already has one. */
-function withCacheBreakpoint(blocks: PlainObject[]): PlainObject[] {
-    const lastBlock = last(blocks);
-    if (!lastBlock || lastBlock.cache_control) return blocks;
-    return [...initial(blocks), {...lastBlock, cache_control: {type: 'ephemeral'}}];
+/** Most cache breakpoints the Messages API accepts in one request. */
+const MAX_CACHE_BREAKPOINTS = 4;
+
+/** Content blocks of a message that may carry a cache breakpoint. */
+const CACHEABLE_TYPES = ['text', 'image', 'document', 'tool_use', 'tool_result'];
+
+/**
+ * Mark prompt cache breakpoints - see {@link AnthropicCodecConfig.cacheControl}. Marks the last
+ * cacheable block of the history in place, as the turns are built fresh for each request, and
+ * returns the system prompt and tools, with any marks added.
+ */
+function addCacheBreakpoints(
+    system: AnthropicSystemPrompt,
+    tools: PlainObject[],
+    messages: Turn[]
+): {system: AnthropicSystemPrompt; tools: PlainObject[]} {
+    const systemBlocks = system ? toBlocks(system) : [],
+        isMarked = (it: PlainObject) => !!it?.cache_control,
+        isSystemMarked = systemBlocks.some(isMarked);
+    let remaining =
+        MAX_CACHE_BREAKPOINTS -
+        sumBy([...systemBlocks, ...tools, ...flatMap(messages, 'content')], it =>
+            isMarked(it) ? 1 : 0
+        );
+
+    // 1) The history, so that the growing conversation is read from the cache.
+    const lastTurn = findLast(messages, it => it.content.some(isCacheable)),
+        blockIdx = lastTurn ? findLastIndex(lastTurn.content, isCacheable) : -1;
+    if (remaining > 0 && blockIdx >= 0 && !isMarked(lastTurn.content[blockIdx])) {
+        lastTurn.content[blockIdx] = withBreakpoint(lastTurn.content[blockIdx]);
+        remaining--;
+    }
+
+    // 2) The system prompt, unless the app placed its own breakpoints there.
+    if (remaining > 0 && !isEmpty(systemBlocks) && !isSystemMarked) {
+        system = [...initial(systemBlocks), withBreakpoint(last(systemBlocks))];
+        remaining--;
+    }
+
+    // 3) The tools.
+    if (remaining > 0 && !isEmpty(tools) && !isMarked(last(tools))) {
+        tools = [...initial(tools), withBreakpoint(last(tools))];
+    }
+    return {system, tools};
+}
+
+function isCacheable(block: PlainObject): boolean {
+    return CACHEABLE_TYPES.includes(block.type);
+}
+
+function withBreakpoint(block: PlainObject): PlainObject {
+    return {...block, cache_control: {type: 'ephemeral'}};
 }
 
 /**

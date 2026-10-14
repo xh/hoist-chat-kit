@@ -114,6 +114,12 @@ describe('validateSchema', () => {
         expect(validateSchema(value, schema)).toEqual(errors);
     });
 
+    it('reports a schema pattern that does not compile, rather than throw', () => {
+        expect(validateSchema('abc', {pattern: '(['})).toEqual([
+            'schema pattern /([/ is not a valid regular expression'
+        ]);
+    });
+
     describe('isPartial', () => {
         it.each([
             ['missing required properties', TABLE, {rows: [{label: 'Sa'}]}],
@@ -122,7 +128,9 @@ describe('validateSchema', () => {
             ['the start of an enum value', ROW, {label: 'A', value: 1, intent: 'go'}],
             ['the start of a const value', {const: 'column'}, 'col'],
             ['a string that may yet match a pattern', {pattern: '^[A-Z]{3}$'}, 'U'],
-            ['more than one oneOf branch', {oneOf: [{type: 'number'}, {type: 'integer'}]}, 1]
+            ['more than one oneOf branch', {oneOf: [{type: 'number'}, {type: 'integer'}]}, 1],
+            ['a positive number that more digits may lift to its minimum', {minimum: 1900}, 2],
+            ['a negative number that more digits may lower to its maximum', {maximum: -10}, -1]
         ])('accepts %s', (_, schema, value) => {
             expect(validateSchema(value, schema, {isPartial: true})).toEqual([]);
         });
@@ -141,7 +149,18 @@ describe('validateSchema', () => {
                 'pie',
                 ['expected one of "line", "bar"']
             ],
-            ['a number out of range', {maximum: 10}, 11, ['expected at most 10, got 11']]
+            [
+                'a positive number over its maximum',
+                {maximum: 10},
+                11,
+                ['expected at most 10, got 11']
+            ],
+            [
+                'a negative number under its minimum',
+                {minimum: -10},
+                -11,
+                ['expected at least -10, got -11']
+            ]
         ])('still rejects %s', (_, schema, value, errors) => {
             expect(validateSchema(value, schema, {isPartial: true})).toEqual(errors);
         });

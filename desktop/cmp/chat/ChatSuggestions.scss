@@ -14,7 +14,7 @@
     border-radius: 999px;
     max-width: 100%;
     min-height: 30px;
-    padding: 4px calc(var(--xh-pad) * 1.2px);
+    padding: calc(var(--xh-pad) * 0.4px) calc(var(--xh-pad) * 1.2px);
     white-space: normal;
 
     > .svg-inline--fa {

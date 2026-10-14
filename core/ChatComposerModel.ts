@@ -1,18 +1,15 @@
 import type {HoistInputModel} from '@xh/hoist/cmp/input';
-import {HoistModel, XH} from '@xh/hoist/core';
+import {HoistModel} from '@xh/hoist/core';
 import {action, bindable, computed, observableRef} from '@xh/hoist/mobx';
 import {pluralize, throwIf} from '@xh/hoist/utils/js';
 import {createObservableRef} from '@xh/hoist/utils/react';
 import {findLast, isEmpty, round, take} from 'lodash';
 import type {ChatModel} from './ChatModel';
 import type {ChatFilePart} from './ChatPart';
-import {genChatId} from './impl/ids';
+import {genChatId} from '../impl/ids';
 
 /** Configuration for a {@link ChatComposerModel}, usually passed via `ChatModelConfig.composer`. */
 export interface ChatComposerConfig {
-    /** Prompt shown in the empty input. Default 'Send a message...'. */
-    placeholder?: string;
-
     /** True to let the user attach files. Default false. */
     enableAttachments?: boolean;
 
@@ -27,9 +24,6 @@ export interface ChatComposerConfig {
 
     /** Maximum size per file, in bytes. Default 10 MB. */
     maxFileSize?: number;
-
-    /** Rows the input grows to before it scrolls. Default 10. */
-    maxRows?: number;
 
     /** @internal - set by the owning ChatModel. */
     chatModel?: ChatModel;
@@ -46,12 +40,10 @@ export class ChatComposerModel extends HoistModel {
     // Immutable Properties
     //-----------------------
     readonly chatModel: ChatModel;
-    readonly placeholder: string;
     readonly enableAttachments: boolean;
     readonly accept: string[];
     readonly maxFiles: number;
     readonly maxFileSize: number;
-    readonly maxRows: number;
 
     /**
      * Ref to the Hoist input that edits the draft. A composer component sets it as the input's
@@ -67,6 +59,12 @@ export class ChatComposerModel extends HoistModel {
 
     /** Files attached to the draft. (observable) */
     @observableRef accessor attachments: ChatFilePart[] = [];
+
+    /**
+     * Why files from the last attempt to attach were left out, one message per problem - shown
+     * in the composer, under the attachments. Empty if all were attached. (observable)
+     */
+    @observableRef accessor attachmentErrors: string[] = [];
 
     /** True if the draft has no text and no attachments. */
     @computed
@@ -84,20 +82,16 @@ export class ChatComposerModel extends HoistModel {
         super();
         const {
             chatModel,
-            placeholder = 'Send a message...',
             enableAttachments = false,
             accept = null,
             maxFiles = 10,
-            maxFileSize = 10 * MB,
-            maxRows = 10
+            maxFileSize = 10 * MB
         } = config;
         this.chatModel = chatModel;
-        this.placeholder = placeholder;
         this.enableAttachments = enableAttachments;
         this.accept = accept;
         this.maxFiles = maxFiles;
         this.maxFileSize = maxFileSize;
-        this.maxRows = maxRows;
     }
 
     //------------------
@@ -111,7 +105,7 @@ export class ChatComposerModel extends HoistModel {
 
     /**
      * Attach files to the draft, read into memory as base64. Files that break the `accept`,
-     * `maxFiles` or `maxFileSize` rules are left out, with a warning toast that names them.
+     * `maxFiles` or `maxFileSize` rules are left out, and `attachmentErrors` names them.
      */
     async addFilesAsync(files: File[]): Promise<void> {
         throwIf(!this.enableAttachments, 'Attachments are not enabled for this composer.');
@@ -135,7 +129,7 @@ export class ChatComposerModel extends HoistModel {
                 `File limit of ${maxFiles} reached - ${surplus} ${pluralize('file', surplus)} not added.`
             );
         }
-        if (!isEmpty(problems)) XH.warningToast(problems.join(' '));
+        this.setAttachmentErrors(problems);
         if (isEmpty(accepted)) return;
 
         const parts = await Promise.all(accepted.map(toFilePartAsync));
@@ -153,6 +147,13 @@ export class ChatComposerModel extends HoistModel {
     clear() {
         this.text = '';
         this.attachments = [];
+        this.attachmentErrors = [];
+    }
+
+    /** Dismiss the messages about files left out of the draft. */
+    @action
+    clearAttachmentErrors() {
+        this.attachmentErrors = [];
     }
 
     /** Put the text of the last user message into an empty draft, for re-use. */
@@ -171,6 +172,11 @@ export class ChatComposerModel extends HoistModel {
     //------------------
     // Implementation
     //------------------
+    @action
+    private setAttachmentErrors(errors: string[]) {
+        this.attachmentErrors = errors;
+    }
+
     @action
     private appendAttachments(parts: ChatFilePart[]) {
         // Re-applies the limit, in case another add completed while these files were read.

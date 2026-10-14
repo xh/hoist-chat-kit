@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   font-size: var(--xh-chat-font-size-px);
-  gap: 4px;
+  gap: calc(var(--xh-pad) * 0.4px);
   line-height: var(--xh-chat-line-height);
   min-width: 0;
 
@@ -20,7 +20,7 @@
     color: var(--xh-chat-user-text-color);
     max-width: var(--xh-chat-bubble-max-width);
     overflow-wrap: anywhere;
-    padding: 8px 14px;
+    padding: calc(var(--xh-pad) * 0.8px) calc(var(--xh-pad) * 1.4px);
     white-space: pre-wrap;
   }
 
@@ -40,7 +40,7 @@
     align-items: flex-end;
     display: flex;
     flex-direction: row-reverse;
-    gap: 4px;
+    gap: calc(var(--xh-pad) * 0.4px);
     min-width: 0;
     width: 100%;
   }
@@ -61,7 +61,7 @@
       font-size: var(--xh-chat-font-size-px);
       line-height: 1.5;
       min-height: calc(1.5em * 2 + 16px);
-      padding: 8px 10px;
+      padding: calc(var(--xh-pad) * 0.8px) var(--xh-pad-px);
       width: 100%;
     }
   }
@@ -92,7 +92,7 @@
     color: var(--xh-chat-muted-text-color);
     display: flex;
     font-size: var(--xh-chat-meta-font-size-px);
-    gap: 6px;
+    gap: calc(var(--xh-pad) * 0.6px);
     line-height: 20px;
     min-width: 0;
   }
@@ -118,9 +118,13 @@
     white-space: nowrap;
   }
 
-  &__elapsed::before {
-    content: '·';
-    margin-right: 6px;
+  &__meta {
+    white-space: nowrap;
+
+    &::before {
+      content: '·';
+      margin-right: calc(var(--xh-pad) * 0.6px);
+    }
   }
 
   &__body {
@@ -133,7 +137,7 @@
   &__text {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: calc(var(--xh-pad) * 0.6px);
     min-width: 0;
   }
 
@@ -143,7 +147,7 @@
     &--unrendered {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: calc(var(--xh-pad) * 0.4px);
     }
   }
 
@@ -158,7 +162,7 @@
     color: var(--xh-chat-muted-text-color);
     display: flex;
     font-size: var(--xh-chat-meta-font-size-px);
-    gap: 6px;
+    gap: calc(var(--xh-pad) * 0.6px);
 
     &--error {
       color: var(--xh-chat-danger-color);

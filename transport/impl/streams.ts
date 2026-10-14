@@ -1,5 +1,5 @@
 import {noop} from 'lodash';
-import {raceAbort} from '../../core/impl/abort';
+import {raceAbort} from '../../impl/abort';
 
 /**
  * Iterate `source` until it ends or `signal` aborts. An abort ends iteration at once - throwing

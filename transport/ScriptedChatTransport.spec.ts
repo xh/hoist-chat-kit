@@ -1,13 +1,16 @@
-import {describe, expect, it, vi} from 'vitest';
-import {ChatMessage} from '../core';
+import {initTestAppAsync} from '@xh/hoist/test-support';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
+import {ChatMessage, ChatModel} from '../core';
 import {ChatStreamReducer} from '../core/impl/ChatStreamReducer';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRequest} from './ChatTransport';
 import {
+    citationEvents,
     errorEvents,
     reasoningEvents,
     ScriptedChatTransport,
     scriptedDelay,
+    type ScriptedRequestContext,
     sourceEvents,
     textEvents,
     toolCallEvents
@@ -19,6 +22,8 @@ import {
  * and it must stop at once when the user stops a turn.
  */
 describe('ScriptedChatTransport', () => {
+    beforeAll(() => initTestAppAsync());
+
     describe('run', () => {
         it('plays one scripted response per request, inside RUN_STARTED and RUN_FINISHED', async () => {
             const transport = new ScriptedChatTransport({
@@ -71,15 +76,78 @@ describe('ScriptedChatTransport', () => {
         });
 
         it('asks `respond` for each response', async () => {
-            const respond = vi.fn((req: ChatRunRequest, requestIndex: number) =>
+            const respond = vi.fn((req: ChatRunRequest, {requestIndex}: ScriptedRequestContext) =>
                     textEvents(`Request ${requestIndex} for ${req.runId}`)
                 ),
                 transport = new ScriptedChatTransport({respond, delayMs: 0});
 
             const events = await collect(transport.run(request('r1')));
 
-            expect(respond).toHaveBeenCalledWith(transport.requests[0], 0);
+            expect(respond).toHaveBeenCalledWith(
+                transport.requests[0],
+                expect.objectContaining({requestIndex: 0, turnIndex: 0, stepIndex: 0, attempt: 0})
+            );
             expect(textOf(events)).toBe('Request 0 for r1');
+        });
+
+        it('tells `respond` the turn, the step within it, and the attempt at a message', async () => {
+            const contexts: ScriptedRequestContext[] = [],
+                transport = new ScriptedChatTransport({
+                    delayMs: 0,
+                    respond: (req, context) => {
+                        contexts.push(context);
+                        return context.stepIndex === 0 && context.turnIndex === 0
+                            ? toolCallEvents('lookup', {q: 'x'})
+                            : textEvents(`Answer to ${context.userMessage.text}`);
+                    }
+                }),
+                chatModel = new ChatModel({
+                    transport,
+                    tools: [{name: 'lookup', execute: () => 'found'}]
+                });
+            onTestFinished(() => chatModel.destroy());
+
+            await chatModel.sendAsync('First');
+            await chatModel.sendAsync('Second');
+            await chatModel.regenerateAsync();
+
+            expect(
+                contexts.map(({requestIndex, turnIndex, stepIndex, attempt}) => [
+                    requestIndex,
+                    turnIndex,
+                    stepIndex,
+                    attempt
+                ])
+            ).toEqual([
+                [0, 0, 0, 0],
+                [1, 0, 1, 0],
+                [2, 1, 0, 0],
+                [3, 2, 0, 1]
+            ]);
+            expect(contexts[3].userMessage.text).toBe('Second');
+        });
+
+        it('builds citation events that attach to the text before them', async () => {
+            const transport = new ScriptedChatTransport({
+                    delayMs: 0,
+                    responses: [
+                        [
+                            textEvents('Hoist streams NDJSON.'),
+                            citationEvents([{sourceId: 's1', title: 'Docs'}]),
+                            sourceEvents([{id: 's1', url: 'https://xh.io', title: 'Docs'}])
+                        ]
+                    ]
+                }),
+                chatModel = new ChatModel({transport});
+            onTestFinished(() => chatModel.destroy());
+
+            await chatModel.sendAsync('How?');
+
+            const [textPart] = chatModel.lastMessage.parts;
+            expect(textPart).toMatchObject({
+                type: 'text',
+                citations: [{sourceId: 's1', title: 'Docs', id: expect.any(String)}]
+            });
         });
 
         it('passes an async iterable response through as is', async () => {

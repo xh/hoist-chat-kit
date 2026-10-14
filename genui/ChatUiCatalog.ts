@@ -1,5 +1,6 @@
 import {fragment} from '@xh/hoist/cmp/layout';
-import type {PlainObject} from '@xh/hoist/core';
+import {hoistCmp, type HoistProps, type PlainObject, uses} from '@xh/hoist/core';
+import {genDisplayName} from '@xh/hoist/data';
 import {logError, logWarn, throwIf} from '@xh/hoist/utils/js';
 import {compact, isEmpty, keyBy, mapValues, uniq} from 'lodash';
 import type {ReactNode} from 'react';
@@ -44,6 +45,12 @@ export interface ChatUiCatalogConfig {
  * A call's props are checked against the component's schema before it runs. Invalid props fail
  * the call with an error result that lists each problem, so the model can correct itself. Nothing
  * the model writes runs as code: it can only name a catalog component and pass it valid props.
+ *
+ * Each render costs a model call. A catalog tool is a client tool, so a step that shows a
+ * component ends there, and the chat sends the result back in a new step for the model to
+ * continue. That adds latency, takes one of the chat's `maxSteps`, and resends the props - up to
+ * the component's limits - with the history on every later step. Keep row and point limits low,
+ * and raise `maxSteps` for a chat that shows several components per reply.
  */
 export class ChatUiCatalog {
     //-----------------------
@@ -132,9 +139,10 @@ export class ChatUiCatalog {
             return null;
         }
 
-        return this.getComponent(name).render(props, {
-            ...context,
-            children: this.renderNodes(children, context)
+        return chatUiComponent({
+            spec: this.getComponent(name),
+            props,
+            context: {...context, children: this.renderNodes(children, context)}
         });
     }
 
@@ -147,7 +155,7 @@ export class ChatUiCatalog {
         return mapValues(
             keyBy(adapters, 'dataType'),
             (adapter): ChatDataRenderer =>
-                (part, message, chatModel) => {
+                (part, context) => {
                     let nodes: ChatUiNode[];
                     try {
                         nodes = adapter.translate(part.data, this);
@@ -158,7 +166,7 @@ export class ChatUiCatalog {
                         );
                         return null;
                     }
-                    return this.renderNodes(nodes, {chatModel, message, part, isPartial: false});
+                    return this.renderNodes(nodes, {...context, part, isPartial: false});
                 }
         );
     }
@@ -177,6 +185,7 @@ export class ChatUiCatalog {
         const {name, description, props} = component;
         return {
             name: getToolName(component),
+            displayName: genDisplayName(name),
             description: `${description.trim()}\n\n${TOOL_NOTE}`,
             parameters: props,
             display: 'inline',
@@ -190,13 +199,17 @@ export class ChatUiCatalog {
                 }
                 return `Rendered ${name} for the user.`;
             },
-            renderer: (part, {chatModel, message}) => {
+            renderer: (part, context) => {
                 const input = part.input ?? {},
                     isPartial = part.state === 'input-streaming';
 
                 // Render only props that are valid, or could still become valid as they stream.
                 if (!isEmpty(this.validate(name, input, {isPartial}))) return null;
-                return component.render(input, {chatModel, message, part, isPartial, children: []});
+                return chatUiComponent({
+                    spec: component,
+                    props: input,
+                    context: {...context, part, isPartial, children: []}
+                });
             }
         };
     }
@@ -205,6 +218,26 @@ export class ChatUiCatalog {
 //------------------
 // Implementation
 //------------------
+interface ChatUiComponentProps extends HoistProps {
+    spec: ChatUiComponentSpec;
+    props: PlainObject;
+    context: ChatUiRenderContext;
+}
+
+// Renders a catalog component as a component of its own, so that hooks in its `render` belong to
+// it, and props that fail validation unmount it rather than skip its hooks. Takes any model in
+// context, as `useLocalModel()` needs a component with a model spec. Not memoized,
+// as its host - the part's own component - renders only when the part changes.
+const chatUiComponent = hoistCmp.factory<ChatUiComponentProps>({
+    displayName: 'ChatUiComponent',
+    model: uses('*', {optional: true}),
+    memo: false,
+
+    render({spec, props, context}) {
+        return spec.render(props, context);
+    }
+});
+
 const TOOL_NOTE = 'Calling this tool shows the component to the user, inline in the chat.';
 
 function getToolName(component: ChatUiComponentSpec): string {
@@ -221,6 +254,8 @@ function createInstructions(components: ChatUiComponentSpec[], appInstructions: 
             '',
             'Rules:',
             '- Show one component per call. To show several, make several calls.',
+            '- Write the props in the order the schema lists them - for example the columns ' +
+                'before the rows - so that the component can render as you write.',
             '- Keep the data within the limits of the schema, such as the most rows or items. ' +
                 'Pick the most relevant data, or summarize it, rather than exceed a limit.',
             '- Prefer a component for tabular and numeric results, such as a list of records, ' +

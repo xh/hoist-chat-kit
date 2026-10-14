@@ -8,18 +8,40 @@
   min-width: 0;
   overflow: hidden;
 
-  // The header is a full-width button: icon, title and summary, then status and chevron.
+  // The header: icon, title and summary, then status and chevron. A full-width button when the
+  // card opens, else a plain row laid out the same way.
+  &__header {
+    align-items: center;
+    color: var(--xh-chat-text-color);
+    display: flex;
+    gap: var(--xh-pad-px);
+    min-height: 34px;
+    padding: 0 var(--xh-pad-px);
+
+    > .svg-inline--fa {
+      color: var(--xh-chat-muted-text-color);
+      flex: none;
+    }
+
+    > .xh-chat-tool-call__heading {
+      flex: 1;
+    }
+  }
+
   .xh-app & .xh-chat-tool-call__header.xh-button.bp6-button {
     // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
     // component styles in the dark theme - so set the variables, not the colors.
     --xh-button-text-color: var(--xh-chat-text-color);
+    --xh-button-bg-darker: var(--xh-chat-hover-bg);
 
     border-radius: 0;
-    gap: var(--xh-pad-half-px);
     justify-content: flex-start;
-    min-height: 34px;
-    padding: 0 var(--xh-pad-px);
     width: 100%;
+
+    // Spaced by the gap alone, as the plain header is, rather than by Hoist's icon margins.
+    > * {
+      margin: 0;
+    }
 
     > .xh-icon,
     > .svg-inline--fa {
@@ -64,7 +86,7 @@
     align-items: center;
     display: flex;
     font-size: var(--xh-chat-meta-font-size-px);
-    gap: 5px;
+    gap: calc(var(--xh-pad) * 0.5px);
     white-space: nowrap;
   }
 
@@ -80,7 +102,7 @@
     border-color: var(--xh-chat-warning-color);
   }
 
-  &--approval-requested &__status-label {
+  &__status-label--waiting {
     color: var(--xh-chat-warning-color);
   }
 
@@ -110,7 +132,7 @@
   &__section {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: calc(var(--xh-pad) * 0.4px);
     min-width: 0;
   }
 
@@ -137,10 +159,11 @@
     background-color: transparent;
     border: none;
     border-radius: 0;
-    gap: 4px;
+    gap: var(--xh-pad-half-px);
     overflow: visible;
   }
 
+  // A quiet meta row under an inline call - plain muted text, with no button chrome.
   &__caption {
     align-items: center;
     color: var(--xh-chat-muted-text-color);
@@ -148,22 +171,177 @@
     flex-wrap: wrap;
     font-size: var(--xh-chat-meta-font-size-px);
     gap: var(--xh-pad-px);
-    min-height: 24px;
+    line-height: normal;
+    min-height: 18px;
+    transition: opacity 0.15s;
   }
 
-  &__caption &__title {
-    font-weight: normal;
+  // With no status to show, the row holds only the input toggle, shown on hover or focus.
+  &__caption--quiet {
+    opacity: 0;
+  }
+
+  &--inline:hover &__caption--quiet,
+  &--inline:focus-within &__caption--quiet {
+    opacity: 1;
+  }
+
+  &__caption-status {
+    align-items: center;
+    display: inline-flex;
+    gap: calc(var(--xh-pad) * 0.5px);
+
+    &--approval {
+      color: var(--xh-chat-warning-color);
+    }
+
+    &--error {
+      color: var(--xh-chat-danger-color);
+    }
   }
 
   .xh-app & .xh-chat-tool-call__input-toggle.xh-button.bp6-button {
     --xh-button-text-color: var(--xh-chat-muted-text-color);
+    --xh-button-bg-darker: transparent;
 
+    background-color: transparent;
     font-size: var(--xh-chat-meta-font-size-px);
-    min-height: 22px;
+    gap: calc(var(--xh-pad) * 0.3px);
+    min-height: 18px;
+    padding: 0;
+
+    > * {
+      margin: 0;
+    }
+
+    &:hover,
+    &:focus-visible {
+      --xh-button-text-color: var(--xh-chat-text-color);
+
+      background-color: transparent;
+      text-decoration: underline;
+    }
+  }
+
+  &__details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-pad-half-px);
+    min-width: 0;
+  }
+
+  // A call within a tool call group: a compact, borderless row.
+  &--grouped {
+    background-color: transparent;
+    border: none;
+    border-radius: var(--xh-chat-radius-px);
+    overflow: visible;
+  }
+
+  &--grouped &__header {
+    min-height: 28px;
     padding: 0 var(--xh-pad-half-px);
+  }
+
+  .xh-app &--grouped .xh-chat-tool-call__header.xh-button.bp6-button {
+    border-radius: var(--xh-chat-radius-px);
+  }
+
+  &--grouped &__title {
+    font-weight: normal;
+  }
+
+  // In a group, the status follows the label, rather than sitting at the far edge of the row.
+  &--grouped &__header > .xh-chat-tool-call__heading,
+  .xh-app &--grouped .xh-chat-tool-call__header.xh-button.bp6-button .bp6-button-text {
+    flex: 0 1 auto;
+  }
+
+  &--grouped &__body {
+    border-top: none;
+    padding: calc(var(--xh-pad) * 0.4px) var(--xh-pad-half-px) var(--xh-pad-px);
+  }
+}
+
+// Consecutive tool calls, folded into one quiet row that opens to show each call.
+.xh-chat-tool-call-group {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--xh-font-size-px);
+  min-width: 0;
+
+  .xh-app & .xh-chat-tool-call-group__header.xh-button.bp6-button {
+    --xh-button-text-color: var(--xh-chat-muted-text-color);
+    --xh-button-bg-darker: var(--xh-chat-hover-bg);
+
+    align-self: flex-start;
+    gap: var(--xh-pad-px);
+    margin-left: calc(var(--xh-pad-half-px) * -1);
+    max-width: calc(100% + var(--xh-pad-half-px));
+    min-height: 28px;
+    padding: 0 var(--xh-pad-half-px);
+
+    > * {
+      margin: 0;
+    }
+
+    > .svg-inline--fa {
+      flex: none;
+    }
+
+    .bp6-button-text {
+      min-width: 0;
+    }
 
     &:hover {
       --xh-button-text-color: var(--xh-chat-text-color);
     }
+  }
+
+  &__heading {
+    display: flex;
+    gap: var(--xh-pad-half-px);
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  &__title {
+    flex: none;
+  }
+
+  &__summary {
+    opacity: 0.75;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__status {
+    align-items: center;
+    display: flex;
+    flex: none;
+    gap: var(--xh-pad-half-px);
+  }
+
+  &__problem {
+    align-items: center;
+    color: var(--xh-chat-danger-color);
+    display: inline-flex;
+    font-size: var(--xh-chat-meta-font-size-px);
+    gap: calc(var(--xh-pad) * 0.4px);
+
+    &--denied {
+      color: var(--xh-chat-muted-text-color);
+    }
+  }
+
+  // The calls hang from a rule under the group's icon, as reasoning hangs from its toggle.
+  &__items {
+    border-left: 2px solid var(--xh-chat-border-color);
+    display: flex;
+    flex-direction: column;
+    margin: 2px 0 var(--xh-pad-half-px) 6px;
+    min-width: 0;
+    padding-left: calc(var(--xh-pad) * 0.4px);
   }
 }

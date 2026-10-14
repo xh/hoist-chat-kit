@@ -17,7 +17,9 @@ export interface ValidateSchemaOptions {
      * True if the value is still streaming, as a partial parse of incomplete JSON. Checks that a
      * growing value could still pass are skipped: `required`, `minItems` and `minLength`. Strings
      * pass `enum` and `const` if they start an allowed value, and skip `pattern`, since the last
-     * string may be cut short. A value may match more than one `oneOf` branch. Default false.
+     * string may be cut short. A number may still gain digits, which only moves it away from zero,
+     * so a positive number skips `minimum` and a negative number skips `maximum`. A value may match
+     * more than one `oneOf` branch. Default false.
      */
     isPartial?: boolean;
 }
@@ -84,13 +86,22 @@ function checkValue(
                 `expected at most ${pluralize('character', maxLength, true)}, got ${value.length}`
             );
         }
-        if (!isPartial && pattern != null && !new RegExp(pattern, 'u').test(value)) {
-            fail(`expected to match /${pattern}/`);
+        if (!isPartial && pattern != null) {
+            const regex = getPattern(pattern);
+            if (!regex) {
+                fail(`schema pattern /${pattern}/ is not a valid regular expression`);
+            } else if (!regex.test(value)) {
+                fail(`expected to match /${pattern}/`);
+            }
         }
     } else if (isNumber(value)) {
         const {minimum, maximum} = schema;
-        if (minimum != null && value < minimum) fail(`expected at least ${minimum}, got ${value}`);
-        if (maximum != null && value > maximum) fail(`expected at most ${maximum}, got ${value}`);
+        if (minimum != null && value < minimum && !(isPartial && value >= 0)) {
+            fail(`expected at least ${minimum}, got ${value}`);
+        }
+        if (maximum != null && value > maximum && !(isPartial && value <= 0)) {
+            fail(`expected at most ${maximum}, got ${value}`);
+        }
     }
 
     if (schema.anyOf) checkAnyOf(value, schema.anyOf, path, isPartial, errors);
@@ -245,3 +256,17 @@ function formatError(path: string, msg: string): string {
 }
 
 const IDENTIFIER_RE = /^[A-Za-z_$][\w$]*$/;
+
+// Compiled schema patterns, so that each compiles once. Null for a pattern that does not compile.
+const PATTERNS = new Map<string, RegExp>();
+
+function getPattern(pattern: string): RegExp {
+    if (!PATTERNS.has(pattern)) {
+        let regex: RegExp = null;
+        try {
+            regex = new RegExp(pattern, 'u');
+        } catch (ignored) {}
+        PATTERNS.set(pattern, regex);
+    }
+    return PATTERNS.get(pattern);
+}

@@ -45,6 +45,13 @@ describe('splitMarkdownBlocks', () => {
         ]);
     });
 
+    it('merges a list into the block of the lead-in line before it', () => {
+        expect(splitMarkdownBlocks('Intro:\n- a\n\n- b\n\nAfter')).toEqual([
+            'Intro:\n- a\n\n- b',
+            'After'
+        ]);
+    });
+
     it('merges the items of a loose list into one block', () => {
         expect(splitMarkdownBlocks('1. one\n\n2. two\n\n3. three\n\nAfter')).toEqual([
             '1. one\n\n2. two\n\n3. three',
@@ -69,6 +76,14 @@ describe('closeMarkdownSyntax', () => {
         expect(closeMarkdownSyntax('This is *italic ')).toBe('This is *italic*');
         expect(closeMarkdownSyntax('This is ~~gone')).toBe('This is ~~gone~~');
         expect(closeMarkdownSyntax('Run `npm i')).toBe('Run `npm i`');
+    });
+
+    it('closes underscore emphasis at word boundaries only', () => {
+        expect(closeMarkdownSyntax('This is _italic')).toBe('This is _italic_');
+        expect(closeMarkdownSyntax('This is __bold')).toBe('This is __bold__');
+        expect(closeMarkdownSyntax('Next is _')).toBe('Next is ');
+        expect(closeMarkdownSyntax('Set snake_case and max_')).toBe('Set snake_case and max_');
+        expect(closeMarkdownSyntax('A _b_ c')).toBe('A _b_ c');
     });
 
     it('closes nested markers innermost first', () => {

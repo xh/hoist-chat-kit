@@ -1,30 +1,21 @@
 import {castArray} from 'lodash';
-import {type ClipboardEvent, type DragEvent, type ReactNode, useLayoutEffect} from 'react';
-import {div, input} from '@xh/hoist/cmp/layout';
-import {
-    hoistCmp,
-    HoistModel,
-    type HoistProps,
-    type LayoutProps,
-    type TestSupportProps,
-    useContextModel,
-    useLocalModel,
-    uses
-} from '@xh/hoist/core';
+import {type ReactNode, useLayoutEffect} from 'react';
+import {div, input, vbox} from '@xh/hoist/cmp/layout';
+import {type BoxProps, hoistCmp, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {textArea} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
-import {action, observable} from '@xh/hoist/mobx';
-import {TEST_ID, throwIf} from '@xh/hoist/utils/js';
-import {createObservableRef, getLayoutProps, useOnResize} from '@xh/hoist/utils/react';
-import {ChatComposerModel, ChatModel} from '../../../core';
+import {throwIf, withDefault} from '@xh/hoist/utils/js';
+import {useOnResize} from '@xh/hoist/utils/react';
+import {ChatComposerModel} from '../../../core';
 import '../../../styles/vars.scss';
 import './ChatComposer.scss';
 import {chatFileChip} from './ChatFileChip';
-import {fitTextAreaToContent, isImeComposing} from './impl/AutoGrow';
+import {ChatComposerLocalModel} from './impl/ChatComposerLocalModel';
+import {classNames} from '../../../impl/ClassNames';
 
-export interface ChatComposerProps
-    extends HoistProps<ChatComposerModel>, LayoutProps, TestSupportProps {
+/** Props for {@link ChatComposer}. */
+export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxProps {
     /** Items shown above the input, inside the composer - such as context chips or a notice. */
     topItems?: ReactNode;
 
@@ -34,8 +25,11 @@ export interface ChatComposerProps
     /** Items for the composer's toolbar, to the right, before the send button. */
     rightItems?: ReactNode;
 
-    /** Prompt shown in the empty input. Defaults to the model's `placeholder`. */
+    /** Prompt shown in the empty input. Default 'Send a message...'. */
     placeholder?: string;
+
+    /** Rows the input grows to before it scrolls. Default 10. */
+    maxRows?: number;
 
     /** True to focus the input when the composer mounts. */
     autoFocus?: boolean;
@@ -44,10 +38,11 @@ export interface ChatComposerProps
 /**
  * The input for writing a message: an auto-growing text area with a send button, inside a rounded
  * card. Enter sends and Shift+Enter starts a new line. Up arrow in an empty input recalls the last
- * message. While a reply streams, the send button becomes a stop button.
+ * message. While a reply streams, the send button becomes a stop button, and Escape stops it too.
  *
  * When the model enables attachments, files can be added with the attach button, by pasting, or
- * by dropping them on the composer. They show as chips above the input until sent.
+ * by dropping them on the composer. They show as chips above the input until sent. Files left out
+ * - of the wrong type, too large, or over the limit - are named under the chips.
  *
  * Uses a {@link ChatComposerModel} from props, or else the `composerModel` of the
  * {@link ChatModel} in context.
@@ -57,43 +52,40 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
     model: uses(ChatComposerModel, {optional: true}),
     className: 'xh-chat-composer',
 
-    render({
-        className,
-        model,
-        topItems,
-        leftItems,
-        rightItems,
-        placeholder,
-        autoFocus,
-        testId,
-        ...rest
-    }) {
-        const chatModel = useContextModel(ChatModel),
-            composerModel = model ?? chatModel?.composerModel,
-            impl = useLocalModel(ChatComposerLocalModel);
+    render(
+        {
+            className,
+            model,
+            topItems,
+            leftItems,
+            rightItems,
+            placeholder,
+            maxRows,
+            autoFocus,
+            ...rest
+        },
+        ref
+    ) {
+        const impl = useLocalModel(ChatComposerLocalModel),
+            {composerModel} = impl,
+            boxRef = useOnResize(impl.fitInput);
 
         throwIf(!composerModel, 'ChatComposer requires a ChatComposerModel or a ChatModel.');
 
-        const {text, attachments, enableAttachments, maxRows, inputRef} = composerModel,
-            fitInput = () => {
-                fitTextAreaToContent(inputRef.current?.inputEl, maxRows);
-            },
-            boxRef = useOnResize(fitInput);
+        const {text, attachments, attachmentErrors, enableAttachments, inputRef} = composerModel;
+        useLayoutEffect(() => impl.fitInput(), [impl, text, maxRows]);
 
-        useLayoutEffect(fitInput, [text, maxRows, inputRef]);
-
-        const classes = [className];
-        if (impl.isDragging) classes.push('xh-chat-composer--dragging');
-
-        return div({
-            className: classes.join(' '),
-            style: getLayoutProps(rest),
-            [TEST_ID]: testId,
-            onPaste: enableAttachments ? e => impl.onPaste(e, composerModel) : undefined,
-            onDragEnter: enableAttachments ? e => impl.onDragEnter(e) : undefined,
-            onDragOver: enableAttachments ? e => impl.onDragOver(e) : undefined,
-            onDragLeave: enableAttachments ? e => impl.onDragLeave(e) : undefined,
-            onDrop: enableAttachments ? e => impl.onDrop(e, composerModel) : undefined,
+        return vbox({
+            ref,
+            className: classNames(className, {'xh-chat-composer--dragging': impl.isDragging}),
+            // Room for the focus ring of the box, which a Box would otherwise clip.
+            overflow: 'visible',
+            ...rest,
+            onPaste: impl.onPaste,
+            onDragEnter: impl.onDragEnter,
+            onDragOver: impl.onDragOver,
+            onDragLeave: impl.onDragLeave,
+            onDrop: impl.onDrop,
             items: [
                 topItems ? div({className: 'xh-chat-composer__top', items: topItems}) : null,
                 div({
@@ -112,6 +104,7 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                                   )
                               })
                             : null,
+                        attachmentErrors.length ? attachmentErrorRow(composerModel) : null,
                         textArea({
                             className: 'xh-chat-composer__input',
                             model: composerModel,
@@ -121,9 +114,10 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                             autoFocus,
                             width: null,
                             height: null,
-                            placeholder: placeholder ?? composerModel.placeholder,
+                            placeholder: withDefault(placeholder, 'Send a message...'),
+                            domAttrs: {'aria-label': 'Message'},
                             ref: inputRef,
-                            onKeyDown: e => impl.onKeyDown(e, composerModel)
+                            onKeyDown: impl.onKeyDown
                         }),
                         div({
                             className: 'xh-chat-composer__toolbar',
@@ -151,78 +145,6 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
 //------------------
 // Implementation
 //------------------
-class ChatComposerLocalModel extends HoistModel {
-    override xhImpl = true;
-
-    @observable accessor isDragging = false;
-
-    fileInputRef = createObservableRef<HTMLInputElement>();
-
-    // Drag events fire on every child crossed, so count entries to know when the drag has left.
-    private dragDepth = 0;
-
-    onKeyDown(e: KeyboardEvent, composerModel: ChatComposerModel) {
-        if (isImeComposing(e)) return;
-
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            if (composerModel.canSend) composerModel.submitAsync().catchDefault();
-        } else if (e.key === 'ArrowUp' && !composerModel.text) {
-            e.preventDefault();
-            composerModel.recallLastMessage();
-        }
-    }
-
-    onPaste(e: ClipboardEvent, composerModel: ChatComposerModel) {
-        const files = Array.from(e.clipboardData?.files ?? []);
-        if (!files.length) return;
-        e.preventDefault();
-        composerModel.addFilesAsync(files).catchDefault();
-    }
-
-    onDragEnter(e: DragEvent) {
-        if (!hasFiles(e)) return;
-        e.preventDefault();
-        this.dragDepth++;
-        this.setDragging(true);
-    }
-
-    onDragOver(e: DragEvent) {
-        if (!hasFiles(e)) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'copy';
-    }
-
-    onDragLeave(e: DragEvent) {
-        if (!hasFiles(e)) return;
-        this.dragDepth = Math.max(0, this.dragDepth - 1);
-        if (!this.dragDepth) this.setDragging(false);
-    }
-
-    onDrop(e: DragEvent, composerModel: ChatComposerModel) {
-        if (!hasFiles(e)) return;
-        e.preventDefault();
-        this.dragDepth = 0;
-        this.setDragging(false);
-        composerModel.addFilesAsync(Array.from(e.dataTransfer.files)).catchDefault();
-    }
-
-    onFilesChosen(fileInput: HTMLInputElement, composerModel: ChatComposerModel) {
-        const files = Array.from(fileInput.files ?? []);
-        fileInput.value = ''; // Allow the same file to be chosen again.
-        if (files.length) composerModel.addFilesAsync(files).catchDefault();
-    }
-
-    @action
-    private setDragging(isDragging: boolean) {
-        this.isDragging = isDragging;
-    }
-}
-
-function hasFiles(e: DragEvent): boolean {
-    return Array.from(e.dataTransfer?.types ?? []).includes('Files');
-}
-
 function attachButton(composerModel: ChatComposerModel, impl: ChatComposerLocalModel): ReactNode[] {
     const {accept, maxFiles} = composerModel;
     return [
@@ -231,6 +153,7 @@ function attachButton(composerModel: ChatComposerModel, impl: ChatComposerLocalM
             className: 'xh-chat-composer__attach',
             icon: Icon.paperclip(),
             tooltip: 'Attach files',
+            'aria-label': 'Attach files',
             onClick: () => impl.fileInputRef.current?.click()
         }),
         // The browser's file dialog opens only from a file input - kept hidden behind the button.
@@ -242,9 +165,29 @@ function attachButton(composerModel: ChatComposerModel, impl: ChatComposerLocalM
             multiple: maxFiles !== 1,
             accept: accept?.join(','),
             tabIndex: -1,
-            onChange: e => impl.onFilesChosen(e.target, composerModel)
+            onChange: e => impl.onFilesChosen(e.target)
         })
     ];
+}
+
+function attachmentErrorRow(composerModel: ChatComposerModel): ReactNode {
+    return div({
+        className: 'xh-chat-composer__attachment-errors',
+        role: 'alert',
+        items: [
+            Icon.warning(),
+            div({
+                className: 'xh-chat-composer__attachment-errors-text',
+                item: composerModel.attachmentErrors.join(' ')
+            }),
+            button({
+                icon: Icon.x(),
+                tooltip: 'Dismiss',
+                'aria-label': 'Dismiss',
+                onClick: () => composerModel.clearAttachmentErrors()
+            })
+        ]
+    });
 }
 
 function sendButton(composerModel: ChatComposerModel): ReactNode {
@@ -254,6 +197,7 @@ function sendButton(composerModel: ChatComposerModel): ReactNode {
               className: 'xh-chat-composer__send xh-chat-composer__send--stop',
               icon: Icon.stop({prefix: 'fas'}),
               tooltip: 'Stop',
+              'aria-label': 'Stop',
               minimal: false,
               onClick: () => chatModel.stop()
           })
@@ -261,7 +205,7 @@ function sendButton(composerModel: ChatComposerModel): ReactNode {
               className: 'xh-chat-composer__send',
               icon: Icon.arrowUp(),
               tooltip: 'Send',
-              intent: 'primary',
+              'aria-label': 'Send',
               minimal: false,
               disabled: !canSend,
               onClick: () => {

@@ -135,16 +135,28 @@ new ChatModel({
 - **`params`** - other fields for the body, such as `thinking`, `output_config` or `temperature`.
   Tools in `params.tools` go ahead of the chat's own tools. Use them for Anthropic server tools,
   such as web search.
-- **`cacheControl`** - true to put a prompt cache breakpoint on the last system block and on the
-  last tool. Anthropic then caches the tools and the system prompt across the steps and turns of
-  a chat.
+- **`cacheControl`** - true to mark prompt cache breakpoints, so that Anthropic caches the
+  prompt across the steps and turns of a chat. See below.
 - **`prepareBody`** - a function that adjusts the finished body before it goes out. It can be
   async.
 
-A cache breakpoint caches everything before it, so it pays off only when that content repeats.
-If your system prompt ends with live state, return blocks from `system` with the static part
-first, and mark that block with `cache_control` yourself. The codec leaves a block that already
-has a mark alone.
+With `cacheControl`, the codec marks up to three breakpoints, in this order:
+
+1. The last block of the history. Each step and turn then reads the conversation so far from the
+   cache, and writes only what it adds. This pays off most in a tool loop, where every step
+   resends the whole turn.
+2. The last system block - unless you mark any system block yourself. Your placement then
+   stands, and the codec adds none to the system prompt.
+3. The last tool definition.
+
+Anthropic allows at most 4 breakpoints per request, and the codec counts the ones you set. It
+stops adding marks at the limit, in the order above.
+
+A breakpoint caches everything before it, so it pays off only when that content repeats. To keep
+a block that changes on every step out of the cache, put it after the cached block, unmarked. If
+your system prompt ends with live state, return blocks from `system` with the static part first,
+and mark that block with `cache_control` yourself. The live block after it then goes out fresh
+on each step, and the static part comes from the cache.
 
 ```typescript
 new AnthropicCodec({
@@ -170,8 +182,8 @@ How the codec encodes the history:
 - A request with no user content throws, because the API would reject it.
 
 The codec decodes text, thinking with its signature, tool calls with streamed input, and
-citations. It also decodes server tool calls, such as web search, with their results. It keeps the data
-that must go back to Anthropic unchanged, such as redacted thinking and server tool result
+citations. It also decodes server tool calls, such as web search, with their results. It keeps
+the data that must go back to Anthropic unchanged, such as redacted thinking and server tool result
 blocks, on the part as `providerData.anthropic`. An Anthropic `error` event becomes `RUN_ERROR`,
 with the Anthropic error type as its code.
 
@@ -186,8 +198,9 @@ with the Anthropic error type as its code.
 The raw value goes in `metadata.stopReason`, and the token counts go in `metadata.usage`. Cache
 reads and writes count within `inputTokens`, as AG-UI counts them.
 
-**Not yet supported:** a turn that continues after a `pause_turn` response. The API pauses a long server
-tool loop and expects the client to send the paused turn back. The kit ends the turn at the pause.
+**Not yet supported:** a turn that continues after a `pause_turn` response. The API pauses a long
+server tool loop and expects the client to send the paused turn back. The kit ends the turn at
+the pause.
 
 ### Connect to an AG-UI agent server
 
@@ -213,11 +226,11 @@ new ChatModel({
 ```
 
 User messages carry their text as `content`, or a list of text, image, audio, video and document
-parts when they have attachments. Each step of an assistant turn becomes three kinds of message:
-a `reasoning` message per reasoning part, an `assistant` message with its text and its finished
-`toolCalls`, and a `tool` message per call result. A failed or denied call also carries `error`. Tools go out as
-`{name, description, parameters}`. `context` and `forwardedProps` take a value, or a function
-that builds the value for each step.
+parts when they have attachments. Each step of an assistant turn becomes three kinds of message: a
+`reasoning` message per reasoning part, an `assistant` message with its text and its finished
+`toolCalls`, and a `tool` message per call result. A failed or denied call also carries `error`.
+Tools go out as `{name, description, parameters}`. `context` and `forwardedProps` take a value, or a
+function that builds the value for each step.
 
 Decoding passes each record through as a `ChatEvent`. The decoder drops records of an unknown
 `type`.
@@ -230,6 +243,7 @@ order across all turns, or a `respond` function that reacts to the request. It a
 
 ```typescript
 import {
+    citationEvents,
     dataEvents,
     reasoningEvents,
     ScriptedChatTransport,
@@ -250,30 +264,36 @@ const transport = new ScriptedChatTransport({
         [
             scriptedDelay(400),
             textEvents('It is **18°C** and sunny in Paris.'),
-            sourceEvents([{url: 'https://example.com/paris', title: 'Paris forecast'}]),
+            citationEvents([{sourceId: 'paris', title: 'Paris forecast'}]),
+            sourceEvents([{id: 'paris', url: 'https://example.com/paris', title: 'Paris forecast'}]),
             dataEvents('weather-card', {city: 'Paris', tempC: 18})
         ]
     ]
 });
 ```
 
-A `respond` function suits a demo that the user can type into:
+A `respond` function suits a demo that the user can type into. Its second argument, a
+`ScriptedRequestContext`, says where the request falls. It holds the `turnIndex`, the `stepIndex`
+within the turn, and the `userMessage` the turn answers. Its `attempt` counts the earlier answers to
+that message, from a retry or a regenerate.
 
 ```typescript
-import {findLast} from 'lodash';
-
 new ScriptedChatTransport({
-    respond: (request, requestIndex) => {
-        const question = findLast(request.messages, it => it.isUser)?.text ?? '';
-        return [textEvents(`You asked: _${question}_. This demo has no model behind it.`)];
+    respond: (request, {stepIndex, userMessage, attempt}) => {
+        // Fail the first try of each message, so the user can see Retry.
+        if (attempt === 0) return errorEvents('The model is overloaded.', 'overloaded_error');
+        // Look the city up in the first step, then answer with the tool result.
+        if (stepIndex === 0) return toolCallEvents('getWeather', {city: userMessage.text});
+        return textEvents('It is **18°C** and sunny.');
     }
 });
 ```
 
 The helpers are `textEvents()`, `reasoningEvents()`, `toolCallEvents()`, `sourceEvents()`,
-`dataEvents()`, `errorEvents()` and `scriptedDelay()`. Pass a `result` to `toolCallEvents()` to
-simulate a tool that the backend runs. A response can also be an async iterable of events, which
-sets its own pace.
+`citationEvents()`, `dataEvents()`, `errorEvents()` and `scriptedDelay()`. A citation attaches to
+the text part before it, and refers to a source by `sourceId` or by `url`. Pass a `result` to
+`toolCallEvents()` to simulate a tool that the backend runs. A response can also be an async
+iterable of events, which sets its own pace.
 
 In a unit test, set `delayMs: 0` and read `transport.requests` to check what the chat sent:
 
@@ -344,8 +364,10 @@ events. The `AnthropicCodec` produces them from Anthropic's stream.
 - A failure before the stream starts should render as a normal Hoist error, a non-2xx status with
   an exception body. The chat then gets a `FetchException` with the server's details.
 - A failure mid-stream should go out as an error record, such as `RUN_ERROR` in AG-UI or an
-  Anthropic `error` event. Hoist's unparseable last line, as `renderNDJSON` writes it, also works.
-  `fetchNdjson` then throws, and the turn fails.
+  Anthropic `error` event. The chat shows it as the turn's error, with its code, and does not
+  report it as an exception. Hoist's unparseable last line, as `renderNDJSON` writes it, also
+  ends the turn. But `fetchNdjson` then throws a generic failure, which Hoist reports as a client
+  error.
 - It should stop work when the client disconnects. The transport closes the connection when the
   user stops the turn.
 
@@ -371,22 +393,28 @@ request past the end of `responses` fails with `ScriptedChatTransport has no res
 
 This hoist-core controller and service relay the Anthropic Messages API as NDJSON, one Anthropic
 stream event per line, flushed per line. Pair it with `HoistChatTransport` and `AnthropicCodec`.
-It follows the Toolbox implementation in `grails-app/controllers/io/xh/toolbox/llm/LlmController.groovy`
-and `grails-app/services/io/xh/toolbox/llm/LlmService.groovy`.
+It follows the Toolbox implementation in
+`grails-app/controllers/io/xh/toolbox/llm/LlmController.groovy` and
+`grails-app/services/io/xh/toolbox/llm/LlmService.groovy`.
 
 ### Why not `renderNDJSON`
 
 `BaseController.renderNDJSON` suits large row sets. It wraps the output in a large
-`BufferedOutputStream`. It flushes after the first row, then each time the buffer fills, and at
-the end. That batching is
-right for a grid load. For a token stream, it holds back most of the reply until the buffer
-fills, so the user sees text in bursts. It also takes an `Iterable` or `Iterator`, but tokens
-arrive through a callback from the upstream HTTP client.
+`BufferedOutputStream`. It flushes after the first row, then each time the buffer fills, and at the
+end. That batching is right for a grid load. For a token stream, it holds back most of the reply
+until the buffer fills, so the user sees text in bursts. It also takes an `Iterable` or `Iterator`,
+but tokens arrive through a callback from the upstream HTTP client.
 
-So the controller writes each line and flushes it itself. It keeps the same error contract as
-`renderNDJSON`. The response commits on the first line, so a failure before then renders a normal
-error response. A failure after that ends the stream with a line that is not JSON, which makes
-`XH.fetchNdjson` throw.
+So the controller writes each line and flushes it itself. The response commits on the first
+line, so a failure before then renders a normal Hoist error response, and the client throws it as
+a `FetchException`. A routine exception, such as a rate limit, keeps its `isRoutine` flag, so
+Hoist logs it quietly rather than as a client error. A failure after the first line ends the
+stream with an Anthropic `error` event instead. The chat shows that as the turn's error, with
+Retry, and never reports it as an exception.
+
+Each stream holds a Tomcat request thread, and a connection to Anthropic, for its whole length. Size
+the HTTP client's pool for the streams you expect at once. Give it a short wait for a connection, so
+that a full pool fails fast rather than queue.
 
 ### Controller
 
@@ -394,6 +422,7 @@ error response. A failure after that ends the stream with a line that is not JSO
 package com.example.myapp.chat
 
 import io.xh.hoist.BaseController
+import io.xh.hoist.json.JSONSerializer
 import io.xh.hoist.security.AccessRequiresRole
 
 import static java.nio.charset.StandardCharsets.UTF_8
@@ -431,19 +460,19 @@ class ChatController extends BaseController {
                 }
             }
         } catch (Throwable t) {
-            // Once committed, end with a line that is not JSON, so the client sees a failure.
-            if (response.committed) {
-                try {
-                    out.write(NDJSON_POISON.getBytes(UTF_8))
-                    out.flush()
-                } catch (Throwable ignored) {}
-            }
-            throw t
+            // Before the first line, Hoist renders the exception as a normal error response.
+            if (!response.committed) throw t
+
+            // After it, end the stream with an Anthropic error event, which the chat shows as the
+            // turn's error. The response is committed, so there is nothing more to render.
+            logWarn('Chat stream failed after it started', t.message)
+            def error = [type: 'error', error: [type: 'api_error', message: 'The reply failed. Try again.']]
+            try {
+                out.write((JSONSerializer.serialize(error) + '\n').getBytes(UTF_8))
+                out.flush()
+            } catch (Throwable ignored) {}
         }
     }
-
-    /** The line that hoist-core's `renderNDJSON` writes on failure, which `fetchNdjson` rejects. */
-    private static final String NDJSON_POISON = '//xh-ndjson-stream-error'
 }
 ```
 
@@ -455,12 +484,15 @@ package com.example.myapp.chat
 import io.xh.hoist.BaseService
 import io.xh.hoist.config.ConfigService
 import io.xh.hoist.exception.DataNotAvailableException
+import io.xh.hoist.exception.ExternalHttpException
+import io.xh.hoist.exception.RoutineRuntimeException
 import io.xh.hoist.json.JSONSerializer
 import org.apache.hc.client5.http.classic.methods.HttpPost
 import org.apache.hc.client5.http.config.RequestConfig
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse
 import org.apache.hc.client5.http.impl.classic.HttpClients
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder
 import org.apache.hc.core5.http.io.entity.StringEntity
 import org.apache.hc.core5.util.Timeout
 
@@ -477,10 +509,22 @@ class ChatService extends BaseService {
 
     // A raw client, as JSONClient reads the whole response. The response timeout bounds each
     // read, not the whole stream - Anthropic sends `ping` events. Compression is off, as a
-    // compressed stream can be buffered along the way.
+    // compressed stream can be buffered along the way. The pool allows 50 streams at once, and a
+    // request that finds it full waits at most 5 seconds.
     private final CloseableHttpClient streamClient = HttpClients.custom()
         .disableContentCompression()
-        .setDefaultRequestConfig(RequestConfig.custom().setResponseTimeout(Timeout.ofMinutes(2)).build())
+        .setConnectionManager(
+            PoolingHttpClientConnectionManagerBuilder.create()
+                .setMaxConnPerRoute(50)
+                .setMaxConnTotal(50)
+                .build()
+        )
+        .setDefaultRequestConfig(
+            RequestConfig.custom()
+                .setResponseTimeout(Timeout.ofMinutes(2))
+                .setConnectionRequestTimeout(Timeout.ofSeconds(5))
+                .build()
+        )
         .build()
 
     /**
@@ -506,10 +550,15 @@ class ChatService extends BaseService {
         boolean complete = false
         try {
             response = streamClient.execute(post)
+            if (response.code == 429 || response.code == 529) {
+                // Busy or rate limited - routine, so not logged or reported as an error.
+                throw new RoutineRuntimeException('The model is busy - try again in a minute.')
+            }
             if (response.code != 200) {
                 // Not passed through as is - an upstream 401 would read as a Hoist auth failure.
                 def detail = elide(response.entity?.content?.getText('UTF-8') ?: '', 500)
-                throw new RuntimeException("Chat API call failed with status ${response.code}: $detail")
+                logError("Chat API call failed with status ${response.code}", detail)
+                throw new ExternalHttpException('The chat service failed.', null, 502)
             }
             complete = relayEvents(response, onEvent)
             if (!complete) logInfo("Client disconnected - aborted stream for $username")
@@ -568,7 +617,7 @@ Shared by `HoistChatTransport` and `SseChatTransport`.
 |----------|------|-------------|
 | `url` | `string` | Endpoint to post to. Relative URLs resolve against `XH.baseUrl`. Required. |
 | `codec` | `ChatCodec` | Encodes requests and decodes records. Default a new `AgUiCodec`. |
-| `headers` | `PlainObject` | Extra headers for each request, for example to authenticate with an agent server. |
+| `headers` | `PlainObject \| (request) => PlainObject` | Extra headers for each request, for example to authenticate with an agent server. A function builds them per request, for example to send the `threadId` and `runId`, so the server can count turns rather than calls. |
 | `params` | `PlainObject` | Query string parameters for each request. |
 | `track` | `string \| TrackOptions` | Track each step with Hoist activity tracking, as `FetchOptions.track` does. |
 | `timeout` | `PromiseTimeoutSpec` | Wait for the response to start. Default the `FetchService` default. No timeout applies once the response streams. |
@@ -581,7 +630,7 @@ Shared by `HoistChatTransport` and `SseChatTransport`.
 | `model` | `string` | Model to call. Leave out if the server sets it. |
 | `maxTokens` | `number` | Sent as `max_tokens`. Leave out if the server sets it. |
 | `params` | `PlainObject` | Other body fields. Tools listed here go ahead of the chat's tools. Default `{}`. |
-| `cacheControl` | `boolean` | True to mark cache breakpoints on the last system block and the last tool. Default false. |
+| `cacheControl` | `boolean` | True to mark cache breakpoints on the history, the last system block unless the app marks one, and the last tool, up to the limit of 4. Default false. |
 | `prepareBody` | `(body, request) => Awaitable<PlainObject>` | Adjust the finished body. |
 
 ### AgUiCodecConfig
@@ -596,7 +645,7 @@ Shared by `HoistChatTransport` and `SseChatTransport`.
 | Property | Type | Description |
 |----------|------|-------------|
 | `responses` | `ScriptedResponse[]` | Response to each step, in order across all turns. |
-| `respond` | `(request, requestIndex) => Awaitable<ScriptedResponse>` | Builds the response to each step. Use it or `responses`. |
+| `respond` | `(request, context) => Awaitable<ScriptedResponse>` | Builds the response to each step, with a `ScriptedRequestContext` of `requestIndex`, `turnIndex`, `stepIndex`, `userMessage` and `attempt`. Use it or `responses`. |
 | `delayMs` | `number` | Pause before each event, in milliseconds. Default 25. Use 0 in tests. |
 
 ### ChatEvent

@@ -5,7 +5,7 @@ import {
     type ChatToolCallPart,
     isToolCallFinal
 } from '../ChatPart';
-import {genChatId} from './ids';
+import {genChatId} from '../../impl/ids';
 
 /**
  * A finished text part, with a new id.

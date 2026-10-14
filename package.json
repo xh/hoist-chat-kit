@@ -14,11 +14,13 @@
     "access": "public"
   },
   "files": [
+    "CHANGELOG.md",
     "cmp",
     "core",
     "desktop",
     "docs",
     "genui",
+    "impl",
     "styles",
     "transport",
     "!**/*.spec.ts",

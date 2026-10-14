@@ -4,6 +4,7 @@ import '../../../styles/vars.scss';
 import './ChatCodeBlock.scss';
 import {chatCopyButton} from './impl/ChatCopyButton';
 
+/** Props for {@link ChatCodeBlock}. */
 export interface ChatCodeBlockProps extends HoistProps {
     /** Source code to display. */
     content: string;
@@ -23,8 +24,9 @@ export const [ChatCodeBlock, chatCodeBlock] = hoistCmp.withFactory<ChatCodeBlock
     model: false,
     className: 'xh-chat-code-block',
 
-    render({className, content, language}) {
+    render({className, content, language}, ref) {
         return div({
+            ref,
             className,
             items: [
                 div({

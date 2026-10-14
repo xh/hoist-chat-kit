@@ -7,6 +7,7 @@ import '../../../styles/vars.scss';
 import './ChatEmptyState.scss';
 import {type ChatSuggestion, chatSuggestions} from './ChatSuggestions';
 
+/** Props for {@link ChatEmptyState}. */
 export interface ChatEmptyStateProps extends HoistProps {
     /** Icon above the title. Default a sparkles icon. Set to null for none. */
     icon?: ReactElement;
@@ -33,11 +34,12 @@ export const [ChatEmptyState, chatEmptyState] = hoistCmp.withFactory<ChatEmptySt
     model: false,
     className: 'xh-chat-empty-state',
 
-    render({className, icon, title, text, suggestions, children}) {
+    render({className, icon, title, text, suggestions, children}, ref) {
         icon = withDefault(icon, Icon.ai());
         title = withDefault(title, 'How can I help?');
 
         return div({
+            ref,
             className,
             items: [
                 icon ? div({className: 'xh-chat-empty-state__icon', item: icon}) : null,

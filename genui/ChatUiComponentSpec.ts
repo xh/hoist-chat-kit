@@ -1,6 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import type {ReactNode} from 'react';
-import type {ChatDataPart, ChatMessage, ChatModel, ChatToolCallPart} from '../core';
+import type {ChatDataPart, ChatPartRenderContext, ChatToolCallPart} from '../core';
 
 /**
  * Declares a component that the model can show in the chat, as part of a {@link ChatUiCatalog}.
@@ -8,14 +8,14 @@ import type {ChatDataPart, ChatMessage, ChatModel, ChatToolCallPart} from '../co
  * the catalog checks them against `props`, and the chat renders the component with `render`.
  *
  * ```ts
- * const metrics: ChatUiComponentSpec<{items: Metric[]}> = {
- *     name: 'metrics',
+ * const kpis: ChatUiComponentSpec<{metrics: ChatUiMetric[]}> = {
+ *     name: 'kpis',
  *     description: 'A row of KPI tiles, for a few headline numbers.',
  *     props: {
  *         type: 'object',
- *         required: ['items'],
+ *         required: ['metrics'],
  *         properties: {
- *             items: {
+ *             metrics: {
  *                 type: 'array',
  *                 maxItems: 6,
  *                 items: {
@@ -26,8 +26,8 @@ import type {ChatDataPart, ChatMessage, ChatModel, ChatToolCallPart} from '../co
  *             }
  *         }
  *     },
- *     render: ({items = []}) => metricTiles({items}),
- *     example: {items: [{label: 'Revenue', value: 1250000}]}
+ *     render: ({metrics}, {isPartial}) => chatUiMetrics({metrics, isPartial}),
+ *     example: {metrics: [{label: 'Revenue', value: 1250000}]}
  * };
  * ```
  */
@@ -58,6 +58,9 @@ export interface ChatUiComponentSpec<P = PlainObject> {
      * Render the component. While the model is still writing the props, `context.isPartial` is
      * true and any prop may be missing or incomplete - render what is there, or a placeholder.
      * Once the props are complete, they have passed `props` and `validate`.
+     *
+     * The catalog renders the result as a component of its own, so `render` may call React hooks,
+     * such as `useLocalModel()` for a `GridModel` or `ChartModel` that the component owns.
      */
     render: (props: P, context: ChatUiRenderContext) => ReactNode;
 
@@ -65,14 +68,11 @@ export interface ChatUiComponentSpec<P = PlainObject> {
     example?: P;
 }
 
-/** Passed to {@link ChatUiComponentSpec.render}. */
-export interface ChatUiRenderContext {
-    /** The chat that shows the component - for example to send a follow-up message. */
-    chatModel: ChatModel;
-
-    /** The assistant message that holds the component. */
-    message: ChatMessage;
-
+/**
+ * Passed to {@link ChatUiComponentSpec.render}: the render context of the part that holds the
+ * component - `chatModel` and `messageId` - plus the part itself and the state of its props.
+ */
+export interface ChatUiRenderContext extends ChatPartRenderContext {
     /**
      * The part that holds the component: the tool call that showed it, or - for a component
      * translated by a {@link ChatUiAdapter} - the data part that carried the protocol payload.

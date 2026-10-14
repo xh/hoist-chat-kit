@@ -6,9 +6,9 @@ import type {ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
-    ChatMessage,
     ChatModel,
     type ChatDataPart,
+    type ChatPartRenderContext,
     type ChatToolCallPart,
     type ChatToolCallState,
     type ChatToolSpec
@@ -34,7 +34,11 @@ describe('ChatUiCatalog', () => {
                 [metrics, note] = catalog.tools;
 
             expect(catalog.tools.map(it => it.name)).toEqual(['show_metrics', 'add_note']);
-            expect(metrics).toMatchObject({parameters: METRICS.props, display: 'inline'});
+            expect(metrics).toMatchObject({
+                parameters: METRICS.props,
+                display: 'inline',
+                displayName: 'Metrics'
+            });
             expect(metrics.execute).toBeTypeOf('function');
             expect(metrics.description).toContain('A row of KPI tiles.');
             expect(metrics.description).toContain('shows the component to the user');
@@ -107,6 +111,7 @@ describe('ChatUiCatalog', () => {
             });
 
             expect(instructions).toContain('Show one component per call.');
+            expect(instructions).toContain('in the order the schema lists them');
             expect(instructions).toContain('within the limits of the schema');
             expect(instructions).toContain('Prefer a component for tabular and numeric results');
             expect(instructions).toContain('Use text for explanation');
@@ -128,13 +133,12 @@ describe('ChatUiCatalog', () => {
         ])('renders a %s call with isPartial %s', (state, isPartial) => {
             const render = vi.fn(() => 'tiles'),
                 tool = createCatalog({components: [{...METRICS, render}]}).tools[0],
-                {chatModel, message} = renderContext(),
+                context = renderContext(),
                 part = callPart(state, {items: [{label: 'A', value: 1}]});
 
-            expect(tool.renderer(part, {chatModel, message})).toBe('tiles');
+            expect(markup(tool.renderer(part, context))).toBe('tiles');
             expect(render).toHaveBeenCalledWith(part.input, {
-                chatModel,
-                message,
+                ...context,
                 part,
                 isPartial,
                 children: []
@@ -146,12 +150,14 @@ describe('ChatUiCatalog', () => {
                 tool = createCatalog({components: [{...METRICS, render}]}).tools[0];
 
             expect(
-                tool.renderer(
-                    callPart('input-streaming', {items: [{label: 'Reve'}]}),
-                    renderContext()
+                markup(
+                    tool.renderer(
+                        callPart('input-streaming', {items: [{label: 'Reve'}]}),
+                        renderContext()
+                    )
                 )
             ).toBe('1 tiles');
-            expect(tool.renderer(callPart('input-streaming', null), renderContext())).toBe(
+            expect(markup(tool.renderer(callPart('input-streaming', null), renderContext()))).toBe(
                 '0 tiles'
             );
             expect(render.mock.calls.map(it => it[0])).toEqual([{items: [{label: 'Reve'}]}, {}]);
@@ -199,27 +205,24 @@ describe('ChatUiCatalog', () => {
                         {title: 'Q4', notes: []}
                     ]
                 }),
-                {chatModel, message} = renderContext();
+                context = renderContext();
 
             expect(Object.keys(renderers)).toEqual(['test-ui']);
-            expect(markup(renderers['test-ui'](part, message, chatModel))).toBe(
-                '[Q3: (up)(flat)][Q4: ]'
-            );
+            expect(markup(renderers['test-ui'](part, context))).toBe('[Q3: (up)(flat)][Q4: ]');
         });
 
         it('passes the data part and the chat to each component', () => {
             const render = vi.fn(() => 'note'),
                 catalog = createCatalog({components: [PANEL, {...NOTE, render}]}),
                 part = dataPart({panels: [{title: 'Q3', notes: ['up']}]}),
-                {chatModel, message} = renderContext();
+                context = renderContext();
 
-            markup(catalog.createDataRenderers([ADAPTER])['test-ui'](part, message, chatModel));
+            markup(catalog.createDataRenderers([ADAPTER])['test-ui'](part, context));
 
             expect(render).toHaveBeenCalledWith(
                 {text: 'up'},
                 {
-                    chatModel,
-                    message,
+                    ...context,
                     part,
                     isPartial: false,
                     children: []
@@ -238,12 +241,10 @@ describe('ChatUiCatalog', () => {
                         {component: 'chart', props: {}}
                     ]
                 },
-                {chatModel, message} = renderContext();
+                context = renderContext();
             onTestFinished(() => warn.mockRestore());
 
-            const result = catalog
-                .createDataRenderers([adapter])
-                ['test-ui'](dataPart({}), message, chatModel);
+            const result = catalog.createDataRenderers([adapter])['test-ui'](dataPart({}), context);
 
             expect(markup(result)).toBe('(kept)');
             expect(warn).toHaveBeenCalledTimes(2);
@@ -284,8 +285,13 @@ describe('ChatUiCatalog', () => {
                 track: () => chatModel.lastMessage,
                 run: message => {
                     const part = message?.toolCalls[0];
-                    if (part)
-                        chatModel.getToolSpec(part.toolName).renderer(part, {chatModel, message});
+                    if (part) {
+                        markup(
+                            chatModel
+                                .getToolSpec(part.toolName)
+                                .renderer(part, {chatModel, messageId: message.id})
+                        );
+                    }
                 }
             });
 
@@ -398,11 +404,8 @@ function execute(tool: ChatToolSpec, input: PlainObject): Promise<any> {
     );
 }
 
-function renderContext(): {chatModel: ChatModel; message: ChatMessage} {
-    return {
-        chatModel: createModel(new ScriptedChatTransport(), []),
-        message: new ChatMessage({role: 'assistant'})
-    };
+function renderContext(): ChatPartRenderContext {
+    return {chatModel: createModel(new ScriptedChatTransport(), []), messageId: 'm1'};
 }
 
 function callPart(state: ChatToolCallState, input: PlainObject): ChatToolCallPart {

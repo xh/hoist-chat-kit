@@ -1,7 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {isEmpty} from 'lodash';
 import type {ChatPart, ChatTextPart, ChatToolCallPart} from './ChatPart';
-import {genChatId} from './impl/ids';
+import {genChatId} from '../impl/ids';
 import {createTextPart} from './impl/messageUtils';
 
 /** Author of a message. */

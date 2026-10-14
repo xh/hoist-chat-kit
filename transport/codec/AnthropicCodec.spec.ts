@@ -96,7 +96,7 @@ describe('AnthropicCodec', () => {
             ).toBe('Configured.');
         });
 
-        it('marks cache breakpoints on the last system block and the last tool', async () => {
+        it('marks cache breakpoints on the history, the last system block and the last tool', async () => {
             const codec = new AnthropicCodec({
                     system: 'Be brief.',
                     cacheControl: true,
@@ -113,13 +113,58 @@ describe('AnthropicCodec', () => {
                 {type: 'web_search_20260209', name: 'web_search'},
                 {name: 'getWeather', input_schema: SCHEMA, cache_control: {type: 'ephemeral'}}
             ]);
+            expect(body.messages).toEqual([
+                {
+                    role: 'user',
+                    content: [{type: 'text', text: 'Hi', cache_control: {type: 'ephemeral'}}]
+                }
+            ]);
         });
 
-        it('keeps a breakpoint the app placed on its own system block', async () => {
+        it('keeps the breakpoints the app placed on its system blocks, and adds none there', async () => {
             const marked = {type: 'text', text: 'Static.', cache_control: {type: 'ephemeral'}},
-                codec = new AnthropicCodec({system: [marked], cacheControl: true});
+                live = {type: 'text', text: 'Dashboard state: 3 widgets.'},
+                codec = new AnthropicCodec({system: [marked, live], cacheControl: true});
 
-            expect((await encode(codec, [user('Hi')])).system).toEqual([marked]);
+            // The live state after the marked block stays unmarked, so it is sent fresh.
+            expect((await encode(codec, [user('Hi')])).system).toEqual([marked, live]);
+        });
+
+        it('marks the last block of the history in a tool loop, past thinking blocks', async () => {
+            const codec = new AnthropicCodec({cacheControl: true}),
+                reply = new ChatMessage({
+                    role: 'assistant',
+                    status: 'streaming',
+                    parts: [
+                        reasoning('Look it up.', 'sig1', 0),
+                        toolCall('c1', 0, {output: 'Sunny'})
+                    ]
+                }),
+                {messages} = await encode(codec, [user('Weather?'), reply]);
+
+            expect(messages.map(it => it.content.map(block => !!block.cache_control))).toEqual([
+                [false],
+                [false, false],
+                [true]
+            ]);
+            expect(messages[2].content[0]).toMatchObject({type: 'tool_result', tool_use_id: 'c1'});
+        });
+
+        it('stays within the limit of 4 breakpoints, counting those the app set', async () => {
+            const system = [1, 2, 3].map(idx => ({
+                    type: 'text',
+                    text: `Block ${idx}.`,
+                    cache_control: {type: 'ephemeral'}
+                })),
+                codec = new AnthropicCodec({system, cacheControl: true}),
+                body = await codec.encodeRequest(
+                    request([user('Hi')], {tools: [{name: 'getWeather', parameters: SCHEMA}]})
+                ),
+                count = JSON.stringify(body).match(/cache_control/g).length;
+
+            expect(count).toBe(4);
+            expect(body.messages[0].content[0].cache_control).toEqual({type: 'ephemeral'});
+            expect(body.tools[0].cache_control).toBeUndefined();
         });
 
         it('passes the finished body through prepareBody', async () => {

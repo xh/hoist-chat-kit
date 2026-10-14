@@ -6,18 +6,22 @@ plugs in.
 
 ## Layers
 
-The kit has three layers. Each layer depends only on the layers below it.
+The kit has three layers. Components depend on the models below them, and never on a wire
+format. The models and the transports are peers that share types: a transport yields events of
+the `ChatEvent` type, and reads the `ChatMessage` history in a `ChatRunRequest`. The generative UI
+catalog sits beside the models, and builds on their tools.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ Components          desktop/cmp/chat/     cmp/markdown/                  │
-│                     ChatPanel, ChatMessageList, ChatMessageView,         │
-│                     ChatComposer, ChatToolCall, ChatReasoning, ...       │
+│ Components          desktop/cmp/chat/     desktop/cmp/genui/             │
+│                     cmp/markdown/                                        │
+│                     ChatPanel, ChatMessageList, ChatComposer,            │
+│                     ChatToolCall, ChatUiGrid, ChatUiChart, ...           │
 │                     Render the models. Never see a wire format.          │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ Models              core/                                                │
-│                     ChatModel, ChatComposerModel, ChatMessage, ChatPart, │
-│                     ChatToolSpec. Own the state and the turn loop.       │
+│ Models              core/                 genui/                         │
+│                     ChatModel, ChatMessage, ChatPart, ChatToolSpec,      │
+│                     ChatUiCatalog. Own the state and the turn loop.      │
 │                     Platform-neutral.                                    │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ Transports, codecs  transport/                                           │
@@ -30,15 +34,21 @@ The kit has three layers. Each layer depends only on the layers below it.
         hoist-core endpoint, AG-UI agent server, or a scripted demo
 ```
 
+Helpers that more than one package needs, such as id generation and abort handling, live in the
+top-level `impl/` folder. They are internal, and no package reaches into another's `impl/`.
+
 - **Transports and codecs** carry the request to a backend and turn its stream into
   `ChatEvent`s, which are AG-UI 1.0 events. A transport owns the framing, such as NDJSON or SSE.
   A codec owns the format, such as AG-UI or the Anthropic Messages API. See
   [`/transport/`](../transport/README.md).
 - **Models** hold the conversation. `ChatModel` runs each turn, applies the events to immutable
-  `ChatMessage` records, and runs client tools. See [`/core/`](../core/README.md).
+  `ChatMessage` records, and runs client tools. See [`/core/`](../core/README.md). A
+  `ChatUiCatalog` turns app components into tools the model calls to show UI. See
+  [`/genui/`](../genui/README.md).
 - **Components** render the models with Hoist components and element factories. The desktop
-  components live in [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md). The streaming
-  markdown renderer is platform-neutral, in [`/cmp/markdown/`](../cmp/markdown/README.md).
+  components live in [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md), and the built-in
+  generative UI components in [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md). The
+  streaming markdown renderer is platform-neutral, in [`/cmp/markdown/`](../cmp/markdown/README.md).
 
 The kit owns its message model. No component sees a provider's or a protocol's wire format, so
 protocol churn stops at the codec. See [Protocols](./protocols.md) for how each protocol maps
@@ -86,7 +96,8 @@ ChatMessageView             and, within it, only the changed parts
 When the stream ends, the chat looks at the step's tool calls:
 
 1. If the step made no client tool calls, the turn is complete. The message becomes `complete`,
-   the chat records `metadata.elapsedMs`, and `onTurnComplete` runs.
+   the chat records `metadata.elapsedMs`, and `onTurnComplete` runs. The elapsed time leaves out
+   any time the turn spent paused for the user.
 2. If a call needs approval, or waits on an interactive tool, the turn pauses. The message
    becomes `paused`, and the chat becomes `ready` until the user answers.
 3. Otherwise the chat runs each client tool's `execute` in order. It then starts the next step,
@@ -126,10 +137,19 @@ arguments once per batch, not once per fragment.
 
 ### Memoized markdown blocks
 
-`ChatMarkdown` splits streaming text into top-level blocks, such as paragraphs, lists and code
-fences. Finished blocks render once and stay memoized. Only the last block re-renders as text
-arrives, with any open syntax closed, such as an unterminated code fence or `**`. When the part
-is done, the full text renders as one document, so footnotes and reference links resolve.
+`ChatMarkdown` splits text into top-level blocks, such as paragraphs, lists and code fences.
+Finished blocks render once and stay memoized. Only the last block re-renders as text arrives,
+with any open syntax closed, such as an unterminated code fence or `**`. The blocks stay when the
+part is done, so the reply's DOM stays mounted. Text with footnotes or reference links is the
+exception: it renders as one document once done, so its references resolve.
+
+### A stable render context per message
+
+A message changes identity on every flush, so `ChatMessageView` never passes it to its parts.
+Each part receives its own immutable part and a `ChatPartRenderContext`, `{chatModel,
+messageId}`, which stays the same object for the life of the message. Tool renderers and data
+renderers render as memoized components of their own. A part whose object did not change skips
+its render, renderer included.
 
 ## Where an App Plugs In
 
@@ -137,7 +157,9 @@ is done, the full text renders as one document, so footnotes and reference links
 |------|-------|-----------|
 | Tools | `ChatModelConfig.tools`, as `ChatToolSpec[]` | Let the model act on the app, ask the user, or display backend tool calls |
 | Tool display | `displayName`, `icon`, `summary`, `renderer` on `ChatToolSpec` | Show a tool call as a custom card body, such as a chart or a form |
-| Approvals | `needsApproval` on `ChatToolSpec` | Ask the user before a tool runs |
+| Approvals | `needsApproval` and `approvalPrompt` on `ChatToolSpec` | Ask the user before a tool runs, in words that suit the call |
+| Generative UI | `ChatUiCatalog`, with `ChatUiComponentSpec`s | Let the model show the app's own components inline, as it writes |
+| Protocol UI | `ChatUiAdapter`, through `catalog.createDataRenderers()` | Draw an A2UI or OpenUI payload with catalog components |
 | Data renderers | `ChatModelConfig.dataRenderers` | Render app content and generative UI from data parts, by `dataType` |
 | Transports | `ChatModelConfig.transport` | Connect to any backend, or implement `ChatTransport` |
 | Codecs | `HttpChatTransportConfig.codec` | Speak a new wire format, or implement `ChatCodec` |
@@ -152,16 +174,18 @@ The component slots and the theme variables are covered in
 
 ## Platform Split
 
-The kit ships desktop components now. `core/`, `transport/` and `cmp/` import nothing from
-`@xh/hoist/desktop`. A mobile package, `mobile/cmp/chat`, can follow with no change to the
+The kit ships desktop components now. `core/`, `genui/`, `transport/` and `cmp/` import nothing
+from `@xh/hoist/desktop`. A mobile package, `mobile/cmp/chat`, can follow with no change to the
 models, the transports or the markdown renderer.
 
 | Package | Platform | Contents |
 |---------|----------|----------|
 | `core/` | Neutral | Models, messages, parts and tools |
 | `transport/` | Neutral | Transports, codecs and events |
+| `genui/` | Neutral | The generative UI catalog, component specs and adapters |
 | `cmp/markdown/` | Neutral | The streaming markdown renderer |
 | `desktop/cmp/chat/` | Desktop | Panel, message list, composer, tool cards and the rest |
+| `desktop/cmp/genui/` | Desktop | The built-in grid, chart, metrics and card components |
 | `styles/` | Neutral | The `--xh-chat-*` CSS variables |
 
 App code follows the same split. Put tool specs, prompts and data renderers in shared code when
@@ -171,6 +195,7 @@ desktop code.
 ## Related
 
 - [`/core/`](../core/README.md) - `ChatModel`, messages, parts and tools
+- [`/genui/`](../genui/README.md) - the generative UI catalog
 - [`/transport/`](../transport/README.md) - transports, codecs and server contracts
 - [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) - desktop components
 - [`/cmp/markdown/`](../cmp/markdown/README.md) - streaming markdown
