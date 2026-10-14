@@ -159,6 +159,73 @@ describe('HoistChatTransport', () => {
         });
     });
 
+    it('builds the url, headers and params per request from async functions', async () => {
+        const stream = ndjsonStream();
+        hoistCore.route('POST', 'chat/t1', () => stream.response);
+        stream.close();
+
+        const transport = new HoistChatTransport({
+            url: async req => `chat/${req.threadId}`,
+            headers: async () => ({Authorization: 'Bearer fresh'}),
+            params: req => ({run: req.runId})
+        });
+        await collect(transport.run(request()));
+
+        const [req] = hoistCore.requestsTo('chat/t1');
+        expect(req.headers).toMatchObject({authorization: 'Bearer fresh'});
+        expect(req.query).toEqual({run: 'r1'});
+    });
+
+    describe('idle timeout', () => {
+        it('fails the step as stalled, and closes the connection, when no data arrives', async () => {
+            const stream = ndjsonStream(),
+                signals = spyFetchSignals('chat');
+            hoistCore.route('POST', 'chat', () => stream.response);
+            stream.push(TEXT_START);
+
+            const events = await collect(
+                new HoistChatTransport({url: 'chat', idleTimeout: 50}).run(request())
+            );
+
+            expect(events).toEqual([
+                TEXT_START,
+                {type: 'RUN_ERROR', message: 'The server stopped responding.', code: 'stalled'}
+            ]);
+            expect(signals[0].aborted).toBe(true);
+        });
+
+        it('resets on each heartbeat record, which is never decoded', async () => {
+            const stream = ndjsonStream();
+            hoistCore.route('POST', 'chat', () => stream.response);
+
+            const events = collect(
+                new HoistChatTransport({url: 'chat', idleTimeout: 120}).run(request())
+            );
+            for (let i = 0; i < 4; i++) {
+                await sleep(50);
+                stream.push({type: 'xh.heartbeat'});
+            }
+            stream.push(TEXT_START, FINISHED);
+            stream.close();
+
+            expect(await events).toEqual([TEXT_START, FINISHED]);
+        });
+
+        it('fails the turn with a ChatRunError coded stalled', async () => {
+            const stream = ndjsonStream();
+            hoistCore.route('POST', 'chat', () => stream.response);
+            const chatModel = new ChatModel({
+                transport: new HoistChatTransport({url: 'chat', idleTimeout: 50})
+            });
+            onTestFinished(() => chatModel.destroy());
+
+            await chatModel.sendAsync('Hi');
+
+            expect(chatModel.lastError).toBeInstanceOf(ChatRunError);
+            expect(chatModel.lastError).toMatchObject({code: 'stalled'});
+        });
+    });
+
     /**
      * How failures reach Hoist's exception pipeline. Apps rely on errors within the stream staying
      * conversation state, and on routine server exceptions - such as a rate limit - never being
@@ -278,6 +345,10 @@ function ndjsonStream() {
             records.forEach(it => controller.enqueue(encoder.encode(JSON.stringify(it) + '\n'))),
         close: () => controller.close()
     };
+}
+
+function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 async function collect(events: AsyncIterable<ChatEvent>): Promise<ChatEvent[]> {

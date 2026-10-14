@@ -29,6 +29,8 @@ export interface HoistChatTransportConfig extends HttpChatTransportConfig {}
  *    error record - `RUN_ERROR` in AG-UI.
  *  - It should stop work when the client disconnects. The transport closes the connection when
  *    the user stops the turn.
+ *  - It may send `{"type": "xh.heartbeat"}` records during long silent stretches, to reset the
+ *    transport's `idleTimeout`. They are never decoded.
  */
 export class HoistChatTransport extends HttpChatTransport {
     protected override async *fetchRecords(opts: FetchOptions): AsyncGenerator<HttpChatRecord> {

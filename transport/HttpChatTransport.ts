@@ -1,4 +1,4 @@
-import type {PlainObject, TrackOptions} from '@xh/hoist/core';
+import type {Awaitable, PlainObject, TrackOptions} from '@xh/hoist/core';
 import type {PromiseTimeoutSpec} from '@xh/hoist/promise';
 import type {FetchOptions} from '@xh/hoist/svc';
 import {throwIf} from '@xh/hoist/utils/js';
@@ -9,36 +9,59 @@ import type {ChatRunRequest, ChatTransport} from './ChatTransport';
 import {AgUiCodec} from './codec/AgUiCodec';
 import {abortable} from './impl/streams';
 
+/**
+ * A transport setting given as a value, or as a function of the request that returns one. The
+ * function may be async, for example to fetch a short-lived token before each step.
+ */
+export type HttpChatTransportValue<T> = T | ((request: ChatRunRequest) => Awaitable<T>);
+
 /** Configuration shared by the kit's HTTP transports. */
 export interface HttpChatTransportConfig {
-    /** Endpoint to post to. Relative urls resolve against `XH.baseUrl`, as with `XH.fetchJson`. */
-    url: string;
+    /**
+     * Endpoint to post to - or a function to build it per request, e.g. to route a thread to its
+     * own agent. Relative urls resolve against `XH.baseUrl`, as with `XH.fetchJson`.
+     */
+    url: HttpChatTransportValue<string>;
 
     /** Encodes requests and decodes the streamed records. Default an {@link AgUiCodec}. */
     codec?: ChatCodec;
 
     /**
      * Extra headers for each request, e.g. to authenticate with an agent server - or a function
-     * to build them per request, e.g. to send the thread and run ids for the server to count turns.
+     * to build them per request, e.g. to send a fresh token, or the thread and run ids for the
+     * server to count turns.
      */
-    headers?: PlainObject | ((request: ChatRunRequest) => PlainObject);
+    headers?: HttpChatTransportValue<PlainObject>;
 
-    /** Query string parameters for each request. */
-    params?: PlainObject;
+    /** Query string parameters for each request, or a function to build them per request. */
+    params?: HttpChatTransportValue<PlainObject>;
 
     /** Track each step with Hoist activity tracking, as with `FetchOptions.track`. */
     track?: string | TrackOptions;
 
     /**
      * Time to wait for the server to start its response. Default the `FetchService` default. No
-     * timeout applies once the response is streaming.
+     * timeout applies once the response is streaming - see `idleTimeout`.
      */
     timeout?: PromiseTimeoutSpec;
+
+    /**
+     * Longest time, in milliseconds, to wait for data from the server - from the request to its
+     * first record, then between records. Any record resets the timer, as does any other data,
+     * such as an SSE comment. A server with long silent stretches, such as an agent running a
+     * slow tool, sends heartbeats: an SSE comment, or an `{"type": "xh.heartbeat"}` record, which
+     * the transport reads as data and never decodes. When the timer fires, the transport closes
+     * the connection and fails the step with error code `stalled`. Default none.
+     */
+    idleTimeout?: number;
 }
 
 /** One record read from a streamed response, for the codec to decode. */
 export interface HttpChatRecord {
-    /** The parsed record - an NDJSON line, or the `data` of an SSE event. */
+    /**
+     * The parsed record - an NDJSON line, or the `data` of an SSE event. Null for data that
+     * completes no record, such as an SSE comment: it shows only that the server is still there.
+     */
     data: PlainObject;
 
     /** The SSE `event` name, for framings that have one. */
@@ -62,17 +85,17 @@ export interface HttpChatRecord {
  * Retry, and never reports it as an exception.
  */
 export abstract class HttpChatTransport implements ChatTransport {
-    /** Endpoint to post to. */
-    readonly url: string;
+    /** Endpoint to post to, or a function to build it. */
+    readonly url: HttpChatTransportValue<string>;
 
     /** Encodes requests and decodes the streamed records. */
     readonly codec: ChatCodec;
 
     /** Extra headers for each request, a function to build them, or null. */
-    readonly headers: HttpChatTransportConfig['headers'];
+    readonly headers: HttpChatTransportValue<PlainObject>;
 
-    /** Query string parameters for each request, or null. */
-    readonly params: PlainObject;
+    /** Query string parameters for each request, a function to build them, or null. */
+    readonly params: HttpChatTransportValue<PlainObject>;
 
     /** Activity tracking for each step, or null. */
     readonly track: string | TrackOptions;
@@ -80,13 +103,17 @@ export abstract class HttpChatTransport implements ChatTransport {
     /** Time to wait for the server to start its response. */
     readonly timeout: PromiseTimeoutSpec;
 
+    /** Longest wait for data from the server, in milliseconds, or null for no limit. */
+    readonly idleTimeout: number;
+
     constructor({
         url,
         codec = new AgUiCodec(),
         headers = null,
         params = null,
         track = null,
-        timeout
+        timeout,
+        idleTimeout = null
     }: HttpChatTransportConfig) {
         throwIf(!url, 'A chat transport url is required.');
         this.url = url;
@@ -96,39 +123,67 @@ export abstract class HttpChatTransport implements ChatTransport {
         this.track = track;
         // Left undefined when not configured, as null would disable the FetchService timeout.
         this.timeout = timeout;
+        this.idleTimeout = idleTimeout;
     }
 
     async *run(request: ChatRunRequest): AsyncGenerator<ChatEvent> {
-        const {url, codec, headers, params, track, timeout} = this,
+        const {codec, track, timeout, idleTimeout} = this,
             {signal} = request;
         signal.throwIfAborted();
 
-        const body = await codec.encodeRequest(request);
+        const [body, url, headers, params] = await Promise.all([
+            codec.encodeRequest(request),
+            resolveValue(this.url, request),
+            resolveValue(this.headers, request),
+            resolveValue(this.params, request)
+        ]);
         signal.throwIfAborted();
 
         // Hoist releases a request's `autoAbortKey` once its response starts, so a key could not
         // cancel the stream. A signal of our own covers the whole response, and also closes the
-        // connection when the caller stops reading early.
+        // connection when the caller stops reading early. FetchService spreads `fetchOpts` last,
+        // so this signal replaces its own: its `timeout` then rejects the request but cannot
+        // abort the fetch. The `finally` below closes the connection in that case too.
         const aborter = new AbortController(),
+            stall = new AbortController(),
             decode = codec.createDecoder(request);
+
+        // The idle timer runs only while waiting on the server, not while the caller handles
+        // what it read.
+        let idleTimer: ReturnType<typeof setTimeout> = null;
+        const startIdleTimer = () => {
+            if (idleTimeout != null) idleTimer = setTimeout(() => stall.abort(), idleTimeout);
+        };
+
         try {
+            startIdleTimer();
             const records = this.fetchRecords({
                 url,
                 method: 'POST',
                 body: JSON.stringify(body),
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(isFunction(headers) ? headers(request) : headers)
-                },
+                headers: {'Content-Type': 'application/json', ...headers},
                 params,
                 track,
                 timeout,
                 fetchOpts: {signal: AbortSignal.any([signal, aborter.signal])}
             });
-            for await (const {data, eventName} of abortable(records, signal)) {
-                yield* decode(data, eventName);
+            for await (const {data, eventName} of abortable(
+                records,
+                AbortSignal.any([signal, stall.signal])
+            )) {
+                clearTimeout(idleTimer);
+                if (data != null && data.type !== HEARTBEAT_TYPE) yield* decode(data, eventName);
+                startIdleTimer();
             }
+        } catch (e) {
+            if (!stall.signal.aborted || signal.aborted) throw e;
+            yield {
+                type: 'RUN_ERROR',
+                message: 'The server stopped responding.',
+                code: 'stalled'
+            };
         } finally {
+            clearTimeout(idleTimer);
             aborter.abort();
         }
     }
@@ -140,4 +195,14 @@ export abstract class HttpChatTransport implements ChatTransport {
      *      must pass `fetchOpts` through, as it carries the signal that cancels the stream.
      */
     protected abstract fetchRecords(opts: FetchOptions): AsyncGenerator<HttpChatRecord>;
+}
+
+//------------------
+// Implementation
+//------------------
+/** Type of an NDJSON record that a server sends only to show it is still there. */
+const HEARTBEAT_TYPE = 'xh.heartbeat';
+
+function resolveValue<T>(value: HttpChatTransportValue<T>, request: ChatRunRequest): Awaitable<T> {
+    return isFunction(value) ? value(request) : value;
 }

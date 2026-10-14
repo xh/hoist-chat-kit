@@ -28,6 +28,12 @@ export interface AgUiCodecConfig {
      * or a function to build them per run. Default none.
      */
     forwardedProps?: PlainObject | ((request: ChatRunRequest) => PlainObject);
+
+    /**
+     * The agent's state, sent as the `state` of each run - or a function to build it per run, e.g.
+     * from the app's current selection. Default an empty object.
+     */
+    state?: PlainObject | ((request: ChatRunRequest) => PlainObject);
 }
 
 /** A named piece of ambient information for an AG-UI agent. */
@@ -45,7 +51,7 @@ export interface AgUiContext {
  * Each step is sent as an AG-UI `RunAgentInput`:
  *
  * ```
- * {threadId, runId, protocolVersion: '1.0', state: {}, messages, tools, context, forwardedProps}
+ * {threadId, runId, protocolVersion: '1.0', state, messages, tools, context, forwardedProps}
  * ```
  *
  * The history becomes AG-UI messages. User messages carry their text as `content`, or a list of
@@ -66,19 +72,23 @@ export class AgUiCodec implements ChatCodec {
     /** Values passed to the agent untouched, or a function to build them per run. */
     readonly forwardedProps: AgUiCodecConfig['forwardedProps'];
 
-    constructor({context = null, forwardedProps = null}: AgUiCodecConfig = {}) {
+    /** The agent's state, or a function to build it per run. */
+    readonly state: AgUiCodecConfig['state'];
+
+    constructor({context = null, forwardedProps = null, state = null}: AgUiCodecConfig = {}) {
         this.context = context;
         this.forwardedProps = forwardedProps;
+        this.state = state;
     }
 
     encodeRequest(request: ChatRunRequest): PlainObject {
         const {threadId, runId, messages, tools} = request,
-            {context, forwardedProps} = this;
+            {context, forwardedProps, state} = this;
         return {
             threadId,
             runId,
             protocolVersion: '1.0',
-            state: {},
+            state: (isFunction(state) ? state(request) : state) ?? {},
             messages: flatMap(messages, encodeMessage),
             tools: tools.map(({name, description, parameters}) => ({
                 name,

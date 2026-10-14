@@ -50,6 +50,14 @@ describe('AgUiCodec', () => {
             expect(body.forwardedProps).toEqual({threadId: 't1'});
         });
 
+        it('sends the agent state as a value, or built per run by a function', () => {
+            const fixed = new AgUiCodec({state: {sector: 'Energy'}}),
+                built = new AgUiCodec({state: req => ({run: req.runId})});
+
+            expect(fixed.encodeRequest(request([user('Hi')])).state).toEqual({sector: 'Energy'});
+            expect(built.encodeRequest(request([user('Hi')])).state).toEqual({run: 'r1'});
+        });
+
         it('sends user attachments as content parts', () => {
             const message = new ChatMessage({
                 id: 'u1',

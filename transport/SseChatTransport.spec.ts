@@ -66,6 +66,23 @@ describe('SseChatTransport', () => {
         expect(events).toEqual([TEXT_START]);
     });
 
+    it('resets the idle timeout on a keep-alive comment', async () => {
+        const stream = sseStream();
+        hoistCore.route('POST', 'agent', () => stream.response);
+
+        const events = collect(
+            new SseChatTransport({url: 'agent', idleTimeout: 120}).run(request())
+        );
+        for (let i = 0; i < 4; i++) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            stream.write(': ping\n\n');
+        }
+        stream.write(`data: ${JSON.stringify(TEXT_START)}\n\n`);
+        stream.close();
+
+        expect(await events).toEqual([TEXT_START]);
+    });
+
     it('yields no events for an empty response', async () => {
         hoistCore.route('POST', 'agent', () => noContent());
 

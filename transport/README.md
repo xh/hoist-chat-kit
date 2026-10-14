@@ -97,9 +97,25 @@ const transport = new HoistChatTransport({
     codec: new AnthropicCodec({system: SYSTEM_PROMPT}),  // Default an AgUiCodec
     params: {agent: 'portfolio'},                        // Query string
     track: {category: 'Chat', message: 'Assistant call'},
-    timeout: 60_000                                      // Until the response starts
+    timeout: 60_000,                                     // Until the response starts
+    idleTimeout: 90_000                                  // Longest silence while it streams
 });
 ```
+
+`url`, `headers` and `params` each take a value, or a function of the request that returns one.
+The function may be async, for example to fetch a short-lived token before each step:
+
+```typescript
+new SseChatTransport({
+    url: req => `https://agents.example.com/threads/${req.threadId}/runs`,
+    headers: async () => ({Authorization: `Bearer ${await tokenService.getTokenAsync()}`})
+});
+```
+
+`idleTimeout` fails a step whose server goes quiet, with error code `stalled`. Any data resets
+it. A server that can go quiet for long, such as an agent that runs a slow tool, sends
+heartbeats: an SSE comment, or an NDJSON record of the form `{"type": "xh.heartbeat"}`. The
+transport reads a heartbeat as data, never decodes it, and resets the timer.
 
 ## Common Usage Patterns
 
@@ -213,7 +229,8 @@ new ChatModel({
         headers: {Authorization: `Bearer ${token}`},
         codec: new AgUiCodec({
             context: () => [{description: 'Selected sector', value: this.selectedSector}],
-            forwardedProps: {tenant: 'emea'}
+            forwardedProps: {tenant: 'emea'},
+            state: () => ({selectedSector: this.selectedSector})
         })
     })
 });
@@ -222,15 +239,15 @@ new ChatModel({
 `AgUiCodec` sends each step as an AG-UI `RunAgentInput`:
 
 ```
-{threadId, runId, protocolVersion: '1.0', state: {}, messages, tools, context, forwardedProps}
+{threadId, runId, protocolVersion: '1.0', state, messages, tools, context, forwardedProps}
 ```
 
 User messages carry their text as `content`, or a list of text, image, audio, video and document
 parts when they have attachments. Each step of an assistant turn becomes three kinds of message: a
 `reasoning` message per reasoning part, an `assistant` message with its text and its finished
 `toolCalls`, and a `tool` message per call result. A failed or denied call also carries `error`.
-Tools go out as `{name, description, parameters}`. `context` and `forwardedProps` take a value, or a
-function that builds the value for each step.
+Tools go out as `{name, description, parameters}`. `context`, `forwardedProps` and `state` take a
+value, or a function that builds the value for each step. `state` defaults to `{}`.
 
 Decoding passes each record through as a `ChatEvent`. The decoder drops records of an unknown
 `type`.
@@ -374,6 +391,8 @@ events. The `AnthropicCodec` produces them from Anthropic's stream.
   error.
 - It should stop work when the client disconnects. The transport closes the connection when the
   user stops the turn.
+- During a long silence it may send `{"type": "xh.heartbeat"}` lines, which reset
+  `idleTimeout` and are never decoded.
 
 ### SseChatTransport
 
@@ -383,7 +402,7 @@ events. The `AnthropicCodec` produces them from Anthropic's stream.
 - It responds with `text/event-stream`. The `data` of each event is one JSON record in the
   codec's format. The transport passes the `event` name to the codec with the data.
 - The transport skips comments, which serve as keep-alives, the `[DONE]` sentinel, and data that
-  is not JSON.
+  is not JSON. Any data, a comment included, resets `idleTimeout`.
 - It ends the response when the step ends, after the codec's closing record, and it should stop
   work when the client disconnects.
 
@@ -619,12 +638,13 @@ Shared by `HoistChatTransport` and `SseChatTransport`.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `url` | `string` | Endpoint to post to. Relative URLs resolve against `XH.baseUrl`. Required. |
+| `url` | `string \| (request) => Awaitable<string>` | Endpoint to post to, or a function that builds it per request. Relative URLs resolve against `XH.baseUrl`. Required. |
 | `codec` | `ChatCodec` | Encodes requests and decodes records. Default a new `AgUiCodec`. |
-| `headers` | `PlainObject \| (request) => PlainObject` | Extra headers for each request, for example to authenticate with an agent server. A function builds them per request, for example to send the `threadId` and `runId`, so the server can count turns rather than calls. |
-| `params` | `PlainObject` | Query string parameters for each request. |
+| `headers` | `PlainObject \| (request) => Awaitable<PlainObject>` | Extra headers for each request, for example to authenticate with an agent server. A function builds them per request, for example to send a fresh token, or the `threadId` and `runId` so the server can count turns rather than calls. |
+| `params` | `PlainObject \| (request) => Awaitable<PlainObject>` | Query string parameters for each request, or a function that builds them per request. |
 | `track` | `string \| TrackOptions` | Track each step with Hoist activity tracking, as `FetchOptions.track` does. |
 | `timeout` | `PromiseTimeoutSpec` | Wait for the response to start. Default the `FetchService` default. No timeout applies once the response streams. |
+| `idleTimeout` | `number` | Longest wait for data, in milliseconds, from the request to the first record and between records. Fails the step with code `stalled`. Default none. |
 
 ### AnthropicCodecConfig
 
@@ -643,6 +663,7 @@ Shared by `HoistChatTransport` and `SseChatTransport`.
 |----------|------|-------------|
 | `context` | `AgUiContext[] \| (request) => AgUiContext[]` | Ambient information for the agent, as `{description, value}` items. Default none. |
 | `forwardedProps` | `PlainObject \| (request) => PlainObject` | App values passed to the agent untouched. Default none. |
+| `state` | `PlainObject \| (request) => PlainObject` | The agent's state, sent as `state`. Default `{}`. |
 
 ### ScriptedChatTransportConfig
 

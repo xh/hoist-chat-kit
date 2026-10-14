@@ -411,6 +411,7 @@ this.addReaction({
 |-------|------|
 | `ChatRunError` with the backend's `code` | The run reported an error: an AG-UI `RUN_ERROR`, or an Anthropic `error` event such as `overloaded_error` |
 | `ChatRunError` with code `incomplete-stream` | The stream ended with neither `RUN_FINISHED` nor `RUN_ERROR`, for example on a dropped connection |
+| `ChatRunError` with code `stalled` | The server sent nothing for longer than the transport's `idleTimeout` |
 | `ChatRunError` with a null code | The run reported an error with no code |
 | Hoist `FetchException` | The request failed before or during the stream, for example a 500 from the server |
 | Any other `Error` | A codec or transport threw, for example `AnthropicCodec` with a history that has no user content |

@@ -1,6 +1,7 @@
 import {XH} from '@xh/hoist/core';
 import type {FetchOptions} from '@xh/hoist/svc';
 import {logDebug} from '@xh/hoist/utils/js';
+import {isEmpty} from 'lodash';
 import {
     HttpChatTransport,
     type HttpChatRecord,
@@ -24,7 +25,8 @@ export interface SseChatTransportConfig extends HttpChatTransportConfig {}
  *  - It responds with `text/event-stream`. The `data` of each event is one JSON record in the
  *    codec's format - AG-UI events by default, or Anthropic stream events with an
  *    {@link AnthropicCodec}. The `event` name is passed to the codec along with the data.
- *    Comments (keep-alives), `[DONE]` sentinels and data that is not JSON are skipped.
+ *    Comments (keep-alives), `[DONE]` sentinels and data that is not JSON are skipped. Any data
+ *    resets the `idleTimeout`, so a comment serves as a heartbeat.
  *  - It ends the response when the step ends, after the codec's closing record -
  *    `RUN_FINISHED` in AG-UI, `message_stop` from Anthropic. A response that ends without one
  *    fails the turn as incomplete. It should stop work when the client disconnects. The transport
@@ -43,7 +45,12 @@ export class SseChatTransport extends HttpChatTransport {
         while (true) {
             const {done, value} = await reader.read();
             if (done) return;
-            for (const {event, data} of parser.feed(value)) {
+
+            const events = parser.feed(value);
+            // Data with no complete event, such as a keep-alive comment, still shows the server
+            // is there - for the idle timeout.
+            if (isEmpty(events)) yield {data: null};
+            for (const {event, data} of events) {
                 if (data === '[DONE]') continue;
                 const record = parseJson(data);
                 if (record) {

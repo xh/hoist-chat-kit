@@ -8,7 +8,8 @@
 export class ChatRunError extends Error {
     /**
      * Machine-readable error code - the backend's (an AG-UI `RUN_ERROR` code, or the Anthropic
-     * error type), or `incomplete-stream` for a stream that ended early. Null if none was given.
+     * error type), `incomplete-stream` for a stream that ended early, or `stalled` for a stream
+     * that sent nothing for longer than the transport's `idleTimeout`. Null if none was given.
      */
     readonly code: string;
 
