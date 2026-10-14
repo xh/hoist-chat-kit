@@ -150,7 +150,8 @@ link is clicked. A new function on each render therefore costs nothing. A change
 
 - **`components`** - render any element with your own component, such as charts for code fences
   of a given language.
-- **`allowImages`** - set the image policy per chat, or per source URL.
+- **`allowImages`** - set the image policy per chat, or per source URL. `isChatImageAllowed()`
+  applies a policy to a URL, for components of your own that show images.
 - **`onLinkClick`** - route links into the app.
 - **Styles** - the markdown styles sit under `.xh-chat-markdown` and use the `--xh-chat-*`
   theme variables. See [`/desktop/cmp/chat/`](../../desktop/cmp/chat/README.md#theming).

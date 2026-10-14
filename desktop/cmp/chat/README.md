@@ -309,6 +309,10 @@ chatPanel({model: chatModel, allowImages: src => src.startsWith('/api/charts/')}
 chatPanel({model: chatModel, allowImages: true});
 ```
 
+The same setting covers file parts with an image at a URL, such as a file a backend sends with
+`xh.chat.file`. Their chips show an icon in place of a thumbnail until allowed. An image with
+inline `data`, such as the user's own attachment, always shows, as it loads nothing.
+
 `ChatPanel` passes `allowImages` to the message list. On a custom layout, set it on
 `chatMessageList`.
 
@@ -365,7 +369,7 @@ Accepts all `PanelProps` except `model`, `modelConfig` and `modelRef`.
 | `model` | `ChatModel` | The chat to render. Found in context if not given. |
 | `emptyState` | `ReactNode` | Content for a conversation with no messages, in place of the default. |
 | `suggestions` | `Array<ChatSuggestion \| string>` | Prompt chips for the default empty state. |
-| `allowImages` | `boolean \| (src) => boolean` | Model-written images to load. Default false. |
+| `allowImages` | `boolean \| (src) => boolean` | Model-written images, and file images at a URL, to load. Default false. |
 | `composerProps` | `ChatComposerProps` | Props for the composer. |
 | `messageListProps` | `ChatMessageListProps` | Props for the message list. |
 
@@ -381,7 +385,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `assistantName` | `string` | Name on assistant messages. Default `'Assistant'`. |
 | `assistantIcon` | `ReactElement` | Icon on assistant messages. Default a sparkles icon. |
 | `markdownComponents` | `ChatMarkdownComponents` | Markdown element overrides. Pass a stable object. |
-| `allowImages` | `boolean \| (src) => boolean` | Model-written images to load. Default false. |
+| `allowImages` | `boolean \| (src) => boolean` | Model-written images, and file images at a URL, to load. Default false. |
 | `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit and Regenerate. Pass a stable function. |
 | `messageHeaderItems` | `(message, context) => ReactNode[]` | Items in an assistant message's header. Pass a stable function. |
 
@@ -425,7 +429,7 @@ Use it directly only for a list of your own.
 | `ChatReasoning` | `part`, `markdownComponents`, `allowImages` | Show a reasoning part. |
 | `ChatSources` | `sources`, `defaultExpanded` | Show a list of sources. |
 | `ChatCodeBlock` | `content`, `language` | Show code with a copy button. |
-| `ChatFileChip` | `file`, `onRemove` | Show a file, with a remove button when `onRemove` is set. |
+| `ChatFileChip` | `file`, `onRemove`, `allowImages` | Show a file, with a remove button when `onRemove` is set. An image at a URL shows a thumbnail only if `allowImages` permits it. |
 | `ChatEmptyState` | `icon`, `title`, `text`, `suggestions` | Welcome the user to an empty chat. |
 | `ChatSuggestions` | `suggestions`, `onSelect` | Show prompt chips. `onSelect` replaces the default send. |
 

@@ -250,12 +250,12 @@ function userContent(
     impl: ChatMessageViewLocalModel,
     context: ChatPartRenderContext
 ): ReactNode[] {
-    const {message, isLast, messageActions} = props,
+    const {message, isLast, messageActions, allowImages} = props,
         files = message.parts.filter(it => it.type === 'file') as ChatFilePart[];
 
     if (impl.isEditing) {
         return [
-            files.length ? fileRow(files) : null,
+            files.length ? fileRow(files, allowImages) : null,
             editBox({impl, chatModel: context.chatModel})
         ];
     }
@@ -264,10 +264,12 @@ function userContent(
     // A message of files alone has no bubble, and the bar sits beside the files.
     const actions = actionBar({message, context, isLast, impl, extraActions: messageActions});
     if (!message.text) {
-        return [div({className: 'xh-chat-message__row', items: [fileRow(files), actions]})];
+        return [
+            div({className: 'xh-chat-message__row', items: [fileRow(files, allowImages), actions]})
+        ];
     }
     return [
-        files.length ? fileRow(files) : null,
+        files.length ? fileRow(files, allowImages) : null,
         div({
             className: 'xh-chat-message__row',
             items: [div({className: 'xh-chat-message__bubble', item: message.text}), actions]
@@ -406,7 +408,7 @@ function renderPartGroup(
     const {markdownComponents, allowImages} = props;
     switch (group.type) {
         case 'fileGroup':
-            return fileRow(group.parts);
+            return fileRow(group.parts, allowImages);
         case 'toolCallGroup':
             return chatToolCallGroup({parts: group.parts, context});
         case 'text':
@@ -499,11 +501,11 @@ const dataPart = hoistCmp.factory<DataPartProps>({
     }
 });
 
-function fileRow(files: ChatFilePart[]): ReactNode {
+function fileRow(files: ChatFilePart[], allowImages: ChatImagePolicy): ReactNode {
     return div({
         key: `files-${files[0].id}`,
         className: 'xh-chat-message__files',
-        items: files.map(file => chatFileChip({key: file.id, file}))
+        items: files.map(file => chatFileChip({key: file.id, file, allowImages}))
     });
 }
 

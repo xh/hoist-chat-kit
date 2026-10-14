@@ -97,6 +97,42 @@ describe('ChatMessageList', () => {
         );
     });
 
+    it('shows a file image at a URL as an icon unless images are allowed', () => {
+        const remote: ChatPart = {
+                type: 'file',
+                id: 'f1',
+                name: 'chart.png',
+                mediaType: 'image/png',
+                url: 'https://img.example/c.png'
+            },
+            chatModel = createModel({}, [reply([remote])]),
+            {rerender, container} = renderList(chatModel);
+
+        expect(container.querySelector('img')).toBeNull();
+        expect(screen.getByText('chart.png')).toBeTruthy();
+
+        rerender(chatMessageList({model: chatModel, allowImages: true}));
+        expect(container.querySelector('img').getAttribute('src')).toBe(
+            'https://img.example/c.png'
+        );
+    });
+
+    it('always shows an inline image attachment, which loads nothing', () => {
+        const attached: ChatPart = {
+                type: 'file',
+                id: 'f1',
+                name: 'shot.png',
+                mediaType: 'image/png',
+                data: 'iVBORw0KGgo='
+            },
+            chatModel = createModel({}, [{id: 'u1', role: 'user', parts: [attached]}]),
+            {container} = renderList(chatModel);
+
+        expect(container.querySelector('img').getAttribute('src')).toBe(
+            'data:image/png;base64,iVBORw0KGgo='
+        );
+    });
+
     it('renders no disclosure for reasoning with no text, and shows its time in the header', () => {
         const chatModel = createModel({}, [
             reply([

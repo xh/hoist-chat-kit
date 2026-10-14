@@ -30,6 +30,12 @@ export type ChatMarkdownComponents = ReactMarkdownOptions['components'];
  */
 export type ChatImagePolicy = boolean | ((src: string) => boolean);
 
+/** True if an image policy allows the image at `src` to load. */
+export function isChatImageAllowed(policy: ChatImagePolicy, src: string): boolean {
+    if (!src) return false;
+    return isFunction(policy) ? policy(src) : !!policy;
+}
+
 /** Props for {@link ChatMarkdown}. */
 export interface ChatMarkdownProps extends HoistProps {
     /** Markdown text to render. */
@@ -187,11 +193,8 @@ function createLink(onLinkClickRef: {current: ChatMarkdownProps['onLinkClick']})
 // A blocked image renders as a link to the image, so that nothing loads until the user asks.
 function createImage(policyRef: {current: ChatImagePolicy}) {
     return ({node, src, alt, ...rest}: ElementProps<'img'>): ReactNode => {
-        const url = typeof src === 'string' ? src : null,
-            policy = policyRef.current,
-            isAllowed = !!url && (isFunction(policy) ? policy(url) : !!policy);
-
-        if (isAllowed) return img({...rest, src: url, alt});
+        const url = typeof src === 'string' ? src : null;
+        if (isChatImageAllowed(policyRef.current, url)) return img({...rest, src: url, alt});
 
         const items = [Icon.fileImage(), alt || 'Image'];
         return url
