@@ -159,6 +159,18 @@ export interface ChatSourcePart extends ChatPartBase {
 
     /** Short excerpt of the source, for display. */
     snippet?: string;
+
+    /**
+     * Number that cites this source in the message text, as in `[1]`. When no source of a message
+     * has a marker, `[n]` refers to the nth source, counting from 1.
+     */
+    marker?: number;
+
+    /**
+     * App-defined data about the source, such as a document id, a page number, or an `excerpt` of
+     * the cited passage. The kit shows `metadata.excerpt` in the citation tooltip when present.
+     */
+    metadata?: PlainObject;
 }
 
 /**
