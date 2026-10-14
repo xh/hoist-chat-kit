@@ -465,6 +465,23 @@ describe('ChatModel run lifecycle', () => {
             state.configured = 'Choose a document.';
             expect(model.sendBlockedReason).toBe('Choose a document.');
         });
+
+        it('blocks retry and regenerate while blocked, as it blocks sends', async () => {
+            const state = {reason: null},
+                transport = scripted([textEvents('First.'), textEvents('Second.')]),
+                model = createModel({transport, sendBlocker: () => state.reason});
+            await model.sendAsync('Hi');
+            expect(transport.requests).toHaveLength(1);
+
+            state.reason = 'Another thread is running.';
+            await model.retryAsync();
+            await model.regenerateAsync();
+            expect(transport.requests).toHaveLength(1);
+
+            state.reason = null;
+            await model.regenerateAsync();
+            expect(transport.requests).toHaveLength(2);
+        });
     });
 
     describe('activity tracking', () => {

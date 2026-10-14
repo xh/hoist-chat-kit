@@ -401,9 +401,10 @@ NDJSON server keep a slow tool call alive without inventing an AG-UI event.
 ## D35. A send blocker returns the reason to wait
 
 **Decision.** `ChatModelConfig.sendBlocker` returns why the user must wait, or null. The chat
-reads it as a computed value. While it returns a reason, `canSend` is false, `sendAsync` and
-`editMessageAsync` do nothing, and the composer disables Send with the reason as its tooltip and
-as an accessible status.
+reads it as a computed value. While it returns a reason, `canSend` is false, `sendAsync`,
+`editMessageAsync`, `retryAsync` and `regenerateAsync` do nothing, and the composer disables Send
+with the reason as its tooltip and as an accessible status. Resuming a paused turn (approve, deny,
+or an interactive tool's answer) is not blocked, because it finishes a turn already under way.
 
 **Why.** A reason, not a boolean, tells the user what to do next. Blocking `sendAsync` too keeps
 suggestion chips and card actions from getting around the rule.
@@ -552,7 +553,7 @@ by one list covers that case, and a newer rename survives an older one that fail
   or an empty page.
 - A refresh asks for as many threads as the list holds, so loaded pages stay. A turn that ends
   reloads the list after one second, debounced across turns.
-- With `allowConcurrentTurns: false`, retry and regenerate are not blocked, as D35 defines a send
-  blocker. Only sends and edits wait.
+- With `allowConcurrentTurns: false`, sends, edits, retries and regenerations wait while another
+  thread runs (D35). A paused turn can still resume.
 
 **Why.** Each fills a gap the spec leaves open, without changing its contract.

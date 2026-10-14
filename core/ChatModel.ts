@@ -501,10 +501,11 @@ export class ChatModel extends HoistModel {
 
     /**
      * Re-run the last user message, replacing everything after it - typically the reply that
-     * failed. See `onTurnComplete` for a turn this closes.
+     * failed. Does nothing while busy or while a send blocker gives a reason to wait. See
+     * `onTurnComplete` for a turn this closes.
      */
     async retryAsync(): Promise<void> {
-        if (this.isTurnRunning) return;
+        if (this.isTurnRunning || this.sendBlockedReason) return;
 
         const {messages} = this,
             idx = findLastIndex(messages, it => it.isUser);
@@ -518,13 +519,14 @@ export class ChatModel extends HoistModel {
     }
 
     /**
-     * Replace an assistant reply with a new one, discarding any later messages. Ignored for a
-     * reply with no user message before it, such as a greeting.
+     * Replace an assistant reply with a new one, discarding any later messages. Ignored while
+     * busy, while a send blocker gives a reason to wait, and for a reply with no user message
+     * before it, such as a greeting.
      *
      * @param messageId - default the last assistant message.
      */
     async regenerateAsync(messageId?: string): Promise<void> {
-        if (this.isTurnRunning) return;
+        if (this.isTurnRunning || this.sendBlockedReason) return;
 
         const {messages} = this,
             idx = findLastIndex(messages, it =>
