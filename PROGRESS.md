@@ -9,14 +9,22 @@ log. `planning/DESIGN.md` holds the build spec, and `DECISIONS.md` holds the des
 |---|---|---|
 | 0. Research | Protocols, prior art, the Toolbox `weatherv2` chat | Done |
 | 1. Vertical slice | Core models, transports, codecs, streaming markdown, message list, composer, tool cards | Done, first review fixed |
-| 2. First consumer | Toolbox streaming endpoint, `weatherv2` chat on the kit, browser check | In progress |
+| 2. First consumer | Toolbox streaming endpoint, `weatherv2` chat on the kit, browser check | Done |
 | 3. CI | Lint, typecheck, tests, package build, CodeQL gate | Done |
-| 4. Broaden | Code highlighting, demo pages, generative UI catalog (`planning/GENUI.md`) | Not started |
-| 5. Review and docs | Review passes against Hoist conventions, READMEs, architecture doc, report | In progress |
+| 4. Broaden | Code highlighting, demo pages, generative UI catalog (`planning/GENUI.md`) | Done |
+| 5. Review and docs | Review passes against Hoist conventions, READMEs, architecture doc, report | Final review fixed |
 
 ## Log
 
 ### 2026-10-13
+
+- Ran the final reviews (kit-wide, and Toolbox plus live UX) and fixed their findings. 390 tests.
+- Built the generative UI catalog, Hoist grid, chart, metric and card components, and a Toolbox
+  Chat Kit demo app with seven demos, including a live model that renders Hoist grids and charts.
+- Merged slice 1 to `develop` (#5), which published the first snapshot.
+- hoist-react fixed the `DashCanvas` regression (#4846). Toolbox tracks `next` again.
+- Commit signing through 1Password started to fail, so slice 2 waits uncommitted, with backups.
+- Wrote `REPORT.md`.
 
 - Wrote the generative UI design (`planning/GENUI.md`): catalog components become client tools,
   so they reuse streaming, schemas, validation and renderers.
