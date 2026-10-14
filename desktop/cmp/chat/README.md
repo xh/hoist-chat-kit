@@ -5,10 +5,10 @@
 | [Overview](#overview) | What the components do, and the key features |
 | [Architecture](#architecture) | The component tree, and how a message renders its parts |
 | [Configuration Pattern](#configuration-pattern) | Putting a `ChatModel` on screen with `ChatPanel` |
-| [Common Usage Patterns](#common-usage-patterns) | Composer, empty state, actions, renderers, images, layout |
+| [Common Usage Patterns](#common-usage-patterns) | Composer, empty state, actions, renderers, images, citations, plugins, layout |
 | [Properties/API Reference](#propertiesapi-reference) | Props of each component |
 | [Theming](#theming) | The `--xh-chat-*` CSS variables and their overrides |
-| [Extension Points](#extension-points) | Slots, renderers and markdown components |
+| [Extension Points](#extension-points) | Slots, renderers, source clicks and markdown |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
 | [Related Packages](#related-packages) | Models, transports, markdown and Hoist packages |
 
@@ -32,7 +32,8 @@ Key features:
 - **Inline generative UI** - a tool with `display: 'inline'` shows its rendered output as part
   of the reply, with a status only while it streams, waits or fails.
 - **Citations in place** - numbered citation chips sit at the end of the paragraph they support,
-  and keep their numbers while the reply streams. The source list shares the numbers.
+  and keep their numbers while the reply streams. With `citationMarkers` on, `[1]` in the text
+  renders as a button for its source. The source list shares the numbers.
 - **Renderers as components** - a tool `renderer` or a data renderer renders as a component of
   its own, so it can use hooks such as `useLocalModel()`.
 - **Contained render errors** - each message and each part renders inside an error boundary. A
@@ -103,6 +104,17 @@ part that ends in a code block, a table or a quote puts them on the last paragra
 Numbers run across the whole reply, in order of first citation, and never change once given.
 Sources that arrive after the text take the numbers of their citations. The "3 sources" list
 shows the same numbers, with any source cited but not listed.
+
+Some backends cite inline instead, as `[1]` or `[1, 2]` in the text. With `citationMarkers` on,
+each marker renders as a button for the source it cites, with a tooltip that shows the source's
+title, host and excerpt. See [Citation markers](../../../cmp/markdown/README.md#citation-markers)
+for how markers match sources. Sources then take the numbers that cite them: their `marker`, or
+their position when no source has a marker. Citation chips and the source list use the same
+numbers, so `[2]`, its chip and the second list entry agree. The chips keep working with markers
+on.
+
+A click on a source in the list, a chip or a marker calls `onSourceClick`. Without it, a click
+opens the source's `url` in a new tab.
 
 ## Configuration Pattern
 
@@ -327,6 +339,44 @@ inline `data`, such as the user's own attachment, always shows, as it loads noth
 `ChatPanel` passes `allowImages` to the message list. On a custom layout, set it on
 `chatMessageList`.
 
+### Show citation markers and open sources in the app
+
+Turn on `citationMarkers` when the backend writes `[n]` markers in its text. Give each source a
+`marker` if the numbers do not follow the order of the sources. Pass `onSourceClick` to open a
+source in the app, for example in a document viewer. A source with no `url` is then clickable
+too.
+
+```typescript
+chatPanel({
+    model: chatModel,
+    citationMarkers: true,
+    onSourceClick: this.openSource
+});
+
+// An arrow function field, so that it stays the same function.
+openSource = (source: ChatSourcePart) => {
+    this.documentViewerModel.open(source.metadata.documentId, source.metadata.page);
+};
+```
+
+### Render math and other markdown extensions
+
+`markdownPlugins` adds remark and rehype plugins to the markdown of assistant text and
+reasoning, after the kit's own. The kit takes no math dependency. To render math with KaTeX, add
+`remark-math`, `rehype-katex` and `katex` to the app:
+
+```typescript
+import rehypeKatex from 'rehype-katex';
+import remarkMath from 'remark-math';
+import 'katex/dist/katex.min.css';
+
+const MATH_PLUGINS: ChatMarkdownPlugins = {remark: [remarkMath], rehype: [rehypeKatex]};
+
+chatPanel({model: chatModel, markdownPlugins: MATH_PLUGINS});
+```
+
+Define the object once, at module level, so the markdown blocks stay memoized.
+
 ### Replace markdown elements
 
 `markdownComponents` swaps how markdown elements render in assistant messages, keyed by tag
@@ -381,6 +431,9 @@ Accepts all `PanelProps` except `model`, `modelConfig` and `modelRef`.
 | `emptyState` | `ReactNode` | Content for a conversation with no messages, in place of the default. |
 | `suggestions` | `Array<ChatSuggestion \| string>` | Prompt chips for the default empty state. |
 | `allowImages` | `boolean \| (src) => boolean` | Model-written images, and file images at a URL, to load. Default false. |
+| `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
+| `onSourceClick` | `(source, context) => void` | Called when the user clicks a source, a citation chip or a marker. Default opens the source's `url` in a new tab. Pass a stable function. |
+| `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
 | `composerProps` | `ChatComposerProps` | Props for the composer. |
 | `messageListProps` | `ChatMessageListProps` | Props for the message list. |
 
@@ -397,6 +450,9 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `assistantIcon` | `ReactElement` | Icon on assistant messages. Default a sparkles icon. |
 | `markdownComponents` | `ChatMarkdownComponents` | Markdown element overrides. Pass a stable object. |
 | `allowImages` | `boolean \| (src) => boolean` | Model-written images, and file images at a URL, to load. Default false. |
+| `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
+| `onSourceClick` | `(source, context) => void` | Called when the user clicks a source, a citation chip or a marker. Default opens the source's `url` in a new tab. Pass a stable function. |
+| `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
 | `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit and Regenerate. Pass a stable function. |
 | `messageHeaderItems` | `(message, context) => ReactNode[]` | Items in an assistant message's header. Pass a stable function. |
 
@@ -429,7 +485,7 @@ Use it directly only for a list of your own.
 |----------|------|-------------|
 | `message` | `ChatMessage` | The message to show. |
 | `chatModel` | `ChatModel` | The chat that holds the message. |
-| `assistantName`, `assistantIcon`, `markdownComponents`, `allowImages`, `messageActions`, `messageHeaderItems` | - | As on `ChatMessageList`. |
+| `assistantName`, `assistantIcon`, `markdownComponents`, `allowImages`, `citationMarkers`, `onSourceClick`, `markdownPlugins`, `messageActions`, `messageHeaderItems` | - | As on `ChatMessageList`. |
 
 ### Part components
 
@@ -437,8 +493,8 @@ Use it directly only for a list of your own.
 |-----------|-------|-----------|
 | `ChatToolCall` | `part`, `context` | Show a tool call card, for example inside a renderer of your own. |
 | `ChatClearButton` | `chatModel`, and any `ButtonProps` | Clear the conversation, from a panel header. |
-| `ChatReasoning` | `part`, `markdownComponents`, `allowImages` | Show a reasoning part. |
-| `ChatSources` | `sources`, `defaultExpanded` | Show a list of sources. |
+| `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |
+| `ChatSources` | `sources`, `defaultExpanded`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
 | `ChatCodeBlock` | `content`, `language` | Show code with a copy button. |
 | `ChatFileChip` | `file`, `onRemove`, `allowImages` | Show a file, with a remove button when `onRemove` is set. An image at a URL shows a thumbnail only if `allowImages` permits it. |
 | `ChatEmptyState` | `icon`, `title`, `text`, `suggestions` | Welcome the user to an empty chat. |
@@ -488,17 +544,19 @@ chat. Class names follow BEM under `xh-chat-`, for example `xh-chat-message__bub
 - **Tool display** - `displayName`, `icon`, `summary`, `renderer` and `display` on
   `ChatToolSpec`. See [`/core/`](../../../core/README.md#chattoolspec).
 - **Data renderers** - `ChatModelConfig.dataRenderers`, for app content and generative UI.
-- **Markdown** - `markdownComponents` for element overrides, and `allowImages` for the image
-  policy.
+- **Sources** - `citationMarkers` for inline `[n]` markers, and `onSourceClick` to open a
+  source in the app.
+- **Markdown** - `markdownComponents` for element overrides, `markdownPlugins` for remark and
+  rehype plugins, and `allowImages` for the image policy.
 - **Theme** - the `--chat-*` overrides above, and the BEM class names.
 
 ## Common Pitfalls
 
 ### Passing a new function or object on every render
 
-`messageActions`, `messageHeaderItems` and `markdownComponents` are props of memoized
-components. A new value on each render re-renders every message, and a new
-`markdownComponents` re-parses every markdown block.
+`messageActions`, `messageHeaderItems`, `onSourceClick`, `markdownComponents` and
+`markdownPlugins` are props of memoized components. A new value on each render re-renders every
+message. A new `markdownComponents` or `markdownPlugins` also re-parses every markdown block.
 
 ```typescript
 // ✅ Do: An arrow function field on your model, or a module-level constant

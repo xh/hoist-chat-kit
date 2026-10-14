@@ -261,7 +261,12 @@
         "approvalPrompt",
         "inline tool call",
         "citations",
-        "attachmentErrors"
+        "attachmentErrors",
+        "citationMarkers",
+        "onSourceClick",
+        "ChatSourceClickFn",
+        "markdownPlugins",
+        "KaTeX"
       ]
     },
     {
@@ -286,7 +291,15 @@
         "images",
         "onLinkClick",
         "trailingContent",
-        "citations"
+        "citations",
+        "citation markers",
+        "ChatMarkdownCitations",
+        "markdownPlugins",
+        "ChatMarkdownPlugins",
+        "remark",
+        "rehype",
+        "KaTeX",
+        "math"
       ]
     }
   ]

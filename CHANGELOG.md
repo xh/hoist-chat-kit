@@ -65,6 +65,14 @@
 * Added `ChatToolSpec.approvalPreview`, which renders an inline call while it waits for approval.
 * Added `ChatUiComponentSpec.result`, the text sent to the model once a component shows.
 * Added `isChatImageAllowed()`, which applies an image policy to a URL.
+* Added `citations` to `ChatMarkdown`, and `citationMarkers` to the chat. `[1]` and `[1, 2]` in
+  the text render as buttons for the sources they cite, by `marker` or by position.
+* Added `marker` and `metadata` to `ChatSourcePart`. The source list and citation chips number
+  sources by `marker`, so they match the markers in the text.
+* Added `onSourceClick` to the chat, called when the user clicks a source, a citation chip or a
+  marker. Apps with a document viewer open the source there in place of its URL.
+* Added `markdownPlugins`, which adds app remark and rehype plugins after the kit's own, for
+  example `remark-math` and `rehype-katex` for math.
 
 ### 🐞 Bug Fixes
 
