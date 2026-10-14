@@ -121,6 +121,19 @@
   create threads on the backend and to hold back sends.
 * Added the `empty-response` error code. A run that finishes with nothing in the reply now fails,
   with Retry, rather than show a blank message.
+* Added `ChatModelConfig.contextProviders`, which send live context, such as the state of a grid,
+  with every step. `AgUiCodec` sends them as `context` entries, and `AnthropicCodec` as uncached
+  system blocks after the cache breakpoint.
+* Added undo for client tools. A tool returns `chatToolResult(output, {undo})`, and
+  `ChatModel.undoTurnAsync()` undoes the latest reply's changes, from an Undo action on the reply.
+* Added `ChatToolSpec.preview`, which shows what a call will change on its approval card.
+  `preview: true` does what `approvalPreview` does.
+* Added `ChatCompletionsCodec`, for model gateways that speak the OpenAI chat completions format,
+  such as Azure OpenAI and LiteLLM.
+* Added `ChatService`, which reads the app's LLM backend from the `chatConfig` soft config and
+  builds a transport for it, so a helper agent needs no wiring of its own.
+* Added `gridTools` and `dashCanvasTools`, tool groups that let a helper agent arrange a grid or a
+  `DashCanvas`, each with a context provider, a prompt, suggestions and undo for every change.
 
 ### 🐞 Bug Fixes
 

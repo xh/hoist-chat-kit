@@ -136,7 +136,16 @@
         "approvals",
         "persistence",
         "approvalPrompt",
-        "elapsedMs"
+        "elapsedMs",
+        "ChatContextProvider",
+        "contextProviders",
+        "live context",
+        "chatToolResult",
+        "ChatToolResult",
+        "undo",
+        "undoTurnAsync",
+        "canUndoTurn",
+        "preview"
       ]
     },
     {
@@ -219,7 +228,60 @@
         "ScriptedRequestContext",
         "respond",
         "headers",
-        "prompt caching"
+        "prompt caching",
+        "ChatCompletionsCodec",
+        "OpenAI chat completions",
+        "bring your own LLM",
+        "model gateway",
+        "ChatRunContext"
+      ]
+    },
+    {
+      "id": "svc/README.md",
+      "title": "Chat Service",
+      "mcpCategory": "package",
+      "viewerCategory": "core",
+      "description": "ChatService, which resolves the app's default LLM backend from the chatConfig soft config.",
+      "keywords": [
+        "ChatService",
+        "XH.chatService",
+        "chatConfig",
+        "ChatConfig",
+        "ChatServiceTransportOptions",
+        "isEnabled",
+        "createTransport",
+        "bring your own LLM",
+        "soft config",
+        "codec",
+        "anthropic",
+        "openai-chat",
+        "agui"
+      ]
+    },
+    {
+      "id": "assist/README.md",
+      "title": "Helper Agent Tool Groups",
+      "mcpCategory": "package",
+      "viewerCategory": "core",
+      "description": "Tool groups for component helper agents: gridTools, and dashCanvasTools in /desktop/assist/.",
+      "keywords": [
+        "ChatToolGroup",
+        "gridTools",
+        "GridToolsConfig",
+        "GridToolCapability",
+        "dashCanvasTools",
+        "DashCanvasToolsConfig",
+        "DashCanvasToolCapability",
+        "DashCanvasWidgetInfo",
+        "settingsSchema",
+        "helper agent",
+        "assistant",
+        "GridModel",
+        "DashCanvasModel",
+        "ViewManagerModel",
+        "undo",
+        "context provider",
+        "suggestions"
       ]
     },
     {

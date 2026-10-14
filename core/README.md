@@ -5,7 +5,7 @@
 | [Overview](#overview) | What the core models do, and the key features |
 | [Architecture](#architecture) | `ChatModel`, `ChatMessage`, parts, tools, and the turn loop |
 | [Configuration Pattern](#configuration-pattern) | Creating a `ChatModel` with a transport, tools, and a composer |
-| [Common Usage Patterns](#common-usage-patterns) | Sending, tools, approvals, server-owned conversations, feedback, persistence, errors |
+| [Common Usage Patterns](#common-usage-patterns) | Sending, tools, approvals, live context, undo, server-owned conversations, feedback, persistence, errors |
 | [Properties/API Reference](#propertiesapi-reference) | Config, state, methods, statuses, parts, and metadata |
 | [Extension Points](#extension-points) | Tools, data renderers, transports, and app metadata |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -30,6 +30,8 @@ Key features:
   chat runs it in the browser, sends the result back, and continues, up to `maxSteps`.
 - **Human in the loop** - tool calls can wait for the user to approve them, or for the user to
   answer them. The turn pauses and resumes when the user responds.
+- **Live context and undo** - context providers describe the app's state to the model at every
+  step, and tools return undo functions, so the user can undo a reply's changes.
 - **Two conversation shapes** - the browser owns the history, or an agent service owns it and
   the chat sends only each new message. See [Run a server-owned
   conversation](#run-a-server-owned-conversation).
@@ -429,7 +431,69 @@ discards, such as "Discard unsaved changes and reset the dashboard?". A function
 may return rich content, such as an order ticket. A `renderer` on the tool also shows in the
 card while it waits, under the prompt.
 
+To show what a call will change, set `preview` to a function of the input. Its result shows under
+the prompt, such as "Will remove 3 widgets: Map, News and Chart." For a tool with
+`display: 'inline'`, `preview: true` renders the call's own output while it waits.
+
 The time a turn waits for the user does not count toward the reply's `metadata.elapsedMs`.
+
+### Send live context with every step
+
+A model that acts on part of the app needs to see its current state. That includes the changes its
+own tools made in the step before. Give the chat `contextProviders`. Each one runs before every step,
+and its result travels as `ChatRunRequest.context`:
+
+```typescript
+new ChatModel({
+    transport,
+    tools,
+    contextProviders: [
+        {
+            name: 'grid',
+            description: 'Current state of the Positions grid.',
+            getContext: () => ({
+                columns: map(gridModel.getVisibleLeafColumns(), 'colId'),
+                sortBy: gridModel.sortBy.map(it => it.toString())
+            })
+        }
+    ]
+});
+```
+
+`getContext` returns text or an object, and it may be async. Return null to send nothing for a
+step. A provider that throws fails the turn, with Retry. Each codec sends the context in its own
+format: an AG-UI `context` entry, or a section of the system prompt. See
+[`/transport/`](../transport/README.md).
+
+Context leaves the browser on every step and counts toward the token budget. Describe structure,
+such as columns, sorts and widgets, rather than row values, unless the app chooses to send data.
+
+### Undo a reply's changes
+
+A client tool that changes the app can return its result with an undo function:
+
+```typescript
+execute: ({colIds}) => {
+    const prior = gridModel.columnState;
+    colIds.forEach(it => gridModel.hideColumn(it));
+    return chatToolResult(`Hid ${colIds.length} columns.`, {
+        undo: () => gridModel.setColumnState(prior)
+    });
+}
+```
+
+The model gets the plain result. The chat keeps the undo functions of each reply in memory.
+`undoTurnAsync(messageId)` runs them, newest first, and marks the reply `metadata.undone`. The
+desktop message view shows an Undo action while `canUndoTurn(messageId)` is true.
+
+Only the latest reply with undo functions can be undone, and only while no turn runs or waits for
+the user. An undo usually restores a snapshot, so undoing an older reply would also revert the
+replies after it. Once the user undoes the latest one, the reply before it can be undone. A reply
+that a retry, regenerate, edit, clear or load discards takes its undo functions with it. Undo
+functions are not stored, so a reply loaded from history cannot be undone.
+
+If an undo function throws, the undo stops, a toast reports it, and the changes not yet undone
+stay, so the user can try again. With `track` on, an undo tracks as `Turn undone`.
 
 ### Let the user answer a tool call
 
@@ -607,6 +671,7 @@ for the full doc comments.
 |----------|------|-------------|
 | `transport` | `ChatTransport` | Connection to the backend. Required. See [`/transport/`](../transport/README.md). |
 | `tools` | `ChatToolSpec[]` | Tools the model can call, and display config for backend tools. Names must be unique. Default none. |
+| `contextProviders` | `ChatContextProvider[]` | Live context to send with every step. See [Send live context with every step](#send-live-context-with-every-step). Default none. |
 | `maxSteps` | `number` | Most model calls in one turn. Each round of client tool calls takes one more. Default 10. |
 | `initialMessages` | `ChatMessageSpec[]` | Messages to start with, such as a greeting or restored history. Closed as by `loadMessages()`. |
 | `threadId` | `string` | Identifies the conversation to the backend. Default a new UUID. |
@@ -642,6 +707,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `waitingToolCalls` | `ChatToolCallPart[]` | Calls the paused turn waits on. Empty unless paused. |
 | `isAwaitingUser` | `boolean` | True if a turn is paused for the user. |
 | `pendingApprovals` | `ChatToolCallPart[]` | The calls in `waitingToolCalls` that wait for approval. |
+| `undoableMessageId` | `string` | The reply whose changes the user can undo now, or null. |
 | `composerModel` | `ChatComposerModel` | Draft of the next message. |
 | `transport`, `tools`, `maxSteps`, `historyMode`, `feedback`, `dataRenderers` | - | The config values, read-only. `feedback` has its defaults applied. |
 
@@ -658,6 +724,8 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `approveToolCallAsync(toolCallId)` | Approve a call in `approval-requested`. |
 | `denyToolCallAsync(toolCallId, reason?)` | Deny a call in `approval-requested`. The model sees the reason. |
 | `addToolOutputAsync(toolCallId, output)` | Give the result of a call to an interactive tool. |
+| `canUndoTurn(messageId)` | True if the user can undo the reply's changes now. Reads observable state. |
+| `undoTurnAsync(messageId)` | Run the reply's undo functions, newest first, and mark it `metadata.undone`. |
 | `clear()` | Remove all messages and start a new thread. |
 | `loadMessages(specs, threadId?)` | Replace the conversation. Default a new thread id. |
 | `prependMessages(specs)` | Add older messages ahead of the conversation, skipping ids already present. |
@@ -715,6 +783,7 @@ The kit records these keys in the `metadata` of an assistant message:
 | `runId` | Id of the latest run, from `RUN_STARTED`. |
 | `serverId` | The server's id for the message, from `xh.chat.message` or `RUN_FINISHED`. Also set on a user message. |
 | `detached` | True on a reply left running on the server by `detach()`, `clear()` or `loadMessages()`, in server mode. |
+| `undone` | True on a reply whose changes the user undid with `undoTurnAsync()`. |
 | `feedback` | The user's rating, as `{rating, comment?}`. |
 
 A user message records `runOptions`, the copy of the options it was sent with, and `serverId`
@@ -758,11 +827,12 @@ The `state` of a tool call follows the Vercel AI SDK names, plus `running`:
 | `name` | `string` | Name the model calls the tool by. Required. |
 | `description` | `string` | What the tool does and when to use it. Sent to the model. |
 | `parameters` | `PlainObject` | JSON Schema for the input object. Sent to the model. Default an empty object schema. |
-| `execute` | `(input, context) => Awaitable<any>` | Runs a client tool. Strings go to the model as is, anything else as JSON. A thrown error becomes an error result. |
+| `execute` | `(input, context) => Awaitable<any>` | Runs a client tool. Strings go to the model as is, anything else as JSON. A thrown error becomes an error result. Return `chatToolResult(output, {undo})` to make the change undoable. |
 | `interactive` | `boolean` | True for a tool the user answers. Ignored if `execute` is set. Default false. |
 | `needsApproval` | `boolean \| (input) => boolean` | True, or a function, to ask the user before each call runs. Client tools only. Default false. |
 | `approvalPrompt` | `string \| (input) => ReactNode` | The question that asks for approval, in place of the generic one. |
-| `approvalPreview` | `boolean` | True to render an inline call while it waits for approval, as a preview. Default false. |
+| `preview` | `boolean \| (input) => ReactNode` | What a call will change, shown under its approval prompt. True renders an inline call's own output while it waits. Default none. |
+| `approvalPreview` | `boolean` | Same as `preview: true`. Prefer `preview`. |
 | `sendToModel` | `boolean` | True to send the tool to the model. Default true for client and interactive tools, false for backend tools. |
 | `displayName` | `string` | Title of the tool call card. Default the name, humanized. |
 | `icon` | `ReactElement` | Icon of the tool call card. |

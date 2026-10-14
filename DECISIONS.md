@@ -591,3 +591,76 @@ choices where the spec is open or differs from the kit's conventions:
 
 **Why.** Each keeps the spec's contract, follows a kit convention, or closes a gap the spec leaves
 open.
+
+## D48. Only the latest reply with changes can be undone
+
+**Decision.** `ChatModel.undoableMessageId` names the latest reply that holds undo functions, once
+its turn ends, and only while no turn runs or waits for the user. `undoTurnAsync()` runs that
+reply's undo functions, newest first. Once it is undone, the reply before it with changes becomes
+undoable. If an undo function throws, the undo stops, a toast reports it, and the rest stay for
+another try. A retry, regenerate, edit, clear or load drops the undo functions of the replies it
+discards. An undo of a tool that finishes after a stop is still kept.
+
+**Why.** Section 2.2 of `planning/HELPERS.md` keys undo by reply but does not say which replies
+may undo. The tool groups build each undo from a snapshot of persistable state, so undoing an
+older reply would also revert every later one. One undoable reply at a time keeps undo exact.
+
+**Alternatives.** An Undo action on every reply with changes. It would silently revert later
+replies.
+
+## D49. Choices in the helper agent core seams and `ChatCompletionsCodec`
+
+**Decision.** WP 9 steps 1 and 2 add these to sections 2 and 5.2 of `planning/HELPERS.md`:
+
+- A context provider's `getContext` may return null, to send nothing for a step. A provider that
+  throws fails the turn, with Retry. The chat skips the provider pass entirely when it has none,
+  so a chat without providers starts each step as before.
+- `AgUiCodec` sends a provider's description, or else its name, as the AG-UI `description`, and a
+  string value as is. `AnthropicCodec` and `ChatCompletionsCodec` send each provider as a
+  `<context name="...">` section of the system prompt.
+- `ChatToolSpec.preview` is `boolean | (input) => ReactNode`. True replaces `approvalPreview`,
+  which stays as an alias because the generative UI docs still name it, and another work package
+  owns them.
+- The desktop message view shows the Undo action, beside Regenerate.
+- `ChatCompletionsCodec` finishes each step on the chunk with a `finish_reason`, because the
+  `[DONE]` sentinel never reaches a codec. The usage chunk that follows becomes a second
+  `RUN_FINISHED` with only `usage`, which the reducer already merges into the reply.
+- It decodes `refusal` as text, and `reasoning_content`, which some gateways add, as reasoning. It
+  sends no reasoning back, and prefixes a failed call's result with `Error:`, as the format has no
+  error flag.
+
+**Why.** Each fills a gap the spec leaves open, without changing its contract.
+
+## D50. `ChatService` reads `chatConfig`, and its prompt is static text
+
+**Decision.** The soft config is `chatConfig`, not `xhChatConfig`. `createTransport({system})`
+takes the prompt as a string. An AG-UI backend gets it as a `context` entry.
+
+**Why.** hoist-core reserves the `xh` prefix for its own configs, and asks apps to avoid it. The
+app creates this config, so it follows the naming rule for app configs. A static prompt caches.
+Live state goes through context providers, which work with every codec. `AgUiCodec` also builds
+its context synchronously, so it could not await a prompt function.
+
+## D51. Choices in the tool groups
+
+**Decision.** WP 9 step 3 adds these to section 3 of `planning/HELPERS.md`:
+
+- A group is a `ChatToolGroup` of `{tools, contextProvider, prompt, suggestions}`. Each tool's
+  `parameters` is a getter, so its enums follow the model on every step with no change to
+  `ChatToolSpec`.
+- There is no list tool. The context provider sends the current columns or widgets on every step,
+  and the dashboard prompt lists the widget types the model may add.
+- The model can change a dashboard widget's settings only through a `settingsSchema` the app
+  supplies per view spec. The tools check the keys, and leave the values to the widget.
+- `gridTools` restores only the part of the grid a tool changed. `dashCanvasTools` restores the
+  dashboard's persistable state, as the spec says.
+- `move_widget` changes one widget's layout through `DashCanvasModel.onRglLayoutChange()`, the one
+  public setter for a layout that keeps view ids. `loadState()` regenerates ids by position.
+- `set_dashboard` does not ask first, as the Toolbox agent's equivalent did not. It is undoable.
+  `clear_dashboard`, `reset_dashboard`, `reset_view`, `save_view` over the current view, and
+  `open_view` with unsaved changes ask first.
+- `save_view` waits 500 ms before it saves. A persistence provider debounces its writes by 250 ms
+  by default, so the wait lets changes from earlier in the turn reach the view manager. Saves have
+  no undo.
+
+**Why.** Each keeps the spec's contract, or follows the Hoist API where the spec is silent.

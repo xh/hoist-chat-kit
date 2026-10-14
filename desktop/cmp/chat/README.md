@@ -63,7 +63,7 @@ ChatPanel (Panel)                       # uses(ChatModel)
 │   │   │   ├── files                   # ChatFileChip row
 │   │   │   └── data                    # ChatModelConfig.dataRenderers
 │   │   ├── ChatSources                 # "3 sources" list
-│   │   └── action bar                  # Copy, Edit, Regenerate, then messageActions
+│   │   └── action bar                  # Copy, Edit, Regenerate, Undo, then messageActions
 │   └── error banner                    # The error that ended the last turn, with Retry
 └── ChatComposer                        # uses(ChatComposerModel), or the chat's composerModel
 ```
@@ -212,8 +212,9 @@ chatPanel({
 
 ### Add message actions, such as feedback
 
-`messageActions` adds buttons to each message's action bar, after Copy, Edit and Regenerate. It
-receives the message and its render context, and returns elements. Keep the feedback state in
+`messageActions` adds buttons to each message's action bar, after Copy, Edit, Regenerate and
+Undo. Undo shows on a reply whose changes the user can undo - see `ChatModel.canUndoTurn()`. The
+function receives the message and its render context, and returns elements. Keep the feedback state in
 your own model, so it survives a re-render and can go to your server.
 
 ```typescript
@@ -292,7 +293,7 @@ output is the call's progress. A quiet status line shows under it only while the
 waits for approval, and after the call fails or is denied. A failed call shows a short message for
 the user, with the error for the model behind a "View input" toggle that appears on hover. A
 denied call renders no output. A call that waits for approval renders none either, unless the
-tool sets `approvalPreview: true` to show what it will display. A `ChatUiCatalog` declares its
+tool sets `preview: true` to show what it will display. A `ChatUiCatalog` declares its
 tools this way - see [`/genui/`](../../../genui/README.md).
 
 An interactive tool needs a renderer, because the default card has no controls for an answer.
@@ -453,7 +454,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
 | `onSourceClick` | `(source, context) => void` | Called when the user clicks a source, a citation chip or a marker. Default opens the source's `url` in a new tab. Pass a stable function. |
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
-| `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit and Regenerate. Pass a stable function. |
+| `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit, Regenerate and Undo. Pass a stable function. |
 | `messageHeaderItems` | `(message, context) => ReactNode[]` | Items in an assistant message's header. Pass a stable function. |
 
 ### ChatComposer
