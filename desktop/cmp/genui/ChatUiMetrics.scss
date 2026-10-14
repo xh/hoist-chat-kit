@@ -1,0 +1,75 @@
+.xh-chat-ui-metrics {
+  display: grid;
+  gap: var(--xh-pad-px);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  line-height: normal;
+
+  &__tile {
+    --xh-chat-ui-metrics-accent: var(--xh-chat-border-color);
+
+    background-color: var(--xh-chat-bg);
+    border: var(--xh-chat-border);
+    border-radius: var(--xh-chat-radius-px);
+    border-top: 3px solid var(--xh-chat-ui-metrics-accent);
+    box-shadow: var(--xh-chat-shadow);
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--xh-pad) * 0.4px);
+    min-width: 0;
+    padding: var(--xh-pad-px) calc(var(--xh-pad) * 1.2px);
+
+    &--primary {
+      --xh-chat-ui-metrics-accent: var(--xh-intent-primary);
+    }
+
+    &--success {
+      --xh-chat-ui-metrics-accent: var(--xh-intent-success);
+    }
+
+    &--warning {
+      --xh-chat-ui-metrics-accent: var(--xh-intent-warning);
+    }
+
+    &--danger {
+      --xh-chat-ui-metrics-accent: var(--xh-intent-danger);
+    }
+  }
+
+  &__label {
+    color: var(--xh-chat-muted-text-color);
+    font-size: var(--xh-chat-meta-font-size-px);
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  // A number is never cut short - large values arrive compacted, as `$48.5B`. Text wraps.
+  &__value {
+    font-size: calc(var(--xh-font-size) * 1.75px);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    line-height: 1.15;
+    white-space: nowrap;
+
+    &--text {
+      overflow-wrap: anywhere;
+      white-space: normal;
+    }
+  }
+
+  &__delta {
+    align-items: baseline;
+    display: flex;
+    flex-wrap: wrap;
+    font-size: var(--xh-chat-meta-font-size-px);
+    font-variant-numeric: tabular-nums;
+    gap: calc(var(--xh-pad) * 0.4px);
+  }
+
+  &__delta-label {
+    color: var(--xh-chat-muted-text-color);
+  }
+}
