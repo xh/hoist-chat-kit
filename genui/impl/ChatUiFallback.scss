@@ -1,0 +1,33 @@
+.xh-chat-ui-fallback,
+.xh-chat-ui-placeholder {
+  border: var(--xh-chat-border);
+  border-radius: var(--xh-chat-radius-px);
+  color: var(--xh-chat-muted-text-color);
+  font-size: var(--xh-chat-meta-font-size-px);
+  padding: var(--xh-pad-half-px) var(--xh-pad-px);
+}
+
+.xh-chat-ui-placeholder {
+  border-style: dashed;
+}
+
+.xh-chat-ui-fallback__details {
+  margin-top: var(--xh-pad-half-px);
+
+  summary {
+    cursor: pointer;
+  }
+
+  ul {
+    margin: var(--xh-pad-half-px) 0;
+    padding-left: var(--xh-pad-double-px);
+  }
+
+  pre {
+    margin: 0;
+    max-height: 240px;
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}

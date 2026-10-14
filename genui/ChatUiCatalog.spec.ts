@@ -185,9 +185,9 @@ describe('ChatUiCatalog', () => {
             expect(instructions).toContain('Prefer a component for tabular and numeric results');
             expect(instructions).toContain('Use text for explanation');
             expect(instructions).toContain(
-                '### show_metrics\nExample props: {"items":[{"label":"Revenue","value":1250000}]}'
+                '#### show_metrics\nExample props: {"items":[{"label":"Revenue","value":1250000}]}'
             );
-            expect(instructions).toContain('### add_note');
+            expect(instructions).toContain('#### add_note');
             expect(instructions.endsWith('Use metrics for portfolio summaries.')).toBe(true);
         });
 
@@ -211,12 +211,18 @@ describe('ChatUiCatalog', () => {
                 part = callPart(state, {items: [{label: 'A', value: 1}]});
 
             expect(markup(tool.renderer(part, context))).toBe('tiles');
-            expect(render).toHaveBeenCalledWith(part.input, {
-                ...context,
-                part,
-                isPartial,
-                children: []
-            });
+            expect(render).toHaveBeenCalledWith(
+                part.input,
+                expect.objectContaining({
+                    ...context,
+                    part,
+                    isPartial,
+                    element: {id: 'root', component: 'metrics', props: part.input},
+                    children: [],
+                    slots: {},
+                    data: {}
+                })
+            );
         });
 
         it('renders streaming props that are incomplete but could still become valid', () => {
@@ -257,20 +263,39 @@ describe('ChatUiCatalog', () => {
                 name: 'panel',
                 description: 'A titled container.',
                 props: {type: 'object', required: ['title'], properties: {title: {type: 'string'}}},
+                slots: ['default'],
                 render: ({title}, {children}) =>
                     fragment({items: [`[${title}: `, ...children, ']']})
             },
             ADAPTER: ChatUiAdapter = {
                 dataType: 'test-ui',
-                translate: payload =>
-                    payload.panels.map(it => ({
-                        component: 'panel',
-                        props: {title: it.title},
-                        children: it.notes.map(text => ({component: 'note', props: {text}}))
-                    }))
+                translate: payload => ({
+                    root: 'top',
+                    elements: {
+                        top: {component: 'panel', props: {title: 'All'}, children: ['q3', 'q4']},
+                        ...Object.fromEntries(
+                            payload.panels.map(it => [
+                                it.title.toLowerCase(),
+                                {
+                                    component: 'panel',
+                                    props: {title: it.title},
+                                    children: it.notes.map((_, idx) => `${it.title}-${idx}`)
+                                }
+                            ])
+                        ),
+                        ...Object.fromEntries(
+                            payload.panels.flatMap(it =>
+                                it.notes.map((text, idx) => [
+                                    `${it.title}-${idx}`,
+                                    {component: 'note', props: {text}}
+                                ])
+                            )
+                        )
+                    }
+                })
             };
 
-        it('renders translated nodes, with their children, through the catalog', () => {
+        it('renders translated documents, with their children, through the catalog', () => {
             const catalog = createCatalog({components: [PANEL, NOTE]}),
                 renderers = catalog.createDataRenderers([ADAPTER]),
                 part = dataPart({
@@ -281,11 +306,33 @@ describe('ChatUiCatalog', () => {
                 }),
                 context = renderContext();
 
-            expect(Object.keys(renderers)).toEqual(['test-ui']);
-            expect(markup(renderers['test-ui'](part, context))).toBe('[Q3: (up)(flat)][Q4: ]');
+            expect(Object.keys(renderers)).toEqual(['xh.chat.ui', 'test-ui']);
+            expect(markup(renderers['test-ui'](part, context))).toBe(
+                '[All: [Q3: (up)(flat)][Q4: ]]'
+            );
         });
 
-        it('passes the data part and the chat to each component', () => {
+        it('renders documents sent as xh.chat.ui data parts, with no adapter', () => {
+            const catalog = createCatalog({components: [PANEL, NOTE]}),
+                part: ChatDataPart = {
+                    type: 'data',
+                    id: 'd1',
+                    dataType: 'xh.chat.ui',
+                    data: {
+                        root: 'p',
+                        elements: {
+                            p: {component: 'panel', props: {title: 'T'}, children: ['n']},
+                            n: {component: 'note', props: {text: 'hi'}}
+                        }
+                    }
+                };
+
+            expect(markup(catalog.createDataRenderers()['xh.chat.ui'](part, renderContext()))).toBe(
+                '[T: (hi)]'
+            );
+        });
+
+        it('passes the data part, the chat and the element to each component', () => {
             const render = vi.fn(() => 'note'),
                 catalog = createCatalog({components: [PANEL, {...NOTE, render}]}),
                 part = dataPart({panels: [{title: 'Q3', notes: ['up']}]}),
@@ -295,33 +342,61 @@ describe('ChatUiCatalog', () => {
 
             expect(render).toHaveBeenCalledWith(
                 {text: 'up'},
-                {
+                expect.objectContaining({
                     ...context,
                     part,
                     isPartial: false,
+                    element: {id: 'Q3-0', component: 'note', props: {text: 'up'}},
                     children: []
-                }
+                })
             );
         });
 
-        it('leaves out nodes with unknown components or invalid props', () => {
+        it('renders a fallback for elements with unknown components or invalid props', () => {
             const warn = vi.spyOn(console, 'warn').mockImplementation(() => {}),
                 catalog = createCatalog({components: [PANEL, NOTE]}),
                 adapter: ChatUiAdapter = {
                     dataType: 'test-ui',
-                    translate: () => [
-                        {component: 'note', props: {text: 'kept'}},
-                        {component: 'note', props: {text: 7}},
-                        {component: 'chart', props: {}}
-                    ]
+                    translate: () => ({
+                        root: 'top',
+                        elements: {
+                            top: {
+                                component: 'panel',
+                                props: {title: 'T'},
+                                children: ['a', 'b', 'c']
+                            },
+                            a: {component: 'note', props: {text: 'kept'}},
+                            b: {component: 'note', props: {text: 7}},
+                            c: {component: 'chart', props: {}}
+                        }
+                    })
                 },
                 context = renderContext();
             onTestFinished(() => warn.mockRestore());
 
-            const result = catalog.createDataRenderers([adapter])['test-ui'](dataPart({}), context);
+            const html = markup(
+                catalog.createDataRenderers([adapter])['test-ui'](dataPart({}), context)
+            );
 
-            expect(markup(result)).toBe('(kept)');
+            expect(html).toContain('(kept)');
+            expect(html).toContain('This note could not be displayed.');
+            expect(html).toContain('elements.b.props.text: expected string, got number');
+            expect(html).toContain('elements.c.component: unknown component &#x27;chart&#x27;');
             expect(warn).toHaveBeenCalledTimes(2);
+        });
+
+        it('logs each fallback once, however often it renders', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {}),
+                catalog = createCatalog(),
+                part = dataPart(null),
+                context = renderContext(),
+                doc = {root: 'x', elements: {x: {component: 'chart', props: {}}}};
+            onTestFinished(() => warn.mockRestore());
+
+            markup(catalog.renderDocument(doc, {...context, part, isPartial: false}));
+            markup(catalog.renderDocument(doc, {...context, part, isPartial: false}));
+
+            expect(warn).toHaveBeenCalledTimes(1);
         });
     });
 
