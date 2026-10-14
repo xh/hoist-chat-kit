@@ -10,6 +10,7 @@ import {
     ChatModel,
     type ChatModelConfig,
     type ChatPart,
+    type ChatSourcePart,
     type ChatTextPart,
     type ChatToolCallPart
 } from '../../../core';
@@ -275,6 +276,95 @@ describe('ChatMessageList', () => {
         const chips = container.querySelector('.xh-chat-citations');
         expect(chips.closest('p').textContent).toBe('Streams arrive as NDJSON.1');
         expect(chips.textContent).toBe('1');
+    });
+
+    describe('citation markers', () => {
+        const SOURCES: ChatSourcePart[] = [
+            {type: 'source', id: 's1', url: 'https://a.example', title: 'Rate outlook', marker: 1},
+            {type: 'source', id: 's2', title: 'Guideline 4.2', marker: 2}
+        ];
+
+        it('leaves markers as written unless citationMarkers is on', () => {
+            const chatModel = createModel({}, [reply([text('t1', 'Rates rose [1].'), ...SOURCES])]),
+                {container} = renderList(chatModel);
+
+            expect(container.querySelector('.xh-chat-message__text').textContent).toBe(
+                'Rates rose [1].'
+            );
+            expect(screen.queryByRole('button', {name: /Source 1/})).toBeNull();
+        });
+
+        it('renders markers as buttons for the sources they cite', () => {
+            const chatModel = createModel({}, [
+                reply([text('t1', 'Rates rose [1, 2], not [3].'), ...SOURCES])
+            ]);
+            renderList(chatModel, {citationMarkers: true});
+
+            expect(screen.getByRole('button', {name: 'Source 1: Rate outlook'})).toBeTruthy();
+            expect(screen.getByRole('button', {name: 'Source 2: Guideline 4.2'})).toBeTruthy();
+            expect(screen.getByText(/not \[3\]/)).toBeTruthy();
+        });
+
+        it('numbers the source list by marker, to match the text', () => {
+            const sources: ChatSourcePart[] = [
+                    {type: 'source', id: 's1', title: 'First', marker: 4},
+                    {type: 'source', id: 's2', title: 'Second', marker: 2}
+                ],
+                chatModel = createModel({}, [reply([text('t1', 'See [2] and [4].'), ...sources])]),
+                {container} = renderList(chatModel, {citationMarkers: true});
+            fireEvent.click(screen.getByRole('button', {name: /2 sources/}));
+
+            const numbers = container.querySelectorAll('.xh-chat-sources__number');
+            expect(Array.from(numbers).map(it => it.textContent)).toEqual(['2', '4']);
+        });
+
+        it('calls onSourceClick with the source and context from markers, chips and the list', () => {
+            const onSourceClick = vi.fn(),
+                cited: ChatTextPart = {
+                    ...(text('t1', 'Rates rose [2].') as ChatTextPart),
+                    citations: [{id: 'c1', sourceId: 's1'}]
+                },
+                chatModel = createModel({}, [reply([cited, ...SOURCES])]),
+                context = {chatModel, messageId: 'a1'},
+                {container} = renderList(chatModel, {citationMarkers: true, onSourceClick});
+
+            fireEvent.click(screen.getByRole('button', {name: /Source 2/}));
+            expect(onSourceClick).toHaveBeenLastCalledWith(SOURCES[1], context);
+
+            fireEvent.click(container.querySelector('.xh-chat-citations__chip'));
+            expect(onSourceClick).toHaveBeenLastCalledWith(SOURCES[0], context);
+
+            fireEvent.click(screen.getByRole('button', {name: /2 sources/}));
+            fireEvent.click(screen.getByRole('button', {name: 'Guideline 4.2'}));
+            expect(onSourceClick).toHaveBeenLastCalledWith(SOURCES[1], context);
+        });
+
+        it('turns markers into buttons once sources arrive after the text', () => {
+            const chatModel = createModel({}, []);
+            renderList(chatModel, {citationMarkers: true});
+
+            const streaming: ChatTextPart = {
+                ...(text('t1', 'Rates rose [1].') as ChatTextPart),
+                state: 'streaming'
+            };
+            act(() => showLiveReply(chatModel, [streaming]));
+            expect(screen.queryByRole('button', {name: /Source 1/})).toBeNull();
+
+            act(() => showLiveReply(chatModel, [streaming, SOURCES[0]]));
+            expect(screen.getByRole('button', {name: /Source 1/})).toBeTruthy();
+        });
+    });
+
+    it('applies markdownPlugins to assistant text', () => {
+        const rehypeMark = () => (tree: any) => {
+                tree.children.forEach(it => {
+                    if (it.tagName === 'p') it.properties.className = ['app-plugin'];
+                });
+            },
+            chatModel = createModel({}, [reply([text('t1', 'Answer')])]),
+            {container} = renderList(chatModel, {markdownPlugins: {rehype: [rehypeMark]}});
+
+        expect(container.querySelector('.xh-chat-message__text p.app-plugin')).toBeTruthy();
     });
 
     describe('render errors', () => {

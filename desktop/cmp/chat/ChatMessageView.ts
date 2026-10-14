@@ -9,7 +9,9 @@ import {action, bindable, observable} from '@xh/hoist/mobx';
 import {createObservableRef, useCached} from '@xh/hoist/utils/react';
 import {
     type ChatImagePolicy,
+    type ChatMarkdownCitations,
     type ChatMarkdownComponents,
+    type ChatMarkdownPlugins,
     chatMarkdown
 } from '../../../cmp/markdown';
 import {
@@ -18,8 +20,10 @@ import {
     type ChatFilePart,
     type ChatMessage,
     type ChatModel,
+    type ChatPart,
     type ChatPartRenderContext,
     type ChatReasoningPart,
+    type ChatSourcePart,
     isToolCallFinal
 } from '../../../core';
 import '../../../styles/vars.scss';
@@ -33,6 +37,7 @@ import {
     type ChatReference,
     chatCitations,
     collectReferences,
+    renderCitationMarker,
     toSourceList
 } from './impl/ChatCitations';
 import {chatCopyButton} from './impl/ChatCopyButton';
@@ -53,6 +58,12 @@ export type ChatMessageRenderFn = (
     message: ChatMessage,
     context: ChatPartRenderContext
 ) => ReactNode[];
+
+/**
+ * Handles a click on a source - in the source list, on a citation chip, or on a citation marker.
+ * Receives the source and the render context of its message.
+ */
+export type ChatSourceClickFn = (source: ChatSourcePart, context: ChatPartRenderContext) => void;
 
 /** Props for {@link ChatMessageView}. */
 export interface ChatMessageViewProps extends HoistProps {
@@ -76,6 +87,24 @@ export interface ChatMessageViewProps extends HoistProps {
 
     /** Images to load - see {@link ChatMarkdownProps.allowImages}. Default false. */
     allowImages?: ChatImagePolicy;
+
+    /**
+     * True to render citation markers in assistant text, such as `[1]` and `[1, 2]`, as buttons for
+     * the message's sources - see {@link ChatMarkdownProps.citations}. Default false.
+     */
+    citationMarkers?: boolean;
+
+    /**
+     * Called when the user clicks a source, a citation chip or a citation marker. Default opens the
+     * source's `url` in a new tab. Pass a stable function.
+     */
+    onSourceClick?: ChatSourceClickFn;
+
+    /**
+     * Plugins to add to the markdown pipeline of assistant text and reasoning - see
+     * {@link ChatMarkdownPlugins}. Pass a stable object.
+     */
+    markdownPlugins?: ChatMarkdownPlugins;
 
     /** Buttons to add to the action bar, after the built-in ones. Pass a stable function. */
     messageActions?: ChatMessageRenderFn;
@@ -111,7 +140,8 @@ export interface ChatMessageViewProps extends HoistProps {
  * Assistant messages span the full width with no bubble, under a header with the assistant's name
  * and the time taken. Their parts render in order: markdown text, reasoning, tool calls, files and
  * app-rendered data, followed by the sources consulted. Consecutive tool calls of one step fold
- * into a single "Used 3 tools" row.
+ * into a single "Used 3 tools" row. With `citationMarkers` on, `[1]` in the text renders as a
+ * button for the source it cites.
  *
  * Each part renders as a memoized component that receives the part and a render context that is
  * stable for the life of the message, so a part re-renders only when it changes - not on every
@@ -127,14 +157,18 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
     className: 'xh-chat-message',
 
     render(props, ref) {
-        const {className, message, chatModel, isLast = false} = props,
+        const {className, message, chatModel, isLast = false, citationMarkers = false} = props,
             impl = useLocalModel(ChatMessageViewLocalModel),
             context = useMemo<ChatPartRenderContext>(
                 () => ({chatModel, messageId: message.id}),
                 [chatModel, message.id]
             ),
             // Kept stable while unchanged, so cited text parts skip render as the message streams.
-            references = useCached(collectReferences(message.parts), isEqual);
+            references = useCached(collectReferences(message.parts, citationMarkers), isEqual),
+            markerSources = useCached(
+                citationMarkers ? (message.parts.filter(isSource) as ChatSourcePart[]) : null,
+                isEqual
+            );
 
         // A last reply that failed before any content is shown by the list's error banner alone.
         if (isLast && message.status === 'error' && isEmpty(message.parts)) return null;
@@ -150,7 +184,7 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
                 ? userContent(props, impl, context)
                 : message.role === 'system'
                   ? div({className: 'xh-chat-message__system', item: message.text})
-                  : assistantContent(props, context, references)
+                  : assistantContent(props, context, references, markerSources)
         });
     }
 });
@@ -338,9 +372,10 @@ const editBox = hoistCmp.factory<EditBoxProps>({
 function assistantContent(
     props: ViewProps,
     context: ChatPartRenderContext,
-    references: ChatReference[]
+    references: ChatReference[],
+    markerSources: ChatSourcePart[]
 ): ReactNode[] {
-    const {message, isLast, assistantName, messageActions} = props;
+    const {message, isLast, assistantName, messageActions, onSourceClick} = props;
 
     return [
         messageHeader(props, context),
@@ -351,7 +386,7 @@ function assistantContent(
                     chatErrorBoundary({
                         key: group.id,
                         resetKey: getResetKey(group),
-                        item: renderPartGroup(group, props, context, references)
+                        item: renderPartGroup(group, props, context, references, markerSources)
                     })
                 ),
                 isAwaitingContent(message)
@@ -363,7 +398,12 @@ function assistantContent(
                 statusNote(props)
             ]
         }),
-        references.length ? chatSources({sources: toSourceList(references)}) : null,
+        references.length
+            ? chatSources({
+                  sources: toSourceList(references),
+                  onSourceClick: onSourceClick ? source => onSourceClick(source, context) : null
+              })
+            : null,
         // Actions wait for the turn to end - including one paused for the user's approval.
         message.isStreaming || message.status === 'paused'
             ? null
@@ -411,9 +451,10 @@ function renderPartGroup(
     group: ChatPartGroup,
     props: ViewProps,
     context: ChatPartRenderContext,
-    references: ChatReference[]
+    references: ChatReference[],
+    markerSources: ChatSourcePart[]
 ): ReactNode {
-    const {markdownComponents, allowImages} = props;
+    const {markdownComponents, allowImages, markdownPlugins, onSourceClick} = props;
     switch (group.type) {
         case 'fileGroup':
             return fileRow(group.parts, allowImages);
@@ -426,11 +467,15 @@ function renderPartGroup(
                 citations: group.citations,
                 // Only cited text needs the references - passing them otherwise defeats memoization.
                 references: group.citations?.length ? references : null,
+                markerSources,
+                onSourceClick,
+                context,
                 markdownComponents,
+                markdownPlugins,
                 allowImages
             });
         case 'reasoning':
-            return chatReasoning({part: group, markdownComponents, allowImages});
+            return chatReasoning({part: group, markdownComponents, markdownPlugins, allowImages});
         case 'toolCall':
             return chatToolCall({part: group, context});
         case 'data':
@@ -454,7 +499,13 @@ interface TextPartProps extends HoistProps {
     isStreaming: boolean;
     citations: ChatCitation[];
     references: ChatReference[];
+
+    /** Sources for citation markers in the text - null unless `citationMarkers` is on. */
+    markerSources: ChatSourcePart[];
+    onSourceClick: ChatSourceClickFn;
+    context: ChatPartRenderContext;
     markdownComponents: ChatMarkdownComponents;
+    markdownPlugins: ChatMarkdownPlugins;
     allowImages: ChatImagePolicy;
 }
 
@@ -462,12 +513,40 @@ const textPart = hoistCmp.factory<TextPartProps>({
     displayName: 'ChatTextPart',
     model: false,
 
-    render({text, isStreaming, citations, references, markdownComponents, allowImages}) {
+    render({
+        text,
+        isStreaming,
+        citations,
+        references,
+        markerSources,
+        onSourceClick,
+        context,
+        markdownComponents,
+        markdownPlugins,
+        allowImages
+    }) {
         const components = useChatMarkdownComponents(markdownComponents),
+            onClick = useMemo(
+                () =>
+                    onSourceClick
+                        ? (source: ChatSourcePart) => onSourceClick(source, context)
+                        : null,
+                [onSourceClick, context]
+            ),
             // Inline at the end of the last paragraph - memoized, as each new value re-renders it.
             trailingContent = useMemo(
-                () => (citations?.length ? chatCitations({citations, references}) : null),
-                [citations, references]
+                () =>
+                    citations?.length
+                        ? chatCitations({citations, references, onSourceClick: onClick})
+                        : null,
+                [citations, references, onClick]
+            ),
+            markers = useMemo<ChatMarkdownCitations>(
+                () =>
+                    markerSources
+                        ? {sources: markerSources, onClick, renderMarker: renderCitationMarker}
+                        : null,
+                [markerSources, onClick]
             );
 
         return div({
@@ -477,7 +556,9 @@ const textPart = hoistCmp.factory<TextPartProps>({
                 isStreaming,
                 components,
                 allowImages,
-                trailingContent
+                trailingContent,
+                citations: markers,
+                markdownPlugins
             })
         });
     }
@@ -515,6 +596,10 @@ function fileRow(files: ChatFilePart[], allowImages: ChatImagePolicy): ReactNode
         className: 'xh-chat-message__files',
         items: files.map(file => chatFileChip({key: file.id, file, allowImages}))
     });
+}
+
+function isSource(part: ChatPart): boolean {
+    return part.type === 'source';
 }
 
 // True while the assistant is working with nothing new to show - before its first content, or

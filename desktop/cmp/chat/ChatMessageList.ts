@@ -4,12 +4,16 @@ import {type BoxProps, hoistCmp, type HoistProps, useLocalModel, uses} from '@xh
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
 import {useComposedRefs, useOnResize} from '@xh/hoist/utils/react';
-import type {ChatImagePolicy, ChatMarkdownComponents} from '../../../cmp/markdown';
+import type {
+    ChatImagePolicy,
+    ChatMarkdownComponents,
+    ChatMarkdownPlugins
+} from '../../../cmp/markdown';
 import {ChatModel} from '../../../core';
 import '../../../styles/vars.scss';
 import {chatEmptyState} from './ChatEmptyState';
 import './ChatMessageList.scss';
-import {type ChatMessageRenderFn, chatMessageView} from './ChatMessageView';
+import {type ChatMessageRenderFn, type ChatSourceClickFn, chatMessageView} from './ChatMessageView';
 import type {ChatSuggestion} from './ChatSuggestions';
 import {chatErrorBanner} from './impl/ChatErrorBanner';
 import {chatErrorBoundary} from './impl/ChatErrorBoundary';
@@ -41,6 +45,26 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
      * sends a request that could leak data - see {@link ChatMarkdownProps.allowImages}.
      */
     allowImages?: ChatImagePolicy;
+
+    /**
+     * True to render citation markers in assistant text, such as `[1]` and `[1, 2]`, as buttons for
+     * the sources they cite. `[n]` cites the source with `marker` n, or the nth source when no
+     * source has a marker. Default false.
+     */
+    citationMarkers?: boolean;
+
+    /**
+     * Called when the user clicks a source in a reply's source list, a citation chip or a citation
+     * marker - for example to open a document in the app's own viewer. Default opens the source's
+     * `url` in a new tab. Pass a stable function.
+     */
+    onSourceClick?: ChatSourceClickFn;
+
+    /**
+     * Plugins to add to the markdown pipeline of assistant messages, after the kit's own - for
+     * example `remark-math` and `rehype-katex` for math. Pass a stable object.
+     */
+    markdownPlugins?: ChatMarkdownPlugins;
 
     /**
      * Buttons to add to each message's action bar, after Copy, Edit and Regenerate - for example
@@ -80,6 +104,9 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
             assistantIcon,
             markdownComponents,
             allowImages,
+            citationMarkers,
+            onSourceClick,
+            markdownPlugins,
             messageActions,
             messageHeaderItems,
             ...rest
@@ -130,6 +157,9 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                                               assistantIcon,
                                               markdownComponents,
                                               allowImages,
+                                              citationMarkers,
+                                              onSourceClick,
+                                              markdownPlugins,
                                               messageActions,
                                               messageHeaderItems,
                                               isEditing: impl.editingId === message.id,

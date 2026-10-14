@@ -79,6 +79,59 @@ describe('citation numbering', () => {
             refs = collectReferences([text('t1', citations), S1]);
         expect(numberCitations(citations, refs)).toHaveLength(1);
     });
+
+    describe('with numbers that cite sources in the text', () => {
+        it('numbers sources by marker, then cited unlisted sources after the highest', () => {
+            const refs = collectReferences([
+                    text('t1', [
+                        {id: 'c1', url: 'https://other.example'},
+                        {id: 'c2', sourceId: 's2'}
+                    ]),
+                    {...S1, marker: 3},
+                    {...S2, marker: 1}
+                ]),
+                list = toSourceList(refs);
+
+            expect(refs.map(it => [it.number, it.key])).toEqual([
+                [1, 'source:s2'],
+                [3, 'source:s1'],
+                [4, 'url:https://other.example']
+            ]);
+            expect(list.map(it => it.marker)).toEqual([1, 3, 4]);
+        });
+
+        it('numbers sources by position with citationMarkers on and no markers', () => {
+            const refs = collectReferences(
+                [text('t1', [{id: 'c1', sourceId: 's2'}]), S1, S2],
+                true
+            );
+
+            expect(refs.map(it => [it.number, it.source.id])).toEqual([
+                [1, 's1'],
+                [2, 's2']
+            ]);
+            expect(numberCitations([{id: 'c1', sourceId: 's2'}], refs)[0].number).toBe(2);
+        });
+
+        it('keeps each listed source as given when its number already shows', () => {
+            const marked = {...S1, marker: 1},
+                list = toSourceList(collectReferences([marked, S2], true));
+            expect(list[0]).toBe(marked);
+            expect(list[1]).toBe(S2);
+        });
+
+        it('gives a second source with the same marker the next free number', () => {
+            const refs = collectReferences([
+                {...S1, marker: 1},
+                {...S2, marker: 1}
+            ]);
+            expect(refs.map(it => [it.number, it.source.id])).toEqual([
+                [1, 's1'],
+                [2, 's2']
+            ]);
+            expect(toSourceList(refs)[1].marker).toBe(2);
+        });
+    });
 });
 
 function text(id: string, citations: ChatCitation[]): ChatPart {

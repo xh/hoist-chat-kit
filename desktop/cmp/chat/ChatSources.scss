@@ -69,7 +69,18 @@
     white-space: nowrap;
   }
 
-  a.xh-chat-sources__title:hover {
+  button.xh-chat-sources__title {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 500;
+    padding: 0;
+    text-align: left;
+  }
+
+  a.xh-chat-sources__title:hover,
+  button.xh-chat-sources__title:hover {
     color: var(--xh-chat-link-color);
     text-decoration: underline;
   }
