@@ -22,6 +22,7 @@
     "genui",
     "impl",
     "styles",
+    "svc",
     "threads",
     "transport",
     "!**/*.spec.ts",
