@@ -3,7 +3,13 @@ import {div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import type {ChatModel} from '../../../core';
-import type {ChatUiComponentSpec} from '../../../genui';
+import {
+    type ChatUiAction,
+    type ChatUiActionType,
+    chatUiActionSchema,
+    type ChatUiComponentSpec,
+    describeChatUiAction
+} from '../../../genui';
 import {
     CHAT_UI_DECIMALS_SCHEMA,
     fmtChatUiNumber,
@@ -28,18 +34,6 @@ export interface ChatUiCardField {
     decimals?: number;
 }
 
-/** A follow-up action on a {@link ChatUiCard}, as written by the model. */
-export interface ChatUiCardAction {
-    /** Button text, such as `Show trades`. */
-    text: string;
-
-    /**
-     * Message sent as the user's own when they click the button - shown in its tooltip before the
-     * click, and as the user's message after it. At most 200 characters.
-     */
-    prompt: string;
-}
-
 /** Props of a {@link ChatUiCard}, as written by the model. */
 export interface ChatUiCardSpecProps {
     /** Title of the card - the name of the record it shows. */
@@ -51,8 +45,8 @@ export interface ChatUiCardSpecProps {
     /** Labeled values, in display order. */
     fields: ChatUiCardField[];
 
-    /** Follow-up actions, shown as buttons that send a message. */
-    actions?: ChatUiCardAction[];
+    /** Follow-up actions, shown as buttons, each with a `label`. */
+    actions?: ChatUiAction[];
 }
 
 /** Options for {@link chatUiCardSpec}. */
@@ -62,24 +56,38 @@ export interface ChatUiCardSpecOptions extends ChatUiSpecOptions {
 
     /** Most actions the model may send. Default 4. */
     maxActions?: number;
+
+    /**
+     * The kinds of action the model may put on the card. Default `['send']`: buttons that send a
+     * follow-up message. Add `openUrl`, `navigate`, `callTool` or `app` to allow those - see
+     * {@link ChatUiAction}.
+     */
+    actionTypes?: ChatUiActionType[];
 }
 
 /**
  * A card component for a {@link ChatUiCatalog}: the details of one record, as labeled values
- * under a title, with optional follow-up actions. Clicking an action sends its prompt as the
- * user's next message, so the model can offer the obvious next steps.
+ * under a title, with optional follow-up actions. Each action is a typed {@link ChatUiAction},
+ * run through the catalog - by default a `send` action, whose text goes as the user's next
+ * message, so the model can offer the obvious next steps.
  *
- * The model writes the prompt, so the user sees exactly what an action sends: the prompt shows in
- * the button's tooltip, and then as the user's own message in the chat. Prompts are short - at
- * most 200 characters - so that the tooltip shows all of one, and a prompt injection cannot hide
- * a long instruction behind a harmless label.
+ * The model writes the actions, so the user sees exactly what each one does: the button's tooltip
+ * describes it, and a sent message shows as the user's own in the chat. Sent text is short - at
+ * most 200 characters - so that the tooltip shows all of it, and a prompt injection cannot hide a
+ * long instruction behind a harmless label.
  *
  * The model's tool is `show_card`, unless renamed with `name`.
  */
 export function chatUiCardSpec(
     opts: ChatUiCardSpecOptions = {}
 ): ChatUiComponentSpec<ChatUiCardSpecProps> {
-    const {name = 'card', description = DESCRIPTION, maxFields = 16, maxActions = 4} = opts;
+    const {
+        name = 'card',
+        description = DESCRIPTION,
+        maxFields = 16,
+        maxActions = 4,
+        actionTypes = ['send']
+    } = opts;
 
     return {
         name,
@@ -112,28 +120,13 @@ export function chatUiCardSpec(
                 actions: {
                     type: 'array',
                     maxItems: maxActions,
-                    description:
-                        'Follow-up actions, as buttons. Clicking one sends its prompt as the ' +
-                        "user's next message.",
-                    items: {
-                        type: 'object',
-                        required: ['text', 'prompt'],
-                        additionalProperties: false,
-                        properties: {
-                            text: {type: 'string', maxLength: 40},
-                            prompt: {
-                                type: 'string',
-                                maxLength: MAX_PROMPT_LENGTH,
-                                description:
-                                    "The user's next message, written as the user would say " +
-                                    'it. The user sees it before and after the click.'
-                            }
-                        }
-                    }
+                    description: 'Follow-up actions, as buttons.',
+                    items: chatUiActionSchema({types: actionTypes, requireLabel: true})
                 }
             }
         },
-        render: (props, {chatModel, isPartial}) => chatUiCard({...props, chatModel, isPartial}),
+        render: (props, {chatModel, isPartial, runActionAsync}) =>
+            chatUiCard({...props, chatModel, isPartial, runActionAsync}),
         example: {
             title: 'Acme Corp',
             subtitle: 'Counterparty - Tier 1',
@@ -141,15 +134,20 @@ export function chatUiCardSpec(
                 {label: 'Exposure', value: 4200000, format: 'currency', decimals: 0},
                 {label: 'Rating', value: 'A+'}
             ],
-            actions: [{text: 'Show trades', prompt: 'Show my open trades with Acme Corp.'}]
+            actions: [
+                {type: 'send', label: 'Show trades', text: 'Show my open trades with Acme Corp.'}
+            ]
         }
     };
 }
 
 /** Props for {@link ChatUiCard}. */
 export interface ChatUiCardProps extends HoistProps, Partial<ChatUiCardSpecProps> {
-    /** The chat that shows the card - its actions send their prompts here. */
+    /** The chat that shows the card. Actions that message it are disabled while it is busy. */
     chatModel: ChatModel;
+
+    /** Runs an action when its button is clicked - the catalog's `context.runActionAsync`. */
+    runActionAsync: (action: ChatUiAction) => Promise<unknown>;
 
     /** True while the props stream. Actions are disabled until the card is complete. */
     isPartial?: boolean;
@@ -157,14 +155,15 @@ export interface ChatUiCardProps extends HoistProps, Partial<ChatUiCardSpecProps
 
 /**
  * A detail card of labeled values, with follow-up actions - the component that
- * {@link chatUiCardSpec} renders. Actions are disabled while the chat is busy.
+ * {@link chatUiCardSpec} renders. Actions that send a message or run a tool are disabled while
+ * the chat is busy.
  */
 export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
     displayName: 'ChatUiCard',
     model: false,
     className: 'xh-chat-ui-card',
 
-    render({className, title, subtitle, fields, actions, chatModel, isPartial}) {
+    render({className, title, subtitle, fields, actions, chatModel, isPartial, runActionAsync}) {
         // While streaming, the last field may be cut short - its value still being written.
         const validFields = (isPartial ? dropRight(fields) : (fields ?? [])).filter(isPlainObject),
             validActions = isPartial ? [] : (actions ?? []).filter(isPlainObject);
@@ -204,14 +203,14 @@ export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
                 validActions.length
                     ? div({
                           className: 'xh-chat-ui-card__actions',
-                          items: validActions.map(({text, prompt}, idx) =>
+                          items: validActions.map((action, idx) =>
                               button({
                                   key: idx,
-                                  text,
-                                  tooltip: `Sends: "${prompt}"`,
+                                  text: action.label,
+                                  tooltip: describeChatUiAction(action),
                                   outlined: true,
-                                  disabled: chatModel.isBusy,
-                                  onClick: () => chatModel.sendAsync(prompt).catchDefault()
+                                  disabled: chatModel.isBusy && MESSAGING_ACTIONS.has(action.type),
+                                  onClick: () => runActionAsync(action).catchDefault()
                               })
                           )
                       })
@@ -224,9 +223,10 @@ export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
 //------------------
 // Implementation
 //------------------
-const MAX_PROMPT_LENGTH = 200;
+// Actions that message the chat, and so wait while it is busy.
+const MESSAGING_ACTIONS: ReadonlySet<ChatUiActionType> = new Set(['send', 'callTool']);
 
 const DESCRIPTION =
     'A detail card for one record - a client, an order, a counterparty - with its key fields ' +
-    'as labeled values, and up to a few follow-up actions. Each action is a button that sends ' +
-    'a prompt as the next user message, for the obvious next steps.';
+    'as labeled values, and up to a few follow-up actions, shown as buttons, for the obvious ' +
+    'next steps.';

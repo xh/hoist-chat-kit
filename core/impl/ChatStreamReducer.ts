@@ -1,6 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {logDebug, logWarn} from '@xh/hoist/utils/js';
-import {findLast, isPlainObject, isString, pick} from 'lodash';
+import {findLast, isEmpty, isPlainObject, isString, pick} from 'lodash';
 import type {ChatEvent} from '../../transport';
 import type {ChatMessage, ChatMessageSpec} from '../ChatMessage';
 import type {ChatTextTransform} from '../ChatModel';
@@ -93,7 +93,8 @@ export class ChatStreamReducer {
      * Close out the step when its stream ends: mark open text and reasoning parts done, and parse
      * the input of any tool call whose arguments never saw an end event. A stream that ended with
      * neither `RUN_FINISHED` nor `RUN_ERROR` - such as a dropped connection - fails the message,
-     * with error code `incomplete-stream`.
+     * with error code `incomplete-stream`. A run that finished with nothing at all in the message
+     * fails it too, with error code `empty-response`, rather than show a blank reply.
      */
     finish(message: ChatMessage): ChatMessage {
         const draft = createDraft(message);
@@ -106,8 +107,12 @@ export class ChatStreamReducer {
             }
         });
 
-        if (!this.runFinished && draft.status !== 'error') {
-            setError(draft, 'The response ended before it was complete.', 'incomplete-stream');
+        if (draft.status !== 'error') {
+            if (!this.runFinished) {
+                setError(draft, 'The response ended before it was complete.', 'incomplete-stream');
+            } else if (isEmpty(draft.parts)) {
+                setError(draft, 'The response ended without any content.', 'empty-response');
+            }
         }
         this.transformTexts(draft, message);
         return commitDraft(message, draft);

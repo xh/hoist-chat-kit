@@ -400,6 +400,8 @@ chatModel.prependMessages(page.messages);
 chatModel.hasOlderMessages = !!page.nextCursor;
 ```
 
+`ChatThreadsModel` does this for you. See [`/threads/`](../threads/README.md).
+
 ### Ask for approval before a tool runs
 
 Set `needsApproval` on a client tool. Use a function to decide per call.
@@ -544,6 +546,7 @@ this.addReaction({
 |-------|------|
 | `ChatRunError` with the backend's `code` | The run reported an error: an AG-UI `RUN_ERROR`, or an Anthropic `error` event such as `overloaded_error` |
 | `ChatRunError` with code `incomplete-stream` | The stream ended with neither `RUN_FINISHED` nor `RUN_ERROR`, for example on a dropped connection |
+| `ChatRunError` with code `empty-response` | The run finished with nothing in the reply |
 | `ChatRunError` with code `stalled` | The server sent nothing for longer than the transport's `idleTimeout` |
 | `ChatRunError` with a null code | The run reported an error with no code |
 | `ChatRunError` with `retryAfterSeconds` | The run asked for a wait before a retry, through `metadata.retryAfterSeconds` on `RUN_ERROR` |
@@ -660,6 +663,8 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `prependMessages(specs)` | Add older messages ahead of the conversation, skipping ids already present. |
 | `submitFeedbackAsync(messageId, rating, comment?)` | Rate a reply, or clear its rating with null. Shows at once, and reverts if the submit fails. |
 | `setFeedbackSubmitter(submitAsync)` | Set the submitter to use when `feedback.submitAsync` is not configured. For a thread layer. |
+| `addSendBlocker(blocker)` | Add a reason for sends to wait, checked after the `sendBlocker`. For a thread layer. |
+| `setThreadCreator(createAsync)` | Set a function that creates a new thread on the backend. The chat awaits it before the first request of a new thread, and adopts the id it returns. For a thread layer. |
 | `getMessageSpecs()` | The conversation as `ChatMessageSpec[]`, for storage. |
 | `getMessage(id)` | A message by id, as it is now, or null. |
 | `getToolSpec(name)` | The spec for a tool, or null. |
@@ -887,6 +892,8 @@ previous call, or check `isBusy`, before you send from code.
 ## Related Packages
 
 - [`/transport/`](../transport/README.md) - transports, codecs, `ChatEvent`, and server contracts
+- [`/threads/`](../threads/README.md) - the thread layer: a store adapter and one chat per open
+  thread
 - [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) - desktop components that render a
   `ChatModel`
 - [`/genui/`](../genui/README.md) - the generative UI catalog, whose components are inline tools

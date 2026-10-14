@@ -8,6 +8,7 @@ import {runInAction} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatModel} from '../../../core';
+import type {ChatUiAction} from '../../../genui';
 import {ScriptedChatTransport} from '../../../transport';
 import {chatUiCard} from './ChatUiCard';
 import {chatUiChart, type ChatUiChartProps} from './ChatUiChart';
@@ -137,36 +138,57 @@ describe('generative UI components', () => {
     });
 
     describe('ChatUiCard', () => {
-        const actions = [{text: 'Show trades', prompt: 'Show my open trades with Acme Corp.'}];
+        const send: ChatUiAction = {
+                type: 'send',
+                label: 'Show trades',
+                text: 'Show my open trades with Acme Corp.'
+            },
+            open: ChatUiAction = {
+                type: 'openUrl',
+                label: 'Open report',
+                url: 'https://example.com/report'
+            };
 
-        it('sends an action prompt as the user message, exactly as written', () => {
+        it('runs the clicked action, and describes it in the tooltip', () => {
             const chatModel = createChatModel(),
-                send = vi.spyOn(chatModel, 'sendAsync').mockResolvedValue();
-            render(chatUiCard({title: 'Acme Corp', fields: [], actions, chatModel}));
+                runActionAsync = vi.fn().mockResolvedValue(null);
+            render(
+                chatUiCard({
+                    title: 'Acme Corp',
+                    fields: [],
+                    actions: [send],
+                    chatModel,
+                    runActionAsync
+                })
+            );
 
             fireEvent.click(screen.getByRole('button', {name: 'Show trades'}));
 
-            expect(send).toHaveBeenCalledExactlyOnceWith('Show my open trades with Acme Corp.');
+            expect(runActionAsync).toHaveBeenCalledExactlyOnceWith(send);
         });
 
-        it('disables its actions while the chat is busy, and while the props stream', () => {
+        it('disables actions that message the chat while it is busy, and all while streaming', () => {
             const chatModel = createChatModel(),
-                {rerender} = render(
-                    chatUiCard({
-                        title: 'Acme Corp',
-                        fields: [],
-                        actions,
-                        chatModel,
-                        isPartial: true
-                    })
-                );
+                runActionAsync = vi.fn(),
+                props = {
+                    title: 'Acme Corp',
+                    fields: [],
+                    actions: [send, open],
+                    chatModel,
+                    runActionAsync
+                },
+                {rerender} = render(chatUiCard({...props, isPartial: true}));
             expect(screen.queryByRole('button', {name: 'Show trades'})).toBeNull();
 
             runInAction(() => (chatModel.status = 'streaming'));
-            rerender(chatUiCard({title: 'Acme Corp', fields: [], actions, chatModel}));
+            rerender(chatUiCard(props));
 
-            const button = screen.getByRole('button', {name: 'Show trades'}) as HTMLButtonElement;
-            expect(button.disabled).toBe(true);
+            const sendButton = screen.getByRole('button', {
+                    name: 'Show trades'
+                }) as HTMLButtonElement,
+                openButton = screen.getByRole('button', {name: 'Open report'}) as HTMLButtonElement;
+            expect(sendButton.disabled).toBe(true);
+            expect(openButton.disabled).toBe(false);
         });
     });
 });
