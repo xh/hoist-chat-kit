@@ -52,6 +52,14 @@ describe('splitMarkdownBlocks', () => {
         ]);
     });
 
+    it('splits consecutive blockquotes into blocks of their own, as a blank line ends each', () => {
+        expect(splitMarkdownBlocks('> one\n> still one\n\n> two\n\nAfter')).toEqual([
+            '> one\n> still one',
+            '> two',
+            'After'
+        ]);
+    });
+
     it('merges the items of a loose list into one block', () => {
         expect(splitMarkdownBlocks('1. one\n\n2. two\n\n3. three\n\nAfter')).toEqual([
             '1. one\n\n2. two\n\n3. three',
@@ -94,6 +102,20 @@ describe('closeMarkdownSyntax', () => {
     it('removes an opening marker with nothing after it', () => {
         expect(closeMarkdownSyntax('Next is **')).toBe('Next is ');
         expect(closeMarkdownSyntax('Run `')).toBe('Run ');
+    });
+
+    it('treats a run of three markers as bold and italic together', () => {
+        expect(closeMarkdownSyntax('Next is ***')).toBe('Next is ');
+        expect(closeMarkdownSyntax('Next is ___')).toBe('Next is ');
+        expect(closeMarkdownSyntax('This is ***both')).toBe('This is ***both***');
+        expect(closeMarkdownSyntax('This is ___both')).toBe('This is ___both___');
+        expect(closeMarkdownSyntax('A ***b*** c')).toBe('A ***b*** c');
+    });
+
+    it('leaves underscores within words literal while closing those around them', () => {
+        expect(closeMarkdownSyntax('Use _snake_case_ and __max_value')).toBe(
+            'Use _snake_case_ and __max_value__'
+        );
     });
 
     it('ignores markers inside inline code, escaped markers, and list bullets', () => {

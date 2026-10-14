@@ -51,8 +51,9 @@ export function splitMarkdownBlocks(text: string): string[] {
  * will once complete rather than flashing raw markers.
  *
  * Closes an open code fence, inline code, bold and italic (with `*` or `_`), strikethrough and a
- * link with a partial URL. Removes an opening marker with nothing after it yet, and a partial image. Leaves the text
- * inside code untouched.
+ * link with a partial URL. Removes an opening marker with nothing after it yet, such as a trailing
+ * `***`, and a partial image. An underscore opens or closes emphasis only at a word boundary, so
+ * `snake_case` stays literal. Leaves the text inside code untouched.
  *
  * @internal
  */
@@ -104,6 +105,9 @@ interface Fence {
 interface Opener {
     token: string;
     index: number;
+
+    /** End of the marker run the token came from, which may hold more than one token. */
+    end: number;
 }
 
 const FENCE_OPEN = /^\s*(`{3,}|~{3,})([^`]*)$/,
@@ -159,7 +163,7 @@ function closeInlineSyntax(text: string): string {
         if (char === '`') {
             const run = runLength(text, i, '`');
             if (!code) {
-                code = {token: '`'.repeat(run), index: i};
+                code = {token: '`'.repeat(run), index: i, end: i + run};
                 openers.push(code);
             } else if (run === code.token.length) {
                 openers.splice(openers.indexOf(code), 1);
@@ -202,7 +206,7 @@ function closeInlineSyntax(text: string): string {
                     if (canClose && openIdx >= 0) {
                         openers.splice(openIdx, 1);
                     } else if (canOpen) {
-                        openers.push({token, index: i});
+                        openers.push({token, index: i, end: i + run});
                     }
                 }
                 i += run;
@@ -211,7 +215,7 @@ function closeInlineSyntax(text: string): string {
 
             case '[': {
                 const isImage = text[i - 1] === '!';
-                openers.push({token: isImage ? '![' : '[', index: isImage ? i - 1 : i});
+                openers.push({token: isImage ? '![' : '[', index: isImage ? i - 1 : i, end: i + 1});
                 i++;
                 continue;
             }
@@ -228,7 +232,7 @@ function closeInlineSyntax(text: string): string {
                 const [opener] = openers.splice(openIdx, 1),
                     targetEnd = text.indexOf(')', i + 2);
                 if (targetEnd < 0) {
-                    openers.push({token: `${opener.token}](`, index: opener.index});
+                    openers.push({...opener, token: `${opener.token}](`});
                     break scan;
                 }
                 i = targetEnd + 1;
@@ -240,14 +244,16 @@ function closeInlineSyntax(text: string): string {
         }
     }
 
+    // A marker with nothing after its whole run - such as a trailing `***` - is removed, rather
+    // than closed against the rest of its own run.
     let ret = text;
-    for (const {token, index} of openers.reverse()) {
+    for (const {token, index, end} of openers.reverse()) {
         if (token === '[') continue;
         if (token.startsWith('![')) {
             ret = ret.slice(0, index);
         } else if (token === '[](') {
             ret += ')';
-        } else if (!ret.slice(index + token.length).trim()) {
+        } else if (!ret.slice(end).trim()) {
             ret = ret.slice(0, index);
         } else {
             ret = (token === code?.token ? ret : ret.trimEnd()) + token;
