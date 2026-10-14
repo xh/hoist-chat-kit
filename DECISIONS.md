@@ -415,3 +415,80 @@ sets `approvalPreview`. A denied call renders none.
 
 **Why.** An inline call's output is the UI the user is asked to allow. Showing it before approval,
 or after a denial, shows what the user has not agreed to.
+
+## D37. A turn aborts with a `ChatAbortError` that names its reason
+
+**Decision.** `ChatModel` aborts a turn's signal with a `ChatAbortError`, whose `reason` is a
+`ChatAbortReason`: `stop`, `detach`, `clear`, `load` or `destroy`. Its `name` is `AbortError`.
+
+**Why.** Section 2.4 of the server-mode spec passes the reason itself as the signal's `reason`.
+But `signal.throwIfAborted()` and `fetch()` throw the reason as is. A bare string would then reach
+Hoist's `FetchService`, which tells an abort from a network failure by the name `AbortError`, and
+the kit's own abort checks. An error with that name keeps every abort an abort, and still says
+why.
+
+## D38. Only a stop cancels, and only a step in flight
+
+**Decision.** `stop()` calls `ChatTransport.cancelAsync()` only while a step is in flight. It
+passes a `ChatRunRef`: the thread id, the run id from `RUN_STARTED` (or else the step's own id),
+the turn id, and the step's request. In server mode, a `detach()`, `clear()` or
+`loadMessages()` with a step in flight marks the reply `metadata.detached`. A stop while a client
+tool runs, or while the turn waits for the user, sends no cancel.
+
+**Why.** Between steps no run is going on the server, so a cancel has nothing to stop, and a
+detached flag would claim an answer the server is not writing. The request rides on the run ref
+so that `HttpChatTransport.cancelUrl` can send the `headers` and `params` of the stopped step,
+which the app builds from a request.
+
+**Alternatives.** A separate header option for the cancel call. It duplicates `headers` for
+every app that authenticates with an agent server.
+
+## D39. A new thread's id may change once, on its first run
+
+**Decision.** In server mode, a thread id is provisional until the first `RUN_STARTED` of the
+thread. If that event reports another id, the chat adopts it. A thread starts with the
+constructor, `clear()`, or `loadMessages()` with no thread id. A thread id given with history,
+through `initialMessages` or `loadMessages()`, is the backend's and never changes.
+
+**Why.** It covers both kinds of backend: one that takes the id the browser mints, and one that
+mints its own on the first turn. Adopting only once keeps a misbehaving agent from moving a
+thread that the thread layer has already keyed.
+
+## D40. `AnthropicCodec` is a client-mode codec
+
+**Decision.** `AnthropicCodec.encodeRequest()` throws for a request with `historyMode: 'server'`.
+
+**Why.** The Messages API keeps no state, so each request must carry the whole history. A
+server-owned conversation sends only the new message, which the API cannot answer. The codec
+cannot know the mode when it is built, so it throws on first use, with a message that names the
+mode.
+
+## D41. The text transform sees the raw text
+
+**Decision.** The reducer keeps the raw text of each text part of a step, and passes all of it to
+`textTransform` on each change. It stores the result. A turn that ends before its stream does
+still gets a final call, with `isStreaming: false`.
+
+**Why.** Suppose a transform ran on its own earlier output plus each new delta. It would see a
+tag split across deltas in pieces, such as `<thin` and `king>`, and could never strip it. Running on the
+raw text makes any pure transform correct, at the cost of one call per batch per changed part.
+
+## D42. Small additions to the server-mode spec
+
+**Decision.** WP 1 adds these to sections 1, 2 and 4.1 of `planning/SERVER-MODE.md`:
+
+- `ChatModel.detach()`, a public way to abort with `detach`. The thread layer and apps need it to
+  leave a turn running on the server.
+- A turn that ends with `aborted` tracks as `Turn stopped`, beside `Turn complete` and `Turn
+  failed`, so stopped turns stay visible in activity tracking. Each track also sets Hoist's own
+  `elapsed`.
+- `ChatModel.setFeedbackSubmitter()` and `canSubmitFeedback`, the seam through which
+  `ChatThreadsModel` supplies its store's submitter to a chat the app built.
+- `ChatModel.threadId` is a getter over a private observable, so only the chat sets it.
+- `hasOlderMessages` is `@bindable`, so the thread layer sets it without an action of its own.
+- `runOptions` is `@bindableRef`, and each send takes a deep copy. A deep observable would put a
+  MobX proxy in message metadata.
+- A retry, regenerate or edit re-runs with the run options recorded on its user message.
+- `ScriptedRequestContext.stepIndex` stays, read from the request, because Toolbox demos use it.
+
+**Why.** Each fills a gap the spec leaves open, without changing its contract.

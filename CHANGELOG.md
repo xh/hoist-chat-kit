@@ -65,6 +65,25 @@
 * Added `ChatToolSpec.approvalPreview`, which renders an inline call while it waits for approval.
 * Added `ChatUiComponentSpec.result`, the text sent to the model once a component shows.
 * Added `isChatImageAllowed()`, which applies an image policy to a URL.
+* Added `ChatModelConfig.historyMode`. In `server` mode an agent service owns the history, each
+  request carries only the new messages, and the chat records the server's thread and message ids.
+* Added `turnId`, `trigger`, `stepIndex`, `newMessages`, `replacedMessageId` and `runOptions` to
+  `ChatRunRequest`. A retry sends the same `turnId`, so a backend can key runs by it.
+* Added bindable `ChatModel.runOptions`, for options the user picks per turn. Each send records a
+  copy on the user message, and every request of the turn carries that copy.
+* Added `ChatModel.detach()` and abort reasons. A stop aborts with a `ChatAbortError` and calls the
+  new `ChatTransport.cancelAsync()`. In server mode, a detach, clear or load leaves the run going.
+* Added `cancelUrl` to the HTTP transports, which posts the run's ids when the user stops a run.
+* Added the `xh.chat.textReplace` and `xh.chat.message` events, and `retryAfterSeconds` on
+  `ChatRunError`, read from the `metadata` of `RUN_ERROR`.
+* Added `ChatModelConfig.textTransform`, which rewrites model text as it streams, for example to
+  strip leaked tags.
+* Added `ChatModelConfig.track`, which records each finished turn with Hoist activity tracking,
+  without message text.
+* Added `ChatModel.submitFeedbackAsync()` and `ChatModelConfig.feedback`. A rating shows at once and
+  reverts, with a toast, if the submit fails.
+* Added `ChatModel.prependMessages()` and `hasOlderMessages`, for history loaded a page at a time.
+* Added `marker` and `metadata` to the `xh.chat.source` event and to `sourceEvents()`.
 * Added `citations` to `ChatMarkdown`, and `citationMarkers` to the chat. `[1]` and `[1, 2]` in
   the text render as buttons for the sources they cite, by `marker` or by position.
 * Added `marker` and `metadata` to `ChatSourcePart`. The source list and citation chips number
