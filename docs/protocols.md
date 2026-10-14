@@ -46,7 +46,7 @@ runtime dependency on `@ag-ui/*`.
 | `RUN_STARTED`, `RUN_FINISHED`, `RUN_ERROR` | Used. `RUN_FINISHED` sets the finish reason, usage and metadata. |
 | `TEXT_MESSAGE_*` | Used. Text parts. |
 | `REASONING_*`, `REASONING_ENCRYPTED_VALUE` | Used. Reasoning parts, with signatures kept for the history. |
-| `TOOL_CALL_*`, `TOOL_CALL_RESULT` | Used. Tool call parts, run in the browser or by the backend. |
+| `TOOL_CALL_*`, `TOOL_CALL_RESULT` | Used. Tool call parts, run in the browser or by the backend. A result with `metadata.error` fails its call. |
 | `ACTIVITY_SNAPSHOT` | Used. Data parts, keyed by `activityType`. |
 | `CUSTOM` | Used for the kit's `xh.chat.*` events. Others ignored. |
 | `STATE_SNAPSHOT`, `STATE_DELTA`, `MESSAGES_SNAPSHOT` | Ignored. |
@@ -57,7 +57,7 @@ other outcome, such as `interrupt`, maps to `other`. The kit pauses for the user
 tool states, approvals and interactive tools, and not through AG-UI interrupts.
 
 Content that AG-UI has no event for travels as `CUSTOM` events named `xh.chat.*`: sources,
-citations, data parts, files and provider data. See
+citations, data parts, files, provider data and tool errors. See
 [Kit events](../transport/README.md#kit-events-xhchat).
 
 ## Anthropic Messages API
@@ -80,7 +80,7 @@ TypeScript, and not in each app's server.
 | `signature_delta` | `REASONING_ENCRYPTED_VALUE` when the block stops |
 | `tool_use` block, `input_json_delta` | `TOOL_CALL_START`, `TOOL_CALL_ARGS` |
 | `server_tool_use` block | The same, plus `xh.chat.providerExecuted` |
-| Server tool result block, such as web search | `TOOL_CALL_RESULT`. The block goes to `providerData.anthropic` for the next request. |
+| Server tool result block, such as web search | `TOOL_CALL_RESULT`, with `metadata.error` if the block reports an error. The block goes to `providerData.anthropic` for the next request. |
 | `content_block_stop` | `TEXT_MESSAGE_END`, `REASONING_END` or `TOOL_CALL_END` |
 | `message_delta`, `message_stop` | `RUN_FINISHED`, with the finish reason, `stopReason`, model and usage |
 | `error` | `RUN_ERROR`, with the Anthropic error type as its code |

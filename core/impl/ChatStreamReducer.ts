@@ -149,9 +149,18 @@ export class ChatStreamReducer {
                 this.appendToolArgs(draft, id, event.delta);
                 break;
             }
-            case 'TOOL_CALL_RESULT':
-                this.setToolResult(draft, event.toolCallId, event.content);
+            case 'TOOL_CALL_RESULT': {
+                const {toolCallId, content, metadata} = event;
+                if (isString(metadata?.error) || metadata?.isError) {
+                    const errorText = isString(metadata.error)
+                        ? metadata.error
+                        : contentText(content);
+                    this.setToolError(draft, toolCallId, errorText);
+                } else {
+                    this.setToolResult(draft, toolCallId, content);
+                }
                 break;
+            }
 
             case 'ACTIVITY_SNAPSHOT':
                 // An explicit `replace: false` asks to keep existing content - see AG-UI.
@@ -370,6 +379,22 @@ export class ChatStreamReducer {
     }
 
     private setToolResult(draft: Draft, toolCallId: string, content: string | PlainObject[]) {
+        this.finishToolCall(draft, toolCallId, {
+            state: 'output-available',
+            output: isString(content) ? parseIfJson(content) : content
+        });
+    }
+
+    private setToolError(draft: Draft, toolCallId: string, errorText: string) {
+        this.finishToolCall(draft, toolCallId, {
+            state: 'output-error',
+            output: null,
+            errorText: errorText || 'The tool failed.'
+        });
+    }
+
+    // Results come from the backend, so the call is marked as run there.
+    private finishToolCall(draft: Draft, toolCallId: string, changes: Partial<ChatToolCallPart>) {
         if (!getPart(draft, toolCallId)) {
             logDebug(['Ignored result for unknown tool call', toolCallId], this);
             return;
@@ -377,8 +402,7 @@ export class ChatStreamReducer {
         this.endToolCall(draft, toolCallId);
         putPart(draft, {
             ...getPart<ChatToolCallPart>(draft, toolCallId),
-            state: 'output-available',
-            output: isString(content) ? parseIfJson(content) : content,
+            ...changes,
             providerExecuted: true
         });
     }
@@ -428,6 +452,9 @@ export class ChatStreamReducer {
                 break;
             case 'xh.chat.providerExecuted':
                 this.updateToolCall(draft, value.toolCallId, {providerExecuted: true});
+                break;
+            case 'xh.chat.toolError':
+                this.setToolError(draft, value.toolCallId, value.message);
                 break;
             default:
                 logDebug(['Ignored custom event', name], this);
@@ -530,6 +557,15 @@ function setError(draft: Draft, error: string, errorCode: string) {
     draft.error = error;
     if (errorCode != null) draft.metadata = {...draft.metadata, errorCode};
     draft.changed = true;
+}
+
+/** Tool result content as text - as is if a string, else the text of its text parts. */
+function contentText(content: string | PlainObject[]): string {
+    if (isString(content)) return content;
+    return (content ?? [])
+        .filter(it => it.type === 'text')
+        .map(it => it.text)
+        .join('\n');
 }
 
 function parseIfJson(text: string): any {

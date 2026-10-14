@@ -669,6 +669,52 @@ describe('AnthropicCodec', () => {
             ]);
         });
 
+        it.each([
+            [
+                'an error object as its content',
+                {content: {type: 'web_search_tool_result_error', error_code: 'max_uses_exceeded'}},
+                'The tool failed: max_uses_exceeded.'
+            ],
+            [
+                'is_error',
+                {is_error: true, content: [{type: 'text', text: 'Server unreachable.'}]},
+                'Server unreachable.'
+            ]
+        ])('fails a server tool call whose result block has %s', async (_, fields, errorText) => {
+            const resultBlock = {
+                    type: 'web_search_tool_result',
+                    tool_use_id: 'srvtoolu_1',
+                    ...fields
+                },
+                message = reduce([
+                    messageStart(),
+                    {
+                        type: 'content_block_start',
+                        index: 0,
+                        content_block: {
+                            type: 'server_tool_use',
+                            id: 'srvtoolu_1',
+                            name: 'web_search'
+                        }
+                    },
+                    {type: 'content_block_stop', index: 0},
+                    {type: 'content_block_start', index: 1, content_block: resultBlock},
+                    {type: 'content_block_stop', index: 1},
+                    messageDelta('end_turn'),
+                    {type: 'message_stop'}
+                ]);
+
+            expect(message.parts[0]).toMatchObject({
+                state: 'output-error',
+                errorText,
+                providerData: {anthropic: {resultBlock}}
+            });
+
+            // The failed result still goes back verbatim, as the API expects.
+            const {messages} = await encode(new AnthropicCodec(), [user('Weather?'), message]);
+            expect(messages[1].content[1]).toEqual(resultBlock);
+        });
+
         it('marks a server tool call as run by the backend from its start', () => {
             const events = decode([
                 messageStart(),

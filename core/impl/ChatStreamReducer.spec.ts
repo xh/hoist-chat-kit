@@ -343,6 +343,49 @@ describe('ChatStreamReducer', () => {
             expect((message.parts[0] as ChatToolCallPart).output).toBe('Done.');
         });
 
+        it.each([
+            ['metadata.error', {error: 'Quota exceeded.'}, 'ignored', 'Quota exceeded.'],
+            ['metadata.isError', {isError: true}, 'Quota exceeded.', 'Quota exceeded.'],
+            ['metadata.isError with no content', {isError: true}, '', 'The tool failed.']
+        ])('fails a backend call whose result sets %s', (_, metadata, content, errorText) => {
+            const message = reduce([
+                ...toolCall('c1', 'webSearch', '{}'),
+                {type: 'TOOL_CALL_RESULT', messageId: 'res1', toolCallId: 'c1', content, metadata}
+            ]);
+            expect(message.parts[0]).toMatchObject({
+                state: 'output-error',
+                output: null,
+                errorText,
+                providerExecuted: true
+            });
+        });
+
+        it('reads the error text of an isError result from its text parts', () => {
+            const message = reduce([
+                ...toolCall('c1', 'webSearch', '{}'),
+                {
+                    type: 'TOOL_CALL_RESULT',
+                    messageId: 'res1',
+                    toolCallId: 'c1',
+                    content: [{type: 'text', text: 'Index offline.'}],
+                    metadata: {isError: true}
+                }
+            ]);
+            expect((message.parts[0] as ChatToolCallPart).errorText).toBe('Index offline.');
+        });
+
+        it('fails a backend call on xh.chat.toolError', () => {
+            const message = reduce([
+                ...toolCall('c1', 'webSearch', '{}'),
+                custom('xh.chat.toolError', {toolCallId: 'c1', message: 'Index offline.'})
+            ]);
+            expect(message.parts[0]).toMatchObject({
+                state: 'output-error',
+                errorText: 'Index offline.',
+                providerExecuted: true
+            });
+        });
+
         it('marks a call as run by the backend on xh.chat.providerExecuted', () => {
             const message = reduce([
                 {type: 'TOOL_CALL_START', toolCallId: 'c1', toolCallName: 'webSearch'},

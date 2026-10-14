@@ -347,6 +347,10 @@ events. The `AnthropicCodec` produces them from Anthropic's stream.
 - A tool that the backend runs must send its result as `TOOL_CALL_RESULT` in the same step.
   Otherwise the chat fails the call, or runs it if a client tool has the same name. Send
   `xh.chat.providerExecuted` to mark a call as the backend's before its result arrives.
+- A backend tool that fails reports it on its result, as AG-UI's event has no error field. Set
+  `metadata.error` to the error text, or set `metadata.isError: true` and send the error text as
+  `content`. A backend that cannot set `metadata` sends `xh.chat.toolError` in place of the
+  result. Either way the call shows as failed, and the model sees the error.
 - Tool arguments must parse as a JSON object. An empty argument string counts as `{}`. Anything
   else fails the call with `Invalid tool input`.
 - `RUN_FINISHED` can carry `usage` and `metadata`. The chat records both on the message. Set
@@ -670,7 +674,7 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 | `TOOL_CALL_ARGS` | `toolCallId`, `delta` | Appends to `inputText`, with a best-effort parse into `input`. |
 | `TOOL_CALL_END` | `toolCallId` | Parses the input. `input-available`, or `output-error` for bad JSON. |
 | `TOOL_CALL_CHUNK` | `toolCallId?`, `toolCallName?`, `delta?` | Starts or appends. |
-| `TOOL_CALL_RESULT` | `toolCallId`, `content` | `output-available`, with `providerExecuted: true`. JSON content is parsed. |
+| `TOOL_CALL_RESULT` | `toolCallId`, `content`, `metadata?` | `output-available`, with `providerExecuted: true`. JSON content is parsed. `output-error` if `metadata.error` or `metadata.isError` is set. |
 | `ACTIVITY_SNAPSHOT` | `messageId`, `activityType`, `content`, `replace?` | Adds or replaces a data part, with `dataType` set to `activityType`. |
 | `CUSTOM` | `name`, `value` | The `xh.chat.*` events below. Others are ignored. |
 
@@ -693,6 +697,7 @@ Content that AG-UI has no event for travels as a `CUSTOM` event with a name that
 | `xh.chat.file` | `{id?, name, mediaType, size?, url?, data?}` | Appends a file part. |
 | `xh.chat.providerData` | `{subtype, entityId, data}` | Merges `data` into the `providerData` of a reasoning part or a tool call, by provider key. |
 | `xh.chat.providerExecuted` | `{toolCallId}` | Marks a tool call as run by the backend, before its result arrives. |
+| `xh.chat.toolError` | `{toolCallId, message}` | Fails a tool call the backend ran, in place of its result. `output-error`, with `message` as `errorText`. |
 
 A Hoist server that emits AG-UI events can send a data part like this:
 

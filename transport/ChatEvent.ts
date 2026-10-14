@@ -254,7 +254,14 @@ export interface ToolCallChunkEvent extends ChatEventBase {
     delta?: string;
 }
 
-/** Result of a tool the backend ran. */
+/**
+ * Result of a tool the backend ran.
+ *
+ * AG-UI's event has no error field, so the kit reads a failure from `metadata`. A result with
+ * `metadata.error` (the error text) or `metadata.isError: true` (with the error text as `content`)
+ * fails the call: its part moves to `output-error`, with the text as `errorText`. The
+ * `xh.chat.toolError` custom event does the same for a backend that cannot set `metadata`.
+ */
 export interface ToolCallResultEvent extends ChatEventBase {
     type: 'TOOL_CALL_RESULT';
     messageId: string;
@@ -263,6 +270,9 @@ export interface ToolCallResultEvent extends ChatEventBase {
     /** The result - JSON-parsed into the part's `output` when it parses. */
     content: string | PlainObject[];
     role?: 'tool';
+
+    /** Set `error` or `isError` to report that the tool failed - see above. */
+    metadata?: PlainObject & {error?: string; isError?: boolean};
 }
 
 //------------------
@@ -321,6 +331,8 @@ export interface IgnoredEvent extends ChatEventBase {
  *    `REASONING_ENCRYPTED_VALUE`.
  *  - `xh.chat.providerExecuted` - value `{toolCallId}`, marks a tool call as run by the backend
  *    before its result arrives, so that the chat never runs it as a client tool.
+ *  - `xh.chat.toolError` - value `{toolCallId, message}`, fails a tool call the backend ran, in
+ *    place of its result. The part moves to `output-error`, with `message` as its `errorText`.
  */
 export type ChatCustomEventName =
     | 'xh.chat.source'
@@ -328,4 +340,5 @@ export type ChatCustomEventName =
     | 'xh.chat.data'
     | 'xh.chat.file'
     | 'xh.chat.providerData'
-    | 'xh.chat.providerExecuted';
+    | 'xh.chat.providerExecuted'
+    | 'xh.chat.toolError';

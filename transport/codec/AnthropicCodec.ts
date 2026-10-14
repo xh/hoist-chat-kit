@@ -1,6 +1,7 @@
 import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
 import {
+    castArray,
     compact,
     dropWhile,
     findLast,
@@ -11,6 +12,7 @@ import {
     isEmpty,
     isFunction,
     isNil,
+    isPlainObject,
     isString,
     last,
     omitBy,
@@ -26,7 +28,7 @@ import {
     isToolCallFinal
 } from '../../core';
 import type {ChatCodec, ChatDecoder} from '../ChatCodec';
-import type {ChatEvent, ChatTokenUsage} from '../ChatEvent';
+import type {ChatEvent, ChatTokenUsage, ToolCallResultEvent} from '../ChatEvent';
 import type {ChatRunRequest} from '../ChatTransport';
 import {partsBySteps, toolResultText} from '../impl/history';
 
@@ -103,8 +105,8 @@ export interface AnthropicCodecConfig {
  * the API would reject it.
  *
  * Decoding translates the stream into the kit's events: text, thinking with its signature, tool
- * calls with their streamed input, server tool calls such as web search with their results, and
- * citations as `xh.chat.citation` events. Data that must go back to Anthropic unchanged - the data
+ * calls with their streamed input, server tool calls such as web search with their results (a
+ * result block that reports an error fails its call), and citations as `xh.chat.citation` events. Data that must go back to Anthropic unchanged - the data
  * of redacted thinking, and the result blocks of server tools - is kept on the part as
  * `providerData.anthropic`. `RUN_FINISHED` reports token usage, the model, and a finish reason:
  *
@@ -565,15 +567,18 @@ class AnthropicDecoder {
             default:
                 // Server tool results (web search, web fetch, code execution...) arrive whole.
                 if (block.tool_use_id) {
-                    const toolCallId = block.tool_use_id;
-                    ret.push(
-                        {
+                    const toolCallId = block.tool_use_id,
+                        error = serverToolError(block),
+                        result: ToolCallResultEvent = {
                             type: 'TOOL_CALL_RESULT',
                             messageId: `result-${index}`,
                             toolCallId,
                             content: JSON.stringify(block.content ?? null),
                             role: 'tool'
-                        },
+                        };
+                    if (error != null) result.metadata = {error};
+                    ret.push(
+                        result,
                         // Kept verbatim - the next request must send the block back unchanged.
                         providerDataEvent('tool-call', toolCallId, {resultBlock: block})
                     );
@@ -665,6 +670,26 @@ class AnthropicDecoder {
             );
         return usage ? {metadata, usage: [decodeUsage(usage, model)]} : {metadata};
     }
+}
+
+/**
+ * The error text of a server tool result block that reports a failure, else null. A failed web
+ * search, web fetch or code execution has an error object as its `content`, such as
+ * `{type: 'web_search_tool_result_error', error_code: 'max_uses_exceeded'}`. A failed MCP call
+ * sets `is_error`, with the error text in its `content`.
+ */
+function serverToolError(block: PlainObject): string {
+    const {content, is_error} = block;
+    if (isPlainObject(content) && content.error_code != null) {
+        return `The tool failed: ${content.error_code}.`;
+    }
+    if (is_error) {
+        const text = isString(content)
+            ? content
+            : compact(castArray(content).map(it => it?.text)).join('\n');
+        return text || 'The tool failed.';
+    }
+    return null;
 }
 
 /** An event that keeps Anthropic data on a part, for the next request to send back. */
