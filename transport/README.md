@@ -524,7 +524,12 @@ import static java.nio.charset.StandardCharsets.UTF_8
 
 /**
  * Relays the Anthropic Messages API as a token stream. The API key lives in the `chatApiKey`
- * config, so it never reaches the client. The server also sets the model and token limit.
+ * config, so it never reaches the client.
+ *
+ * The browser builds the request body, so the service treats it as untrusted. It forwards only
+ * `system`, `messages`, `tools` and `tool_choice`, rejects any other key, and sets `model`,
+ * `max_tokens` and `stream` itself. It accepts only client tools, which have no `type`, and caps
+ * the size of the body.
  */
 class ChatService extends BaseService {
 
@@ -559,15 +564,16 @@ class ChatService extends BaseService {
         def key = configService.getPwd('chatApiKey')
         if (!key?.trim()) throw new DataNotAvailableException('Chat API key not configured.')
 
+        def json = JSONSerializer.serialize(createBody(request))
+        if (json.length() > MAX_BODY_CHARS) {
+            throw new RoutineRuntimeException('This conversation is too large to send. Clear it to start again.')
+        }
+
         def post = new HttpPost('https://api.anthropic.com/v1/messages')
         post.setHeader('Content-Type', 'application/json')
         post.setHeader('x-api-key', key)
         post.setHeader('anthropic-version', '2023-06-01')
-        post.setEntity(new StringEntity(JSONSerializer.serialize(request + [
-            model     : configService.getString('chatModel'),
-            max_tokens: configService.getInt('chatMaxTokens'),
-            stream    : true
-        ]), UTF_8))
+        post.setEntity(new StringEntity(json, UTF_8))
 
         CloseableHttpResponse response = null
         boolean complete = false
@@ -590,6 +596,28 @@ class ChatService extends BaseService {
             if (!complete) post.abort()
             try { response?.close() } catch (Exception ignored) {}
         }
+    }
+
+    /** The body to send upstream - the client's allowed keys, plus the server's own settings. */
+    private Map createBody(Map request) {
+        // A codec may send `model`, `max_tokens` and `stream`. The server sets them itself.
+        def disallowed = request.keySet() - CLIENT_KEYS - ['model', 'max_tokens', 'stream']
+        if (disallowed) {
+            throw new RoutineRuntimeException("Request key(s) not accepted: ${disallowed.join(', ')}.")
+        }
+        if (!request.messages) throw new RoutineRuntimeException('Request has no messages.')
+
+        // Server tools, such as web search or code execution, carry a `type`. They cost extra and
+        // reach other systems, so only the server may add them.
+        if ((request.tools ?: []).any { it.type }) {
+            throw new RoutineRuntimeException('Request includes server tools, which are not accepted.')
+        }
+
+        return request.subMap(CLIENT_KEYS) + [
+            model     : configService.getString('chatModel'),
+            max_tokens: configService.getInt('chatMaxTokens'),
+            stream    : true
+        ]
     }
 
     /** Parse the SSE stream. Returns true if it ended normally, false if `onEvent` stopped it. */
@@ -616,12 +644,24 @@ class ChatService extends BaseService {
         streamClient.close()
         super.destroy()
     }
+
+    /** Request keys forwarded from the client. */
+    private static final List<String> CLIENT_KEYS = ['system', 'messages', 'tools', 'tool_choice']
+
+    private static final int MAX_BODY_CHARS = 4_000_000
 }
 ```
 
-The browser builds the request body, so treat it as untrusted. The service above sets `model`,
-`max_tokens` and `stream` itself. Add checks for anything else that costs money or reaches other
-systems, such as server tools in `tools`. The Toolbox service also adds a per-user rate limit.
+The browser builds the request body, so the service treats it as untrusted. It builds the
+upstream body from an allowlist, rejects tools the client should not choose, and caps the size.
+Add checks for anything else that costs money or reaches other systems. The Toolbox service also
+caps the number of messages, adds a per-user rate limit, and takes other request params, such as
+`thinking`, and any server tools only from config.
+
+Gate the endpoint by role, as `@AccessRequiresRole` does above, so that only the users meant to
+reach the model can. If the server relays to an agent service of your own rather than to
+Anthropic, it forwards who the user is: the server sets the identity headers on the upstream call,
+from the authenticated Hoist user. They never come from the browser, which could set any value.
 
 If tokens still arrive in bursts, check each layer between the server and the browser for
 buffering or compression. Watch the response in the browser's network panel to confirm that
