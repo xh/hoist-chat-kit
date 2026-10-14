@@ -312,8 +312,9 @@ The catalog checks props with a built-in subset of JSON Schema, and adds no vali
 dependency. Its constructor walks each props schema and throws on any keyword that affects
 validity but that it does not check, such as `$ref`, `$defs`, `allOf`, `not`, `if`,
 `exclusiveMinimum`, `uniqueItems`, `multipleOf`, `minProperties`, `prefixItems`, array-form
-`items` or `patternProperties`. The error names each keyword and where it sits. Annotations,
-such as `title`, `description`, `default` and `format`, are sent to the model and not checked.
+`items` or `patternProperties`. The error names each keyword and where it sits. The catalog
+sends annotations, such as `title`, `description`, `default` and `format`, to the model, and does
+not check them.
 The constructor also compiles each `pattern` with the `u` flag, and throws on one that does not
 compile. Pair a `pattern` with a `maxLength`, as a long string makes a costly match.
 

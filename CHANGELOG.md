@@ -51,6 +51,34 @@
   components through `ChatUiCatalog.createDataRenderers()`.
 * Added `chatUiFrame`, `fmtChatUiNumber` and the number format schemas, so that app components
   match the built-in ones.
+* Added `url`, `headers` and `params` as functions of the request, sync or async, on the HTTP
+  transports, for example to send a fresh token with each step.
+* Added `idleTimeout` to the HTTP transports. A stream that sends nothing for longer fails with
+  code `stalled`. SSE comments and `{"type": "xh.heartbeat"}` NDJSON records reset it.
+* Added an error flag for backend tools: `metadata.error` or `metadata.isError` on
+  `TOOL_CALL_RESULT`, or an `xh.chat.toolError` event, fails the call as `output-error`.
+* Added `ChatModelConfig.sendBlocker`, which returns a reason to hold back sending. The composer
+  disables Send and shows the reason as a tooltip and an accessible status.
+* Added bindable `enableAttachments`, `accept`, `maxFiles` and `maxFileSize` on
+  `ChatComposerModel`, so that apps can change them after construction.
+* Added `state` to `AgUiCodec`, a value or a function of the request, sent as the run's `state`.
+* Added `ChatToolSpec.approvalPreview`, which renders an inline call while it waits for approval.
+* Added `ChatUiComponentSpec.result`, the text sent to the model once a component shows.
+* Added `isChatImageAllowed()`, which applies an image policy to a URL.
+
+### 🐞 Bug Fixes
+
+* Fixed a failed backend tool showing as a success. `AnthropicCodec` now fails a server tool call
+  whose result block reports an error, such as a web search over its `max_uses`.
+* Fixed one throwing renderer breaking the whole message list. Each message and part now renders
+  in an error boundary, with a compact note in place of a part that fails.
+* Fixed `ChatUiCatalog` accepting schema keywords it does not check, such as `$ref` or `allOf`.
+  It now throws on them, and on a `pattern` that does not compile.
+* Fixed inherited keys such as `toString` passing `additionalProperties: false` in catalog props.
+* Fixed a denied inline call still showing its component, and an inline call showing before
+  approval.
+* Fixed file chips loading images at a URL with no image policy. They now follow `allowImages`.
+* Fixed a trailing `***` streaming as `******`.
 
 ### ✨ Styles
 
@@ -59,6 +87,8 @@
 
 ### ⚙️ Technical
 
+* Reduced the catalog instructions to each tool's name and example props, so that each component
+  description reaches the model once, in its tool.
 * Added a package build check (`pnpm build`) to CI and to both deploy workflows.
 * CodeQL now runs only when the repo is public, because code scanning needs GitHub Code Security on
   a private repo.

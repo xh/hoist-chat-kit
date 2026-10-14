@@ -158,7 +158,10 @@ native fetch through `fetchOpts.signal`. They combine it with the turn's signal 
 `XH.fetchService.abort(key)` returns false and the body keeps streaming, so the server keeps
 generating tokens. A signal on the native fetch cancels the body too.
 
-**Cost.** `AbortSignal.any` needs a 2024-or-later browser. A `signal` option on Hoist's
+**Cost.** `AbortSignal.any` needs a 2024-or-later browser. That is inside the default Hoist
+targets, which hoist-dev-utils sets to the last 2 versions of Chrome, Safari, iOS and Edge. The
+signal replaces Hoist's own aborter, so Hoist's `timeout` can reject a request but not abort its
+fetch. The transport closes the connection itself in that case. A `signal` option on Hoist's
 `FetchOptions`, with abort support for streamed responses, would let the transports drop the
 workaround.
 
@@ -341,3 +344,74 @@ sends an `xh.chat.interrupt` custom event.
 
 **Why.** AG-UI 1.0 standardizes the interrupt outcome and resume entries. A fallback keeps agents
 on older adapters working.
+
+## D30. Backend tool errors travel in the result's metadata
+
+**Decision.** A `TOOL_CALL_RESULT` with `metadata.error` (the error text), or with
+`metadata.isError: true` (the text as `content`), fails its call as `output-error`. An
+`xh.chat.toolError` custom event does the same, for a backend that cannot set `metadata`.
+`AnthropicCodec` maps a server tool result block that reports an error to the same failure.
+
+**Why.** AG-UI's result event has no error field, so a failed backend tool showed as a success.
+AG-UI's tool message has `error`, and `metadata.error` mirrors it. A custom event covers servers
+on strict AG-UI libraries.
+
+## D31. An error boundary around each message and each part
+
+**Decision.** Each message, and each part within it, renders inside Hoist's `ErrorBoundary`. A
+part that throws shows a compact note with a Details disclosure, and Hoist's exception handler
+logs the error with no alert. A streaming part gets another try when its state changes, and a
+data part when it is replaced.
+
+**Why.** Renderers are app code and model-driven content, and one that throws took down the whole
+list. Hoist's boundary keeps Hoist's logging. The retry on a state change lets a renderer that
+throws on partial input recover, without a re-render on every flush.
+
+## D32. The catalog refuses schema keywords it cannot check
+
+**Decision.** The `ChatUiCatalog` constructor throws on any props schema keyword that affects
+validity and that the checker does not implement, such as `$ref`, `allOf` or
+`exclusiveMinimum`. It also compiles each `pattern`, and throws on one that does not compile.
+
+**Why.** The catalog promises that the model passes only schema-valid props. A keyword the checker
+skipped broke that promise unseen.
+
+**Alternatives.** A full JSON Schema validator. It adds a dependency. Ajv, a common choice,
+compiles each schema to code with `new Function`, which a strict content security policy
+forbids.
+
+## D33. File chips follow the markdown image policy
+
+**Decision.** `ChatFileChip` loads an image at a URL only if `allowImages` permits it. An image
+with inline `data` always shows.
+
+**Why.** A backend file part with an image URL reopened the data leak that D16 closed. Inline data
+loads nothing, so the user's own attachments need no policy.
+
+## D34. A silent stream fails as a turn error, coded `stalled`
+
+**Decision.** The HTTP transports take an `idleTimeout`. Any data resets it, including an SSE
+comment or an `{"type": "xh.heartbeat"}` NDJSON record, which is never decoded. When it fires, the
+transport closes the connection and yields `RUN_ERROR` with code `stalled`.
+
+**Why.** Hoist's `timeout` covers only the wait for the response to start. A `RUN_ERROR` keeps the
+stall in the conversation, with Retry, rather than an exception report. A heartbeat record lets an
+NDJSON server keep a slow tool call alive without inventing an AG-UI event.
+
+## D35. A send blocker returns the reason to wait
+
+**Decision.** `ChatModelConfig.sendBlocker` returns why the user must wait, or null. The chat
+reads it as a computed value. While it returns a reason, `canSend` is false, `sendAsync` and
+`editMessageAsync` do nothing, and the composer disables Send with the reason as its tooltip and
+as an accessible status.
+
+**Why.** A reason, not a boolean, tells the user what to do next. Blocking `sendAsync` too keeps
+suggestion chips and card actions from getting around the rule.
+
+## D36. Inline calls show nothing until approved
+
+**Decision.** An inline tool call renders no output while it waits for approval, unless its tool
+sets `approvalPreview`. A denied call renders none.
+
+**Why.** An inline call's output is the UI the user is asked to allow. Showing it before approval,
+or after a denial, shows what the user has not agreed to.
