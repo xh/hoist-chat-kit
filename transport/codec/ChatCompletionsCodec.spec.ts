@@ -210,7 +210,7 @@ describe('ChatCompletionsCodec', () => {
     });
 
     describe('createDecoder', () => {
-        it('streams text, finishes on the finish reason, and adds the final usage chunk', () => {
+        it('streams text, and finishes once, with the usage of the chunk after the finish reason', () => {
             const events = decode(TEXT_STREAM);
 
             expect(events).toEqual([
@@ -223,12 +223,7 @@ describe('ChatCompletionsCodec', () => {
                     type: 'RUN_FINISHED',
                     threadId: 't1',
                     runId: 'r1',
-                    metadata: {finishReason: 'stop', stopReason: 'stop', model: 'gpt-test'}
-                },
-                {
-                    type: 'RUN_FINISHED',
-                    threadId: 't1',
-                    runId: 'r1',
+                    metadata: {finishReason: 'stop', stopReason: 'stop', model: 'gpt-test'},
                     usage: [
                         {
                             model: 'gpt-test',
@@ -288,6 +283,33 @@ describe('ChatCompletionsCodec', () => {
             ]);
         });
 
+        it('finishes at the end of a stream whose usage chunk never comes', () => {
+            const stream = [chunk({content: 'Hi'}), chunk({}, 'stop')],
+                decoder = new ChatCompletionsCodec().createDecoder(request([]));
+
+            expect(stream.flatMap(raw => decoder(raw)).map(it => it.type)).not.toContain(
+                'RUN_FINISHED'
+            );
+            expect(decoder.flush()).toEqual([
+                {
+                    type: 'RUN_FINISHED',
+                    threadId: 't1',
+                    runId: 'r1',
+                    metadata: {finishReason: 'stop', stopReason: 'stop', model: 'gpt-test'}
+                }
+            ]);
+            expect(decoder.flush()).toEqual([]);
+            expect(reduce(stream).status).not.toBe('error');
+        });
+
+        it('finishes on the finish reason when it asks for no usage', () => {
+            const decoder = new ChatCompletionsCodec({includeUsage: false}).createDecoder(
+                request([])
+            );
+            expect(decoder(chunk({}, 'stop')).at(-1)).toMatchObject({type: 'RUN_FINISHED'});
+            expect(decoder.flush()).toEqual([]);
+        });
+
         it('decodes reasoning_content as reasoning, and a refusal as text', () => {
             const message = reduce([
                 chunk({role: 'assistant', reasoning_content: 'Think'}),
@@ -320,36 +342,41 @@ describe('ChatCompletionsCodec', () => {
             ]);
         });
 
-        it('decodes a recorded SSE stream, ending with [DONE], through SseChatTransport', async () => {
-            const body = TEXT_STREAM.map(it => `data: ${JSON.stringify(it)}\n\n`).join('');
-            hoistCore.route(
-                'POST',
-                'llm/openai',
-                () =>
-                    new Response(`${body}data: [DONE]\n\n`, {
-                        headers: {'Content-Type': 'text/event-stream'}
-                    })
-            );
+        it.each([
+            ['with', TEXT_STREAM],
+            ['without', TEXT_STREAM.slice(0, -1)]
+        ])(
+            'decodes an SSE stream %s a usage chunk, through SseChatTransport, to one finish',
+            async (_, stream) => {
+                const body = stream.map(it => `data: ${JSON.stringify(it)}\n\n`).join('');
+                hoistCore.route(
+                    'POST',
+                    'llm/openai',
+                    () =>
+                        new Response(`${body}data: [DONE]\n\n`, {
+                            headers: {'Content-Type': 'text/event-stream'}
+                        })
+                );
 
-            const transport = new SseChatTransport({
-                    url: 'llm/openai',
-                    codec: new ChatCompletionsCodec({system: 'Be brief.'})
-                }),
-                events: ChatEvent[] = [];
-            for await (const event of transport.run(request([user('Hi')]))) events.push(event);
+                const transport = new SseChatTransport({
+                        url: 'llm/openai',
+                        codec: new ChatCompletionsCodec({system: 'Be brief.'})
+                    }),
+                    events: ChatEvent[] = [];
+                for await (const event of transport.run(request([user('Hi')]))) events.push(event);
 
-            expect(events.map(it => it.type)).toEqual([
-                'RUN_STARTED',
-                'TEXT_MESSAGE_START',
-                'TEXT_MESSAGE_CONTENT',
-                'TEXT_MESSAGE_CONTENT',
-                'TEXT_MESSAGE_END',
-                'RUN_FINISHED',
-                'RUN_FINISHED'
-            ]);
-            const [req] = hoistCore.requestsTo('llm/openai');
-            expect(req.json.messages[0]).toEqual({role: 'system', content: 'Be brief.'});
-        });
+                expect(events.map(it => it.type)).toEqual([
+                    'RUN_STARTED',
+                    'TEXT_MESSAGE_START',
+                    'TEXT_MESSAGE_CONTENT',
+                    'TEXT_MESSAGE_CONTENT',
+                    'TEXT_MESSAGE_END',
+                    'RUN_FINISHED'
+                ]);
+                const [req] = hoistCore.requestsTo('llm/openai');
+                expect(req.json.messages[0]).toEqual({role: 'system', content: 'Be brief.'});
+            }
+        );
     });
 });
 
@@ -467,10 +494,10 @@ function file(name: string, mediaType: string, source: {data?: string; url?: str
     return {type: 'file', id: name, name, mediaType, ...source};
 }
 
-/** Decode a recorded stream - the `data` of each SSE event, in order. */
+/** Decode a recorded stream - the `data` of each SSE event, in order - then flush the decoder. */
 function decode(stream: PlainObject[]): ChatEvent[] {
     const decoder = new ChatCompletionsCodec().createDecoder(request([]));
-    return stream.flatMap(raw => decoder(raw));
+    return [...stream.flatMap(raw => decoder(raw)), ...decoder.flush()];
 }
 
 /** Decode a recorded stream and reduce it into an assistant message, as ChatModel does. */

@@ -190,6 +190,7 @@ export abstract class HttpChatTransport implements ChatTransport {
                 if (data != null && data.type !== HEARTBEAT_TYPE) yield* decode(data, eventName);
                 startIdleTimer();
             }
+            if (decode.flush) yield* decode.flush();
         } catch (e) {
             if (!stall.signal.aborted || signal.aborted) throw e;
             yield {

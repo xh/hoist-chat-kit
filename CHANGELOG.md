@@ -130,6 +130,8 @@
   `preview: true` does what `approvalPreview` does.
 * Added `ChatCompletionsCodec`, for model gateways that speak the OpenAI chat completions format,
   such as Azure OpenAI and LiteLLM.
+* Added `flush()` to `ChatDecoder`, for events a decoder holds back until its stream ends.
+  `ChatCompletionsCodec` uses it to send one `RUN_FINISHED` per step, with the token usage.
 * Added `ChatService`, which reads the app's LLM backend from the `chatConfig` soft config and
   builds a transport for it, so a helper agent needs no wiring of its own.
 * Added `gridTools` and `dashCanvasTools`, tool groups that let a helper agent arrange a grid or a

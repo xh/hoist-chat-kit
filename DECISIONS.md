@@ -624,7 +624,8 @@ replies.
 - The desktop message view shows the Undo action, beside Regenerate.
 - `ChatCompletionsCodec` finishes each step on the chunk with a `finish_reason`, because the
   `[DONE]` sentinel never reaches a codec. The usage chunk that follows becomes a second
-  `RUN_FINISHED` with only `usage`, which the reducer already merges into the reply.
+  `RUN_FINISHED` with only `usage`, which the reducer already merges into the reply. Superseded by
+  [D52](#d52-a-codec-sends-one-run_finished-per-step).
 - It decodes `refusal` as text, and `reasoning_content`, which some gateways add, as reasoning. It
   sends no reasoning back, and prefixes a failed call's result with `Error:`, as the format has no
   error flag.
@@ -664,3 +665,18 @@ its context synchronously, so it could not await a prompt function.
   no undo.
 
 **Why.** Each keeps the spec's contract, or follows the Hoist API where the spec is silent.
+
+## D52. A codec sends one `RUN_FINISHED` per step
+
+**Decision.** `ChatCompletionsCodec` holds its `RUN_FINISHED` back until the usage chunk, or the
+end of the stream, and sends one event with the usage. A `ChatDecoder` may add a `flush()`, which
+the HTTP transports call after the last record of a stream that ended normally. The codec holds
+the finish only with `includeUsage`, so a stream that asks for no usage finishes at once. This
+replaces the second `RUN_FINISHED` of D49.
+
+**Why.** AG-UI ends a run with one `RUN_FINISHED`, and the kit documents it as the last event of a
+step. The reducer merged a second one, but any other reader of the stream, such as a relay or a
+test, saw two finishes.
+
+**Alternatives.** Wait for the usage chunk with no flush. A gateway that ignores `stream_options`
+would then never finish, and every turn would fail as `incomplete-stream`.

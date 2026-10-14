@@ -12,7 +12,7 @@ import {
 } from '../../core';
 import {genChatId} from '../../impl/ids';
 import type {ChatCodec, ChatDecoder} from '../ChatCodec';
-import type {ChatEvent, ChatTokenUsage} from '../ChatEvent';
+import type {ChatEvent, ChatTokenUsage, RunFinishedEvent} from '../ChatEvent';
 import type {ChatRunRequest} from '../ChatTransport';
 import {contextText} from '../impl/context';
 import {decodeBase64Text, IMAGE_TYPES, isTextType, omittedFileText} from '../impl/files';
@@ -79,9 +79,10 @@ export interface ChatCompletionsCodecConfig {
  *  - `content-filter` - for `content_filter`.
  *  - `other` - for anything else.
  *
- * The raw `finish_reason` is reported alongside, as `stopReason`, with the model. The usage
- * chunk, which follows the finish reason, is reported by a second `RUN_FINISHED` that carries
- * only `usage` - the chat adds it to the reply. A stream record with an `error` - or an SSE event
+ * The raw `finish_reason` is reported alongside, as `stopReason`, with the model. With
+ * `includeUsage`, the usage arrives in a chunk of its own after the finish reason, so the codec
+ * holds `RUN_FINISHED` back until that chunk, or until the stream ends, and reports the usage on
+ * it. Each step gets exactly one `RUN_FINISHED`. A stream record with an `error` - or an SSE event
  * named `error` - becomes `RUN_ERROR`, with the error's `code`, or else its `type`, as its code.
  * The `[DONE]` sentinel never reaches the codec: {@link SseChatTransport} skips it, and a relay
  * should drop it.
@@ -153,8 +154,13 @@ export class ChatCompletionsCodec implements ChatCodec {
     }
 
     createDecoder(request: ChatRunRequest): ChatDecoder {
-        const decoder = new ChatCompletionsDecoder(request);
-        return (raw, eventName) => decoder.decode(raw, eventName);
+        const decoder = new ChatCompletionsDecoder(request, this.includeUsage);
+        return Object.assign(
+            (raw: PlainObject, eventName: string) => decoder.decode(raw, eventName),
+            {
+                flush: () => decoder.flush()
+            }
+        );
     }
 
     //------------------
@@ -281,24 +287,31 @@ const FINISH_REASONS: Record<string, string> = {
 class ChatCompletionsDecoder {
     private readonly request: ChatRunRequest;
 
+    // True if the stream ends with a usage chunk, which the finish waits for.
+    private readonly expectsUsage: boolean;
+
     // Tool call ids, by the index that their fragments carry.
     private toolCallIds = new Map<number, string>();
 
     private isStarted = false;
     private isFinished = false;
-    private hasUsage = false;
     private textId: string = null;
     private reasoningId: string = null;
     private model: string = null;
     private usage: PlainObject = null;
 
-    constructor(request: ChatRunRequest) {
+    // The step's finish, held back until the usage arrives or the stream ends.
+    private heldFinish: RunFinishedEvent = null;
+
+    constructor(request: ChatRunRequest, expectsUsage: boolean) {
         this.request = request;
+        this.expectsUsage = expectsUsage;
     }
 
     decode(raw: PlainObject, eventName: string): ChatEvent[] {
         if (raw.error || eventName === 'error') {
             const error = raw.error ?? raw;
+            this.heldFinish = null;
             return [
                 {
                     type: 'RUN_ERROR',
@@ -317,14 +330,8 @@ class ChatCompletionsDecoder {
         this.model = raw.model ?? this.model;
         if (raw.usage) this.usage = raw.usage;
 
-        if (this.isFinished) {
-            // The usage chunk, after the finish reason.
-            if (this.usage && !this.hasUsage) {
-                this.hasUsage = true;
-                ret.push({type: 'RUN_FINISHED', threadId, runId, usage: [this.decodeUsage()]});
-            }
-            return ret;
-        }
+        // The usage chunk, after the finish reason. A repeat finds no finish left to complete.
+        if (this.isFinished) return this.usage ? [...ret, ...this.releaseFinish()] : ret;
 
         const choice = raw.choices?.find(it => (it.index ?? 0) === 0);
         if (!choice) return ret;
@@ -332,6 +339,11 @@ class ChatCompletionsDecoder {
         ret.push(...this.applyDelta(choice.delta ?? {}));
         if (choice.finish_reason) ret.push(...this.finish(choice.finish_reason));
         return ret;
+    }
+
+    /** The finish, if still held back for a usage chunk that never came. */
+    flush(): ChatEvent[] {
+        return this.releaseFinish();
     }
 
     //------------------
@@ -393,12 +405,11 @@ class ChatCompletionsDecoder {
     private finish(finishReason: string): ChatEvent[] {
         this.isFinished = true;
         const {threadId, runId} = this.request,
-            {model, usage} = this,
             metadata = omitBy(
                 {
                     finishReason: FINISH_REASONS[finishReason] ?? 'other',
                     stopReason: finishReason,
-                    model
+                    model: this.model
                 },
                 isNil
             ),
@@ -412,19 +423,16 @@ class ChatCompletionsDecoder {
             ];
 
         // Some gateways send the usage with the finish reason, rather than in a chunk of its own.
-        if (usage) {
-            this.hasUsage = true;
-            ret.push({
-                type: 'RUN_FINISHED',
-                threadId,
-                runId,
-                metadata,
-                usage: [this.decodeUsage()]
-            });
-        } else {
-            ret.push({type: 'RUN_FINISHED', threadId, runId, metadata});
-        }
+        this.heldFinish = {type: 'RUN_FINISHED', threadId, runId, metadata};
+        if (this.usage || !this.expectsUsage) ret.push(...this.releaseFinish());
         return ret;
+    }
+
+    private releaseFinish(): ChatEvent[] {
+        const {heldFinish, usage} = this;
+        if (!heldFinish) return [];
+        this.heldFinish = null;
+        return [usage ? {...heldFinish, usage: [this.decodeUsage()]} : heldFinish];
     }
 
     private closeText(): ChatEvent[] {

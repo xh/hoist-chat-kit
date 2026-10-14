@@ -74,8 +74,8 @@ export interface RunStartedEvent extends ChatEventBase {
 }
 
 /**
- * The run has finished normally. A stream that ends without this event, or `RUN_ERROR`, fails the
- * turn as incomplete.
+ * The run has finished normally. A stream sends it once, as its last event. A stream that ends
+ * without this event, or `RUN_ERROR`, fails the turn as incomplete.
  */
 export interface RunFinishedEvent extends ChatEventBase {
     type: 'RUN_FINISHED';

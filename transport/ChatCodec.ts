@@ -30,7 +30,17 @@ export interface ChatCodec {
  * Decodes one record from the backend - a parsed NDJSON line, or the parsed `data` of an SSE
  * frame - into zero or more events.
  *
- * @param raw - the parsed record.
- * @param eventName - the SSE `event` field, if the transport has one.
+ * A decoder may hold events back until a later record, or the end of the stream, completes them -
+ * such as a finish that waits for the usage record after it. It returns them from `flush`, which a
+ * transport calls once, after the last record of a stream that ended normally.
  */
-export type ChatDecoder = (raw: PlainObject, eventName?: string) => ChatEvent[];
+export interface ChatDecoder {
+    /**
+     * @param raw - the parsed record.
+     * @param eventName - the SSE `event` field, if the transport has one.
+     */
+    (raw: PlainObject, eventName?: string): ChatEvent[];
+
+    /** Events held back for the end of the stream. Optional. */
+    flush?: () => ChatEvent[];
+}

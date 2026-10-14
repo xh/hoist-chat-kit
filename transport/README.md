@@ -303,9 +303,10 @@ The codec decodes text, `refusal` text, and tool calls. A tool call arrives in f
 Some gateways and open models add `reasoning_content`, which the codec decodes as reasoning.
 
 The chunk that carries `finish_reason` ends the step with `RUN_FINISHED`, as the `[DONE]`
-sentinel never reaches a codec. The usage chunk that follows it adds a second `RUN_FINISHED`, with
-only the token counts. The chat adds them to the reply. A record with an `error` becomes
-`RUN_ERROR`, with the error's `code`, or else its `type`, as its code.
+sentinel never reaches a codec. With `includeUsage`, the token counts come in a chunk of their own
+after it. The codec holds `RUN_FINISHED` back until that chunk, or the end of the stream, and
+sends one `RUN_FINISHED` with the counts. A record with an `error` becomes `RUN_ERROR`, with the
+error's `code`, or else its `type`, as its code.
 
 | `finish_reason` | `finishReason` |
 |-----------------|----------------|
@@ -1005,7 +1006,9 @@ OpenAI codec would encode the history as OpenAI messages and decode the OpenAI s
 - `encodeRequest(request)` returns the body for one step. It can be async.
 - `createDecoder(request)` returns a function for one step. The function takes a record and the
   SSE event name, if any, and returns zero or more events. It can hold state across the records
-  of a step, such as block indexes.
+  of a step, such as block indexes. To hold events back until the stream ends, give the function
+  a `flush()` that returns them. The HTTP transports call it after the last record.
+- Send exactly one `RUN_FINISHED` per step.
 - Map the provider's stop reason to the `finishReason` values, and keep the raw value as
   `metadata.stopReason`.
 - Keep provider data that must go back with the history in `providerData`, under the provider's
