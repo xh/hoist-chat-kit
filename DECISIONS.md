@@ -165,6 +165,8 @@ fetch. The transport closes the connection itself in that case. A `signal` optio
 `FetchOptions`, with abort support for streamed responses, would let the transports drop the
 workaround.
 
+**Status.** Filed as [xh/hoist-react#4855](https://github.com/xh/hoist-react/issues/4855).
+
 ## D15. Generative UI is a Hoist component catalog, with protocols as translators
 
 **Decision.** The next deliverable after the chat UI is a generative UI registry. An app
