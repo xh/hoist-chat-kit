@@ -92,6 +92,18 @@
   marker. Apps with a document viewer open the source there in place of its URL.
 * Added `markdownPlugins`, which adds app remark and rehype plugins after the kit's own, for
   example `remark-math` and `rehype-katex` for math.
+* Added `ChatThreadsModel` and the `ChatThreadStore` adapter, a thread layer for conversations a
+  backend stores. It holds a chat per open thread, so turns run on in the background.
+* Added paged thread lists, server-side search, paged history, deep links, and rename, pin and
+  delete that show at once and roll back with a toast if the store fails.
+* Added `groupThreadsByRecency()`, which groups threads into Pinned, Today, Yesterday and older
+  groups by the browser's calendar days.
+* Added `LocalChatThreadStore`, an in-memory store for tests and demos, with latency, failures and
+  held calls on request.
+* Added `ChatModel.setThreadCreator()` and `addSendBlocker()`, the seams a thread layer uses to
+  create threads on the backend and to hold back sends.
+* Added the `empty-response` error code. A run that finishes with nothing in the reply now fails,
+  with Retry, rather than show a blank message.
 
 ### 🐞 Bug Fixes
 

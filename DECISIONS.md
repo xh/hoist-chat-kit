@@ -492,3 +492,67 @@ raw text makes any pure transform correct, at the cost of one call per batch per
 - `ScriptedRequestContext.stepIndex` stays, read from the request, because Toolbox demos use it.
 
 **Why.** Each fills a gap the spec leaves open, without changing its contract.
+
+## D43. The thread layer reaches a chat through three seams
+
+**Decision.** `ChatModel` gains `setThreadCreator()` and `addSendBlocker()`, beside
+`setFeedbackSubmitter()` (D42). The chat awaits its thread creator before the first request of a
+new thread, in either history mode, and adopts the id it returns as it would one from
+`RUN_STARTED`. A failed create fails the turn, with Retry. An added blocker holds back sends as the
+configured `sendBlocker` does, and is checked after it. `ChatThreadsModel` shares one
+`createThreadAsync` call per local id, and drops it only if it failed.
+
+**Why.** Section 3.3 rule 5 needs the create awaited before the first run, but the app builds the
+chat and its transport, so the thread layer cannot wrap either. The thread layer also needs to
+block sends while history loads, after a failed load, and while another thread runs, on chats
+that may have a `sendBlocker` of their own.
+
+**Alternatives.** Create the thread when the user starts it. That would leave an empty row on the
+backend for every New chat click.
+
+## D44. A run that finishes with nothing fails, coded `empty-response`
+
+**Decision.** The stream reducer fails a reply that has no parts when its run finishes. The turn
+ends as an error, with Retry, in both history modes.
+
+**Why.** Section 3.3 rule 9. Each chat guards its own turn, so the rule belongs in the chat, not
+in the thread layer. A blank reply looked like a success and gave the user nothing to retry.
+
+## D45. The thread list is a computed overlay
+
+**Decision.** `ChatThreadsModel.threads` is a computed value, not the `@observableRef` field of
+section 3.2. It joins the threads started here that the store has not listed yet, and the store's
+own pages, then lays pending renames, pins and deletes over them by id. An edit stays laid over
+the list until a list requested after its store call ended applies. A failed edit leaves the
+overlay at once, which is the whole rollback. A list applies only if no newer list has, by a
+request count of the model's own rather than `loadSpec.isStale`, so that further pages check the
+same count.
+
+**Why.** Rule 1, and the stale list that brought a deleted thread back in assistant-ui (#8194). A
+list sent before a delete ended can still arrive after it. An overlay that outlives the store call
+by one list covers that case, and a newer rename survives an older one that fails.
+
+## D46. Small additions to the thread layer spec
+
+**Decision.** WP 2 adds these to section 3 of `planning/SERVER-MODE.md`:
+
+- `reloadThreadAsync()`, the Retry of rule 8. It also catches up on a turn that the backend
+  finished on its own. `loadError` holds the selected thread's failure, and `listError` the last
+  list failure, shown inline rather than as a toast.
+- `selectedSummary`, `hasMoreThreads`, and `olderMessagesTask` beside `listTask` and `loadTask`,
+  so that a list can show "loading older" without masking the conversation.
+- `ChatSeedSpec` is `{draft, runOptions}`. Seed messages are left out, as a server-owned thread
+  would lose them on reload.
+- A chat that changes its thread id while busy has adopted the backend's id, and the model
+  re-keys the thread. One that changes it while idle, through `clear()` or `loadMessages()`, holds
+  a new thread, and the old thread stays in the list.
+- A closed chat's draft and run options are kept by thread id, and restored when it opens again.
+- Deleting threads stops any turn running in them. Deleting the selected thread selects a new one.
+- A missing thread is a store error with `httpStatus` 404, as Hoist's `FetchService` reports it,
+  or an empty page.
+- A refresh asks for as many threads as the list holds, so loaded pages stay. A turn that ends
+  reloads the list after one second, debounced across turns.
+- With `allowConcurrentTurns: false`, retry and regenerate are not blocked, as D35 defines a send
+  blocker. Only sends and edits wait.
+
+**Why.** Each fills a gap the spec leaves open, without changing its contract.

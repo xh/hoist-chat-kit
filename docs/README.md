@@ -35,6 +35,11 @@ its tools.
 | Send per-turn options, such as a document scope | [`/core/`](../core/README.md#pick-options-per-turn) |
 | Stop a run, or leave it running on the server | [`/core/`](../core/README.md#stop-or-detach-a-turn) |
 | Send ratings and comments on replies | [`/core/`](../core/README.md#rate-a-reply) |
+| List a user's stored threads, and switch between them | [`/threads/`](../threads/README.md) |
+| Implement a thread store for your backend | [`/threads/`](../threads/README.md#configuration-pattern) |
+| Run turns in the background while the user reads another thread | [`/threads/`](../threads/README.md#let-turns-run-in-the-background) |
+| Link to a thread with a route parameter | [`/threads/`](../threads/README.md#link-to-a-thread) |
+| Group a thread list into Today, Yesterday and older | [`/threads/`](../threads/README.md#group-the-list-by-recency) |
 | Encode a request for a server-owned conversation | [`/transport/`](../transport/README.md#server-owned-conversations) |
 | Connect to a hoist-core server | [`/transport/`](../transport/README.md#relay-claude-through-a-hoist-server) |
 | Write a Grails controller that streams a model reply | [`/transport/`](../transport/README.md#hoist-server-example) |
@@ -65,6 +70,7 @@ its tools.
 | Package | Description | Key Topics |
 |---------|-------------|------------|
 | [`/core/`](../core/README.md) | Platform-neutral chat models: conversation state, the turn loop, messages, parts, tools and the composer | ChatModel, ChatMessage, ChatPart, ChatToolSpec, ChatComposerModel, ChatRunError, turns, steps, approvals, interactive tools, persistence, finish reasons, historyMode, runOptions, stop and detach, feedback, textTransform, activity tracking |
+| [`/threads/`](../threads/README.md) | Platform-neutral thread layer: a store adapter, one chat per open thread, background turns, paging, search, edits with rollback and deep links | ChatThreadsModel, ChatThreadStore, ChatThreadSummary, LocalChatThreadStore, groupThreadsByRecency, background turns, runningThreadIds, createThreadAsync, re-keying, optimistic rename and delete, paged history, search, route binding, concurrency rules |
 | [`/transport/`](../transport/README.md) | Transports and codecs that turn a backend's stream into AG-UI events, with server contracts | ChatTransport, HoistChatTransport, SseChatTransport, ScriptedChatTransport, HttpChatTransport, AgUiCodec, AnthropicCodec, ChatEvent, xh.chat events, NDJSON, Grails controller, prompt caching, citationEvents, server-owned conversations, turnId, newMessages, cancelUrl |
 | [`/genui/`](../genui/README.md) | Generative UI: a catalog of app components the model can show inline, with protocol adapters | ChatUiCatalog, ChatUiComponentSpec, ChatUiRenderContext, ChatUiAdapter, ChatUiNode, JSON Schema subset, partial props, instructions, inline display |
 

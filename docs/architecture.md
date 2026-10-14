@@ -19,10 +19,10 @@ catalog sits beside the models, and builds on their tools.
 │                     ChatToolCall, ChatUiGrid, ChatUiChart, ...           │
 │                     Render the models. Never see a wire format.          │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ Models              core/                 genui/                         │
+│ Models              core/                 genui/         threads/        │
 │                     ChatModel, ChatMessage, ChatPart, ChatToolSpec,      │
-│                     ChatUiCatalog. Own the state and the turn loop.      │
-│                     Platform-neutral.                                    │
+│                     ChatUiCatalog, ChatThreadsModel. Own the state, the  │
+│                     turn loop and the threads. Platform-neutral.         │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ Transports, codecs  transport/                                           │
 │                     HoistChatTransport, SseChatTransport,                │
@@ -44,7 +44,8 @@ top-level `impl/` folder. They are internal, and no package reaches into another
 - **Models** hold the conversation. `ChatModel` runs each turn, applies the events to immutable
   `ChatMessage` records, and runs client tools. See [`/core/`](../core/README.md). A
   `ChatUiCatalog` turns app components into tools the model calls to show UI. See
-  [`/genui/`](../genui/README.md).
+  [`/genui/`](../genui/README.md). A `ChatThreadsModel` lists the threads a backend stores, and
+  holds a `ChatModel` for each open one. See [`/threads/`](../threads/README.md).
 - **Components** render the models with Hoist components and element factories. The desktop
   components live in [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md), and the built-in
   generative UI components in [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md). The
