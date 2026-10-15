@@ -95,7 +95,7 @@
   }
 
   a {
-    color: var(--xh-chat-link-color);
+    color: var(--xh-intent-primary-text-color);
     text-decoration: none;
 
     &:hover {
@@ -108,31 +108,31 @@
   }
 
   blockquote {
-    border-left: 3px solid var(--xh-chat-border-color);
-    color: var(--xh-chat-muted-text-color);
+    border-left: 3px solid var(--xh-chat-part-border-color);
+    color: var(--xh-chat-meta-text-color);
     padding: 0 0 0 var(--xh-pad-px);
   }
 
   hr {
     border: none;
-    border-top: var(--xh-chat-border);
+    border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
     margin: 1.25em 0;
   }
 
   // Inline code. Code blocks are styled by `pre` below, or by a `components.pre` override.
   code {
-    background-color: var(--xh-chat-inline-code-bg);
+    background-color: var(--xh-intent-neutral-trans1);
     border-radius: 4px;
-    color: var(--xh-chat-inline-code-text-color);
-    font-family: var(--xh-chat-code-font-family);
+    color: var(--xh-text-color-highlight);
+    font-family: var(--xh-font-family-mono);
     font-size: 0.88em;
     padding: 0.1em 0.35em;
   }
 
   pre {
     background-color: var(--xh-chat-code-bg);
-    border: var(--xh-chat-border);
-    border-radius: var(--xh-chat-radius-px);
+    border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border-radius: var(--xh-chat-border-radius-px);
     overflow-x: auto;
     padding: var(--xh-pad-px);
 
@@ -155,28 +155,28 @@
 
   th,
   td {
-    border: var(--xh-chat-border);
+    border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
     padding: 0.35em 0.75em;
     text-align: left;
     vertical-align: top;
   }
 
   th {
-    background-color: var(--xh-chat-surface-bg);
+    background-color: var(--xh-chat-part-header-bg);
     font-weight: 600;
   }
 
   img {
-    border-radius: var(--xh-chat-radius-px);
+    border-radius: var(--xh-chat-border-radius-px);
     max-width: 100%;
   }
 
   // An image that may not load, shown as a quiet chip that links to it.
   &__blocked-image {
     align-items: center;
-    background-color: var(--xh-chat-inline-code-bg);
+    background-color: var(--xh-intent-neutral-trans1);
     border-radius: 4px;
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     display: inline-flex;
     font-size: 0.92em;
     gap: 0.4em;
@@ -209,10 +209,10 @@
   }
 
   a.xh-chat-markdown__blocked-image {
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
 
     &:hover {
-      color: var(--xh-chat-link-color);
+      color: var(--xh-intent-primary-text-color);
     }
   }
 }

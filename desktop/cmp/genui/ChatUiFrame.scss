@@ -1,8 +1,7 @@
 .xh-chat-ui-frame {
   background-color: var(--xh-chat-bg);
-  border: var(--xh-chat-border);
-  border-radius: var(--xh-chat-radius-px);
-  box-shadow: var(--xh-chat-shadow);
+  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border-radius: var(--xh-chat-border-radius-px);
   display: flex;
   flex-direction: column;
   font-size: var(--xh-font-size-px);
@@ -12,7 +11,7 @@
 
   &__header {
     align-items: baseline;
-    border-bottom: var(--xh-chat-border);
+    border-bottom: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
     display: flex;
     gap: var(--xh-pad-px);
     padding: var(--xh-pad-half-px) var(--xh-pad-px);
@@ -28,7 +27,7 @@
   }
 
   &__meta {
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     flex: none;
     font-size: var(--xh-chat-meta-font-size-px);
   }
@@ -42,8 +41,8 @@
 
 .xh-chat-ui-skeleton {
   animation: xh-chat-ui-pulse 1.4s ease-in-out infinite;
-  background-color: var(--xh-chat-surface-bg);
-  border-radius: var(--xh-chat-radius-px);
+  background-color: var(--xh-chat-skeleton-bg);
+  border-radius: var(--xh-chat-border-radius-px);
   width: 100%;
 }
 

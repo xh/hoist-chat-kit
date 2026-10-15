@@ -2,14 +2,14 @@
 
 .xh-chat-code-block {
   background-color: var(--xh-chat-code-bg);
-  border: var(--xh-chat-border);
-  border-radius: var(--xh-chat-radius-px);
+  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border-radius: var(--xh-chat-border-radius-px);
   overflow: hidden;
 
   &__header {
     align-items: center;
-    background-color: var(--xh-chat-code-header-bg);
-    border-bottom: var(--xh-chat-border);
+    background-color: var(--xh-chat-part-header-bg);
+    border-bottom: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
     display: flex;
     justify-content: space-between;
     min-height: 30px;
@@ -17,14 +17,14 @@
   }
 
   &__language {
-    color: var(--xh-chat-muted-text-color);
-    font-family: var(--xh-chat-code-font-family);
+    color: var(--xh-chat-meta-text-color);
+    font-family: var(--xh-font-family-mono);
     font-size: var(--xh-chat-meta-font-size-px);
     text-transform: lowercase;
   }
 
   @include hoist-button('.xh-chat-copy-button', '.xh-chat-code-block__header') {
-    --xh-button-text-color: var(--xh-chat-muted-text-color);
+    --xh-button-text-color: var(--xh-chat-meta-text-color);
 
     font-size: var(--xh-chat-meta-font-size-px);
     min-height: 24px;
@@ -47,7 +47,7 @@
     code {
       background: none;
       color: var(--xh-chat-text-color);
-      font-family: var(--xh-chat-code-font-family);
+      font-family: var(--xh-font-family-mono);
       font-size: var(--xh-chat-code-font-size-px);
       line-height: 1.5;
       padding: 0;

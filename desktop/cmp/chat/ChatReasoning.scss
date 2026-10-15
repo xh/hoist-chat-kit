@@ -10,7 +10,7 @@
   &__toggle {
     align-items: center;
     align-self: flex-start;
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     display: flex;
     font-size: var(--xh-font-size-px);
     gap: var(--xh-pad-px);
@@ -20,8 +20,8 @@
   @include hoist-button('.xh-chat-reasoning__toggle') {
     // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
     // component styles in the dark theme - so set the variables, not the colors.
-    --xh-button-text-color: var(--xh-chat-muted-text-color);
-    --xh-button-bg-darker: var(--xh-chat-hover-bg);
+    --xh-button-text-color: var(--xh-chat-meta-text-color);
+    --xh-button-bg-darker: var(--xh-intent-neutral-trans1);
 
     font-size: var(--xh-font-size-px);
     gap: var(--xh-pad-px);
@@ -45,12 +45,12 @@
 
   // The reasoning hangs from a rule under the toggle's icon.
   &__body {
-    border-left: 2px solid var(--xh-chat-border-color);
+    border-left: 2px solid var(--xh-chat-part-border-color);
     margin: 2px 0 var(--xh-pad-half-px) 6px;
     padding-left: calc(var(--xh-pad) * 1.2px);
 
     .xh-chat-markdown {
-      color: var(--xh-chat-muted-text-color);
+      color: var(--xh-chat-meta-text-color);
       font-size: calc(var(--xh-chat-font-size-px) * 0.93);
     }
   }
@@ -60,11 +60,11 @@
     animation: xh-chat-shimmer 2s linear infinite;
     background: linear-gradient(
         90deg,
-        var(--xh-chat-muted-text-color) 0%,
-        var(--xh-chat-muted-text-color) 40%,
-        var(--xh-chat-shimmer-highlight) 50%,
-        var(--xh-chat-muted-text-color) 60%,
-        var(--xh-chat-muted-text-color) 100%
+        var(--xh-chat-meta-text-color) 0%,
+        var(--xh-chat-meta-text-color) 40%,
+        var(--xh-chat-text-color) 50%,
+        var(--xh-chat-meta-text-color) 60%,
+        var(--xh-chat-meta-text-color) 100%
       )
       0 0 / 250% 100%;
     background-clip: text;

@@ -2,9 +2,9 @@
 
 .xh-chat-file-chip {
   align-items: center;
-  background-color: var(--xh-chat-chip-bg);
-  border: var(--xh-chat-border);
-  border-radius: var(--xh-chat-radius-px);
+  background-color: var(--xh-chat-bg);
+  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border-radius: var(--xh-chat-border-radius-px);
   display: inline-flex;
   gap: var(--xh-pad-half-px);
   max-width: 220px;
@@ -26,8 +26,8 @@
 
   &__icon {
     align-items: center;
-    background-color: var(--xh-chat-surface-bg);
-    color: var(--xh-chat-muted-text-color);
+    background-color: var(--xh-chat-part-header-bg);
+    color: var(--xh-chat-meta-text-color);
     display: flex;
     font-size: 16px;
     justify-content: center;
@@ -54,12 +54,12 @@
   }
 
   &__meta {
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     font-size: var(--xh-chat-meta-font-size-px);
   }
 
   @include hoist-button('.xh-chat-file-chip__remove') {
-    --xh-button-text-color: var(--xh-chat-muted-text-color);
+    --xh-button-text-color: var(--xh-chat-meta-text-color);
 
     flex: none;
     min-height: 22px;

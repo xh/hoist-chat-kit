@@ -17,8 +17,7 @@
   &__box {
     background-color: var(--xh-chat-composer-bg);
     border: var(--xh-border-width-px) solid var(--xh-chat-composer-border-color);
-    border-radius: var(--xh-chat-composer-radius-px);
-    box-shadow: var(--xh-chat-shadow);
+    border-radius: var(--xh-chat-border-radius-px);
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -28,7 +27,7 @@
 
     &:focus-within {
       border-color: var(--xh-chat-composer-focus-border-color);
-      box-shadow: var(--xh-chat-composer-focus-ring);
+      box-shadow: var(--xh-form-field-focused-box-shadow);
     }
   }
 
@@ -102,12 +101,11 @@
 
   @include hoist-button('.xh-chat-composer__attach') {
     svg {
-      color: var(--xh-chat-muted-text-color);
+      color: var(--xh-chat-meta-text-color);
     }
   }
 
-  // The send button takes its colors from the chat's send variables, through Hoist's button
-  // variables - the light theme reads the lighter shades, the dark theme the darker ones.
+  // The send button is a primary Hoist button, shaped as a disc.
   @include hoist-button('.xh-chat-composer__send') {
     border-radius: 50%;
     flex: none;
@@ -116,15 +114,6 @@
     min-width: 30px;
     padding: 0;
     width: 30px;
-
-    &:not(.xh-chat-composer__send--stop) {
-      --xh-button-text-color: var(--xh-chat-send-text-color);
-      --xh-button-bg: var(--xh-chat-send-bg);
-      --xh-button-bg-lightest: var(--xh-chat-send-bg);
-      --xh-button-bg-lighter: color-mix(in srgb, var(--xh-chat-send-bg) 88%, black);
-      --xh-button-bg-darker: color-mix(in srgb, var(--xh-chat-send-bg) 88%, black);
-      --xh-button-bg-darkest: color-mix(in srgb, var(--xh-chat-send-bg) 76%, black);
-    }
   }
 
   &--dragging &__box {
@@ -135,7 +124,7 @@
     align-items: center;
     background-color: color-mix(in srgb, var(--xh-chat-composer-bg) 85%, transparent);
     border: 2px dashed var(--xh-intent-primary);
-    border-radius: var(--xh-chat-composer-radius-px);
+    border-radius: var(--xh-chat-border-radius-px);
     color: var(--xh-intent-primary-text-color);
     display: flex;
     gap: var(--xh-pad-half-px);

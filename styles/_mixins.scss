@@ -28,7 +28,7 @@
 
 // The hover state of a citation chip that opens its source.
 @mixin citation-chip-hover {
-  background-color: var(--xh-intent-primary-trans2);
+  background-color: var(--xh-chat-citation-hover-bg);
   color: var(--xh-chat-text-color);
   text-decoration: none;
 }

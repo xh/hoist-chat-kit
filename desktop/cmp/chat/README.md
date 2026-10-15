@@ -7,7 +7,7 @@
 | [Configuration Pattern](#configuration-pattern) | Putting a `ChatModel` on screen with `ChatPanel` |
 | [Common Usage Patterns](#common-usage-patterns) | Composer, empty state, actions, renderers, images, citations, plugins, layout |
 | [Properties/API Reference](#propertiesapi-reference) | Props of each component |
-| [Theming](#theming) | The `--xh-chat-*` CSS variables and their overrides |
+| [Theming](#theming) | The `--xh-chat-*` CSS variables, their hooks and compact density |
 | [Extension Points](#extension-points) | Slots, renderers, source clicks and markdown |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
 | [Related Packages](#related-packages) | Models, transports, markdown and Hoist packages |
@@ -517,14 +517,16 @@ Use it directly only for a list of your own.
 ## Theming
 
 Each `--xh-chat-*` variable defaults to a value built from Hoist's theme variables, so the chat
-follows the app's light or dark theme. To change one, set the same name without the `xh-`
-prefix, for example `--chat-user-bg`, on `body` or on a parent of the chat. The defaults live in
-`styles/vars.scss`.
+follows the app's light or dark theme. Only `--xh-chat-meta-text-color` has its own dark value.
+The defaults live in `styles/vars.scss`, on `body`, beside Hoist's own variables.
+
+To change a variable, set its unprefixed hook: the same name without the `xh-` prefix, for example
+`--chat-user-bg`. Set it on `body` or on a parent of the chat. The kit reads the hook first.
 
 ```scss
-// ✅ Do: Set the override name
+// ✅ Do: Set the unprefixed hook, with a unitless size
 .my-app-assistant {
-  --chat-content-max-width: 680px;
+  --chat-turn-gap: 32;
   --chat-user-bg: var(--xh-intent-primary-trans1);
 }
 
@@ -534,17 +536,47 @@ prefix, for example `--chat-user-bg`, on `body` or on a parent of the chat. The 
 }
 ```
 
-| Group | Variables (set without `xh-`, as `--chat-*`) |
-|-------|-----------------------------------------------|
-| Layout | `--xh-chat-bg`, `--xh-chat-content-max-width`, `--xh-chat-gutter-px`, `--xh-chat-message-gap-px`, `--xh-chat-part-gap-px`, `--xh-chat-radius-px` |
-| Text | `--xh-chat-font-size-px`, `--xh-chat-line-height`, `--xh-chat-text-color`, `--xh-chat-muted-text-color`, `--xh-chat-meta-font-size-px`, `--xh-chat-link-color` |
-| Borders and surfaces | `--xh-chat-border-color`, `--xh-chat-surface-bg`, `--xh-chat-hover-bg`, `--xh-chat-shadow` |
-| User bubble | `--xh-chat-user-bg`, `--xh-chat-user-text-color`, `--xh-chat-bubble-radius-px`, `--xh-chat-bubble-max-width` |
-| Code | `--xh-chat-code-font-family`, `--xh-chat-code-font-size-px`, `--xh-chat-code-bg`, `--xh-chat-code-header-bg`, `--xh-chat-inline-code-bg`, `--xh-chat-inline-code-text-color` |
-| Composer | `--xh-chat-composer-bg`, `--xh-chat-composer-border-color`, `--xh-chat-composer-focus-border-color`, `--xh-chat-composer-focus-ring`, `--xh-chat-composer-radius-px`, `--xh-chat-send-bg`, `--xh-chat-send-text-color` |
-| Chips | `--xh-chat-chip-bg`, `--xh-chat-chip-hover-bg`, `--xh-chat-citation-bg` |
-| Status | `--xh-chat-success-color`, `--xh-chat-warning-color`, `--xh-chat-danger-color`, `--xh-chat-approval-bg`, `--xh-chat-error-bg` |
-| Motion | `--xh-chat-shimmer-highlight` |
+Sizes are unitless numbers, as Hoist's `--xh-pad` is. Each size has a `-px` twin, such as
+`--xh-chat-turn-gap-px`, for use in rules. Timings are unitless milliseconds with a `-ms` twin.
+Set the unitless hook only. The kit computes the twin from it.
+
+| Group | Main variables | Default |
+|-------|----------------|---------|
+| Type | `--xh-chat-font-size` | `--xh-font-size` (13) |
+| | `--xh-chat-line-height` | `1.5` |
+| | `--xh-chat-heading-font-size` | `--xh-font-size-large`, for markdown H1 and H2 |
+| | `--xh-chat-code-font-size` | `--xh-font-size` minus 1 |
+| | `--xh-chat-meta-font-size` | `--xh-font-size` times 0.9 |
+| Layout | `--xh-chat-column-max-width` | `1100`, for the thread, cards and composer |
+| | `--xh-chat-prose-max-width` | `640`, for markdown text |
+| | `--xh-chat-side-pad` | `--xh-pad-double` (20) |
+| | `--xh-chat-turn-gap` | `24`, between messages |
+| | `--xh-chat-part-gap`, `--xh-chat-process-gap` | `--xh-pad`, `--xh-pad-half` |
+| | `--xh-chat-part-header-height` | `28`, for card header strips |
+| | `--xh-chat-user-max-width` | `75%`, for the user bubble |
+| | `--xh-chat-border-radius` | `--xh-border-radius` (4), for every frame |
+| Color | `--xh-chat-bg`, `--xh-chat-text-color` | `--xh-bg`, `--xh-text-color` |
+| | `--xh-chat-meta-text-color` | `--xh-blue-gray`, `--xh-text-color-muted` in dark |
+| | `--xh-chat-user-bg`, `--xh-chat-user-text-color` | `--xh-bg-alt`, `--xh-text-color` |
+| | `--xh-chat-part-border-color` | `--xh-border-color` |
+| | `--xh-chat-part-header-bg` | `--xh-bg-alt` |
+| | `--xh-chat-code-bg` | `--xh-grid-bg-odd` |
+| Status | `--xh-chat-busy-color` | `--xh-intent-primary-text-color` |
+| | `--xh-chat-attention-color` | `--xh-card-primary-color` |
+| | `--xh-chat-success-color`, `--xh-chat-warning-color`, `--xh-chat-error-color` | Hoist's intent text colors |
+| Composer | `--xh-chat-composer-bg` | `--xh-input-bg` |
+| | `--xh-chat-composer-border-color` | `--xh-border-color` |
+| | `--xh-chat-composer-focus-border-color` | `--xh-form-field-focused-border-color` |
+
+`styles/vars.scss` also declares the variables of each feature area, with a comment per group:
+`--xh-chat-timeline-*`, `--xh-chat-citation-*`, `--xh-chat-viewer-*`, `--xh-chat-card-*`,
+`--xh-chat-sidebar-*`, `--xh-chat-composer-*`, the motion timings and `--xh-chat-helper-*`.
+
+### Compact density
+
+Add the `xh-chat--compact` class to a parent of the chat for a narrow host, such as a docked
+side panel. It sets the side padding to `--xh-pad` (10), the user bubble width to 85%, and the
+chart height to 160.
 
 Spacing inside the components scales with Hoist's `--xh-pad`, so a denser app gets a denser
 chat. Class names follow BEM under `xh-chat-`, for example `xh-chat-message__bubble`.
@@ -562,7 +594,7 @@ chat. Class names follow BEM under `xh-chat-`, for example `xh-chat-message__bub
   source in the app.
 - **Markdown** - `markdownComponents` for element overrides, `markdownPlugins` for remark and
   rehype plugins, and `allowImages` for the image policy.
-- **Theme** - the `--chat-*` overrides above, and the BEM class names.
+- **Theme** - the `--chat-*` hooks above, `xh-chat--compact`, and the BEM class names.
 
 ## Common Pitfalls
 

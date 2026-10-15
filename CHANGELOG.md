@@ -2,6 +2,12 @@
 
 ## 1.0.0-SNAPSHOT - unreleased
 
+### 💥 Breaking Changes
+
+* Renamed and reworked the `--xh-chat-*` CSS variables. Sizes are unitless with a `-px` twin, as
+  Hoist's are. Some variables merged or went away, such as `--xh-chat-shadow`. See
+  [Theming](desktop/cmp/chat/README.md#theming) for the new names.
+
 ### 🎁 New Features
 
 * Added `ChatModel`, which runs a conversation with an LLM or agent: streamed replies, client
@@ -171,6 +177,7 @@
 
 ### ✨ Styles
 
+* Added the `xh-chat--compact` density class for narrow hosts, such as a docked side panel.
 * Added `--xh-chat-*` CSS variables for the chat's colors, widths, radii and fonts, built from
   Hoist's theme variables, with light and dark defaults.
 

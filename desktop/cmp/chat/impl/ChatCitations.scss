@@ -43,14 +43,14 @@
   }
 
   &__tip-host {
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
   }
 
   &__tip-quote {
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 4;
-    border-left: 2px solid var(--xh-chat-border-color);
-    color: var(--xh-chat-muted-text-color);
+    border-left: 2px solid var(--xh-chat-part-border-color);
+    color: var(--xh-chat-meta-text-color);
     display: -webkit-box;
     margin-top: calc(var(--xh-pad) * 0.4px);
     overflow: hidden;

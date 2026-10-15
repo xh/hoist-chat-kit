@@ -8,8 +8,8 @@
   @include hoist-button('.xh-chat-sources__toggle') {
     // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
     // component styles in the dark theme - so set the variables, not the colors.
-    --xh-button-text-color: var(--xh-chat-muted-text-color);
-    --xh-button-bg-darker: var(--xh-chat-hover-bg);
+    --xh-button-text-color: var(--xh-chat-meta-text-color);
+    --xh-button-bg-darker: var(--xh-intent-neutral-trans1);
 
     align-self: flex-start;
     font-size: var(--xh-chat-meta-font-size-px);
@@ -81,12 +81,12 @@
 
   a.xh-chat-sources__title:hover,
   button.xh-chat-sources__title:hover {
-    color: var(--xh-chat-link-color);
+    color: var(--xh-intent-primary-text-color);
     text-decoration: underline;
   }
 
   &__host {
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     font-size: var(--xh-chat-meta-font-size-px);
     line-height: inherit;
   }
@@ -94,7 +94,7 @@
   &__snippet {
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     display: -webkit-box;
     flex-basis: 100%;
     font-size: var(--xh-chat-meta-font-size-px);

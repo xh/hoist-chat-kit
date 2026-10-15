@@ -2,8 +2,8 @@
 
 .xh-chat-tool-call {
   background-color: var(--xh-chat-bg);
-  border: var(--xh-chat-border);
-  border-radius: var(--xh-chat-radius-px);
+  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border-radius: var(--xh-chat-border-radius-px);
   display: flex;
   flex-direction: column;
   font-size: var(--xh-font-size-px);
@@ -21,7 +21,7 @@
     padding: 0 var(--xh-pad-px);
 
     > .svg-inline--fa {
-      color: var(--xh-chat-muted-text-color);
+      color: var(--xh-chat-meta-text-color);
       flex: none;
     }
 
@@ -34,7 +34,7 @@
     // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
     // component styles in the dark theme - so set the variables, not the colors.
     --xh-button-text-color: var(--xh-chat-text-color);
-    --xh-button-bg-darker: var(--xh-chat-hover-bg);
+    --xh-button-bg-darker: var(--xh-intent-neutral-trans1);
 
     border-radius: 0;
     justify-content: flex-start;
@@ -47,7 +47,7 @@
 
     > .xh-icon,
     > .svg-inline--fa {
-      color: var(--xh-chat-muted-text-color);
+      color: var(--xh-chat-meta-text-color);
       flex: none;
     }
 
@@ -71,14 +71,14 @@
   }
 
   &__summary {
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   &__status {
     align-items: center;
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     display: flex;
     flex: none;
     gap: var(--xh-pad-px);
@@ -97,11 +97,11 @@
   }
 
   &--output-error &__status-label {
-    color: var(--xh-chat-danger-color);
+    color: var(--xh-chat-error-color);
   }
 
   &--approval-requested {
-    border-color: var(--xh-chat-warning-color);
+    border-color: var(--xh-chat-attention-color);
   }
 
   &__status-label--waiting {
@@ -110,8 +110,7 @@
 
   &__approval {
     align-items: center;
-    background-color: var(--xh-chat-approval-bg);
-    border-top: var(--xh-chat-border);
+    border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
     display: flex;
     flex-wrap: wrap;
     gap: var(--xh-pad-half-px);
@@ -124,12 +123,12 @@
   }
 
   &__preview {
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     margin-top: var(--xh-pad-half-px);
   }
 
   &__body {
-    border-top: var(--xh-chat-border);
+    border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
     display: flex;
     flex-direction: column;
     gap: var(--xh-pad-px);
@@ -144,7 +143,7 @@
   }
 
   &__section-label {
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     font-size: var(--xh-chat-meta-font-size-px);
     font-weight: 500;
     letter-spacing: 0.04em;
@@ -152,12 +151,12 @@
   }
 
   &__error {
-    color: var(--xh-chat-danger-color);
+    color: var(--xh-chat-error-color);
     white-space: pre-wrap;
   }
 
   &__denied {
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     white-space: pre-wrap;
   }
 
@@ -173,7 +172,7 @@
   // A quiet meta row under an inline call - plain muted text, with no button chrome.
   &__caption {
     align-items: center;
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     display: flex;
     flex-wrap: wrap;
     font-size: var(--xh-chat-meta-font-size-px);
@@ -203,12 +202,12 @@
     }
 
     &--error {
-      color: var(--xh-chat-danger-color);
+      color: var(--xh-chat-error-color);
     }
   }
 
   @include hoist-button('.xh-chat-tool-call__input-toggle') {
-    --xh-button-text-color: var(--xh-chat-muted-text-color);
+    --xh-button-text-color: var(--xh-chat-meta-text-color);
     --xh-button-bg-darker: transparent;
 
     background-color: transparent;
@@ -241,7 +240,7 @@
   &--grouped {
     background-color: transparent;
     border: none;
-    border-radius: var(--xh-chat-radius-px);
+    border-radius: var(--xh-chat-border-radius-px);
     overflow: visible;
   }
 
@@ -261,7 +260,7 @@
 
   &--grouped {
     @include hoist-button('.xh-chat-tool-call__header') {
-      border-radius: var(--xh-chat-radius-px);
+      border-radius: var(--xh-chat-border-radius-px);
 
       .bp6-button-text {
         flex: 0 1 auto;
@@ -283,8 +282,8 @@
   min-width: 0;
 
   @include hoist-button('.xh-chat-tool-call-group__header') {
-    --xh-button-text-color: var(--xh-chat-muted-text-color);
-    --xh-button-bg-darker: var(--xh-chat-hover-bg);
+    --xh-button-text-color: var(--xh-chat-meta-text-color);
+    --xh-button-bg-darker: var(--xh-intent-neutral-trans1);
 
     align-self: flex-start;
     gap: var(--xh-pad-px);
@@ -337,19 +336,19 @@
 
   &__problem {
     align-items: center;
-    color: var(--xh-chat-danger-color);
+    color: var(--xh-chat-error-color);
     display: inline-flex;
     font-size: var(--xh-chat-meta-font-size-px);
     gap: calc(var(--xh-pad) * 0.4px);
 
     &--denied {
-      color: var(--xh-chat-muted-text-color);
+      color: var(--xh-chat-meta-text-color);
     }
   }
 
   // The calls hang from a rule under the group's icon, as reasoning hangs from its toggle.
   &__items {
-    border-left: 2px solid var(--xh-chat-border-color);
+    border-left: 2px solid var(--xh-chat-part-border-color);
     display: flex;
     flex-direction: column;
     margin: 2px 0 var(--xh-pad-half-px) 6px;

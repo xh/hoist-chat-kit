@@ -8,8 +8,8 @@
     box-sizing: border-box;
     flex: none;
     margin: 0 auto;
-    max-width: var(--xh-chat-content-max-width);
-    padding: 0 var(--xh-chat-gutter-px) var(--xh-chat-gutter-px);
+    max-width: var(--xh-chat-column-max-width-px);
+    padding: 0 var(--xh-chat-side-pad-px) var(--xh-chat-side-pad-px);
     width: 100%;
   }
 }

@@ -18,9 +18,9 @@
 
   &__bubble {
     background-color: var(--xh-chat-user-bg);
-    border-radius: var(--xh-chat-bubble-radius-px);
+    border-radius: var(--xh-chat-border-radius-px);
     color: var(--xh-chat-user-text-color);
-    max-width: var(--xh-chat-bubble-max-width);
+    max-width: var(--xh-chat-user-max-width);
     overflow-wrap: anywhere;
     padding: calc(var(--xh-pad) * 0.8px) calc(var(--xh-pad) * 1.4px);
     white-space: pre-wrap;
@@ -49,7 +49,7 @@
 
   &__edit {
     background-color: var(--xh-chat-user-bg);
-    border-radius: var(--xh-chat-bubble-radius-px);
+    border-radius: var(--xh-chat-border-radius-px);
     display: flex;
     flex-direction: column;
     gap: var(--xh-pad-half-px);
@@ -58,7 +58,7 @@
 
     .xh-text-area.bp6-input {
       background-color: var(--xh-chat-composer-bg);
-      border-radius: var(--xh-chat-radius-px);
+      border-radius: var(--xh-chat-border-radius-px);
       box-sizing: border-box;
       font-size: var(--xh-chat-font-size-px);
       line-height: 1.5;
@@ -79,7 +79,7 @@
   //------------------------
   &__system {
     align-self: center;
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     font-size: var(--xh-chat-meta-font-size-px);
     max-width: 90%;
     text-align: center;
@@ -91,7 +91,7 @@
   //------------------------
   &__header {
     align-items: center;
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     display: flex;
     font-size: var(--xh-chat-meta-font-size-px);
     gap: calc(var(--xh-pad) * 0.6px);
@@ -148,9 +148,9 @@
   }
 
   &__context {
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     font-size: var(--xh-chat-meta-font-size-px);
-    max-width: var(--xh-chat-bubble-max-width);
+    max-width: var(--xh-chat-user-max-width);
     overflow-wrap: anywhere;
   }
 
@@ -165,20 +165,20 @@
   }
 
   &__data-type {
-    color: var(--xh-chat-muted-text-color);
-    font-family: var(--xh-chat-code-font-family);
+    color: var(--xh-chat-meta-text-color);
+    font-family: var(--xh-font-family-mono);
     font-size: var(--xh-chat-meta-font-size-px);
   }
 
   &__note {
     align-items: center;
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     display: flex;
     font-size: var(--xh-chat-meta-font-size-px);
     gap: calc(var(--xh-pad) * 0.6px);
 
     &--error {
-      color: var(--xh-chat-danger-color);
+      color: var(--xh-chat-error-color);
     }
   }
 
@@ -211,7 +211,7 @@
     padding: 0 5px;
 
     svg {
-      color: var(--xh-chat-muted-text-color);
+      color: var(--xh-chat-meta-text-color);
     }
 
     &:hover svg {

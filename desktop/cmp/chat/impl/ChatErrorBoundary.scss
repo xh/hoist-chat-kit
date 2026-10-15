@@ -1,7 +1,7 @@
 .xh-chat-error-boundary {
-  border: var(--xh-chat-border);
-  border-radius: var(--xh-chat-radius-px);
-  color: var(--xh-chat-muted-text-color);
+  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border-radius: var(--xh-chat-border-radius-px);
+  color: var(--xh-chat-meta-text-color);
   font-size: var(--xh-chat-meta-font-size-px);
   padding: var(--xh-pad-half-px) var(--xh-pad-px);
 
@@ -11,7 +11,7 @@
     gap: calc(var(--xh-pad) * 0.6px);
 
     .xh-icon {
-      color: var(--xh-chat-danger-color);
+      color: var(--xh-chat-error-color);
     }
   }
 
@@ -24,7 +24,7 @@
     }
 
     pre {
-      font-family: var(--xh-chat-code-font-family);
+      font-family: var(--xh-font-family-mono);
       margin: calc(var(--xh-pad) * 0.4px) 0 0;
       overflow-wrap: anywhere;
       white-space: pre-wrap;

@@ -1,8 +1,8 @@
 .xh-chat-ui-fallback,
 .xh-chat-ui-placeholder {
-  border: var(--xh-chat-border);
-  border-radius: var(--xh-chat-radius-px);
-  color: var(--xh-chat-muted-text-color);
+  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border-radius: var(--xh-chat-border-radius-px);
+  color: var(--xh-chat-meta-text-color);
   font-size: var(--xh-chat-meta-font-size-px);
   padding: var(--xh-pad-half-px) var(--xh-pad-px);
 }

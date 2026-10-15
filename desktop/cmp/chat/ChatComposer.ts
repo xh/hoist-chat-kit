@@ -229,6 +229,7 @@ function sendButton(composerModel: ChatComposerModel, impl: ChatComposerLocalMod
             tooltip: sendBlockedReason ?? 'Send',
             'aria-label': 'Send',
             'aria-describedby': sendBlockedReason ? reasonId : undefined,
+            intent: 'primary',
             minimal: false,
             disabled: !canSend,
             onClick: () => {

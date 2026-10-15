@@ -16,7 +16,7 @@
   }
 
   &__subtitle {
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
   }
 
   &__fields {
@@ -33,7 +33,7 @@
   }
 
   &__label {
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     font-size: var(--xh-chat-meta-font-size-px);
   }
 
@@ -44,7 +44,7 @@
   }
 
   &__actions {
-    border-top: var(--xh-chat-border);
+    border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
     display: flex;
     flex-wrap: wrap;
     gap: var(--xh-pad-half-px);
