@@ -1,0 +1,20 @@
+// The full tier of a chart card: a Hoist chart of the whole artifact, with type and axis
+// switchers in the toolbar above it.
+.xh-chat-ui-chart-view {
+  &__label {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+    padding: 0 4px 0 8px;
+    white-space: nowrap;
+  }
+
+  &__select {
+    min-width: 0;
+  }
+
+  &__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: var(--xh-pad-px);
+  }
+}
