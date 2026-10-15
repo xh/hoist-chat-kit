@@ -41,6 +41,9 @@ export type ChatEvent =
     | ToolCallChunkEvent
     | ToolCallResultEvent
     | ActivitySnapshotEvent
+    | SubagentStartedEvent
+    | SubagentFinishedEvent
+    | SubagentErrorEvent
     | ChatCustomEvent
     | IgnoredEvent;
 
@@ -242,6 +245,9 @@ export interface ToolCallStartEvent extends ChatEventBase {
     toolCallId: string;
     toolCallName: string;
     parentMessageId?: string;
+
+    /** The sub-agent that made the call - see {@link SubagentStartedEvent}. */
+    subagentRunId?: string;
 }
 
 /** A fragment of a tool call's arguments. */
@@ -266,6 +272,9 @@ export interface ToolCallChunkEvent extends ChatEventBase {
     toolCallName?: string;
     parentMessageId?: string;
     delta?: string;
+
+    /** The sub-agent that made the call - see {@link SubagentStartedEvent}. */
+    subagentRunId?: string;
 }
 
 /**
@@ -309,6 +318,56 @@ export interface ActivitySnapshotEvent extends ChatEventBase {
 }
 
 //------------------
+// Sub-agents
+//------------------
+/**
+ * An agent has handed part of its work to a sub-agent. Tool calls the sub-agent makes carry its
+ * `subagentRunId`. The kit records the sub-agent as a data part of type `xh.chat.subagent`, and
+ * the activity timeline nests its calls under it.
+ */
+export interface SubagentStartedEvent extends ChatEventBase {
+    type: 'SUBAGENT_STARTED';
+
+    /** Identifies this run of the sub-agent. */
+    subagentRunId: string;
+
+    /** The sub-agent's name, for display. */
+    name: string;
+
+    /** What the sub-agent is doing, for display. */
+    description?: string;
+
+    /** The sub-agent that started this one, when sub-agents nest. */
+    parentSubagentRunId?: string;
+
+    /** The tool call that started this sub-agent, for agents exposed to a model as tools. */
+    parentToolCallId?: string;
+
+    /** The message that holds that tool call. */
+    parentMessageId?: string;
+}
+
+/** A sub-agent has finished its work. */
+export interface SubagentFinishedEvent extends ChatEventBase {
+    type: 'SUBAGENT_FINISHED';
+    subagentRunId: string;
+
+    /** What the sub-agent found or did. Text shows as its result line in the timeline. */
+    result?: any;
+
+    /** `success`, or `suspended` while the sub-agent waits on an interrupt. */
+    outcome?: {type: 'success'} | {type: 'suspended'; interruptIds?: string[]};
+}
+
+/** A sub-agent has failed. */
+export interface SubagentErrorEvent extends ChatEventBase {
+    type: 'SUBAGENT_ERROR';
+    subagentRunId: string;
+    message: string;
+    code?: string;
+}
+
+//------------------
 // Extension
 //------------------
 /**
@@ -323,15 +382,7 @@ export interface ChatCustomEvent extends ChatEventBase {
 
 /** AG-UI events the kit accepts but does not act on. */
 export interface IgnoredEvent extends ChatEventBase {
-    type:
-        | 'RAW'
-        | 'STATE_SNAPSHOT'
-        | 'STATE_DELTA'
-        | 'MESSAGES_SNAPSHOT'
-        | 'ACTIVITY_DELTA'
-        | 'SUBAGENT_STARTED'
-        | 'SUBAGENT_FINISHED'
-        | 'SUBAGENT_ERROR';
+    type: 'RAW' | 'STATE_SNAPSHOT' | 'STATE_DELTA' | 'MESSAGES_SNAPSHOT' | 'ACTIVITY_DELTA';
     [key: string]: any;
 }
 

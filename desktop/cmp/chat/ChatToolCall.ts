@@ -1,12 +1,11 @@
-import {compact, isEmpty, isFunction} from 'lodash';
+import {compact, isEmpty, isString} from 'lodash';
 import type {ReactNode} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
-import {textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
-import {action, bindable, observable} from '@xh/hoist/mobx';
-import {createObservableRef} from '@xh/hoist/utils/react';
+import {action, observable} from '@xh/hoist/mobx';
+import {chatMarkdown} from '../../../cmp/markdown';
 import {
     type ChatMessageListHost,
     type ChatPartRenderContext,
@@ -28,6 +27,9 @@ import {
     statusGlyph
 } from './impl/ToolCallStatus';
 import {chatSpinner} from './impl/ChatLiveCues';
+import {chatToolApproval} from './impl/ChatToolApproval';
+import {getToolCallDisplay} from './impl/groupParts';
+import {CHAT_MARKDOWN_COMPONENTS} from './impl/MarkdownComponents';
 
 /** Props for {@link ChatToolCall}. */
 export interface ChatToolCallProps extends HoistProps {
@@ -58,7 +60,10 @@ export interface ChatToolCallProps extends HoistProps {
  * Display is configured per tool by its {@link ChatToolSpec}: `displayName`, `icon`, `summary`,
  * `renderer` and `approvalPrompt`. A tool with `display: 'inline'` shows its renderer's output with
  * no row. The output is the call's progress, so a quiet status line shows below it only while
- * its input streams, and if the call waits for approval, fails or is denied.
+ * its input streams, and if the call waits for approval, fails or is denied. A tool with
+ * `display: 'answer'` shows the same way, and with no renderer shows its output itself. A tool
+ * with `display: 'hidden'` shows nothing, except while a call waits for the user. A `timeline`
+ * call shows here as a row - in a reply, the message view puts it in a `ChatTimeline` instead.
  *
  * The body mounts only while the row is open, and a custom renderer renders as a component of its
  * own, so it may use hooks. The row re-renders only when its part changes.
@@ -72,8 +77,12 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
             chatHost: ChatMessageListHost = host ?? context.chatModel,
             spec = chatHost?.getToolSpec?.(part.toolName);
 
-        if (spec?.display === 'inline') {
-            return inlineToolCall({ref, className, part, context, host: chatHost, spec, impl});
+        switch (chatHost ? getToolCallDisplay(part, chatHost) : 'card') {
+            case 'hidden':
+                return null;
+            case 'inline':
+            case 'answer':
+                return inlineToolCall({ref, className, part, context, host: chatHost, spec, impl});
         }
 
         const {state, toolName} = part,
@@ -132,7 +141,7 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
                           className: 'xh-chat-tool-call__header xh-chat-tool-call__header--static',
                           item: span({className: 'xh-chat-tool-call__row', items: rowItems})
                       }),
-                isApproval ? approvalPanel({part, spec, host: chatHost}) : null,
+                isApproval ? chatToolApproval({part, spec, host: chatHost}) : null,
                 isExpanded
                     ? div({
                           className: 'xh-chat-tool-call__body',
@@ -178,120 +187,6 @@ const toolCallBody = hoistCmp.factory<ToolCallBodyProps>({
     }
 });
 
-interface ApprovalPanelProps extends HoistProps {
-    part: ChatToolCallPart;
-    spec: ChatToolSpec;
-    host: ChatMessageListHost;
-}
-
-/**
- * The decision a call waits for: the prompt and any preview, then Allow, Deny and an optional
- * reason sent with either. Allow comes first, left-aligned, as in a form. Neither is a default -
- * Enter in the reason sends nothing - and no shortcut ever allows.
- *
- * Focus moves to Allow only if focus was already in the conversation and the composer is empty,
- * so that a request never takes the keyboard from someone typing.
- */
-const approvalPanel = hoistCmp.factory<ApprovalPanelProps>({
-    displayName: 'ChatToolCallApproval',
-
-    render({part, spec, host}) {
-        const impl = useLocalModel(ApprovalLocalModel),
-            {approvalPrompt, preview} = spec ?? {},
-            input = part.input ?? {},
-            prompt = isFunction(approvalPrompt)
-                ? approvalPrompt(input)
-                : (approvalPrompt ?? 'Allow this action to run?'),
-            previewContent = isFunction(preview) ? preview(input) : null,
-            reasonOf = () => impl.reason.trim() || undefined;
-        impl.host = host;
-
-        return div({
-            className: 'xh-chat-tool-call__approval',
-            role: 'group',
-            'aria-label': 'Approval needed',
-            items: [
-                div({
-                    className: 'xh-chat-tool-call__approval-text',
-                    items: [
-                        prompt,
-                        previewContent != null
-                            ? div({className: 'xh-chat-tool-call__preview', item: previewContent})
-                            : null
-                    ]
-                }),
-                div({
-                    className: 'xh-chat-tool-call__approval-bar',
-                    items: [
-                        host?.approveToolCallAsync
-                            ? button({
-                                  ref: impl.allowRef,
-                                  className: 'xh-chat-tool-call__allow',
-                                  text: 'Allow',
-                                  icon: Icon.check(),
-                                  intent: 'primary',
-                                  minimal: false,
-                                  onClick: () =>
-                                      host.approveToolCallAsync(part.id, reasonOf()).catchDefault()
-                              })
-                            : null,
-                        host?.denyToolCallAsync
-                            ? button({
-                                  className: 'xh-chat-tool-call__deny',
-                                  text: 'Deny',
-                                  outlined: true,
-                                  minimal: false,
-                                  onClick: () =>
-                                      host.denyToolCallAsync(part.id, reasonOf()).catchDefault()
-                              })
-                            : null,
-                        host?.approveToolCallAsync || host?.denyToolCallAsync
-                            ? textInput({
-                                  className: 'xh-chat-tool-call__reason',
-                                  model: impl,
-                                  bind: 'reason',
-                                  commitOnChange: true,
-                                  width: null,
-                                  placeholder: 'Reason (optional, sent to the agent)',
-                                  domAttrs: {'aria-label': 'Reason, sent to the agent'}
-                              })
-                            : null
-                    ]
-                })
-            ]
-        });
-    }
-});
-
-class ApprovalLocalModel extends HoistModel {
-    override xhImpl = true;
-
-    @bindable accessor reason: string = '';
-
-    host: ChatMessageListHost = null;
-
-    readonly allowRef = createObservableRef<HTMLElement>();
-
-    override onLinked() {
-        // Checked once, as the request arrives - never as it renders again.
-        this.addReaction({
-            track: () => this.allowRef.current,
-            run: allow => {
-                if (!allow || this.hasChecked) return;
-                this.hasChecked = true;
-                const log = allow.closest('[role="log"]'),
-                    active = document.activeElement;
-                if (!log || !active || !log.contains(active)) return;
-                if (this.host?.composerModel?.text) return;
-                allow.focus();
-            },
-            fireImmediately: true
-        });
-    }
-
-    private hasChecked = false;
-}
-
 interface InlineToolCallArgs extends ChatToolCallProps {
     host: ChatMessageListHost;
     spec: ChatToolSpec;
@@ -299,7 +194,8 @@ interface InlineToolCallArgs extends ChatToolCallProps {
 }
 
 /**
- * A call with `display: 'inline'` - the renderer's output, then a quiet caption. The caption shows
+ * A call with `display: 'inline'` or `'answer'` - the renderer's output, then a quiet caption. An
+ * answer tool with no renderer shows its output: text as markdown, anything else as JSON. The caption shows
  * a status only while the input streams, or if the call fails or is denied - the rendered output
  * is the progress otherwise. A toggle to view the input, and the details of any error, shows on
  * hover or focus.
@@ -315,8 +211,11 @@ function inlineToolCall({ref, className, part, context, host, spec, impl}: Inlin
         inputValue = getInputValue(part),
         hasDetails = !isEmpty(inputValue) || (state === 'output-error' && !!errorText),
         isInputShown = hasDetails && !!impl.expanded,
+        // An answer tool with no renderer shows its output itself, once it has one.
+        hasOutputView =
+            !!spec.renderer || (spec.display === 'answer' && state === 'output-available'),
         showsOutput =
-            !!spec.renderer &&
+            hasOutputView &&
             state !== 'output-denied' &&
             (state !== 'approval-requested' || spec.preview === true || !!spec.approvalPreview);
 
@@ -328,8 +227,12 @@ function inlineToolCall({ref, className, part, context, host, spec, impl}: Inlin
             `xh-chat-tool-call--${state}`
         ),
         items: [
-            showsOutput ? toolCallBody({part, spec, context}) : null,
-            state === 'approval-requested' ? approvalPanel({part, spec, host}) : null,
+            showsOutput
+                ? spec.renderer
+                    ? toolCallBody({part, spec, context})
+                    : answerOutput(part.output)
+                : null,
+            state === 'approval-requested' ? chatToolApproval({part, spec, host}) : null,
             div({
                 className: classNames('xh-chat-tool-call__caption', {
                     'xh-chat-tool-call__caption--quiet': !status && !isInputShown
@@ -364,6 +267,15 @@ function inlineToolCall({ref, className, part, context, host, spec, impl}: Inlin
                   })
                 : null
         ]
+    });
+}
+
+function answerOutput(output: unknown): ReactNode {
+    return div({
+        className: 'xh-chat-tool-call__answer',
+        item: isString(output)
+            ? chatMarkdown({content: output, components: CHAT_MARKDOWN_COMPONENTS})
+            : jsonView({value: output})
     });
 }
 

@@ -159,7 +159,7 @@ export class ChatMessageListLocalModel extends HoistModel {
 
         if (message.status === 'complete') {
             const name = (this.componentProps as PlainObject).assistantName ?? 'Assistant';
-            chatAnnouncer.announce(formatReplyAnnouncement(message, name));
+            chatAnnouncer.announce(formatReplyAnnouncement(message, name, this.host));
         } else if (message.status === 'aborted' && !message.metadata.detached) {
             chatAnnouncer.announce('Reply stopped.');
         }

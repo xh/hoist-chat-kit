@@ -1,16 +1,18 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {logDebug, logWarn} from '@xh/hoist/utils/js';
-import {findLast, isBoolean, isEmpty, isPlainObject, isString, pick} from 'lodash';
+import {findLast, isBoolean, isEmpty, isNil, isPlainObject, isString, omitBy, pick} from 'lodash';
 import type {ChatEvent} from '../transport';
 import type {ChatMessage, ChatMessageSpec} from './ChatMessage';
 import type {ChatTextTransform} from './ChatModel';
 import type {
+    ChatDataPart,
     ChatPart,
     ChatProviderData,
     ChatReasoningPart,
     ChatTextPart,
     ChatToolCallPart
 } from './ChatPart';
+import {CHAT_SUBAGENT_DATA_TYPE, type ChatSubagentData} from './ChatSubagent';
 import {mergeArtifacts} from '../impl/artifacts';
 import {genChatId} from '../impl/ids';
 import {parsePartialJson} from './impl/parsePartialJson';
@@ -202,7 +204,12 @@ export class ChatStreamReducer {
             }
 
             case 'TOOL_CALL_START':
-                this.startToolCall(draft, event.toolCallId, event.toolCallName);
+                this.startToolCall(
+                    draft,
+                    event.toolCallId,
+                    event.toolCallName,
+                    event.subagentRunId
+                );
                 break;
             case 'TOOL_CALL_ARGS':
                 this.appendToolArgs(draft, event.toolCallId, event.delta);
@@ -213,7 +220,7 @@ export class ChatStreamReducer {
             case 'TOOL_CALL_CHUNK': {
                 const id = event.toolCallId ?? this.lastToolCallId;
                 if (!getPart(draft, id) && event.toolCallName) {
-                    this.startToolCall(draft, id, event.toolCallName);
+                    this.startToolCall(draft, id, event.toolCallName, event.subagentRunId);
                 }
                 this.appendToolArgs(draft, id, event.delta);
                 break;
@@ -241,6 +248,39 @@ export class ChatStreamReducer {
                     step: this.step,
                     dataType: event.activityType,
                     data: event.content
+                });
+                break;
+
+            case 'SUBAGENT_STARTED': {
+                const {subagentRunId, name, description, parentSubagentRunId, parentToolCallId} =
+                    event;
+                if (subagentRunId == null || getPart(draft, subagentRunId)) break;
+                const data: ChatSubagentData = {
+                    name: name ?? 'Agent',
+                    ...omitBy({description, parentSubagentRunId, parentToolCallId}, isNil),
+                    status: 'running',
+                    startedAt: Date.now(),
+                    endedAt: null
+                };
+                putPart(draft, {
+                    type: 'data',
+                    id: subagentRunId,
+                    step: this.step,
+                    dataType: CHAT_SUBAGENT_DATA_TYPE,
+                    data
+                });
+                break;
+            }
+            case 'SUBAGENT_FINISHED':
+                this.endSubagent(draft, event.subagentRunId, {
+                    status: 'complete',
+                    ...(event.result !== undefined ? {result: event.result} : {})
+                });
+                break;
+            case 'SUBAGENT_ERROR':
+                this.endSubagent(draft, event.subagentRunId, {
+                    status: 'error',
+                    error: event.message ?? 'The agent failed.'
                 });
                 break;
 
@@ -458,7 +498,12 @@ export class ChatStreamReducer {
     //------------------
     // Tool calls
     //------------------
-    private startToolCall(draft: Draft, toolCallId: string, toolName: string) {
+    private startToolCall(
+        draft: Draft,
+        toolCallId: string,
+        toolName: string,
+        subagentRunId: string = null
+    ) {
         if (toolCallId == null) return;
         if (getPart(draft, toolCallId)) {
             logWarn(['Ignored tool call with an id already used in this turn', toolCallId], this);
@@ -473,7 +518,9 @@ export class ChatStreamReducer {
             inputText: '',
             input: null,
             output: null,
-            errorText: null
+            errorText: null,
+            startedAt: Date.now(),
+            ...(subagentRunId != null ? {subagentRunId} : {})
         });
         this.lastToolCallId = toolCallId;
     }
@@ -499,7 +546,8 @@ export class ChatStreamReducer {
                 ...part,
                 input: null,
                 state: 'output-error',
-                errorText: `Invalid tool input: ${e.message}`
+                errorText: `Invalid tool input: ${e.message}`,
+                endedAt: Date.now()
             });
         }
     }
@@ -529,8 +577,21 @@ export class ChatStreamReducer {
         putPart(draft, {
             ...getPart<ChatToolCallPart>(draft, toolCallId),
             ...changes,
-            providerExecuted: true
+            providerExecuted: true,
+            endedAt: Date.now()
         });
+    }
+
+    //------------------
+    // Sub-agents
+    //------------------
+    private endSubagent(draft: Draft, subagentRunId: string, changes: Partial<ChatSubagentData>) {
+        const part = getPart<ChatDataPart>(draft, subagentRunId);
+        if (part?.dataType !== CHAT_SUBAGENT_DATA_TYPE) {
+            logDebug(['Ignored end of unknown sub-agent', subagentRunId], this);
+            return;
+        }
+        putPart(draft, {...part, data: {...part.data, ...changes, endedAt: Date.now()}});
     }
 
     //------------------

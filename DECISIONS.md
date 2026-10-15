@@ -1106,3 +1106,21 @@ offers Retry. Approval buttons read Allow and Deny, Allow first, each with an op
 **Why.** Real feedback backends differ: one cannot clear a rating, and one cuts comments at its
 own length. A retry of a rejected comment would fail the same way. Allow and Deny match the
 design's approval controls (P6).
+
+## D78. Choices in the activity timeline
+
+**Decision.** `ChatToolSpec.display` takes the full D23 enum: `card` (default), `inline`,
+`timeline`, `answer`, `pinned` and `hidden`. `timeline` calls and sub-agent parts form one
+timeline block per run of them. Text and reasoning fold into the block only when another
+timeline call follows. A `card`, `inline` or `answer` call ends the block. Sub-agents are modeled
+minimally: AG-UI `SUBAGENT_STARTED` becomes a data part of type `xh.chat.subagent`, keyed by its
+run id, that `SUBAGENT_FINISHED` and `SUBAGENT_ERROR` close, and a tool call carries the
+`subagentRunId` it belongs to. A call made by a sub-agent defaults to `timeline`. Tool call parts
+record `startedAt` and `endedAt` for durations. Where the spec leaves a rule open, the kit counts
+a later call with the same tool, input and sub-agent as a retry, and applies the narrow layout
+below 480px. Reconnect markers, server stages and server narration marks wait for a transport
+`resume` and backend signals.
+
+**Why.** It builds P2 on events AG-UI already defines, with no backend capability the kit cannot
+see. The approval and question panels are shared with the tool call card, and the composer's
+status region announces a paused turn, so the timeline does not announce it again (D65).

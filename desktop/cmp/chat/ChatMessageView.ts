@@ -43,6 +43,7 @@ import {chatNoAnswer} from './ChatNoAnswer';
 import {chatReasoning} from './ChatReasoning';
 import {chatSources} from './ChatSources';
 import {chatStatusCue} from './ChatStatusCue';
+import {chatTimeline} from './ChatTimeline';
 import {chatToolCall} from './ChatToolCall';
 import {fitTextAreaToContent, isImeComposing} from './impl/AutoGrow';
 import {
@@ -70,6 +71,8 @@ import {getOwn} from '../../../impl/objects';
 import {
     type ChatPartGroup,
     type ChatProcessRun,
+    type ChatTimelineGroup,
+    getToolCallDisplay,
     groupParts,
     groupProcessRuns
 } from './impl/groupParts';
@@ -191,7 +194,8 @@ export interface ChatMessageViewProps extends HoistProps {
  * icon and name, then the reply's status while it runs, or its relative time and time taken once
  * done. Their parts render in order. Reasoning and tool calls stack as quiet rows in a process
  * block, text renders as markdown capped at the prose width, and files and app-rendered data
- * follow, then the sources consulted. With `citationMarkers` on, `[1]` in the text renders as a
+ * follow, then the sources consulted. Calls to tools with `display: 'timeline'` gather, with the
+ * narration between them, into one {@link ChatTimeline} block. With `citationMarkers` on, `[1]` in the text renders as a
  * button for the source it cites. In a chat with a generative UI catalog, component tags in the
  * text render as their components.
  *
@@ -617,10 +621,19 @@ function assistantContent(
                 div({
                     className: 'xh-chat-message__body',
                     items: [
-                        ...runs.map(run =>
+                        ...runs.map((run, idx) =>
                             run.type === 'process'
                                 ? processRun(run, props, impl, context, references, markerSources)
-                                : renderGroup(run, props, impl, context, references, markerSources)
+                                : run.type === 'timeline'
+                                  ? timelineBlock(run, props, context, idx < runs.length - 1)
+                                  : renderGroup(
+                                        run,
+                                        props,
+                                        impl,
+                                        context,
+                                        references,
+                                        markerSources
+                                    )
                         ),
                         replyNotice(props)
                     ]
@@ -667,6 +680,31 @@ function processRun(
     });
 }
 
+/**
+ * The reply's activity timeline, for calls to `timeline` tools. Once more of the reply follows
+ * it, its line turns to the summary.
+ */
+function timelineBlock(
+    group: ChatTimelineGroup,
+    props: ViewProps,
+    context: ChatPartRenderContext,
+    isFollowed: boolean
+): ReactNode {
+    const {message, host, isLast} = props;
+    return chatErrorBoundary({
+        key: group.id,
+        item: chatTimeline({
+            message,
+            host,
+            parts: group.parts,
+            pinned: group.pinned,
+            context,
+            isFollowed,
+            isLast
+        })
+    });
+}
+
 function renderGroup(
     group: ChatPartGroup,
     props: ViewProps,
@@ -690,8 +728,11 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
         isDone = !isLive && !isPaused,
         elapsed = !isLive ? formatElapsed(metadata?.elapsedMs) : null,
         thought = isDone ? formatElapsed(getHiddenThoughtMs(message)) : null,
+        // A timeline counts its own failures.
         failedTools = isDone
-            ? message.toolCalls.filter(it => it.state === 'output-error').length
+            ? message.toolCalls.filter(
+                  it => it.state === 'output-error' && getToolCallDisplay(it, host) !== 'timeline'
+              ).length
             : 0,
         endedAt = createdAt + (metadata?.elapsedMs ?? 0),
         {dataRefreshedAt} = host,

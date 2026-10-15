@@ -17,4 +17,5 @@ export {chatSpinner} from './impl/ChatLiveCues';
 export * from './ChatStatusCue';
 export * from './ChatStatusRegion';
 export * from './ChatSuggestions';
+export * from './ChatTimeline';
 export * from './ChatToolCall';

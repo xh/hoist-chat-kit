@@ -123,6 +123,18 @@ export interface ChatToolCallPart extends ChatPartBase {
     /** True if the backend ran the tool and streamed its result, rather than the browser. */
     providerExecuted?: boolean;
 
+    /** Epoch millis when the call started streaming, if known. */
+    startedAt?: number;
+
+    /** Epoch millis when the call ended - succeeded, failed or was denied - if known. */
+    endedAt?: number;
+
+    /**
+     * The sub-agent that made the call, if any - the id of a data part of type
+     * `xh.chat.subagent`. See {@link ChatSubagentData}.
+     */
+    subagentRunId?: string;
+
     /** Signature for the call that must go back with the history. Never displayed. */
     encryptedValue?: string;
 

@@ -84,6 +84,47 @@ describe('ChatToolCall approval', () => {
     });
 });
 
+/**
+ * The display modes a tool can choose besides the default row (D23). Apps rely on an answer tool
+ * showing its result as the answer, and on a hidden tool staying out of sight unless it needs the
+ * user.
+ */
+describe('ChatToolCall display modes', () => {
+    beforeAll(() => initTestAppAsync());
+
+    beforeEach(() => {
+        vi.stubGlobal('ResizeObserver', NoopResizeObserver);
+        Element.prototype.scrollTo ??= () => {};
+    });
+
+    it('shows the output of an answer tool as the answer, with no row', () => {
+        const host = createHost({
+            messages: [
+                reply(toolCall('final_answer', {output: 'HY Credit is **over** its limit.'}))
+            ],
+            getToolSpec: name => ({name, display: 'answer'})
+        });
+        const {container} = renderList(host);
+
+        const answer = container.querySelector('.xh-chat-tool-call__answer');
+        expect(answer.textContent).toBe('HY Credit is over its limit.');
+        expect(answer.querySelector('strong')).toBeTruthy();
+        expect(container.querySelector('.xh-chat-tool-call__header')).toBeNull();
+    });
+
+    it('shows nothing for a hidden tool, until a call waits for approval', () => {
+        const hidden = {getToolSpec: (name: string) => ({name, display: 'hidden' as const})},
+            {container, unmount} = renderList(
+                createHost({messages: [reply(toolCall('log_event'))], ...hidden})
+            );
+        expect(container.querySelector('.xh-chat-tool-call')).toBeNull();
+        unmount();
+
+        renderList(createHost({messages: [approvalReply()], ...hidden}));
+        expect(screen.getByRole('button', {name: 'Allow'})).toBeTruthy();
+    });
+});
+
 //------------------
 // Helpers
 //------------------
@@ -113,6 +154,25 @@ function approvalCall(): ChatToolCallPart {
         output: null,
         errorText: null
     };
+}
+
+function toolCall(toolName: string, rest: Partial<ChatToolCallPart> = {}): ChatToolCallPart {
+    return {
+        type: 'toolCall',
+        id: 'c1',
+        toolName,
+        state: 'output-available',
+        step: 0,
+        inputText: '{}',
+        input: {},
+        output: 'ok',
+        errorText: null,
+        ...rest
+    };
+}
+
+function reply(part: ChatToolCallPart): ChatMessage {
+    return new ChatMessage({id: 'a1', role: 'assistant', status: 'complete', parts: [part]});
 }
 
 function approvalReply(): ChatMessage {

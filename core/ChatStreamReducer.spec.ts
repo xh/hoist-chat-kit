@@ -10,6 +10,7 @@ import type {
     ChatToolCallPart
 } from './ChatPart';
 import {ChatStreamReducer} from './ChatStreamReducer';
+import {CHAT_SUBAGENT_DATA_TYPE} from './ChatSubagent';
 
 /**
  * ChatStreamReducer turns the AG-UI events of each model call into the parts of the assistant
@@ -777,6 +778,68 @@ describe('ChatStreamReducer', () => {
             const reducer = new ChatStreamReducer(0),
                 failed = reducer.apply(pendingMessage(), [{type: 'RUN_ERROR', message: 'Boom'}]);
             expect(reducer.finish(failed)).toMatchObject({status: 'error', error: 'Boom'});
+        });
+    });
+
+    describe('sub-agents and timing', () => {
+        it('records a sub-agent as a data part, and the calls it makes as its own', () => {
+            const message = reduce([
+                {
+                    type: 'SUBAGENT_STARTED',
+                    subagentRunId: 'sa1',
+                    name: 'Limits Checker',
+                    description: 'Compare exposure'
+                },
+                {
+                    type: 'TOOL_CALL_START',
+                    toolCallId: 'c1',
+                    toolCallName: 'read_policy',
+                    subagentRunId: 'sa1'
+                },
+                {type: 'TOOL_CALL_END', toolCallId: 'c1'},
+                {type: 'SUBAGENT_FINISHED', subagentRunId: 'sa1', result: '2 desks over limit.'},
+                FINISHED
+            ]);
+
+            const [agent, call] = message.parts as [ChatDataPart, ChatToolCallPart];
+            expect(agent).toMatchObject({
+                type: 'data',
+                id: 'sa1',
+                dataType: CHAT_SUBAGENT_DATA_TYPE,
+                data: {
+                    name: 'Limits Checker',
+                    description: 'Compare exposure',
+                    status: 'complete',
+                    result: '2 desks over limit.'
+                }
+            });
+            expect(agent.data.endedAt).toBeGreaterThanOrEqual(agent.data.startedAt);
+            expect(call.subagentRunId).toBe('sa1');
+        });
+
+        it('fails a sub-agent on SUBAGENT_ERROR, and ignores the end of one it never saw', () => {
+            const message = reduce([
+                {type: 'SUBAGENT_STARTED', subagentRunId: 'sa1', name: 'Checker'},
+                {type: 'SUBAGENT_ERROR', subagentRunId: 'sa1', message: 'Out of budget.'},
+                {type: 'SUBAGENT_FINISHED', subagentRunId: 'unknown'},
+                FINISHED
+            ]);
+            expect(message.parts).toHaveLength(1);
+            expect((message.parts[0] as ChatDataPart).data).toMatchObject({
+                status: 'error',
+                error: 'Out of budget.'
+            });
+        });
+
+        it('records when a tool call starts and when its result arrives', () => {
+            const message = reduce([
+                ...toolCall('c1', 'lookup', '{}'),
+                {type: 'TOOL_CALL_RESULT', messageId: 'm', toolCallId: 'c1', content: 'ok'},
+                FINISHED
+            ]);
+            const call = message.parts[0] as ChatToolCallPart;
+            expect(call.startedAt).toEqual(expect.any(Number));
+            expect(call.endedAt).toBeGreaterThanOrEqual(call.startedAt);
         });
     });
 });

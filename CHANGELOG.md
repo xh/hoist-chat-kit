@@ -246,6 +246,19 @@
   beside the conversation. Without room, it opens in a new tab.
 * Added the fixed "not found" reply, a data part of type `xh.chat.noAnswer` that renders as
   `ChatNoAnswer`, with no sources list and no Regenerate. Added `noAnswerEvents()`.
+* Added `ChatTimeline`, the activity timeline for calls to tools with `display: 'timeline'`. One
+  28px line shows the current step while an agent works, then "Used 7 tools and 1 agent".
+* Added the timeline's tree of rows, opened from its line: calls with their time and details,
+  batches, narration, sub-agents and a pinned plan. Approvals and questions show while closed.
+* Completed `ChatToolSpec.display` as the `ChatToolDisplay` enum: `card`, `inline`, `timeline`,
+  `answer`, `pinned` and `hidden`. `card` stays the default.
+* Added sub-agents from AG-UI's `SUBAGENT_*` events, as data parts of type `xh.chat.subagent`. A
+  call's `subagentRunId` nests it under its sub-agent in the timeline.
+* Added `startedAt` and `endedAt` to tool call parts, for the time each call took.
+* Added `subagentEvents()`, and an `error` option for `toolCallEvents()`, to script agent runs.
+* Added `addToolOutputAsync()` to `ChatMessageListHost`, for the timeline's question buttons.
+* Added agents and failures to the announcement of a finished reply. It leaves out plan and
+  hidden calls, and timeline narration.
 
 ### 🐞 Bug Fixes
 
@@ -262,6 +275,16 @@
   approval.
 * Fixed file chips loading images at a URL with no image policy. They now follow `allowImages`.
 * Fixed a trailing `***` streaming as `******`.
+* Fixed `ChatWorkspace` showing the wide layout until a throttled timer measured it. It now
+  measures as it mounts and applies each resize at once, for the model it renders.
+* Fixed the workspace side panel keeping its saved width in a narrow workspace. Each width band
+  sets the sidebar and panel widths, and the conversation keeps 380 or 480 px.
+* Fixed the side panel growing to its content's height. It fills the column, and a long document
+  scrolls inside it.
+* Fixed the side panel showing a blank page label for a document with no pages. It shows the
+  page only once the viewer reports one.
+* Fixed a reload of `ChatWorkspace` dropping the open thread. With `persistWith`, the workspace
+  returns to the saved thread once the list shows it.
 
 ### ✨ Styles
 

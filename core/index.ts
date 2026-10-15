@@ -15,6 +15,7 @@ export * from './ChatReplyStatus';
 export * from './ChatRunError';
 export * from './ChatSidePanelHost';
 export * from './ChatSidePanelModel';
+export * from './ChatSubagent';
 export * from './ChatToolResult';
 export * from './ChatToolSpec';
 export * from './ChatStreamReducer';

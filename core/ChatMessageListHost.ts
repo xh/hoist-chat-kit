@@ -102,6 +102,12 @@ export interface ChatMessageListHost {
     /** Deny a tool call waiting for approval. */
     denyToolCallAsync?(toolCallId: string, reason?: string): Promise<void>;
 
+    /**
+     * Answer a call to an interactive tool. Shows the choice buttons of a question in the activity
+     * timeline - see `ChatToolSpec.interactive`.
+     */
+    addToolOutputAsync?(toolCallId: string, output: any): Promise<void>;
+
     /** Stop the reply in progress. Escape stops it while focus is in the list. */
     stop?(): void;
 

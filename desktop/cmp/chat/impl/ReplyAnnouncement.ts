@@ -1,22 +1,44 @@
 import {compact} from 'lodash';
-import type {ChatMessage} from '../../../../core';
+import {
+    type ChatMessage,
+    type ChatMessageListHost,
+    type ChatTextPart,
+    isChatSubagentPart
+} from '../../../../core';
+import {getToolCallDisplay, groupParts} from './groupParts';
 
 /**
- * What the announcer reads when a reply finishes: who replied, after how many tools and how long,
- * then the reply's first paragraph as plain text, cut at 300 characters. "Continues in the
- * message." follows when more is left to read. For example "Analyst replied after 2 tools, 12
- * seconds. HY Credit is the only desk over its limit."
+ * What the announcer reads when a reply finishes: who replied, after how many tools and agents,
+ * how long, and how many tools failed, then the reply's first paragraph as plain text, cut at 300
+ * characters. "Continues in the message." follows when more is left to read. For example "Analyst
+ * replied after 7 tools and 1 agent, 42 seconds, 1 failed. HY Credit is the only desk over its
+ * limit." This is also the activity timeline's done summary, which is never announced alone.
+ *
+ * With a host to say how each tool displays, calls to `hidden` and `pinned` tools do not count,
+ * and narration in an activity timeline is not read as the answer.
  * @internal
  */
-export function formatReplyAnnouncement(message: ChatMessage, assistantName: string): string {
-    const tools = message.toolCalls.length,
+export function formatReplyAnnouncement(
+    message: ChatMessage,
+    assistantName: string,
+    host: Pick<ChatMessageListHost, 'getToolSpec'> = null
+): string {
+    const calls = message.toolCalls.filter(it => !host || isCounted(getToolCallDisplay(it, host))),
+        tools = calls.length,
+        agents = message.parts.filter(isChatSubagentPart).length,
+        failed = calls.filter(it => it.state === 'output-error').length,
         secs = Math.round((message.metadata.elapsedMs ?? 0) / 1000),
-        after = compact([
+        work = compact([
             tools ? plural(tools, 'tool') : null,
-            secs ? plural(secs, 'second') : null
+            agents ? plural(agents, 'agent') : null
+        ]),
+        after = compact([
+            work.length ? work.join(' and ') : null,
+            secs ? plural(secs, 'second') : null,
+            failed ? `${failed} failed` : null
         ]),
         head = `${assistantName} replied${after.length ? ` after ${after.join(', ')}` : ''}.`,
-        {text, isPartial} = firstParagraph(message.text);
+        {text, isPartial} = firstParagraph(host ? getAnswerText(message, host) : message.text);
 
     return compact([head, text, isPartial ? 'Continues in the message.' : null]).join(' ');
 }
@@ -25,6 +47,23 @@ export function formatReplyAnnouncement(message: ChatMessage, assistantName: str
 // Implementation
 //------------------
 const MAX_CHARS = 300;
+
+function isCounted(display: string): boolean {
+    return display !== 'hidden' && display !== 'pinned';
+}
+
+/** The reply's text, less the narration that its activity timelines hold. */
+function getAnswerText(message: ChatMessage, host: Pick<ChatMessageListHost, 'getToolSpec'>) {
+    const narrationIds = new Set(
+        groupParts(message.parts, host).flatMap(group =>
+            group.type === 'timeline' ? group.parts.map(it => it.id) : []
+        )
+    );
+    return message.parts
+        .filter(it => it.type === 'text' && !narrationIds.has(it.id))
+        .map(it => (it as ChatTextPart).text)
+        .join('\n\n');
+}
 
 function plural(count: number, noun: string): string {
     return `${count} ${noun}${count === 1 ? '' : 's'}`;

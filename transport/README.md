@@ -494,14 +494,17 @@ new ScriptedChatTransport({
 });
 ```
 
-The helpers are `textEvents()`, `reasoningEvents()`, `toolCallEvents()`, `sourceEvents()`,
-`citationEvents()`, `dataEvents()`, `noAnswerEvents()`, `errorEvents()` and `scriptedDelay()`. A
+The helpers are `textEvents()`, `reasoningEvents()`, `toolCallEvents()`, `subagentEvents()`,
+`sourceEvents()`, `citationEvents()`, `dataEvents()`, `noAnswerEvents()`, `errorEvents()` and
+`scriptedDelay()`. A
 citation attaches to the text part before it, and refers to a source by `sourceId` or by `url`. A
 source can carry a `sourceType`, a `marker`, the number that cites it as `[n]` in the text, and
 `metadata`. `noAnswerEvents()` writes a fixed "not found" reply. Pass
 `{retryAfterSeconds}` as the third argument of `errorEvents()` to ask for a wait before a retry. Pass a `result` to
-`toolCallEvents()` to simulate a tool that the backend runs. A response can also be an async
-iterable of events, which sets its own pace.
+`toolCallEvents()` to simulate a tool that the backend runs, or an `error` for one that fails.
+`subagentEvents()` wraps events in a sub-agent's start and end, and marks its tool calls as the
+sub-agent's, so the activity timeline nests them. A response can also be an async iterable of
+events, which sets its own pace.
 
 In a unit test, set `delayMs: 0` and read `transport.requests` to check what the chat sent:
 
@@ -987,10 +990,12 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 | `TOOL_CALL_CHUNK` | `toolCallId?`, `toolCallName?`, `delta?` | Starts or appends. |
 | `TOOL_CALL_RESULT` | `toolCallId`, `content`, `metadata?` | `output-available`, with `providerExecuted: true`. JSON content is parsed. `output-error` if `metadata.error` or `metadata.isError` is set. |
 | `ACTIVITY_SNAPSHOT` | `messageId`, `activityType`, `content`, `replace?` | Adds or replaces a data part, with `dataType` set to `activityType`. |
+| `SUBAGENT_STARTED` | `subagentRunId`, `name`, `description?`, `parentSubagentRunId?` | Adds a data part of type `xh.chat.subagent`, with the run id as its id. Tool calls with the same `subagentRunId` nest under it in the activity timeline. |
+| `SUBAGENT_FINISHED`, `SUBAGENT_ERROR` | `subagentRunId`, `result?` or `message` | Ends the sub-agent's data part, with its result or error. |
 | `CUSTOM` | `name`, `value` | The `xh.chat.*` events below. Others are ignored. |
 
 Ignored: `STEP_STARTED`, `STEP_FINISHED`, `RAW`, `STATE_SNAPSHOT`, `STATE_DELTA`,
-`MESSAGES_SNAPSHOT`, `ACTIVITY_DELTA`, and the `SUBAGENT_*` events. Unknown types never throw.
+`MESSAGES_SNAPSHOT` and `ACTIVITY_DELTA`. Unknown types never throw.
 
 When a stream ends, the chat closes the step. Open text and reasoning parts become `done`, and
 tool calls that never saw `TOOL_CALL_END` get their input parsed.

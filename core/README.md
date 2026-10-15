@@ -1054,10 +1054,16 @@ Every part has an `id`, unique within its message, and a `step`. User message pa
 |------|------------|-------|
 | `text` | `text`, `state`, `citations?` | Markdown. `state` is `streaming`, then `done`. |
 | `reasoning` | `text`, `state`, `startedAt`, `endedAt`, `encryptedValue?`, `providerData?` | The model's thinking. `encryptedValue` holds a signature that goes back with the history. |
-| `toolCall` | `toolName`, `state`, `inputText`, `input`, `output`, `errorText`, `providerExecuted?` | The `id` is the provider's tool call id. |
+| `toolCall` | `toolName`, `state`, `inputText`, `input`, `output`, `errorText`, `providerExecuted?`, `startedAt?`, `endedAt?`, `subagentRunId?` | The `id` is the provider's tool call id. `subagentRunId` names the sub-agent that made the call. |
 | `file` | `name`, `mediaType`, `size?`, `url?`, `data?` | `data` is base64. |
 | `source` | `sourceType?`, `url?`, `title?`, `snippet?`, `marker?`, `metadata?` | A source the model consulted. `marker` is the number that cites it in the text, as in `[1]`. `sourceType` is `url` or `document`, by default `url` for a source with a `url`. The kit reads `metadata.excerpt`, `fileName`, `page` and `favicon`. |
 | `data` | `dataType`, `data` | App or protocol content, drawn by `dataRenderers`. |
+
+A sub-agent is a data part of type `xh.chat.subagent` (`CHAT_SUBAGENT_DATA_TYPE`), with the
+sub-agent's run id as its `id`. The stream reducer adds one for each AG-UI `SUBAGENT_STARTED`
+event and ends it on `SUBAGENT_FINISHED` or `SUBAGENT_ERROR`. Its `data` is a `ChatSubagentData`:
+`name`, `description?`, `parentSubagentRunId?`, `status`, `result?`, `error?`, `startedAt` and
+`endedAt`. Outside an activity timeline, the part renders nothing.
 
 The `state` of a tool call follows the Vercel AI SDK names, plus `running`:
 
@@ -1091,7 +1097,28 @@ The `state` of a tool call follows the Vercel AI SDK names, plus `running`:
 | `icon` | `ReactElement` | Icon of the tool call card. |
 | `summary` | `(part) => string` | One-line summary next to the title, for example the city looked up. |
 | `renderer` | `(part, context) => ReactNode` | Custom body for the card, in place of the input and output JSON. Required for an interactive tool. |
-| `display` | `'card' \| 'inline'` | `card` shows calls as a collapsible card. `inline` shows only the `renderer` output, with a status only while the input streams, while the call waits for approval, or once it fails or is denied. A denied call renders no output. Default `card`. |
+| `display` | `ChatToolDisplay` | How calls show in a reply. See [Tool display](#tool-display). Default `card`. |
+
+#### Tool display
+
+`display` takes one of six values. Each tool sets its own, and a reply can mix them.
+
+| Value | Shows each call as | Use it for |
+|-------|--------------------|------------|
+| `card` | A quiet row with title, summary and status, that opens to the input and output, or to the `renderer` output. Two or more calls of one step fold into one "Used 3 tools" row. | Replies with a few calls. The default. |
+| `inline` | The `renderer` output alone, in the reply. A status shows only while the input streams, while the call waits for approval, or once it fails or is denied. A denied call renders no output. | Tools that show UI, such as the tools of a `ChatUiCatalog`. |
+| `timeline` | A row in the reply's activity timeline, one compact block for the whole run. Text between two timeline calls folds into the block as narration. | Agents that make many calls per reply. See [Activity timeline](../desktop/cmp/chat/README.md#activity-timeline). |
+| `answer` | Part of the answer, with no row: the `renderer` output, or else the output itself, as markdown if it is text. Status shows as for `inline`. | A tool whose result is the answer, such as a final answer tool. |
+| `pinned` | The plan pinned to the top of the reply's timeline, from the latest call only. With no timeline in the reply, a `card`. | A plan or checklist tool. |
+| `hidden` | Nothing, unless the call waits for the user to approve or answer it. Hidden calls count in no summary. | Bookkeeping calls the user has no use for. |
+
+A call that a sub-agent makes defaults to `timeline`, where it nests under the sub-agent.
+
+A pinned plan is a list of items, read from the call's output, or else its input. The list is a
+plain array, or the `items`, `steps`, `todos` or `plan` of an object. Each item gives its text as
+`title`, `content`, `text` or `name`, and its `status` as `pending`, `active`, `done` or
+`skipped`. The kit also reads `in_progress`, `completed` and `cancelled`. A value of any other
+shape renders with the tool's `renderer`, or as JSON.
 
 The `context` of `execute` is a `ChatToolContext`: `chatModel`, `toolCallId`, and a `signal`
 that aborts when the user stops the turn.
@@ -1187,6 +1214,7 @@ only when the host has it.
 | `canSubmitFeedback`, `feedback`, `submitFeedbackAsync(id, rating, comment, reasons)` | - | Optional. Show thumbs, and the comment form a rating asks for. |
 | `feedbackErrors` | `Record<string, Error>` | Optional. Why feedback failed, by message id. A rejected `submitFeedbackAsync()` shows the same way. |
 | `approveToolCallAsync(id, reason)`, `denyToolCallAsync(id, reason)` | `Promise<void>` | Optional. Show Allow and Deny on a call that waits for approval. |
+| `addToolOutputAsync(id, output)` | `Promise<void>` | Optional. Shows the choice buttons of a question in the activity timeline. |
 | `stop()` | `() => void` | Optional. Escape stops the reply in progress. |
 | `composerModel` | `{focus(), text?}` | Optional. Focused after an edit resends, and after Escape stops a reply. While `text` is empty, a new approval request takes focus from the conversation. |
 
@@ -1221,8 +1249,7 @@ Fields of `ChatKit.defaults`. See `ChatKit.ts`.
 | `shortcuts` | `ChatShortcuts` | Key combos in the format of Hoist's `useHotkeys`, by action: `newChat`, `toggleDock`, `openHelper`, `focusComposer`, `cycleRegions` and `toggleSidebar`. Null drops a shortcut. See [Keyboard](../desktop/cmp/chat/README.md#keyboard). |
 
 The kit reads `announceSteps`, `drafts` and `shortcuts` from the components that use them. The
-timeline is still to come, so `announceSteps` has no effect yet. Set `shortcuts` before the chat
-components render.
+activity timeline reads `announceSteps`. Set `shortcuts` before the chat components render.
 
 `ChatKit.clearLocalData()` removes everything the kit keeps in local storage for the current
 user, such as drafts. Call it from your logout.

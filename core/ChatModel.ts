@@ -52,7 +52,13 @@ import type {
     ChatFeedbackSubmitter
 } from './ChatFeedback';
 import {ChatMessage, type ChatMessageSpec} from './ChatMessage';
-import type {ChatDataPart, ChatFilePart, ChatPart, ChatToolCallPart} from './ChatPart';
+import {
+    type ChatDataPart,
+    type ChatFilePart,
+    type ChatPart,
+    type ChatToolCallPart,
+    isToolCallFinal
+} from './ChatPart';
 import {ChatRunError} from './ChatRunError';
 import {ChatToolResult, type ChatToolUndo} from './ChatToolResult';
 import type {ChatToolSpec} from './ChatToolSpec';
@@ -1720,6 +1726,10 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatMessa
 
     @action
     private updateToolCall(turn: ChatTurn, toolCallId: string, changes: Partial<ChatToolCallPart>) {
+        // A call that ends here - run in the browser, denied or answered - records when.
+        if (changes.state && isToolCallFinal(changes as ChatToolCallPart)) {
+            changes = {endedAt: Date.now(), ...changes};
+        }
         this.updateTurnMessage(turn, message => updatePart(message, toolCallId, changes));
     }
 

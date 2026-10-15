@@ -47,6 +47,38 @@ describe('formatReplyAnnouncement', () => {
             'Bot replied. See the report for desk limits.'
         );
     });
+
+    it('counts agents and failures, leaving out plan and hidden calls, and narration', () => {
+        const call = (id: string, toolName: string, state = 'output-available'): ChatPart => ({
+                type: 'toolCall',
+                id,
+                toolName,
+                state: state as any,
+                step: 0,
+                inputText: '{}',
+                input: {},
+                output: null,
+                errorText: null
+            }),
+            message = new ChatMessage({
+                role: 'assistant',
+                parts: [
+                    call('p1', 'plan'),
+                    {type: 'data', id: 'sa1', dataType: 'xh.chat.subagent', data: {name: 'A'}},
+                    call('c1', 'step', 'output-error'),
+                    {type: 'text', id: 'n1', text: 'Checking the marks.', state: 'done'},
+                    call('c2', 'step'),
+                    call('h1', 'log'),
+                    {type: 'text', id: 't1', text: 'Two desks are over.', state: 'done'}
+                ]
+            }),
+            display = {plan: 'pinned', step: 'timeline', log: 'hidden'},
+            host = {getToolSpec: (name: string) => ({name, display: display[name]})};
+
+        expect(formatReplyAnnouncement(message, 'Bot', host as any)).toBe(
+            'Bot replied after 2 tools and 1 agent, 1 failed. Two desks are over.'
+        );
+    });
 });
 
 //------------------

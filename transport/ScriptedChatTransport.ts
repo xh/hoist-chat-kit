@@ -273,6 +273,12 @@ export interface ScriptedToolCallOptions {
      * else as JSON. Leave out for a client tool, which the chat runs itself.
      */
     result?: any;
+
+    /** Error message, to simulate a backend tool that fails. Sent in place of a result. */
+    error?: string;
+
+    /** The sub-agent making the call. Set for you by {@link subagentEvents}. */
+    subagentRunId?: string;
 }
 
 /** Events for the model calling a tool, with its arguments streamed as JSON. */
@@ -281,9 +287,14 @@ export function toolCallEvents(
     input: PlainObject = {},
     opts: ScriptedToolCallOptions = {}
 ): ChatEvent[] {
-    const {toolCallId = genChatId(), chunkSize = 12, result} = opts,
+    const {toolCallId = genChatId(), chunkSize = 12, result, error, subagentRunId} = opts,
         events: ChatEvent[] = [
-            {type: 'TOOL_CALL_START', toolCallId, toolCallName: toolName},
+            {
+                type: 'TOOL_CALL_START',
+                toolCallId,
+                toolCallName: toolName,
+                ...(subagentRunId != null ? {subagentRunId} : {})
+            },
             ...chunkText(JSON.stringify(input), chunkSize).map((delta): ChatEvent => ({
                 type: 'TOOL_CALL_ARGS',
                 toolCallId,
@@ -292,7 +303,16 @@ export function toolCallEvents(
             {type: 'TOOL_CALL_END', toolCallId}
         ];
 
-    if (result !== undefined) {
+    if (error != null) {
+        events.push({
+            type: 'TOOL_CALL_RESULT',
+            messageId: genChatId(),
+            toolCallId,
+            content: error,
+            role: 'tool',
+            metadata: {error}
+        });
+    } else if (result !== undefined) {
         events.push({
             type: 'TOOL_CALL_RESULT',
             messageId: genChatId(),
@@ -302,6 +322,60 @@ export function toolCallEvents(
         });
     }
     return events;
+}
+
+/** Options for {@link subagentEvents}. */
+export interface ScriptedSubagentOptions {
+    /** Id of the sub-agent's run. Default generated. */
+    subagentRunId?: string;
+
+    /** What the sub-agent was asked to do. */
+    description?: string;
+
+    /** What the sub-agent found, shown as its result line. */
+    result?: any;
+
+    /** Error message, to end the sub-agent as failed in place of a result. */
+    error?: string;
+}
+
+/**
+ * Events for a sub-agent that does part of the work: its start, the events in `items` - which
+ * may include pauses and nested sub-agents - and its end. Tool calls in `items` are marked as the
+ * sub-agent's, and nest under it in the activity timeline:
+ *
+ * ```ts
+ * subagentEvents('Limits Checker', [
+ *     toolCallEvents('read_policy', {file: 'Risk Policy.pdf'}, {result: 'ok'}),
+ *     toolCallEvents('fetch_marks', {desk: 'Rates'}, {error: '504 Timeout'})
+ * ], {description: 'Compare exposure to limits', result: '2 desks over limit.'})
+ * ```
+ */
+export function subagentEvents(
+    name: string,
+    items: ScriptedItem[],
+    opts: ScriptedSubagentOptions = {}
+): ScriptedItem[] {
+    const {subagentRunId = genChatId(), description, result, error} = opts,
+        inner = (flattenDeep(items) as Array<ChatEvent | ScriptedDelay>).map(item =>
+            claimForSubagent(item, subagentRunId)
+        );
+    return [
+        {
+            type: 'SUBAGENT_STARTED',
+            subagentRunId,
+            name,
+            ...(description != null ? {description} : {})
+        },
+        ...inner,
+        error != null
+            ? {type: 'SUBAGENT_ERROR', subagentRunId, message: error}
+            : {
+                  type: 'SUBAGENT_FINISHED',
+                  subagentRunId,
+                  ...(result !== undefined ? {result} : {})
+              }
+    ];
 }
 
 /** A source, as written by {@link sourceEvents}. */
@@ -410,6 +484,25 @@ export function scriptedDelay(delayMs: number): ScriptedDelay {
 //------------------
 // Implementation
 //------------------
+/** Mark a tool call, or a nested sub-agent, as the work of a sub-agent - unless already marked. */
+function claimForSubagent(
+    item: ChatEvent | ScriptedDelay,
+    subagentRunId: string
+): ChatEvent | ScriptedDelay {
+    if (!('type' in item)) return item;
+    switch (item.type) {
+        case 'TOOL_CALL_START':
+        case 'TOOL_CALL_CHUNK':
+            return item.subagentRunId != null ? item : {...item, subagentRunId};
+        case 'SUBAGENT_STARTED':
+            return item.parentSubagentRunId != null
+                ? item
+                : {...item, parentSubagentRunId: subagentRunId};
+        default:
+            return item;
+    }
+}
+
 /** Split text into chunks of up to `size` characters, each with its leading whitespace. */
 function chunkText(text: string, size: number): string[] {
     return text.match(new RegExp(`\\s*\\S{1,${size}}|\\s+$`, 'g')) ?? [];

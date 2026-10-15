@@ -32,6 +32,9 @@ Key features:
   asks for approval in the words of the tool's `approvalPrompt`.
 - **Inline generative UI** - a tool with `display: 'inline'` shows its rendered output as part
   of the reply, with a status only while it streams, waits or fails.
+- **Activity timeline** - calls to tools with `display: 'timeline'` gather into one 28px block
+  that sums up an agent's run: the current step while it runs, then "Used 7 tools and 1 agent".
+  It opens to a tree of rows, with sub-agents, batches, narration and a pinned plan.
 - **Citations in place** - numbered markers sit in the text or at the end of the paragraph they
   support, and keep their numbers while the reply streams. Each opens a card with the source's
   title and excerpt. The sources list under the reply shares the numbers.
@@ -240,6 +243,66 @@ message view looks for one in Hoist's model context. `ChatWorkspace` publishes o
 The marker whose passage the panel shows stays active, with `aria-pressed`. Without a host, or
 without room, a document opens with `onSourceClick`, else at its URL in a new tab. When the panel
 has a viewer but no room, a toast says so.
+
+### Activity timeline
+
+`ChatTimeline` sums up an agent's run in one block. The message view renders one for calls to
+tools with `display: 'timeline'`, in place of their rows. Calls to `card` tools, and reasoning
+alone, keep the process rows. See [Tool display](../../../core/README.md#tool-display).
+
+The block is one 28px line. Its height never changes, and it changes only its words and its icon:
+
+| State | Line | Meta |
+|-------|------|------|
+| Running | The active plan item, else the latest finished sentence of narration, else the running call. "Running 3 steps" while calls run at once. | Step count or plan position, time so far, failures |
+| Quiet | "Waiting on" the running step, once the chat has had no data for its `stallAfterMs`. The spinner stays. | "no update for 34s" first |
+| Waiting | "Waiting for approval" or "Waiting for your answer", in the attention color | As running, with the time held |
+| Done | "Used 7 tools and 1 agent" | Time taken, failures |
+| Stopped | "Stopped after 5 tools". Calls still in flight show as cancelled. | Cancelled count |
+| Failed | "Ended at step 5". The reply's failed row says why. | Tool count |
+
+The line swaps to its done summary in place once the answer starts below the block. Failures
+show in the warning color, as "1 failed", and as "1 failed, retried" once every failed call was
+retried with success. A retry is a later call with the same tool, input and sub-agent.
+
+The block starts collapsed, and never opens or closes by itself. The one exception is a call that
+waits for the user. Its approval panel, or its question, shows under the line whether or not the
+block is open, and the block frames itself in the attention color. Approval uses the host's
+`approveToolCallAsync()` and `denyToolCallAsync()`, as a tool row does. A question with up to
+three `choices` in its input shows them as buttons, and more show in a select. The answer goes to
+the host's `addToolOutputAsync()`. A tool `renderer` replaces the buttons.
+
+Open, the block shows the pinned plan, then a tree of rows:
+
+- **Calls** - status or kind icon, title, a one-line summary of the input, and the time taken.
+  Status words replace the summary when a call fails, waits or is denied. A row opens to its
+  Input, Output and Error panes, or to the tool's `renderer`. Panes mount on open, scroll inside
+  240px, show at most 500 lines, and offer Copy.
+- **Batches** - three or more calls of one tool in a row, with no narration between, merge into
+  one row with a count and the time they span.
+- **Sub-agents** - the calls of a sub-agent nest under its row, 20px per level, and its result
+  closes the group. A sub-agent row starts open while it runs and closed once done. Below three
+  levels, a row names its parent in place of more indent.
+- **Narration and reasoning** - text between two timeline calls renders at 12px, aligned with
+  the titles. Text after the last call stays below the block, as the answer, until another
+  timeline call starts. Then it moves into the block.
+
+The line is a button with `aria-expanded`. The tree is `role="tree"` with one tab stop. Up and
+Down move between rows, and Home and End jump to the ends. Right opens a row or enters its first
+child. Left closes it or goes to its parent. Enter and Space toggle a row. Escape inside a row's
+details returns to the row.
+
+The timeline announces a step that fails while the reply runs. With `announceSteps: 'all'`, it
+announces every step. After two minutes with no data, it announces once what it waits on. It
+never announces its done summary. The reply's announcement says it instead, as "Analyst replied
+after 7 tools and 1 agent, 42 seconds, 1 failed."
+
+Below 480px, the block takes the `xh-chat-timeline--narrow` class. It drops the step count
+first, shows failures as a count beside the warning icon, and shortens its words.
+
+A backend shows sub-agents with AG-UI's `SUBAGENT_STARTED`, `SUBAGENT_FINISHED` and
+`SUBAGENT_ERROR` events, and marks a sub-agent's calls with `subagentRunId` on `TOOL_CALL_START`.
+`subagentEvents()` scripts the same events for `ScriptedChatTransport`.
 
 ### Fixed "not found" replies
 
@@ -855,6 +918,7 @@ Use it directly only for a list of your own.
 | Component | Props | Use it to |
 |-----------|-------|-----------|
 | `ChatToolCall` | `part`, `context`, `host` | Show a tool call row, for example inside a renderer of your own. `host` defaults to `context.chatModel`. |
+| `ChatTimeline` | `message`, `host`, `parts`, `pinned`, `context`, `isFollowed`, `isLast`, `announceSteps` | Show a reply's activity timeline in a layout of your own. `parts` and `pinned` default to the reply's first timeline block. `isFollowed` says the answer has started below it. |
 | `ChatClearButton` | `chatModel`, and any `ButtonProps` | Clear the conversation, from a panel header. |
 | `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |
 | `ChatSources` | `sources`, `uncitedSources`, `defaultExpanded`, `onSourceClick`, `allowImages` | Show a list of sources. Each shows its `marker`, else its position. Uncited sources are counted, not numbered. |
