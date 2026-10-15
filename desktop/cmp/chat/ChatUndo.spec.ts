@@ -1,16 +1,9 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
-import {fragment} from '@xh/hoist/cmp/layout';
-import {creates, hoistCmp, HoistModel, XH} from '@xh/hoist/core';
+import {XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {
-    chatAnnouncer,
-    ChatMessage,
-    type ChatMessageListHost,
-    ChatModel,
-    chatToolResult
-} from '../../../core';
+import {chatAnnouncer, ChatModel, chatToolResult} from '../../../core';
 import {ScriptedChatTransport, textEvents, toolCallEvents} from '../../../transport';
 import {chatMessageList} from './ChatMessageList';
 
@@ -62,24 +55,38 @@ describe('ChatMessageView undo', () => {
         expect(screen.queryByRole('button', {name: /Redo/})).toBeNull();
     });
 
-    it("shows the rejection of a plain host's undo, while the reply can still be undone", async () => {
-        let canUndo = true;
-        const host: ChatMessageListHost = {
-            messages: [new ChatMessage({id: 'a1', role: 'assistant', content: 'Changed it.'})],
-            isBusy: false,
-            canUndoTurn: () => canUndo,
-            undoTurnAsync: vi.fn(() => Promise.reject(new Error('Offline.')))
-        };
-        const {rerender} = render(appContext({item: chatMessageList({host})}));
+    it('drops a failed undo once the reply can no longer be undone', async () => {
+        const handleException = vi.spyOn(XH, 'handleException').mockImplementation(() => {});
+        onTestFinished(() => handleException.mockRestore());
+        const chatModel = new ChatModel({
+            transport: new ScriptedChatTransport({
+                responses: [
+                    toolCallEvents('filter', {}),
+                    textEvents('Filtered.'),
+                    toolCallEvents('filter', {}),
+                    textEvents('Filtered again.')
+                ],
+                delayMs: 0
+            }),
+            tools: [
+                {
+                    name: 'filter',
+                    execute: () =>
+                        chatToolResult('Done.', {undo: () => Promise.reject(new Error('Offline.'))})
+                }
+            ]
+        });
+        onTestFinished(() => chatModel.destroy());
+        await chatModel.sendAsync('Filter the grid');
+        render(chatMessageList({model: chatModel}));
 
         await act(() => fireEvent.click(screen.getByRole('button', {name: 'Undo changes'})));
         expect(document.querySelector('.xh-chat-message__undo-failed').textContent).toContain(
             'Offline.'
         );
 
-        // Retry could not work once the reply can no longer be undone, so the line goes.
-        canUndo = false;
-        rerender(appContext({item: chatMessageList({host: {...host}})}));
+        // Retry could not work once a newer reply holds the undo, so the line goes.
+        await act(() => chatModel.sendAsync('Filter it again'));
         expect(document.querySelector('.xh-chat-message__undo-failed')).toBeNull();
     });
 });
@@ -117,28 +124,28 @@ describe('ChatMessageView focus after an action', () => {
         expect(document.activeElement).toBe(document.querySelector('.xh-chat-message--assistant'));
     });
 
-    it('moves focus to the composer on Regenerate', () => {
-        const composerModel = {focus: vi.fn()},
-            host: ChatMessageListHost = {
-                messages: [
-                    new ChatMessage({id: 'u1', role: 'user', content: 'Hi'}),
-                    new ChatMessage({id: 'a1', role: 'assistant', content: 'Hello.'})
-                ],
-                isBusy: false,
-                regenerateAsync: vi.fn(() => Promise.resolve()),
-                composerModel
-            };
-        render(appContext({item: chatMessageList({host})}));
+    it('moves focus to the composer on Regenerate', async () => {
+        const chatModel = new ChatModel({
+            transport: new ScriptedChatTransport({
+                responses: [textEvents('Hello.'), textEvents('Hello again.')],
+                delayMs: 0
+            })
+        });
+        onTestFinished(() => chatModel.destroy());
+        await chatModel.sendAsync('Hi');
+        const focus = vi.spyOn(chatModel.composerModel, 'focus');
+        render(chatMessageList({model: chatModel}));
 
-        fireEvent.click(screen.getByRole('button', {name: 'Regenerate'}));
-        expect(host.regenerateAsync).toHaveBeenCalledWith('a1');
-        expect(composerModel.focus).toHaveBeenCalled();
+        await act(() => fireEvent.click(screen.getByRole('button', {name: 'Regenerate'})));
+        expect(focus).toHaveBeenCalled();
+        expect(screen.getByText('Hello again.')).toBeTruthy();
     });
 
     it('moves focus to the reply on Allow or Deny, as the approval goes', () => {
-        const host: ChatMessageListHost = {
-            messages: [
-                new ChatMessage({
+        const chatModel = new ChatModel({
+            transport: new ScriptedChatTransport(),
+            initialMessages: [
+                {
                     id: 'a1',
                     role: 'assistant',
                     status: 'paused',
@@ -148,24 +155,24 @@ describe('ChatMessageView focus after an action', () => {
                             id: 'c1',
                             toolName: 'insert_rows',
                             state: 'approval-requested',
+                            step: 0,
                             inputText: '{}',
                             input: {},
                             output: null,
                             errorText: null
                         }
                     ]
-                })
-            ],
-            isBusy: false,
-            approveToolCallAsync: vi.fn(() => Promise.resolve()),
-            denyToolCallAsync: vi.fn(() => Promise.resolve())
-        };
-        render(appContext({item: chatMessageList({host})}));
+                }
+            ]
+        });
+        onTestFinished(() => chatModel.destroy());
+        const approve = vi.spyOn(chatModel, 'approveToolCallAsync').mockResolvedValue();
+        render(chatMessageList({model: chatModel}));
 
         const allow = screen.getByRole('button', {name: 'Allow'});
         act(() => allow.focus());
         fireEvent.click(allow);
-        expect(host.approveToolCallAsync).toHaveBeenCalledWith('c1', undefined);
+        expect(approve).toHaveBeenCalledWith('c1', undefined);
         expect(document.activeElement).toBe(document.querySelector('.xh-chat-message--assistant'));
     });
 });
@@ -178,11 +185,3 @@ class NoopResizeObserver {
     unobserve() {}
     disconnect() {}
 }
-
-class AppStandInModel extends HoistModel {}
-
-const appContext = hoistCmp.factory({
-    displayName: 'TestAppContext',
-    model: creates(AppStandInModel),
-    render: ({children}) => fragment(children)
-});

@@ -3,7 +3,13 @@ import type {KeyboardEvent, MouseEvent, WheelEvent} from 'react';
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import {action, observable} from '@xh/hoist/mobx';
 import {createObservableRef} from '@xh/hoist/utils/react';
-import {chatAnnouncer, type ChatMessage, type ChatMessageListHost} from '../../../../core';
+import {
+    chatAnnouncer,
+    type ChatMessage,
+    type ChatModel,
+    type ChatTranscript,
+    isChatModel
+} from '../../../../core';
 import {formatReplyAnnouncement} from './ReplyAnnouncement';
 
 /**
@@ -23,9 +29,15 @@ export class ChatMessageListLocalModel extends HoistModel {
     override xhImpl = true;
 
     /** The conversation the list shows - its `host` prop, else its `ChatModel`. */
-    get host(): ChatMessageListHost {
+    get host(): ChatTranscript | ChatModel {
         const {host, model} = this.componentProps as PlainObject;
         return host ?? model;
+    }
+
+    /** The chat the list shows, or null for a plain transcript. */
+    get chatModel(): ChatModel {
+        const {host} = this;
+        return isChatModel(host) ? host : null;
     }
 
     readonly viewportRef = createObservableRef<HTMLDivElement>();
@@ -50,7 +62,7 @@ export class ChatMessageListLocalModel extends HoistModel {
 
         // Show the end of a finished reply - its action bar appears as the turn ends.
         this.addReaction({
-            track: () => this.host?.isBusy,
+            track: () => this.chatModel?.isBusy,
             run: isBusy => {
                 if (!isBusy && this._isSticky) this.scrollToBottom();
             },
@@ -100,7 +112,7 @@ export class ChatMessageListLocalModel extends HoistModel {
     // it is in the last message, which would otherwise open out of view.
     onContentResize = () => {
         const isOpeningLast = this.lastClickAt > Date.now() - OPEN_FOLLOW_MS;
-        this.followContent(!!this.host?.isBusy || isOpeningLast);
+        this.followContent(!!this.chatModel?.isBusy || isOpeningLast);
     };
 
     onClickCapture = (e: MouseEvent) => {
@@ -125,11 +137,11 @@ export class ChatMessageListLocalModel extends HoistModel {
     // after a click on Stop. With a message focused, Up and Down move to the one before or after.
     onKeyDown = (e: KeyboardEvent) => {
         if (e.defaultPrevented) return;
-        const {host} = this;
-        if (e.key === 'Escape' && host.isBusy && host.stop) {
+        const {chatModel} = this;
+        if (e.key === 'Escape' && chatModel?.isBusy) {
             e.preventDefault();
-            host.stop();
-            host.composerModel?.focus();
+            chatModel.stop();
+            chatModel.composerModel.focus();
             return;
         }
 
@@ -159,7 +171,7 @@ export class ChatMessageListLocalModel extends HoistModel {
 
         if (message.status === 'complete') {
             const name = (this.componentProps as PlainObject).assistantName ?? 'Assistant';
-            chatAnnouncer.announce(formatReplyAnnouncement(message, name, this.host));
+            chatAnnouncer.announce(formatReplyAnnouncement(message, name, this.chatModel));
         } else if (message.status === 'aborted' && !message.metadata.detached) {
             chatAnnouncer.announce('Reply stopped.');
         }

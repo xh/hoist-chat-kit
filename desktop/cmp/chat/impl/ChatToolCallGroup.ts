@@ -7,7 +7,6 @@ import {Icon} from '@xh/hoist/icon';
 import {action, observable} from '@xh/hoist/mobx';
 import {pluralize} from '@xh/hoist/utils/js';
 import {
-    type ChatMessageListHost,
     type ChatPartRenderContext,
     type ChatToolCallPart,
     isToolCallFailed,
@@ -25,9 +24,6 @@ interface ChatToolCallGroupProps extends HoistProps {
 
     /** Render context of the message that holds the calls. */
     context: ChatPartRenderContext;
-
-    /** The conversation that holds the calls. */
-    host: ChatMessageListHost;
 }
 
 /**
@@ -40,12 +36,14 @@ export const chatToolCallGroup = hoistCmp.factory<ChatToolCallGroupProps>({
     displayName: 'ChatToolCallGroup',
     className: 'xh-chat-tool-call-group',
 
-    render({className, parts, context, host}) {
+    render({className, parts, context}) {
         const impl = useLocalModel(ChatToolCallGroupLocalModel),
             isRunning = parts.some(it => !isToolCallFinal(it)),
             isExpanded = impl.expanded ?? isRunning,
             count = parts.length,
-            names = uniq(parts.map(it => getToolTitle(it, host.getToolSpec?.(it.toolName)))),
+            names = uniq(
+                parts.map(it => getToolTitle(it, context.chatModel?.getToolSpec(it.toolName)))
+            ),
             title = `${isRunning ? 'Using' : 'Used'} ${pluralize('tool', count, true)}`,
             problems = getProblems(parts);
 
@@ -91,8 +89,7 @@ export const chatToolCallGroup = hoistCmp.factory<ChatToolCallGroupProps>({
                                   item: chatToolCall({
                                       className: 'xh-chat-tool-call--grouped',
                                       part,
-                                      context,
-                                      host
+                                      context
                                   })
                               })
                           )

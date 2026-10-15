@@ -12,7 +12,7 @@ import {
     chatAnnouncer,
     type ChatFeedbackRating,
     type ChatMessage,
-    type ChatMessageListHost
+    type ChatModel
 } from '../../../../core';
 import {classNames} from '../../../../impl/ClassNames';
 import {onClearLocalData} from '../../../../impl/clearLocalData';
@@ -121,7 +121,7 @@ export class ChatFeedbackForm extends HoistModel {
 export class ChatFeedbackThreadState extends HoistBase {
     @observableRef accessor form: ChatFeedbackForm = null;
 
-    /** The thread the state belongs to, or null for one kept by its host. */
+    /** The thread the state belongs to, or null for one kept by its chat. */
     readonly threadId: string;
 
     constructor(threadId: string = null) {
@@ -147,19 +147,19 @@ export class ChatFeedbackThreadState extends HoistBase {
 }
 
 /**
- * The feedback state for a host's thread - by its `threadId` if it has one, so that a draft
+ * The feedback state for a chat's thread - by its `threadId` if it has one, so that a draft
  * survives a switch to another thread and back, for the session. A thread with no open form gets
  * a new state, which the session keeps once a form opens in it.
  * @internal
  */
-export function getFeedbackThreadState(host: ChatMessageListHost): ChatFeedbackThreadState {
-    const {threadId} = host;
+export function getFeedbackThreadState(chatModel: ChatModel): ChatFeedbackThreadState {
+    const {threadId} = chatModel;
     if (threadId != null) {
         // Observable, so that the views of a thread see a form another view opens.
         return statesByThread.get(threadId) ?? new ChatFeedbackThreadState(threadId);
     }
-    let ret = statesByHost.get(host);
-    if (!ret) statesByHost.set(host, (ret = new ChatFeedbackThreadState()));
+    let ret = statesByChat.get(chatModel);
+    if (!ret) statesByChat.set(chatModel, (ret = new ChatFeedbackThreadState()));
     return ret;
 }
 
@@ -199,12 +199,14 @@ export class ChatMessageFeedbackModel extends HoistModel {
     readonly downRef = createObservableRef<HTMLElement>();
 
     message: ChatMessage = null;
-    host: ChatMessageListHost = null;
 
-    /** Set the message and host - called as the view renders. */
-    configure(message: ChatMessage, host: ChatMessageListHost) {
+    /** The chat that takes the feedback - null for a transcript, which offers no thumbs. */
+    chatModel: ChatModel = null;
+
+    /** Set the message and chat - called as the view renders. */
+    configure(message: ChatMessage, chatModel: ChatModel) {
         this.message = message;
-        this.host = host;
+        this.chatModel = chatModel;
     }
 
     get settings() {
@@ -214,16 +216,15 @@ export class ChatMessageFeedbackModel extends HoistModel {
             reasons = [],
             clearable = true,
             maxCommentLength = 1000
-        } = this.host.feedback ?? {};
+        } = this.chatModel?.feedback ?? {};
         return {commentOn, requireComment, reasons, clearable, maxCommentLength};
     }
 
     /** True if the user can rate the message now. */
     get canRate(): boolean {
-        const {message, host} = this;
+        const {message, chatModel} = this;
         return (
-            !!host.canSubmitFeedback &&
-            !!host.submitFeedbackAsync &&
+            !!chatModel?.canSubmitFeedback &&
             message.isAssistant &&
             !message.isStreaming &&
             message.status !== 'paused' &&
@@ -232,11 +233,12 @@ export class ChatMessageFeedbackModel extends HoistModel {
     }
 
     get threadState(): ChatFeedbackThreadState {
-        return getFeedbackThreadState(this.host);
+        return getFeedbackThreadState(this.chatModel);
     }
 
     /** This message's open form, or null. */
     get form(): ChatFeedbackForm {
+        if (!this.chatModel) return null;
         const {form} = this.threadState;
         return form?.messageId === this.message.id ? form : null;
     }
@@ -428,7 +430,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
     private failureTimer: any;
 
     private get lastUserMessageId(): string {
-        return last(this.host.messages.filter(it => it.isUser))?.id ?? '';
+        return last(this.chatModel.messages.filter(it => it.isUser))?.id ?? '';
     }
 
     private requiresComment(rating: ChatFeedbackRating): boolean {
@@ -437,7 +439,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
 
     // A form whose message is gone - replaced by a regenerate, say - blocks nothing.
     private isLive(form: ChatFeedbackForm): boolean {
-        return this.host.messages.some(it => it.id === form.messageId);
+        return this.chatModel.messages.some(it => it.id === form.messageId);
     }
 
     private openForm(rating: ChatFeedbackRating, isPending: boolean) {
@@ -471,12 +473,12 @@ export class ChatMessageFeedbackModel extends HoistModel {
         chatAnnouncer.announce('Feedback sent.');
     }
 
-    // The host's error - a ChatModel records it and resolves - or the promise's.
+    // The chat's error - it records it and resolves - or the promise's.
     private async submitAsync(payload: FeedbackPayload): Promise<Error> {
-        const {host, message} = this,
+        const {chatModel, message} = this,
             {rating, comment, reasons} = payload;
         try {
-            await host.submitFeedbackAsync(
+            await chatModel.submitFeedbackAsync(
                 message.id,
                 rating,
                 comment || undefined,
@@ -485,7 +487,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
         } catch (e) {
             return e;
         }
-        return host.feedbackErrors?.[message.id] ?? null;
+        return chatModel.feedbackErrors[message.id] ?? null;
     }
 
     // A thumb keeps focus through a save. Should the browser drop it, put it back.
@@ -808,9 +810,9 @@ const REJECTED_STATUSES = [400, 413, 422];
 const THANKS_MS = 3_000,
     FAILURE_MS = 8_000;
 
-// States with an open form, by thread id, and states by host for a host with no thread id.
+// States with an open form, by thread id, and states by chat for a chat with no thread id.
 const statesByThread = observable.map<string, ChatFeedbackThreadState>({}, {deep: false}),
-    statesByHost = new WeakMap<object, ChatFeedbackThreadState>();
+    statesByChat = new WeakMap<ChatModel, ChatFeedbackThreadState>();
 
 onClearLocalData(threadIds => {
     const states = threadIds

@@ -1,13 +1,11 @@
 import {act, fireEvent, render, screen, within} from '@testing-library/react';
-import {fragment} from '@xh/hoist/cmp/layout';
-import {creates, hoistCmp, HoistModel} from '@xh/hoist/core';
+import {runInAction} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     chatAnnouncer,
     ChatKit,
     ChatMessage,
-    type ChatMessageListHost,
     type ChatMessageSpec,
     ChatModel,
     type ChatPart,
@@ -173,7 +171,7 @@ describe('ChatTimeline', () => {
     describe('announcements', () => {
         it('announces a step that fails while the reply runs, and only that', () => {
             const announce = vi.spyOn(chatAnnouncer, 'announce'),
-                host = createHost([
+                chatModel = createChat([
                     reply(
                         [
                             call('c1', {state: 'running', toolName: 'fetch_marks'}),
@@ -181,15 +179,19 @@ describe('ChatTimeline', () => {
                         ],
                         {status: 'streaming'}
                     )
-                ]),
-                {rerender} = renderHost(host);
+                ]);
+            renderChat(chatModel);
 
-            host.messages = [
-                reply([call('c1', {state: 'output-error', toolName: 'fetch_marks'}), call('c2')], {
-                    status: 'streaming'
-                })
-            ];
-            rerender(appContext({item: chatMessageList({host: {...host}})}));
+            act(() =>
+                setMessages(chatModel, [
+                    reply(
+                        [call('c1', {state: 'output-error', toolName: 'fetch_marks'}), call('c2')],
+                        {
+                            status: 'streaming'
+                        }
+                    )
+                ])
+            );
 
             expect(announce.mock.calls.map(it => it[0])).toEqual([
                 'Step failed: Fetch marks, 504 Timeout.'
@@ -205,63 +207,63 @@ describe('ChatTimeline', () => {
                 ChatKit.defaults.announceSteps = 'failures';
             });
 
-            const host = createHost([reply(running, {status: 'streaming'})]),
-                {rerender} = renderHost(host);
-            host.messages = [reply(done, {status: 'streaming'})];
-            rerender(appContext({item: chatMessageList({host: {...host}})}));
+            const chatModel = createChat([reply(running, {status: 'streaming'})]);
+            renderChat(chatModel);
+            act(() => setMessages(chatModel, [reply(done, {status: 'streaming'})]));
             expect(announce).toHaveBeenLastCalledWith('Step 1 done: Lookup, 3.1s.');
 
             ChatKit.defaults.announceSteps = 'none';
-            host.messages = [
-                reply([...done, call('c2', {state: 'output-error'})], {status: 'streaming'})
-            ];
-            rerender(appContext({item: chatMessageList({host: {...host}})}));
+            act(() =>
+                setMessages(chatModel, [
+                    reply([...done, call('c2', {state: 'output-error'})], {status: 'streaming'})
+                ])
+            );
             expect(announce).toHaveBeenCalledTimes(1);
         });
 
         it('takes announceSteps from the message list, and counts steps across blocks', () => {
             const announce = vi.spyOn(chatAnnouncer, 'announce'),
                 card = call('k1', {toolName: 'show_card'}),
-                host = createHost(
+                chatModel = createChat(
                     [
                         reply([call('c1'), card, call('c2', {state: 'running'})], {
                             status: 'streaming'
                         })
                     ],
                     [{name: 'show_card', display: 'card'}]
-                ),
-                list = (it: ChatMessageListHost) =>
-                    appContext({item: chatMessageList({host: it, announceSteps: 'all'})}),
-                {rerender} = render(list(host));
+                );
+            render(chatMessageList({model: chatModel, announceSteps: 'all'}));
 
-            host.messages = [
-                reply([call('c1'), card, {...call('c2'), startedAt: 1000, endedAt: 2000}], {
-                    status: 'streaming'
-                })
-            ];
-            rerender(list({...host}));
+            act(() =>
+                setMessages(chatModel, [
+                    reply([call('c1'), card, {...call('c2'), startedAt: 1000, endedAt: 2000}], {
+                        status: 'streaming'
+                    })
+                ])
+            );
             expect(announce.mock.calls.map(it => it[0])).toEqual(['Step 2 done: Lookup, 1.0s.']);
         });
 
         it('announces a failed call shown as a card under the default "failures"', () => {
             const announce = vi.spyOn(chatAnnouncer, 'announce'),
                 tools = [{name: 'show_card', display: 'card' as const}],
-                host = createHost(
+                chatModel = createChat(
                     [
                         reply([call('k1', {state: 'running', toolName: 'show_card'})], {
                             status: 'streaming'
                         })
                     ],
                     tools
-                ),
-                {rerender} = renderHost(host);
+                );
+            renderChat(chatModel);
 
-            host.messages = [
-                reply([call('k1', {state: 'output-error', toolName: 'show_card'})], {
-                    status: 'streaming'
-                })
-            ];
-            rerender(appContext({item: chatMessageList({host: {...host}})}));
+            act(() =>
+                setMessages(chatModel, [
+                    reply([call('k1', {state: 'output-error', toolName: 'show_card'})], {
+                        status: 'streaming'
+                    })
+                ])
+            );
             expect(announce.mock.calls.map(it => it[0])).toEqual([
                 'Step failed: Show card, 504 Timeout.'
             ]);
@@ -328,16 +330,17 @@ describe('ChatTimeline', () => {
 
         it('swaps the line to its summary in place once the answer starts, and keeps it open', () => {
             const parts = [call('c1'), call('c2', {state: 'running'})],
-                host = createHost([reply(parts, {status: 'streaming'})]),
-                {container, rerender} = renderHost(host);
+                chatModel = createChat([reply(parts, {status: 'streaming'})]),
+                {container} = renderChat(chatModel);
             fireEvent.click(lineButton(container));
 
-            host.messages = [
-                reply([call('c1'), call('c2'), text('answer', 'The answer.')], {
-                    status: 'streaming'
-                })
-            ];
-            rerender(appContext({item: chatMessageList({host: {...host}})}));
+            act(() =>
+                setMessages(chatModel, [
+                    reply([call('c1'), call('c2'), text('answer', 'The answer.')], {
+                        status: 'streaming'
+                    })
+                ])
+            );
 
             const head = lineButton(container);
             expect(head.textContent).toContain('Used 2 tools');
@@ -566,7 +569,7 @@ describe('ChatTimeline', () => {
 
     describe('waiting for the user', () => {
         it('shows the approval panel while collapsed, with Allow and Deny that decide the call', () => {
-            const host = createHost(
+            const chatModel = createChat(
                 [
                     reply(
                         [
@@ -578,7 +581,7 @@ describe('ChatTimeline', () => {
                 ],
                 [{name: 'insert_rows', display: 'timeline', approvalPrompt: 'Insert 2 rows?'}]
             );
-            const {container} = renderHost(host),
+            const {container} = renderChat(chatModel),
                 block = timeline(container);
 
             expect(lineButton(container).getAttribute('aria-expanded')).toBe('false');
@@ -587,11 +590,11 @@ describe('ChatTimeline', () => {
             expect(block.textContent).toContain('Insert 2 rows?');
 
             fireEvent.click(within(block).getByRole('button', {name: 'Allow'}));
-            expect(host.approveToolCallAsync).toHaveBeenCalledWith('c2', undefined);
+            expect(chatModel.approveToolCallAsync).toHaveBeenCalledWith('c2', undefined);
         });
 
         it('offers up to three choices as buttons, and answers with the one chosen', () => {
-            const host = createHost(
+            const chatModel = createChat(
                 [
                     reply(
                         [
@@ -610,7 +613,7 @@ describe('ChatTimeline', () => {
                 ],
                 [{name: 'ask', display: 'timeline', interactive: true}]
             );
-            const {container} = renderHost(host),
+            const {container} = renderChat(chatModel),
                 question = within(timeline(container)).getByRole('group', {name: 'Question'});
 
             expect(lineButton(container).textContent).toContain('Waiting for your answer');
@@ -622,7 +625,7 @@ describe('ChatTimeline', () => {
             ).toEqual(['Intraday', 'Prior Close', 'Official EOD']);
 
             fireEvent.click(within(question).getByRole('button', {name: 'Intraday'}));
-            expect(host.addToolOutputAsync).toHaveBeenCalledWith('q1', 'Intraday');
+            expect(chatModel.addToolOutputAsync).toHaveBeenCalledWith('q1', 'Intraday');
         });
 
         it('shows an answered question as one row with the answer as a token', () => {
@@ -680,14 +683,6 @@ describe('ChatTimeline', () => {
 //------------------
 // Helpers
 //------------------
-class AppStandInModel extends HoistModel {}
-
-const appContext = hoistCmp.factory({
-    displayName: 'TestAppContext',
-    model: creates(AppStandInModel),
-    render: ({children}) => fragment(children)
-});
-
 /** A ResizeObserver that reports one width as soon as it observes an element. */
 function resizeObserverOf(width: number) {
     return class {
@@ -734,34 +729,50 @@ const TOOLS: ChatToolSpec[] = [
     {name: 'fetch_marks', display: 'timeline'}
 ];
 
-function createHost(
-    messages: ChatMessage[],
-    tools: ChatToolSpec[] = [],
-    rest: Partial<ChatMessageListHost> = {}
-): ChatMessageListHost & {messages: ChatMessage[]} {
-    const all = [...TOOLS, ...tools];
-    return {
-        messages,
-        isBusy: messages.some(it => it.isStreaming),
-        getToolSpec: (name: string) => all.find(it => it.name === name) ?? null,
-        approveToolCallAsync: vi.fn(() => Promise.resolve()),
-        denyToolCallAsync: vi.fn(() => Promise.resolve()),
-        addToolOutputAsync: vi.fn(() => Promise.resolve()),
-        ...rest
-    } as any;
+interface ChatState {
+    /** Epoch millis of the chat's last activity, or null. */
+    lastActivityAt?: number;
+    stallAfterMs?: number;
 }
 
-function renderHost(host: ChatMessageListHost) {
-    return render(appContext({item: chatMessageList({host})}));
+/** A chat that shows the messages, with its decisions on calls spied on. */
+function createChat(
+    messages: ChatMessage[],
+    tools: ChatToolSpec[] = [],
+    {lastActivityAt = null, stallAfterMs}: ChatState = {}
+): ChatModel {
+    const chatModel = new ChatModel({
+        transport: new ScriptedChatTransport(),
+        tools: [...TOOLS, ...tools],
+        stallAfterMs
+    });
+    onTestFinished(() => chatModel.destroy());
+    setMessages(chatModel, messages);
+    vi.spyOn(chatModel, 'lastActivityAt', 'get').mockReturnValue(lastActivityAt);
+    vi.spyOn(chatModel, 'approveToolCallAsync').mockResolvedValue();
+    vi.spyOn(chatModel, 'denyToolCallAsync').mockResolvedValue();
+    vi.spyOn(chatModel, 'addToolOutputAsync').mockResolvedValue();
+    return chatModel;
+}
+
+// Show messages as a streamed change would.
+function setMessages(chatModel: ChatModel, messages: ChatMessage[]) {
+    runInAction(() => {
+        chatModel.messages = messages;
+    });
+}
+
+function renderChat(chatModel: ChatModel) {
+    return render(chatMessageList({model: chatModel}));
 }
 
 function renderReply(
     parts: ChatPart[],
-    hostProps: Partial<ChatMessageListHost> = {},
+    chatState: ChatState = {},
     replyProps: Partial<ChatMessageSpec> = {status: 'streaming'},
     tools: ChatToolSpec[] = []
 ) {
-    return renderHost(createHost([reply(parts, replyProps)], tools, hostProps));
+    return renderChat(createChat([reply(parts, replyProps)], tools, chatState));
 }
 
 function reply(parts: ChatPart[], rest: Partial<ChatMessageSpec> = {}): ChatMessage {

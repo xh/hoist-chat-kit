@@ -40,7 +40,6 @@ import type {
 } from '../transport';
 import {ChatAbortError, type ChatAbortReason} from './ChatAbortError';
 import type {ChatComposerHost} from './ChatComposerHost';
-import type {ChatMessageListHost} from './ChatMessageListHost';
 import {ChatComposerModel, type ChatComposerConfig} from './ChatComposerModel';
 import {ChatKit} from './ChatKit';
 import type {ChatContextProvider} from './ChatContextProvider';
@@ -62,6 +61,7 @@ import {
 import {ChatRunError} from './ChatRunError';
 import {ChatToolResult, type ChatToolUndo} from './ChatToolResult';
 import type {ChatToolSpec} from './ChatToolSpec';
+import type {ChatTranscript} from './ChatTranscript';
 import {isAbortError, raceAbort} from '../impl/abort';
 import {ChatStreamReducer} from './ChatStreamReducer';
 import {genChatId} from '../impl/ids';
@@ -258,16 +258,15 @@ export type ChatDataRenderer = (part: ChatDataPart, context: ChatPartRenderConte
 export interface ChatPartRenderContext {
     /**
      * The chat that shows the part - for example to send a message or answer a tool call. Null
-     * when the message list shows messages of a `ChatMessageListHost` that is not a `ChatModel`.
+     * when the message list shows a {@link ChatTranscript} that is not a `ChatModel`.
      */
     chatModel: ChatModel;
 
     /**
-     * The conversation that shows the part - the `ChatModel`, or any other
-     * `ChatMessageListHost`. Read its narrow members, such as `isBusy`, `sendBlockedReason` and
-     * `sendAsync`, to work over any host. Null if the view that renders the part has no host.
+     * The conversation that shows the part - the `ChatModel`, or any other `ChatTranscript`. Null
+     * if the view that renders the part has no host.
      */
-    host?: ChatMessageListHost;
+    host?: ChatTranscript | ChatModel;
 
     /** Id of the message that holds the part. */
     messageId: string;
@@ -324,7 +323,7 @@ export interface ChatSendSpec {
  * Only one turn runs at a time. Render the model with a desktop `ChatPanel`, or with the
  * lower-level message list and composer components.
  */
-export class ChatModel extends HoistModel implements ChatComposerHost, ChatMessageListHost {
+export class ChatModel extends HoistModel implements ChatComposerHost, ChatTranscript {
     declare config: ChatModelConfig;
 
     //-----------------------

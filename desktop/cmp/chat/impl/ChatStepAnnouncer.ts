@@ -1,7 +1,7 @@
 import {
     chatAnnouncer,
     ChatKit,
-    type ChatMessageListHost,
+    type ChatModel,
     type ChatToolCallPart,
     isToolCallFailed,
     isToolCallFinal
@@ -29,12 +29,12 @@ export class ChatStepAnnouncer {
         calls: ChatToolCallPart[],
         {
             isLive,
-            host,
+            chatModel,
             announceSteps,
             stepOffset = 0
         }: {
             isLive: boolean;
-            host: ChatMessageListHost;
+            chatModel: ChatModel;
             announceSteps?: ChatAnnounceSteps;
             stepOffset?: number;
         }
@@ -49,7 +49,7 @@ export class ChatStepAnnouncer {
             this.knownFinal.add(call.id);
             if (!isLive || announceSteps === 'none' || call.cancelled) return;
 
-            const title = getToolTitle(call, host.getToolSpec?.(call.toolName));
+            const title = getToolTitle(call, chatModel?.getToolSpec(call.toolName));
             if (isToolCallFailed(call)) {
                 const cause = getErrorLine(call);
                 chatAnnouncer.announce(`Step failed: ${title}${cause ? `, ${cause}` : ''}.`);

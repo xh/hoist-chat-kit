@@ -6,7 +6,7 @@ import {Icon} from '@xh/hoist/icon';
 import {pluralize} from '@xh/hoist/utils/js';
 import {chatMarkdown} from '../../../../cmp/markdown';
 import {
-    type ChatMessageListHost,
+    type ChatModel,
     type ChatPartRenderContext,
     type ChatToolCallPart,
     type ChatToolSpec
@@ -41,7 +41,9 @@ export const TIMELINE_PANE_MAX_LINES = 500;
 /** What every row of one timeline reads. @internal */
 export interface ChatTimelineRowContext {
     impl: ChatTimelineLocalModel;
-    host: ChatMessageListHost;
+
+    /** The chat, for the specs of its tools - null for a transcript. */
+    chatModel: ChatModel;
     context: ChatPartRenderContext;
 
     /** True once the reply was stopped - calls still in flight show as cancelled. */
@@ -179,8 +181,8 @@ function callRow(
     parentName: string
 ): ReactNode {
     const {part, retry} = item,
-        {impl, host, isStopped} = ctx,
-        spec = host.getToolSpec?.(part.toolName),
+        {impl, chatModel, isStopped} = ctx,
+        spec = chatModel?.getToolSpec(part.toolName),
         state = getRowState(part, spec, isStopped),
         title = getToolTitle(part, spec),
         input = summarizeInput(part, spec),
@@ -245,10 +247,10 @@ function batchRow(
     depth: number,
     parentName: string
 ): ReactNode {
-    const {impl, host, isStopped} = ctx,
+    const {impl, chatModel, isStopped} = ctx,
         calls = item.items.map(it => it.part),
         first = calls[0],
-        spec = host.getToolSpec?.(first.toolName),
+        spec = chatModel?.getToolSpec(first.toolName),
         title = getToolTitle(first, spec),
         states = calls.map(it => getRowState(it, spec, isStopped)),
         failed = states.filter(it => it === 'failed').length,

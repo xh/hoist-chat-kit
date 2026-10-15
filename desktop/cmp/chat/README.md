@@ -52,8 +52,8 @@ Key features:
   such as Try Again, sits in the composer's status region.
 - **Feedback** - thumbs on each reply, when the chat takes feedback. A rating that asks for a
   comment opens a comment form under the action bar.
-- **Any host** - the message list shows a `ChatModel`, or any app model that implements
-  `ChatMessageListHost`, and hides each action the host does not offer.
+- **Transcripts** - the message list shows a `ChatModel`, or read-only any app model that
+  implements `ChatTranscript`, such as a saved conversation.
 - **App slots** - toolbar items in the composer, an empty state with suggestions, message
   actions and message header items.
 - **Live status** - a reply's header says what it is doing, such as "Writing 6s", and that it
@@ -273,10 +273,11 @@ dot separates the meta's parts, as in "20s · 1 failed, retried".
 
 The block starts collapsed, and never opens or closes by itself. The one exception is a call that
 waits for the user. Its approval panel, or its question, shows under the line whether or not the
-block is open, and the block frames itself in the attention color. Approval uses the host's
+block is open, and the block frames itself in the attention color. Approval uses the chat's
 `approveToolCallAsync()` and `denyToolCallAsync()`, as a tool row does. A question with up to
 three `choices` in its input shows them as buttons, and more show in a select. The answer goes to
-the host's `addToolOutputAsync()`. A tool `renderer` replaces the buttons.
+the chat's `addToolOutputAsync()`. A tool `renderer` replaces the buttons. A transcript shows the
+question with no controls, and no approval panel.
 
 Open, the block shows the pinned plan, then a tree of rows:
 
@@ -490,20 +491,15 @@ chatComposer({model: notesModel.composerModel, placeholder: 'Add a note...'});
 
 ### Show messages without a ChatModel
 
-The message list needs only a `ChatMessageListHost`: `messages` and `isBusy`, plus any optional
-members it reads. `ChatModel` satisfies it. Pass your own as `host`. Each action is optional,
-and the list hides the button for an action the host lacks. Part renderers then receive a
-context whose `chatModel` is null.
+To show a conversation read-only, such as an admin's chat log or a saved conversation, pass a
+`ChatTranscript` as `host`: `messages`, plus optional `dataRenderers` and `catalog`. `ChatModel`
+implements it. The list renders every part, with Copy and any `messageActions`. Edit,
+Regenerate, Undo, feedback, approvals and Stop need the turn loop, so they show only for a
+`ChatModel`. Part renderers receive a context whose `chatModel` is null.
 
 ```typescript
-export class NotesModel extends HoistModel implements ChatMessageListHost {
+export class NotesModel extends HoistModel implements ChatTranscript {
     @observableRef accessor messages: ChatMessage[] = [];
-    @observable accessor isBusy = false;
-
-    // Shows Regenerate on the last reply.
-    async regenerateAsync(messageId: string) {
-        // ...
-    }
 }
 
 chatMessageList({host: notesModel});
@@ -880,9 +876,9 @@ Accepts layout props, `testId`, `ref` and other box props.
 | Property | Type | Description |
 |----------|------|-------------|
 | `model` | `ChatModel` | The chat to render. Found in context if not given. |
-| `host` | `ChatMessageListHost` | The conversation to render, when it is not a `ChatModel`. |
+| `host` | `ChatTranscript` | A read-only conversation to render in place of a `ChatModel`. |
 | `emptyState` | `ReactNode` | Content for a conversation with no messages. |
-| `suggestions` | `Array<ChatSuggestion \| string>` | Prompt cards for the default empty state. They fill the host's `composerModel`, and show only when it is a `ChatComposerModel`. |
+| `suggestions` | `Array<ChatSuggestion \| string>` | Prompt cards for the default empty state. They fill the chat's composer, and show only for a `ChatModel`. |
 | `assistantName` | `string` | Name on assistant messages. Default `'Assistant'`. |
 | `assistantIcon` | `ReactElement` | Icon on assistant messages. Default from `ChatKit.defaults.assistantIcon`. |
 | `markdownComponents` | `ChatMarkdownComponents` | Markdown element overrides. Pass a stable object. |
@@ -896,7 +892,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 
 Each message is a focusable `article`, named for its author and time. With a message focused, Up
 and Down move to the one before or after. Escape stops a reply in progress while focus is in the
-list, if the host has `stop()`, then focuses the composer. See [Keyboard](#keyboard). Its action
+list, for a `ChatModel`, then focuses the composer. See [Keyboard](#keyboard). Its action
 bar is a `role="group"` named "Message actions", with each action a tab stop. Regenerate moves
 focus to the composer.
 
@@ -931,14 +927,14 @@ Use it directly only for a list of your own.
 | Property | Type | Description |
 |----------|------|-------------|
 | `message` | `ChatMessage` | The message to show. |
-| `host` | `ChatMessageListHost` | The conversation that holds the message, such as a `ChatModel`. |
+| `host` | `ChatTranscript \| ChatModel` | The conversation that holds the message. A transcript shows it read-only. |
 | `assistantName`, `assistantIcon`, `markdownComponents`, `allowImages`, `citationMarkers`, `onSourceClick`, `markdownPlugins`, `messageActions`, `messageHeaderItems` | - | As on `ChatMessageList`. |
 
 ### Part components
 
 | Component | Props | Use it to |
 |-----------|-------|-----------|
-| `ChatToolCall` | `part`, `context`, `host` | Show a tool call row, for example inside a renderer of your own. `host` defaults to `context.chatModel`. |
+| `ChatToolCall` | `part`, `context` | Show a tool call row, for example inside a renderer of your own. Reads tool specs and approvals from `context.chatModel`. |
 | `ChatTimeline` | `message`, `host`, `parts`, `pinned`, `context`, `isFollowed`, `isLast`, `announceSteps` | Show a reply's activity timeline in a layout of your own. `parts` and `pinned` default to the reply's first timeline block. `isFollowed` says the answer has started below it. |
 | `ChatClearButton` | `chatModel`, and any `ButtonProps` | Clear the conversation, from a panel header. |
 | `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |

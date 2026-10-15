@@ -6,7 +6,7 @@ import {textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {bindable} from '@xh/hoist/mobx';
 import {createObservableRef} from '@xh/hoist/utils/react';
-import type {ChatMessageListHost, ChatToolCallPart, ChatToolSpec} from '../../../../core';
+import type {ChatModel, ChatToolCallPart, ChatToolSpec} from '../../../../core';
 import {classNames} from '../../../../impl/ClassNames';
 import '../ChatToolCall.scss';
 
@@ -14,7 +14,9 @@ import '../ChatToolCall.scss';
 export interface ChatToolApprovalProps extends HoistProps {
     part: ChatToolCallPart;
     spec: ChatToolSpec;
-    host: ChatMessageListHost;
+
+    /** The chat that decides the call. */
+    chatModel: ChatModel;
 }
 
 /**
@@ -30,7 +32,7 @@ export interface ChatToolApprovalProps extends HoistProps {
 export const chatToolApproval = hoistCmp.factory<ChatToolApprovalProps>({
     displayName: 'ChatToolCallApproval',
 
-    render({className, part, spec, host}) {
+    render({className, part, spec, chatModel}) {
         const impl = useLocalModel(ApprovalLocalModel),
             {approvalPrompt, preview} = spec ?? {},
             input = part.input ?? {},
@@ -39,7 +41,7 @@ export const chatToolApproval = hoistCmp.factory<ChatToolApprovalProps>({
                 : (approvalPrompt ?? 'Allow this action to run?'),
             previewContent = isFunction(preview) ? preview(input) : null,
             reasonOf = () => impl.reason.trim() || undefined;
-        impl.host = host;
+        impl.chatModel = chatModel;
 
         return div({
             className: classNames('xh-chat-tool-call__approval', className),
@@ -58,43 +60,37 @@ export const chatToolApproval = hoistCmp.factory<ChatToolApprovalProps>({
                 div({
                     className: 'xh-chat-tool-call__approval-bar',
                     items: [
-                        host?.approveToolCallAsync
-                            ? button({
-                                  ref: impl.allowRef,
-                                  className: 'xh-chat-tool-call__allow',
-                                  text: 'Allow',
-                                  icon: Icon.check(),
-                                  intent: 'primary',
-                                  minimal: false,
-                                  onClick: e => {
-                                      focusReplyOf(e.currentTarget);
-                                      host.approveToolCallAsync(part.id, reasonOf()).catchDefault();
-                                  }
-                              })
-                            : null,
-                        host?.denyToolCallAsync
-                            ? button({
-                                  className: 'xh-chat-tool-call__deny',
-                                  text: 'Deny',
-                                  outlined: true,
-                                  minimal: false,
-                                  onClick: e => {
-                                      focusReplyOf(e.currentTarget);
-                                      host.denyToolCallAsync(part.id, reasonOf()).catchDefault();
-                                  }
-                              })
-                            : null,
-                        host?.approveToolCallAsync || host?.denyToolCallAsync
-                            ? textInput({
-                                  className: 'xh-chat-tool-call__reason',
-                                  model: impl,
-                                  bind: 'reason',
-                                  commitOnChange: true,
-                                  width: null,
-                                  placeholder: 'Reason (optional, sent to the agent)',
-                                  domAttrs: {'aria-label': 'Reason, sent to the agent'}
-                              })
-                            : null
+                        button({
+                            ref: impl.allowRef,
+                            className: 'xh-chat-tool-call__allow',
+                            text: 'Allow',
+                            icon: Icon.check(),
+                            intent: 'primary',
+                            minimal: false,
+                            onClick: e => {
+                                focusReplyOf(e.currentTarget);
+                                chatModel.approveToolCallAsync(part.id, reasonOf()).catchDefault();
+                            }
+                        }),
+                        button({
+                            className: 'xh-chat-tool-call__deny',
+                            text: 'Deny',
+                            outlined: true,
+                            minimal: false,
+                            onClick: e => {
+                                focusReplyOf(e.currentTarget);
+                                chatModel.denyToolCallAsync(part.id, reasonOf()).catchDefault();
+                            }
+                        }),
+                        textInput({
+                            className: 'xh-chat-tool-call__reason',
+                            model: impl,
+                            bind: 'reason',
+                            commitOnChange: true,
+                            width: null,
+                            placeholder: 'Reason (optional, sent to the agent)',
+                            domAttrs: {'aria-label': 'Reason, sent to the agent'}
+                        })
                     ]
                 })
             ]
@@ -116,7 +112,7 @@ class ApprovalLocalModel extends HoistModel {
 
     @bindable accessor reason: string = '';
 
-    host: ChatMessageListHost = null;
+    chatModel: ChatModel = null;
 
     readonly allowRef = createObservableRef<HTMLElement>();
 
@@ -130,7 +126,7 @@ class ApprovalLocalModel extends HoistModel {
                 const log = allow.closest('[role="log"]'),
                     active = document.activeElement;
                 if (!log || !active || !log.contains(active)) return;
-                if (this.host?.composerModel?.text) return;
+                if (this.chatModel?.composerModel.text) return;
                 allow.focus();
             },
             fireImmediately: true

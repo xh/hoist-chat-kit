@@ -209,7 +209,7 @@ export function summarizeTimeline(
     host: ChatGroupingHost
 ): ChatTimelineSummary {
     const calls = getTimelineCalls(items),
-        specOf = (call: ChatToolCallPart) => host.getToolSpec?.(call.toolName),
+        specOf = (call: ChatToolCallPart) => host?.getToolSpec(call.toolName),
         failed = calls.filter(isToolCallFailed),
         newest = last(items);
 
@@ -525,7 +525,7 @@ function batchCalls(items: ChatTimelineItem[], host: ChatGroupingHost): ChatTime
         const canBatch =
             item.type === 'call' &&
             item.part.state !== 'approval-requested' &&
-            !isAwaitingAnswer(item.part, host.getToolSpec?.(item.part.toolName));
+            !isAwaitingAnswer(item.part, host?.getToolSpec(item.part.toolName));
         if (canBatch && run.length && run[0].part.toolName !== item.part.toolName) flush();
         if (canBatch) {
             run.push(item);

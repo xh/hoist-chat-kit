@@ -7,7 +7,6 @@ import {useEffect} from 'react';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {runInAction} from '@xh/hoist/mobx';
 import {
-    ChatComposerModel,
     ChatMessage,
     type ChatMessageSpec,
     chatToolResult,
@@ -16,7 +15,8 @@ import {
     type ChatPart,
     type ChatSourcePart,
     type ChatTextPart,
-    type ChatToolCallPart
+    type ChatToolCallPart,
+    type ChatTranscript
 } from '../../../core';
 import {ChatUiCatalog} from '../../../genui';
 import {ScriptedChatTransport, textEvents, toolCallEvents} from '../../../transport';
@@ -26,7 +26,7 @@ import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
  * How the message list renders a conversation. Apps rely on runs of tool calls folding into one
  * row, on renderers mounting only when shown and receiving a render context that stays stable as
  * the message streams, on model-written images never loading by default, and on their own message
- * actions.
+ * actions. A read-only transcript, such as a saved conversation, renders with no ChatModel.
  */
 describe('ChatMessageList', () => {
     beforeAll(() => initTestAppAsync());
@@ -594,28 +594,73 @@ describe('ChatMessageList', () => {
         });
     });
 
-    describe('suggestions over a host that is not a ChatModel', () => {
-        it("fill the host's composer when it has one", () => {
-            const composerModel = new ChatComposerModel({
-                    host: {isBusy: false, sendAsync: () => Promise.resolve()},
-                    drafts: 'memory'
-                }),
-                host = {messages: [], isBusy: false, composerModel};
-            onTestFinished(() => composerModel.destroy());
-            render(appContext({item: chatMessageList({host, suggestions: ['Show my limits']})}));
+    it('renders the parts of a transcript with no ChatModel, and no interactive controls', () => {
+        const pending: ChatToolCallPart = {
+                ...call('c1', 'insert_rows'),
+                state: 'approval-requested',
+                output: null
+            },
+            host: ChatTranscript = {
+                messages: [
+                    new ChatMessage({id: 'u1', role: 'user', parts: [text('t0', 'Add a note')]}),
+                    new ChatMessage({
+                        id: 'a1',
+                        role: 'assistant',
+                        status: 'paused',
+                        parts: [
+                            text('t1', 'I will add **one** row.'),
+                            pending,
+                            {type: 'data', id: 'd1', dataType: 'test.kpi', data: {value: 42}}
+                        ]
+                    }),
+                    new ChatMessage({
+                        id: 'a2',
+                        role: 'assistant',
+                        status: 'error',
+                        error: 'Model request timed out.',
+                        parts: [text('t2', 'Partial')]
+                    })
+                ],
+                dataRenderers: {'test.kpi': part => div(`KPI ${part.data.value}`)}
+            },
+            {container} = render(appContext({item: chatMessageList({host})}));
 
-            expect(screen.queryByText('No model found', {exact: false})).toBeNull();
+        expect(screen.getByText('Add a note')).toBeTruthy();
+        expect(container.querySelector('strong').textContent).toBe('one');
+        expect(container.querySelector('.xh-chat-tool-call__title').textContent).toBe(
+            'Insert rows'
+        );
+        expect(screen.getByText('KPI 42')).toBeTruthy();
+        expect(screen.getByText('The reply failed.')).toBeTruthy();
+
+        expect(container.querySelector('.xh-chat-tool-call__approval')).toBeNull();
+        for (const name of [
+            'Allow',
+            'Deny',
+            'Edit',
+            'Edit Prompt',
+            'Regenerate',
+            'Undo changes',
+            'Good response',
+            'Bad response'
+        ]) {
+            expect(screen.queryByRole('button', {name})).toBeNull();
+        }
+    });
+
+    describe('suggestions', () => {
+        it("fill the chat's composer", () => {
+            const chatModel = createModel({}, []);
+            renderList(chatModel, {suggestions: ['Show my limits']});
+
             fireEvent.click(screen.getByRole('button', {name: 'Show my limits'}));
-            expect(composerModel.text).toBe('Show my limits');
+            expect(chatModel.composerModel.text).toBe('Show my limits');
         });
 
-        it('render nothing when the host has no composer', () => {
+        it('render nothing over a transcript', () => {
             const {container} = render(
                 appContext({
-                    item: chatMessageList({
-                        host: {messages: [], isBusy: false},
-                        suggestions: ['Hi']
-                    })
+                    item: chatMessageList({host: {messages: []}, suggestions: ['Hi']})
                 })
             );
             expect(container.textContent).toContain('How can I help?');

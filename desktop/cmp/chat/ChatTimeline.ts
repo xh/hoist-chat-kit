@@ -11,11 +11,13 @@ import {useComposedRefs, useOnResize} from '@xh/hoist/utils/react';
 import {
     ChatKit,
     type ChatMessage,
-    type ChatMessageListHost,
+    type ChatModel,
     type ChatPart,
     type ChatPartRenderContext,
     type ChatToolCallPart,
     type ChatToolSpec,
+    type ChatTranscript,
+    isChatModel,
     isToolCallFinal
 } from '../../../core';
 import '../../../styles/vars.scss';
@@ -48,10 +50,10 @@ export interface ChatTimelineProps extends HoistProps {
     message: ChatMessage;
 
     /**
-     * The conversation that holds the reply - for its tool specs, and to approve, deny and answer
-     * calls. A `ChatModel`, or an app's own {@link ChatMessageListHost}.
+     * The conversation that holds the reply. A `ChatModel` supplies its tool specs, and approves,
+     * denies and answers calls. Any other {@link ChatTranscript} shows the calls read-only.
      */
-    host: ChatMessageListHost;
+    host: ChatTranscript | ChatModel;
 
     /**
      * The parts the block holds: calls to `timeline` tools, sub-agents, and the narration and
@@ -64,7 +66,7 @@ export interface ChatTimelineProps extends HoistProps {
 
     /**
      * Render context of the reply, passed to tool renderers. The message view passes its own.
-     * Default one for the reply, with the host and no `chatModel`.
+     * Default one for the reply and its host.
      */
     context?: ChatPartRenderContext;
 
@@ -119,20 +121,21 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
 
     render(props, ref) {
         const {className, message, host, isFollowed = false, isLast = false} = props,
+            chatModel = isChatModel(host) ? host : null,
             impl = useLocalModel(ChatTimelineLocalModel),
             bodyId = useId(),
             rootRef = useComposedRefs(
                 useOnResize(rect => impl.setWidth(rect.width)),
                 ref
             ),
-            {parts, pinned} = getBlockParts(props),
-            context = props.context ?? {chatModel: null, host, messageId: message.id},
-            items = buildTimelineItems(parts, host),
-            summary = summarizeTimeline(items, pinned, host),
+            {parts, pinned} = getBlockParts(props, chatModel),
+            context = props.context ?? {chatModel, host, messageId: message.id},
+            items = buildTimelineItems(parts, chatModel),
+            summary = summarizeTimeline(items, pinned, chatModel),
             isLive = message.isStreaming,
             now = useChatClock(isLive),
-            lastActivityAt = isLast && isLive ? (host.lastActivityAt ?? null) : null,
-            stallAfterMs = host.stallAfterMs ?? ChatKit.defaults.stallAfterMs,
+            lastActivityAt = isLast && isLive ? (chatModel?.lastActivityAt ?? null) : null,
+            stallAfterMs = chatModel?.stallAfterMs ?? ChatKit.defaults.stallAfterMs,
             quietMs = lastActivityAt != null ? now - lastActivityAt : null,
             state = getTimelineState({
                 message,
@@ -145,17 +148,17 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
         useEffect(() => {
             impl.steps.note(summary.calls, {
                 isLive: isLive || message.status === 'paused',
-                host,
+                chatModel,
                 announceSteps: props.announceSteps,
                 stepOffset: props.stepOffset
             });
-            impl.noteQuiet(state === 'quiet' ? quietMs : null, runningTitle(summary, host));
+            impl.noteQuiet(state === 'quiet' ? quietMs : null, runningTitle(summary, chatModel));
         });
 
         const firstRowId = items[0]?.id ?? null,
             rowCtx = {
                 impl,
-                host,
+                chatModel,
                 context,
                 isStopped: state === 'stopped',
                 isLive,
@@ -184,7 +187,7 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
                                 className: 'xh-chat-timeline__head-icon',
                                 item: lineIcon(state)
                             }),
-                            lineStage(state, summary, host, impl, now),
+                            lineStage(state, summary, chatModel, impl, now),
                             lineMeta(state, summary, message, impl, quietMs),
                             span({
                                 className: 'xh-chat-timeline__chevron',
@@ -194,19 +197,19 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
                     })
                 }),
                 // Pending approvals and questions show whether or not the block is open.
-                summary.approval && state === 'approval'
+                summary.approval && state === 'approval' && chatModel
                     ? chatToolApproval({
                           className: 'xh-chat-timeline__ask',
                           part: summary.approval,
-                          spec: host.getToolSpec?.(summary.approval.toolName),
-                          host
+                          spec: chatModel.getToolSpec(summary.approval.toolName),
+                          chatModel
                       })
                     : null,
                 summary.question && state === 'question'
                     ? questionPanel({
                           part: summary.question,
-                          spec: host.getToolSpec?.(summary.question.toolName),
-                          host,
+                          spec: chatModel?.getToolSpec(summary.question.toolName),
+                          chatModel,
                           context
                       })
                     : null,
@@ -238,10 +241,13 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
 //------------------
 // Implementation
 //------------------
-function getBlockParts(props: ChatTimelineProps): {parts: ChatPart[]; pinned: ChatToolCallPart[]} {
-    const {parts, pinned, message, host} = props;
+function getBlockParts(
+    props: ChatTimelineProps,
+    chatModel: ChatModel
+): {parts: ChatPart[]; pinned: ChatToolCallPart[]} {
+    const {parts, pinned, message} = props;
     if (parts) return {parts, pinned: pinned ?? []};
-    const block = groupParts(message.parts, host).find(it => it.type === 'timeline');
+    const block = groupParts(message.parts, chatModel).find(it => it.type === 'timeline');
     return block?.type === 'timeline'
         ? {parts: block.parts, pinned: pinned ?? block.pinned}
         : {parts: [], pinned: pinned ?? []};
@@ -269,7 +275,7 @@ function lineIcon(state: ChatTimelineState): ReactNode {
 function lineStage(
     state: ChatTimelineState,
     summary: ChatTimelineSummary,
-    host: ChatMessageListHost,
+    chatModel: ChatModel,
     impl: ChatTimelineLocalModel,
     now: number
 ): ReactNode {
@@ -288,10 +294,10 @@ function lineStage(
             const activePlanItem = plan?.items?.find(it => it.status === 'active');
             if (activePlanItem) return stage(impl.holdStage(activePlanItem.title, now));
             if (summary.narration) return stage(impl.holdStage(summary.narration, now), true);
-            return stage(impl.holdStage(runningStage(summary, host), now));
+            return stage(impl.holdStage(runningStage(summary, chatModel), now));
         }
         case 'quiet': {
-            const title = runningTitle(summary, host);
+            const title = runningTitle(summary, chatModel);
             return stage(title ? `Waiting on ${title}` : 'Waiting for a response');
         }
         case 'approval':
@@ -311,18 +317,18 @@ function lineStage(
     }
 }
 
-function runningStage(summary: ChatTimelineSummary, host: ChatMessageListHost): string {
+function runningStage(summary: ChatTimelineSummary, chatModel: ChatModel): string {
     const {running, runningAgents, isThinking} = summary;
     if (running.length > 1) return `Running ${running.length} steps`;
-    if (running.length === 1) return runningTitle(summary, host);
+    if (running.length === 1) return runningTitle(summary, chatModel);
     if (runningAgents.length) return runningAgents[runningAgents.length - 1].name;
     return isThinking ? 'Thinking' : 'Working';
 }
 
 // The title of the newest running call, or of the newest running sub-agent.
-function runningTitle(summary: ChatTimelineSummary, host: ChatMessageListHost): string {
+function runningTitle(summary: ChatTimelineSummary, chatModel: ChatModel): string {
     const call = summary.running[summary.running.length - 1];
-    if (call) return getToolTitle(call, host.getToolSpec?.(call.toolName));
+    if (call) return getToolTitle(call, chatModel?.getToolSpec(call.toolName));
     const agent = summary.runningAgents[summary.runningAgents.length - 1];
     return agent?.name ?? null;
 }
@@ -432,7 +438,9 @@ function elapsed(
 interface QuestionPanelProps extends HoistProps {
     part: ChatToolCallPart;
     spec: ChatToolSpec;
-    host: ChatMessageListHost;
+
+    /** The chat that takes the answer - null for a transcript, which shows the question alone. */
+    chatModel: ChatModel;
     context: ChatPartRenderContext;
 }
 
@@ -444,16 +452,16 @@ const questionPanel = hoistCmp.factory<QuestionPanelProps>({
     displayName: 'ChatTimelineQuestion',
     model: uses('*', {optional: true}),
 
-    render({part, spec, host, context}) {
+    render({part, spec, chatModel, context}) {
         const impl = useLocalModel(QuestionLocalModel),
-            choices = getChoices(part.input),
+            choices = chatModel ? getChoices(part.input) : [],
             question = getQuestion(part.input) ?? getToolTitle(part, spec),
-            answer = (value: any) => host.addToolOutputAsync?.(part.id, value).catchDefault();
+            answer = (value: any) => chatModel.addToolOutputAsync(part.id, value).catchDefault();
 
         let controls: ReactNode = null;
         if (spec?.renderer) {
             controls = spec.renderer(part, context);
-        } else if (host.addToolOutputAsync && choices.length && choices.length <= MAX_BUTTONS) {
+        } else if (choices.length && choices.length <= MAX_BUTTONS) {
             controls = div({
                 className: 'xh-chat-timeline__ask-buttons',
                 items: choices.map((choice, idx) =>
@@ -466,7 +474,7 @@ const questionPanel = hoistCmp.factory<QuestionPanelProps>({
                     })
                 )
             });
-        } else if (host.addToolOutputAsync && choices.length) {
+        } else if (choices.length) {
             controls = div({
                 className: 'xh-chat-timeline__ask-buttons',
                 items: [

@@ -2,8 +2,17 @@ import {act, fireEvent, render, screen} from '@testing-library/react';
 import {fragment} from '@xh/hoist/cmp/layout';
 import {creates, hoistCmp, HoistModel} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
-import {beforeAll, beforeEach, describe, expect, it, vi} from 'vitest';
-import {ChatMessage, type ChatMessageListHost, type ChatToolCallPart, ChatKit} from '../../../core';
+import {runInAction} from '@xh/hoist/mobx';
+import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
+import {
+    ChatKit,
+    ChatMessage,
+    type ChatMessageSpec,
+    ChatModel,
+    type ChatModelConfig,
+    type ChatToolCallPart
+} from '../../../core';
+import {ScriptedChatTransport} from '../../../transport';
 import {chatMessageList} from './ChatMessageList';
 
 /**
@@ -20,8 +29,8 @@ describe('ChatToolCall approval', () => {
     });
 
     it('offers Allow first, then Deny, with an optional reason sent with either', () => {
-        const host = createHost();
-        renderList(host);
+        const chatModel = createChat();
+        renderList(chatModel);
 
         const bar = document.querySelector('.xh-chat-tool-call__approval-bar'),
             labels = Array.from(bar.querySelectorAll('button')).map(it => it.textContent);
@@ -29,20 +38,20 @@ describe('ChatToolCall approval', () => {
         expect(document.querySelector('.xh-chat-tool-call--attention')).toBeTruthy();
 
         fireEvent.click(screen.getByRole('button', {name: 'Allow'}));
-        expect(host.approveToolCallAsync).toHaveBeenCalledWith('c1', undefined);
+        expect(chatModel.approveToolCallAsync).toHaveBeenCalledWith('c1', undefined);
 
         typeReason('Only Ops clears the log');
         fireEvent.click(screen.getByRole('button', {name: 'Deny'}));
-        expect(host.denyToolCallAsync).toHaveBeenCalledWith('c1', 'Only Ops clears the log');
+        expect(chatModel.denyToolCallAsync).toHaveBeenCalledWith('c1', 'Only Ops clears the log');
 
         typeReason('  Checked the rows  ');
         fireEvent.click(screen.getByRole('button', {name: 'Allow'}));
-        expect(host.approveToolCallAsync).toHaveBeenLastCalledWith('c1', 'Checked the rows');
+        expect(chatModel.approveToolCallAsync).toHaveBeenLastCalledWith('c1', 'Checked the rows');
     });
 
     it('decides nothing on Enter in the reason, nor on any shortcut', () => {
-        const host = createHost();
-        renderList(host);
+        const chatModel = createChat();
+        renderList(chatModel);
 
         const reason = screen.getByRole('textbox', {name: 'Reason, sent to the agent'});
         fireEvent.keyDown(reason, {key: 'Enter'});
@@ -53,31 +62,35 @@ describe('ChatToolCall approval', () => {
         }
         fireEvent.keyDown(log, {key: 'Enter'});
 
-        expect(host.approveToolCallAsync).not.toHaveBeenCalled();
-        expect(host.denyToolCallAsync).not.toHaveBeenCalled();
+        expect(chatModel.approveToolCallAsync).not.toHaveBeenCalled();
+        expect(chatModel.denyToolCallAsync).not.toHaveBeenCalled();
     });
 
     it('takes focus to Allow only from the conversation, with the composer empty', () => {
-        const pending = createHost({messages: []}),
-            {rerender} = renderList(pending);
+        const chatModel = createChat({}, []);
+        renderList(chatModel);
         const log = screen.getByRole('log');
         log.tabIndex = -1;
         log.focus();
 
-        act(() => {
-            pending.messages = [approvalReply()];
-        });
-        rerender(appContext({item: chatMessageList({host: {...pending}})}));
+        act(() =>
+            runInAction(() => {
+                chatModel.messages = [new ChatMessage(approvalReply())];
+            })
+        );
         expect(document.activeElement).toBe(screen.getByRole('button', {name: 'Allow'}));
     });
 
     it('leaves focus alone while the user types in the composer', () => {
-        const host = createHost({composerModel: {focus: () => {}, text: 'Half a question'}});
+        const chatModel = createChat();
+        runInAction(() => {
+            chatModel.composerModel.text = 'Half a question';
+        });
         const outside = document.createElement('input');
         document.body.appendChild(outside);
         outside.focus();
 
-        renderList(host);
+        renderList(chatModel);
 
         expect(document.activeElement).toBe(outside);
         outside.remove();
@@ -98,13 +111,10 @@ describe('ChatToolCall display modes', () => {
     });
 
     it('shows the output of an answer tool as the answer, with no row', () => {
-        const host = createHost({
-            messages: [
-                reply(toolCall('final_answer', {output: 'HY Credit is **over** its limit.'}))
-            ],
-            getToolSpec: name => ({name, display: 'answer'})
-        });
-        const {container} = renderList(host);
+        const chatModel = createChat({tools: [{name: 'final_answer', display: 'answer'}]}, [
+            reply(toolCall('final_answer', {output: 'HY Credit is **over** its limit.'}))
+        ]);
+        const {container} = renderList(chatModel);
 
         const answer = container.querySelector('.xh-chat-tool-call__answer');
         expect(answer.textContent).toBe('HY Credit is over its limit.');
@@ -113,14 +123,15 @@ describe('ChatToolCall display modes', () => {
     });
 
     it('shows nothing for a hidden tool, until a call waits for approval', () => {
-        const hidden = {getToolSpec: (name: string) => ({name, display: 'hidden' as const})},
-            {container, unmount} = renderList(
-                createHost({messages: [reply(toolCall('log_event'))], ...hidden})
-            );
+        const tools = [
+                {name: 'log_event', display: 'hidden' as const},
+                {name: 'insert_rows', display: 'hidden' as const}
+            ],
+            {container, unmount} = renderList(createChat({tools}, [reply(toolCall('log_event'))]));
         expect(container.querySelector('.xh-chat-tool-call')).toBeNull();
         unmount();
 
-        renderList(createHost({messages: [approvalReply()], ...hidden}));
+        renderList(createChat({tools}));
         expect(screen.getByRole('button', {name: 'Allow'})).toBeTruthy();
     });
 });
@@ -171,33 +182,32 @@ function toolCall(toolName: string, rest: Partial<ChatToolCallPart> = {}): ChatT
     };
 }
 
-function reply(part: ChatToolCallPart): ChatMessage {
-    return new ChatMessage({id: 'a1', role: 'assistant', status: 'complete', parts: [part]});
+function reply(part: ChatToolCallPart): ChatMessageSpec {
+    return {id: 'a1', role: 'assistant', status: 'complete', parts: [part]};
 }
 
-function approvalReply(): ChatMessage {
-    return new ChatMessage({
-        id: 'a1',
-        role: 'assistant',
-        status: 'paused',
-        parts: [approvalCall()]
+function approvalReply(): ChatMessageSpec {
+    return {id: 'a1', role: 'assistant', status: 'paused', parts: [approvalCall()]};
+}
+
+// A chat whose decisions on calls are spied on, and decide nothing.
+function createChat(
+    config: Partial<ChatModelConfig> = {},
+    initialMessages: ChatMessageSpec[] = [approvalReply()]
+): ChatModel {
+    const chatModel = new ChatModel({
+        transport: new ScriptedChatTransport(),
+        initialMessages,
+        ...config
     });
+    onTestFinished(() => chatModel.destroy());
+    vi.spyOn(chatModel, 'approveToolCallAsync').mockResolvedValue();
+    vi.spyOn(chatModel, 'denyToolCallAsync').mockResolvedValue();
+    return chatModel;
 }
 
-function createHost(rest: Partial<ChatMessageListHost> = {}): ChatMessageListHost & {
-    messages: ChatMessage[];
-} {
-    return {
-        messages: [approvalReply()],
-        isBusy: false,
-        approveToolCallAsync: vi.fn(() => Promise.resolve()),
-        denyToolCallAsync: vi.fn(() => Promise.resolve()),
-        ...rest
-    } as any;
-}
-
-function renderList(host: ChatMessageListHost) {
-    return render(appContext({item: chatMessageList({host})}));
+function renderList(chatModel: ChatModel) {
+    return render(appContext({item: chatMessageList({model: chatModel})}));
 }
 
 function typeReason(value: string) {

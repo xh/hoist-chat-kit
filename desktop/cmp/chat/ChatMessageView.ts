@@ -26,8 +26,7 @@ import {
     ChatKit,
     CHAT_NO_ANSWER_DATA_TYPE,
     type ChatMessage,
-    type ChatMessageListHost,
-    ChatModel,
+    type ChatModel,
     type ChatPart,
     type ChatPartRenderContext,
     type ChatReasoningPart,
@@ -35,8 +34,10 @@ import {
     type ChatSourcePart,
     type ChatTextPart,
     type ChatToolCallPart,
+    type ChatTranscript,
     getChatNoAnswerPart,
     getChatReplyStatus,
+    isChatModel,
     isToolCallFailed
 } from '../../../core';
 import '../../../styles/vars.scss';
@@ -106,10 +107,10 @@ export interface ChatMessageViewProps extends HoistProps {
     message: ChatMessage;
 
     /**
-     * The conversation that holds the message - for its tools, renderers and actions. A
-     * `ChatModel`, or an app's own {@link ChatMessageListHost}.
+     * The conversation that holds the message - for its renderers, and with a `ChatModel` for its
+     * tools and actions. Any other {@link ChatTranscript} shows the message read-only.
      */
-    host: ChatMessageListHost;
+    host: ChatTranscript | ChatModel;
 
     /** Name shown on assistant messages. Default 'Assistant'. */
     assistantName?: string;
@@ -219,8 +220,8 @@ export interface ChatMessageViewProps extends HoistProps {
  *
  * Once a reply's turn ends, its action bar shows in the gap below it - always on the last reply,
  * on hover or focus on older ones: Copy, Regenerate on the last reply, Undo, thumbs for feedback,
- * then any `messageActions`. Each action shows only if the host supports it. System messages show
- * as a centered note.
+ * then any `messageActions`. Actions other than Copy and `messageActions` need a `ChatModel`, and
+ * each shows only when it applies. System messages show as a centered note.
  */
 export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessageViewProps>({
     displayName: 'ChatMessageView',
@@ -233,7 +234,7 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
             rootRef = useComposedRefs(ref, impl.rootRef),
             context = useMemo<ChatPartRenderContext>(
                 () => ({
-                    chatModel: host instanceof ChatModel ? host : null,
+                    chatModel: isChatModel(host) ? host : null,
                     host,
                     messageId: message.id
                 }),
@@ -252,16 +253,17 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
             onSourceClick: onSourceClick ? source => onSourceClick(source, context) : null,
             allowImages
         });
-        impl.feedback.configure(message, host);
+        impl.feedback.configure(message, context.chatModel);
 
         // Calls shown outside a timeline announce as they finish. A timeline announces its own.
         useEffect(() => {
             if (!message.isAssistant) return;
+            const {chatModel} = context;
             impl.cardSteps.note(
-                message.toolCalls.filter(it => isAnnouncedOutsideTimeline(it, host)),
+                message.toolCalls.filter(it => isAnnouncedOutsideTimeline(it, chatModel)),
                 {
                     isLive: message.isStreaming || message.status === 'paused',
-                    host,
+                    chatModel,
                     announceSteps: props.announceSteps
                 }
             );
@@ -306,7 +308,7 @@ class ChatMessageViewLocalModel extends HoistModel {
     /** True while this view's undo of the reply's changes runs. (observable) */
     @observable accessor isUndoing = false;
 
-    /** Why the last undo failed, if the host's promise rejected. (observable) */
+    /** Why the last undo failed, if the chat's promise rejected. (observable) */
     @observableRef accessor undoRejection: Error = null;
 
     /** The side panel in reach, which shows the documents the message cites - or null. */
@@ -327,6 +329,12 @@ class ChatMessageViewLocalModel extends HoistModel {
 
     get props(): ViewProps {
         return this.componentProps as ViewProps;
+    }
+
+    /** The chat that holds the message, or null for a plain transcript. */
+    get chatModel(): ChatModel {
+        const {host} = this.props;
+        return isChatModel(host) ? host : null;
     }
 
     get isEditing(): boolean {
@@ -373,12 +381,12 @@ class ChatMessageViewLocalModel extends HoistModel {
     }
 
     submitEdit() {
-        const {message, host} = this.props,
+        const {chatModel} = this,
             text = this.draft.trim();
-        if (!text || host.isBusy || host.sendBlockedReason || !host.editMessageAsync) return;
+        if (!text || !chatModel || chatModel.isBusy || chatModel.sendBlockedReason) return;
         this.setEditing(false);
-        host.composerModel?.focus();
-        host.editMessageAsync(message.id, text).catchDefault();
+        chatModel.composerModel.focus();
+        chatModel.editMessageAsync(this.props.message.id, text).catchDefault();
     }
 
     onEditKeyDown = (e: KeyboardEvent) => {
@@ -396,8 +404,7 @@ class ChatMessageViewLocalModel extends HoistModel {
     //------------------
     /** True if the user can undo the reply's changes now. */
     get canUndo(): boolean {
-        const {message, host} = this.props;
-        return !!host.undoTurnAsync && !!host.canUndoTurn?.(message.id);
+        return !!this.chatModel?.canUndoTurn(this.props.message.id);
     }
 
     /**
@@ -405,9 +412,8 @@ class ChatMessageViewLocalModel extends HoistModel {
      * or null.
      */
     get undoError(): Error {
-        const {message, host} = this.props;
         if (this.isUndoing || !this.canUndo) return null;
-        return host.undoErrors?.[message.id] ?? this.undoRejection;
+        return this.chatModel.undoErrors[this.props.message.id] ?? this.undoRejection;
     }
 
     /**
@@ -415,19 +421,20 @@ class ChatMessageViewLocalModel extends HoistModel {
      * once it succeeds, so focus on it moves to the reply.
      */
     async undoAsync() {
-        const {message, host} = this.props;
+        const {chatModel} = this,
+            {message} = this.props;
         if (this.isUndoing || !this.canUndo) return;
         const reply = this.rootRef.current,
             hadFocus = !!reply?.contains(document.activeElement);
         this.setUndoState(true, null);
         let rejection: Error = null;
         try {
-            await host.undoTurnAsync(message.id);
+            await chatModel.undoTurnAsync(message.id);
         } catch (e) {
             rejection = e;
         }
         this.setUndoState(false, rejection);
-        if (rejection ?? host.undoErrors?.[message.id]) {
+        if (rejection ?? chatModel.undoErrors[message.id]) {
             chatAnnouncer.announce('Change not undone.', 'assertive');
         } else {
             chatAnnouncer.announce('Change undone.');
@@ -474,11 +481,15 @@ function userContent(
     impl: ChatMessageViewLocalModel,
     context: ChatPartRenderContext
 ): ReactNode[] {
-    const {message, host, isLast, messageActions, allowImages, notSentReason} = props,
+    const {message, isLast, messageActions, allowImages, notSentReason} = props,
+        {chatModel} = context,
         files = message.parts.filter(it => it.type === 'file') as ChatFilePart[];
 
-    if (impl.isEditing) {
-        return [files.length ? fileRow(files, allowImages) : null, editBox({impl, host, message})];
+    if (impl.isEditing && chatModel) {
+        return [
+            files.length ? fileRow(files, allowImages) : null,
+            editBox({impl, chatModel, message})
+        ];
     }
 
     // The action bar sits beside the bubble, not below it, so that it takes no space of its own.
@@ -488,7 +499,6 @@ function userContent(
             notSentReason == null
                 ? actionBar({
                       message,
-                      host,
                       context,
                       isLast,
                       isNoAnswer: false,
@@ -526,7 +536,8 @@ function userContent(
  * a message whose turn never started.
  */
 function underBubble(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNode {
-    const {message, host, notSentReason} = props,
+    const {message, notSentReason} = props,
+        {chatModel} = impl,
         contextText = formatChatUiContext(message.metadata.context),
         items = [
             contextText
@@ -553,11 +564,11 @@ function underBubble(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNo
                                     item: notSentReason
                                 })
                               : null,
-                          host.editMessageAsync
+                          chatModel
                               ? button({
                                     ref: impl.editButtonRef,
                                     text: 'Edit',
-                                    disabled: host.isBusy,
+                                    disabled: chatModel.isBusy,
                                     onClick: () => impl.startEdit()
                                 })
                               : null
@@ -572,7 +583,7 @@ function underBubble(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNo
 
 interface EditBoxProps extends HoistProps {
     impl: ChatMessageViewLocalModel;
-    host: ChatMessageListHost;
+    chatModel: ChatModel;
     message: ChatMessage;
 }
 
@@ -583,9 +594,9 @@ const editBox = hoistCmp.factory<EditBoxProps>({
     displayName: 'ChatMessageEditBox',
     model: false,
 
-    render({impl, host, message}) {
+    render({impl, chatModel, message}) {
         const {draft, inputRef} = impl,
-            {messages} = host,
+            {messages, isBusy, sendBlockedReason} = chatModel,
             idx = messages.findIndex(it => it.id === message.id),
             laterCount = idx >= 0 ? messages.length - idx - 1 : 0;
 
@@ -627,8 +638,8 @@ const editBox = hoistCmp.factory<EditBoxProps>({
                             icon: Icon.arrowUp(),
                             intent: 'primary',
                             minimal: false,
-                            tooltip: host.sendBlockedReason,
-                            disabled: !draft.trim() || host.isBusy || !!host.sendBlockedReason,
+                            tooltip: sendBlockedReason,
+                            disabled: !draft.trim() || isBusy || !!sendBlockedReason,
                             onClick: () => impl.submitEdit()
                         })
                     ]
@@ -648,8 +659,9 @@ function assistantContent(
     references: ChatReference[],
     markerSources: ChatSourcePart[]
 ): ReactNode[] {
-    const {message, host, isLast, messageActions} = props,
-        runs = groupProcessRuns(groupParts(message.parts, host), host),
+    const {message, isLast, messageActions} = props,
+        {chatModel} = context,
+        runs = groupProcessRuns(groupParts(message.parts, chatModel), chatModel),
         // A fixed "not found" reply lists no sources.
         isNoAnswer = !!getChatNoAnswerPart(message),
         uncitedSources = isNoAnswer ? [] : collectUncitedSources(message.parts, references),
@@ -684,7 +696,7 @@ function assistantContent(
                                         markerSources
                                     )
                         ),
-                        replyNotice(props)
+                        replyNotice(props, chatModel)
                     ]
                 }),
                 !isNoAnswer && (references.length || uncitedSources.length)
@@ -699,7 +711,6 @@ function assistantContent(
                     ? null
                     : actionBar({
                           message,
-                          host,
                           context,
                           isLast,
                           isNoAnswer,
@@ -770,8 +781,8 @@ function getStepOffsets(runs: Array<ChatPartGroup | ChatProcessRun>): Map<string
 }
 
 // A call whose finish the message view announces: one it shows, outside a timeline.
-function isAnnouncedOutsideTimeline(call: ChatToolCallPart, host: ChatMessageListHost): boolean {
-    const display = getToolCallDisplay(call, host);
+function isAnnouncedOutsideTimeline(call: ChatToolCallPart, chatModel: ChatModel): boolean {
+    const display = getToolCallDisplay(call, chatModel);
     return display !== 'timeline' && display !== 'hidden' && display !== 'pinned';
 }
 
@@ -791,7 +802,8 @@ function renderGroup(
 }
 
 function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactNode {
-    const {message, host, isLast, assistantName, assistantIcon, messageHeaderItems} = props,
+    const {message, isLast, assistantName, assistantIcon, messageHeaderItems} = props,
+        {chatModel} = context,
         {status, metadata, createdAt} = message,
         isLive = message.isStreaming,
         isPaused = status === 'paused',
@@ -801,11 +813,11 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
         // A timeline counts its own failures.
         failedTools = isDone
             ? message.toolCalls.filter(
-                  it => isToolCallFailed(it) && getToolCallDisplay(it, host) !== 'timeline'
+                  it => isToolCallFailed(it) && getToolCallDisplay(it, chatModel) !== 'timeline'
               ).length
             : 0,
         endedAt = createdAt + (metadata?.elapsedMs ?? 0),
-        {dataRefreshedAt} = host,
+        dataRefreshedAt = chatModel?.dataRefreshedAt,
         isStale = status === 'complete' && dataRefreshedAt != null && dataRefreshedAt > endedAt;
 
     return div({
@@ -824,11 +836,11 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
                     })
                 ]
             }),
-            isLive
+            isLive && chatModel
                 ? chatReplyLiveStatus({
                       className: 'xh-chat-message__segment',
                       message,
-                      host,
+                      chatModel,
                       isLast
                   })
                 : null,
@@ -902,7 +914,7 @@ function renderPartGroup(
         case 'fileGroup':
             return fileRow(group.parts, allowImages);
         case 'toolCallGroup':
-            return chatToolCallGroup({parts: group.parts, context, host});
+            return chatToolCallGroup({parts: group.parts, context});
         case 'text':
             return textPart({
                 part: group,
@@ -922,14 +934,14 @@ function renderPartGroup(
         case 'reasoning':
             return chatReasoning({part: group, markdownComponents, markdownPlugins, allowImages});
         case 'toolCall':
-            return chatToolCall({part: group, context, host});
+            return chatToolCall({part: group, context});
         case 'data':
             return dataPart({
                 part: group,
                 context,
                 host,
                 // Stable, so that the part skips render as the message changes.
-                onEditQuestion: onEditPrompt && host.editMessageAsync ? impl.editQuestion : null
+                onEditQuestion: onEditPrompt && context.chatModel ? impl.editQuestion : null
             });
         default:
             return null;
@@ -957,7 +969,7 @@ interface TextPartProps extends HoistProps {
     markerSources: ChatSourcePart[];
     links: ChatSourceLinks;
     context: ChatPartRenderContext;
-    host: ChatMessageListHost;
+    host: ChatTranscript | ChatModel;
     markdownComponents: ChatMarkdownComponents;
     markdownPlugins: ChatMarkdownPlugins;
     allowImages: ChatImagePolicy;
@@ -1056,7 +1068,7 @@ const textPart = hoistCmp.factory<TextPartProps>({
 interface DataPartProps extends HoistProps {
     part: ChatDataPart;
     context: ChatPartRenderContext;
-    host: ChatMessageListHost;
+    host: ChatTranscript | ChatModel;
 
     /** Edit Question, for a fixed "not found" reply. */
     onEditQuestion: () => void;
@@ -1106,8 +1118,8 @@ function isSource(part: ChatPart): boolean {
  * warning color. A stop is the user's choice, so it stays quiet. A reply cut off at the length
  * limit says so.
  */
-function replyNotice(props: ViewProps): ReactNode {
-    const {message, onEditPrompt, host} = props;
+function replyNotice(props: ViewProps, chatModel: ChatModel): ReactNode {
+    const {message, onEditPrompt} = props;
     if (message.isStreaming || message.status === 'paused') return null;
 
     const status = getChatReplyStatus({message});
@@ -1133,12 +1145,12 @@ function replyNotice(props: ViewProps): ReactNode {
                             })
                         ]
                     }),
-                    onEditPrompt && host.editMessageAsync
+                    onEditPrompt && chatModel
                         ? button({
                               className: 'xh-chat-message__failed-edit',
                               icon: Icon.edit(),
                               text: 'Edit Prompt',
-                              disabled: host.isBusy,
+                              disabled: chatModel.isBusy,
                               onClick: () => onEditPrompt(message)
                           })
                         : null
@@ -1191,7 +1203,8 @@ function notice(className: string, items: ReactNode): ReactNode {
 //------------------------
 interface ActionBarProps extends HoistProps {
     message: ChatMessage;
-    host: ChatMessageListHost;
+
+    /** Render context of the message. Its `chatModel` offers the actions beyond Copy. */
     context: ChatPartRenderContext;
     isLast: boolean;
 
@@ -1207,22 +1220,18 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
     displayName: 'ChatMessageActions',
     model: false,
 
-    render({message, host, context, isLast, isNoAnswer, impl, extraActions}) {
-        const {isBusy} = host,
+    render({message, context, isLast, isNoAnswer, impl, extraActions}) {
+        const {chatModel} = context,
+            isBusy = !!chatModel?.isBusy,
             {isAssistant, isUser, status} = message,
             isFailed = isAssistant && status === 'error',
             hasText = !!message.text.trim(),
             // A failed reply has nothing to regenerate: Try Again, above the composer, covers it.
             // TODO(design-open B2) - Regenerate replaces the reply, with no branch switcher.
             canRegenerate =
-                isAssistant &&
-                isLast &&
-                !isBusy &&
-                !isFailed &&
-                !isNoAnswer &&
-                !!host.regenerateAsync,
+                !!chatModel && isAssistant && isLast && !isBusy && !isFailed && !isNoAnswer,
             {canUndo, isUndoing} = impl,
-            canEdit = isUser && !!host.editMessageAsync,
+            canEdit = isUser && !!chatModel,
             appActions = extraActions?.(message, context) ?? [],
             primary = [
                 isFailed
@@ -1255,8 +1264,8 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
                               // The reply goes, and a pending rating of it with it. So does the
                               // button, so focus goes to the composer, where the new reply ends.
                               impl.feedback.discardForm();
-                              host.composerModel?.focus();
-                              host.regenerateAsync(message.id).catchDefault();
+                              chatModel.composerModel.focus();
+                              chatModel.regenerateAsync(message.id).catchDefault();
                           }
                       })
                     : null,

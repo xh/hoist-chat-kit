@@ -7,7 +7,7 @@ import {Icon} from '@xh/hoist/icon';
 import {action, observable} from '@xh/hoist/mobx';
 import {chatMarkdown} from '../../../cmp/markdown';
 import {
-    type ChatMessageListHost,
+    type ChatModel,
     type ChatPartRenderContext,
     type ChatToolCallPart,
     type ChatToolSpec,
@@ -38,15 +38,11 @@ export interface ChatToolCallProps extends HoistProps {
 
     /**
      * Render context of the message that holds the call - passed to the tool's renderer. Pass a
-     * stable object, such as the one a part renderer receives.
+     * stable object, such as the one a part renderer receives. Its `chatModel` supplies the tool's
+     * display config and approves or denies the call. Without one, as in a transcript, the call
+     * shows as a card, with no Allow or Deny.
      */
     context: ChatPartRenderContext;
-
-    /**
-     * The conversation that holds the call - for the tool's display config, and to approve or deny
-     * the call. Default `context.chatModel`.
-     */
-    host?: ChatMessageListHost;
 }
 
 /**
@@ -72,17 +68,17 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
     displayName: 'ChatToolCall',
     className: 'xh-chat-tool-call',
 
-    render({className, part, context, host}, ref) {
+    render({className, part, context}, ref) {
         const impl = useLocalModel(ChatToolCallLocalModel),
-            chatHost: ChatMessageListHost = host ?? context.chatModel,
-            spec = chatHost?.getToolSpec?.(part.toolName);
+            {chatModel} = context,
+            spec = chatModel?.getToolSpec(part.toolName);
 
-        switch (chatHost ? getToolCallDisplay(part, chatHost) : 'card') {
+        switch (chatModel ? getToolCallDisplay(part, chatModel) : 'card') {
             case 'hidden':
                 return null;
             case 'inline':
             case 'answer':
-                return inlineToolCall({ref, className, part, context, host: chatHost, spec, impl});
+                return inlineToolCall({ref, className, part, context, chatModel, spec, impl});
         }
 
         const {state, toolName} = part,
@@ -141,7 +137,7 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
                           className: 'xh-chat-tool-call__header xh-chat-tool-call__header--static',
                           item: span({className: 'xh-chat-tool-call__row', items: rowItems})
                       }),
-                isApproval ? chatToolApproval({part, spec, host: chatHost}) : null,
+                isApproval && chatModel ? chatToolApproval({part, spec, chatModel}) : null,
                 isExpanded
                     ? div({
                           className: 'xh-chat-tool-call__body',
@@ -188,7 +184,7 @@ const toolCallBody = hoistCmp.factory<ToolCallBodyProps>({
 });
 
 interface InlineToolCallArgs extends ChatToolCallProps {
-    host: ChatMessageListHost;
+    chatModel: ChatModel;
     spec: ChatToolSpec;
     impl: ChatToolCallLocalModel;
 }
@@ -203,7 +199,15 @@ interface InlineToolCallArgs extends ChatToolCallProps {
  * A denied call renders no output, as the user refused what it would show. A call waiting for
  * approval renders none either, unless its spec sets `preview: true`.
  */
-function inlineToolCall({ref, className, part, context, host, spec, impl}: InlineToolCallArgs) {
+function inlineToolCall({
+    ref,
+    className,
+    part,
+    context,
+    chatModel,
+    spec,
+    impl
+}: InlineToolCallArgs) {
     const {state, errorText} = part,
         // The approval bar asks for approval itself, so the caption need not say so too.
         inlineStatus = getInlineStatus(part, spec),
@@ -232,7 +236,7 @@ function inlineToolCall({ref, className, part, context, host, spec, impl}: Inlin
                     ? toolCallBody({part, spec, context})
                     : answerOutput(part.output)
                 : null,
-            state === 'approval-requested' ? chatToolApproval({part, spec, host}) : null,
+            state === 'approval-requested' ? chatToolApproval({part, spec, chatModel}) : null,
             div({
                 className: classNames('xh-chat-tool-call__caption', {
                     'xh-chat-tool-call__caption--quiet': !status && !isInputShown

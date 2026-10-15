@@ -5,11 +5,11 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     ChatMessage,
-    type ChatMessageListHost,
     type ChatMessageSpec,
     ChatModel,
     type ChatModelConfig,
-    type ChatPart
+    type ChatPart,
+    type ChatTranscript
 } from '../../../core';
 import {type ChatTransport, ScriptedChatTransport} from '../../../transport';
 import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
@@ -18,7 +18,7 @@ import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
  * How a message shows how its turn ended, and which actions it offers. Users rely on a failure
  * showing once, inline, with a way to edit the prompt, on "Not sent" for a message that never
  * left, and on the action bar offering only what can work. Apps rely on the views showing any
- * host that has the members they read - not only a ChatModel.
+ * transcript read-only - not only a ChatModel.
  */
 describe('ChatMessageView', () => {
     beforeAll(() => initTestAppAsync());
@@ -263,17 +263,14 @@ describe('ChatMessageView', () => {
             );
         });
 
-        it("flags a reply that finished before the host's last data refresh", () => {
-            const message = new ChatMessage({
-                    id: 'a1',
-                    role: 'assistant',
-                    parts: [text('t1', 'Answer')],
-                    createdAt: 1000,
-                    metadata: {elapsedMs: 500}
-                }),
-                {container} = renderList(null, {
-                    host: {messages: [message], isBusy: false, dataRefreshedAt: 2000}
-                });
+        it("flags a reply that finished before the chat's last data refresh", () => {
+            const chatModel = createModel({dataRefreshedAt: () => 2000}, [
+                    reply('a1', [text('t1', 'Answer')], {
+                        createdAt: 1000,
+                        metadata: {elapsedMs: 500}
+                    })
+                ]),
+                {container} = renderList(chatModel);
 
             expect(header(container).textContent).toContain('Data refreshed since');
         });
@@ -373,14 +370,13 @@ describe('ChatMessageView', () => {
         });
     });
 
-    describe('over a plain host', () => {
-        it('shows messages, and hides every action the host does not offer', () => {
-            const host: ChatMessageListHost = {
+    describe('over a transcript', () => {
+        it('shows messages, and offers Copy alone', () => {
+            const host: ChatTranscript = {
                 messages: [
                     new ChatMessage({id: 'u1', role: 'user', parts: [text('t0', 'Question')]}),
                     new ChatMessage({id: 'a1', role: 'assistant', parts: [text('t1', 'Answer')]})
-                ],
-                isBusy: false
+                ]
             };
             renderList(null, {host});
 
@@ -392,42 +388,9 @@ describe('ChatMessageView', () => {
             }
         });
 
-        it("calls the host's actions", async () => {
-            const host: ChatMessageListHost = {
-                messages: [
-                    new ChatMessage({id: 'u1', role: 'user', parts: [text('t0', 'Question')]}),
-                    new ChatMessage({id: 'a1', role: 'assistant', parts: [text('t1', 'Answer')]})
-                ],
-                isBusy: false,
-                regenerateAsync: vi.fn(() => Promise.resolve()),
-                editMessageAsync: vi.fn(() => Promise.resolve()),
-                canSubmitFeedback: true,
-                submitFeedbackAsync: vi.fn(() => Promise.resolve())
-            };
-            renderList(null, {host});
-
-            fireEvent.click(screen.getByRole('button', {name: 'Regenerate'}));
-            expect(host.regenerateAsync).toHaveBeenCalledWith('a1');
-
-            await act(() => fireEvent.click(screen.getByRole('button', {name: 'Good response'})));
-            expect(host.submitFeedbackAsync).toHaveBeenCalledWith(
-                'a1',
-                'positive',
-                undefined,
-                undefined
-            );
-
-            fireEvent.click(screen.getByRole('button', {name: 'Edit'}));
-            fireEvent.change(screen.getByRole('textbox', {name: 'Edit message'}), {
-                target: {value: 'New question'}
-            });
-            fireEvent.click(screen.getByRole('button', {name: /Save and Resend/}));
-            expect(host.editMessageAsync).toHaveBeenCalledWith('u1', 'New question');
-        });
-
         it('gives part renderers a context with the host and no chatModel', () => {
             const renderer = vi.fn(() => null),
-                host: ChatMessageListHost = {
+                host: ChatTranscript = {
                     messages: [
                         new ChatMessage({
                             id: 'a1',
@@ -435,7 +398,6 @@ describe('ChatMessageView', () => {
                             parts: [{type: 'data', id: 'd1', dataType: 'test.card', data: {}}]
                         })
                     ],
-                    isBusy: false,
                     dataRenderers: {'test.card': renderer}
                 };
             renderList(null, {host});
@@ -447,19 +409,12 @@ describe('ChatMessageView', () => {
             });
         });
 
-        it('stops a busy reply on Escape, and moves between messages on Up and Down', () => {
-            const host: ChatMessageListHost = {
+        it('moves between messages on Up and Down', () => {
+            const host: ChatTranscript = {
                 messages: [
                     new ChatMessage({id: 'u1', role: 'user', parts: [text('t0', 'Question')]}),
-                    new ChatMessage({
-                        id: 'a1',
-                        role: 'assistant',
-                        parts: [text('t1', 'Ans')],
-                        status: 'streaming'
-                    })
-                ],
-                isBusy: true,
-                stop: vi.fn()
+                    new ChatMessage({id: 'a1', role: 'assistant', parts: [text('t1', 'Answer')]})
+                ]
             };
             renderList(null, {host});
 
@@ -467,16 +422,30 @@ describe('ChatMessageView', () => {
             assistant.focus();
             fireEvent.keyDown(assistant, {key: 'ArrowUp'});
             expect(document.activeElement).toBe(user);
-
-            fireEvent.keyDown(user, {key: 'Escape'});
-            expect(host.stop).toHaveBeenCalledOnce();
+            fireEvent.keyDown(user, {key: 'ArrowDown'});
+            expect(document.activeElement).toBe(assistant);
         });
 
         it('is satisfied by ChatModel', () => {
             const chatModel = createModel({}, []),
-                host: ChatMessageListHost = chatModel;
+                host: ChatTranscript = chatModel;
             expect(host.messages).toBe(chatModel.messages);
         });
+    });
+
+    it('stops a busy reply on Escape, and focuses the composer', async () => {
+        const chatModel = createModel({transport: hangingTransport()}, []);
+        await act(async () => {
+            chatModel.sendAsync('Question').catchDefault();
+        });
+        expect(chatModel.isBusy).toBe(true);
+        const stop = vi.spyOn(chatModel, 'stop'),
+            focus = vi.spyOn(chatModel.composerModel, 'focus');
+        renderList(chatModel);
+
+        fireEvent.keyDown(screen.getAllByRole('article')[0], {key: 'Escape'});
+        expect(stop).toHaveBeenCalledOnce();
+        expect(focus).toHaveBeenCalledOnce();
     });
 
     describe('parts', () => {
@@ -594,6 +563,16 @@ function createModel(config: Partial<ChatModelConfig>, initialMessages: ChatMess
     });
     onTestFinished(() => model.destroy());
     return model;
+}
+
+// A transport whose runs wait until stopped, to keep the chat busy.
+function hangingTransport(): ChatTransport {
+    return {
+        // eslint-disable-next-line require-yield
+        async *run(request) {
+            await new Promise(resolve => request.signal.addEventListener('abort', resolve));
+        }
+    };
 }
 
 function renderList(chatModel: ChatModel, props: Partial<ChatMessageListProps> = {}) {

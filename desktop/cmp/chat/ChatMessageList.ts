@@ -10,12 +10,7 @@ import type {
     ChatMarkdownComponents,
     ChatMarkdownPlugins
 } from '../../../cmp/markdown';
-import {
-    ChatComposerModel,
-    type ChatMessage,
-    type ChatMessageListHost,
-    ChatModel
-} from '../../../core';
+import {type ChatMessage, ChatModel, type ChatTranscript, isChatModel} from '../../../core';
 import '../../../styles/vars.scss';
 import {chatEmptyState} from './ChatEmptyState';
 import './ChatMessageList.scss';
@@ -31,17 +26,17 @@ import {getFailureCause, isReplyNotSent} from './impl/ReplyFailure';
 /** Props for {@link ChatMessageList}. */
 export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
     /**
-     * The conversation to show, when it is not a `ChatModel` - an app's own
-     * {@link ChatMessageListHost}. Default the list's `ChatModel`, from props or context.
+     * A read-only conversation to show in place of a `ChatModel` - an app's own
+     * {@link ChatTranscript}. Default the list's `ChatModel`, from props or context.
      */
-    host?: ChatMessageListHost;
+    host?: ChatTranscript;
 
     /** Content to show when the conversation has no messages, in place of the default. */
     emptyState?: ReactNode;
 
     /**
-     * Suggested prompts for the default empty state. They fill the host's `composerModel`, and
-     * show only when it is a `ChatComposerModel`.
+     * Suggested prompts for the default empty state. They fill the chat's composer, and show only
+     * when the list shows a `ChatModel`.
      */
     suggestions?: Array<ChatSuggestion | string>;
 
@@ -106,9 +101,9 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
 /**
  * The scrolling list of messages in a conversation, in a centered column.
  *
- * Shows a `ChatModel`, from props or context, or any {@link ChatMessageListHost} passed as
- * `host`. The list and its messages read only the host's members, and hide each action the host
- * does not offer.
+ * Shows a `ChatModel`, from props or context, or any {@link ChatTranscript} passed as `host`.
+ * A transcript renders read-only: its parts show, but actions such as Edit, Regenerate, feedback
+ * and approvals need a `ChatModel`.
  *
  * Follows a streaming reply by staying scrolled to the bottom, until the user scrolls up to read.
  * A button then offers a way back down. Sending a message always returns to the bottom.
@@ -157,10 +152,11 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                 impl.viewportRef
             ),
             contentRef = useOnResize(impl.onContentResize),
-            host: ChatMessageListHost = hostProp ?? model;
+            host: ChatTranscript | ChatModel = hostProp ?? model;
         throwIf(!host, 'ChatMessageList needs a ChatModel, or a host.');
 
-        const {messages, isBusy} = host,
+        const {messages} = host,
+            chatModel = isChatModel(host) ? host : null,
             lastIdx = messages.length - 1;
 
         return vbox({
@@ -178,7 +174,7 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                     role: 'log',
                     'aria-live': 'off',
                     'aria-label': 'Conversation',
-                    'aria-busy': isBusy,
+                    'aria-busy': !!chatModel?.isBusy,
                     onScroll: impl.onScroll,
                     onWheel: impl.onWheel,
                     onClickCapture: impl.onClickCapture,
@@ -191,7 +187,7 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                                   emptyState ??
                                       chatEmptyState({
                                           suggestions,
-                                          composerModel: getComposerModel(host)
+                                          composerModel: chatModel?.composerModel
                                       })
                               ]
                             : messages.map((message, idx) =>
@@ -245,12 +241,6 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
 //------------------
 // Implementation
 //------------------
-// The host's composer, for the empty state's suggestions to fill - if it is the kit's own.
-function getComposerModel(host: ChatMessageListHost): ChatComposerModel {
-    const {composerModel} = host;
-    return composerModel instanceof ChatComposerModel ? composerModel : null;
-}
-
 // Why a user message was never sent - the cause of the failed reply after it - or null.
 function getNotSentReason(message: ChatMessage, next: ChatMessage): string {
     return message.isUser && isReplyNotSent(next) ? getFailureCause(next) : null;

@@ -1,7 +1,7 @@
 import {last} from 'lodash';
 import {
     type ChatFilePart,
-    type ChatMessageListHost,
+    type ChatModel,
     type ChatPart,
     type ChatToolCallPart,
     type ChatToolDisplay,
@@ -60,8 +60,12 @@ export interface ChatProcessRun {
     groups: ChatPartGroup[];
 }
 
-/** The part of the host that grouping reads. @internal */
-export type ChatGroupingHost = Pick<ChatMessageListHost, 'getToolSpec'>;
+/**
+ * Where grouping finds the specs of tools: the chat, or null for a transcript, whose calls show
+ * with the default display.
+ * @internal
+ */
+export type ChatGroupingHost = Pick<ChatModel, 'getToolSpec'>;
 
 /**
  * How a call displays, from its tool's spec - see `ChatToolDisplay`. A call a sub-agent made
@@ -73,7 +77,7 @@ export function getToolCallDisplay(
     call: ChatToolCallPart,
     host: ChatGroupingHost
 ): ChatToolDisplay {
-    const spec = host.getToolSpec?.(call.toolName),
+    const spec = host?.getToolSpec(call.toolName),
         display = spec?.display ?? (call.subagentRunId != null ? 'timeline' : 'card');
     if (display === 'hidden' && isWaitingForUser(call, host)) return 'card';
     return display;
@@ -235,7 +239,7 @@ function addPart(ret: ChatPartGroup[], part: ChatPart, host: ChatGroupingHost) {
 function isWaitingForUser(call: ChatToolCallPart, host: ChatGroupingHost): boolean {
     return (
         call.state === 'approval-requested' ||
-        isAwaitingAnswer(call, host.getToolSpec?.(call.toolName))
+        isAwaitingAnswer(call, host?.getToolSpec(call.toolName))
     );
 }
 

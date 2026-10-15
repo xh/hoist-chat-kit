@@ -1,7 +1,8 @@
 import type {WheelEvent} from 'react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
-import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
-import type {ChatMessageListHost} from '../../../../core';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
+import {ChatModel, type ChatTranscript} from '../../../../core';
+import {ScriptedChatTransport} from '../../../../transport';
 import {ChatMessageListLocalModel} from './ChatMessageListLocalModel';
 
 /**
@@ -110,10 +111,21 @@ function createList({isBusy, contentHeight = 1000}: {isBusy: boolean; contentHei
     const model = new ChatMessageListLocalModel(),
         el = new FakeViewport(contentHeight);
     onTestFinished(() => model.destroy());
-    const host: ChatMessageListHost = {isBusy, messages: []};
-    model.setComponentProps({host});
+    model.setComponentProps({host: isBusy ? createBusyChat() : createTranscript()});
     model.viewportRef(el as unknown as HTMLDivElement);
     return {model, el};
+}
+
+// A chat with a reply in progress. Only a ChatModel is ever busy.
+function createBusyChat(): ChatModel {
+    const chatModel = new ChatModel({transport: new ScriptedChatTransport()});
+    onTestFinished(() => chatModel.destroy());
+    vi.spyOn(chatModel, 'isBusy', 'get').mockReturnValue(true);
+    return chatModel;
+}
+
+function createTranscript(): ChatTranscript {
+    return {messages: []};
 }
 
 function wheelUp(): WheelEvent {
