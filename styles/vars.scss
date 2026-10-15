@@ -77,8 +77,6 @@ body {
   --xh-chat-timeline-done-icon-color: var(--xh-chat-meta-text-color);
   --xh-chat-timeline-pane-bg: var(--xh-chat-code-bg);
   --xh-chat-timeline-ask-border-color: var(--xh-chat-attention-color);
-  --xh-chat-timeline-diff-add-bg: var(--xh-intent-success-trans1);
-  --xh-chat-timeline-diff-del-bg: var(--xh-intent-danger-trans1);
 
   //------------------------
   // Citations and sources
@@ -96,10 +94,10 @@ body {
   --xh-chat-source-row-height: 24px;
   --xh-chat-source-highlight-bg: var(--xh-grid-bg-hover);
 
-  // The source viewer panel. Pages stay white in the dark theme: a document is never inverted.
-  --xh-chat-viewer-width: 520px;
-  --xh-chat-viewer-min-width: 400px;
+  // The source viewer panel. Its width is the workspace's, set by breakpoint in code.
   --xh-chat-viewer-surround-bg: var(--xh-bg-alt);
+  // For the app's document renderer. Pages stay white in the dark theme: a document is never
+  // inverted.
   --xh-chat-viewer-page-bg: var(--xh-white);
   --xh-chat-viewer-page-text-color: var(--xh-blue-gray-dark);
 
@@ -118,17 +116,11 @@ body {
   --xh-chat-table-font-size: var(--xh-grid-compact-font-size-px);
   // A fixed chart body, never sized to the data.
   --xh-chat-chart-height: 220px;
-  // Fallback series colors, for an app with no Highcharts theme of its own.
-  --xh-chat-series-1-color: var(--xh-intent-primary);
-  --xh-chat-series-2-color: var(--xh-intent-warning);
   --xh-chat-tile-min-width: 150px;
   --xh-chat-tile-value-font-size: var(--xh-font-size-large-px);
-  --xh-chat-sparkline-color: var(--xh-chat-meta-text-color);
   --xh-chat-followup-height: 24px;
   --xh-chat-followup-text-color: var(--xh-intent-primary-text-color);
   --xh-chat-followup-hover-bg: var(--xh-intent-primary-trans1);
-  // Column and field tokens in apply cards.
-  --xh-chat-token-bg: var(--xh-chat-code-bg);
 
   //------------------------
   // Workspace shell
@@ -139,7 +131,7 @@ body {
   //------------------------
   // Thread sidebar
   //------------------------
-  --xh-chat-sidebar-width: 260px;
+  // The open sidebar's width is the workspace's, set by breakpoint in code.
   --xh-chat-sidebar-rail-width: 40px;
   --xh-chat-sidebar-row-height: 28px;
   --xh-chat-sidebar-bg: var(--xh-bg);
@@ -163,9 +155,6 @@ body {
   --xh-chat-suggestion-hover-bg: var(--xh-chat-sidebar-row-hover-bg);
   // The empty state's centered column: title, suggestions and composer.
   --xh-chat-composer-centered-max-width: 680px;
-  // The context meter. Warning and error colors take over as the context fills.
-  --xh-chat-composer-meter-track-color: var(--xh-chat-part-border-color);
-  --xh-chat-composer-meter-color: var(--xh-chat-meta-text-color);
   // The agent status dot, always paired with words.
   --xh-chat-composer-online-color: var(--xh-intent-success-text-color);
   --xh-chat-composer-degraded-color: var(--xh-intent-warning-text-color);
@@ -201,11 +190,8 @@ body {
   //------------------------
   // Component helper
   //------------------------
-  --xh-chat-helper-width: 380px;
-  --xh-chat-helper-min-width: 360px;
-  --xh-chat-helper-max-width: 420px;
-  // The width a component keeps beside a docked helper. Below it, the helper opens as a popover.
-  --xh-chat-helper-component-min-width: 380px;
+  // The docked helper's width is a resizable panel's, and `ChatAssistantModel.dockMinWidth`
+  // decides between dock and popover - both in code.
   --xh-chat-helper-header-height: 32px;
   --xh-chat-helper-popover-width: 360px;
   --xh-chat-helper-popover-max-height: 520px;

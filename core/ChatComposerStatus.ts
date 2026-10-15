@@ -187,8 +187,8 @@ export function getChatComposerStatus(spec: ChatComposerStatusSpec): ChatCompose
 /**
  * True if the turn that ended with this failed reply can be resent without running work twice.
  * A failure is retry-safe unless the server's `RUN_ERROR` says otherwise, with
- * `metadata.retrySafe: false`. In server mode, the kit's own `stalled` and `incomplete-stream`
- * errors are not retry-safe either, as the server may still be running the turn.
+ * `metadata.retrySafe: false`. In server mode, the kit's own `stalled`, `incomplete-stream` and
+ * `connection-lost` errors are not retry-safe either, as the server may still be running the turn.
  *
  * @param historyMode - the chat's history mode. Default 'client'.
  */
@@ -205,7 +205,7 @@ export function isChatRetrySafe(
 // Implementation
 //------------------
 // Errors the kit raises when it loses sight of a run that the server may still be running.
-const KIT_UNSAFE_CODES = ['stalled', 'incomplete-stream'];
+const KIT_UNSAFE_CODES = ['stalled', 'incomplete-stream', 'connection-lost'];
 
 function failedStatus(
     status: (

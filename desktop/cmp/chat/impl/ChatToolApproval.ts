@@ -23,7 +23,8 @@ export interface ChatToolApprovalProps extends HoistProps {
  * Enter in the reason sends nothing - and no shortcut ever allows.
  *
  * Focus moves to Allow only if focus was already in the conversation and the composer is empty,
- * so that a request never takes the keyboard from someone typing.
+ * so that a request never takes the keyboard from someone typing. Allow and Deny move focus to the
+ * reply, as the panel goes once the call is decided.
  * @internal
  */
 export const chatToolApproval = hoistCmp.factory<ChatToolApprovalProps>({
@@ -65,8 +66,10 @@ export const chatToolApproval = hoistCmp.factory<ChatToolApprovalProps>({
                                   icon: Icon.check(),
                                   intent: 'primary',
                                   minimal: false,
-                                  onClick: () =>
-                                      host.approveToolCallAsync(part.id, reasonOf()).catchDefault()
+                                  onClick: e => {
+                                      focusReplyOf(e.currentTarget);
+                                      host.approveToolCallAsync(part.id, reasonOf()).catchDefault();
+                                  }
                               })
                             : null,
                         host?.denyToolCallAsync
@@ -75,8 +78,10 @@ export const chatToolApproval = hoistCmp.factory<ChatToolApprovalProps>({
                                   text: 'Deny',
                                   outlined: true,
                                   minimal: false,
-                                  onClick: () =>
-                                      host.denyToolCallAsync(part.id, reasonOf()).catchDefault()
+                                  onClick: e => {
+                                      focusReplyOf(e.currentTarget);
+                                      host.denyToolCallAsync(part.id, reasonOf()).catchDefault();
+                                  }
                               })
                             : null,
                         host?.approveToolCallAsync || host?.denyToolCallAsync
@@ -96,6 +101,15 @@ export const chatToolApproval = hoistCmp.factory<ChatToolApprovalProps>({
         });
     }
 });
+
+// Move focus from a button that is about to go to the reply that holds it - unless focus is
+// somewhere else of the user's choosing.
+function focusReplyOf(button: HTMLElement) {
+    const reply = button.closest<HTMLElement>('.xh-chat-message'),
+        active = document.activeElement;
+    if (!reply || (active && active !== document.body && !button.contains(active))) return;
+    reply.focus();
+}
 
 class ApprovalLocalModel extends HoistModel {
     override xhImpl = true;

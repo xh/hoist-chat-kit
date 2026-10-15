@@ -13,7 +13,7 @@ export * from './ChatReasoning';
 export * from './ChatScopeChip';
 export * from './ChatSidePanel';
 export * from './ChatSources';
-export {chatSpinner} from './impl/ChatLiveCues';
+export {chatSpinner} from '../../impl/ChatLiveCues';
 export * from './ChatStatusCue';
 export * from './ChatStatusRegion';
 export * from './ChatSuggestions';

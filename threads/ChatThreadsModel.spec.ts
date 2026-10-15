@@ -431,6 +431,43 @@ describe('ChatThreadsModel', () => {
             expect(model.runningThreadIds).toEqual([]);
         });
 
+        it('lists a background thread that pauses for approval as awaiting, not finished', async () => {
+            let open: () => void;
+            const gate = new Promise<void>(resolve => (open = resolve)),
+                {model} = setup({
+                    respond: async function* () {
+                        await gate;
+                        yield* toolCallEvents('delete_rows', {count: 3});
+                    },
+                    chat: {
+                        tools: [{name: 'delete_rows', needsApproval: true, execute: () => 'Done.'}]
+                    }
+                }),
+                chatModel = model.newThread(),
+                sent = chatModel.sendAsync('Delete the rows');
+
+            await model.selectThreadAsync('t1');
+            open();
+            await sent;
+
+            expect(model.awaitingThreadIds).toEqual([chatModel.threadId]);
+            expect(model.finishedAwayThreadIds).toEqual([]);
+        });
+
+        it('removes the saved drafts of deleted threads, open or closed', async () => {
+            const {model} = setup({chat: {composer: {drafts: 'local'}}});
+            await model.selectThreadAsync('t1');
+            model.chatModel.composerModel.text = 'Draft for one';
+            await model.selectThreadAsync('t2');
+            model.chatModel.composerModel.text = 'Draft for two';
+            expect(savedDraft('t1')).not.toBeNull();
+
+            await model.deleteThreadsAsync(['t1', 't2']);
+
+            expect(savedDraft('t1')).toBeNull();
+            expect(savedDraft('t2')).toBeNull();
+        });
+
         it('creates a new thread on the backend even when its chat starts with a greeting', async () => {
             const {model, store} = setup({
                     store: new LocalChatThreadStore({mintIds: true}),
@@ -857,6 +894,10 @@ class TurnGates {
 
 function runStarted(threadId: string): ChatEvent {
     return {type: 'RUN_STARTED', threadId, runId: 'run-1'};
+}
+
+function savedDraft(threadId: string) {
+    return XH.localStorageService.get(`xhChat.draft.${threadId}`, null);
 }
 
 function ids(threads: {id: string}[]): string[] {

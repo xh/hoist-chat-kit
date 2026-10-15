@@ -1,5 +1,5 @@
 import {isFinite} from 'lodash';
-import type {KeyboardEvent, ReactNode} from 'react';
+import {type KeyboardEvent, type ReactNode, useEffect} from 'react';
 import {errorMessage} from '@xh/hoist/cmp/error';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {mask} from '@xh/hoist/cmp/mask';
@@ -10,6 +10,8 @@ import {toolbarSep} from '@xh/hoist/desktop/cmp/toolbar';
 import {Icon} from '@xh/hoist/icon';
 import {action, observable} from '@xh/hoist/mobx';
 import {
+    type ChatAnnouncePoliteness,
+    chatAnnouncer,
     type ChatDocumentError,
     type ChatDocumentRequest,
     type ChatDocumentStatus,
@@ -22,7 +24,7 @@ import '../../../styles/vars.scss';
 import './ChatSidePanel.scss';
 import {chatCopyButton} from './impl/ChatCopyButton';
 import {formatHost} from './impl/ChatFormat';
-import {chatSpinner} from './impl/ChatLiveCues';
+import {chatSpinner} from '../../impl/ChatLiveCues';
 
 /** Props for {@link ChatSidePanel}. */
 export interface ChatSidePanelProps extends HoistProps<ChatSidePanelModel> {
@@ -162,7 +164,11 @@ const documentFrame = hoistCmp.factory<DocumentFrameProps>({
             status = model.documentStatus,
             state = status?.state,
             title = getTitle(request),
-            isError = state === 'error';
+            isError = state === 'error',
+            {text: spoken, politeness} = getAnnouncement(status, title) ?? {};
+        useEffect(() => {
+            if (spoken) chatAnnouncer.announce(spoken, politeness);
+        }, [spoken, politeness]);
 
         return panel({
             ...panelProps,
@@ -215,11 +221,6 @@ const documentFrame = hoistCmp.factory<DocumentFrameProps>({
                         }),
                         isError ? errorView(status.error, title) : null
                     ]
-                }),
-                span({
-                    className: 'xh-chat-side-panel__live',
-                    role: 'status',
-                    item: getAnnouncement(status, title)
                 })
             ]
         });
@@ -315,11 +316,10 @@ function errorView(error: ChatDocumentError, title: string): ReactNode {
 
     return div({
         className: 'xh-chat-side-panel__error',
-        role: 'alert',
         item: errorMessage({
             error: error ?? {},
-            title: title ? `Couldn't open ${title}` : "Couldn't open the document",
-            message: error?.message ?? getErrorText(httpStatus),
+            title: getErrorTitle(title),
+            message: getErrorMessage(error),
             actionFn: download ? () => download() : canRetry ? () => retry() : null,
             actionButtonProps: download
                 ? {text: 'Download', icon: Icon.download()}
@@ -330,6 +330,14 @@ function errorView(error: ChatDocumentError, title: string): ReactNode {
     });
 }
 
+function getErrorTitle(title: string): string {
+    return title ? `Couldn't open ${title}` : "Couldn't open the document";
+}
+
+function getErrorMessage(error: ChatDocumentError): string {
+    return error?.message ?? getErrorText(error?.httpStatus);
+}
+
 function getErrorText(httpStatus: number): string {
     if (httpStatus === 403) return "You don't have access to this document.";
     if (httpStatus === 404) return 'This document no longer exists.';
@@ -337,20 +345,31 @@ function getErrorText(httpStatus: number): string {
     return 'The document could not be opened.';
 }
 
-// What a screen reader hears as the state changes. Nothing while locating, which is quick. A
-// failure announces through its alert.
-function getAnnouncement(status: ChatDocumentStatus, title: string): string {
+// What a screen reader hears as the state changes, through the kit's announcer. Nothing while
+// locating, which is quick. A failure interrupts.
+function getAnnouncement(
+    status: ChatDocumentStatus,
+    title: string
+): {text: string; politeness: ChatAnnouncePoliteness} {
+    const polite = (text: string) => ({text, politeness: 'polite' as const});
     switch (status?.state) {
         case 'opening':
-            return title ? `Opening ${title}` : 'Opening document';
+            return polite(title ? `Opening ${title}` : 'Opening document');
         case 'located':
-            return isFinite(status.page) ? `Passage on page ${status.page}` : 'Passage located';
+            return polite(
+                isFinite(status.page) ? `Passage on page ${status.page}` : 'Passage located'
+            );
         case 'likelyPage':
-            return STRIP_TEXT.likelyPage;
+            return polite(STRIP_TEXT.likelyPage);
         case 'notLocated':
-            return STRIP_TEXT.notLocated;
+            return polite(STRIP_TEXT.notLocated);
+        case 'error':
+            return {
+                text: `${getErrorTitle(title)}. ${getErrorMessage(status.error)}`,
+                politeness: 'assertive'
+            };
         default:
-            return '';
+            return null;
     }
 }
 

@@ -19,6 +19,8 @@ import {
     type ChatToolCallPart,
     type ChatToolSpec,
     isChatSubagentPart,
+    isToolCallCancelled,
+    isToolCallFailed,
     isToolCallFinal
 } from '../../../../core';
 import type {ChatGroupingHost} from './groupParts';
@@ -169,8 +171,11 @@ export interface ChatTimelineSummary {
     calls: ChatToolCallPart[];
     agentCount: number;
 
-    /** Calls that failed. */
+    /** Calls that failed - not those cancelled by a stop. */
     failedCount: number;
+
+    /** Calls cancelled by a stop. */
+    cancelledCount: number;
 
     /** True if every failed call was retried with success. */
     isAllRetried: boolean;
@@ -205,13 +210,14 @@ export function summarizeTimeline(
 ): ChatTimelineSummary {
     const calls = getTimelineCalls(items),
         specOf = (call: ChatToolCallPart) => host.getToolSpec?.(call.toolName),
-        failed = calls.filter(it => it.state === 'output-error'),
+        failed = calls.filter(isToolCallFailed),
         newest = last(items);
 
     return {
         calls,
         agentCount: getTimelineAgents(items).length,
         failedCount: failed.length,
+        cancelledCount: calls.filter(isToolCallCancelled).length,
         isAllRetried: failed.length > 0 && failed.every(it => isRetriedWithSuccess(it, calls)),
         running: calls.filter(
             it =>
@@ -236,13 +242,14 @@ export function summarizeTimeline(
  *  - `running` - calls or sub-agents run, or the agent works between them.
  *  - `quiet` - running, with no data for longer than the chat's stall time.
  *  - `approval`, `question` - a call waits for the user.
+ *  - `paused` - the reply waits on the user for something outside the block.
  *  - `done` - the work is done, though the reply may still be writing its answer.
  *  - `stopped` - the user stopped the reply.
  *  - `failed` - the reply failed.
  * @internal
  */
 export type ChatTimelineState =
-    'running' | 'quiet' | 'approval' | 'question' | 'done' | 'stopped' | 'failed';
+    'running' | 'quiet' | 'approval' | 'question' | 'paused' | 'done' | 'stopped' | 'failed';
 
 /** @internal */
 export function getTimelineState({
@@ -268,6 +275,7 @@ export function getTimelineState({
     }
     if (summary.approval) return 'approval';
     if (summary.question) return 'question';
+    if (message.status === 'paused') return 'paused';
     if (!message.isStreaming) return 'done';
 
     // The line swaps to its summary in place once the answer starts below it.
@@ -480,7 +488,7 @@ function getRetries(parts: ChatPart[]): Map<string, number> {
     calls.forEach((call, idx) => {
         const failedBefore = calls
             .slice(0, idx)
-            .filter(it => it.state === 'output-error' && isSameCall(it, call)).length;
+            .filter(it => isToolCallFailed(it) && isSameCall(it, call)).length;
         if (failedBefore) ret.set(call.id, failedBefore);
     });
     return ret;

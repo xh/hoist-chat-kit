@@ -2,7 +2,7 @@ import {act, fireEvent, render, screen} from '@testing-library/react';
 import {hoistCmp, uses} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {ChatComposerModel, ChatModel, type ChatModelConfig} from '../../../core';
+import {chatAnnouncer, ChatComposerModel, ChatModel, type ChatModelConfig} from '../../../core';
 import type {ChatComposerHost} from '../../../core/ChatComposerHost';
 import {ScriptedChatTransport, textEvents} from '../../../transport';
 import {chatComposer} from './ChatComposer';
@@ -16,7 +16,10 @@ describe('ChatComposer', () => {
     beforeAll(() => initTestAppAsync());
 
     // jsdom has no layout, and so no ResizeObserver. The setup unstubs globals after each test.
-    beforeEach(() => vi.stubGlobal('ResizeObserver', NoopResizeObserver));
+    beforeEach(() => {
+        vi.stubGlobal('ResizeObserver', NoopResizeObserver);
+        chatAnnouncer.clear();
+    });
 
     it('sends the draft on Enter', () => {
         const chatModel = createModel(),
@@ -151,6 +154,29 @@ describe('ChatComposer', () => {
         expect(send).toHaveBeenCalledTimes(1);
     });
 
+    it('names files left out to screen readers through the announcer', async () => {
+        const chatModel = createModel({composer: {enableAttachments: true, accept: ['.csv']}}),
+            {container} = renderComposer(chatModel);
+
+        await act(() =>
+            chatModel.composerModel.addFilesAsync([
+                new File(['x'], 'notes.txt', {type: 'text/plain'})
+            ])
+        );
+
+        expect(container.querySelector('.xh-chat-composer__attachment-errors').textContent).toBe(
+            "'notes.txt' is not an accepted file type."
+        );
+        expect(chatAnnouncer.assertive?.text).toBe("'notes.txt' is not an accepted file type.");
+        expect(container.querySelector('[role="alert"]:not(.xh-chat-announcer *)')).toBeNull();
+    });
+
+    it('renders the announcer regions, for a layout with no message list', () => {
+        const {container} = renderHostComposerView(createHost());
+
+        expect(container.querySelector('.xh-chat-announcer [aria-live="polite"]')).toBeTruthy();
+    });
+
     describe('with a host of its own', () => {
         it('sends the draft through the host on Enter, and clears it', () => {
             const host = createHost(),
@@ -211,6 +237,12 @@ function renderComposer(chatModel: ChatModel) {
 
 function createHost(config: Partial<ChatComposerHost> = {}): ChatComposerHost {
     return {isBusy: false, sendAsync: vi.fn(async () => {}), ...config};
+}
+
+function renderHostComposerView(host: ChatComposerHost) {
+    const composer = new ChatComposerModel({host});
+    onTestFinished(() => composer.destroy());
+    return render(chatComposer({model: composer}));
 }
 
 function renderHostComposer(host: ChatComposerHost): ChatComposerModel {

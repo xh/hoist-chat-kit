@@ -15,7 +15,8 @@ import {
     type ChatMessageListHost
 } from '../../../../core';
 import {classNames} from '../../../../impl/ClassNames';
-import {chatSpinner} from './ChatLiveCues';
+import {onClearLocalData} from '../../../../impl/clearLocalData';
+import {chatSpinner} from '../../../impl/ChatLiveCues';
 
 /**
  * One open feedback form: the rating it is for, and the draft of its comment and reasons. A
@@ -112,35 +113,50 @@ export class ChatFeedbackForm extends HoistModel {
 /**
  * The feedback state of one model, which the views of its messages share: the views of one
  * message list, or of one thread across a switch away and back. At most one form is open.
+ *
+ * A thread's state is kept for the session only while its form is open, so that closed forms
+ * leave nothing behind. `ChatKit.clearLocalData()` drops it too.
  * @internal
  */
 export class ChatFeedbackThreadState extends HoistBase {
     @observableRef accessor form: ChatFeedbackForm = null;
 
+    /** The thread the state belongs to, or null for one kept by its host. */
+    readonly threadId: string;
+
+    constructor(threadId: string = null) {
+        super();
+        this.threadId = threadId;
+    }
+
     @action
     open(form: ChatFeedbackForm) {
         this.form?.destroy();
         this.form = form;
+        if (this.threadId != null) statesByThread.set(this.threadId, this);
     }
 
     @action
     close() {
         this.form?.destroy();
         this.form = null;
+        if (this.threadId != null && statesByThread.get(this.threadId) === this) {
+            statesByThread.delete(this.threadId);
+        }
     }
 }
 
 /**
  * The feedback state for a host's thread - by its `threadId` if it has one, so that a draft
- * survives a switch to another thread and back, for the session.
+ * survives a switch to another thread and back, for the session. A thread with no open form gets
+ * a new state, which the session keeps once a form opens in it.
  * @internal
  */
 export function getFeedbackThreadState(host: ChatMessageListHost): ChatFeedbackThreadState {
     const {threadId} = host;
     if (threadId != null) {
-        let ret = statesByThread.get(threadId);
-        if (!ret) statesByThread.set(threadId, (ret = new ChatFeedbackThreadState()));
-        return ret;
+        // Observable, so that the views of a thread see a form another view opens.
+        return statesByThread.get(threadId) ?? new ChatFeedbackThreadState(threadId);
     }
     let ret = statesByHost.get(host);
     if (!ret) statesByHost.set(host, (ret = new ChatFeedbackThreadState()));
@@ -792,8 +808,16 @@ const REJECTED_STATUSES = [400, 413, 422];
 const THANKS_MS = 3_000,
     FAILURE_MS = 8_000;
 
-const statesByThread = new Map<string, ChatFeedbackThreadState>(),
+// States with an open form, by thread id, and states by host for a host with no thread id.
+const statesByThread = observable.map<string, ChatFeedbackThreadState>({}, {deep: false}),
     statesByHost = new WeakMap<object, ChatFeedbackThreadState>();
+
+onClearLocalData(threadIds => {
+    const states = threadIds
+        ? threadIds.map(id => statesByThread.get(id)).filter(it => it)
+        : Array.from(statesByThread.values());
+    states.forEach(it => it.close());
+});
 
 function footHint(
     comment: string,

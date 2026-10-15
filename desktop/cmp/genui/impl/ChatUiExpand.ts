@@ -1,5 +1,5 @@
 import type {ReactNode} from 'react';
-import {hoistCmp, HoistModel, type HoistProps} from '@xh/hoist/core';
+import {hoistCmp, HoistModel, type HoistProps, XH} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
 import {dialog} from '@xh/hoist/kit/blueprint';
 import {action, observableRef, untracked} from '@xh/hoist/mobx';
@@ -9,6 +9,7 @@ import {
     type ChatTableRequest,
     isChatSidePanelHost
 } from '../../../../core';
+import type {ChatArtifactRegistry} from '../../../../genui';
 import {chatUiChartView} from '../ChatUiChartView';
 import {chatUiTableView} from '../ChatUiTableView';
 import './ChatUiExpand.scss';
@@ -61,6 +62,38 @@ export class ChatUiExpandModel extends HoistModel {
     @action
     closeDialog() {
         this.dialogRequest = null;
+    }
+
+    override destroy() {
+        XH.safeDestroy(this.ownedRegistry);
+        super.destroy();
+    }
+
+    //------------------
+    // Implementation
+    //------------------
+    // The registry the card made for rows written inline, if any - see `setInlineRegistry()`.
+    private ownedRegistry: ChatArtifactRegistry = null;
+
+    /**
+     * Take a registry made for rows written inline, in place of the last. The last is destroyed,
+     * unless the side panel or the dialog still shows it - then with this model. An inline
+     * registry has no data source, so a view may still read its rows once it is destroyed.
+     */
+    protected setInlineRegistry(registry: ChatArtifactRegistry): ChatArtifactRegistry {
+        const prior = this.ownedRegistry;
+        this.ownedRegistry = registry;
+        if (prior) {
+            const isShown = [this.dialogRequest, this.sidePanel?.request].some(
+                it => it != null && 'registry' in it && it.registry === prior
+            );
+            if (isShown) {
+                this.markManaged(prior);
+            } else {
+                prior.destroy();
+            }
+        }
+        return registry;
     }
 }
 

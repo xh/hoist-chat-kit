@@ -68,7 +68,7 @@ describe('ChatWorkspace keyboard', () => {
     describe('focusComposer', () => {
         it('focuses the composer on / from outside a text field', async () => {
             await renderWorkspace();
-            const row = screen.getByRole('option', {name: /^Budget review/});
+            const row = screen.getByRole('row', {name: /^Budget review/});
             row.focus();
 
             press(row, {key: '/'});
@@ -78,7 +78,7 @@ describe('ChatWorkspace keyboard', () => {
         it('leaves / to a text field, and to a remap', async () => {
             ChatKit.defaults.shortcuts.focusComposer = null;
             await renderWorkspace();
-            const row = screen.getByRole('option', {name: /^Budget review/});
+            const row = screen.getByRole('row', {name: /^Budget review/});
             row.focus();
 
             press(row, {key: '/'});
@@ -103,7 +103,7 @@ describe('ChatWorkspace keyboard', () => {
             expect(inSidePanel()).toBe(true);
 
             press(document.activeElement, {key: 'F6'});
-            expect(document.activeElement.getAttribute('role')).toBe('option');
+            expect(document.activeElement.getAttribute('role')).toBe('row');
 
             press(document.activeElement, {key: 'F6'});
             expect(document.activeElement.getAttribute('role')).toBe('article');

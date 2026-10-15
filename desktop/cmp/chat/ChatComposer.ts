@@ -11,6 +11,7 @@ import {ChatComposerModel} from '../../../core';
 import '../../../styles/vars.scss';
 import './ChatComposer.scss';
 import {chatFileChip} from './ChatFileChip';
+import {chatAnnouncerRegions} from './impl/ChatAnnouncerRegions';
 import {ChatComposerLocalModel} from './impl/ChatComposerLocalModel';
 import {classNames} from '../../../impl/ClassNames';
 
@@ -59,7 +60,11 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
  *
  * When the model enables attachments, files can be added with the attach button, by pasting, or
  * by dropping them on the composer. They show as chips above the input until sent. Files left out
- * - of the wrong type, too large, or over the limit - are named under the chips.
+ * - of the wrong type, too large, or over the limit - are named under the chips, and read once to
+ * screen readers.
+ *
+ * The composer renders the hidden live regions of `chatAnnouncer`, as the message list does, so
+ * that a layout with no list still speaks to screen readers.
  *
  * Uses a {@link ChatComposerModel} from props, or else the `composerModel` of the `ChatModel` in
  * context. A composer model over an app's own {@link ChatComposerHost} needs no `ChatModel`.
@@ -174,7 +179,8 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                           className: 'xh-chat-composer__drop-hint',
                           items: [Icon.paperclip(), 'Drop files to attach']
                       })
-                    : null
+                    : null,
+                chatAnnouncerRegions()
             ]
         });
     }
@@ -211,7 +217,6 @@ function attachButton(composerModel: ChatComposerModel, impl: ChatComposerLocalM
 function attachmentErrorRow(composerModel: ChatComposerModel): ReactNode {
     return div({
         className: 'xh-chat-composer__attachment-errors',
-        role: 'alert',
         items: [
             Icon.warning(),
             div({

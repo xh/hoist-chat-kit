@@ -4,7 +4,7 @@ import type {ChatReplyStatus} from '../../../core';
 import {classNames} from '../../../impl/ClassNames';
 import '../../../styles/vars.scss';
 import './ChatStatusCue.scss';
-import {chatSpinner} from './impl/ChatLiveCues';
+import {chatSpinner} from '../../impl/ChatLiveCues';
 import {getReplyStatusLabel, REPLY_STATUS_DISPLAY} from './impl/ReplyStatusDisplay';
 
 /** Props for {@link ChatStatusCue}. */

@@ -23,19 +23,21 @@ Import from `@xh/hoist-chat-kit/desktop/cmp/threads`.
 Key features:
 
 - **Recency groups** - Pinned, Today, Yesterday, Previous 7 days, Previous 30 days and Older,
-  from `groupThreadsByRecency()`. A search shows one group of results instead.
+  from `groupThreadsByRecency()`. A search shows one group of results instead, each with the
+  matching snippet when the host gives one. A host whose search skips message text shows
+  "Searching titles".
 - **Row actions** - Pin, Rename and a More menu replace the time on hover or focus. More holds
   Copy Thread ID and Delete. The list hides each action the host cannot take.
 - **Inline rename** - Enter or a blur saves, and Escape keeps the old title.
 - **Delete with confirm** - the list always asks first, with focus on Cancel. If the open thread
-  goes, the next thread down opens.
+  goes, the next thread down opens. The workspace's Thread actions menu deletes the same way.
 - **Row states** - a spinner and "Working" for a running turn, a pause icon for a turn that
   waits for the user, a dot for a reply the user has not seen, and a warning for a run that
   ended early.
 - **List states** - a static skeleton while the first page loads, an empty message, no search
   results, and a failed load with Retry, through Hoist's `ErrorMessage`.
-- **Keyboard and screen reader support** - a listbox named "Threads", with arrow keys between
-  rows.
+- **Keyboard and screen reader support** - a tree grid named "Threads", one level deep, with
+  arrow keys between rows. A grid, not a listbox, because each row holds buttons.
 
 ## Architecture
 
@@ -154,6 +156,7 @@ It also takes Hoist's `BoxProps` for layout.
 | `newThread()` | method | Start a thread. Required. |
 | `selectThreadAsync()` | method | Open a thread. Required. |
 | `search` | `string` | Text to search for. The search input reads and writes it. |
+| `searchesMessages` | `boolean` | True if the search covers message text. Without it, the list shows "Searching titles". |
 | `runningThreadIds`, `awaitingThreadIds`, `finishedAwayThreadIds` | `string[]` | Row states. |
 | `listError` | `Error` | The last list failure. |
 | `listTask` | `TaskObserver` | Shows the skeleton while the first load is pending. |
@@ -170,7 +173,7 @@ It also takes Hoist's `BoxProps` for layout.
 | Up, Down, Home, End | Row | Move between rows |
 | Enter, Space | Row | Open the thread |
 | F2 | Row | Rename |
-| Delete | Row | Delete, after a confirm |
+| Delete, Backspace | Row | Delete, after a confirm. Backspace is the delete key of a Mac laptop. |
 | Right, Left | Row and its buttons | Step through the row's buttons and back |
 | Enter, Escape | Rename input | Save, or keep the old title |
 | Escape | Search input | Clear the search |

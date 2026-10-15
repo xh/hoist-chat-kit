@@ -262,6 +262,13 @@ export interface ChatPartRenderContext {
      */
     chatModel: ChatModel;
 
+    /**
+     * The conversation that shows the part - the `ChatModel`, or any other
+     * `ChatMessageListHost`. Read its narrow members, such as `isBusy`, `sendBlockedReason` and
+     * `sendAsync`, to work over any host. Null if the view that renders the part has no host.
+     */
+    host?: ChatMessageListHost;
+
     /** Id of the message that holds the part. */
     messageId: string;
 }
@@ -1258,6 +1265,13 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatMessa
                 if (event.type === 'RUN_ERROR') break;
                 turn.flushTimer ??= setTimeout(() => this.flush(turn), STREAM_FLUSH_MS);
             }
+        } catch (e) {
+            // In server mode, the request may have reached the server, which can go on to run the
+            // turn - unless the server refused it.
+            if (this.historyMode === 'server' && !isAbortError(e) && !isRefusedRequest(e)) {
+                turn.isConnectionLost = true;
+            }
+            throw e;
         } finally {
             turn.request = null;
             if (this.isCurrent(turn)) this.setLastActivityAt(null);
@@ -1558,8 +1572,13 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatMessa
 
         // A turn that ends before its stream does gives the text transform its final call.
         if (turn.reducer) message = turn.reducer.settleText(message);
-        const metadata: PlainObject = {...message.metadata, elapsedMs: stopTurnClock(turn)};
+        const metadata: PlainObject = {
+            ...message.metadata,
+            elapsedMs: stopTurnClock(turn),
+            endedAt: Date.now()
+        };
         if (detached) metadata.detached = true;
+        if (status === 'error' && turn.isConnectionLost) metadata.errorCode ??= 'connection-lost';
         // Stored with the reply, so that its UI can migrate once the catalog changes.
         try {
             if (this.showsCatalogUi(message)) metadata.catalogVersion = this.catalog.version;
@@ -1567,7 +1586,11 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatMessa
             this.logError('Could not check the reply for catalog UI', e);
         }
 
-        const settled = settleOpenParts(message, SETTLE_REASONS[status]).withChanges({
+        const settled = settleOpenParts(
+            message,
+            SETTLE_REASONS[status],
+            status === 'aborted'
+        ).withChanges({
             status,
             error: error ? errorText(error) : null,
             metadata
@@ -1825,6 +1848,9 @@ interface ChatTurn {
     /** Tool calls the user has approved, which must not be sent for approval again. */
     approvedIds: Set<string>;
 
+    /** True once a step's request failed with no word on whether the server runs the turn. */
+    isConnectionLost: boolean;
+
     reducer: ChatStreamReducer;
     pendingEvents: ChatEvent[];
     flushTimer: ReturnType<typeof setTimeout>;
@@ -1849,6 +1875,7 @@ function createTurn(
         abortController: new AbortController(),
         isRunning,
         approvedIds: new Set(),
+        isConnectionLost: false,
         reducer: null,
         pendingEvents: [],
         flushTimer: null
@@ -1916,6 +1943,11 @@ function hasHistory(specs: ChatMessageSpec[]): boolean {
 function needsApproval(spec: ChatToolSpec, call: ChatToolCallPart): boolean {
     const {needsApproval} = spec;
     return isFunction(needsApproval) ? needsApproval(call.input ?? {}) : !!needsApproval;
+}
+
+/** True for an HTTP error that says the server refused the request - a 4xx response. */
+function isRefusedRequest(e: any): boolean {
+    return e?.httpStatus >= 400 && e.httpStatus < 500;
 }
 
 function errorText(e: any): string {

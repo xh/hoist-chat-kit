@@ -1,4 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest';
+import type {ChatEvent} from '../transport';
 import {ChatKit} from './ChatKit';
 import {ChatMessage, type ChatMessageSpec} from './ChatMessage';
 import type {ChatPart, ChatToolCallState} from './ChatPart';
@@ -8,6 +9,7 @@ import {
     getChatReplyStatus,
     getChatRetryWaitMs
 } from './ChatReplyStatus';
+import {ChatStreamReducer} from './ChatStreamReducer';
 
 /**
  * The display status of a reply, read against the status vocabulary of the design's P6 matrix.
@@ -46,7 +48,12 @@ describe('getChatReplyStatus', () => {
         [
             'a reply whose text is rewritten is recomposing',
             'recomposing',
-            {message: reply({status: 'streaming', parts: [text()]}), isRecomposing: true}
+            {
+                message: reply({
+                    status: 'streaming',
+                    parts: [{...text(), revising: true} as ChatPart]
+                })
+            }
         ],
         [
             'a reply with a tool call in progress is running a tool',
@@ -183,8 +190,76 @@ describe('getChatReplyStatus', () => {
             expect(getChatRetryWaitMs(failed, NOW + 12_000)).toBeNull();
         });
 
+        it('runs from when the turn ended, after any time paused for the user', () => {
+            const pausedLong = reply({
+                status: 'error',
+                createdAt: NOW,
+                metadata: {elapsedMs: 2000, endedAt: NOW + 60_000, retryAfterSeconds: 10}
+            });
+            expect(getChatRetryWaitMs(pausedLong, NOW + 65_000)).toBe(5000);
+            expect(getChatReplyStatus({message: pausedLong, now: NOW + 65_000})).toBe(
+                'waitingToRetry'
+            );
+        });
+
         it('never applies to a failure without a wait', () => {
             expect(getChatRetryWaitMs(reply({status: 'error'}), NOW)).toBeNull();
+        });
+    });
+
+    describe('recomposing', () => {
+        const reducer = () => new ChatStreamReducer(0),
+            pending = () => new ChatMessage({role: 'assistant', status: 'pending'}),
+            status = (message: ChatMessage) => getChatReplyStatus({message, now: NOW});
+
+        it('starts when the server replaces the streaming text with shorter text', () => {
+            const message = reducer().apply(pending(), [
+                chunk('HY Credit is over its limit by 4%.'),
+                replace('HY Credit')
+            ]);
+
+            expect(message.text).toBe('HY Credit');
+            expect(message.parts[0]).toMatchObject({revising: true});
+            expect(status(message)).toBe('recomposing');
+        });
+
+        it('ends once the new text is as long as the text it replaced', () => {
+            const stream = reducer();
+            let message = stream.apply(pending(), [chunk('A first try'), replace('')]);
+            expect(status(message)).toBe('recomposing');
+
+            message = stream.apply(message, [chunk('The answer')]);
+            expect(status(message)).toBe('recomposing');
+
+            message = stream.apply(message, [chunk('.')]);
+            expect(message.parts[0]).not.toHaveProperty('revising');
+            expect(status(message)).toBe('streaming');
+        });
+
+        it('ends when the text part ends', () => {
+            const stream = reducer();
+            let message = stream.apply(pending(), [
+                {type: 'TEXT_MESSAGE_START', messageId: 'm1', role: 'assistant'},
+                {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'A long first try'},
+                replace('Short')
+            ]);
+            message = stream.apply(message, [{type: 'TEXT_MESSAGE_END', messageId: 'm1'}]);
+
+            expect(message.parts[0]).not.toHaveProperty('revising');
+            expect(status(message)).toBe('streaming');
+        });
+
+        it('never starts for a replace that is as long, or for text that has ended', () => {
+            const longer = reducer().apply(pending(), [chunk('Draft'), replace('Final text')]),
+                ended = reducer().apply(pending(), [
+                    {type: 'TEXT_MESSAGE_START', messageId: 'm1', role: 'assistant'},
+                    {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'Streamed [1].'},
+                    {type: 'TEXT_MESSAGE_END', messageId: 'm1'},
+                    replace('Final.')
+                ]);
+
+            expect(status(longer)).toBe('streaming');
+            expect(status(ended)).toBe('streaming');
         });
     });
 
@@ -197,6 +272,14 @@ describe('getChatReplyStatus', () => {
 //------------------
 // Helpers
 //------------------
+function chunk(delta: string): ChatEvent {
+    return {type: 'TEXT_MESSAGE_CHUNK', delta};
+}
+
+function replace(text: string): ChatEvent {
+    return {type: 'CUSTOM', name: 'xh.chat.textReplace', value: {text}};
+}
+
 function reply(spec: Partial<ChatMessageSpec>): ChatMessage {
     return new ChatMessage({id: 'a1', role: 'assistant', parts: [], ...spec});
 }

@@ -10,13 +10,14 @@ import {
     type ChatMessageListHost,
     type ChatPartRenderContext,
     type ChatToolCallPart,
+    isToolCallFailed,
     isToolCallFinal
 } from '../../../../core';
 import {chatToolCall} from '../ChatToolCall';
 import {classNames} from '../../../../impl/ClassNames';
 import {chatErrorBoundary} from './ChatErrorBoundary';
 import {getToolTitle} from './ToolCallStatus';
-import {chatSpinner} from './ChatLiveCues';
+import {chatSpinner} from '../../../impl/ChatLiveCues';
 
 interface ChatToolCallGroupProps extends HoistProps {
     /** Two or more consecutive tool calls of one step. */
@@ -124,7 +125,7 @@ interface GroupProblems {
 
 function getProblems(parts: ChatToolCallPart[]): GroupProblems {
     return {
-        failed: parts.filter(it => it.state === 'output-error').length,
+        failed: parts.filter(isToolCallFailed).length,
         denied: parts.filter(it => it.state === 'output-denied').length
     };
 }

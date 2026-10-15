@@ -128,7 +128,8 @@ const DEFAULT_BOUNDARY: ChatDataBoundary = {
 
 /** The state a grid helper compares to retire Undo. Selection is left out: a click is no edit. */
 interface GridSnapshot {
-    columnState: ColumnState[];
+    /** Order, visibility and pins of the columns. */
+    columns: Pick<ColumnState, 'colId' | 'hidden' | 'pinned'>[];
     sortBy: string[];
     groupBy: string[];
     filter: PlainObject;
@@ -732,10 +733,15 @@ class GridTools {
     //------------------
     // Helper support
     //------------------
+    // Leaves out widths, which Hoist's managed autosize changes with no act of the user.
     snapshot(): GridSnapshot {
         const {gridModel} = this;
         return {
-            columnState: gridModel.columnState,
+            columns: gridModel.columnState.map(({colId, hidden, pinned}) => ({
+                colId,
+                hidden,
+                pinned: pinned ?? null
+            })),
             sortBy: gridModel.sortBy.map(it => it.toString()),
             groupBy: gridModel.groupBy,
             filter: gridModel.filterModel?.filter?.toJSON() ?? null

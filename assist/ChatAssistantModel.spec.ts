@@ -58,6 +58,27 @@ describe('ChatAssistantModel', () => {
             expect(groupTool.parameters.properties.columns.items.enum).toEqual(['name', 'desk']);
         });
 
+        it("shows a group tool's calls as change lines only where the tool kept the card default", () => {
+            const changeLine = () => null,
+                group: ChatToolGroup = {
+                    ...gridTools(createGrid()),
+                    tools: [
+                        {name: 'plain', execute: () => 'ok'},
+                        {name: 'quiet', display: 'hidden', execute: () => 'ok'},
+                        {name: 'logged', display: 'timeline', execute: () => 'ok'}
+                    ]
+                },
+                model = createModel({groups: group});
+            model.renderers.changeLine = changeLine;
+            const {chatModel} = model;
+
+            expect(chatModel.getToolSpec('plain').display).toBe('inline');
+            expect(chatModel.getToolSpec('plain').renderer).toBe(changeLine);
+            expect(chatModel.getToolSpec('quiet').display).toBe('hidden');
+            expect(chatModel.getToolSpec('logged').display).toBe('timeline');
+            expect(chatModel.getToolSpec('logged').renderer).toBeUndefined();
+        });
+
         it('is disabled, with no chat, when no backend is configured', () => {
             const model = new ChatAssistantModel({groups: gridTools(createGrid())});
             onTestFinished(() => model.destroy());
@@ -242,6 +263,20 @@ describe('ChatAssistantModel', () => {
             expect(model.getUndoRetiredReason(replyId)).toBe(
                 "Positions grid has changed since, so these changes can't be undone."
             );
+        });
+
+        it('keeps Undo when only column widths change, as autosize does', async () => {
+            const gridModel = createGrid(),
+                model = createModel({groups: gridTools(gridModel)}, [
+                    toolCallEvents('group_grid', {columns: ['region']}),
+                    textEvents('Grouped.')
+                ]);
+            await model.chatModel.sendAsync('Group by region');
+            const replyId = model.chatModel.lastMessage.id;
+
+            gridModel.updateColumnState([{colId: 'name', width: 321}]);
+
+            expect(model.getUndoRetiredReason(replyId)).toBeNull();
         });
 
         it('keeps Undo while the component is as the reply left it', async () => {

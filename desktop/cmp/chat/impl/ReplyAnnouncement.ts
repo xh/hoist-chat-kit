@@ -3,7 +3,8 @@ import {
     type ChatMessage,
     type ChatMessageListHost,
     type ChatTextPart,
-    isChatSubagentPart
+    isChatSubagentPart,
+    isToolCallFailed
 } from '../../../../core';
 import {getToolCallDisplay, groupParts} from './groupParts';
 
@@ -26,7 +27,7 @@ export function formatReplyAnnouncement(
     const calls = message.toolCalls.filter(it => !host || isCounted(getToolCallDisplay(it, host))),
         tools = calls.length,
         agents = message.parts.filter(isChatSubagentPart).length,
-        failed = calls.filter(it => it.state === 'output-error').length,
+        failed = calls.filter(isToolCallFailed).length,
         secs = Math.round((message.metadata.elapsedMs ?? 0) / 1000),
         work = compact([
             tools ? plural(tools, 'tool') : null,

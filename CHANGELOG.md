@@ -193,15 +193,22 @@
   implements it. Create a `ChatComposerModel` with a `host` of your own to use the composer
   without a `ChatModel`.
 * Added `chatThreadList`, a desktop thread list with recency groups, search, inline rename, pin,
-  and delete with a confirm. Rows show threads that run, wait for the user or ended early.
+  and delete with a confirm. Rows show threads that run, wait for the user or ended early. It is
+  a one-level tree grid, as its rows hold buttons. Delete or Backspace deletes the focused row.
+* Added `searchesMessages` to `ChatThreadStore` and `ChatThreadListHost`, and `snippet` to
+  `ChatThreadSummary`. Search results show their snippet, or "Searching titles" without it.
 * Added `ChatThreadListHost`, the members a thread list needs. `ChatThreadsModel` implements it,
   so the list also works over threads an app holds itself.
 * Added `chatWorkspace` and `ChatWorkspaceModel`, a full-page chat with a resizable thread
-  sidebar, a rail, header and notice slots and a side panel. It lays itself out by its own width.
+  sidebar, a rail, header and notice slots and a side panel. It lays itself out by its own width,
+  measured as it mounts. Each width band sets the sidebar and side panel widths, and the
+  conversation keeps 380 or 480 px. With `persistWith`, a reload returns to the open thread,
+  unless the user first types in the new chat or changes its run options.
 * Added `ChatThreadsModel.finishedAwayThreadIds`, the threads whose turn ended while the user was
   in another thread, and `lastRunEnd` and `lastRunReason` on `ChatThreadSummary`.
 * Added `ChatKit.defaults`, the kit-wide settings, after the pattern of Hoist's
   `GridModel.defaults`. It holds the assistant icon, the stall time and the reduced-motion spinner.
+  It also holds the steps the announcer reads, where drafts persist and the keyboard shortcuts.
 * Added `ChatReplyStatus` and `getChatReplyStatus()`, the display status of a reply, such as
   `runningTool`, `stalled` or `cancelledByServer`. The desktop `ChatStatusCue` draws each status
   with one icon, label and color, and `ChatElapsed` ticks the time taken.
@@ -210,7 +217,8 @@
 * Added `ChatRunRequest.onActivity`, which `HttpChatTransport` calls for each record it reads, so
   the chat sees heartbeats that never decode to events.
 * Added `chatAnnouncer`, the kit's one voice for screen readers. The message list is a silent log,
-  and the announcer reads each reply once as it finishes.
+  and the announcer reads each reply once as it finishes. The list and the composer render its
+  regions, and each announcement reads once, in the newest visible set.
 * Added a static twin for each moving chat cue, under reduced motion or inside an
   `xh-chat--reduced-motion` element. Set `ChatKit.defaults.reducedMotionSpinner` to `'spin'` to
   keep Hoist's spinner.
@@ -238,19 +246,27 @@
   between messages, and Escape stops a reply while focus is in the list.
 * Added `ChatStatusRegion`, one line above the composer with the thread's next action: Try
   Again, Refresh Status, a countdown to a retry with Cancel, or Discard for a restored draft.
-  `ChatPanel` renders it.
+  `ChatPanel` renders it. The turn retries on its own at most 3 times in a row.
 * Added retry safety. A failure is retry-safe unless `RUN_ERROR` sets `metadata.retrySafe: false`.
-  In server mode, the kit's own `stalled` and `incomplete-stream` errors are not retry-safe.
+  In server mode, the kit's own `stalled`, `incomplete-stream` and `connection-lost` errors are
+  not retry-safe. There, a stream that throws records `connection-lost`, unless it got a 4xx.
 * Added `ChatModel.setStatusRefresher()` and `refreshStatusAsync()` for Refresh Status.
   `ChatThreadsModel` wires them to reload the thread.
 * Added composer drafts in local storage, per thread, set by `ChatKit.defaults.drafts`. A
-  restored draft shows "Draft from 10:31am restored." with Discard. Call
-  `ChatKit.clearLocalData()` on logout.
+  restored draft shows "Draft from 10:31am restored." with Discard. A chat that moves to another
+  thread shows that thread's draft, or empties. Call `ChatKit.clearLocalData()` on logout.
+* Added thread ids to `ChatKit.clearLocalData()`, to remove the drafts of those threads only.
+  `ChatThreadsModel` removes the drafts of the threads it deletes.
 * Added `chatComposerPill`, a chip for the composer's left slot that opens a menu or a popover,
   and `chatScopeChip`, which scopes a question to the app's documents through `runOptions`.
 * Added an offline state to the composer. It keeps the draft, disables Send and queues nothing.
 * Added `ChatModelConfig.dataRefreshedAt`, and an optional reason to `approveToolCallAsync()`.
-* Added `metadata.runStarted` to a reply whose run the backend began.
+* Added `metadata.runStarted` to a reply whose run the backend began, and `metadata.endedAt` to
+  each settled reply. A wait before a retry runs from `endedAt`.
+* Added `host` to `ChatPartRenderContext`, and an optional `sendAsync()` to
+  `ChatMessageListHost`, so that part renderers work over a host that is not a `ChatModel`.
+* Added `ChatTextPart.revising`, set while the server rewrites streamed text that
+  `xh.chat.textReplace` shortened. The reply then reads as `recomposing`, "Revising".
 * Added a thread's run options to its chat when it opens, from its last question, so that a
   document scope stays with the thread.
 * Added `sourceType` to `ChatSourcePart` and the `xh.chat.source` event: `document` for the app's
@@ -260,24 +276,32 @@
 * Added `[2–5]` ranges to citation markers. Four or more sources collapse to one marker.
 * Added `ChatSidePanelModel`, the side panel's request seam, and `ChatSidePanelHost`. A document's
   citation opens in the app's `documentRenderer`, framed by `ChatSidePanel` with Back and status.
+  The panel fills its column, and shows a page label once the viewer reports a page.
 * Added `documentRenderer` and `sidePanel` to `ChatWorkspaceModel`, so a cited document opens
   beside the conversation. Without room, it opens in a new tab.
 * Added the fixed "not found" reply, a data part of type `xh.chat.noAnswer` that renders as
   `ChatNoAnswer`, with no sources list and no Regenerate. Added `noAnswerEvents()`.
 * Added `ChatTimeline`, the activity timeline for calls to tools with `display: 'timeline'`. One
-  28px line shows the current step while an agent works, then "Used 7 tools and 1 agent".
+  28 px line shows the current step while an agent works, then "Used 7 tools and 1 agent".
 * Added the timeline's tree of rows, opened from its line: calls with their time and details,
   batches, narration, sub-agents and a pinned plan. Approvals and questions show while closed.
 * Completed `ChatToolSpec.display` as the `ChatToolDisplay` enum: `card`, `inline`, `timeline`,
   `answer`, `pinned` and `hidden`. `card` stays the default.
 * Added sub-agents from AG-UI's `SUBAGENT_*` events, as data parts of type `xh.chat.subagent`. A
-  call's `subagentRunId` nests it under its sub-agent in the timeline.
+  call's `subagentRunId` nests it under its sub-agent in the timeline. A sub-agent left running
+  ends with its run or turn, and a stop cancels it.
+* Added `cancelled` to tool call parts, set on calls open at a stop, with `isToolCallCancelled()`
+  and `isToolCallFailed()`. The timeline and tool rows show such calls as cancelled, not failed.
+* Added `announceSteps` to the message list, which also announces calls shown as cards.
 * Added `startedAt` and `endedAt` to tool call parts, for the time each call took.
 * Added `subagentEvents()`, and an `error` option for `toolCallEvents()`, to script agent runs.
 * Added `addToolOutputAsync()` to `ChatMessageListHost`, for the timeline's question buttons.
 * Added agents and failures to the announcement of a finished reply. It leaves out plan and
   hidden calls, and timeline narration.
-
+* Added `emptyStateProps` to `ChatPanel`, for the heading, text and icon of its empty state, and
+  `description` to `ChatSuggestion`, a line under the card's label.
+* Added `composerModel` to `ChatSuggestions` and `ChatEmptyState`, so that suggestions work over
+  a host that is not a `ChatModel`. With no composer and no `onSelect`, they render nothing.
 * Added the full tier of result tables and charts. Expand opens one Hoist grid that pages
   through the result, with find, a column chooser and export, or a chart with type and axis
   switchers. It opens in the chat's side panel, else in a dialog.
@@ -289,6 +313,10 @@
   above which an export asks first. Added `ChatUiChart.defaults` for the inline series and points.
 * Added `invert` to metric tiles, for a metric where up is bad.
 * Added `artifacts` to `ChatUiRenderContext`, and `decimals` to `ChatDataColumn`.
+* Added `isChatUiMessagingAction()`. A card hides its `send` and `callTool` actions in a message
+  list over a host that is not a `ChatModel`, and the catalog refuses them there.
+* Added `useChatMarkdownStreaming()`, for a markdown component override to tell if its block
+  still streams, and `isStreaming` to `ChatCodeBlock`.
 
 ### 🐞 Bug Fixes
 
@@ -305,18 +333,6 @@
   approval.
 * Fixed file chips loading images at a URL with no image policy. They now follow `allowImages`.
 * Fixed a trailing `***` streaming as `******`.
-* Fixed `ChatWorkspace` showing the wide layout until a throttled timer measured it. It now
-  measures as it mounts and applies each resize at once, for the model it renders.
-* Fixed the workspace side panel keeping its saved width in a narrow workspace. Each width band
-  sets the sidebar and panel widths, and the conversation keeps 380 or 480 px.
-* Fixed the side panel growing to its content's height. It fills the column, and a long document
-  scrolls inside it.
-* Fixed the side panel showing a blank page label for a document with no pages. It shows the
-  page only once the viewer reports one.
-* Fixed a reload of `ChatWorkspace` dropping the open thread. With `persistWith`, the workspace
-  returns to the saved thread once the list shows it.
-* Fixed the timeline line running the time taken into its failures, as "20s·". A spaced dot
-  separates each part of the line.
 
 ### ✨ Styles
 
@@ -328,15 +344,15 @@
 * Changed the generative UI skeleton from an endless pulse to a shimmer that starts after 1 s,
   sweeps three times, then holds still.
 * Restyled the messages to the design. A reply has one quiet header line, and its reasoning and
-  tool calls stack as 28px outline rows. Prose stops at the prose width, and the action bar sits
+  tool calls stack as 28 px outline rows. Prose stops at the prose width, and the action bar sits
   in the gap below a reply.
 * Restyled markdown in replies. H1 and H2 render at Hoist's large font size, and tables render
   plain on Hoist's compact grid tokens. A table of more than 12 rows shows its first 12 in a
   card, with "Showing 12 of N rows" and Show All.
-* Restyled code blocks as cards with a 28px header strip. A block over 20 lines shows its first
-  20, with a button for the rest.
+* Restyled code blocks as cards with a 28 px header strip. Once it ends, a block over 20 lines
+  shows its first 20, with a button for the rest.
 * Restyled the composer to the design: one hairline border, Hoist's focus border and shadow, and
-  a 2px top edge while busy. Pills sit on the left, and attach and Send on the right.
+  a 2 px top edge while busy. Pills sit on the left, and attach and Send on the right.
 * Changed Send to a small primary button, and Stop to a button that keeps the word "Stop". The
   input grows to 8 lines by default.
 * Restyled the empty state. `ChatPanel` centers the composer, with the heading above and the

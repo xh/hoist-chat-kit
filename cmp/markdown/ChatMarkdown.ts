@@ -1,10 +1,13 @@
 import {compact, findLast, findLastIndex, isEqual, isFunction} from 'lodash';
 import {
     type ComponentProps,
+    createContext,
+    createElement,
     type JSX,
     type MouseEvent,
     type ReactElement,
     type ReactNode,
+    useContext,
     useMemo,
     useRef
 } from 'react';
@@ -68,6 +71,9 @@ export interface ChatMarkdownCitations {
      * Renders the one button that stands for a marker of four or more sources, such as `[2–5]`, in
      * place of the default. Receives the default button, labeled with the first and last numbers,
      * and the cited sources with their numbers. Read as each marker renders.
+     *
+     * The default button lists every source in its tooltip, but a click opens only the first.
+     * Replace it to give the user a way to open each source, as the desktop chat's card does.
      */
     renderGroup?: (marker: ReactElement, cited: ChatCitedSource[]) => ReactNode;
 }
@@ -154,6 +160,15 @@ export interface ChatMarkdownProps extends HoistProps {
      * {@link ChatMarkdownPlugins}. Pass a stable object, such as a module-level constant.
      */
     markdownPlugins?: ChatMarkdownPlugins;
+}
+
+/**
+ * True while the markdown block that renders the caller is still streaming - for a component in
+ * `components` that should wait for its content to end, such as a code block that collapses long
+ * code. False in a finished block, and outside `ChatMarkdown`.
+ */
+export function useChatMarkdownStreaming(): boolean {
+    return useContext(StreamingContext);
 }
 
 /**
@@ -246,15 +261,22 @@ export const [ChatMarkdown, chatMarkdown] = hoistCmp.withFactory<ChatMarkdownPro
 
         return div({
             className: classNames(className, {'xh-chat-markdown--streaming': isStreaming}),
-            // Hoist's markdown is memoized on its props, so a finished block renders once.
-            items: blocks.map((block, idx) =>
-                markdown({
+            // Hoist's markdown is memoized on its props, so a finished block renders once. Each
+            // block sits in a provider, so that its components see the end of streaming even when
+            // the content of the last block does not change.
+            items: blocks.map((block, idx) => {
+                const isBlockStreaming = isStreaming && idx === lastIdx;
+                return createElement(StreamingContext.Provider, {
                     key: idx,
-                    content: isStreaming && idx === lastIdx ? closeMarkdownSyntax(block) : block,
-                    lineBreaks,
-                    reactMarkdownOptions: idx === trailerIdx ? trailerOptions : reactMarkdownOptions
-                })
-            )
+                    value: isBlockStreaming,
+                    children: markdown({
+                        content: isBlockStreaming ? closeMarkdownSyntax(block) : block,
+                        lineBreaks,
+                        reactMarkdownOptions:
+                            idx === trailerIdx ? trailerOptions : reactMarkdownOptions
+                    })
+                });
+            })
         });
     }
 });
@@ -265,6 +287,8 @@ export const [ChatMarkdown, chatMarkdown] = hoistCmp.withFactory<ChatMarkdownPro
 type ElementProps<T extends keyof JSX.IntrinsicElements> = ComponentProps<T> & {
     node?: unknown;
 };
+
+const StreamingContext = createContext(false);
 
 // Reference definitions (`[id]: url`) and footnotes (`[^1]`) resolve only within one document.
 const REFERENCE = /^ {0,3}\[[^\]]+\]:|\[\^/m;
@@ -407,7 +431,8 @@ function createCitation(citationsRef: {current: ChatMarkdownCitations}) {
     };
 }
 
-// One button for a marker of many sources, labeled with the first and last numbers.
+// One button for a marker of many sources, labeled with the first and last numbers. A click opens
+// the first source - `renderGroup` replaces the button to offer each.
 function groupMarker(
     cited: ChatCitedSource[],
     onClick: (source: ChatSourcePart) => void,

@@ -8,7 +8,7 @@ import {
     type ChatRegion,
     cycleChatRegions,
     getChatHotkeys
-} from '../../chat/impl/ChatShortcuts';
+} from '../../../impl/ChatShortcuts';
 import {ChatWorkspaceModel} from '../ChatWorkspaceModel';
 
 /**

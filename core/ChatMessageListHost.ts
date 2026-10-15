@@ -1,7 +1,7 @@
 import type {ChatUiCatalog} from '../genui/ChatUiCatalog';
 import type {ChatFeedbackConfig, ChatFeedbackRating} from './ChatFeedback';
 import type {ChatMessage} from './ChatMessage';
-import type {ChatDataRenderer} from './ChatModel';
+import type {ChatDataRenderer, ChatSendSpec} from './ChatModel';
 import type {ChatToolSpec} from './ChatToolSpec';
 
 /**
@@ -14,8 +14,8 @@ import type {ChatToolSpec} from './ChatToolSpec';
  * `submitFeedbackAsync`. The views read these members in render, so make them observable for the
  * views to update as they change.
  *
- * Part renderers receive a render context whose `chatModel` is the host when it is a `ChatModel`,
- * and null otherwise.
+ * Part renderers receive a render context with the `host`, and a `chatModel` that is the host
+ * when it is a `ChatModel`, else null.
  */
 export interface ChatMessageListHost {
     /** Messages of the conversation, oldest first. */
@@ -57,6 +57,12 @@ export interface ChatMessageListHost {
 
     /** The spec of a tool, for how its calls display, or null. */
     getToolSpec?(name: string): ChatToolSpec;
+
+    /**
+     * Send a user message. Lets a part rendered in a reply, such as a card's action, send to the
+     * conversation. Without it, such actions hide.
+     */
+    sendAsync?(spec: ChatSendSpec): Promise<void>;
 
     /** Resend a user message with new text. Shows Edit on user messages and Edit Prompt. */
     editMessageAsync?(messageId: string, text: string): Promise<void>;

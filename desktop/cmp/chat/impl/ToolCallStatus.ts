@@ -3,7 +3,7 @@ import {span} from '@xh/hoist/cmp/layout';
 import {Icon} from '@xh/hoist/icon';
 import type {ChatToolCallPart, ChatToolCallState, ChatToolSpec} from '../../../../core';
 import {humanizeToolName} from './ChatFormat';
-import {chatSpinner} from './ChatLiveCues';
+import {chatSpinner} from '../../../impl/ChatLiveCues';
 
 /**
  * True for a call that a person needs to answer - an interactive tool with no result yet.
@@ -23,7 +23,8 @@ export function getToolTitle(part: ChatToolCallPart, spec: ChatToolSpec): string
 
 /**
  * The kind of status a call shows, which sets its row's color: busy while it runs, attention while
- * it waits for the user, error once it fails, meta once denied, success once done.
+ * it waits for the user, error once it fails, meta once denied or cancelled by a stop, success
+ * once done.
  * @internal
  */
 export type ToolCallStatusKind = 'busy' | 'attention' | 'error' | 'denied' | 'success';
@@ -33,6 +34,7 @@ export function getToolCallStatusKind(
     part: ChatToolCallPart,
     spec: ChatToolSpec
 ): ToolCallStatusKind {
+    if (part.cancelled) return 'denied';
     switch (part.state) {
         case 'output-available':
             return 'success';
@@ -56,7 +58,12 @@ export function statusGlyph(part: ChatToolCallPart, spec: ChatToolSpec): ReactNo
     const kind = getToolCallStatusKind(part, spec);
     return span({
         className: `xh-chat-tool-call__glyph xh-chat-tool-call__glyph--${kind}`,
-        item: kind === 'busy' ? chatSpinner() : GLYPHS[kind]()
+        item:
+            kind === 'busy'
+                ? chatSpinner()
+                : part.cancelled
+                  ? Icon.stopCircle({title: 'Cancelled'})
+                  : GLYPHS[kind]()
     });
 }
 
@@ -65,6 +72,7 @@ export function statusGlyph(part: ChatToolCallPart, spec: ChatToolSpec): ReactNo
  * @internal
  */
 export function getToolCallStatusLabel(part: ChatToolCallPart, spec: ChatToolSpec): string {
+    if (part.cancelled) return 'Cancelled';
     switch (getToolCallStatusKind(part, spec)) {
         case 'success':
             return null;
@@ -84,7 +92,7 @@ export function getToolCallStatusLabel(part: ChatToolCallPart, spec: ChatToolSpe
  * @internal
  */
 export function getErrorLine(part: ChatToolCallPart): string {
-    if (part.state !== 'output-error') return null;
+    if (part.state !== 'output-error' || part.cancelled) return null;
     return (part.errorText ?? '').trim().split('\n')[0] || null;
 }
 
@@ -106,6 +114,7 @@ export interface InlineCallStatus {
  * @internal
  */
 export function getInlineStatus(part: ChatToolCallPart, spec: ChatToolSpec): InlineCallStatus {
+    if (part.cancelled) return {type: 'denied', label: 'Stopped - not shown.'};
     switch (part.state) {
         case 'input-streaming':
             return {type: 'rendering', label: 'Rendering…'};

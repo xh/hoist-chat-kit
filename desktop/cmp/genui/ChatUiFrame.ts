@@ -4,9 +4,9 @@ import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
-import {chatSpinner} from '../chat/impl/ChatLiveCues';
+import {chatSpinner} from '../../impl/ChatLiveCues';
 import '../../../styles/vars.scss';
-import '../chat/impl/ChatMotion.scss';
+import '../../impl/ChatMotion.scss';
 import './ChatUiFrame.scss';
 
 /** Props for {@link ChatUiFrame}. */

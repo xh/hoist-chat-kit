@@ -5,6 +5,7 @@ import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
+    chatAnnouncer,
     type ChatDocumentRenderer,
     type ChatDocumentStatus,
     ChatSidePanelModel,
@@ -20,6 +21,7 @@ import {chatSidePanel} from './ChatSidePanel';
  */
 describe('ChatSidePanel', () => {
     beforeAll(() => initTestAppAsync());
+    beforeEach(() => chatAnnouncer.clear());
 
     it('renders nothing with no request open, or no viewer', () => {
         const {container} = render(chatSidePanel({model: panel()}));
@@ -99,9 +101,24 @@ describe('ChatSidePanel', () => {
         expect(strip(container).classList).toContain('xh-chat-side-panel__strip--warning');
         expect(strip(container).textContent).toContain("Couldn't locate the passage.");
 
+        const announce = vi.spyOn(chatAnnouncer, 'announce');
+        onTestFinished(() => announce.mockRestore());
         setStatus(model, {state: 'located', page: 7, pageCount: 22});
         expect(strip(container)).toBeNull();
-        expect(container.querySelector('[role="status"]').textContent).toBe('Passage on page 7');
+        expect(announce).toHaveBeenCalledExactlyOnceWith('Passage on page 7', 'polite');
+    });
+
+    it('speaks through the announcer, with no live region of its own', () => {
+        const model = panel();
+        model.open(request());
+        const {container} = render(chatSidePanel({model}));
+
+        setStatus(model, {state: 'error', error: {httpStatus: 404}});
+
+        expect(chatAnnouncer.assertive?.text).toBe(
+            "Couldn't open Reserves Policy. This document no longer exists."
+        );
+        expect(container.querySelector('[role="status"], [role="alert"], [aria-live]')).toBeNull();
     });
 
     it('offers Retry for a server error, and no Retry for a 403, saying why', () => {

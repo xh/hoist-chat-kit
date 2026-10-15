@@ -102,7 +102,7 @@ The first send moves the composer to the bottom in one frame, and focus stays in
 
 `ChatModel` replaces a message with a new object on every streamed change. If a part received
 the message, every part would re-render on every flush. So `ChatMessageView` gives each part a
-`ChatPartRenderContext` instead: `{chatModel, messageId}`. The view builds the context once per
+`ChatPartRenderContext` instead: `{chatModel, host, messageId}`. The view builds the context once per
 message id, so it stays the same object while the message streams.
 
 Tool renderers, data renderers, `messageActions` and `messageHeaderItems` all receive this
@@ -158,8 +158,9 @@ finishes while the list shows it, the announcer reads it once:
 
 The announcement names the assistant with `assistantName`, then gives the tool count and the
 time. It ends with the first paragraph as plain words, cut at 300 characters. A reply the user
-stops reads "Reply stopped." History loaded into the list is never announced. When a page mounts
-several lists, only the first fills its regions. See
+stops reads "Reply stopped." History loaded into the list is never announced. The composer
+renders the regions too. When a page mounts several, each announcement fills only the newest
+visible set, and a list that mounts later never reads it. See
 [Announce to screen readers](../../../core/README.md#announce-to-screen-readers).
 
 ### Keyboard
@@ -181,7 +182,7 @@ ChatKit.defaults.shortcuts.toggleSidebar = 'mod+b';
 | `cycleRegions` | `f6`, with Shift to go back | Focus in a workspace | Moves focus through the thread list, the conversation, the composer and the side panel. |
 | `toggleSidebar` | null | Focus in a workspace | Collapses or expands the thread sidebar. |
 | `toggleDock` | `ctrl+.` | Page-wide, while a dock exists | Reserved for the dock, which is still to come. |
-| `openHelper` | `mod+i` | Focus in a component with a helper | Reserved for component helpers, which are still to come. |
+| `openHelper` | `mod+i` | Focus in a component with a helper | Opens or closes the helper. See [`/desktop/cmp/assist/`](../assist/README.md). |
 
 `mod` is Cmd on a Mac and Ctrl elsewhere. No shortcut ever approves, applies or deletes.
 
@@ -245,7 +246,8 @@ A result card's Expand opens its table or chart in the same panel. See
 
 The marker whose passage the panel shows stays active, with `aria-pressed`. Without a host, or
 without room, a document opens with `onSourceClick`, else at its URL in a new tab. When the panel
-has a viewer but no room, a toast says so.
+has a viewer but no room, a toast says so. A document that nothing can open shows a toast too,
+"This document can't be opened here."
 
 ### Activity timeline
 
@@ -260,8 +262,9 @@ The block is one 28px line. Its height never changes, and it changes only its wo
 | Running | The active plan item, else the latest finished sentence of narration, else the running call. "Running 3 steps" while calls run at once. | Step count or plan position, time so far, failures |
 | Quiet | "Waiting on" the running step, once the chat has had no data for its `stallAfterMs`. The spinner stays. | "no update for 34s" first |
 | Waiting | "Waiting for approval" or "Waiting for your answer", in the attention color | As running, with the time held |
+| Paused | "Paused", when the reply waits on the user for something outside the block | As running, with the time held |
 | Done | "Used 7 tools and 1 agent" | Time taken, failures |
-| Stopped | "Stopped after 5 tools". Calls still in flight show as cancelled. | Cancelled count |
+| Stopped | "Stopped after 5 tools". Calls open at the stop show as cancelled, not failed. | Cancelled count |
 | Failed | "Ended at step 5". The reply's failed row says why. | Tool count |
 
 The line swaps to its done summary in place once the answer starts below the block. Failures
@@ -286,7 +289,9 @@ Open, the block shows the pinned plan, then a tree of rows:
   one row with a count and the time they span.
 - **Sub-agents** - the calls of a sub-agent nest under its row, 20px per level, and its result
   closes the group. A sub-agent row starts open while it runs and closed once done. Below three
-  levels, a row names its parent in place of more indent.
+  levels, a row names its parent in place of more indent. A sub-agent runs only while its reply
+  streams. One left running when its run ends, as on an error or a dropped stream, shows as
+  failed, and one open at a stop shows as cancelled.
 - **Narration and reasoning** - text between two timeline calls renders at 12px, aligned with
   the titles. Text after the last call stays below the block, as the answer, until another
   timeline call starts. Then it moves into the block.
@@ -297,7 +302,8 @@ child. Left closes it or goes to its parent. Enter and Space toggle a row. Escap
 details returns to the row.
 
 The timeline announces a step that fails while the reply runs. With `announceSteps: 'all'`, it
-announces every step. After two minutes with no data, it announces once what it waits on. It
+announces every step, numbered across all the blocks of the reply. The message list takes
+`announceSteps` too, and announces calls shown as cards the same way. After two minutes with no data, it announces once what it waits on. It
 never announces its done summary. The reply's announcement says it instead, as "Analyst replied
 after 7 tools and 1 agent, 42 seconds, 1 failed."
 
@@ -438,7 +444,8 @@ last question. To keep the scope in your own state, pass `value` and `onChange` 
 
 `ChatPanel` renders a `ChatStatusRegion` above the composer. It shows one line, the most urgent
 status of the thread, with at most one action. A custom layout renders it with
-`chatStatusRegion()` above the composer.
+`chatStatusRegion()` above the composer. Screen readers hear each new status once. The status a
+thread already has when the region mounts, or when the thread opens, is not announced.
 
 | Status | Shows | Action |
 |---|---|---|
@@ -449,14 +456,14 @@ status of the thread, with at most one action. A custom layout renders it with
 | Interrupted or cancelled by the server | The server's reason | Try Again, or Refresh Status |
 | Left running on the server | "Still working on the server." | Refresh Status |
 | Stalled | "No response for 34s." | Refresh Status |
-| Server asked for a wait | "Waiting to retry, 42 s." | Cancel. The turn retries at zero |
+| Server asked for a wait | "Waiting to retry, 42 s." | Cancel. The turn retries at zero, at most 3 times in a row |
 | Waiting for the user | "Waiting for your answer above." | None |
 | Reply in progress | "Assistant is working · Esc to stop" | None |
 | Draft restored | "Draft from 10:31am restored." | Discard |
 
 A failure is retry-safe unless the server's `RUN_ERROR` sets `metadata.retrySafe: false`. In
-server mode, the kit's own `stalled` and `incomplete-stream` errors are not retry-safe either,
-because the server may still be running the turn. Refresh Status shows only when the host can
+server mode, the kit's own `stalled`, `incomplete-stream` and `connection-lost` errors are not
+retry-safe either, because the server may still be running the turn. Refresh Status shows only when the host can
 reload the thread. `ChatThreadsModel` supplies that for its chats. See
 [Recover from a failed reply](../../../core/README.md#recover-from-a-failed-reply).
 
@@ -464,7 +471,8 @@ reload the thread. `ChatThreadsModel` supplies that for its chats. See
 
 The composer saves its draft text per thread through `XH.localStorageService`, after each pause
 of 500 ms. When the thread opens again, the composer restores the text and the status region
-shows "Draft from 10:31am restored." with Discard. The draft goes when its message sends.
+shows "Draft from 10:31am restored." with Discard. A chat that moves to a thread with no draft
+empties its composer. The draft goes when its message sends.
 Attachments stay in memory only. Call `ChatKit.clearLocalData()` from your logout, as Hoist has
 no logout hook. See [Keep drafts](../../../core/README.md#keep-drafts) for the settings.
 
@@ -586,14 +594,16 @@ Deny and an optional reason, which goes to the agent with either decision. Allow
 in a form. Enter in the reason sends nothing, and no shortcut ever allows a call.
 
 When a request arrives, focus moves to Allow only if focus was in the conversation and the
-composer is empty. A user who is typing keeps the keyboard.
+composer is empty. A user who is typing keeps the keyboard. Allow and Deny move focus to the
+reply, as the panel goes once the call is decided.
 
 ### Undo a reply's changes
 
 Undo shows in the action bar of the reply whose changes the user can undo - see
 `ChatModel.canUndoTurn()`. While the undo runs, the button shows a spinner. A failed undo shows
 under the reply with its cause and Retry, never as a toast, while the reply can still be undone.
-Once undone, the reply notes "Changes undone." There is no Redo: the user can ask again.
+Once undone, the reply notes "Changes undone." and focus on Undo moves to the reply. There is no
+Redo: the user can ask again.
 
 ### Add message actions, such as feedback
 
@@ -873,7 +883,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `model` | `ChatModel` | The chat to render. Found in context if not given. |
 | `host` | `ChatMessageListHost` | The conversation to render, when it is not a `ChatModel`. |
 | `emptyState` | `ReactNode` | Content for a conversation with no messages. |
-| `suggestions` | `Array<ChatSuggestion \| string>` | Prompt cards for the default empty state. |
+| `suggestions` | `Array<ChatSuggestion \| string>` | Prompt cards for the default empty state. They fill the host's `composerModel`, and show only when it is a `ChatComposerModel`. |
 | `assistantName` | `string` | Name on assistant messages. Default `'Assistant'`. |
 | `assistantIcon` | `ReactElement` | Icon on assistant messages. Default from `ChatKit.defaults.assistantIcon`. |
 | `markdownComponents` | `ChatMarkdownComponents` | Markdown element overrides. Pass a stable object. |
@@ -883,10 +893,13 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
 | `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit, Regenerate, Undo and the thumbs. Pass a stable function. |
 | `messageHeaderItems` | `(message, context) => ReactNode[]` | Items in an assistant message's header. Pass a stable function. |
+| `announceSteps` | `'none' \| 'failures' \| 'all'` | Steps of a running reply to announce as they finish. Default from `ChatKit.defaults.announceSteps`. |
 
 Each message is a focusable `article`, named for its author and time. With a message focused, Up
 and Down move to the one before or after. Escape stops a reply in progress while focus is in the
-list, if the host has `stop()`, then focuses the composer. See [Keyboard](#keyboard).
+list, if the host has `stop()`, then focuses the composer. See [Keyboard](#keyboard). Its action
+bar is a `role="group"` named "Message actions", with each action a tab stop. Regenerate moves
+focus to the composer.
 
 ### ChatComposer
 
@@ -906,9 +919,10 @@ Enter sends, and Shift+Enter starts a new line. An Enter that confirms an IME ca
 send. Up arrow in an empty input recalls the last user message. While a reply streams, Send
 becomes a Stop button, and Escape stops too, if the host has `stop()`. Focus returns to the
 input after Stop. A disabled Send with a reason - blocked, offline, or waiting to retry - sits
-in a focusable wrapper, so that keyboard users reach its tooltip. The composer names any file it cannot attach under the
-attachments, such as one of the wrong type, too large, or over the limit. The names come from the
-composer model's `attachmentErrors`, and stay until the user dismisses them or adds more files.
+in a focusable wrapper, so that keyboard users reach its tooltip. The composer names any file it
+cannot attach under the attachments, such as one of the wrong type, too large, or over the limit.
+The names come from the composer model's `attachmentErrors`, and stay until the user dismisses
+them or adds more files. Screen readers hear them once, through `chatAnnouncer`.
 
 ### ChatMessageView
 
@@ -932,10 +946,10 @@ Use it directly only for a list of your own.
 | `ChatSources` | `sources`, `uncitedSources`, `defaultExpanded`, `onSourceClick`, `allowImages` | Show a list of sources. Each shows its `marker`, else its position. Uncited sources are counted, not numbered. |
 | `ChatNoAnswer` | `part`, `onEditQuestion` | Show a fixed "not found" reply, for example inside an app's own renderer for `xh.chat.noAnswer`. |
 | `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Back, Close, and the content - the app's viewer with its status, or the full table or chart of a result card. |
-| `ChatCodeBlock` | `content`, `language` | Show code in a card with a copy button. A block over 20 lines shows its first 20, with a button for the rest. |
+| `ChatCodeBlock` | `content`, `language`, `isStreaming` | Show code in a card with a copy button. A finished block over 20 lines shows its first 20, with a button for the rest. |
 | `ChatFileChip` | `file`, `onRemove`, `allowImages` | Show a file, with a remove button when `onRemove` is set. An image at a URL shows a thumbnail only if `allowImages` permits it. |
-| `ChatEmptyState` | `icon`, `title`, `text`, `suggestions` | Welcome the user to an empty chat. |
-| `ChatSuggestions` | `suggestions`, `onSelect` | Show prompt cards that fill the composer. `onSelect` replaces the fill. |
+| `ChatEmptyState` | `icon`, `title`, `text`, `suggestions`, `composerModel` | Welcome the user to an empty chat. |
+| `ChatSuggestions` | `suggestions`, `onSelect`, `composerModel` | Show prompt cards that fill the composer: `composerModel`, else the `ChatModel`'s. `onSelect` replaces the fill. With neither, it renders nothing. |
 | `ChatStatusRegion` | `model`, `assistantName` | Show the thread's next action above a composer, in a custom layout. |
 | `ChatComposerPill` | `text`, `icon`, `count`, `status`, `statusText`, `menuItems`, `content`, `readonly`, `tooltip` | Add a pill to the composer's left slot. |
 | `ChatScopeChip` | `documents`, `runOption`, `value`, `onChange`, `searchThreshold`, `readonly`, `tooltip` | Scope the next question to some documents. Default binds `runOptions.documentIds`. |
@@ -999,6 +1013,13 @@ that others derive from on `body.xh-app`.
 `styles/vars.scss` also declares the variables of each feature area, with a comment per group:
 `--xh-chat-timeline-*`, `--xh-chat-citation-*`, `--xh-chat-viewer-*`, `--xh-chat-card-*`,
 `--xh-chat-sidebar-*`, `--xh-chat-composer-*`, the motion timings and `--xh-chat-helper-*`.
+`--xh-chat-viewer-page-bg` and `--xh-chat-viewer-page-text-color` are for the app's document
+renderer, which draws the pages in the side panel.
+
+Layout widths are not CSS variables. The workspace sets the widths of its sidebar and side panel
+by breakpoint, and the user can resize both. The docked helper is a resizable panel, and
+`ChatAssistantModel.dockMinWidth` decides between dock and popover. These widths feed the layout
+math, so they live in code.
 
 ### Compact density
 

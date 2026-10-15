@@ -57,7 +57,13 @@ export interface ChatUiTablePreview {
     /** Columns in the result. */
     totalColumns: number;
 
-    /** True if the preview leaves rows or columns out, so that the full grid has more to show. */
+    /**
+     * Rows the view's sort covered, when it sorted only the first page of a larger result - so
+     * that the rows shown may not be the result's first. Else null.
+     */
+    sortedWithin: number;
+
+    /** True if the full grid has more to show: rows or columns left out, or a sort to finish. */
     hasMore: boolean;
 }
 
@@ -209,7 +215,8 @@ export function toGridColumnSpecs(
 
 /**
  * The inline preview of a result: the view applied to the rows at hand, then its first rows and
- * columns.
+ * columns. A sort over the first page of a larger result ranks that page only, so the preview
+ * says so, and keeps the full grid on offer even when every row it ranked shows.
  *
  * @param frame - the rows at hand - all of the result's, or its first page.
  * @param view - the card's view. Its columns choose and order the columns shown.
@@ -239,34 +246,43 @@ export function toTablePreview(
     } else if (!view?.filter?.length) {
         totalRows = Math.min(frame.totalRows, top);
     }
+    const sortedWithin = !isComplete && view?.sortBy ? frame.rows.length : null;
 
     return {
         columns,
         records,
         totalRows,
         totalColumns: frame.columns.length,
+        sortedWithin,
         hasMore:
-            totalRows == null || totalRows > records.length || frame.columns.length > columns.length
+            totalRows == null ||
+            totalRows > records.length ||
+            frame.columns.length > columns.length ||
+            sortedWithin != null
     };
 }
 
 /**
  * What the preview's footer says it shows: "Showing 8 of 1,240 rows · 6 of 14 columns", or
- * "3 rows" for a result that fits. Shorter at compact density.
+ * "3 rows" for a result that fits, with "sorted within the first 1,000" for a sort over the first
+ * page only. Shorter at compact density.
  * @internal
  */
 export function describePreview(preview: ChatUiTablePreview, compact: boolean): string {
-    const {records, totalRows, columns, totalColumns} = preview,
+    const {records, totalRows, columns, totalColumns, sortedWithin} = preview,
         shown = records.length,
         rowsHidden = totalRows == null || totalRows > shown,
         colsHidden = totalColumns > columns.length,
         colWord = compact ? 'cols' : 'columns',
-        cols = colsHidden ? ` · ${columns.length} of ${fmtCount(totalColumns)} ${colWord}` : '';
+        cols = colsHidden ? ` · ${columns.length} of ${fmtCount(totalColumns)} ${colWord}` : '',
+        sortWords = compact ? 'sorted in first' : 'sorted within the first',
+        sorted = sortedWithin != null ? ` · ${sortWords} ${fmtCount(sortedWithin)}` : '',
+        suffix = `${cols}${sorted}`;
 
-    if (!rowsHidden) return `${fmtRows(totalRows)}${cols}`;
-    if (totalRows == null) return `${compact ? 'First' : 'Showing the first'} ${shown}${cols}`;
+    if (!rowsHidden) return `${fmtRows(totalRows)}${suffix}`;
+    if (totalRows == null) return `${compact ? 'First' : 'Showing the first'} ${shown}${suffix}`;
     const rows = `${shown} of ${fmtRows(totalRows)}`;
-    return compact ? `${rows}${cols}` : `Showing ${rows}${cols}`;
+    return compact ? `${rows}${suffix}` : `Showing ${rows}${suffix}`;
 }
 
 /** A count of rows, as "1 row" or "1,240 rows". @internal */

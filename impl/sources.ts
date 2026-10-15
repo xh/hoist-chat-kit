@@ -62,10 +62,10 @@ export function toDocumentRequest(
     return {
         type: 'document',
         source,
-        page: getSourcePage(source) ?? undefined,
-        passage: getExcerpt(source) ?? undefined,
-        citation: opts.citation ?? undefined,
-        messageId: opts.messageId ?? undefined
+        page: getSourcePage(source),
+        passage: getExcerpt(source),
+        citation: opts.citation ?? null,
+        messageId: opts.messageId ?? null
     };
 }
 
@@ -95,8 +95,9 @@ export interface ChatSourceOpenOptions {
  *
  * A Ctrl or Cmd click opens a web URL in a new tab. A document opens in the side panel when one is
  * in reach and can show it, else with the app's `onSourceClick`, else at its URL in a new tab -
- * with a toast if the panel had no room. A web page opens with `onSourceClick`, else in a new tab.
- * Only `http` and `https` URLs open.
+ * with a toast if the panel had no room. A document that nothing can open shows a toast that
+ * says why. A web page opens with `onSourceClick`, else in a new tab. Only `http` and `https`
+ * URLs open.
  * @internal
  */
 export function openChatSource(source: ChatSourcePart, opts: ChatSourceOpenOptions = {}) {
@@ -117,6 +118,13 @@ export function openChatSource(source: ChatSourcePart, opts: ChatSourceOpenOptio
             if (sidePanel?.canRender(request)) {
                 XH.toast({message: 'Opened in a new tab. The viewer needs more room than this.'});
             }
+        } else {
+            XH.toast({
+                message: sidePanel?.canRender(request)
+                    ? 'The viewer needs more room than this.'
+                    : "This document can't be opened here.",
+                intent: 'warning'
+            });
         }
         return;
     }

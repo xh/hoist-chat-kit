@@ -425,7 +425,7 @@ describe('ChatMessageView', () => {
             expect(host.editMessageAsync).toHaveBeenCalledWith('u1', 'New question');
         });
 
-        it('gives part renderers a context with no chatModel', () => {
+        it('gives part renderers a context with the host and no chatModel', () => {
             const renderer = vi.fn(() => null),
                 host: ChatMessageListHost = {
                     messages: [
@@ -442,6 +442,7 @@ describe('ChatMessageView', () => {
 
             expect(renderer).toHaveBeenCalledWith(expect.objectContaining({id: 'd1'}), {
                 chatModel: null,
+                host,
                 messageId: 'a1'
             });
         });

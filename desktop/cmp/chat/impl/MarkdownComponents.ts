@@ -11,12 +11,13 @@ import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/co
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {fmtNumber} from '@xh/hoist/format';
 import {action, observable} from '@xh/hoist/mobx';
-import type {ChatMarkdownComponents} from '../../../../cmp/markdown';
+import {type ChatMarkdownComponents, useChatMarkdownStreaming} from '../../../../cmp/markdown';
 import {chatUiFrame} from '../../genui/ChatUiFrame';
 import {chatCodeBlock} from '../ChatCodeBlock';
 
 // Markdown renders a fenced code block as `pre > code.language-xyz`. Swap the `pre` for a
-// ChatCodeBlock, reading the code and its language from the inner `code` element.
+// ChatCodeBlock, reading the code and its language from the inner `code` element. A block that
+// still streams shows in full, so that it does not collapse while the user reads it.
 const MarkdownPre = hoistCmp<HoistProps>({
     displayName: 'ChatMarkdownPre',
     model: false,
@@ -27,9 +28,14 @@ const MarkdownPre = hoistCmp<HoistProps>({
                 ? (children as ReactElement<{className?: string; children?: unknown}>)
                 : null,
             {className, children: text} = codeEl?.props ?? {},
-            language = /language-(\S+)/.exec(className ?? '')?.[1] ?? null;
+            language = /language-(\S+)/.exec(className ?? '')?.[1] ?? null,
+            isStreaming = useChatMarkdownStreaming();
 
-        return chatCodeBlock({content: String(text ?? '').replace(/\n$/, ''), language});
+        return chatCodeBlock({
+            content: String(text ?? '').replace(/\n$/, ''),
+            language,
+            isStreaming
+        });
     }
 });
 

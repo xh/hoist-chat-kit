@@ -42,8 +42,22 @@ describe('ChatThreadList', () => {
 
         expect(model.selectedThreadId).toBe('t2');
         expect(row('Travel').getAttribute('aria-selected')).toBe('true');
-        expect(row('Travel').getAttribute('aria-current')).toBe('page');
+        expect(row('Travel').hasAttribute('aria-current')).toBe(false);
         expect(row('Budget review').getAttribute('aria-selected')).toBe('false');
+    });
+
+    it('is a tree grid whose rows hold their buttons in a cell, never in the row itself', async () => {
+        await renderList();
+
+        const grid = screen.getByRole('treegrid', {name: 'Threads'}),
+            travel = row('Travel');
+        expect(grid.contains(travel)).toBe(true);
+        expect(travel.getAttribute('aria-level')).toBe('1');
+        within(travel)
+            .getAllByRole('button')
+            .forEach(it => expect(it.closest('[role="gridcell"]')).toBeTruthy());
+        expect(screen.queryByRole('listbox')).toBeNull();
+        expect(screen.queryAllByRole('option')).toHaveLength(0);
     });
 
     it('moves between rows with the arrow keys, and opens one with Enter', async () => {
@@ -103,6 +117,29 @@ describe('ChatThreadList', () => {
         expect(rowTitles()).not.toContain('Travel');
     });
 
+    it('deletes a thread with Backspace on its row, as a Mac laptop sends', async () => {
+        const {model} = await renderList(),
+            confirm = vi.spyOn(XH, 'confirm').mockResolvedValue(true);
+        onTestFinished(() => confirm.mockRestore());
+
+        fireEvent.keyDown(row('Travel'), {key: 'Backspace'});
+        await act(() => wait());
+        expect(confirm).toHaveBeenCalledTimes(1);
+        expect(model.threads.map(it => it.id)).not.toContain('t2');
+    });
+
+    it('leaves Backspace alone on a row button', async () => {
+        await renderList();
+        const confirm = vi.spyOn(XH, 'confirm').mockResolvedValue(true);
+        onTestFinished(() => confirm.mockRestore());
+
+        fireEvent.keyDown(within(row('Travel')).getByRole('button', {name: 'More'}), {
+            key: 'Backspace'
+        });
+        await act(() => wait());
+        expect(confirm).not.toHaveBeenCalled();
+    });
+
     it('opens the next thread down when the open thread is deleted', async () => {
         const {model} = await renderList(),
             confirm = vi.spyOn(XH, 'confirm').mockResolvedValue(true);
@@ -142,7 +179,7 @@ describe('ChatThreadList', () => {
         expect(model.threads.find(it => it.id === 't2').pinned).toBe(true);
         expect(groupLabels()[0]).toBe('Pinned');
         expect(
-            within(screen.getByRole('group', {name: 'Pinned'})).getByText('Travel')
+            within(screen.getByRole('rowgroup', {name: 'Pinned'})).getByText('Travel')
         ).toBeTruthy();
     });
 
@@ -229,6 +266,29 @@ describe('ChatThreadList', () => {
             expect(row('Plain').getAttribute('aria-label')).toMatch(/^Plain, \d\d:\d\d$/);
         });
 
+        it('says it searches titles only, for a host whose search skips message text', () => {
+            renderHostList(
+                new TestHost({threads: [summary('a', 'Budget review')], search: 'budget'})
+            );
+            expect(screen.getByText('Searching titles')).toBeTruthy();
+        });
+
+        it('shows the matching snippet under a result, for a host that searches messages', () => {
+            renderHostList(
+                new TestHost({
+                    threads: [summary('a', 'Budget review', {snippet: 'the Q3 budget is final'})],
+                    search: 'budget',
+                    searchesMessages: true
+                })
+            );
+            expect(screen.queryByText('Searching titles')).toBeNull();
+            const result = row('Budget review');
+            expect(within(result).getByText('the Q3 budget is final')).toBeTruthy();
+            expect(result.getAttribute('aria-label')).toMatch(
+                /^Budget review, the Q3 budget is final/
+            );
+        });
+
         it('hides the actions and the search the host leaves out', () => {
             renderHostList(new TestHost({threads: [summary('a', 'Only')]}));
 
@@ -294,6 +354,8 @@ class TestHost extends HoistModel implements ChatThreadListHost {
     readonly runningThreadIds: string[];
     readonly awaitingThreadIds: string[];
     readonly finishedAwayThreadIds: string[];
+    readonly searchesMessages: boolean;
+    search: string;
 
     newThread = vi.fn();
     selectThreadAsync = vi.fn(async () => {});
@@ -304,6 +366,8 @@ class TestHost extends HoistModel implements ChatThreadListHost {
         this.runningThreadIds = config.runningThreadIds ?? [];
         this.awaitingThreadIds = config.awaitingThreadIds ?? [];
         this.finishedAwayThreadIds = config.finishedAwayThreadIds ?? [];
+        this.search = config.search;
+        this.searchesMessages = config.searchesMessages;
     }
 }
 
@@ -325,20 +389,18 @@ function textMessages(text: string) {
 
 function row(title: string): HTMLElement {
     return screen
-        .getAllByRole('option')
+        .getAllByRole('row')
         .find(it => it.querySelector('.xh-chat-thread-list__title')?.textContent === title);
 }
 
 function rowTitles(): string[] {
     return screen
-        .queryAllByRole('option')
+        .queryAllByRole('row')
         .map(it => it.querySelector('.xh-chat-thread-list__title')?.textContent);
 }
 
 function groupLabels(): string[] {
-    return screen
-        .getAllByRole('group')
-        .map(it => it.querySelector('.xh-chat-thread-list__group-label').textContent);
+    return screen.getAllByRole('rowgroup').map(it => it.getAttribute('aria-label'));
 }
 
 function titleOf(model: ChatThreadsModel, threadId: string): string {

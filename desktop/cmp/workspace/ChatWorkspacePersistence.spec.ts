@@ -63,6 +63,37 @@ describe('ChatWorkspace selected thread persistence', () => {
         expect(second.threadsModel.selectedThreadId).toBe('t1');
     });
 
+    it('keeps the new chat once the user types in it before the list loads', async () => {
+        const first = createWorkspace(persistWith);
+        await first.loadAsync();
+        await first.threadsModel.selectThreadAsync('t2');
+        await leaveAsync(first);
+
+        const second = createWorkspace(persistWith),
+            newThreadId = second.threadsModel.selectedThreadId;
+        second.threadsModel.chatModel.composerModel.text = 'A question I started';
+        await second.loadAsync();
+        await wait(50);
+
+        expect(second.threadsModel.selectedThreadId).toBe(newThreadId);
+        expect(second.threadsModel.chatModel.composerModel.text).toBe('A question I started');
+    });
+
+    it('keeps the new chat once the user changes its run options before the list loads', async () => {
+        const first = createWorkspace(persistWith);
+        await first.loadAsync();
+        await first.threadsModel.selectThreadAsync('t2');
+        await leaveAsync(first);
+
+        const second = createWorkspace(persistWith),
+            newThreadId = second.threadsModel.selectedThreadId;
+        second.threadsModel.chatModel.runOptions = {model: 'large'};
+        await second.loadAsync();
+        await wait(50);
+
+        expect(second.threadsModel.selectedThreadId).toBe(newThreadId);
+    });
+
     it('leaves the thread a route selects in place of the saved one', async () => {
         const first = createWorkspace(persistWith, undefined, true);
         await first.loadAsync();

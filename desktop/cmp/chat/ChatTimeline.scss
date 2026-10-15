@@ -95,6 +95,7 @@
     color: var(--xh-chat-attention-color);
   }
 
+  &--paused &__stage,
   &--stopped &__stage {
     color: var(--xh-chat-meta-text-color);
     font-weight: 400;

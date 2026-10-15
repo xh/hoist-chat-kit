@@ -53,9 +53,10 @@ export interface ChatUiTableViewProps extends HoistProps {
  * shows it where the chat has no side panel.
  *
  * It keeps the card's view: its filter, units, sort and column order. Columns the card left out
- * start hidden, in the column chooser. Find searches the rows loaded so far, and the status bar
- * says so. Load Next loads the next page - the grid never loads more on scroll. Export loads every
- * row first, and asks above `ChatUiGrid.defaults.exportConfirmAbove` rows.
+ * start hidden, in the column chooser. Sort and Find cover the rows loaded so far, and the status
+ * bar says so. Load Next loads the next page - the grid never loads more on scroll. Export loads
+ * every row first, and asks above `ChatUiGrid.defaults.exportConfirmAbove` rows. Each waits for
+ * the other to finish.
  */
 export const [ChatUiTableView, chatUiTableView] = hoistCmp.withFactory<ChatUiTableViewProps>({
     displayName: 'ChatUiTableView',
@@ -82,7 +83,8 @@ export const [ChatUiTableView, chatUiTableView] = hoistCmp.withFactory<ChatUiTab
                     : null,
                 exportButton({
                     text: 'Export',
-                    disabled: !gridModel || impl.isExporting,
+                    // A page that loads meanwhile would not join the export's rows.
+                    disabled: !gridModel || impl.isExporting || impl.loadTask.isPending,
                     onClick: () => impl.exportAsync()
                 })
             ],
@@ -91,7 +93,7 @@ export const [ChatUiTableView, chatUiTableView] = hoistCmp.withFactory<ChatUiTab
                 impl.hasMoreRows
                     ? button({
                           text: `Load Next ${fmtCount(impl.nextPageSize)}`,
-                          disabled: impl.loadTask.isPending,
+                          disabled: impl.loadTask.isPending || impl.isExporting,
                           onClick: () => impl.loadNextAsync()
                       })
                     : null,
@@ -165,34 +167,57 @@ class ChatUiTableViewLocalModel extends HoistModel {
         return this.gridModel?.getVisibleLeafColumns().length ?? 0;
     }
 
-    get countText(): string {
-        const {totalRows} = this,
-            loaded = this.loadedRows.length;
-        if (!this.isLoaded) return 'Loading rows…';
-        return loaded < totalRows
-            ? `Loaded ${fmtCount(loaded)} of ${fmtRows(totalRows)}`
-            : fmtRows(totalRows);
+    /** The loaded rows through the view's filter, units and limit - its sort is the grid's. */
+    @computed
+    get records(): PlainObject[] {
+        const {registry, artifactId, view} = this.request,
+            artifact = registry?.get(artifactId),
+            rows = this.loadedRows;
+        if (!artifact) return [];
+        const applied = applyDataView(
+            {columns: artifact.columns, rows, totalRows: rows.length},
+            omit(view ?? {}, 'columns')
+        );
+        return toTableRecords(applied.rows, this.columns);
     }
 
-    /** The sort, and what Find searches - only the rows loaded so far. */
+    /** Rows loaded of the result, and how many the view's filter and limit keep, if fewer. */
+    get countText(): string {
+        if (!this.isLoaded) return 'Loading rows…';
+        const {totalRows} = this,
+            loaded = this.loadedRows.length,
+            shown = this.records.length,
+            rows =
+                loaded < totalRows
+                    ? `Loaded ${fmtCount(loaded)} of ${fmtRows(totalRows)}`
+                    : fmtRows(totalRows),
+            kept = shown < loaded ? ` · ${fmtCount(shown)} shown` : '';
+        return `${rows}${kept}`;
+    }
+
+    /** The sort, and what Sort and Find cover - only the rows loaded so far. */
     @computed
     get noteText(): string {
-        const {gridModel} = this,
+        const {gridModel, hasMoreRows} = this,
             sorter = gridModel?.sortBy[0],
             column = sorter ? gridModel.getColumn(sorter.colId) : null,
             sortText = column
                 ? `Sorted by ${column.headerName}, ${sorter.sort === 'desc' ? 'descending' : 'ascending'}`
                 : null,
-            findText = this.hasMoreRows ? 'Find searches loaded rows' : null;
-        return [sortText, findText].filter(Boolean).join(' · ');
+            scopeText = hasMoreRows
+                ? column
+                    ? 'Sort and Find cover loaded rows'
+                    : 'Find searches loaded rows'
+                : null;
+        return [sortText, scopeText].filter(Boolean).join(' · ');
     }
 
     override onLinked() {
         this.createGridModel();
         if (!this.gridModel) return;
         this.addReaction({
-            track: () => this.loadedRows,
-            run: rows => this.gridModel.loadData(this.toRecords(rows))
+            track: () => this.records,
+            run: records => this.gridModel.loadData(records)
         });
     }
 
@@ -282,17 +307,6 @@ class ChatUiTableViewLocalModel extends HoistModel {
         const [name, dir] = sortBy.split('|'),
             column = this.columns.find(it => it.name === name);
         return column ? {colId: column.key, sort: dir === 'desc' ? 'desc' : 'asc'} : null;
-    }
-
-    // The loaded rows through the view's filter, units and limit - its sort is the grid's.
-    private toRecords(rows: PlainObject[]): PlainObject[] {
-        const {registry, artifactId, view} = this.request,
-            artifact = registry.get(artifactId),
-            applied = applyDataView(
-                {columns: artifact.columns, rows, totalRows: rows.length},
-                omit(view ?? {}, 'columns')
-            );
-        return toTableRecords(applied.rows, this.columns);
     }
 
     @action

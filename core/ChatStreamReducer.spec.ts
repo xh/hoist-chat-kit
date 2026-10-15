@@ -831,6 +831,42 @@ describe('ChatStreamReducer', () => {
             });
         });
 
+        it('fails a sub-agent left running when the run fails or the stream drops', () => {
+            const errored = new ChatStreamReducer(0),
+                failed = errored.finish(
+                    errored.apply(pendingMessage(), [
+                        {type: 'SUBAGENT_STARTED', subagentRunId: 'sa1', name: 'Checker'},
+                        {type: 'RUN_ERROR', message: 'Boom'}
+                    ])
+                ),
+                dropped = new ChatStreamReducer(0),
+                cut = dropped.finish(
+                    dropped.apply(pendingMessage(), [
+                        {type: 'SUBAGENT_STARTED', subagentRunId: 'sa1', name: 'Checker'}
+                    ])
+                );
+
+            [failed, cut].forEach(message => {
+                const {data} = message.parts[0] as ChatDataPart;
+                expect(data).toMatchObject({status: 'error', error: 'The agent did not finish.'});
+                expect(data.endedAt).toEqual(expect.any(Number));
+            });
+        });
+
+        it('completes a sub-agent whose run finished without its end event', () => {
+            const reducer = new ChatStreamReducer(0),
+                message = reducer.finish(
+                    reducer.apply(pendingMessage(), [
+                        {type: 'SUBAGENT_STARTED', subagentRunId: 'sa1', name: 'Checker'},
+                        FINISHED
+                    ])
+                );
+            expect((message.parts[0] as ChatDataPart).data).toMatchObject({
+                status: 'complete',
+                endedAt: expect.any(Number)
+            });
+        });
+
         it('records when a tool call starts and when its result arrives', () => {
             const message = reduce([
                 ...toolCall('c1', 'lookup', '{}'),

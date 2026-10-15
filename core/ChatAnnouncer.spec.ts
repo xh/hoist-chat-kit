@@ -84,15 +84,54 @@ describe('ChatAnnouncer', () => {
         expect(announcer.polite).toBeNull();
     });
 
-    it('lets only the first mounted host render the regions', () => {
-        const first = {},
-            second = {};
-        announcer.attachRegions(first);
-        announcer.attachRegions(second);
-        expect(announcer.isRegionHost(first)).toBe(true);
-        expect(announcer.isRegionHost(second)).toBe(false);
+    describe('region hosts', () => {
+        const host = (isVisible = true) => ({isVisible: () => isVisible});
 
-        announcer.detachRegions(first);
-        expect(announcer.isRegionHost(second)).toBe(true);
+        it('shows each announcement in the regions of one host, the newest that is visible', () => {
+            const first = host(),
+                second = host();
+            announcer.attachRegions(first);
+            announcer.attachRegions(second);
+
+            announcer.announce('Reply stopped.');
+            expect(announcer.getRegionText(second, 'polite')?.text).toBe('Reply stopped.');
+            expect(announcer.getRegionText(first, 'polite')).toBeNull();
+        });
+
+        it('skips a host that is hidden, such as one in an inactive tab', () => {
+            const visible = host(true),
+                hidden = host(false);
+            announcer.attachRegions(visible);
+            announcer.attachRegions(hidden);
+
+            announcer.announce('Reply failed.', 'assertive');
+            expect(announcer.getRegionText(visible, 'assertive')?.text).toBe('Reply failed.');
+            expect(announcer.getRegionText(hidden, 'assertive')).toBeNull();
+        });
+
+        it('never shows an announcement in a host that attached after it was made', () => {
+            const first = host();
+            announcer.attachRegions(first);
+            announcer.announce('Analyst replied after 4 seconds.');
+
+            announcer.detachRegions(first);
+            const remounted = host();
+            announcer.attachRegions(remounted);
+
+            expect(announcer.polite.text).toBe('Analyst replied after 4 seconds.');
+            expect(announcer.getRegionText(remounted, 'polite')).toBeNull();
+        });
+
+        it('never moves an announcement to another host when its own detaches', () => {
+            const page = host(),
+                helper = host();
+            announcer.attachRegions(page);
+            announcer.attachRegions(helper);
+            announcer.announce('Change undone.');
+
+            announcer.detachRegions(helper);
+
+            expect(announcer.getRegionText(page, 'polite')).toBeNull();
+        });
     });
 });

@@ -2,7 +2,7 @@ import type {ReactElement, ReactNode} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {withDefault} from '@xh/hoist/utils/js';
-import {ChatKit} from '../../../core';
+import {type ChatComposerModel, ChatKit} from '../../../core';
 import '../../../styles/vars.scss';
 import './ChatEmptyState.scss';
 import {type ChatSuggestion, chatSuggestions} from './ChatSuggestions';
@@ -26,6 +26,12 @@ export interface ChatEmptyStateProps extends HoistProps {
 
     /** Suggested prompts, shown as cards that fill the composer. */
     suggestions?: Array<ChatSuggestion | string>;
+
+    /**
+     * The composer that the suggestions fill, for a layout with no `ChatModel`. Default the
+     * composer of the `ChatModel` in context.
+     */
+    composerModel?: ChatComposerModel;
 }
 
 /**
@@ -34,15 +40,16 @@ export interface ChatEmptyStateProps extends HoistProps {
  * illustration - the supporting text carries the assistant's identity.
  *
  * `ChatPanel` renders its own empty state, with the composer centered between the heading and the
- * suggestions. Render this one where the message list shows it, or in a custom layout. Must be
- * rendered within a {@link ChatModel} context for its suggestions to fill the composer.
+ * suggestions. Render this one where the message list shows it, or in a custom layout. Its
+ * suggestions fill `composerModel`, or the composer of the {@link ChatModel} in context, and show
+ * only when there is one.
  */
 export const [ChatEmptyState, chatEmptyState] = hoistCmp.withFactory<ChatEmptyStateProps>({
     displayName: 'ChatEmptyState',
     model: false,
     className: 'xh-chat-empty-state',
 
-    render({className, icon, title, text, suggestions, children}, ref) {
+    render({className, icon, title, text, suggestions, composerModel, children}, ref) {
         icon = withDefault(icon, ChatKit.defaults.assistantIcon());
         title = withDefault(title, 'How can I help?');
 
@@ -62,7 +69,7 @@ export const [ChatEmptyState, chatEmptyState] = hoistCmp.withFactory<ChatEmptySt
                           ]
                       })
                     : null,
-                suggestions?.length ? chatSuggestions({suggestions}) : null,
+                suggestions?.length ? chatSuggestions({suggestions, composerModel}) : null,
                 children
             ]
         });

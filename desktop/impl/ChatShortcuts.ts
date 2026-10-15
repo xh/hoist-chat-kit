@@ -1,5 +1,5 @@
 import type {PanelProps} from '@xh/hoist/desktop/cmp/panel';
-import {ChatKit, type ChatShortcuts} from '../../../../core';
+import {ChatKit, type ChatShortcuts} from '../../core';
 
 /**
  * A hotkey, in the config format of Hoist's `useHotkeys` and Panel `hotkeys`.
@@ -31,7 +31,8 @@ export interface ChatShortcutHandlers {
  * @internal
  */
 // TODO(design-open B3) - shortcuts on by default, each one remappable or null in `ChatKit.defaults`.
-// TODO(P7): bind `toggleDock` page-wide once the dock exists.
+// TODO(dock): bind `toggleDock` page-wide once the kit has a page dock. The component helper binds
+// `openHelper`, and docks inside its component, not the page.
 export function getChatHotkeys(handlers: ChatShortcutHandlers): ChatHotkeyConfig[] {
     const {shortcuts} = ChatKit.defaults,
         ret: ChatHotkeyConfig[] = [],

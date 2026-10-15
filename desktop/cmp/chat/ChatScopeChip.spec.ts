@@ -40,6 +40,20 @@ describe('ChatScopeChip', () => {
         expect(chip.getAttribute('title')).toBe('Policy manual, Credit memo');
     });
 
+    it('counts only chosen documents that are still in the list', () => {
+        render(
+            chatScopeChip({
+                model: createModel({documentIds: ['d1', 'gone', 'd3']}),
+                documents: DOCS
+            })
+        );
+
+        const chip = screen.getByRole('button', {name: 'Document scope: 2 documents'});
+        expect(chip.textContent).toBe('Documents2');
+        openChip();
+        expect(screen.getByText('2 of 3')).toBeTruthy();
+    });
+
     it('clears the scope to all documents, keeping other run options', () => {
         const chatModel = createModel({documentIds: ['d2'], profile: 'thorough'});
         render(chatScopeChip({model: chatModel, documents: DOCS}));

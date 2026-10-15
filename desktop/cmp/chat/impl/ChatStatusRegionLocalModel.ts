@@ -28,15 +28,14 @@ export class ChatStatusRegionLocalModel extends HoistModel {
 
     override onLinked() {
         // The countdown ends in the composer model, which marks the turn due. Only a mounted
-        // status region retries it, so that a chat with no region never resends unseen.
+        // status region retries it, so that a chat with no region never resends unseen - and a
+        // region that mounts while a turn is due retries it then.
         this.addReaction({
             track: () => this.composerModel?.retryDueId,
             run: messageId => {
-                const {composerModel} = this;
-                if (messageId == null || composerModel.isOffline) return;
-                if (composerModel.host.lastMessage?.id !== messageId) return;
-                composerModel.host.retryAsync?.().catchDefault();
-            }
+                if (messageId != null) this.composerModel.retryDueAsync().catchDefault();
+            },
+            fireImmediately: true
         });
     }
 
@@ -59,13 +58,19 @@ export class ChatStatusRegionLocalModel extends HoistModel {
 
     /**
      * Announce a status to screen readers once, when it first shows. A countdown repeats every
-     * 10 s at most, and never its seconds in between.
+     * 10 s at most, and never its seconds in between. The status a thread has when the region
+     * mounts, or when the thread opens, is history and never announced.
      */
     noteStatus(status: ChatComposerStatus, text: string) {
-        const key = announceKey(status);
+        const key = announceKey(status),
+            {threadId} = this.composerModel.host,
+            isBaseline = !this.hasBaseline || threadId !== this.lastThreadId;
+        this.hasBaseline = true;
+        this.lastThreadId = threadId;
+
         if (key === this.lastAnnounceKey) return;
         this.lastAnnounceKey = key;
-        if (key == null) return;
+        if (key == null || isBaseline) return;
         chatAnnouncer.announce(text, politenessOf(status));
     }
 
@@ -73,6 +78,8 @@ export class ChatStatusRegionLocalModel extends HoistModel {
     // Implementation
     //------------------
     private lastAnnounceKey: string = null;
+    private lastThreadId: string = null;
+    private hasBaseline = false;
 }
 
 //------------------

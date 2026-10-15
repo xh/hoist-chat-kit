@@ -522,7 +522,9 @@ class ChatUiChartLocalModel extends ChatUiExpandModel {
                     type: 'chart',
                     artifactId: artifact.id,
                     view: inlineView,
-                    registry: new ChatArtifactRegistry({artifacts: [artifact]}),
+                    registry: this.setInlineRegistry(
+                        new ChatArtifactRegistry({artifacts: [artifact]})
+                    ),
                     title
                 }
             };

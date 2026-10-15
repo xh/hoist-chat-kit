@@ -2,15 +2,8 @@ import type {FocusEvent, KeyboardEvent as ReactKeyboardEvent} from 'react';
 import {HoistModel} from '@xh/hoist/core';
 import {action, observable, observableRef} from '@xh/hoist/mobx';
 import {createObservableRef} from '@xh/hoist/utils/react';
-import {
-    chatAnnouncer,
-    ChatKit,
-    type ChatMessageListHost,
-    type ChatToolCallPart,
-    isToolCallFinal
-} from '../../../../core';
-import {formatStepDuration} from './ChatTimelineItems';
-import {getErrorLine, getToolTitle} from './ToolCallStatus';
+import {chatAnnouncer} from '../../../../core';
+import {ChatStepAnnouncer} from './ChatStepAnnouncer';
 
 /** Below this width, in pixels, a timeline drops its step count and shortens its words. */
 export const TIMELINE_NARROW_WIDTH = 480;
@@ -90,38 +83,8 @@ export class ChatTimelineLocalModel extends HoistModel {
     //------------------
     // Announcements
     //------------------
-    /**
-     * Announce steps that finish while the reply runs, as `announceSteps` asks: failures, or every
-     * step. Steps already done when the block mounts - such as in history - are never announced.
-     */
-    noteSteps(
-        calls: ChatToolCallPart[],
-        isLive: boolean,
-        host: ChatMessageListHost,
-        announceSteps: string = ChatKit.defaults.announceSteps
-    ) {
-        if (!this.knownFinal) {
-            this.knownFinal = new Set(calls.filter(isToolCallFinal).map(it => it.id));
-            return;
-        }
-        calls.forEach((call, idx) => {
-            if (!isToolCallFinal(call) || this.knownFinal.has(call.id)) return;
-            this.knownFinal.add(call.id);
-            if (!isLive || announceSteps === 'none') return;
-
-            const title = getToolTitle(call, host.getToolSpec?.(call.toolName));
-            if (call.state === 'output-error') {
-                const cause = getErrorLine(call);
-                chatAnnouncer.announce(`Step failed: ${title}${cause ? `, ${cause}` : ''}.`);
-            } else if (announceSteps === 'all' && call.state === 'output-available') {
-                const took =
-                    call.startedAt != null && call.endedAt != null
-                        ? formatStepDuration(call.endedAt - call.startedAt)
-                        : null;
-                chatAnnouncer.announce(`Step ${idx + 1} done: ${title}${took ? `, ${took}` : ''}.`);
-            }
-        });
-    }
+    /** Announces the block's steps as they finish - see {@link ChatStepAnnouncer}. */
+    readonly steps = new ChatStepAnnouncer();
 
     /** Announce once, after two minutes with no event, what a running block waits on. */
     noteQuiet(quietMs: number, waitingOn: string) {
@@ -217,7 +180,6 @@ export class ChatTimelineLocalModel extends HoistModel {
     //------------------
     private shownStage: string = null;
     private shownAt = 0;
-    private knownFinal: Set<string> = null;
     private isQuietAnnounced = false;
 
     private getRows(): HTMLElement[] {

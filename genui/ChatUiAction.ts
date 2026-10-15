@@ -5,6 +5,14 @@ import type {ChatPartRenderContext} from '../core';
 /** The kinds of {@link ChatUiAction}. */
 export type ChatUiActionType = 'send' | 'openUrl' | 'navigate' | 'callTool' | 'app';
 
+/**
+ * True for an action that messages the chat - `send` and `callTool`. These need a `ChatModel`,
+ * and wait while it is busy.
+ */
+export function isChatUiMessagingAction(action: Pick<ChatUiAction, 'type'>): boolean {
+    return action?.type === 'send' || action?.type === 'callTool';
+}
+
 /** A question the user answers before an action runs - see {@link ChatUiActionBase.confirm}. */
 export interface ChatUiActionConfirm {
     /** Title of the dialog. */

@@ -1,7 +1,8 @@
 import type {ReactElement} from 'react';
 import {XH} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
-import {CHAT_STORAGE_PREFIX} from './impl/localData';
+import {notifyClearLocalData} from '../impl/clearLocalData';
+import {CHAT_STORAGE_PREFIX, chatDraftKey} from './impl/localData';
 
 /**
  * Kit-wide settings - see {@link ChatKit.defaults}. A setting that belongs to one component sits
@@ -119,10 +120,21 @@ export class ChatKit {
 
     /**
      * Remove everything the kit keeps in local storage for the current user, such as composer
-     * drafts. Hoist has no logout hook, so call it from the app's logout - before
+     * drafts, along with what it keeps in memory for the session, such as an open feedback form's
+     * draft. Hoist has no logout hook, so call it from the app's logout - before
      * `XH.logoutAsync()`.
+     *
+     * @param threadIds - threads to remove the data of, such as threads the user deleted. Default
+     *      all.
      */
-    static clearLocalData() {
-        XH.localStorageService?.removeIf(key => key.startsWith(CHAT_STORAGE_PREFIX));
+    static clearLocalData(threadIds: string[] = null) {
+        notifyClearLocalData(threadIds);
+        const storage = XH.localStorageService;
+        if (!storage) return;
+        if (threadIds) {
+            threadIds.forEach(id => storage.remove(chatDraftKey(id)));
+        } else {
+            storage.removeIf(key => key.startsWith(CHAT_STORAGE_PREFIX));
+        }
     }
 }

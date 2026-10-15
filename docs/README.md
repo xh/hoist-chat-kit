@@ -82,8 +82,7 @@ its tools.
 | Add feedback buttons or other message actions | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#add-message-actions-such-as-feedback) |
 | Render a tool call or a data part as UI | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#render-a-tool-call-as-ui) |
 | Allow markdown images in replies | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#allow-images) |
-| Let the model show grids, charts, KPI tiles and cards | [`/desktop/cmp/assist/`](../desktop/cmp/assist/README.md) | Desktop component helper: the entry button and badge, a container that docks the helper or opens a popover, and the data boundary line | ChatAssistantButton, ChatAssistantContainer, ChatAssistantView, ChatDataBoundaryLine, dock, popover, badge, change lines, Show, Undo retire, Ctrl+I, openHelper, Escape, compact density |
-| [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) |
+| Let the model show grids, charts, KPI tiles and cards | [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) |
 | Render streaming markdown | [`/cmp/markdown/`](../cmp/markdown/README.md) |
 | Write or update a doc | [Documentation Conventions](./doc-conventions.md) |
 
@@ -105,10 +104,11 @@ its tools.
 | Package | Description | Key Topics |
 |---------|-------------|------------|
 | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) | Desktop chat components: panel, message list, message view, composer, tool cards and more | ChatPanel, ChatMessageList, ChatMessageView, ChatComposer, ChatToolCall, ChatClearButton, ChatReasoning, ChatSources, ChatSidePanel, ChatNoAnswer, ChatEmptyState, ChatSuggestions, render context, message actions, tool call groups, inline tool calls, citations, approvalPrompt, allowImages, theming |
-| [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) | Desktop thread list: recency groups, search, inline rename, pin, delete with confirm, and row states | ChatThreadList, ChatThreadListHost, ChatThreadsModel, recency groups, inline rename, pin, delete confirm, running, awaiting, finishedAwayThreadIds, lastRunEnd, listbox, keyboard |
+| [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) | Desktop thread list: recency groups, search, inline rename, pin, delete with confirm, and row states | ChatThreadList, ChatThreadListHost, ChatThreadsModel, recency groups, inline rename, pin, delete confirm, running, awaiting, finishedAwayThreadIds, lastRunEnd, tree grid, keyboard |
 | [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md) | Desktop full-page chat: a thread sidebar and rail, the conversation, header and notice slots, and a side panel, laid out by its own width | ChatWorkspace, ChatWorkspaceModel, sidebar, rail, side panel, header, notice, PanelModel, persistWith, ResizeObserver, breakpoints, compact density |
+| [`/desktop/cmp/assist/`](../desktop/cmp/assist/README.md) | Desktop component helper: the entry button and badge, a container that docks the helper or opens a popover, and the data boundary line | ChatAssistantButton, ChatAssistantContainer, ChatAssistantView, ChatDataBoundaryLine, dock, popover, badge, change lines, Show, Undo retire, Ctrl+I, openHelper, Escape, compact density |
 | [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) | Built-in generative UI components for a ChatUiCatalog: a result table in two tiers, a Hoist chart, KPI tiles and a detail card | chatUiGridSpec, chatUiChartSpec, chatUiMetricsSpec, chatUiCardSpec, ChatUiGrid, ChatUiChart, ChatUiMetrics, ChatUiCard, ChatUiTableView, ChatUiChartView, ChatUiFrame, fmtChatUiNumber, preview table, byReference, number formats, compact numbers, streaming |
-| [`/cmp/markdown/`](../cmp/markdown/README.md) | Platform-neutral markdown renderer for streaming model output | ChatMarkdown, streaming, block memoization, markdown components, image policy, links, trailingContent |
+| [`/cmp/markdown/`](../cmp/markdown/README.md) | Platform-neutral markdown renderer for streaming model output | ChatMarkdown, streaming, block memoization, markdown components, useChatMarkdownStreaming, image policy, links, trailingContent |
 
 ## Concepts
 

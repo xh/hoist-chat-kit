@@ -408,7 +408,8 @@ are left out. The turn goes in `forwardedProps`, merged under any props the app 
 ```
 
 `replacedMessageId` joins them for a retry or regenerate. `catalogVersion` joins them for a chat
-with a catalog. `runOptions` is left out when it is null. A key the app sets in its own `forwardedProps` wins over the kit's.
+with a catalog. `runOptions` is left out when it is null. A key the app sets in its own
+`forwardedProps` wins over the kit's.
 
 `AnthropicCodec` serves client mode only. The Messages API keeps no state, so it needs the whole
 history, and the codec throws for a server-mode request. Use `AgUiCodec`, or write a codec for
@@ -496,15 +497,14 @@ new ScriptedChatTransport({
 
 The helpers are `textEvents()`, `reasoningEvents()`, `toolCallEvents()`, `subagentEvents()`,
 `sourceEvents()`, `citationEvents()`, `dataEvents()`, `noAnswerEvents()`, `errorEvents()` and
-`scriptedDelay()`. A
-citation attaches to the text part before it, and refers to a source by `sourceId` or by `url`. A
-source can carry a `sourceType`, a `marker`, the number that cites it as `[n]` in the text, and
-`metadata`. `noAnswerEvents()` writes a fixed "not found" reply. Pass
-`{retryAfterSeconds}` as the third argument of `errorEvents()` to ask for a wait before a retry. Pass a `result` to
-`toolCallEvents()` to simulate a tool that the backend runs, or an `error` for one that fails.
-`subagentEvents()` wraps events in a sub-agent's start and end, and marks its tool calls as the
-sub-agent's, so the activity timeline nests them. A response can also be an async iterable of
-events, which sets its own pace.
+`scriptedDelay()`. A citation attaches to the text part before it, and refers to a source by
+`sourceId` or by `url`. A source can carry a `sourceType`, a `marker`, the number that cites it as
+`[n]` in the text, and `metadata`. `noAnswerEvents()` writes a fixed "not found" reply. Pass
+`{retryAfterSeconds}` as the third argument of `errorEvents()` to ask for a wait before a retry.
+Pass a `result` to `toolCallEvents()` to simulate a tool that the backend runs, or an `error` for
+one that fails. `subagentEvents()` wraps events in a sub-agent's start and end, and marks its tool
+calls as the sub-agent's, so the activity timeline nests them. A response can also be an async
+iterable of events, which sets its own pace.
 
 In a unit test, set `delayMs: 0` and read `transport.requests` to check what the chat sent:
 

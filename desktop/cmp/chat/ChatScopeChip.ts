@@ -96,6 +96,8 @@ export const [ChatScopeChip, chatScopeChip] = hoistCmp.withFactory<ChatScopeChip
 
         const selectedIds: string[] = (isBound ? value : model.runOptions?.[runOption]) ?? [],
             selected = documents.filter(it => selectedIds.includes(it.id)),
+            // A chosen id no longer in the list does not count - unless no list has loaded yet.
+            count = isEmpty(documents) ? selectedIds.length : selected.length,
             setSelectedIds = (ids: string[]) => {
                 if (isBound) {
                     onChange?.(ids);
@@ -108,13 +110,14 @@ export const [ChatScopeChip, chatScopeChip] = hoistCmp.withFactory<ChatScopeChip
             className,
             icon: Icon.book(),
             text: isEmpty(selectedIds) ? 'All documents' : 'Documents',
-            count: isEmpty(selectedIds) ? null : selectedIds.length,
+            count: isEmpty(selectedIds) ? null : count,
             readonly,
-            tooltip: tooltip ?? scopeTooltip(selected, selectedIds),
-            'aria-label': `Document scope: ${scopeWords(selectedIds)}`,
+            tooltip: tooltip ?? scopeTooltip(selected, selectedIds, count),
+            'aria-label': `Document scope: ${scopeWords(selectedIds, count)}`,
             content: scopeList({
                 documents,
                 selectedIds,
+                count,
                 searchThreshold,
                 onChange: setSelectedIds
             })
@@ -128,6 +131,7 @@ export const [ChatScopeChip, chatScopeChip] = hoistCmp.withFactory<ChatScopeChip
 interface ScopeListProps {
     documents: ChatScopeDocument[];
     selectedIds: string[];
+    count: number;
     searchThreshold: number;
     onChange: (ids: string[]) => void;
 }
@@ -137,7 +141,7 @@ const scopeList = hoistCmp.factory<HoistProps & ScopeListProps>({
     displayName: 'ChatScopeList',
     model: false,
 
-    render({documents, selectedIds, searchThreshold, onChange}) {
+    render({documents, selectedIds, count, searchThreshold, onChange}) {
         const [search, setSearch] = useState(''),
             query = search.trim().toLowerCase(),
             shown = query
@@ -204,7 +208,7 @@ const scopeList = hoistCmp.factory<HoistProps & ScopeListProps>({
                             className: 'xh-chat-scope-chip__summary',
                             item: isEmpty(selectedIds)
                                 ? 'All documents'
-                                : `${selectedIds.length} of ${documents.length}`
+                                : `${count} of ${documents.length}`
                         }),
                         button({
                             text: 'Clear',
@@ -226,16 +230,15 @@ function withRunOption(runOptions: Record<string, any>, key: string, ids: string
     return isEmpty(rest) ? null : rest;
 }
 
-function scopeWords(selectedIds: string[]): string {
+function scopeWords(selectedIds: string[], count: number): string {
     if (isEmpty(selectedIds)) return 'All documents';
-    const count = selectedIds.length;
     return `${count} ${count === 1 ? 'document' : 'documents'}`;
 }
 
-function scopeTooltip(selected: ChatScopeDocument[], selectedIds: string[]): string {
+function scopeTooltip(selected: ChatScopeDocument[], selectedIds: string[], count: number): string {
     if (isEmpty(selectedIds)) return 'Answers draw on all documents';
     const names = take(selected, MAX_TOOLTIP_NAMES).map(it => it.name),
-        more = selectedIds.length - names.length;
+        more = count - names.length;
     return more > 0 ? `${names.join(', ')} and ${more} more` : names.join(', ');
 }
 

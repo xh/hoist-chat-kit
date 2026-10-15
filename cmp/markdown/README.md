@@ -83,8 +83,9 @@ click calls `citations.onClick`, or opens the source's `url` in a new tab. The b
 source title and excerpt as a native tooltip. The excerpt is `metadata.excerpt`, or else the
 source's `snippet`. `citations.renderMarker` replaces each button, for example to add a card of
 the platform's own. A marker of four or more sources collapses to one button, labeled with the
-first and last numbers, such as "2–5". `citations.renderGroup` replaces that button. The desktop
-chat uses both for its citation cards.
+first and last numbers, such as "2–5". Its tooltip lists every source, but a click opens only
+the first. `citations.renderGroup` replaces that button, to offer each source. The desktop chat
+uses both for its citation cards.
 
 The plugin needs the sources to decide which markers convert, so the blocks re-parse when the
 sources change. `ChatMarkdown` compares the sources by value, so a new array of the same
@@ -118,6 +119,10 @@ chatMarkdown({content, components: COMPONENTS});
 
 The desktop chat merges your `markdownComponents` over its own map, which renders fenced code
 with `ChatCodeBlock`.
+
+A component in the map can call `useChatMarkdownStreaming()`. It returns true while the block that
+holds the component still streams. `ChatCodeBlock` uses it to wait for the end of a block before
+it collapses long code.
 
 ### Allow images from a trusted source
 
@@ -220,7 +225,7 @@ See `ChatMarkdown.ts` for the full doc comments.
 | `sources` | `ChatSourcePart[]` | Sources the text may cite, in the order reported. |
 | `onClick` | `(source) => void` | Called when the user clicks a marker. Default opens the source's `url` in a new tab. |
 | `renderMarker` | `(marker, source, number) => ReactNode` | Replaces the button of each cited source, for example to wrap it in a card. Replaces the native tooltip. |
-| `renderGroup` | `(marker, cited) => ReactNode` | Replaces the one button for a marker of four or more sources. `cited` holds each `{number, source}`. |
+| `renderGroup` | `(marker, cited) => ReactNode` | Replaces the one button for a marker of four or more sources, whose click opens only the first. `cited` holds each `{number, source}`. |
 
 `ChatMarkdown` calls an `allowImages` function as each image renders, and `onLinkClick` as each
 link is clicked. It reads the `citations` callbacks the same way. A new function on each render
@@ -230,7 +235,8 @@ therefore costs nothing. A change from `false` to
 ## Extension Points
 
 - **`components`** - render any element with your own component, such as charts for code fences
-  of a given language.
+  of a given language. `useChatMarkdownStreaming()` tells the component if its block still
+  streams.
 - **`allowImages`** - set the image policy per chat, or per source URL. `isChatImageAllowed()`
   applies a policy to a URL, for components of your own that show images.
 - **`onLinkClick`** - route links into the app.

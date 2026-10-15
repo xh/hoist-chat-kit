@@ -19,6 +19,12 @@ export interface ChatThreadListHost {
     /** Text to search the threads for, or null. The list's search input reads and writes it. */
     search?: string;
 
+    /**
+     * True if the search covers the text of messages, not just titles. Without it, the list says
+     * "Searching titles" while it searches. See `ChatThreadStore.searchesMessages`.
+     */
+    readonly searchesMessages?: boolean;
+
     /** Ids of the threads with a turn running. Each shows as working. */
     readonly runningThreadIds?: string[];
 

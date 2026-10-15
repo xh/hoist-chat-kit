@@ -15,6 +15,7 @@ import type {
 import {CHAT_SUBAGENT_DATA_TYPE, type ChatSubagentData} from './ChatSubagent';
 import {mergeArtifacts} from '../impl/artifacts';
 import {genChatId} from '../impl/ids';
+import {isRunningSubagent, SUBAGENT_UNFINISHED} from './impl/messageUtils';
 import {parsePartialJson} from './impl/parsePartialJson';
 
 /**
@@ -77,6 +78,8 @@ export class ChatStreamReducer {
     private readonly textTransform: ChatTextTransform;
     private partIds = new Map<string, string>();
     private rawTexts = new Map<string, string>();
+    /** Length of the text a revising part replaced, by part id - see `ChatTextPart.revising`. */
+    private revisingLengths = new Map<string, number>();
     private openTextId: string = null;
     private lastTextId: string = null;
     private openReasoningId: string = null;
@@ -117,7 +120,8 @@ export class ChatStreamReducer {
      * the input of any tool call whose arguments never saw an end event. A stream that ended with
      * neither `RUN_FINISHED` nor `RUN_ERROR` - such as a dropped connection - fails the message,
      * with error code `incomplete-stream`. A run that finished with nothing at all in the message
-     * fails it too, with error code `empty-response`, rather than show a blank reply.
+     * fails it too, with error code `empty-response`, rather than show a blank reply. A sub-agent
+     * still running ends with the run: complete if the run finished, else failed.
      */
     finish(message: ChatMessage): ChatMessage {
         const draft = createDraft(message);
@@ -137,6 +141,18 @@ export class ChatStreamReducer {
                 setError(draft, 'The response ended without any content.', 'empty-response');
             }
         }
+
+        // A sub-agent ends with its run, whether or not its end event came.
+        const isFailed = draft.status === 'error';
+        draft.parts.forEach(part => {
+            if (part.step !== this.step || !isRunningSubagent(part)) return;
+            this.endSubagent(
+                draft,
+                part.id,
+                isFailed ? {status: 'error', error: SUBAGENT_UNFINISHED} : {status: 'complete'}
+            );
+        });
+
         this.transformTexts(draft, message);
         return commitDraft(message, draft);
     }
@@ -365,6 +381,13 @@ export class ChatStreamReducer {
                     ? getPart<ChatTextPart>(draft, openTextId)
                     : (findLast(draft.parts, it => it.type === 'text') as ChatTextPart);
         if (part) {
+            // Shorter text for a part that still streams is a rewrite, which keeps the part
+            // `revising` until its text is as long as the text first replaced.
+            const replacedLength = this.getRawText(part).length;
+            if (part.state === 'streaming' && text.length < replacedLength) {
+                const heldLength = this.revisingLengths.get(part.id) ?? 0;
+                this.revisingLengths.set(part.id, Math.max(heldLength, replacedLength));
+            }
             this.putText(draft, part, text);
         } else if (text) {
             this.appendText(draft, null, text);
@@ -374,7 +397,17 @@ export class ChatStreamReducer {
     /** Store a text part with new raw text, to be transformed when the batch is committed. */
     private putText(draft: Draft, part: ChatTextPart, rawText: string) {
         this.rawTexts.set(part.id, rawText);
-        putPart(draft, {...part, text: rawText});
+        const {revising: _revising, ...rest} = part,
+            heldLength = this.revisingLengths.get(part.id);
+        if (heldLength != null && rawText.length >= heldLength) {
+            this.revisingLengths.delete(part.id);
+        }
+        putPart(
+            draft,
+            this.revisingLengths.has(part.id)
+                ? {...rest, text: rawText, revising: true}
+                : {...rest, text: rawText}
+        );
         draft.dirtyTexts.add(part.id);
     }
 
@@ -701,7 +734,9 @@ export class ChatStreamReducer {
         if (part.type === 'reasoning') {
             putPart(draft, {...part, state: 'done', endedAt: Date.now()});
         } else {
-            putPart(draft, {...part, state: 'done'});
+            const {revising: _revising, ...rest} = part;
+            this.revisingLengths.delete(id);
+            putPart(draft, {...rest, state: 'done'});
             // The transform sees the final text with `isStreaming: false`.
             draft.dirtyTexts.add(id);
         }

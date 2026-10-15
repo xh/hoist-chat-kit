@@ -3,7 +3,8 @@ import {HoistModel} from '@xh/hoist/core';
 import {action, observable} from '@xh/hoist/mobx';
 import {withDefault} from '@xh/hoist/utils/js';
 import {createObservableRef} from '@xh/hoist/utils/react';
-import {ChatComposerModel} from '../../../../core';
+import {isEmpty} from 'lodash';
+import {chatAnnouncer, ChatComposerModel} from '../../../../core';
 import {fitTextAreaToContent, isImeComposing} from './AutoGrow';
 import {hasFiles} from './FileDrop';
 
@@ -36,6 +37,16 @@ export class ChatComposerLocalModel extends HoistModel {
 
     get maxRows(): number {
         return withDefault(this.componentProps.maxRows, DEFAULT_MAX_ROWS);
+    }
+
+    override onLinked() {
+        // Files left out are named under the chips, and read once through the announcer.
+        this.addReaction({
+            track: () => this.composerModel?.attachmentErrors,
+            run: errors => {
+                if (!isEmpty(errors)) chatAnnouncer.announce(errors.join(' '), 'assertive');
+            }
+        });
     }
 
     /** Size the input to its text, up to `maxRows`. */

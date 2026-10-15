@@ -14,7 +14,7 @@ import {
 import {classNames} from '../../../../impl/ClassNames';
 import {chatElapsed} from '../ChatElapsed';
 import {chatCopyButton} from './ChatCopyButton';
-import {chatSpinner} from './ChatLiveCues';
+import {chatSpinner} from '../../../impl/ChatLiveCues';
 import {
     type ChatTimelineAgentItem,
     type ChatTimelineBatchItem,
@@ -46,6 +46,9 @@ export interface ChatTimelineRowContext {
 
     /** True once the reply was stopped - calls still in flight show as cancelled. */
     isStopped: boolean;
+
+    /** True while the reply streams. A sub-agent shows as running only then. */
+    isLive: boolean;
 
     /** Id of the row that holds the tree's one tab stop. */
     tabStopId: string;
@@ -153,6 +156,7 @@ type RowState =
     'running' | 'approval' | 'question' | 'done' | 'answered' | 'failed' | 'denied' | 'cancelled';
 
 function getRowState(part: ChatToolCallPart, spec: ChatToolSpec, isStopped: boolean): RowState {
+    if (part.cancelled) return 'cancelled';
     switch (part.state) {
         case 'output-available':
             return spec?.interactive && !spec.execute ? 'answered' : 'done';
@@ -303,11 +307,13 @@ function agentRow(
     depth: number,
     parentName: string
 ): ReactNode {
-    const {impl, isStopped} = ctx,
+    const {impl, isLive} = ctx,
         {data} = item,
         name = data?.name ?? 'Agent',
-        isRunning = data?.status === 'running' && !isStopped,
+        // A reply that is no longer live has nothing running, whatever its data says.
+        isRunning = data?.status === 'running' && isLive,
         isFailed = data?.status === 'error',
+        isCancelled = data?.status === 'cancelled',
         // Open while it runs, closed once done - until the user opens or closes it.
         isOpen = impl.isRowOpen(item.id, isRunning),
         steps = getTimelineCalls(item.items).length,
@@ -328,7 +334,13 @@ function agentRow(
             data?.description,
             'agent',
             pluralize('step', steps, true),
-            isRunning ? 'running' : isFailed ? `failed: ${data.error}` : null
+            isRunning
+                ? 'running'
+                : isFailed
+                  ? `failed: ${data.error}`
+                  : isCancelled
+                    ? 'cancelled'
+                    : null
         ]).join(', '),
         items: [
             rowLine({
@@ -341,7 +353,9 @@ function agentRow(
                     ? span({className: 'xh-chat-timeline__icon--busy', item: chatSpinner()})
                     : isFailed
                       ? span({className: 'xh-chat-timeline__icon--error', item: Icon.xCircle()})
-                      : Icon.sparkles(),
+                      : isCancelled
+                        ? Icon.stopCircle()
+                        : Icon.sparkles(),
                 title: depthTitle(name, depth, parentName),
                 input: isOpen
                     ? data?.description
@@ -349,7 +363,7 @@ function agentRow(
                           data?.description,
                           steps ? pluralize('step', steps, true) : null
                       ]).join(' · '),
-                status: isFailed ? data.error : null,
+                status: isFailed ? data.error : isCancelled ? 'Cancelled' : null,
                 time: isRunning
                     ? liveTime(data.startedAt)
                     : took != null

@@ -7,6 +7,7 @@ import {
     chatAnnouncer,
     type ChatFeedbackConfig,
     type ChatFeedbackSpec,
+    ChatKit,
     type ChatMessageSpec,
     ChatModel
 } from '../../../core';
@@ -161,7 +162,7 @@ describe('ChatMessageView feedback', () => {
                 expect.objectContaining({rating: 'positive', comment: null})
             );
             expect(screen.getByText('Thanks')).toBeTruthy();
-            expect(screen.queryByRole('group')).toBeNull();
+            expect(screen.queryByRole('group', {name: 'What worked?'})).toBeNull();
 
             fireEvent.click(screen.getByRole('button', {name: 'Add a comment'}));
             expect(screen.getByRole('group', {name: 'What worked?'})).toBeTruthy();
@@ -280,6 +281,19 @@ describe('ChatMessageView feedback', () => {
 
             expect((commentField() as HTMLTextAreaElement).value).toBe('Kept for later.');
             expect(document.activeElement).not.toBe(commentField());
+        });
+
+        it('drops an open draft on ChatKit.clearLocalData(), as on logout', async () => {
+            const {chatModel, unmount} = renderChat({requireComment: true});
+
+            await clickThumb('Bad response');
+            typeComment('Private words.');
+            unmount();
+            ChatKit.clearLocalData();
+            render(chatMessageList({model: chatModel}));
+
+            expect(screen.queryByRole('group', {name: 'What went wrong?'})).toBeNull();
+            expect(thumb('Bad response').getAttribute('aria-pressed')).toBe('false');
         });
 
         it('drops a pending rating when its reply is regenerated', async () => {

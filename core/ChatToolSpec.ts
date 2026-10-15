@@ -116,7 +116,8 @@ export interface ChatToolSpec {
  *    `inline`. For a tool whose result is what the user asked for, such as a final answer tool.
  *  - `pinned` - the latest call shows as the plan pinned to the top of the reply's activity
  *    timeline, and no call shows as a row. The plan is read from the call's output, or else its
- *    input, as a list of items with a title and a status (below), or rendered by `renderer`. In a reply with no timeline, each call shows as a `card`.
+ *    input, as a list of items with a title and a status (below), or rendered by `renderer`. In
+ *    a reply with no timeline, each call shows as a `card`.
  *  - `hidden` - nothing, unless a call waits for the user to approve or answer it. Hidden calls
  *    count in no summary.
  *

@@ -8,7 +8,8 @@ import {
     type ChatUiActionType,
     chatUiActionSchema,
     type ChatUiComponentSpec,
-    describeChatUiAction
+    describeChatUiAction,
+    isChatUiMessagingAction
 } from '../../../genui';
 import {
     CHAT_UI_DECIMALS_SCHEMA,
@@ -143,7 +144,10 @@ export function chatUiCardSpec(
 
 /** Props for {@link ChatUiCard}. */
 export interface ChatUiCardProps extends HoistProps, Partial<ChatUiCardSpecProps> {
-    /** The chat that shows the card. Actions that message it are disabled while it is busy. */
+    /**
+     * The chat that shows the card. Actions that message it are disabled while it is busy, and
+     * hidden where it is null - in a message list over a host that is not a `ChatModel`.
+     */
     chatModel: ChatModel;
 
     /** Runs an action when its button is clicked - the catalog's `context.runActionAsync`. */
@@ -158,7 +162,7 @@ export interface ChatUiCardProps extends HoistProps, Partial<ChatUiCardSpecProps
  * {@link chatUiCardSpec} renders. The title and subtitle sit in the card's header strip, and the
  * actions follow the card as outlined chips (P4), as they belong to the reply. A long chip is cut
  * to one line. Its tooltip always shows what the click does, as D17 requires. Actions that send a
- * message or run a tool are disabled while the chat is busy.
+ * message or run a tool are disabled while the chat is busy, and hidden with no `ChatModel`.
  *
  * TODO(P7): an Apply card - a previewed change with Apply, Cancel and Undo - is the component
  * helper's, and lands with it.
@@ -171,7 +175,11 @@ export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
     render({className, title, subtitle, fields, actions, chatModel, isPartial, runActionAsync}) {
         // While streaming, the last field may be cut short - its value still being written.
         const validFields = (isPartial ? dropRight(fields) : (fields ?? [])).filter(isPlainObject),
-            validActions = isPartial ? [] : (actions ?? []).filter(isPlainObject);
+            validActions = isPartial
+                ? []
+                : (actions ?? []).filter(
+                      it => isPlainObject(it) && (chatModel || !isChatUiMessagingAction(it))
+                  );
 
         return div({
             className,
@@ -203,7 +211,7 @@ export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
                           className: 'xh-chat-ui-card__actions',
                           items: validActions.map((action, idx) => {
                               // A blocked chat ignores a send, so say why the button waits.
-                              const isMessaging = MESSAGING_ACTIONS.has(action.type),
+                              const isMessaging = isChatUiMessagingAction(action),
                                   blockedReason = isMessaging ? chatModel.sendBlockedReason : null;
                               return button({
                                   key: idx,
@@ -227,9 +235,6 @@ export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
 //------------------
 // Implementation
 //------------------
-// Actions that message the chat, and so wait while it is busy.
-const MESSAGING_ACTIONS: ReadonlySet<ChatUiActionType> = new Set(['send', 'callTool']);
-
 const DESCRIPTION =
     'A detail card for one record - a client, an order, a counterparty - with its key fields ' +
     'as labeled values, and up to a few follow-up actions, shown as buttons, for the obvious ' +

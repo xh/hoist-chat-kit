@@ -15,7 +15,7 @@ import './ChatPanel.scss';
 import {chatStatusRegion} from './ChatStatusRegion';
 import {type ChatSuggestion, chatSuggestions} from './ChatSuggestions';
 import {refuseFileDrop} from './impl/FileDrop';
-import {getChatHotkeys} from './impl/ChatShortcuts';
+import {getChatHotkeys} from '../../impl/ChatShortcuts';
 
 /** Props for {@link ChatPanel}. */
 export interface ChatPanelProps

@@ -1,12 +1,13 @@
 import {act, fireEvent, render, screen, within} from '@testing-library/react';
-import {div} from '@xh/hoist/cmp/layout';
+import {div, fragment} from '@xh/hoist/cmp/layout';
 import {button} from '@xh/hoist/desktop/cmp/button';
-import {hoistCmp, type HoistProps} from '@xh/hoist/core';
+import {creates, hoistCmp, HoistModel, type HoistProps} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {useEffect} from 'react';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {runInAction} from '@xh/hoist/mobx';
 import {
+    ChatComposerModel,
     ChatMessage,
     type ChatMessageSpec,
     chatToolResult,
@@ -154,7 +155,11 @@ describe('ChatMessageList', () => {
         act(() => loadReply(chatModel, [dataPart, text('t1', 'One two')]));
 
         expect(dataRenderer).toHaveBeenCalledTimes(1);
-        expect(dataRenderer).toHaveBeenCalledWith(dataPart, {chatModel, messageId: 'a1'});
+        expect(dataRenderer).toHaveBeenCalledWith(dataPart, {
+            chatModel,
+            host: chatModel,
+            messageId: 'a1'
+        });
     });
 
     it('shows a model-written image as a link unless images are allowed', () => {
@@ -446,7 +451,7 @@ describe('ChatMessageList', () => {
                     citations: [{id: 'c1', sourceId: 's1'}]
                 },
                 chatModel = createModel({}, [reply([cited, ...SOURCES])]),
-                context = {chatModel, messageId: 'a1'},
+                context = {chatModel, host: chatModel, messageId: 'a1'},
                 {container} = renderList(chatModel, {citationMarkers: true, onSourceClick});
 
             fireEvent.click(screen.getByRole('button', {name: /Source 2/}));
@@ -586,6 +591,58 @@ describe('ChatMessageList', () => {
         });
     });
 
+    describe('suggestions over a host that is not a ChatModel', () => {
+        it("fill the host's composer when it has one", () => {
+            const composerModel = new ChatComposerModel({
+                    host: {isBusy: false, sendAsync: () => Promise.resolve()},
+                    drafts: 'memory'
+                }),
+                host = {messages: [], isBusy: false, composerModel};
+            onTestFinished(() => composerModel.destroy());
+            render(appContext({item: chatMessageList({host, suggestions: ['Show my limits']})}));
+
+            expect(screen.queryByText('No model found', {exact: false})).toBeNull();
+            fireEvent.click(screen.getByRole('button', {name: 'Show my limits'}));
+            expect(composerModel.text).toBe('Show my limits');
+        });
+
+        it('render nothing when the host has no composer', () => {
+            const {container} = render(
+                appContext({
+                    item: chatMessageList({
+                        host: {messages: [], isBusy: false},
+                        suggestions: ['Hi']
+                    })
+                })
+            );
+            expect(container.textContent).toContain('How can I help?');
+            expect(container.textContent).not.toContain('No model found');
+            expect(container.querySelector('.xh-chat-suggestions')).toBeNull();
+        });
+    });
+
+    it('holds text in the held color while the server revises it, and only then', () => {
+        const chatModel = createModel({}, []);
+        renderList(chatModel);
+        act(() =>
+            showLiveReply(chatModel, [
+                {...liveText('t1', 'Shorter text'), revising: true} as ChatPart
+            ])
+        );
+        expect(document.querySelector('.xh-chat-message__text--revising')).toBeTruthy();
+
+        act(() => showLiveReply(chatModel, [liveText('t1', 'Shorter text, now longer')]));
+        expect(document.querySelector('.xh-chat-message__text--revising')).toBeNull();
+    });
+
+    it("names a message's actions as a group, not a toolbar it has no arrow keys for", () => {
+        const chatModel = createModel({}, [reply([text('t1', 'Answer')])]);
+        renderList(chatModel);
+
+        expect(screen.getByRole('group', {name: 'Message actions'})).toBeTruthy();
+        expect(screen.queryByRole('toolbar')).toBeNull();
+    });
+
     it('adds app message actions after the built-in ones, with the message and its context', () => {
         const messageActions = vi.fn(() => [button({key: 'up', text: 'Helpful'})]),
             chatModel = createModel({}, [reply([text('t1', 'Answer')])]);
@@ -594,6 +651,7 @@ describe('ChatMessageList', () => {
         expect(screen.getByRole('button', {name: 'Helpful'})).toBeTruthy();
         expect(messageActions).toHaveBeenCalledWith(chatModel.lastMessage, {
             chatModel,
+            host: chatModel,
             messageId: 'a1'
         });
     });
@@ -602,6 +660,15 @@ describe('ChatMessageList', () => {
 //------------------
 // Helpers
 //------------------
+class AppStandInModel extends HoistModel {}
+
+/** A model in context, as an app gives - the list's local model needs one. */
+const appContext = hoistCmp.factory({
+    displayName: 'TestAppContext',
+    model: creates(AppStandInModel),
+    render: ({children}) => fragment(children)
+});
+
 class NoopResizeObserver {
     observe() {}
     unobserve() {}

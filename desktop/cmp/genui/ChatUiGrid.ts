@@ -6,7 +6,7 @@ import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses, XH} fr
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
 import {action, computed, observable} from '@xh/hoist/mobx';
-import {useOnResize} from '@xh/hoist/utils/react';
+import {useComposedRefs, useOnResize} from '@xh/hoist/utils/react';
 import {
     CHAT_DATA_VIEW_PROPERTIES,
     ChatArtifactRegistry,
@@ -162,11 +162,10 @@ export const [ChatUiGrid, chatUiGrid] = hoistCmp.withFactory<ChatUiGridProps, Ch
 
     render({className, title}) {
         const impl = useLocalModel(ChatUiGridLocalModel),
-            resizeRef = useOnResize(rect => impl.setWidth(rect.width), {debounce: 50}),
-            ref = (node: HTMLElement) => {
-                resizeRef(node);
-                impl.setNode(node);
-            };
+            ref = useComposedRefs(
+                useOnResize(rect => impl.setWidth(rect.width), {debounce: 50}),
+                impl.nodeRef
+            );
 
         return div({
             ref,
@@ -303,7 +302,10 @@ function createRefSpec(opts: ChatUiGridSpecOptions): ChatUiComponentSpec<ChatUiG
             }
         },
         // The first page holds the rows the preview sorts and filters, and the full grid's first.
-        dataProps: [{name: 'data', pageSize: CHAT_UI_GRID_DEFAULTS.pageSize}],
+        // Read as the catalog renders, so that defaults set after the catalog apply.
+        get dataProps() {
+            return [{name: 'data', pageSize: CHAT_UI_GRID_DEFAULTS.pageSize}];
+        },
         render: (props, {isPartial, data, artifacts}) =>
             chatUiGrid({
                 title: props.title,
@@ -338,6 +340,9 @@ interface GridSource {
 class ChatUiGridLocalModel extends ChatUiExpandModel {
     @observable accessor width: number = null;
     @observable accessor isCompactHost = false;
+
+    /** Ref for the card's element - stable, so that a render does not re-attach it. */
+    readonly nodeRef = (node: HTMLElement) => this.setNode(node);
 
     private node: HTMLElement = null;
     private inlineRegistry: ChatArtifactRegistry = null;
@@ -469,16 +474,18 @@ class ChatUiGridLocalModel extends ChatUiExpandModel {
     private getInlineRegistry(frame: ChatDataFrame): ChatArtifactRegistry {
         if (this.inlineRegistryFrame !== frame) {
             this.inlineRegistryFrame = frame;
-            this.inlineRegistry = new ChatArtifactRegistry({
-                artifacts: [
-                    {
-                        id: INLINE_ID,
-                        columns: frame.columns,
-                        rows: frame.rows,
-                        totalRows: frame.rows.length
-                    }
-                ]
-            });
+            this.inlineRegistry = this.setInlineRegistry(
+                new ChatArtifactRegistry({
+                    artifacts: [
+                        {
+                            id: INLINE_ID,
+                            columns: frame.columns,
+                            rows: frame.rows,
+                            totalRows: frame.rows.length
+                        }
+                    ]
+                })
+            );
         }
         return this.inlineRegistry;
     }

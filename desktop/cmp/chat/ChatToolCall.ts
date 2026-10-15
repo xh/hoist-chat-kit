@@ -26,7 +26,7 @@ import {
     type InlineCallStatus,
     statusGlyph
 } from './impl/ToolCallStatus';
-import {chatSpinner} from './impl/ChatLiveCues';
+import {chatSpinner} from '../../impl/ChatLiveCues';
 import {chatToolApproval} from './impl/ChatToolApproval';
 import {getToolCallDisplay} from './impl/groupParts';
 import {CHAT_MARKDOWN_COMPONENTS} from './impl/MarkdownComponents';

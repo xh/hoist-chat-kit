@@ -110,6 +110,26 @@ describe('ChatWorkspace', () => {
             expect(model.sidePanelWidth).toBe(472);
         });
 
+        it('reserves the rail at the width its theme variable sets', () => {
+            const computed = window.getComputedStyle;
+            vi.spyOn(window, 'getComputedStyle').mockImplementation((el, pseudo) => {
+                const ret = computed(el, pseudo);
+                return {
+                    ...ret,
+                    getPropertyValue: (name: string) =>
+                        name === '--xh-chat-sidebar-rail-width'
+                            ? ' 56px'
+                            : ret.getPropertyValue(name)
+                } as CSSStyleDeclaration;
+            });
+            onTestFinished(() => vi.mocked(window.getComputedStyle).mockRestore());
+            const {model} = renderWorkspace({}, {sidePanelOpen: true});
+
+            // 788 - 56 for the rail - 8 for the splitter - 380 for the conversation.
+            model.setWidth(788);
+            expect(model.sidePanelWidth).toBe(344);
+        });
+
         it('gives way with the sidebar first, when a wide workspace cannot fit both panels', () => {
             const {model} = setup({sidePanelOpen: true});
             model.setWidth(1440);
@@ -190,7 +210,7 @@ describe('ChatWorkspace', () => {
                 })
             );
 
-            expect(screen.queryByRole('listbox')).toBeNull();
+            expect(screen.queryByRole('treegrid')).toBeNull();
             expect(screen.getByRole('button', {name: 'Expand sidebar'})).toBeTruthy();
             expect(sidePanelBox().style.width).toBe('408px');
         });
@@ -236,7 +256,7 @@ describe('ChatWorkspace', () => {
             expect(heading()).toBe('New chat');
             await act(() => threadsModel.loadAsync());
 
-            fireEvent.click(screen.getByRole('option', {name: /^Budget review/}));
+            fireEvent.click(screen.getByRole('row', {name: /^Budget review/}));
             await act(() => wait());
 
             expect(threadsModel.selectedThreadId).toBe('t1');
@@ -250,7 +270,7 @@ describe('ChatWorkspace', () => {
             fireEvent.click(screen.getByRole('button', {name: 'Collapse sidebar'}));
             expect(model.sidebarModel.collapsed).toBe(true);
             const rail = screen.getByRole('navigation', {name: 'Threads'});
-            expect(screen.queryByRole('listbox')).toBeNull();
+            expect(screen.queryByRole('treegrid')).toBeNull();
             expect(within(rail).getByRole('button', {name: 'New Chat'})).toBeTruthy();
 
             fireEvent.click(screen.getByRole('button', {name: 'Search threads'}));
@@ -267,6 +287,26 @@ describe('ChatWorkspace', () => {
             fireEvent.click(within(rail).getByRole('button', {name: 'New Chat'}));
 
             expect(threadsModel.selectedThreadId).not.toBe(first);
+        });
+
+        it('opens the next thread when the open one is deleted from the header, as from the list', async () => {
+            const {threadsModel} = renderWorkspace(),
+                confirm = vi.spyOn(XH, 'confirm').mockResolvedValue(true);
+            onTestFinished(() => confirm.mockRestore());
+            await act(() => threadsModel.loadAsync());
+            await act(() => threadsModel.selectThreadAsync('t1'));
+
+            fireEvent.click(screen.getByRole('button', {name: 'Thread actions'}));
+            fireEvent.click(await screen.findByText('Delete...'));
+            await act(() => wait(50));
+
+            expect(threadsModel.threads.map(it => it.id)).toEqual(['t2']);
+            expect(threadsModel.selectedThreadId).toBe('t2');
+            expect(document.activeElement).toBe(
+                document.querySelector(
+                    '.xh-chat-workspace__conversation .xh-chat-composer textarea'
+                )
+            );
         });
 
         it('offers the list from the header when too narrow for a sidebar', async () => {

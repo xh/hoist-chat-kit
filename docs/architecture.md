@@ -14,9 +14,11 @@ catalog sits beside the models, and builds on their tools.
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ Components          desktop/cmp/chat/     desktop/cmp/genui/             │
-│                     cmp/markdown/                                        │
+│                     desktop/cmp/threads/  desktop/cmp/workspace/         │
+│                     desktop/cmp/assist/   cmp/markdown/                  │
 │                     ChatPanel, ChatMessageList, ChatComposer,            │
-│                     ChatToolCall, ChatUiGrid, ChatUiChart, ...           │
+│                     ChatThreadList, ChatWorkspace, ChatUiGrid,           │
+│                     ChatAssistantContainer, ...                          │
 │                     Render the models. Never see a wire format.          │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ Models              core/     genui/     threads/     assist/     svc/   │
@@ -39,7 +41,9 @@ catalog sits beside the models, and builds on their tools.
 ```
 
 Helpers that more than one package needs, such as id generation and abort handling, live in the
-top-level `impl/` folder. They are internal, and no package reaches into another's `impl/`.
+top-level `impl/` folder. Desktop helpers that more than one desktop package needs, such as the
+spinner and the keyboard shortcuts, live in `desktop/impl/`. Both are internal, and no package
+reaches into another's `impl/`.
 
 - **Transports and codecs** carry the request to a backend and turn its stream into
   `ChatEvent`s, which are AG-UI 1.0 events. A transport owns the framing, such as NDJSON or SSE.
@@ -56,7 +60,11 @@ top-level `impl/` folder. They are internal, and no package reaches into another
   `DashCanvasModel`, so it lives in `/desktop/assist/`. See [`/assist/`](../assist/README.md).
 - **Components** render the models with Hoist components and element factories. The desktop
   components live in [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md), and the built-in
-  generative UI components in [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md). The
+  generative UI components in [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md). The thread
+  list, the full-page workspace and the component helper each have a desktop package of their
+  own: [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md),
+  [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md) and
+  [`/desktop/cmp/assist/`](../desktop/cmp/assist/README.md). The
   streaming markdown renderer is platform-neutral, in [`/cmp/markdown/`](../cmp/markdown/README.md).
 
 The kit owns its message model. No component sees a provider's or a protocol's wire format, so
@@ -250,7 +258,9 @@ renderer.
 | `desktop/cmp/threads/` | Desktop | The thread list |
 | `desktop/cmp/workspace/` | Desktop | The full-page workspace: sidebar, conversation and side panel |
 | `desktop/cmp/genui/` | Desktop | The built-in grid, chart, metrics and card components |
+| `desktop/cmp/assist/` | Desktop | The component helper: its entry button, container and view |
 | `desktop/assist/` | Desktop | `dashCanvasTools`, the tool group for a `DashCanvasModel` |
+| `desktop/impl/` | Desktop | Internal helpers that more than one desktop package needs |
 | `styles/` | Neutral | The `--xh-chat-*` CSS variables |
 
 App code follows the same split. Put tool specs, prompts and data renderers in shared code when
@@ -268,6 +278,8 @@ desktop code.
 - [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) - desktop components
 - [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) - the desktop thread list
 - [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md) - the desktop workspace
+- [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) - the built-in generative UI components
+- [`/desktop/cmp/assist/`](../desktop/cmp/assist/README.md) - the desktop component helper
 - [`/cmp/markdown/`](../cmp/markdown/README.md) - streaming markdown
 - [Protocols](./protocols.md) - AG-UI, Anthropic, OpenAI, generative UI and the Vercel AI SDK
   vocabulary

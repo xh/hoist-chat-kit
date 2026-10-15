@@ -172,8 +172,9 @@ and 3 at compact density. The footer always states what the preview leaves out, 
 `YYYY-MM-DD`, and a long text cell shows its full value in a tooltip.
 
 The download in the footer exports every row of the result, not just the preview, with Hoist's
-grid export. The full grid's Export does the same for the rows its view shows. Above
-`exportConfirmAbove` rows, either one asks the user first, as it loads every row into the browser.
+grid export. The full grid's Export does the same for the rows its view shows, and waits for Load
+Next to finish. Above `exportConfirmAbove` rows, either one asks the user first, as it loads every
+row into the browser.
 
 ### Show a table by reference
 
@@ -194,8 +195,9 @@ and never copies the rows:
 The catalog resolves `data` through the chat's artifact registry, and loads its first page of
 `pageSize` rows. The preview applies the view to that page. The full grid starts from the same
 page, and Load Next loads the next one from the chat's `ChatDataSource`. It never loads more on
-scroll. Find searches the rows loaded so far, and the status bar says so. The view's columns
-show in its order, and the rest start hidden in the column chooser.
+scroll. Its sort and Find cover the rows loaded so far, and the status bar says so. Its count
+says how many loaded rows the view's filter and `top` keep, as "Loaded 1,000 of 2,500 rows · 40
+shown". The view's columns show in its order, and the rest start hidden in the column chooser.
 
 A preview that cannot show keeps its height and says why, with only the actions that can work:
 Retry for rows that failed to load, nothing for an artifact that is gone or a view that names a
@@ -265,7 +267,8 @@ only. A `send` action sends its `text` as the user's own message, with any struc
 the message's `metadata.context`. The context is a flat object of at most 8 short values, such as
 record ids. The button's tooltip describes the action and its context before the click, and the
 chat shows both after it. Sent text is at most 200 characters. Buttons that send a message or run
-a tool are disabled while the chat is busy, or while a send blocker gives a reason to wait.
+a tool are disabled while the chat is busy, or while a send blocker gives a reason to wait. In a
+message list over a host that is not a `ChatModel`, the card hides them.
 
 ```json
 {
@@ -346,7 +349,7 @@ ChatUiGrid.defaults.exportConfirmAbove = 50_000;
 |---------|-------|-------------|
 | `ChatUiGrid.defaults.previewRows` | 8 | Most rows the preview shows |
 | `ChatUiGrid.defaults.previewColumns` | 6 | Most columns the preview shows |
-| `ChatUiGrid.defaults.pageSize` | 1,000 | Rows per page of the full grid, and the first page of a table by reference |
+| `ChatUiGrid.defaults.pageSize` | 1,000 | Rows per page of the full grid, and the first page of a table by reference. Read as each table renders. |
 | `ChatUiGrid.defaults.exportConfirmAbove` | 10,000 | Rows above which an export asks first |
 | `ChatUiChart.defaults.maxInlineSeries` | 5 | Most series an inline chart draws |
 | `ChatUiChart.defaults.maxInlinePoints` | 500 | Most points per series an inline chart draws, sampled evenly |
@@ -404,7 +407,8 @@ take in. For larger results, use a table by reference.
 
 A view applies only to the rows at hand. For a table by reference, those are the first
 `pageSize` rows. Over a larger artifact, its sort and filter work on that page, and the footer
-does not claim a total it cannot know. Have the tool sort and filter on the server, or raise
+does not claim a total it cannot know. A sort adds "sorted within the first 1,000" to the
+footer, and the full grid stays on offer. Have the tool sort and filter on the server, or raise
 `ChatUiGrid.defaults.pageSize`.
 
 ## Related Packages

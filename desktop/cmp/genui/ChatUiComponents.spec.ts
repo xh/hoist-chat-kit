@@ -184,6 +184,21 @@ describe('generative UI components', () => {
             expect(openButton.disabled).toBe(false);
         });
 
+        it('hides actions that message the chat where it shows without a ChatModel', () => {
+            render(
+                chatUiCard({
+                    title: 'Acme Corp',
+                    fields: [],
+                    actions: [send, open],
+                    chatModel: null,
+                    runActionAsync: vi.fn()
+                })
+            );
+
+            expect(screen.queryByRole('button', {name: 'Show trades'})).toBeNull();
+            expect(screen.getByRole('button', {name: 'Open report'})).toBeTruthy();
+        });
+
         it('disables actions that message the chat while sends are blocked, and says why', () => {
             const chatModel = createChatModel(),
                 runActionAsync = vi.fn();

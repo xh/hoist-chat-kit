@@ -1,7 +1,7 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {ChatModel} from '../../../core';
+import {chatAnnouncer, ChatModel} from '../../../core';
 import {errorEvents, ScriptedChatTransport, textEvents} from '../../../transport';
 import {chatPanel} from './ChatPanel';
 import {chatSuggestions} from './ChatSuggestions';
@@ -15,7 +15,10 @@ describe('ChatPanel', () => {
     beforeAll(() => initTestAppAsync());
 
     // jsdom has no layout, and so no ResizeObserver. The setup unstubs globals after each test.
-    beforeEach(() => vi.stubGlobal('ResizeObserver', NoopResizeObserver));
+    beforeEach(() => {
+        vi.stubGlobal('ResizeObserver', NoopResizeObserver);
+        chatAnnouncer.clear();
+    });
 
     it('centers the composer in an empty chat, between the heading and the suggestions', () => {
         renderPanel(createModel(), {emptyStateProps: {title: 'What do you want to know?'}});
@@ -97,6 +100,33 @@ describe('ChatPanel', () => {
 
         fireEvent.keyDown(message, {key: 'k', altKey: true});
         expect(onKeyDown).toHaveBeenCalledOnce();
+    });
+
+    it('speaks to screen readers before the first reply, with no message list', () => {
+        renderPanel(createModel());
+        expect(document.querySelector('.xh-chat-message-list')).toBeNull();
+
+        act(() => chatAnnouncer.announce('Sending is blocked.', 'assertive'));
+
+        expect(document.querySelector('.xh-chat-announcer [role="alert"]').textContent).toBe(
+            'Sending is blocked.'
+        );
+    });
+
+    it("never reads the last thread's announcement into a panel that mounts after it", () => {
+        const {unmount} = renderPanel(createModel());
+        act(() => chatAnnouncer.announce('Analyst replied after 2 seconds.'));
+        expect(document.querySelector('.xh-chat-announcer').textContent).toBe(
+            'Analyst replied after 2 seconds.'
+        );
+        unmount();
+
+        renderPanel(createModel());
+
+        expect(chatAnnouncer.polite?.text).toBe('Analyst replied after 2 seconds.');
+        document.querySelectorAll('.xh-chat-announcer').forEach(it => {
+            expect(it.textContent).toBe('');
+        });
     });
 
     it('shows the status region above the composer', async () => {

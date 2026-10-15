@@ -30,7 +30,8 @@ Key features:
 - **A badge while closed** - for a turn that waits for the user, a failed request, a running
   turn, or a new reply. It never animates.
 - **Change lines** - each change shows as one line with a check and Show, which flashes the
-  change again on the component. The reply's Undo restores the component.
+  change again on the component. The reply's Undo restores the component. A group tool that sets
+  its own `display`, such as `hidden` or `timeline`, keeps it.
 - **Undo retires** - once the user changes the component by hand, Undo gives way to the reason.
 - **A data boundary line** - one line above the composer says what the model can see, in the
   app's words. A click lists what is shared and what is not.

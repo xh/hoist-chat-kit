@@ -1,10 +1,12 @@
 import type {ChatMessage} from '../ChatMessage';
 import {
+    type ChatDataPart,
     type ChatPart,
     type ChatTextPart,
     type ChatToolCallPart,
     isToolCallFinal
 } from '../ChatPart';
+import {type ChatSubagentData, isChatSubagentPart} from '../ChatSubagent';
 import {genChatId} from '../../impl/ids';
 
 /**
@@ -41,11 +43,32 @@ export function settleStreamingParts(message: ChatMessage): ChatMessage {
  * A copy of a message with nothing left in progress, for a turn that ends early. Streaming text
  * and reasoning parts are marked done. Unfinished tool calls are closed with `reason` - as denied
  * if they awaited approval, else as failed - so that every call in the history has a result.
- * Returns the same message if nothing was open.
+ * Running sub-agents fail with `reason`. Returns the same message if nothing was open.
+ *
+ * @param isCancelled - true if the user stopped the turn. Closed tool calls are then marked
+ *      `cancelled`, and running sub-agents end as `cancelled` rather than failed.
  * @internal
  */
-export function settleOpenParts(message: ChatMessage, reason: string): ChatMessage {
-    return settleParts(message, reason);
+export function settleOpenParts(
+    message: ChatMessage,
+    reason: string,
+    isCancelled: boolean = false
+): ChatMessage {
+    return settleParts(message, reason, isCancelled);
+}
+
+/**
+ * Why a sub-agent failed when its run ended before the sub-agent did.
+ * @internal
+ */
+export const SUBAGENT_UNFINISHED = 'The agent did not finish.';
+
+/**
+ * True if a part is a sub-agent that is still running.
+ * @internal
+ */
+export function isRunningSubagent(part: ChatPart): part is ChatDataPart {
+    return isChatSubagentPart(part) && (part.data as ChatSubagentData)?.status === 'running';
 }
 
 /**
@@ -60,8 +83,15 @@ export function getClientToolCalls(message: ChatMessage, step: number): ChatTool
 //------------------
 // Implementation
 //------------------
-/** Settle streaming parts, and tool calls too if given a reason to close them with. */
-function settleParts(message: ChatMessage, toolCallReason: string): ChatMessage {
+/**
+ * Settle streaming parts - and tool calls and sub-agents too, if given a reason to close them
+ * with.
+ */
+function settleParts(
+    message: ChatMessage,
+    toolCallReason: string,
+    isCancelled: boolean = false
+): ChatMessage {
     let changed = false;
     const now = Date.now(),
         parts = message.parts.map((part): ChatPart => {
@@ -81,8 +111,22 @@ function settleParts(message: ChatMessage, toolCallReason: string): ChatMessage 
                         ...part,
                         state:
                             part.state === 'approval-requested' ? 'output-denied' : 'output-error',
-                        errorText: toolCallReason
+                        errorText: toolCallReason,
+                        endedAt: part.endedAt ?? now,
+                        ...(isCancelled ? {cancelled: true} : {})
                     };
+                case 'data': {
+                    if (toolCallReason == null || !isRunningSubagent(part)) return part;
+                    changed = true;
+                    const data: ChatSubagentData = {
+                        ...part.data,
+                        ...(isCancelled
+                            ? {status: 'cancelled'}
+                            : {status: 'error', error: toolCallReason}),
+                        endedAt: part.data.endedAt ?? now
+                    };
+                    return {...part, data};
+                }
                 default:
                     return part;
             }

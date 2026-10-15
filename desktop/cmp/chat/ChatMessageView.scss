@@ -237,6 +237,10 @@
     min-width: 0;
   }
 
+  &__text--revising {
+    color: var(--xh-chat-held-text-color);
+  }
+
   // Prose stays at the prose width at every column width. Cards - code, tables and components -
   // span the column.
   &__text .xh-chat-markdown > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6, hr, dl) {
@@ -325,9 +329,11 @@
     gap: 1px;
     height: var(--xh-chat-turn-gap);
 
+    // Each button hides after a short delay, so that a pointer on its way to it keeps it.
     > * {
       opacity: 0;
-      transition: opacity var(--xh-chat-motion-reveal) var(--xh-chat-motion-ease);
+      transition: opacity var(--xh-chat-motion-reveal) var(--xh-chat-motion-ease)
+        var(--xh-chat-motion-hide-delay);
     }
   }
 
@@ -344,6 +350,7 @@
   &__actions > .xh-chat-message__thumb--chosen,
   &__actions > .xh-chat-message__feedback-status {
     opacity: 1;
+    transition-delay: 0s;
   }
 
   &__actions-sep {

@@ -399,12 +399,15 @@ export class ChatAssistantModel extends HoistModel implements ChatUndoGuard {
 
     /**
      * Wrap a group's tool, to record and flash what each call changed, and to show its calls as
-     * change lines. The wrapper inherits the spec, so that its schema getters stay live.
+     * change lines. A tool that sets a display other than `card` keeps it, with its own renderer.
+     * The wrapper inherits the spec, so that its schema getters stay live.
      */
     private wrapTool(spec: ChatToolSpec, group: ChatToolGroup): ChatToolSpec {
         if (!spec.execute) return spec;
         const model = this,
-            ret = Object.create(spec) as ChatToolSpec;
+            ret = Object.create(spec) as ChatToolSpec,
+            showsChangeLine = () =>
+                !!model.renderers.changeLine && (spec.display ?? 'card') === 'card';
         Object.defineProperties(ret, {
             execute: {
                 enumerable: true,
@@ -418,11 +421,11 @@ export class ChatAssistantModel extends HoistModel implements ChatUndoGuard {
             },
             display: {
                 enumerable: true,
-                get: (): ChatToolDisplay => (model.renderers.changeLine ? 'inline' : spec.display)
+                get: (): ChatToolDisplay => (showsChangeLine() ? 'inline' : spec.display)
             },
             renderer: {
                 enumerable: true,
-                get: () => model.renderers.changeLine ?? spec.renderer
+                get: () => (showsChangeLine() ? model.renderers.changeLine : spec.renderer)
             }
         });
         return ret;

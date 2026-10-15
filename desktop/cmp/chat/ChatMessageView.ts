@@ -1,5 +1,5 @@
 import {findLastIndex, isEqual, sumBy} from 'lodash';
-import {type ReactElement, type ReactNode, useLayoutEffect, useMemo} from 'react';
+import {type ReactElement, type ReactNode, useEffect, useLayoutEffect, useMemo} from 'react';
 import {getRelativeTimestamp, relativeTimestamp} from '@xh/hoist/cmp/relativetimestamp';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, managed, useLocalModel, uses} from '@xh/hoist/core';
@@ -8,8 +8,9 @@ import {textArea} from '@xh/hoist/desktop/cmp/input';
 import {fmtDateTime} from '@xh/hoist/format';
 import {Icon} from '@xh/hoist/icon';
 import {action, bindable, observable, observableRef, untracked} from '@xh/hoist/mobx';
+import {wait} from '@xh/hoist/promise';
 import {pluralize} from '@xh/hoist/utils/js';
-import {createObservableRef, useCached} from '@xh/hoist/utils/react';
+import {createObservableRef, useCached, useComposedRefs} from '@xh/hoist/utils/react';
 import {
     type ChatImagePolicy,
     type ChatMarkdownCitations,
@@ -33,10 +34,12 @@ import {
     type ChatSidePanelHost,
     type ChatSourcePart,
     type ChatTextPart,
+    type ChatToolCallPart,
     type ChatUndoGuard,
     getChatNoAnswerPart,
     getChatReplyStatus,
-    isChatUndoGuard
+    isChatUndoGuard,
+    isToolCallFailed
 } from '../../../core';
 import '../../../styles/vars.scss';
 import {chatFileChip} from './ChatFileChip';
@@ -62,8 +65,9 @@ import {
     ChatMessageFeedbackModel,
     feedbackThumbs
 } from './impl/ChatFeedbackControls';
-import {chatCaret, chatSpinner} from './impl/ChatLiveCues';
+import {chatCaret, chatSpinner} from '../../impl/ChatLiveCues';
 import {chatReplyLiveStatus} from './impl/ChatReplyLiveStatus';
+import {type ChatAnnounceSteps, ChatStepAnnouncer} from './impl/ChatStepAnnouncer';
 import {chatErrorBoundary} from './impl/ChatErrorBoundary';
 import {formatElapsed} from './impl/ChatFormat';
 import {chatToolCallGroup} from './impl/ChatToolCallGroup';
@@ -151,6 +155,12 @@ export interface ChatMessageViewProps extends HoistProps {
     messageHeaderItems?: ChatMessageRenderFn;
 
     /**
+     * Which steps of a running reply the screen reader announcer reads as they finish: none,
+     * failures or all. Default from `ChatKit.defaults.announceSteps`.
+     */
+    announceSteps?: ChatAnnounceSteps;
+
+    /**
      * True if this is the last message in the conversation. Its action bar stays shown, and an
      * assistant message offers Regenerate.
      * @internal
@@ -222,8 +232,13 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
         const {className, message, host, assistantName, isLast = false} = props,
             {citationMarkers = false} = props,
             impl = useLocalModel(ChatMessageViewLocalModel),
+            rootRef = useComposedRefs(ref, impl.rootRef),
             context = useMemo<ChatPartRenderContext>(
-                () => ({chatModel: host instanceof ChatModel ? host : null, messageId: message.id}),
+                () => ({
+                    chatModel: host instanceof ChatModel ? host : null,
+                    host,
+                    messageId: message.id
+                }),
                 [host, message.id]
             ),
             // Kept stable while unchanged, so cited text parts skip render as the message streams.
@@ -241,12 +256,25 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
         });
         impl.feedback.configure(message, host);
 
+        // Calls shown outside a timeline announce as they finish. A timeline announces its own.
+        useEffect(() => {
+            if (!message.isAssistant) return;
+            impl.cardSteps.note(
+                message.toolCalls.filter(it => isAnnouncedOutsideTimeline(it, host)),
+                {
+                    isLive: message.isStreaming || message.status === 'paused',
+                    host,
+                    announceSteps: props.announceSteps
+                }
+            );
+        });
+
         // A turn that was never sent shows as "Not sent" on its user message alone.
         if (isReplyNotSent(message)) return null;
 
         const isSystem = message.role === 'system';
         return div({
-            ref,
+            ref: rootRef,
             className: classNames(className, `xh-chat-message--${message.role}`, {
                 'xh-chat-message--streaming': message.isStreaming,
                 'xh-chat-message--last': isLast,
@@ -292,6 +320,10 @@ class ChatMessageViewLocalModel extends HoistModel {
     /** The message's thumbs and comment form. */
     @managed readonly feedback = new ChatMessageFeedbackModel();
 
+    /** Announces the calls shown outside a timeline as they finish. */
+    readonly cardSteps = new ChatStepAnnouncer();
+
+    readonly rootRef = createObservableRef<HTMLElement>();
     readonly inputRef = createObservableRef<HTMLInputElement>();
     readonly editButtonRef = createObservableRef<HTMLElement>();
 
@@ -400,10 +432,15 @@ class ChatMessageViewLocalModel extends HoistModel {
         return host.undoErrors?.[message.id] ?? this.undoRejection;
     }
 
-    /** Undo the reply's changes. A failure shows inline, with Retry - never as a toast. */
+    /**
+     * Undo the reply's changes. A failure shows inline, with Retry - never as a toast. Undo goes
+     * once it succeeds, so focus on it moves to the reply.
+     */
     async undoAsync() {
         const {message, host} = this.props;
         if (this.isUndoing || !this.canUndo) return;
+        const reply = this.rootRef.current,
+            hadFocus = !!reply?.contains(document.activeElement);
         this.setUndoState(true, null);
         let rejection: Error = null;
         try {
@@ -416,6 +453,13 @@ class ChatMessageViewLocalModel extends HoistModel {
             chatAnnouncer.announce('Change not undone.', 'assertive');
         } else {
             chatAnnouncer.announce('Change undone.');
+            if (hadFocus) {
+                // After the render that removes the button.
+                wait().then(() => {
+                    const active = document.activeElement;
+                    if (!active || active === document.body) reply.focus();
+                });
+            }
         }
     }
 
@@ -630,7 +674,8 @@ function assistantContent(
         runs = groupProcessRuns(groupParts(message.parts, host), host),
         // A fixed "not found" reply lists no sources.
         isNoAnswer = !!getChatNoAnswerPart(message),
-        uncitedSources = isNoAnswer ? [] : collectUncitedSources(message.parts, references);
+        uncitedSources = isNoAnswer ? [] : collectUncitedSources(message.parts, references),
+        stepOffsets = getStepOffsets(runs);
 
     return [
         div({
@@ -645,7 +690,13 @@ function assistantContent(
                             run.type === 'process'
                                 ? processRun(run, props, impl, context, references, markerSources)
                                 : run.type === 'timeline'
-                                  ? timelineBlock(run, props, context, idx < runs.length - 1)
+                                  ? timelineBlock(
+                                        run,
+                                        props,
+                                        context,
+                                        idx < runs.length - 1,
+                                        stepOffsets.get(run.id)
+                                    )
                                   : renderGroup(
                                         run,
                                         props,
@@ -708,9 +759,10 @@ function timelineBlock(
     group: ChatTimelineGroup,
     props: ViewProps,
     context: ChatPartRenderContext,
-    isFollowed: boolean
+    isFollowed: boolean,
+    stepOffset: number
 ): ReactNode {
-    const {message, host, isLast} = props;
+    const {message, host, isLast, announceSteps} = props;
     return chatErrorBoundary({
         key: group.id,
         item: chatTimeline({
@@ -720,9 +772,29 @@ function timelineBlock(
             pinned: group.pinned,
             context,
             isFollowed,
-            isLast
+            isLast,
+            announceSteps,
+            stepOffset
         })
     });
+}
+
+// The calls in each timeline block's earlier blocks, by block id, so that steps count across them.
+function getStepOffsets(runs: Array<ChatPartGroup | ChatProcessRun>): Map<string, number> {
+    const ret = new Map<string, number>();
+    let count = 0;
+    runs.forEach(run => {
+        if (run.type !== 'timeline') return;
+        ret.set(run.id, count);
+        count += run.parts.filter(it => it.type === 'toolCall').length;
+    });
+    return ret;
+}
+
+// A call whose finish the message view announces: one it shows, outside a timeline.
+function isAnnouncedOutsideTimeline(call: ChatToolCallPart, host: ChatMessageListHost): boolean {
+    const display = getToolCallDisplay(call, host);
+    return display !== 'timeline' && display !== 'hidden' && display !== 'pinned';
 }
 
 function renderGroup(
@@ -751,7 +823,7 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
         // A timeline counts its own failures.
         failedTools = isDone
             ? message.toolCalls.filter(
-                  it => it.state === 'output-error' && getToolCallDisplay(it, host) !== 'timeline'
+                  it => isToolCallFailed(it) && getToolCallDisplay(it, host) !== 'timeline'
               ).length
             : 0,
         endedAt = createdAt + (metadata?.elapsedMs ?? 0),
@@ -931,7 +1003,11 @@ const textPart = hoistCmp.factory<TextPartProps>({
         markdownPlugins,
         allowImages
     }) {
-        const components = useChatMarkdownComponents(markdownComponents),
+        // Text the server is revising holds in the held color until it catches up.
+        const className = classNames('xh-chat-message__text', {
+                'xh-chat-message__text--revising': isStreaming && !!part?.revising
+            }),
+            components = useChatMarkdownComponents(markdownComponents),
             // Inline at the end of the last paragraph - memoized, as each new value re-renders it.
             // While the text streams, the caret leads. Keyed by the text's length, so that each
             // arrival restarts its blink.
@@ -974,13 +1050,13 @@ const textPart = hoistCmp.factory<TextPartProps>({
 
         // Text with no component tags - the common case - renders as one block of markdown.
         if (!segments?.some(it => it.type !== 'markdown')) {
-            return div({className: 'xh-chat-message__text', item: markdown(text, true, true)});
+            return div({className, item: markdown(text, true, true)});
         }
 
         // Segments only grow at the end as the text streams, so their index is a stable key.
         const lastMarkdownIdx = findLastIndex(segments, it => it.type === 'markdown');
         return div({
-            className: 'xh-chat-message__text',
+            className,
             items: segments.map((segment, idx) =>
                 segment.type === 'markdown'
                     ? markdown(
@@ -1198,8 +1274,10 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
                           tooltip: 'Regenerate',
                           'aria-label': 'Regenerate',
                           onClick: () => {
-                              // The reply goes, and a pending rating of it with it.
+                              // The reply goes, and a pending rating of it with it. So does the
+                              // button, so focus goes to the composer, where the new reply ends.
                               impl.feedback.discardForm();
+                              host.composerModel?.focus();
                               host.regenerateAsync(message.id).catchDefault();
                           }
                       })
@@ -1224,7 +1302,8 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
 
         return div({
             className: 'xh-chat-message__actions',
-            role: 'toolbar',
+            // A group, not a toolbar: each action is its own tab stop, with no arrow keys.
+            role: 'group',
             'aria-label': 'Message actions',
             items: groups.flatMap((items, idx) =>
                 idx

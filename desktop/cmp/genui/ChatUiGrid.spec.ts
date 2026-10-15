@@ -261,6 +261,53 @@ describe('ChatUiGrid', () => {
             expect.arrayContaining(['data', 'columns', 'sortBy', 'filter', 'top', 'units'])
         );
         expect(spec.dataProps).toEqual([{name: 'data', pageSize: 1000}]);
+
+        // An app may set the defaults after it builds its catalog.
+        ChatUiGrid.defaults.pageSize = 250;
+        expect(spec.dataProps).toEqual([{name: 'data', pageSize: 250}]);
+    });
+
+    it('keeps one resize observer as its rows stream', () => {
+        const observers = vi.fn();
+        vi.stubGlobal(
+            'ResizeObserver',
+            class extends NoopResizeObserver {
+                constructor() {
+                    super();
+                    observers();
+                }
+            }
+        );
+        const {rerender} = renderInChat(
+            chatUiGrid({columns: COLUMNS, rows: rows(3), isPartial: true})
+        );
+        rerender(chatUiGrid({columns: COLUMNS, rows: rows(4), isPartial: true}));
+        rerender(chatUiGrid({columns: COLUMNS, rows: rows(5), isPartial: true}));
+
+        expect(observers).toHaveBeenCalledOnce();
+    });
+
+    it('destroys the registry of inline rows it replaces, and its own on unmount', async () => {
+        const exportAsync = vi.spyOn(GridModel.prototype, 'exportAsync').mockResolvedValue(),
+            destroy = vi.spyOn(ChatArtifactRegistry.prototype, 'destroy');
+        onTestFinished(() => {
+            exportAsync.mockRestore();
+            destroy.mockRestore();
+        });
+        const download = () =>
+                fireEvent.click(screen.getByRole('button', {name: 'Download Positions'})),
+            props = {title: 'Positions', columns: COLUMNS},
+            {rerender, unmount} = renderInChat(chatUiGrid({...props, rows: rows(30)}));
+
+        download();
+        await vi.waitFor(() => expect(exportAsync).toHaveBeenCalledTimes(1));
+        rerender(chatUiGrid({...props, rows: rows(31)}));
+        download();
+        await vi.waitFor(() => expect(exportAsync).toHaveBeenCalledTimes(2));
+        expect(destroy).toHaveBeenCalledOnce();
+
+        unmount();
+        expect(destroy).toHaveBeenCalledTimes(2);
     });
 
     it('exports every row on download, not just the preview', async () => {

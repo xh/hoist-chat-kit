@@ -101,6 +101,21 @@ describe('ChatMarkdown', () => {
             expect(renderGroup.mock.calls[0][1].map(it => it.number)).toEqual([2, 3, 4, 5]);
         });
 
+        it('lists every source of a group in its tooltip, and opens the first on click', () => {
+            const sources: ChatSourcePart[] = [1, 2, 3, 4].map(n => ({
+                    type: 'source',
+                    id: `s${n}`,
+                    title: `Doc ${n}`
+                })),
+                onClick = vi.fn();
+            renderMarkdown({content: 'All agree [1–4].', citations: {sources, onClick}});
+
+            const marker = screen.getByRole('button', {name: 'Sources 1 to 4'});
+            expect(marker.getAttribute('title')).toBe('1. Doc 1\n2. Doc 2\n3. Doc 3\n4. Doc 4');
+            fireEvent.click(marker);
+            expect(onClick).toHaveBeenCalledExactlyOnceWith(sources[0]);
+        });
+
         it('leaves markers in code, links and footnotes as written', () => {
             const {container} = renderMarkdown({
                 content: [

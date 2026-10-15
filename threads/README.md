@@ -378,6 +378,7 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`.
 | Method | Description |
 |--------|-------------|
 | `listThreadsAsync({search, cursor, limit})` | Required. A `ChatThreadPage`: threads most recently active first, and a `nextCursor`. |
+| `searchesMessages` | Property. True if the search covers message text, not just titles. Then each match may carry a `snippet`. |
 | `loadMessagesAsync({threadId, cursor, limit})` | Required. A `ChatMessagePage`: the newest messages, or those older than `cursor`, oldest first, and a `nextCursor` for older ones. |
 | `createThreadAsync({localId, title})` | Create the thread and return its summary, with the backend's id. Idempotent per `localId`. |
 | `renameThreadAsync(threadId, title)` | Rename a thread. |
@@ -397,6 +398,7 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`.
 | `isRunning` | `boolean` | True if the backend reports a run in progress. Optional. |
 | `lastRunEnd` | `'complete' \| 'interrupted' \| 'failed'` | How the last run ended, if the backend reports it. A thread list marks `interrupted` and `failed`. Optional. |
 | `lastRunReason` | `string` | Why the last run ended so, for a tooltip. Optional. |
+| `snippet` | `string` | For a search result, the passage that matched, as plain text. A thread list shows it under the title. Optional. |
 | `metadata` | `PlainObject` | App data. Optional. |
 
 ### LocalChatThreadStore

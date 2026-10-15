@@ -13,7 +13,8 @@ import {isToolCallFinal} from './ChatPart';
  *  - `submitted` - the reply has started and has no answer text yet: the model is thinking,
  *    reasoning, or starting its next step after a tool.
  *  - `streaming` - answer text is arriving.
- *  - `recomposing` - the server discarded text it streamed, and the reply is being rewritten.
+ *  - `recomposing` - the server replaced the text it streamed with shorter text, which the reply
+ *    is rewriting - see `ChatTextPart.revising`.
  *  - `runningTool` - a tool call of the reply is running.
  *  - `paused` - the turn waits for the user to answer its tool calls.
  *  - `waitingToRetry` - the turn failed, and the server asked the client to wait before it
@@ -58,12 +59,6 @@ export interface ChatReplyStatusSpec {
 
     /** Milliseconds without data before a reply is stalled. Default `ChatKit.defaults.stallAfterMs`. */
     stallAfterMs?: number;
-
-    /**
-     * True while the reply's text is being rewritten after the server discarded what it streamed.
-     * Default false.
-     */
-    isRecomposing?: boolean;
 }
 
 /**
@@ -71,12 +66,12 @@ export interface ChatReplyStatusSpec {
  * component re-reads it as the clock ticks.
  *
  * A reply in progress reads, in order: stalled once `stallAfterMs` passes with no data, then
- * running a tool while a call is not done, then streaming while answer text arrives, and else
- * submitted. A reply that ended reads its status, and for a failure, its `metadata.errorCode` and
+ * running a tool while a call is not done, then recomposing while a text part is `revising`, then
+ * streaming while answer text arrives, and else submitted. A reply that ended reads its status, and for a failure, its `metadata.errorCode` and
  * `metadata.retryAfterSeconds`.
  */
 export function getChatReplyStatus(spec: ChatReplyStatusSpec): ChatReplyStatus {
-    const {message, lastActivityAt = null, now = Date.now(), isRecomposing = false} = spec,
+    const {message, lastActivityAt = null, now = Date.now()} = spec,
         stallAfterMs = spec.stallAfterMs ?? ChatKit.defaults.stallAfterMs;
     if (!message?.isAssistant) return 'idle';
 
@@ -95,7 +90,9 @@ export function getChatReplyStatus(spec: ChatReplyStatusSpec): ChatReplyStatus {
     // Pending or streaming.
     if (lastActivityAt != null && now - lastActivityAt >= stallAfterMs) return 'stalled';
     if (message.toolCalls.some(it => !isToolCallFinal(it))) return 'runningTool';
-    if (isRecomposing) return 'recomposing';
+    if (message.parts.some(it => it.type === 'text' && it.state === 'streaming' && it.revising)) {
+        return 'recomposing';
+    }
 
     const lastPart = last(message.parts);
     if (!lastPart || lastPart.type === 'reasoning' || lastPart.type === 'toolCall') {
@@ -107,13 +104,14 @@ export function getChatReplyStatus(spec: ChatReplyStatusSpec): ChatReplyStatus {
 /**
  * Milliseconds left of the wait that the server asked for before a retry, or null if the reply
  * is not waiting - see {@link ChatReplyStatus} `waitingToRetry`. The wait runs from the end of the
- * failed turn, `createdAt` plus `metadata.elapsedMs`.
+ * failed turn, `metadata.endedAt`. A reply without it, such as one from older history, ends at
+ * `createdAt` plus `metadata.elapsedMs`.
  */
 export function getChatRetryWaitMs(message: ChatMessage, now: number = Date.now()): number {
     const {status, metadata, createdAt} = message ?? {};
     if (status !== 'error' || !(metadata.retryAfterSeconds > 0)) return null;
 
-    const endedAt = createdAt + (metadata.elapsedMs ?? 0),
+    const endedAt = metadata.endedAt ?? createdAt + (metadata.elapsedMs ?? 0),
         remaining = endedAt + metadata.retryAfterSeconds * 1000 - now;
     return remaining > 0 ? remaining : null;
 }

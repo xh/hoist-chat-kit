@@ -111,6 +111,70 @@ describe('ChatComposerModel drafts', () => {
         expect(composer.text).toBe('Draft for one');
     });
 
+    it('empties the composer when the chat moves to a thread with no draft', async () => {
+        vi.useFakeTimers();
+        const chatModel = createChatModel({threadId: 't1'}),
+            composer = chatModel.composerModel;
+        composer.text = 'Question for one';
+
+        chatModel.loadMessages([{role: 'user', content: 'Earlier'}], 't2');
+        expect(composer.text).toBe('');
+        await vi.advanceTimersByTimeAsync(500);
+        expect(savedDraft('t2')).toBeNull();
+        expect(savedDraft('t1')?.text).toBe('Question for one');
+    });
+
+    it('empties the composer on a new chat, keeping the old thread its draft', async () => {
+        vi.useFakeTimers();
+        const chatModel = createChatModel({threadId: 't1'}),
+            composer = chatModel.composerModel;
+        composer.text = 'Question for one';
+        await vi.advanceTimersByTimeAsync(200);
+
+        chatModel.clear();
+        expect(composer.text).toBe('');
+        expect(composer.restoredDraft).toBeNull();
+        await vi.advanceTimersByTimeAsync(500);
+        expect(savedDraft(chatModel.threadId)).toBeNull();
+        expect(savedDraft('t1')?.text).toBe('Question for one');
+
+        chatModel.loadMessages([], null);
+        expect(composer.text).toBe('');
+    });
+
+    it('drops the attachments of the last thread when the chat moves', async () => {
+        const chatModel = createChatModel({threadId: 't1', composer: {enableAttachments: true}}),
+            composer = chatModel.composerModel;
+        await composer.addFilesAsync([new File(['x'], 'tape.csv', {type: 'text/csv'})]);
+
+        chatModel.loadMessages([{role: 'user', content: 'Earlier'}], 't2');
+
+        expect(composer.attachments).toEqual([]);
+    });
+
+    it('keeps each thread its own draft in memory, and saves nothing', () => {
+        const chatModel = createChatModel({threadId: 't1', composer: {drafts: 'memory'}}),
+            composer = chatModel.composerModel;
+        composer.text = 'Draft for one';
+
+        chatModel.loadMessages([{role: 'user', content: 'Earlier'}], 't2');
+        expect(composer.text).toBe('');
+
+        chatModel.loadMessages([{role: 'user', content: 'Earlier'}], 't1');
+        expect(composer.text).toBe('Draft for one');
+        expect(savedDraft('t1')).toBeNull();
+    });
+
+    it('removes the saved drafts of the given threads only', () => {
+        saveDraft('t1', 'One');
+        saveDraft('t2', 'Two');
+
+        ChatKit.clearLocalData(['t1']);
+
+        expect(savedDraft('t1')).toBeNull();
+        expect(savedDraft('t2')?.text).toBe('Two');
+    });
+
     it('moves the draft to the id the backend gives a new thread', async () => {
         vi.useFakeTimers();
         const chatModel = createChatModel({

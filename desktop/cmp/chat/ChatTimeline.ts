@@ -1,5 +1,5 @@
 import {compact} from 'lodash';
-import {type ReactNode, useEffect} from 'react';
+import {type ReactNode, useEffect, useId} from 'react';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {select} from '@xh/hoist/desktop/cmp/input';
 import {div, span, ul} from '@xh/hoist/cmp/layout';
@@ -12,7 +12,6 @@ import {
     ChatKit,
     type ChatMessage,
     type ChatMessageListHost,
-    ChatModel,
     type ChatPart,
     type ChatPartRenderContext,
     type ChatToolCallPart,
@@ -24,7 +23,8 @@ import {classNames} from '../../../impl/ClassNames';
 import {chatElapsed} from './ChatElapsed';
 import './ChatTimeline.scss';
 import {formatStallDuration} from './impl/ChatFormat';
-import {chatSpinner} from './impl/ChatLiveCues';
+import {chatSpinner} from '../../impl/ChatLiveCues';
+import type {ChatAnnounceSteps} from './impl/ChatStepAnnouncer';
 import {
     buildTimelineItems,
     type ChatTimelineState,
@@ -62,7 +62,10 @@ export interface ChatTimelineProps extends HoistProps {
     /** Calls to `pinned` tools, the latest of which is the plan. Default those of the reply. */
     pinned?: ChatToolCallPart[];
 
-    /** Render context of the reply, passed to tool renderers. Default one for the reply. */
+    /**
+     * Render context of the reply, passed to tool renderers. The message view passes its own.
+     * Default one for the reply, with the host and no `chatModel`.
+     */
     context?: ChatPartRenderContext;
 
     /**
@@ -81,7 +84,13 @@ export interface ChatTimelineProps extends HoistProps {
      * Which steps the screen reader announcer reads as they finish: none, failures or all.
      * Default from `ChatKit.defaults.announceSteps`.
      */
-    announceSteps?: 'none' | 'failures' | 'all';
+    announceSteps?: ChatAnnounceSteps;
+
+    /**
+     * Steps of the reply's earlier blocks, so that "Step N done" counts across the reply.
+     * @internal
+     */
+    stepOffset?: number;
 }
 
 /**
@@ -111,15 +120,13 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
     render(props, ref) {
         const {className, message, host, isFollowed = false, isLast = false} = props,
             impl = useLocalModel(ChatTimelineLocalModel),
+            bodyId = useId(),
             rootRef = useComposedRefs(
                 useOnResize(rect => impl.setWidth(rect.width)),
                 ref
             ),
             {parts, pinned} = getBlockParts(props),
-            context = props.context ?? {
-                chatModel: host instanceof ChatModel ? host : null,
-                messageId: message.id
-            },
+            context = props.context ?? {chatModel: null, host, messageId: message.id},
             items = buildTimelineItems(parts, host),
             summary = summarizeTimeline(items, pinned, host),
             isLive = message.isStreaming,
@@ -133,16 +140,15 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
                 isFollowed,
                 isQuiet: quietMs != null && quietMs >= stallAfterMs
             }),
-            {isExpanded, isNarrow} = impl,
-            bodyId = `${message.id}-timeline`;
+            {isExpanded, isNarrow} = impl;
 
         useEffect(() => {
-            impl.noteSteps(
-                summary.calls,
-                isLive || message.status === 'paused',
+            impl.steps.note(summary.calls, {
+                isLive: isLive || message.status === 'paused',
                 host,
-                props.announceSteps
-            );
+                announceSteps: props.announceSteps,
+                stepOffset: props.stepOffset
+            });
             impl.noteQuiet(state === 'quiet' ? quietMs : null, runningTitle(summary, host));
         });
 
@@ -152,6 +158,7 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
                 host,
                 context,
                 isStopped: state === 'stopped',
+                isLive,
                 tabStopId: impl.focusId ?? firstRowId
             };
 
@@ -248,6 +255,8 @@ function lineIcon(state: ChatTimelineState): ReactNode {
         case 'approval':
         case 'question':
             return span({className: 'xh-chat-timeline__icon--attention', item: Icon.pauseCircle()});
+        case 'paused':
+            return Icon.pauseCircle();
         case 'stopped':
             return Icon.stopCircle();
         case 'failed':
@@ -289,10 +298,12 @@ function lineStage(
             return stage('Waiting for approval');
         case 'question':
             return stage('Waiting for your answer');
-        case 'stopped':
-            return stage(
-                `Stopped after ${pluralize('tool', calls.filter(isToolCallFinal).length, true)}`
-            );
+        case 'paused':
+            return stage('Paused');
+        case 'stopped': {
+            const ran = calls.filter(it => isToolCallFinal(it) && !it.cancelled).length;
+            return stage(`Stopped after ${pluralize('tool', ran, true)}`);
+        }
         case 'failed':
             return stage(`Ended at step ${calls.length}`);
         default:
@@ -333,7 +344,7 @@ function lineMeta(
 ): ReactNode {
     const {calls, plan, failedCount, isAllRetried} = summary,
         {isNarrow} = impl,
-        isWorking = ['running', 'quiet', 'approval', 'question'].includes(state),
+        isWorking = ['running', 'quiet', 'approval', 'question', 'paused'].includes(state),
         planItems = plan?.items,
         progress = !isWorking
             ? null
@@ -344,7 +355,10 @@ function lineMeta(
               : !isNarrow && calls.length
                 ? pluralize('step', calls.length, true)
                 : null,
-        cancelled = state === 'stopped' ? calls.filter(it => !isToolCallFinal(it)).length : 0,
+        cancelled =
+            state === 'stopped'
+                ? calls.filter(it => it.cancelled || !isToolCallFinal(it)).length
+                : 0,
         segments: ReactNode[] = compact([
             state === 'quiet' && !isNarrow && quietMs != null
                 ? `no update for ${formatStallDuration(quietMs)}`

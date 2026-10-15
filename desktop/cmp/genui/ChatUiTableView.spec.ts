@@ -50,6 +50,42 @@ describe('ChatUiTableView', () => {
         expect(screen.getByText('Sorted by Qty, descending')).toBeTruthy();
     });
 
+    it('says that its sort covers only the rows loaded', async () => {
+        const {request} = setup(2500, {sortBy: 'qty|desc'});
+        renderInHost(chatUiTableView({request}));
+        await screen.findByText('Loaded 1,000 of 2,500 rows');
+        expect(screen.getByText(/Sort and Find cover loaded rows/)).toBeTruthy();
+    });
+
+    it("counts the rows the card's filter keeps", async () => {
+        const filter = [{field: 'qty', op: 'lt' as const, value: 4}],
+            partial = setup(2500, {filter}),
+            whole = setup(10, {filter});
+        renderInHost(chatUiTableView({request: partial.request}));
+        await screen.findByText('Loaded 1,000 of 2,500 rows · 4 shown');
+
+        renderInHost(chatUiTableView({request: whole.request}));
+        await screen.findByText('10 rows · 4 shown');
+    });
+
+    it('waits for Load Next to finish before it exports, and for an export before Load Next', async () => {
+        let release: () => void;
+        const {loadAsync, request} = setup(2500);
+        renderInHost(chatUiTableView({request}));
+        await screen.findByText('Loaded 1,000 of 2,500 rows');
+
+        loadAsync.mockImplementationOnce(async ({offset, limit}) => {
+            await new Promise<void>(resolve => (release = resolve));
+            return {columns: [], rows: makeRows(offset, limit), totalRows: 2500};
+        });
+        fireEvent.click(screen.getByRole('button', {name: 'Load Next 1,000'}));
+        await vi.waitFor(() => expect(exportButton().disabled).toBe(true));
+
+        await act(async () => release());
+        await screen.findByText('Loaded 2,000 of 2,500 rows');
+        expect(exportButton().disabled).toBe(false);
+    });
+
     it('says that find searches only the rows loaded', async () => {
         const {request} = setup(2500);
         renderInHost(chatUiTableView({request}));
@@ -114,11 +150,7 @@ const DEFAULTS = {...ChatUiGrid.defaults};
 function setup(totalRows: number, view: ChatDataView = {}) {
     const loadAsync = vi.fn(async ({offset, limit}: ChatDataLoadSpec) => ({
             columns: [],
-            rows: Array.from({length: limit}, (_, idx) => ({
-                symbol: `S${offset + idx}`,
-                qty: offset + idx,
-                desk: 'Rates'
-            })),
+            rows: makeRows(offset, limit),
             totalRows
         })),
         registry = new ChatArtifactRegistry({
@@ -138,6 +170,18 @@ function setup(totalRows: number, view: ChatDataView = {}) {
         request: ChatTableRequest = {type: 'table', artifactId: 'pos', view, registry};
     onTestFinished(() => registry.destroy());
     return {loadAsync, registry, request};
+}
+
+function makeRows(offset: number, limit: number) {
+    return Array.from({length: limit}, (_, idx) => ({
+        symbol: `S${offset + idx}`,
+        qty: offset + idx,
+        desk: 'Rates'
+    }));
+}
+
+function exportButton(): HTMLButtonElement {
+    return screen.getByRole('button', {name: 'Export'}) as HTMLButtonElement;
 }
 
 class NoopResizeObserver {

@@ -10,7 +10,7 @@ import {type ChatComposerStatus, ChatComposerModel} from '../../../core';
 import {classNames} from '../../../impl/ClassNames';
 import '../../../styles/vars.scss';
 import './ChatStatusRegion.scss';
-import {chatSpinner} from './impl/ChatLiveCues';
+import {chatSpinner} from '../../impl/ChatLiveCues';
 import {ChatStatusRegionLocalModel} from './impl/ChatStatusRegionLocalModel';
 import {
     getReplyStatusLabel,
@@ -43,7 +43,8 @@ export interface ChatStatusRegionProps extends HoistProps<ChatComposerModel> {
  *  - A restored draft, with Discard.
  *
  * Screen readers hear each status once, through the kit's announcer: a failure at once, the rest
- * politely, and a countdown every 10 seconds at most.
+ * politely, and a countdown every 10 seconds at most. The status a thread has when the region
+ * mounts, or when the thread opens, is not announced.
  *
  * Uses a {@link ChatComposerModel} from props, or else the `composerModel` of the `ChatModel` in
  * context. `ChatPanel` renders one above its composer.

@@ -1,13 +1,14 @@
 import {div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
-import {useEffect, useState} from 'react';
-import {type ChatAnnouncement, chatAnnouncer} from '../../../../core';
+import {useEffect, useRef, useState} from 'react';
+import {type ChatAnnouncement, chatAnnouncer, type ChatAnnouncerRegionHost} from '../../../../core';
 import './ChatAnnouncerRegions.scss';
 
 /**
  * The two visually hidden live regions of the kit's announcer, one polite and one assertive. The
- * message list renders them. When several lists are mounted, only the first fills its regions, so
- * a screen reader hears each announcement once.
+ * message list and the composer render them, so that a layout with either one speaks. Each
+ * announcement fills the regions of one mounted instance only, the newest visible one when it is
+ * made, so that a screen reader hears it once.
  * @internal
  */
 export const chatAnnouncerRegions = hoistCmp.factory<HoistProps>({
@@ -17,18 +18,21 @@ export const chatAnnouncerRegions = hoistCmp.factory<HoistProps>({
 
     render({className}) {
         // A token for this instance, registered while mounted.
-        const [host] = useState(() => ({})),
-            isHost = chatAnnouncer.isRegionHost(host);
+        const ref = useRef<HTMLDivElement>(null),
+            [host] = useState<ChatAnnouncerRegionHost>(() => ({
+                isVisible: () => isVisible(ref.current)
+            }));
         useEffect(() => {
             chatAnnouncer.attachRegions(host);
             return () => chatAnnouncer.detachRegions(host);
         }, [host]);
 
         return div({
+            ref,
             className,
             items: [
-                region('polite', isHost ? chatAnnouncer.polite : null),
-                region('assertive', isHost ? chatAnnouncer.assertive : null)
+                region('polite', chatAnnouncer.getRegionText(host, 'polite')),
+                region('assertive', chatAnnouncer.getRegionText(host, 'assertive'))
             ]
         });
     }
@@ -48,4 +52,10 @@ function region(politeness: 'polite' | 'assertive', announcement: ChatAnnounceme
         'aria-atomic': true,
         item: announcement ? div({key: announcement.id, item: announcement.text}) : null
     });
+}
+
+// Hidden by an ancestor - an inactive tab, a collapsed panel - or not in the page.
+function isVisible(el: HTMLElement): boolean {
+    if (!el?.isConnected) return false;
+    return el.checkVisibility ? el.checkVisibility() : true;
 }

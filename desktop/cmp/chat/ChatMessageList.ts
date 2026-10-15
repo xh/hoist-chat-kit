@@ -10,7 +10,12 @@ import type {
     ChatMarkdownComponents,
     ChatMarkdownPlugins
 } from '../../../cmp/markdown';
-import {type ChatMessage, type ChatMessageListHost, ChatModel} from '../../../core';
+import {
+    ChatComposerModel,
+    type ChatMessage,
+    type ChatMessageListHost,
+    ChatModel
+} from '../../../core';
 import '../../../styles/vars.scss';
 import {chatEmptyState} from './ChatEmptyState';
 import './ChatMessageList.scss';
@@ -18,6 +23,7 @@ import {type ChatMessageRenderFn, type ChatSourceClickFn, chatMessageView} from 
 import type {ChatSuggestion} from './ChatSuggestions';
 import {chatAnnouncerRegions} from './impl/ChatAnnouncerRegions';
 import {chatErrorBoundary} from './impl/ChatErrorBoundary';
+import type {ChatAnnounceSteps} from './impl/ChatStepAnnouncer';
 import {ChatMessageListLocalModel} from './impl/ChatMessageListLocalModel';
 import {refuseFileDrop} from './impl/FileDrop';
 import {getFailureCause, isReplyNotSent} from './impl/ReplyFailure';
@@ -33,7 +39,10 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
     /** Content to show when the conversation has no messages, in place of the default. */
     emptyState?: ReactNode;
 
-    /** Suggested prompts for the default empty state. */
+    /**
+     * Suggested prompts for the default empty state. They fill the host's `composerModel`, and
+     * show only when it is a `ChatComposerModel`.
+     */
     suggestions?: Array<ChatSuggestion | string>;
 
     /** Name shown on assistant messages. Default 'Assistant'. */
@@ -86,6 +95,12 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
      * example a model name or a cost. Pass a stable function.
      */
     messageHeaderItems?: ChatMessageRenderFn;
+
+    /**
+     * Which steps of a running reply the screen reader announcer reads as they finish: none,
+     * failures or all. Default from `ChatKit.defaults.announceSteps`.
+     */
+    announceSteps?: ChatAnnounceSteps;
 }
 
 /**
@@ -107,7 +122,8 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
  *
  * The list is a `role="log"` region with `aria-live="off"`, so screen readers never hear tokens.
  * It renders the regions of the kit's announcer instead, which read each reply once as it
- * finishes: the assistant's name, its tool count and time, then its first paragraph.
+ * finishes: the assistant's name, its tool count and time, then its first paragraph. Steps that
+ * fail while a reply runs are read too, or every step with `announceSteps: 'all'`.
  */
 export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessageListProps>({
     displayName: 'ChatMessageList',
@@ -130,6 +146,7 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
             markdownPlugins,
             messageActions,
             messageHeaderItems,
+            announceSteps,
             ...rest
         },
         ref
@@ -170,7 +187,13 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                         ref: contentRef,
                         className: 'xh-chat-message-list__content',
                         items: !messages.length
-                            ? [emptyState ?? chatEmptyState({suggestions})]
+                            ? [
+                                  emptyState ??
+                                      chatEmptyState({
+                                          suggestions,
+                                          composerModel: getComposerModel(host)
+                                      })
+                              ]
                             : messages.map((message, idx) =>
                                   chatErrorBoundary({
                                       key: message.id,
@@ -193,6 +216,7 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                                           markdownPlugins,
                                           messageActions,
                                           messageHeaderItems,
+                                          announceSteps,
                                           isEditing: impl.editingId === message.id,
                                           onEditingChange: impl.onEditingChange,
                                           onEditPrompt: impl.onEditPrompt
@@ -221,6 +245,12 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
 //------------------
 // Implementation
 //------------------
+// The host's composer, for the empty state's suggestions to fill - if it is the kit's own.
+function getComposerModel(host: ChatMessageListHost): ChatComposerModel {
+    const {composerModel} = host;
+    return composerModel instanceof ChatComposerModel ? composerModel : null;
+}
+
 // Why a user message was never sent - the cause of the failed reply after it - or null.
 function getNotSentReason(message: ChatMessage, next: ChatMessage): string {
     return message.isUser && isReplyNotSent(next) ? getFailureCause(next) : null;

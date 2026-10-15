@@ -376,7 +376,8 @@
         "A2UI",
         "OpenUI",
         "maxSteps",
-        "safety"
+        "safety",
+        "isChatUiMessagingAction"
       ]
     },
     {
@@ -403,7 +404,7 @@
         "finishedAwayThreadIds",
         "lastRunEnd",
         "interrupted",
-        "listbox",
+        "tree grid",
         "keyboard"
       ]
     },
@@ -567,6 +568,7 @@
         "ChatMarkdown",
         "chatMarkdown",
         "ChatMarkdownComponents",
+        "useChatMarkdownStreaming",
         "markdown",
         "streaming",
         "isStreaming",

@@ -8,7 +8,7 @@ import {type ReactElement, type RefCallback, useCallback} from 'react';
 import {ChatAssistantModel} from '../../../assist';
 import {classNames} from '../../../impl/ClassNames';
 import '../../../styles/vars.scss';
-import {getChatHotkeys} from '../chat/impl/ChatShortcuts';
+import {getChatHotkeys} from '../../impl/ChatShortcuts';
 import './ChatAssistant.scss';
 import {chatAssistantView, type ChatAssistantViewProps} from './ChatAssistantView';
 
@@ -114,7 +114,7 @@ class ChatAssistantContainerLocalModel extends HoistModel {
     }
 }
 
-// The docked helper's width, from `--xh-chat-helper-width`, `-min-width` and `-max-width`.
+// The docked helper's width, which the user can resize within the bounds.
 const DOCK_WIDTH = 380,
     DOCK_MIN_WIDTH = 360,
     DOCK_MAX_WIDTH = 420;

@@ -1,15 +1,14 @@
 import type {KeyboardEvent as ReactKeyboardEvent} from 'react';
-import {find, findIndex, flatMap, isFunction} from 'lodash';
+import {find, findIndex, isFunction} from 'lodash';
 import {HoistModel} from '@xh/hoist/core';
 import {action, bindable, computed, observable} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
+import type {ChatThreadGroup, ChatThreadListHost, ChatThreadSummary} from '../../../../threads';
 import {
-    type ChatThreadGroup,
-    type ChatThreadListHost,
-    type ChatThreadSummary,
-    groupThreadsByRecency
-} from '../../../../threads';
-import {confirmDeleteThreadAsync} from './confirmDeleteThread';
+    deleteThreadAsync,
+    getListedThreadIds,
+    getThreadGroups
+} from '../../../impl/ChatThreadDelete';
 
 /**
  * Selects a model that can back a thread list - see {@link ChatThreadListHost}. An arrow function,
@@ -59,18 +58,13 @@ export class ChatThreadListLocalModel extends HoistModel {
     /** Groups to show: one group of results while searching, else groups by recency. */
     @computed
     get groups(): ChatThreadGroup[] {
-        const threads = this.host?.threads ?? [];
-        if (!threads.length) return [];
-        if (this.searchQuery == null) return groupThreadsByRecency(threads);
-
-        const label = threads.length === 1 ? '1 result' : `${threads.length} results`;
-        return [{key: null, label, threads}];
+        return getThreadGroups(this.host);
     }
 
     /** Ids of the threads in the order the list shows them. */
     @computed
     get orderedThreadIds(): string[] {
-        return flatMap(this.groups, it => it.threads.map(thread => thread.id));
+        return getListedThreadIds(this.host);
     }
 
     /** Id of the row that takes focus on Tab: the focused row, else the selected, else the first. */
@@ -169,22 +163,10 @@ export class ChatThreadListLocalModel extends HoistModel {
      */
     async deleteThreadAsync(thread: ChatThreadSummary) {
         if (!this.canDelete) return;
-        const {host} = this,
-            ids = this.orderedThreadIds,
-            index = ids.indexOf(thread.id),
-            nextId = ids[index + 1] ?? ids[index - 1] ?? null,
-            confirmed = await confirmDeleteThreadAsync(thread);
-
-        if (!confirmed) {
-            this.focusRow(thread.id);
-            return;
-        }
-
-        const wasSelected = host.selectedThreadId === thread.id,
-            deletion = host.deleteThreadsAsync([thread.id]);
-        if (wasSelected && nextId) host.selectThreadAsync(nextId).catchDefault();
-        if (nextId) this.focusRow(nextId);
-        await deletion;
+        const confirmed = await deleteThreadAsync(this.host, thread, nextId => {
+            if (nextId) this.focusRow(nextId);
+        });
+        if (!confirmed) this.focusRow(thread.id);
     }
 
     @action
@@ -216,7 +198,7 @@ export class ChatThreadListLocalModel extends HoistModel {
     // belongs to `ChatKit.defaults.shortcuts`. Only the list's own keys live here.
     onListKeyDown = (e: ReactKeyboardEvent<HTMLElement>) => {
         const target = e.target as HTMLElement,
-            row = target.closest<HTMLElement>('[role="option"]'),
+            row = target.closest<HTMLElement>('[role="row"]'),
             threadId = this.threadIdOfRow(row);
         if (threadId == null || this.renamingThreadId) return;
 
@@ -242,6 +224,9 @@ export class ChatThreadListLocalModel extends HoistModel {
                 if (thread) this.startRename(thread);
                 break;
             case 'Delete':
+            case 'Backspace':
+                // A Mac laptop sends Backspace for its delete key - taken on the row alone.
+                if (e.key === 'Backspace' && !isOnRow) return;
                 e.preventDefault();
                 if (thread) this.deleteThreadAsync(thread).catchDefault();
                 break;

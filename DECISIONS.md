@@ -1066,6 +1066,11 @@ found" (R14). Sidebar width and its collapsed state persist through `persistWith
 **Why.** Each row state in P5 needs one field the summary lacks. Search falls back to titles
 (`02-backend-capabilities.md` row 7).
 
+**Update.** The store's `searchesMessages`, the summary's `snippet` and "Searching titles" shipped
+after review 6. The thread list is a one-level tree grid rather than a listbox, as its rows hold
+buttons. "Thread not found" waits on the threads model learning that a store reported a thread
+missing. It is marked `TODO(R14, D74)` in `ChatWorkspace`.
+
 ## D75. Small API additions the specs need
 
 

@@ -249,7 +249,8 @@ Each tool returns `chatToolResult(output, {undo, targets})`. The helper flashes 
 the component through the group's `highlight()`, and Show on the change's line flashes them
 again. Once a reply's changes become undoable, the helper takes a `snapshot()`. If
 `isChangedSince()` then reports a change, such as a hand edit, the reply's Undo gives way to the
-reason.
+reason. `gridTools` compares column order, visibility and pins, sorts, groups and the filter. It
+leaves out widths, which Hoist's autosize changes on its own.
 
 ### Add tools of your own
 

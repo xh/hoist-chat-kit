@@ -26,14 +26,38 @@ describe('ChatStatusRegion', () => {
 
     it('offers Try Again for a failure that is retry-safe, and announces it at once', async () => {
         const chatModel = createModel({responses: [errorEvents('Model timed out.')]});
-        await chatModel.sendAsync('Hi');
-        const retry = vi.spyOn(chatModel, 'retryAsync').mockResolvedValue();
         renderRegion(chatModel);
+        await act(() => chatModel.sendAsync('Hi'));
+        const retry = vi.spyOn(chatModel, 'retryAsync').mockResolvedValue();
 
         expect(regionText()).toBe('The reply failed. Model timed out.');
         expect(chatAnnouncer.assertive?.text).toBe('The reply failed. Model timed out.');
         fireEvent.click(screen.getByRole('button', {name: 'Try Again'}));
         expect(retry).toHaveBeenCalledTimes(1);
+    });
+
+    it('never announces the status a thread already had when the region mounts or the thread opens', async () => {
+        const chatModel = createModel({
+            threadId: 't1',
+            responses: [errorEvents('Model timed out.'), errorEvents('Service down.')]
+        });
+        await chatModel.sendAsync('Hi');
+        renderRegion(chatModel);
+
+        expect(regionText()).toBe('The reply failed. Model timed out.');
+        expect(chatAnnouncer.assertive).toBeNull();
+
+        act(() =>
+            chatModel.loadMessages(
+                [
+                    {role: 'user', content: 'Earlier'},
+                    {role: 'assistant', content: '', status: 'error', error: 'Old failure.'}
+                ],
+                't2'
+            )
+        );
+        expect(regionText()).toBe('The reply failed. Old failure.');
+        expect(chatAnnouncer.assertive).toBeNull();
     });
 
     it('says a dropped server run may still be running, and offers Refresh Status with a thread layer', async () => {
@@ -77,6 +101,54 @@ describe('ChatStatusRegion', () => {
 
         await act(() => vi.advanceTimersByTimeAsync(20_000));
         expect(retry).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries a turn whose wait ran out while no region showed, once a region mounts', async () => {
+        vi.useFakeTimers();
+        const chatModel = createModel({
+            responses: [errorEvents('Already being handled.', 'duplicate', {retryAfterSeconds: 30})]
+        });
+        await settleAsync(chatModel.sendAsync('Hi'));
+        const retry = vi.spyOn(chatModel, 'retryAsync').mockResolvedValue();
+        await vi.advanceTimersByTimeAsync(30_000);
+        expect(retry).not.toHaveBeenCalled();
+
+        renderRegion(chatModel);
+
+        expect(retry).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries once when two regions show one composer', async () => {
+        vi.useFakeTimers();
+        const chatModel = createModel({
+            responses: [errorEvents('Already being handled.', 'duplicate', {retryAfterSeconds: 30})]
+        });
+        await settleAsync(chatModel.sendAsync('Hi'));
+        const retry = vi.spyOn(chatModel, 'retryAsync').mockResolvedValue();
+        renderRegion(chatModel);
+        renderRegion(chatModel);
+
+        await act(() => vi.advanceTimersByTimeAsync(30_000));
+
+        expect(retry).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries on its own at most 3 times, then offers Try Again', async () => {
+        vi.useFakeTimers();
+        const failure = () =>
+                errorEvents('Already being handled.', 'duplicate', {retryAfterSeconds: 5}),
+            chatModel = createModel({responses: [1, 2, 3, 4, 5].map(failure)}),
+            retry = vi.spyOn(chatModel, 'retryAsync');
+        renderRegion(chatModel);
+        await act(() => settleAsync(chatModel.sendAsync('Hi')));
+
+        for (let i = 0; i < 5; i++) {
+            await act(() => vi.advanceTimersByTimeAsync(5_100));
+        }
+
+        expect(retry).toHaveBeenCalledTimes(3);
+        expect(regionText()).toBe('The reply failed. Already being handled.');
+        expect(screen.getByRole('button', {name: 'Try Again'})).toBeTruthy();
     });
 
     it('stops the countdown on Cancel, and offers Try Again', async () => {

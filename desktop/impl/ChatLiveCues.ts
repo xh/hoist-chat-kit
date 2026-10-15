@@ -3,9 +3,9 @@ import {span} from '@xh/hoist/cmp/layout';
 import {spinner} from '@xh/hoist/cmp/spinner';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
-import {ChatKit} from '../../../../core';
-import {classNames} from '../../../../impl/ClassNames';
-import '../../../../styles/vars.scss';
+import {ChatKit} from '../../core';
+import {classNames} from '../../impl/ClassNames';
+import '../../styles/vars.scss';
 import './ChatMotion.scss';
 
 /**

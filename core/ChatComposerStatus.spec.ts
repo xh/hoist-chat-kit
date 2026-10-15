@@ -1,7 +1,7 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {errorEvents, ScriptedChatTransport, textEvents} from '../transport';
-import type {ChatEvent} from '../transport';
+import type {ChatEvent, ChatTransport} from '../transport';
 import type {ChatComposerHost} from './ChatComposerHost';
 import {ChatComposerModel} from './ChatComposerModel';
 import {
@@ -27,6 +27,8 @@ describe('isChatRetrySafe', () => {
         ['a stall in server mode', {errorCode: 'stalled'}, 'server', false],
         ['a dropped stream in server mode', {errorCode: 'incomplete-stream'}, 'server', false],
         ['a dropped stream in client mode', {errorCode: 'incomplete-stream'}, 'client', true],
+        ['a lost connection in server mode', {errorCode: 'connection-lost'}, 'server', false],
+        ['a lost connection in client mode', {errorCode: 'connection-lost'}, 'client', true],
         ['a server error code in server mode', {errorCode: 'overloaded_error'}, 'server', true]
     ] as const)('reads %s', (_, metadata, historyMode, expected) => {
         expect(isChatRetrySafe(failed(metadata), historyMode)).toBe(expected);
@@ -145,6 +147,53 @@ describe('ChatComposerModel status', () => {
         });
     });
 
+    it('offers Refresh Status when a server-mode stream breaks after the run started', async () => {
+        const chatModel = createChatModel([], {
+            historyMode: 'server',
+            transport: failingTransport(new Error('Network connection was reset.'), [
+                {type: 'RUN_STARTED', threadId: 't1', runId: 'r1'},
+                ...textEvents('Adding the note')
+            ])
+        });
+        chatModel.setStatusRefresher(async () => {});
+
+        await chatModel.sendAsync('Add the note');
+
+        expect(chatModel.lastMessage.metadata.errorCode).toBe('connection-lost');
+        expect(chatModel.composerModel.getStatus()).toMatchObject({
+            type: 'failed',
+            action: 'refreshStatus',
+            isRetrySafe: false
+        });
+    });
+
+    it('records no lost connection in client mode, so a request that fails at once reads as not sent', async () => {
+        const chatModel = createChatModel([], {
+            transport: failingTransport(new Error('Network unreachable.'))
+        });
+
+        await chatModel.sendAsync('Add the note');
+
+        expect(chatModel.lastMessage.metadata.errorCode).toBeUndefined();
+    });
+
+    it('keeps a request the server refused retry-safe', async () => {
+        const refused = Object.assign(new Error('Bad request.'), {httpStatus: 400}),
+            chatModel = createChatModel([], {
+                historyMode: 'server',
+                transport: failingTransport(refused)
+            });
+        chatModel.setStatusRefresher(async () => {});
+
+        await chatModel.sendAsync('Add the note');
+
+        expect(chatModel.lastMessage.metadata.errorCode).toBeUndefined();
+        expect(chatModel.composerModel.getStatus()).toMatchObject({
+            action: 'tryAgain',
+            isRetrySafe: true
+        });
+    });
+
     it('can refresh only once a thread layer supplies a refresher', async () => {
         const chatModel = createChatModel([textEvents('Hi.')]),
             refresh = vi.fn(async () => {});
@@ -181,6 +230,20 @@ describe('ChatComposerModel status', () => {
             expect(composer.retryWait).toBeNull();
             expect(composer.retryDueId).toBe(chatModel.lastMessage.id);
             expect(composer.canSend).toBe(true);
+        });
+
+        it('records when the failed turn ended, to count the wait from', async () => {
+            vi.useFakeTimers();
+            const chatModel = createChatModel([
+                errorEvents('Already being handled.', 'duplicate_in_progress', {
+                    retryAfterSeconds: 30
+                })
+            ]);
+
+            await sendAndSettleAsync(chatModel, 'Hi');
+
+            expect(chatModel.lastMessage.metadata.endedAt).toBeLessThanOrEqual(Date.now());
+            expect(chatModel.lastMessage.metadata.endedAt).toBeGreaterThan(Date.now() - 1000);
         });
 
         it('stops the wait on Cancel, and offers Try Again', async () => {
@@ -278,6 +341,16 @@ function createChatModel(responses: ChatEvent[][], config: Partial<ChatModelConf
     });
     onTestFinished(() => model.destroy());
     return model;
+}
+
+/** A transport that sends some events, then throws. */
+function failingTransport(error: Error, events: ChatEvent[] = []): ChatTransport {
+    return {
+        async *run() {
+            yield* events;
+            throw error;
+        }
+    };
 }
 
 async function sendAndSettleAsync(chatModel: ChatModel, text: string) {

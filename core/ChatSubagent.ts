@@ -24,8 +24,12 @@ export interface ChatSubagentData {
     /** The tool call that started this sub-agent, if any. */
     parentToolCallId?: string;
 
-    /** `running` until the sub-agent finishes, then `complete` or `error`. */
-    status: 'running' | 'complete' | 'error';
+    /**
+     * `running` until the sub-agent finishes, then `complete` or `error` - or `cancelled` if the
+     * user stopped the turn first. A sub-agent still running when its run ends, with no end event,
+     * ends with the run.
+     */
+    status: 'running' | 'complete' | 'error' | 'cancelled';
 
     /** What the sub-agent found or did, once complete. */
     result?: any;

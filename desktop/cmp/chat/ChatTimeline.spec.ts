@@ -15,7 +15,13 @@ import {
     type ChatToolCallState,
     type ChatToolSpec
 } from '../../../core';
-import {ScriptedChatTransport} from '../../../transport';
+import {
+    errorEvents,
+    ScriptedChatTransport,
+    scriptedDelay,
+    type ScriptedItem,
+    toolCallEvents
+} from '../../../transport';
 import {AGENT_RUN_TOOLS, agentRunScript} from '../../../test/fixtures/agentRunScript';
 import {chatMessageList} from './ChatMessageList';
 
@@ -213,6 +219,54 @@ describe('ChatTimeline', () => {
             expect(announce).toHaveBeenCalledTimes(1);
         });
 
+        it('takes announceSteps from the message list, and counts steps across blocks', () => {
+            const announce = vi.spyOn(chatAnnouncer, 'announce'),
+                card = call('k1', {toolName: 'show_card'}),
+                host = createHost(
+                    [
+                        reply([call('c1'), card, call('c2', {state: 'running'})], {
+                            status: 'streaming'
+                        })
+                    ],
+                    [{name: 'show_card', display: 'card'}]
+                ),
+                list = (it: ChatMessageListHost) =>
+                    appContext({item: chatMessageList({host: it, announceSteps: 'all'})}),
+                {rerender} = render(list(host));
+
+            host.messages = [
+                reply([call('c1'), card, {...call('c2'), startedAt: 1000, endedAt: 2000}], {
+                    status: 'streaming'
+                })
+            ];
+            rerender(list({...host}));
+            expect(announce.mock.calls.map(it => it[0])).toEqual(['Step 2 done: Lookup, 1.0s.']);
+        });
+
+        it('announces a failed call shown as a card under the default "failures"', () => {
+            const announce = vi.spyOn(chatAnnouncer, 'announce'),
+                tools = [{name: 'show_card', display: 'card' as const}],
+                host = createHost(
+                    [
+                        reply([call('k1', {state: 'running', toolName: 'show_card'})], {
+                            status: 'streaming'
+                        })
+                    ],
+                    tools
+                ),
+                {rerender} = renderHost(host);
+
+            host.messages = [
+                reply([call('k1', {state: 'output-error', toolName: 'show_card'})], {
+                    status: 'streaming'
+                })
+            ];
+            rerender(appContext({item: chatMessageList({host: {...host}})}));
+            expect(announce.mock.calls.map(it => it[0])).toEqual([
+                'Step failed: Show card, 504 Timeout.'
+            ]);
+        });
+
         it('announces once what it waits on after two minutes quiet, keeping its spinner', () => {
             const announce = vi.spyOn(chatAnnouncer, 'announce'),
                 {container} = renderReply(
@@ -347,6 +401,166 @@ describe('ChatTimeline', () => {
         it('ends a failed run at its last step', () => {
             const {container} = renderReply([call('c1'), call('c2')], {}, {status: 'error'});
             expect(lineButton(container).textContent).toContain('Ended at step 2');
+        });
+    });
+
+    describe('settling', () => {
+        it('stops a sub-agent row once its run fails without an end event', async () => {
+            const {container} = await runScript([
+                {type: 'SUBAGENT_STARTED', subagentRunId: 'sa1', name: 'Checker'},
+                {
+                    type: 'TOOL_CALL_START',
+                    toolCallId: 'c1',
+                    toolCallName: 'lookup',
+                    subagentRunId: 'sa1'
+                },
+                {type: 'TOOL_CALL_END', toolCallId: 'c1'},
+                {type: 'TOOL_CALL_RESULT', messageId: 'r1', toolCallId: 'c1', content: 'ok'},
+                errorEvents('Boom')
+            ]);
+            fireEvent.click(lineButton(container));
+
+            const agent = screen.getAllByRole('treeitem')[0];
+            expect(agent.getAttribute('aria-label')).toMatch(
+                /^Checker, agent, 1 step, failed: The agent did not finish\.$/
+            );
+            expect(agent.getAttribute('aria-expanded')).toBe('false');
+            expect(agent.querySelector('.xh-chat-spinner')).toBeNull();
+        });
+
+        it('stops a sub-agent row in a reply restored from history mid-run', () => {
+            const model = new ChatModel({transport: new ScriptedChatTransport(), tools: TOOLS});
+            onTestFinished(() => model.destroy());
+            model.loadMessages([
+                {role: 'user', content: 'Check the desks.'},
+                {
+                    id: 'a1',
+                    role: 'assistant',
+                    status: 'streaming',
+                    parts: [
+                        {
+                            type: 'data',
+                            id: 'sa1',
+                            dataType: 'xh.chat.subagent',
+                            data: {name: 'Checker', status: 'running', startedAt: 1000}
+                        },
+                        {...call('c1', {state: 'running'}), subagentRunId: 'sa1'}
+                    ]
+                }
+            ]);
+            const {container} = render(chatMessageList({model}));
+            fireEvent.click(lineButton(container));
+
+            const agent = screen.getAllByRole('treeitem')[0];
+            expect(agent.getAttribute('aria-label')).toMatch(/^Checker, agent, 1 step, failed: /);
+            expect(agent.querySelector('.xh-chat-spinner')).toBeNull();
+            expect(model.messages[1].parts[0]).toMatchObject({
+                data: {status: 'error', endedAt: expect.any(Number)}
+            });
+        });
+
+        it('shows no spinner on a sub-agent of a reply that is no longer live', () => {
+            const {container} = renderReply(
+                [
+                    {
+                        type: 'data',
+                        id: 'sa1',
+                        dataType: 'xh.chat.subagent',
+                        data: {name: 'Checker', status: 'running', startedAt: 1000}
+                    }
+                ],
+                {},
+                {status: 'error'}
+            );
+            fireEvent.click(lineButton(container));
+            const agent = screen.getAllByRole('treeitem')[0];
+            expect(agent.querySelector('.xh-chat-spinner')).toBeNull();
+            expect(agent.getAttribute('aria-expanded')).toBe('false');
+        });
+
+        it('reads a call open at a stop as cancelled, not failed', async () => {
+            const model = new ChatModel({
+                transport: new ScriptedChatTransport({
+                    responses: [
+                        [
+                            toolCallEvents(
+                                'lookup',
+                                {desk: 'Rates'},
+                                {toolCallId: 'c1', result: 1}
+                            ),
+                            {type: 'TOOL_CALL_START', toolCallId: 'c2', toolCallName: 'lookup'},
+                            scriptedDelay(60_000)
+                        ]
+                    ],
+                    delayMs: 0
+                }),
+                tools: TOOLS
+            });
+            onTestFinished(() => model.destroy());
+            const {container} = render(chatMessageList({model})),
+                done = model.sendAsync('Look up the desks.');
+            await vi.waitFor(() => expect(model.lastMessage.toolCalls).toHaveLength(2));
+            act(() => model.stop());
+            await act(() => done);
+
+            const head = lineButton(container);
+            expect(head.textContent).toContain('Stopped after 1 tool');
+            expect(head.textContent).toContain('1 cancelled');
+            expect(timeline(container).querySelector('.xh-chat-timeline__fails')).toBeNull();
+            fireEvent.click(head);
+            expect(screen.getAllByRole('treeitem')[1].getAttribute('aria-label')).toMatch(
+                /, cancelled$/
+            );
+        });
+
+        it('counts a call marked cancelled as cancelled, not failed', () => {
+            const {container} = renderReply(
+                [
+                    call('c1'),
+                    {...call('c2', {state: 'output-error'}), cancelled: true, endedAt: 2000}
+                ],
+                {},
+                {status: 'aborted'}
+            );
+
+            const head = lineButton(container);
+            expect(head.textContent).toContain('Stopped after 1 tool');
+            expect(head.textContent).toContain('1 cancelled');
+            expect(timeline(container).querySelector('.xh-chat-timeline__fails')).toBeNull();
+            fireEvent.click(head);
+            const row = screen.getAllByRole('treeitem')[1];
+            expect(row.getAttribute('aria-label')).toBe('Lookup, Rates, cancelled');
+            expect(row.classList).toContain('xh-chat-timeline__item--cancelled');
+        });
+
+        it('reads "Paused" while the reply waits on the user outside the block', () => {
+            const {container} = renderReply(
+                [call('c1'), call('c2')],
+                {},
+                {status: 'paused', metadata: {elapsedMs: 4000}}
+            );
+            const head = lineButton(container);
+            expect(head.textContent).toContain('Paused');
+            expect(head.textContent).not.toContain('Used 2 tools');
+            expect(timeline(container).classList).toContain('xh-chat-timeline--paused');
+        });
+
+        it('gives each block of a reply its own body id', () => {
+            const {container} = renderReply(
+                [call('c1'), call('k1', {toolName: 'show_card'}), call('c2')],
+                {},
+                {status: 'complete'},
+                [{name: 'show_card', display: 'card'}]
+            );
+            const heads = Array.from(
+                container.querySelectorAll<HTMLElement>('.xh-chat-timeline__head')
+            );
+            expect(heads).toHaveLength(2);
+            heads.forEach(it => fireEvent.click(it));
+
+            const ids = heads.map(it => it.getAttribute('aria-controls'));
+            expect(new Set(ids).size).toBe(2);
+            ids.forEach(id => expect(document.getElementById(id)).toBeTruthy());
         });
     });
 
@@ -488,6 +702,18 @@ function resizeObserverOf(width: number) {
         unobserve() {}
         disconnect() {}
     };
+}
+
+/** Send one message over a scripted response, and render the list once its turn ends. */
+async function runScript(response: ScriptedItem[]) {
+    const model = new ChatModel({
+        transport: new ScriptedChatTransport({responses: [response], delayMs: 0}),
+        tools: TOOLS
+    });
+    onTestFinished(() => model.destroy());
+    const result = render(chatMessageList({model}));
+    await act(() => model.sendAsync('Check the desks.'));
+    return result;
 }
 
 async function runAgent({assistantName}: {assistantName?: string} = {}) {

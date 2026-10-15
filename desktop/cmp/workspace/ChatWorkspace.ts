@@ -17,13 +17,14 @@ import {useHotkeys} from '@xh/hoist/desktop/hooks';
 import {panel, type PanelProps} from '@xh/hoist/desktop/cmp/panel';
 import {Icon} from '@xh/hoist/icon';
 import {popover} from '@xh/hoist/kit/blueprint';
+import {wait} from '@xh/hoist/promise';
 import {getTestId} from '@xh/hoist/utils/js';
 import {useComposedRefs} from '@xh/hoist/utils/react';
 import {classNames} from '../../../impl/ClassNames';
 import '../../../styles/vars.scss';
 import {chatPanel, type ChatPanelProps, chatSidePanel, chatSpinner} from '../chat';
 import {chatThreadList, type ChatThreadListProps} from '../threads';
-import {confirmDeleteThreadAsync} from '../threads/impl/confirmDeleteThread';
+import {deleteThreadAsync} from '../../impl/ChatThreadDelete';
 import {ChatWorkspaceModel} from './ChatWorkspaceModel';
 import './ChatWorkspace.scss';
 import {ChatWorkspaceLocalModel} from './impl/ChatWorkspaceLocalModel';
@@ -309,11 +310,11 @@ function threadMenuItems(model: ChatWorkspaceModel): MenuItemLike[] {
             icon: Icon.delete(),
             intent: 'danger',
             omit: !threadsModel.canDelete,
-            actionFn: async () => {
-                if (await confirmDeleteThreadAsync(summary)) {
-                    await threadsModel.deleteThreadsAsync([summary.id]);
-                }
-            }
+            // As from the list: the next thread opens, and focus moves to its composer.
+            actionFn: () =>
+                deleteThreadAsync(threadsModel, summary, () =>
+                    wait().then(() => threadsModel.chatModel?.composerModel?.focus())
+                ).catchDefault()
         }
     ];
 }

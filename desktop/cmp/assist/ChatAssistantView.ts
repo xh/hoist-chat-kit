@@ -11,7 +11,7 @@ import {ChatKit} from '../../../core';
 import {classNames} from '../../../impl/ClassNames';
 import '../../../styles/vars.scss';
 import {chatComposer, chatMessageList, chatStatusRegion, chatSuggestions} from '../chat';
-import {getChatHotkeys} from '../chat/impl/ChatShortcuts';
+import {getChatHotkeys} from '../../impl/ChatShortcuts';
 import './ChatAssistant.scss';
 import {chatDataBoundaryLine} from './ChatDataBoundaryLine';
 import {installChatAssistantRenderers} from './impl/ChatAssistantParts';

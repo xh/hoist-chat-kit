@@ -2,6 +2,7 @@ import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
 import {findLast, flattenDeep, isArray, isEmpty, isNil, isString, omitBy, pick} from 'lodash';
 import type {ChatMessage, ChatSourceType} from '../core';
+// Past the core barrel, which imports this package - a runtime import through it would be a cycle.
 import {CHAT_NO_ANSWER_DATA_TYPE, type ChatNoAnswerData} from '../core/ChatNoAnswer';
 import {sleepAsync} from '../impl/abort';
 import {genChatId} from '../impl/ids';

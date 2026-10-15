@@ -18,7 +18,7 @@ import type {LoadSpec, PlainObject} from '@xh/hoist/core';
 import {HoistModel, managed, TaskObserver, XH} from '@xh/hoist/core';
 import {action, bindable, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {debounced, throwIf} from '@xh/hoist/utils/js';
-import type {ChatModel, ChatThreadCreatorSpec} from '../core';
+import {ChatKit, type ChatModel, type ChatThreadCreatorSpec} from '../core';
 import {genChatId} from '../impl/ids';
 import type {ChatThreadListHost} from './ChatThreadListHost';
 import type {
@@ -227,6 +227,11 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     /** True if the store can delete threads. */
     get canDelete(): boolean {
         return !!this.store.deleteThreadsAsync;
+    }
+
+    /** True if the store's search covers message text, not just titles. */
+    get searchesMessages(): boolean {
+        return !!this.store.searchesMessages;
     }
 
     /** True if the store can pin threads. */
@@ -587,7 +592,8 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         const {chatModel} = thread;
         this.noteActivity(chatModel);
         if (!chatModel.isBusy) {
-            this.noteFinishedAway(chatModel.threadId);
+            // A turn that pauses for the user has not finished - the thread lists as awaiting.
+            if (!chatModel.isAwaitingUser) this.noteFinishedAway(chatModel.threadId);
             // The backend may have set a title, or the thread's place in the list may change.
             this.refreshThreadsSoon();
             this.closeIdleThreads();
@@ -643,7 +649,10 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         this.openThreads = omit(this.openThreads, keys(idle));
     }
 
-    /** Close the chats of threads being deleted, stopping any turn, and drop their drafts. */
+    /**
+     * Close the chats of threads being deleted, stopping any turn, and drop their drafts - from
+     * memory and from local storage.
+     */
     @action
     private closeThreads(threadIds: string[]) {
         threadIds.forEach(id => {
@@ -652,6 +661,8 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
             thread?.destroy();
             this.drafts.delete(id);
         });
+        // After the chats close, as a composer saves its draft when destroyed.
+        ChatKit.clearLocalData(threadIds);
         this.openThreads = omit(this.openThreads, threadIds);
         this.finishedAwayThreadIds = difference(this.finishedAwayThreadIds, threadIds);
     }

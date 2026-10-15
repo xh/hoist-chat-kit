@@ -77,6 +77,40 @@ describe('sources', () => {
             expect(sidePanel.request).toBeNull();
         });
 
+        it('says so with a toast when nothing can open a document', () => {
+            const toast = vi.spyOn(XH, 'toast').mockImplementation(() => null);
+            onTestFinished(() => toast.mockRestore());
+
+            openChatSource(DOC, {sidePanel: panel({documentRenderer: null})});
+            openChatSource(DOC);
+            expect(toast).toHaveBeenNthCalledWith(
+                1,
+                expect.objectContaining({message: "This document can't be opened here."})
+            );
+            expect(toast).toHaveBeenCalledTimes(2);
+
+            openChatSource(DOC, {sidePanel: panel({hasRoom: () => false})});
+            expect(toast).toHaveBeenLastCalledWith(
+                expect.objectContaining({message: 'The viewer needs more room than this.'})
+            );
+            expect(open).not.toHaveBeenCalled();
+        });
+
+        it('leaves out the page, passage and citation a document request lacks', () => {
+            const sidePanel = panel(),
+                bare: ChatSourcePart = {type: 'source', id: 'd2', sourceType: 'document'};
+            openChatSource(bare, {sidePanel});
+
+            expect(sidePanel.request).toEqual({
+                type: 'document',
+                source: bare,
+                page: null,
+                passage: null,
+                citation: null,
+                messageId: null
+            });
+        });
+
         it('opens a web page in a new tab, or with onSourceClick in its place', () => {
             openChatSource(WEB, {sidePanel: panel()});
             expect(open).toHaveBeenCalledWith(WEB.url, '_blank', 'noopener,noreferrer');

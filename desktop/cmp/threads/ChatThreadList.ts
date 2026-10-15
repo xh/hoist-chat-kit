@@ -54,9 +54,9 @@ export interface ChatThreadListProps extends HoistProps<ChatThreadListHostModel>
  * reply the user has not seen, or ended its last run early.
  *
  * Backed by a {@link ChatThreadListHost}, such as a `ChatThreadsModel`: pass it as `model`, or
- * put it in context. The list hides each action the host cannot take. The list is a listbox:
- * Up and Down move between rows, Enter opens one, F2 renames it and Delete deletes it. Right
- * reaches a row's buttons.
+ * put it in context. The list hides each action the host cannot take. The list is a tree grid of
+ * one level, as a row holds buttons: Up and Down move between rows, Enter opens one, F2 renames
+ * it, and Delete or Backspace deletes it. Right and Left move between a row and its buttons.
  */
 export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadListProps>({
     displayName: 'ChatThreadList',
@@ -149,7 +149,7 @@ function body(impl: ChatThreadListLocalModel): ReactNode {
     if (impl.isLoadingFirst) {
         return div({
             className: 'xh-chat-thread-list__skeleton',
-            role: 'listbox',
+            role: 'treegrid',
             'aria-label': 'Threads',
             'aria-busy': true,
             items: times(SKELETON_ROWS, i =>
@@ -181,10 +181,13 @@ function body(impl: ChatThreadListLocalModel): ReactNode {
                   ]
               })
             : null,
+        impl.searchQuery != null && !host.searchesMessages
+            ? div({key: 'scope', className: 'xh-chat-thread-list__scope', item: 'Searching titles'})
+            : null,
         div({
             key: 'list',
             className: 'xh-chat-thread-list__list',
-            role: 'listbox',
+            role: 'treegrid',
             'aria-label': 'Threads',
             'aria-busy': !!host.listTask?.isPending,
             onKeyDown: impl.onListKeyDown,
@@ -194,14 +197,18 @@ function body(impl: ChatThreadListLocalModel): ReactNode {
 }
 
 function threadGroup(impl: ChatThreadListLocalModel, group: ChatThreadGroup): ReactNode {
-    const labelId = `${impl.xhId}-group-${group.key ?? 'results'}`;
+    // A row group owns only rows, so its label is its name, and the visible label is hidden.
     return div({
         key: group.key ?? 'results',
         className: 'xh-chat-thread-list__group',
-        role: 'group',
-        'aria-labelledby': labelId,
+        role: 'rowgroup',
+        'aria-label': group.label,
         items: [
-            div({id: labelId, className: 'xh-chat-thread-list__group-label', item: group.label}),
+            div({
+                className: 'xh-chat-thread-list__group-label',
+                'aria-hidden': true,
+                item: group.label
+            }),
             ...group.threads.map(thread => threadRow(impl, thread, group))
         ]
     });
@@ -214,6 +221,8 @@ function threadRow(
 ): ReactNode {
     const {host} = impl,
         {id, title} = thread,
+        // A snippet shows only in search results.
+        snippet = impl.searchQuery != null ? thread.snippet?.trim() || null : null,
         isSelected = id === host.selectedThreadId,
         status = getRowStatus(host, thread, isSelected),
         isRenaming = impl.renamingThreadId === id,
@@ -222,13 +231,14 @@ function threadRow(
     return div({
         key: id,
         id: impl.rowDomId(id),
-        role: 'option',
+        role: 'row',
+        'aria-level': 1,
         tabIndex: impl.tabbableThreadId === id ? 0 : -1,
         'aria-selected': isSelected,
-        'aria-current': isSelected ? 'page' : undefined,
-        'aria-label': [title, STATUS_WORDS[status] ?? time].filter(Boolean).join(', '),
+        'aria-label': [title, snippet, STATUS_WORDS[status] ?? time].filter(Boolean).join(', '),
         className: classNames(
             'xh-chat-thread-list__row',
+            snippet && 'xh-chat-thread-list__row--snippet',
             isSelected && 'xh-chat-thread-list__row--selected',
             status && `xh-chat-thread-list__row--${status}`,
             impl.menuThreadId === id && 'xh-chat-thread-list__row--menu-open',
@@ -241,11 +251,33 @@ function threadRow(
         items: isRenaming
             ? [renameInput(impl)]
             : [
-                  rowIcon(thread, status, group),
-                  span({className: 'xh-chat-thread-list__title', item: title}),
-                  span({
-                      className: 'xh-chat-thread-list__time',
-                      item: status === 'running' ? 'Working' : time
+                  // Laid out by the row: the cell only names the row's content for the grid.
+                  div({
+                      key: 'main',
+                      className: 'xh-chat-thread-list__cell',
+                      role: 'gridcell',
+                      items: [
+                          rowIcon(thread, status, group),
+                          snippet
+                              ? span({
+                                    className: 'xh-chat-thread-list__text',
+                                    items: [
+                                        span({
+                                            className: 'xh-chat-thread-list__title',
+                                            item: title
+                                        }),
+                                        span({
+                                            className: 'xh-chat-thread-list__snippet',
+                                            item: snippet
+                                        })
+                                    ]
+                                })
+                              : span({className: 'xh-chat-thread-list__title', item: title}),
+                          span({
+                              className: 'xh-chat-thread-list__time',
+                              item: status === 'running' ? 'Working' : time
+                          })
+                      ]
                   }),
                   rowActions(impl, thread)
               ]
@@ -278,7 +310,9 @@ function rowActions(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): 
 
     // Clicks on the buttons stay off the row, which would open the thread.
     return div({
+        key: 'actions',
         className: 'xh-chat-thread-list__actions',
+        role: 'gridcell',
         onClick: e => e.stopPropagation(),
         items: [
             canPin
@@ -350,6 +384,7 @@ function renameInput(impl: ChatThreadListLocalModel): ReactNode {
     // Blur saves, as Enter does. Esc ends the rename before the input blurs.
     return div({
         className: 'xh-chat-thread-list__rename',
+        role: 'gridcell',
         onBlur: () => impl.saveRename(),
         onClick: e => e.stopPropagation(),
         item: textInput({

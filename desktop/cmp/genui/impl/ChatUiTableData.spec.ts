@@ -107,6 +107,43 @@ describe('ChatUiTableData', () => {
             expect(preview.hasMore).toBe(true);
         });
 
+        it('says that a sort over the first page covers only that page', () => {
+            const preview = toTablePreview(
+                frame,
+                {sortBy: 'a|desc'},
+                {isComplete: false, maxRows: 8, maxColumns: 6}
+            );
+            expect(preview.sortedWithin).toBe(30);
+            expect(describePreview(preview, false)).toBe(
+                'Showing 8 of 1,240 rows · 6 of 8 columns · sorted within the first 30'
+            );
+            expect(describePreview(preview, true)).toBe(
+                '8 of 1,240 rows · 6 of 8 cols · sorted in first 30'
+            );
+        });
+
+        it('keeps the full tier for the top rows of a sort over the first page', () => {
+            const preview = toTablePreview(
+                frame,
+                {sortBy: 'a|desc', top: 1},
+                {isComplete: false, maxRows: 8, maxColumns: 8}
+            );
+            expect(preview.records).toHaveLength(1);
+            expect(preview.hasMore).toBe(true);
+            expect(describePreview(preview, false)).toBe('1 row · sorted within the first 30');
+        });
+
+        it('makes no note of a sort over the whole result', () => {
+            const preview = toTablePreview(
+                {...frame, totalRows: 30},
+                {sortBy: 'a|desc', top: 1},
+                {isComplete: true, maxRows: 8, maxColumns: 8}
+            );
+            expect(preview.sortedWithin).toBeNull();
+            expect(preview.hasMore).toBe(false);
+            expect(describePreview(preview, false)).toBe('1 row');
+        });
+
         it('throws for a view that names a column the frame does not have', () => {
             expect(() =>
                 toTablePreview(

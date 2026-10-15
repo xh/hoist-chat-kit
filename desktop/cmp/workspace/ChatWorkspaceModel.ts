@@ -1,5 +1,5 @@
-import {clamp, isNumber} from 'lodash';
-import type {LoadSpec, PersistOptions} from '@xh/hoist/core';
+import {clamp, cloneDeep, isEqual, isNumber} from 'lodash';
+import type {LoadSpec, PersistOptions, PlainObject} from '@xh/hoist/core';
 import {HoistModel, managed, PersistableState, PersistenceProvider, XH} from '@xh/hoist/core';
 import {PanelModel} from '@xh/hoist/desktop/cmp/panel';
 import {action, bindable, computed, observable} from '@xh/hoist/mobx';
@@ -229,6 +229,7 @@ export class ChatWorkspaceModel extends HoistModel {
         // once the list shows that it still exists. A thread that a route selected comes first.
         if (threadsModel.selectedThreadId == null) {
             this.initialThreadId = threadsModel.newThread().threadId;
+            this.initialRunOptions = cloneDeep(threadsModel.chatModel?.runOptions ?? null);
         }
         if (persistWith) {
             this.persistSelectedThread({...persistWith, path: `${path}.selectedThreadId`});
@@ -290,6 +291,15 @@ export class ChatWorkspaceModel extends HoistModel {
         this.width = width == null ? null : Math.round(width);
     }
 
+    /**
+     * Record the rail's width, read from `--xh-chat-sidebar-rail-width` as the workspace mounts.
+     * @internal
+     */
+    @action
+    setRailWidth(width: number) {
+        if (width > 0) this.railWidth = width;
+    }
+
     //------------------
     // Implementation
     //------------------
@@ -306,8 +316,12 @@ export class ChatWorkspaceModel extends HoistModel {
     // The saved thread to select once the list shows it, while the new chat is untouched.
     @observable private accessor restoreThreadId: string = null;
 
-    // The new thread the workspace started with.
+    // Width of the sidebar's rail, from its CSS variable once mounted.
+    @observable private accessor railWidth: number = null;
+
+    // The new thread the workspace started with, and its run options at the start.
     private initialThreadId: string = null;
+    private initialRunOptions: PlainObject = null;
 
     @computed
     private get widthBand(): number {
@@ -328,7 +342,9 @@ export class ChatWorkspaceModel extends HoistModel {
         let sidebarMode = this.getSidebarMode(band, isPanelShown),
             sidebarWidth = sidebarMode === 'open' ? this.getPreferredWidth('sidebar', band) : null;
         const getSidebarSpace = () =>
-                sidebarMode === 'open' ? sidebarWidth + SPLITTER_WIDTH : RAIL_WIDTH,
+                sidebarMode === 'open'
+                    ? sidebarWidth + SPLITTER_WIDTH
+                    : (this.railWidth ?? RAIL_WIDTH),
             getSidePanelWidth = () =>
                 isPanelShown
                     ? this.getSidePanelWidth(band, width == null ? null : width - getSidebarSpace())
@@ -470,13 +486,17 @@ export class ChatWorkspaceModel extends HoistModel {
         return threadsModel.selectedSummary ? threadsModel.selectedThreadId : null;
     }
 
-    // True while the new chat the workspace started with is selected and empty.
+    // True while the new chat the workspace started with is selected, and the user has not used
+    // it: no messages, nothing in the composer, and its run options as they started.
     private get isUntouched(): boolean {
-        const {threadsModel, initialThreadId} = this;
+        const {threadsModel, initialThreadId} = this,
+            {chatModel} = threadsModel;
         return (
             initialThreadId != null &&
             threadsModel.selectedThreadId === initialThreadId &&
-            !!threadsModel.chatModel?.isEmpty
+            !!chatModel?.isEmpty &&
+            !!chatModel.composerModel?.isEmpty &&
+            isEqual(chatModel.runOptions ?? null, this.initialRunOptions)
         );
     }
 
@@ -533,7 +553,7 @@ const SIDEBAR_MIN_WIDTH = 200,
     DATA_PANEL_SHARE = 0.6,
     DATA_PANEL_MIN_WIDTH = 480,
     DATA_PANEL_MAX_WIDTH = 900,
-    // Hoist's splitter beside a resizable panel, and the sidebar's rail.
+    // Hoist's splitter beside a resizable panel, and the default of the sidebar's rail.
     SPLITTER_WIDTH = 8,
     RAIL_WIDTH = 40,
     // 380 for the conversation, 8 for the splitter and 400 for the side panel.
