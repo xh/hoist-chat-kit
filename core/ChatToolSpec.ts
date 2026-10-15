@@ -64,9 +64,6 @@ export interface ChatToolSpec {
      */
     preview?: boolean | ((input: PlainObject) => ReactNode);
 
-    /** @deprecated - use `preview: true`. */
-    approvalPreview?: boolean;
-
     /**
      * True to send this tool to the model. Default true for client and interactive tools, false
      * for backend tools, whose specs the backend declares to the model itself.

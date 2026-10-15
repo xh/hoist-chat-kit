@@ -21,7 +21,7 @@ import type {ReactNode} from 'react';
 import type {PlainObject, TrackOptions} from '@xh/hoist/core';
 import {HoistModel, managed, XH} from '@xh/hoist/core';
 import {action, bindable, bindableRef, computed, observable, observableRef} from '@xh/hoist/mobx';
-import {apiDeprecated, throwIf} from '@xh/hoist/utils/js';
+import {throwIf} from '@xh/hoist/utils/js';
 import {
     ChatArtifactRegistry,
     type ChatArtifact,
@@ -609,11 +609,6 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.messages = restoreMessages(initialMessages);
         this.addArtifactsOf(this.messages);
         tools.forEach(it => {
-            apiDeprecated('ChatToolSpec.approvalPreview', {
-                test: it.approvalPreview,
-                msg: `Set preview: true on tool '${it.name}' instead.`,
-                source: this
-            });
             if (it.interactive && !it.execute && !it.renderer) {
                 this.logWarn(
                     `Interactive tool '${it.name}' has no renderer. The default tool call card ` +
