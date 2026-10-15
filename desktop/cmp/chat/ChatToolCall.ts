@@ -222,7 +222,7 @@ function inlineToolCall({
         showsOutput =
             hasOutputView &&
             state !== 'output-denied' &&
-            (state !== 'approval-requested' || spec.preview === true || !!spec.approvalPreview);
+            (state !== 'approval-requested' || spec.preview === true);
 
     return div({
         ref,

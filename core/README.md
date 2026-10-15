@@ -1121,7 +1121,6 @@ views show it as cancelled, not failed. `isToolCallCancelled(part)` tests for it
 | `needsApproval` | `boolean \| (input) => boolean` | True, or a function, to ask the user before each call runs. Client tools only. Default false. |
 | `approvalPrompt` | `string \| (input) => ReactNode` | The question that asks for approval, in place of the generic one. |
 | `preview` | `boolean \| (input) => ReactNode` | What a call will change, shown under its approval prompt. True renders an inline call's own output while it waits. Default none. |
-| `approvalPreview` | `boolean` | Deprecated. Use `preview: true`. |
 | `sendToModel` | `boolean` | True to send the tool to the model. Default true for client and interactive tools, false for backend tools. |
 | `displayName` | `string` | Title of the tool call card. Default the name, humanized. |
 | `icon` | `ReactElement` | Icon of the tool call card. |

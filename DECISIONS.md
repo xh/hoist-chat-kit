@@ -695,6 +695,8 @@ would then never finish, and every turn would fail as `incomplete-stream`.
 
 ## D53. `preview` replaces `approvalPreview`
 
+**Superseded.** The alias is removed. The kit has no release and no callers of it.
+
 **Decision.** `ChatToolSpec.approvalPreview` is deprecated. It still works, and `ChatModel` logs a
 deprecation warning once for a tool that sets it. The generative UI docs name `preview: true`.
 
