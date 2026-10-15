@@ -107,7 +107,7 @@ describe('ChatModel undo', () => {
         expect(model.canUndoTurn(reply.id)).toBe(true);
     });
 
-    it('stops at an undo that throws, reports it, and keeps the rest for another try', async () => {
+    it('stops at an undo that throws, records it, and keeps the rest for another try', async () => {
         const handleException = vi.spyOn(XH, 'handleException').mockImplementation(() => {}),
             state = createState(),
             failing = vi.fn().mockRejectedValueOnce(new Error('Locked.')).mockResolvedValue(null),
@@ -128,8 +128,9 @@ describe('ChatModel undo', () => {
 
         expect(handleException).toHaveBeenCalledWith(
             expect.objectContaining({message: 'Locked.'}),
-            expect.objectContaining({alertType: 'toast'})
+            expect.objectContaining({showAlert: false})
         );
+        expect(model.undoErrors[reply.id]?.message).toBe('Locked.');
         expect(state.undone).toEqual([]);
         expect(model.lastMessage.metadata.undone).toBeUndefined();
         expect(model.canUndoTurn(reply.id)).toBe(true);
@@ -137,6 +138,7 @@ describe('ChatModel undo', () => {
         await model.undoTurnAsync(reply.id);
         expect(state.undone).toEqual(['a']);
         expect(model.lastMessage.metadata.undone).toBe(true);
+        expect(model.undoErrors).toEqual({});
     });
 
     it('blocks sends while an undo runs', async () => {

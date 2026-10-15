@@ -3,26 +3,33 @@ import {div, vbox} from '@xh/hoist/cmp/layout';
 import {type BoxProps, hoistCmp, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
+import {throwIf} from '@xh/hoist/utils/js';
 import {useComposedRefs, useOnResize} from '@xh/hoist/utils/react';
 import type {
     ChatImagePolicy,
     ChatMarkdownComponents,
     ChatMarkdownPlugins
 } from '../../../cmp/markdown';
-import {ChatModel} from '../../../core';
+import {type ChatMessage, type ChatMessageListHost, ChatModel} from '../../../core';
 import '../../../styles/vars.scss';
 import {chatEmptyState} from './ChatEmptyState';
 import './ChatMessageList.scss';
 import {type ChatMessageRenderFn, type ChatSourceClickFn, chatMessageView} from './ChatMessageView';
 import type {ChatSuggestion} from './ChatSuggestions';
 import {chatAnnouncerRegions} from './impl/ChatAnnouncerRegions';
-import {chatErrorBanner} from './impl/ChatErrorBanner';
 import {chatErrorBoundary} from './impl/ChatErrorBoundary';
 import {ChatMessageListLocalModel} from './impl/ChatMessageListLocalModel';
 import {refuseFileDrop} from './impl/FileDrop';
+import {getFailureCause, isReplyNotSent} from './impl/ReplyFailure';
 
 /** Props for {@link ChatMessageList}. */
 export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
+    /**
+     * The conversation to show, when it is not a `ChatModel` - an app's own
+     * {@link ChatMessageListHost}. Default the list's `ChatModel`, from props or context.
+     */
+    host?: ChatMessageListHost;
+
     /** Content to show when the conversation has no messages, in place of the default. */
     emptyState?: ReactNode;
 
@@ -68,9 +75,9 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
     markdownPlugins?: ChatMarkdownPlugins;
 
     /**
-     * Buttons to add to each message's action bar, after Copy, Edit and Regenerate - for example
-     * thumbs up and down for feedback. Called for user and assistant messages, once a reply's turn
-     * ends. Pass a stable function.
+     * Buttons to add to each message's action bar, after the built-in ones - Copy, Edit,
+     * Regenerate, Undo and the feedback thumbs. Called for user and assistant messages, once a
+     * reply's turn ends. Pass a stable function.
      */
     messageActions?: ChatMessageRenderFn;
 
@@ -84,11 +91,19 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
 /**
  * The scrolling list of messages in a conversation, in a centered column.
  *
+ * Shows a `ChatModel`, from props or context, or any {@link ChatMessageListHost} passed as
+ * `host`. The list and its messages read only the host's members, and hide each action the host
+ * does not offer.
+ *
  * Follows a streaming reply by staying scrolled to the bottom, until the user scrolls up to read.
  * A button then offers a way back down. Sending a message always returns to the bottom.
  *
- * Shows an empty state when the conversation has no messages, and the error that ended the last
- * turn - with Retry and Edit - after the last message.
+ * Shows an empty state when the conversation has no messages. A failed reply shows what happened
+ * inline, with Edit Prompt, and a message whose turn never started shows "Not sent". The thread's
+ * next action, such as Try Again, belongs to the composer's status region.
+ *
+ * Each message is a focusable `article`. With one focused, Up and Down move between messages.
+ * Escape stops a reply in progress while focus is in the list.
  *
  * The list is a `role="log"` region with `aria-live="off"`, so screen readers never hear tokens.
  * It renders the regions of the kit's announcer instead, which read each reply once as it
@@ -96,12 +111,13 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
  */
 export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessageListProps>({
     displayName: 'ChatMessageList',
-    model: uses(ChatModel),
+    model: uses(ChatModel, {optional: true}),
     className: 'xh-chat-message-list',
 
     render(
         {
             model,
+            host: hostProp,
             className,
             emptyState,
             suggestions,
@@ -124,7 +140,10 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                 impl.viewportRef
             ),
             contentRef = useOnResize(impl.onContentResize),
-            {messages, isEmpty, isBusy} = model,
+            host: ChatMessageListHost = hostProp ?? model;
+        throwIf(!host, 'ChatMessageList needs a ChatModel, or a host.');
+
+        const {messages, isBusy} = host,
             lastIdx = messages.length - 1;
 
         return vbox({
@@ -146,37 +165,40 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                     onScroll: impl.onScroll,
                     onWheel: impl.onWheel,
                     onClickCapture: impl.onClickCapture,
+                    onKeyDown: impl.onKeyDown,
                     item: div({
                         ref: contentRef,
                         className: 'xh-chat-message-list__content',
-                        items: isEmpty
+                        items: !messages.length
                             ? [emptyState ?? chatEmptyState({suggestions})]
-                            : [
-                                  ...messages.map((message, idx) =>
-                                      chatErrorBoundary({
-                                          key: message.id,
-                                          subject: 'message',
-                                          resetKey: message.status,
-                                          item: chatMessageView({
+                            : messages.map((message, idx) =>
+                                  chatErrorBoundary({
+                                      key: message.id,
+                                      subject: 'message',
+                                      resetKey: message.status,
+                                      item: chatMessageView({
+                                          message,
+                                          host,
+                                          isLast: idx === lastIdx,
+                                          notSentReason: getNotSentReason(
                                               message,
-                                              chatModel: model,
-                                              isLast: idx === lastIdx,
-                                              assistantName,
-                                              assistantIcon,
-                                              markdownComponents,
-                                              allowImages,
-                                              citationMarkers,
-                                              onSourceClick,
-                                              markdownPlugins,
-                                              messageActions,
-                                              messageHeaderItems,
-                                              isEditing: impl.editingId === message.id,
-                                              onEditingChange: impl.onEditingChange
-                                          })
+                                              messages[idx + 1]
+                                          ),
+                                          assistantName,
+                                          assistantIcon,
+                                          markdownComponents,
+                                          allowImages,
+                                          citationMarkers,
+                                          onSourceClick,
+                                          markdownPlugins,
+                                          messageActions,
+                                          messageHeaderItems,
+                                          isEditing: impl.editingId === message.id,
+                                          onEditingChange: impl.onEditingChange,
+                                          onEditPrompt: impl.onEditPrompt
                                       })
-                                  ),
-                                  chatErrorBanner({key: 'error', onEdit: impl.editLastUserMessage})
-                              ]
+                                  })
+                              )
                     })
                 }),
                 chatAnnouncerRegions(),
@@ -195,3 +217,11 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
         });
     }
 });
+
+//------------------
+// Implementation
+//------------------
+// Why a user message was never sent - the cause of the failed reply after it - or null.
+function getNotSentReason(message: ChatMessage, next: ChatMessage): string {
+    return message.isUser && isReplyNotSent(next) ? getFailureCause(next) : null;
+}

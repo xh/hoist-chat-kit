@@ -6,6 +6,7 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
 import {action, observable} from '@xh/hoist/mobx';
 import {
+    type ChatMessageListHost,
     type ChatPartRenderContext,
     type ChatToolCallPart,
     type ChatToolSpec,
@@ -16,10 +17,13 @@ import './ChatToolCall.scss';
 import {classNames} from '../../../impl/ClassNames';
 import {jsonView} from './impl/JsonView';
 import {
+    getErrorLine,
     getInlineStatus,
+    getToolCallStatusKind,
+    getToolCallStatusLabel,
     getToolTitle,
     type InlineCallStatus,
-    statusIndicator
+    statusGlyph
 } from './impl/ToolCallStatus';
 import {chatSpinner} from './impl/ChatLiveCues';
 
@@ -29,89 +33,103 @@ export interface ChatToolCallProps extends HoistProps {
     part: ChatToolCallPart;
 
     /**
-     * Render context of the message that holds the call - for the tool's display config, its
-     * renderer, and to approve or deny the call. Pass a stable object, such as the one a part
-     * renderer receives.
+     * Render context of the message that holds the call - passed to the tool's renderer. Pass a
+     * stable object, such as the one a part renderer receives.
      */
     context: ChatPartRenderContext;
+
+    /**
+     * The conversation that holds the call - for the tool's display config, and to approve or deny
+     * the call. Default `context.chatModel`.
+     */
+    host?: ChatMessageListHost;
 }
 
 /**
- * A tool call by the model, as a collapsible card. The header shows the tool's icon, title, a
- * one-line summary and the call's status. The body shows the call's input and output as JSON, or
- * the tool's own rendering. A call waiting for approval shows Approve and Deny buttons.
+ * A tool call by the model, as a quiet 28px row with an outline. The row leads with the call's
+ * status - a spinner while it runs, then a check, or a mark for a failure or a denial - then the
+ * tool's title and name, with the first line of any error, and its summary and status words at
+ * the right. The row opens to show the call's input and output as JSON, or the tool's own
+ * rendering. A call waiting for approval shows Approve and Deny buttons.
  *
  * Display is configured per tool by its {@link ChatToolSpec}: `displayName`, `icon`, `summary`,
  * `renderer` and `approvalPrompt`. A tool with `display: 'inline'` shows its renderer's output with
- * no card. The output is the call's progress, so a quiet status line shows below it only while
+ * no row. The output is the call's progress, so a quiet status line shows below it only while
  * its input streams, and if the call waits for approval, fails or is denied.
  *
- * The body mounts only while the card is open, and a custom renderer renders as a component of its
- * own, so it may use hooks. The card re-renders only when its part changes.
+ * The body mounts only while the row is open, and a custom renderer renders as a component of its
+ * own, so it may use hooks. The row re-renders only when its part changes.
  */
 export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallProps>({
     displayName: 'ChatToolCall',
     className: 'xh-chat-tool-call',
 
-    render({className, part, context}, ref) {
+    render({className, part, context, host}, ref) {
         const impl = useLocalModel(ChatToolCallLocalModel),
-            {chatModel} = context,
-            spec = chatModel.getToolSpec(part.toolName);
+            chatHost: ChatMessageListHost = host ?? context.chatModel,
+            spec = chatHost?.getToolSpec?.(part.toolName);
 
         if (spec?.display === 'inline') {
-            return inlineToolCall({ref, className, part, context, spec, impl});
+            return inlineToolCall({ref, className, part, context, host: chatHost, spec, impl});
         }
 
-        const {state} = part,
+        const {state, toolName} = part,
             isApproval = state === 'approval-requested',
             hasRenderer = !!spec?.renderer,
             hasBody = hasRenderer || hasDefaultBody(part),
             isExpanded = hasBody && (impl.expanded ?? (isApproval || hasRenderer)),
-            summary = spec?.summary?.(part),
-            headerItems = [
-                span({
-                    className: 'xh-chat-tool-call__heading',
-                    items: [
-                        span({
-                            className: 'xh-chat-tool-call__title',
-                            item: getToolTitle(part, spec)
-                        }),
-                        summary
-                            ? span({className: 'xh-chat-tool-call__summary', item: summary})
-                            : null
-                    ]
-                }),
-                span({
-                    className: 'xh-chat-tool-call__status',
-                    items: [
-                        statusIndicator(part, spec),
-                        hasBody ? (isExpanded ? Icon.chevronUp() : Icon.chevronDown()) : null
-                    ]
-                })
-            ],
-            icon = spec?.icon ?? Icon.wrench();
+            kind = getToolCallStatusKind(part, spec),
+            title = getToolTitle(part, spec),
+            errorLine = getErrorLine(part),
+            meta = compact([spec?.summary?.(part), getToolCallStatusLabel(part, spec)]).join(' · '),
+            rowItems = [
+                statusGlyph(part, spec),
+                spec?.icon ? span({className: 'xh-chat-tool-call__icon', item: spec.icon}) : null,
+                span({className: 'xh-chat-tool-call__title', item: title}),
+                title !== toolName
+                    ? span({className: 'xh-chat-tool-call__name', item: toolName})
+                    : null,
+                errorLine
+                    ? span({
+                          className: 'xh-chat-tool-call__detail',
+                          title: errorLine,
+                          item: errorLine
+                      })
+                    : null,
+                span({className: 'xh-chat-tool-call__meta', item: meta}),
+                hasBody
+                    ? span({
+                          className: 'xh-chat-tool-call__chevron',
+                          item: isExpanded ? Icon.chevronUp() : Icon.chevronDown()
+                      })
+                    : null
+            ];
 
         return div({
             ref,
-            className: classNames(className, `xh-chat-tool-call--${state}`, {
-                'xh-chat-tool-call--expanded': isExpanded
-            }),
+            className: classNames(
+                className,
+                `xh-chat-tool-call--${state}`,
+                `xh-chat-tool-call--${kind}`,
+                {'xh-chat-tool-call--expanded': isExpanded}
+            ),
             items: [
-                // A card with nothing to open has a plain header, not a button that does nothing.
+                // A row with nothing to open is a plain row, not a button that does nothing.
                 hasBody
                     ? button({
                           className: 'xh-chat-tool-call__header',
-                          icon,
-                          text: headerItems[0],
-                          rightIcon: headerItems[1],
+                          text: span({className: 'xh-chat-tool-call__row', items: rowItems}),
                           'aria-expanded': isExpanded,
+                          'aria-label': compact([title, getToolCallStatusLabel(part, spec)]).join(
+                              ', '
+                          ),
                           onClick: () => impl.setExpanded(!isExpanded)
                       })
                     : div({
                           className: 'xh-chat-tool-call__header xh-chat-tool-call__header--static',
-                          items: [icon, ...headerItems]
+                          item: span({className: 'xh-chat-tool-call__row', items: rowItems})
                       }),
-                isApproval ? approvalBar(part, spec, context) : null,
+                isApproval ? approvalBar(part, spec, chatHost) : null,
                 isExpanded
                     ? div({
                           className: 'xh-chat-tool-call__body',
@@ -160,7 +178,7 @@ const toolCallBody = hoistCmp.factory<ToolCallBodyProps>({
 function approvalBar(
     part: ChatToolCallPart,
     spec: ChatToolSpec,
-    {chatModel}: ChatPartRenderContext
+    host: ChatMessageListHost
 ): ReactNode {
     const {approvalPrompt, preview} = spec ?? {},
         input = part.input ?? {},
@@ -181,23 +199,28 @@ function approvalBar(
                         : null
                 ]
             }),
-            button({
-                text: 'Deny',
-                outlined: true,
-                onClick: () => chatModel.denyToolCallAsync(part.id).catchDefault()
-            }),
-            button({
-                text: 'Approve',
-                icon: Icon.check(),
-                intent: 'primary',
-                minimal: false,
-                onClick: () => chatModel.approveToolCallAsync(part.id).catchDefault()
-            })
+            host?.denyToolCallAsync
+                ? button({
+                      text: 'Deny',
+                      outlined: true,
+                      onClick: () => host.denyToolCallAsync(part.id).catchDefault()
+                  })
+                : null,
+            host?.approveToolCallAsync
+                ? button({
+                      text: 'Approve',
+                      icon: Icon.check(),
+                      intent: 'primary',
+                      minimal: false,
+                      onClick: () => host.approveToolCallAsync(part.id).catchDefault()
+                  })
+                : null
         ]
     });
 }
 
 interface InlineToolCallArgs extends ChatToolCallProps {
+    host: ChatMessageListHost;
     spec: ChatToolSpec;
     impl: ChatToolCallLocalModel;
 }
@@ -211,7 +234,7 @@ interface InlineToolCallArgs extends ChatToolCallProps {
  * A denied call renders no output, as the user refused what it would show. A call waiting for
  * approval renders none either, unless its spec sets `preview: true`.
  */
-function inlineToolCall({ref, className, part, context, spec, impl}: InlineToolCallArgs) {
+function inlineToolCall({ref, className, part, context, host, spec, impl}: InlineToolCallArgs) {
     const {state, errorText} = part,
         // The approval bar asks for approval itself, so the caption need not say so too.
         inlineStatus = getInlineStatus(part, spec),
@@ -233,7 +256,7 @@ function inlineToolCall({ref, className, part, context, spec, impl}: InlineToolC
         ),
         items: [
             showsOutput ? toolCallBody({part, spec, context}) : null,
-            state === 'approval-requested' ? approvalBar(part, spec, context) : null,
+            state === 'approval-requested' ? approvalBar(part, spec, host) : null,
             div({
                 className: classNames('xh-chat-tool-call__caption', {
                     'xh-chat-tool-call__caption--quiet': !status && !isInputShown

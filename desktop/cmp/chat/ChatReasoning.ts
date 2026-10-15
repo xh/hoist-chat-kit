@@ -32,13 +32,12 @@ export interface ChatReasoningProps extends HoistProps {
 }
 
 /**
- * The model's reasoning ahead of its answer, as a disclosure. Shows a shimmering "Thinking..."
- * and the reasoning text as it streams, then collapses to "Thought for 12s" once done. The user
- * can open or close it at any time.
+ * The model's reasoning ahead of its answer, as a quiet disclosure: a meta-size line with no frame,
+ * "Thinking…" while it streams and "Thought for 12s" once done. Collapsed by default. It opens in
+ * place, with the reasoning text indented below.
  *
- * Reasoning with no text to show - a provider that sends it only in encrypted form - shows
- * "Thinking..." while it streams and nothing once done. The message view reports its duration in
- * the message header instead.
+ * Reasoning with no text to show - a provider that sends it only in encrypted form - renders
+ * nothing. The message view reports its duration in the message header instead.
  */
 export const [ChatReasoning, chatReasoning] = hoistCmp.withFactory<ChatReasoningProps>({
     displayName: 'ChatReasoning',
@@ -48,18 +47,11 @@ export const [ChatReasoning, chatReasoning] = hoistCmp.withFactory<ChatReasoning
         const impl = useLocalModel(ChatReasoningLocalModel),
             components = useChatMarkdownComponents(markdownComponents),
             {text, state} = part,
-            isStreaming = state === 'streaming',
-            hasText = !!text?.trim();
+            isStreaming = state === 'streaming';
 
-        if (!hasText && !isStreaming) return null;
+        if (!text?.trim()) return null;
 
-        const isExpanded = hasText && (impl.expanded ?? isStreaming),
-            label = span({
-                className: 'xh-chat-reasoning__label',
-                item: isStreaming ? 'Thinking...' : getDoneLabel(part)
-            }),
-            icon = Icon.clock({className: 'xh-chat-reasoning__icon'});
-
+        const {isExpanded} = impl;
         return div({
             ref,
             className: classNames(className, {
@@ -67,16 +59,16 @@ export const [ChatReasoning, chatReasoning] = hoistCmp.withFactory<ChatReasoning
                 'xh-chat-reasoning--expanded': isExpanded
             }),
             items: [
-                hasText
-                    ? button({
-                          className: 'xh-chat-reasoning__toggle',
-                          icon,
-                          text: label,
-                          rightIcon: isExpanded ? Icon.chevronUp() : Icon.chevronDown(),
-                          'aria-expanded': isExpanded,
-                          onClick: () => impl.setExpanded(!isExpanded)
-                      })
-                    : div({className: 'xh-chat-reasoning__toggle', items: [icon, label]}),
+                button({
+                    className: 'xh-chat-reasoning__toggle',
+                    icon: isExpanded ? Icon.chevronDown() : Icon.chevronRight(),
+                    text: span({
+                        className: 'xh-chat-reasoning__label',
+                        item: isStreaming ? 'Thinking…' : getDoneLabel(part)
+                    }),
+                    'aria-expanded': isExpanded,
+                    onClick: () => impl.setExpanded(!isExpanded)
+                }),
                 isExpanded
                     ? div({
                           className: 'xh-chat-reasoning__body',
@@ -100,12 +92,12 @@ export const [ChatReasoning, chatReasoning] = hoistCmp.withFactory<ChatReasoning
 class ChatReasoningLocalModel extends HoistModel {
     override xhImpl = true;
 
-    /** Set once the user opens or closes the disclosure - until then it follows the stream. */
-    @observable accessor expanded: boolean = null;
+    /** True while the user has the reasoning open. Closed by default. */
+    @observable accessor isExpanded = false;
 
     @action
-    setExpanded(expanded: boolean) {
-        this.expanded = expanded;
+    setExpanded(isExpanded: boolean) {
+        this.isExpanded = isExpanded;
     }
 }
 

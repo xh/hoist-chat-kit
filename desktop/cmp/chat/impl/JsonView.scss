@@ -1,6 +1,6 @@
 .xh-chat-json {
   background-color: var(--xh-chat-code-bg);
-  border-radius: 6px;
+  border-radius: var(--xh-chat-border-radius);
   color: var(--xh-chat-text-color);
   font-family: var(--xh-font-family-mono);
   font-size: var(--xh-chat-code-font-size);

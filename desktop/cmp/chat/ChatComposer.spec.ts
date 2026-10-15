@@ -1,4 +1,4 @@
-import {fireEvent, render, screen} from '@testing-library/react';
+import {act, fireEvent, render, screen} from '@testing-library/react';
 import {hoistCmp, uses} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -96,11 +96,48 @@ describe('ChatComposer', () => {
         renderComposer(chatModel);
         typeDraft(chatModel, 'Summarize it');
 
-        const send = screen.getByRole('button', {name: 'Send'});
+        const send = screen.getByRole('button', {name: 'Send'}),
+            reason = document.getElementById(send.getAttribute('aria-describedby')),
+            wrapper = send.parentElement;
         expect(send.hasAttribute('disabled')).toBe(true);
         expect(send.getAttribute('title')).toBe('Choose a document first.');
-        expect(screen.getByRole('status').textContent).toBe('Choose a document first.');
-        expect(send.getAttribute('aria-describedby')).toBe(screen.getByRole('status').id);
+        expect(reason.textContent).toBe('Choose a document first.');
+        // A disabled button cannot take focus, so its wrapper carries the reason to the keyboard.
+        expect(wrapper.tabIndex).toBe(0);
+        expect(wrapper.getAttribute('aria-describedby')).toBe(reason.id);
+    });
+
+    it('disables Send while offline, and keeps the draft', () => {
+        const chatModel = createModel();
+        renderComposer(chatModel);
+        act(() => typeDraft(chatModel, 'Hello'));
+
+        act(() => window.dispatchEvent(new Event('offline')));
+        const send = screen.getByRole('button', {name: 'Send'});
+        expect(send.hasAttribute('disabled')).toBe(true);
+        expect(send.getAttribute('title')).toBe("You're offline");
+        expect(input().value).toBe('Hello');
+
+        act(() => window.dispatchEvent(new Event('online')));
+        expect(screen.getByRole('button', {name: 'Send'}).hasAttribute('disabled')).toBe(false);
+    });
+
+    it('puts a named Stop in place of Send while a reply runs, and focuses the input after', async () => {
+        vi.useFakeTimers();
+        const chatModel = createModel({}, 50);
+        renderComposer(chatModel);
+
+        const done = chatModel.sendAsync('Hello');
+        await act(() => vi.advanceTimersByTimeAsync(10));
+        const stop = screen.getByRole('button', {name: 'Stop'});
+        expect(stop.textContent).toBe('Stop');
+        expect(screen.queryByRole('button', {name: 'Send'})).toBeNull();
+
+        fireEvent.click(stop);
+        await act(() => vi.advanceTimersByTimeAsync(10));
+        await done;
+        expect(screen.getByRole('button', {name: 'Send'})).toBeTruthy();
+        expect(document.activeElement).toBe(input());
     });
 
     it('uses the composer of the ChatModel in context', () => {
@@ -159,9 +196,9 @@ class NoopResizeObserver {
     disconnect() {}
 }
 
-function createModel(config: Partial<ChatModelConfig> = {}): ChatModel {
+function createModel(config: Partial<ChatModelConfig> = {}, delayMs = 0): ChatModel {
     const model = new ChatModel({
-        transport: new ScriptedChatTransport({responses: [textEvents('Hi.')], delayMs: 0}),
+        transport: new ScriptedChatTransport({responses: [textEvents('Hi.')], delayMs}),
         ...config
     });
     onTestFinished(() => model.destroy());

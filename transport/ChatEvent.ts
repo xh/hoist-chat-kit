@@ -98,7 +98,10 @@ export interface RunFinishedEvent extends ChatEventBase {
 /**
  * The run has failed. Its `code` is recorded as `metadata.errorCode` on the message. A
  * `metadata.retryAfterSeconds` - the wait the backend asks for before a retry - is recorded on
- * the message too, and becomes `ChatRunError.retryAfterSeconds`.
+ * the message too, and becomes `ChatRunError.retryAfterSeconds`. A `metadata.retrySafe: false`
+ * says that a resend of the turn could run work twice, such as a write. It is recorded as
+ * `metadata.retrySafe`, and the composer then offers Refresh Status rather than Try Again - see
+ * `isChatRetrySafe()`.
  */
 export interface RunErrorEvent extends ChatEventBase {
     type: 'RUN_ERROR';
@@ -335,11 +338,15 @@ export interface IgnoredEvent extends ChatEventBase {
 /**
  * Names of the `CUSTOM` events with which a backend sends kit-specific content:
  *
- *  - `xh.chat.source` - value `{id?, url?, title?, snippet?, marker?, metadata?}`, appends a
- *    source part. `marker` is the number that cites it in the text, as in `[1]`.
+ *  - `xh.chat.source` - value `{id?, sourceType?, url?, title?, snippet?, marker?, metadata?}`,
+ *    appends a source part. `marker` is the number that cites it in the text, as in `[1]`.
+ *    `sourceType` is `url` for a web page or `document` for a document of the app's own, and
+ *    defaults to `url` when the source has a `url`, else `document`.
  *  - `xh.chat.citation` - value `{id?, title?, url?, citedText?, sourceId?}`, cites a source
  *    from the current text part.
- *  - `xh.chat.data` - value `{id?, dataType, data}`, adds or replaces a data part.
+ *  - `xh.chat.data` - value `{id?, dataType, data}`, adds or replaces a data part. The `dataType`
+ *    `xh.chat.noAnswer` is reserved for a fixed "not found" reply, with `data` a
+ *    `ChatNoAnswerData` - the kit renders it from a built-in template.
  *  - `xh.chat.file` - value `{id?, name, mediaType, size?, url?, data?}`, appends a file part.
  *  - `xh.chat.providerData` - value `{subtype: 'message' | 'tool-call', entityId, data}`, merges
  *    `data` into the `providerData` of a reasoning part or tool call, by provider key. Ids follow

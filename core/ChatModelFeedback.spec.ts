@@ -40,18 +40,23 @@ describe('ChatModel feedback and paged history', () => {
             } satisfies ChatFeedbackSpec);
         });
 
-        it('rolls the rating back and shows a toast when the submit fails', async () => {
+        it('rolls the rating back and records the failure, with no toast', async () => {
             const handleException = spyHandleException(),
                 error = new Error('Server down'),
-                model = createModel({feedback: {submitAsync: () => Promise.reject(error)}});
+                submitAsync = vi.fn().mockRejectedValueOnce(error).mockResolvedValue(undefined),
+                model = createModel({feedback: {submitAsync}});
 
             await model.submitFeedbackAsync('a1', 'negative');
 
             expect(model.getMessage('a1').metadata.feedback).toEqual({rating: 'positive'});
+            expect(model.feedbackErrors).toEqual({a1: error});
             expect(handleException).toHaveBeenCalledExactlyOnceWith(
                 error,
-                expect.objectContaining({alertType: 'toast'})
+                expect.objectContaining({showAlert: false})
             );
+
+            await model.submitFeedbackAsync('a1', 'negative');
+            expect(model.feedbackErrors).toEqual({});
         });
 
         it('keeps a newer rating when an older submit fails', async () => {

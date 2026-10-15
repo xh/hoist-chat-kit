@@ -700,6 +700,47 @@ describe('ChatThreadsModel', () => {
         });
     });
 
+    describe('status and run options', () => {
+        it('reloads a thread to refresh the status of a run its chat lost sight of', async () => {
+            const {model, store} = setup(),
+                load = vi.spyOn(store, 'loadMessagesAsync');
+            await model.selectThreadAsync('t1');
+
+            expect(model.chatModel.canRefreshStatus).toBe(true);
+            await model.chatModel.refreshStatusAsync();
+
+            expect(load).toHaveBeenCalledTimes(2);
+            expect(load.mock.calls[1][0]).toMatchObject({threadId: 't1'});
+        });
+
+        it('opens a thread with the run options of its last question', async () => {
+            const {model} = setup({
+                store: new LocalChatThreadStore({
+                    threads: [
+                        {
+                            id: 't9',
+                            title: 'Escrow',
+                            lastActivityAt: NOW,
+                            messages: [
+                                {
+                                    id: 'u1',
+                                    role: 'user',
+                                    content: 'Escrow rules?',
+                                    metadata: {runOptions: {documentIds: ['d1']}}
+                                },
+                                {id: 'a1', role: 'assistant', content: 'They say...'}
+                            ]
+                        }
+                    ]
+                })
+            });
+
+            await model.selectThreadAsync('t9');
+
+            expect(model.chatModel.runOptions).toEqual({documentIds: ['d1']});
+        });
+    });
+
     describe('feedback', () => {
         it("gives each chat the store's feedback submitter", async () => {
             const {model, store} = setup();

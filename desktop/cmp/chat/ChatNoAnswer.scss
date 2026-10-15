@@ -1,0 +1,62 @@
+@use '../../../styles/mixins' as *;
+
+// A dotted frame - Hoist's border for absence, not content - so the reply never reads as an answer.
+.xh-chat-no-answer {
+  border: var(--xh-chat-noanswer-border);
+  border-radius: var(--xh-chat-border-radius);
+  color: var(--xh-chat-text-color);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--xh-chat-font-size);
+  gap: 6px;
+  line-height: var(--xh-chat-line-height);
+  max-width: var(--xh-chat-prose-max-width);
+  padding: 10px 12px;
+
+  &__title {
+    align-items: center;
+    display: flex;
+    font-weight: 600;
+    gap: 6px;
+  }
+
+  &__tag {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-font-size-small-px);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    margin-left: auto;
+    text-transform: uppercase;
+  }
+
+  &__scope {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+  }
+
+  &__scope-count {
+    display: none;
+  }
+
+  &__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 2px;
+  }
+
+  @include hoist-button('.xh-button', '.xh-chat-no-answer__buttons') {
+    margin-left: calc(var(--xh-pad-half-px) * -1);
+  }
+}
+
+// At compact density the list of documents searched gives way to a count.
+.xh-chat--compact .xh-chat-no-answer {
+  &__scope-names {
+    display: none;
+  }
+
+  &__scope-count {
+    display: inline;
+  }
+}

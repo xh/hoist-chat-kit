@@ -26,8 +26,8 @@ export interface ChatFileChipProps extends HoistProps {
 }
 
 /**
- * A compact chip for a file attached to a message - a thumbnail for an image, otherwise an icon
- * for its type - with its name and size. An image at a URL shows a thumbnail only if
+ * A one-line chip for a file attached to a message - a small thumbnail for an image, otherwise an
+ * icon for its type - with its name and size. An image at a URL shows a thumbnail only if
  * `allowImages` permits it. Shows a remove button when `onRemove` is provided, as in the
  * composer's attachment tray.
  */

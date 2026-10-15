@@ -20,7 +20,7 @@ import {getTestId} from '@xh/hoist/utils/js';
 import {composeRefs, useOnResize} from '@xh/hoist/utils/react';
 import {classNames} from '../../../impl/ClassNames';
 import '../../../styles/vars.scss';
-import {chatPanel, type ChatPanelProps, chatSpinner} from '../chat';
+import {chatPanel, type ChatPanelProps, chatSidePanel, chatSpinner} from '../chat';
 import {chatThreadList, type ChatThreadListProps} from '../threads';
 import {confirmDeleteThreadAsync} from '../threads/impl/confirmDeleteThread';
 import {ChatWorkspaceModel} from './ChatWorkspaceModel';
@@ -48,12 +48,13 @@ export interface ChatWorkspaceProps extends HoistProps<ChatWorkspaceModel>, BoxP
     notice?: ReactNode;
 
     /**
-     * Content for the side panel, beside the conversation. It shows while the model's
-     * `isSidePanelOpen` is true and the workspace has room.
+     * The app's own content for the side panel, beside the conversation. It shows while the
+     * model's `isSidePanelOpen` is true, no request is open in `ChatWorkspaceModel.sidePanel`, and
+     * the workspace has room.
      */
     sidePanel?: ChatWorkspaceSidePanel;
 
-    /** Props for the side panel's Hoist `Panel`, such as `title` and `icon`. */
+    /** Props for the side panel's Hoist `Panel` around the app's own content, such as `title`. */
     sidePanelProps?: Omit<PanelProps, 'model' | 'modelConfig' | 'modelRef'>;
 
     /** Props for the conversation's `ChatPanel`, such as `suggestions` and `composerProps`. */
@@ -72,6 +73,10 @@ export interface ChatWorkspaceProps extends HoistProps<ChatWorkspaceModel>, BoxP
  * Under 788 px it hides, and the header offers the list in a popover. The conversation is a
  * `ChatPanel` for the selected thread's chat. It clears the moment the selection changes, and
  * shows a failed load in its place with Retry.
+ *
+ * The side panel shows the request open in the model's `sidePanel` - such as a document that a
+ * citation opened, rendered by the model's `documentRenderer` - else the app's own `sidePanel`
+ * content. Components in the conversation find the model's `sidePanel` in model context.
  */
 export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspaceProps>({
     displayName: 'ChatWorkspace',
@@ -348,9 +353,20 @@ function sidePanelView(
     sidePanelProps: ChatWorkspaceProps['sidePanelProps'],
     testId: string
 ): ReactNode {
-    // TODO(D68): `ChatSidePanelModel` replaces this slot's open state with its requests, and
-    // sends a request with no room here - under 788 px - to a new tab.
-    if (!model.isSidePanelShown || sidePanel == null) return null;
+    if (!model.isSidePanelShown) return null;
+
+    // A request opened by the conversation - a document, a table or a chart - comes first.
+    if (model.sidePanel.request) {
+        return div({
+            key: 'sidePanel',
+            className: 'xh-chat-workspace__side-panel',
+            item: chatSidePanel({
+                model: model.sidePanel,
+                panelProps: {model: model.sidePanelModel, testId: getTestId(testId, 'sidePanel')}
+            })
+        });
+    }
+    if (sidePanel == null) return null;
 
     const {headerItems = [], ...rest} = sidePanelProps ?? {};
     return div({

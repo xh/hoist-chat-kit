@@ -37,6 +37,8 @@
     max-width: var(--xh-chat-column-max-width);
     min-height: 100%;
     padding: var(--xh-chat-side-pad);
+    // Room for the last reply's action bar, which sits in the turn gap below it.
+    padding-bottom: max(var(--xh-chat-side-pad), var(--xh-chat-turn-gap));
     width: 100%;
   }
 

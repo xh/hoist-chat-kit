@@ -6,3 +6,6 @@ import {elementFactory} from '@xh/hoist/core';
  * @internal
  */
 export const htmlButton = elementFactory('button');
+
+/** Element factory for a native `mark`, for a highlighted span of text. @internal */
+export const htmlMark = elementFactory('mark');

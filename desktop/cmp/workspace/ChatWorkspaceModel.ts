@@ -3,6 +3,7 @@ import {HoistModel, managed} from '@xh/hoist/core';
 import {PanelModel} from '@xh/hoist/desktop/cmp/panel';
 import {action, bindable, computed, observable} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
+import {type ChatDocumentRenderer, ChatSidePanelModel} from '../../../core';
 import type {ChatThreadsModel} from '../../../threads';
 
 /** Configuration for a {@link ChatWorkspaceModel}. */
@@ -17,8 +18,15 @@ export interface ChatWorkspaceConfig {
      */
     persistWith?: PersistOptions;
 
-    /** True to open the side panel at the start. Default false. */
+    /** True to open the side panel at the start, for the app's own `sidePanel` content. */
     sidePanelOpen?: boolean;
+
+    /**
+     * The app's document viewer, for the side panel. With one, a click on a document's citation
+     * or source row opens it beside the conversation - see {@link ChatSidePanelModel}. The kit
+     * draws the panel's frame and status, but no document.
+     */
+    documentRenderer?: ChatDocumentRenderer;
 }
 
 /** How the workspace shows its sidebar - see {@link ChatWorkspaceModel.sidebarMode}. */
@@ -53,8 +61,15 @@ export class ChatWorkspaceModel extends HoistModel {
     /** The thread sidebar's panel: its width and collapsed state. */
     @managed readonly sidebarModel: PanelModel;
 
-    /** The side panel's panel: its width. The panel opens and closes with `isSidePanelOpen`. */
+    /** The side panel's panel: its width. */
     @managed readonly sidePanelModel: PanelModel;
+
+    /**
+     * The side panel's request seam: the document, table or chart the panel shows. Components in
+     * the conversation find it in model context, as a `ChatSidePanelHost`, and open their sources
+     * in it. It has room only where the side panel shows - 788 px and up.
+     */
+    @managed readonly sidePanel: ChatSidePanelModel;
 
     //-----------------------
     // Observable State
@@ -62,7 +77,10 @@ export class ChatWorkspaceModel extends HoistModel {
     /** Width of the workspace, in pixels, as last measured, or null before it renders. */
     @observable accessor width: number = null;
 
-    /** True if the app wants the side panel open. It shows only where there is room. (bindable) */
+    /**
+     * True if the app wants the side panel open for its own `sidePanel` content. A request open in
+     * `sidePanel` shows the panel too. It shows only where there is room. (bindable)
+     */
     @bindable accessor isSidePanelOpen: boolean = false;
 
     /**
@@ -80,11 +98,20 @@ export class ChatWorkspaceModel extends HoistModel {
         return 'open';
     }
 
-    /** True if the side panel shows: the app wants it open and the workspace has room. */
+    /**
+     * True if the side panel shows: it has a request open, or the app wants it open, and the
+     * workspace has room.
+     */
     @computed
     get isSidePanelShown(): boolean {
+        return (this.isSidePanelOpen || this.sidePanel.request != null) && this.hasSidePanelRoom;
+    }
+
+    /** True if the workspace is wide enough for the side panel - 788 px and up. */
+    @computed
+    get hasSidePanelRoom(): boolean {
         const {width} = this;
-        return this.isSidePanelOpen && (width == null || width >= SIDE_PANEL_MIN_WORKSPACE_WIDTH);
+        return width == null || width >= SIDE_PANEL_MIN_WORKSPACE_WIDTH;
     }
 
     /** True if the workspace is narrow enough for compact density - 380 px or less. */
@@ -96,7 +123,7 @@ export class ChatWorkspaceModel extends HoistModel {
 
     constructor(config: ChatWorkspaceConfig) {
         super();
-        const {threadsModel, persistWith = null, sidePanelOpen = false} = config;
+        const {threadsModel, persistWith = null, sidePanelOpen = false, documentRenderer} = config;
         throwIf(!threadsModel, 'ChatWorkspaceModel requires a threadsModel.');
 
         this.threadsModel = threadsModel;
@@ -124,6 +151,10 @@ export class ChatWorkspaceModel extends HoistModel {
             persistWith: persistWith ? {...persistWith, path: `${path}.sidePanel`} : null,
             xhName: 'sidePanelModel'
         });
+        this.sidePanel = new ChatSidePanelModel({
+            documentRenderer,
+            hasRoom: () => this.hasSidePanelRoom
+        });
 
         // A user's expand of the rail holds only at the width where they made it.
         this.addReaction(
@@ -138,6 +169,12 @@ export class ChatWorkspaceModel extends HoistModel {
                 }
             }
         );
+
+        // A request belongs to a message of the thread shown, so it closes when the thread changes.
+        this.addReaction({
+            track: () => threadsModel.selectedThreadId,
+            run: () => this.sidePanel.open(null)
+        });
 
         // The conversation pane always shows a chat.
         if (threadsModel.selectedThreadId == null) threadsModel.newThread();
@@ -161,7 +198,7 @@ export class ChatWorkspaceModel extends HoistModel {
         this.sidebarModel.setCollapsed(false);
         if (width != null && width < WIDE_WIDTH) {
             this.isSidebarExpanded = true;
-            if (width < RAIL_BELOW_WIDTH) this.isSidePanelOpen = false;
+            if (width < RAIL_BELOW_WIDTH) this.closeSidePanel();
         }
     }
 
@@ -179,12 +216,17 @@ export class ChatWorkspaceModel extends HoistModel {
         this.isSidePanelOpen = true;
     }
 
+    /** Close the side panel - its request, and the app's own content. */
+    @action
     closeSidePanel() {
         this.isSidePanelOpen = false;
+        if (this.sidePanel.request) this.sidePanel.close();
     }
 
     toggleSidePanel() {
-        this.isSidePanelOpen = !this.isSidePanelOpen;
+        this.isSidePanelOpen || this.sidePanel.request
+            ? this.closeSidePanel()
+            : this.openSidePanel();
     }
 
     /** Record the workspace's measured width. Called by the component as it resizes. */

@@ -33,6 +33,7 @@ describe('ChatStreamReducer', () => {
 
             expect(message.metadata).toEqual({
                 runId: 'r',
+                runStarted: true,
                 finishReason: 'stop',
                 model: 'claude',
                 usage: [{inputTokens: 10, outputTokens: 20}]
@@ -85,7 +86,7 @@ describe('ChatStreamReducer', () => {
                     {type: 'RUN_STARTED', threadId: 'server-thread', runId: 'server-run'}
                 ]);
 
-            expect(message.metadata).toEqual({runId: 'server-run'});
+            expect(message.metadata).toEqual({runId: 'server-run', runStarted: true});
             expect(message.parts).toEqual([]);
             expect(message.status).toBe('pending');
             expect(reducer.runThreadId).toBe('server-thread');
@@ -135,6 +136,19 @@ describe('ChatStreamReducer', () => {
                 status: 'error',
                 metadata: {errorCode: 'duplicate_in_progress', retryAfterSeconds: 20}
             });
+        });
+
+        it('records whether the backend says a retry is safe on RUN_ERROR', () => {
+            const message = reduce([
+                {
+                    type: 'RUN_ERROR',
+                    message: 'The write may have run.',
+                    code: 'tool_failed',
+                    metadata: {retrySafe: false}
+                }
+            ]);
+
+            expect(message.metadata).toMatchObject({errorCode: 'tool_failed', retrySafe: false});
         });
     });
 
@@ -640,11 +654,33 @@ describe('ChatStreamReducer', () => {
                 url: 'https://xh.io',
                 title: 'XH',
                 marker: 1,
-                metadata: {documentId: 'd-7', excerpt: 'Hoist is fast.'}
+                metadata: {documentId: 'd-7', excerpt: 'Hoist is fast.'},
+                sourceType: 'url'
             });
             expect(data).toMatchObject({type: 'data', id: 'd1', dataType: 'chart'});
             expect(file).toMatchObject({type: 'file', name: 'a.png', url: '/a.png'});
             expect(file.id).toBeTruthy();
+        });
+
+        it('defaults a source with a url to a url source, and one without to a document', () => {
+            const message = reduce([
+                custom('xh.chat.source', {id: 's1', url: 'https://xh.io'}),
+                custom('xh.chat.source', {id: 's2', title: 'Credit Guidelines v4'}),
+                custom('xh.chat.source', {
+                    id: 's3',
+                    url: 'https://xh.io/a',
+                    sourceType: 'document'
+                }),
+                custom('xh.chat.source', {id: 's4', title: 'Rates', sourceType: 'url'}),
+                custom('xh.chat.source', {id: 's5', title: 'Notes', sourceType: 'pdf'})
+            ]);
+            expect((message.parts as ChatSourcePart[]).map(it => it.sourceType)).toEqual([
+                'url',
+                'document',
+                'document',
+                'url',
+                'document'
+            ]);
         });
 
         it('attaches citations to the current text part', () => {

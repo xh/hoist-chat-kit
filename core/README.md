@@ -723,6 +723,51 @@ new ChatModel({
 
 See [Protocols](../docs/protocols.md) for how data parts carry generative UI.
 
+The `dataType` `xh.chat.noAnswer` is reserved for a fixed "not found" reply, sent when a search
+matched nothing. Its `data` is a `ChatNoAnswerData`: the `documents` searched, by name, and a
+`documentCount`. The desktop message view renders it from a fixed template, with no sources list
+and no Regenerate. A renderer registered for the type replaces the template. A scripted transport
+writes one with `noAnswerEvents()`.
+
+### Side panel
+
+`ChatSidePanelModel` holds the one request that the side panel shows beside the chat: a document,
+a table or a chart. Opening a request replaces the last. Back and close return focus to the
+element that opened it, such as a citation marker. The kit has no document viewer. The app
+supplies one as `documentRenderer`, and the kit draws the panel's frame and status around it.
+
+```typescript
+const sidePanel = new ChatSidePanelModel({
+    documentRenderer: (request, panel) =>
+        documentViewer({
+            documentId: request.source.metadata.documentId,
+            page: request.page,
+            passage: request.passage,
+            onStatus: status => panel.setDocumentStatus(status)
+        })
+});
+```
+
+A component reaches the panel through `ChatSidePanelHost`, a narrow interface, found in Hoist's
+model context with `isChatSidePanelHost`. `ChatWorkspace` publishes its model's `sidePanel`. In a
+layout of the app's own, hold a `ChatSidePanelModel` on a model above the chat, and render it with
+the desktop `ChatSidePanel`.
+
+The viewer reports its progress with `setDocumentStatus()`. The panel shows it in a strip under
+its toolbar, never over the document:
+
+| `state` | The panel shows |
+|---|---|
+| `opening` | A mask over the body, "Opening document…", then "Still opening (2.4 MB)…" after 10 s |
+| `locating` | "Locating passage…" in the strip |
+| `located` | No strip. A screen reader hears the page |
+| `likelyPage` | "Opened the most likely page." with Copy Excerpt |
+| `notLocated` | "Couldn't locate the passage. Showing from the start." with Copy Excerpt |
+| `error` | Why, with only the actions that can work: Download if given, else Retry unless the status is a 4xx |
+
+Table and chart requests are typed for the generative UI package. The panel cannot render them
+yet.
+
 ### Use the composer without a ChatModel
 
 `ChatModel` implements `ChatComposerHost`, the members a composer needs from its conversation.
@@ -749,6 +794,66 @@ class NotesModel extends HoistModel implements ChatComposerHost {
 The composer calls `sendAsync()` only when `canSend` is true, and clears its draft as it calls.
 Render the model with a desktop `chatComposer`. See
 [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#use-the-composer-without-a-chatmodel).
+
+`ChatModel` also satisfies `ChatMessageListHost`, the members the desktop message list reads. See
+[ChatMessageListHost](#chatmessagelisthost) and
+[Show messages without a ChatModel](../desktop/cmp/chat/README.md#show-messages-without-a-chatmodel).
+
+### Recover from a failed reply
+
+The composer's status region holds the thread's next action. `ChatComposerModel.getStatus()`
+reads it as a `ChatComposerStatus`: a `type`, the reply's display status, at most one `action`,
+and the reason. `getChatComposerStatus()` is the same reading as a pure function. One status
+shows at a time, in this order: blocked, offline, failed or detached, stalled, waiting to retry,
+paused, busy, and a restored draft.
+
+The action for a failure depends on whether a resend is safe. `isChatRetrySafe(message,
+historyMode)` decides it:
+
+- A failure is retry-safe unless the server's `RUN_ERROR` sets `metadata.retrySafe: false`. The
+  reply records the flag as `metadata.retrySafe`.
+- In server mode, the kit's own `stalled` and `incomplete-stream` errors are not retry-safe,
+  because the server may still be running the turn.
+
+A retry-safe failure offers Try Again, through `retryAsync()`. One that is not offers Refresh
+Status, through `refreshStatusAsync()`, when the host can refresh. Without a thread layer, it
+offers Try Again and says the run may still be running. `ChatThreadsModel` supplies the
+refresher for each chat it opens. It reloads the thread, and first detaches a turn that is
+still running. Supply one yourself with `setStatusRefresher()`:
+
+```typescript
+chatModel.setStatusRefresher(() => this.reloadConversationAsync());
+```
+
+For a retry-safe failure with `retryAfterSeconds`, the composer waits out the time the server
+asked for, as `retryWait`, and disables Send meanwhile. A mounted status region counts it down
+and retries at zero. `cancelRetry()` stops the wait, and the region then offers Try Again. A
+chat with no status region never retries by itself.
+
+### Keep drafts
+
+With `ChatKit.defaults.drafts` set to `local`, the default, the composer saves its draft text
+per thread through `XH.localStorageService`, which keys it by app and user. It saves after each
+pause of 500 ms, and when it is destroyed. A composer whose host has no `threadId` keeps its
+draft in memory.
+
+- When the thread opens again, the composer restores the text, and `restoredDraft` holds it
+  for the notice. The notice goes on the first change to the text, after 6 seconds, or on
+  `discardDraft()`.
+- The saved draft goes when its message sends, or when the draft is cleared.
+- When a new thread adopts the id the backend gives it, the draft moves to that id.
+- Attachments stay in memory only.
+
+Set `composer: {drafts: 'memory'}` for a short-lived chat, such as a component helper. Hoist has
+no logout hook, so call `ChatKit.clearLocalData()` from your logout, before `XH.logoutAsync()`.
+It removes every key the kit wrote.
+
+```typescript
+async logoutAsync() {
+    ChatKit.clearLocalData();
+    await XH.logoutAsync();
+}
+```
 
 ### Announce to screen readers
 
@@ -795,6 +900,7 @@ See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatCom
 | `runOptions` | `PlainObject` | Initial value of `runOptions`. Default null. |
 | `textTransform` | `(text, context) => string` | Rewrites reply text before it is stored. `context` holds the `message` and `isStreaming`. |
 | `feedback` | `ChatFeedbackConfig` | `submitAsync`, `commentOn` (default `negative`) and `requireComment` (default false). |
+| `dataRefreshedAt` | `() => number` | Returns the epoch millis of the app's last data refresh, or null. Read as a computed value. A reply that finished before it shows that the data changed. Default none. |
 | `stallAfterMs` | `number` | Milliseconds with no data from the server, heartbeats included, before a reply shows as stalled. Default `ChatKit.defaults.stallAfterMs`. |
 | `track` | `boolean \| ChatTrackOptions` | True, or `{category, severity, logData}`, to track each finished turn. Default false. |
 | `composer` | `ChatComposerConfig` | Config for the managed `composerModel`, without `host`. The chat is the host. |
@@ -818,6 +924,10 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `runOptions` | `PlainObject` | Options for the next turn. `@bindableRef` - replace the value to change it. |
 | `hasOlderMessages` | `boolean` | True if older history remains to page in. `@bindable`. Default false. |
 | `canSubmitFeedback` | `boolean` | True if `feedback.submitAsync` or a thread layer submitter is set. |
+| `feedbackErrors` | `Record<string, Error>` | Why the last feedback on a message failed to save, by message id, for the form to show. Cleared on the next submit. Observable. |
+| `undoErrors` | `Record<string, Error>` | Why the last undo of a reply failed, by message id. Cleared on the next try. Observable. |
+| `canRefreshStatus` | `boolean` | True once a refresher is set with `setStatusRefresher()`. |
+| `dataRefreshedAt` | `number` | The app's last data refresh, from the config, or null. |
 | `isBusy` | `boolean` | True for `submitted` or `streaming`. False while a turn is paused. |
 | `sendBlockedReason` | `string` | Why sending must wait - while an undo runs, or from the `sendBlocker` or an added blocker - or null. |
 | `isEmpty` | `boolean` | True if there are no messages. |
@@ -840,15 +950,17 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `retryAsync()` | Re-run the last user message, replacing everything after it. |
 | `regenerateAsync(messageId?)` | Replace an assistant reply, by default the last one. Ignored for a reply with no user message before it. |
 | `editMessageAsync(messageId, text)` | Change the text of a user message, keep its files, and re-run from it. |
-| `approveToolCallAsync(toolCallId)` | Approve a call in `approval-requested`. |
+| `approveToolCallAsync(toolCallId, reason?)` | Approve a call in `approval-requested`. The reason is recorded on the call as `approvalReason`. |
 | `denyToolCallAsync(toolCallId, reason?)` | Deny a call in `approval-requested`. The model sees the reason. |
 | `addToolOutputAsync(toolCallId, output)` | Give the result of a call to an interactive tool. |
 | `canUndoTurn(messageId)` | True if the user can undo the reply's changes now. Reads observable state. |
-| `undoTurnAsync(messageId)` | Run the reply's undo functions, newest first, and mark it `metadata.undone`. |
+| `undoTurnAsync(messageId)` | Run the reply's undo functions, newest first, and mark it `metadata.undone`. A failure stops the undo and goes in `undoErrors`. |
 | `clear()` | Remove all messages and start a new thread. |
 | `loadMessages(specs, threadId?)` | Replace the conversation. Default a new thread id. |
 | `prependMessages(specs)` | Add older messages ahead of the conversation, skipping ids already present. |
-| `submitFeedbackAsync(messageId, rating, comment?)` | Rate a reply, or clear its rating with null. Shows at once, and reverts if the submit fails. |
+| `submitFeedbackAsync(messageId, rating, comment?)` | Rate a reply, or clear its rating with null. Shows at once. If the submit fails, it reverts and records the error in `feedbackErrors`, with no toast. |
+| `setStatusRefresher(refreshAsync)` | Set the function that reloads the thread, for Refresh Status. For a thread layer. |
+| `refreshStatusAsync()` | Reload the thread to learn how a run ended. Does nothing without a refresher. |
 | `setFeedbackSubmitter(submitAsync)` | Set the submitter to use when `feedback.submitAsync` is not configured. For a thread layer. |
 | `addSendBlocker(blocker)` | Add a reason for sends to wait, checked after the `sendBlocker`. For a thread layer. |
 | `setThreadCreator(createAsync)` | Set a function that creates a new thread on the backend. The chat awaits it before the first request of a new thread, and adopts the id it returns. For a thread layer. |
@@ -925,7 +1037,7 @@ Every part has an `id`, unique within its message, and a `step`. User message pa
 | `reasoning` | `text`, `state`, `startedAt`, `endedAt`, `encryptedValue?`, `providerData?` | The model's thinking. `encryptedValue` holds a signature that goes back with the history. |
 | `toolCall` | `toolName`, `state`, `inputText`, `input`, `output`, `errorText`, `providerExecuted?` | The `id` is the provider's tool call id. |
 | `file` | `name`, `mediaType`, `size?`, `url?`, `data?` | `data` is base64. |
-| `source` | `url?`, `title?`, `snippet?`, `marker?`, `metadata?` | A source the model consulted. `marker` is the number that cites it in the text, as in `[1]`. |
+| `source` | `sourceType?`, `url?`, `title?`, `snippet?`, `marker?`, `metadata?` | A source the model consulted. `marker` is the number that cites it in the text, as in `[1]`. `sourceType` is `url` or `document`, by default `url` for a source with a `url`. The kit reads `metadata.excerpt`, `fileName`, `page` and `favicon`. |
 | `data` | `dataType`, `data` | App or protocol content, drawn by `dataRenderers`. |
 
 The `state` of a tool call follows the Vercel AI SDK names, plus `running`:
@@ -987,8 +1099,9 @@ component. See [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#customize-th
 | `accept` | `string[]` | MIME types (`image/*`, `application/pdf`) or extensions (`.csv`). Default any. |
 | `maxFiles` | `number` | Most files per message. Default 10. |
 | `maxFileSize` | `number` | Largest file, in bytes. Default 10 MB. |
+| `drafts` | `'local' \| 'memory'` | Where to keep the draft text. Default `ChatKit.defaults.drafts`. See [Keep drafts](#keep-drafts). |
 
-All four are also `@bindable` members of the model, so an app can change them after
+The four file settings are also `@bindable` members of the model, so an app can change them after
 construction, for example to allow files only while an agent that reads them is selected.
 
 | Member | Description |
@@ -997,11 +1110,19 @@ construction, for example to allow files only while an agent that reads them is 
 | `attachments` | Files attached to the draft, as `ChatFilePart[]`. |
 | `isEmpty` | True if the draft has no text and no files. |
 | `host` | The `ChatComposerHost` the composer sends to. |
-| `canSend` | True if the draft is not empty, the host is not busy, and the host gives no `sendBlockedReason`. |
+| `canSend` | True if the draft is not empty, the host is not busy, and nothing in `sendDisabledReason` blocks it. |
+| `sendDisabledReason` | The host's `sendBlockedReason`, `"You're offline"`, or `'Waiting to retry'`, or null. |
+| `isOffline` | True while the browser reports it is offline. The draft stays, and nothing queues. |
+| `restoredDraft` | The draft restored from local storage, `{text, savedAt}`, while its notice shows. |
+| `retryWait` | The wait before a retry that the server asked for, `{messageId, endsAt}`, while it runs. |
+| `retryDueId` | Id of the failed reply whose wait just ran out. A status region retries it. |
+| `getStatus(now?)` | The status for the status region - see [Recover from a failed reply](#recover-from-a-failed-reply). |
+| `cancelRetry()` | Stop the wait before a retry. |
+| `discardDraft()` | Clear a restored draft and its notice. |
 | `submitAsync()` | Send the draft through `host.sendAsync()` and clear it, if it can be sent. |
 | `addFilesAsync(files)` | Read files into base64 parts. Files that break the rules are left out, and `attachmentErrors` names them. Throws if attachments are off. |
 | `removeAttachment(id)` | Remove one attachment. |
-| `clear()` | Clear the text and the attachments. |
+| `clear()` | Clear the text and the attachments, and remove the saved draft. |
 | `recallLastMessage()` | Put the text of the last user message into an empty draft. |
 | `focus()` | Focus the input, through `inputRef`. A composer component sets the ref. |
 
@@ -1017,6 +1138,52 @@ change.
 | `sendBlockedReason` | `string` | Optional. Why sending must wait, or null. |
 | `stop()` | `() => void` | Optional. Stop the reply in progress. Without it, the composer shows no Stop button. |
 | `messages` | `{isUser, text}[]` | Optional. The conversation, oldest first, for `recallLastMessage()`. |
+| `threadId` | `string` | Optional. Keys the saved draft. Without it, the draft stays in memory. |
+| `lastMessage` | `ChatMessage` | Optional. The status region reads the reply's status from it. |
+| `lastActivityAt`, `stallAfterMs` | `number` | Optional. Show a quiet reply as stalled. |
+| `historyMode` | `'client' \| 'server'` | Optional. Decides which failures are retry-safe. Default `client`. |
+| `retryAsync()` | `() => Promise<void>` | Optional. Resend the last turn. Without it, the region offers no Try Again and never retries. |
+| `refreshStatusAsync()`, `canRefreshStatus` | - | Optional. Reload the thread, for Refresh Status. The region offers it unless `canRefreshStatus` is false. |
+
+### ChatMessageListHost
+
+The members the desktop message list and its message views read. `ChatModel` satisfies it. Make
+them observable, so that the views update as they change. Each optional action shows its button
+only when the host has it.
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `messages` | `ChatMessage[]` | The conversation, oldest first. |
+| `isBusy` | `boolean` | True while a reply is in progress. Edit, Regenerate and Undo wait while busy. |
+| `lastActivityAt`, `stallAfterMs` | `number` | Optional. Show a quiet reply as stalled - see [Display status](#display-status). |
+| `sendBlockedReason` | `string` | Optional. Why an edit cannot resend yet, or null. |
+| `dataRefreshedAt` | `number` | Optional. Epoch millis of the app's last data refresh. An older reply shows "Data refreshed since". |
+| `dataRenderers`, `catalog` | - | Optional. Renderers for data parts, and the catalog for component tags. |
+| `getToolSpec(name)` | `(string) => ChatToolSpec` | Optional. How a tool's calls display. |
+| `editMessageAsync(id, text)` | `Promise<void>` | Optional. Shows Edit on user messages, and Edit Prompt on a failed reply. |
+| `regenerateAsync(id)` | `Promise<void>` | Optional. Shows Regenerate on the last reply. |
+| `canUndoTurn(id)`, `undoTurnAsync(id)` | - | Optional. Show Undo on a reply whose changes the user can undo. |
+| `canSubmitFeedback`, `feedback`, `submitFeedbackAsync(id, rating, comment)` | - | Optional. Show thumbs, and the comment form a rating asks for. |
+| `approveToolCallAsync(id, reason)`, `denyToolCallAsync(id, reason)` | `Promise<void>` | Optional. Show Approve and Deny on a call that waits for approval. |
+| `stop()` | `() => void` | Optional. Escape stops the reply in progress. |
+| `composerModel` | `{focus()}` | Optional. Focused after an edit resends. |
+
+### ChatSidePanelHost
+
+What a component needs to open content in the side panel. `ChatSidePanelModel` implements it.
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `isChatSidePanelHost` | `true` | Marks the host, for lookup in model context. |
+| `request` | `ChatSidePanelRequest` | The open request, or null. |
+| `hasRoom` | `boolean` | True if the panel has room beside the chat now. |
+| `canRender(request)`, `canOpen(request)` | `boolean` | True if the panel can render the request, and if it can also show it now. |
+| `open(request, opener?)` | `void` | Show a request in place of the last. Back and close focus `opener`. |
+| `close()` | `void` | Close the panel. |
+
+A document request is `{type: 'document', source, page?, passage?, citation?, messageId?}`.
+`ChatSidePanelModel` adds `documentRenderer`, `documentStatus`, `setDocumentStatus()`, `back()` and
+`canGoBack`.
 
 ### ChatKitDefaults
 
@@ -1028,12 +1195,15 @@ Fields of `ChatKit.defaults`. See `ChatKit.ts`.
 | `reducedMotionSpinner` | `'static' \| 'spin'` | Under reduced motion, `static` swaps the chat's spinners for a static icon, and `spin` keeps Hoist's spinner. Default `static`. |
 | `stallAfterMs` | `number` | Milliseconds with no data from the server before a reply shows as stalled. `ChatModelConfig.stallAfterMs` overrides it. Default 30,000. |
 | `announceSteps` | `'none' \| 'failures' \| 'all'` | Which steps of a reply the announcer reads, besides the finished reply. Default `failures`. |
-| `drafts` | `'local' \| 'memory'` | Where the composer keeps its unsent draft. Default `local`. |
+| `drafts` | `'local' \| 'memory'` | Where the composer keeps its unsent draft text: local storage, per thread, or memory only. Default `local`. See [Keep drafts](#keep-drafts). |
 | `shortcuts` | `ChatShortcuts` | Key combos in the format of Hoist's `useHotkeys`, by action: `newChat`, `toggleDock`, `openHelper`, `focusComposer`, `cycleRegions` and `toggleSidebar`. Null drops a shortcut. |
 
 The kit reads `announceSteps`, `drafts` and `shortcuts` from the components that use them. The
-timeline, the composer drafts and the keyboard map are still to come, so these fields have no
+timeline and the keyboard map are still to come, so `announceSteps` and `shortcuts` have no
 effect yet.
+
+`ChatKit.clearLocalData()` removes everything the kit keeps in local storage for the current
+user, such as drafts. Call it from your logout.
 
 ### chatAnnouncer
 

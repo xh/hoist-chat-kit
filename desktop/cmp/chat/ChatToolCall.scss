@@ -1,33 +1,36 @@
 @use '../../../styles/mixins' as *;
 
+// A tool call as a process row: outline only, 28px tall, with no header strip - the strip marks
+// output cards, and its absence is the hierarchy.
 .xh-chat-tool-call {
   background-color: var(--xh-chat-bg);
   border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
   border-radius: var(--xh-chat-border-radius);
   display: flex;
   flex-direction: column;
-  font-size: var(--xh-font-size-px);
+  font-size: var(--xh-chat-font-size);
   min-width: 0;
   overflow: hidden;
 
-  // The header: icon, title and summary, then status and chevron. A full-width button when the
-  // card opens, else a plain row laid out the same way.
+  &--busy {
+    border-color: var(--xh-chat-busy-color);
+  }
+
+  &--attention {
+    border-color: var(--xh-chat-attention-color);
+  }
+
+  &--error {
+    border-color: var(--xh-chat-error-color);
+  }
+
+  // The row: status glyph, title, tool name and error line, then summary, status and chevron.
+  // A full-width button when the call opens, else a plain row laid out the same way.
   &__header {
-    align-items: center;
     color: var(--xh-chat-text-color);
     display: flex;
-    gap: var(--xh-pad-px);
-    min-height: 34px;
-    padding: 0 var(--xh-pad-px);
-
-    > .svg-inline--fa {
-      color: var(--xh-chat-meta-text-color);
-      flex: none;
-    }
-
-    > .xh-chat-tool-call__heading {
-      flex: 1;
-    }
+    min-height: 26px;
+    padding: 0 2px 0 var(--xh-pad-px);
   }
 
   @include hoist-button('.xh-chat-tool-call__header') {
@@ -38,74 +41,105 @@
 
     border-radius: 0;
     justify-content: flex-start;
+    min-height: 26px;
+    padding: 0 2px 0 var(--xh-pad-px);
     width: 100%;
-
-    // Spaced by the gap alone, as the plain header is, rather than by Hoist's icon margins.
-    > * {
-      margin: 0;
-    }
-
-    > .xh-icon,
-    > .svg-inline--fa {
-      color: var(--xh-chat-meta-text-color);
-      flex: none;
-    }
 
     .bp6-button-text {
       flex: 1;
+      margin: 0;
       min-width: 0;
     }
   }
 
-  &__heading {
+  &__row {
+    align-items: center;
     display: flex;
-    gap: var(--xh-pad-half-px);
+    flex: 1;
+    gap: calc(var(--xh-pad) * 0.8px);
+    line-height: 18px;
     min-width: 0;
-    overflow: hidden;
     white-space: nowrap;
   }
 
-  &__title {
+  &__glyph {
+    display: inline-flex;
     flex: none;
-    font-weight: 500;
+    justify-content: center;
+    width: var(--xh-chat-status-cue-icon-width);
+
+    &--success {
+      color: var(--xh-chat-success-color);
+    }
+
+    &--busy {
+      color: var(--xh-chat-busy-color);
+    }
+
+    &--attention {
+      color: var(--xh-chat-attention-color);
+    }
+
+    &--error {
+      color: var(--xh-chat-error-color);
+    }
+
+    &--denied {
+      color: var(--xh-chat-meta-text-color);
+    }
   }
 
-  &__summary {
+  &__icon {
     color: var(--xh-chat-meta-text-color);
+    display: inline-flex;
+    flex: none;
+  }
+
+  // The title truncates first, so the status stays in view.
+  &__title {
+    font-weight: 500;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  &__status {
-    align-items: center;
+  &__name {
     color: var(--xh-chat-meta-text-color);
-    display: flex;
     flex: none;
-    gap: var(--xh-pad-px);
+    font-family: var(--xh-font-family-mono);
+    font-size: var(--xh-chat-code-font-size);
   }
 
-  &__status-label {
-    align-items: center;
-    display: flex;
-    font-size: var(--xh-chat-meta-font-size);
-    gap: calc(var(--xh-pad) * 0.5px);
-    white-space: nowrap;
-  }
-
-  &__status-icon {
-    color: var(--xh-chat-success-color);
-  }
-
-  &--output-error &__status-label {
+  &__detail {
     color: var(--xh-chat-error-color);
+    flex: 0 1000 auto;
+    font-size: var(--xh-chat-meta-font-size);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  &--approval-requested {
-    border-color: var(--xh-chat-attention-color);
+  &__meta {
+    color: var(--xh-chat-meta-text-color);
+    flex: none;
+    font-size: var(--xh-chat-meta-font-size);
+    margin-left: auto;
   }
 
-  &__status-label--waiting {
-    color: var(--xh-chat-warning-color);
+  &--busy &__meta {
+    color: var(--xh-chat-busy-color);
+  }
+
+  &--attention &__meta {
+    color: var(--xh-chat-attention-color);
+  }
+
+  &__chevron {
+    color: var(--xh-chat-meta-text-color);
+    display: inline-flex;
+    flex: none;
+    justify-content: center;
+    width: 22px;
   }
 
   &__approval {
@@ -160,7 +194,7 @@
     white-space: pre-wrap;
   }
 
-  // An inline call shows its rendered output as part of the reply, with no card around it.
+  // An inline call shows its rendered output as part of the reply, with no row around it.
   &--inline {
     background-color: transparent;
     border: none;
@@ -179,7 +213,7 @@
     gap: var(--xh-pad-px);
     line-height: normal;
     min-height: 18px;
-    transition: opacity 0.15s;
+    transition: opacity var(--xh-chat-motion-reveal) var(--xh-chat-motion-ease);
   }
 
   // With no status to show, the row holds only the input toggle, shown on hover or focus.
@@ -198,7 +232,7 @@
     gap: calc(var(--xh-pad) * 0.5px);
 
     &--approval {
-      color: var(--xh-chat-warning-color);
+      color: var(--xh-chat-attention-color);
     }
 
     &--error {
@@ -235,124 +269,89 @@
     gap: var(--xh-pad-half-px);
     min-width: 0;
   }
-
-  // A call within a tool call group: a compact, borderless row.
-  &--grouped {
-    background-color: transparent;
-    border: none;
-    border-radius: var(--xh-chat-border-radius);
-    overflow: visible;
-  }
-
-  &--grouped &__header {
-    min-height: 28px;
-    padding: 0 var(--xh-pad-half-px);
-  }
-
-  &--grouped &__title {
-    font-weight: normal;
-  }
-
-  // In a group, the status follows the label, rather than sitting at the far edge of the row.
-  &--grouped &__header > .xh-chat-tool-call__heading {
-    flex: 0 1 auto;
-  }
-
-  &--grouped {
-    @include hoist-button('.xh-chat-tool-call__header') {
-      border-radius: var(--xh-chat-border-radius);
-
-      .bp6-button-text {
-        flex: 0 1 auto;
-      }
-    }
-  }
-
-  &--grouped &__body {
-    border-top: none;
-    padding: calc(var(--xh-pad) * 0.4px) var(--xh-pad-half-px) var(--xh-pad-px);
-  }
 }
 
-// Consecutive tool calls, folded into one quiet row that opens to show each call.
+// A docked or narrow chat drops the tool name, so the title has the room.
+.xh-chat--compact .xh-chat-tool-call__name {
+  display: none;
+}
+
+// Consecutive tool calls, folded into one row that opens to show each call, indented below it.
 .xh-chat-tool-call-group {
   display: flex;
   flex-direction: column;
-  font-size: var(--xh-font-size-px);
+  font-size: var(--xh-chat-font-size);
+  gap: var(--xh-chat-process-gap);
   min-width: 0;
 
   @include hoist-button('.xh-chat-tool-call-group__header') {
-    --xh-button-text-color: var(--xh-chat-meta-text-color);
+    --xh-button-text-color: var(--xh-chat-text-color);
     --xh-button-bg-darker: var(--xh-intent-neutral-trans1);
 
-    align-self: flex-start;
-    gap: var(--xh-pad-px);
-    margin-left: calc(var(--xh-pad-half-px) * -1);
-    max-width: calc(100% + var(--xh-pad-half-px));
+    border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border-radius: var(--xh-chat-border-radius);
+    justify-content: flex-start;
     min-height: 28px;
-    padding: 0 var(--xh-pad-half-px);
-
-    > * {
-      margin: 0;
-    }
-
-    > .svg-inline--fa {
-      flex: none;
-    }
+    padding: 0 2px 0 var(--xh-pad-px);
+    width: 100%;
 
     .bp6-button-text {
+      flex: 1;
+      margin: 0;
       min-width: 0;
-    }
-
-    &:hover {
-      --xh-button-text-color: var(--xh-chat-text-color);
     }
   }
 
-  &__heading {
+  &--running {
+    @include hoist-button('.xh-chat-tool-call-group__header') {
+      border-color: var(--xh-chat-busy-color);
+    }
+  }
+
+  &__row {
+    align-items: center;
     display: flex;
-    gap: var(--xh-pad-half-px);
+    flex: 1;
+    gap: calc(var(--xh-pad) * 0.8px);
+    line-height: 18px;
     min-width: 0;
-    overflow: hidden;
     white-space: nowrap;
   }
 
   &__title {
     flex: none;
+    font-weight: 500;
   }
 
   &__summary {
-    opacity: 0.75;
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  &__status {
-    align-items: center;
-    display: flex;
-    flex: none;
-    gap: var(--xh-pad-half-px);
-  }
-
-  &__problem {
-    align-items: center;
+  &__meta {
     color: var(--xh-chat-error-color);
-    display: inline-flex;
+    flex: none;
     font-size: var(--xh-chat-meta-font-size);
-    gap: calc(var(--xh-pad) * 0.4px);
-
-    &--denied {
-      color: var(--xh-chat-meta-text-color);
-    }
+    margin-left: auto;
   }
 
-  // The calls hang from a rule under the group's icon, as reasoning hangs from its toggle.
+  &__chevron {
+    color: var(--xh-chat-meta-text-color);
+    display: inline-flex;
+    flex: none;
+    justify-content: center;
+    width: 22px;
+  }
+
+  // Each call as its own row, indented below the group's. No rail: indents only.
   &__items {
-    border-left: 2px solid var(--xh-chat-part-border-color);
     display: flex;
     flex-direction: column;
-    margin: 2px 0 var(--xh-pad-half-px) 6px;
+    gap: var(--xh-chat-process-gap);
     min-width: 0;
-    padding-left: calc(var(--xh-pad) * 0.4px);
+    padding-left: calc(var(--xh-pad) * 2px);
   }
 }

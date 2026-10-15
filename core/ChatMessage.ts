@@ -47,7 +47,8 @@ export interface ChatMessageSpec {
 
     /**
      * Open-ended data about the message. The kit records `elapsedMs`, `finishReason`,
-     * `stopReason`, `usage` and, for a failed turn, `errorCode` on assistant messages, and
+     * `stopReason`, `usage`, `runStarted: true` once the backend reports the run began, and, for a
+     * failed turn, `errorCode`, `retryAfterSeconds` and `retrySafe` on assistant messages, and
      * `undone: true` on a reply whose changes the user undid. Apps may add their own keys.
      */
     metadata?: PlainObject;

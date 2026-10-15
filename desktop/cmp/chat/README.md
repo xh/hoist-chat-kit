@@ -26,14 +26,17 @@ Key features:
 - **`ChatPanel`** - a complete chat in one Hoist `Panel`: the message list above the composer.
 - **Streaming that stays cheap** - each part renders as a memoized component. A part re-renders
   only when it changes, not on every streamed change to its message.
-- **Quiet tool calls** - two or more consecutive tool calls of one step fold into one row, such
-  as "Used 3 tools". A call that waits for the user stays in view as a card, and asks for
-  approval in the words of the tool's `approvalPrompt`.
+- **Quiet process rows** - reasoning and tool calls stack as 28px rows with an outline, in one
+  block at a tighter gap than the reply's output. Two or more consecutive tool calls of one step
+  fold into one row, such as "Used 3 tools". A call that waits for the user stays in view, and
+  asks for approval in the words of the tool's `approvalPrompt`.
 - **Inline generative UI** - a tool with `display: 'inline'` shows its rendered output as part
   of the reply, with a status only while it streams, waits or fails.
-- **Citations in place** - numbered citation chips sit at the end of the paragraph they support,
-  and keep their numbers while the reply streams. With `citationMarkers` on, `[1]` in the text
-  renders as a button for its source. The source list shares the numbers.
+- **Citations in place** - numbered markers sit in the text or at the end of the paragraph they
+  support, and keep their numbers while the reply streams. Each opens a card with the source's
+  title and excerpt. The sources list under the reply shares the numbers.
+- **Documents beside the chat** - a document's citation opens in the side panel, in the app's
+  own viewer, and a web page opens in a new tab.
 - **Renderers as components** - a tool `renderer` or a data renderer renders as a component of
   its own, so it can use hooks such as `useLocalModel()`.
 - **Contained render errors** - each message and each part renders inside an error boundary. A
@@ -41,6 +44,13 @@ Key features:
   still renders.
 - **Safe markdown** - raw HTML renders as text, and model-written images do not load unless the
   app allows them.
+- **Failures inline** - a failed reply shows what happened in the reply, with Edit Prompt and
+  Copy Details. A message whose turn never started shows "Not sent". The thread's next action,
+  such as Try Again, sits in the composer's status region.
+- **Feedback** - thumbs on each reply, when the chat takes feedback. A rating that asks for a
+  comment opens a comment form under the action bar.
+- **Any host** - the message list shows a `ChatModel`, or any app model that implements
+  `ChatMessageListHost`, and hides each action the host does not offer.
 - **App slots** - toolbar items in the composer, an empty state with suggestions, message
   actions and message header items.
 - **Live status** - a reply's header says what it is doing, such as "Writing 6s", and that it
@@ -56,23 +66,34 @@ Key features:
 ```
 ChatPanel (Panel)                       # uses(ChatModel)
 ├── ChatMessageList                     # Scrolls, sticks to the bottom while a reply streams
-│   ├── ChatEmptyState                  # When the conversation has no messages
-│   │   └── ChatSuggestions             # Prompt chips that send on click
+│   ├── ChatEmptyState                  # For a list with no messages, outside a ChatPanel
+│   │   └── ChatSuggestions             # Prompt cards that fill the composer
 │   ├── ChatMessageView (per message)   # A user bubble, or an assistant reply
-│   │   ├── header                      # Name, live status, time taken, messageHeaderItems
+│   │   ├── header                      # Name, live status, time, time taken, header items
 │   │   ├── parts, in order:
+│   │   │   ├── process block           # Reasoning and tool rows, at the process gap
+│   │   │   │   ├── ChatReasoning       # "Thought for 12s" disclosure
+│   │   │   │   ├── ChatToolCall        # A 28px row that opens
+│   │   │   │   └── tool call group     # "Used 3 tools", opens to show each call
 │   │   │   ├── text                    # ChatMarkdown, with inline citation chips
-│   │   │   ├── ChatReasoning           # "Thought for 12s" disclosure
-│   │   │   ├── ChatToolCall            # A card, or inline renderer output
-│   │   │   ├── tool call group         # "Used 3 tools", opens to show each call
+│   │   │   ├── ChatToolCall (inline)   # Renderer output, as part of the reply
 │   │   │   ├── files                   # ChatFileChip row
-│   │   │   └── data                    # ChatModelConfig.dataRenderers
-│   │   ├── ChatSources                 # "3 sources" list
-│   │   └── action bar                  # Copy, Edit, Regenerate, Undo, then messageActions
-│   ├── error banner                    # The error that ended the last turn, with Retry
+│   │   │   └── data                    # dataRenderers, or ChatNoAnswer
+│   │   ├── how it ended                # Failed row, "Stopped", or the length cut
+│   │   ├── ChatSources                 # Sources list, in marker order
+│   │   ├── action bar                  # Copy, Regenerate, Undo, thumbs, messageActions
+│   │   └── feedback form               # Under the action bar, for a comment
 │   └── announcer regions               # Hidden live regions that read finished replies
+├── ChatStatusRegion                    # One line: the thread's next action, such as Try Again
 └── ChatComposer                        # uses(ChatComposerModel), or the chat's composerModel
+    ├── attachment tray                 # File chips, then any files left out
+    ├── input                           # Grows from 1 to 8 lines, then scrolls
+    └── bar                             # leftItems pills | rightItems, attach, Send or Stop
 ```
+
+An empty conversation renders no message list. `ChatPanel` shows the `ChatEmptyState` heading,
+then the status region and composer centered at about 40% of the height, then the suggestions.
+The first send moves the composer to the bottom in one frame, and focus stays in it.
 
 ### Render context
 
@@ -140,22 +161,63 @@ several lists, only the first fills its regions. See
 
 ### Citations
 
-A text part's citations show as numbered chips at the end of its last paragraph or list item. A
+A text part's citations show as numbered markers at the end of its last paragraph or list item. A
 part that ends in a code block, a table or a quote puts them on the last paragraph before it.
 Numbers run across the whole reply, in order of first citation, and never change once given.
-Sources that arrive after the text take the numbers of their citations. The "3 sources" list
-shows the same numbers, with any source cited but not listed.
+Sources that arrive after the text take the numbers of their citations.
 
-Some backends cite inline instead, as `[1]` or `[1, 2]` in the text. With `citationMarkers` on,
-each marker renders as a button for the source it cites, with a tooltip that shows the source's
-title, host and excerpt. See [Citation markers](../../../cmp/markdown/README.md#citation-markers)
-for how markers match sources. Sources then take the numbers that cite them: their `marker`, or
-their position when no source has a marker. Citation chips and the source list use the same
-numbers, so `[2]`, its chip and the second list entry agree. The chips keep working with markers
-on.
+Some backends cite inline instead, as `[1]`, `[1, 3]` or `[2–5]` in the text. With
+`citationMarkers` on, each number renders as a 14 px marker for the source it cites. A marker for
+four or more sources collapses to one marker, such as "2–5". See
+[Citation markers](../../../cmp/markdown/README.md#citation-markers) for how markers match
+sources. Sources then take the numbers that cite them: their `marker`, or their position when no
+source has a marker.
 
-A click on a source in the list, a chip or a marker calls `onSourceClick`. Without it, a click
-opens the source's `url` in a new tab.
+A marker opens its source's card after 300 ms of hover, or at once on focus. The card shows the
+number, the icon, the title, the file name and page or the host, and the excerpt. Its buttons are
+Open Passage or Open Link, and Copy Excerpt. It shows only what the source carries. Tab moves
+into the card's buttons and on to the next marker. Esc closes the card and keeps focus on the
+marker.
+
+### Sources list
+
+`ChatSources` lists the sources under the reply's text, in the order of their numbers. It never
+renumbers them, so `[2]`, its marker and the row numbered 2 agree even when the numbers skip.
+Three rows show, and the rest sit behind "Show N More". Sources that the reply searched
+but never cites show as a count on one line, without numbers.
+
+A source's `sourceType` sets its row and what a click does:
+
+| `sourceType` | Row | Click |
+|---|---|---|
+| `document` | File-type icon, title, then `metadata.fileName` and `metadata.page` | Opens the side panel when one is in reach, else `onSourceClick`, else its URL in a new tab |
+| `url` | Favicon or letter tile, title as a link, then the host and an external-link icon | Opens a new tab, or `onSourceClick` in its place. A web page's marker pins its card instead |
+
+A Ctrl or Cmd click opens a source's URL in a new tab. Only `http` and `https` URLs open.
+
+A favicon comes from `metadata.favicon` only, and follows the image policy. A `data:` image always
+shows, and an image URL loads only if `allowImages` permits it. Otherwise a letter tile shows. The
+kit never fetches a favicon from a third-party service.
+
+### Side panel
+
+A document's marker or row opens in the side panel when a `ChatSidePanelHost` is in reach. The
+message view looks for one in Hoist's model context. `ChatWorkspace` publishes one, with the
+`documentRenderer` from its config. An app with its own layout can publish a
+`ChatSidePanelModel` above the chat and render it with `ChatSidePanel`. See
+[the side panel](../../../core/README.md#side-panel).
+
+The marker whose passage the panel shows stays active, with `aria-pressed`. Without a host, or
+without room, a document opens with `onSourceClick`, else at its URL in a new tab. When the panel
+has a viewer but no room, a toast says so.
+
+### Fixed "not found" replies
+
+A `data` part with the `dataType` `xh.chat.noAnswer` renders as `ChatNoAnswer`: a fixed template
+in a dotted frame, tagged "Fixed reply", that lists the documents searched. Its wording never
+comes from the model. The reply shows no sources list and no Regenerate. Its only thumb is the
+thumbs down, labeled "It is in these documents". Register a renderer for the type in
+`dataRenderers` to replace the template.
 
 ## Configuration Pattern
 
@@ -199,9 +261,9 @@ example shows each feature in a demo of its own.
 
 ### Customize the composer
 
-Pass `composerProps` to `ChatPanel`, or props to `chatComposer` directly. `leftItems` and
-`rightItems` add toolbar items around the send button. `topItems` adds content above the input,
-such as context chips.
+Pass `composerProps` to `ChatPanel`, or props to `chatComposer` directly. `leftItems` fills the
+left slot of the composer's bar, for pills. `rightItems` goes before the attach and Send
+buttons, for a context meter. `topItems` adds content above the input, such as context chips.
 
 ```typescript
 chatPanel({
@@ -209,7 +271,7 @@ chatPanel({
     composerProps: {
         placeholder: 'Ask about this dashboard...',
         maxRows: 6,
-        leftItems: [modelPicker()],
+        leftItems: [agentPill(), chatScopeChip({documents})],
         topItems: contextChips()
     }
 });
@@ -221,8 +283,8 @@ on the composer. A paste that carries text stays a paste, even when the clipboar
 image of the copied cells.
 
 To hold the user back until the app is ready, set `sendBlocker` on the `ChatModelConfig`. It
-returns the reason sending must wait, or null. The composer disables Send, shows the reason as
-the button's tooltip, and announces it to screen readers:
+returns the reason sending must wait, or null. The composer disables Send and shows the reason
+as the button's tooltip. The status region above the composer states the reason too:
 
 ```typescript
 new ChatModel({
@@ -230,6 +292,84 @@ new ChatModel({
     sendBlocker: () => (this.documentId ? null : 'Choose a document first.')
 });
 ```
+
+While a reply is in progress, Send becomes a Stop button with the word "Stop", if the host can
+stop. The user can type the next message, and Enter does nothing until the reply ends.
+
+### Add a pill to the composer
+
+`chatComposerPill` is a small chip for the left slot. It shows an optional status dot, an icon,
+its words, a count and a chevron, and opens a menu or a popover upward. Bind its choices to
+`chatModel.runOptions`, so that each turn records them and a change never reaches a reply in
+progress.
+
+```typescript
+chatComposerPill({
+    icon: Icon.tools(),
+    text: 'Tools',
+    count: enabledTools.length,
+    content: toolList()
+});
+```
+
+Pass `menuItems` for a single choice, or `content` for a list of checkboxes. Set `readonly` when
+the app decides the value, such as a router that picks the agent. The pill then shows a lock,
+opens nothing, and keeps its tooltip, which should say who decides. A status dot always needs
+`statusText`, as the dot alone never carries the status. In a compact host, a pill shows only
+its icon and count.
+
+### Scope questions to documents
+
+`chatScopeChip` scopes the next question to some of the app's documents. The app supplies the
+documents, each with an `id`, a `name` and an optional `icon`. The chip reads "All documents"
+with none chosen, else "Documents" with the count. Its popover lists the documents as
+checkboxes, with a search box for a long list, and Clear.
+
+```typescript
+chatPanel({
+    model: chatModel,
+    composerProps: {leftItems: chatScopeChip({documents: this.documents})}
+});
+```
+
+The chip writes the chosen ids to `chatModel.runOptions.documentIds`. Each question records a
+copy as `metadata.runOptions`, and a retry, regenerate or edit re-runs with that copy. Under
+`ChatThreadsModel`, the scope belongs to the thread, and a thread opens with the scope of its
+last question. To keep the scope in your own state, pass `value` and `onChange` instead.
+
+### Recover from a failed reply
+
+`ChatPanel` renders a `ChatStatusRegion` above the composer. It shows one line, the most urgent
+status of the thread, with at most one action. A custom layout renders it with
+`chatStatusRegion()` above the composer.
+
+| Status | Shows | Action |
+|---|---|---|
+| Sending blocked | The `sendBlockedReason` | None |
+| Offline | "Offline. Your draft is kept; send it when you're back online." | None |
+| Failed, retry-safe | "The reply failed." and the cause | Try Again |
+| Failed, not retry-safe | The cause, and "It may still be running." | Refresh Status, else Try Again |
+| Interrupted or cancelled by the server | The server's reason | Try Again, or Refresh Status |
+| Left running on the server | "Still working on the server." | Refresh Status |
+| Stalled | "No response for 34s." | Refresh Status |
+| Server asked for a wait | "Waiting to retry, 42 s." | Cancel. The turn retries at zero |
+| Waiting for the user | "Waiting for your answer above." | None |
+| Reply in progress | "Assistant is working · Esc to stop" | None |
+| Draft restored | "Draft from 10:31am restored." | Discard |
+
+A failure is retry-safe unless the server's `RUN_ERROR` sets `metadata.retrySafe: false`. In
+server mode, the kit's own `stalled` and `incomplete-stream` errors are not retry-safe either,
+because the server may still be running the turn. Refresh Status shows only when the host can
+reload the thread. `ChatThreadsModel` supplies that for its chats. See
+[Recover from a failed reply](../../../core/README.md#recover-from-a-failed-reply).
+
+### Keep drafts
+
+The composer saves its draft text per thread through `XH.localStorageService`, after each pause
+of 500 ms. When the thread opens again, the composer restores the text and the status region
+shows "Draft from 10:31am restored." with Discard. The draft goes when its message sends.
+Attachments stay in memory only. Call `ChatKit.clearLocalData()` from your logout, as Hoist has
+no logout hook. See [Keep drafts](../../../core/README.md#keep-drafts) for the settings.
 
 ### Use the composer without a ChatModel
 
@@ -244,32 +384,72 @@ for the host and an example.
 chatComposer({model: notesModel.composerModel, placeholder: 'Add a note...'});
 ```
 
+### Show messages without a ChatModel
+
+The message list needs only a `ChatMessageListHost`: `messages` and `isBusy`, plus any optional
+members it reads. `ChatModel` satisfies it. Pass your own as `host`. Each action is optional,
+and the list hides the button for an action the host lacks. Part renderers then receive a
+context whose `chatModel` is null.
+
+```typescript
+export class NotesModel extends HoistModel implements ChatMessageListHost {
+    @observableRef accessor messages: ChatMessage[] = [];
+    @observable accessor isBusy = false;
+
+    // Shows Regenerate on the last reply.
+    async regenerateAsync(messageId: string) {
+        // ...
+    }
+}
+
+chatMessageList({host: notesModel});
+```
+
 ### Replace the empty state
 
-`suggestions` adds prompt chips to the default empty state. For your own heading and text, pass
-a `chatEmptyState` as `emptyState`. A click on a suggestion sends it and moves focus to the
-composer.
+`emptyStateProps` sets the heading, supporting text and icon of the default empty state.
+`suggestions` adds prompt cards under the centered composer, each with an optional icon and
+`description`. A click on a suggestion fills the composer and focuses it, and never sends. The
+cards hide while the composer has text. Pass `onSelect` to `chatSuggestions` to act on a click
+yourself.
 
 ```typescript
 chatPanel({
     model: chatModel,
-    emptyState: chatEmptyState({
+    emptyStateProps: {
         title: 'What should we build?',
-        text: 'Describe a dashboard and the agent will build it.',
-        suggestions: [
-            {text: 'Compare two cities', prompt: 'Compare weather in New York and Tokyo'},
-            'What can you help me do?'
-        ]
-    })
+        text: 'Describe a dashboard and the agent will build it.'
+    },
+    suggestions: [
+        {
+            text: 'Compare two cities',
+            description: 'Weather side by side',
+            prompt: 'Compare weather in New York and Tokyo'
+        },
+        'What can you help me do?'
+    ]
 });
 ```
 
+To show other content instead, pass it as `emptyState`. The message list shows it, and the
+composer stays at the bottom.
+
+### Collect feedback
+
+Each reply shows thumbs up and down once its turn ends, if the chat can submit feedback - see
+`ChatModelConfig.feedback`. An up rating saves on click, and a click on the chosen thumb clears
+it. A rating that asks for a comment, per `feedback.commentOn`, opens a comment form under the
+action bar. With `feedback.requireComment`, the rating saves only with its comment. Without it,
+the rating saves at once and the comment follows. A failed reply shows no thumbs.
+
 ### Add message actions, such as feedback
 
-`messageActions` adds buttons to each message's action bar, after Copy, Edit, Regenerate and
-Undo. Undo shows on a reply whose changes the user can undo - see `ChatModel.canUndoTurn()`. The
-function receives the message and its render context, and returns elements. Keep the feedback
-state in your own model, so it survives a re-render and can go to your server.
+`messageActions` adds buttons to each message's action bar, after the built-in ones: Copy,
+Edit, Regenerate, Undo and the thumbs. Undo shows on a reply whose changes the user can undo -
+see `ChatModel.canUndoTurn()`. The function receives the message and its render context, and
+returns elements. For feedback buttons of your own, leave `ChatModelConfig.feedback` unset, so
+the built-in thumbs stay hidden. Keep the feedback state in your own model, so it survives a
+re-render and can go to your server.
 
 ```typescript
 export class AssistantModel extends HoistModel {
@@ -397,9 +577,24 @@ inline `data`, such as the user's own attachment, always shows, as it loads noth
 ### Show citation markers and open sources in the app
 
 Turn on `citationMarkers` when the backend writes `[n]` markers in its text. Give each source a
-`marker` if the numbers do not follow the order of the sources. Pass `onSourceClick` to open a
-source in the app, for example in a document viewer. A source with no `url` is then clickable
-too.
+`marker` if the numbers do not follow the order of the sources, and a `sourceType`. In a
+`ChatWorkspace`, give the model a `documentRenderer`, and a document's marker opens it in the side
+panel:
+
+```typescript
+new ChatWorkspaceModel({
+    threadsModel,
+    documentRenderer: (request, panel) =>
+        documentViewer({
+            documentId: request.source.metadata.documentId,
+            passage: request.passage,
+            onStatus: status => panel.setDocumentStatus(status)
+        })
+});
+```
+
+Outside a workspace, pass `onSourceClick` to open a source in the app. A document with no `url`
+is then clickable too.
 
 ```typescript
 chatPanel({
@@ -502,11 +697,12 @@ Accepts all `PanelProps` except `model`, `modelConfig` and `modelRef`.
 | Property | Type | Description |
 |----------|------|-------------|
 | `model` | `ChatModel` | The chat to render. Found in context if not given. |
-| `emptyState` | `ReactNode` | Content for a conversation with no messages, in place of the default. |
-| `suggestions` | `Array<ChatSuggestion \| string>` | Prompt chips for the default empty state. |
+| `emptyState` | `ReactNode` | Content for a conversation with no messages, in the list, in place of the default. The composer stays at the bottom. |
+| `emptyStateProps` | `{title, text, icon}` | Heading, supporting text and icon of the default empty state. |
+| `suggestions` | `Array<ChatSuggestion \| string>` | Prompt cards under the centered composer of the default empty state. |
 | `allowImages` | `boolean \| (src) => boolean` | Model-written images, and file images at a URL, to load. Default false. |
 | `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
-| `onSourceClick` | `(source, context) => void` | Called when the user clicks a source, a citation chip or a marker. Default opens the source's `url` in a new tab. Pass a stable function. |
+| `onSourceClick` | `(source, context) => void` | Called when the user clicks a source or a marker. Default opens a document in the side panel when one is in reach, and a web page in a new tab. Pass a stable function. |
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
 | `composerProps` | `ChatComposerProps` | Props for the composer. |
 | `messageListProps` | `ChatMessageListProps` | Props for the message list. |
@@ -518,17 +714,22 @@ Accepts layout props, `testId`, `ref` and other box props.
 | Property | Type | Description |
 |----------|------|-------------|
 | `model` | `ChatModel` | The chat to render. Found in context if not given. |
+| `host` | `ChatMessageListHost` | The conversation to render, when it is not a `ChatModel`. |
 | `emptyState` | `ReactNode` | Content for a conversation with no messages. |
-| `suggestions` | `Array<ChatSuggestion \| string>` | Prompt chips for the default empty state. |
+| `suggestions` | `Array<ChatSuggestion \| string>` | Prompt cards for the default empty state. |
 | `assistantName` | `string` | Name on assistant messages. Default `'Assistant'`. |
 | `assistantIcon` | `ReactElement` | Icon on assistant messages. Default from `ChatKit.defaults.assistantIcon`. |
 | `markdownComponents` | `ChatMarkdownComponents` | Markdown element overrides. Pass a stable object. |
 | `allowImages` | `boolean \| (src) => boolean` | Model-written images, and file images at a URL, to load. Default false. |
 | `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
-| `onSourceClick` | `(source, context) => void` | Called when the user clicks a source, a citation chip or a marker. Default opens the source's `url` in a new tab. Pass a stable function. |
+| `onSourceClick` | `(source, context) => void` | Called when the user clicks a source or a marker. Default opens a document in the side panel when one is in reach, and a web page in a new tab. Pass a stable function. |
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
-| `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit, Regenerate and Undo. Pass a stable function. |
+| `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit, Regenerate, Undo and the thumbs. Pass a stable function. |
 | `messageHeaderItems` | `(message, context) => ReactNode[]` | Items in an assistant message's header. Pass a stable function. |
+
+Each message is a focusable `article`, named for its author and time. With a message focused, Up
+and Down move to the one before or after. Escape stops a reply in progress while focus is in the
+list, if the host has `stop()`.
 
 ### ChatComposer
 
@@ -537,16 +738,18 @@ Accepts layout props, `testId`, `ref` and other box props.
 | Property | Type | Description |
 |----------|------|-------------|
 | `model` | `ChatComposerModel` | The draft to edit. Default the `composerModel` of the `ChatModel` in context. A composer model over another `ChatComposerHost` needs no `ChatModel`. |
-| `placeholder` | `string` | Prompt in the empty input. Default `'Send a message...'`. |
-| `maxRows` | `number` | Rows the input grows to before it scrolls. Default 10. |
+| `placeholder` | `string` | Prompt in the empty input. Default `'Send a message...'`, or `'Or tell the assistant what to do instead...'` while a reply waits for the user. |
+| `maxRows` | `number` | Rows the input grows to before it scrolls. Default 8. |
 | `topItems` | `ReactNode` | Content above the input, inside the composer. |
-| `leftItems` | `ReactNode` | Toolbar items on the left. |
-| `rightItems` | `ReactNode` | Toolbar items on the right, before the send button. |
+| `leftItems` | `ReactNode` | The left slot of the bar, for pills such as `chatComposerPill` and `chatScopeChip`. |
+| `rightItems` | `ReactNode` | The right slot of the bar, before the attach and Send buttons. |
 | `autoFocus` | `boolean` | True to focus the input on mount. |
 
 Enter sends, and Shift+Enter starts a new line. An Enter that confirms an IME candidate does not
-send. Up arrow in an empty input recalls the last user message. While a reply streams, the send
-button stops it, and so does Escape, if the host has `stop()`. The composer names any file it cannot attach under the
+send. Up arrow in an empty input recalls the last user message. While a reply streams, Send
+becomes a Stop button, and Escape stops too, if the host has `stop()`. Focus returns to the
+input after Stop. A disabled Send with a reason - blocked, offline, or waiting to retry - sits
+in a focusable wrapper, so that keyboard users reach its tooltip. The composer names any file it cannot attach under the
 attachments, such as one of the wrong type, too large, or over the limit. The names come from the
 composer model's `attachmentErrors`, and stay until the user dismisses them or adds more files.
 
@@ -558,21 +761,26 @@ Use it directly only for a list of your own.
 | Property | Type | Description |
 |----------|------|-------------|
 | `message` | `ChatMessage` | The message to show. |
-| `chatModel` | `ChatModel` | The chat that holds the message. |
+| `host` | `ChatMessageListHost` | The conversation that holds the message, such as a `ChatModel`. |
 | `assistantName`, `assistantIcon`, `markdownComponents`, `allowImages`, `citationMarkers`, `onSourceClick`, `markdownPlugins`, `messageActions`, `messageHeaderItems` | - | As on `ChatMessageList`. |
 
 ### Part components
 
 | Component | Props | Use it to |
 |-----------|-------|-----------|
-| `ChatToolCall` | `part`, `context` | Show a tool call card, for example inside a renderer of your own. |
+| `ChatToolCall` | `part`, `context`, `host` | Show a tool call row, for example inside a renderer of your own. `host` defaults to `context.chatModel`. |
 | `ChatClearButton` | `chatModel`, and any `ButtonProps` | Clear the conversation, from a panel header. |
 | `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |
-| `ChatSources` | `sources`, `defaultExpanded`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
-| `ChatCodeBlock` | `content`, `language` | Show code with a copy button. |
+| `ChatSources` | `sources`, `uncitedSources`, `defaultExpanded`, `onSourceClick`, `allowImages` | Show a list of sources. Each shows its `marker`, else its position. Uncited sources are counted, not numbered. |
+| `ChatNoAnswer` | `part`, `onEditQuestion` | Show a fixed "not found" reply, for example inside an app's own renderer for `xh.chat.noAnswer`. |
+| `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Back, Close, the viewer's status and the app's viewer. |
+| `ChatCodeBlock` | `content`, `language` | Show code in a card with a copy button. A block over 20 lines shows its first 20, with a button for the rest. |
 | `ChatFileChip` | `file`, `onRemove`, `allowImages` | Show a file, with a remove button when `onRemove` is set. An image at a URL shows a thumbnail only if `allowImages` permits it. |
 | `ChatEmptyState` | `icon`, `title`, `text`, `suggestions` | Welcome the user to an empty chat. |
-| `ChatSuggestions` | `suggestions`, `onSelect` | Show prompt chips. `onSelect` replaces the default send. |
+| `ChatSuggestions` | `suggestions`, `onSelect` | Show prompt cards that fill the composer. `onSelect` replaces the fill. |
+| `ChatStatusRegion` | `model`, `assistantName` | Show the thread's next action above a composer, in a custom layout. |
+| `ChatComposerPill` | `text`, `icon`, `count`, `status`, `statusText`, `menuItems`, `content`, `readonly`, `tooltip` | Add a pill to the composer's left slot. |
+| `ChatScopeChip` | `documents`, `runOption`, `value`, `onChange`, `searchThreshold`, `readonly`, `tooltip` | Scope the next question to some documents. Default binds `runOptions.documentIds`. |
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |
 | `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |
 
@@ -669,8 +877,8 @@ chat. Class names follow BEM under `xh-chat-`, for example `xh-chat-message__bub
 - **Tool display** - `displayName`, `icon`, `summary`, `renderer` and `display` on
   `ChatToolSpec`. See [`/core/`](../../../core/README.md#chattoolspec).
 - **Data renderers** - `ChatModelConfig.dataRenderers`, for app content and generative UI.
-- **Sources** - `citationMarkers` for inline `[n]` markers, and `onSourceClick` to open a
-  source in the app.
+- **Sources** - `citationMarkers` for inline `[n]` markers, `onSourceClick` to open a source in
+  the app, and a `ChatSidePanelHost` in model context to open documents beside the chat.
 - **Markdown** - `markdownComponents` for element overrides, `markdownPlugins` for remark and
   rehype plugins, and `allowImages` for the image policy.
 - **Theme** - the `--xh-chat-*` variables above, `xh-chat--compact`, `xh-chat--reduced-motion`,

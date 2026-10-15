@@ -1,4 +1,5 @@
 import {act, fireEvent, render, screen, within} from '@testing-library/react';
+import {XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -6,7 +7,7 @@ import {ChatModel} from '../../../core';
 import {ChatThreadsModel, type LocalChatThread, LocalChatThreadStore} from '../../../threads';
 import {ScriptedChatTransport, textEvents} from '../../../transport';
 import {chatWorkspace, type ChatWorkspaceProps} from './ChatWorkspace';
-import {ChatWorkspaceModel} from './ChatWorkspaceModel';
+import {type ChatWorkspaceConfig, ChatWorkspaceModel} from './ChatWorkspaceModel';
 
 /**
  * The workspace's contract. Apps rely on it to fill its parent and lay itself out by its own
@@ -167,6 +168,87 @@ describe('ChatWorkspace', () => {
         });
     });
 
+    describe('side panel requests', () => {
+        const viewer = () => 'App document viewer';
+
+        it("opens a cited document beside the conversation, in the app's viewer", async () => {
+            const {model, threadsModel} = renderWorkspace(
+                {chatPanelProps: {citationMarkers: true}},
+                {documentRenderer: viewer, threads: CITED_THREADS}
+            );
+            await resizeTo(1440);
+            await act(() => threadsModel.selectThreadAsync('t3'));
+
+            fireEvent.click(screen.getByRole('button', {name: /^Source 1:/}));
+            expect(model.sidePanel.request).toMatchObject({citation: 1, page: 7});
+            expect(model.isSidePanelShown).toBe(true);
+            expect(screen.getByText('App document viewer')).toBeTruthy();
+            expect(screen.getByRole('button', {name: 'Back to 1'})).toBeTruthy();
+
+            fireEvent.click(screen.getByRole('button', {name: 'Close'}));
+            expect(model.sidePanel.request).toBeNull();
+            expect(document.activeElement).toBe(screen.getByRole('button', {name: /^Source 1:/}));
+        });
+
+        it('opens a document in a new tab, with a toast, when too narrow for the panel', async () => {
+            const open = vi.fn(),
+                toast = vi.spyOn(XH, 'toast').mockImplementation(() => null);
+            vi.stubGlobal('open', open);
+            onTestFinished(() => {
+                toast.mockRestore();
+                vi.unstubAllGlobals();
+            });
+            const {model, threadsModel} = renderWorkspace(
+                {chatPanelProps: {citationMarkers: true}},
+                {documentRenderer: viewer, threads: CITED_THREADS}
+            );
+            await resizeTo(700);
+            await act(() => threadsModel.selectThreadAsync('t3'));
+
+            fireEvent.click(screen.getByRole('button', {name: /^Source 1:/}));
+            expect(model.sidePanel.request).toBeNull();
+            expect(open).toHaveBeenCalledWith(
+                'https://docs.example/reserves.pdf',
+                '_blank',
+                'noopener,noreferrer'
+            );
+            expect(toast).toHaveBeenCalledTimes(1);
+        });
+
+        it('shows the request in place of the app content, which returns once it closes', () => {
+            const {model} = renderWorkspace(
+                {sidePanel: () => 'Policy document'},
+                {documentRenderer: viewer, sidePanelOpen: true}
+            );
+            expect(screen.getByText('Policy document')).toBeTruthy();
+
+            act(() =>
+                model.sidePanel.open({
+                    type: 'document',
+                    source: {type: 'source', id: 'd1', title: 'Reserves Policy'}
+                })
+            );
+            expect(screen.queryByText('Policy document')).toBeNull();
+            expect(screen.getByText('App document viewer')).toBeTruthy();
+
+            act(() => model.sidePanel.close());
+            expect(screen.getByText('Policy document')).toBeTruthy();
+        });
+
+        it('closes the request when the thread changes', async () => {
+            const {model, threadsModel} = renderWorkspace({}, {documentRenderer: viewer});
+            act(() =>
+                model.sidePanel.open({
+                    type: 'document',
+                    source: {type: 'source', id: 'd1', title: 'Reserves Policy'}
+                })
+            );
+
+            await act(() => threadsModel.selectThreadAsync('t1'));
+            expect(model.sidePanel.request).toBeNull();
+        });
+    });
+
     describe('conversation', () => {
         it("shows a failed thread load in the pane, with Retry, and never the last thread's messages", async () => {
             const {store, threadsModel} = renderWorkspace();
@@ -212,6 +294,34 @@ const THREADS: LocalChatThread[] = [
     }
 ];
 
+// A thread whose reply cites a document and a web page.
+const CITED_THREADS: LocalChatThread[] = [
+    {
+        id: 't3',
+        title: 'Reserves',
+        lastActivityAt: NOW,
+        messages: [
+            {role: 'user', content: 'How many months of reserves?'},
+            {
+                id: 'a3',
+                role: 'assistant',
+                parts: [
+                    {type: 'text', id: 'x1', text: 'Six months [1].', state: 'done'},
+                    {
+                        type: 'source',
+                        id: 'd1',
+                        sourceType: 'document',
+                        title: 'Reserves Policy',
+                        marker: 1,
+                        url: 'https://docs.example/reserves.pdf',
+                        metadata: {page: 7}
+                    }
+                ]
+            }
+        ]
+    }
+];
+
 /** Callbacks of the workspace's ResizeObserver, to resize it by hand. */
 const resizeCallbacks: ResizeObserverCallback[] = [];
 
@@ -224,15 +334,21 @@ class CapturingResizeObserver {
     disconnect() {}
 }
 
-function setup({sidePanelOpen = false}: {sidePanelOpen?: boolean} = {}) {
-    const store = new LocalChatThreadStore({threads: THREADS}),
+function setup({
+    sidePanelOpen = false,
+    documentRenderer = undefined,
+    threads = THREADS
+}: Partial<Pick<ChatWorkspaceConfig, 'sidePanelOpen' | 'documentRenderer'>> & {
+    threads?: LocalChatThread[];
+} = {}) {
+    const store = new LocalChatThreadStore({threads}),
         transport = new ScriptedChatTransport({responses: [textEvents('Hi.')], delayMs: 0}),
         threadsModel = new ChatThreadsModel({
             store,
             createChatModel: ({threadId}) =>
                 new ChatModel({transport, threadId, historyMode: 'server'})
         }),
-        model = new ChatWorkspaceModel({threadsModel, sidePanelOpen});
+        model = new ChatWorkspaceModel({threadsModel, sidePanelOpen, documentRenderer});
     onTestFinished(() => {
         model.destroy();
         threadsModel.destroy();
@@ -240,8 +356,11 @@ function setup({sidePanelOpen = false}: {sidePanelOpen?: boolean} = {}) {
     return {model, threadsModel, store};
 }
 
-function renderWorkspace(props: Omit<ChatWorkspaceProps, 'model'> = {}) {
-    const ret = setup();
+function renderWorkspace(
+    props: Omit<ChatWorkspaceProps, 'model'> = {},
+    config: Parameters<typeof setup>[0] = {}
+) {
+    const ret = setup(config);
     return {...ret, ...render(chatWorkspace({model: ret.model, ...props}))};
 }
 

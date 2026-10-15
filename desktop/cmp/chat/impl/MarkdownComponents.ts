@@ -1,4 +1,5 @@
 import {isValidElement, type ReactElement, useMemo} from 'react';
+import {table} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import type {ChatMarkdownComponents} from '../../../../cmp/markdown';
 import {chatCodeBlock} from '../ChatCodeBlock';
@@ -21,12 +22,49 @@ const MarkdownPre = hoistCmp<HoistProps>({
     }
 });
 
+interface HastElement {
+    type: string;
+    tagName?: string;
+    children?: HastElement[];
+}
+
+// A markdown table renders plain, in a frame that fits its content, on Hoist's compact grid
+// tokens. One with more body rows than the preview holds scrolls inside its frame, under a sticky
+// header.
+// TODO(design-open B1) - a larger table renders as the preview card of P4, with View Full Table.
+const MarkdownTable = hoistCmp<HoistProps & {node?: HastElement}>({
+    displayName: 'ChatMarkdownTable',
+    model: false,
+    observer: false,
+
+    render({node, children}) {
+        return table({
+            className:
+                countBodyRows(node) > MAX_PLAIN_TABLE_ROWS
+                    ? 'xh-chat-markdown__table--scroll'
+                    : null,
+            items: children
+        });
+    }
+});
+
+// Markdown tables of up to this many body rows show in full.
+const MAX_PLAIN_TABLE_ROWS = 12;
+
+function countBodyRows(node: HastElement): number {
+    const body = node?.children?.find(it => it.tagName === 'tbody');
+    return body?.children?.filter(it => it.tagName === 'tr').length ?? 0;
+}
+
 /**
  * Markdown element overrides used by the desktop chat components. A module-level constant, so
  * that memoized markdown blocks see the same object on every render.
  * @internal
  */
-export const CHAT_MARKDOWN_COMPONENTS: ChatMarkdownComponents = {pre: MarkdownPre};
+export const CHAT_MARKDOWN_COMPONENTS: ChatMarkdownComponents = {
+    pre: MarkdownPre,
+    table: MarkdownTable
+};
 
 /**
  * The kit's markdown components, with an app's overrides merged over them. Memoized, so that

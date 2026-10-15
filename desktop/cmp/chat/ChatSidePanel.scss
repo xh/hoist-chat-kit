@@ -1,0 +1,97 @@
+@use '../../../styles/mixins' as *;
+
+// The frame of the side panel's request. It stretches to its row's full height.
+.xh-chat-side-panel {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+
+  &__page {
+    color: var(--xh-chat-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+    font-variant-numeric: tabular-nums;
+    padding: 0 6px;
+    white-space: nowrap;
+  }
+
+  // Status lives in a strip under the toolbar, never over the document.
+  &__strip {
+    align-items: center;
+    background-color: var(--xh-chat-bg);
+    border-bottom: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    color: var(--xh-chat-meta-text-color);
+    display: flex;
+    flex: none;
+    font-size: var(--xh-chat-meta-font-size);
+    gap: 6px;
+    min-height: 28px;
+    padding: 0 4px 0 10px;
+
+    &--busy {
+      color: var(--xh-chat-busy-color);
+    }
+
+    &--warning {
+      color: var(--xh-chat-warning-color);
+    }
+
+    @include hoist-button('.xh-button') {
+      font-size: var(--xh-chat-meta-font-size);
+      margin-left: auto;
+    }
+  }
+
+  &__strip-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__body {
+    background-color: var(--xh-chat-viewer-surround-bg);
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    position: relative;
+  }
+
+  &__content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+
+    &[aria-hidden='true'] {
+      visibility: hidden;
+    }
+  }
+
+  &__error {
+    align-items: center;
+    background-color: var(--xh-chat-viewer-surround-bg);
+    display: flex;
+    inset: 0;
+    justify-content: center;
+    position: absolute;
+  }
+
+  &__opening {
+    align-items: center;
+    display: inline-flex;
+    gap: 6px;
+  }
+
+  // Read by screen readers only.
+  &__live {
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+}

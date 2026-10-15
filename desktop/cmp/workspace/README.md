@@ -29,6 +29,8 @@ Key features:
   selection changes, masks while history loads, and shows a failed load with Retry.
 - **Slots** - a header with the thread's title and actions by default, a notice line, and a side
   panel that the app fills.
+- **Documents beside the chat** - with a `documentRenderer`, a cited document opens in the side
+  panel, in the app's own viewer.
 - **Layout by width** - the sidebar narrows to its rail and then hides, the side panel shows only
   where there is room, and the chat turns compact at 380 px or less.
 - **Persistence** - the sidebar's width and collapsed state, and the side panel's width, persist
@@ -41,11 +43,12 @@ ChatWorkspaceModel (HoistModel)
 ├── threadsModel: ChatThreadsModel   # The threads, given by the app
 ├── sidebarModel: PanelModel          # Width and collapsed state, persisted
 ├── sidePanelModel: PanelModel        # Width, persisted
+├── sidePanel: ChatSidePanelModel     # The open request, such as a cited document
 ├── width: number                     # The workspace's measured width (observable)
 ├── isSidePanelOpen: boolean          # The app's wish (bindable)
 ├── Computed:
 │   ├── sidebarMode                   # 'open', 'rail' or 'hidden'
-│   ├── isSidePanelShown              # Open, and the workspace has room
+│   ├── isSidePanelShown              # Open or a request open, and the workspace has room
 │   └── isCompact                     # 380 px or less
 └── Methods:
     ├── expandSidebar() / collapseSidebar() / toggleSidebar()
@@ -57,7 +60,7 @@ ChatWorkspace (hoistCmp)
 │   ├── Header slot                   # Title and thread actions by default
 │   ├── Notice slot
 │   └── ChatPanel                     # The selected thread's chat
-└── Side panel: complementary > Panel
+└── Side panel: ChatSidePanel for a request, else complementary > Panel
 ```
 
 ### Layout by width
@@ -144,6 +147,29 @@ workspaceModel.openSidePanel();
 The panel has a close button, its own splitter, and a persisted width from 400 to 900 px. Its
 content renders only while the panel shows.
 
+### Open cited documents in the side panel
+
+Give the model a `documentRenderer`, the app's document viewer. A click on a document's citation
+or source row then opens it in the side panel, at the cited passage. The kit draws the panel's
+title, Back to the citation, Close and the viewer's status. The viewer reports its progress with
+`setDocumentStatus()`. See [the side panel](../../../core/README.md#side-panel).
+
+```typescript
+new ChatWorkspaceModel({
+    threadsModel,
+    documentRenderer: (request, panel) =>
+        documentViewer({
+            documentId: request.source.metadata.documentId,
+            passage: request.passage,
+            onStatus: status => panel.setDocumentStatus(status)
+        })
+});
+```
+
+A request shows in place of the app's own `sidePanel` content, which returns when it closes. A
+request closes when the selected thread changes. Under 788 px there is no room for the panel, so a
+document opens at its URL in a new tab, with a toast.
+
 ### Configure the chat and the list
 
 `chatPanelProps` go to the conversation's `ChatPanel`, for example `suggestions` or
@@ -157,7 +183,8 @@ content renders only while the panel shows.
 |----------|------|-------------|
 | `threadsModel` | `ChatThreadsModel` | The threads to show. Required. |
 | `persistWith` | `PersistOptions` | Persists the panel widths and the sidebar's collapsed state. The workspace adds `.sidebar` and `.sidePanel` to `path`, which defaults to 'chatWorkspace'. |
-| `sidePanelOpen` | `boolean` | True to open the side panel at the start. Default false. |
+| `sidePanelOpen` | `boolean` | True to open the side panel at the start, for the app's own content. Default false. |
+| `documentRenderer` | `(request, panel) => ReactNode` | The app's document viewer. With it, a cited document opens in the side panel. |
 
 ### ChatWorkspaceModel
 
@@ -165,13 +192,14 @@ content renders only while the panel shows.
 |--------|------|-------------|
 | `threadsModel` | `ChatThreadsModel` | The threads. |
 | `sidebarModel`, `sidePanelModel` | `PanelModel` | The two panels. |
+| `sidePanel` | `ChatSidePanelModel` | The side panel's open request. Components in the conversation find it in model context. |
 | `width` | `number` | Measured width, or null before render. |
 | `sidebarMode` | `'open' \| 'rail' \| 'hidden'` | How the sidebar shows. |
 | `isSidePanelOpen` | `boolean` | True if the app wants the side panel open. Bindable. |
-| `isSidePanelShown` | `boolean` | True if the side panel shows. |
+| `isSidePanelShown` | `boolean` | True if the side panel shows: a request or the app's content, with room. |
 | `isCompact` | `boolean` | True at 380 px or less. |
 | `expandSidebar()`, `collapseSidebar()`, `toggleSidebar()` | methods | Change the sidebar. |
-| `openSidePanel()`, `closeSidePanel()`, `toggleSidePanel()` | methods | Change the side panel. |
+| `openSidePanel()`, `closeSidePanel()`, `toggleSidePanel()` | methods | Change the side panel. Close also closes an open request. |
 
 ### ChatWorkspace props
 

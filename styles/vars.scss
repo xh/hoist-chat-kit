@@ -21,6 +21,8 @@ body {
   // Cards span the column, up to its max width. Markdown text is capped at the prose width.
   --xh-chat-column-max-width: 1100px;
   --xh-chat-prose-max-width: 640px;
+  // Between markdown paragraphs and blocks.
+  --xh-chat-paragraph-gap: 8px;
   --xh-chat-side-pad: var(--xh-pad-double-px);
   // Between messages. Equals the action bar's height, as the bar sits in this gap.
   --xh-chat-turn-gap: 24px;
@@ -155,6 +157,10 @@ body {
   --xh-chat-composer-input-max-height: 168px;
   --xh-chat-composer-pill-height: 22px;
   --xh-chat-composer-status-height: 24px;
+  --xh-chat-scope-popover-width: 320px;
+  --xh-chat-scope-popover-max-height: 280px;
+  --xh-chat-suggestion-bg: var(--xh-chat-part-header-bg);
+  --xh-chat-suggestion-hover-bg: var(--xh-chat-sidebar-row-hover-bg);
   // The empty state's centered column: title, suggestions and composer.
   --xh-chat-composer-centered-max-width: 680px;
   // The context meter. Warning and error colors take over as the context fills.

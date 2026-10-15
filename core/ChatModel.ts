@@ -40,6 +40,7 @@ import type {
 } from '../transport';
 import {ChatAbortError, type ChatAbortReason} from './ChatAbortError';
 import type {ChatComposerHost} from './ChatComposerHost';
+import type {ChatMessageListHost} from './ChatMessageListHost';
 import {ChatComposerModel, type ChatComposerConfig} from './ChatComposerModel';
 import {ChatKit} from './ChatKit';
 import type {ChatContextProvider} from './ChatContextProvider';
@@ -150,6 +151,14 @@ export interface ChatModelConfig {
     feedback?: ChatFeedbackConfig;
 
     /**
+     * Returns the epoch millis of the app's last refresh of the data the assistant answers from,
+     * or null. A reply that finished before it shows that the data has changed since. Read as a
+     * computed value, so return an observable for the chat to update - see
+     * {@link ChatModel.dataRefreshedAt}. Default none.
+     */
+    dataRefreshedAt?: () => number;
+
+    /**
      * Milliseconds without data from the server, heartbeats included, after which a reply shows
      * as stalled - see {@link ChatModel.lastActivityAt}. Default `ChatKit.defaults.stallAfterMs`.
      */
@@ -241,7 +250,10 @@ export type ChatDataRenderer = (part: ChatDataPart, context: ChatPartRenderConte
  * `chatModel.getMessage(messageId)`, and then re-renders whenever the message changes.
  */
 export interface ChatPartRenderContext {
-    /** The chat that shows the part - for example to send a message or answer a tool call. */
+    /**
+     * The chat that shows the part - for example to send a message or answer a tool call. Null
+     * when the message list shows messages of a `ChatMessageListHost` that is not a `ChatModel`.
+     */
     chatModel: ChatModel;
 
     /** Id of the message that holds the part. */
@@ -299,7 +311,7 @@ export interface ChatSendSpec {
  * Only one turn runs at a time. Render the model with a desktop `ChatPanel`, or with the
  * lower-level message list and composer components.
  */
-export class ChatModel extends HoistModel implements ChatComposerHost {
+export class ChatModel extends HoistModel implements ChatComposerHost, ChatMessageListHost {
     declare config: ChatModelConfig;
 
     //-----------------------
@@ -462,6 +474,37 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
     }
 
     /**
+     * True if the chat can reload its thread to learn how a run ended - once a thread layer
+     * supplies a refresher, with {@link setStatusRefresher}. The composer's status region then
+     * offers Refresh Status for a run the kit lost sight of.
+     */
+    @computed
+    get canRefreshStatus(): boolean {
+        return !!this.statusRefresher;
+    }
+
+    /**
+     * Epoch millis of the app's last data refresh, from the `dataRefreshedAt` config, or null. A
+     * reply's header reads it to say the data has changed since the reply.
+     */
+    @computed
+    get dataRefreshedAt(): number {
+        return this.dataRefreshedAtFn?.() ?? null;
+    }
+
+    /**
+     * Why the last feedback on a message failed to save, by message id - for the feedback form to
+     * show inline. A message's entry clears when its feedback is submitted again. (observable)
+     */
+    @observableRef accessor feedbackErrors: Record<string, Error> = {};
+
+    /**
+     * Why the last undo of a reply's changes failed, by message id - for the reply to show
+     * inline. A reply's entry clears when its undo is tried again. (observable)
+     */
+    @observableRef accessor undoErrors: Record<string, Error> = {};
+
+    /**
      * Id of the reply whose changes the user can undo now, or null - see {@link undoTurnAsync}.
      * Only the latest reply that holds undoable changes qualifies, once its turn has ended, and
      * only while no turn is running or waiting for the user.
@@ -493,6 +536,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
             composer,
             dataRenderers = {},
             sendBlocker,
+            dataRefreshedAt,
             onTurnComplete
         } = config;
         throwIf(!transport, 'ChatModel requires a transport.');
@@ -530,6 +574,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
         this.historyMode = historyMode;
         this.feedback = {commentOn: 'negative', requireComment: false, ...feedback};
         this.stallAfterMs = stallAfterMs ?? ChatKit.defaults.stallAfterMs;
+        this.dataRefreshedAtFn = dataRefreshedAt ?? null;
         this._threadId = threadId ?? genChatId();
         // An id given with history is the backend's. A new thread's may yet be replaced by it.
         this.isThreadIdProvisional = threadId == null || !hasHistory(initialMessages);
@@ -708,13 +753,19 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
     /**
      * Approve a tool call that is waiting for approval. The turn continues - running the tool -
      * once no other call is waiting.
+     *
+     * @param reason - the user's words with the approval, recorded on the call as
+     *      `approvalReason`.
      */
-    async approveToolCallAsync(toolCallId: string): Promise<void> {
+    async approveToolCallAsync(toolCallId: string, reason?: string): Promise<void> {
         const turn = this.getPausedTurn(toolCallId, it => it.state === 'approval-requested');
         if (!turn) return;
 
         turn.approvedIds.add(toolCallId);
-        this.updateToolCall(turn, toolCallId, {state: 'input-available'});
+        this.updateToolCall(turn, toolCallId, {
+            state: 'input-available',
+            ...(reason?.trim() ? {approvalReason: reason.trim()} : {})
+        });
         await this.resumeTurnAsync(turn);
     }
 
@@ -763,8 +814,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
      * `metadata.undone`. Does nothing unless {@link canUndoTurn} is true for the reply.
      *
      * Undo functions live in memory only, so a reply loaded from history cannot be undone. If one
-     * throws, the undo stops there and a toast reports it. The changes not yet undone stay, so the
-     * user can try again.
+     * throws, the undo stops there, and {@link undoErrors} records the error for the reply to
+     * show. The changes not yet undone stay, so the user can try again.
      */
     async undoTurnAsync(messageId: string): Promise<void> {
         if (!this.canUndoTurn(messageId)) {
@@ -774,15 +825,17 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
 
         const undos = this.undoStacks[messageId];
         this.setUndoing(true);
+        this.setUndoError(messageId, null);
         try {
             for (const [idx, undo] of undos.entries()) {
                 try {
                     await undo();
                 } catch (e) {
                     this.setUndoStack(messageId, undos.slice(idx));
+                    this.setUndoError(messageId, e);
                     XH.handleException(e, {
                         message: 'The change could not be undone.',
-                        alertType: 'toast'
+                        showAlert: false
                     });
                     return;
                 }
@@ -807,7 +860,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
      * Rate an assistant message, or clear its rating. The rating shows at once, as
      * `metadata.feedback`, and is then sent through `feedback.submitAsync`, or else the thread
      * layer's submitter. If the submit fails, the rating reverts - unless the user has rated the
-     * message again since - and a toast says so. History restores a rating from the same key.
+     * message again since - and {@link feedbackErrors} records the error for the feedback form to
+     * show. History restores a rating from the same key.
      *
      * @param rating - the rating, or null to clear it.
      * @param comment - the user's comment. Required for a rating that asks for one, if
@@ -854,15 +908,17 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
         const submitNumber = (this.feedbackSubmits.get(messageId) ?? 0) + 1;
         this.feedbackSubmits.set(messageId, submitNumber);
         this.setFeedback(messageId, feedback);
+        this.setFeedbackError(messageId, null);
         try {
             await submitAsync(spec);
         } catch (e) {
             if (this.feedbackSubmits.get(messageId) === submitNumber) {
                 this.setFeedback(messageId, prior);
+                this.setFeedbackError(messageId, e);
             }
             XH.handleException(e, {
-                message: 'Your feedback was not saved. Try again.',
-                alertType: 'toast'
+                message: 'Your feedback was not saved.',
+                showAlert: false
             });
             return;
         }
@@ -906,6 +962,24 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
     @action
     setThreadCreator(createAsync: ChatThreadCreator) {
         this.threadCreator = createAsync;
+    }
+
+    /**
+     * Supply the function that reloads the thread from the backend, for
+     * {@link refreshStatusAsync}. A thread layer calls this when it creates the chat.
+     */
+    @action
+    setStatusRefresher(refreshAsync: () => Promise<void>) {
+        this.statusRefresher = refreshAsync;
+    }
+
+    /**
+     * Reload the thread, to learn how a run ended that the chat lost sight of - one that stalled,
+     * dropped, or was left running on the server. Calls the refresher of
+     * {@link setStatusRefresher}, and does nothing without one.
+     */
+    async refreshStatusAsync(): Promise<void> {
+        await this.statusRefresher?.();
     }
 
     /** Remove all messages and start a new thread. Stops any turn in progress. */
@@ -973,6 +1047,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
     @observableRef private accessor feedbackSubmitter: ChatFeedbackSubmitter = null;
     @observableRef private accessor sendBlockers: Array<() => string>;
     private threadCreator: ChatThreadCreator = null;
+    @observableRef private accessor statusRefresher: () => Promise<void> = null;
+    private readonly dataRefreshedAtFn: () => number;
 
     // The latest feedback submit for each message, by count - see `submitFeedbackAsync`.
     private readonly feedbackSubmits = new Map<string, number>();
@@ -1585,6 +1661,16 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
     }
 
     @action
+    private setUndoError(messageId: string, error: Error) {
+        this.undoErrors = withEntry(this.undoErrors, messageId, error);
+    }
+
+    @action
+    private setFeedbackError(messageId: string, error: Error) {
+        this.feedbackErrors = withEntry(this.feedbackErrors, messageId, error);
+    }
+
+    @action
     private setUndoStack(messageId: string, undos: ChatToolUndo[]) {
         this.undoStacks = {...this.undoStacks, [messageId]: undos};
     }
@@ -1809,4 +1895,10 @@ function needsApproval(spec: ChatToolSpec, call: ChatToolCallPart): boolean {
 
 function errorText(e: any): string {
     return e?.message ?? String(e);
+}
+
+/** A copy of a record, with an entry set - or removed, for null. */
+function withEntry<T>(record: Record<string, T>, key: string, value: T): Record<string, T> {
+    if (value == null) return key in record ? omit(record, key) : record;
+    return {...record, [key]: value};
 }

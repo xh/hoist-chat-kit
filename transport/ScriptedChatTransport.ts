@@ -1,7 +1,8 @@
 import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
-import {findLast, flattenDeep, isArray, isString} from 'lodash';
-import type {ChatMessage} from '../core';
+import {findLast, flattenDeep, isArray, isEmpty, isNil, isString, omitBy, pick} from 'lodash';
+import type {ChatMessage, ChatSourceType} from '../core';
+import {CHAT_NO_ANSWER_DATA_TYPE, type ChatNoAnswerData} from '../core/ChatNoAnswer';
 import {sleepAsync} from '../impl/abort';
 import {genChatId} from '../impl/ids';
 import type {ChatEvent} from './ChatEvent';
@@ -308,6 +309,9 @@ export interface ScriptedSource {
     /** Id of the source. Default generated. */
     id?: string;
 
+    /** `url` for a web page, `document` for a document. Default `url` with a `url`. */
+    sourceType?: ChatSourceType;
+
     /** Location of the source. */
     url?: string;
 
@@ -370,6 +374,14 @@ export function citationEvents(citations: ScriptedCitation[]): ChatEvent[] {
     }));
 }
 
+/**
+ * An event for a fixed "not found" reply - a data part of type `xh.chat.noAnswer`, which the
+ * message view renders from its built-in template, with no sources list and no Regenerate.
+ */
+export function noAnswerEvents(data: ChatNoAnswerData = {}, opts: {id?: string} = {}): ChatEvent[] {
+    return dataEvents(CHAT_NO_ANSWER_DATA_TYPE, data, opts);
+}
+
 /** An event for an app-defined data part, rendered by the chat's renderer for `dataType`. */
 export function dataEvents(dataType: string, data: any, opts: {id?: string} = {}): ChatEvent[] {
     return [{type: 'CUSTOM', name: 'xh.chat.data', value: {id: opts.id, dataType, data}}];
@@ -378,22 +390,16 @@ export function dataEvents(dataType: string, data: any, opts: {id?: string} = {}
 /**
  * An event for a failed step. The transport ends the response after it.
  *
- * @param opts - `retryAfterSeconds`, the wait the backend asks for before a retry.
+ * @param opts - `retryAfterSeconds`, the wait the backend asks for before a retry, and
+ *      `retrySafe`, false if a resend of the turn could run work twice.
  */
 export function errorEvents(
     message: string,
     code?: string,
-    opts: {retryAfterSeconds?: number} = {}
+    opts: {retryAfterSeconds?: number; retrySafe?: boolean} = {}
 ): ChatEvent[] {
-    const {retryAfterSeconds} = opts;
-    return [
-        {
-            type: 'RUN_ERROR',
-            message,
-            code,
-            ...(retryAfterSeconds != null ? {metadata: {retryAfterSeconds}} : {})
-        }
-    ];
+    const metadata = omitBy(pick(opts, ['retryAfterSeconds', 'retrySafe']), isNil);
+    return [{type: 'RUN_ERROR', message, code, ...(isEmpty(metadata) ? {} : {metadata})}];
 }
 
 /** A pause in a scripted response, on top of the transport's `delayMs`. */

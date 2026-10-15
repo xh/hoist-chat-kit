@@ -495,9 +495,10 @@ new ScriptedChatTransport({
 ```
 
 The helpers are `textEvents()`, `reasoningEvents()`, `toolCallEvents()`, `sourceEvents()`,
-`citationEvents()`, `dataEvents()`, `errorEvents()` and `scriptedDelay()`. A citation attaches to
-the text part before it, and refers to a source by `sourceId` or by `url`. A source can carry a
-`marker`, the number that cites it as `[n]` in the text, and `metadata`. Pass
+`citationEvents()`, `dataEvents()`, `noAnswerEvents()`, `errorEvents()` and `scriptedDelay()`. A
+citation attaches to the text part before it, and refers to a source by `sourceId` or by `url`. A
+source can carry a `sourceType`, a `marker`, the number that cites it as `[n]` in the text, and
+`metadata`. `noAnswerEvents()` writes a fixed "not found" reply. Pass
 `{retryAfterSeconds}` as the third argument of `errorEvents()` to ask for a wait before a retry. Pass a `result` to
 `toolCallEvents()` to simulate a tool that the backend runs. A response can also be an async
 iterable of events, which sets its own pace.
@@ -1001,9 +1002,9 @@ Content that AG-UI has no event for travels as a `CUSTOM` event with a name that
 
 | `name` | `value` | Effect |
 |--------|---------|--------|
-| `xh.chat.source` | `{id?, url?, title?, snippet?, marker?, metadata?}` | Appends a source part. `marker` is the number that cites it in the text, as in `[1]`. |
+| `xh.chat.source` | `{id?, sourceType?, url?, title?, snippet?, marker?, metadata?}` | Appends a source part. `marker` is the number that cites it in the text, as in `[1]`. `sourceType` is `url` for a web page or `document` for a document of the app's own. It defaults to `url` for a source with a `url`, else `document`. |
 | `xh.chat.citation` | `{id?, title?, url?, citedText?, sourceId?}` | Adds a citation to the open text part, or else the last one. |
-| `xh.chat.data` | `{id?, dataType, data}` | Adds a data part, or replaces the one with the same `id`. |
+| `xh.chat.data` | `{id?, dataType, data}` | Adds a data part, or replaces the one with the same `id`. The `dataType` `xh.chat.noAnswer` is reserved for a fixed "not found" reply, with `data` as `{documents?: [{id?, name}], documentCount?}`. |
 | `xh.chat.file` | `{id?, name, mediaType, size?, url?, data?}` | Appends a file part. |
 | `xh.chat.providerData` | `{subtype, entityId, data}` | Merges `data` into the `providerData` of a reasoning part or a tool call, by provider key. |
 | `xh.chat.providerExecuted` | `{toolCallId}` | Marks a tool call as run by the backend, before its result arrives. |
@@ -1016,6 +1017,12 @@ A Hoist server that emits AG-UI events can send a data part like this:
 
 ```json
 {"type": "CUSTOM", "name": "xh.chat.data", "value": {"dataType": "price-chart", "data": {"symbol": "XH"}}}
+```
+
+A codec for a document search that matched nothing sends the fixed reply in place of an answer:
+
+```json
+{"type": "CUSTOM", "name": "xh.chat.data", "value": {"dataType": "xh.chat.noAnswer", "data": {"documents": [{"name": "Reserves Policy"}], "documentCount": 4}}}
 ```
 
 ## Extension Points

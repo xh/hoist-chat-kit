@@ -1,4 +1,5 @@
 import {
+    cloneDeep,
     compact,
     difference,
     differenceBy,
@@ -501,10 +502,21 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
             onBusyChange: it => this.onBusyChange(it)
         });
         chatModel.addSendBlocker(() => this.getSendBlockedReason(thread));
+        chatModel.setStatusRefresher(() => this.refreshStatusAsync(thread));
         this.defaultRunOptions.set(chatModel, chatModel.runOptions ?? null);
         this.restoreDraft(threadId, chatModel);
         this.putOpenThread(threadId, thread);
         return thread;
+    }
+
+    /**
+     * Reload a thread's history, to learn how a run ended that its chat lost sight of. A turn
+     * still running here - one that stalled - is detached first, as the server may finish it.
+     */
+    private async refreshStatusAsync(thread: OpenThread): Promise<void> {
+        if (thread.loadState === 'loading') return;
+        if (thread.chatModel.isBusy) thread.chatModel.detach();
+        await this.loadHistoryAsync(thread);
     }
 
     private getSendBlockedReason(thread: OpenThread): string {
@@ -692,6 +704,15 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         const {chatModel} = thread;
         chatModel.loadMessages(page.messages ?? [], threadId);
         chatModel.hasOlderMessages = page.nextCursor != null;
+        // TODO(design-open B4) - run options, such as a document scope, belong to the thread.
+        // The thread opens with those of its last question, unless the user changed them here.
+        const lastRunOptions = findLast(chatModel.messages, it => it.isUser)?.metadata.runOptions;
+        if (
+            lastRunOptions != null &&
+            isEqual(chatModel.runOptions, this.defaultRunOptions.get(chatModel))
+        ) {
+            chatModel.runOptions = cloneDeep(lastRunOptions);
+        }
         thread.olderCursor = page.nextCursor ?? null;
         thread.endLoad();
     }

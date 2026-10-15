@@ -8,6 +8,18 @@
   apps override the variables on `body.xh-app`. The unprefixed `--chat-*` hooks are gone. Some
   variables merged or went away, such as `--xh-chat-shadow`. See
   [Theming](desktop/cmp/chat/README.md#theming).
+* Renamed the `chatModel` prop of `ChatMessageView` to `host`, which takes any
+  `ChatMessageListHost`, such as a `ChatModel`.
+* Removed the error banner with Retry from the end of the message list. A failed reply shows what
+  happened inline, and the composer's status region holds the next action.
+* Changed empty-state suggestions to fill the composer rather than send, so the user reads and
+  can edit a prompt first. They hide while the composer has text. `onSelect` still overrides.
+* Changed `ChatModel.submitFeedbackAsync()` and `undoTurnAsync()` to record a failure in
+  `feedbackErrors` and `undoErrors`, by message id, in place of a toast.
+* Changed the sources list to count the sources a citing reply never cites, without numbers, so
+  every number matches a marker. Numbers follow `marker` and never renumber.
+* Changed `ChatMarkdownCitations.renderMarker` to replace the marker button, and to receive the
+  number that cites the source.
 
 ### 🎁 New Features
 
@@ -183,9 +195,49 @@
 * Added a static twin for each moving chat cue, under reduced motion or inside an
   `xh-chat--reduced-motion` element. Set `ChatKit.defaults.reducedMotionSpinner` to `'spin'` to
   keep Hoist's spinner.
+* Added `ChatMessageListHost`, the members the message list and its views read. `ChatModel`
+  satisfies it. Pass a `host` of your own to show messages without a `ChatModel`.
+* Added an inline failed row to a failed reply, with Edit Prompt and Copy Details. A message whose
+  turn failed before its run started shows "Not sent" with Edit.
+* Added thumbs to each reply when the chat takes feedback. A rating that asks for a comment opens
+  an inline comment form, and with `requireComment` saves only with its comment.
+* Added notices for a reply cut off at the length limit or ended by the server. The header warns
+  of failed tools, and of a reply older than the host's `dataRefreshedAt`.
+* Added keyboard moves between messages. Each message is a focusable `article`, Up and Down move
+  between messages, and Escape stops a reply while focus is in the list.
+* Added `ChatStatusRegion`, one line above the composer with the thread's next action: Try
+  Again, Refresh Status, a countdown to a retry with Cancel, or Discard for a restored draft.
+  `ChatPanel` renders it.
+* Added retry safety. A failure is retry-safe unless `RUN_ERROR` sets `metadata.retrySafe: false`.
+  In server mode, the kit's own `stalled` and `incomplete-stream` errors are not retry-safe.
+* Added `ChatModel.setStatusRefresher()` and `refreshStatusAsync()` for Refresh Status.
+  `ChatThreadsModel` wires them to reload the thread.
+* Added composer drafts in local storage, per thread, set by `ChatKit.defaults.drafts`. A
+  restored draft shows "Draft from 10:31am restored." with Discard. Call
+  `ChatKit.clearLocalData()` on logout.
+* Added `chatComposerPill`, a chip for the composer's left slot that opens a menu or a popover,
+  and `chatScopeChip`, which scopes a question to the app's documents through `runOptions`.
+* Added an offline state to the composer. It keeps the draft, disables Send and queues nothing.
+* Added `ChatModelConfig.dataRefreshedAt`, and an optional reason to `approveToolCallAsync()`.
+* Added `metadata.runStarted` to a reply whose run the backend began.
+* Added a thread's run options to its chat when it opens, from its last question, so that a
+  document scope stays with the thread.
+* Added `sourceType` to `ChatSourcePart` and the `xh.chat.source` event: `document` for the app's
+  own documents, or `url` for web pages. It defaults to `url` for a source with a URL.
+* Added citation cards. A marker opens its source's title, excerpt and Open action on hover or
+  focus. A web page's marker pins its card, and Ctrl or Cmd click opens a new tab.
+* Added `[2–5]` ranges to citation markers. Four or more sources collapse to one marker.
+* Added `ChatSidePanelModel`, the side panel's request seam, and `ChatSidePanelHost`. A document's
+  citation opens in the app's `documentRenderer`, framed by `ChatSidePanel` with Back and status.
+* Added `documentRenderer` and `sidePanel` to `ChatWorkspaceModel`, so a cited document opens
+  beside the conversation. Without room, it opens in a new tab.
+* Added the fixed "not found" reply, a data part of type `xh.chat.noAnswer` that renders as
+  `ChatNoAnswer`, with no sources list and no Regenerate. Added `noAnswerEvents()`.
 
 ### 🐞 Bug Fixes
 
+* Fixed a failed reply announcing twice to screen readers. The failed row and the "Not sent"
+  note have no alert role, and the composer's status region announces the failure once.
 * Fixed a failed backend tool showing as a success. `AnthropicCodec` now fails a server tool call
   whose result block reports an error, such as a web search over its `max_uses`.
 * Fixed one throwing renderer breaking the whole message list. Each message and part now renders
@@ -204,6 +256,22 @@
   caret at the end of streaming text. Inline spinners use Hoist's `Spinner` at 1em.
 * Changed the generative UI skeleton from an endless pulse to a shimmer that starts after 1 s,
   sweeps three times, then holds still.
+* Restyled the messages to the design. A reply has one quiet header line, and its reasoning and
+  tool calls stack as 28px outline rows. Prose stops at the prose width, and the action bar sits
+  in the gap below a reply.
+* Restyled markdown in replies. H1 and H2 render at Hoist's large font size, and tables render
+  plain on Hoist's compact grid tokens. A table of more than 12 rows scrolls in its frame.
+* Restyled code blocks as cards with a 28px header strip. A block over 20 lines shows its first
+  20, with a button for the rest.
+* Restyled the composer to the design: one hairline border, Hoist's focus border and shadow, and
+  a 2px top edge while busy. Pills sit on the left, and attach and Send on the right.
+* Changed Send to a small primary button, and Stop to a button that keeps the word "Stop". The
+  input grows to 8 lines by default.
+* Restyled the empty state. `ChatPanel` centers the composer, with the heading above and the
+  suggestion cards below. The first send moves it to the bottom, and focus stays in the input.
+* Restyled citations and the sources list to the design: 14 px markers that never start a line,
+  three rows then "Show N More", and document and web page rows styled apart. Favicons follow the
+  image policy, else a letter tile shows.
 * Added the `xh-chat--compact` density class for narrow hosts, such as a docked side panel.
 * Added `--xh-chat-*` CSS variables for the chat's colors, widths, radii and fonts, built from
   Hoist's theme variables, with light and dark defaults.

@@ -3,7 +3,6 @@ import {span} from '@xh/hoist/cmp/layout';
 import {Icon} from '@xh/hoist/icon';
 import type {ChatToolCallPart, ChatToolCallState, ChatToolSpec} from '../../../../core';
 import {humanizeToolName} from './ChatFormat';
-import {classNames} from '../../../../impl/ClassNames';
 import {chatSpinner} from './ChatLiveCues';
 
 /**
@@ -23,37 +22,70 @@ export function getToolTitle(part: ChatToolCallPart, spec: ChatToolSpec): string
 }
 
 /**
- * Status of a call, as an icon and a label, or a check alone once it succeeds.
+ * The kind of status a call shows, which sets its row's color: busy while it runs, attention while
+ * it waits for the user, error once it fails, meta once denied, success once done.
  * @internal
  */
-export function statusIndicator(part: ChatToolCallPart, spec: ChatToolSpec): ReactNode {
-    const {state} = part;
-    if (state === 'output-available') {
-        return Icon.check({className: 'xh-chat-tool-call__status-icon', title: 'Done'});
-    }
+export type ToolCallStatusKind = 'busy' | 'attention' | 'error' | 'denied' | 'success';
 
-    const isWaiting = state === 'approval-requested' || isAwaitingAnswer(part, spec);
-    let icon: ReactElement, label: string;
-    if (isWaiting) {
-        icon = Icon.hand();
-        label = state === 'approval-requested' ? 'Needs approval' : 'Waiting for you';
-    } else if (state === 'output-error') {
-        icon = Icon.warningCircle();
-        label = 'Failed';
-    } else if (state === 'output-denied') {
-        icon = Icon.slashedCircle();
-        label = 'Denied';
-    } else {
-        icon = chatSpinner();
-        label = PROGRESS_LABELS[state] ?? 'Running';
+/** @internal */
+export function getToolCallStatusKind(
+    part: ChatToolCallPart,
+    spec: ChatToolSpec
+): ToolCallStatusKind {
+    switch (part.state) {
+        case 'output-available':
+            return 'success';
+        case 'output-error':
+            return 'error';
+        case 'output-denied':
+            return 'denied';
+        case 'approval-requested':
+            return 'attention';
+        default:
+            return isAwaitingAnswer(part, spec) ? 'attention' : 'busy';
     }
+}
 
+/**
+ * The status glyph that leads a call's row: the chat spinner while it runs, else one icon per
+ * state.
+ * @internal
+ */
+export function statusGlyph(part: ChatToolCallPart, spec: ChatToolSpec): ReactNode {
+    const kind = getToolCallStatusKind(part, spec);
     return span({
-        className: classNames('xh-chat-tool-call__status-label', {
-            'xh-chat-tool-call__status-label--waiting': isWaiting
-        }),
-        items: [icon, label]
+        className: `xh-chat-tool-call__glyph xh-chat-tool-call__glyph--${kind}`,
+        item: kind === 'busy' ? chatSpinner() : GLYPHS[kind]()
     });
+}
+
+/**
+ * Words for a call's status, or null once it succeeds - the check says it.
+ * @internal
+ */
+export function getToolCallStatusLabel(part: ChatToolCallPart, spec: ChatToolSpec): string {
+    switch (getToolCallStatusKind(part, spec)) {
+        case 'success':
+            return null;
+        case 'error':
+            return 'Failed';
+        case 'denied':
+            return 'Denied';
+        case 'attention':
+            return part.state === 'approval-requested' ? 'Needs approval' : 'Waiting for you';
+        default:
+            return PROGRESS_LABELS[part.state] ?? 'Running';
+    }
+}
+
+/**
+ * The first line of a failed call's error, to show in its row.
+ * @internal
+ */
+export function getErrorLine(part: ChatToolCallPart): string {
+    if (part.state !== 'output-error') return null;
+    return (part.errorText ?? '').trim().split('\n')[0] || null;
 }
 
 /**
@@ -94,6 +126,13 @@ export function getInlineStatus(part: ChatToolCallPart, spec: ChatToolSpec): Inl
 //------------------
 // Implementation
 //------------------
+const GLYPHS: Record<Exclude<ToolCallStatusKind, 'busy'>, () => ReactElement> = {
+    success: () => Icon.check({title: 'Done'}),
+    error: () => Icon.error({title: 'Failed'}),
+    denied: () => Icon.slashedCircle({title: 'Denied'}),
+    attention: () => Icon.hand({title: 'Waiting for you'})
+};
+
 const PROGRESS_LABELS: Partial<Record<ChatToolCallState, string>> = {
     'input-streaming': 'Preparing',
     'input-available': 'Pending',

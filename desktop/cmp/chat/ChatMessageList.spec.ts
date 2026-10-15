@@ -434,7 +434,6 @@ describe('ChatMessageList', () => {
                 ],
                 chatModel = createModel({}, [reply([text('t1', 'See [2] and [4].'), ...sources])]),
                 {container} = renderList(chatModel, {citationMarkers: true});
-            fireEvent.click(screen.getByRole('button', {name: /2 sources/}));
 
             const numbers = container.querySelectorAll('.xh-chat-sources__number');
             expect(Array.from(numbers).map(it => it.textContent)).toEqual(['2', '4']);
@@ -453,10 +452,11 @@ describe('ChatMessageList', () => {
             fireEvent.click(screen.getByRole('button', {name: /Source 2/}));
             expect(onSourceClick).toHaveBeenLastCalledWith(SOURCES[1], context);
 
-            fireEvent.click(container.querySelector('.xh-chat-citations__chip'));
+            // A web page's marker pins its card, whose Open Link opens it.
+            fireEvent.click(container.querySelector('.xh-chat-citations .xh-chat-citation-marker'));
+            fireEvent.click(screen.getByRole('button', {name: 'Open Link'}));
             expect(onSourceClick).toHaveBeenLastCalledWith(SOURCES[0], context);
 
-            fireEvent.click(screen.getByRole('button', {name: /2 sources/}));
             fireEvent.click(screen.getByRole('button', {name: 'Guideline 4.2'}));
             expect(onSourceClick).toHaveBeenLastCalledWith(SOURCES[1], context);
         });

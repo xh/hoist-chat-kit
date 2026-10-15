@@ -5,15 +5,26 @@
   display: flex;
   flex-direction: column;
   font-size: var(--xh-chat-font-size);
-  gap: calc(var(--xh-pad) * 0.4px);
   line-height: var(--xh-chat-line-height);
   min-width: 0;
+  position: relative;
+
+  &:focus {
+    outline: none;
+  }
+
+  &:focus-visible {
+    border-radius: var(--xh-chat-border-radius);
+    outline: var(--xh-chat-focus-ring-width, 2px) solid var(--xh-chat-focus-ring-color);
+    outline-offset: 4px;
+  }
 
   //------------------------
   // User
   //------------------------
   &--user {
     align-items: flex-end;
+    gap: var(--xh-pad-half-px);
   }
 
   &__bubble {
@@ -22,7 +33,7 @@
     color: var(--xh-chat-user-text-color);
     max-width: var(--xh-chat-user-max-width);
     overflow-wrap: anywhere;
-    padding: calc(var(--xh-pad) * 0.8px) calc(var(--xh-pad) * 1.4px);
+    padding: var(--xh-pad-half-px) var(--xh-pad-px);
     white-space: pre-wrap;
   }
 
@@ -35,9 +46,10 @@
 
   &--user &__files {
     justify-content: flex-end;
+    max-width: var(--xh-chat-user-max-width);
   }
 
-  // Bubble with its action bar to the left, aligned to the bubble's last line.
+  // Bubble with its actions to the left, in the space a right-aligned bubble leaves empty.
   &__row {
     align-items: flex-end;
     display: flex;
@@ -47,13 +59,39 @@
     width: 100%;
   }
 
+  // Meta-size notes below the bubble: the structured context, and "Not sent".
+  &__under {
+    align-items: flex-end;
+    color: var(--xh-chat-meta-text-color);
+    display: flex;
+    flex-direction: column;
+    font-size: var(--xh-chat-meta-font-size);
+    gap: 2px;
+    max-width: var(--xh-chat-user-max-width);
+  }
+
+  &__context {
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+
+  &__not-sent {
+    align-items: center;
+    color: var(--xh-chat-error-color);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--xh-chat-status-cue-gap);
+    justify-content: flex-end;
+  }
+
+  &__not-sent-cause {
+    color: var(--xh-chat-meta-text-color);
+  }
+
   &__edit {
-    background-color: var(--xh-chat-user-bg);
-    border-radius: var(--xh-chat-border-radius);
     display: flex;
     flex-direction: column;
     gap: var(--xh-pad-half-px);
-    padding: var(--xh-pad-half-px);
     width: 100%;
 
     .xh-text-area.bp6-input {
@@ -61,17 +99,27 @@
       border-radius: var(--xh-chat-border-radius);
       box-sizing: border-box;
       font-size: var(--xh-chat-font-size);
-      line-height: 1.5;
+      line-height: var(--xh-chat-line-height);
       min-height: calc(1.5em * 2 + 16px);
-      padding: calc(var(--xh-pad) * 0.8px) var(--xh-pad-px);
+      padding: var(--xh-pad-half-px) var(--xh-pad-px);
       width: 100%;
     }
   }
 
-  &__edit-actions {
+  &__edit-bar {
+    align-items: center;
     display: flex;
     gap: var(--xh-pad-half-px);
     justify-content: flex-end;
+  }
+
+  &__edit-warning {
+    align-items: center;
+    color: var(--xh-chat-warning-color);
+    display: inline-flex;
+    font-size: var(--xh-chat-meta-font-size);
+    gap: var(--xh-chat-status-cue-gap);
+    margin-right: auto;
   }
 
   //------------------------
@@ -89,43 +137,81 @@
   //------------------------
   // Assistant
   //------------------------
+  // The hover target runs through the turn gap below the reply, where its action bar sits, so
+  // that moving to the bar never hides it. The negative margin gives the gap back to the list.
+  &--assistant {
+    margin-bottom: calc(var(--xh-chat-turn-gap) * -1);
+    padding-bottom: var(--xh-chat-turn-gap);
+  }
+
+  &__main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-chat-part-gap);
+    min-width: 0;
+    position: relative;
+  }
+
+  // One quiet 16px line that never wraps. Segments that do not fit move to a second line, which
+  // the fixed height hides - so the last segments drop first, and the name truncates last.
   &__header {
     align-items: center;
     color: var(--xh-chat-meta-text-color);
+    column-gap: calc(var(--xh-pad) * 0.6px);
     display: flex;
+    flex-wrap: wrap;
     font-size: var(--xh-chat-meta-font-size);
-    gap: calc(var(--xh-pad) * 0.6px);
-    line-height: 20px;
+    height: 16px;
+    line-height: 16px;
     min-width: 0;
-  }
-
-  &__avatar {
-    align-items: center;
-    background-color: var(--xh-intent-primary-trans1);
-    border-radius: 50%;
-    color: var(--xh-intent-primary-text-color);
-    display: flex;
-    flex: none;
-    font-size: 11px;
-    height: 20px;
-    justify-content: center;
-    width: 20px;
+    overflow: hidden;
+    white-space: nowrap;
   }
 
   &__name {
+    align-items: center;
     color: var(--xh-chat-text-color);
+    display: inline-flex;
     font-weight: 600;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    gap: var(--xh-chat-status-cue-gap);
+    max-width: 100%;
+    min-width: 0;
   }
 
-  &__meta {
-    white-space: nowrap;
+  &__icon {
+    display: inline-flex;
+    flex: none;
+  }
+
+  &__name-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__segment {
+    align-items: center;
+    display: inline-flex;
+    gap: calc(var(--xh-pad) * 0.6px);
 
     &::before {
       content: '·';
-      margin-right: calc(var(--xh-pad) * 0.6px);
+    }
+  }
+
+  // The busy status and its ticking time, as two segments.
+  &__live-status .xh-chat-elapsed::before {
+    content: '·';
+    margin-right: calc(var(--xh-pad) * 0.6px);
+  }
+
+  &__warning {
+    color: var(--xh-chat-warning-color);
+    gap: calc(var(--xh-pad) * 0.4px);
+
+    &::before {
+      color: var(--xh-chat-meta-text-color);
+      margin-right: calc(var(--xh-pad) * 0.2px);
     }
   }
 
@@ -136,22 +222,29 @@
     min-width: 0;
   }
 
+  // Reasoning and tool rows stack at the tighter process gap, so a reply's steps read as one block.
+  &__process {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-chat-process-gap);
+    min-width: 0;
+  }
+
   &__text {
     display: flex;
     flex-direction: column;
-    gap: calc(var(--xh-pad) * 0.6px);
+    gap: var(--xh-chat-part-gap);
     min-width: 0;
+  }
+
+  // Prose stays at the prose width at every column width. Cards - code, tables and components -
+  // span the column.
+  &__text .xh-chat-markdown > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6, hr, dl) {
+    max-width: var(--xh-chat-prose-max-width);
   }
 
   &__ui {
     min-width: 0;
-  }
-
-  &__context {
-    color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-chat-meta-font-size);
-    max-width: var(--xh-chat-user-max-width);
-    overflow-wrap: anywhere;
   }
 
   &__data {
@@ -170,52 +263,169 @@
     font-size: var(--xh-chat-meta-font-size);
   }
 
-  &__note {
+  //------------------------
+  // How a reply ended
+  //------------------------
+  &__notice {
     align-items: center;
     color: var(--xh-chat-meta-text-color);
     display: flex;
+    flex-wrap: wrap;
     font-size: var(--xh-chat-meta-font-size);
-    gap: calc(var(--xh-pad) * 0.6px);
+    gap: var(--xh-chat-status-cue-gap);
+    min-height: 24px;
 
-    &--error {
-      color: var(--xh-chat-error-color);
+    &--warning {
+      color: var(--xh-chat-warning-color);
     }
+  }
+
+  &__notice-detail {
+    color: var(--xh-chat-meta-text-color);
+  }
+
+  // A reply that produced nothing usable, framed in the danger color. Any streamed text stays
+  // above it.
+  &__failed {
+    align-items: center;
+    border: var(--xh-border-width-px) solid var(--xh-chat-error-color);
+    border-radius: var(--xh-chat-border-radius);
+    display: flex;
+    gap: var(--xh-pad-px);
+    min-height: 32px;
+    padding: 2px 3px 2px var(--xh-pad-px);
+  }
+
+  &__failed-icon {
+    color: var(--xh-chat-error-color);
+    flex: none;
+  }
+
+  &__failed-text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  &__failed-cause {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+    margin-left: var(--xh-pad-half-px);
   }
 
   //------------------------
   // Action bar
   //------------------------
-  // Shown on hover or keyboard focus, and always for the last reply. Takes its space even when
-  // hidden, so that showing it never shifts the messages around it.
+  // A reply's bar sits in the turn gap below it, over no content, and reserves no height. A user
+  // message's bar sits to the left of its bubble. Each button hides until the message is hovered
+  // or holds focus, except on the last reply, where the bar always shows - and a chosen thumb
+  // always shows, in its own slot.
   &__actions {
+    align-items: center;
     display: flex;
-    gap: 2px;
-    min-height: 26px;
-    opacity: 0;
-    transition: opacity 0.15s ease;
+    gap: 1px;
+    height: var(--xh-chat-turn-gap);
+
+    > * {
+      opacity: 0;
+      transition: opacity var(--xh-chat-motion-reveal) var(--xh-chat-motion-ease);
+    }
   }
 
   &--assistant &__actions {
-    margin-left: -5px;
+    left: calc(var(--xh-pad-half-px) * -1);
+    position: absolute;
+    top: 100%;
   }
 
-  &:hover &__actions,
-  &:focus-within &__actions,
-  &--assistant.xh-chat-message--last &__actions {
+  &:hover &__actions > *,
+  &:focus-within &__actions > *,
+  &--assistant.xh-chat-message--last &__actions > *,
+  &--feedback-open &__actions > *,
+  &__actions > .xh-chat-message__thumb--chosen {
     opacity: 1;
   }
 
+  &__actions-sep {
+    background-color: var(--xh-chat-part-border-color);
+    height: 14px;
+    margin: 0 3px;
+    width: 1px;
+  }
+
   @include hoist-button(null, '.xh-chat-message__actions') {
-    min-height: 26px;
-    min-width: 26px;
+    // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
+    // component styles in the dark theme - so set the variables, not the colors.
+    --xh-button-text-color: var(--xh-chat-meta-text-color);
+
+    font-size: var(--xh-chat-meta-font-size);
+    min-height: 24px;
+    min-width: 24px;
     padding: 0 5px;
 
-    svg {
-      color: var(--xh-chat-meta-text-color);
-    }
-
-    &:hover svg {
-      color: var(--xh-chat-text-color);
+    &:hover {
+      --xh-button-text-color: var(--xh-chat-text-color);
     }
   }
+
+  @include hoist-button('.xh-chat-message__thumb--chosen', '.xh-chat-message__actions') {
+    --xh-button-text-color: var(--xh-chat-rated-color);
+
+    background-color: var(--xh-chat-mention-bg);
+  }
+
+  // A Button in a meta-size strip takes the strip's size, so its label and the text read as one.
+  @include hoist-button(null, ':is(.xh-chat-message__failed, .xh-chat-message__not-sent)') {
+    font-size: inherit;
+    min-height: 24px;
+  }
+
+  //------------------------
+  // Feedback form
+  //------------------------
+  // Inline under the action bar, which stays in its gap above the form.
+  &__feedback {
+    background-color: var(--xh-chat-bg);
+    border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border-radius: var(--xh-chat-border-radius);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-pad-half-px);
+    margin-top: var(--xh-chat-turn-gap);
+    max-width: var(--xh-chat-feedback-max-width);
+    padding: var(--xh-pad-px);
+
+    .xh-text-area.bp6-input {
+      box-sizing: border-box;
+      font-size: var(--xh-chat-font-size);
+      min-height: 56px;
+      width: 100%;
+    }
+  }
+
+  &__feedback-heading {
+    align-items: baseline;
+    display: flex;
+    font-weight: 600;
+    gap: var(--xh-pad-half-px);
+  }
+
+  &__feedback-hint {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+    font-weight: 400;
+  }
+
+  &__feedback-bar {
+    display: flex;
+    gap: var(--xh-pad-half-px);
+    justify-content: flex-end;
+  }
+}
+
+// What the thumbs down means on a fixed "not found" reply.
+.xh-chat-message__thumb-hint {
+  color: var(--xh-chat-meta-text-color);
+  font-size: var(--xh-chat-meta-font-size);
+  padding: 0 var(--xh-pad-half-px);
 }

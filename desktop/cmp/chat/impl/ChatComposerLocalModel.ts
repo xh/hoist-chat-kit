@@ -8,7 +8,7 @@ import {fitTextAreaToContent, isImeComposing} from './AutoGrow';
 import {hasFiles} from './FileDrop';
 
 /** Rows the composer's input grows to before it scrolls, unless its `maxRows` prop says. */
-export const DEFAULT_MAX_ROWS = 10;
+export const DEFAULT_MAX_ROWS = 8;
 
 /**
  * Local model for a ChatComposer: key handling, file paste and drop, and input sizing. Reads the

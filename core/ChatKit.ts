@@ -1,5 +1,7 @@
 import type {ReactElement} from 'react';
+import {XH} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
+import {CHAT_STORAGE_PREFIX} from './impl/localData';
 
 /**
  * Kit-wide settings - see {@link ChatKit.defaults}. A setting that belongs to one component sits
@@ -41,8 +43,15 @@ export interface ChatKitDefaults {
     announceSteps: 'none' | 'failures' | 'all';
 
     /**
-     * Where the composer keeps its unsent draft - `local` storage, so a draft survives a reload,
-     * or `memory` only. Default 'local'.
+     * Where the composer keeps its unsent draft text.
+     *
+     *  - `local` - in local storage, per thread, through `XH.localStorageService`, which keys it
+     *    by app and user. A draft survives a reload, and shows "Draft from 10:31 restored" when
+     *    it comes back. Call {@link ChatKit.clearLocalData} on logout to remove the drafts.
+     *  - `memory` - in the composer only, lost with the page.
+     *
+     * Attachments always stay in memory. `ChatComposerConfig.drafts` overrides it for one
+     * composer. Default 'local'.
      */
     drafts: 'local' | 'memory';
 
@@ -92,7 +101,6 @@ export class ChatKit {
         reducedMotionSpinner: 'static',
         stallAfterMs: 30_000,
         announceSteps: 'failures',
-        // Read by the composer's drafts and the keyboard map, which later work adds.
         // TODO(design-open B6) - local drafts, cleared on logout by `ChatKit.clearLocalData()`.
         drafts: 'local',
         // TODO(design-open B3) - shortcuts on by default, each one remappable or off.
@@ -105,4 +113,13 @@ export class ChatKit {
             toggleSidebar: null
         }
     };
+
+    /**
+     * Remove everything the kit keeps in local storage for the current user, such as composer
+     * drafts. Hoist has no logout hook, so call it from the app's logout - before
+     * `XH.logoutAsync()`.
+     */
+    static clearLocalData() {
+        XH.localStorageService?.removeIf(key => key.startsWith(CHAT_STORAGE_PREFIX));
+    }
 }

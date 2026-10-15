@@ -6,7 +6,7 @@ import type {
     ChatToolCallState,
     ChatToolSpec
 } from '../../../../core';
-import {groupParts} from './groupParts';
+import {type ChatProcessRun, groupParts, groupProcessRuns} from './groupParts';
 
 /**
  * groupParts decides what an assistant message shows as one row. Apps rely on it to fold runs of
@@ -81,6 +81,54 @@ describe('groupParts', () => {
         expect(groups.map(it => it.type)).toEqual(['fileGroup', 'text']);
         expect(groups[0]).toMatchObject({id: 'files-f1'});
     });
+
+    it('leaves out reasoning with no text to show', () => {
+        const groups = groupParts([reasoning('r1', ''), text('t1')], chatModel());
+        expect(groups.map(it => it.id)).toEqual(['t1']);
+    });
+});
+
+/**
+ * groupProcessRuns gathers a reply's steps into process blocks, which stack tighter than its
+ * output. Users rely on a reply's steps reading as one block, split only by text between them.
+ */
+describe('groupProcessRuns', () => {
+    it('gathers consecutive reasoning, tool rows and tool groups into one run', () => {
+        const host = chatModel(),
+            runs = groupProcessRuns(
+                groupParts(
+                    [reasoning('r1'), call('c1'), call('c2', {step: 1}), call('c3', {step: 1})],
+                    host
+                ),
+                host
+            );
+
+        expect(runs).toHaveLength(1);
+        expect(runs[0]).toMatchObject({type: 'process', id: 'process-r1'});
+        expect((runs[0] as ChatProcessRun).groups.map(it => it.id)).toEqual([
+            'r1',
+            'c1',
+            'tools-c2'
+        ]);
+    });
+
+    it('starts a new run after text, and leaves inline calls as output', () => {
+        const host = chatModel([{name: 'show_chart', display: 'inline', renderer: () => null}]),
+            runs = groupProcessRuns(
+                groupParts(
+                    [
+                        call('c1'),
+                        text('t1'),
+                        call('c2', {step: 1}),
+                        call('c3', {step: 2, toolName: 'show_chart'})
+                    ],
+                    host
+                ),
+                host
+            );
+
+        expect(runs.map(it => it.type)).toEqual(['process', 'text', 'process', 'toolCall']);
+    });
 });
 
 //------------------
@@ -88,6 +136,10 @@ describe('groupParts', () => {
 //------------------
 function chatModel(tools: ChatToolSpec[] = []): ChatModel {
     return {getToolSpec: (name: string) => tools.find(it => it.name === name) ?? null} as ChatModel;
+}
+
+function reasoning(id: string, content: string = 'Thinking it over.'): ChatPart {
+    return {type: 'reasoning', id, text: content, state: 'done', startedAt: 0, endedAt: 10};
 }
 
 function text(id: string): ChatPart {

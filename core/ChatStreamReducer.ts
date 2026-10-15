@@ -1,6 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {logDebug, logWarn} from '@xh/hoist/utils/js';
-import {findLast, isEmpty, isPlainObject, isString, pick} from 'lodash';
+import {findLast, isBoolean, isEmpty, isPlainObject, isString, pick} from 'lodash';
 import type {ChatEvent} from '../transport';
 import type {ChatMessage, ChatMessageSpec} from './ChatMessage';
 import type {ChatTextTransform} from './ChatModel';
@@ -251,6 +251,9 @@ export class ChatStreamReducer {
             case 'RUN_STARTED':
                 this.threadId = event.threadId ?? null;
                 this.startedRunId = event.runId ?? null;
+                // Marks a reply whose run the backend began. A reply that failed without it was
+                // never sent.
+                setMetadata(draft, {runStarted: true});
                 if (event.runId != null) setMetadata(draft, {runId: event.runId});
                 break;
             case 'RUN_FINISHED': {
@@ -275,8 +278,9 @@ export class ChatStreamReducer {
             }
             case 'RUN_ERROR': {
                 setError(draft, event.message ?? 'Unknown error.', event.code);
-                const retryAfterSeconds = event.metadata?.retryAfterSeconds;
+                const {retryAfterSeconds, retrySafe} = event.metadata ?? {};
                 if (retryAfterSeconds != null) setMetadata(draft, {retryAfterSeconds});
+                if (isBoolean(retrySafe)) setMetadata(draft, {retrySafe});
                 break;
             }
 
@@ -537,9 +541,21 @@ export class ChatStreamReducer {
             id = value.id ?? genChatId();
 
         switch (name) {
-            case 'xh.chat.source':
-                putPart(draft, {type: 'source', id, step, ...pick(value, SOURCE_KEYS)});
+            case 'xh.chat.source': {
+                const source = pick(value, SOURCE_KEYS);
+                putPart(draft, {
+                    type: 'source',
+                    id,
+                    step,
+                    ...source,
+                    sourceType: SOURCE_TYPES.includes(value.sourceType)
+                        ? value.sourceType
+                        : source.url
+                          ? 'url'
+                          : 'document'
+                });
                 break;
+            }
             case 'xh.chat.textReplace':
                 this.replaceText(draft, value.text ?? '');
                 break;
@@ -635,6 +651,7 @@ export class ChatStreamReducer {
 // Implementation
 //------------------
 const SOURCE_KEYS = ['url', 'title', 'snippet', 'marker', 'metadata'],
+    SOURCE_TYPES = ['url', 'document'],
     CITATION_KEYS = ['title', 'url', 'citedText', 'sourceId'],
     FILE_KEYS = ['size', 'url', 'data'];
 

@@ -14,14 +14,20 @@ export interface RemarkCitationsOptions {
     sources: ChatSourcePart[];
 }
 
+/** Class of the span that keeps a marker on the line of the word before it. @internal */
+export const CITATION_RUN_CLASS = 'xh-chat-markdown__citation-run';
+
 /**
- * A remark plugin that turns citation markers in text - `[1]`, `[1, 2]` and `[1][2]` - into
- * citation elements, rendered by the component registered for {@link CITATION_TAG}.
+ * A remark plugin that turns citation markers in text - `[1]`, `[1, 2]`, `[2–5]` and `[1][2]` -
+ * into citation elements, rendered by the component registered for {@link CITATION_TAG}.
  *
  * A marker converts only if every number in it cites a source - see {@link findCitedSource}. Any
  * other bracketed text stays as written. Markers inside code, links and link references stay as
  * written too, and footnote syntax (`[^1]`) never matches. A marker still streaming in, such as a
  * trailing `[1`, has no closing bracket yet and so stays plain text until it closes.
+ *
+ * Each run of markers sits in a span with the word before it and any punctuation after it, which
+ * the kit's styles keep on one line, so that a marker never starts a line.
  *
  * Runs on the markdown tree (mdast), so markdown syntax has already been parsed when it runs.
  * @internal
@@ -44,9 +50,12 @@ export interface MdastNode {
 //------------------
 // Implementation
 //------------------
-// One bracketed list of numbers, such as `[1]` or `[1, 2]`. Adjacent markers - `[1][2]` - match
-// one at a time.
-const MARKER = /\[(\d{1,4}(?:\s*,\s*\d{1,4})*)\]/g;
+// One bracketed list of numbers and ranges, such as `[1]`, `[1, 2]` or `[2–5]`. Adjacent
+// markers - `[1][2]` - match one at a time.
+const NUMBER = String.raw`\d{1,4}(?:\s*[–-]\s*\d{1,4})?`,
+    MARKER = new RegExp(String.raw`\[(${NUMBER}(?:\s*,\s*${NUMBER})*)\]`, 'g'),
+    // The most numbers one range may stand for.
+    MAX_RANGE = 50;
 
 // Nodes whose text is never a citation: links show their text as written, and code has no text
 // children to visit.
@@ -65,20 +74,68 @@ function replaceMarkers(parent: MdastNode, sources: ChatSourcePart[]) {
 function splitText(node: MdastNode, sources: ChatSourcePart[]): MdastNode[] {
     const text = node.value ?? '',
         ret: MdastNode[] = [];
-    let start = 0;
+    let start = 0,
+        run: MdastNode = null;
 
     for (const match of text.matchAll(MARKER)) {
-        const numbers = match[1].split(',').map(it => parseInt(it, 10));
-        if (!numbers.every(it => findCitedSource(sources, it))) continue;
+        const numbers = parseNumbers(match[1]);
+        if (!numbers?.every(it => findCitedSource(sources, it))) continue;
 
-        if (match.index > start) ret.push({type: 'text', value: text.slice(start, match.index)});
-        ret.push(createCitation(match[0], numbers));
+        const citation = createCitation(match[0], numbers);
+        if (run && match.index === start) {
+            // Adjacent to the last marker - the same run.
+            run.children.push(citation);
+        } else {
+            let before = text.slice(start, match.index);
+            if (run) before = takePunctuation(run, before);
+
+            const word = /\S+\s*$/.exec(before)?.[0] ?? '',
+                head = before.slice(0, before.length - word.length);
+            if (head) ret.push(textNode(head));
+            run = createRun(word ? [textNode(word), citation] : [citation]);
+            ret.push(run);
+        }
         start = match.index + match[0].length;
     }
 
-    if (!start) return [node];
-    if (start < text.length) ret.push({type: 'text', value: text.slice(start)});
+    if (!run) return [node];
+    const rest = takePunctuation(run, text.slice(start));
+    if (rest) ret.push(textNode(rest));
     return ret;
+}
+
+// The numbers of a marker, with each range expanded - or null for a range that runs backwards or
+// stands for too many numbers.
+function parseNumbers(list: string): number[] {
+    const ret: number[] = [];
+    for (const item of list.split(',')) {
+        const [from, to = from] = item.split(/[–-]/).map(it => parseInt(it, 10));
+        if (to < from || to - from >= MAX_RANGE) return null;
+        for (let n = from; n <= to; n++) ret.push(n);
+    }
+    return ret;
+}
+
+// Move the punctuation that starts `text` into the run, so that it stays on the marker's line.
+// Returns the rest of the text.
+function takePunctuation(run: MdastNode, text: string): string {
+    const punctuation = /^[.,;:!?)\]”’"']+/.exec(text)?.[0];
+    if (!punctuation) return text;
+    run.children.push(textNode(punctuation));
+    return text.slice(punctuation.length);
+}
+
+function textNode(value: string): MdastNode {
+    return {type: 'text', value};
+}
+
+// A span that the markdown-to-HTML step makes from the node's `data`.
+function createRun(children: MdastNode[]): MdastNode {
+    return {
+        type: 'xhChatCitationRun',
+        children,
+        data: {hName: 'span', hProperties: {className: [CITATION_RUN_CLASS]}}
+    };
 }
 
 // A node of a type of its own, so that other plugins leave it alone. Its `data` tells the

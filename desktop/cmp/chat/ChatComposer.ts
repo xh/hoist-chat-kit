@@ -1,6 +1,6 @@
 import {castArray} from 'lodash';
 import {type ReactNode, useLayoutEffect} from 'react';
-import {div, input, vbox} from '@xh/hoist/cmp/layout';
+import {div, input, span, vbox} from '@xh/hoist/cmp/layout';
 import {type BoxProps, hoistCmp, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {textArea} from '@xh/hoist/desktop/cmp/input';
@@ -19,16 +19,25 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
     /** Items shown above the input, inside the composer - such as context chips or a notice. */
     topItems?: ReactNode;
 
-    /** Items for the composer's toolbar, to the left - such as a model picker or tool toggles. */
+    /**
+     * Items for the left slot of the composer's bar - pills such as a {@link ChatComposerPill}
+     * for an agent or tools, or a {@link ChatScopeChip} for a document scope.
+     */
     leftItems?: ReactNode;
 
-    /** Items for the composer's toolbar, to the right, before the send button. */
+    /**
+     * Items for the right slot of the composer's bar, before the attach and send buttons - such
+     * as a context meter.
+     */
     rightItems?: ReactNode;
 
-    /** Prompt shown in the empty input. Default 'Send a message...'. */
+    /**
+     * Prompt shown in the empty input. Default 'Send a message...', or, while the reply waits
+     * for the user, 'Or tell the assistant what to do instead...'.
+     */
     placeholder?: string;
 
-    /** Rows the input grows to before it scrolls. Default 10. */
+    /** Rows the input grows to before it scrolls. Default 8. */
     maxRows?: number;
 
     /** True to focus the input when the composer mounts. */
@@ -36,13 +45,17 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
 }
 
 /**
- * The input for writing a message: an auto-growing text area with a send button, inside a rounded
- * card. Enter sends and Shift+Enter starts a new line. Up arrow in an empty input recalls the last
- * message. While a reply streams, the send button becomes a stop button, and Escape stops it too -
- * if the composer's host can stop.
+ * The input for writing a message: one box, with an optional tray of attachments, an
+ * auto-growing text area, and a bar with pills on the left and the attach and send buttons on
+ * the right. Enter sends and Shift+Enter starts a new line. Up arrow in an empty input recalls the
+ * last message. While a reply is in progress, Send becomes a Stop button, and Escape stops too -
+ * if the composer's host can stop. The input stays editable, and Enter does nothing until the
+ * reply ends.
  *
- * While the host gives a reason to wait, such as the chat's `sendBlocker`, the send button is
- * disabled, with the reason as its tooltip and its accessible description.
+ * Send is disabled while the draft is empty, and for a reason - the host's `sendBlockedReason`,
+ * the browser being offline, or a wait before a retry. A reason shows as the button's tooltip and
+ * its accessible description, on a focusable wrapper so that keyboard users reach it. Render a
+ * {@link ChatStatusRegion} above the composer to state the reason, with its fix.
  *
  * When the model enables attachments, files can be added with the attach button, by pasting, or
  * by dropping them on the composer. They show as chips above the input until sent. Files left out
@@ -76,12 +89,19 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
 
         throwIf(!composerModel, 'ChatComposer requires a ChatComposerModel or a ChatModel.');
 
-        const {text, attachments, attachmentErrors, enableAttachments, inputRef} = composerModel;
+        const {text, attachments, attachmentErrors, enableAttachments, inputRef, host} =
+                composerModel,
+            isPaused = host.lastMessage?.status === 'paused';
         useLayoutEffect(() => impl.fitInput(), [impl, text, maxRows]);
 
         return vbox({
             ref,
-            className: classNames(className, {'xh-chat-composer--dragging': impl.isDragging}),
+            className: classNames(className, {
+                'xh-chat-composer--dragging': impl.isDragging,
+                'xh-chat-composer--busy': host.isBusy,
+                'xh-chat-composer--attention': isPaused,
+                'xh-chat-composer--waiting': !!composerModel.retryWait
+            }),
             // Room for the focus ring of the box, which a Box would otherwise clip.
             overflow: 'visible',
             ...rest,
@@ -118,7 +138,12 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                             autoFocus,
                             width: null,
                             height: null,
-                            placeholder: withDefault(placeholder, 'Send a message...'),
+                            placeholder: withDefault(
+                                placeholder,
+                                isPaused
+                                    ? 'Or tell the assistant what to do instead...'
+                                    : 'Send a message...'
+                            ),
                             domAttrs: {'aria-label': 'Message'},
                             ref: inputRef,
                             onKeyDown: impl.onKeyDown
@@ -126,11 +151,20 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                         div({
                             className: 'xh-chat-composer__toolbar',
                             items: [
-                                ...(enableAttachments ? attachButton(composerModel, impl) : []),
-                                ...castArray(leftItems),
-                                div({className: 'xh-chat-composer__spacer'}),
-                                ...castArray(rightItems),
-                                ...sendButton(composerModel, impl)
+                                div({
+                                    className: 'xh-chat-composer__left',
+                                    items: castArray(leftItems)
+                                }),
+                                div({
+                                    className: 'xh-chat-composer__right',
+                                    items: [
+                                        ...castArray(rightItems),
+                                        ...(enableAttachments
+                                            ? attachButton(composerModel, impl)
+                                            : []),
+                                        ...sendButton(composerModel, impl)
+                                    ]
+                                })
                             ]
                         })
                     ]
@@ -194,48 +228,61 @@ function attachmentErrorRow(composerModel: ChatComposerModel): ReactNode {
     });
 }
 
-// A send blocker's reason shows as the disabled button's tooltip, and in a status element that
-// describes the button for assistive technology.
+// Stop takes Send's place while busy, named with its word at every width. A reason Send is
+// disabled shows as its tooltip, and in an element that describes it for assistive technology.
+// A disabled button cannot take focus, so a focusable wrapper carries both to keyboard users.
 function sendButton(composerModel: ChatComposerModel, impl: ChatComposerLocalModel): ReactNode[] {
     const {host, canSend} = composerModel,
-        sendBlockedReason = host.sendBlockedReason ?? null,
+        reason = composerModel.sendDisabledReason,
         reasonId = `${impl.xhId}-send-reason`;
 
     if (host.isBusy && host.stop) {
         return [
             button({
                 key: 'stop',
-                className: 'xh-chat-composer__send xh-chat-composer__send--stop',
+                className: 'xh-chat-composer__stop',
                 icon: Icon.stop({prefix: 'fas'}),
-                tooltip: 'Stop',
+                text: 'Stop',
                 'aria-label': 'Stop',
-                minimal: false,
-                onClick: () => host.stop()
+                outlined: true,
+                onClick: () => {
+                    host.stop();
+                    composerModel.focus();
+                }
             })
         ];
     }
+
+    const send = button({
+        className: 'xh-chat-composer__send',
+        icon: Icon.arrowUp(),
+        tooltip: reason ?? 'Send',
+        'aria-label': 'Send',
+        'aria-describedby': reason ? reasonId : undefined,
+        intent: 'primary',
+        minimal: false,
+        disabled: !canSend,
+        onClick: () => {
+            composerModel.focus();
+            composerModel.submitAsync().catchDefault();
+        }
+    });
     return [
         div({
             key: 'reason',
             id: reasonId,
             className: 'xh-chat-composer__send-reason',
-            role: 'status',
-            item: sendBlockedReason
+            item: reason
         }),
-        button({
-            key: 'send',
-            className: 'xh-chat-composer__send',
-            icon: Icon.arrowUp(),
-            tooltip: sendBlockedReason ?? 'Send',
-            'aria-label': 'Send',
-            'aria-describedby': sendBlockedReason ? reasonId : undefined,
-            intent: 'primary',
-            minimal: false,
-            disabled: !canSend,
-            onClick: () => {
-                composerModel.focus();
-                composerModel.submitAsync().catchDefault();
-            }
-        })
+        reason
+            ? span({
+                  key: 'send',
+                  className: 'xh-chat-composer__send-wrap',
+                  tabIndex: 0,
+                  title: reason,
+                  'aria-describedby': reasonId,
+                  item: send
+              })
+            : span({key: 'send', className: 'xh-chat-composer__send-wrap', item: send})
     ];
 }

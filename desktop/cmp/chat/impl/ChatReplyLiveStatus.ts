@@ -1,13 +1,16 @@
 import {span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
-import {type ChatMessage, type ChatModel, getChatReplyStatus} from '../../../../core';
+import {type ChatMessage, type ChatMessageListHost, getChatReplyStatus} from '../../../../core';
 import {chatElapsed} from '../ChatElapsed';
 import {chatStatusCue} from '../ChatStatusCue';
 import {useChatClock} from './useChatClock';
 
 interface ChatReplyLiveStatusProps extends HoistProps {
     message: ChatMessage;
-    chatModel: ChatModel;
+    host: ChatMessageListHost;
+
+    /** True if the message is the last of the conversation, whose turn the activity belongs to. */
+    isLast: boolean;
 }
 
 /**
@@ -21,18 +24,17 @@ export const chatReplyLiveStatus = hoistCmp.factory<ChatReplyLiveStatusProps>({
     model: false,
     className: 'xh-chat-message__live-status',
 
-    render({className, message, chatModel}) {
+    render({className, message, host, isLast}) {
         const isLive = message.isStreaming,
             now = useChatClock(isLive);
         if (!isLive) return null;
 
         // Activity is the chat's, and belongs to the reply its turn builds - the last message.
-        const lastActivityAt =
-                chatModel.lastMessage?.id === message.id ? chatModel.lastActivityAt : null,
+        const lastActivityAt = isLast ? (host.lastActivityAt ?? null) : null,
             status = getChatReplyStatus({
                 message,
                 lastActivityAt,
-                stallAfterMs: chatModel.stallAfterMs,
+                stallAfterMs: host.stallAfterMs,
                 now
             });
 

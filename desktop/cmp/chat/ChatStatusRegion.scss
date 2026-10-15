@@ -1,0 +1,56 @@
+@use '../../../styles/mixins' as *;
+
+// One meta-size line above the composer. Rendered only with content, so it reserves no space.
+.xh-chat-status-region {
+  align-items: center;
+  color: var(--xh-chat-meta-text-color);
+  display: flex;
+  font-size: var(--xh-chat-meta-font-size);
+  gap: 6px;
+  min-height: var(--xh-chat-composer-status-height);
+  min-width: 0;
+  padding: 0 2px 0 4px;
+
+  &--busy {
+    color: var(--xh-chat-busy-color);
+  }
+
+  &--attention {
+    color: var(--xh-chat-attention-color);
+  }
+
+  &--warning {
+    color: var(--xh-chat-warning-color);
+  }
+
+  &--error {
+    color: var(--xh-chat-error-color);
+  }
+
+  &__icon {
+    display: inline-flex;
+    flex: none;
+    justify-content: center;
+    width: var(--xh-chat-status-cue-icon-width);
+  }
+
+  &__text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // Buttons in a meta-size strip take the strip's font size, so label and status read as one
+  // line. Their height stays 24px.
+  @include hoist-button('.xh-chat-status-region__action') {
+    --xh-button-text-color: var(--xh-chat-text-color);
+
+    flex: none;
+    font-size: var(--xh-chat-meta-font-size);
+    height: 24px;
+    min-height: 24px;
+    padding: 0 6px;
+  }
+}
