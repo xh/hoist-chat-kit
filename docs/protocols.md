@@ -99,8 +99,7 @@ for the Responses API ships yet.
 `ChatCompletionsCodec` builds a chat completions request body from the chat history, and decodes
 the streamed `chat.completion.chunk` records into `ChatEvent`s. Most model gateways speak this
 format, such as Azure OpenAI, LiteLLM, Portkey and internal model services. A server relays the
-request to the gateway and relays the stream back, as for `AnthropicCodec`. `ChatService` builds
-this transport when the `chatConfig` soft config names the `openai-chat` codec. See
+request to the gateway and relays the stream back, as for `AnthropicCodec`. See
 [Bring your own LLM](../transport/README.md#bring-your-own-llm).
 
 The API keeps no state, so each request carries the whole history. The codec therefore throws for

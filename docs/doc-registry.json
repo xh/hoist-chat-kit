@@ -262,28 +262,6 @@
       ]
     },
     {
-      "id": "svc/README.md",
-      "title": "Chat Service",
-      "mcpCategory": "package",
-      "viewerCategory": "core",
-      "description": "ChatService, which resolves the app's default LLM backend from the chatConfig soft config.",
-      "keywords": [
-        "ChatService",
-        "XH.chatService",
-        "chatConfig",
-        "ChatConfig",
-        "ChatServiceTransportOptions",
-        "isEnabled",
-        "createTransport",
-        "bring your own LLM",
-        "soft config",
-        "codec",
-        "anthropic",
-        "openai-chat",
-        "agui"
-      ]
-    },
-    {
       "id": "genui/README.md",
       "title": "Generative UI",
       "mcpCategory": "package",

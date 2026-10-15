@@ -20,9 +20,9 @@ catalog sits beside the models, and builds on their tools.
 │                     ChatThreadList, ChatWorkspace, ChatUiGrid, ...       │
 │                     Render the models. Never see a wire format.          │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ Models              core/     genui/     threads/     svc/               │
+│ Models              core/     genui/     threads/                        │
 │                     ChatModel, ChatMessage, ChatPart, ChatToolSpec,      │
-│                     ChatUiCatalog, ChatThreadsModel, ChatService.        │
+│                     ChatUiCatalog, ChatThreadsModel.                     │
 │                     Own the state, the turn loop, the threads and the    │
 │                     tools. Platform-neutral.                             │
 ├──────────────────────────────────────────────────────────────────────────┤
@@ -50,8 +50,7 @@ reaches into another's `impl/`.
   `ChatMessage` records, and runs client tools. See [`/core/`](../core/README.md). A
   `ChatUiCatalog` turns app components into tools the model calls to show UI. See
   [`/genui/`](../genui/README.md). A `ChatThreadsModel` lists the threads a backend stores, and
-  holds a `ChatModel` for each open one. See [`/threads/`](../threads/README.md). `ChatService`
-  builds a transport for the app's configured LLM backend. See [`/svc/`](../svc/README.md).
+  holds a `ChatModel` for each open one. See [`/threads/`](../threads/README.md).
 - **Components** render the models with Hoist components and element factories. The desktop
   components live in [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md), and the built-in
   generative UI components in [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md). The thread
@@ -232,7 +231,7 @@ The component slots and the theme variables are covered in
 
 ## Platform Split
 
-The kit ships desktop components now. `core/`, `genui/`, `threads/`, `svc/`,
+The kit ships desktop components now. `core/`, `genui/`, `threads/`,
 `transport/` and `cmp/` import nothing from `@xh/hoist/desktop`. A mobile package,
 `mobile/cmp/chat`, can follow with no change to the models, the transports or the markdown
 renderer.
@@ -243,7 +242,6 @@ renderer.
 | `transport/` | Neutral | Transports, codecs and events |
 | `genui/` | Neutral | The generative UI catalog, component specs and adapters |
 | `threads/` | Neutral | The thread layer: a store adapter and one chat per open thread |
-| `svc/` | Neutral | `ChatService`, which builds a transport from the `chatConfig` soft config |
 | `cmp/markdown/` | Neutral | The streaming markdown renderer |
 | `desktop/cmp/chat/` | Desktop | Panel, message list, composer, tool cards and the rest |
 | `desktop/cmp/threads/` | Desktop | The thread list |
@@ -261,7 +259,6 @@ desktop code.
 - [`/core/`](../core/README.md) - `ChatModel`, messages, parts and tools
 - [`/genui/`](../genui/README.md) - the generative UI catalog
 - [`/threads/`](../threads/README.md) - the thread layer
-- [`/svc/`](../svc/README.md) - the chat service
 - [`/transport/`](../transport/README.md) - transports, codecs and server contracts
 - [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) - desktop components
 - [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) - the desktop thread list

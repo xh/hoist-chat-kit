@@ -101,7 +101,6 @@ Pick a transport by where the events come from, then a codec by their format.
 | An AG-UI agent server, such as LangGraph, Mastra or Pydantic AI | `SseChatTransport` | `AgUiCodec` (default) |
 | A proxy that relays Anthropic's SSE stream unchanged | `SseChatTransport` | `AnthropicCodec` |
 | Your hoist-core server relays an OpenAI-compatible gateway | `HoistChatTransport` | `ChatCompletionsCodec` |
-| The app's configured backend, for a helper agent | `XH.chatService.createTransport()` | Set by config |
 | No backend - a demo, a test, or offline work | `ScriptedChatTransport` | None |
 | Anything else, such as a WebSocket | Your own `ChatTransport` | Your choice |
 
@@ -252,25 +251,7 @@ owns the tools and the prompts. Most gateways speak the OpenAI chat completions 
 Azure OpenAI, LiteLLM, Portkey and internal model services. `ChatCompletionsCodec` speaks it, so a
 hoist-core relay can forward the gateway's stream with nothing to translate.
 
-The app names its backend in a client-visible soft config, `chatConfig`, and installs the kit's
-`ChatService`, which reads it. See [`/svc/`](../svc/README.md).
-
-```json
-{"enabled": true, "url": "llm/stream", "codec": "openai-chat"}
-```
-
-`XH.chatService.createTransport()` then builds a `HoistChatTransport` with the codec that the
-config names: `anthropic`, `openai-chat` or `agui`. A helper agent needs no other wiring:
-
-```typescript
-new ChatModel({
-    transport: XH.chatService.createTransport({system: HELPER_PROMPT}),
-    tools: group.tools,
-    contextProviders: [group.contextProvider]
-});
-```
-
-To use the codec directly:
+Point a `HoistChatTransport` at the relay, with the codec:
 
 ```typescript
 new HoistChatTransport({
