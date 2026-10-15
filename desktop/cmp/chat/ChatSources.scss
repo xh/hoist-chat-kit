@@ -12,7 +12,7 @@
     --xh-button-bg-darker: var(--xh-intent-neutral-trans1);
 
     align-self: flex-start;
-    font-size: var(--xh-chat-meta-font-size-px);
+    font-size: var(--xh-chat-meta-font-size);
     margin-left: calc(var(--xh-pad-half-px) * -1);
     min-height: 24px;
     padding: 2px var(--xh-pad-half-px);
@@ -44,7 +44,7 @@
     color: var(--xh-chat-text-color);
     display: flex;
     flex: none;
-    font-size: var(--xh-chat-meta-font-size-px);
+    font-size: var(--xh-chat-meta-font-size);
     height: 18px;
     justify-content: center;
     margin-top: 1px;
@@ -87,7 +87,7 @@
 
   &__host {
     color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-chat-meta-font-size-px);
+    font-size: var(--xh-chat-meta-font-size);
     line-height: inherit;
   }
 
@@ -97,7 +97,7 @@
     color: var(--xh-chat-meta-text-color);
     display: -webkit-box;
     flex-basis: 100%;
-    font-size: var(--xh-chat-meta-font-size-px);
+    font-size: var(--xh-chat-meta-font-size);
     overflow: hidden;
   }
 }

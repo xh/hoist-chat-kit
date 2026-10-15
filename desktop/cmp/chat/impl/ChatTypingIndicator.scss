@@ -2,7 +2,7 @@
   align-items: center;
   display: inline-flex;
   gap: 4px;
-  height: calc(var(--xh-chat-font-size-px) * var(--xh-chat-line-height));
+  height: calc(var(--xh-chat-font-size) * var(--xh-chat-line-height));
 
   span {
     animation: xh-chat-typing-pulse 1.2s ease-in-out infinite;

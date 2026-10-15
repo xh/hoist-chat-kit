@@ -807,28 +807,29 @@ kits. Both cost more than the reuse we know of today.
 
 ## D58. Design tokens replace the kit's theme variables
 
-
 **Decision.** `styles/vars.scss` takes the design's tokens and drops the old names, with no
 aliases. The kit is pre-1.0 (D26), so the changelog lists the renames as breaking.
 
-- Sizes are unitless numbers with a `-px` twin, as Hoist's `--xh-pad` and `--xh-pad-px` are.
-  Timings are unitless milliseconds with a `-ms` twin. Percentages and easing curves have no twin.
-- Each `--xh-chat-*` token reads an unprefixed hook first, as today: `--chat-turn-gap` overrides
-  `--xh-chat-turn-gap`. Tokens live on `body`, so a hook works only on `body` or above.
-- Values follow the specs: one 4 px radius, a 1,100 px column and a 640 px prose cap, a 13 px body,
+- Every kit variable is `--xh-chat-*`, with no unprefixed hook. An app overrides one on
+  `body.xh-app`, as with Hoist's own variables.
+- A size or a time carries its unit in the value (`--xh-chat-turn-gap: 24px`). There are no
+  unitless values with `-px` or `-ms` twins.
+- Names follow Hoist's grammar, `--xh-chat-{element}-{state}-{property}`, with the property
+  suffixes Hoist uses (`-bg`, `-text-color`, `-border-color`, `-gap`, `-padding`, `-font-size`).
+- Values follow the specs: one 4px radius, a 1,100px column and a 640px prose cap, a 13px body,
   full `--xh-border-color` frames, and no shadows or literal colors.
 - `--xh-chat-meta-text-color` is the one dark override, for contrast (A6).
-- `.xh-chat--compact` sets the compact values on the `-px` twins directly, because a descendant
-  cannot re-derive a twin computed on `body`. A component sets it when docked or under 380 px of
-  measured width.
-- The renames follow the table in `04-build-map.md`. Each component's tokens sit in its own section
-  of `vars.scss`.
+- `.xh-chat--compact` sets the compact values on the variables components read directly, as one
+  derived on `body` keeps the value computed there.
+- Reads of Hoist's own variables use the names of the installed Hoist, such as `--xh-pad-px`,
+  until the kit moves to the Hoist major with the new names. Hoist's codemod then migrates them.
 
-**Why.** Hoist's own variables use unitless numbers with twins, so apps theme the kit as they theme
-Hoist. The old px-only names could not feed a `calc()` with other Hoist sizes.
+**Why.** hoist-react's `css-var-simplify` branch, due in its next major, drops the unprefixed hooks
+and the unitless values with `-px` twins. The kit follows that simpler model from the start, so
+it has nothing to migrate when Hoist lands it. The handoff's hooks and twins copied the old Hoist
+model.
 
-**Alternatives.** Keep the old names as aliases. They would double the token list before 1.0, when
-no release promises them.
+**Alternatives.** The handoff's hooks and twins. They copy a model Hoist is about to retire.
 
 ## D59. Kit-wide settings live in `ChatKit.defaults`
 

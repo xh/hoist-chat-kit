@@ -1,7 +1,7 @@
 .xh-chat-ui-frame {
   background-color: var(--xh-chat-bg);
   border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
-  border-radius: var(--xh-chat-border-radius-px);
+  border-radius: var(--xh-chat-border-radius);
   display: flex;
   flex-direction: column;
   font-size: var(--xh-font-size-px);
@@ -29,7 +29,7 @@
   &__meta {
     color: var(--xh-chat-meta-text-color);
     flex: none;
-    font-size: var(--xh-chat-meta-font-size-px);
+    font-size: var(--xh-chat-meta-font-size);
   }
 
   &__body {
@@ -42,7 +42,7 @@
 .xh-chat-ui-skeleton {
   animation: xh-chat-ui-pulse 1.4s ease-in-out infinite;
   background-color: var(--xh-chat-skeleton-bg);
-  border-radius: var(--xh-chat-border-radius-px);
+  border-radius: var(--xh-chat-border-radius);
   width: 100%;
 }
 

@@ -520,41 +520,41 @@ Each `--xh-chat-*` variable defaults to a value built from Hoist's theme variabl
 follows the app's light or dark theme. Only `--xh-chat-meta-text-color` has its own dark value.
 The defaults live in `styles/vars.scss`, on `body`, beside Hoist's own variables.
 
-To change a variable, set its unprefixed hook: the same name without the `xh-` prefix, for example
-`--chat-user-bg`. Set it on `body` or on a parent of the chat. The kit reads the hook first.
+To change a variable, set it on `body.xh-app`, as with Hoist's own variables. A size or a time
+carries its unit.
 
 ```scss
-// ✅ Do: Set the unprefixed hook, with a unitless size
-.my-app-assistant {
-  --chat-turn-gap: 32;
-  --chat-user-bg: var(--xh-intent-primary-trans1);
+// ✅ Do: Override the --xh-chat-* variable on body.xh-app, with its unit
+body.xh-app {
+  --xh-chat-turn-gap: 32px;
+  --xh-chat-user-bg: var(--xh-intent-primary-trans1);
 }
 
-// ❌ Don't: Set the --xh-chat-* name, which the kit defines on body
+// ❌ Don't: Leave off the unit, or set a variable that other variables derive from on a descendant
 .my-app-assistant {
-  --xh-chat-user-bg: red;
+  --xh-chat-turn-gap: 32;
 }
 ```
 
-Sizes are unitless numbers, as Hoist's `--xh-pad` is. Each size has a `-px` twin, such as
-`--xh-chat-turn-gap-px`, for use in rules. Timings are unitless milliseconds with a `-ms` twin.
-Set the unitless hook only. The kit computes the twin from it.
+A variable set on a descendant reaches only the CSS that reads it directly. Variables derived from
+it keep the values computed on `body`. Set leaf variables there, such as colors, and set sizes
+that others derive from on `body.xh-app`.
 
 | Group | Main variables | Default |
 |-------|----------------|---------|
-| Type | `--xh-chat-font-size` | `--xh-font-size` (13) |
+| Type | `--xh-chat-font-size` | `--xh-font-size` (13px) |
 | | `--xh-chat-line-height` | `1.5` |
 | | `--xh-chat-heading-font-size` | `--xh-font-size-large`, for markdown H1 and H2 |
 | | `--xh-chat-code-font-size` | `--xh-font-size` minus 1 |
 | | `--xh-chat-meta-font-size` | `--xh-font-size` times 0.9 |
-| Layout | `--xh-chat-column-max-width` | `1100`, for the thread, cards and composer |
-| | `--xh-chat-prose-max-width` | `640`, for markdown text |
-| | `--xh-chat-side-pad` | `--xh-pad-double` (20) |
-| | `--xh-chat-turn-gap` | `24`, between messages |
+| Layout | `--xh-chat-column-max-width` | `1100px`, for the thread, cards and composer |
+| | `--xh-chat-prose-max-width` | `640px`, for markdown text |
+| | `--xh-chat-side-pad` | `--xh-pad-double` (20px) |
+| | `--xh-chat-turn-gap` | `24px`, between messages |
 | | `--xh-chat-part-gap`, `--xh-chat-process-gap` | `--xh-pad`, `--xh-pad-half` |
-| | `--xh-chat-part-header-height` | `28`, for card header strips |
+| | `--xh-chat-part-header-height` | `28px`, for card header strips |
 | | `--xh-chat-user-max-width` | `75%`, for the user bubble |
-| | `--xh-chat-border-radius` | `--xh-border-radius` (4), for every frame |
+| | `--xh-chat-border-radius` | `--xh-border-radius` (4px), for every frame |
 | Color | `--xh-chat-bg`, `--xh-chat-text-color` | `--xh-bg`, `--xh-text-color` |
 | | `--xh-chat-meta-text-color` | `--xh-blue-gray`, `--xh-text-color-muted` in dark |
 | | `--xh-chat-user-bg`, `--xh-chat-user-text-color` | `--xh-bg-alt`, `--xh-text-color` |
@@ -575,8 +575,8 @@ Set the unitless hook only. The kit computes the twin from it.
 ### Compact density
 
 Add the `xh-chat--compact` class to a parent of the chat for a narrow host, such as a docked
-side panel. It sets the side padding to `--xh-pad` (10), the user bubble width to 85%, and the
-chart height to 160.
+side panel. It sets the side padding to `--xh-pad` (10px), the user bubble width to 85%, and the
+chart height to 160px.
 
 Spacing inside the components scales with Hoist's `--xh-pad`, so a denser app gets a denser
 chat. Class names follow BEM under `xh-chat-`, for example `xh-chat-message__bubble`.
@@ -594,7 +594,7 @@ chat. Class names follow BEM under `xh-chat-`, for example `xh-chat-message__bub
   source in the app.
 - **Markdown** - `markdownComponents` for element overrides, `markdownPlugins` for remark and
   rehype plugins, and `allowImages` for the image policy.
-- **Theme** - the `--chat-*` hooks above, `xh-chat--compact`, and the BEM class names.
+- **Theme** - the `--xh-chat-*` variables above, `xh-chat--compact`, and the BEM class names.
 
 ## Common Pitfalls
 

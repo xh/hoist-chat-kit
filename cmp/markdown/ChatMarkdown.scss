@@ -2,7 +2,7 @@
 
 .xh-chat-markdown {
   color: var(--xh-chat-text-color);
-  font-size: var(--xh-chat-font-size-px);
+  font-size: var(--xh-chat-font-size);
   line-height: var(--xh-chat-line-height);
   min-width: 0;
   overflow-wrap: anywhere;
@@ -132,14 +132,14 @@
   pre {
     background-color: var(--xh-chat-code-bg);
     border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
-    border-radius: var(--xh-chat-border-radius-px);
+    border-radius: var(--xh-chat-border-radius);
     overflow-x: auto;
     padding: var(--xh-pad-px);
 
     code {
       background: none;
       color: inherit;
-      font-size: var(--xh-chat-code-font-size-px);
+      font-size: var(--xh-chat-code-font-size);
       padding: 0;
     }
   }
@@ -167,7 +167,7 @@
   }
 
   img {
-    border-radius: var(--xh-chat-border-radius-px);
+    border-radius: var(--xh-chat-border-radius);
     max-width: 100%;
   }
 

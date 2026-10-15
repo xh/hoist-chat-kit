@@ -17,7 +17,7 @@
   &__box {
     background-color: var(--xh-chat-composer-bg);
     border: var(--xh-border-width-px) solid var(--xh-chat-composer-border-color);
-    border-radius: var(--xh-chat-border-radius-px);
+    border-radius: var(--xh-chat-border-radius);
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -35,7 +35,7 @@
     align-items: center;
     color: var(--xh-chat-warning-color);
     display: flex;
-    font-size: var(--xh-chat-meta-font-size-px);
+    font-size: var(--xh-chat-meta-font-size);
     gap: var(--xh-pad-half-px);
     padding: calc(var(--xh-pad) * 0.6px) calc(var(--xh-pad) * 0.4px) 0 calc(var(--xh-pad) * 0.8px);
 
@@ -76,9 +76,9 @@
     box-shadow: none;
     box-sizing: border-box;
     color: var(--xh-chat-text-color);
-    font-size: var(--xh-chat-font-size-px);
+    font-size: var(--xh-chat-font-size);
     line-height: 1.5;
-    min-height: calc(var(--xh-chat-font-size-px) * 1.5 + 14px);
+    min-height: calc(var(--xh-chat-font-size) * 1.5 + 14px);
     padding: var(--xh-pad-px) calc(var(--xh-pad) * 1.4px) calc(var(--xh-pad) * 0.4px);
     width: 100%;
   }
@@ -124,7 +124,7 @@
     align-items: center;
     background-color: color-mix(in srgb, var(--xh-chat-composer-bg) 85%, transparent);
     border: 2px dashed var(--xh-intent-primary);
-    border-radius: var(--xh-chat-border-radius-px);
+    border-radius: var(--xh-chat-border-radius);
     color: var(--xh-intent-primary-text-color);
     display: flex;
     gap: var(--xh-pad-half-px);

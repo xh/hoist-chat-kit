@@ -4,7 +4,7 @@
   align-items: center;
   background-color: var(--xh-chat-bg);
   border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
-  border-radius: var(--xh-chat-border-radius-px);
+  border-radius: var(--xh-chat-border-radius);
   display: inline-flex;
   gap: var(--xh-pad-half-px);
   max-width: 220px;
@@ -55,7 +55,7 @@
 
   &__meta {
     color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-chat-meta-font-size-px);
+    font-size: var(--xh-chat-meta-font-size);
   }
 
   @include hoist-button('.xh-chat-file-chip__remove') {

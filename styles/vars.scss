@@ -1,322 +1,219 @@
 // Theme variables for Hoist Chat Kit components.
 
 // Each `--xh-chat-*` variable defaults to a value built from Hoist's own theme variables, so the
-// chat follows an app's theme - light or dark - with no extra work. As with Hoist's variables, an
-// app overrides one by setting the same name without the `xh-` prefix, e.g. `--chat-turn-gap`.
-
-// Sizes are unitless, with a `-px` twin for use in rules, as Hoist's `--xh-pad` and `--xh-pad-px`
-// are. Timings are unitless milliseconds, with a `-ms` twin. Override the unitless name only.
+// chat follows an app's theme - light or dark - with no extra work. An app overrides one by
+// setting it on `body.xh-app`, as with Hoist's own variables. Sizes and timings carry their units.
 
 body {
   //------------------------
   // Type
   //------------------------
-  --xh-chat-font-size: var(--chat-font-size, var(--xh-font-size));
-  --xh-chat-font-size-px: calc(var(--xh-chat-font-size) * 1px);
-  --xh-chat-line-height: var(--chat-line-height, 1.5);
+  --xh-chat-font-size: var(--xh-font-size-px);
+  --xh-chat-line-height: 1.5;
   // Markdown H1 and H2 only. H3 and below stay at body size.
-  --xh-chat-heading-font-size: var(--chat-heading-font-size, var(--xh-font-size-large));
-  --xh-chat-heading-font-size-px: calc(var(--xh-chat-heading-font-size) * 1px);
-  --xh-chat-code-font-size: var(--chat-code-font-size, calc(var(--xh-font-size) - 1));
-  --xh-chat-code-font-size-px: calc(var(--xh-chat-code-font-size) * 1px);
-  --xh-chat-meta-font-size: var(--chat-meta-font-size, calc(var(--xh-font-size) * 0.9));
-  --xh-chat-meta-font-size-px: calc(var(--xh-chat-meta-font-size) * 1px);
+  --xh-chat-heading-font-size: var(--xh-font-size-large-px);
+  --xh-chat-code-font-size: calc(var(--xh-font-size-px) - 1px);
+  --xh-chat-meta-font-size: calc(var(--xh-font-size-px) * 0.9);
 
   //------------------------
   // Layout and rhythm
   //------------------------
   // Cards span the column, up to its max width. Markdown text is capped at the prose width.
-  --xh-chat-column-max-width: var(--chat-column-max-width, 1100);
-  --xh-chat-column-max-width-px: calc(var(--xh-chat-column-max-width) * 1px);
-  --xh-chat-prose-max-width: var(--chat-prose-max-width, 640);
-  --xh-chat-prose-max-width-px: calc(var(--xh-chat-prose-max-width) * 1px);
-  --xh-chat-side-pad: var(--chat-side-pad, var(--xh-pad-double));
-  --xh-chat-side-pad-px: calc(var(--xh-chat-side-pad) * 1px);
+  --xh-chat-column-max-width: 1100px;
+  --xh-chat-prose-max-width: 640px;
+  --xh-chat-side-pad: var(--xh-pad-double-px);
   // Between messages. Equals the action bar's height, as the bar sits in this gap.
-  --xh-chat-turn-gap: var(--chat-turn-gap, 24);
-  --xh-chat-turn-gap-px: calc(var(--xh-chat-turn-gap) * 1px);
+  --xh-chat-turn-gap: 24px;
   // Between the parts of one reply. Process parts (reasoning, tool calls) use the tighter gap.
-  --xh-chat-part-gap: var(--chat-part-gap, var(--xh-pad));
-  --xh-chat-part-gap-px: calc(var(--xh-chat-part-gap) * 1px);
-  --xh-chat-process-gap: var(--chat-process-gap, var(--xh-pad-half));
-  --xh-chat-process-gap-px: calc(var(--xh-chat-process-gap) * 1px);
-  --xh-chat-part-header-height: var(--chat-part-header-height, 28);
-  --xh-chat-part-header-height-px: calc(var(--xh-chat-part-header-height) * 1px);
-  --xh-chat-user-max-width: var(--chat-user-max-width, 75%);
+  --xh-chat-part-gap: var(--xh-pad-px);
+  --xh-chat-process-gap: var(--xh-pad-half-px);
+  --xh-chat-part-header-height: 28px;
+  --xh-chat-user-max-width: 75%;
   // One radius for the whole kit: bubbles, cards, tool rows and chips.
-  --xh-chat-border-radius: var(--chat-border-radius, var(--xh-border-radius));
-  --xh-chat-border-radius-px: calc(var(--xh-chat-border-radius) * 1px);
+  --xh-chat-border-radius: var(--xh-border-radius-px);
 
   //------------------------
   // Color
   //------------------------
-  --xh-chat-bg: var(--chat-bg, var(--xh-bg));
-  --xh-chat-text-color: var(--chat-text-color, var(--xh-text-color));
+  --xh-chat-bg: var(--xh-bg);
+  --xh-chat-text-color: var(--xh-text-color);
   // All meta-size text. Hoist's muted gray is too faint at this size in the light theme.
-  --xh-chat-meta-text-color: var(--chat-meta-text-color, var(--xh-blue-gray));
-  --xh-chat-user-bg: var(--chat-user-bg, var(--xh-bg-alt));
-  --xh-chat-user-text-color: var(--chat-user-text-color, var(--xh-text-color));
-  --xh-chat-part-border-color: var(--chat-part-border-color, var(--xh-border-color));
+  --xh-chat-meta-text-color: var(--xh-blue-gray);
+  --xh-chat-user-bg: var(--xh-bg-alt);
+  --xh-chat-user-text-color: var(--xh-text-color);
+  --xh-chat-part-border-color: var(--xh-border-color);
   // Card header strips only. Card bodies use `--xh-chat-bg`.
-  --xh-chat-part-header-bg: var(--chat-part-header-bg, var(--xh-bg-alt));
-  --xh-chat-code-bg: var(--chat-code-bg, var(--xh-grid-bg-odd));
-  --xh-chat-busy-color: var(--chat-busy-color, var(--xh-intent-primary-text-color));
-  --xh-chat-caret-color: var(--chat-caret-color, var(--xh-chat-busy-color));
-  --xh-chat-attention-color: var(--chat-attention-color, var(--xh-card-primary-color));
-  --xh-chat-warning-color: var(--chat-warning-color, var(--xh-intent-warning-text-color));
-  --xh-chat-error-color: var(--chat-error-color, var(--xh-intent-danger-text-color));
-  --xh-chat-success-color: var(--chat-success-color, var(--xh-intent-success-text-color));
-  --xh-chat-mention-bg: var(--chat-mention-bg, var(--xh-intent-primary-trans1));
-  --xh-chat-mention-text-color: var(--chat-mention-text-color, var(--xh-intent-primary-text-color));
-  --xh-chat-rated-color: var(--chat-rated-color, var(--xh-intent-primary-text-color));
+  --xh-chat-part-header-bg: var(--xh-bg-alt);
+  --xh-chat-code-bg: var(--xh-grid-bg-odd);
+  --xh-chat-busy-color: var(--xh-intent-primary-text-color);
+  --xh-chat-caret-color: var(--xh-chat-busy-color);
+  --xh-chat-attention-color: var(--xh-card-primary-color);
+  --xh-chat-warning-color: var(--xh-intent-warning-text-color);
+  --xh-chat-error-color: var(--xh-intent-danger-text-color);
+  --xh-chat-success-color: var(--xh-intent-success-text-color);
+  --xh-chat-mention-bg: var(--xh-intent-primary-trans1);
+  --xh-chat-mention-text-color: var(--xh-intent-primary-text-color);
+  --xh-chat-rated-color: var(--xh-intent-primary-text-color);
 
   //------------------------
   // Agent activity timeline
   //------------------------
-  --xh-chat-timeline-header-height: var(--chat-timeline-header-height, 28);
-  --xh-chat-timeline-header-height-px: calc(var(--xh-chat-timeline-header-height) * 1px);
-  --xh-chat-timeline-row-height: var(--chat-timeline-row-height, 24);
-  --xh-chat-timeline-row-height-px: calc(var(--xh-chat-timeline-row-height) * 1px);
+  --xh-chat-timeline-header-height: 28px;
+  --xh-chat-timeline-row-height: 24px;
   // Per nesting level, for sub-agent and batch children.
-  --xh-chat-timeline-indent: var(--chat-timeline-indent, 20);
-  --xh-chat-timeline-indent-px: calc(var(--xh-chat-timeline-indent) * 1px);
-  --xh-chat-timeline-icon-width: var(--chat-timeline-icon-width, 16);
-  --xh-chat-timeline-icon-width-px: calc(var(--xh-chat-timeline-icon-width) * 1px);
-  --xh-chat-timeline-pane-max-height: var(--chat-timeline-pane-max-height, 240);
-  --xh-chat-timeline-pane-max-height-px: calc(var(--xh-chat-timeline-pane-max-height) * 1px);
-  --xh-chat-timeline-narration-font-size: var(
-    --chat-timeline-narration-font-size,
-    var(--xh-chat-code-font-size)
-  );
-  --xh-chat-timeline-narration-font-size-px: calc(
-    var(--xh-chat-timeline-narration-font-size) * 1px
-  );
-  --xh-chat-timeline-bg: var(--chat-timeline-bg, var(--xh-chat-bg));
-  --xh-chat-timeline-border-color: var(
-    --chat-timeline-border-color,
-    var(--xh-chat-part-border-color)
-  );
-  --xh-chat-timeline-row-hover-bg: var(--chat-timeline-row-hover-bg, var(--xh-grid-bg-hover));
-  --xh-chat-timeline-row-open-bg: var(--chat-timeline-row-open-bg, var(--xh-grid-bg-odd));
+  --xh-chat-timeline-indent: 20px;
+  --xh-chat-timeline-icon-width: 16px;
+  --xh-chat-timeline-pane-max-height: 240px;
+  --xh-chat-timeline-narration-font-size: var(--xh-chat-code-font-size);
+  --xh-chat-timeline-bg: var(--xh-chat-bg);
+  --xh-chat-timeline-border-color: var(--xh-chat-part-border-color);
+  --xh-chat-timeline-row-hover-bg: var(--xh-grid-bg-hover);
+  --xh-chat-timeline-row-open-bg: var(--xh-grid-bg-odd);
   // Opaque, as rows scroll beneath the pinned plan.
-  --xh-chat-timeline-plan-bg: var(--chat-timeline-plan-bg, var(--xh-bg-alt));
-  --xh-chat-timeline-narration-color: var(
-    --chat-timeline-narration-color,
-    var(--xh-chat-meta-text-color)
-  );
-  --xh-chat-timeline-done-icon-color: var(
-    --chat-timeline-done-icon-color,
-    var(--xh-chat-meta-text-color)
-  );
-  --xh-chat-timeline-pane-bg: var(--chat-timeline-pane-bg, var(--xh-chat-code-bg));
-  --xh-chat-timeline-ask-border-color: var(
-    --chat-timeline-ask-border-color,
-    var(--xh-chat-attention-color)
-  );
-  --xh-chat-timeline-diff-add-bg: var(--chat-timeline-diff-add-bg, var(--xh-intent-success-trans1));
-  --xh-chat-timeline-diff-del-bg: var(--chat-timeline-diff-del-bg, var(--xh-intent-danger-trans1));
+  --xh-chat-timeline-plan-bg: var(--xh-bg-alt);
+  --xh-chat-timeline-narration-color: var(--xh-chat-meta-text-color);
+  --xh-chat-timeline-done-icon-color: var(--xh-chat-meta-text-color);
+  --xh-chat-timeline-pane-bg: var(--xh-chat-code-bg);
+  --xh-chat-timeline-ask-border-color: var(--xh-chat-attention-color);
+  --xh-chat-timeline-diff-add-bg: var(--xh-intent-success-trans1);
+  --xh-chat-timeline-diff-del-bg: var(--xh-intent-danger-trans1);
 
   //------------------------
   // Citations and sources
   //------------------------
-  --xh-chat-citation-font-size: var(--chat-citation-font-size, var(--xh-font-size-small));
-  --xh-chat-citation-font-size-px: calc(var(--xh-chat-citation-font-size) * 1px);
-  --xh-chat-citation-height: var(--chat-citation-height, 14);
-  --xh-chat-citation-height-px: calc(var(--xh-chat-citation-height) * 1px);
-  --xh-chat-citation-bg: var(--chat-citation-bg, var(--xh-intent-primary-trans1));
-  --xh-chat-citation-hover-bg: var(--chat-citation-hover-bg, var(--xh-intent-primary-trans2));
+  --xh-chat-citation-font-size: var(--xh-font-size-small-px);
+  --xh-chat-citation-height: 14px;
+  --xh-chat-citation-bg: var(--xh-intent-primary-trans1);
+  --xh-chat-citation-hover-bg: var(--xh-intent-primary-trans2);
   // The marker of the source shown in the viewer.
-  --xh-chat-citation-active-bg: var(--chat-citation-active-bg, var(--xh-bg-highlight));
-  --xh-chat-citation-text-color: var(
-    --chat-citation-text-color,
-    var(--xh-intent-primary-text-color)
-  );
+  --xh-chat-citation-active-bg: var(--xh-bg-highlight);
+  --xh-chat-citation-text-color: var(--xh-intent-primary-text-color);
   // The cited span, in the hover card's excerpt and in the document.
-  --xh-chat-passage-bg: var(--chat-passage-bg, var(--xh-intent-warning-trans2));
-  --xh-chat-hovercard-width: var(--chat-hovercard-width, 320);
-  --xh-chat-hovercard-width-px: calc(var(--xh-chat-hovercard-width) * 1px);
-  --xh-chat-source-row-height: var(--chat-source-row-height, 24);
-  --xh-chat-source-row-height-px: calc(var(--xh-chat-source-row-height) * 1px);
-  --xh-chat-source-highlight-bg: var(--chat-source-highlight-bg, var(--xh-grid-bg-hover));
+  --xh-chat-passage-bg: var(--xh-intent-warning-trans2);
+  --xh-chat-hovercard-width: 320px;
+  --xh-chat-source-row-height: 24px;
+  --xh-chat-source-highlight-bg: var(--xh-grid-bg-hover);
 
   // The source viewer panel. Pages stay white in the dark theme: a document is never inverted.
-  --xh-chat-viewer-width: var(--chat-viewer-width, 520);
-  --xh-chat-viewer-width-px: calc(var(--xh-chat-viewer-width) * 1px);
-  --xh-chat-viewer-min-width: var(--chat-viewer-min-width, 400);
-  --xh-chat-viewer-min-width-px: calc(var(--xh-chat-viewer-min-width) * 1px);
-  --xh-chat-viewer-surround-bg: var(--chat-viewer-surround-bg, var(--xh-bg-alt));
-  --xh-chat-viewer-page-bg: var(--chat-viewer-page-bg, var(--xh-white));
-  --xh-chat-viewer-page-text-color: var(--chat-viewer-page-text-color, var(--xh-blue-gray-dark));
+  --xh-chat-viewer-width: 520px;
+  --xh-chat-viewer-min-width: 400px;
+  --xh-chat-viewer-surround-bg: var(--xh-bg-alt);
+  --xh-chat-viewer-page-bg: var(--xh-white);
+  --xh-chat-viewer-page-text-color: var(--xh-blue-gray-dark);
 
   // The "not found" frame, and the document scope chip in the composer.
-  --xh-chat-noanswer-border: var(--chat-noanswer-border, var(--xh-border-dotted));
-  --xh-chat-scope-height: var(--chat-scope-height, 22);
-  --xh-chat-scope-height-px: calc(var(--xh-chat-scope-height) * 1px);
+  --xh-chat-noanswer-border: var(--xh-border-dotted);
+  --xh-chat-scope-height: 22px;
 
   //------------------------
   // Generative UI cards
   //------------------------
-  --xh-chat-card-footer-height: var(--chat-card-footer-height, 26);
-  --xh-chat-card-footer-height-px: calc(var(--xh-chat-card-footer-height) * 1px);
+  --xh-chat-card-footer-height: 26px;
   // Vertical padding of the sections in a composite card.
-  --xh-chat-card-section-pad: var(--chat-card-section-pad, var(--xh-pad));
-  --xh-chat-card-section-pad-px: calc(var(--xh-chat-card-section-pad) * 1px);
-  --xh-chat-skeleton-bg: var(--chat-skeleton-bg, var(--xh-chat-part-header-bg));
-  --xh-chat-table-row-height: var(--chat-table-row-height, 24);
-  --xh-chat-table-row-height-px: calc(var(--xh-chat-table-row-height) * 1px);
-  --xh-chat-table-font-size: var(--chat-table-font-size, var(--xh-grid-compact-font-size));
-  --xh-chat-table-font-size-px: calc(var(--xh-chat-table-font-size) * 1px);
+  --xh-chat-card-section-pad: var(--xh-pad-px);
+  --xh-chat-skeleton-bg: var(--xh-chat-part-header-bg);
+  --xh-chat-table-row-height: 24px;
+  --xh-chat-table-font-size: var(--xh-grid-compact-font-size-px);
   // A fixed chart body, never sized to the data.
-  --xh-chat-chart-height: var(--chat-chart-height, 220);
-  --xh-chat-chart-height-px: calc(var(--xh-chat-chart-height) * 1px);
+  --xh-chat-chart-height: 220px;
   // Fallback series colors, for an app with no Highcharts theme of its own.
-  --xh-chat-series-1-color: var(--chat-series-1-color, var(--xh-intent-primary));
-  --xh-chat-series-2-color: var(--chat-series-2-color, var(--xh-intent-warning));
-  --xh-chat-tile-min-width: var(--chat-tile-min-width, 150);
-  --xh-chat-tile-min-width-px: calc(var(--xh-chat-tile-min-width) * 1px);
-  --xh-chat-tile-value-font-size: var(--chat-tile-value-font-size, var(--xh-font-size-large));
-  --xh-chat-tile-value-font-size-px: calc(var(--xh-chat-tile-value-font-size) * 1px);
-  --xh-chat-sparkline-color: var(--chat-sparkline-color, var(--xh-chat-meta-text-color));
-  --xh-chat-followup-height: var(--chat-followup-height, 24);
-  --xh-chat-followup-height-px: calc(var(--xh-chat-followup-height) * 1px);
-  --xh-chat-followup-text-color: var(
-    --chat-followup-text-color,
-    var(--xh-intent-primary-text-color)
-  );
-  --xh-chat-followup-hover-bg: var(--chat-followup-hover-bg, var(--xh-intent-primary-trans1));
+  --xh-chat-series-1-color: var(--xh-intent-primary);
+  --xh-chat-series-2-color: var(--xh-intent-warning);
+  --xh-chat-tile-min-width: 150px;
+  --xh-chat-tile-value-font-size: var(--xh-font-size-large-px);
+  --xh-chat-sparkline-color: var(--xh-chat-meta-text-color);
+  --xh-chat-followup-height: 24px;
+  --xh-chat-followup-text-color: var(--xh-intent-primary-text-color);
+  --xh-chat-followup-hover-bg: var(--xh-intent-primary-trans1);
   // Column and field tokens in apply cards.
-  --xh-chat-token-bg: var(--chat-token-bg, var(--xh-chat-code-bg));
+  --xh-chat-token-bg: var(--xh-chat-code-bg);
 
   //------------------------
   // Thread sidebar
   //------------------------
-  --xh-chat-sidebar-width: var(--chat-sidebar-width, 260);
-  --xh-chat-sidebar-width-px: calc(var(--xh-chat-sidebar-width) * 1px);
-  --xh-chat-sidebar-rail-width: var(--chat-sidebar-rail-width, 40);
-  --xh-chat-sidebar-rail-width-px: calc(var(--xh-chat-sidebar-rail-width) * 1px);
-  --xh-chat-sidebar-row-height: var(--chat-sidebar-row-height, 28);
-  --xh-chat-sidebar-row-height-px: calc(var(--xh-chat-sidebar-row-height) * 1px);
-  --xh-chat-sidebar-bg: var(--chat-sidebar-bg, var(--xh-bg));
-  --xh-chat-sidebar-border-color: var(--chat-sidebar-border-color, var(--xh-border-color));
-  --xh-chat-sidebar-row-hover-bg: var(--chat-sidebar-row-hover-bg, var(--xh-intent-neutral-trans2));
-  --xh-chat-sidebar-row-selected-bg: var(--chat-sidebar-row-selected-bg, var(--xh-bg-highlight));
-  --xh-chat-sidebar-group-text-color: var(
-    --chat-sidebar-group-text-color,
-    var(--xh-chat-meta-text-color)
-  );
+  --xh-chat-sidebar-width: 260px;
+  --xh-chat-sidebar-rail-width: 40px;
+  --xh-chat-sidebar-row-height: 28px;
+  --xh-chat-sidebar-bg: var(--xh-bg);
+  --xh-chat-sidebar-border-color: var(--xh-border-color);
+  --xh-chat-sidebar-row-hover-bg: var(--xh-intent-neutral-trans2);
+  --xh-chat-sidebar-row-selected-bg: var(--xh-bg-highlight);
+  --xh-chat-sidebar-group-text-color: var(--xh-chat-meta-text-color);
 
   //------------------------
   // Composer
   //------------------------
-  --xh-chat-composer-bg: var(--chat-composer-bg, var(--xh-input-bg));
-  --xh-chat-composer-border-color: var(--chat-composer-border-color, var(--xh-border-color));
-  --xh-chat-composer-focus-border-color: var(
-    --chat-composer-focus-border-color,
-    var(--xh-form-field-focused-border-color)
-  );
-  --xh-chat-composer-input-max-height: var(--chat-composer-input-max-height, 168);
-  --xh-chat-composer-input-max-height-px: calc(var(--xh-chat-composer-input-max-height) * 1px);
-  --xh-chat-composer-pill-height: var(--chat-composer-pill-height, 22);
-  --xh-chat-composer-pill-height-px: calc(var(--xh-chat-composer-pill-height) * 1px);
-  --xh-chat-composer-status-height: var(--chat-composer-status-height, 24);
-  --xh-chat-composer-status-height-px: calc(var(--xh-chat-composer-status-height) * 1px);
+  --xh-chat-composer-bg: var(--xh-input-bg);
+  --xh-chat-composer-border-color: var(--xh-border-color);
+  --xh-chat-composer-focus-border-color: var(--xh-form-field-focused-border-color);
+  --xh-chat-composer-input-max-height: 168px;
+  --xh-chat-composer-pill-height: 22px;
+  --xh-chat-composer-status-height: 24px;
   // The empty state's centered column: title, suggestions and composer.
-  --xh-chat-composer-centered-max-width: var(--chat-composer-centered-max-width, 680);
-  --xh-chat-composer-centered-max-width-px: calc(var(--xh-chat-composer-centered-max-width) * 1px);
+  --xh-chat-composer-centered-max-width: 680px;
   // The context meter. Warning and error colors take over as the context fills.
-  --xh-chat-composer-meter-track-color: var(
-    --chat-composer-meter-track-color,
-    var(--xh-chat-part-border-color)
-  );
-  --xh-chat-composer-meter-color: var(--chat-composer-meter-color, var(--xh-chat-meta-text-color));
+  --xh-chat-composer-meter-track-color: var(--xh-chat-part-border-color);
+  --xh-chat-composer-meter-color: var(--xh-chat-meta-text-color);
   // The agent status dot, always paired with words.
-  --xh-chat-composer-online-color: var(
-    --chat-composer-online-color,
-    var(--xh-intent-success-text-color)
-  );
-  --xh-chat-composer-degraded-color: var(
-    --chat-composer-degraded-color,
-    var(--xh-intent-warning-text-color)
-  );
-  --xh-chat-composer-offline-color: var(--chat-composer-offline-color, var(--xh-gray));
+  --xh-chat-composer-online-color: var(--xh-intent-success-text-color);
+  --xh-chat-composer-degraded-color: var(--xh-intent-warning-text-color);
+  --xh-chat-composer-offline-color: var(--xh-gray);
 
   //------------------------
   // Motion and feedback
   //------------------------
-  --xh-chat-motion-reveal: var(--chat-motion-reveal, 120);
-  --xh-chat-motion-reveal-ms: calc(var(--xh-chat-motion-reveal) * 1ms);
-  --xh-chat-motion-hide-delay: var(--chat-motion-hide-delay, 150);
-  --xh-chat-motion-hide-delay-ms: calc(var(--xh-chat-motion-hide-delay) * 1ms);
+  --xh-chat-motion-reveal: 120ms;
+  --xh-chat-motion-hide-delay: 150ms;
   // The kit's only easing curve.
-  --xh-chat-motion-ease: var(--chat-motion-ease, cubic-bezier(0.2, 0, 0, 1));
-  --xh-chat-caret-blink: var(--chat-caret-blink, 1000);
-  --xh-chat-caret-blink-ms: calc(var(--xh-chat-caret-blink) * 1ms);
-  --xh-chat-caret-rest-opacity: var(--chat-caret-rest-opacity, 0.4);
+  --xh-chat-motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --xh-chat-caret-blink: 1000ms;
+  --xh-chat-caret-rest-opacity: 0.4;
   // A skeleton shimmers only if still shown after the delay, then holds still.
-  --xh-chat-shimmer-delay: var(--chat-shimmer-delay, 1000);
-  --xh-chat-shimmer-delay-ms: calc(var(--xh-chat-shimmer-delay) * 1ms);
-  --xh-chat-shimmer-duration: var(--chat-shimmer-duration, 1600);
-  --xh-chat-shimmer-duration-ms: calc(var(--xh-chat-shimmer-duration) * 1ms);
-  --xh-chat-shimmer-iterations: var(--chat-shimmer-iterations, 3);
+  --xh-chat-shimmer-delay: 1000ms;
+  --xh-chat-shimmer-duration: 1600ms;
+  --xh-chat-shimmer-iterations: 3;
   // The band that sweeps over `--xh-chat-skeleton-bg`.
-  --xh-chat-shimmer-color: var(--chat-shimmer-color, var(--xh-bg));
+  --xh-chat-shimmer-color: var(--xh-bg);
   // Text kept on screen while a reply is re-composed.
-  --xh-chat-held-text-color: var(--chat-held-text-color, var(--xh-chat-meta-text-color));
-  --xh-chat-focus-ring-color: var(--chat-focus-ring-color, var(--xh-focus-outline-color));
-  --xh-chat-focus-ring-width: var(--chat-focus-ring-width, 2);
-  --xh-chat-focus-ring-width-px: calc(var(--xh-chat-focus-ring-width) * 1px);
-  --xh-chat-feedback-max-width: var(--chat-feedback-max-width, 480);
-  --xh-chat-feedback-max-width-px: calc(var(--xh-chat-feedback-max-width) * 1px);
+  --xh-chat-held-text-color: var(--xh-chat-meta-text-color);
+  --xh-chat-focus-ring-color: var(--xh-focus-outline-color);
+  --xh-chat-focus-ring-width: 2px;
+  --xh-chat-feedback-max-width: 480px;
   // The data boundary line, which says what a helper can see.
-  --xh-chat-boundary-height: var(--chat-boundary-height, 24);
-  --xh-chat-boundary-height-px: calc(var(--xh-chat-boundary-height) * 1px);
-  --xh-chat-boundary-bg: var(--chat-boundary-bg, var(--xh-chat-part-header-bg));
-  --xh-chat-boundary-text-color: var(--chat-boundary-text-color, var(--xh-chat-meta-text-color));
+  --xh-chat-boundary-height: 24px;
+  --xh-chat-boundary-bg: var(--xh-chat-part-header-bg);
+  --xh-chat-boundary-text-color: var(--xh-chat-meta-text-color);
 
   //------------------------
   // Component helper
   //------------------------
-  --xh-chat-helper-width: var(--chat-helper-width, 380);
-  --xh-chat-helper-width-px: calc(var(--xh-chat-helper-width) * 1px);
-  --xh-chat-helper-min-width: var(--chat-helper-min-width, 360);
-  --xh-chat-helper-min-width-px: calc(var(--xh-chat-helper-min-width) * 1px);
-  --xh-chat-helper-max-width: var(--chat-helper-max-width, 420);
-  --xh-chat-helper-max-width-px: calc(var(--xh-chat-helper-max-width) * 1px);
+  --xh-chat-helper-width: 380px;
+  --xh-chat-helper-min-width: 360px;
+  --xh-chat-helper-max-width: 420px;
   // The width a component keeps beside a docked helper. Below it, the helper opens as a popover.
-  --xh-chat-helper-component-min-width: var(--chat-helper-component-min-width, 380);
-  --xh-chat-helper-component-min-width-px: calc(var(--xh-chat-helper-component-min-width) * 1px);
-  --xh-chat-helper-header-height: var(--chat-helper-header-height, 32);
-  --xh-chat-helper-header-height-px: calc(var(--xh-chat-helper-header-height) * 1px);
-  --xh-chat-helper-popover-width: var(--chat-helper-popover-width, 360);
-  --xh-chat-helper-popover-width-px: calc(var(--xh-chat-helper-popover-width) * 1px);
-  --xh-chat-helper-popover-max-height: var(--chat-helper-popover-max-height, 520);
-  --xh-chat-helper-popover-max-height-px: calc(var(--xh-chat-helper-popover-max-height) * 1px);
-  --xh-chat-helper-badge-size: var(--chat-helper-badge-size, 7);
-  --xh-chat-helper-badge-size-px: calc(var(--xh-chat-helper-badge-size) * 1px);
+  --xh-chat-helper-component-min-width: 380px;
+  --xh-chat-helper-header-height: 32px;
+  --xh-chat-helper-popover-width: 360px;
+  --xh-chat-helper-popover-max-height: 520px;
+  --xh-chat-helper-badge-size: 7px;
   // The fade of the change highlight on the component.
-  --xh-chat-helper-change-duration: var(--chat-helper-change-duration, 1500);
-  --xh-chat-helper-change-duration-ms: calc(var(--xh-chat-helper-change-duration) * 1ms);
-  --xh-chat-helper-bg: var(--chat-helper-bg, var(--xh-chat-bg));
-  --xh-chat-helper-header-bg: var(--chat-helper-header-bg, var(--xh-chat-part-header-bg));
-  --xh-chat-helper-border-color: var(--chat-helper-border-color, var(--xh-panel-border-color));
-  --xh-chat-helper-change-bg: var(--chat-helper-change-bg, var(--xh-grid-cell-change-bg-highlight));
-  --xh-chat-helper-change-outline-color: var(
-    --chat-helper-change-outline-color,
-    var(--xh-intent-primary-text-color)
-  );
+  --xh-chat-helper-change-duration: 1500ms;
+  --xh-chat-helper-bg: var(--xh-chat-bg);
+  --xh-chat-helper-header-bg: var(--xh-chat-part-header-bg);
+  --xh-chat-helper-border-color: var(--xh-panel-border-color);
+  --xh-chat-helper-change-bg: var(--xh-grid-cell-change-bg-highlight);
+  --xh-chat-helper-change-outline-color: var(--xh-intent-primary-text-color);
 
   &.xh-dark {
     // Blue-gray is too faint on the dark background, where Hoist's muted gray reads well.
-    --xh-chat-meta-text-color: var(--chat-meta-text-color, var(--xh-text-color-muted));
+    --xh-chat-meta-text-color: var(--xh-text-color-muted);
   }
 }
 
-// Compact density, for narrow hosts such as a docked side panel. A `-px` twin computes where its
-// variable is declared, so each override here declares its twin again.
+// Compact density, for narrow hosts such as a docked side panel. Each override sets a variable that
+// components read directly, as one derived on `body` keeps the value computed there.
 .xh-chat--compact {
-  --xh-chat-side-pad: var(--xh-pad);
-  --xh-chat-side-pad-px: calc(var(--xh-chat-side-pad) * 1px);
+  --xh-chat-side-pad: var(--xh-pad-px);
   --xh-chat-user-max-width: 85%;
-  --xh-chat-chart-height: 160;
-  --xh-chat-chart-height-px: calc(var(--xh-chat-chart-height) * 1px);
+  --xh-chat-chart-height: 160px;
 }

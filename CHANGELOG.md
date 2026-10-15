@@ -4,9 +4,10 @@
 
 ### 💥 Breaking Changes
 
-* Renamed and reworked the `--xh-chat-*` CSS variables. Sizes are unitless with a `-px` twin, as
-  Hoist's are. Some variables merged or went away, such as `--xh-chat-shadow`. See
-  [Theming](desktop/cmp/chat/README.md#theming) for the new names.
+* Renamed and reworked the `--xh-chat-*` CSS variables. Sizes and times carry their units, and
+  apps override the variables on `body.xh-app`. The unprefixed `--chat-*` hooks are gone. Some
+  variables merged or went away, such as `--xh-chat-shadow`. See
+  [Theming](desktop/cmp/chat/README.md#theming).
 
 ### 🎁 New Features
 

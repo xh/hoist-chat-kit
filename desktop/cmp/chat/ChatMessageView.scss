@@ -4,7 +4,7 @@
   color: var(--xh-chat-text-color);
   display: flex;
   flex-direction: column;
-  font-size: var(--xh-chat-font-size-px);
+  font-size: var(--xh-chat-font-size);
   gap: calc(var(--xh-pad) * 0.4px);
   line-height: var(--xh-chat-line-height);
   min-width: 0;
@@ -18,7 +18,7 @@
 
   &__bubble {
     background-color: var(--xh-chat-user-bg);
-    border-radius: var(--xh-chat-border-radius-px);
+    border-radius: var(--xh-chat-border-radius);
     color: var(--xh-chat-user-text-color);
     max-width: var(--xh-chat-user-max-width);
     overflow-wrap: anywhere;
@@ -49,7 +49,7 @@
 
   &__edit {
     background-color: var(--xh-chat-user-bg);
-    border-radius: var(--xh-chat-border-radius-px);
+    border-radius: var(--xh-chat-border-radius);
     display: flex;
     flex-direction: column;
     gap: var(--xh-pad-half-px);
@@ -58,9 +58,9 @@
 
     .xh-text-area.bp6-input {
       background-color: var(--xh-chat-composer-bg);
-      border-radius: var(--xh-chat-border-radius-px);
+      border-radius: var(--xh-chat-border-radius);
       box-sizing: border-box;
-      font-size: var(--xh-chat-font-size-px);
+      font-size: var(--xh-chat-font-size);
       line-height: 1.5;
       min-height: calc(1.5em * 2 + 16px);
       padding: calc(var(--xh-pad) * 0.8px) var(--xh-pad-px);
@@ -80,7 +80,7 @@
   &__system {
     align-self: center;
     color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-chat-meta-font-size-px);
+    font-size: var(--xh-chat-meta-font-size);
     max-width: 90%;
     text-align: center;
     white-space: pre-wrap;
@@ -93,7 +93,7 @@
     align-items: center;
     color: var(--xh-chat-meta-text-color);
     display: flex;
-    font-size: var(--xh-chat-meta-font-size-px);
+    font-size: var(--xh-chat-meta-font-size);
     gap: calc(var(--xh-pad) * 0.6px);
     line-height: 20px;
     min-width: 0;
@@ -132,7 +132,7 @@
   &__body {
     display: flex;
     flex-direction: column;
-    gap: var(--xh-chat-part-gap-px);
+    gap: var(--xh-chat-part-gap);
     min-width: 0;
   }
 
@@ -149,7 +149,7 @@
 
   &__context {
     color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-chat-meta-font-size-px);
+    font-size: var(--xh-chat-meta-font-size);
     max-width: var(--xh-chat-user-max-width);
     overflow-wrap: anywhere;
   }
@@ -167,14 +167,14 @@
   &__data-type {
     color: var(--xh-chat-meta-text-color);
     font-family: var(--xh-font-family-mono);
-    font-size: var(--xh-chat-meta-font-size-px);
+    font-size: var(--xh-chat-meta-font-size);
   }
 
   &__note {
     align-items: center;
     color: var(--xh-chat-meta-text-color);
     display: flex;
-    font-size: var(--xh-chat-meta-font-size-px);
+    font-size: var(--xh-chat-meta-font-size);
     gap: calc(var(--xh-pad) * 0.6px);
 
     &--error {

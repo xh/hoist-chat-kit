@@ -9,7 +9,7 @@
 
     background-color: var(--xh-chat-bg);
     border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
-    border-radius: var(--xh-chat-border-radius-px);
+    border-radius: var(--xh-chat-border-radius);
     border-top: 3px solid var(--xh-chat-ui-metrics-accent);
     display: flex;
     flex-direction: column;
@@ -36,7 +36,7 @@
 
   &__label {
     color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-chat-meta-font-size-px);
+    font-size: var(--xh-chat-meta-font-size);
     font-weight: 500;
     letter-spacing: 0.03em;
     overflow: hidden;
@@ -63,7 +63,7 @@
     align-items: baseline;
     display: flex;
     flex-wrap: wrap;
-    font-size: var(--xh-chat-meta-font-size-px);
+    font-size: var(--xh-chat-meta-font-size);
     font-variant-numeric: tabular-nums;
     gap: calc(var(--xh-pad) * 0.4px);
   }

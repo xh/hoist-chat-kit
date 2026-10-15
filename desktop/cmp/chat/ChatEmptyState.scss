@@ -5,7 +5,7 @@
   gap: var(--xh-pad-px);
   margin: auto;
   max-width: min(560px, 100%);
-  padding: calc(var(--xh-pad) * 3px) var(--xh-chat-side-pad-px);
+  padding: calc(var(--xh-pad) * 3px) var(--xh-chat-side-pad);
   text-align: center;
 
   &__icon {
@@ -30,7 +30,7 @@
 
   &__text {
     color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-chat-font-size-px);
+    font-size: var(--xh-chat-font-size);
     line-height: var(--xh-chat-line-height);
   }
 
