@@ -29,7 +29,7 @@ State as of 2026-10-15 early morning, for the next session or after a context re
 - **Git.** Kit: commit and push on dedicated feature branches. Toolbox: commit and push freely on
   `feature/weatherv2-chat-kit` and new branches made for this project; never touch `develop`,
   `master` or other existing branches. Merges to `develop` need Anselm. No AI attribution.
-- **hoist-react** gaps (an hourglass icon, a logout hook): stub in the
+- **hoist-react** gaps (an hourglass icon): stub in the
   kit and list them for Anselm. Do not change hoist-react.
 - **Browser checks** in Toolbox may use the local link recipe in Toolbox's
   `docs/running-locally.md`. Never commit the link. A hidden tab throttles timers: set a scripted
