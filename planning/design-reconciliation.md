@@ -582,7 +582,6 @@ below.
 | Need | Spec | Why |
 |---|---|---|
 | `Icon.hourglass()` and `Icon.codeBranch()` | A1, P6 | Hoist's Font Awesome library registers neither icon, and the kit has no Font Awesome dependency |
-| Keyboard support on `Splitter`: focus, arrow keys by 16 px and 64 px, Home and End, Enter to collapse, double-click to reset | P3, P5 | Hoist's `Splitter` has none of these |
 | A logout hook, or an event the kit can listen to | B6 | `XH.logoutAsync()` calls the auth model and reloads, with no hook, so the kit cannot clear drafts itself |
 | Check: a collapsed `Panel` that shows custom content, for the 40 px sidebar rail | P5 | The rail holds expand, New Chat, search and a spinner |
 | Check: a side slot inside a host `Panel` body, under its header | P7 | The helper docks inside the component's own panel |
