@@ -396,8 +396,8 @@ new ChatModel({
 });
 ```
 
-While a reply is in progress, Send becomes a Stop button with the word "Stop", if the host can
-stop. The user can type the next message, and Enter does nothing until the reply ends.
+While a reply is in progress, Send becomes a Stop button with the word "Stop", if the host is a
+`ChatModel`. The user can type the next message, and Enter does nothing until the reply ends.
 
 ### Add a pill to the composer
 
@@ -463,8 +463,8 @@ thread already has when the region mounts, or when the thread opens, is not anno
 
 A failure is retry-safe unless the server's `RUN_ERROR` sets `metadata.retrySafe: false`. In
 server mode, the kit's own `stalled`, `incomplete-stream` and `connection-lost` errors are not
-retry-safe either, because the server may still be running the turn. Refresh Status shows only when the host can
-reload the thread. `ChatThreadsModel` supplies that for its chats. See
+retry-safe either, because the server may still be running the turn. Refresh Status shows only
+when the chat can reload the thread. `ChatThreadsModel` supplies that for its chats. See
 [Recover from a failed reply](../../../core/README.md#recover-from-a-failed-reply).
 
 ### Keep drafts
@@ -478,10 +478,10 @@ no logout hook. See [Keep drafts](../../../core/README.md#keep-drafts) for the s
 
 ### Use the composer without a ChatModel
 
-The composer needs only a `ChatComposerHost`, such as an app model with `isBusy` and
-`sendAsync()`. Create a `ChatComposerModel` with that host, and render it with `chatComposer`. On
-send, the composer passes the draft to `sendAsync()` and clears it. While the host is busy, the
-composer shows Stop only if the host has `stop()`. See
+The composer needs only a `ChatComposerHost`: `isBusy` and `sendAsync()`, plus optional
+`messages` and `sendBlockedReason`. Create a `ChatComposerModel` with that host, and render it
+with `chatComposer`. On send, the composer passes the draft to `sendAsync()` and clears it. Stop,
+per-thread drafts and the status region need a `ChatModel`, so they do not show. See
 [Use the composer without a ChatModel](../../../core/README.md#use-the-composer-without-a-chatmodel)
 for the host and an example.
 
@@ -912,7 +912,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 
 Enter sends, and Shift+Enter starts a new line. An Enter that confirms an IME candidate does not
 send. Up arrow in an empty input recalls the last user message. While a reply streams, Send
-becomes a Stop button, and Escape stops too, if the host has `stop()`. Focus returns to the
+becomes a Stop button, and Escape stops too, for a `ChatModel`. Focus returns to the
 input after Stop. A disabled Send with a reason - blocked, offline, or waiting to retry - sits
 in a focusable wrapper, so that keyboard users reach its tooltip. The composer names any file it
 cannot attach under the attachments, such as one of the wrong type, too large, or over the limit.

@@ -50,8 +50,8 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
  * auto-growing text area, and a bar with pills on the left and the attach and send buttons on
  * the right. Enter sends and Shift+Enter starts a new line. Up arrow in an empty input recalls the
  * last message. While a reply is in progress, Send becomes a Stop button, and Escape stops too -
- * if the composer's host can stop. The input stays editable, and Enter does nothing until the
- * reply ends.
+ * if the composer's host is a `ChatModel`. The input stays editable, and Enter does nothing until
+ * the reply ends.
  *
  * Send is disabled while the draft is empty, and for a reason - the host's `sendBlockedReason`,
  * the browser being offline, or a wait before a retry. A reason shows as the button's tooltip and
@@ -94,9 +94,9 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
 
         throwIf(!composerModel, 'ChatComposer requires a ChatComposerModel or a ChatModel.');
 
-        const {text, attachments, attachmentErrors, enableAttachments, inputRef, host} =
+        const {text, attachments, attachmentErrors, enableAttachments, inputRef, host, chatModel} =
                 composerModel,
-            isPaused = host.lastMessage?.status === 'paused';
+            isPaused = chatModel?.lastMessage?.status === 'paused';
         useLayoutEffect(() => impl.fitInput(), [impl, text, maxRows]);
 
         return vbox({
@@ -237,11 +237,11 @@ function attachmentErrorRow(composerModel: ChatComposerModel): ReactNode {
 // disabled shows as its tooltip, and in an element that describes it for assistive technology.
 // A disabled button cannot take focus, so a focusable wrapper carries both to keyboard users.
 function sendButton(composerModel: ChatComposerModel, impl: ChatComposerLocalModel): ReactNode[] {
-    const {host, canSend} = composerModel,
+    const {chatModel, canSend} = composerModel,
         reason = composerModel.sendDisabledReason,
         reasonId = `${impl.xhId}-send-reason`;
 
-    if (host.isBusy && host.stop) {
+    if (chatModel?.isBusy) {
         return [
             button({
                 key: 'stop',
@@ -251,7 +251,7 @@ function sendButton(composerModel: ChatComposerModel, impl: ChatComposerLocalMod
                 'aria-label': 'Stop',
                 outlined: true,
                 onClick: () => {
-                    host.stop();
+                    chatModel.stop();
                     composerModel.focus();
                 }
             })

@@ -792,8 +792,8 @@ chart. The generative UI cards open both. See
 ### Use the composer without a ChatModel
 
 `ChatModel` implements `ChatComposerHost`, the members a composer needs from its conversation.
-Implement it yourself to use the composer over your own state. See
-[ChatComposerHost](#chatcomposerhost) for its members.
+Implement it yourself to use the composer over your own state, such as an "Ask the assistant"
+box that sends elsewhere. See [ChatComposerHost](#chatcomposerhost) for its members.
 
 ```typescript
 class NotesModel extends HoistModel implements ChatComposerHost {
@@ -813,7 +813,9 @@ class NotesModel extends HoistModel implements ChatComposerHost {
 ```
 
 The composer calls `sendAsync()` only when `canSend` is true, and clears its draft as it calls.
-Render the model with a desktop `chatComposer`. See
+Stop, per-thread drafts and the status region read the turn loop, so they work only when the
+host is a `ChatModel` - see `ChatComposerModel.chatModel`. Render the model with a desktop
+`chatComposer`. See
 [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#use-the-composer-without-a-chatmodel).
 
 `ChatModel` also satisfies `ChatMessageListHost`, the members the desktop message list reads. See
@@ -1185,6 +1187,7 @@ construction, for example to allow files only while an agent that reads them is 
 | `attachments` | Files attached to the draft, as `ChatFilePart[]`. |
 | `isEmpty` | True if the draft has no text and no files. |
 | `host` | The `ChatComposerHost` the composer sends to. |
+| `chatModel` | The host when it is a `ChatModel`, else null. Stop, per-thread drafts and the status region need one. |
 | `canSend` | True if the draft is not empty, the host is not busy, and nothing in `sendDisabledReason` blocks it. |
 | `sendDisabledReason` | The host's `sendBlockedReason`, `"You're offline"`, or `'Waiting to retry'`, or null. |
 | `isOffline` | True while the browser reports it is offline. The draft stays, and nothing queues. |
@@ -1205,21 +1208,15 @@ construction, for example to allow files only while an agent that reads them is 
 ### ChatComposerHost
 
 The members a composer reads. Make them observable, so that the composer updates as they
-change.
+change. Stop, per-thread drafts, and the stall, retry and refresh states of the status region
+need the turn loop, so they work only when the host is a `ChatModel`.
 
 | Member | Type | Description |
 |--------|------|-------------|
 | `isBusy` | `boolean` | True while a reply is in progress. The composer cannot send while busy. |
 | `sendAsync(spec)` | `(ChatSendSpec) => Promise<void>` | Send a user message. The composer passes its trimmed draft as `{text, files}`. |
 | `sendBlockedReason` | `string` | Optional. Why sending must wait, or null. |
-| `stop()` | `() => void` | Optional. Stop the reply in progress. Without it, the composer shows no Stop button. |
 | `messages` | `{isUser, text}[]` | Optional. The conversation, oldest first, for `recallLastMessage()`. |
-| `threadId` | `string` | Optional. Keys the saved draft. Without it, the draft stays in memory. |
-| `lastMessage` | `ChatMessage` | Optional. The status region reads the reply's status from it. |
-| `lastActivityAt`, `stallAfterMs` | `number` | Optional. Show a quiet reply as stalled. |
-| `historyMode` | `'client' \| 'server'` | Optional. Decides which failures are retry-safe. Default `client`. |
-| `retryAsync()` | `() => Promise<void>` | Optional. Resend the last turn. Without it, the region offers no Try Again and never retries. |
-| `refreshStatusAsync()`, `canRefreshStatus` | - | Optional. Reload the thread, for Refresh Status. The region offers it unless `canRefreshStatus` is false. |
 
 ### ChatMessageListHost
 

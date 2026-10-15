@@ -33,9 +33,9 @@ export interface ChatStatusRegionProps extends HoistProps<ChatComposerModel> {
  *  - The host's reason that sending must wait.
  *  - Offline. The draft is kept, and nothing sends by itself.
  *  - A failed reply, with Try Again when a resend is retry-safe. Otherwise it says the run may
- *    still be running, and offers Refresh Status when the host can refresh, or else Try Again.
+ *    still be running, and offers Refresh Status when the chat can refresh, or else Try Again.
  *    A reply the server interrupted or cancelled, or one left running, ranks with a failure.
- *  - A stalled reply, with Refresh Status when the host can refresh. Stop stays on the composer.
+ *  - A stalled reply, with Refresh Status when the chat can refresh. Stop stays on the composer.
  *  - A retry-safe failure for which the server asked for a wait, counting down to a retry, with
  *    Cancel. The turn retries at zero.
  *  - A reply waiting for the user's answer.
@@ -47,7 +47,8 @@ export interface ChatStatusRegionProps extends HoistProps<ChatComposerModel> {
  * mounts, or when the thread opens, is not announced.
  *
  * Uses a {@link ChatComposerModel} from props, or else the `composerModel` of the `ChatModel` in
- * context. `ChatPanel` renders one above its composer.
+ * context. Its states come from the turn loop, so it renders only when the composer's host is a
+ * `ChatModel`. `ChatPanel` renders one above its composer.
  */
 export const [ChatStatusRegion, chatStatusRegion] = hoistCmp.withFactory<ChatStatusRegionProps>({
     displayName: 'ChatStatusRegion',
@@ -59,10 +60,10 @@ export const [ChatStatusRegion, chatStatusRegion] = hoistCmp.withFactory<ChatSta
             {composerModel} = impl;
         throwIf(!composerModel, 'ChatStatusRegion requires a ChatComposerModel or a ChatModel.');
 
-        const {host} = composerModel,
-            now = useChatClock(host.isBusy || !!composerModel.retryWait),
-            status = composerModel.getStatus(now),
-            display = status ? getDisplay(status, composerModel, assistantName) : null;
+        const {chatModel} = composerModel,
+            now = useChatClock(!!chatModel?.isBusy || !!composerModel.retryWait),
+            status = chatModel ? composerModel.getStatus(now) : null,
+            display = status ? getDisplay(status, assistantName) : null;
 
         useEffect(() => impl.noteStatus(status, display?.text), [impl, status, display?.text]);
         if (!display) return null;
@@ -94,11 +95,7 @@ interface StatusDisplay {
     intent: ReplyStatusIntent;
 }
 
-function getDisplay(
-    status: ChatComposerStatus,
-    composerModel: ChatComposerModel,
-    assistantName: string
-): StatusDisplay {
+function getDisplay(status: ChatComposerStatus, assistantName: string): StatusDisplay {
     const {type, replyStatus, reason} = status,
         reply = REPLY_STATUS_DISPLAY[replyStatus],
         replyIcon = () => (typeof reply.icon === 'function' ? reply.icon() : null);
@@ -135,9 +132,7 @@ function getDisplay(
         case 'busy':
             return {
                 icon: chatSpinner(),
-                text: composerModel.host.stop
-                    ? `${assistantName} is working · Esc to stop`
-                    : `${assistantName} is working`,
+                text: `${assistantName} is working · Esc to stop`,
                 intent: 'busy'
             };
         case 'draftRestored':

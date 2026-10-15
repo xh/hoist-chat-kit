@@ -65,9 +65,9 @@ export class ChatComposerLocalModel extends HoistModel {
         } else if (e.key === 'ArrowUp' && !composerModel.text) {
             e.preventDefault();
             composerModel.recallLastMessage();
-        } else if (e.key === 'Escape' && composerModel.host.isBusy && composerModel.host.stop) {
+        } else if (e.key === 'Escape' && composerModel.chatModel?.isBusy) {
             e.preventDefault();
-            composerModel.host.stop();
+            composerModel.chatModel.stop();
         }
     };
 

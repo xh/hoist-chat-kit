@@ -40,11 +40,11 @@ export class ChatStatusRegionLocalModel extends HoistModel {
     }
 
     tryAgain = () => {
-        this.composerModel.host.retryAsync?.().catchDefault();
+        this.composerModel.chatModel?.retryAsync().catchDefault();
     };
 
     refreshStatus = () => {
-        this.composerModel.host.refreshStatusAsync?.().linkTo(this.refreshTask).catchDefault();
+        this.composerModel.chatModel?.refreshStatusAsync().linkTo(this.refreshTask).catchDefault();
     };
 
     cancelRetry = () => {
@@ -63,7 +63,7 @@ export class ChatStatusRegionLocalModel extends HoistModel {
      */
     noteStatus(status: ChatComposerStatus, text: string) {
         const key = announceKey(status),
-            {threadId} = this.composerModel.host,
+            threadId = this.composerModel.chatModel?.threadId ?? null,
             isBaseline = !this.hasBaseline || threadId !== this.lastThreadId;
         this.hasBaseline = true;
         this.lastThreadId = threadId;

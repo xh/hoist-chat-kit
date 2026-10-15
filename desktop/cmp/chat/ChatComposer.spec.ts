@@ -1,4 +1,5 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
+import {div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, uses} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -6,6 +7,7 @@ import {chatAnnouncer, ChatComposerModel, ChatModel, type ChatModelConfig} from 
 import type {ChatComposerHost} from '../../../core/ChatComposerHost';
 import {ScriptedChatTransport, textEvents} from '../../../transport';
 import {chatComposer} from './ChatComposer';
+import {chatStatusRegion} from './ChatStatusRegion';
 
 /**
  * The composer's keyboard and clipboard handling. Apps rely on Enter to send, Shift+Enter for a
@@ -189,17 +191,36 @@ describe('ChatComposer', () => {
             expect(composer.text).toBe('');
         });
 
-        it('shows Stop while busy, and stops on Escape, if the host can stop', () => {
-            const host = createHost({isBusy: true, stop: vi.fn()});
-            renderHostComposer(host);
+        it('works over a host of four members, recalling and sending, with no status region', () => {
+            const host: ChatComposerHost = {
+                    isBusy: false,
+                    sendBlockedReason: null,
+                    messages: [{isUser: true, text: 'Show my limits'}],
+                    sendAsync: vi.fn(async () => {})
+                },
+                composer = new ChatComposerModel({host});
+            onTestFinished(() => composer.destroy());
+            render(div(chatStatusRegion({model: composer}), chatComposer({model: composer})));
 
-            fireEvent.keyDown(input(), {key: 'Escape'});
-            fireEvent.click(screen.getByRole('button', {name: 'Stop'}));
+            fireEvent.keyDown(input(), {key: 'ArrowUp'});
+            expect(composer.text).toBe('Show my limits');
+            fireEvent.keyDown(input(), {key: 'Enter'});
+            expect(host.sendAsync).toHaveBeenCalledExactlyOnceWith({
+                text: 'Show my limits',
+                files: []
+            });
 
-            expect(host.stop).toHaveBeenCalledTimes(2);
+            // A blocked host has a status, but the region shows it only for a ChatModel.
+            const blocked = new ChatComposerModel({
+                host: {...host, sendBlockedReason: 'Read-only'}
+            });
+            onTestFinished(() => blocked.destroy());
+            const {container} = render(chatStatusRegion({model: blocked}));
+            expect(blocked.getStatus().type).toBe('blocked');
+            expect(container.querySelector('.xh-chat-status-region')).toBeNull();
         });
 
-        it('keeps a disabled Send while busy if the host cannot stop', () => {
+        it('keeps a disabled Send while busy, with no Stop', () => {
             renderHostComposer(createHost({isBusy: true}));
 
             expect(screen.queryByRole('button', {name: 'Stop'})).toBeNull();

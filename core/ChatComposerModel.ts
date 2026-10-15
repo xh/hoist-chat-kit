@@ -5,6 +5,7 @@ import {pluralize, throwIf} from '@xh/hoist/utils/js';
 import {createObservableRef} from '@xh/hoist/utils/react';
 import {findLast, isEmpty, round, take} from 'lodash';
 import type {ChatComposerHost} from './ChatComposerHost';
+import type {ChatModel} from './ChatModel';
 import {
     type ChatComposerStatus,
     getChatComposerStatus,
@@ -13,6 +14,7 @@ import {
 import {ChatKit} from './ChatKit';
 import type {ChatFilePart} from './ChatPart';
 import {getChatRetryWaitMs} from './ChatReplyStatus';
+import {isChatModel} from './ChatTranscript';
 import {chatDraftKey} from './impl/localData';
 import {genChatId} from '../impl/ids';
 
@@ -75,8 +77,8 @@ export interface ChatComposerRetryWait {
  * The attachment settings are bindable, so an app can change them after construction - for
  * example to allow files only for an agent that reads them.
  *
- * The composer keeps its text per thread. When its host moves to another thread, outside a turn,
- * the composer saves the text for the old thread and shows the new thread's draft, or empties.
+ * The composer keeps its text per thread. When its `ChatModel` host moves to another thread, outside
+ * a turn, the composer saves the text for the old thread and shows the new thread's draft, or empties.
  * With `drafts: 'local'`, it saves the text after each pause of 500 ms, through
  * `XH.localStorageService`, so that the draft survives a reload. With `drafts: 'memory'`, it keeps
  * the drafts in the composer only. Attachments stay in memory, and go with a thread change. The
@@ -186,14 +188,23 @@ export class ChatComposerModel extends HoistModel {
         return null;
     }
 
-    /** True if the host can resend the last turn. */
+    /**
+     * The host, when it is a `ChatModel`, else null. Stop, per-thread drafts, and the stall,
+     * retry and refresh states of the status region need one.
+     */
+    get chatModel(): ChatModel {
+        const {host} = this;
+        return isChatModel(host) ? host : null;
+    }
+
+    /** True if the host can resend the last turn - a `ChatModel`. */
     get canRetry(): boolean {
-        return !!this.host.retryAsync;
+        return !!this.chatModel;
     }
 
     /** True if the host can reload the thread to learn how a run ended. */
     get canRefreshStatus(): boolean {
-        return !!this.host.refreshStatusAsync && this.host.canRefreshStatus !== false;
+        return !!this.chatModel?.canRefreshStatus;
     }
 
     constructor(config: ChatComposerConfig) {
@@ -216,17 +227,17 @@ export class ChatComposerModel extends HoistModel {
 
         // TODO(design-open B6) - drafts in local storage, keyed by user and thread, removed by
         // `ChatKit.clearLocalData()` on logout.
-        this.restoreDraft(host.threadId);
+        this.restoreDraft(this.threadId);
         if (this.isLocalDrafts) {
             this.addReaction({
                 track: () => this.text,
-                run: () => this.saveDraft(this.host.threadId),
+                run: () => this.saveDraft(this.threadId),
                 debounce: DRAFT_SAVE_DELAY_MS
             });
         }
         this.addReaction(
             {
-                track: () => this.host.threadId,
+                track: () => this.threadId,
                 run: (threadId, prevThreadId) => this.onThreadIdChange(threadId, prevThreadId)
             },
             {
@@ -239,7 +250,7 @@ export class ChatComposerModel extends HoistModel {
                 }
             },
             {
-                track: () => this.host.lastMessage,
+                track: () => this.chatModel?.lastMessage,
                 run: () => this.syncRetryWait(),
                 fireImmediately: true
             }
@@ -255,7 +266,7 @@ export class ChatComposerModel extends HoistModel {
         clearTimeout(this.retryTimer);
         clearTimeout(this.noticeTimer);
         // Keep text typed within the last pause, which the debounced save has not yet written.
-        if (this.isLocalDrafts) this.saveDraft(this.host.threadId);
+        if (this.isLocalDrafts) this.saveDraft(this.threadId);
         super.destroy();
     }
 
@@ -266,12 +277,12 @@ export class ChatComposerModel extends HoistModel {
      * @param now - epoch millis to read the clock-based states at. Default now.
      */
     getStatus(now: number = Date.now()): ChatComposerStatus {
-        const {host} = this;
+        const {host, chatModel} = this;
         return getChatComposerStatus({
-            lastMessage: host.lastMessage,
-            lastActivityAt: host.lastActivityAt,
-            stallAfterMs: host.stallAfterMs,
-            historyMode: host.historyMode,
+            lastMessage: chatModel?.lastMessage,
+            lastActivityAt: chatModel?.lastActivityAt,
+            stallAfterMs: chatModel?.stallAfterMs,
+            historyMode: chatModel?.historyMode,
             sendBlockedReason: host.sendBlockedReason,
             isOffline: this.isOffline,
             retryWaitEndsAt: this.retryWait?.endsAt,
@@ -305,13 +316,13 @@ export class ChatComposerModel extends HoistModel {
      * once.
      */
     async retryDueAsync(): Promise<void> {
-        const {retryDueId, host} = this;
-        if (retryDueId == null || this.isOffline || !host.retryAsync) return;
-        if (host.lastMessage?.id !== retryDueId) return;
+        const {retryDueId, chatModel} = this;
+        if (retryDueId == null || this.isOffline || !chatModel) return;
+        if (chatModel.lastMessage?.id !== retryDueId) return;
 
         this.setRetryDueId(null);
         this.autoRetryCount++;
-        await host.retryAsync();
+        await chatModel.retryAsync();
     }
 
     /**
@@ -360,7 +371,7 @@ export class ChatComposerModel extends HoistModel {
         this.attachments = [];
         this.attachmentErrors = [];
         this.setRestoredDraft(null);
-        this.removeSavedDraft(this.host.threadId);
+        this.removeSavedDraft(this.threadId);
     }
 
     /** Clear a restored draft - the Discard action of its notice. */
@@ -414,6 +425,11 @@ export class ChatComposerModel extends HoistModel {
     /** Drafts by thread id, with `drafts: 'memory'`. */
     private memoryDrafts = new Map<string, ChatComposerDraft>();
 
+    /** The thread the draft belongs to - null for a host that is not a `ChatModel`. */
+    private get threadId(): string {
+        return this.chatModel?.threadId ?? null;
+    }
+
     private get isLocalDrafts(): boolean {
         return this.drafts === 'local' && !!XH.localStorageService;
     }
@@ -432,8 +448,8 @@ export class ChatComposerModel extends HoistModel {
         clearTimeout(this.retryTimer);
         this.retryDueId = null;
 
-        const {host} = this,
-            message = host.lastMessage,
+        const {chatModel} = this,
+            message = chatModel?.lastMessage,
             waitMs = getChatRetryWaitMs(message);
         if (message?.status === 'complete') this.autoRetryCount = 0;
         if (
@@ -441,7 +457,7 @@ export class ChatComposerModel extends HoistModel {
             !this.canRetry ||
             this.autoRetryCount >= MAX_AUTO_RETRIES ||
             message.id === this.cancelledRetryId ||
-            !isChatRetrySafe(message, host.historyMode)
+            !isChatRetrySafe(message, chatModel.historyMode)
         ) {
             this.retryWait = null;
             return;
