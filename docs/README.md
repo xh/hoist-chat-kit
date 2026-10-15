@@ -41,7 +41,6 @@ its tools.
 | Send ratings and comments on replies | [`/core/`](../core/README.md#rate-a-reply) |
 | Describe the app's live state to the model at every step | [`/core/`](../core/README.md#send-live-context-with-every-step) |
 | Let the user undo the changes a reply made | [`/core/`](../core/README.md#undo-a-replys-changes) |
-| Use the app's configured LLM backend, with no wiring | [`/svc/`](../svc/README.md) |
 | Connect to an OpenAI-compatible model gateway | [`/transport/`](../transport/README.md#bring-your-own-llm) |
 | List a user's stored threads, and switch between them | [`/threads/`](../threads/README.md) |
 | Implement a thread store for your backend | [`/threads/`](../threads/README.md#configuration-pattern) |
@@ -90,7 +89,6 @@ its tools.
 | [`/core/`](../core/README.md) | Platform-neutral chat models: conversation state, the turn loop, messages, parts, tools and the composer | ChatModel, ChatSidePanelModel, ChatSidePanelHost, xh.chat.noAnswer, ChatMessage, ChatPart, ChatToolSpec, ChatComposerModel, ChatRunError, ChatContextProvider, contextProviders, chatToolResult, undoTurnAsync, preview, turns, steps, approvals, interactive tools, persistence, finish reasons, historyMode, runOptions, stop and detach, feedback, textTransform, activity tracking |
 | [`/threads/`](../threads/README.md) | Platform-neutral thread layer: a store adapter, one chat per open thread, background turns, paging, search, edits with rollback and deep links | ChatThreadsModel, ChatThreadStore, ChatThreadSummary, ChatThreadListHost, LocalChatThreadStore, groupThreadsByRecency, background turns, runningThreadIds, createThreadAsync, re-keying, optimistic rename and delete, paged history, search, route binding, concurrency rules |
 | [`/transport/`](../transport/README.md) | Transports and codecs that turn a backend's stream into AG-UI events, with server contracts | ChatTransport, HoistChatTransport, SseChatTransport, ScriptedChatTransport, HttpChatTransport, AgUiCodec, AnthropicCodec, ChatCompletionsCodec, bring your own LLM, OpenAI chat completions, ChatRunContext, ChatEvent, xh.chat events, NDJSON, Grails controller, prompt caching, citationEvents, server-owned conversations, turnId, newMessages, cancelUrl, createChatRunRequest, ChatStreamReducer |
-| [`/svc/`](../svc/README.md) | `ChatService`, which resolves the app's default LLM backend from the `chatConfig` soft config | ChatService, XH.chatService, chatConfig, ChatConfig, isEnabled, createTransport, bring your own LLM, codec, anthropic, openai-chat, agui |
 | [`/genui/`](../genui/README.md) | Generative UI: a catalog of app components the model can show inline, as tools, tags or nested documents, with data by reference, typed actions and a server export | ChatUiCatalog, ChatUiComponentSpec, ChatUiDocument, ChatUiRenderContext, ChatArtifactRegistry, ChatDataView, ChatUiAction, ChatUiAdapter, parseTags, show_ui, JSON Schema subset, partial props, inline display |
 
 ### Components

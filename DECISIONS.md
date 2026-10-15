@@ -302,6 +302,7 @@ built a timeline by hand.
 
 **Decision.** A kit `ChatService` resolves a default transport from server config, so a helper
 agent needs no wiring of its own. A `ChatCompletionsCodec` covers OpenAI-compatible gateways.
+`ChatService` is withdrawn by [D81](#d81-chatservice-leaves-the-kit). The codec stays.
 
 **Why.** Enterprises choose their own model and gateway, and most gateways speak the OpenAI chat
 completions format. The codec and transport split (D5) is the seam that makes this cheap.
@@ -640,6 +641,8 @@ replies.
 **Why.** Each fills a gap the spec leaves open, without changing its contract.
 
 ## D50. `ChatService` reads `chatConfig`, and its prompt is static text
+
+**Withdrawn** by [D81](#d81-chatservice-leaves-the-kit).
 
 **Decision.** The soft config is `chatConfig`, not `xhChatConfig`. `createTransport({system})`
 takes the prompt as a string. An AG-UI backend gets it as a `context` entry.
@@ -1170,3 +1173,11 @@ context providers, per-tool undo and `undoTurnAsync()` (D48, D49).
 **Why.** The helper was a use case to test the kit's primitives against, not a v1 deliverable.
 The build showed that an app can make one from the primitives that stay. The code is kept on the
 `archive/helpers` branch.
+
+## D81. `ChatService` leaves the kit
+
+**Decision.** The kit ships no `ChatService` and reads no `chatConfig` soft config. `svc/` is
+removed. This withdraws D50 and the service half of D24. `ChatCompletionsCodec` stays.
+
+**Why.** Its only caller was the component helper, removed by D80. An app builds its transport
+in a line or two, with the codec its server relays.

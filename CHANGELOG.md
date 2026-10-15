@@ -173,8 +173,6 @@
   such as Azure OpenAI and LiteLLM.
 * Added `flush()` to `ChatDecoder`, for events a decoder holds back until its stream ends.
   `ChatCompletionsCodec` uses it to send one `RUN_FINISHED` per step, with the token usage.
-* Added `ChatService`, which reads the app's LLM backend from the `chatConfig` soft config and
-  builds a transport for it, so a chat needs no wiring of its own.
 * Added `ChatStreamReducer` and `createChatRunRequest()`, so an app can run a transport without
   `ChatModel`. The helper fills in a request from the messages, and the reducer folds the streamed
   events into the app's own `ChatMessage`.
