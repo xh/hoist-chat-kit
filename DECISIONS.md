@@ -1094,3 +1094,15 @@ fact. A change to one updates the matching decision.
 repo in charge of code. Each recommendation keeps a repo contract unless the design is clearly
 better for users.
 
+
+## D77. Feedback settings for strict backends, and Allow for approvals
+
+**Decision.** `ChatFeedbackConfig` gains `clearable` (default true) and `maxCommentLength` (default
+1,000). With `clearable` false, the kit offers no way to clear a rating, and
+`submitFeedbackAsync()` throws for a null one. A failed submit that the server rejects (HTTP 400,
+413 or 422) shows the server's message with no Retry; any other failure keeps the comment and
+offers Retry. Approval buttons read Allow and Deny, Allow first, each with an optional reason.
+
+**Why.** Real feedback backends differ: one cannot clear a rating, and one cuts comments at its
+own length. A retry of a rejected comment would fail the same way. Allow and Deny match the
+design's approval controls (P6).

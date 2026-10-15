@@ -410,7 +410,12 @@ describe('ChatMessageView', () => {
             expect(host.regenerateAsync).toHaveBeenCalledWith('a1');
 
             await act(() => fireEvent.click(screen.getByRole('button', {name: 'Good response'})));
-            expect(host.submitFeedbackAsync).toHaveBeenCalledWith('a1', 'positive', undefined);
+            expect(host.submitFeedbackAsync).toHaveBeenCalledWith(
+                'a1',
+                'positive',
+                undefined,
+                undefined
+            );
 
             fireEvent.click(screen.getByRole('button', {name: 'Edit'}));
             fireEvent.change(screen.getByRole('textbox', {name: 'Edit message'}), {

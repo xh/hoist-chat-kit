@@ -572,7 +572,14 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatMessa
         this.contextProviders = contextProviders;
         this.maxSteps = maxSteps;
         this.historyMode = historyMode;
-        this.feedback = {commentOn: 'negative', requireComment: false, ...feedback};
+        this.feedback = {
+            commentOn: 'negative',
+            requireComment: false,
+            reasons: [],
+            clearable: true,
+            maxCommentLength: 1000,
+            ...feedback
+        };
         this.stallAfterMs = stallAfterMs ?? ChatKit.defaults.stallAfterMs;
         this.dataRefreshedAtFn = dataRefreshedAt ?? null;
         this._threadId = threadId ?? genChatId();
@@ -866,12 +873,14 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatMessa
      * @param rating - the rating, or null to clear it.
      * @param comment - the user's comment. Required for a rating that asks for one, if
      *      `feedback.requireComment` is set.
+     * @param reasons - the reasons the user picked, from `feedback.reasons`.
      * @returns a promise that resolves once the submit ends, whether or not it succeeded.
      */
     async submitFeedbackAsync(
         messageId: string,
         rating: ChatFeedbackRating,
-        comment?: string
+        comment?: string,
+        reasons?: string[]
     ): Promise<void> {
         const message = this.getMessage(messageId);
         if (!message?.isAssistant) {
@@ -880,8 +889,9 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatMessa
         }
 
         const submitAsync = this.feedback.submitAsync ?? this.feedbackSubmitter,
-            {requireComment, commentOn} = this.feedback;
+            {requireComment, commentOn, clearable} = this.feedback;
         comment = comment?.trim() || null;
+        reasons = reasons?.length ? [...reasons] : null;
         throwIf(
             !submitAsync,
             'ChatModel cannot submit feedback - configure feedback.submitAsync, or use the chat ' +
@@ -891,9 +901,12 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatMessa
             rating && requireComment && !comment && (commentOn === 'both' || commentOn === rating),
             `A comment is required with ${rating} feedback.`
         );
+        throwIf(!rating && !clearable, 'This chat cannot clear a rating - see feedback.clearable.');
 
         const prior: ChatFeedback = message.metadata.feedback ?? null,
-            feedback: ChatFeedback = rating ? (comment ? {rating, comment} : {rating}) : null,
+            feedback: ChatFeedback = rating
+                ? {rating, ...(comment ? {comment} : {}), ...(reasons ? {reasons} : {})}
+                : null,
             {threadId} = this,
             spec: ChatFeedbackSpec = {
                 threadId,
@@ -901,7 +914,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatMessa
                 serverId: message.metadata.serverId ?? null,
                 runId: message.metadata.runId ?? null,
                 rating: rating ?? null,
-                comment
+                comment,
+                reasons
             };
 
         // Numbered, so that a failure reverts only if no later submit for the message started.
@@ -926,6 +940,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatMessa
         this.trackActivity('Feedback submitted', {
             rating: spec.rating,
             hasComment: !!comment,
+            reasons,
             threadId,
             messageId,
             serverId: spec.serverId,

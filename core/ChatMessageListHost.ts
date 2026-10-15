@@ -21,6 +21,13 @@ export interface ChatMessageListHost {
     /** Messages of the conversation, oldest first. */
     readonly messages: ChatMessage[];
 
+    /**
+     * Identifies the conversation. An open feedback form keeps its draft per thread for the
+     * session, so that it survives a switch to another thread and back. Omit it to keep the
+     * draft per host object.
+     */
+    readonly threadId?: string;
+
     /** True while a reply is in progress. Edit, Regenerate and Undo wait while busy. */
     readonly isBusy: boolean;
 
@@ -60,21 +67,34 @@ export interface ChatMessageListHost {
     /** True if the user can undo the changes of a reply now. Shows Undo with `undoTurnAsync`. */
     canUndoTurn?(messageId: string): boolean;
 
-    /** Undo the changes of a reply. */
+    /**
+     * Undo the changes of a reply. A failed undo shows inline under the reply, with Retry - from
+     * `undoErrors`, or from the promise if it rejects.
+     */
     undoTurnAsync?(messageId: string): Promise<void>;
+
+    /** Why the last undo of a reply failed, by message id - see `ChatModel.undoErrors`. */
+    readonly undoErrors?: Record<string, Error>;
 
     /** True if the host takes feedback now. Shows thumbs with `submitFeedbackAsync`. */
     readonly canSubmitFeedback?: boolean;
 
-    /** Which ratings ask for a comment, and whether they require one. */
+    /** Which ratings ask for a comment, whether they require one, and the reasons to offer. */
     readonly feedback?: ChatFeedbackConfig;
 
-    /** Rate a reply, or clear its rating with null. Records the rating in `metadata.feedback`. */
+    /**
+     * Rate a reply, or clear its rating with null. Records the rating in `metadata.feedback`. A
+     * failure shows inline, with Retry - from `feedbackErrors`, or from the promise if it rejects.
+     */
     submitFeedbackAsync?(
         messageId: string,
         rating: ChatFeedbackRating,
-        comment?: string
+        comment?: string,
+        reasons?: string[]
     ): Promise<void>;
+
+    /** Why the last feedback on a message failed, by message id - see `ChatModel.feedbackErrors`. */
+    readonly feedbackErrors?: Record<string, Error>;
 
     /** Approve a tool call waiting for approval. */
     approveToolCallAsync?(toolCallId: string, reason?: string): Promise<void>;
@@ -85,6 +105,9 @@ export interface ChatMessageListHost {
     /** Stop the reply in progress. Escape stops it while focus is in the list. */
     stop?(): void;
 
-    /** The composer, focused after an edit resends. */
-    readonly composerModel?: {focus(): void};
+    /**
+     * The composer, focused after an edit resends. While its `text` is empty and focus is in the
+     * conversation, a new approval request takes focus.
+     */
+    readonly composerModel?: {focus(): void; readonly text?: string};
 }

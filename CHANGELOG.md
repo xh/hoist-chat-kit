@@ -16,6 +16,7 @@
   can edit a prompt first. They hide while the composer has text. `onSelect` still overrides.
 * Changed `ChatModel.submitFeedbackAsync()` and `undoTurnAsync()` to record a failure in
   `feedbackErrors` and `undoErrors`, by message id, in place of a toast.
+* Renamed the approval buttons to Allow and Deny, with Allow first.
 * Changed the sources list to count the sources a citing reply never cites, without numbers, so
   every number matches a marker. Numbers follow `marker` and never renumber.
 * Changed `ChatMarkdownCitations.renderMarker` to replace the marker button, and to receive the
@@ -201,6 +202,18 @@
   turn failed before its run started shows "Not sent" with Edit.
 * Added thumbs to each reply when the chat takes feedback. A rating that asks for a comment opens
   an inline comment form, and with `requireComment` saves only with its comment.
+* Added `reasons`, `clearable` and `maxCommentLength` to `ChatModelConfig.feedback`, and `reasons`
+  to `ChatFeedbackSpec`. The form offers reasons as toggles on a negative rating.
+* Added the full feedback flow: "Thanks" after a save, "Add a comment" after an up vote, and
+  failures inline with Retry. One form is open per thread, and its draft survives a thread switch.
+* Added a failed undo under the reply, with Retry, and a "Changes undone." note once it succeeds.
+* Added a reason input to the approval panel, sent with Allow or Deny. A new request takes focus
+  only from the conversation, while the composer is empty.
+* Added the keyboard map from `ChatKit.defaults.shortcuts`: new chat, `/` to focus the composer,
+  F6 between workspace regions, and an optional sidebar toggle. Each one can be remapped or set
+  to null.
+* Added Escape on the workspace side panel, which closes it. Escape stops a reply from the list,
+  then focuses the composer.
 * Added notices for a reply cut off at the length limit or ended by the server. The header warns
   of failed tools, and of a reply older than the host's `dataRefreshedAt`.
 * Added keyboard moves between messages. Each message is a focusable `article`, Up and Down move
@@ -275,6 +288,8 @@
 * Added the `xh-chat--compact` density class for narrow hosts, such as a docked side panel.
 * Added `--xh-chat-*` CSS variables for the chat's colors, widths, radii and fonts, built from
   Hoist's theme variables, with light and dark defaults.
+* Restyled the feedback form and the approval panel to the design. The approval panel sits in
+  the attention-color frame, with its buttons left-aligned.
 
 ### ⚙️ Technical
 

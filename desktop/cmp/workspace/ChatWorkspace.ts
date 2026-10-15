@@ -13,6 +13,7 @@ import {
 } from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
+import {useHotkeys} from '@xh/hoist/desktop/hooks';
 import {panel, type PanelProps} from '@xh/hoist/desktop/cmp/panel';
 import {Icon} from '@xh/hoist/icon';
 import {popover} from '@xh/hoist/kit/blueprint';
@@ -105,24 +106,28 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
             className: classNames(className, model.isCompact && 'xh-chat--compact'),
             testId,
             ...rest,
-            item: div({
-                className: 'xh-chat-workspace__body',
-                items: [
-                    sidebar(model, impl, threadListProps, testId),
-                    div({
-                        className: 'xh-chat-workspace__main',
-                        role: 'main',
-                        items: [
-                            header === undefined
-                                ? defaultHeader(model, impl, headerItems, threadListProps)
-                                : header,
-                            noticeLine(notice),
-                            conversation(model, chatPanelProps, testId)
-                        ]
-                    }),
-                    sidePanelView(model, sidePanel, sidePanelProps, testId)
-                ]
-            })
+            item: useHotkeys(
+                div({
+                    ref: impl.bodyRef,
+                    className: 'xh-chat-workspace__body',
+                    items: [
+                        sidebar(model, impl, threadListProps, testId),
+                        div({
+                            className: 'xh-chat-workspace__main',
+                            role: 'main',
+                            items: [
+                                header === undefined
+                                    ? defaultHeader(model, impl, headerItems, threadListProps)
+                                    : header,
+                                noticeLine(notice),
+                                conversation(model, chatPanelProps, testId)
+                            ]
+                        }),
+                        sidePanelView(model, impl, sidePanel, sidePanelProps, testId)
+                    ]
+                }),
+                impl.hotkeys
+            )
         });
     }
 });
@@ -186,7 +191,7 @@ function rail(model: ChatWorkspaceModel, impl: ChatWorkspaceLocalModel): ReactNo
                 icon: Icon.add(),
                 tooltip: 'New Chat',
                 'aria-label': 'New Chat',
-                onClick: () => model.threadsModel.newThread()
+                onClick: () => impl.newChat()
             }),
             button({
                 icon: Icon.search(),
@@ -233,7 +238,7 @@ function defaultHeader(
                       icon: Icon.add(),
                       tooltip: 'New Chat',
                       'aria-label': 'New Chat',
-                      onClick: () => threadsModel.newThread()
+                      onClick: () => impl.newChat()
                   })
                 : null,
             summary
@@ -349,6 +354,7 @@ function conversation(
 
 function sidePanelView(
     model: ChatWorkspaceModel,
+    impl: ChatWorkspaceLocalModel,
     sidePanel: ChatWorkspaceSidePanel,
     sidePanelProps: ChatWorkspaceProps['sidePanelProps'],
     testId: string
@@ -373,6 +379,7 @@ function sidePanelView(
         key: 'sidePanel',
         className: 'xh-chat-workspace__side-panel',
         role: 'complementary',
+        onKeyDown: impl.onSidePanelKeyDown,
         'aria-label': isString(rest.title) ? rest.title : 'Side panel',
         item: panel({
             model: model.sidePanelModel,

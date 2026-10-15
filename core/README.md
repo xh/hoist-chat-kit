@@ -404,8 +404,8 @@ cancel.
 ### Rate a reply
 
 `submitFeedbackAsync()` stores the rating on the message at once, as `metadata.feedback`, then
-sends it. If the submit fails, the rating reverts and a toast says so. A rating the user gave
-since then stays. History restores a rating from the same key.
+sends it. If the submit fails, the rating reverts and `feedbackErrors` records the error, with no
+toast. A rating the user gave since then stays. History restores a rating from the same key.
 
 ```typescript
 new ChatModel({
@@ -413,18 +413,36 @@ new ChatModel({
     feedback: {
         submitAsync: spec => XH.postJson({url: 'chat/feedback', body: spec}),
         commentOn: 'negative',
-        requireComment: true
+        requireComment: true,
+        reasons: ['Wrong data', 'Incomplete', 'Not helpful'],
+        clearable: false
     }
 });
 
-await chatModel.submitFeedbackAsync(message.id, 'negative', 'The rate is out of date.');
+await chatModel.submitFeedbackAsync(message.id, 'negative', 'The rate is out of date.', [
+    'Wrong data'
+]);
 await chatModel.submitFeedbackAsync(message.id, null);  // Clear the rating
 ```
 
 The submitter gets a `ChatFeedbackSpec`: the `threadId`, the kit `messageId`, the `serverId` and
-`runId` from the message's metadata, the `rating` and the `comment`. With no `submitAsync`, the
-chat uses the submitter that a thread layer passes to `setFeedbackSubmitter()`.
+`runId` from the message's metadata, the `rating`, the `comment` and the `reasons`. With no
+`submitAsync`, the chat uses the submitter that a thread layer passes to `setFeedbackSubmitter()`.
 `canSubmitFeedback` is false when there is neither, and `submitFeedbackAsync()` then throws.
+
+| `ChatFeedbackConfig` | Default | Description |
+|---|---|---|
+| `submitAsync` | The thread layer's | Sends a `ChatFeedbackSpec` to the backend. |
+| `commentOn` | `'negative'` | Ratings that open the comment form at once. Other ratings offer "Add a comment" after they save, unless this is `'none'`. |
+| `requireComment` | false | True if a rating in `commentOn` saves only with a non-blank comment. Reasons never count as one. |
+| `reasons` | none | Toggles above the comment on a negative rating. Optional for the user. |
+| `clearable` | true | True if a click on the chosen thumb clears the rating. Set false for a backend that cannot remove a rating. |
+| `maxCommentLength` | 1,000 | Most characters the comment takes. A counter shows from 90%. |
+
+With `requireComment`, `submitFeedbackAsync()` throws for a rating in `commentOn` that has no
+comment. With `clearable` false, it throws for a null rating. A backend that rejects a down vote
+without a comment suits `{requireComment: true}`. See
+[Collect feedback](../desktop/cmp/chat/README.md#collect-feedback) for the form.
 
 ### Clean up model text
 
@@ -551,8 +569,9 @@ replies after it. Once the user undoes the latest one, the reply before it can b
 that a retry, regenerate, edit, clear or load discards takes its undo functions with it. Undo
 functions are not stored, so a reply loaded from history cannot be undone.
 
-If an undo function throws, the undo stops, a toast reports it, and the changes not yet undone
-stay, so the user can try again. With `track` on, an undo tracks as `Turn undone`.
+If an undo function throws, the undo stops, and `undoErrors` records the error, with no toast. The
+changes not yet undone stay, so the user can try again. The desktop message view shows the
+failure under the reply, with Retry. With `track` on, an undo tracks as `Turn undone`.
 
 `chatToolResult()` also takes `artifacts`, the result sets a tool produced for generative UI
 components to show by reference. See
@@ -899,7 +918,7 @@ See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatCom
 | `historyMode` | `'client' \| 'server'` | Who owns the history. Default `client`. See [Run a server-owned conversation](#run-a-server-owned-conversation). |
 | `runOptions` | `PlainObject` | Initial value of `runOptions`. Default null. |
 | `textTransform` | `(text, context) => string` | Rewrites reply text before it is stored. `context` holds the `message` and `isStreaming`. |
-| `feedback` | `ChatFeedbackConfig` | `submitAsync`, `commentOn` (default `negative`) and `requireComment` (default false). |
+| `feedback` | `ChatFeedbackConfig` | `submitAsync`, `commentOn`, `requireComment`, `reasons`, `clearable` and `maxCommentLength`. See [Rate a reply](#rate-a-reply). |
 | `dataRefreshedAt` | `() => number` | Returns the epoch millis of the app's last data refresh, or null. Read as a computed value. A reply that finished before it shows that the data changed. Default none. |
 | `stallAfterMs` | `number` | Milliseconds with no data from the server, heartbeats included, before a reply shows as stalled. Default `ChatKit.defaults.stallAfterMs`. |
 | `track` | `boolean \| ChatTrackOptions` | True, or `{category, severity, logData}`, to track each finished turn. Default false. |
@@ -958,7 +977,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `clear()` | Remove all messages and start a new thread. |
 | `loadMessages(specs, threadId?)` | Replace the conversation. Default a new thread id. |
 | `prependMessages(specs)` | Add older messages ahead of the conversation, skipping ids already present. |
-| `submitFeedbackAsync(messageId, rating, comment?)` | Rate a reply, or clear its rating with null. Shows at once. If the submit fails, it reverts and records the error in `feedbackErrors`, with no toast. |
+| `submitFeedbackAsync(messageId, rating, comment?, reasons?)` | Rate a reply, or clear its rating with null. Shows at once. If the submit fails, it reverts and records the error in `feedbackErrors`, with no toast. |
 | `setStatusRefresher(refreshAsync)` | Set the function that reloads the thread, for Refresh Status. For a thread layer. |
 | `refreshStatusAsync()` | Reload the thread to learn how a run ended. Does nothing without a refresher. |
 | `setFeedbackSubmitter(submitAsync)` | Set the submitter to use when `feedback.submitAsync` is not configured. For a thread layer. |
@@ -1015,7 +1034,7 @@ The kit records these keys in the `metadata` of an assistant message:
 | `serverId` | The server's id for the message, from `xh.chat.message` or `RUN_FINISHED`. Also set on a user message. |
 | `detached` | True on a reply left running on the server by `detach()`, `clear()` or `loadMessages()`, in server mode. |
 | `undone` | True on a reply whose changes the user undid with `undoTurnAsync()`. |
-| `feedback` | The user's rating, as `{rating, comment?}`. |
+| `feedback` | The user's rating, as `{rating, comment?, reasons?}`. History usually restores the rating alone. |
 | `artifacts` | `ChatArtifact[]` that the reply's tools produced, for generative UI. Restored to `artifacts` with the history. |
 | `catalogVersion` | Version of the chat's catalog, on a reply that shows its UI. |
 
@@ -1154,6 +1173,7 @@ only when the host has it.
 | Member | Type | Description |
 |--------|------|-------------|
 | `messages` | `ChatMessage[]` | The conversation, oldest first. |
+| `threadId` | `string` | Optional. An open feedback form keeps its draft per thread for the session. |
 | `isBusy` | `boolean` | True while a reply is in progress. Edit, Regenerate and Undo wait while busy. |
 | `lastActivityAt`, `stallAfterMs` | `number` | Optional. Show a quiet reply as stalled - see [Display status](#display-status). |
 | `sendBlockedReason` | `string` | Optional. Why an edit cannot resend yet, or null. |
@@ -1163,10 +1183,12 @@ only when the host has it.
 | `editMessageAsync(id, text)` | `Promise<void>` | Optional. Shows Edit on user messages, and Edit Prompt on a failed reply. |
 | `regenerateAsync(id)` | `Promise<void>` | Optional. Shows Regenerate on the last reply. |
 | `canUndoTurn(id)`, `undoTurnAsync(id)` | - | Optional. Show Undo on a reply whose changes the user can undo. |
-| `canSubmitFeedback`, `feedback`, `submitFeedbackAsync(id, rating, comment)` | - | Optional. Show thumbs, and the comment form a rating asks for. |
-| `approveToolCallAsync(id, reason)`, `denyToolCallAsync(id, reason)` | `Promise<void>` | Optional. Show Approve and Deny on a call that waits for approval. |
+| `undoErrors` | `Record<string, Error>` | Optional. Why an undo failed, by message id. A rejected `undoTurnAsync()` shows the same way. |
+| `canSubmitFeedback`, `feedback`, `submitFeedbackAsync(id, rating, comment, reasons)` | - | Optional. Show thumbs, and the comment form a rating asks for. |
+| `feedbackErrors` | `Record<string, Error>` | Optional. Why feedback failed, by message id. A rejected `submitFeedbackAsync()` shows the same way. |
+| `approveToolCallAsync(id, reason)`, `denyToolCallAsync(id, reason)` | `Promise<void>` | Optional. Show Allow and Deny on a call that waits for approval. |
 | `stop()` | `() => void` | Optional. Escape stops the reply in progress. |
-| `composerModel` | `{focus()}` | Optional. Focused after an edit resends. |
+| `composerModel` | `{focus(), text?}` | Optional. Focused after an edit resends, and after Escape stops a reply. While `text` is empty, a new approval request takes focus from the conversation. |
 
 ### ChatSidePanelHost
 
@@ -1196,11 +1218,11 @@ Fields of `ChatKit.defaults`. See `ChatKit.ts`.
 | `stallAfterMs` | `number` | Milliseconds with no data from the server before a reply shows as stalled. `ChatModelConfig.stallAfterMs` overrides it. Default 30,000. |
 | `announceSteps` | `'none' \| 'failures' \| 'all'` | Which steps of a reply the announcer reads, besides the finished reply. Default `failures`. |
 | `drafts` | `'local' \| 'memory'` | Where the composer keeps its unsent draft text: local storage, per thread, or memory only. Default `local`. See [Keep drafts](#keep-drafts). |
-| `shortcuts` | `ChatShortcuts` | Key combos in the format of Hoist's `useHotkeys`, by action: `newChat`, `toggleDock`, `openHelper`, `focusComposer`, `cycleRegions` and `toggleSidebar`. Null drops a shortcut. |
+| `shortcuts` | `ChatShortcuts` | Key combos in the format of Hoist's `useHotkeys`, by action: `newChat`, `toggleDock`, `openHelper`, `focusComposer`, `cycleRegions` and `toggleSidebar`. Null drops a shortcut. See [Keyboard](../desktop/cmp/chat/README.md#keyboard). |
 
 The kit reads `announceSteps`, `drafts` and `shortcuts` from the components that use them. The
-timeline and the keyboard map are still to come, so `announceSteps` and `shortcuts` have no
-effect yet.
+timeline is still to come, so `announceSteps` has no effect yet. Set `shortcuts` before the chat
+components render.
 
 `ChatKit.clearLocalData()` removes everything the kit keeps in local storage for the current
 user, such as drafts. Call it from your logout.

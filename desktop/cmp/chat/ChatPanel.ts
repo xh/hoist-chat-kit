@@ -15,6 +15,7 @@ import './ChatPanel.scss';
 import {chatStatusRegion} from './ChatStatusRegion';
 import {type ChatSuggestion, chatSuggestions} from './ChatSuggestions';
 import {refuseFileDrop} from './impl/FileDrop';
+import {getChatHotkeys} from './impl/ChatShortcuts';
 
 /** Props for {@link ChatPanel}. */
 export interface ChatPanelProps
@@ -80,6 +81,9 @@ export interface ChatPanelProps
  * send moves the composer to the bottom in one frame, with no animation, and focus stays in it.
  * Pass `emptyState` to show other content in the list instead, with the composer at the bottom.
  *
+ * With focus in the panel, outside a text field, `/` focuses the composer - see
+ * `ChatKit.defaults.shortcuts`.
+ *
  * The quickest way to put a {@link ChatModel} on screen. Accepts all Panel props - `title`,
  * `icon`, `headerItems`, `tbar`, `compactHeader` and so on - for the surrounding chrome. For a
  * custom layout, compose a {@link ChatMessageList} and a {@link ChatComposer} directly.
@@ -106,6 +110,7 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
             composerProps,
             messageListProps,
             testId,
+            hotkeys,
             ...rest
         } = props;
 
@@ -115,6 +120,10 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
             ref,
             testId,
             className: classNames(className, {'xh-chat-panel--empty': isCentered}),
+            hotkeys: [
+                ...getChatHotkeys({focusComposer: () => model.composerModel.focus()}),
+                ...(hotkeys ?? [])
+            ],
             ...rest,
             items: [
                 isCentered

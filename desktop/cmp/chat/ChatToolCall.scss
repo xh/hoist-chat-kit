@@ -142,18 +142,35 @@
     width: 22px;
   }
 
+  // The decision a call waits for, inside its attention-color frame: the prompt, then Allow, Deny
+  // and the optional reason, affirmative first, left-aligned as in a form.
   &__approval {
-    align-items: center;
     border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: var(--xh-pad-half-px);
-    padding: var(--xh-pad-half-px) var(--xh-pad-px);
+    padding: var(--xh-pad-half-px) var(--xh-pad-px) var(--xh-pad-px);
   }
 
   &__approval-text {
-    flex: 1;
-    min-width: 120px;
+    min-width: 0;
+  }
+
+  &__approval-bar {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--xh-pad-half-px);
+  }
+
+  @include hoist-button(null, '.xh-chat-tool-call__approval-bar') {
+    min-height: 24px;
+  }
+
+  &__reason {
+    flex: 1 1 160px;
+    max-width: 320px;
+    min-width: 0;
   }
 
   &__preview {

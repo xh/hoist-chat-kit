@@ -159,6 +159,36 @@ stops reads "Reply stopped." History loaded into the list is never announced. Wh
 several lists, only the first fills its regions. See
 [Announce to screen readers](../../../core/README.md#announce-to-screen-readers).
 
+### Keyboard
+
+The kit's shortcuts come from `ChatKit.defaults.shortcuts`, in the combo format of Hoist's
+`useHotkeys`. Remap an action, or set it to null to drop it, before the chat renders. Browsers
+bind some of these keys, so test the defaults in the browsers your users run.
+
+```typescript
+// In the app's AppModel or Bootstrap.ts.
+ChatKit.defaults.shortcuts.newChat = 'alt+n';
+ChatKit.defaults.shortcuts.toggleSidebar = 'mod+b';
+```
+
+| Action | Default | Where | Does |
+|---|---|---|---|
+| `newChat` | `mod+shift+o` | Focus in a workspace | Starts a new chat, and focuses its composer. |
+| `focusComposer` | `/` | Focus in a `ChatPanel` or workspace, outside a text field | Focuses the composer. |
+| `cycleRegions` | `f6`, with Shift to go back | Focus in a workspace | Moves focus through the thread list, the conversation, the composer and the side panel. |
+| `toggleSidebar` | null | Focus in a workspace | Collapses or expands the thread sidebar. |
+| `toggleDock` | `ctrl+.` | Page-wide, while a dock exists | Reserved for the dock, which is still to come. |
+| `openHelper` | `mod+i` | Focus in a component with a helper | Reserved for component helpers, which are still to come. |
+
+`mod` is Cmd on a Mac and Ctrl elsewhere. No shortcut ever approves, applies or deletes.
+
+Escape does one thing per press, in the region with focus:
+
+1. A popup closes, such as a popover or a citation card.
+2. Else the side panel closes, with focus there, and focus moves to the composer.
+3. Else an inline edit or a feedback form cancels.
+4. Else a reply in progress stops, with focus in the conversation or the composer.
+
 ### Citations
 
 A text part's citations show as numbered markers at the end of its last paragraph or list item. A
@@ -436,11 +466,67 @@ composer stays at the bottom.
 
 ### Collect feedback
 
-Each reply shows thumbs up and down once its turn ends, if the chat can submit feedback - see
-`ChatModelConfig.feedback`. An up rating saves on click, and a click on the chosen thumb clears
-it. A rating that asks for a comment, per `feedback.commentOn`, opens a comment form under the
-action bar. With `feedback.requireComment`, the rating saves only with its comment. Without it,
-the rating saves at once and the comment follows. A failed reply shows no thumbs.
+Each reply shows thumbs up and down once its turn ends, if the chat can submit feedback. Set the
+rules in `ChatModelConfig.feedback` - see
+[Rate a reply](../../../core/README.md#rate-a-reply). A failed reply shows no thumbs.
+
+```typescript
+// A backend that rejects a down vote without a comment, and cannot clear a rating.
+new ChatModel({
+    transport,
+    feedback: {
+        submitAsync: spec => XH.postJson({url: 'chat/feedback', body: spec}),
+        requireComment: true,
+        reasons: ['Wrong data', 'Wrong math', 'Incomplete', 'Not helpful'],
+        clearable: false
+    }
+});
+```
+
+A rating outside `commentOn` saves on click and shows "Thanks" for 3 s. An "Add a comment" link
+then stays until the next send, and opens an optional form. A rating in `commentOn` opens the
+comment form inline, under the action bar, with focus in the comment. The form never opens in a
+popover, so an outside click cannot lose the comment.
+
+| Config | A rating in `commentOn` |
+|---|---|
+| `requireComment: true` | Saves nothing until the user sends a non-blank comment. The thumb shows pressed meanwhile. Reasons are optional and never count as a comment. Cancel or Escape restores the earlier rating. |
+| `requireComment: false` | Saves at once, and opens an optional form. The comment and reasons follow as an update. Cancel or Escape keeps the rating. |
+
+Reasons show as toggles on a negative rating only. In the form, Enter adds a new line, and
+Ctrl/Cmd+Enter sends. A counter shows from 90% of `maxCommentLength`. While the form sends, the
+thumbs and the form disable, and Cancel goes, as the request is already on its way.
+
+Failures show inline, never as a toast. A rating that fails to save un-presses, and "Couldn't save
+rating" shows beside the thumbs for 8 s, with Retry. A form that fails to send keeps the comment,
+with Retry. A server that refuses the comment itself, with a 400, 413 or 422 status, has its
+reason shown under the field, with no Retry, as resending the same comment cannot work. After a
+send, the form closes and focus returns to the thumb.
+
+One form is open per thread. A thumb on another reply closes an empty form, but waits while the
+open form has a draft. The draft survives a scroll, and a switch to another thread and back, for
+the session. Regenerate closes the form of the reply it replaces.
+
+After a reload, the chosen thumb shows alone, from `metadata.feedback`. The comment and reasons do
+not come back, so the reply shows no comment mark. The announcer reads "Feedback sent." on a save,
+and reads a failure at once.
+
+### Approve a tool call
+
+A call that waits for approval frames its row in the attention color and shows the approval
+panel: the prompt, from the tool's `approvalPrompt`, and any `preview`. Below them sit Allow,
+Deny and an optional reason, which goes to the agent with either decision. Allow comes first, as
+in a form. Enter in the reason sends nothing, and no shortcut ever allows a call.
+
+When a request arrives, focus moves to Allow only if focus was in the conversation and the
+composer is empty. A user who is typing keeps the keyboard.
+
+### Undo a reply's changes
+
+Undo shows in the action bar of the reply whose changes the user can undo - see
+`ChatModel.canUndoTurn()`. While the undo runs, the button shows a spinner. A failed undo shows
+under the reply with its cause and Retry, never as a toast, while the reply can still be undone.
+Once undone, the reply notes "Changes undone." There is no Redo: the user can ask again.
 
 ### Add message actions, such as feedback
 
@@ -729,7 +815,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 
 Each message is a focusable `article`, named for its author and time. With a message focused, Up
 and Down move to the one before or after. Escape stops a reply in progress while focus is in the
-list, if the host has `stop()`.
+list, if the host has `stop()`, then focuses the composer. See [Keyboard](#keyboard).
 
 ### ChatComposer
 

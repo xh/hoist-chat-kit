@@ -120,14 +120,16 @@ export class ChatMessageListLocalModel extends HoistModel {
         if (idx >= 0) this.setEditingId(messages[idx].id);
     };
 
-    // Escape stops a reply in progress, unless an element within took the key - such as an edit
-    // box, which cancels. With a message focused, Up and Down move to the one before or after.
+    // Escape stops a reply in progress, unless an element within took the key - a popup, an edit
+    // box or a feedback form, which close or cancel instead. Focus then goes to the composer, as
+    // after a click on Stop. With a message focused, Up and Down move to the one before or after.
     onKeyDown = (e: KeyboardEvent) => {
         if (e.defaultPrevented) return;
         const {host} = this;
         if (e.key === 'Escape' && host.isBusy && host.stop) {
             e.preventDefault();
             host.stop();
+            host.composerModel?.focus();
             return;
         }
 

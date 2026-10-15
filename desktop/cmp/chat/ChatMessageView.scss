@@ -341,7 +341,8 @@
   &:focus-within &__actions > *,
   &--assistant.xh-chat-message--last &__actions > *,
   &--feedback-open &__actions > *,
-  &__actions > .xh-chat-message__thumb--chosen {
+  &__actions > .xh-chat-message__thumb--chosen,
+  &__actions > .xh-chat-message__feedback-status {
     opacity: 1;
   }
 
@@ -374,15 +375,77 @@
   }
 
   // A Button in a meta-size strip takes the strip's size, so its label and the text read as one.
-  @include hoist-button(null, ':is(.xh-chat-message__failed, .xh-chat-message__not-sent)') {
+  @include hoist-button(
+    null,
+    ':is(.xh-chat-message__failed, .xh-chat-message__not-sent, .xh-chat-message__undo-failed, .xh-chat-message__feedback-status)'
+  ) {
     font-size: inherit;
     min-height: 24px;
+  }
+
+  // What follows the thumbs: "Thanks", a failed save with Retry, the comment sent and "Add a
+  // comment". Always shown, as the chosen thumb is.
+  &__feedback-status {
+    align-items: center;
+    color: var(--xh-chat-meta-text-color);
+    display: inline-flex;
+    font-size: var(--xh-chat-meta-font-size);
+    gap: var(--xh-chat-status-cue-gap);
+    margin-left: var(--xh-pad-half-px);
+    white-space: nowrap;
+
+    &--failed {
+      color: var(--xh-chat-error-color);
+    }
+  }
+
+  &__feedback-thanks,
+  &__feedback-note {
+    align-items: center;
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  &__feedback-thanks .xh-icon {
+    color: var(--xh-chat-success-color);
+  }
+
+  @include hoist-button('.xh-chat-message__feedback-link', '.xh-chat-message__actions') {
+    --xh-button-text-color: var(--xh-intent-primary-text-color);
+
+    padding: 0 2px;
+  }
+
+  //------------------------
+  // Under the reply
+  //------------------------
+  // Below the action bar, which keeps its gap above: a failed undo, then the feedback form.
+  &__after {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-pad-half-px);
+    margin-top: var(--xh-chat-turn-gap);
+  }
+
+  &__undo-failed {
+    align-items: center;
+    color: var(--xh-chat-error-color);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: var(--xh-chat-meta-font-size);
+    gap: var(--xh-chat-status-cue-gap);
+    min-height: 24px;
+  }
+
+  &__undo-failed-cause {
+    color: var(--xh-chat-meta-text-color);
   }
 
   //------------------------
   // Feedback form
   //------------------------
-  // Inline under the action bar, which stays in its gap above the form.
+  // Inline under the action bar - never a popover, so an outside click cannot lose the comment.
+  // Full width below its max width, as when docked at 380 px.
   &__feedback {
     background-color: var(--xh-chat-bg);
     border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
@@ -390,8 +453,7 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: var(--xh-pad-half-px);
-    margin-top: var(--xh-chat-turn-gap);
+    gap: var(--xh-pad-px);
     max-width: var(--xh-chat-feedback-max-width);
     padding: var(--xh-pad-px);
 
@@ -416,10 +478,46 @@
     font-weight: 400;
   }
 
-  &__feedback-bar {
+  // Reasons wrap at narrow widths.
+  &__feedback-reasons {
     display: flex;
+    flex-wrap: wrap;
     gap: var(--xh-pad-half-px);
-    justify-content: flex-end;
+  }
+
+  @include hoist-button('.xh-chat-message__feedback-reason') {
+    min-height: 24px;
+    padding: 0 6px;
+  }
+
+  &__feedback-error {
+    align-items: center;
+    color: var(--xh-chat-error-color);
+    display: flex;
+    font-size: var(--xh-chat-meta-font-size);
+    gap: var(--xh-chat-status-cue-gap);
+  }
+
+  // Affirmative first, left-aligned like a form, with the hint or counter at the right.
+  &__feedback-bar {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--xh-pad-half-px);
+  }
+
+  // Wraps Send, to hold focus while Send is disabled mid-flight.
+  &__feedback-send {
+    align-items: center;
+    display: inline-flex;
+    gap: var(--xh-pad-half-px);
+    outline: none;
+  }
+
+  &__feedback-tip {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+    margin-left: auto;
   }
 }
 

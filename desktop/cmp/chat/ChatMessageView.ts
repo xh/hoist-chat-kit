@@ -7,7 +7,7 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {textArea} from '@xh/hoist/desktop/cmp/input';
 import {fmtDateTime} from '@xh/hoist/format';
 import {Icon} from '@xh/hoist/icon';
-import {action, bindable, observable} from '@xh/hoist/mobx';
+import {action, bindable, observable, observableRef} from '@xh/hoist/mobx';
 import {pluralize} from '@xh/hoist/utils/js';
 import {createObservableRef, useCached} from '@xh/hoist/utils/react';
 import {
@@ -18,9 +18,9 @@ import {
     chatMarkdown
 } from '../../../cmp/markdown';
 import {
+    chatAnnouncer,
     type ChatCitation,
     type ChatDataPart,
-    type ChatFeedbackRating,
     type ChatFilePart,
     ChatKit,
     CHAT_NO_ANSWER_DATA_TYPE,
@@ -54,7 +54,12 @@ import {
     toSourceList
 } from './impl/ChatCitations';
 import {chatCopyButton} from './impl/ChatCopyButton';
-import {chatCaret} from './impl/ChatLiveCues';
+import {
+    chatFeedbackForm,
+    ChatMessageFeedbackModel,
+    feedbackThumbs
+} from './impl/ChatFeedbackControls';
+import {chatCaret, chatSpinner} from './impl/ChatLiveCues';
 import {chatReplyLiveStatus} from './impl/ChatReplyLiveStatus';
 import {chatErrorBoundary} from './impl/ChatErrorBoundary';
 import {formatElapsed} from './impl/ChatFormat';
@@ -228,6 +233,7 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
             onSourceClick: onSourceClick ? source => onSourceClick(source, context) : null,
             allowImages
         });
+        impl.feedback.configure(message, host);
 
         // A turn that was never sent shows as "Not sent" on its user message alone.
         if (isReplyNotSent(message)) return null;
@@ -239,7 +245,7 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
                 'xh-chat-message--streaming': message.isStreaming,
                 'xh-chat-message--last': isLast,
                 'xh-chat-message--editing': impl.isEditing,
-                'xh-chat-message--feedback-open': impl.feedbackRating != null
+                'xh-chat-message--feedback-open': impl.feedback.form != null
             }),
             role: isSystem ? 'note' : 'article',
             tabIndex: isSystem ? undefined : isLast ? 0 : -1,
@@ -265,16 +271,20 @@ class ChatMessageViewLocalModel extends HoistModel {
     @bindable accessor draft: string = '';
     @observable accessor localEditing = false;
 
-    /** The rating whose comment form is open, or null. (observable) */
-    @observable accessor feedbackRating: ChatFeedbackRating = null;
-    @bindable accessor feedbackComment: string = '';
-    @observable accessor isFeedbackSubmitting = false;
+    /** True while this view's undo of the reply's changes runs. (observable) */
+    @observable accessor isUndoing = false;
+
+    /** Why the last undo failed, if the host's promise rejected. (observable) */
+    @observableRef accessor undoRejection: Error = null;
 
     /** The side panel in reach, which shows the documents the message cites - or null. */
     sidePanel: ChatSidePanelHost = null;
 
     /** How the message's citations and sources list open their sources. */
     @managed readonly sourceLinks = new ChatSourceLinks();
+
+    /** The message's thumbs and comment form. */
+    @managed readonly feedback = new ChatMessageFeedbackModel();
 
     readonly inputRef = createObservableRef<HTMLInputElement>();
     readonly editButtonRef = createObservableRef<HTMLElement>();
@@ -346,110 +356,52 @@ class ChatMessageViewLocalModel extends HoistModel {
     };
 
     //------------------
-    // Feedback
+    // Undo
     //------------------
-    /** True if the user can rate the message now. */
-    get canRate(): boolean {
+    /** True if the user can undo the reply's changes now. */
+    // TODO(P7): retire Undo, and say why, once the user changes the component by hand - the
+    // helper's `isChangedSince` hook on its tool group. No such hook exists yet.
+    get canUndo(): boolean {
         const {message, host} = this.props;
-        return (
-            !!host.canSubmitFeedback &&
-            !!host.submitFeedbackAsync &&
-            message.isAssistant &&
-            !message.isStreaming &&
-            message.status !== 'paused' &&
-            message.status !== 'error'
-        );
-    }
-
-    /** The rating shown as chosen - a rating whose form is open, else the saved one. */
-    get shownRating(): ChatFeedbackRating {
-        return this.feedbackRating ?? this.props.message.metadata.feedback?.rating ?? null;
-    }
-
-    /** True if a comment is required to save the open form's rating. */
-    get isCommentRequired(): boolean {
-        const {feedbackRating} = this;
-        return feedbackRating != null && this.asksComment(feedbackRating) && this.requiresComment;
+        return !!host.undoTurnAsync && !!host.canUndoTurn?.(message.id);
     }
 
     /**
-     * Rate the message, or clear its rating with a click on the chosen thumb. A rating that asks
-     * for a comment opens the comment form. One that requires a comment saves only with it - the
-     * rest save at once, and the comment follows.
+     * Why the last undo failed, while the reply can still be undone - so that Retry can work -
+     * or null.
      */
-    async rateAsync(rating: ChatFeedbackRating) {
-        if (this.isFeedbackSubmitting) return;
-        if (this.shownRating === rating) {
-            const wasPending = this.feedbackRating != null && this.isCommentRequired;
-            this.closeFeedback();
-            if (!wasPending) await this.submitFeedbackAsync(null);
-            return;
-        }
-
-        if (!this.asksComment(rating)) {
-            this.closeFeedback();
-            await this.submitFeedbackAsync(rating);
-            return;
-        }
-
-        this.openFeedback(rating);
-        if (!this.requiresComment) await this.submitFeedbackAsync(rating);
+    get undoError(): Error {
+        const {message, host} = this.props;
+        if (this.isUndoing || !this.canUndo) return null;
+        return host.undoErrors?.[message.id] ?? this.undoRejection;
     }
 
-    async sendFeedbackAsync() {
-        const {feedbackRating, feedbackComment} = this;
-        if (feedbackRating == null || !feedbackComment.trim()) return;
-        await this.submitFeedbackAsync(feedbackRating, feedbackComment);
-        this.closeFeedback();
-    }
-
-    onFeedbackKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-            e.preventDefault();
-            this.closeFeedback();
-        } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            this.sendFeedbackAsync();
+    /** Undo the reply's changes. A failure shows inline, with Retry - never as a toast. */
+    async undoAsync() {
+        const {message, host} = this.props;
+        if (this.isUndoing || !this.canUndo) return;
+        this.setUndoState(true, null);
+        let rejection: Error = null;
+        try {
+            await host.undoTurnAsync(message.id);
+        } catch (e) {
+            rejection = e;
         }
-    };
+        this.setUndoState(false, rejection);
+        if (rejection ?? host.undoErrors?.[message.id]) {
+            chatAnnouncer.announce('Change not undone.', 'assertive');
+        } else {
+            chatAnnouncer.announce('Change undone.');
+        }
+    }
 
     @action
-    closeFeedback() {
-        this.feedbackRating = null;
-        this.feedbackComment = '';
+    private setUndoState(isUndoing: boolean, rejection: Error) {
+        this.isUndoing = isUndoing;
+        this.undoRejection = rejection;
     }
 
     private isFocusPending = false;
-
-    private get requiresComment(): boolean {
-        return !!this.props.host.feedback?.requireComment;
-    }
-
-    private asksComment(rating: ChatFeedbackRating): boolean {
-        const commentOn = this.props.host.feedback?.commentOn ?? 'negative';
-        return commentOn === 'both' || commentOn === rating;
-    }
-
-    private async submitFeedbackAsync(rating: ChatFeedbackRating, comment?: string) {
-        const {message, host} = this.props;
-        this.setFeedbackSubmitting(true);
-        try {
-            await host.submitFeedbackAsync(message.id, rating, comment);
-        } finally {
-            this.setFeedbackSubmitting(false);
-        }
-    }
-
-    @action
-    private openFeedback(rating: ChatFeedbackRating) {
-        this.feedbackRating = rating;
-        this.feedbackComment = '';
-    }
-
-    @action
-    private setFeedbackSubmitting(isSubmitting: boolean) {
-        this.isFeedbackSubmitting = isSubmitting;
-    }
 
     @action
     private setEditing(isEditing: boolean) {
@@ -694,7 +646,7 @@ function assistantContent(
                       })
             ]
         }),
-        impl.feedbackRating != null ? feedbackForm({key: 'feedback', impl}) : null
+        afterReply(props, impl)
     ];
 }
 
@@ -1094,6 +1046,14 @@ function replyNotice(props: ViewProps): ReactNode {
             return notice(null, chatStatusCue({status}));
     }
 
+    // No Redo: the user can ask again.
+    if (message.metadata.undone) {
+        return notice('xh-chat-message__notice--undone', [
+            Icon.undo({key: 'icon'}),
+            span({key: 'text', item: 'Changes undone.'})
+        ]);
+    }
+
     if (message.metadata.finishReason === 'length') {
         return notice('xh-chat-message__notice--warning', [
             Icon.warning({key: 'icon'}),
@@ -1146,7 +1106,7 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
                 !isFailed &&
                 !isNoAnswer &&
                 !!host.regenerateAsync,
-            canUndo = !!host.undoTurnAsync && !!host.canUndoTurn?.(message.id),
+            {canUndo, isUndoing} = impl,
             canEdit = isUser && !!host.editMessageAsync,
             appActions = extraActions?.(message, context) ?? [],
             primary = [
@@ -1176,20 +1136,27 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
                           icon: Icon.refresh(),
                           tooltip: 'Regenerate',
                           'aria-label': 'Regenerate',
-                          onClick: () => host.regenerateAsync(message.id).catchDefault()
+                          onClick: () => {
+                              // The reply goes, and a pending rating of it with it.
+                              impl.feedback.discardForm();
+                              host.regenerateAsync(message.id).catchDefault();
+                          }
                       })
                     : null,
-                canUndo
+                canUndo || isUndoing
                     ? button({
                           key: 'undo',
-                          icon: Icon.undo(),
+                          icon: isUndoing ? chatSpinner() : Icon.undo(),
                           tooltip: 'Undo changes',
                           'aria-label': 'Undo changes',
-                          onClick: () => host.undoTurnAsync(message.id).catchDefault()
+                          disabled: isUndoing,
+                          onClick: () => impl.undoAsync()
                       })
                     : null
             ].filter(it => it),
-            thumbs = impl.canRate ? feedbackThumbs(impl, isNoAnswer) : [],
+            thumbs = impl.feedback.canRate
+                ? feedbackThumbs(impl.feedback, isNoAnswer).filter(it => it)
+                : [],
             groups = [primary, thumbs, appActions].filter(it => it.length);
 
         if (!groups.length) return null;
@@ -1215,105 +1182,37 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
 });
 
 /**
- * Thumbs up and down, as toggle buttons. A chosen thumb stays shown while the bar hides. A fixed
- * "not found" reply keeps only the thumbs down, which says the answer is in the documents.
+ * What shows under a reply, below its action bar: a failed undo of its changes, with Retry, and the
+ * open feedback form.
  */
-function feedbackThumbs(impl: ChatMessageViewLocalModel, isNoAnswer: boolean): ReactNode[] {
-    const {shownRating, isFeedbackSubmitting} = impl,
-        thumb = (rating: ChatFeedbackRating, label: string, icon: ReactElement) => {
-            const isChosen = shownRating === rating;
-            return button({
-                key: rating,
-                className: classNames('xh-chat-message__thumb', {
-                    'xh-chat-message__thumb--chosen': isChosen
-                }),
-                icon,
-                tooltip: label,
-                'aria-label': label,
-                'aria-pressed': isChosen,
-                disabled: isFeedbackSubmitting,
-                onClick: () => impl.rateAsync(rating)
-            });
-        };
-    if (isNoAnswer) {
-        return [
-            thumb('negative', 'It is in these documents', Icon.thumbsDown()),
-            span({
-                key: 'hint',
-                className: 'xh-chat-message__thumb-hint',
-                item: 'Thumbs down here means "it is in these documents"'
-            })
-        ];
-    }
-    return [
-        thumb('positive', 'Good response', Icon.thumbsUp()),
-        thumb('negative', 'Bad response', Icon.thumbsDown())
-    ];
+function afterReply(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNode {
+    const {undoError, feedback} = impl,
+        undoFailure = undoError
+            ? div({
+                  key: 'undoFailed',
+                  className: 'xh-chat-message__undo-failed',
+                  items: [
+                      Icon.error({className: 'xh-chat-message__undo-failed-icon'}),
+                      span({
+                          className: 'xh-chat-message__undo-failed-text',
+                          item: "Couldn't undo the changes."
+                      }),
+                      undoError.message
+                          ? span({
+                                className: 'xh-chat-message__undo-failed-cause',
+                                item: undoError.message
+                            })
+                          : null,
+                      button({
+                          icon: Icon.refresh(),
+                          text: 'Retry',
+                          onClick: () => impl.undoAsync()
+                      })
+                  ]
+              })
+            : null,
+        form = feedback.form ? chatFeedbackForm({key: 'feedback', model: feedback}) : null;
+
+    if (!undoFailure && !form) return null;
+    return div({key: 'after', className: 'xh-chat-message__after', items: [undoFailure, form]});
 }
-
-interface FeedbackFormProps extends HoistProps {
-    impl: ChatMessageViewLocalModel;
-}
-
-/**
- * The comment form for a rating, inline under the action bar. A required comment must be
- * non-blank before Send Feedback enables.
- */
-const feedbackForm = hoistCmp.factory<FeedbackFormProps>({
-    displayName: 'ChatFeedbackForm',
-    model: false,
-
-    render({impl}) {
-        const {feedbackRating, feedbackComment, isFeedbackSubmitting, isCommentRequired} = impl,
-            heading = feedbackRating === 'negative' ? 'What went wrong?' : 'What worked?',
-            isBlank = !feedbackComment.trim();
-
-        return div({
-            className: 'xh-chat-message__feedback',
-            role: 'group',
-            'aria-label': heading,
-            items: [
-                div({
-                    className: 'xh-chat-message__feedback-heading',
-                    items: [
-                        heading,
-                        span({
-                            className: 'xh-chat-message__feedback-hint',
-                            item: isCommentRequired ? 'Comment required' : 'Optional'
-                        })
-                    ]
-                }),
-                textArea({
-                    model: impl,
-                    bind: 'feedbackComment',
-                    commitOnChange: true,
-                    autoFocus: true,
-                    width: null,
-                    height: null,
-                    disabled: isFeedbackSubmitting,
-                    placeholder: isCommentRequired ? 'Add detail' : 'Add detail (optional)',
-                    domAttrs: {'aria-label': heading},
-                    onKeyDown: impl.onFeedbackKeyDown
-                }),
-                div({
-                    className: 'xh-chat-message__feedback-bar',
-                    items: [
-                        button({
-                            text: 'Cancel',
-                            disabled: isFeedbackSubmitting,
-                            onClick: () => impl.closeFeedback()
-                        }),
-                        button({
-                            text: isCommentRequired ? 'Send Feedback' : 'Send Comment',
-                            intent: 'primary',
-                            minimal: false,
-                            tooltip: isBlank ? 'Add a comment to send' : null,
-                            disabled: isBlank || isFeedbackSubmitting,
-                            onClick: () => impl.sendFeedbackAsync()
-                        })
-                    ]
-                })
-            ]
-        });
-    }
-});

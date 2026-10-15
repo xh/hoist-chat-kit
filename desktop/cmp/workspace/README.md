@@ -35,6 +35,9 @@ Key features:
   where there is room, and the chat turns compact at 380 px or less.
 - **Persistence** - the sidebar's width and collapsed state, and the side panel's width, persist
   per user through `persistWith`.
+- **Keyboard** - Ctrl/Cmd+Shift+O starts a new chat, `/` focuses the composer, and F6 moves
+  between regions. Escape in the side panel closes it. See
+  [Keyboard](../chat/README.md#keyboard).
 
 ## Architecture
 
@@ -216,7 +219,9 @@ document opens at its URL in a new tab, with a toast.
 ### Landmarks
 
 The sidebar and the rail are a `navigation` landmark named "Threads". The conversation column is
-`main`, and the side panel is `complementary`, named by its title.
+`main`, and the side panel is `complementary`, named by its title. F6 and Shift+F6 move focus
+through the thread list, the conversation, the composer and the side panel. New Chat, by button
+or shortcut, focuses the new chat's composer.
 
 ## Extension Points
 

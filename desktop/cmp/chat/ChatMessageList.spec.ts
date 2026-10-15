@@ -291,7 +291,7 @@ describe('ChatMessageList', () => {
                 {rerender} = renderList(chatModel);
 
             expect(screen.queryByText('Chart body')).toBeNull();
-            expect(screen.getByRole('button', {name: 'Approve'})).toBeTruthy();
+            expect(screen.getByRole('button', {name: 'Allow'})).toBeTruthy();
 
             const trueModel = createModel({tools: [{...tool, preview: true}]}, [
                 {...reply([approval]), status: 'paused'}
@@ -379,7 +379,7 @@ describe('ChatMessageList', () => {
 
         expect(screen.getByText('Sell 2,000 shares in Tokyo?')).toBeTruthy();
         expect(screen.queryByText('Allow this action to run?')).toBeNull();
-        expect(screen.getByRole('button', {name: 'Approve'})).toBeTruthy();
+        expect(screen.getByRole('button', {name: 'Allow'})).toBeTruthy();
     });
 
     it('places citation chips at the end of the last paragraph, not after a code block', () => {

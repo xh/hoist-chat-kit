@@ -84,6 +84,21 @@ describe('ChatPanel', () => {
         expect(screen.getByText('Nothing here yet')).toBeTruthy();
     });
 
+    it('focuses the composer on / from a message, and keeps any app hotkeys', async () => {
+        const chatModel = createModel(),
+            onKeyDown = vi.fn();
+        await chatModel.sendAsync('Hello');
+        renderPanel(chatModel, {hotkeys: [{combo: 'alt+k', label: 'App key', onKeyDown}]});
+        const message = screen.getAllByRole('article').at(-1);
+        message.focus();
+
+        fireEvent.keyDown(message, {key: '/'});
+        expect(document.activeElement).toBe(input());
+
+        fireEvent.keyDown(message, {key: 'k', altKey: true});
+        expect(onKeyDown).toHaveBeenCalledOnce();
+    });
+
     it('shows the status region above the composer', async () => {
         const chatModel = createModel([errorEvents('Model timed out.')]);
         await chatModel.sendAsync('Hi');

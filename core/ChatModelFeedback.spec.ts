@@ -36,7 +36,8 @@ describe('ChatModel feedback and paged history', () => {
                 serverId: 'srv-a1',
                 runId: 'run-a1',
                 rating: 'negative',
-                comment: 'Out of date.'
+                comment: 'Out of date.',
+                reasons: null
             } satisfies ChatFeedbackSpec);
         });
 
@@ -108,6 +109,46 @@ describe('ChatModel feedback and paged history', () => {
             expect(submitAsync).toHaveBeenCalledWith(
                 expect.objectContaining({rating: null, comment: null})
             );
+        });
+
+        it('sends and records the reasons the user picked, and null for none', async () => {
+            const submitAsync = vi.fn(async () => {}),
+                model = createModel({
+                    feedback: {submitAsync, reasons: ['Wrong data', 'Incomplete']}
+                });
+
+            await model.submitFeedbackAsync('a1', 'negative', 'Old limits.', ['Wrong data']);
+            expect(submitAsync).toHaveBeenLastCalledWith(
+                expect.objectContaining({comment: 'Old limits.', reasons: ['Wrong data']})
+            );
+            expect(model.getMessage('a1').metadata.feedback).toEqual({
+                rating: 'negative',
+                comment: 'Old limits.',
+                reasons: ['Wrong data']
+            });
+
+            await model.submitFeedbackAsync('a1', 'positive', null, []);
+            expect(submitAsync).toHaveBeenLastCalledWith(
+                expect.objectContaining({rating: 'positive', reasons: null})
+            );
+            expect(model.getMessage('a1').metadata.feedback).toEqual({rating: 'positive'});
+        });
+
+        it('takes reasons alone as no comment, where a comment is required', async () => {
+            const model = createModel({
+                feedback: {submitAsync: async () => {}, requireComment: true, reasons: ['Other']}
+            });
+
+            await expect(
+                model.submitFeedbackAsync('a1', 'negative', null, ['Other'])
+            ).rejects.toThrow('comment is required');
+        });
+
+        it('refuses to clear a rating when the backend cannot remove one', async () => {
+            const model = createModel({feedback: {submitAsync: async () => {}, clearable: false}});
+
+            await expect(model.submitFeedbackAsync('a1', null)).rejects.toThrow('cannot clear');
+            expect(model.getMessage('a1').metadata.feedback).toEqual({rating: 'positive'});
         });
 
         it('uses the submitter a thread layer supplies when none is configured', async () => {
