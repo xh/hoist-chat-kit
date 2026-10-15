@@ -1193,8 +1193,9 @@ interfaces come out as follows.
 - `ChatComposerHost` stays, trimmed to `isBusy`, `sendAsync`, `messages` and
   `sendBlockedReason`. A prompt box that sends elsewhere, such as an app's "Ask the assistant"
   search, is a real second implementer.
-- `ChatThreadListHost` stays. An inbox-like list that is not a `ChatThreadsModel` is plausible,
-  and the README shows one.
+- `ChatThreadListHost` stays by judgment, not by the test. `ChatThreadsModel` is its only
+  implementer today. An inbox-like list over the app's own threads is a likely second, and the
+  interface is cheap to keep. Revisit it if none appears.
 - `ChatSidePanelHost` stays. It is a request-dispatch seam that a workspace or an app's own panel
   can implement.
 - `ChatMessageListHost` gives way to `ChatTranscript`: `messages`, `dataRenderers` and `catalog`.
@@ -1213,7 +1214,8 @@ else implements costs its readers and buys no reuse.
 **Next.** `ChatModel` has about 1,960 lines and 87 public members. Split it into managed
 sub-models - feedback, undo, the server-mode run lifecycle and thread binding - that components
 bind with `uses()`, the way `GridModel` composes its parts. That gives the layers real seams
-without more host interfaces.
+without more host interfaces. It is a large refactor that the first integration does not need,
+so it waits until that integration ships, unless the integration shows a concrete need first.
 
 **Alternatives.** Keep `ChatMessageListHost` for symmetry with the other hosts. It would keep the
 guards, and the optional members no app implements.

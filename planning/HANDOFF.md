@@ -19,7 +19,7 @@ names in `DECISIONS.md`.
 - `ChatMessageListHost` is gone. The list and view take a read-only `ChatTranscript` or a `ChatModel`, and `isChatModel()` gates every action.
 - `ChatComposerHost` is trimmed to `isBusy`, `sendAsync`, `messages` and `sendBlockedReason`. Stop, drafts per thread and the status region need a `ChatModel`.
 - `ChatThreadListHost` and `ChatSidePanelHost` stay as they were. `createChatRunRequest()` and `ChatStreamReducer` stay.
-- Next structural task: split `ChatModel` into managed sub-models (feedback, undo, run lifecycle, thread binding), bound with `uses()`.
+- Next structural task: split `ChatModel` into managed sub-models (feedback, undo, run lifecycle, thread binding), bound with `uses()`. It waits until the first integration ships.
 
 ## Next
 
