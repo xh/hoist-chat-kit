@@ -182,27 +182,6 @@ body {
   --xh-chat-focus-ring-color: var(--xh-focus-outline-color);
   --xh-chat-focus-ring-width: 2px;
   --xh-chat-feedback-max-width: 480px;
-  // The data boundary line, which says what a helper can see.
-  --xh-chat-boundary-height: 24px;
-  --xh-chat-boundary-bg: var(--xh-chat-part-header-bg);
-  --xh-chat-boundary-text-color: var(--xh-chat-meta-text-color);
-
-  //------------------------
-  // Component helper
-  //------------------------
-  // The docked helper's width is a resizable panel's, and `ChatAssistantModel.dockMinWidth`
-  // decides between dock and popover - both in code.
-  --xh-chat-helper-header-height: 32px;
-  --xh-chat-helper-popover-width: 360px;
-  --xh-chat-helper-popover-max-height: 520px;
-  --xh-chat-helper-badge-size: 7px;
-  // The fade of the change highlight on the component.
-  --xh-chat-helper-change-duration: 1500ms;
-  --xh-chat-helper-bg: var(--xh-chat-bg);
-  --xh-chat-helper-header-bg: var(--xh-chat-part-header-bg);
-  --xh-chat-helper-border-color: var(--xh-panel-border-color);
-  --xh-chat-helper-change-bg: var(--xh-grid-cell-change-bg-highlight);
-  --xh-chat-helper-change-outline-color: var(--xh-intent-primary-text-color);
 
   &.xh-dark {
     // Blue-gray is too faint on the dark background, where Hoist's muted gray reads well.

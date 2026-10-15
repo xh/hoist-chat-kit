@@ -248,12 +248,6 @@
     opacity: 1;
   }
 
-  // A helper's change line carries its own Show action, so it needs no input toggle - and the
-  // toggle's reserved row would space the lines of one reply apart.
-  &--inline:has(> .xh-chat-hline) > &__caption--quiet {
-    display: none;
-  }
-
   &__caption-status {
     align-items: center;
     display: inline-flex;

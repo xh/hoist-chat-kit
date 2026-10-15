@@ -1,5 +1,8 @@
 # Component Helper Agents - Design Spec
 
+**Archived.** The kit ships no component helper for v1 (D80). The code is on the `archive/helpers`
+branch.
+
 Internal build spec for plan 2, work package 9 (decision D24). The lead owns it. Source: the use
 case in `.tmp/hoist-chat-kit-feedback-1/use-case-4-component-helper-agents.md`, and the Toolbox
 weather agent, which is the first working instance.

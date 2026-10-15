@@ -71,12 +71,6 @@ export interface ChatShortcuts {
     /** Open or close the dock, page-wide, while a dock exists. Default `ctrl+.`. */
     toggleDock: string;
 
-    /**
-     * Open or close a component's helper, with focus anywhere in the component or its helper.
-     * Default `mod+i`.
-     */
-    openHelper: string;
-
     /** Focus the composer, when focus is not in a text field. Default `/`. */
     focusComposer: string;
 
@@ -111,7 +105,6 @@ export class ChatKit {
         shortcuts: {
             newChat: 'mod+shift+o',
             toggleDock: 'ctrl+.',
-            openHelper: 'mod+i',
             focusComposer: '/',
             cycleRegions: 'f6',
             toggleSidebar: null

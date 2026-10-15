@@ -7,7 +7,7 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {textArea} from '@xh/hoist/desktop/cmp/input';
 import {fmtDateTime} from '@xh/hoist/format';
 import {Icon} from '@xh/hoist/icon';
-import {action, bindable, observable, observableRef, untracked} from '@xh/hoist/mobx';
+import {action, bindable, observable, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {pluralize} from '@xh/hoist/utils/js';
 import {createObservableRef, useCached, useComposedRefs} from '@xh/hoist/utils/react';
@@ -35,10 +35,8 @@ import {
     type ChatSourcePart,
     type ChatTextPart,
     type ChatToolCallPart,
-    type ChatUndoGuard,
     getChatNoAnswerPart,
     getChatReplyStatus,
-    isChatUndoGuard,
     isToolCallFailed
 } from '../../../core';
 import '../../../styles/vars.scss';
@@ -339,9 +337,6 @@ class ChatMessageViewLocalModel extends HoistModel {
     override onLinked() {
         // The side panel above the view, if any - looked up once, as the hierarchy is fixed.
         this.sidePanel = findSidePanel(this);
-        this.undoGuard = untracked(() =>
-            this.lookupModel(isChatUndoGuard)
-        ) as unknown as ChatUndoGuard;
 
         // Editing may start from outside the view - e.g. Edit Prompt on a failed reply - so seed
         // the draft whenever it starts.
@@ -399,27 +394,10 @@ class ChatMessageViewLocalModel extends HoistModel {
     //------------------
     // Undo
     //------------------
-    /** The guard in reach that retires Undo, such as a helper's - or null. */
-    undoGuard: ChatUndoGuard = null;
-
-    /** True if the host would undo the reply's changes now, retired or not. */
-    get isUndoable(): boolean {
-        const {message, host} = this.props;
-        return !!host.undoTurnAsync && !!host.canUndoTurn?.(message.id);
-    }
-
-    /**
-     * Why the reply's changes can no longer be undone - such as a hand edit to the component a
-     * helper changed - or null.
-     */
-    get undoRetiredReason(): string {
-        if (!this.isUndoable || this.isUndoing) return null;
-        return this.undoGuard?.getUndoRetiredReason(this.props.message.id) ?? null;
-    }
-
     /** True if the user can undo the reply's changes now. */
     get canUndo(): boolean {
-        return this.isUndoable && !this.undoRetiredReason;
+        const {message, host} = this.props;
+        return !!host.undoTurnAsync && !!host.canUndoTurn?.(message.id);
     }
 
     /**
@@ -1322,18 +1300,11 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
 });
 
 /**
- * What shows under a reply, below its action bar: why its changes can no longer be undone, a failed
- * undo of them, with Retry, and the open feedback form.
+ * What shows under a reply, below its action bar: a failed undo of its changes, with Retry, and the
+ * open feedback form.
  */
 function afterReply(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNode {
-    const {undoError, undoRetiredReason, feedback} = impl,
-        undoRetired = undoRetiredReason
-            ? div({
-                  key: 'undoRetired',
-                  className: 'xh-chat-message__notice xh-chat-message__notice--undo-retired',
-                  items: [Icon.undo({key: 'icon'}), span({key: 'text', item: undoRetiredReason})]
-              })
-            : null,
+    const {undoError, feedback} = impl,
         undoFailure = undoError
             ? div({
                   key: 'undoFailed',
@@ -1360,10 +1331,10 @@ function afterReply(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNod
             : null,
         form = feedback.form ? chatFeedbackForm({key: 'feedback', model: feedback}) : null;
 
-    if (!undoFailure && !undoRetired && !form) return null;
+    if (!undoFailure && !form) return null;
     return div({
         key: 'after',
         className: 'xh-chat-message__after',
-        items: [undoRetired, undoFailure, form]
+        items: [undoFailure, form]
     });
 }

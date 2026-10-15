@@ -21,28 +21,6 @@ export interface ChatToolResultOptions {
      * see {@link ChatModel.artifacts}. Tell the model each artifact's id in the `output`.
      */
     artifacts?: ChatArtifact[];
-
-    /**
-     * What the call changed, in the component's terms - such as the columns it showed or the
-     * widget it added. A helper flashes them on the component, and offers Show on the change's line
-     * to flash them again - see `ChatToolGroup.highlight`. The chat itself ignores them.
-     */
-    targets?: ChatChangeTarget[];
-}
-
-/**
- * One thing a tool call changed on a component, for the component's tool group to highlight - see
- * {@link ChatToolResultOptions.targets}. Its group gives `type` and `id` their meaning.
- */
-export interface ChatChangeTarget {
-    /** What kind of thing changed, such as 'column', 'groups' or 'widget'. */
-    type: string;
-
-    /** Id of the thing that changed, such as a column or widget id. */
-    id?: string;
-
-    /** True if the call created it, so that the group can outline it and scroll it into view. */
-    isNew?: boolean;
 }
 
 /**
@@ -59,17 +37,10 @@ export class ChatToolResult {
     /** Result sets the call produced, or null. */
     readonly artifacts: ChatArtifact[];
 
-    /** What the call changed, or null. */
-    readonly targets: ChatChangeTarget[];
-
-    constructor(
-        output: any,
-        {undo = null, artifacts = null, targets = null}: ChatToolResultOptions = {}
-    ) {
+    constructor(output: any, {undo = null, artifacts = null}: ChatToolResultOptions = {}) {
         this.output = output;
         this.undo = undo;
         this.artifacts = artifacts;
-        this.targets = targets;
     }
 }
 
@@ -91,25 +62,4 @@ export class ChatToolResult {
  */
 export function chatToolResult(output: any, opts?: ChatToolResultOptions): ChatToolResult {
     return new ChatToolResult(output, opts);
-}
-
-/**
- * Retires the Undo of a reply whose changes no longer apply, such as when the user has since
- * changed the component by hand. A message view finds one in Hoist's model context - see
- * {@link isChatUndoGuard} - and replaces Undo with the reason. `ChatAssistantModel` implements it.
- */
-export interface ChatUndoGuard {
-    /** Marks the guard, for lookup in model context. */
-    readonly isChatUndoGuard: true;
-
-    /**
-     * Why the changes of a reply can no longer be undone, or null if they can. Read in render, so
-     * read observable state for the view to update as it changes.
-     */
-    getUndoRetiredReason(messageId: string): string;
-}
-
-/** True if a model is a {@link ChatUndoGuard}. */
-export function isChatUndoGuard(model: unknown): boolean {
-    return (model as ChatUndoGuard)?.isChatUndoGuard === true;
 }

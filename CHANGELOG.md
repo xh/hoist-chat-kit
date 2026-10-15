@@ -30,8 +30,6 @@
   variable, 220 px or 160 px at compact density.
 * Lowered the default `maxItems` of `chatUiMetricsSpec()` from 8 to 4. More metrics read better
   as a table.
-* Changed `dashCanvasTools` to ask before `remove_widgets`, and before a `set_dashboard` that
-  drops widgets. The `views` capability is now opt-in: name it in `capabilities` to offer it.
 
 ### 🎁 New Features
 
@@ -176,16 +174,7 @@
 * Added `flush()` to `ChatDecoder`, for events a decoder holds back until its stream ends.
   `ChatCompletionsCodec` uses it to send one `RUN_FINISHED` per step, with the token usage.
 * Added `ChatService`, which reads the app's LLM backend from the `chatConfig` soft config and
-  builds a transport for it, so a helper agent needs no wiring of its own.
-* Added `gridTools` and `dashCanvasTools`, tool groups that let a helper agent arrange a grid or a
-  `DashCanvas`, each with a context provider, a prompt, suggestions and undo for every change.
-* Added `ChatAssistantModel`, a helper agent beside one component. It owns a short-lived chat
-  built from the component's tool groups, and offers "Ask in chat" through an app seam.
-* Added `chatAssistantButton` and `chatAssistantContainer`, which dock the helper inside a
-  component 740 px or wider, or open it in a popover. `Ctrl/Cmd+I` opens it from the component.
-* Added optional helper members to `ChatToolGroup`: `title`, `boundary()`, `snapshot()`,
-  `isChangedSince()`, `highlight()` and `docs`. Undo retires once the component changes by hand.
-* Added `targets` to `chatToolResult()`, for a helper to flash what a tool call changed.
+  builds a transport for it, so a chat needs no wiring of its own.
 * Added `ChatStreamReducer` and `createChatRunRequest()`, so an app can run a transport without
   `ChatModel`. The helper fills in a request from the messages, and the reducer folds the streamed
   events into the app's own `ChatMessage`.

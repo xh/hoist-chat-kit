@@ -651,6 +651,8 @@ its context synchronously, so it could not await a prompt function.
 
 ## D51. Choices in the tool groups
 
+**Withdrawn** by [D80](#d80-component-helpers-leave-the-kit-for-v1).
+
 **Decision.** WP 9 step 3 adds these to section 3 of `planning/HELPERS.md`:
 
 - A group is a `ChatToolGroup` of `{tools, contextProvider, prompt, suggestions}`. Each tool's
@@ -1042,6 +1044,8 @@ tell sources apart.
 
 ## D73. Helpers extend tool groups
 
+**Withdrawn** by [D80](#d80-component-helpers-leave-the-kit-for-v1).
+
 
 **Decision.** `ChatToolGroup` gains optional members for the helper UI: `title`, `boundary()` for
 the data boundary line, `isChangedSince(snapshot)` to retire Undo, `highlight(targets)` for the
@@ -1132,6 +1136,8 @@ status region announces a paused turn, so the timeline does not announce it agai
 
 ## D79. Choices in the component helper
 
+**Withdrawn** by [D80](#d80-component-helpers-leave-the-kit-for-v1).
+
 **Decision.** `ChatAssistantModel` (in `assist/`) owns one in-memory `ChatModel` for a component,
 built from one or more tool groups, with a system prompt that keeps the helper to its component
 and its `docs`. Its conversation lives and dies with the component (A2). Without a transport it
@@ -1150,3 +1156,17 @@ and keeps `assist/` platform-neutral. One line per call keeps D48's single undoa
 
 **Alternatives.** P7's framed change card with its own Undo. It would need changes to the model
 and the timeline for a second undo path.
+
+## D80. Component helpers leave the kit for v1
+
+**Decision.** The kit ships no component helper. `assist/`, `desktop/assist/` and
+`desktop/cmp/assist/` are removed: `ChatAssistantModel`, `ChatToolGroup`, `gridTools`,
+`dashCanvasTools`, the helper's button, container and data boundary line, and the
+`--xh-chat-helper-*` and `--xh-chat-boundary-*` variables. The core seams only a helper used go
+too: `targets` on `chatToolResult()`, `ChatUndoGuard` and the `openHelper` shortcut. This
+withdraws D51, D73 and D79. The general seams stay: client tools, approvals, inline tool display,
+context providers, per-tool undo and `undoTurnAsync()` (D48, D49).
+
+**Why.** The helper was a use case to test the kit's primitives against, not a v1 deliverable.
+The build showed that an app can make one from the primitives that stay. The code is kept on the
+`archive/helpers` branch.

@@ -114,7 +114,6 @@ tasks to the right doc.
 | [`/core/`](./core/README.md) | `ChatModel`, messages and parts, tools, approvals, persistence, errors |
 | [`/transport/`](./transport/README.md) | Transports, codecs, `ChatEvent`, server contracts, the Grails example |
 | [`/svc/`](./svc/README.md) | `ChatService`, the app's configured LLM backend |
-| [`/assist/`](./assist/README.md) | Tool groups for helper agents beside a grid or a dashboard |
 | [`/genui/`](./genui/README.md) | The generative UI catalog, component specs and protocol adapters |
 | [`/desktop/cmp/chat/`](./desktop/cmp/chat/README.md) | Desktop components and theming |
 | [`/desktop/cmp/genui/`](./desktop/cmp/genui/README.md) | The built-in grid, chart, KPI tile and card components |

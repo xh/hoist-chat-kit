@@ -16,7 +16,6 @@ export interface ChatShortcutHandlers {
     focusComposer?: () => void;
     cycleRegions?: (back: boolean) => void;
     toggleSidebar?: () => void;
-    openHelper?: () => void;
 }
 
 /**
@@ -31,8 +30,7 @@ export interface ChatShortcutHandlers {
  * @internal
  */
 // TODO(design-open B3) - shortcuts on by default, each one remappable or null in `ChatKit.defaults`.
-// TODO(dock): bind `toggleDock` page-wide once the kit has a page dock. The component helper binds
-// `openHelper`, and docks inside its component, not the page.
+// TODO(dock): bind `toggleDock` page-wide once the kit has a page dock.
 export function getChatHotkeys(handlers: ChatShortcutHandlers): ChatHotkeyConfig[] {
     const {shortcuts} = ChatKit.defaults,
         ret: ChatHotkeyConfig[] = [],
@@ -50,7 +48,7 @@ export function getChatHotkeys(handlers: ChatShortcutHandlers): ChatHotkeyConfig
                 }
             });
         },
-        {newChat, focusComposer, cycleRegions, toggleSidebar, openHelper} = handlers;
+        {newChat, focusComposer, cycleRegions, toggleSidebar} = handlers;
 
     if (newChat) add('newChat', shortcuts.newChat, newChat, 'Start a new chat');
     if (focusComposer) {
@@ -66,9 +64,6 @@ export function getChatHotkeys(handlers: ChatShortcutHandlers): ChatHotkeyConfig
     }
     if (toggleSidebar) {
         add('toggleSidebar', shortcuts.toggleSidebar, toggleSidebar, 'Show or hide the sidebar');
-    }
-    if (openHelper) {
-        add('openHelper', shortcuts.openHelper, openHelper, 'Open or close the assistant');
     }
     return ret;
 }

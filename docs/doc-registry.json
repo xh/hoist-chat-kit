@@ -284,40 +284,6 @@
       ]
     },
     {
-      "id": "assist/README.md",
-      "title": "Helper Agents and Tool Groups",
-      "mcpCategory": "package",
-      "viewerCategory": "core",
-      "description": "Component helper agents: ChatAssistantModel, and the tool groups gridTools and dashCanvasTools in /desktop/assist/.",
-      "keywords": [
-        "ChatAssistantModel",
-        "ChatAssistantConfig",
-        "ChatToolGroup",
-        "gridTools",
-        "GridToolsConfig",
-        "GridToolCapability",
-        "dashCanvasTools",
-        "DashCanvasToolsConfig",
-        "DashCanvasToolCapability",
-        "DashCanvasWidgetInfo",
-        "settingsSchema",
-        "helper agent",
-        "assistant",
-        "GridModel",
-        "DashCanvasModel",
-        "ViewManagerModel",
-        "undo",
-        "context provider",
-        "suggestions",
-        "ChatDataBoundary",
-        "ChatDocLink",
-        "isChangedSince",
-        "highlight",
-        "onAskInChat",
-        "transient conversation"
-      ]
-    },
-    {
       "id": "genui/README.md",
       "title": "Generative UI",
       "mcpCategory": "package",
@@ -433,28 +399,6 @@
         "breakpoints",
         "sidebarMode",
         "compact density"
-      ]
-    },
-    {
-      "id": "desktop/cmp/assist/README.md",
-      "title": "Desktop Component Helper",
-      "mcpCategory": "package",
-      "viewerCategory": "desktop",
-      "description": "Desktop component helper: the entry button and badge, a container that docks the helper or opens a popover, and the data boundary line.",
-      "keywords": [
-        "ChatAssistantButton",
-        "ChatAssistantContainer",
-        "ChatAssistantView",
-        "ChatDataBoundaryLine",
-        "helper",
-        "dock",
-        "popover",
-        "badge",
-        "change lines",
-        "Undo",
-        "Ctrl+I",
-        "openHelper",
-        "data boundary"
       ]
     },
     {

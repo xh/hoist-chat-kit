@@ -182,7 +182,6 @@ ChatKit.defaults.shortcuts.toggleSidebar = 'mod+b';
 | `cycleRegions` | `f6`, with Shift to go back | Focus in a workspace | Moves focus through the thread list, the conversation, the composer and the side panel. |
 | `toggleSidebar` | null | Focus in a workspace | Collapses or expands the thread sidebar. |
 | `toggleDock` | `ctrl+.` | Page-wide, while a dock exists | Reserved for the dock, which is still to come. |
-| `openHelper` | `mod+i` | Focus in a component with a helper | Opens or closes the helper. See [`/desktop/cmp/assist/`](../assist/README.md). |
 
 `mod` is Cmd on a Mac and Ctrl elsewhere. No shortcut ever approves, applies or deletes.
 
@@ -1012,14 +1011,13 @@ that others derive from on `body.xh-app`.
 
 `styles/vars.scss` also declares the variables of each feature area, with a comment per group:
 `--xh-chat-timeline-*`, `--xh-chat-citation-*`, `--xh-chat-viewer-*`, `--xh-chat-card-*`,
-`--xh-chat-sidebar-*`, `--xh-chat-composer-*`, the motion timings and `--xh-chat-helper-*`.
+`--xh-chat-sidebar-*`, `--xh-chat-composer-*` and the motion timings.
 `--xh-chat-viewer-page-bg` and `--xh-chat-viewer-page-text-color` are for the app's document
 renderer, which draws the pages in the side panel.
 
 Layout widths are not CSS variables. The workspace sets the widths of its sidebar and side panel
-by breakpoint, and the user can resize both. The docked helper is a resizable panel, and
-`ChatAssistantModel.dockMinWidth` decides between dock and popover. These widths feed the layout
-math, so they live in code.
+by breakpoint, and the user can resize both. These widths feed the layout math, so they live in
+code.
 
 ### Compact density
 
