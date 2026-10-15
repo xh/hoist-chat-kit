@@ -2,7 +2,7 @@
 
 Internal plan for the second iteration, written after the feedback packet of 2026-10-14
 (`.tmp/hoist-chat-kit-feedback-1/`). The lead owns it. It replaces the broaden plan in
-`planning/DESIGN.md` and the next steps in `REPORT.md`.
+`planning/DESIGN.md` and the next steps of the first iteration.
 
 ## 1. What the packet says
 

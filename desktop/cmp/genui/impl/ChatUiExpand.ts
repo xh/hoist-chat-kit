@@ -19,7 +19,7 @@ export type ChatUiExpandRequest = ChatTableRequest | ChatChartRequest;
 
 /**
  * The local model of a card that opens its full tier: in the side panel of the chat when one is
- * in model context with room, else in a dialog (GENUI-2 section 5). The card shows its request as
+ * in model context with room, else in a dialog (D69). The card shows its request as
  * open while the panel shows it.
  * @internal
  */

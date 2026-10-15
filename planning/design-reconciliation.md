@@ -127,10 +127,10 @@ default of section 1, so a different answer there changes the draft.
 **R13. The inline grid goes away.**
 - Handoff: B1 and P4. Never mount a Grid inline. A result renders as a plain preview table, and the
   Grid opens only in the side panel.
-- Repo: `GENUI-2.md` 5 keeps "the existing inline-data grid" for small results.
+- Repo: `GENUI.md` 2.5 keeps "the existing inline-data grid" for small results.
   `chatUiGrid` and `chatUiGridSpec()` (D15, D18) mount a Hoist Grid inline today.
 - Recommend: build to B1, keep the public names. `chatUiGrid` renders the preview tier and opens
-  the Grid in the side panel (D69). Update `GENUI-2.md` 5.
+  the Grid in the side panel (D69). Update `GENUI.md` 2.5.
 
 **R14. A missing deep-linked thread.**
 - Handoff: P5 "Opening a thread". Show "Thread not found" for a deep link the user cannot open.
@@ -412,7 +412,7 @@ view}` or `{type: 'chart', artifactId, view}`. Opening one replaces the last, an
 focus to the element that opened it. Components reach it through `ChatSidePanelHost`, a narrow
 interface. The kit renders tables and charts. An app supplies `documentRenderer` for documents.
 Without one, or without room (788 px, P3), a document opens in a new tab with a toast. With no side
-panel, a table opens in a dialog (`GENUI-2.md` 5).
+panel, a table opens in a dialog (`GENUI.md` 2.5).
 
 **Why.** A document viewer will land in hoist-react (A3). The kit owns only the chat side: the slot,
 the request and Back.
@@ -426,7 +426,7 @@ the request and Back.
 Full Table opens one Hoist `Grid` in the side panel (D68), paged from the `ChatDataSource`. A result
 that fits the preview gets no full tier. `ChatUiGrid.defaults` holds `previewRows`,
 `previewColumns`, `pageSize` and `exportConfirmAbove`. `ChatUiChart.defaults` holds
-`maxInlineSeries` and `maxInlinePoints`. This replaces the inline grid of `GENUI-2.md` 5.
+`maxInlineSeries` and `maxInlinePoints`. This replaces the inline grid of `GENUI.md` 2.5.
 
 **Why.** A long thread with many ag-Grid instances is heavy, and B1 makes the preview the inline
 tier. Keeping the names keeps app catalogs working.

@@ -569,7 +569,7 @@ by one list covers that case, and a newer rename survives an older one that fail
 
 ## D47. Choices in the generative UI core
 
-**Decision.** WP 7 step 1 builds sections 1 to 4 and 6 to 8 of `planning/GENUI-2.md`, with these
+**Decision.** WP 7 step 1 builds sections 2.1 to 2.4 and 2.6 to 2.8 of `planning/GENUI.md`, with these
 choices where the spec is open or differs from the kit's conventions:
 
 - Components run actions with `context.runActionAsync()`, not `runAction()`, as every method
@@ -737,7 +737,7 @@ its snapshots, so a warning gives them a release to move.
   owns the history and the tool loop, and the browser cannot add a call to it. The `callTool`
   action runs a client tool outside the history, as D47 says.
 
-**Why.** Each keeps the contract of `planning/GENUI-2.md`, and closes a gap that the wiring
+**Why.** Each keeps the contract of part 2 of `planning/GENUI.md`, and closes a gap that the wiring
 leaves open.
 
 **Alternatives.** Always send the document tool. Its schema is a union of every component, which
@@ -994,7 +994,7 @@ view}` or `{type: 'chart', artifactId, view}`. Opening one replaces the last, an
 focus to the element that opened it. Components reach it through `ChatSidePanelHost`, a narrow
 interface. The kit renders tables and charts. An app supplies `documentRenderer` for documents.
 Without one, or without room (788 px, P3), a document opens in a new tab with a toast. With no side
-panel, a table opens in a dialog (`GENUI-2.md` 5).
+panel, a table opens in a dialog (`GENUI.md` 2.5).
 
 **Why.** A document viewer will land in hoist-react (A3). The kit owns only the chat side: the slot,
 the request and Back.
@@ -1007,7 +1007,7 @@ the request and Back.
 Full Table opens one Hoist `Grid` in the side panel (D68), paged from the `ChatDataSource`. A result
 that fits the preview gets no full tier. `ChatUiGrid.defaults` holds `previewRows`,
 `previewColumns`, `pageSize` and `exportConfirmAbove`. `ChatUiChart.defaults` holds
-`maxInlineSeries` and `maxInlinePoints`. This replaces the inline grid of `GENUI-2.md` 5.
+`maxInlineSeries` and `maxInlinePoints`. This replaces the inline grid of `GENUI.md` 2.5.
 
 **Why.** A long thread with many ag-Grid instances is heavy, and B1 makes the preview the inline
 tier. Keeping the names keeps app catalogs working.
@@ -1172,7 +1172,7 @@ context providers, per-tool undo and `undoTurnAsync()` (D48, D49).
 
 **Why.** The helper was a use case to test the kit's primitives against, not a v1 deliverable.
 The build showed that an app can make one from the primitives that stay. The code is kept on the
-`archive/helpers` branch.
+`archive/helpers` branch, with its plan, `planning/HELPERS.md`.
 
 ## D81. `ChatService` leaves the kit
 
