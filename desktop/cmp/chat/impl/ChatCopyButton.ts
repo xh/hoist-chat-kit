@@ -10,6 +10,9 @@ interface ChatCopyButtonProps extends HoistProps {
 
     /** True to label the button "Copy" / "Copied", rather than show an icon alone. */
     showText?: boolean;
+
+    /** What the button copies, as its label or tooltip. Default 'Copy'. */
+    label?: string;
 }
 
 /**
@@ -21,9 +24,9 @@ export const chatCopyButton = hoistCmp.factory<ChatCopyButtonProps>({
     displayName: 'ChatCopyButton',
     className: 'xh-chat-copy-button',
 
-    render({className, getCopyText, showText = false}) {
+    render({className, getCopyText, showText = false, label: copyLabel = 'Copy'}) {
         const impl = useLocalModel(ChatCopyButtonLocalModel),
-            label = impl.copied ? 'Copied' : 'Copy';
+            label = impl.copied ? 'Copied' : copyLabel;
 
         return button({
             className,

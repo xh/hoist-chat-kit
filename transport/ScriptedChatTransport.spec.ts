@@ -1,12 +1,13 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatMessage, ChatModel} from '../core';
-import {ChatStreamReducer} from '../core/impl/ChatStreamReducer';
+import {ChatStreamReducer} from '../core/ChatStreamReducer';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRequest} from './ChatTransport';
 import {
     citationEvents,
     errorEvents,
+    noAnswerEvents,
     reasoningEvents,
     ScriptedChatTransport,
     scriptedDelay,
@@ -235,7 +236,22 @@ describe('ScriptedChatTransport', () => {
                     step: 0,
                     title: 'Guide',
                     marker: 2,
-                    metadata: {documentId: 'd-7'}
+                    metadata: {documentId: 'd-7'},
+                    sourceType: 'document'
+                }
+            ]);
+        });
+
+        it('builds a fixed "not found" reply as a reserved data part', () => {
+            const message = new ChatStreamReducer(0).apply(
+                new ChatMessage({role: 'assistant', status: 'pending'}),
+                noAnswerEvents({documents: [{name: 'Reserves Policy'}], documentCount: 4})
+            );
+            expect(message.parts).toMatchObject([
+                {
+                    type: 'data',
+                    dataType: 'xh.chat.noAnswer',
+                    data: {documents: [{name: 'Reserves Policy'}], documentCount: 4}
                 }
             ]);
         });

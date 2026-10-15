@@ -1,36 +1,72 @@
+@use '../../../styles/mixins' as *;
+
+// The shared frame of a generative UI card (P4): a 28 px header strip in the part header tone, the
+// body, and a footer strip for counts and actions.
 .xh-chat-ui-frame {
   background-color: var(--xh-chat-bg);
-  border: var(--xh-chat-border);
-  border-radius: var(--xh-chat-radius-px);
-  box-shadow: var(--xh-chat-shadow);
+  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border-radius: var(--xh-chat-border-radius);
   display: flex;
   flex-direction: column;
-  font-size: var(--xh-font-size-px);
+  font-size: var(--xh-chat-font-size, var(--xh-font-size-px));
   line-height: normal;
   min-width: 0;
   overflow: hidden;
 
   &__header {
-    align-items: baseline;
-    border-bottom: var(--xh-chat-border);
+    align-items: center;
+    background-color: var(--xh-chat-part-header-bg);
+    border-bottom: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    color: var(--xh-chat-meta-text-color);
     display: flex;
-    gap: var(--xh-pad-px);
-    padding: var(--xh-pad-half-px) var(--xh-pad-px);
-  }
-
-  &__title {
-    flex: 1;
-    font-weight: 600;
+    flex: none;
+    font-size: var(--xh-chat-meta-font-size);
+    gap: 6px;
+    height: var(--xh-chat-part-header-height, 28px);
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    padding: 0 2px 0 8px;
     white-space: nowrap;
   }
 
-  &__meta {
-    color: var(--xh-chat-muted-text-color);
+  &__icon {
+    align-items: center;
+    color: var(--xh-chat-meta-text-color);
+    display: inline-flex;
     flex: none;
-    font-size: var(--xh-chat-meta-font-size-px);
+  }
+
+  &__title {
+    color: var(--xh-chat-text-color);
+    font-size: var(--xh-chat-font-size, var(--xh-font-size-px));
+    font-weight: 500;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__meta {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__status {
+    align-items: center;
+    color: var(--xh-chat-busy-color);
+    display: inline-flex;
+    gap: 6px;
+  }
+
+  &__fill {
+    flex: 1 1 auto;
+  }
+
+  // Icon-only header buttons, 24 px square.
+  @include hoist-button('.xh-chat-ui-frame__button') {
+    flex: none;
+    min-height: 24px;
+    min-width: 24px;
   }
 
   &__body {
@@ -38,12 +74,31 @@
     flex-direction: column;
     min-width: 0;
   }
+
+  &__footer {
+    align-items: center;
+    border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    color: var(--xh-chat-meta-text-color);
+    display: flex;
+    flex: none;
+    font-size: var(--xh-chat-meta-font-size);
+    gap: 6px;
+    height: var(--xh-chat-card-footer-height, 26px);
+    min-width: 0;
+    padding: 0 2px 0 8px;
+    white-space: nowrap;
+
+    // Buttons in a meta-size strip take its font size, so label and status read as one line.
+    @include hoist-button('.xh-button') {
+      font-size: var(--xh-chat-meta-font-size);
+      min-height: 22px;
+    }
+  }
 }
 
 .xh-chat-ui-skeleton {
-  animation: xh-chat-ui-pulse 1.4s ease-in-out infinite;
-  background-color: var(--xh-chat-surface-bg);
-  border-radius: var(--xh-chat-radius-px);
+  background-color: var(--xh-chat-skeleton-bg);
+  border-radius: var(--xh-chat-border-radius);
   width: 100%;
 }
 
@@ -51,13 +106,37 @@
   border-radius: 0;
 }
 
-@keyframes xh-chat-ui-pulse {
-  0%,
-  100% {
-    opacity: 1;
+// A message centered in a card's body: an empty or failed state, at the height the card reserved.
+.xh-chat-ui-center {
+  align-items: center;
+  box-sizing: border-box;
+  color: var(--xh-chat-meta-text-color);
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  font-size: var(--xh-chat-meta-font-size);
+  gap: 8px;
+  justify-content: center;
+  padding: 0 20px;
+  text-align: center;
+
+  &__title {
+    color: var(--xh-chat-text-color);
+    font-size: var(--xh-chat-font-size, var(--xh-font-size-px));
+    font-weight: 600;
   }
 
-  50% {
-    opacity: 0.45;
+  .xh-error-message {
+    flex: 1 1 auto;
   }
+}
+
+// Read by screen readers only.
+.xh-chat-ui-sr-only {
+  clip-path: inset(50%);
+  height: 1px;
+  overflow: hidden;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
 }

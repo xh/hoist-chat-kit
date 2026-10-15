@@ -366,6 +366,10 @@ const resultGridSpec: ChatUiComponentSpec<{data: string} & ChatDataView> = {
 };
 ```
 
+The built-in table and chart take data this way with `byReference: true`, and need no spec of
+their own: `chatUiGridSpec({byReference: true})` and `chatUiChartSpec({byReference: true})`. See
+[`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md#show-a-table-by-reference).
+
 Render by the handle's `state`:
 
 - `waiting` - no artifact has that id yet, and the reply still streams.
@@ -476,8 +480,11 @@ Each action may add a `label` and a `confirm: {title, message}`. An action with 
 user with `XH.confirm()` first, and does nothing if they cancel. A `callTool` action for a tool
 with `needsApproval` asks first, with the tool's `approvalPrompt`. A `callTool` action waits while
 the chat is busy, and refuses a tool whose schema uses keywords the catalog cannot check. Its call
-is not part of the history, so an undo the tool returns is not kept. `runActionAsync()` rejects an
-action that fails its checks. Treat every payload as untrusted, also in an `app` handler.
+is not part of the history, so an undo the tool returns is not kept. `send` and `callTool` need
+the render context's `chatModel`, which is null in a message list over a host that is not a
+`ChatModel`. `isChatUiMessagingAction()` tells a component which actions to hide there.
+`runActionAsync()` rejects an action that fails its checks. Treat every payload as untrusted,
+also in an `app` handler.
 
 ### Export the catalog for a server
 
@@ -602,6 +609,7 @@ Passed to `render`. Extends the chat's `ChatPartRenderContext`, which holds `cha
 | `children` | `ReactNode[]` | Rendered `children`, for a container. |
 | `slots` | `Record<string, ReactNode[]>` | Rendered named slots, for a container. |
 | `data` | `Record<string, ChatDataHandle>` | The data behind each reference prop with a value. |
+| `artifacts` | `ChatArtifactRegistry` | The registry `data` reads, for a side panel request. |
 | `runActionAsync` | `(action) => Promise<unknown>` | Check and run a typed action. |
 
 ### ChatUiDocument and ChatUiElement

@@ -1,0 +1,122 @@
+.xh-chat-workspace {
+  background-color: var(--xh-chat-bg);
+  color: var(--xh-chat-text-color);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  width: 100%;
+
+  &__body {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  // The boxes around the sidebar and the side panel set the widths that show. Each panel
+  // stretches to the row's full height.
+  &__sidebar-box,
+  &__side-panel {
+    display: flex;
+    flex: none;
+    min-height: 0;
+  }
+
+  // The side panel's box can be wider than its PanelModel's size, as for a table or a chart. Its
+  // resize container, and the panel in it, stretch to fill the box.
+  &__side-panel > .xh-resizable,
+  &__side-panel > .xh-chat-side-panel > .xh-resizable {
+    width: 100%;
+
+    > :not(.xh-resizable-splitter, .xh-resizable-dragger) {
+      flex-grow: 1;
+    }
+  }
+
+  // The sidebar shares the conversation's surface. Its border does the separating.
+  &__sidebar {
+    background-color: var(--xh-chat-sidebar-bg);
+    border-right: var(--xh-border-width-px) solid var(--xh-chat-sidebar-border-color);
+    box-sizing: border-box;
+  }
+
+  &__nav {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  &__rail {
+    align-items: center;
+    background-color: var(--xh-chat-sidebar-bg);
+    border-right: var(--xh-border-width-px) solid var(--xh-chat-sidebar-border-color);
+    box-sizing: border-box;
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: 6px;
+    width: var(--xh-chat-sidebar-rail-width);
+  }
+
+  &__rail-busy {
+    color: var(--xh-chat-busy-color);
+    padding-top: 6px;
+  }
+
+  &__main {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  &__header {
+    align-items: center;
+    border-bottom: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    display: flex;
+    flex: none;
+    gap: 6px;
+    height: var(--xh-chat-workspace-header-height, 36px);
+    padding: 0 6px 0 14px;
+  }
+
+  &__title {
+    font-size: var(--xh-font-size-large-px);
+    font-weight: 600;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__notice {
+    background-color: var(--xh-chat-part-header-bg);
+    border-bottom: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    color: var(--xh-chat-meta-text-color);
+    flex: none;
+    font-size: var(--xh-chat-meta-font-size);
+    line-height: var(--xh-chat-workspace-notice-height, 24px);
+    overflow: hidden;
+    padding: 0 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__conversation {
+    min-height: 0;
+  }
+}
+
+// The thread list in the history popover of a narrow workspace.
+.xh-chat-workspace__history {
+  display: flex;
+  flex-direction: column;
+  height: 420px;
+  width: 300px;
+}

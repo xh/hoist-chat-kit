@@ -1,6 +1,113 @@
+// The result table's inline tier (P4): a plain table on Hoist's compact grid tokens - 24 px rows,
+// zebra stripes, muted 600 headers, numbers right-aligned and tabular.
 .xh-chat-ui-grid {
-  // The frame draws the border - the grid sits flush inside it.
-  .xh-grid {
-    border: none;
+  min-width: 0;
+
+  &__busy {
+    color: var(--xh-chat-busy-color);
+  }
+
+  &__counts {
+    font-variant-numeric: tabular-nums;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__open {
+    align-items: center;
+    color: var(--xh-chat-citation-text-color, var(--xh-intent-primary-text-color));
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  // The height a loading preview takes - a header row and the preview's rows - kept by a failed
+  // one.
+  &__reserved {
+    display: flex;
+    flex-direction: column;
+    min-height: calc(var(--xh-chat-table-row-height, 24px) * 9);
+  }
+
+  &__empty {
+    min-height: calc(var(--xh-chat-table-row-height, 24px) * 2);
+  }
+}
+
+.xh-chat-ui-table {
+  border-collapse: collapse;
+  font-size: var(--xh-chat-table-font-size, var(--xh-grid-compact-font-size-px));
+  font-variant-numeric: tabular-nums;
+  line-height: calc(var(--xh-chat-table-row-height, 24px) - 1px);
+  table-layout: auto;
+  width: 100%;
+
+  th,
+  td {
+    max-width: 220px;
+    overflow: hidden;
+    padding: 0 var(--xh-grid-compact-cell-lr-pad-px, 4px);
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  th {
+    background-color: var(--xh-grid-header-bg);
+    border-bottom: var(--xh-border-width-px) solid var(--xh-grid-header-border-color);
+    color: var(--xh-grid-header-text-color);
+    font-weight: 600;
+  }
+
+  td {
+    border-bottom: var(--xh-border-width-px) solid var(--xh-grid-border-color);
+    color: var(--xh-chat-text-color);
+  }
+
+  tbody tr:nth-child(even) td {
+    background-color: var(--xh-grid-bg-odd);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  // Nested, to outrank the left alignment of every cell above.
+  & &__cell--right {
+    text-align: right;
+  }
+
+  & &__cell--center {
+    text-align: center;
+  }
+}
+
+// Skeleton rows at the preview's height, in the header strip's tone.
+.xh-chat-ui-table-skeleton {
+  display: flex;
+  flex-direction: column;
+
+  &__row {
+    align-items: center;
+    border-bottom: var(--xh-border-width-px) solid var(--xh-grid-border-color);
+    display: flex;
+    gap: 16px;
+    height: var(--xh-chat-table-row-height, 24px);
+    padding: 0 8px;
+
+    &:last-child {
+      border-bottom: none;
+    }
+  }
+
+  &__bar {
+    background-color: var(--xh-chat-skeleton-bg);
+    border-radius: 2px;
+    display: block;
+    height: 8px;
+
+    &:last-child {
+      margin-left: auto;
+    }
   }
 }

@@ -5,21 +5,37 @@ import {panel, type PanelProps} from '@xh/hoist/desktop/cmp/panel';
 import {getTestId} from '@xh/hoist/utils/js';
 import type {ChatImagePolicy, ChatMarkdownPlugins} from '../../../cmp/markdown';
 import {ChatModel} from '../../../core';
+import {classNames} from '../../../impl/ClassNames';
 import '../../../styles/vars.scss';
 import {chatComposer, type ChatComposerProps} from './ChatComposer';
+import {chatEmptyState, type ChatEmptyStateProps} from './ChatEmptyState';
 import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
 import type {ChatSourceClickFn} from './ChatMessageView';
 import './ChatPanel.scss';
-import type {ChatSuggestion} from './ChatSuggestions';
+import {chatStatusRegion} from './ChatStatusRegion';
+import {type ChatSuggestion, chatSuggestions} from './ChatSuggestions';
 import {refuseFileDrop} from './impl/FileDrop';
+import {getChatHotkeys} from '../../impl/ChatShortcuts';
 
 /** Props for {@link ChatPanel}. */
 export interface ChatPanelProps
     extends HoistProps<ChatModel>, Omit<PanelProps, 'model' | 'modelConfig' | 'modelRef'> {
-    /** Content to show when the conversation has no messages, in place of the default. */
+    /**
+     * Content to show in the message list when the conversation has no messages, in place of the
+     * default empty state. The composer then stays at the bottom.
+     */
     emptyState?: ReactNode;
 
-    /** Suggested prompts for the default empty state. */
+    /**
+     * Heading, supporting text and icon of the default empty state - for example
+     * `{title: 'What do you want to know?', text: 'Analyst answers from 38 policy documents.'}`.
+     */
+    emptyStateProps?: Pick<ChatEmptyStateProps, 'title' | 'text' | 'icon'>;
+
+    /**
+     * Suggested prompts for the default empty state, as cards under the composer. A click fills
+     * the composer, and never sends.
+     */
     suggestions?: Array<ChatSuggestion | string>;
 
     /**
@@ -57,7 +73,16 @@ export interface ChatPanelProps
 }
 
 /**
- * A complete chat: the message list above the composer, in a Hoist {@link Panel}.
+ * A complete chat: the message list, the status region and the composer, in a Hoist
+ * {@link Panel}. The status region and composer share the message column's width.
+ *
+ * An empty conversation shows the default empty state, with the composer centered at about 40%
+ * of the height: the heading and supporting text above it, and the suggestions below. The first
+ * send moves the composer to the bottom in one frame, with no animation, and focus stays in it.
+ * Pass `emptyState` to show other content in the list instead, with the composer at the bottom.
+ *
+ * With focus in the panel, outside a text field, `/` focuses the composer - see
+ * `ChatKit.defaults.shortcuts`.
  *
  * The quickest way to put a {@link ChatModel} on screen. Accepts all Panel props - `title`,
  * `icon`, `headerItems`, `tbar`, `compactHeader` and so on - for the surrounding chrome. For a
@@ -74,7 +99,9 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
     render(props, ref) {
         const {
             model,
+            className,
             emptyState,
+            emptyStateProps,
             suggestions,
             allowImages,
             citationMarkers,
@@ -83,35 +110,64 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
             composerProps,
             messageListProps,
             testId,
+            hotkeys,
             ...rest
         } = props;
 
+        // The composer keeps its place in the tree across the move, so that it keeps focus.
+        const isCentered = model.isEmpty && emptyState == null && !messageListProps?.emptyState;
         return panel({
             ref,
             testId,
+            className: classNames(className, {'xh-chat-panel--empty': isCentered}),
+            hotkeys: [
+                ...getChatHotkeys({focusComposer: () => model.composerModel.focus()}),
+                ...(hotkeys ?? [])
+            ],
             ...rest,
             items: [
-                chatMessageList({
-                    model,
-                    emptyState,
-                    suggestions,
-                    allowImages,
-                    citationMarkers,
-                    onSourceClick,
-                    markdownPlugins,
-                    testId: getTestId(testId, 'messages'),
-                    ...messageListProps
-                }),
+                isCentered
+                    ? div({
+                          key: 'emptyHead',
+                          className: 'xh-chat-panel__empty-head',
+                          item: chatEmptyState({...emptyStateProps})
+                      })
+                    : chatMessageList({
+                          key: 'list',
+                          model,
+                          emptyState,
+                          suggestions,
+                          allowImages,
+                          citationMarkers,
+                          onSourceClick,
+                          markdownPlugins,
+                          testId: getTestId(testId, 'messages'),
+                          ...messageListProps
+                      }),
                 div({
+                    key: 'footer',
                     className: 'xh-chat-panel__footer',
                     onDragOver: refuseFileDrop,
                     onDrop: refuseFileDrop,
-                    item: chatComposer({
-                        model: model.composerModel,
-                        testId: getTestId(testId, 'composer'),
-                        ...composerProps
-                    })
-                })
+                    items: [
+                        chatStatusRegion({
+                            model: model.composerModel,
+                            assistantName: messageListProps?.assistantName
+                        }),
+                        chatComposer({
+                            model: model.composerModel,
+                            testId: getTestId(testId, 'composer'),
+                            ...composerProps
+                        })
+                    ]
+                }),
+                isCentered
+                    ? div({
+                          key: 'emptyTail',
+                          className: 'xh-chat-panel__empty-tail',
+                          item: chatSuggestions({model, suggestions})
+                      })
+                    : null
             ]
         });
     }

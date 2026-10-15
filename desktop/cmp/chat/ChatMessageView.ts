@@ -1,12 +1,16 @@
-import {findLastIndex, isEmpty, isEqual, last, sumBy} from 'lodash';
-import {type ReactElement, type ReactNode, useLayoutEffect, useMemo} from 'react';
+import {findLastIndex, isEqual, sumBy} from 'lodash';
+import {type ReactElement, type ReactNode, useEffect, useLayoutEffect, useMemo} from 'react';
+import {getRelativeTimestamp, relativeTimestamp} from '@xh/hoist/cmp/relativetimestamp';
 import {div, span} from '@xh/hoist/cmp/layout';
-import {hoistCmp, HoistModel, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
+import {hoistCmp, HoistModel, type HoistProps, managed, useLocalModel, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {textArea} from '@xh/hoist/desktop/cmp/input';
+import {fmtDateTime} from '@xh/hoist/format';
 import {Icon} from '@xh/hoist/icon';
-import {action, bindable, observable} from '@xh/hoist/mobx';
-import {createObservableRef, useCached} from '@xh/hoist/utils/react';
+import {action, bindable, observable, observableRef} from '@xh/hoist/mobx';
+import {wait} from '@xh/hoist/promise';
+import {pluralize} from '@xh/hoist/utils/js';
+import {createObservableRef, useCached, useComposedRefs} from '@xh/hoist/utils/react';
 import {
     type ChatImagePolicy,
     type ChatMarkdownCitations,
@@ -15,43 +19,71 @@ import {
     chatMarkdown
 } from '../../../cmp/markdown';
 import {
+    chatAnnouncer,
     type ChatCitation,
     type ChatDataPart,
     type ChatFilePart,
+    ChatKit,
+    CHAT_NO_ANSWER_DATA_TYPE,
     type ChatMessage,
-    type ChatModel,
+    type ChatMessageListHost,
+    ChatModel,
     type ChatPart,
     type ChatPartRenderContext,
     type ChatReasoningPart,
+    type ChatSidePanelHost,
     type ChatSourcePart,
     type ChatTextPart,
-    isToolCallFinal
+    type ChatToolCallPart,
+    getChatNoAnswerPart,
+    getChatReplyStatus,
+    isToolCallFailed
 } from '../../../core';
 import '../../../styles/vars.scss';
 import {chatFileChip} from './ChatFileChip';
 import './ChatMessageView.scss';
+import {chatNoAnswer} from './ChatNoAnswer';
 import {chatReasoning} from './ChatReasoning';
 import {chatSources} from './ChatSources';
+import {chatStatusCue} from './ChatStatusCue';
+import {chatTimeline} from './ChatTimeline';
 import {chatToolCall} from './ChatToolCall';
 import {fitTextAreaToContent, isImeComposing} from './impl/AutoGrow';
 import {
     type ChatReference,
     chatCitations,
     collectReferences,
-    renderCitationMarker,
+    collectUncitedSources,
+    createMarkerRenderers,
     toSourceList
 } from './impl/ChatCitations';
 import {chatCopyButton} from './impl/ChatCopyButton';
+import {
+    chatFeedbackForm,
+    ChatMessageFeedbackModel,
+    feedbackThumbs
+} from './impl/ChatFeedbackControls';
+import {chatCaret, chatSpinner} from '../../impl/ChatLiveCues';
+import {chatReplyLiveStatus} from './impl/ChatReplyLiveStatus';
+import {type ChatAnnounceSteps, ChatStepAnnouncer} from './impl/ChatStepAnnouncer';
 import {chatErrorBoundary} from './impl/ChatErrorBoundary';
 import {formatElapsed} from './impl/ChatFormat';
 import {chatToolCallGroup} from './impl/ChatToolCallGroup';
-import {chatTypingIndicator} from './impl/ChatTypingIndicator';
 import {formatChatUiContext} from '../../../genui/ChatUiAction';
 import {classNames} from '../../../impl/ClassNames';
 import {getOwn} from '../../../impl/objects';
-import {type ChatPartGroup, groupParts} from './impl/groupParts';
+import {
+    type ChatPartGroup,
+    type ChatProcessRun,
+    type ChatTimelineGroup,
+    getToolCallDisplay,
+    groupParts,
+    groupProcessRuns
+} from './impl/groupParts';
+import {ChatSourceLinks, findSidePanel} from './impl/ChatSourceLinks';
 import {jsonView} from './impl/JsonView';
 import {useChatMarkdownComponents} from './impl/MarkdownComponents';
+import {formatFailureDetails, getFailureCause, isReplyNotSent} from './impl/ReplyFailure';
 
 /**
  * Renders extra content for a message - action buttons or header items. Receives the message and
@@ -73,13 +105,16 @@ export interface ChatMessageViewProps extends HoistProps {
     /** The message to show. */
     message: ChatMessage;
 
-    /** The conversation holding the message - for its tools, renderers and actions. */
-    chatModel: ChatModel;
+    /**
+     * The conversation that holds the message - for its tools, renderers and actions. A
+     * `ChatModel`, or an app's own {@link ChatMessageListHost}.
+     */
+    host: ChatMessageListHost;
 
     /** Name shown on assistant messages. Default 'Assistant'. */
     assistantName?: string;
 
-    /** Icon shown on assistant messages. Default a sparkles icon. */
+    /** Icon shown on assistant messages. Default from `ChatKit.defaults.assistantIcon`. */
     assistantIcon?: ReactElement;
 
     /**
@@ -98,8 +133,10 @@ export interface ChatMessageViewProps extends HoistProps {
     citationMarkers?: boolean;
 
     /**
-     * Called when the user clicks a source, a citation chip or a citation marker. Default opens the
-     * source's `url` in a new tab. Pass a stable function.
+     * Called when the user clicks a source, a citation chip or a citation marker. By default a
+     * document source opens in the side panel when one is in reach - see `ChatSidePanelHost` - and
+     * a web page opens in a new tab. A handler replaces the new tab, and opens a document that the
+     * side panel cannot show. Pass a stable function.
      */
     onSourceClick?: ChatSourceClickFn;
 
@@ -116,11 +153,24 @@ export interface ChatMessageViewProps extends HoistProps {
     messageHeaderItems?: ChatMessageRenderFn;
 
     /**
-     * True if this is the last message in the conversation. Its actions stay visible, and an
+     * Which steps of a running reply the screen reader announcer reads as they finish: none,
+     * failures or all. Default from `ChatKit.defaults.announceSteps`.
+     */
+    announceSteps?: ChatAnnounceSteps;
+
+    /**
+     * True if this is the last message in the conversation. Its action bar stays shown, and an
      * assistant message offers Regenerate.
      * @internal
      */
     isLast?: boolean;
+
+    /**
+     * For a user message whose turn failed before its run started, why - shown as "Not sent"
+     * under the bubble. Null otherwise.
+     * @internal
+     */
+    notSentReason?: string;
 
     /**
      * True to show a user message in edit mode. Pair with `onEditingChange` to control editing
@@ -134,61 +184,110 @@ export interface ChatMessageViewProps extends HoistProps {
      * @internal
      */
     onEditingChange?: (message: ChatMessage, isEditing: boolean) => void;
+
+    /**
+     * Called when the user chooses Edit Prompt on a failed reply, to edit the user message that
+     * asked for it. Shows Edit Prompt if given.
+     * @internal
+     */
+    onEditPrompt?: (reply: ChatMessage) => void;
 }
 
 /**
- * One message in a conversation.
+ * One message in a conversation, as a focusable `article`.
  *
- * User messages show as a right-aligned bubble of plain text, with any attached files above it.
- * Assistant messages span the full width with no bubble, under a header with the assistant's name
- * and the time taken. Their parts render in order: markdown text, reasoning, tool calls, files and
- * app-rendered data, followed by the sources consulted. Consecutive tool calls of one step fold
- * into a single "Used 3 tools" row. With `citationMarkers` on, `[1]` in the text renders as a
+ * User messages show as a right-aligned bubble of plain text, with any attached files above it and
+ * the structured context sent with it below. Edit and Copy show to the bubble's left on hover or
+ * focus.
+ *
+ * Assistant messages span the column with no bubble, under one quiet header line: the assistant's
+ * icon and name, then the reply's status while it runs, or its relative time and time taken once
+ * done. Their parts render in order. Reasoning and tool calls stack as quiet rows in a process
+ * block, text renders as markdown capped at the prose width, and files and app-rendered data
+ * follow, then the sources consulted. Calls to tools with `display: 'timeline'` gather, with the
+ * narration between them, into one {@link ChatTimeline} block. With `citationMarkers` on, `[1]` in the text renders as a
  * button for the source it cites. In a chat with a generative UI catalog, component tags in the
  * text render as their components.
+ *
+ * A reply that ends short says so inline: a failed reply shows what happened, with Edit Prompt, a
+ * stopped one shows "Stopped", and one cut off at the length limit says so. The thread's next
+ * action - Try Again - belongs to the composer's status region, not the reply.
  *
  * Each part renders as a memoized component that receives the part and a render context that is
  * stable for the life of the message, so a part re-renders only when it changes - not on every
  * streamed change to the message.
  *
- * An action bar shows on hover - beside a user message's bubble, below an assistant message once
- * its turn ends: Copy on every message, Edit on user messages, Regenerate on the last assistant
- * message, then any `messageActions`. A last reply that failed before any content renders nothing,
- * as the list's error banner reports it. System messages show as a centered note.
+ * Once a reply's turn ends, its action bar shows in the gap below it - always on the last reply,
+ * on hover or focus on older ones: Copy, Regenerate on the last reply, Undo, thumbs for feedback,
+ * then any `messageActions`. Each action shows only if the host supports it. System messages show
+ * as a centered note.
  */
 export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessageViewProps>({
     displayName: 'ChatMessageView',
     className: 'xh-chat-message',
 
     render(props, ref) {
-        const {className, message, chatModel, isLast = false, citationMarkers = false} = props,
+        const {className, message, host, assistantName, isLast = false} = props,
+            {citationMarkers = false} = props,
             impl = useLocalModel(ChatMessageViewLocalModel),
+            rootRef = useComposedRefs(ref, impl.rootRef),
             context = useMemo<ChatPartRenderContext>(
-                () => ({chatModel, messageId: message.id}),
-                [chatModel, message.id]
+                () => ({
+                    chatModel: host instanceof ChatModel ? host : null,
+                    host,
+                    messageId: message.id
+                }),
+                [host, message.id]
             ),
             // Kept stable while unchanged, so cited text parts skip render as the message streams.
             references = useCached(collectReferences(message.parts, citationMarkers), isEqual),
             markerSources = useCached(
                 citationMarkers ? (message.parts.filter(isSource) as ChatSourcePart[]) : null,
                 isEqual
+            ),
+            {onSourceClick, allowImages = false} = props;
+        impl.sourceLinks.configure({
+            messageId: message.id,
+            sidePanel: impl.sidePanel,
+            onSourceClick: onSourceClick ? source => onSourceClick(source, context) : null,
+            allowImages
+        });
+        impl.feedback.configure(message, host);
+
+        // Calls shown outside a timeline announce as they finish. A timeline announces its own.
+        useEffect(() => {
+            if (!message.isAssistant) return;
+            impl.cardSteps.note(
+                message.toolCalls.filter(it => isAnnouncedOutsideTimeline(it, host)),
+                {
+                    isLive: message.isStreaming || message.status === 'paused',
+                    host,
+                    announceSteps: props.announceSteps
+                }
             );
+        });
 
-        // A last reply that failed before any content is shown by the list's error banner alone.
-        if (isLast && message.status === 'error' && isEmpty(message.parts)) return null;
+        // A turn that was never sent shows as "Not sent" on its user message alone.
+        if (isReplyNotSent(message)) return null;
 
+        const isSystem = message.role === 'system';
         return div({
-            ref,
+            ref: rootRef,
             className: classNames(className, `xh-chat-message--${message.role}`, {
                 'xh-chat-message--streaming': message.isStreaming,
                 'xh-chat-message--last': isLast,
-                'xh-chat-message--editing': impl.isEditing
+                'xh-chat-message--editing': impl.isEditing,
+                'xh-chat-message--feedback-open': impl.feedback.form != null
             }),
+            role: isSystem ? 'note' : 'article',
+            tabIndex: isSystem ? undefined : isLast ? 0 : -1,
+            'aria-label': isSystem ? undefined : getAccessibleName(message, assistantName),
+            'aria-busy': message.isStreaming || undefined,
             items: message.isUser
                 ? userContent(props, impl, context)
-                : message.role === 'system'
+                : isSystem
                   ? div({className: 'xh-chat-message__system', item: message.text})
-                  : assistantContent(props, context, references, markerSources)
+                  : assistantContent(props, impl, context, references, markerSources)
         });
     }
 });
@@ -204,6 +303,25 @@ class ChatMessageViewLocalModel extends HoistModel {
     @bindable accessor draft: string = '';
     @observable accessor localEditing = false;
 
+    /** True while this view's undo of the reply's changes runs. (observable) */
+    @observable accessor isUndoing = false;
+
+    /** Why the last undo failed, if the host's promise rejected. (observable) */
+    @observableRef accessor undoRejection: Error = null;
+
+    /** The side panel in reach, which shows the documents the message cites - or null. */
+    sidePanel: ChatSidePanelHost = null;
+
+    /** How the message's citations and sources list open their sources. */
+    @managed readonly sourceLinks = new ChatSourceLinks();
+
+    /** The message's thumbs and comment form. */
+    @managed readonly feedback = new ChatMessageFeedbackModel();
+
+    /** Announces the calls shown outside a timeline as they finish. */
+    readonly cardSteps = new ChatStepAnnouncer();
+
+    readonly rootRef = createObservableRef<HTMLElement>();
     readonly inputRef = createObservableRef<HTMLInputElement>();
     readonly editButtonRef = createObservableRef<HTMLElement>();
 
@@ -217,8 +335,11 @@ class ChatMessageViewLocalModel extends HoistModel {
     }
 
     override onLinked() {
-        // Editing may start from outside the view - e.g. the list's error banner - so seed the
-        // draft whenever it starts.
+        // The side panel above the view, if any - looked up once, as the hierarchy is fixed.
+        this.sidePanel = findSidePanel(this);
+
+        // Editing may start from outside the view - e.g. Edit Prompt on a failed reply - so seed
+        // the draft whenever it starts.
         this.addReaction({
             track: () => this.isEditing,
             run: isEditing => {
@@ -243,18 +364,21 @@ class ChatMessageViewLocalModel extends HoistModel {
         this.setEditing(true);
     }
 
+    /** Edit the question that a fixed "not found" reply answered. */
+    editQuestion = () => this.props.onEditPrompt?.(this.props.message);
+
     cancelEdit() {
         this.isFocusPending = true;
         this.setEditing(false);
     }
 
     submitEdit() {
-        const {message, chatModel} = this.props,
+        const {message, host} = this.props,
             text = this.draft.trim();
-        if (!text || chatModel.isBusy || chatModel.sendBlockedReason) return;
+        if (!text || host.isBusy || host.sendBlockedReason || !host.editMessageAsync) return;
         this.setEditing(false);
-        chatModel.composerModel.focus();
-        chatModel.editMessageAsync(message.id, text).catchDefault();
+        host.composerModel?.focus();
+        host.editMessageAsync(message.id, text).catchDefault();
     }
 
     onEditKeyDown = (e: KeyboardEvent) => {
@@ -266,6 +390,62 @@ class ChatMessageViewLocalModel extends HoistModel {
             this.submitEdit();
         }
     };
+
+    //------------------
+    // Undo
+    //------------------
+    /** True if the user can undo the reply's changes now. */
+    get canUndo(): boolean {
+        const {message, host} = this.props;
+        return !!host.undoTurnAsync && !!host.canUndoTurn?.(message.id);
+    }
+
+    /**
+     * Why the last undo failed, while the reply can still be undone - so that Retry can work -
+     * or null.
+     */
+    get undoError(): Error {
+        const {message, host} = this.props;
+        if (this.isUndoing || !this.canUndo) return null;
+        return host.undoErrors?.[message.id] ?? this.undoRejection;
+    }
+
+    /**
+     * Undo the reply's changes. A failure shows inline, with Retry - never as a toast. Undo goes
+     * once it succeeds, so focus on it moves to the reply.
+     */
+    async undoAsync() {
+        const {message, host} = this.props;
+        if (this.isUndoing || !this.canUndo) return;
+        const reply = this.rootRef.current,
+            hadFocus = !!reply?.contains(document.activeElement);
+        this.setUndoState(true, null);
+        let rejection: Error = null;
+        try {
+            await host.undoTurnAsync(message.id);
+        } catch (e) {
+            rejection = e;
+        }
+        this.setUndoState(false, rejection);
+        if (rejection ?? host.undoErrors?.[message.id]) {
+            chatAnnouncer.announce('Change not undone.', 'assertive');
+        } else {
+            chatAnnouncer.announce('Change undone.');
+            if (hadFocus) {
+                // After the render that removes the button.
+                wait().then(() => {
+                    const active = document.activeElement;
+                    if (!active || active === document.body) reply.focus();
+                });
+            }
+        }
+    }
+
+    @action
+    private setUndoState(isUndoing: boolean, rejection: Error) {
+        this.isUndoing = isUndoing;
+        this.undoRejection = rejection;
+    }
 
     private isFocusPending = false;
 
@@ -280,6 +460,12 @@ class ChatMessageViewLocalModel extends HoistModel {
     }
 }
 
+/** The message's name for screen readers: its author and when, as "You, 4 minutes ago". */
+function getAccessibleName(message: ChatMessage, assistantName: string): string {
+    const author = message.isUser ? 'You' : (assistantName ?? 'Assistant');
+    return `${author}, ${getRelativeTimestamp(message.createdAt)}`;
+}
+
 //------------------------
 // User messages
 //------------------------
@@ -288,50 +474,106 @@ function userContent(
     impl: ChatMessageViewLocalModel,
     context: ChatPartRenderContext
 ): ReactNode[] {
-    const {message, isLast, messageActions, allowImages} = props,
+    const {message, host, isLast, messageActions, allowImages, notSentReason} = props,
         files = message.parts.filter(it => it.type === 'file') as ChatFilePart[];
 
     if (impl.isEditing) {
-        return [
-            files.length ? fileRow(files, allowImages) : null,
-            editBox({impl, chatModel: context.chatModel})
-        ];
+        return [files.length ? fileRow(files, allowImages) : null, editBox({impl, host, message})];
     }
 
     // The action bar sits beside the bubble, not below it, so that it takes no space of its own.
-    // A message of files alone has no bubble, and the bar sits beside the files.
-    const actions = actionBar({message, context, isLast, impl, extraActions: messageActions}),
-        contextNote = messageContextNote(message);
+    // A message of files alone has no bubble, and the bar sits beside the files. A message that
+    // was never sent offers Edit below it instead.
+    const actions =
+            notSentReason == null
+                ? actionBar({
+                      message,
+                      host,
+                      context,
+                      isLast,
+                      isNoAnswer: false,
+                      impl,
+                      extraActions: messageActions
+                  })
+                : null,
+        under = underBubble(props, impl);
     if (!message.text) {
         return [
             div({className: 'xh-chat-message__row', items: [fileRow(files, allowImages), actions]}),
-            contextNote
+            under
         ];
     }
     return [
         files.length ? fileRow(files, allowImages) : null,
         div({
             className: 'xh-chat-message__row',
-            items: [div({className: 'xh-chat-message__bubble', item: message.text}), actions]
+            items: [
+                div({
+                    className: 'xh-chat-message__bubble',
+                    title: fmtDateTime(message.createdAt) as string,
+                    item: message.text
+                }),
+                actions
+            ]
         }),
-        contextNote
+        under
     ];
 }
 
 /**
- * The structured context sent with a user message, such as the record a button acted on. The
- * model sees it with the message, so the user does too.
+ * What shows below the bubble: the structured context sent with the message, such as the record a
+ * button acted on - the model sees it with the message, so the user does too - and "Not sent" for
+ * a message whose turn never started.
  */
-function messageContextNote(message: ChatMessage): ReactNode {
-    const text = formatChatUiContext(message.metadata.context);
-    return text
-        ? div({className: 'xh-chat-message__context', title: 'Sent with the message', item: text})
+function underBubble(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNode {
+    const {message, host, notSentReason} = props,
+        contextText = formatChatUiContext(message.metadata.context),
+        items = [
+            contextText
+                ? div({
+                      key: 'context',
+                      className: 'xh-chat-message__context',
+                      title: 'Sent with the message',
+                      item: contextText
+                  })
+                : null,
+            notSentReason != null
+                ? div({
+                      key: 'notSent',
+                      className: 'xh-chat-message__not-sent',
+                      items: [
+                          Icon.error(),
+                          span({
+                              className: 'xh-chat-message__not-sent-text',
+                              item: 'Not sent.'
+                          }),
+                          notSentReason
+                              ? span({
+                                    className: 'xh-chat-message__not-sent-cause',
+                                    item: notSentReason
+                                })
+                              : null,
+                          host.editMessageAsync
+                              ? button({
+                                    ref: impl.editButtonRef,
+                                    text: 'Edit',
+                                    disabled: host.isBusy,
+                                    onClick: () => impl.startEdit()
+                                })
+                              : null
+                      ]
+                  })
+                : null
+        ];
+    return items.some(it => it)
+        ? div({className: 'xh-chat-message__under', items: items.filter(it => it)})
         : null;
 }
 
 interface EditBoxProps extends HoistProps {
     impl: ChatMessageViewLocalModel;
-    chatModel: ChatModel;
+    host: ChatMessageListHost;
+    message: ChatMessage;
 }
 
 /** Rows the edit box grows to before it scrolls. */
@@ -341,8 +583,11 @@ const editBox = hoistCmp.factory<EditBoxProps>({
     displayName: 'ChatMessageEditBox',
     model: false,
 
-    render({impl, chatModel}) {
-        const {draft, inputRef} = impl;
+    render({impl, host, message}) {
+        const {draft, inputRef} = impl,
+            {messages} = host,
+            idx = messages.findIndex(it => it.id === message.id),
+            laterCount = idx >= 0 ? messages.length - idx - 1 : 0;
 
         useLayoutEffect(
             () => fitTextAreaToContent(inputRef.current, EDIT_MAX_ROWS),
@@ -365,16 +610,25 @@ const editBox = hoistCmp.factory<EditBoxProps>({
                     onKeyDown: impl.onEditKeyDown
                 }),
                 div({
-                    className: 'xh-chat-message__edit-actions',
+                    className: 'xh-chat-message__edit-bar',
                     items: [
+                        laterCount
+                            ? span({
+                                  className: 'xh-chat-message__edit-warning',
+                                  items: [
+                                      Icon.warning(),
+                                      `Resending replaces the ${pluralize('message', laterCount, laterCount > 1)} after this one.`
+                                  ]
+                              })
+                            : null,
                         button({text: 'Cancel', onClick: () => impl.cancelEdit()}),
                         button({
-                            text: 'Send',
+                            text: 'Save and Resend',
+                            icon: Icon.arrowUp(),
                             intent: 'primary',
                             minimal: false,
-                            tooltip: chatModel.sendBlockedReason,
-                            disabled:
-                                !draft.trim() || chatModel.isBusy || !!chatModel.sendBlockedReason,
+                            tooltip: host.sendBlockedReason,
+                            disabled: !draft.trim() || host.isBusy || !!host.sendBlockedReason,
                             onClick: () => impl.submitEdit()
                         })
                     ]
@@ -389,65 +643,235 @@ const editBox = hoistCmp.factory<EditBoxProps>({
 //------------------------
 function assistantContent(
     props: ViewProps,
+    impl: ChatMessageViewLocalModel,
     context: ChatPartRenderContext,
     references: ChatReference[],
     markerSources: ChatSourcePart[]
 ): ReactNode[] {
-    const {message, isLast, assistantName, messageActions, onSourceClick} = props;
+    const {message, host, isLast, messageActions} = props,
+        runs = groupProcessRuns(groupParts(message.parts, host), host),
+        // A fixed "not found" reply lists no sources.
+        isNoAnswer = !!getChatNoAnswerPart(message),
+        uncitedSources = isNoAnswer ? [] : collectUncitedSources(message.parts, references),
+        stepOffsets = getStepOffsets(runs);
 
     return [
-        messageHeader(props, context),
         div({
-            className: 'xh-chat-message__body',
+            key: 'main',
+            className: 'xh-chat-message__main',
             items: [
-                ...groupParts(message.parts, context.chatModel).map(group =>
-                    chatErrorBoundary({
-                        key: group.id,
-                        resetKey: getResetKey(group),
-                        item: renderPartGroup(group, props, context, references, markerSources)
-                    })
-                ),
-                isAwaitingContent(message)
-                    ? chatTypingIndicator({
-                          key: 'typing',
-                          label: `${assistantName ?? 'Assistant'} is responding`
+                messageHeader(props, context),
+                div({
+                    className: 'xh-chat-message__body',
+                    items: [
+                        ...runs.map((run, idx) =>
+                            run.type === 'process'
+                                ? processRun(run, props, impl, context, references, markerSources)
+                                : run.type === 'timeline'
+                                  ? timelineBlock(
+                                        run,
+                                        props,
+                                        context,
+                                        idx < runs.length - 1,
+                                        stepOffsets.get(run.id)
+                                    )
+                                  : renderGroup(
+                                        run,
+                                        props,
+                                        impl,
+                                        context,
+                                        references,
+                                        markerSources
+                                    )
+                        ),
+                        replyNotice(props)
+                    ]
+                }),
+                !isNoAnswer && (references.length || uncitedSources.length)
+                    ? chatSources({
+                          sources: toSourceList(references),
+                          uncitedSources,
+                          links: impl.sourceLinks
                       })
                     : null,
-                statusNote(props)
+                // Actions wait for the turn to end - including one paused for the user's answer.
+                message.isStreaming || message.status === 'paused'
+                    ? null
+                    : actionBar({
+                          message,
+                          host,
+                          context,
+                          isLast,
+                          isNoAnswer,
+                          impl,
+                          extraActions: messageActions
+                      })
             ]
         }),
-        references.length
-            ? chatSources({
-                  sources: toSourceList(references),
-                  onSourceClick: onSourceClick ? source => onSourceClick(source, context) : null
-              })
-            : null,
-        // Actions wait for the turn to end - including one paused for the user's approval.
-        message.isStreaming || message.status === 'paused'
-            ? null
-            : actionBar({message, context, isLast, impl: null, extraActions: messageActions})
+        afterReply(props, impl)
     ];
 }
 
+function processRun(
+    run: ChatProcessRun,
+    props: ViewProps,
+    impl: ChatMessageViewLocalModel,
+    context: ChatPartRenderContext,
+    references: ChatReference[],
+    markerSources: ChatSourcePart[]
+): ReactNode {
+    return div({
+        key: run.id,
+        className: 'xh-chat-message__process',
+        items: run.groups.map(group =>
+            renderGroup(group, props, impl, context, references, markerSources)
+        )
+    });
+}
+
+/**
+ * The reply's activity timeline, for calls to `timeline` tools. Once more of the reply follows
+ * it, its line turns to the summary.
+ */
+function timelineBlock(
+    group: ChatTimelineGroup,
+    props: ViewProps,
+    context: ChatPartRenderContext,
+    isFollowed: boolean,
+    stepOffset: number
+): ReactNode {
+    const {message, host, isLast, announceSteps} = props;
+    return chatErrorBoundary({
+        key: group.id,
+        item: chatTimeline({
+            message,
+            host,
+            parts: group.parts,
+            pinned: group.pinned,
+            context,
+            isFollowed,
+            isLast,
+            announceSteps,
+            stepOffset
+        })
+    });
+}
+
+// The calls in each timeline block's earlier blocks, by block id, so that steps count across them.
+function getStepOffsets(runs: Array<ChatPartGroup | ChatProcessRun>): Map<string, number> {
+    const ret = new Map<string, number>();
+    let count = 0;
+    runs.forEach(run => {
+        if (run.type !== 'timeline') return;
+        ret.set(run.id, count);
+        count += run.parts.filter(it => it.type === 'toolCall').length;
+    });
+    return ret;
+}
+
+// A call whose finish the message view announces: one it shows, outside a timeline.
+function isAnnouncedOutsideTimeline(call: ChatToolCallPart, host: ChatMessageListHost): boolean {
+    const display = getToolCallDisplay(call, host);
+    return display !== 'timeline' && display !== 'hidden' && display !== 'pinned';
+}
+
+function renderGroup(
+    group: ChatPartGroup,
+    props: ViewProps,
+    impl: ChatMessageViewLocalModel,
+    context: ChatPartRenderContext,
+    references: ChatReference[],
+    markerSources: ChatSourcePart[]
+): ReactNode {
+    return chatErrorBoundary({
+        key: group.id,
+        resetKey: getResetKey(group),
+        item: renderPartGroup(group, props, impl, context, references, markerSources)
+    });
+}
+
 function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactNode {
-    const {message, assistantName, assistantIcon, messageHeaderItems} = props,
-        isDone = !message.isStreaming,
-        elapsed = isDone ? formatElapsed(message.metadata?.elapsedMs) : null,
-        thought = isDone ? formatElapsed(getHiddenThoughtMs(message)) : null;
+    const {message, host, isLast, assistantName, assistantIcon, messageHeaderItems} = props,
+        {status, metadata, createdAt} = message,
+        isLive = message.isStreaming,
+        isPaused = status === 'paused',
+        isDone = !isLive && !isPaused,
+        elapsed = !isLive ? formatElapsed(metadata?.elapsedMs) : null,
+        thought = isDone ? formatElapsed(getHiddenThoughtMs(message)) : null,
+        // A timeline counts its own failures.
+        failedTools = isDone
+            ? message.toolCalls.filter(
+                  it => isToolCallFailed(it) && getToolCallDisplay(it, host) !== 'timeline'
+              ).length
+            : 0,
+        endedAt = createdAt + (metadata?.elapsedMs ?? 0),
+        {dataRefreshedAt} = host,
+        isStale = status === 'complete' && dataRefreshedAt != null && dataRefreshedAt > endedAt;
 
     return div({
         className: 'xh-chat-message__header',
         items: [
-            span({className: 'xh-chat-message__avatar', item: assistantIcon ?? Icon.ai()}),
-            span({className: 'xh-chat-message__name', item: assistantName ?? 'Assistant'}),
+            span({
+                className: 'xh-chat-message__name',
+                items: [
+                    span({
+                        className: 'xh-chat-message__icon',
+                        item: assistantIcon ?? ChatKit.defaults.assistantIcon()
+                    }),
+                    span({
+                        className: 'xh-chat-message__name-text',
+                        item: assistantName ?? 'Assistant'
+                    })
+                ]
+            }),
+            isLive
+                ? chatReplyLiveStatus({
+                      className: 'xh-chat-message__segment',
+                      message,
+                      host,
+                      isLast
+                  })
+                : null,
+            isPaused
+                ? span({
+                      className: 'xh-chat-message__segment',
+                      item: chatStatusCue({status: 'paused'})
+                  })
+                : null,
+            isDone
+                ? relativeTimestamp({
+                      className: 'xh-chat-message__segment xh-chat-message__time',
+                      timestamp: createdAt,
+                      short: true
+                  })
+                : null,
             elapsed
-                ? span({className: 'xh-chat-message__meta', title: 'Time taken', item: elapsed})
+                ? span({
+                      className: 'xh-chat-message__segment xh-chat-message__elapsed',
+                      title: 'Time taken',
+                      item: elapsed
+                  })
                 : null,
             thought
                 ? span({
-                      className: 'xh-chat-message__meta',
+                      className: 'xh-chat-message__segment',
                       title: 'Time spent thinking',
                       item: `Thought for ${thought}`
+                  })
+                : null,
+            failedTools
+                ? span({
+                      className: 'xh-chat-message__segment xh-chat-message__warning',
+                      items: [Icon.warning(), `${pluralize('tool', failedTools, true)} failed`]
+                  })
+                : null,
+            isStale
+                ? span({
+                      className: 'xh-chat-message__segment xh-chat-message__warning',
+                      title:
+                          `Replied ${fmtDateTime(endedAt) as string}. ` +
+                          `Data refreshed ${fmtDateTime(dataRefreshedAt) as string}.`,
+                      items: [Icon.warning(), 'Data refreshed since']
                   })
                 : null,
             ...(messageHeaderItems?.(message, context) ?? [])
@@ -468,16 +892,17 @@ function getHiddenThoughtMs(message: ChatMessage): number {
 function renderPartGroup(
     group: ChatPartGroup,
     props: ViewProps,
+    impl: ChatMessageViewLocalModel,
     context: ChatPartRenderContext,
     references: ChatReference[],
     markerSources: ChatSourcePart[]
 ): ReactNode {
-    const {markdownComponents, allowImages, markdownPlugins, onSourceClick} = props;
+    const {host, markdownComponents, allowImages, markdownPlugins, onEditPrompt} = props;
     switch (group.type) {
         case 'fileGroup':
             return fileRow(group.parts, allowImages);
         case 'toolCallGroup':
-            return chatToolCallGroup({parts: group.parts, context});
+            return chatToolCallGroup({parts: group.parts, context, host});
         case 'text':
             return textPart({
                 part: group,
@@ -487,8 +912,9 @@ function renderPartGroup(
                 // Only cited text needs the references - passing them otherwise defeats memoization.
                 references: group.citations?.length ? references : null,
                 markerSources,
-                onSourceClick,
+                links: impl.sourceLinks,
                 context,
+                host,
                 markdownComponents,
                 markdownPlugins,
                 allowImages
@@ -496,9 +922,15 @@ function renderPartGroup(
         case 'reasoning':
             return chatReasoning({part: group, markdownComponents, markdownPlugins, allowImages});
         case 'toolCall':
-            return chatToolCall({part: group, context});
+            return chatToolCall({part: group, context, host});
         case 'data':
-            return dataPart({part: group, context});
+            return dataPart({
+                part: group,
+                context,
+                host,
+                // Stable, so that the part skips render as the message changes.
+                onEditQuestion: onEditPrompt && host.editMessageAsync ? impl.editQuestion : null
+            });
         default:
             return null;
     }
@@ -523,8 +955,9 @@ interface TextPartProps extends HoistProps {
 
     /** Sources for citation markers in the text - null unless `citationMarkers` is on. */
     markerSources: ChatSourcePart[];
-    onSourceClick: ChatSourceClickFn;
+    links: ChatSourceLinks;
     context: ChatPartRenderContext;
+    host: ChatMessageListHost;
     markdownComponents: ChatMarkdownComponents;
     markdownPlugins: ChatMarkdownPlugins;
     allowImages: ChatImagePolicy;
@@ -541,36 +974,41 @@ const textPart = hoistCmp.factory<TextPartProps>({
         citations,
         references,
         markerSources,
-        onSourceClick,
+        links,
         context,
+        host,
         markdownComponents,
         markdownPlugins,
         allowImages
     }) {
-        const components = useChatMarkdownComponents(markdownComponents),
-            onClick = useMemo(
-                () =>
-                    onSourceClick
-                        ? (source: ChatSourcePart) => onSourceClick(source, context)
-                        : null,
-                [onSourceClick, context]
-            ),
+        // Text the server is revising holds in the held color until it catches up.
+        const className = classNames('xh-chat-message__text', {
+                'xh-chat-message__text--revising': isStreaming && !!part?.revising
+            }),
+            components = useChatMarkdownComponents(markdownComponents),
             // Inline at the end of the last paragraph - memoized, as each new value re-renders it.
-            trailingContent = useMemo(
-                () =>
-                    citations?.length
-                        ? chatCitations({citations, references, onSourceClick: onClick})
-                        : null,
-                [citations, references, onClick]
-            ),
+            // While the text streams, the caret leads. Keyed by the text's length, so that each
+            // arrival restarts its blink.
+            caretKey = isStreaming ? text.length : null,
+            trailingContent = useMemo(() => {
+                const caret = caretKey != null ? chatCaret(caretKey) : null,
+                    chips = citations?.length
+                        ? chatCitations({key: 'citations', citations, references, links})
+                        : null;
+                return caret && chips ? [caret, chips] : (caret ?? chips);
+            }, [caretKey, citations, references, links]),
             markers = useMemo<ChatMarkdownCitations>(
                 () =>
                     markerSources
-                        ? {sources: markerSources, onClick, renderMarker: renderCitationMarker}
+                        ? {
+                              sources: markerSources,
+                              onClick: source => links.open(source),
+                              ...createMarkerRenderers(links)
+                          }
                         : null,
-                [markerSources, onClick]
+                [markerSources, links]
             ),
-            {catalog} = context.chatModel,
+            {catalog} = host,
             segments = useMemo(
                 () => catalog?.parseTags(text, {isStreaming}) ?? null,
                 [catalog, text, isStreaming]
@@ -590,13 +1028,13 @@ const textPart = hoistCmp.factory<TextPartProps>({
 
         // Text with no component tags - the common case - renders as one block of markdown.
         if (!segments?.some(it => it.type !== 'markdown')) {
-            return div({className: 'xh-chat-message__text', item: markdown(text, true, true)});
+            return div({className, item: markdown(text, true, true)});
         }
 
         // Segments only grow at the end as the text streams, so their index is a stable key.
         const lastMarkdownIdx = findLastIndex(segments, it => it.type === 'markdown');
         return div({
-            className: 'xh-chat-message__text',
+            className,
             items: segments.map((segment, idx) =>
                 segment.type === 'markdown'
                     ? markdown(
@@ -618,6 +1056,10 @@ const textPart = hoistCmp.factory<TextPartProps>({
 interface DataPartProps extends HoistProps {
     part: ChatDataPart;
     context: ChatPartRenderContext;
+    host: ChatMessageListHost;
+
+    /** Edit Question, for a fixed "not found" reply. */
+    onEditQuestion: () => void;
 }
 
 // The renderer runs as this component's render, so hooks it calls belong to the part. Takes any
@@ -627,9 +1069,14 @@ const dataPart = hoistCmp.factory<DataPartProps>({
     model: uses('*', {optional: true}),
     className: 'xh-chat-message__data',
 
-    render({className, part, context}) {
-        const renderer = getOwn(context.chatModel.dataRenderers, part.dataType);
+    render({className, part, context, host, onEditQuestion}) {
+        const renderer = getOwn(host.dataRenderers ?? {}, part.dataType);
         if (renderer) return div({className, item: renderer(part, context)});
+
+        // The built-in template, unless the app registers its own renderer for the type.
+        if (part.dataType === CHAT_NO_ANSWER_DATA_TYPE) {
+            return div({className, item: chatNoAnswer({part, onEditQuestion})});
+        }
 
         return div({
             className: classNames(className, 'xh-chat-message__data--unrendered'),
@@ -653,32 +1100,90 @@ function isSource(part: ChatPart): boolean {
     return part.type === 'source';
 }
 
-// True while the assistant is working with nothing new to show - before its first content, or
-// between a finished tool call and the model's next step.
-function isAwaitingContent(message: ChatMessage): boolean {
-    if (!message.isStreaming) return false;
-    const lastPart = last(message.parts);
-    return !lastPart || (lastPart.type === 'toolCall' && isToolCallFinal(lastPart));
-}
+/**
+ * How a reply that ended short ended, inline at the end of its body. A failed reply shows what
+ * happened, in the danger color, with Edit Prompt. A server that ended the run says why, in the
+ * warning color. A stop is the user's choice, so it stays quiet. A reply cut off at the length
+ * limit says so.
+ */
+function replyNotice(props: ViewProps): ReactNode {
+    const {message, onEditPrompt, host} = props;
+    if (message.isStreaming || message.status === 'paused') return null;
 
-function statusNote({message, isLast}: ViewProps): ReactNode {
-    const {status, error} = message;
-    if (status === 'aborted') {
-        return div({
-            key: 'status',
-            className: 'xh-chat-message__note',
-            items: [Icon.stopCircle(), 'Stopped']
-        });
+    const status = getChatReplyStatus({message});
+    switch (status) {
+        case 'error':
+        case 'waitingToRetry':
+            return div({
+                key: 'notice',
+                className: 'xh-chat-message__failed',
+                // No live role: the composer's status region announces the failure (D65).
+                items: [
+                    Icon.error({className: 'xh-chat-message__failed-icon'}),
+                    div({
+                        className: 'xh-chat-message__failed-text',
+                        items: [
+                            span({
+                                className: 'xh-chat-message__failed-title',
+                                item: 'The reply failed.'
+                            }),
+                            span({
+                                className: 'xh-chat-message__failed-cause',
+                                item: getFailureCause(message)
+                            })
+                        ]
+                    }),
+                    onEditPrompt && host.editMessageAsync
+                        ? button({
+                              className: 'xh-chat-message__failed-edit',
+                              icon: Icon.edit(),
+                              text: 'Edit Prompt',
+                              disabled: host.isBusy,
+                              onClick: () => onEditPrompt(message)
+                          })
+                        : null
+                ]
+            });
+        case 'interrupted':
+        case 'cancelledByServer':
+            return notice('xh-chat-message__notice--warning', [
+                chatStatusCue({key: 'cue', status}),
+                message.error
+                    ? span({
+                          key: 'reason',
+                          className: 'xh-chat-message__notice-detail',
+                          item: message.error
+                      })
+                    : null
+            ]);
+        case 'aborted':
+        case 'detached':
+            return notice(null, chatStatusCue({status}));
     }
-    // The last message's error shows in the list's error banner, with Retry.
-    if (status === 'error' && !isLast) {
-        return div({
-            key: 'status',
-            className: 'xh-chat-message__note xh-chat-message__note--error',
-            items: [Icon.warningCircle(), error || 'Failed']
-        });
+
+    // No Redo: the user can ask again.
+    if (message.metadata.undone) {
+        return notice('xh-chat-message__notice--undone', [
+            Icon.undo({key: 'icon'}),
+            span({key: 'text', item: 'Changes undone.'})
+        ]);
+    }
+
+    if (message.metadata.finishReason === 'length') {
+        return notice('xh-chat-message__notice--warning', [
+            Icon.warning({key: 'icon'}),
+            span({key: 'text', item: 'Cut off at the length limit.'})
+        ]);
     }
     return null;
+}
+
+function notice(className: string, items: ReactNode): ReactNode {
+    return div({
+        key: 'notice',
+        className: classNames('xh-chat-message__notice', className),
+        items
+    });
 }
 
 //------------------------
@@ -686,10 +1191,12 @@ function statusNote({message, isLast}: ViewProps): ReactNode {
 //------------------------
 interface ActionBarProps extends HoistProps {
     message: ChatMessage;
+    host: ChatMessageListHost;
     context: ChatPartRenderContext;
     isLast: boolean;
 
-    /** Local model of a user message, to start editing it - null for assistant messages. */
+    /** True for a fixed "not found" reply, which has nothing to regenerate. */
+    isNoAnswer: boolean;
     impl: ChatMessageViewLocalModel;
 
     /** App actions, added after the built-in ones. */
@@ -700,26 +1207,39 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
     displayName: 'ChatMessageActions',
     model: false,
 
-    render({message, context, isLast, impl, extraActions}) {
-        const {chatModel} = context,
-            {isBusy} = chatModel,
+    render({message, host, context, isLast, isNoAnswer, impl, extraActions}) {
+        const {isBusy} = host,
+            {isAssistant, isUser, status} = message,
+            isFailed = isAssistant && status === 'error',
             hasText = !!message.text.trim(),
-            // A failed last reply offers Retry in the list's error banner instead.
-            canRegenerate = message.isAssistant && isLast && !isBusy && message.status !== 'error',
-            canUndo = chatModel.canUndoTurn(message.id),
-            appActions = extraActions?.(message, context) ?? [];
-
-        if (!hasText && !canRegenerate && !canUndo && !impl && isEmpty(appActions)) return null;
-
-        return div({
-            className: 'xh-chat-message__actions',
-            items: [
-                hasText ? chatCopyButton({getCopyText: () => message.text}) : null,
-                impl
+            // A failed reply has nothing to regenerate: Try Again, above the composer, covers it.
+            // TODO(design-open B2) - Regenerate replaces the reply, with no branch switcher.
+            canRegenerate =
+                isAssistant &&
+                isLast &&
+                !isBusy &&
+                !isFailed &&
+                !isNoAnswer &&
+                !!host.regenerateAsync,
+            {canUndo, isUndoing} = impl,
+            canEdit = isUser && !!host.editMessageAsync,
+            appActions = extraActions?.(message, context) ?? [],
+            primary = [
+                isFailed
+                    ? chatCopyButton({
+                          key: 'copy',
+                          label: 'Copy Details',
+                          getCopyText: () => formatFailureDetails(message)
+                      })
+                    : hasText
+                      ? chatCopyButton({key: 'copy', getCopyText: () => message.text})
+                      : null,
+                canEdit
                     ? button({
+                          key: 'edit',
                           ref: impl.editButtonRef,
                           icon: Icon.edit(),
-                          tooltip: 'Edit',
+                          tooltip: isBusy ? 'Stop the reply to edit' : 'Edit',
                           'aria-label': 'Edit',
                           disabled: isBusy,
                           onClick: () => impl.startEdit()
@@ -727,22 +1247,94 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
                     : null,
                 canRegenerate
                     ? button({
+                          key: 'regenerate',
                           icon: Icon.refresh(),
                           tooltip: 'Regenerate',
                           'aria-label': 'Regenerate',
-                          onClick: () => chatModel.regenerateAsync(message.id).catchDefault()
+                          onClick: () => {
+                              // The reply goes, and a pending rating of it with it. So does the
+                              // button, so focus goes to the composer, where the new reply ends.
+                              impl.feedback.discardForm();
+                              host.composerModel?.focus();
+                              host.regenerateAsync(message.id).catchDefault();
+                          }
                       })
                     : null,
-                canUndo
+                canUndo || isUndoing
                     ? button({
-                          icon: Icon.undo(),
+                          key: 'undo',
+                          icon: isUndoing ? chatSpinner() : Icon.undo(),
                           tooltip: 'Undo changes',
                           'aria-label': 'Undo changes',
-                          onClick: () => chatModel.undoTurnAsync(message.id).catchDefault()
+                          disabled: isUndoing,
+                          onClick: () => impl.undoAsync()
                       })
-                    : null,
-                ...appActions
-            ]
+                    : null
+            ].filter(it => it),
+            thumbs = impl.feedback.canRate
+                ? feedbackThumbs(impl.feedback, isNoAnswer).filter(it => it)
+                : [],
+            groups = [primary, thumbs, appActions].filter(it => it.length);
+
+        if (!groups.length) return null;
+
+        return div({
+            className: 'xh-chat-message__actions',
+            // A group, not a toolbar: each action is its own tab stop, with no arrow keys.
+            role: 'group',
+            'aria-label': 'Message actions',
+            items: groups.flatMap((items, idx) =>
+                idx
+                    ? [
+                          span({
+                              key: `sep${idx}`,
+                              className: 'xh-chat-message__actions-sep',
+                              'aria-hidden': true
+                          }),
+                          ...items
+                      ]
+                    : items
+            )
         });
     }
 });
+
+/**
+ * What shows under a reply, below its action bar: a failed undo of its changes, with Retry, and the
+ * open feedback form.
+ */
+function afterReply(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNode {
+    const {undoError, feedback} = impl,
+        undoFailure = undoError
+            ? div({
+                  key: 'undoFailed',
+                  className: 'xh-chat-message__undo-failed',
+                  items: [
+                      Icon.error({className: 'xh-chat-message__undo-failed-icon'}),
+                      span({
+                          className: 'xh-chat-message__undo-failed-text',
+                          item: "Couldn't undo the changes."
+                      }),
+                      undoError.message
+                          ? span({
+                                className: 'xh-chat-message__undo-failed-cause',
+                                item: undoError.message
+                            })
+                          : null,
+                      button({
+                          icon: Icon.refresh(),
+                          text: 'Retry',
+                          onClick: () => impl.undoAsync()
+                      })
+                  ]
+              })
+            : null,
+        form = feedback.form ? chatFeedbackForm({key: 'feedback', model: feedback}) : null;
+
+    if (!undoFailure && !form) return null;
+    return div({
+        key: 'after',
+        className: 'xh-chat-message__after',
+        items: [undoFailure, form]
+    });
+}

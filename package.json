@@ -15,7 +15,6 @@
   },
   "files": [
     "CHANGELOG.md",
-    "assist",
     "cmp",
     "core",
     "desktop",

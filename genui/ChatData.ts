@@ -24,6 +24,9 @@ export interface ChatDataColumn {
      */
     format?: string;
 
+    /** Decimal places for numbers, for the component that renders them. Default suits the value. */
+    decimals?: number;
+
     /**
      * The unit the values were scaled to by {@link applyDataView}, so that a component can label
      * them - for example `millions`. Absent for unscaled values.

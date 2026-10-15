@@ -32,22 +32,23 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: var(--xh-chat-message-gap-px);
+    gap: var(--xh-chat-turn-gap);
     margin: 0 auto;
-    max-width: var(--xh-chat-content-max-width);
+    max-width: var(--xh-chat-column-max-width);
     min-height: 100%;
-    padding: var(--xh-chat-gutter-px);
+    padding: var(--xh-chat-side-pad);
+    // Room for the last reply's action bar, which sits in the turn gap below it.
+    padding-bottom: max(var(--xh-chat-side-pad), var(--xh-chat-turn-gap));
     width: 100%;
   }
 
-  // A solid, raised disc over the messages. The disc is a wrapper, as Hoist keeps the background
+  // A solid disc over the messages. The disc is a wrapper, as Hoist keeps the background
   // of a minimal button transparent.
   &__scroll-button {
     background-color: var(--xh-chat-bg);
     border: var(--xh-border-width-px) solid var(--xh-chat-composer-border-color);
     border-radius: 50%;
     bottom: var(--xh-pad-px);
-    box-shadow: var(--xh-chat-shadow);
     left: 50%;
     position: absolute;
     transform: translateX(-50%);

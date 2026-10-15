@@ -71,6 +71,51 @@ describe('ChatMarkdown', () => {
             expect(marker.getAttribute('title')).toBeNull();
         });
 
+        it('passes renderMarker the number that cites the source', () => {
+            const renderMarker = vi.fn((marker, source, number) => marker);
+            renderMarkdown({content: 'See [2].', citations: {sources: SOURCES, renderMarker}});
+            expect(renderMarker).toHaveBeenCalledWith(expect.anything(), SOURCES[1], 2);
+        });
+
+        it('keeps a marker on the line of the word before it', () => {
+            const {container} = renderMarkdown({
+                content: 'Rates rose [1].',
+                citations: {sources: SOURCES}
+            });
+            const run = container.querySelector('.xh-chat-markdown__citation-run');
+            expect(run.textContent).toBe('rose 1.');
+        });
+
+        it('collapses a marker of four or more sources to one button for all of them', () => {
+            const sources: ChatSourcePart[] = [1, 2, 3, 4, 5].map(n => ({
+                    type: 'source',
+                    id: `s${n}`,
+                    title: `Doc ${n}`,
+                    marker: n
+                })),
+                renderGroup = vi.fn((marker, cited) => marker);
+            renderMarkdown({content: 'All agree [2–5].', citations: {sources, renderGroup}});
+
+            const marker = screen.getByRole('button', {name: 'Sources 2 to 5'});
+            expect(marker.textContent).toBe('2–5');
+            expect(renderGroup.mock.calls[0][1].map(it => it.number)).toEqual([2, 3, 4, 5]);
+        });
+
+        it('lists every source of a group in its tooltip, and opens the first on click', () => {
+            const sources: ChatSourcePart[] = [1, 2, 3, 4].map(n => ({
+                    type: 'source',
+                    id: `s${n}`,
+                    title: `Doc ${n}`
+                })),
+                onClick = vi.fn();
+            renderMarkdown({content: 'All agree [1–4].', citations: {sources, onClick}});
+
+            const marker = screen.getByRole('button', {name: 'Sources 1 to 4'});
+            expect(marker.getAttribute('title')).toBe('1. Doc 1\n2. Doc 2\n3. Doc 3\n4. Doc 4');
+            fireEvent.click(marker);
+            expect(onClick).toHaveBeenCalledExactlyOnceWith(sources[0]);
+        });
+
         it('leaves markers in code, links and footnotes as written', () => {
             const {container} = renderMarkdown({
                 content: [
@@ -135,12 +180,12 @@ describe('ChatMarkdown', () => {
                     rehype: [[rehypeAddClass, {className: 'from-app'}]]
                 };
             const {container} = renderMarkdown({
-                content: 'Cited [1]',
+                content: 'Twice cited [1]',
                 citations: {sources: SOURCES},
                 markdownPlugins: plugins
             });
 
-            expect(seen).toEqual(['text', 'xhChatCitation']);
+            expect(seen).toEqual(['text', 'xhChatCitationRun']);
             expect(container.querySelector('p.from-app')).toBeTruthy();
         });
 

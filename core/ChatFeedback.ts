@@ -10,11 +10,36 @@ export interface ChatFeedbackConfig {
      */
     submitAsync?: ChatFeedbackSubmitter;
 
-    /** Ratings for which the UI asks for a comment. Default 'negative'. */
+    /**
+     * Ratings for which the UI opens the comment form at once. Other ratings save at once and
+     * offer "Add a comment" after, unless this is 'none'. Default 'negative'.
+     */
     commentOn?: 'negative' | 'positive' | 'both' | 'none';
 
-    /** True if a rating that asks for a comment requires one. Default false. */
+    /**
+     * True if a rating in `commentOn` saves only with a comment. The rating then saves nothing
+     * until the user sends a non-blank comment. Otherwise it saves at once, and the comment
+     * follows as an update. Default false.
+     */
     requireComment?: boolean;
+
+    /**
+     * Reasons the user may pick on a negative rating, as toggles above the comment, such as
+     * `['Wrong data', 'Incomplete']`. Optional for the user, and never a substitute for a
+     * required comment. Default none.
+     */
+    reasons?: string[];
+
+    /**
+     * True if a click on the chosen thumb clears the rating, by submitting a null rating. Set
+     * false for a backend that cannot remove a rating. Default true.
+     */
+    clearable?: boolean;
+
+    /**
+     * Most characters the comment field takes. A counter shows from 90% of it. Default 1,000.
+     */
+    maxCommentLength?: number;
 }
 
 /** Sends feedback on a message to the backend. */
@@ -37,12 +62,19 @@ export interface ChatFeedbackSpec {
     /** The rating, or null to clear one given before. */
     rating: ChatFeedbackRating;
 
-    /** The user's comment, if any. */
+    /** The user's comment, or null. */
     comment?: string;
+
+    /** The reasons the user picked, from `ChatFeedbackConfig.reasons`, or null. */
+    reasons?: string[];
 }
 
-/** Feedback recorded on an assistant message, as `metadata.feedback`. */
+/**
+ * Feedback recorded on an assistant message, as `metadata.feedback`. A rating restored from
+ * history usually comes back without its comment and reasons, which backends rarely return.
+ */
 export interface ChatFeedback {
     rating: ChatFeedbackRating;
     comment?: string;
+    reasons?: string[];
 }

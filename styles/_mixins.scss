@@ -9,26 +9,59 @@
   }
 }
 
-// A small numbered chip that cites a source - inline in the text, or after the paragraph it
-// supports. Shared by citation markers and citation chips, so that the two match.
+// A citation marker: a 14 px numbered pill that sits on the text's baseline without growing its
+// line. Shared by markers in the text, citation chips, the sources list and the hover card, so
+// that all of them match.
 @mixin citation-chip {
   align-items: center;
   background-color: var(--xh-chat-citation-bg);
-  border-radius: 4px;
-  color: var(--xh-chat-text-color);
+  border: none;
+  border-radius: 3px;
+  box-sizing: border-box;
+  color: var(--xh-chat-citation-text-color);
   display: inline-flex;
-  font-size: var(--xh-chat-meta-font-size-px);
-  height: 16px;
+  font-family: var(--xh-font-family);
+  font-size: var(--xh-chat-citation-font-size);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  height: var(--xh-chat-citation-height);
   justify-content: center;
-  line-height: 1;
-  min-width: 16px;
-  padding: 0 calc(var(--xh-pad) * 0.5px);
+  line-height: var(--xh-chat-citation-height);
+  margin: 0;
+  min-width: var(--xh-chat-citation-height);
+  padding: 0 3px;
+  text-decoration: none;
+  vertical-align: 1px;
+}
+
+// The hover state of a citation marker that opens its source - also while its card is open.
+@mixin citation-chip-hover {
+  background-color: var(--xh-chat-citation-hover-bg);
+  color: var(--xh-chat-citation-text-color);
   text-decoration: none;
 }
 
-// The hover state of a citation chip that opens its source.
-@mixin citation-chip-hover {
-  background-color: var(--xh-intent-primary-trans2);
-  color: var(--xh-chat-text-color);
-  text-decoration: none;
+// The states of a citation marker that is a button: hover, card open, focus, and active - the
+// marker whose passage the side panel shows.
+@mixin citation-chip-states {
+  cursor: pointer;
+
+  &:hover,
+  &--open {
+    @include citation-chip-hover;
+  }
+
+  &:focus-visible {
+    outline: var(--xh-chat-focus-ring-width) solid var(--xh-chat-focus-ring-color);
+    outline-offset: 1px;
+  }
+
+  &--active {
+    background-color: var(--xh-chat-citation-active-bg);
+    box-shadow: inset 0 0 0 1px var(--xh-chat-citation-text-color);
+  }
+
+  &--highlight {
+    @include citation-chip-hover;
+  }
 }

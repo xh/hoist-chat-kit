@@ -1,30 +1,62 @@
 @use '../../../styles/mixins' as *;
 
+// Cards in a grid of up to two columns, one column in a narrow host.
 .xh-chat-suggestions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--xh-pad-half-px);
-  justify-content: center;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
 
-  @include hoist-button('.xh-chat-suggestions__chip') {
+  @include hoist-button('.xh-chat-suggestions__card') {
     // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
     // component styles in the dark theme - so set the variables, not the colors.
     --xh-button-text-color: var(--xh-chat-text-color);
-    --xh-button-border-color: var(--xh-chat-border-color);
-    --xh-button-bg-darker: var(--xh-chat-chip-hover-bg);
 
-    border-radius: 999px;
-    max-width: 100%;
-    min-height: 30px;
-    padding: calc(var(--xh-pad) * 0.4px) calc(var(--xh-pad) * 1.2px);
+    align-items: flex-start;
+    background-color: var(--xh-chat-suggestion-bg, var(--xh-chat-part-header-bg));
+    border-radius: var(--xh-chat-border-radius);
+    gap: 8px;
+    justify-content: flex-start;
+    min-height: 32px;
+    padding: 8px 10px;
+    text-align: left;
     white-space: normal;
 
+    &:hover {
+      background-color: var(--xh-chat-suggestion-hover-bg, var(--xh-chat-sidebar-row-hover-bg));
+    }
+
     > .svg-inline--fa {
-      color: var(--xh-chat-muted-text-color);
+      color: var(--xh-chat-meta-text-color);
+      margin-top: 2px;
     }
 
     .bp6-button-text {
-      text-align: left;
+      min-width: 0;
+    }
+  }
+
+  &__body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  &__label {
+    font-size: var(--xh-chat-font-size);
+  }
+
+  &__description {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+  }
+
+  // A narrow host shows three suggestions at most, in one column.
+  .xh-chat--compact & {
+    grid-template-columns: 1fr;
+
+    > :nth-child(n + 4) {
+      display: none;
     }
   }
 }

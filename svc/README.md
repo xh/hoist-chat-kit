@@ -179,6 +179,5 @@ configs that the relay reads.
 
 - [`/transport/`](../transport/README.md) - transports and codecs, and
   [Bring your own LLM](../transport/README.md#bring-your-own-llm)
-- [`/assist/`](../assist/README.md) - tool groups for helper agents
 - [`/core/`](../core/README.md) - `ChatModel`, context providers and undo
 - hoist-react `/svc/` - `ConfigService` and `XH.getConf()`

@@ -1,0 +1,117 @@
+// A small chip in the composer's left slot: dot, icon, words, count and chevron, at meta size.
+// The pill is a Hoist button, so its rules match the specificity of Hoist's button rules.
+.xh-app .xh-chat-composer-pill.xh-button.bp6-button {
+  // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
+  // component styles in the dark theme - so set the variables, not the colors.
+  --xh-button-text-color: var(--xh-chat-text-color);
+
+  background-color: var(--xh-chat-bg);
+  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border-radius: var(--xh-chat-border-radius);
+  flex: none;
+  font-size: var(--xh-chat-meta-font-size);
+  gap: 5px;
+  height: var(--xh-chat-composer-pill-height);
+  max-width: 220px;
+  min-height: var(--xh-chat-composer-pill-height);
+  min-width: 0;
+  padding: 0 4px 0 6px;
+
+  &:hover {
+    background-color: var(--xh-chat-sidebar-row-hover-bg);
+  }
+
+  > .svg-inline--fa,
+  .xh-chat-composer-pill__lead .svg-inline--fa {
+    color: var(--xh-chat-meta-text-color);
+  }
+
+  .bp6-button-text {
+    min-width: 0;
+  }
+
+  &.xh-chat-composer-pill--open {
+    background-color: var(--xh-chat-citation-active-bg);
+  }
+
+  // Read-only while the app decides: dotted border and a lock, with no hover.
+  &.xh-chat-composer-pill--readonly {
+    border-style: dotted;
+    color: var(--xh-chat-meta-text-color);
+    cursor: default;
+    padding-right: 6px;
+
+    &:hover {
+      background-color: var(--xh-chat-bg);
+    }
+  }
+}
+
+.xh-chat-composer-pill {
+  &__body {
+    align-items: center;
+    display: inline-flex;
+    gap: 5px;
+    min-width: 0;
+  }
+
+  &__text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__count {
+    background-color: var(--xh-chat-citation-bg);
+    border-radius: 3px;
+    box-sizing: border-box;
+    color: var(--xh-chat-citation-text-color);
+    font-size: var(--xh-font-size-small-px);
+    font-weight: 600;
+    height: 14px;
+    line-height: 14px;
+    min-width: 14px;
+    padding: 0 3px;
+    text-align: center;
+  }
+
+  &__lead {
+    align-items: center;
+    display: inline-flex;
+    gap: 5px;
+  }
+
+  &__dot {
+    border-radius: 50%;
+    display: inline-block;
+    flex: none;
+    height: 7px;
+    width: 7px;
+
+    &--online {
+      background-color: var(--xh-chat-composer-online-color);
+    }
+
+    &--degraded {
+      background-color: var(--xh-chat-composer-degraded-color);
+    }
+
+    &--offline {
+      background-color: var(--xh-chat-composer-offline-color);
+    }
+
+    &--danger {
+      background-color: var(--xh-chat-error-color);
+    }
+  }
+
+  &__chevron {
+    font-size: 0.8em;
+  }
+
+  // Compact - icon and count only. The words stay in the accessible name and the tooltip.
+  .xh-chat--compact & .bp6-button-text .xh-chat-composer-pill__text {
+    display: none;
+  }
+}

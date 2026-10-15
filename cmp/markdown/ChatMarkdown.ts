@@ -1,10 +1,13 @@
 import {compact, findLast, findLastIndex, isEqual, isFunction} from 'lodash';
 import {
     type ComponentProps,
+    createContext,
+    createElement,
     type JSX,
     type MouseEvent,
     type ReactElement,
     type ReactNode,
+    useContext,
     useMemo,
     useRef
 } from 'react';
@@ -57,11 +60,28 @@ export interface ChatMarkdownCitations {
     onClick?: (source: ChatSourcePart) => void;
 
     /**
-     * Wraps the button of each cited source, for example in a tooltip of the platform's own.
-     * Without it, the button shows the source title and excerpt as a native browser tooltip.
-     * Read as each marker renders, so it need not be stable.
+     * Renders the button of a cited source in place of the default, for example to wrap it in a
+     * card of the platform's own. Receives the default button, the source and the number that
+     * cites it. Without it, the button shows the source title and excerpt as a native browser
+     * tooltip. Read as each marker renders, so it need not be stable.
      */
-    renderMarker?: (marker: ReactElement, source: ChatSourcePart) => ReactNode;
+    renderMarker?: (marker: ReactElement, source: ChatSourcePart, number: number) => ReactNode;
+
+    /**
+     * Renders the one button that stands for a marker of four or more sources, such as `[2–5]`, in
+     * place of the default. Receives the default button, labeled with the first and last numbers,
+     * and the cited sources with their numbers. Read as each marker renders.
+     *
+     * The default button lists every source in its tooltip, but a click opens only the first.
+     * Replace it to give the user a way to open each source, as the desktop chat's card does.
+     */
+    renderGroup?: (marker: ReactElement, cited: ChatCitedSource[]) => ReactNode;
+}
+
+/** A source with the number that cites it - see {@link ChatMarkdownCitations.renderGroup}. */
+export interface ChatCitedSource {
+    number: number;
+    source: ChatSourcePart;
 }
 
 /**
@@ -140,6 +160,15 @@ export interface ChatMarkdownProps extends HoistProps {
      * {@link ChatMarkdownPlugins}. Pass a stable object, such as a module-level constant.
      */
     markdownPlugins?: ChatMarkdownPlugins;
+}
+
+/**
+ * True while the markdown block that renders the caller is still streaming - for a component in
+ * `components` that should wait for its content to end, such as a code block that collapses long
+ * code. False in a finished block, and outside `ChatMarkdown`.
+ */
+export function useChatMarkdownStreaming(): boolean {
+    return useContext(StreamingContext);
 }
 
 /**
@@ -232,15 +261,22 @@ export const [ChatMarkdown, chatMarkdown] = hoistCmp.withFactory<ChatMarkdownPro
 
         return div({
             className: classNames(className, {'xh-chat-markdown--streaming': isStreaming}),
-            // Hoist's markdown is memoized on its props, so a finished block renders once.
-            items: blocks.map((block, idx) =>
-                markdown({
+            // Hoist's markdown is memoized on its props, so a finished block renders once. Each
+            // block sits in a provider, so that its components see the end of streaming even when
+            // the content of the last block does not change.
+            items: blocks.map((block, idx) => {
+                const isBlockStreaming = isStreaming && idx === lastIdx;
+                return createElement(StreamingContext.Provider, {
                     key: idx,
-                    content: isStreaming && idx === lastIdx ? closeMarkdownSyntax(block) : block,
-                    lineBreaks,
-                    reactMarkdownOptions: idx === trailerIdx ? trailerOptions : reactMarkdownOptions
-                })
-            )
+                    value: isBlockStreaming,
+                    children: markdown({
+                        content: isBlockStreaming ? closeMarkdownSyntax(block) : block,
+                        lineBreaks,
+                        reactMarkdownOptions:
+                            idx === trailerIdx ? trailerOptions : reactMarkdownOptions
+                    })
+                });
+            })
         });
     }
 });
@@ -251,6 +287,8 @@ export const [ChatMarkdown, chatMarkdown] = hoistCmp.withFactory<ChatMarkdownPro
 type ElementProps<T extends keyof JSX.IntrinsicElements> = ComponentProps<T> & {
     node?: unknown;
 };
+
+const StreamingContext = createContext(false);
 
 // Reference definitions (`[id]: url`) and footnotes (`[^1]`) resolve only within one document.
 const REFERENCE = /^ {0,3}\[[^\]]+\]:|\[\^/m;
@@ -355,22 +393,26 @@ function isList(node: HastNode): boolean {
     return node.tagName === 'ul' || node.tagName === 'ol';
 }
 
-// Renders the element that the citation plugin puts in place of a marker, as a button per number.
+// Renders the element that the citation plugin puts in place of a marker, as a button per number -
+// or one button for four or more.
 function createCitation(citationsRef: {current: ChatMarkdownCitations}) {
     return ({'data-markers': markers}: {'data-markers'?: string}): ReactNode => {
-        const {sources, onClick, renderMarker} = citationsRef.current ?? NO_CITATIONS,
+        const {sources, onClick, renderMarker, renderGroup} = citationsRef.current ?? NO_CITATIONS,
             numbers: number[] = String(markers ?? '')
                 .split(' ')
-                .map(it => parseInt(it, 10));
+                .map(it => parseInt(it, 10)),
+            cited = numbers.map(number => ({number, source: findCitedSource(sources, number)}));
+
+        if (cited.length >= GROUP_MIN && cited.every(it => it.source)) {
+            return span({className: CITATION_CLS, item: groupMarker(cited, onClick, renderGroup)});
+        }
 
         return span({
             className: CITATION_CLS,
-            items: numbers.map(number => {
-                const source = findCitedSource(sources, number);
+            items: cited.map(({number, source}) => {
                 if (!source) return `[${number}]`;
 
-                const {title, url} = source,
-                    label = title || url || 'Untitled',
+                const label = getSourceLabel(source),
                     excerpt = getExcerpt(source),
                     marker = htmlButton({
                         key: number,
@@ -382,12 +424,42 @@ function createCitation(citationsRef: {current: ChatMarkdownCitations}) {
                         item: String(number)
                     });
                 return renderMarker
-                    ? fragment({key: number, item: renderMarker(marker, source)})
+                    ? fragment({key: number, item: renderMarker(marker, source, number)})
                     : marker;
             })
         });
     };
 }
 
+// One button for a marker of many sources, labeled with the first and last numbers. A click opens
+// the first source - `renderGroup` replaces the button to offer each.
+function groupMarker(
+    cited: ChatCitedSource[],
+    onClick: (source: ChatSourcePart) => void,
+    renderGroup: ChatMarkdownCitations['renderGroup']
+): ReactNode {
+    const first = cited[0].number,
+        last = cited[cited.length - 1].number,
+        marker = htmlButton({
+            type: 'button',
+            className: `${CITATION_CLS}-marker ${CITATION_CLS}-marker--group`,
+            'aria-label': `Sources ${first} to ${last}`,
+            title: renderGroup
+                ? null
+                : cited
+                      .map(({number, source}) => `${number}. ${getSourceLabel(source)}`)
+                      .join('\n'),
+            onClick: () => (onClick ?? openSourceUrl)(cited[0].source),
+            item: `${first}–${last}`
+        });
+    return renderGroup ? renderGroup(marker, cited) : marker;
+}
+
+function getSourceLabel({title, url}: ChatSourcePart): string {
+    return title || url || 'Untitled';
+}
+
 const CITATION_CLS = 'xh-chat-markdown__citation',
+    // Markers of this many sources or more collapse to one button.
+    GROUP_MIN = 4,
     NO_CITATIONS: ChatMarkdownCitations = {sources: []};

@@ -17,7 +17,8 @@ The `/threads/` package holds the thread layer: the models for a user's list of 
 that a backend stores. An app implements a `ChatThreadStore` against its backend, and a
 `ChatThreadsModel` does the rest. It lists the threads, opens a `ChatModel` for the selected
 one, and keeps every async result where it belongs. The package is platform-neutral and has no
-UI. A thread list and a workspace component build on it.
+UI. The desktop [thread list](../desktop/cmp/threads/README.md) and
+[workspace](../desktop/cmp/workspace/README.md) build on it.
 
 Import from `@xh/hoist-chat-kit/threads`.
 
@@ -57,6 +58,7 @@ ChatThreadsModel (HoistModel)
 │   ├── selectedSummary               # The selected thread's summary
 │   ├── runningThreadIds              # Threads with a turn running, here or on the server
 │   ├── awaitingThreadIds             # Threads whose turn waits for the user
+│   ├── finishedAwayThreadIds         # Threads whose turn ended while not selected
 │   ├── hasMoreThreads                # True if the store has another page
 │   ├── loadError                     # Why the selected thread's history failed, or null
 │   └── canRename / canDelete / canPin
@@ -227,6 +229,9 @@ A background turn that pauses for an approval, or for the answer to an interacti
 for the user. Its chat stays open, and its id is in `awaitingThreadIds`. Show it in the list, so
 the user knows the thread needs them.
 
+A turn that ends while another thread is selected puts its thread in `finishedAwayThreadIds`.
+The thread leaves it when the user selects it, so a list can mark the reply as new until then.
+
 For a backend that runs one turn per user, set `allowConcurrentTurns: false`. Each other thread
 then shows "Wait for the reply in another conversation to finish." in place of Send.
 
@@ -345,6 +350,7 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`.
 | `search` | `string` | Text to search for. Bindable. |
 | `runningThreadIds` | `string[]` | Threads with a turn running here, or reported running by the store. |
 | `awaitingThreadIds` | `string[]` | Threads whose turn is paused for the user. Their chats stay open. |
+| `finishedAwayThreadIds` | `string[]` | Threads whose turn ended while another thread was selected. A thread leaves it when selected. Held for the session only. |
 | `hasMoreThreads` | `boolean` | True if the store has another page of threads. |
 | `loadError` | `Error` | Why the selected thread's history failed to load, or null. |
 | `listError` | `Error` | Error from the last list load, or null. The list keeps its threads. |
@@ -372,6 +378,7 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`.
 | Method | Description |
 |--------|-------------|
 | `listThreadsAsync({search, cursor, limit})` | Required. A `ChatThreadPage`: threads most recently active first, and a `nextCursor`. |
+| `searchesMessages` | Property. True if the search covers message text, not just titles. Then each match may carry a `snippet`. |
 | `loadMessagesAsync({threadId, cursor, limit})` | Required. A `ChatMessagePage`: the newest messages, or those older than `cursor`, oldest first, and a `nextCursor` for older ones. |
 | `createThreadAsync({localId, title})` | Create the thread and return its summary, with the backend's id. Idempotent per `localId`. |
 | `renameThreadAsync(threadId, title)` | Rename a thread. |
@@ -389,6 +396,9 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`.
 | `createdAt` | `number` | Epoch millis of creation. Optional. |
 | `pinned` | `boolean` | True if pinned. Optional. |
 | `isRunning` | `boolean` | True if the backend reports a run in progress. Optional. |
+| `lastRunEnd` | `'complete' \| 'interrupted' \| 'failed'` | How the last run ended, if the backend reports it. A thread list marks `interrupted` and `failed`. Optional. |
+| `lastRunReason` | `string` | Why the last run ended so, for a tooltip. Optional. |
+| `snippet` | `string` | For a search result, the passage that matched, as plain text. A thread list shows it under the title. Optional. |
 | `metadata` | `PlainObject` | App data. Optional. |
 
 ### LocalChatThreadStore
@@ -415,6 +425,9 @@ released.
   load methods.
 - **Chat creation** - `createChatModel` configures each chat as usual: transport, tools,
   renderers, `feedback`, `track` and a `sendBlocker` of the app's own.
+- **A list of your own threads** - `ChatThreadListHost` is what a thread list needs from its
+  model. `ChatThreadsModel` implements it. Implement it on a `HoistModel` to show the desktop
+  thread list over threads the app holds.
 - **Chat seams** - `ChatModel.setThreadCreator()`, `addSendBlocker()` and
   `setFeedbackSubmitter()` are public. A custom thread layer can use them too. See
   [`/core/`](../core/README.md).

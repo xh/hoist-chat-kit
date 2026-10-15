@@ -1,59 +1,8 @@
-@use '../../../../styles/mixins' as *;
-
-// Inline at the end of the paragraph the citations support.
+// Inline at the end of the paragraph the citations support: numbered markers 1 px apart.
 .xh-chat-citations {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: calc(var(--xh-pad) * 0.3px);
-  margin-left: calc(var(--xh-pad) * 0.4px);
-  line-height: 1;
+  gap: 1px;
+  margin-left: 2px;
   vertical-align: baseline;
-
-  &__chip {
-    @include citation-chip;
-
-    cursor: default;
-  }
-
-  // A chip that opens its source - a link, or a button for an app's own handler.
-  a.xh-chat-citations__chip,
-  button.xh-chat-citations__chip {
-    cursor: pointer;
-
-    &:hover {
-      @include citation-chip-hover;
-    }
-  }
-
-  button.xh-chat-citations__chip {
-    border: none;
-    font-family: inherit;
-    margin: 0;
-  }
-
-  &__tip {
-    display: flex;
-    flex-direction: column;
-    gap: calc(var(--xh-pad) * 0.25px);
-    max-width: 320px;
-  }
-
-  &__tip-title {
-    font-weight: 600;
-  }
-
-  &__tip-host {
-    color: var(--xh-chat-muted-text-color);
-  }
-
-  &__tip-quote {
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 4;
-    border-left: 2px solid var(--xh-chat-border-color);
-    color: var(--xh-chat-muted-text-color);
-    display: -webkit-box;
-    margin-top: calc(var(--xh-pad) * 0.4px);
-    overflow: hidden;
-    padding-left: var(--xh-pad-half-px);
-  }
 }

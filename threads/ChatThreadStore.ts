@@ -14,6 +14,13 @@ import type {ChatFeedbackSpec, ChatMessageSpec} from '../core';
  * empty. Any other error fails the load.
  */
 export interface ChatThreadStore {
+    /**
+     * True if the search of `listThreadsAsync` covers the text of messages, not just titles. A
+     * store that sets it may return each match's `snippet`. Without it, a thread list says
+     * "Searching titles" while it searches.
+     */
+    readonly searchesMessages?: boolean;
+
     /** A page of the user's threads, most recently active first. */
     listThreadsAsync(query: ChatThreadQuery): Promise<ChatThreadPage>;
 
@@ -64,6 +71,21 @@ export interface ChatThreadSummary {
 
     /** True if the backend reports a run in progress in the thread. */
     isRunning?: boolean;
+
+    /**
+     * How the thread's last run ended, if the backend reports it. A thread list marks a run the
+     * server cut short as `interrupted`, and one that ended in an error as `failed`.
+     */
+    lastRunEnd?: 'complete' | 'interrupted' | 'failed';
+
+    /** Why the last run ended as it did, for a thread list to show in a tooltip. */
+    lastRunReason?: string;
+
+    /**
+     * For a search result, the passage of the thread that matched, as plain text - see
+     * {@link ChatThreadStore.searchesMessages}. A thread list shows it under the title.
+     */
+    snippet?: string;
 
     /** App data about the thread. */
     metadata?: PlainObject;

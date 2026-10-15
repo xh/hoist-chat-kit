@@ -1,7 +1,9 @@
 import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
-import {findLast, flattenDeep, isArray, isString} from 'lodash';
-import type {ChatMessage} from '../core';
+import {findLast, flattenDeep, isArray, isEmpty, isNil, isString, omitBy, pick} from 'lodash';
+import type {ChatMessage, ChatSourceType} from '../core';
+// Past the core barrel, which imports this package - a runtime import through it would be a cycle.
+import {CHAT_NO_ANSWER_DATA_TYPE, type ChatNoAnswerData} from '../core/ChatNoAnswer';
 import {sleepAsync} from '../impl/abort';
 import {genChatId} from '../impl/ids';
 import type {ChatEvent} from './ChatEvent';
@@ -272,6 +274,12 @@ export interface ScriptedToolCallOptions {
      * else as JSON. Leave out for a client tool, which the chat runs itself.
      */
     result?: any;
+
+    /** Error message, to simulate a backend tool that fails. Sent in place of a result. */
+    error?: string;
+
+    /** The sub-agent making the call. Set for you by {@link subagentEvents}. */
+    subagentRunId?: string;
 }
 
 /** Events for the model calling a tool, with its arguments streamed as JSON. */
@@ -280,9 +288,14 @@ export function toolCallEvents(
     input: PlainObject = {},
     opts: ScriptedToolCallOptions = {}
 ): ChatEvent[] {
-    const {toolCallId = genChatId(), chunkSize = 12, result} = opts,
+    const {toolCallId = genChatId(), chunkSize = 12, result, error, subagentRunId} = opts,
         events: ChatEvent[] = [
-            {type: 'TOOL_CALL_START', toolCallId, toolCallName: toolName},
+            {
+                type: 'TOOL_CALL_START',
+                toolCallId,
+                toolCallName: toolName,
+                ...(subagentRunId != null ? {subagentRunId} : {})
+            },
             ...chunkText(JSON.stringify(input), chunkSize).map((delta): ChatEvent => ({
                 type: 'TOOL_CALL_ARGS',
                 toolCallId,
@@ -291,7 +304,16 @@ export function toolCallEvents(
             {type: 'TOOL_CALL_END', toolCallId}
         ];
 
-    if (result !== undefined) {
+    if (error != null) {
+        events.push({
+            type: 'TOOL_CALL_RESULT',
+            messageId: genChatId(),
+            toolCallId,
+            content: error,
+            role: 'tool',
+            metadata: {error}
+        });
+    } else if (result !== undefined) {
         events.push({
             type: 'TOOL_CALL_RESULT',
             messageId: genChatId(),
@@ -303,10 +325,67 @@ export function toolCallEvents(
     return events;
 }
 
+/** Options for {@link subagentEvents}. */
+export interface ScriptedSubagentOptions {
+    /** Id of the sub-agent's run. Default generated. */
+    subagentRunId?: string;
+
+    /** What the sub-agent was asked to do. */
+    description?: string;
+
+    /** What the sub-agent found, shown as its result line. */
+    result?: any;
+
+    /** Error message, to end the sub-agent as failed in place of a result. */
+    error?: string;
+}
+
+/**
+ * Events for a sub-agent that does part of the work: its start, the events in `items` - which
+ * may include pauses and nested sub-agents - and its end. Tool calls in `items` are marked as the
+ * sub-agent's, and nest under it in the activity timeline:
+ *
+ * ```ts
+ * subagentEvents('Limits Checker', [
+ *     toolCallEvents('read_policy', {file: 'Risk Policy.pdf'}, {result: 'ok'}),
+ *     toolCallEvents('fetch_marks', {desk: 'Rates'}, {error: '504 Timeout'})
+ * ], {description: 'Compare exposure to limits', result: '2 desks over limit.'})
+ * ```
+ */
+export function subagentEvents(
+    name: string,
+    items: ScriptedItem[],
+    opts: ScriptedSubagentOptions = {}
+): ScriptedItem[] {
+    const {subagentRunId = genChatId(), description, result, error} = opts,
+        inner = (flattenDeep(items) as Array<ChatEvent | ScriptedDelay>).map(item =>
+            claimForSubagent(item, subagentRunId)
+        );
+    return [
+        {
+            type: 'SUBAGENT_STARTED',
+            subagentRunId,
+            name,
+            ...(description != null ? {description} : {})
+        },
+        ...inner,
+        error != null
+            ? {type: 'SUBAGENT_ERROR', subagentRunId, message: error}
+            : {
+                  type: 'SUBAGENT_FINISHED',
+                  subagentRunId,
+                  ...(result !== undefined ? {result} : {})
+              }
+    ];
+}
+
 /** A source, as written by {@link sourceEvents}. */
 export interface ScriptedSource {
     /** Id of the source. Default generated. */
     id?: string;
+
+    /** `url` for a web page, `document` for a document. Default `url` with a `url`. */
+    sourceType?: ChatSourceType;
 
     /** Location of the source. */
     url?: string;
@@ -370,6 +449,14 @@ export function citationEvents(citations: ScriptedCitation[]): ChatEvent[] {
     }));
 }
 
+/**
+ * An event for a fixed "not found" reply - a data part of type `xh.chat.noAnswer`, which the
+ * message view renders from its built-in template, with no sources list and no Regenerate.
+ */
+export function noAnswerEvents(data: ChatNoAnswerData = {}, opts: {id?: string} = {}): ChatEvent[] {
+    return dataEvents(CHAT_NO_ANSWER_DATA_TYPE, data, opts);
+}
+
 /** An event for an app-defined data part, rendered by the chat's renderer for `dataType`. */
 export function dataEvents(dataType: string, data: any, opts: {id?: string} = {}): ChatEvent[] {
     return [{type: 'CUSTOM', name: 'xh.chat.data', value: {id: opts.id, dataType, data}}];
@@ -378,22 +465,16 @@ export function dataEvents(dataType: string, data: any, opts: {id?: string} = {}
 /**
  * An event for a failed step. The transport ends the response after it.
  *
- * @param opts - `retryAfterSeconds`, the wait the backend asks for before a retry.
+ * @param opts - `retryAfterSeconds`, the wait the backend asks for before a retry, and
+ *      `retrySafe`, false if a resend of the turn could run work twice.
  */
 export function errorEvents(
     message: string,
     code?: string,
-    opts: {retryAfterSeconds?: number} = {}
+    opts: {retryAfterSeconds?: number; retrySafe?: boolean} = {}
 ): ChatEvent[] {
-    const {retryAfterSeconds} = opts;
-    return [
-        {
-            type: 'RUN_ERROR',
-            message,
-            code,
-            ...(retryAfterSeconds != null ? {metadata: {retryAfterSeconds}} : {})
-        }
-    ];
+    const metadata = omitBy(pick(opts, ['retryAfterSeconds', 'retrySafe']), isNil);
+    return [{type: 'RUN_ERROR', message, code, ...(isEmpty(metadata) ? {} : {metadata})}];
 }
 
 /** A pause in a scripted response, on top of the transport's `delayMs`. */
@@ -404,6 +485,25 @@ export function scriptedDelay(delayMs: number): ScriptedDelay {
 //------------------
 // Implementation
 //------------------
+/** Mark a tool call, or a nested sub-agent, as the work of a sub-agent - unless already marked. */
+function claimForSubagent(
+    item: ChatEvent | ScriptedDelay,
+    subagentRunId: string
+): ChatEvent | ScriptedDelay {
+    if (!('type' in item)) return item;
+    switch (item.type) {
+        case 'TOOL_CALL_START':
+        case 'TOOL_CALL_CHUNK':
+            return item.subagentRunId != null ? item : {...item, subagentRunId};
+        case 'SUBAGENT_STARTED':
+            return item.parentSubagentRunId != null
+                ? item
+                : {...item, parentSubagentRunId: subagentRunId};
+        default:
+            return item;
+    }
+}
+
 /** Split text into chunks of up to `size` characters, each with its leading whitespace. */
 function chunkText(text: string, size: number): string[] {
     return text.match(new RegExp(`\\s*\\S{1,${size}}|\\s+$`, 'g')) ?? [];

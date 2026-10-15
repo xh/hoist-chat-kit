@@ -388,6 +388,31 @@ describe('ChatThreadsModel', () => {
             expect(model.runningThreadIds).toEqual([]);
         });
 
+        it('marks a thread whose turn finished in the background until it is selected', async () => {
+            const turns = new TurnGates(),
+                {model} = setup({respond: turns.respond}),
+                chatModel = model.newThread(),
+                {threadId} = chatModel,
+                done = chatModel.sendAsync('Long question');
+
+            await model.selectThreadAsync('t1');
+            turns.open(threadId);
+            await done;
+            expect(model.finishedAwayThreadIds).toEqual([threadId]);
+
+            await model.selectThreadAsync(threadId);
+            expect(model.finishedAwayThreadIds).toEqual([]);
+        });
+
+        it('does not mark a thread whose turn finished while it was selected', async () => {
+            const {model} = setup(),
+                chatModel = model.newThread();
+
+            await chatModel.sendAsync('Hello');
+
+            expect(model.finishedAwayThreadIds).toEqual([]);
+        });
+
         it('keeps a chat whose turn waits for the user, and lists it as awaiting', async () => {
             const {model} = setup({
                     respond: () => toolCallEvents('delete_rows', {count: 3}),
@@ -404,6 +429,43 @@ describe('ChatThreadsModel', () => {
             expect(chatModel.isDestroyed).toBe(false);
             expect(model.awaitingThreadIds).toEqual([chatModel.threadId]);
             expect(model.runningThreadIds).toEqual([]);
+        });
+
+        it('lists a background thread that pauses for approval as awaiting, not finished', async () => {
+            let open: () => void;
+            const gate = new Promise<void>(resolve => (open = resolve)),
+                {model} = setup({
+                    respond: async function* () {
+                        await gate;
+                        yield* toolCallEvents('delete_rows', {count: 3});
+                    },
+                    chat: {
+                        tools: [{name: 'delete_rows', needsApproval: true, execute: () => 'Done.'}]
+                    }
+                }),
+                chatModel = model.newThread(),
+                sent = chatModel.sendAsync('Delete the rows');
+
+            await model.selectThreadAsync('t1');
+            open();
+            await sent;
+
+            expect(model.awaitingThreadIds).toEqual([chatModel.threadId]);
+            expect(model.finishedAwayThreadIds).toEqual([]);
+        });
+
+        it('removes the saved drafts of deleted threads, open or closed', async () => {
+            const {model} = setup({chat: {composer: {drafts: 'local'}}});
+            await model.selectThreadAsync('t1');
+            model.chatModel.composerModel.text = 'Draft for one';
+            await model.selectThreadAsync('t2');
+            model.chatModel.composerModel.text = 'Draft for two';
+            expect(savedDraft('t1')).not.toBeNull();
+
+            await model.deleteThreadsAsync(['t1', 't2']);
+
+            expect(savedDraft('t1')).toBeNull();
+            expect(savedDraft('t2')).toBeNull();
         });
 
         it('creates a new thread on the backend even when its chat starts with a greeting', async () => {
@@ -675,6 +737,47 @@ describe('ChatThreadsModel', () => {
         });
     });
 
+    describe('status and run options', () => {
+        it('reloads a thread to refresh the status of a run its chat lost sight of', async () => {
+            const {model, store} = setup(),
+                load = vi.spyOn(store, 'loadMessagesAsync');
+            await model.selectThreadAsync('t1');
+
+            expect(model.chatModel.canRefreshStatus).toBe(true);
+            await model.chatModel.refreshStatusAsync();
+
+            expect(load).toHaveBeenCalledTimes(2);
+            expect(load.mock.calls[1][0]).toMatchObject({threadId: 't1'});
+        });
+
+        it('opens a thread with the run options of its last question', async () => {
+            const {model} = setup({
+                store: new LocalChatThreadStore({
+                    threads: [
+                        {
+                            id: 't9',
+                            title: 'Escrow',
+                            lastActivityAt: NOW,
+                            messages: [
+                                {
+                                    id: 'u1',
+                                    role: 'user',
+                                    content: 'Escrow rules?',
+                                    metadata: {runOptions: {documentIds: ['d1']}}
+                                },
+                                {id: 'a1', role: 'assistant', content: 'They say...'}
+                            ]
+                        }
+                    ]
+                })
+            });
+
+            await model.selectThreadAsync('t9');
+
+            expect(model.chatModel.runOptions).toEqual({documentIds: ['d1']});
+        });
+    });
+
     describe('feedback', () => {
         it("gives each chat the store's feedback submitter", async () => {
             const {model, store} = setup();
@@ -688,7 +791,8 @@ describe('ChatThreadsModel', () => {
                 serverId: null,
                 runId: null,
                 rating: 'positive',
-                comment: null
+                comment: null,
+                reasons: null
             });
             expect(store.getThread('t1').messages[1].metadata.feedback).toEqual({
                 rating: 'positive'
@@ -790,6 +894,10 @@ class TurnGates {
 
 function runStarted(threadId: string): ChatEvent {
     return {type: 'RUN_STARTED', threadId, runId: 'run-1'};
+}
+
+function savedDraft(threadId: string) {
+    return XH.localStorageService.get(`xhChat.draft.${threadId}`, null);
 }
 
 function ids(threads: {id: string}[]): string[] {

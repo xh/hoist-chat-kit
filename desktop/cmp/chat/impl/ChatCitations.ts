@@ -1,14 +1,14 @@
 import {compact, find, maxBy, sortBy, uniqBy} from 'lodash';
-import type {Key, MouseEvent, ReactElement, ReactNode} from 'react';
-import {a, div, span} from '@xh/hoist/cmp/layout';
+import type {MouseEvent, ReactElement} from 'react';
+import {span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
-import {tooltip} from '@xh/hoist/kit/blueprint';
-import {getCitationNumber, getExcerpt, hasMarkers} from '../../../../impl/sources';
+import type {ChatCitedSource, ChatMarkdownCitations} from '../../../../cmp/markdown';
 import type {ChatCitation, ChatPart, ChatSourcePart} from '../../../../core';
-import {htmlButton} from '../../../../impl/HtmlTags';
+import {getCitationNumber, hasMarkers} from '../../../../impl/sources';
 import '../../../../styles/vars.scss';
+import {chatCitationGroupMarker, chatCitationMarker} from './ChatCitationMarker';
 import './ChatCitations.scss';
-import {formatHost} from './ChatFormat';
+import type {ChatSourceLinks} from './ChatSourceLinks';
 
 /**
  * A numbered reference of a message - a source it lists, a passage it cites, or both. The chips
@@ -34,14 +34,16 @@ export interface ChatReference {
  *
  * Sources that the text cites by number - `[1]` - take that number: their `marker`, or with
  * `citationMarkers` on and no markers, their position. Then come the cited sources, in order of
- * first citation across all of the text, then the sources that are never cited, in the order
- * reported. Each takes the next free number.
+ * first citation across all of the text, then any source whose marker another source already
+ * holds, each taking the next free number. A message that cites nothing - no markers, no
+ * citations - numbers all of its sources in the order reported. A source that a citing message
+ * never cites takes no number - see {@link collectUncitedSources}.
  *
- * Numbers stay stable while the message streams. Text only grows, so a citation keeps the number
- * it first took, and no two references share one. Sources that arrive after the text match the
- * numbers their citations already hold. One case can renumber: with `citationMarkers` on and no
- * source `marker`, sources take their positions first, so a citation numbered before its source
- * arrives may move to the source's number.
+ * Numbers stay stable while the message streams, and never renumber (R19). Text only grows, so a
+ * citation keeps the number it first took, and no two references share one. Sources that arrive
+ * after the text match the numbers their citations already hold. One case can renumber: with
+ * `citationMarkers` on and no source `marker`, sources take their positions first, so a citation
+ * numbered before its source arrives may move to the source's number.
  * @internal
  */
 export function collectReferences(parts: ChatPart[], citationMarkers = false): ChatReference[] {
@@ -72,8 +74,27 @@ export function collectReferences(parts: ChatPart[], citationMarkers = false): C
             add(key, source, citation);
         }
     });
-    sources.forEach(source => add(sourceKey(source.id), source, null));
+    // A source that shares its marker with another still takes a number, the next free one.
+    sources.forEach(source => {
+        if (source.marker != null || !isCiting(sources, citations, citationMarkers)) {
+            add(sourceKey(source.id), source, null);
+        }
+    });
     return sortBy(ret, 'number');
+}
+
+/**
+ * The sources of a message that its text never cites - searched, but with no matching passage.
+ * The sources list counts them without numbers, so that every number matches a marker. Empty for
+ * a message that cites nothing, as then every source takes a number.
+ * @internal
+ */
+export function collectUncitedSources(
+    parts: ChatPart[],
+    references: ChatReference[]
+): ChatSourcePart[] {
+    const sources = parts.filter(it => it.type === 'source') as ChatSourcePart[];
+    return sources.filter(source => !references.some(it => it.source?.id === source.id));
 }
 
 /**
@@ -110,8 +131,8 @@ export function numberCitations(
 }
 
 /**
- * A click handler for a link or button that opens a source: it calls the app's `onSourceClick`
- * in place of following the link. Null without a handler, so that a link opens as usual.
+ * A click handler for a link that opens a source: it calls the app's `onSourceClick` in place of
+ * following the link. Null without a handler, so that a link opens as usual.
  * @internal
  */
 export function createSourceClick(
@@ -126,16 +147,19 @@ export function createSourceClick(
 }
 
 /**
- * Wraps a citation marker in a tooltip that shows its source's title, host and excerpt - the
- * desktop `renderMarker` for {@link ChatMarkdownCitations}.
+ * The desktop renderers of citation markers in the text, for {@link ChatMarkdownCitations}: each
+ * marker with its source's card.
  * @internal
  */
-export function renderCitationMarker(marker: ReactElement, source: ChatSourcePart): ReactNode {
-    return citationTooltip(marker, {
-        title: source.title,
-        url: source.url,
-        quote: getExcerpt(source)
-    });
+export function createMarkerRenderers(
+    links: ChatSourceLinks
+): Pick<ChatMarkdownCitations, 'renderMarker' | 'renderGroup'> {
+    return {
+        renderMarker: (marker: ReactElement, source: ChatSourcePart, number: number) =>
+            chatCitationMarker({number, source, links}),
+        renderGroup: (marker: ReactElement, cited: ChatCitedSource[]) =>
+            chatCitationGroupMarker({cited, links})
+    };
 }
 
 interface ChatCitationsProps extends HoistProps {
@@ -145,17 +169,13 @@ interface ChatCitationsProps extends HoistProps {
     /** References of the message that holds the passage - see {@link collectReferences}. */
     references: ChatReference[];
 
-    /**
-     * Called when the user clicks a chip, with the cited source. Default opens the source's `url`
-     * in a new tab.
-     */
-    onSourceClick?: (source: ChatSourcePart) => void;
+    /** How the message opens its sources. */
+    links: ChatSourceLinks;
 }
 
 /**
- * Numbered chips for the citations that support a passage of text, shown inline at the end of its
- * last paragraph. Hovering a chip shows the cited source and passage. Clicking opens the source,
- * or calls `onSourceClick`.
+ * Numbered markers for the citations that support a passage of text, shown inline at the end of
+ * its last paragraph. Each opens its source's card, as a marker in the text does.
  * @internal
  */
 export const chatCitations = hoistCmp.factory<ChatCitationsProps>({
@@ -163,14 +183,20 @@ export const chatCitations = hoistCmp.factory<ChatCitationsProps>({
     model: false,
     className: 'xh-chat-citations',
 
-    render({className, citations, references, onSourceClick}) {
+    render({className, citations, references, links}) {
         if (!citations?.length) return null;
 
-        // A span, as the chips sit inside the paragraph they support.
+        // A span, as the markers sit inside the paragraph they support.
         return span({
             className,
             items: numberCitations(citations, references).map(({citation, number, reference}) =>
-                citationChip(citation, number, toSource(reference), onSourceClick)
+                chatCitationMarker({
+                    key: citation.id ?? number,
+                    number,
+                    source: toSource(reference),
+                    passage: citation.citedText,
+                    links
+                })
             )
         });
     }
@@ -214,50 +240,15 @@ function toSource({key, source, citation}: ChatReference): ChatSourcePart {
     );
 }
 
+// True if the message cites its sources - by number, or with citations on its text.
+function isCiting(
+    sources: ChatSourcePart[],
+    citations: ChatCitation[],
+    citationMarkers: boolean
+): boolean {
+    return citationMarkers || hasMarkers(sources) || citations.length > 0;
+}
+
 function nextNumber(references: ChatReference[]): number {
     return (maxBy(references, 'number')?.number ?? 0) + 1;
-}
-
-// A link to the source, or a button for an app's own handler - else a plain chip.
-function citationChip(
-    {id, url, title, citedText}: ChatCitation,
-    number: number,
-    source: ChatSourcePart,
-    onSourceClick: (source: ChatSourcePart) => void
-) {
-    const chipProps = {className: 'xh-chat-citations__chip', item: String(number)},
-        onClick = createSourceClick(source, onSourceClick);
-
-    let chip: ReactElement;
-    if (url) {
-        chip = a({...chipProps, href: url, target: '_blank', rel: 'noopener noreferrer', onClick});
-    } else if (onClick) {
-        chip = htmlButton({...chipProps, type: 'button', onClick});
-    } else {
-        chip = span(chipProps);
-    }
-
-    return citationTooltip(chip, {title, url, quote: citedText}, id ?? number);
-}
-
-function citationTooltip(
-    target: ReactElement,
-    {title, url, quote}: {title: string; url: string; quote: string},
-    key?: Key
-) {
-    const host = formatHost(url);
-    return tooltip({
-        key,
-        minimal: true,
-        popoverClassName: 'xh-chat-citations__popover',
-        item: target,
-        content: div({
-            className: 'xh-chat-citations__tip',
-            items: [
-                title ? div({className: 'xh-chat-citations__tip-title', item: title}) : null,
-                host ? div({className: 'xh-chat-citations__tip-host', item: host}) : null,
-                quote ? div({className: 'xh-chat-citations__tip-quote', item: quote}) : null
-            ]
-        })
-    });
 }

@@ -1,0 +1,165 @@
+@use '../../../../styles/mixins' as *;
+
+// The marker and its card. The card is positioned against this wrapper, so it opens below the
+// marker with their left edges aligned.
+.xh-chat-citation-marker-wrap {
+  display: inline-flex;
+  position: relative;
+  vertical-align: 1px;
+}
+
+.xh-chat-citation-marker {
+  @include citation-chip;
+  @include citation-chip-states;
+
+  vertical-align: 0;
+}
+
+// The marker whose passage the side panel shows, and the card's number.
+.xh-chat-source-card__number {
+  @include citation-chip;
+
+  flex: none;
+  margin-top: 2px;
+  vertical-align: 0;
+}
+
+// A fixed-width card with Hoist's popover surface. It renders inside the text, so it resets the
+// text's wrapping, weight and color.
+.xh-chat-source-card {
+  background-color: var(--xh-popup-bg);
+  border: var(--xh-border-width-px) solid var(--xh-popup-border-color);
+  border-radius: var(--xh-chat-border-radius);
+  box-shadow: var(--xh-popover-box-shadow);
+  box-sizing: border-box;
+  color: var(--xh-chat-text-color);
+  cursor: default;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--xh-chat-font-size);
+  font-weight: normal;
+  gap: 6px;
+  left: 0;
+  line-height: 1.4;
+  padding: 10px 12px 6px;
+  position: absolute;
+  text-align: left;
+  top: calc(100% + 6px);
+  white-space: normal;
+  width: var(--xh-chat-hovercard-width);
+  z-index: 20;
+
+  // The gap between marker and card counts as inside, so the pointer can cross it.
+  &::before {
+    content: '';
+    height: 6px;
+    left: 0;
+    position: absolute;
+    right: 0;
+    top: -7px;
+  }
+
+  &--above {
+    bottom: calc(100% + 6px);
+    top: auto;
+
+    &::before {
+      bottom: -7px;
+      top: auto;
+    }
+  }
+
+  &__head {
+    align-items: flex-start;
+    display: flex;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  &__icon {
+    align-items: center;
+    display: inline-flex;
+    flex: none;
+    height: 18px;
+    justify-content: center;
+    width: 16px;
+  }
+
+  &__title {
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    display: -webkit-box;
+    font-weight: 600;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  // A title that opens its source, in a card that lists several.
+  button.xh-chat-source-card__link {
+    background: none;
+    border: none;
+    color: var(--xh-chat-text-color);
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    padding: 0;
+    text-align: left;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  &__meta {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__excerpt {
+    font-size: var(--xh-chat-code-font-size);
+    line-height: 1.5;
+  }
+
+  &__foot {
+    align-items: center;
+    border-top: var(--xh-border-width-px) solid var(--xh-popup-border-color);
+    display: flex;
+    gap: 2px;
+    margin: 0 -6px;
+    padding-top: 4px;
+  }
+
+  @include hoist-button('.xh-button', '.xh-chat-source-card__foot') {
+    font-size: var(--xh-chat-meta-font-size);
+  }
+}
+
+// The cited span, in the card, the sources list and the document.
+.xh-chat-passage {
+  background-color: var(--xh-chat-passage-bg);
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px var(--xh-chat-passage-bg);
+  color: inherit;
+}
+
+// A web page's favicon, or its letter tile.
+.xh-chat-favicon {
+  border-radius: 3px;
+  box-sizing: border-box;
+  height: 14px;
+  width: 14px;
+
+  &--letter {
+    background-color: var(--xh-chat-part-header-bg);
+    border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    color: var(--xh-chat-meta-text-color);
+    display: inline-block;
+    font-size: 8px;
+    font-weight: 700;
+    line-height: 12px;
+    text-align: center;
+  }
+}

@@ -1,7 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
 import type {ReactNode} from 'react';
 import type {ChatDataPart, ChatPartRenderContext, ChatTextPart, ChatToolCallPart} from '../core';
-import type {ChatDataHandle} from './ChatArtifactRegistry';
+import type {ChatArtifactRegistry, ChatDataHandle} from './ChatArtifactRegistry';
 import type {ChatUiAction} from './ChatUiAction';
 import type {ChatUiCatalog} from './ChatUiCatalog';
 import type {ChatUiNode} from './ChatUiDocument';
@@ -132,6 +132,12 @@ export interface ChatUiRenderContext extends ChatUiDocumentContext {
 
     /** The data behind each reference prop that has a value, by prop name - see `dataProps`. */
     data: Record<string, ChatDataHandle>;
+
+    /**
+     * The registry that holds the artifacts of the chat - the one `data` reads. A component that
+     * opens its data in the side panel names it in the request.
+     */
+    artifacts: ChatArtifactRegistry;
 
     /**
      * Run an action the model wrote, such as the click of a button - see

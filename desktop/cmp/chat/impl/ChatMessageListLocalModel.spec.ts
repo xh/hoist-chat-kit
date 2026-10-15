@@ -1,7 +1,7 @@
 import type {WheelEvent} from 'react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
-import type {ChatModel} from '../../../../core';
+import type {ChatMessageListHost} from '../../../../core';
 import {ChatMessageListLocalModel} from './ChatMessageListLocalModel';
 
 /**
@@ -110,7 +110,8 @@ function createList({isBusy, contentHeight = 1000}: {isBusy: boolean; contentHei
     const model = new ChatMessageListLocalModel(),
         el = new FakeViewport(contentHeight);
     onTestFinished(() => model.destroy());
-    model.chatModel = {isBusy, messages: []} as ChatModel;
+    const host: ChatMessageListHost = {isBusy, messages: []};
+    model.setComponentProps({host});
     model.viewportRef(el as unknown as HTMLDivElement);
     return {model, el};
 }

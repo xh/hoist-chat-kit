@@ -1,4 +1,5 @@
 import {XH} from '@xh/hoist/core';
+import {observable, runInAction} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
@@ -638,6 +639,24 @@ describe('ChatModel', () => {
             expect(model.lastMessage.metadata.elapsedMs).toBe(1100);
         });
 
+        it("records the user's words with an approval on the call", async () => {
+            const model = createModel({
+                transport: scripted([
+                    toolCallEvents('resetDashboard', {}, {toolCallId: 'c1'}),
+                    textEvents('Reset.')
+                ]),
+                tools: [{name: 'resetDashboard', execute: () => 'Done.', needsApproval: true}]
+            });
+            await model.sendAsync('Reset it');
+
+            await model.approveToolCallAsync('c1', '  Only the layout.  ');
+
+            expect(model.lastMessage.toolCalls[0]).toMatchObject({
+                state: 'output-available',
+                approvalReason: 'Only the layout.'
+            });
+        });
+
         it('pauses for approval, then runs the tool and continues once approved', async () => {
             const execute = vi.fn(() => 'Dashboard reset.'),
                 transport = scripted([
@@ -759,6 +778,21 @@ describe('ChatModel', () => {
                 errorText: 'Stopped by the user.'
             });
             expect(onTurnComplete).toHaveBeenCalledExactlyOnceWith(model.lastMessage);
+        });
+    });
+
+    describe('dataRefreshedAt', () => {
+        it('reads the app refresh time from its config, as it changes', () => {
+            const state = observable({refreshedAt: 1000}),
+                model = createModel({
+                    transport: scripted([textEvents('Hi.')]),
+                    dataRefreshedAt: () => state.refreshedAt
+                });
+            expect(model.dataRefreshedAt).toBe(1000);
+
+            runInAction(() => (state.refreshedAt = 2000));
+            expect(model.dataRefreshedAt).toBe(2000);
+            expect(createModel({transport: scripted([])}).dataRefreshedAt).toBeNull();
         });
     });
 

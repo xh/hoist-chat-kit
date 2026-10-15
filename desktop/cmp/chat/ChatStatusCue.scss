@@ -1,0 +1,50 @@
+// A reply's status - an icon and its words on one line, in the status's color.
+.xh-chat-status-cue {
+  align-items: center;
+  color: var(--xh-chat-meta-text-color);
+  display: inline-flex;
+  font-size: var(--xh-chat-meta-font-size);
+  gap: var(--xh-chat-status-cue-gap, 5px);
+  min-width: 0;
+  white-space: nowrap;
+
+  &__icon {
+    display: inline-flex;
+    flex: none;
+    justify-content: center;
+    width: var(--xh-chat-status-cue-icon-width, 14px);
+  }
+
+  &__text {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &--meta &__text {
+    font-weight: 400;
+  }
+
+  &--busy {
+    color: var(--xh-chat-busy-color);
+  }
+
+  &--attention {
+    color: var(--xh-chat-attention-color);
+  }
+
+  &--warning {
+    color: var(--xh-chat-warning-color);
+  }
+
+  &--error {
+    color: var(--xh-chat-error-color);
+  }
+}
+
+.xh-chat-elapsed {
+  color: var(--xh-chat-meta-text-color);
+  font-size: var(--xh-chat-meta-font-size);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

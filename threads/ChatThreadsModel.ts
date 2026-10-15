@@ -1,4 +1,5 @@
 import {
+    cloneDeep,
     compact,
     difference,
     differenceBy,
@@ -10,14 +11,16 @@ import {
     pickBy,
     some,
     union,
-    uniq
+    uniq,
+    without
 } from 'lodash';
 import type {LoadSpec, PlainObject} from '@xh/hoist/core';
 import {HoistModel, managed, TaskObserver, XH} from '@xh/hoist/core';
 import {action, bindable, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {debounced, throwIf} from '@xh/hoist/utils/js';
-import type {ChatModel, ChatThreadCreatorSpec} from '../core';
+import {ChatKit, type ChatModel, type ChatThreadCreatorSpec} from '../core';
 import {genChatId} from '../impl/ids';
+import type {ChatThreadListHost} from './ChatThreadListHost';
 import type {
     ChatMessagePage,
     ChatThreadPage,
@@ -106,7 +109,7 @@ export interface ChatSeedSpec {
  * {@link ChatModel.threadId}. The model then re-keys the thread, its summary, the selection and
  * the route.
  */
-export class ChatThreadsModel extends HoistModel {
+export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     declare config: ChatThreadsConfig;
 
     //-----------------------
@@ -195,6 +198,12 @@ export class ChatThreadsModel extends HoistModel {
             .map(it => it.chatModel.threadId);
     }
 
+    /**
+     * Ids of the threads whose turn finished in the background, since the user last selected
+     * them. Held for the session only. A thread list shows each as having a new reply.
+     */
+    @observableRef accessor finishedAwayThreadIds: string[] = [];
+
     /** True if the store has more threads to list - see {@link loadMoreThreadsAsync}. */
     @computed
     get hasMoreThreads(): boolean {
@@ -218,6 +227,11 @@ export class ChatThreadsModel extends HoistModel {
     /** True if the store can delete threads. */
     get canDelete(): boolean {
         return !!this.store.deleteThreadsAsync;
+    }
+
+    /** True if the store's search covers message text, not just titles. */
+    get searchesMessages(): boolean {
+        return !!this.store.searchesMessages;
     }
 
     /** True if the store can pin threads. */
@@ -493,10 +507,21 @@ export class ChatThreadsModel extends HoistModel {
             onBusyChange: it => this.onBusyChange(it)
         });
         chatModel.addSendBlocker(() => this.getSendBlockedReason(thread));
+        chatModel.setStatusRefresher(() => this.refreshStatusAsync(thread));
         this.defaultRunOptions.set(chatModel, chatModel.runOptions ?? null);
         this.restoreDraft(threadId, chatModel);
         this.putOpenThread(threadId, thread);
         return thread;
+    }
+
+    /**
+     * Reload a thread's history, to learn how a run ended that its chat lost sight of. A turn
+     * still running here - one that stalled - is detached first, as the server may finish it.
+     */
+    private async refreshStatusAsync(thread: OpenThread): Promise<void> {
+        if (thread.loadState === 'loading') return;
+        if (thread.chatModel.isBusy) thread.chatModel.detach();
+        await this.loadHistoryAsync(thread);
     }
 
     private getSendBlockedReason(thread: OpenThread): string {
@@ -567,6 +592,8 @@ export class ChatThreadsModel extends HoistModel {
         const {chatModel} = thread;
         this.noteActivity(chatModel);
         if (!chatModel.isBusy) {
+            // A turn that pauses for the user has not finished - the thread lists as awaiting.
+            if (!chatModel.isAwaitingUser) this.noteFinishedAway(chatModel.threadId);
             // The backend may have set a title, or the thread's place in the list may change.
             this.refreshThreadsSoon();
             this.closeIdleThreads();
@@ -579,9 +606,17 @@ export class ChatThreadsModel extends HoistModel {
         if (!this.isDestroyed) this.refreshAsync();
     }
 
+    /** Mark a thread whose turn ended while another thread was selected. */
+    @action
+    private noteFinishedAway(threadId: string) {
+        if (threadId === this.selectedThreadId) return;
+        this.finishedAwayThreadIds = union(this.finishedAwayThreadIds, [threadId]);
+    }
+
     @action
     private setSelectedThreadId(threadId: string) {
         this.selectedThreadId = threadId;
+        this.finishedAwayThreadIds = without(this.finishedAwayThreadIds, threadId);
         this.loadTask.clear();
         this.olderMessagesTask.clear();
         this.closeIdleThreads();
@@ -614,7 +649,10 @@ export class ChatThreadsModel extends HoistModel {
         this.openThreads = omit(this.openThreads, keys(idle));
     }
 
-    /** Close the chats of threads being deleted, stopping any turn, and drop their drafts. */
+    /**
+     * Close the chats of threads being deleted, stopping any turn, and drop their drafts - from
+     * memory and from local storage.
+     */
     @action
     private closeThreads(threadIds: string[]) {
         threadIds.forEach(id => {
@@ -623,7 +661,10 @@ export class ChatThreadsModel extends HoistModel {
             thread?.destroy();
             this.drafts.delete(id);
         });
+        // After the chats close, as a composer saves its draft when destroyed.
+        ChatKit.clearLocalData(threadIds);
         this.openThreads = omit(this.openThreads, threadIds);
+        this.finishedAwayThreadIds = difference(this.finishedAwayThreadIds, threadIds);
     }
 
     /** Keep the draft of a closed chat, if the user changed its text or run options. */
@@ -674,6 +715,15 @@ export class ChatThreadsModel extends HoistModel {
         const {chatModel} = thread;
         chatModel.loadMessages(page.messages ?? [], threadId);
         chatModel.hasOlderMessages = page.nextCursor != null;
+        // TODO(design-open B4) - run options, such as a document scope, belong to the thread.
+        // The thread opens with those of its last question, unless the user changed them here.
+        const lastRunOptions = findLast(chatModel.messages, it => it.isUser)?.metadata.runOptions;
+        if (
+            lastRunOptions != null &&
+            isEqual(chatModel.runOptions, this.defaultRunOptions.get(chatModel))
+        ) {
+            chatModel.runOptions = cloneDeep(lastRunOptions);
+        }
         thread.olderCursor = page.nextCursor ?? null;
         thread.endLoad();
     }
@@ -849,6 +899,9 @@ export class ChatThreadsModel extends HoistModel {
             if (it.threadId === prevThreadId) it.threadId = threadId;
         });
         this.pendingChanges = [...this.pendingChanges];
+        this.finishedAwayThreadIds = this.finishedAwayThreadIds.map(it =>
+            it === prevThreadId ? threadId : it
+        );
     }
 
     //------------------------

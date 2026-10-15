@@ -1,10 +1,23 @@
-import {isValidElement, type ReactElement, useMemo} from 'react';
-import {hoistCmp, type HoistProps} from '@xh/hoist/core';
-import type {ChatMarkdownComponents} from '../../../../cmp/markdown';
+import {
+    Children,
+    cloneElement,
+    isValidElement,
+    type ReactElement,
+    type ReactNode,
+    useMemo
+} from 'react';
+import {div, span, table} from '@xh/hoist/cmp/layout';
+import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
+import {button} from '@xh/hoist/desktop/cmp/button';
+import {fmtNumber} from '@xh/hoist/format';
+import {action, observable} from '@xh/hoist/mobx';
+import {type ChatMarkdownComponents, useChatMarkdownStreaming} from '../../../../cmp/markdown';
+import {chatUiFrame} from '../../genui/ChatUiFrame';
 import {chatCodeBlock} from '../ChatCodeBlock';
 
 // Markdown renders a fenced code block as `pre > code.language-xyz`. Swap the `pre` for a
-// ChatCodeBlock, reading the code and its language from the inner `code` element.
+// ChatCodeBlock, reading the code and its language from the inner `code` element. A block that
+// still streams shows in full, so that it does not collapse while the user reads it.
 const MarkdownPre = hoistCmp<HoistProps>({
     displayName: 'ChatMarkdownPre',
     model: false,
@@ -15,18 +28,106 @@ const MarkdownPre = hoistCmp<HoistProps>({
                 ? (children as ReactElement<{className?: string; children?: unknown}>)
                 : null,
             {className, children: text} = codeEl?.props ?? {},
-            language = /language-(\S+)/.exec(className ?? '')?.[1] ?? null;
+            language = /language-(\S+)/.exec(className ?? '')?.[1] ?? null,
+            isStreaming = useChatMarkdownStreaming();
 
-        return chatCodeBlock({content: String(text ?? '').replace(/\n$/, ''), language});
+        return chatCodeBlock({
+            content: String(text ?? '').replace(/\n$/, ''),
+            language,
+            isStreaming
+        });
     }
 });
+
+interface HastElement {
+    type: string;
+    tagName?: string;
+    children?: HastElement[];
+}
+
+// A markdown table of up to 12 body rows renders plain, in a frame that fits its content, on
+// Hoist's compact grid tokens. A longer one renders as a card: its first 12 rows, and a footer
+// that says how many rows it holds, with Show All. A markdown table carries no artifact, so it has
+// no side panel view.
+// TODO(design-open B1) - the long table's card follows P4's preview, without View Full Table.
+const MarkdownTable = hoistCmp<HoistProps & {node?: HastElement}>({
+    displayName: 'ChatMarkdownTable',
+    model: false,
+    observer: false,
+
+    render({node, children}) {
+        const rowCount = countBodyRows(node);
+        return rowCount > MAX_PLAIN_TABLE_ROWS
+            ? markdownTableCard({rowCount, item: children})
+            : table({items: children});
+    }
+});
+
+const markdownTableCard = hoistCmp.factory<HoistProps & {rowCount: number}>({
+    displayName: 'ChatMarkdownTableCard',
+
+    render({rowCount, children}) {
+        const impl = useLocalModel(MarkdownTableLocalModel),
+            {isExpanded} = impl,
+            rows = `${fmtNumber(rowCount, {precision: 0, asHtml: true})} rows`;
+
+        return chatUiFrame({
+            className: 'xh-chat-markdown__table-card',
+            item: table({items: isExpanded ? children : capBodyRows(children)}),
+            footer: [
+                span({
+                    key: 'counts',
+                    item: isExpanded ? rows : `Showing ${MAX_PLAIN_TABLE_ROWS} of ${rows}`
+                }),
+                div({key: 'fill', className: 'xh-chat-ui-frame__fill'}),
+                button({
+                    key: 'toggle',
+                    text: isExpanded ? 'Show Less' : 'Show All',
+                    'aria-expanded': isExpanded,
+                    onClick: () => impl.setExpanded(!isExpanded)
+                })
+            ]
+        });
+    }
+});
+
+// Markdown tables of up to this many body rows show in full.
+const MAX_PLAIN_TABLE_ROWS = 12;
+
+class MarkdownTableLocalModel extends HoistModel {
+    override xhImpl = true;
+
+    @observable accessor isExpanded = false;
+
+    @action
+    setExpanded(isExpanded: boolean) {
+        this.isExpanded = isExpanded;
+    }
+}
+
+function countBodyRows(node: HastElement): number {
+    const body = node?.children?.find(it => it.tagName === 'tbody');
+    return body?.children?.filter(it => it.tagName === 'tr').length ?? 0;
+}
+
+// The table's head, and the first rows of its body.
+function capBodyRows(children: ReactNode): ReactNode {
+    return Children.map(children, child => {
+        if (!isValidElement<{children?: ReactNode}>(child) || child.type !== 'tbody') return child;
+        const rows = Children.toArray(child.props.children).filter(isValidElement);
+        return cloneElement(child, null, rows.slice(0, MAX_PLAIN_TABLE_ROWS));
+    });
+}
 
 /**
  * Markdown element overrides used by the desktop chat components. A module-level constant, so
  * that memoized markdown blocks see the same object on every render.
  * @internal
  */
-export const CHAT_MARKDOWN_COMPONENTS: ChatMarkdownComponents = {pre: MarkdownPre};
+export const CHAT_MARKDOWN_COMPONENTS: ChatMarkdownComponents = {
+    pre: MarkdownPre,
+    table: MarkdownTable
+};
 
 /**
  * The kit's markdown components, with an app's overrides merged over them. Memoized, so that

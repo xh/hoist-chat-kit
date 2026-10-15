@@ -8,7 +8,8 @@ import {
     type ChatUiActionType,
     chatUiActionSchema,
     type ChatUiComponentSpec,
-    describeChatUiAction
+    describeChatUiAction,
+    isChatUiMessagingAction
 } from '../../../genui';
 import {
     CHAT_UI_DECIMALS_SCHEMA,
@@ -143,7 +144,10 @@ export function chatUiCardSpec(
 
 /** Props for {@link ChatUiCard}. */
 export interface ChatUiCardProps extends HoistProps, Partial<ChatUiCardSpecProps> {
-    /** The chat that shows the card. Actions that message it are disabled while it is busy. */
+    /**
+     * The chat that shows the card. Actions that message it are disabled while it is busy, and
+     * hidden where it is null - in a message list over a host that is not a `ChatModel`.
+     */
     chatModel: ChatModel;
 
     /** Runs an action when its button is clicked - the catalog's `context.runActionAsync`. */
@@ -155,8 +159,13 @@ export interface ChatUiCardProps extends HoistProps, Partial<ChatUiCardSpecProps
 
 /**
  * A detail card of labeled values, with follow-up actions - the component that
- * {@link chatUiCardSpec} renders. Actions that send a message or run a tool are disabled while
- * the chat is busy.
+ * {@link chatUiCardSpec} renders. The title and subtitle sit in the card's header strip, and the
+ * actions follow the card as outlined chips (P4), as they belong to the reply. A long chip is cut
+ * to one line. Its tooltip always shows what the click does, as D17 requires. Actions that send a
+ * message or run a tool are disabled while the chat is busy, and hidden with no `ChatModel`.
+ *
+ * TODO(P7): an Apply card - a previewed change with Apply, Cancel and Undo - is the component
+ * helper's, and lands with it.
  */
 export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
     displayName: 'ChatUiCard',
@@ -166,50 +175,50 @@ export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
     render({className, title, subtitle, fields, actions, chatModel, isPartial, runActionAsync}) {
         // While streaming, the last field may be cut short - its value still being written.
         const validFields = (isPartial ? dropRight(fields) : (fields ?? [])).filter(isPlainObject),
-            validActions = isPartial ? [] : (actions ?? []).filter(isPlainObject);
+            validActions = isPartial
+                ? []
+                : (actions ?? []).filter(
+                      it => isPlainObject(it) && (chatModel || !isChatUiMessagingAction(it))
+                  );
 
-        return chatUiFrame({
+        return div({
             className,
             items: [
-                div({
-                    className: 'xh-chat-ui-card__header',
-                    items: [
-                        div({className: 'xh-chat-ui-card__title', item: title}),
-                        subtitle
-                            ? div({className: 'xh-chat-ui-card__subtitle', item: subtitle})
-                            : null
-                    ]
+                chatUiFrame({
+                    title,
+                    meta: subtitle,
+                    item: div({
+                        className: 'xh-chat-ui-card__fields',
+                        items: validFields.map(({label, value, format, decimals}, idx) =>
+                            div({
+                                key: idx,
+                                className: 'xh-chat-ui-card__field',
+                                items: [
+                                    div({className: 'xh-chat-ui-card__label', item: label}),
+                                    div({
+                                        className: 'xh-chat-ui-card__value',
+                                        item: isFinite(value)
+                                            ? fmtChatUiNumber(value as number, format, decimals)
+                                            : value
+                                    })
+                                ]
+                            })
+                        )
+                    })
                 }),
-                validFields.length
-                    ? div({
-                          className: 'xh-chat-ui-card__fields',
-                          items: validFields.map(({label, value, format, decimals}, idx) =>
-                              div({
-                                  key: idx,
-                                  className: 'xh-chat-ui-card__field',
-                                  items: [
-                                      div({className: 'xh-chat-ui-card__label', item: label}),
-                                      div({
-                                          className: 'xh-chat-ui-card__value',
-                                          item: isFinite(value)
-                                              ? fmtChatUiNumber(value as number, format, decimals)
-                                              : value
-                                      })
-                                  ]
-                              })
-                          )
-                      })
-                    : null,
                 validActions.length
                     ? div({
                           className: 'xh-chat-ui-card__actions',
                           items: validActions.map((action, idx) => {
                               // A blocked chat ignores a send, so say why the button waits.
-                              const isMessaging = MESSAGING_ACTIONS.has(action.type),
+                              const isMessaging = isChatUiMessagingAction(action),
                                   blockedReason = isMessaging ? chatModel.sendBlockedReason : null;
                               return button({
                                   key: idx,
+                                  className: 'xh-chat-ui-card__action',
                                   text: action.label,
+                                  // The label may differ from what the click does, so the
+                                  // tooltip always says it - never the label alone (D17, R8).
                                   tooltip: blockedReason ?? describeChatUiAction(action),
                                   outlined: true,
                                   disabled: isMessaging && (chatModel.isBusy || !!blockedReason),
@@ -226,9 +235,6 @@ export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
 //------------------
 // Implementation
 //------------------
-// Actions that message the chat, and so wait while it is busy.
-const MESSAGING_ACTIONS: ReadonlySet<ChatUiActionType> = new Set(['send', 'callTool']);
-
 const DESCRIPTION =
     'A detail card for one record - a client, an order, a counterparty - with its key fields ' +
     'as labeled values, and up to a few follow-up actions, shown as buttons, for the obvious ' +

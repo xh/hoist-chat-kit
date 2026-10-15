@@ -15,31 +15,65 @@ describe('remarkCitations', () => {
 
     it('turns a marker in text into a citation element', () => {
         expect(transform(paragraph(text('Rates rose [1].')), [S1, S2])).toEqual(
-            paragraph(text('Rates rose '), citation('[1]', [1]), text('.'))
+            paragraph(text('Rates '), run(text('rose '), citation('[1]', [1]), text('.')))
+        );
+    });
+
+    it('keeps each marker on one line with the word before it and the punctuation after', () => {
+        expect(transform(paragraph(text('The cap is 75%[1], or 70% [2]; see')), [S1, S2])).toEqual(
+            paragraph(
+                text('The cap is '),
+                run(text('75%'), citation('[1]', [1]), text(',')),
+                text(' or '),
+                run(text('70% '), citation('[2]', [2]), text(';')),
+                text(' see')
+            )
+        );
+    });
+
+    it('expands a range of numbers, written with a dash', () => {
+        const S4 = source('s4');
+        expect(transform(paragraph(text('All [1–4] and [1-2, 4]')), [S1, S2, S3, S4])).toEqual(
+            paragraph(
+                run(text('All '), citation('[1–4]', [1, 2, 3, 4])),
+                text(' '),
+                run(text('and '), citation('[1-2, 4]', [1, 2, 4]))
+            )
+        );
+    });
+
+    it('leaves a backward range as written', () => {
+        expect(transform(paragraph(text('See [3–1].')), [S1, S2, S3])).toEqual(
+            paragraph(text('See [3–1].'))
         );
     });
 
     it('turns a list of numbers into one citation element for all of them', () => {
         expect(transform(paragraph(text('See [1, 2] and [2,3].')), [S1, S2, S3])).toEqual(
             paragraph(
-                text('See '),
-                citation('[1, 2]', [1, 2]),
-                text(' and '),
-                citation('[2,3]', [2, 3]),
-                text('.')
+                run(text('See '), citation('[1, 2]', [1, 2])),
+                text(' '),
+                run(text('and '), citation('[2,3]', [2, 3]), text('.'))
             )
         );
     });
 
     it('turns adjacent markers into adjacent citation elements', () => {
         expect(transform(paragraph(text('Both agree [1][2]')), [S1, S2])).toEqual(
-            paragraph(text('Both agree '), citation('[1]', [1]), citation('[2]', [2]))
+            paragraph(
+                text('Both '),
+                run(text('agree '), citation('[1]', [1]), citation('[2]', [2]))
+            )
         );
     });
 
     it('converts markers at the start and end of a text node, with no empty text around them', () => {
         expect(transform(paragraph(text('[1] leads, and so does [2]')), [S1, S2])).toEqual(
-            paragraph(citation('[1]', [1]), text(' leads, and so does '), citation('[2]', [2]))
+            paragraph(
+                run(citation('[1]', [1])),
+                text(' leads, and so '),
+                run(text('does '), citation('[2]', [2]))
+            )
         );
     });
 
@@ -89,12 +123,12 @@ describe('remarkCitations', () => {
 
     it('converts each marker of an adjacent pair on its own', () => {
         expect(transform(paragraph(text('[1][3]')), [S1, S2])).toEqual(
-            paragraph(citation('[1]', [1]), text('[3]'))
+            paragraph(run(citation('[1]', [1])), text('[3]'))
         );
     });
 
     it('leaves bracketed text that is not a list of numbers as written', () => {
-        const value = 'Arrays [a], ranges [1-2], decimals [1.5], empty [] and [ 1 ].';
+        const value = 'Arrays [a], ranges [1-], decimals [1.5], empty [] and [ 1 ].';
         expect(transform(paragraph(text(value)), [S1, S2])).toEqual(paragraph(text(value)));
     });
 
@@ -107,7 +141,12 @@ describe('remarkCitations', () => {
     it('resolves numbers by marker when any source has one', () => {
         const sources = [source('a', 7), source('b', 3)];
         expect(transform(paragraph(text('[3] then [7], not [1]')), sources)).toEqual(
-            paragraph(citation('[3]', [3]), text(' then '), citation('[7]', [7]), text(', not [1]'))
+            paragraph(
+                run(citation('[3]', [3])),
+                text(' '),
+                run(text('then '), citation('[7]', [7]), text(',')),
+                text(' not [1]')
+            )
         );
     });
 
@@ -124,13 +163,13 @@ describe('remarkCitations', () => {
 
         it('converts the marker once its closing bracket arrives', () => {
             expect(transform(paragraph(text('Rates rose [1, 2]')), [S1, S2])).toEqual(
-                paragraph(text('Rates rose '), citation('[1, 2]', [1, 2]))
+                paragraph(text('Rates '), run(text('rose '), citation('[1, 2]', [1, 2])))
             );
         });
 
         it('converts the finished markers before a partial one', () => {
             expect(transform(paragraph(text('Up [1] and down [2')), [S1, S2])).toEqual(
-                paragraph(text('Up '), citation('[1]', [1]), text(' and down [2'))
+                paragraph(run(text('Up '), citation('[1]', [1])), text(' and down [2'))
             );
         });
     });
@@ -209,6 +248,14 @@ function citation(value: string, numbers: number[]): MdastNode {
             hProperties: {dataMarkers: numbers.join(' ')},
             hChildren: [{type: 'text', value}]
         }
+    };
+}
+
+function run(...children: MdastNode[]): MdastNode {
+    return {
+        type: 'xhChatCitationRun',
+        children,
+        data: {hName: 'span', hProperties: {className: ['xh-chat-markdown__citation-run']}}
     };
 }
 

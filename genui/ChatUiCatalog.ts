@@ -30,7 +30,8 @@ import {
     CHAT_UI_MAX_CONTEXT_ENTRIES,
     type ChatUiAction,
     type ChatUiActionHandler,
-    chatUiActionSchema
+    chatUiActionSchema,
+    isChatUiMessagingAction
 } from './ChatUiAction';
 import type {ChatUiAdapter} from './ChatUiAdapter';
 import type {
@@ -576,6 +577,9 @@ export class ChatUiCatalog {
      *    check. The call is not part of the history, so an undo the tool returns is not kept.
      *  - `app` - runs the handler in `actionHandlers` for its name. Resolves to its result.
      *
+     * `send` and `callTool` need the context's `chatModel`, and are refused without one - where
+     * the message list shows a host that is not a `ChatModel`.
+     *
      * An action with `confirm` asks the user first, with `XH.confirm()`, and does nothing if they
      * cancel.
      *
@@ -587,6 +591,10 @@ export class ChatUiCatalog {
         throwIf(!isEmpty(errors), `Invalid action: ${errors.join('; ')}`);
 
         const {chatModel} = context;
+        throwIf(
+            !chatModel && isChatUiMessagingAction(action),
+            `No chat to send to - a '${action.type}' action needs a ChatModel.`
+        );
         switch (action.type) {
             case 'send': {
                 const {text, context: messageContext} = action;
@@ -1072,6 +1080,7 @@ const chatUiComponent = hoistCmp.factory<ChatUiComponentProps>({
             children,
             slots,
             data: handles,
+            artifacts: registry,
             runActionAsync: action => catalog.runActionAsync(action, context)
         };
         return spec.render(props, renderContext);

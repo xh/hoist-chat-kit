@@ -204,6 +204,17 @@ describe('ChatUiCatalog actions', () => {
         });
     });
 
+    describe('without a ChatModel', () => {
+        it('refuses actions that message the chat, and says why', async () => {
+            await expect(runAsync({type: 'send', text: 'Hi'})).rejects.toThrow(
+                'No chat to send to'
+            );
+            await expect(runAsync({type: 'callTool', name: 'go'})).rejects.toThrow(
+                'No chat to send to'
+            );
+        });
+    });
+
     describe('app', () => {
         it('runs the handler for its name, with the params and the chat', async () => {
             const handler = vi.fn(() => 'done'),

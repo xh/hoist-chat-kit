@@ -1,69 +1,71 @@
 @use '../../../styles/mixins' as *;
 
+// A file as one 24px line: its icon or thumbnail, name and size, at meta size.
 .xh-chat-file-chip {
   align-items: center;
-  background-color: var(--xh-chat-chip-bg);
-  border: var(--xh-chat-border);
-  border-radius: var(--xh-chat-radius-px);
+  background-color: var(--xh-chat-bg);
+  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border-radius: var(--xh-chat-border-radius);
+  box-sizing: border-box;
   display: inline-flex;
-  gap: var(--xh-pad-half-px);
-  max-width: 220px;
+  font-size: var(--xh-chat-meta-font-size);
+  gap: calc(var(--xh-pad) * 0.6px);
+  height: 24px;
+  max-width: 240px;
   min-width: 0;
-  padding: calc(var(--xh-pad) * 0.4px);
+  padding: 0 calc(var(--xh-pad) * 0.8px);
   position: relative;
+
+  &--removable {
+    padding-right: 1px;
+  }
 
   &__thumb,
   &__icon {
-    border-radius: 6px;
     flex: none;
-    height: 32px;
-    width: 32px;
+    height: 16px;
+    width: 16px;
   }
 
   &__thumb {
+    border-radius: 2px;
     object-fit: cover;
   }
 
   &__icon {
     align-items: center;
-    background-color: var(--xh-chat-surface-bg);
-    color: var(--xh-chat-muted-text-color);
+    color: var(--xh-chat-meta-text-color);
     display: flex;
-    font-size: 16px;
     justify-content: center;
   }
 
   &__text {
+    align-items: baseline;
     display: flex;
-    flex-direction: column;
-    line-height: 1.3;
+    gap: calc(var(--xh-pad) * 0.6px);
+    line-height: 16px;
     min-width: 0;
-    padding-right: var(--xh-pad-half-px);
-  }
-
-  &--removable &__text {
-    padding-right: 0;
   }
 
   &__name {
     color: var(--xh-chat-text-color);
-    font-size: var(--xh-font-size-px);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   &__meta {
-    color: var(--xh-chat-muted-text-color);
-    font-size: var(--xh-chat-meta-font-size-px);
+    color: var(--xh-chat-meta-text-color);
+    flex: none;
+    white-space: nowrap;
   }
 
   @include hoist-button('.xh-chat-file-chip__remove') {
-    --xh-button-text-color: var(--xh-chat-muted-text-color);
+    --xh-button-text-color: var(--xh-chat-meta-text-color);
 
     flex: none;
-    min-height: 22px;
-    min-width: 22px;
+    min-height: 20px;
+    min-width: 20px;
     padding: 0;
   }
 }

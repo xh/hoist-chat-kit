@@ -50,7 +50,8 @@ runtime dependency on `@ag-ui/*`.
 | `ACTIVITY_SNAPSHOT` | Used. Data parts, keyed by `activityType`. |
 | `CUSTOM` | Used for the kit's `xh.chat.*` events. Others ignored. |
 | `STATE_SNAPSHOT`, `STATE_DELTA`, `MESSAGES_SNAPSHOT` | Ignored. |
-| `ACTIVITY_DELTA`, `SUBAGENT_*`, `RAW`, `STEP_*` | Ignored. |
+| `SUBAGENT_*` | Used. Data parts of type `xh.chat.subagent`, which the activity timeline nests calls under. |
+| `ACTIVITY_DELTA`, `RAW`, `STEP_*` | Ignored. |
 
 An AG-UI `RUN_FINISHED` with an `outcome` of `success` maps to the finish reason `stop`. Any
 other outcome, such as `interrupt`, maps to `other`. The kit pauses for the user through its own

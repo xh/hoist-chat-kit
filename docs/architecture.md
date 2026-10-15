@@ -14,18 +14,17 @@ catalog sits beside the models, and builds on their tools.
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ Components          desktop/cmp/chat/     desktop/cmp/genui/             │
+│                     desktop/cmp/threads/  desktop/cmp/workspace/         │
 │                     cmp/markdown/                                        │
 │                     ChatPanel, ChatMessageList, ChatComposer,            │
-│                     ChatToolCall, ChatUiGrid, ChatUiChart, ...           │
+│                     ChatThreadList, ChatWorkspace, ChatUiGrid, ...       │
 │                     Render the models. Never see a wire format.          │
 ├──────────────────────────────────────────────────────────────────────────┤
-│ Models              core/     genui/     threads/     assist/     svc/   │
-│                     desktop/assist/                                      │
+│ Models              core/     genui/     threads/     svc/               │
 │                     ChatModel, ChatMessage, ChatPart, ChatToolSpec,      │
-│                     ChatUiCatalog, ChatThreadsModel, gridTools,          │
-│                     ChatService. Own the state, the turn loop, the       │
-│                     threads and the tools. Platform-neutral, apart from  │
-│                     desktop/assist/.                                     │
+│                     ChatUiCatalog, ChatThreadsModel, ChatService.        │
+│                     Own the state, the turn loop, the threads and the    │
+│                     tools. Platform-neutral.                             │
 ├──────────────────────────────────────────────────────────────────────────┤
 │ Transports, codecs  transport/                                           │
 │                     HoistChatTransport, SseChatTransport,                │
@@ -39,7 +38,9 @@ catalog sits beside the models, and builds on their tools.
 ```
 
 Helpers that more than one package needs, such as id generation and abort handling, live in the
-top-level `impl/` folder. They are internal, and no package reaches into another's `impl/`.
+top-level `impl/` folder. Desktop helpers that more than one desktop package needs, such as the
+spinner and the keyboard shortcuts, live in `desktop/impl/`. Both are internal, and no package
+reaches into another's `impl/`.
 
 - **Transports and codecs** carry the request to a backend and turn its stream into
   `ChatEvent`s, which are AG-UI 1.0 events. A transport owns the framing, such as NDJSON or SSE.
@@ -51,13 +52,12 @@ top-level `impl/` folder. They are internal, and no package reaches into another
   [`/genui/`](../genui/README.md). A `ChatThreadsModel` lists the threads a backend stores, and
   holds a `ChatModel` for each open one. See [`/threads/`](../threads/README.md). `ChatService`
   builds a transport for the app's configured LLM backend. See [`/svc/`](../svc/README.md).
-- **Tool groups** derive tools from one Hoist component's model, for a helper agent beside it.
-  `gridTools` is platform-neutral, in `/assist/`. `dashCanvasTools` acts on a desktop
-  `DashCanvasModel`, so it lives in `/desktop/assist/`. See [`/assist/`](../assist/README.md).
 - **Components** render the models with Hoist components and element factories. The desktop
   components live in [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md), and the built-in
-  generative UI components in [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md). The
-  streaming markdown renderer is platform-neutral, in [`/cmp/markdown/`](../cmp/markdown/README.md).
+  generative UI components in [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md). The thread
+  list and the full-page workspace each have a desktop package of their own:
+  [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) and
+  [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md). The streaming markdown renderer is platform-neutral, in [`/cmp/markdown/`](../cmp/markdown/README.md).
 
 The kit owns its message model. No component sees a provider's or a protocol's wire format, so
 protocol churn stops at the codec. See [Protocols](./protocols.md) for how each protocol maps
@@ -232,7 +232,7 @@ The component slots and the theme variables are covered in
 
 ## Platform Split
 
-The kit ships desktop components now. `core/`, `genui/`, `threads/`, `assist/`, `svc/`,
+The kit ships desktop components now. `core/`, `genui/`, `threads/`, `svc/`,
 `transport/` and `cmp/` import nothing from `@xh/hoist/desktop`. A mobile package,
 `mobile/cmp/chat`, can follow with no change to the models, the transports or the markdown
 renderer.
@@ -243,12 +243,13 @@ renderer.
 | `transport/` | Neutral | Transports, codecs and events |
 | `genui/` | Neutral | The generative UI catalog, component specs and adapters |
 | `threads/` | Neutral | The thread layer: a store adapter and one chat per open thread |
-| `assist/` | Neutral | Tool groups for helper agents, such as `gridTools` |
 | `svc/` | Neutral | `ChatService`, which builds a transport from the `chatConfig` soft config |
 | `cmp/markdown/` | Neutral | The streaming markdown renderer |
 | `desktop/cmp/chat/` | Desktop | Panel, message list, composer, tool cards and the rest |
+| `desktop/cmp/threads/` | Desktop | The thread list |
+| `desktop/cmp/workspace/` | Desktop | The full-page workspace: sidebar, conversation and side panel |
 | `desktop/cmp/genui/` | Desktop | The built-in grid, chart, metrics and card components |
-| `desktop/assist/` | Desktop | `dashCanvasTools`, the tool group for a `DashCanvasModel` |
+| `desktop/impl/` | Desktop | Internal helpers that more than one desktop package needs |
 | `styles/` | Neutral | The `--xh-chat-*` CSS variables |
 
 App code follows the same split. Put tool specs, prompts and data renderers in shared code when
@@ -260,10 +261,12 @@ desktop code.
 - [`/core/`](../core/README.md) - `ChatModel`, messages, parts and tools
 - [`/genui/`](../genui/README.md) - the generative UI catalog
 - [`/threads/`](../threads/README.md) - the thread layer
-- [`/assist/`](../assist/README.md) - tool groups for helper agents
 - [`/svc/`](../svc/README.md) - the chat service
 - [`/transport/`](../transport/README.md) - transports, codecs and server contracts
 - [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) - desktop components
+- [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) - the desktop thread list
+- [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md) - the desktop workspace
+- [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) - the built-in generative UI components
 - [`/cmp/markdown/`](../cmp/markdown/README.md) - streaming markdown
 - [Protocols](./protocols.md) - AG-UI, Anthropic, OpenAI, generative UI and the Vercel AI SDK
   vocabulary

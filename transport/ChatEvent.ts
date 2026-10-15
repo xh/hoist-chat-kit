@@ -41,6 +41,9 @@ export type ChatEvent =
     | ToolCallChunkEvent
     | ToolCallResultEvent
     | ActivitySnapshotEvent
+    | SubagentStartedEvent
+    | SubagentFinishedEvent
+    | SubagentErrorEvent
     | ChatCustomEvent
     | IgnoredEvent;
 
@@ -98,7 +101,10 @@ export interface RunFinishedEvent extends ChatEventBase {
 /**
  * The run has failed. Its `code` is recorded as `metadata.errorCode` on the message. A
  * `metadata.retryAfterSeconds` - the wait the backend asks for before a retry - is recorded on
- * the message too, and becomes `ChatRunError.retryAfterSeconds`.
+ * the message too, and becomes `ChatRunError.retryAfterSeconds`. A `metadata.retrySafe: false`
+ * says that a resend of the turn could run work twice, such as a write. It is recorded as
+ * `metadata.retrySafe`, and the composer then offers Refresh Status rather than Try Again - see
+ * `isChatRetrySafe()`.
  */
 export interface RunErrorEvent extends ChatEventBase {
     type: 'RUN_ERROR';
@@ -239,6 +245,9 @@ export interface ToolCallStartEvent extends ChatEventBase {
     toolCallId: string;
     toolCallName: string;
     parentMessageId?: string;
+
+    /** The sub-agent that made the call - see {@link SubagentStartedEvent}. */
+    subagentRunId?: string;
 }
 
 /** A fragment of a tool call's arguments. */
@@ -263,6 +272,9 @@ export interface ToolCallChunkEvent extends ChatEventBase {
     toolCallName?: string;
     parentMessageId?: string;
     delta?: string;
+
+    /** The sub-agent that made the call - see {@link SubagentStartedEvent}. */
+    subagentRunId?: string;
 }
 
 /**
@@ -306,6 +318,56 @@ export interface ActivitySnapshotEvent extends ChatEventBase {
 }
 
 //------------------
+// Sub-agents
+//------------------
+/**
+ * An agent has handed part of its work to a sub-agent. Tool calls the sub-agent makes carry its
+ * `subagentRunId`. The kit records the sub-agent as a data part of type `xh.chat.subagent`, and
+ * the activity timeline nests its calls under it.
+ */
+export interface SubagentStartedEvent extends ChatEventBase {
+    type: 'SUBAGENT_STARTED';
+
+    /** Identifies this run of the sub-agent. */
+    subagentRunId: string;
+
+    /** The sub-agent's name, for display. */
+    name: string;
+
+    /** What the sub-agent is doing, for display. */
+    description?: string;
+
+    /** The sub-agent that started this one, when sub-agents nest. */
+    parentSubagentRunId?: string;
+
+    /** The tool call that started this sub-agent, for agents exposed to a model as tools. */
+    parentToolCallId?: string;
+
+    /** The message that holds that tool call. */
+    parentMessageId?: string;
+}
+
+/** A sub-agent has finished its work. */
+export interface SubagentFinishedEvent extends ChatEventBase {
+    type: 'SUBAGENT_FINISHED';
+    subagentRunId: string;
+
+    /** What the sub-agent found or did. Text shows as its result line in the timeline. */
+    result?: any;
+
+    /** `success`, or `suspended` while the sub-agent waits on an interrupt. */
+    outcome?: {type: 'success'} | {type: 'suspended'; interruptIds?: string[]};
+}
+
+/** A sub-agent has failed. */
+export interface SubagentErrorEvent extends ChatEventBase {
+    type: 'SUBAGENT_ERROR';
+    subagentRunId: string;
+    message: string;
+    code?: string;
+}
+
+//------------------
 // Extension
 //------------------
 /**
@@ -320,26 +382,22 @@ export interface ChatCustomEvent extends ChatEventBase {
 
 /** AG-UI events the kit accepts but does not act on. */
 export interface IgnoredEvent extends ChatEventBase {
-    type:
-        | 'RAW'
-        | 'STATE_SNAPSHOT'
-        | 'STATE_DELTA'
-        | 'MESSAGES_SNAPSHOT'
-        | 'ACTIVITY_DELTA'
-        | 'SUBAGENT_STARTED'
-        | 'SUBAGENT_FINISHED'
-        | 'SUBAGENT_ERROR';
+    type: 'RAW' | 'STATE_SNAPSHOT' | 'STATE_DELTA' | 'MESSAGES_SNAPSHOT' | 'ACTIVITY_DELTA';
     [key: string]: any;
 }
 
 /**
  * Names of the `CUSTOM` events with which a backend sends kit-specific content:
  *
- *  - `xh.chat.source` - value `{id?, url?, title?, snippet?, marker?, metadata?}`, appends a
- *    source part. `marker` is the number that cites it in the text, as in `[1]`.
+ *  - `xh.chat.source` - value `{id?, sourceType?, url?, title?, snippet?, marker?, metadata?}`,
+ *    appends a source part. `marker` is the number that cites it in the text, as in `[1]`.
+ *    `sourceType` is `url` for a web page or `document` for a document of the app's own, and
+ *    defaults to `url` when the source has a `url`, else `document`.
  *  - `xh.chat.citation` - value `{id?, title?, url?, citedText?, sourceId?}`, cites a source
  *    from the current text part.
- *  - `xh.chat.data` - value `{id?, dataType, data}`, adds or replaces a data part.
+ *  - `xh.chat.data` - value `{id?, dataType, data}`, adds or replaces a data part. The `dataType`
+ *    `xh.chat.noAnswer` is reserved for a fixed "not found" reply, with `data` a
+ *    `ChatNoAnswerData` - the kit renders it from a built-in template.
  *  - `xh.chat.file` - value `{id?, name, mediaType, size?, url?, data?}`, appends a file part.
  *  - `xh.chat.providerData` - value `{subtype: 'message' | 'tool-call', entityId, data}`, merges
  *    `data` into the `providerData` of a reasoning part or tool call, by provider key. Ids follow

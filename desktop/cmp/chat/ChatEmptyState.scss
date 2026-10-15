@@ -1,40 +1,42 @@
+// A left-aligned column, centered in its host: heading, supporting text, then suggestions.
 .xh-chat-empty-state {
-  align-items: center;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: var(--xh-pad-px);
+  gap: 14px;
   margin: auto;
-  max-width: min(560px, 100%);
-  padding: calc(var(--xh-pad) * 3px) var(--xh-chat-gutter-px);
-  text-align: center;
-
-  &__icon {
-    align-items: center;
-    background-color: var(--xh-intent-primary-trans1);
-    border-radius: 50%;
-    color: var(--xh-intent-primary-text-color);
-    display: flex;
-    font-size: 20px;
-    height: 44px;
-    justify-content: center;
-    width: 44px;
-  }
+  max-width: var(--xh-chat-composer-centered-max-width);
+  padding: 24px var(--xh-chat-side-pad);
+  width: 100%;
 
   &__title {
     color: var(--xh-text-color-headings);
     font-family: var(--xh-font-family-headings);
-    font-size: calc(var(--xh-font-size) * 1.45px);
+    font-size: var(--xh-font-size-large-px);
     font-weight: 600;
     line-height: 1.3;
   }
 
   &__text {
-    color: var(--xh-chat-muted-text-color);
-    font-size: var(--xh-chat-font-size-px);
+    align-items: flex-start;
+    color: var(--xh-chat-meta-text-color);
+    display: flex;
+    font-size: var(--xh-chat-meta-font-size);
+    gap: 8px;
     line-height: var(--xh-chat-line-height);
   }
 
-  .xh-chat-suggestions {
-    margin-top: var(--xh-pad-half-px);
+  &__icon {
+    color: var(--xh-chat-text-color);
+    display: inline-flex;
+    flex: none;
+    line-height: inherit;
+  }
+
+  // At 380, the supporting text keeps to one line.
+  .xh-chat--compact & &__text > :last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }

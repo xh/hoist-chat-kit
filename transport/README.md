@@ -5,7 +5,7 @@
 | [Overview](#overview) | How the chat gets events from a backend, and the key features |
 | [Architecture](#architecture) | Transports, codecs, `ChatEvent`, and how they fit together |
 | [Configuration Pattern](#configuration-pattern) | Choosing and configuring a transport and a codec |
-| [Common Usage Patterns](#common-usage-patterns) | Hoist servers, Anthropic, bring your own LLM, AG-UI agents, server-owned conversations, scripted demos and tests |
+| [Common Usage Patterns](#common-usage-patterns) | Hoist servers, Anthropic, bring your own LLM, AG-UI agents, server-owned conversations, scripted demos and tests, use without `ChatModel` |
 | [Server Contracts](#server-contracts) | What each transport expects from its backend |
 | [Hoist Server Example](#hoist-server-example) | A hoist-core controller that relays an Anthropic stream |
 | [Properties/API Reference](#propertiesapi-reference) | Config tables, the event vocabulary, and `xh.chat.*` events |
@@ -408,7 +408,8 @@ are left out. The turn goes in `forwardedProps`, merged under any props the app 
 ```
 
 `replacedMessageId` joins them for a retry or regenerate. `catalogVersion` joins them for a chat
-with a catalog. `runOptions` is left out when it is null. A key the app sets in its own `forwardedProps` wins over the kit's.
+with a catalog. `runOptions` is left out when it is null. A key the app sets in its own
+`forwardedProps` wins over the kit's.
 
 `AnthropicCodec` serves client mode only. The Messages API keeps no state, so it needs the whole
 history, and the codec throws for a server-mode request. Use `AgUiCodec`, or write a codec for
@@ -494,12 +495,15 @@ new ScriptedChatTransport({
 });
 ```
 
-The helpers are `textEvents()`, `reasoningEvents()`, `toolCallEvents()`, `sourceEvents()`,
-`citationEvents()`, `dataEvents()`, `errorEvents()` and `scriptedDelay()`. A citation attaches to
-the text part before it, and refers to a source by `sourceId` or by `url`. A source can carry a
-`marker`, the number that cites it as `[n]` in the text, and `metadata`. Pass
-`{retryAfterSeconds}` as the third argument of `errorEvents()` to ask for a wait before a retry. Pass a `result` to
-`toolCallEvents()` to simulate a tool that the backend runs. A response can also be an async
+The helpers are `textEvents()`, `reasoningEvents()`, `toolCallEvents()`, `subagentEvents()`,
+`sourceEvents()`, `citationEvents()`, `dataEvents()`, `noAnswerEvents()`, `errorEvents()` and
+`scriptedDelay()`. A citation attaches to the text part before it, and refers to a source by
+`sourceId` or by `url`. A source can carry a `sourceType`, a `marker`, the number that cites it as
+`[n]` in the text, and `metadata`. `noAnswerEvents()` writes a fixed "not found" reply. Pass
+`{retryAfterSeconds}` as the third argument of `errorEvents()` to ask for a wait before a retry.
+Pass a `result` to `toolCallEvents()` to simulate a tool that the backend runs, or an `error` for
+one that fails. `subagentEvents()` wraps events in a sub-agent's start and end, and marks its tool
+calls as the sub-agent's, so the activity timeline nests them. A response can also be an async
 iterable of events, which sets its own pace.
 
 In a unit test, set `delayMs: 0` and read `transport.requests` to check what the chat sent:
@@ -534,6 +538,53 @@ describe('AssistantModel tools', () => {
     });
 });
 ```
+
+### Use a transport without ChatModel
+
+An app that keeps its own conversation state can still use the kit's transports and codecs. Build a
+request with `createChatRunRequest()`, iterate `transport.run()`, and fold the events into an
+assistant message with `ChatStreamReducer` from `/core/`.
+
+```typescript
+import {ChatMessage, ChatStreamReducer} from '@xh/hoist-chat-kit/core';
+import {
+    AnthropicCodec,
+    createChatRunRequest,
+    HoistChatTransport
+} from '@xh/hoist-chat-kit/transport';
+
+const transport = new HoistChatTransport({url: 'chat/stream', codec: new AnthropicCodec()}),
+    controller = new AbortController(),
+    request = createChatRunRequest({
+        messages: [new ChatMessage({role: 'user', content: 'Summarize this quarter.'})],
+        signal: controller.signal
+    }),
+    reducer = new ChatStreamReducer(request.stepIndex);
+
+let reply = new ChatMessage({role: 'assistant', status: 'pending'});
+for await (const event of transport.run(request)) {
+    reply = reducer.apply(reply, [event]);
+    onReply(reply);                       // Your own state update
+}
+reply = reducer.finish(reply);
+if (reply.status !== 'error') reply = reply.withChanges({status: 'complete'});
+```
+
+`createChatRunRequest()` needs only the messages. Every other field defaults to what `ChatModel`
+sends for the first step of a turn in client mode. The request gets new thread and run ids, and the
+last user message as `turnId` and `newMessages`. It has no tools and no context.
+
+Pass any field to set it. Pass the same `threadId` for each turn of a conversation. Pass a `signal`
+if you want to stop the step, because the default signal never aborts.
+
+The reducer returns a new message for each batch and never marks it `complete`. `finish()` fails a
+reply whose stream ended without `RUN_FINISHED`, or that finished with no content.
+
+To answer the client tool calls in the reply, run the tools yourself. Give each tool call part its
+`output` and the state `output-available`, in a new message. Then send a request for the next step.
+Pass the same `threadId` and `turnId`, `trigger: 'continue'` and the next `stepIndex`. Pass the
+reply as the last of the `messages` and as `newMessages`. Fold that step's events into the same
+reply, with a new reducer.
 
 ## Server Contracts
 
@@ -939,10 +990,12 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 | `TOOL_CALL_CHUNK` | `toolCallId?`, `toolCallName?`, `delta?` | Starts or appends. |
 | `TOOL_CALL_RESULT` | `toolCallId`, `content`, `metadata?` | `output-available`, with `providerExecuted: true`. JSON content is parsed. `output-error` if `metadata.error` or `metadata.isError` is set. |
 | `ACTIVITY_SNAPSHOT` | `messageId`, `activityType`, `content`, `replace?` | Adds or replaces a data part, with `dataType` set to `activityType`. |
+| `SUBAGENT_STARTED` | `subagentRunId`, `name`, `description?`, `parentSubagentRunId?` | Adds a data part of type `xh.chat.subagent`, with the run id as its id. Tool calls with the same `subagentRunId` nest under it in the activity timeline. |
+| `SUBAGENT_FINISHED`, `SUBAGENT_ERROR` | `subagentRunId`, `result?` or `message` | Ends the sub-agent's data part, with its result or error. |
 | `CUSTOM` | `name`, `value` | The `xh.chat.*` events below. Others are ignored. |
 
 Ignored: `STEP_STARTED`, `STEP_FINISHED`, `RAW`, `STATE_SNAPSHOT`, `STATE_DELTA`,
-`MESSAGES_SNAPSHOT`, `ACTIVITY_DELTA`, and the `SUBAGENT_*` events. Unknown types never throw.
+`MESSAGES_SNAPSHOT` and `ACTIVITY_DELTA`. Unknown types never throw.
 
 When a stream ends, the chat closes the step. Open text and reasoning parts become `done`, and
 tool calls that never saw `TOOL_CALL_END` get their input parsed.
@@ -954,9 +1007,9 @@ Content that AG-UI has no event for travels as a `CUSTOM` event with a name that
 
 | `name` | `value` | Effect |
 |--------|---------|--------|
-| `xh.chat.source` | `{id?, url?, title?, snippet?, marker?, metadata?}` | Appends a source part. `marker` is the number that cites it in the text, as in `[1]`. |
+| `xh.chat.source` | `{id?, sourceType?, url?, title?, snippet?, marker?, metadata?}` | Appends a source part. `marker` is the number that cites it in the text, as in `[1]`. `sourceType` is `url` for a web page or `document` for a document of the app's own. It defaults to `url` for a source with a `url`, else `document`. |
 | `xh.chat.citation` | `{id?, title?, url?, citedText?, sourceId?}` | Adds a citation to the open text part, or else the last one. |
-| `xh.chat.data` | `{id?, dataType, data}` | Adds a data part, or replaces the one with the same `id`. |
+| `xh.chat.data` | `{id?, dataType, data}` | Adds a data part, or replaces the one with the same `id`. The `dataType` `xh.chat.noAnswer` is reserved for a fixed "not found" reply, with `data` as `{documents?: [{id?, name}], documentCount?}`. |
 | `xh.chat.file` | `{id?, name, mediaType, size?, url?, data?}` | Appends a file part. |
 | `xh.chat.providerData` | `{subtype, entityId, data}` | Merges `data` into the `providerData` of a reasoning part or a tool call, by provider key. |
 | `xh.chat.providerExecuted` | `{toolCallId}` | Marks a tool call as run by the backend, before its result arrives. |
@@ -969,6 +1022,12 @@ A Hoist server that emits AG-UI events can send a data part like this:
 
 ```json
 {"type": "CUSTOM", "name": "xh.chat.data", "value": {"dataType": "price-chart", "data": {"symbol": "XH"}}}
+```
+
+A codec for a document search that matched nothing sends the fixed reply in place of an answer:
+
+```json
+{"type": "CUSTOM", "name": "xh.chat.data", "value": {"dataType": "xh.chat.noAnswer", "data": {"documents": [{"name": "Reserves Policy"}], "documentCount": 4}}}
 ```
 
 ## Extension Points

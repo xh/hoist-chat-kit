@@ -7,7 +7,7 @@
 | [Configuration Pattern](#configuration-pattern) | Creating a `ChatModel` with a transport, tools, and a composer |
 | [Common Usage Patterns](#common-usage-patterns) | Sending, tools, approvals, live context, undo, server-owned conversations, feedback, persistence, errors |
 | [Properties/API Reference](#propertiesapi-reference) | Config, state, methods, statuses, parts, and metadata |
-| [Extension Points](#extension-points) | Tools, data renderers, transports, and app metadata |
+| [Extension Points](#extension-points) | Tools, data renderers, transports, the stream reducer, and app metadata |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
 | [Related Packages](#related-packages) | Transports, components, markdown, and Hoist packages |
 
@@ -83,6 +83,11 @@ ChatMessage (immutable)
 
 ChatPart = ChatTextPart | ChatReasoningPart | ChatToolCallPart
          | ChatFilePart | ChatSourcePart | ChatDataPart
+
+ChatStreamReducer                     # Folds the events of one step into the reply
+├── apply(message, events)            # A new message for each batch of events
+├── finish(message)                   # Close out the step when its stream ends
+└── runId, runThreadId, userServerId  # Ids the step's events reported, or null
 ```
 
 ### Turns and steps
@@ -142,6 +147,43 @@ When a step would go past `maxSteps`, the turn ends as `complete`, with
 | `complete` | Finished normally. Also the default for a `ChatMessageSpec` with no status. |
 | `error` | The turn failed. The text is in `error`, and any code is in `metadata.errorCode`. |
 | `aborted` | The user stopped the turn, or it was interrupted. Content received so far stays. |
+
+### Display status
+
+`ChatReplyStatus` is what a reply shows as its status: one icon, one label and one color. It is a
+reading of the message's status, its turn's activity and the clock. The kit never stores it.
+`getChatReplyStatus()` derives it, as a pure function, so a component reads it again as the
+clock ticks.
+
+| `ChatReplyStatus` | Reads from |
+|-------------------|------------|
+| `idle` | A `complete` reply. No status shows. |
+| `submitted` | A reply in progress with no answer text yet: before its first content, while it reasons, or after a tool call. |
+| `streaming` | A reply in progress whose answer text arrives. |
+| `recomposing` | A reply whose streamed text the server replaced with shorter text, while it is rewritten. Read from `ChatTextPart.revising`. |
+| `runningTool` | A reply in progress with a tool call that is not done. |
+| `paused` | A `paused` reply. |
+| `waitingToRetry` | An `error` reply with `metadata.retryAfterSeconds`, while the wait runs from the end of the turn. |
+| `detached` | An `aborted` reply with `metadata.detached`. |
+| `stalled` | A reply in progress with no data from the server for `stallAfterMs`. |
+| `interrupted` | An `error` reply with error code `interrupted`. |
+| `cancelledByServer` | An `error` reply with error code `cancelled`. |
+| `error` | Any other `error` reply. |
+| `aborted` | Any other `aborted` reply. |
+
+A stalled reply is a soft state. The reply keeps running, and the next byte clears the state. The
+chat counts every byte, heartbeats included: `HttpChatTransport` reports each record it reads
+through `ChatRunRequest.onActivity`, and `ChatModel.lastActivityAt` holds the time of the last
+one. The time is null while no step waits on the server, so a slow client tool never stalls. The
+transport's `idleTimeout` stays the hard failure. Set it longer than `stallAfterMs`.
+
+```typescript
+const {lastMessage, lastActivityAt, stallAfterMs} = chatModel,
+    status = getChatReplyStatus({message: lastMessage, lastActivityAt, stallAfterMs});
+```
+
+The desktop kit draws each status with `ChatStatusCue`. See
+[Show a reply's status](../desktop/cmp/chat/README.md#show-a-replys-status).
 
 ### Three kinds of tool
 
@@ -235,6 +277,23 @@ export const assistantPanel = hoistCmp.factory({
 
 The Toolbox Weather V2 example builds its Dashboard Agent this way. See
 `client-app/src/examples/weatherv2/harness/DashboardAgentModel.ts` in Toolbox.
+
+### Kit-wide defaults
+
+`ChatKit.defaults` holds the settings that span the kit's components, after the pattern of
+Hoist's `GridModel.defaults`. Set fields once at startup, in your `AppModel` or `Bootstrap.ts`.
+Instance config and component props always win.
+
+```typescript
+import {ChatKit} from '@xh/hoist-chat-kit/core';
+
+ChatKit.defaults.assistantIcon = () => Icon.bolt();
+ChatKit.defaults.stallAfterMs = 45_000;
+ChatKit.defaults.reducedMotionSpinner = 'spin';
+```
+
+A setting that belongs to one component sits in that component's own `defaults`. See
+[ChatKitDefaults](#chatkitdefaults) for each field.
 
 ## Common Usage Patterns
 
@@ -345,8 +404,8 @@ cancel.
 ### Rate a reply
 
 `submitFeedbackAsync()` stores the rating on the message at once, as `metadata.feedback`, then
-sends it. If the submit fails, the rating reverts and a toast says so. A rating the user gave
-since then stays. History restores a rating from the same key.
+sends it. If the submit fails, the rating reverts and `feedbackErrors` records the error, with no
+toast. A rating the user gave since then stays. History restores a rating from the same key.
 
 ```typescript
 new ChatModel({
@@ -354,18 +413,36 @@ new ChatModel({
     feedback: {
         submitAsync: spec => XH.postJson({url: 'chat/feedback', body: spec}),
         commentOn: 'negative',
-        requireComment: true
+        requireComment: true,
+        reasons: ['Wrong data', 'Incomplete', 'Not helpful'],
+        clearable: false
     }
 });
 
-await chatModel.submitFeedbackAsync(message.id, 'negative', 'The rate is out of date.');
+await chatModel.submitFeedbackAsync(message.id, 'negative', 'The rate is out of date.', [
+    'Wrong data'
+]);
 await chatModel.submitFeedbackAsync(message.id, null);  // Clear the rating
 ```
 
 The submitter gets a `ChatFeedbackSpec`: the `threadId`, the kit `messageId`, the `serverId` and
-`runId` from the message's metadata, the `rating` and the `comment`. With no `submitAsync`, the
-chat uses the submitter that a thread layer passes to `setFeedbackSubmitter()`.
+`runId` from the message's metadata, the `rating`, the `comment` and the `reasons`. With no
+`submitAsync`, the chat uses the submitter that a thread layer passes to `setFeedbackSubmitter()`.
 `canSubmitFeedback` is false when there is neither, and `submitFeedbackAsync()` then throws.
+
+| `ChatFeedbackConfig` | Default | Description |
+|---|---|---|
+| `submitAsync` | The thread layer's | Sends a `ChatFeedbackSpec` to the backend. |
+| `commentOn` | `'negative'` | Ratings that open the comment form at once. Other ratings offer "Add a comment" after they save, unless this is `'none'`. |
+| `requireComment` | false | True if a rating in `commentOn` saves only with a non-blank comment. Reasons never count as one. |
+| `reasons` | none | Toggles above the comment on a negative rating. Optional for the user. |
+| `clearable` | true | True if a click on the chosen thumb clears the rating. Set false for a backend that cannot remove a rating. |
+| `maxCommentLength` | 1,000 | Most characters the comment takes. A counter shows from 90%. |
+
+With `requireComment`, `submitFeedbackAsync()` throws for a rating in `commentOn` that has no
+comment. With `clearable` false, it throws for a null rating. A backend that rejects a down vote
+without a comment suits `{requireComment: true}`. See
+[Collect feedback](../desktop/cmp/chat/README.md#collect-feedback) for the form.
 
 ### Clean up model text
 
@@ -492,8 +569,9 @@ replies after it. Once the user undoes the latest one, the reply before it can b
 that a retry, regenerate, edit, clear or load discards takes its undo functions with it. Undo
 functions are not stored, so a reply loaded from history cannot be undone.
 
-If an undo function throws, the undo stops, a toast reports it, and the changes not yet undone
-stay, so the user can try again. With `track` on, an undo tracks as `Turn undone`.
+If an undo function throws, the undo stops, and `undoErrors` records the error, with no toast. The
+changes not yet undone stay, so the user can try again. The desktop message view shows the
+failure under the reply, with Retry. With `track` on, an undo tracks as `Turn undone`.
 
 `chatToolResult()` also takes `artifacts`, the result sets a tool produced for generative UI
 components to show by reference. See
@@ -664,10 +742,184 @@ new ChatModel({
 
 See [Protocols](../docs/protocols.md) for how data parts carry generative UI.
 
+The `dataType` `xh.chat.noAnswer` is reserved for a fixed "not found" reply, sent when a search
+matched nothing. Its `data` is a `ChatNoAnswerData`: the `documents` searched, by name, and a
+`documentCount`. The desktop message view renders it from a fixed template, with no sources list
+and no Regenerate. A renderer registered for the type replaces the template. A scripted transport
+writes one with `noAnswerEvents()`.
+
+### Side panel
+
+`ChatSidePanelModel` holds the one request that the side panel shows beside the chat: a document,
+a table or a chart. Opening a request replaces the last. Back and close return focus to the
+element that opened it, such as a citation marker. The kit renders tables and charts itself, as
+the full tier of a generative UI card. The kit has no document viewer. The app supplies one as
+`documentRenderer`, and the kit draws the panel's frame and status around it.
+
+```typescript
+const sidePanel = new ChatSidePanelModel({
+    documentRenderer: (request, panel) =>
+        documentViewer({
+            documentId: request.source.metadata.documentId,
+            page: request.page,
+            passage: request.passage,
+            onStatus: status => panel.setDocumentStatus(status)
+        })
+});
+```
+
+A component reaches the panel through `ChatSidePanelHost`, a narrow interface, found in Hoist's
+model context with `isChatSidePanelHost`. `ChatWorkspace` publishes its model's `sidePanel`. In a
+layout of the app's own, hold a `ChatSidePanelModel` on a model above the chat, and render it with
+the desktop `ChatSidePanel`.
+
+The viewer reports its progress with `setDocumentStatus()`. The panel shows it in a strip under
+its toolbar, never over the document:
+
+| `state` | The panel shows |
+|---|---|
+| `opening` | A mask over the body, "Opening document…", then "Still opening (2.4 MB)…" after 10 s |
+| `locating` | "Locating passage…" in the strip |
+| `located` | No strip. A screen reader hears the page |
+| `likelyPage` | "Opened the most likely page." with Copy Excerpt |
+| `notLocated` | "Couldn't locate the passage. Showing from the start." with Copy Excerpt |
+| `error` | Why, with only the actions that can work: Download if given, else Retry unless the status is a 4xx |
+
+A table request renders as the full grid of a result table, and a chart request as the expanded
+chart. The generative UI cards open both. See
+[`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md).
+
+### Use the composer without a ChatModel
+
+`ChatModel` implements `ChatComposerHost`, the members a composer needs from its conversation.
+Implement it yourself to use the composer over your own state. See
+[ChatComposerHost](#chatcomposerhost) for its members.
+
+```typescript
+class NotesModel extends HoistModel implements ChatComposerHost {
+    @bindable accessor isBusy = false;
+
+    @managed readonly composerModel = new ChatComposerModel({host: this});
+
+    async sendAsync({text}: ChatSendSpec) {
+        this.isBusy = true;
+        try {
+            await this.saveNoteAsync(text);
+        } finally {
+            this.isBusy = false;
+        }
+    }
+}
+```
+
+The composer calls `sendAsync()` only when `canSend` is true, and clears its draft as it calls.
+Render the model with a desktop `chatComposer`. See
+[`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#use-the-composer-without-a-chatmodel).
+
+`ChatModel` also satisfies `ChatMessageListHost`, the members the desktop message list reads. See
+[ChatMessageListHost](#chatmessagelisthost) and
+[Show messages without a ChatModel](../desktop/cmp/chat/README.md#show-messages-without-a-chatmodel).
+
+### Recover from a failed reply
+
+The composer's status region holds the thread's next action. `ChatComposerModel.getStatus()`
+reads it as a `ChatComposerStatus`: a `type`, the reply's display status, at most one `action`,
+and the reason. `getChatComposerStatus()` is the same reading as a pure function. One status
+shows at a time, in this order: blocked, offline, failed or detached, stalled, waiting to retry,
+paused, busy, and a restored draft.
+
+The action for a failure depends on whether a resend is safe. `isChatRetrySafe(message,
+historyMode)` decides it:
+
+- A failure is retry-safe unless the server's `RUN_ERROR` sets `metadata.retrySafe: false`. The
+  reply records the flag as `metadata.retrySafe`.
+- In server mode, the kit's own `stalled` and `incomplete-stream` errors are not retry-safe,
+  because the server may still be running the turn.
+- In server mode, a stream that throws, such as on a network reset or a gateway timeout, records
+  `metadata.errorCode: 'connection-lost'`, which is not retry-safe either. A 4xx response is the
+  exception: the server refused the request, so nothing ran.
+
+A retry-safe failure offers Try Again, through `retryAsync()`. One that is not offers Refresh
+Status, through `refreshStatusAsync()`, when the host can refresh. Without a thread layer, it
+offers Try Again and says the run may still be running. `ChatThreadsModel` supplies the
+refresher for each chat it opens. It reloads the thread, and first detaches a turn that is
+still running. Supply one yourself with `setStatusRefresher()`:
+
+```typescript
+chatModel.setStatusRefresher(() => this.reloadConversationAsync());
+```
+
+For a retry-safe failure with `retryAfterSeconds`, the composer waits out the time the server
+asked for, as `retryWait`, and disables Send meanwhile. The wait runs from the end of the turn,
+`metadata.endedAt`, so time paused for the user does not count. A mounted status region counts
+it down and retries at zero, through `retryDueAsync()`. A region that mounts after the wait ran
+out retries then. Two regions on one composer retry once. `cancelRetry()` stops the wait, and the
+region then offers Try Again. A chat with no status region never retries by itself.
+
+The composer retries on its own at most 3 times in a row. After that, a failure offers Try Again
+only. A send or a reply that completes starts the count again.
+
+### Keep drafts
+
+With `ChatKit.defaults.drafts` set to `local`, the default, the composer saves its draft text
+per thread through `XH.localStorageService`, which keys it by app and user. It saves after each
+pause of 500 ms, and when it is destroyed. A composer whose host has no `threadId` keeps its
+draft in memory.
+
+- When the thread opens again, the composer restores the text, and `restoredDraft` holds it
+  for the notice. The notice goes on the first change to the text, after 6 seconds, or on
+  `discardDraft()`.
+- When a chat moves to another thread outside a turn, as on `clear()` or `loadMessages()` with a
+  new thread id, the composer keeps the old thread's draft. It then shows the new thread's draft,
+  or empties. Attachments go with the move.
+- The saved draft goes when its message sends, or when the draft is cleared.
+- When a new thread adopts the id the backend gives it, the draft moves to that id.
+- `ChatThreadsModel` removes the saved drafts of the threads it deletes.
+- Attachments stay in memory only.
+
+Set `composer: {drafts: 'memory'}` for a short-lived chat, such as a component helper. The
+composer then keeps each thread's draft in memory, and saves nothing. Hoist has no logout hook,
+so call `ChatKit.clearLocalData()` from your logout, before `XH.logoutAsync()`. It removes every
+key the kit wrote. Pass thread ids to remove the drafts of those threads only.
+
+```typescript
+async logoutAsync() {
+    ChatKit.clearLocalData();
+    await XH.logoutAsync();
+}
+```
+
+### Announce to screen readers
+
+The kit speaks to screen readers through one announcer, `chatAnnouncer`. The desktop message list
+is a `role="log"` region with `aria-live="off"`, so tokens never reach a screen reader. The list
+renders the announcer's two hidden live regions instead, one polite and one assertive, and reads
+each reply once as it finishes. The composer renders them too, so that a layout with no list
+still speaks:
+
+> Credit Analyst replied after 7 tools, 42 seconds. HY Credit is the only desk over 90% of its
+> limit. Continues in the message.
+
+Polite announcements come at least 2 s apart, and those that wait meanwhile join into one.
+Assertive ones never wait. Each announcement fills the regions of one component, the newest
+visible one when it is made. A component that mounts later never reads it, so a thread switch
+does not repeat the last thread's words. Use `assertive` for failures only. An app component in the chat can
+speak through the same announcer, so its words keep their place in line:
+
+```typescript
+import {chatAnnouncer} from '@xh/hoist-chat-kit/core';
+
+chatAnnouncer.announce('Approval needed: Insert 2 rows into risk_notes.');
+chatAnnouncer.announce('Reply failed: model request timed out.', 'assertive');
+```
+
+Announce what the user must know once. Never announce tokens, status words, elapsed time or
+countdown seconds.
+
 ## Properties/API Reference
 
-See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts` and `ChatComposerModel.ts`
-for the full doc comments.
+See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatComposerModel.ts` and
+`ChatComposerHost.ts` for the full doc comments.
 
 ### ChatModelConfig
 
@@ -684,9 +936,11 @@ for the full doc comments.
 | `historyMode` | `'client' \| 'server'` | Who owns the history. Default `client`. See [Run a server-owned conversation](#run-a-server-owned-conversation). |
 | `runOptions` | `PlainObject` | Initial value of `runOptions`. Default null. |
 | `textTransform` | `(text, context) => string` | Rewrites reply text before it is stored. `context` holds the `message` and `isStreaming`. |
-| `feedback` | `ChatFeedbackConfig` | `submitAsync`, `commentOn` (default `negative`) and `requireComment` (default false). |
+| `feedback` | `ChatFeedbackConfig` | `submitAsync`, `commentOn`, `requireComment`, `reasons`, `clearable` and `maxCommentLength`. See [Rate a reply](#rate-a-reply). |
+| `dataRefreshedAt` | `() => number` | Returns the epoch millis of the app's last data refresh, or null. Read as a computed value. A reply that finished before it shows that the data changed. Default none. |
+| `stallAfterMs` | `number` | Milliseconds with no data from the server, heartbeats included, before a reply shows as stalled. Default `ChatKit.defaults.stallAfterMs`. |
 | `track` | `boolean \| ChatTrackOptions` | True, or `{category, severity, logData}`, to track each finished turn. Default false. |
-| `composer` | `ChatComposerConfig` | Config for the managed `composerModel`. |
+| `composer` | `ChatComposerConfig` | Config for the managed `composerModel`, without `host`. The chat is the host. |
 | `sendBlocker` | `() => string` | Returns why sending must wait, or null to allow it. Read as a computed value. While blocked, the composer disables Send and shows the reason, and `sendAsync`, `editMessageAsync`, `retryAsync` and `regenerateAsync` do nothing. Blockers added with `addSendBlocker()` work the same way. |
 | `dataRenderers` | `Record<string, ChatDataRenderer>` | Renderers for data parts, keyed by `dataType`. A renderer is `(part, context) => ReactNode`, with a `ChatPartRenderContext`. |
 | `onTurnComplete` | `(message) => void` | Called when a turn ends - complete, failed or stopped - with its final message. Not called when a turn pauses. |
@@ -702,10 +956,15 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `messages` | `ChatMessage[]` | History, oldest first. Observable. Replaced, never mutated. |
 | `status` | `ChatStatus` | `ready`, `submitted`, `streaming` or `error`. Observable. |
 | `lastError` | `Error` | Error from the last turn, or null. Observable. |
+| `lastActivityAt` | `number` | Epoch millis of the last data from the server for the step in flight, heartbeats included. Null while no step is in flight. Changes at most once a second. Observable. |
 | `threadId` | `string` | Current thread. Observable. `clear()` and `loadMessages()` change it. In server mode, the first run of a new thread can change it once. Read-only. |
 | `runOptions` | `PlainObject` | Options for the next turn. `@bindableRef` - replace the value to change it. |
 | `hasOlderMessages` | `boolean` | True if older history remains to page in. `@bindable`. Default false. |
 | `canSubmitFeedback` | `boolean` | True if `feedback.submitAsync` or a thread layer submitter is set. |
+| `feedbackErrors` | `Record<string, Error>` | Why the last feedback on a message failed to save, by message id, for the form to show. Cleared on the next submit. Observable. |
+| `undoErrors` | `Record<string, Error>` | Why the last undo of a reply failed, by message id. Cleared on the next try. Observable. |
+| `canRefreshStatus` | `boolean` | True once a refresher is set with `setStatusRefresher()`. |
+| `dataRefreshedAt` | `number` | The app's last data refresh, from the config, or null. |
 | `isBusy` | `boolean` | True for `submitted` or `streaming`. False while a turn is paused. |
 | `sendBlockedReason` | `string` | Why sending must wait - while an undo runs, or from the `sendBlocker` or an added blocker - or null. |
 | `isEmpty` | `boolean` | True if there are no messages. |
@@ -716,7 +975,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `undoableMessageId` | `string` | The reply whose changes the user can undo now, or null. |
 | `composerModel` | `ChatComposerModel` | Draft of the next message. |
 | `artifacts` | `ChatArtifactRegistry` | Result sets that generative UI components show by reference. Fed by each reply and by loaded history. `clear()` and `loadMessages()` empty it. |
-| `transport`, `tools`, `catalog`, `maxSteps`, `historyMode`, `feedback`, `dataRenderers` | - | The config values, read-only. `tools` includes the catalog's tools, and `feedback` has its defaults applied. |
+| `transport`, `tools`, `catalog`, `maxSteps`, `historyMode`, `feedback`, `stallAfterMs`, `dataRenderers` | - | The config values, read-only. `tools` includes the catalog's tools, and `feedback` has its defaults applied. |
 
 ### ChatModel methods
 
@@ -728,15 +987,17 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `retryAsync()` | Re-run the last user message, replacing everything after it. |
 | `regenerateAsync(messageId?)` | Replace an assistant reply, by default the last one. Ignored for a reply with no user message before it. |
 | `editMessageAsync(messageId, text)` | Change the text of a user message, keep its files, and re-run from it. |
-| `approveToolCallAsync(toolCallId)` | Approve a call in `approval-requested`. |
+| `approveToolCallAsync(toolCallId, reason?)` | Approve a call in `approval-requested`. The reason is recorded on the call as `approvalReason`. |
 | `denyToolCallAsync(toolCallId, reason?)` | Deny a call in `approval-requested`. The model sees the reason. |
 | `addToolOutputAsync(toolCallId, output)` | Give the result of a call to an interactive tool. |
 | `canUndoTurn(messageId)` | True if the user can undo the reply's changes now. Reads observable state. |
-| `undoTurnAsync(messageId)` | Run the reply's undo functions, newest first, and mark it `metadata.undone`. |
+| `undoTurnAsync(messageId)` | Run the reply's undo functions, newest first, and mark it `metadata.undone`. A failure stops the undo and goes in `undoErrors`. |
 | `clear()` | Remove all messages and start a new thread. |
 | `loadMessages(specs, threadId?)` | Replace the conversation. Default a new thread id. |
 | `prependMessages(specs)` | Add older messages ahead of the conversation, skipping ids already present. |
-| `submitFeedbackAsync(messageId, rating, comment?)` | Rate a reply, or clear its rating with null. Shows at once, and reverts if the submit fails. |
+| `submitFeedbackAsync(messageId, rating, comment?, reasons?)` | Rate a reply, or clear its rating with null. Shows at once. If the submit fails, it reverts and records the error in `feedbackErrors`, with no toast. |
+| `setStatusRefresher(refreshAsync)` | Set the function that reloads the thread, for Refresh Status. For a thread layer. |
+| `refreshStatusAsync()` | Reload the thread to learn how a run ended. Does nothing without a refresher. |
 | `setFeedbackSubmitter(submitAsync)` | Set the submitter to use when `feedback.submitAsync` is not configured. For a thread layer. |
 | `addSendBlocker(blocker)` | Add a reason for sends to wait, checked after the `sendBlocker`. For a thread layer. |
 | `setThreadCreator(createAsync)` | Set a function that creates a new thread on the backend. The chat awaits it before the first request of a new thread, and adopts the id it returns. For a thread layer. |
@@ -791,7 +1052,7 @@ The kit records these keys in the `metadata` of an assistant message:
 | `serverId` | The server's id for the message, from `xh.chat.message` or `RUN_FINISHED`. Also set on a user message. |
 | `detached` | True on a reply left running on the server by `detach()`, `clear()` or `loadMessages()`, in server mode. |
 | `undone` | True on a reply whose changes the user undid with `undoTurnAsync()`. |
-| `feedback` | The user's rating, as `{rating, comment?}`. |
+| `feedback` | The user's rating, as `{rating, comment?, reasons?}`. History usually restores the rating alone. |
 | `artifacts` | `ChatArtifact[]` that the reply's tools produced, for generative UI. Restored to `artifacts` with the history. |
 | `catalogVersion` | Version of the chat's catalog, on a reply that shows its UI. |
 
@@ -811,10 +1072,21 @@ Every part has an `id`, unique within its message, and a `step`. User message pa
 |------|------------|-------|
 | `text` | `text`, `state`, `citations?` | Markdown. `state` is `streaming`, then `done`. |
 | `reasoning` | `text`, `state`, `startedAt`, `endedAt`, `encryptedValue?`, `providerData?` | The model's thinking. `encryptedValue` holds a signature that goes back with the history. |
-| `toolCall` | `toolName`, `state`, `inputText`, `input`, `output`, `errorText`, `providerExecuted?` | The `id` is the provider's tool call id. |
+| `toolCall` | `toolName`, `state`, `inputText`, `input`, `output`, `errorText`, `providerExecuted?`, `startedAt?`, `endedAt?`, `subagentRunId?`, `cancelled?` | The `id` is the provider's tool call id. `subagentRunId` names the sub-agent that made the call. `cancelled` marks a call that was open when the user stopped the turn. |
 | `file` | `name`, `mediaType`, `size?`, `url?`, `data?` | `data` is base64. |
-| `source` | `url?`, `title?`, `snippet?`, `marker?`, `metadata?` | A source the model consulted. `marker` is the number that cites it in the text, as in `[1]`. |
+| `source` | `sourceType?`, `url?`, `title?`, `snippet?`, `marker?`, `metadata?` | A source the model consulted. `marker` is the number that cites it in the text, as in `[1]`. `sourceType` is `url` or `document`, by default `url` for a source with a `url`. The kit reads `metadata.excerpt`, `fileName`, `page` and `favicon`. |
 | `data` | `dataType`, `data` | App or protocol content, drawn by `dataRenderers`. |
+
+A sub-agent is a data part of type `xh.chat.subagent` (`CHAT_SUBAGENT_DATA_TYPE`), with the
+sub-agent's run id as its `id`. The stream reducer adds one for each AG-UI `SUBAGENT_STARTED`
+event and ends it on `SUBAGENT_FINISHED` or `SUBAGENT_ERROR`. Its `data` is a `ChatSubagentData`:
+`name`, `description?`, `parentSubagentRunId?`, `status`, `result?`, `error?`, `startedAt` and
+`endedAt`. Outside an activity timeline, the part renders nothing.
+
+A sub-agent's `status` is `running`, `complete`, `error` or `cancelled`. A sub-agent still
+running when its run ends, with no end event, ends with the run. It completes if the run
+finished, and fails if the run failed or the stream dropped. A turn that ends early fails it, as
+does history restored mid-run. A stop cancels it.
 
 The `state` of a tool call follows the Vercel AI SDK names, plus `running`:
 
@@ -829,6 +1101,11 @@ The `state` of a tool call follows the Vercel AI SDK names, plus `running`:
 | `output-denied` | The user denied the call. |
 
 `isToolCallFinal(part)` returns true for the last three.
+
+A stop closes each open call as `output-error`, or as `output-denied` if it waited for approval,
+so that the history still gives the model a result. The call also gets `cancelled: true`, and
+views show it as cancelled, not failed. `isToolCallCancelled(part)` tests for it, and
+`isToolCallFailed(part)` is true for an `output-error` call that was not cancelled.
 
 ### ChatToolSpec
 
@@ -848,13 +1125,35 @@ The `state` of a tool call follows the Vercel AI SDK names, plus `running`:
 | `icon` | `ReactElement` | Icon of the tool call card. |
 | `summary` | `(part) => string` | One-line summary next to the title, for example the city looked up. |
 | `renderer` | `(part, context) => ReactNode` | Custom body for the card, in place of the input and output JSON. Required for an interactive tool. |
-| `display` | `'card' \| 'inline'` | `card` shows calls as a collapsible card. `inline` shows only the `renderer` output, with a status only while the input streams, while the call waits for approval, or once it fails or is denied. A denied call renders no output. Default `card`. |
+| `display` | `ChatToolDisplay` | How calls show in a reply. See [Tool display](#tool-display). Default `card`. |
+
+#### Tool display
+
+`display` takes one of six values. Each tool sets its own, and a reply can mix them.
+
+| Value | Shows each call as | Use it for |
+|-------|--------------------|------------|
+| `card` | A quiet row with title, summary and status, that opens to the input and output, or to the `renderer` output. Two or more calls of one step fold into one "Used 3 tools" row. | Replies with a few calls. The default. |
+| `inline` | The `renderer` output alone, in the reply. A status shows only while the input streams, while the call waits for approval, or once it fails or is denied. A denied call renders no output. | Tools that show UI, such as the tools of a `ChatUiCatalog`. |
+| `timeline` | A row in the reply's activity timeline, one compact block for the whole run. Text between two timeline calls folds into the block as narration. | Agents that make many calls per reply. See [Activity timeline](../desktop/cmp/chat/README.md#activity-timeline). |
+| `answer` | Part of the answer, with no row: the `renderer` output, or else the output itself, as markdown if it is text. Status shows as for `inline`. | A tool whose result is the answer, such as a final answer tool. |
+| `pinned` | The plan pinned to the top of the reply's timeline, from the latest call only. With no timeline in the reply, a `card`. | A plan or checklist tool. |
+| `hidden` | Nothing, unless the call waits for the user to approve or answer it. Hidden calls count in no summary. | Bookkeeping calls the user has no use for. |
+
+A call that a sub-agent makes defaults to `timeline`, where it nests under the sub-agent.
+
+A pinned plan is a list of items, read from the call's output, or else its input. The list is a
+plain array, or the `items`, `steps`, `todos` or `plan` of an object. Each item gives its text as
+`title`, `content`, `text` or `name`, and its `status` as `pending`, `active`, `done` or
+`skipped`. The kit also reads `in_progress`, `completed` and `cancelled`. A value of any other
+shape renders with the tool's `renderer`, or as JSON.
 
 The `context` of `execute` is a `ChatToolContext`: `chatModel`, `toolCallId`, and a `signal`
 that aborts when the user stops the turn.
 
-The `context` of `renderer`, and of a data renderer, is a `ChatPartRenderContext`: `chatModel`
-and the `messageId` of the message that holds the part. The context stays the same object while
+The `context` of `renderer`, and of a data renderer, is a `ChatPartRenderContext`: `chatModel`,
+the `host` and the `messageId` of the message that holds the part. `host` is any
+`ChatMessageListHost`, and `chatModel` is null unless the host is a `ChatModel`. The context stays the same object while
 the message streams, so a part re-renders only when it changes. A renderer that needs the whole
 message reads `chatModel.getMessage(messageId)`, and then re-renders on every change to it.
 
@@ -864,18 +1163,20 @@ The chat renders each renderer as a component of its own, so a renderer may call
 
 ### ChatComposerConfig and ChatComposerModel
 
-Pass the config as `ChatModelConfig.composer`. The `ChatModel` creates and manages the composer.
-Presentation settings, such as `placeholder` and `maxRows`, are props of the `ChatComposer`
-component. See [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#customize-the-composer).
+Pass the config as `ChatModelConfig.composer`, without `host`. The `ChatModel` creates and
+manages the composer, as its host. Presentation settings, such as `placeholder` and `maxRows`,
+are props of the `ChatComposer` component. See [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#customize-the-composer).
 
 | Property | Type | Description |
 |----------|------|-------------|
+| `host` | `ChatComposerHost` | The conversation the composer sends to. Required for a composer you create. |
 | `enableAttachments` | `boolean` | True to let the user attach files. Default false. |
 | `accept` | `string[]` | MIME types (`image/*`, `application/pdf`) or extensions (`.csv`). Default any. |
 | `maxFiles` | `number` | Most files per message. Default 10. |
 | `maxFileSize` | `number` | Largest file, in bytes. Default 10 MB. |
+| `drafts` | `'local' \| 'memory'` | Where to keep the draft text. Default `ChatKit.defaults.drafts`. See [Keep drafts](#keep-drafts). |
 
-All four are also `@bindable` members of the model, so an app can change them after
+The four file settings are also `@bindable` members of the model, so an app can change them after
 construction, for example to allow files only while an agent that reads them is selected.
 
 | Member | Description |
@@ -883,13 +1184,118 @@ construction, for example to allow files only while an agent that reads them is 
 | `text` | Draft text. `@bindable` - assign it directly. |
 | `attachments` | Files attached to the draft, as `ChatFilePart[]`. |
 | `isEmpty` | True if the draft has no text and no files. |
-| `canSend` | True if the draft is not empty, the chat is not busy, and the `sendBlocker` gives no reason to wait. |
-| `submitAsync()` | Send the draft, if it can be sent. |
+| `host` | The `ChatComposerHost` the composer sends to. |
+| `canSend` | True if the draft is not empty, the host is not busy, and nothing in `sendDisabledReason` blocks it. |
+| `sendDisabledReason` | The host's `sendBlockedReason`, `"You're offline"`, or `'Waiting to retry'`, or null. |
+| `isOffline` | True while the browser reports it is offline. The draft stays, and nothing queues. |
+| `restoredDraft` | The saved draft the composer restored, `{text, savedAt}`, while its notice shows. |
+| `retryWait` | The wait before a retry that the server asked for, `{messageId, endsAt}`, while it runs. |
+| `retryDueId` | Id of the failed reply whose wait just ran out. A status region retries it. |
+| `getStatus(now?)` | The status for the status region - see [Recover from a failed reply](#recover-from-a-failed-reply). |
+| `retryDueAsync()` | Resend the turn whose wait ran out, once. A status region calls it. |
+| `cancelRetry()` | Stop the wait before a retry. |
+| `discardDraft()` | Clear a restored draft and its notice. |
+| `submitAsync()` | Send the draft through `host.sendAsync()` and clear it, if it can be sent. |
 | `addFilesAsync(files)` | Read files into base64 parts. Files that break the rules are left out, and `attachmentErrors` names them. Throws if attachments are off. |
 | `removeAttachment(id)` | Remove one attachment. |
-| `clear()` | Clear the text and the attachments. |
+| `clear()` | Clear the text and the attachments, and remove the saved draft. |
 | `recallLastMessage()` | Put the text of the last user message into an empty draft. |
 | `focus()` | Focus the input, through `inputRef`. A composer component sets the ref. |
+
+### ChatComposerHost
+
+The members a composer reads. Make them observable, so that the composer updates as they
+change.
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `isBusy` | `boolean` | True while a reply is in progress. The composer cannot send while busy. |
+| `sendAsync(spec)` | `(ChatSendSpec) => Promise<void>` | Send a user message. The composer passes its trimmed draft as `{text, files}`. |
+| `sendBlockedReason` | `string` | Optional. Why sending must wait, or null. |
+| `stop()` | `() => void` | Optional. Stop the reply in progress. Without it, the composer shows no Stop button. |
+| `messages` | `{isUser, text}[]` | Optional. The conversation, oldest first, for `recallLastMessage()`. |
+| `threadId` | `string` | Optional. Keys the saved draft. Without it, the draft stays in memory. |
+| `lastMessage` | `ChatMessage` | Optional. The status region reads the reply's status from it. |
+| `lastActivityAt`, `stallAfterMs` | `number` | Optional. Show a quiet reply as stalled. |
+| `historyMode` | `'client' \| 'server'` | Optional. Decides which failures are retry-safe. Default `client`. |
+| `retryAsync()` | `() => Promise<void>` | Optional. Resend the last turn. Without it, the region offers no Try Again and never retries. |
+| `refreshStatusAsync()`, `canRefreshStatus` | - | Optional. Reload the thread, for Refresh Status. The region offers it unless `canRefreshStatus` is false. |
+
+### ChatMessageListHost
+
+The members the desktop message list and its message views read. `ChatModel` satisfies it. Make
+them observable, so that the views update as they change. Each optional action shows its button
+only when the host has it.
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `messages` | `ChatMessage[]` | The conversation, oldest first. |
+| `threadId` | `string` | Optional. An open feedback form keeps its draft per thread for the session. |
+| `isBusy` | `boolean` | True while a reply is in progress. Edit, Regenerate and Undo wait while busy. |
+| `lastActivityAt`, `stallAfterMs` | `number` | Optional. Show a quiet reply as stalled - see [Display status](#display-status). |
+| `sendBlockedReason` | `string` | Optional. Why an edit cannot resend yet, or null. |
+| `dataRefreshedAt` | `number` | Optional. Epoch millis of the app's last data refresh. An older reply shows "Data refreshed since". |
+| `dataRenderers`, `catalog` | - | Optional. Renderers for data parts, and the catalog for component tags. |
+| `getToolSpec(name)` | `(string) => ChatToolSpec` | Optional. How a tool's calls display. |
+| `sendAsync(spec)` | `(ChatSendSpec) => Promise<void>` | Optional. Lets a part in a reply, such as a card's action, send a message. |
+| `editMessageAsync(id, text)` | `Promise<void>` | Optional. Shows Edit on user messages, and Edit Prompt on a failed reply. |
+| `regenerateAsync(id)` | `Promise<void>` | Optional. Shows Regenerate on the last reply. |
+| `canUndoTurn(id)`, `undoTurnAsync(id)` | - | Optional. Show Undo on a reply whose changes the user can undo. |
+| `undoErrors` | `Record<string, Error>` | Optional. Why an undo failed, by message id. A rejected `undoTurnAsync()` shows the same way. |
+| `canSubmitFeedback`, `feedback`, `submitFeedbackAsync(id, rating, comment, reasons)` | - | Optional. Show thumbs, and the comment form a rating asks for. |
+| `feedbackErrors` | `Record<string, Error>` | Optional. Why feedback failed, by message id. A rejected `submitFeedbackAsync()` shows the same way. |
+| `approveToolCallAsync(id, reason)`, `denyToolCallAsync(id, reason)` | `Promise<void>` | Optional. Show Allow and Deny on a call that waits for approval. |
+| `addToolOutputAsync(id, output)` | `Promise<void>` | Optional. Shows the choice buttons of a question in the activity timeline. |
+| `stop()` | `() => void` | Optional. Escape stops the reply in progress. |
+| `composerModel` | `{focus(), text?}` | Optional. Focused after an edit resends, and after Escape stops a reply. While `text` is empty, a new approval request takes focus from the conversation. |
+
+### ChatSidePanelHost
+
+What a component needs to open content in the side panel. `ChatSidePanelModel` implements it.
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `isChatSidePanelHost` | `true` | Marks the host, for lookup in model context. |
+| `request` | `ChatSidePanelRequest` | The open request, or null. |
+| `hasRoom` | `boolean` | True if the panel has room beside the chat now. |
+| `canRender(request)`, `canOpen(request)` | `boolean` | True if the panel can render the request, and if it can also show it now. |
+| `open(request, opener?)` | `void` | Show a request in place of the last. Back and close focus `opener`. |
+| `close()` | `void` | Close the panel. |
+
+A document request is `{type: 'document', source, page?, passage?, citation?, messageId?}`. A
+table request is `{type: 'table', artifactId, view?, registry?, title?}`, and a chart request is
+`{type: 'chart', artifactId, view, registry?, title?}`. The `registry` holds the artifact. Without
+it, the panel cannot render a table or a chart.
+`ChatSidePanelModel` adds `documentRenderer`, `documentStatus`, `setDocumentStatus()`, `back()` and
+`canGoBack`.
+
+### ChatKitDefaults
+
+Fields of `ChatKit.defaults`. See `ChatKit.ts`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `assistantIcon` | `() => ReactElement` | Returns the icon that marks the assistant. A component's `assistantIcon` prop overrides it. Default `() => Icon.ai()`. |
+| `reducedMotionSpinner` | `'static' \| 'spin'` | Under reduced motion, `static` swaps the chat's spinners for a static icon, and `spin` keeps Hoist's spinner. Default `static`. |
+| `stallAfterMs` | `number` | Milliseconds with no data from the server before a reply shows as stalled. `ChatModelConfig.stallAfterMs` overrides it. Default 30,000. |
+| `announceSteps` | `'none' \| 'failures' \| 'all'` | Which steps of a reply the announcer reads, besides the finished reply. Default `failures`. |
+| `drafts` | `'local' \| 'memory'` | Where the composer keeps its unsent draft text: local storage, per thread, or memory only. Default `local`. See [Keep drafts](#keep-drafts). |
+| `shortcuts` | `ChatShortcuts` | Key combos in the format of Hoist's `useHotkeys`, by action: `newChat`, `toggleDock`, `focusComposer`, `cycleRegions` and `toggleSidebar`. Null drops a shortcut. See [Keyboard](../desktop/cmp/chat/README.md#keyboard). |
+
+The kit reads `announceSteps`, `drafts` and `shortcuts` from the components that use them. The
+activity timeline reads `announceSteps`. Set `shortcuts` before the chat components render.
+
+`ChatKit.clearLocalData()` removes everything the kit keeps in local storage for the current
+user, such as drafts. Call it from your logout. `ChatKit.clearLocalData(threadIds)` removes the
+drafts of those threads only, for example threads the user deleted.
+
+### chatAnnouncer
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `announce(text, politeness?)` | `(string, 'polite' \| 'assertive') => void` | Read text to screen reader users. Default `polite`. |
+| `clear()` | `() => void` | Drop waiting announcements and empty both regions. |
+| `polite`, `assertive` | `ChatAnnouncement` | The `{id, text}` of each region, or null. Observable. |
 
 ## Extension Points
 
@@ -907,6 +1313,9 @@ construction, for example to allow files only while an agent that reads them is 
 - **Feedback** - send ratings to your backend with `feedback.submitAsync`.
 - **Message records** - build history in code with `ChatMessageSpec` and `loadMessages()`, for
   example a greeting, or a thread loaded from your server.
+- **Stream reducer** - run a transport without `ChatModel`, and fold its events into your own
+  `ChatMessage` with `ChatStreamReducer`. `ChatModel` uses the same reducer for every step. See
+  [Use a transport without ChatModel](../transport/README.md#use-a-transport-without-chatmodel).
 
 ## Common Pitfalls
 

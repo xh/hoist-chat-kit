@@ -1,4 +1,4 @@
-import {uniq} from 'lodash';
+import {compact, uniq} from 'lodash';
 import type {ReactNode} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
@@ -6,11 +6,18 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
 import {action, observable} from '@xh/hoist/mobx';
 import {pluralize} from '@xh/hoist/utils/js';
-import {type ChatPartRenderContext, type ChatToolCallPart, isToolCallFinal} from '../../../../core';
+import {
+    type ChatMessageListHost,
+    type ChatPartRenderContext,
+    type ChatToolCallPart,
+    isToolCallFailed,
+    isToolCallFinal
+} from '../../../../core';
 import {chatToolCall} from '../ChatToolCall';
 import {classNames} from '../../../../impl/ClassNames';
 import {chatErrorBoundary} from './ChatErrorBoundary';
 import {getToolTitle} from './ToolCallStatus';
+import {chatSpinner} from '../../../impl/ChatLiveCues';
 
 interface ChatToolCallGroupProps extends HoistProps {
     /** Two or more consecutive tool calls of one step. */
@@ -18,56 +25,60 @@ interface ChatToolCallGroupProps extends HoistProps {
 
     /** Render context of the message that holds the calls. */
     context: ChatPartRenderContext;
+
+    /** The conversation that holds the calls. */
+    host: ChatMessageListHost;
 }
 
 /**
  * Consecutive tool calls of one step, folded into one quiet row - "Used 3 tools" - that opens to
- * show each call as a compact row. Open while any call runs, then closed once all are done, until
- * the user opens or closes it.
+ * show each call as its own row, indented below it. Open while any call runs, then closed once all
+ * are done, until the user opens or closes it.
  * @internal
  */
 export const chatToolCallGroup = hoistCmp.factory<ChatToolCallGroupProps>({
     displayName: 'ChatToolCallGroup',
     className: 'xh-chat-tool-call-group',
 
-    render({className, parts, context}) {
+    render({className, parts, context, host}) {
         const impl = useLocalModel(ChatToolCallGroupLocalModel),
-            {chatModel} = context,
             isRunning = parts.some(it => !isToolCallFinal(it)),
             isExpanded = impl.expanded ?? isRunning,
             count = parts.length,
-            names = uniq(parts.map(it => getToolTitle(it, chatModel.getToolSpec(it.toolName))));
+            names = uniq(parts.map(it => getToolTitle(it, host.getToolSpec?.(it.toolName)))),
+            title = `${isRunning ? 'Using' : 'Used'} ${pluralize('tool', count, true)}`,
+            problems = getProblems(parts);
 
         return div({
             className: classNames(className, {
                 'xh-chat-tool-call-group--expanded': isExpanded,
-                'xh-chat-tool-call-group--running': isRunning
+                'xh-chat-tool-call-group--running': isRunning,
+                'xh-chat-tool-call-group--failed': problems.failed > 0
             }),
             items: [
                 button({
                     className: 'xh-chat-tool-call-group__header',
-                    icon: Icon.wrench(),
                     text: span({
-                        className: 'xh-chat-tool-call-group__heading',
+                        className: 'xh-chat-tool-call-group__row',
                         items: [
-                            span({
-                                className: 'xh-chat-tool-call-group__title',
-                                item: `${isRunning ? 'Using' : 'Used'} ${pluralize('tool', count, true)}`
-                            }),
+                            groupGlyph(isRunning, problems),
+                            span({className: 'xh-chat-tool-call-group__title', item: title}),
                             span({
                                 className: 'xh-chat-tool-call-group__summary',
                                 item: names.join(', ')
+                            }),
+                            span({
+                                className: 'xh-chat-tool-call-group__meta',
+                                item: formatProblems(problems)
+                            }),
+                            span({
+                                className: 'xh-chat-tool-call-group__chevron',
+                                item: isExpanded ? Icon.chevronUp() : Icon.chevronDown()
                             })
                         ]
                     }),
-                    rightIcon: span({
-                        className: 'xh-chat-tool-call-group__status',
-                        items: [
-                            groupStatus(parts, isRunning),
-                            isExpanded ? Icon.chevronUp() : Icon.chevronDown()
-                        ]
-                    }),
                     'aria-expanded': isExpanded,
+                    'aria-label': compact([title, formatProblems(problems)]).join(', '),
                     onClick: () => impl.setExpanded(!isExpanded)
                 }),
                 isExpanded
@@ -80,7 +91,8 @@ export const chatToolCallGroup = hoistCmp.factory<ChatToolCallGroupProps>({
                                   item: chatToolCall({
                                       className: 'xh-chat-tool-call--grouped',
                                       part,
-                                      context
+                                      context,
+                                      host
                                   })
                               })
                           )
@@ -106,34 +118,33 @@ class ChatToolCallGroupLocalModel extends HoistModel {
     }
 }
 
-// A spinner while any call runs, then a check - or the count of calls that failed or were denied.
-function groupStatus(parts: ChatToolCallPart[], isRunning: boolean): ReactNode {
-    if (isRunning)
-        return Icon.spinnerThird({spin: true, className: 'xh-chat-tool-call-group__spinner'});
+interface GroupProblems {
+    failed: number;
+    denied: number;
+}
 
-    const failed = parts.filter(it => it.state === 'output-error').length,
-        denied = parts.filter(it => it.state === 'output-denied').length,
-        items: ReactNode[] = [];
-    if (failed) {
-        items.push(
-            span({
-                key: 'failed',
-                className: 'xh-chat-tool-call-group__problem',
-                items: [Icon.warningCircle(), `${failed} failed`]
-            })
-        );
-    }
-    if (denied) {
-        items.push(
-            span({
-                key: 'denied',
-                className:
-                    'xh-chat-tool-call-group__problem xh-chat-tool-call-group__problem--denied',
-                items: [Icon.slashedCircle(), `${denied} denied`]
-            })
-        );
-    }
-    return items.length
-        ? items
-        : Icon.check({className: 'xh-chat-tool-call__status-icon', title: 'All done'});
+function getProblems(parts: ChatToolCallPart[]): GroupProblems {
+    return {
+        failed: parts.filter(isToolCallFailed).length,
+        denied: parts.filter(it => it.state === 'output-denied').length
+    };
+}
+
+function formatProblems({failed, denied}: GroupProblems): string {
+    return compact([failed ? `${failed} failed` : null, denied ? `${denied} denied` : null]).join(
+        ' · '
+    );
+}
+
+// A spinner while any call runs, then a check - or a mark when any call failed.
+function groupGlyph(isRunning: boolean, {failed}: GroupProblems): ReactNode {
+    const kind = isRunning ? 'busy' : failed ? 'error' : 'success';
+    return span({
+        className: `xh-chat-tool-call__glyph xh-chat-tool-call__glyph--${kind}`,
+        item: isRunning
+            ? chatSpinner()
+            : failed
+              ? Icon.error({title: 'Failed'})
+              : Icon.check({title: 'All done'})
+    });
 }

@@ -1,12 +1,15 @@
-import {findLast} from 'lodash';
-import type {MouseEvent, WheelEvent} from 'react';
-import {HoistModel, lookup} from '@xh/hoist/core';
+import {findLast, findLastIndex, last} from 'lodash';
+import type {KeyboardEvent, MouseEvent, WheelEvent} from 'react';
+import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import {action, observable} from '@xh/hoist/mobx';
 import {createObservableRef} from '@xh/hoist/utils/react';
-import {type ChatMessage, ChatModel} from '../../../../core';
+import {chatAnnouncer, type ChatMessage, type ChatMessageListHost} from '../../../../core';
+import {formatReplyAnnouncement} from './ReplyAnnouncement';
 
 /**
- * Local model for a ChatMessageList: the stick-to-bottom scroll rules and the edit state.
+ * Local model for a ChatMessageList: the stick-to-bottom scroll rules, the edit state, the keys
+ * that move between messages and stop a reply, and the announcement of each reply that finishes
+ * while the list shows it.
  *
  * While a reply streams, the list stays scrolled to the bottom, so the reply stays in view. A
  * scroll or wheel up releases it, so the user can read back. Scrolling back to within a few pixels
@@ -19,7 +22,11 @@ import {type ChatMessage, ChatModel} from '../../../../core';
 export class ChatMessageListLocalModel extends HoistModel {
     override xhImpl = true;
 
-    @lookup(ChatModel) chatModel: ChatModel;
+    /** The conversation the list shows - its `host` prop, else its `ChatModel`. */
+    get host(): ChatMessageListHost {
+        const {host, model} = this.componentProps as PlainObject;
+        return host ?? model;
+    }
 
     readonly viewportRef = createObservableRef<HTMLDivElement>();
 
@@ -37,17 +44,23 @@ export class ChatMessageListLocalModel extends HoistModel {
     override onLinked() {
         // Return to the bottom whenever the user sends a message, even if scrolled up.
         this.addReaction({
-            track: () => findLast(this.chatModel.messages, 'isUser')?.id,
+            track: () => findLast(this.host?.messages, 'isUser')?.id,
             run: () => this.scrollToBottom()
         });
 
         // Show the end of a finished reply - its action bar appears as the turn ends.
         this.addReaction({
-            track: () => this.chatModel.isBusy,
+            track: () => this.host?.isBusy,
             run: isBusy => {
                 if (!isBusy && this._isSticky) this.scrollToBottom();
             },
             debounce: 0
+        });
+
+        // Read a reply once, as it finishes - never a reply loaded as history.
+        this.addReaction({
+            track: () => last(this.host?.messages),
+            run: (message, prev) => this.announceFinished(message, prev)
         });
     }
 
@@ -87,7 +100,7 @@ export class ChatMessageListLocalModel extends HoistModel {
     // it is in the last message, which would otherwise open out of view.
     onContentResize = () => {
         const isOpeningLast = this.lastClickAt > Date.now() - OPEN_FOLLOW_MS;
-        this.followContent(this.chatModel.isBusy || isOpeningLast);
+        this.followContent(!!this.host?.isBusy || isOpeningLast);
     };
 
     onClickCapture = (e: MouseEvent) => {
@@ -100,9 +113,36 @@ export class ChatMessageListLocalModel extends HoistModel {
         this.setEditingId(isEditing ? message.id : null);
     };
 
-    editLastUserMessage = () => {
-        const message = findLast(this.chatModel.messages, 'isUser');
-        if (message) this.setEditingId(message.id);
+    /** Edit the user message that asked for a reply - Edit Prompt on a failed reply. */
+    onEditPrompt = (reply: ChatMessage) => {
+        const {messages} = this.host,
+            idx = findLastIndex(messages, it => it.isUser, messages.indexOf(reply));
+        if (idx >= 0) this.setEditingId(messages[idx].id);
+    };
+
+    // Escape stops a reply in progress, unless an element within took the key - a popup, an edit
+    // box or a feedback form, which close or cancel instead. Focus then goes to the composer, as
+    // after a click on Stop. With a message focused, Up and Down move to the one before or after.
+    onKeyDown = (e: KeyboardEvent) => {
+        if (e.defaultPrevented) return;
+        const {host} = this;
+        if (e.key === 'Escape' && host.isBusy && host.stop) {
+            e.preventDefault();
+            host.stop();
+            host.composerModel?.focus();
+            return;
+        }
+
+        const target = e.target as HTMLElement;
+        if ((e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || !isMessageElement(target)) return;
+        const articles = Array.from(
+                this.viewportRef.current?.querySelectorAll<HTMLElement>(MESSAGE_SELECTOR) ?? []
+            ),
+            next = articles[articles.indexOf(target) + (e.key === 'ArrowUp' ? -1 : 1)];
+        if (next) {
+            e.preventDefault();
+            next.focus();
+        }
     };
 
     //------------------
@@ -113,6 +153,17 @@ export class ChatMessageListLocalModel extends HoistModel {
 
     /** When the user last clicked in the last message, or 0. */
     private lastClickAt = 0;
+
+    private announceFinished(message: ChatMessage, prev: ChatMessage) {
+        if (!message?.isAssistant || message.id !== prev?.id || !prev.isStreaming) return;
+
+        if (message.status === 'complete') {
+            const name = (this.componentProps as PlainObject).assistantName ?? 'Assistant';
+            chatAnnouncer.announce(formatReplyAnnouncement(message, name, this.host));
+        } else if (message.status === 'aborted' && !message.metadata.detached) {
+            chatAnnouncer.announce('Reply stopped.');
+        }
+    }
 
     @action
     private setEditingId(id: string) {
@@ -131,6 +182,13 @@ export class ChatMessageListLocalModel extends HoistModel {
             this.onScroll();
         }
     }
+}
+
+// A message, as the focusable article its view renders.
+const MESSAGE_SELECTOR = '.xh-chat-message[role="article"]';
+
+function isMessageElement(el: HTMLElement): boolean {
+    return !!el?.matches?.(MESSAGE_SELECTOR);
 }
 
 // Within this distance of the bottom, the list sticks to the bottom as content grows.

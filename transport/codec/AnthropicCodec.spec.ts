@@ -8,7 +8,7 @@ import {
     type ChatTextPart,
     type ChatToolCallPart
 } from '../../core';
-import {ChatStreamReducer} from '../../core/impl/ChatStreamReducer';
+import {ChatStreamReducer} from '../../core/ChatStreamReducer';
 import type {ChatEvent} from '../ChatEvent';
 import type {ChatRunRequest} from '../ChatTransport';
 import {AnthropicCodec} from './AnthropicCodec';
