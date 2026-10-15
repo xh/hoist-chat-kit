@@ -2,7 +2,7 @@ import {isEmpty} from 'lodash';
 import type {ReactNode} from 'react';
 import {chart, ChartModel} from '@xh/hoist/cmp/chart';
 import {errorMessage} from '@xh/hoist/cmp/error';
-import {div, filler, span} from '@xh/hoist/cmp/layout';
+import {filler, frame, span} from '@xh/hoist/cmp/layout';
 import {
     creates,
     hoistCmp,
@@ -13,8 +13,7 @@ import {
     TaskObserver,
     XH
 } from '@xh/hoist/core';
-import {button} from '@xh/hoist/desktop/cmp/button';
-import {buttonGroupInput, select} from '@xh/hoist/desktop/cmp/input';
+import {picker, segmentedControl, select} from '@xh/hoist/desktop/cmp/input';
 import {panel, type PanelProps} from '@xh/hoist/desktop/cmp/panel';
 import {Icon} from '@xh/hoist/icon';
 import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
@@ -61,28 +60,29 @@ export const [ChatUiChartView, chatUiChartView] = hoistCmp.withFactory<ChatUiCha
 
     render({model, className, tbarItems = [], panelProps}) {
         const impl = model as ChatUiChartViewLocalModel,
-            {chartModel, loadError, frame} = impl;
+            {chartModel, loadError} = impl;
 
         return panel({
             className,
             ...panelProps,
             tbar: [
                 ...tbarItems,
-                buttonGroupInput({
+                segmentedControl({
                     className: 'xh-chat-ui-chart-view__type',
                     value: impl.type,
                     onChange: v => impl.setType(v),
-                    items: impl.typeOptions.map(it =>
-                        button({key: it, value: it, text: TYPE_LABELS[it]})
-                    )
+                    options: impl.typeOptions.map(it => ({value: it, label: TYPE_LABELS[it]})),
+                    domAttrs: {'aria-label': 'Chart type'}
                 }),
                 impl.type !== 'pie'
                     ? span({className: 'xh-chat-ui-chart-view__label', item: 'Y'})
                     : null,
-                select({
+                picker({
                     className: 'xh-chat-ui-chart-view__select',
                     width: 200,
                     enableMulti: impl.type !== 'pie',
+                    multiSelectButtonStyle: 'values',
+                    displayNoun: 'series',
                     value: impl.type === 'pie' ? impl.y[0] : impl.y,
                     options: impl.yOptions,
                     onChange: v => impl.setY(v),
@@ -103,7 +103,7 @@ export const [ChatUiChartView, chatUiChartView] = hoistCmp.withFactory<ChatUiCha
                 filler(),
                 chartMenuButton({chartModel})
             ],
-            mask: frame ? null : impl.loadTask,
+            mask: impl.frame ? null : impl.loadTask,
             item: loadError
                 ? errorMessage({
                       error: loadError,
@@ -114,7 +114,7 @@ export const [ChatUiChartView, chatUiChartView] = hoistCmp.withFactory<ChatUiCha
                   })
                 : impl.problem
                   ? errorMessage({error: {}, title: 'Nothing to chart', message: impl.problem})
-                  : div({
+                  : frame({
                         className: 'xh-chat-ui-chart-view__body',
                         role: 'img',
                         'aria-label': impl.ariaLabel,

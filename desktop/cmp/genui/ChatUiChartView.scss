@@ -12,8 +12,8 @@
     min-width: 0;
   }
 
+  // A flex frame, as the Hoist chart within flexes to fill it.
   &__body {
-    flex: 1 1 auto;
     min-height: 0;
     padding: var(--xh-pad-px);
   }

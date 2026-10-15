@@ -191,7 +191,7 @@ describe('ChatSidePanel', () => {
             const {container} = render(chatSidePanel({model}));
 
             expect(container.querySelector('.xh-chat-ui-chart-view')).toBeTruthy();
-            expect(screen.getByRole('button', {name: 'Column'})).toBeTruthy();
+            expect(screen.getByRole('radio', {name: 'Column'})).toBeTruthy();
         });
 
         it('renders nothing for a table request without a registry', () => {

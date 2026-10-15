@@ -133,7 +133,7 @@ describe('ChatUiChart tiers', () => {
             await vi.waitFor(() => expect(setSeries.mock.lastCall?.[0]).toHaveLength(2));
             const configCalls = setConfig.mock.calls.length;
 
-            fireEvent.click(screen.getByRole('button', {name: 'Column'}));
+            fireEvent.click(screen.getByRole('radio', {name: 'Column'}));
 
             expect(setSeries.mock.lastCall[0].map(it => it.type)).toEqual(['column', 'column']);
             expect(setConfig.mock.calls).toHaveLength(configCalls);
@@ -146,7 +146,7 @@ describe('ChatUiChart tiers', () => {
             renderInHost(chatUiChartView({request: chartRequest()}));
             await vi.waitFor(() => expect(setConfig.mock.lastCall?.[0].chart).toBeTruthy());
 
-            fireEvent.click(screen.getByRole('button', {name: 'Bar'}));
+            fireEvent.click(screen.getByRole('radio', {name: 'Bar'}));
             expect(setConfig.mock.lastCall[0].chart.inverted).toBe(true);
         });
     });
