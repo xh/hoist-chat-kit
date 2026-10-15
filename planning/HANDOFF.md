@@ -1,7 +1,7 @@
 # Handoff - Design Build, eRESI Path First
 
-State as of 2026-10-14 evening, for the next session or after a context reset. Read this, then
-`DECISIONS.md` D57 to D76 and `planning/design-reconciliation.md`.
+State as of 2026-10-15 early morning, for the next session or after a context reset. Read this, then
+`DECISIONS.md` D57 to D79 and `planning/design-reconciliation.md`.
 
 ## Where things are
 
@@ -9,8 +9,9 @@ State as of 2026-10-14 evening, for the next session or after a context reset. R
 |---|---|
 | `hoist-chat-kit` `develop` | Plan 2 core merged (#7). Snapshot `1.0.0-SNAPSHOT.1792010786479` under `next`. |
 | `hoist-chat-kit` `feature/layered-api` | Pushed, no PR. `ChatComposerHost`, public `ChatStreamReducer`, `createChatRunRequest()`, D57. |
-| `hoist-chat-kit` `feature/design-ui` | Stacked on `feature/layered-api`. Pushed. Tokens on the simplified CSS model (D58), D58 to D76. Build in progress. |
+| `hoist-chat-kit` `feature/design-ui` | Stacked on `feature/layered-api`. Pushed, no PR. All seven design packages built, D58 to D79. Review 6 written and fixed. 1,507 tests pass, and lint, typecheck and build are clean. |
 | `toolbox` `feature/weatherv2-chat-kit` | On the published kit. Guide folder builds and tests. Pushed. |
+| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-chatkit`, on the local kit. Guideline Assistant tab, Agent timeline demo, Grid Helper tab. Pushed. |
 
 ## Standing instructions from Anselm
 
@@ -37,22 +38,21 @@ State as of 2026-10-14 evening, for the next session or after a context reset. R
 
 ## Build order (eRESI path first)
 
-1. Tokens (D58), on the simplified CSS model. Done.
-2. P6 primitives: `ChatKit.defaults`, `ChatReplyStatus`, soft stall, live cues, the announcer.
-   Done.
-3. P5 thread list and workspace shell. Done; layout fixes in progress (breakpoints, the side
-   panel's height, the page label, keeping the selected thread on reload).
-4. P1 restyle, the inline failed row, `ChatMessageListHost`. Done.
-5. P5 composer: pills, the scope chip, the status region, drafts, the empty state. Done.
-6. P3: source types, the sources list, hover cards, the side panel seam, no-answer. Done.
-7. P6: feedback form (D70, D77), approvals, undo failure, the keyboard map. Done.
-8. Toolbox guideline assistant page on worktree `../toolbox-chatkit`, branch
-   `feature/chat-kit-guide-ui` (pushed). Checked at 1,440: works. Re-check 900 and 380 after the
-   layout fixes. The Chrome window cannot resize - constrain `.xh-chat-workspace` to test widths.
-9. In progress: P2 timeline. Then P4 result cards, P7 helper.
+All done, each with specs, a Toolbox check and a commit:
 
-Each step: a sub-agent builds with specs, then a review against the screenshots in Toolbox, then
-commit and push.
+1. Tokens (D58), on the simplified CSS model.
+2. P6 primitives: `ChatKit.defaults`, `ChatReplyStatus`, soft stall, live cues, the announcer.
+3. P5 thread list and workspace shell.
+4. P1 restyle, the inline failed row, `ChatMessageListHost`.
+5. P5 composer: pills, the scope chip, the status region, drafts, the empty state.
+6. P3: source types, the sources list, hover cards, the side panel seam, no-answer.
+7. P6: feedback form (D70, D77), approvals, undo failure, the keyboard map.
+8. Toolbox guideline assistant page, checked at 1,440, 900 and 380.
+9. P2 timeline (D78), P4 result cards (D69), P7 component helper (D79).
+10. Review 6 (`planning/reviews/review-6-design-ui.md`) and its fixes.
+
+Next: the owner reviews and merges `feature/layered-api` and `feature/design-ui`, confirms the
+reconciliation defaults (D76), and the eRESI integration starts on the published snapshot.
 
 ## Toolbox worktree
 
