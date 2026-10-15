@@ -37,23 +37,32 @@ State as of 2026-10-14 evening, for the next session or after a context reset. R
 
 ## Build order (eRESI path first)
 
-1. Tokens (D58). Done.
-2. P6 primitives: `ChatKit.defaults`, `ChatReplyStatus`, soft stall, live cues with reduced-motion
-   twins, the announcer. In progress (agent).
-3. P5 thread list (`chatThreadList`) and workspace shell (`chatWorkspace`). In progress (agent).
-4. P1 restyle of the message components, the inline failed row, the status region above the
-   composer (D64), and message views over a narrow interface (D57).
-5. P5 composer: pills, the document scope chip (B4), status region, drafts (D67), empty state and
-   suggestions that fill the composer (D71).
-6. P3: sources list, citation styling and hover card, `sourceType` (D72), the no-answer data part,
-   and the side panel request seam (D68) with an app-supplied document renderer.
-7. P6 feedback form (D70), approvals and the keyboard map (D66).
-8. Toolbox: the guideline assistant UI on these components (WP 5), checked at 1,440, 900 and 380
-   px in light and dark. This is the reference for the eRESI integration.
-9. Then P2 timeline, P4 result cards, P7 helper.
+1. Tokens (D58), on the simplified CSS model. Done.
+2. P6 primitives: `ChatKit.defaults`, `ChatReplyStatus`, soft stall, live cues, the announcer.
+   Done.
+3. P5 thread list and workspace shell. Done; layout fixes in progress (breakpoints, the side
+   panel's height, the page label, keeping the selected thread on reload).
+4. P1 restyle, the inline failed row, `ChatMessageListHost`. Done.
+5. P5 composer: pills, the scope chip, the status region, drafts, the empty state. Done.
+6. P3: source types, the sources list, hover cards, the side panel seam, no-answer. Done.
+7. P6: feedback form (D70, D77), approvals, undo failure, the keyboard map. Done.
+8. Toolbox guideline assistant page on worktree `../toolbox-chatkit`, branch
+   `feature/chat-kit-guide-ui` (pushed). Checked at 1,440: works. Re-check 900 and 380 after the
+   layout fixes. The Chrome window cannot resize - constrain `.xh-chat-workspace` to test widths.
+9. In progress: P2 timeline. Then P4 result cards, P7 helper.
 
 Each step: a sub-agent builds with specs, then a review against the screenshots in Toolbox, then
 commit and push.
+
+## Toolbox worktree
+
+- `../toolbox-chatkit` (branch `feature/chat-kit-guide-ui`). The main `../toolbox` checkout
+  belongs to another session (uncommitted SegmentedControl work) - never touch it.
+- The worktree links the local kit through uncommitted edits to `client-app/package.json`,
+  `pnpm-lock.yaml`, `rsbuild.config.mjs` and `tsconfig.json`. Never commit those four. Commit
+  with explicit paths.
+- Its server runs from the worktree with a copied `.env`, H2 and the agent login. Coordinate
+  ports with the hoist-react session (`hoist-react-38`) if it needs Toolbox.
 
 ## Files to know
 
