@@ -15,6 +15,7 @@ import {chatEmptyState} from './ChatEmptyState';
 import './ChatMessageList.scss';
 import {type ChatMessageRenderFn, type ChatSourceClickFn, chatMessageView} from './ChatMessageView';
 import type {ChatSuggestion} from './ChatSuggestions';
+import {chatAnnouncerRegions} from './impl/ChatAnnouncerRegions';
 import {chatErrorBanner} from './impl/ChatErrorBanner';
 import {chatErrorBoundary} from './impl/ChatErrorBoundary';
 import {ChatMessageListLocalModel} from './impl/ChatMessageListLocalModel';
@@ -31,7 +32,7 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
     /** Name shown on assistant messages. Default 'Assistant'. */
     assistantName?: string;
 
-    /** Icon shown on assistant messages. Default a sparkles icon. */
+    /** Icon shown on assistant messages. Default from `ChatKit.defaults.assistantIcon`. */
     assistantIcon?: ReactElement;
 
     /**
@@ -88,6 +89,10 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
  *
  * Shows an empty state when the conversation has no messages, and the error that ended the last
  * turn - with Retry and Edit - after the last message.
+ *
+ * The list is a `role="log"` region with `aria-live="off"`, so screen readers never hear tokens.
+ * It renders the regions of the kit's announcer instead, which read each reply once as it
+ * finishes: the assistant's name, its tool count and time, then its first paragraph.
  */
 export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessageListProps>({
     displayName: 'ChatMessageList',
@@ -132,7 +137,10 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                 div({
                     ref: viewportRef,
                     className: 'xh-chat-message-list__viewport',
+                    // A log for structure and navigation, which never speaks: the announcer's
+                    // regions read finished replies, and never tokens.
                     role: 'log',
+                    'aria-live': 'off',
                     'aria-label': 'Conversation',
                     'aria-busy': isBusy,
                     onScroll: impl.onScroll,
@@ -171,6 +179,7 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                               ]
                     })
                 }),
+                chatAnnouncerRegions(),
                 impl.isAtBottom
                     ? null
                     : div({

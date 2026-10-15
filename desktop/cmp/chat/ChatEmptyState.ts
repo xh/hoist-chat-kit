@@ -1,15 +1,15 @@
 import type {ReactElement, ReactNode} from 'react';
 import {div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
-import {Icon} from '@xh/hoist/icon';
 import {withDefault} from '@xh/hoist/utils/js';
+import {ChatKit} from '../../../core';
 import '../../../styles/vars.scss';
 import './ChatEmptyState.scss';
 import {type ChatSuggestion, chatSuggestions} from './ChatSuggestions';
 
 /** Props for {@link ChatEmptyState}. */
 export interface ChatEmptyStateProps extends HoistProps {
-    /** Icon above the title. Default a sparkles icon. Set to null for none. */
+    /** Icon above the title. Default from `ChatKit.defaults.assistantIcon`. Set to null for none. */
     icon?: ReactElement;
 
     /** Heading. Default 'How can I help?'. */
@@ -35,7 +35,7 @@ export const [ChatEmptyState, chatEmptyState] = hoistCmp.withFactory<ChatEmptySt
     className: 'xh-chat-empty-state',
 
     render({className, icon, title, text, suggestions, children}, ref) {
-        icon = withDefault(icon, Icon.ai());
+        icon = withDefault(icon, ChatKit.defaults.assistantIcon());
         title = withDefault(title, 'How can I help?');
 
         return div({

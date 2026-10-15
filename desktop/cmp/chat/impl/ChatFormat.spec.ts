@@ -1,5 +1,12 @@
 import {describe, expect, it} from 'vitest';
-import {formatElapsed, formatFileSize, formatHost, humanizeToolName} from './ChatFormat';
+import {
+    formatElapsed,
+    formatFileSize,
+    formatHost,
+    formatStallDuration,
+    formatTickingElapsed,
+    humanizeToolName
+} from './ChatFormat';
 
 describe('formatElapsed', () => {
     it('shows tenths of a second under ten seconds', () => {
@@ -17,6 +24,25 @@ describe('formatElapsed', () => {
     it('returns null for a missing or negative duration', () => {
         expect(formatElapsed(null)).toBeNull();
         expect(formatElapsed(-1)).toBeNull();
+    });
+});
+
+describe('formatTickingElapsed', () => {
+    it('appears at 1 s and counts whole seconds, then minutes and padded seconds', () => {
+        expect(formatTickingElapsed(999)).toBeNull();
+        expect(formatTickingElapsed(1000)).toBe('1s');
+        expect(formatTickingElapsed(59_999)).toBe('59s');
+        expect(formatTickingElapsed(62_000)).toBe('1m 02s');
+        expect(formatTickingElapsed(300_000)).toBe('5m 00s');
+    });
+});
+
+describe('formatStallDuration', () => {
+    it('counts whole seconds to 59, then whole minutes', () => {
+        expect(formatStallDuration(30_000)).toBe('30s');
+        expect(formatStallDuration(59_999)).toBe('59s');
+        expect(formatStallDuration(60_000)).toBe('1m');
+        expect(formatStallDuration(149_000)).toBe('2m');
     });
 });
 

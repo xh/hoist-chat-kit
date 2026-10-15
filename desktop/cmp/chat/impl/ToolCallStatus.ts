@@ -4,6 +4,7 @@ import {Icon} from '@xh/hoist/icon';
 import type {ChatToolCallPart, ChatToolCallState, ChatToolSpec} from '../../../../core';
 import {humanizeToolName} from './ChatFormat';
 import {classNames} from '../../../../impl/ClassNames';
+import {chatSpinner} from './ChatLiveCues';
 
 /**
  * True for a call that a person needs to answer - an interactive tool with no result yet.
@@ -43,7 +44,7 @@ export function statusIndicator(part: ChatToolCallPart, spec: ChatToolSpec): Rea
         icon = Icon.slashedCircle();
         label = 'Denied';
     } else {
-        icon = Icon.spinnerThird({spin: true});
+        icon = chatSpinner();
         label = PROGRESS_LABELS[state] ?? 'Running';
     }
 

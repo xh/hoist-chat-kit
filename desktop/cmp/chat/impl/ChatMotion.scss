@@ -1,0 +1,124 @@
+// The chat's live cues: the inline spinner, the text caret and the skeleton shimmer. Motion means
+// bytes are arriving, so no loop here outlives its stream. Each moving cue has a static twin,
+// under `prefers-reduced-motion: reduce` or inside an `.xh-chat--reduced-motion` element.
+
+//------------------------
+// Spinner
+//------------------------
+// Hoist's Spinner, sized to 1em of its line rather than its own compact size.
+.xh-chat-spinner {
+  align-items: center;
+  display: inline-flex;
+  flex: none;
+  height: 1em;
+  justify-content: center;
+  line-height: 1;
+  width: 1em;
+
+  svg.xh-chat-spinner__spin {
+    color: inherit;
+    font-size: 1em;
+    height: 1em;
+    line-height: 1;
+    vertical-align: 0;
+  }
+
+  &__static {
+    display: none;
+  }
+}
+
+//------------------------
+// Caret
+//------------------------
+// A 2px bar at the end of streaming text. It blinks hard on and off, then rests, dimmed, once no
+// text has arrived for two blinks. Each new text remounts it, which restarts the blink.
+.xh-chat-caret {
+  animation:
+    xh-chat-caret-blink var(--xh-chat-caret-blink) steps(1, end) 2,
+    xh-chat-caret-rest 0s linear calc(var(--xh-chat-caret-blink) * 2) forwards;
+  background-color: var(--xh-chat-caret-color);
+  display: inline-block;
+  height: 1.15em;
+  margin-left: 2px;
+  vertical-align: -0.2em;
+  width: 2px;
+}
+
+@keyframes xh-chat-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes xh-chat-caret-rest {
+  to {
+    opacity: var(--xh-chat-caret-rest-opacity);
+  }
+}
+
+//------------------------
+// Skeleton shimmer
+//------------------------
+// A band of the page background sweeps over a skeleton, so its contrast is low in both themes.
+// It starts only if the skeleton still shows after the delay, sweeps a few times, then holds.
+.xh-chat-skeleton--shimmer {
+  animation: xh-chat-skeleton-shimmer var(--xh-chat-shimmer-duration) linear
+    var(--xh-chat-shimmer-delay) var(--xh-chat-shimmer-iterations);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--xh-chat-shimmer-color) 50%,
+    transparent 100%
+  );
+  background-position: -100% 0;
+  background-repeat: no-repeat;
+  background-size: 50% 100%;
+}
+
+@keyframes xh-chat-skeleton-shimmer {
+  from {
+    background-position: -100% 0;
+  }
+
+  to {
+    background-position: 200% 0;
+  }
+}
+
+//------------------------
+// Reduced motion
+//------------------------
+@mixin static-twins {
+  .xh-chat-spinner--static-twin {
+    .xh-chat-spinner__spin {
+      display: none;
+    }
+
+    .xh-chat-spinner__static {
+      display: inline-block;
+    }
+  }
+
+  // Solid while text arrives, then the same rest.
+  .xh-chat-caret {
+    animation: xh-chat-caret-rest 0s linear calc(var(--xh-chat-caret-blink) * 2) forwards;
+  }
+
+  .xh-chat-skeleton--shimmer {
+    animation: none;
+    background-image: none;
+  }
+
+  .xh-chat-reasoning--streaming .xh-chat-reasoning__label {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @include static-twins;
+}
+
+.xh-chat--reduced-motion {
+  @include static-twins;
+}

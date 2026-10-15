@@ -43,6 +43,11 @@ Key features:
   app allows them.
 - **App slots** - toolbar items in the composer, an empty state with suggestions, message
   actions and message header items.
+- **Live status** - a reply's header says what it is doing, such as "Writing 6s", and that it
+  has gone quiet, such as "No response for 34s". Every moving cue has a static twin under reduced
+  motion.
+- **Screen reader announcements** - the list never reads tokens. It reads each reply once, as it
+  finishes.
 - **Theme variables** - colors, widths and radii come from `--xh-chat-*` CSS variables, built
   from Hoist's own variables, with light and dark defaults.
 
@@ -54,7 +59,7 @@ ChatPanel (Panel)                       # uses(ChatModel)
 │   ├── ChatEmptyState                  # When the conversation has no messages
 │   │   └── ChatSuggestions             # Prompt chips that send on click
 │   ├── ChatMessageView (per message)   # A user bubble, or an assistant reply
-│   │   ├── header                      # Name, time taken, thinking time, messageHeaderItems
+│   │   ├── header                      # Name, live status, time taken, messageHeaderItems
 │   │   ├── parts, in order:
 │   │   │   ├── text                    # ChatMarkdown, with inline citation chips
 │   │   │   ├── ChatReasoning           # "Thought for 12s" disclosure
@@ -64,7 +69,8 @@ ChatPanel (Panel)                       # uses(ChatModel)
 │   │   │   └── data                    # ChatModelConfig.dataRenderers
 │   │   ├── ChatSources                 # "3 sources" list
 │   │   └── action bar                  # Copy, Edit, Regenerate, Undo, then messageActions
-│   └── error banner                    # The error that ended the last turn, with Retry
+│   ├── error banner                    # The error that ended the last turn, with Retry
+│   └── announcer regions               # Hidden live regions that read finished replies
 └── ChatComposer                        # uses(ChatComposerModel), or the chat's composerModel
 ```
 
@@ -96,6 +102,41 @@ offers a way back down. Scrolling back to the bottom, or sending a message, stic
 again. Content that grows when no reply streams, such as a tool card the user opens, stays in
 place. In the last message of a list scrolled to the bottom, the list follows it down instead,
 so that it opens into view.
+
+### Live cues
+
+While a turn runs, the reply's header shows its status and the time taken so far, as
+"Thinking 1s", "Writing 6s" or "Running tools 12s". Each status has one icon, one label and one
+color, drawn by `ChatStatusCue` from one table. The status comes from `getChatReplyStatus()` in
+[`/core/`](../../../core/README.md#display-status), read again each second.
+
+- **Spinner** - Hoist's `Spinner`, at 1em of its line. A reply shows one spinner at most: while
+  a tool call runs, the call's row shows it and the header drops its own.
+- **Caret** - a 2px bar at the end of streaming text. It blinks hard on and off, rests dimmed
+  after 2 s with no text, and goes when the text is done.
+- **Stalled** - after `stallAfterMs` with no data from the server, heartbeats included, the
+  spinner gives way to "No response for 30s" in the warning color. The next byte clears it.
+- **Skeleton shimmer** - a generative UI placeholder still shown after 1 s shimmers three times,
+  then holds still.
+
+No cue moves without a live stream behind it. See [Reduced motion](#reduced-motion) for the
+static twins.
+
+### Screen readers
+
+The list's viewport is a `role="log"` region with `aria-live="off"`. It gives screen reader
+users structure and navigation, and never reads tokens as they stream. The list also renders the
+two hidden live regions of `chatAnnouncer`, the kit's one voice for screen readers. When a reply
+finishes while the list shows it, the announcer reads it once:
+
+> Analyst replied after 2 tools, 12 seconds. HY Credit is the only desk over its limit.
+> Continues in the message.
+
+The announcement names the assistant with `assistantName`, then gives the tool count and the
+time. It ends with the first paragraph as plain words, cut at 300 characters. A reply the user
+stops reads "Reply stopped." History loaded into the list is never announced. When a page mounts
+several lists, only the first fills its regions. See
+[Announce to screen readers](../../../core/README.md#announce-to-screen-readers).
 
 ### Citations
 
@@ -417,6 +458,25 @@ panel({
 });
 ```
 
+### Show a reply's status
+
+`ChatStatusCue` draws a status in the kit's words, icon and color. `ChatElapsed` ticks the time
+taken. Use them to show a reply's status in a layout of your own, such as a docked header.
+
+```typescript
+const MyReplyStatus = hoistCmp.factory<{chatModel: ChatModel}>(({chatModel}) => {
+    const {lastMessage: message, lastActivityAt, stallAfterMs} = chatModel;
+    if (!message?.isStreaming) return null;
+
+    const status = getChatReplyStatus({message, lastActivityAt, stallAfterMs});
+    return hbox(chatStatusCue({status}), chatElapsed({startedAt: message.createdAt}));
+});
+```
+
+`getChatReplyStatus()` reads the clock at each call. Nothing observable changes while a reply is
+quiet, so to show a stall, render the component again each second, for example from a
+`useEffect` interval. `ChatElapsed` ticks on its own.
+
 ### Build a custom layout
 
 For a layout of your own, compose `chatMessageList` and `chatComposer` directly. Both find the
@@ -461,7 +521,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `emptyState` | `ReactNode` | Content for a conversation with no messages. |
 | `suggestions` | `Array<ChatSuggestion \| string>` | Prompt chips for the default empty state. |
 | `assistantName` | `string` | Name on assistant messages. Default `'Assistant'`. |
-| `assistantIcon` | `ReactElement` | Icon on assistant messages. Default a sparkles icon. |
+| `assistantIcon` | `ReactElement` | Icon on assistant messages. Default from `ChatKit.defaults.assistantIcon`. |
 | `markdownComponents` | `ChatMarkdownComponents` | Markdown element overrides. Pass a stable object. |
 | `allowImages` | `boolean \| (src) => boolean` | Model-written images, and file images at a URL, to load. Default false. |
 | `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
@@ -513,6 +573,8 @@ Use it directly only for a list of your own.
 | `ChatFileChip` | `file`, `onRemove`, `allowImages` | Show a file, with a remove button when `onRemove` is set. An image at a URL shows a thumbnail only if `allowImages` permits it. |
 | `ChatEmptyState` | `icon`, `title`, `text`, `suggestions` | Welcome the user to an empty chat. |
 | `ChatSuggestions` | `suggestions`, `onSelect` | Show prompt chips. `onSelect` replaces the default send. |
+| `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |
+| `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |
 
 ## Theming
 
@@ -578,6 +640,23 @@ Add the `xh-chat--compact` class to a parent of the chat for a narrow host, such
 side panel. It sets the side padding to `--xh-pad` (10px), the user bubble width to 85%, and the
 chart height to 160px.
 
+### Reduced motion
+
+Every moving cue in chat has a static twin. The twins apply when the browser reports
+`prefers-reduced-motion: reduce`, or inside an element with the `xh-chat--reduced-motion` class.
+Add that class to a parent of the chat to show the twins whatever the browser reports.
+
+| Cue | Static twin |
+|-----|-------------|
+| Spinner | A static stopwatch icon. The words and the ticking time still say the reply is busy. |
+| Caret | Solid while text arrives, then the same dimmed rest. |
+| Skeleton shimmer | No band. |
+| Reasoning label | No sweep. |
+
+Hoist's own `Spinner` keeps spinning under reduced motion on purpose, because Citrix sessions
+often report it. To keep that behavior in chat too, set `ChatKit.defaults.reducedMotionSpinner`
+to `'spin'`.
+
 Spacing inside the components scales with Hoist's `--xh-pad`, so a denser app gets a denser
 chat. Class names follow BEM under `xh-chat-`, for example `xh-chat-message__bubble`.
 
@@ -594,7 +673,8 @@ chat. Class names follow BEM under `xh-chat-`, for example `xh-chat-message__bub
   source in the app.
 - **Markdown** - `markdownComponents` for element overrides, `markdownPlugins` for remark and
   rehype plugins, and `allowImages` for the image policy.
-- **Theme** - the `--xh-chat-*` variables above, `xh-chat--compact`, and the BEM class names.
+- **Theme** - the `--xh-chat-*` variables above, `xh-chat--compact`, `xh-chat--reduced-motion`,
+  and the BEM class names.
 
 ## Common Pitfalls
 

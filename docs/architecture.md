@@ -247,6 +247,8 @@ renderer.
 | `svc/` | Neutral | `ChatService`, which builds a transport from the `chatConfig` soft config |
 | `cmp/markdown/` | Neutral | The streaming markdown renderer |
 | `desktop/cmp/chat/` | Desktop | Panel, message list, composer, tool cards and the rest |
+| `desktop/cmp/threads/` | Desktop | The thread list |
+| `desktop/cmp/workspace/` | Desktop | The full-page workspace: sidebar, conversation and side panel |
 | `desktop/cmp/genui/` | Desktop | The built-in grid, chart, metrics and card components |
 | `desktop/assist/` | Desktop | `dashCanvasTools`, the tool group for a `DashCanvasModel` |
 | `styles/` | Neutral | The `--xh-chat-*` CSS variables |
@@ -264,6 +266,8 @@ desktop code.
 - [`/svc/`](../svc/README.md) - the chat service
 - [`/transport/`](../transport/README.md) - transports, codecs and server contracts
 - [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) - desktop components
+- [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) - the desktop thread list
+- [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md) - the desktop workspace
 - [`/cmp/markdown/`](../cmp/markdown/README.md) - streaming markdown
 - [Protocols](./protocols.md) - AG-UI, Anthropic, OpenAI, generative UI and the Vercel AI SDK
   vocabulary

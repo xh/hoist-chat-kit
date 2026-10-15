@@ -1,4 +1,4 @@
-import {act, fireEvent, render, screen} from '@testing-library/react';
+import {act, fireEvent, render, screen, within} from '@testing-library/react';
 import {div} from '@xh/hoist/cmp/layout';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
@@ -255,7 +255,9 @@ describe('ChatMessageList', () => {
 
             expect(screen.getByText('Chart body')).toBeTruthy();
             expect(container.querySelector('.xh-chat-tool-call__caption-status')).toBeNull();
-            expect(screen.queryByText(/Pending|Running/)).toBeNull();
+            // The reply's header says it runs tools. The call itself shows no progress status.
+            const callEl = container.querySelector<HTMLElement>('.xh-chat-tool-call');
+            expect(within(callEl).queryByText(/Pending|Running/)).toBeNull();
             expect(container.querySelector('.xh-chat-tool-call__caption--quiet')).toBeTruthy();
         });
 

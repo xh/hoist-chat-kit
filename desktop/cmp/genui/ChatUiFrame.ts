@@ -2,6 +2,7 @@ import type {ReactNode} from 'react';
 import {div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import '../../../styles/vars.scss';
+import '../chat/impl/ChatMotion.scss';
 import './ChatUiFrame.scss';
 
 /** Props for {@link ChatUiFrame}. */
@@ -46,10 +47,11 @@ export const [ChatUiFrame, chatUiFrame] = hoistCmp.withFactory<ChatUiFrameProps>
 });
 
 /**
- * A pulsing placeholder, for a component to show while it waits for enough props to render.
+ * A placeholder, for a component to show while it waits for enough props to render. A placeholder
+ * still shown after a second shimmers three times, then holds still.
  *
  * @param height - height of the placeholder, in pixels.
  */
 export function chatUiSkeleton(height: number): ReactNode {
-    return div({className: 'xh-chat-ui-skeleton', style: {height}});
+    return div({className: 'xh-chat-ui-skeleton xh-chat-skeleton--shimmer', style: {height}});
 }

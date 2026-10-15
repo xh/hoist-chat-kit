@@ -52,7 +52,9 @@ export interface HttpChatTransportConfig {
      * such as an SSE comment. A server with long silent stretches, such as an agent running a
      * slow tool, sends heartbeats: an SSE comment, or an `{"type": "xh.heartbeat"}` record, which
      * the transport reads as data and never decodes. When the timer fires, the transport closes
-     * the connection and fails the step with error code `stalled`. Default none.
+     * the connection and fails the step with error code `stalled`. Set it longer than
+     * `ChatKit.defaults.stallAfterMs`, after which the chat shows the reply as stalled while it
+     * still waits. Default none.
      */
     idleTimeout?: number;
 
@@ -187,6 +189,7 @@ export abstract class HttpChatTransport implements ChatTransport {
                 AbortSignal.any([signal, stall.signal])
             )) {
                 clearTimeout(idleTimer);
+                request.onActivity?.();
                 if (data != null && data.type !== HEARTBEAT_TYPE) yield* decode(data, eventName);
                 startIdleTimer();
             }

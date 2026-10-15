@@ -155,6 +155,9 @@
       "viewerCategory": "core",
       "description": "Platform-neutral thread layer: a store adapter, one chat per open thread, background turns, paging, search, edits with rollback and deep links.",
       "keywords": [
+        "ChatThreadListHost",
+        "finishedAwayThreadIds",
+        "lastRunEnd",
         "ChatThreadsModel",
         "ChatThreadsConfig",
         "ChatThreadStore",
@@ -347,6 +350,59 @@
         "OpenUI",
         "maxSteps",
         "safety"
+      ]
+    },
+    {
+      "id": "desktop/cmp/threads/README.md",
+      "title": "Desktop Thread List",
+      "mcpCategory": "package",
+      "viewerCategory": "desktop",
+      "description": "Desktop thread list: recency groups, search, inline rename, pin, delete with confirm, and row states.",
+      "keywords": [
+        "ChatThreadList",
+        "chatThreadList",
+        "ChatThreadListHost",
+        "ChatThreadsModel",
+        "thread list",
+        "sidebar",
+        "recency groups",
+        "search",
+        "inline rename",
+        "pin",
+        "delete confirm",
+        "running",
+        "awaiting",
+        "new reply",
+        "finishedAwayThreadIds",
+        "lastRunEnd",
+        "interrupted",
+        "listbox",
+        "keyboard"
+      ]
+    },
+    {
+      "id": "desktop/cmp/workspace/README.md",
+      "title": "Desktop Workspace",
+      "mcpCategory": "package",
+      "viewerCategory": "desktop",
+      "description": "Desktop full-page chat: a thread sidebar and rail, the conversation, header and notice slots, and a side panel, laid out by its own width.",
+      "keywords": [
+        "ChatWorkspace",
+        "chatWorkspace",
+        "ChatWorkspaceModel",
+        "workspace",
+        "full page",
+        "sidebar",
+        "rail",
+        "side panel",
+        "header",
+        "notice",
+        "PanelModel",
+        "persistWith",
+        "ResizeObserver",
+        "breakpoints",
+        "sidebarMode",
+        "compact density"
       ]
     },
     {

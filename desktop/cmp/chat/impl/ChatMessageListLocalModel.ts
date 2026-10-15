@@ -1,12 +1,14 @@
 import {findLast} from 'lodash';
 import type {MouseEvent, WheelEvent} from 'react';
-import {HoistModel, lookup} from '@xh/hoist/core';
+import {HoistModel, lookup, type PlainObject} from '@xh/hoist/core';
 import {action, observable} from '@xh/hoist/mobx';
 import {createObservableRef} from '@xh/hoist/utils/react';
-import {type ChatMessage, ChatModel} from '../../../../core';
+import {chatAnnouncer, type ChatMessage, ChatModel} from '../../../../core';
+import {formatReplyAnnouncement} from './ReplyAnnouncement';
 
 /**
- * Local model for a ChatMessageList: the stick-to-bottom scroll rules and the edit state.
+ * Local model for a ChatMessageList: the stick-to-bottom scroll rules, the edit state, and the
+ * announcement of each reply that finishes while the list shows it.
  *
  * While a reply streams, the list stays scrolled to the bottom, so the reply stays in view. A
  * scroll or wheel up releases it, so the user can read back. Scrolling back to within a few pixels
@@ -48,6 +50,12 @@ export class ChatMessageListLocalModel extends HoistModel {
                 if (!isBusy && this._isSticky) this.scrollToBottom();
             },
             debounce: 0
+        });
+
+        // Read a reply once, as it finishes - never a reply loaded as history.
+        this.addReaction({
+            track: () => this.chatModel.lastMessage,
+            run: (message, prev) => this.announceFinished(message, prev)
         });
     }
 
@@ -113,6 +121,17 @@ export class ChatMessageListLocalModel extends HoistModel {
 
     /** When the user last clicked in the last message, or 0. */
     private lastClickAt = 0;
+
+    private announceFinished(message: ChatMessage, prev: ChatMessage) {
+        if (!message?.isAssistant || message.id !== prev?.id || !prev.isStreaming) return;
+
+        if (message.status === 'complete') {
+            const name = (this.componentProps as PlainObject).assistantName ?? 'Assistant';
+            chatAnnouncer.announce(formatReplyAnnouncement(message, name));
+        } else if (message.status === 'aborted' && !message.metadata.detached) {
+            chatAnnouncer.announce('Reply stopped.');
+        }
+    }
 
     @action
     private setEditingId(id: string) {

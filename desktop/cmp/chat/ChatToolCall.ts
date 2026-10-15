@@ -21,6 +21,7 @@ import {
     type InlineCallStatus,
     statusIndicator
 } from './impl/ToolCallStatus';
+import {chatSpinner} from './impl/ChatLiveCues';
 
 /** Props for {@link ChatToolCall}. */
 export interface ChatToolCallProps extends HoistProps {
@@ -273,7 +274,7 @@ function inlineToolCall({ref, className, part, context, spec, impl}: InlineToolC
 function inlineStatusIcon(type: InlineCallStatus['type']): ReactNode {
     switch (type) {
         case 'rendering':
-            return Icon.spinnerThird({spin: true});
+            return chatSpinner();
         case 'approval':
             return Icon.hand();
         case 'error':

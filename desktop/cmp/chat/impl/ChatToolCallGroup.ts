@@ -11,6 +11,7 @@ import {chatToolCall} from '../ChatToolCall';
 import {classNames} from '../../../../impl/ClassNames';
 import {chatErrorBoundary} from './ChatErrorBoundary';
 import {getToolTitle} from './ToolCallStatus';
+import {chatSpinner} from './ChatLiveCues';
 
 interface ChatToolCallGroupProps extends HoistProps {
     /** Two or more consecutive tool calls of one step. */
@@ -108,8 +109,7 @@ class ChatToolCallGroupLocalModel extends HoistModel {
 
 // A spinner while any call runs, then a check - or the count of calls that failed or were denied.
 function groupStatus(parts: ChatToolCallPart[], isRunning: boolean): ReactNode {
-    if (isRunning)
-        return Icon.spinnerThird({spin: true, className: 'xh-chat-tool-call-group__spinner'});
+    if (isRunning) return chatSpinner();
 
     const failed = parts.filter(it => it.state === 'output-error').length,
         denied = parts.filter(it => it.state === 'output-denied').length,

@@ -148,6 +148,43 @@ When a step would go past `maxSteps`, the turn ends as `complete`, with
 | `error` | The turn failed. The text is in `error`, and any code is in `metadata.errorCode`. |
 | `aborted` | The user stopped the turn, or it was interrupted. Content received so far stays. |
 
+### Display status
+
+`ChatReplyStatus` is what a reply shows as its status: one icon, one label and one color. It is a
+reading of the message's status, its turn's activity and the clock. The kit never stores it.
+`getChatReplyStatus()` derives it, as a pure function, so a component reads it again as the
+clock ticks.
+
+| `ChatReplyStatus` | Reads from |
+|-------------------|------------|
+| `idle` | A `complete` reply. No status shows. |
+| `submitted` | A reply in progress with no answer text yet: before its first content, while it reasons, or after a tool call. |
+| `streaming` | A reply in progress whose answer text arrives. |
+| `recomposing` | A reply whose text the server discarded, while it is rewritten. Set by `isRecomposing`. |
+| `runningTool` | A reply in progress with a tool call that is not done. |
+| `paused` | A `paused` reply. |
+| `waitingToRetry` | An `error` reply with `metadata.retryAfterSeconds`, while the wait runs from the end of the turn. |
+| `detached` | An `aborted` reply with `metadata.detached`. |
+| `stalled` | A reply in progress with no data from the server for `stallAfterMs`. |
+| `interrupted` | An `error` reply with error code `interrupted`. |
+| `cancelledByServer` | An `error` reply with error code `cancelled`. |
+| `error` | Any other `error` reply. |
+| `aborted` | Any other `aborted` reply. |
+
+A stalled reply is a soft state. The reply keeps running, and the next byte clears the state. The
+chat counts every byte, heartbeats included: `HttpChatTransport` reports each record it reads
+through `ChatRunRequest.onActivity`, and `ChatModel.lastActivityAt` holds the time of the last
+one. The time is null while no step waits on the server, so a slow client tool never stalls. The
+transport's `idleTimeout` stays the hard failure. Set it longer than `stallAfterMs`.
+
+```typescript
+const {lastMessage, lastActivityAt, stallAfterMs} = chatModel,
+    status = getChatReplyStatus({message: lastMessage, lastActivityAt, stallAfterMs});
+```
+
+The desktop kit draws each status with `ChatStatusCue`. See
+[Show a reply's status](../desktop/cmp/chat/README.md#show-a-replys-status).
+
 ### Three kinds of tool
 
 A `ChatToolSpec` describes one of three kinds of tool:
@@ -240,6 +277,23 @@ export const assistantPanel = hoistCmp.factory({
 
 The Toolbox Weather V2 example builds its Dashboard Agent this way. See
 `client-app/src/examples/weatherv2/harness/DashboardAgentModel.ts` in Toolbox.
+
+### Kit-wide defaults
+
+`ChatKit.defaults` holds the settings that span the kit's components, after the pattern of
+Hoist's `GridModel.defaults`. Set fields once at startup, in your `AppModel` or `Bootstrap.ts`.
+Instance config and component props always win.
+
+```typescript
+import {ChatKit} from '@xh/hoist-chat-kit/core';
+
+ChatKit.defaults.assistantIcon = () => Icon.bolt();
+ChatKit.defaults.stallAfterMs = 45_000;
+ChatKit.defaults.reducedMotionSpinner = 'spin';
+```
+
+A setting that belongs to one component sits in that component's own `defaults`. See
+[ChatKitDefaults](#chatkitdefaults) for each field.
 
 ## Common Usage Patterns
 
@@ -696,6 +750,30 @@ The composer calls `sendAsync()` only when `canSend` is true, and clears its dra
 Render the model with a desktop `chatComposer`. See
 [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#use-the-composer-without-a-chatmodel).
 
+### Announce to screen readers
+
+The kit speaks to screen readers through one announcer, `chatAnnouncer`. The desktop message list
+is a `role="log"` region with `aria-live="off"`, so tokens never reach a screen reader. The list
+renders the announcer's two hidden live regions instead, one polite and one assertive, and reads
+each reply once as it finishes:
+
+> Credit Analyst replied after 7 tools, 42 seconds. HY Credit is the only desk over 90% of its
+> limit. Continues in the message.
+
+Polite announcements come at least 2 s apart, and those that wait meanwhile join into one.
+Assertive ones never wait. Use `assertive` for failures only. An app component in the chat can
+speak through the same announcer, so its words keep their place in line:
+
+```typescript
+import {chatAnnouncer} from '@xh/hoist-chat-kit/core';
+
+chatAnnouncer.announce('Approval needed: Insert 2 rows into risk_notes.');
+chatAnnouncer.announce('Reply failed: model request timed out.', 'assertive');
+```
+
+Announce what the user must know once. Never announce tokens, status words, elapsed time or
+countdown seconds.
+
 ## Properties/API Reference
 
 See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatComposerModel.ts` and
@@ -717,6 +795,7 @@ See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatCom
 | `runOptions` | `PlainObject` | Initial value of `runOptions`. Default null. |
 | `textTransform` | `(text, context) => string` | Rewrites reply text before it is stored. `context` holds the `message` and `isStreaming`. |
 | `feedback` | `ChatFeedbackConfig` | `submitAsync`, `commentOn` (default `negative`) and `requireComment` (default false). |
+| `stallAfterMs` | `number` | Milliseconds with no data from the server, heartbeats included, before a reply shows as stalled. Default `ChatKit.defaults.stallAfterMs`. |
 | `track` | `boolean \| ChatTrackOptions` | True, or `{category, severity, logData}`, to track each finished turn. Default false. |
 | `composer` | `ChatComposerConfig` | Config for the managed `composerModel`, without `host`. The chat is the host. |
 | `sendBlocker` | `() => string` | Returns why sending must wait, or null to allow it. Read as a computed value. While blocked, the composer disables Send and shows the reason, and `sendAsync`, `editMessageAsync`, `retryAsync` and `regenerateAsync` do nothing. Blockers added with `addSendBlocker()` work the same way. |
@@ -734,6 +813,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `messages` | `ChatMessage[]` | History, oldest first. Observable. Replaced, never mutated. |
 | `status` | `ChatStatus` | `ready`, `submitted`, `streaming` or `error`. Observable. |
 | `lastError` | `Error` | Error from the last turn, or null. Observable. |
+| `lastActivityAt` | `number` | Epoch millis of the last data from the server for the step in flight, heartbeats included. Null while no step is in flight. Changes at most once a second. Observable. |
 | `threadId` | `string` | Current thread. Observable. `clear()` and `loadMessages()` change it. In server mode, the first run of a new thread can change it once. Read-only. |
 | `runOptions` | `PlainObject` | Options for the next turn. `@bindableRef` - replace the value to change it. |
 | `hasOlderMessages` | `boolean` | True if older history remains to page in. `@bindable`. Default false. |
@@ -748,7 +828,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `undoableMessageId` | `string` | The reply whose changes the user can undo now, or null. |
 | `composerModel` | `ChatComposerModel` | Draft of the next message. |
 | `artifacts` | `ChatArtifactRegistry` | Result sets that generative UI components show by reference. Fed by each reply and by loaded history. `clear()` and `loadMessages()` empty it. |
-| `transport`, `tools`, `catalog`, `maxSteps`, `historyMode`, `feedback`, `dataRenderers` | - | The config values, read-only. `tools` includes the catalog's tools, and `feedback` has its defaults applied. |
+| `transport`, `tools`, `catalog`, `maxSteps`, `historyMode`, `feedback`, `stallAfterMs`, `dataRenderers` | - | The config values, read-only. `tools` includes the catalog's tools, and `feedback` has its defaults applied. |
 
 ### ChatModel methods
 
@@ -937,6 +1017,31 @@ change.
 | `sendBlockedReason` | `string` | Optional. Why sending must wait, or null. |
 | `stop()` | `() => void` | Optional. Stop the reply in progress. Without it, the composer shows no Stop button. |
 | `messages` | `{isUser, text}[]` | Optional. The conversation, oldest first, for `recallLastMessage()`. |
+
+### ChatKitDefaults
+
+Fields of `ChatKit.defaults`. See `ChatKit.ts`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `assistantIcon` | `() => ReactElement` | Returns the icon that marks the assistant. A component's `assistantIcon` prop overrides it. Default `() => Icon.ai()`. |
+| `reducedMotionSpinner` | `'static' \| 'spin'` | Under reduced motion, `static` swaps the chat's spinners for a static icon, and `spin` keeps Hoist's spinner. Default `static`. |
+| `stallAfterMs` | `number` | Milliseconds with no data from the server before a reply shows as stalled. `ChatModelConfig.stallAfterMs` overrides it. Default 30,000. |
+| `announceSteps` | `'none' \| 'failures' \| 'all'` | Which steps of a reply the announcer reads, besides the finished reply. Default `failures`. |
+| `drafts` | `'local' \| 'memory'` | Where the composer keeps its unsent draft. Default `local`. |
+| `shortcuts` | `ChatShortcuts` | Key combos in the format of Hoist's `useHotkeys`, by action: `newChat`, `toggleDock`, `openHelper`, `focusComposer`, `cycleRegions` and `toggleSidebar`. Null drops a shortcut. |
+
+The kit reads `announceSteps`, `drafts` and `shortcuts` from the components that use them. The
+timeline, the composer drafts and the keyboard map are still to come, so these fields have no
+effect yet.
+
+### chatAnnouncer
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `announce(text, politeness?)` | `(string, 'polite' \| 'assertive') => void` | Read text to screen reader users. Default `polite`. |
+| `clear()` | `() => void` | Drop waiting announcements and empty both regions. |
+| `polite`, `assertive` | `ChatAnnouncement` | The `{id, text}` of each region, or null. Observable. |
 
 ## Extension Points
 

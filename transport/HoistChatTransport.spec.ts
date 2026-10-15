@@ -270,6 +270,21 @@ describe('HoistChatTransport', () => {
             expect(await events).toEqual([TEXT_START, FINISHED]);
         });
 
+        it('reports each record it reads as activity, heartbeats included', async () => {
+            const stream = ndjsonStream(),
+                onActivity = vi.fn();
+            hoistCore.route('POST', 'chat', () => stream.response);
+            stream.push(TEXT_START, {type: 'xh.heartbeat'}, {type: 'xh.heartbeat'}, FINISHED);
+            stream.close();
+
+            const events = await collect(
+                new HoistChatTransport({url: 'chat'}).run({...request(), onActivity})
+            );
+
+            expect(events).toEqual([TEXT_START, FINISHED]);
+            expect(onActivity).toHaveBeenCalledTimes(4);
+        });
+
         it('fails the turn with a ChatRunError coded stalled', async () => {
             const stream = ndjsonStream();
             hoistCore.route('POST', 'chat', () => stream.response);

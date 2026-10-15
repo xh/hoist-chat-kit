@@ -161,6 +161,28 @@
 * Added `ChatComposerHost`, the members a composer needs from its conversation. `ChatModel`
   implements it. Create a `ChatComposerModel` with a `host` of your own to use the composer
   without a `ChatModel`.
+* Added `chatThreadList`, a desktop thread list with recency groups, search, inline rename, pin,
+  and delete with a confirm. Rows show threads that run, wait for the user or ended early.
+* Added `ChatThreadListHost`, the members a thread list needs. `ChatThreadsModel` implements it,
+  so the list also works over threads an app holds itself.
+* Added `chatWorkspace` and `ChatWorkspaceModel`, a full-page chat with a resizable thread
+  sidebar, a rail, header and notice slots and a side panel. It lays itself out by its own width.
+* Added `ChatThreadsModel.finishedAwayThreadIds`, the threads whose turn ended while the user was
+  in another thread, and `lastRunEnd` and `lastRunReason` on `ChatThreadSummary`.
+* Added `ChatKit.defaults`, the kit-wide settings, after the pattern of Hoist's
+  `GridModel.defaults`. It holds the assistant icon, the stall time and the reduced-motion spinner.
+* Added `ChatReplyStatus` and `getChatReplyStatus()`, the display status of a reply, such as
+  `runningTool`, `stalled` or `cancelledByServer`. The desktop `ChatStatusCue` draws each status
+  with one icon, label and color, and `ChatElapsed` ticks the time taken.
+* Added a soft stalled state. A reply with no data for `stallAfterMs`, heartbeats included, shows
+  "No response for 30s" until the next byte. `ChatModel.lastActivityAt` holds the activity time.
+* Added `ChatRunRequest.onActivity`, which `HttpChatTransport` calls for each record it reads, so
+  the chat sees heartbeats that never decode to events.
+* Added `chatAnnouncer`, the kit's one voice for screen readers. The message list is a silent log,
+  and the announcer reads each reply once as it finishes.
+* Added a static twin for each moving chat cue, under reduced motion or inside an
+  `xh-chat--reduced-motion` element. Set `ChatKit.defaults.reducedMotionSpinner` to `'spin'` to
+  keep Hoist's spinner.
 
 ### 🐞 Bug Fixes
 
@@ -178,6 +200,10 @@
 
 ### ✨ Styles
 
+* Replaced the typing dots with a live status in the reply header, such as "Writing 6s". Added a
+  caret at the end of streaming text. Inline spinners use Hoist's `Spinner` at 1em.
+* Changed the generative UI skeleton from an endless pulse to a shimmer that starts after 1 s,
+  sweeps three times, then holds still.
 * Added the `xh-chat--compact` density class for narrow hosts, such as a docked side panel.
 * Added `--xh-chat-*` CSS variables for the chat's colors, widths, radii and fonts, built from
   Hoist's theme variables, with light and dark defaults.

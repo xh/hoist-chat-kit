@@ -129,6 +129,12 @@ body {
   --xh-chat-token-bg: var(--xh-chat-code-bg);
 
   //------------------------
+  // Workspace shell
+  //------------------------
+  --xh-chat-workspace-header-height: 36px;
+  --xh-chat-workspace-notice-height: 24px;
+
+  //------------------------
   // Thread sidebar
   //------------------------
   --xh-chat-sidebar-width: 260px;
@@ -166,6 +172,8 @@ body {
   --xh-chat-motion-hide-delay: 150ms;
   // The kit's only easing curve.
   --xh-chat-motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  --xh-chat-status-cue-gap: 5px;
+  --xh-chat-status-cue-icon-width: 14px;
   --xh-chat-caret-blink: 1000ms;
   --xh-chat-caret-rest-opacity: 0.4;
   // A skeleton shimmers only if still shown after the delay, then holds still.

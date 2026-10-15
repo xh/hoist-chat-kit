@@ -1,4 +1,4 @@
-import {findLastIndex, isEmpty, isEqual, last, sumBy} from 'lodash';
+import {findLastIndex, isEmpty, isEqual, sumBy} from 'lodash';
 import {type ReactElement, type ReactNode, useLayoutEffect, useMemo} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
@@ -16,6 +16,7 @@ import {
 } from '../../../cmp/markdown';
 import {
     type ChatCitation,
+    ChatKit,
     type ChatDataPart,
     type ChatFilePart,
     type ChatMessage,
@@ -24,8 +25,7 @@ import {
     type ChatPartRenderContext,
     type ChatReasoningPart,
     type ChatSourcePart,
-    type ChatTextPart,
-    isToolCallFinal
+    type ChatTextPart
 } from '../../../core';
 import '../../../styles/vars.scss';
 import {chatFileChip} from './ChatFileChip';
@@ -42,10 +42,11 @@ import {
     toSourceList
 } from './impl/ChatCitations';
 import {chatCopyButton} from './impl/ChatCopyButton';
+import {chatCaret} from './impl/ChatLiveCues';
+import {chatReplyLiveStatus} from './impl/ChatReplyLiveStatus';
 import {chatErrorBoundary} from './impl/ChatErrorBoundary';
 import {formatElapsed} from './impl/ChatFormat';
 import {chatToolCallGroup} from './impl/ChatToolCallGroup';
-import {chatTypingIndicator} from './impl/ChatTypingIndicator';
 import {formatChatUiContext} from '../../../genui/ChatUiAction';
 import {classNames} from '../../../impl/ClassNames';
 import {getOwn} from '../../../impl/objects';
@@ -79,7 +80,7 @@ export interface ChatMessageViewProps extends HoistProps {
     /** Name shown on assistant messages. Default 'Assistant'. */
     assistantName?: string;
 
-    /** Icon shown on assistant messages. Default a sparkles icon. */
+    /** Icon shown on assistant messages. Default from `ChatKit.defaults.assistantIcon`. */
     assistantIcon?: ReactElement;
 
     /**
@@ -393,7 +394,7 @@ function assistantContent(
     references: ChatReference[],
     markerSources: ChatSourcePart[]
 ): ReactNode[] {
-    const {message, isLast, assistantName, messageActions, onSourceClick} = props;
+    const {message, isLast, messageActions, onSourceClick} = props;
 
     return [
         messageHeader(props, context),
@@ -407,12 +408,6 @@ function assistantContent(
                         item: renderPartGroup(group, props, context, references, markerSources)
                     })
                 ),
-                isAwaitingContent(message)
-                    ? chatTypingIndicator({
-                          key: 'typing',
-                          label: `${assistantName ?? 'Assistant'} is responding`
-                      })
-                    : null,
                 statusNote(props)
             ]
         }),
@@ -438,8 +433,12 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
     return div({
         className: 'xh-chat-message__header',
         items: [
-            span({className: 'xh-chat-message__avatar', item: assistantIcon ?? Icon.ai()}),
+            span({
+                className: 'xh-chat-message__avatar',
+                item: assistantIcon ?? ChatKit.defaults.assistantIcon()
+            }),
             span({className: 'xh-chat-message__name', item: assistantName ?? 'Assistant'}),
+            chatReplyLiveStatus({message, chatModel: context.chatModel}),
             elapsed
                 ? span({className: 'xh-chat-message__meta', title: 'Time taken', item: elapsed})
                 : null,
@@ -556,13 +555,21 @@ const textPart = hoistCmp.factory<TextPartProps>({
                 [onSourceClick, context]
             ),
             // Inline at the end of the last paragraph - memoized, as each new value re-renders it.
-            trailingContent = useMemo(
-                () =>
-                    citations?.length
-                        ? chatCitations({citations, references, onSourceClick: onClick})
-                        : null,
-                [citations, references, onClick]
-            ),
+            // While the text streams, the caret leads. Keyed by the text's length, so that each
+            // arrival restarts its blink.
+            caretKey = isStreaming ? text.length : null,
+            trailingContent = useMemo(() => {
+                const caret = caretKey != null ? chatCaret(caretKey) : null,
+                    chips = citations?.length
+                        ? chatCitations({
+                              key: 'citations',
+                              citations,
+                              references,
+                              onSourceClick: onClick
+                          })
+                        : null;
+                return caret && chips ? [caret, chips] : (caret ?? chips);
+            }, [caretKey, citations, references, onClick]),
             markers = useMemo<ChatMarkdownCitations>(
                 () =>
                     markerSources
@@ -651,14 +658,6 @@ function fileRow(files: ChatFilePart[], allowImages: ChatImagePolicy): ReactNode
 
 function isSource(part: ChatPart): boolean {
     return part.type === 'source';
-}
-
-// True while the assistant is working with nothing new to show - before its first content, or
-// between a finished tool call and the model's next step.
-function isAwaitingContent(message: ChatMessage): boolean {
-    if (!message.isStreaming) return false;
-    const lastPart = last(message.parts);
-    return !lastPart || (lastPart.type === 'toolCall' && isToolCallFinal(lastPart));
 }
 
 function statusNote({message, isLast}: ViewProps): ReactNode {

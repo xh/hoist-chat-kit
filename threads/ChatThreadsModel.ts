@@ -10,7 +10,8 @@ import {
     pickBy,
     some,
     union,
-    uniq
+    uniq,
+    without
 } from 'lodash';
 import type {LoadSpec, PlainObject} from '@xh/hoist/core';
 import {HoistModel, managed, TaskObserver, XH} from '@xh/hoist/core';
@@ -18,6 +19,7 @@ import {action, bindable, computed, observable, observableRef} from '@xh/hoist/m
 import {debounced, throwIf} from '@xh/hoist/utils/js';
 import type {ChatModel, ChatThreadCreatorSpec} from '../core';
 import {genChatId} from '../impl/ids';
+import type {ChatThreadListHost} from './ChatThreadListHost';
 import type {
     ChatMessagePage,
     ChatThreadPage,
@@ -106,7 +108,7 @@ export interface ChatSeedSpec {
  * {@link ChatModel.threadId}. The model then re-keys the thread, its summary, the selection and
  * the route.
  */
-export class ChatThreadsModel extends HoistModel {
+export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     declare config: ChatThreadsConfig;
 
     //-----------------------
@@ -194,6 +196,12 @@ export class ChatThreadsModel extends HoistModel {
             .filter(it => it.chatModel.isAwaitingUser)
             .map(it => it.chatModel.threadId);
     }
+
+    /**
+     * Ids of the threads whose turn finished in the background, since the user last selected
+     * them. Held for the session only. A thread list shows each as having a new reply.
+     */
+    @observableRef accessor finishedAwayThreadIds: string[] = [];
 
     /** True if the store has more threads to list - see {@link loadMoreThreadsAsync}. */
     @computed
@@ -567,6 +575,7 @@ export class ChatThreadsModel extends HoistModel {
         const {chatModel} = thread;
         this.noteActivity(chatModel);
         if (!chatModel.isBusy) {
+            this.noteFinishedAway(chatModel.threadId);
             // The backend may have set a title, or the thread's place in the list may change.
             this.refreshThreadsSoon();
             this.closeIdleThreads();
@@ -579,9 +588,17 @@ export class ChatThreadsModel extends HoistModel {
         if (!this.isDestroyed) this.refreshAsync();
     }
 
+    /** Mark a thread whose turn ended while another thread was selected. */
+    @action
+    private noteFinishedAway(threadId: string) {
+        if (threadId === this.selectedThreadId) return;
+        this.finishedAwayThreadIds = union(this.finishedAwayThreadIds, [threadId]);
+    }
+
     @action
     private setSelectedThreadId(threadId: string) {
         this.selectedThreadId = threadId;
+        this.finishedAwayThreadIds = without(this.finishedAwayThreadIds, threadId);
         this.loadTask.clear();
         this.olderMessagesTask.clear();
         this.closeIdleThreads();
@@ -624,6 +641,7 @@ export class ChatThreadsModel extends HoistModel {
             this.drafts.delete(id);
         });
         this.openThreads = omit(this.openThreads, threadIds);
+        this.finishedAwayThreadIds = difference(this.finishedAwayThreadIds, threadIds);
     }
 
     /** Keep the draft of a closed chat, if the user changed its text or run options. */
@@ -849,6 +867,9 @@ export class ChatThreadsModel extends HoistModel {
             if (it.threadId === prevThreadId) it.threadId = threadId;
         });
         this.pendingChanges = [...this.pendingChanges];
+        this.finishedAwayThreadIds = this.finishedAwayThreadIds.map(it =>
+            it === prevThreadId ? threadId : it
+        );
     }
 
     //------------------------

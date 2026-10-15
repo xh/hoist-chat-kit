@@ -65,6 +65,15 @@ export interface ChatThreadSummary {
     /** True if the backend reports a run in progress in the thread. */
     isRunning?: boolean;
 
+    /**
+     * How the thread's last run ended, if the backend reports it. A thread list marks a run the
+     * server cut short as `interrupted`, and one that ended in an error as `failed`.
+     */
+    lastRunEnd?: 'complete' | 'interrupted' | 'failed';
+
+    /** Why the last run ended as it did, for a thread list to show in a tooltip. */
+    lastRunReason?: string;
+
     /** App data about the thread. */
     metadata?: PlainObject;
 }

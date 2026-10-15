@@ -40,7 +40,6 @@
 }
 
 .xh-chat-ui-skeleton {
-  animation: xh-chat-ui-pulse 1.4s ease-in-out infinite;
   background-color: var(--xh-chat-skeleton-bg);
   border-radius: var(--xh-chat-border-radius);
   width: 100%;
@@ -48,15 +47,4 @@
 
 .xh-chat-ui-frame .xh-chat-ui-skeleton {
   border-radius: 0;
-}
-
-@keyframes xh-chat-ui-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.45;
-  }
 }

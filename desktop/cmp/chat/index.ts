@@ -1,6 +1,7 @@
 export * from './ChatClearButton';
 export * from './ChatCodeBlock';
 export * from './ChatComposer';
+export * from './ChatElapsed';
 export * from './ChatEmptyState';
 export * from './ChatFileChip';
 export * from './ChatMessageList';
@@ -8,5 +9,7 @@ export * from './ChatMessageView';
 export * from './ChatPanel';
 export * from './ChatReasoning';
 export * from './ChatSources';
+export {chatSpinner} from './impl/ChatLiveCues';
+export * from './ChatStatusCue';
 export * from './ChatSuggestions';
 export * from './ChatToolCall';

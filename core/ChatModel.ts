@@ -41,6 +41,7 @@ import type {
 import {ChatAbortError, type ChatAbortReason} from './ChatAbortError';
 import type {ChatComposerHost} from './ChatComposerHost';
 import {ChatComposerModel, type ChatComposerConfig} from './ChatComposerModel';
+import {ChatKit} from './ChatKit';
 import type {ChatContextProvider} from './ChatContextProvider';
 import type {
     ChatFeedback,
@@ -147,6 +148,12 @@ export interface ChatModelConfig {
 
     /** Feedback on assistant messages - see {@link ChatModel.submitFeedbackAsync}. */
     feedback?: ChatFeedbackConfig;
+
+    /**
+     * Milliseconds without data from the server, heartbeats included, after which a reply shows
+     * as stalled - see {@link ChatModel.lastActivityAt}. Default `ChatKit.defaults.stallAfterMs`.
+     */
+    stallAfterMs?: number;
 
     /**
      * True, or options, to record each finished turn with Hoist activity tracking. Each turn
@@ -331,6 +338,9 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
     /** Feedback config, with its defaults applied. */
     readonly feedback: ChatFeedbackConfig;
 
+    /** Milliseconds without data from the server after which a reply shows as stalled. */
+    readonly stallAfterMs: number;
+
     /** Renderers for data parts, keyed by `dataType`. */
     readonly dataRenderers: Record<string, ChatDataRenderer>;
 
@@ -371,6 +381,17 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
 
     /** State of the conversation. (observable) */
     @observable accessor status: ChatStatus = 'ready';
+
+    /**
+     * Epoch millis of the last data from the server for the step in flight - an event, or any
+     * record the transport read, heartbeats included - or null while no step is in flight. Set
+     * when a step's request goes out, then updated to the nearest second as data arrives, so
+     * that it changes at most once a second. Read it with `getChatReplyStatus()` to show a reply
+     * as stalled after {@link stallAfterMs}. (observable)
+     */
+    get lastActivityAt(): number {
+        return this._lastActivityAt;
+    }
 
     /**
      * Error from the last turn, or null. A {@link ChatRunError} for an error the run reported, else
@@ -467,6 +488,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
             runOptions = null,
             textTransform = null,
             feedback,
+            stallAfterMs,
             track = false,
             composer,
             dataRenderers = {},
@@ -507,6 +529,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
         this.maxSteps = maxSteps;
         this.historyMode = historyMode;
         this.feedback = {commentOn: 'negative', requireComment: false, ...feedback};
+        this.stallAfterMs = stallAfterMs ?? ChatKit.defaults.stallAfterMs;
         this._threadId = threadId ?? genChatId();
         // An id given with history is the backend's. A new thread's may yet be replaced by it.
         this.isThreadIdProvisional = threadId == null || !hasHistory(initialMessages);
@@ -946,6 +969,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
     private readonly trackOptions: ChatTrackOptions;
 
     @observable private accessor _threadId: string;
+    @observable private accessor _lastActivityAt: number = null;
     @observableRef private accessor feedbackSubmitter: ChatFeedbackSubmitter = null;
     @observableRef private accessor sendBlockers: Array<() => string>;
     private threadCreator: ChatThreadCreator = null;
@@ -1113,7 +1137,10 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
                 catalogVersion: this.catalog?.version ?? null,
                 tools: this.modelTools,
                 context: [],
-                signal: turn.abortController.signal
+                signal: turn.abortController.signal,
+                onActivity: () => {
+                    if (this.isCurrent(turn) && turn.request === request) this.noteActivity();
+                }
             };
         if (!isEmpty(this.contextProviders)) {
             request.context = await this.getContextAsync(request);
@@ -1123,17 +1150,20 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
         turn.reducer = new ChatStreamReducer(step, {textTransform: this.textTransform});
         turn.request = request;
         turn.isStepSent = true;
+        this.setLastActivityAt(Date.now());
 
         try {
             // Batch events, so a fast stream re-renders at most once per STREAM_FLUSH_MS.
             for await (const event of this.transport.run(request)) {
                 if (!this.isCurrent(turn)) return;
+                this.noteActivity();
                 turn.pendingEvents.push(event);
                 if (event.type === 'RUN_ERROR') break;
                 turn.flushTimer ??= setTimeout(() => this.flush(turn), STREAM_FLUSH_MS);
             }
         } finally {
             turn.request = null;
+            if (this.isCurrent(turn)) this.setLastActivityAt(null);
         }
 
         if (!this.isCurrent(turn)) return;
@@ -1422,6 +1452,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
     ): ChatMessage {
         clearTimeout(turn.flushTimer);
         this.turn = null;
+        this._lastActivityAt = null;
         this.status = status === 'error' ? 'error' : 'ready';
         this.lastError = error;
 
@@ -1491,6 +1522,19 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
             this.logDebug('Adopted the server thread id', threadId);
             this._threadId = threadId;
         }
+    }
+
+    /** Note data from the server for the step in flight, to the nearest second. */
+    private noteActivity() {
+        const now = Date.now();
+        if (now - (this._lastActivityAt ?? 0) >= ACTIVITY_RESOLUTION_MS) {
+            this.setLastActivityAt(now);
+        }
+    }
+
+    @action
+    private setLastActivityAt(time: number) {
+        this._lastActivityAt = time;
     }
 
     /** Record artifacts that a client tool produced on the turn's reply, and in the registry. */
@@ -1608,6 +1652,9 @@ export class ChatModel extends HoistModel implements ChatComposerHost {
 //------------------
 /** Longest wait before streamed events are applied to the message. */
 const STREAM_FLUSH_MS = 32;
+
+/** Resolution of `lastActivityAt`, which changes at most this often. */
+const ACTIVITY_RESOLUTION_MS = 1000;
 
 /** Activity tracking message for a finished turn, by how it ended. */
 const TURN_TRACK_MESSAGES = {

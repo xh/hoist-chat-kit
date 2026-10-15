@@ -388,6 +388,31 @@ describe('ChatThreadsModel', () => {
             expect(model.runningThreadIds).toEqual([]);
         });
 
+        it('marks a thread whose turn finished in the background until it is selected', async () => {
+            const turns = new TurnGates(),
+                {model} = setup({respond: turns.respond}),
+                chatModel = model.newThread(),
+                {threadId} = chatModel,
+                done = chatModel.sendAsync('Long question');
+
+            await model.selectThreadAsync('t1');
+            turns.open(threadId);
+            await done;
+            expect(model.finishedAwayThreadIds).toEqual([threadId]);
+
+            await model.selectThreadAsync(threadId);
+            expect(model.finishedAwayThreadIds).toEqual([]);
+        });
+
+        it('does not mark a thread whose turn finished while it was selected', async () => {
+            const {model} = setup(),
+                chatModel = model.newThread();
+
+            await chatModel.sendAsync('Hello');
+
+            expect(model.finishedAwayThreadIds).toEqual([]);
+        });
+
         it('keeps a chat whose turn waits for the user, and lists it as awaiting', async () => {
             const {model} = setup({
                     respond: () => toolCallEvents('delete_rows', {count: 3}),

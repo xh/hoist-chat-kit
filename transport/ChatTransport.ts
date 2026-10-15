@@ -128,6 +128,15 @@ export interface ChatRunRequest {
      * Aborts the step. Its `reason` is a `ChatAbortError`, which says why the turn stopped.
      */
     signal: AbortSignal;
+
+    /**
+     * Called by the transport each time it reads data from the server, whether or not the data
+     * decodes to an event - including heartbeats, such as an SSE comment. The chat counts the time
+     * since the last call to show a quiet reply as stalled - see `ChatModel.lastActivityAt`. The
+     * kit's HTTP transports call it for each record. A transport that does not call it still
+     * reports activity through the events it yields. Optional.
+     */
+    onActivity?: () => void;
 }
 
 /**

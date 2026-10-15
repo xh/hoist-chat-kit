@@ -13,6 +13,28 @@ export function formatElapsed(ms: number): string {
 }
 
 /**
+ * A running duration as a ticking label, in whole seconds - `1s`, `59s`, `1m 02s`, `12m 00s`.
+ * Null under 1 s, as elapsed time appears only once a second has passed.
+ * @internal
+ */
+export function formatTickingElapsed(ms: number): string {
+    if (ms == null || ms < 1000) return null;
+    const secs = Math.floor(ms / 1000);
+    if (secs < 60) return `${secs}s`;
+    return `${Math.floor(secs / 60)}m ${String(secs % 60).padStart(2, '0')}s`;
+}
+
+/**
+ * How long a reply has had no data, for its stalled label - whole seconds up to 59, then whole
+ * minutes: `30s`, `59s`, `1m`, `2m`.
+ * @internal
+ */
+export function formatStallDuration(ms: number): string {
+    const secs = Math.max(0, Math.floor((ms ?? 0) / 1000));
+    return secs < 60 ? `${secs}s` : `${Math.floor(secs / 60)}m`;
+}
+
+/**
  * A file size as a short label - `512 B`, `12 KB`, `3.4 MB`.
  * @internal
  */
