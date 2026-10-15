@@ -1,4 +1,5 @@
-import type {PlainObject} from '@xh/hoist/core';
+import type {ChatArtifactRegistry} from '../genui/ChatArtifactRegistry';
+import type {ChatChartView, ChatDataView} from '../genui/ChatDataView';
 import type {ChatSourcePart} from './ChatPart';
 
 /**
@@ -25,31 +26,46 @@ export interface ChatDocumentRequest {
 }
 
 /**
- * A request to show a result table in the side panel.
- * TODO(D69): rendered by the generative UI package.
+ * A request to show a result table in the side panel: the full Hoist grid of a result card, which
+ * pages through the artifact's rows. The kit renders it - see `ChatUiTableView`.
  */
 export interface ChatTableRequest {
     type: 'table';
 
-    /** Id of the result set, in the chat's artifact registry. */
+    /** Id of the result set, in `registry`. */
     artifactId: string;
 
-    /** How to show it, such as its columns and sort. */
-    view?: PlainObject;
+    /** How to show it: the columns, sort, filter and units of the card. Default all, unsorted. */
+    view?: ChatDataView;
+
+    /**
+     * The registry that holds the artifact and loads its rows - the chat's own, or one that a card
+     * made for the rows the model wrote inline. Without one, the panel cannot render the request.
+     */
+    registry?: ChatArtifactRegistry;
+
+    /** Title for the panel - the card's title. */
+    title?: string;
 }
 
 /**
- * A request to show a chart in the side panel.
- * TODO(D69): rendered by the generative UI package.
+ * A request to show a chart in the side panel, with type and axis switchers. The kit renders it -
+ * see `ChatUiChartView`.
  */
 export interface ChatChartRequest {
     type: 'chart';
 
-    /** Id of the result set, in the chat's artifact registry. */
+    /** Id of the result set, in `registry`. */
     artifactId: string;
 
-    /** How to show it, such as its series and axes. */
-    view?: PlainObject;
+    /** How to chart it: the type, the x column and the y columns. */
+    view: ChatChartView;
+
+    /** The registry that holds the artifact - see {@link ChatTableRequest.registry}. */
+    registry?: ChatArtifactRegistry;
+
+    /** Title for the panel - the card's title. */
+    title?: string;
 }
 
 /** What the side panel can show - see {@link ChatSidePanelHost}. */
@@ -74,7 +90,10 @@ export interface ChatSidePanelHost {
     /** True if the panel has room to show beside the chat now. (observable) */
     readonly hasRoom: boolean;
 
-    /** True if the panel can render the request, given room - for a document, a viewer. */
+    /**
+     * True if the panel can render the request, given room - for a document, a viewer, and for a
+     * table or chart, a registry.
+     */
     canRender(request: ChatSidePanelRequest): boolean;
 
     /** True if the panel can show the request now: it can render the request, and has room. */

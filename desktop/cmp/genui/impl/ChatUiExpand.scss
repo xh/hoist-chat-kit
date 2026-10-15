@@ -1,0 +1,14 @@
+// The dialog that shows a card's full tier where the chat has no side panel.
+.xh-chat-ui-expand-dialog.bp6-dialog {
+  display: flex;
+  flex-direction: column;
+  height: min(80vh, 760px);
+  max-width: calc(100vw - 40px);
+  padding-bottom: 0;
+  width: min(90vw, 1100px);
+
+  > .xh-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}

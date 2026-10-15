@@ -1,56 +1,53 @@
+// KPI tiles (P4): outline only, at least 150 px, auto-fit. Color belongs to the delta, never to a
+// tile's background.
 .xh-chat-ui-metrics {
   display: grid;
-  gap: var(--xh-pad-px);
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(var(--xh-chat-tile-min-width, 150px), 1fr));
   line-height: normal;
 
   &__tile {
-    --xh-chat-ui-metrics-accent: var(--xh-chat-part-border-color);
-
     background-color: var(--xh-chat-bg);
     border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
     border-radius: var(--xh-chat-border-radius);
-    border-top: 3px solid var(--xh-chat-ui-metrics-accent);
     display: flex;
     flex-direction: column;
-    gap: calc(var(--xh-pad) * 0.4px);
+    gap: 2px;
     min-width: 0;
-    padding: var(--xh-pad-px) calc(var(--xh-pad) * 1.2px);
+    padding: 7px 10px 8px;
 
     &--primary {
-      --xh-chat-ui-metrics-accent: var(--xh-intent-primary);
+      border-color: var(--xh-card-primary-color, var(--xh-intent-primary));
     }
 
     &--success {
-      --xh-chat-ui-metrics-accent: var(--xh-intent-success);
+      border-color: var(--xh-card-success-color, var(--xh-intent-success));
     }
 
     &--warning {
-      --xh-chat-ui-metrics-accent: var(--xh-intent-warning);
+      border-color: var(--xh-card-warning-color, var(--xh-intent-warning));
     }
 
     &--danger {
-      --xh-chat-ui-metrics-accent: var(--xh-intent-danger);
+      border-color: var(--xh-card-danger-color, var(--xh-intent-danger));
     }
   }
 
   &__label {
     color: var(--xh-chat-meta-text-color);
     font-size: var(--xh-chat-meta-font-size);
-    font-weight: 500;
-    letter-spacing: 0.03em;
     overflow: hidden;
     text-overflow: ellipsis;
-    text-transform: uppercase;
     white-space: nowrap;
   }
 
-  // A number is never cut short - large values arrive compacted, as `$48.5B`. Text wraps.
+  // Never bigger than a Panel title. A number is never cut short - large values arrive
+  // compacted, as `$48.5B`. Text wraps.
   &__value {
-    font-size: calc(var(--xh-font-size) * 1.75px);
+    font-size: var(--xh-chat-tile-value-font-size, var(--xh-font-size-large-px));
     font-variant-numeric: tabular-nums;
     font-weight: 600;
-    line-height: 1.15;
+    line-height: 1.25;
     white-space: nowrap;
 
     &--text {
@@ -65,7 +62,27 @@
     flex-wrap: wrap;
     font-size: var(--xh-chat-meta-font-size);
     font-variant-numeric: tabular-nums;
-    gap: calc(var(--xh-pad) * 0.4px);
+    gap: 4px;
+  }
+
+  &__change {
+    align-items: center;
+    display: inline-flex;
+    font-weight: 600;
+    gap: 3px;
+    white-space: nowrap;
+
+    &--pos {
+      color: var(--xh-pos-val-color);
+    }
+
+    &--neg {
+      color: var(--xh-neg-val-color);
+    }
+
+    &--flat {
+      color: var(--xh-neutral-val-color, var(--xh-chat-meta-text-color));
+    }
   }
 
   &__delta-label {

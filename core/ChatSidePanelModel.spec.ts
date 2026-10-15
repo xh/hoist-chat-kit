@@ -1,4 +1,5 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
+import {ChatArtifactRegistry} from '../genui/ChatArtifactRegistry';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import type {ChatDocumentRequest} from './ChatSidePanelHost';
 import {isChatSidePanelHost} from './ChatSidePanelHost';
@@ -67,10 +68,16 @@ describe('ChatSidePanelModel', () => {
         expect(withViewer.canRender(doc('d1'))).toBe(true);
     });
 
-    it('cannot yet render tables or charts', () => {
-        const model = panel();
+    it('renders a table or chart only with the registry that holds its artifact', () => {
+        const model = panel(),
+            registry = new ChatArtifactRegistry(),
+            view = {type: 'line' as const, x: 'date', y: ['nav']};
+        onTestFinished(() => registry.destroy());
+
         expect(model.canOpen({type: 'table', artifactId: 'r1'})).toBe(false);
-        expect(model.canOpen({type: 'chart', artifactId: 'r1'})).toBe(false);
+        expect(model.canOpen({type: 'chart', artifactId: 'r1', view})).toBe(false);
+        expect(model.canOpen({type: 'table', artifactId: 'r1', registry})).toBe(true);
+        expect(model.canOpen({type: 'chart', artifactId: 'r1', view, registry})).toBe(true);
     });
 
     it('is found in model context as a side panel host', () => {

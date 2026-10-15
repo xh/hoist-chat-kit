@@ -752,8 +752,9 @@ writes one with `noAnswerEvents()`.
 
 `ChatSidePanelModel` holds the one request that the side panel shows beside the chat: a document,
 a table or a chart. Opening a request replaces the last. Back and close return focus to the
-element that opened it, such as a citation marker. The kit has no document viewer. The app
-supplies one as `documentRenderer`, and the kit draws the panel's frame and status around it.
+element that opened it, such as a citation marker. The kit renders tables and charts itself, as
+the full tier of a generative UI card. The kit has no document viewer. The app supplies one as
+`documentRenderer`, and the kit draws the panel's frame and status around it.
 
 ```typescript
 const sidePanel = new ChatSidePanelModel({
@@ -1231,7 +1232,10 @@ What a component needs to open content in the side panel. `ChatSidePanelModel` i
 | `open(request, opener?)` | `void` | Show a request in place of the last. Back and close focus `opener`. |
 | `close()` | `void` | Close the panel. |
 
-A document request is `{type: 'document', source, page?, passage?, citation?, messageId?}`.
+A document request is `{type: 'document', source, page?, passage?, citation?, messageId?}`. A
+table request is `{type: 'table', artifactId, view?, registry?, title?}`, and a chart request is
+`{type: 'chart', artifactId, view, registry?, title?}`. The `registry` holds the artifact. Without
+it, the panel cannot render a table or a chart.
 `ChatSidePanelModel` adds `documentRenderer`, `documentStatus`, `setDocumentStatus()`, `back()` and
 `canGoBack`.
 

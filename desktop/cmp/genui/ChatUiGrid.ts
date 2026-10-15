@@ -1,28 +1,36 @@
-import {AgGrid} from '@xh/hoist/cmp/ag-grid';
-import {grid, GridModel} from '@xh/hoist/cmp/grid';
+import {isPlainObject, isString, pick} from 'lodash';
+import type {ReactNode} from 'react';
+import {errorMessage} from '@xh/hoist/cmp/error';
+import {div, span} from '@xh/hoist/cmp/layout';
+import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses, XH} from '@xh/hoist/core';
+import {button} from '@xh/hoist/desktop/cmp/button';
+import {Icon} from '@xh/hoist/icon';
+import {action, computed, observable} from '@xh/hoist/mobx';
+import {useOnResize} from '@xh/hoist/utils/react';
 import {
-    hoistCmp,
-    HoistModel,
-    type HoistProps,
-    managed,
-    type PlainObject,
-    useLocalModel,
-    uses,
-    XH
-} from '@xh/hoist/core';
-import {action, computed, observableRef} from '@xh/hoist/mobx';
-import {pluralize} from '@xh/hoist/utils/js';
-import type {ChatUiComponentSpec} from '../../../genui';
+    CHAT_DATA_VIEW_PROPERTIES,
+    ChatArtifactRegistry,
+    type ChatDataFrame,
+    type ChatDataHandle,
+    type ChatDataView,
+    type ChatUiComponentSpec
+} from '../../../genui';
+import {classNames} from '../../../impl/ClassNames';
 import {CHAT_UI_DECIMALS_SCHEMA, CHAT_UI_NUMBER_FORMAT_SCHEMA} from './ChatUiFormat';
-import {chatUiFrame, chatUiSkeleton} from './ChatUiFrame';
+import {chatUiExpandButton, chatUiFrame} from './ChatUiFrame';
+import {CHAT_UI_GRID_DEFAULTS} from './impl/ChatUiDefaults';
+import {ChatUiExpandModel, expandDialog} from './impl/ChatUiExpand';
+import {toInlineFrame, toInlineView, validateGridProps} from './impl/ChatUiGridData';
+import {previewSkeleton, previewTable} from './impl/ChatUiPreviewTable';
 import {
-    toColumnSpecs,
-    toFieldSpecs,
-    toGridData,
-    toGridSorter,
-    validateGridProps
-} from './impl/ChatUiGridData';
-import type {ChatUiSpecOptions, ChatUiNumberFormat} from './Types';
+    type ChatUiTablePreview,
+    describePreview,
+    fmtCount,
+    fmtRows,
+    toTablePreview
+} from './impl/ChatUiTableData';
+import {exportResultAsync} from './impl/ChatUiTableExport';
+import type {ChatUiGridDefaults, ChatUiNumberFormat, ChatUiSpecOptions} from './Types';
 import './ChatUiGrid.scss';
 
 /** Type of the values in a {@link ChatUiGridColumn}. */
@@ -61,24 +69,44 @@ export interface ChatUiGridSpecProps {
     rows: PlainObject[];
 }
 
+/**
+ * Props of a {@link ChatUiGrid} by reference, as written by the model: the id of an artifact that
+ * a tool produced, and a view over it. The model never writes the rows.
+ */
+export interface ChatUiGridRefSpecProps extends ChatDataView {
+    /** Title shown above the table. */
+    title?: string;
+
+    /** Id of the artifact to show. */
+    data: string;
+}
+
 /** Options for {@link chatUiGridSpec}. */
 export interface ChatUiGridSpecOptions extends ChatUiSpecOptions {
-    /** Most rows the model may send. Default 100. */
+    /** Most rows the model may write inline. Default 100. */
     maxRows?: number;
 
-    /** Most columns the model may declare. Default 12. */
+    /** Most columns the model may declare inline. Default 12. */
     maxColumns?: number;
 
     /**
-     * Tallest the grid grows, in pixels, before it scrolls. A grid with fewer rows is just tall
-     * enough to show them all. Default 360.
+     * True for a table by reference: the model names an artifact a tool produced, with a view
+     * over it - its columns, sort, filter and units - and the chat loads the rows from the chat's
+     * artifact registry. The props are then {@link ChatUiGridRefSpecProps}. Default false - the
+     * model writes the columns and rows.
      */
-    maxHeight?: number;
+    byReference?: boolean;
 }
 
 /**
- * A grid component for a {@link ChatUiCatalog}: the model declares typed columns and sends rows,
- * and the chat shows them in a Hoist grid. Rows fill in as the model writes them.
+ * A result table for a {@link ChatUiCatalog}, in two tiers (D69). Inline, it shows a light
+ * preview: a plain table of the first rows and columns, with a footer that says what it leaves
+ * out. Expand, or View Full Table, opens one Hoist grid over the whole result in the chat's side
+ * panel - or in a dialog where the chat has none. A result that fits the preview has no full tier.
+ *
+ * By default the model declares typed columns and writes the rows, which fill in as it streams.
+ * With `byReference`, the model names an artifact instead, and the full grid pages through it from
+ * the chat's `ChatDataSource`.
  *
  * ```ts
  * const catalog = new ChatUiCatalog({
@@ -89,15 +117,92 @@ export interface ChatUiGridSpecOptions extends ChatUiSpecOptions {
  * The model's tool is `show_grid`, unless renamed with `name`.
  */
 export function chatUiGridSpec(
-    opts: ChatUiGridSpecOptions = {}
-): ChatUiComponentSpec<ChatUiGridSpecProps> {
-    const {
-        name = 'grid',
-        description = DESCRIPTION,
-        maxRows = 100,
-        maxColumns = 12,
-        maxHeight = DEFAULT_MAX_HEIGHT
-    } = opts;
+    opts?: ChatUiGridSpecOptions & {byReference?: false}
+): ChatUiComponentSpec<ChatUiGridSpecProps>;
+export function chatUiGridSpec(
+    opts: ChatUiGridSpecOptions & {byReference: true}
+): ChatUiComponentSpec<ChatUiGridRefSpecProps>;
+export function chatUiGridSpec(opts: ChatUiGridSpecOptions = {}): ChatUiComponentSpec<any> {
+    return opts.byReference ? createRefSpec(opts) : createInlineSpec(opts);
+}
+
+/** Props for {@link ChatUiGrid}. */
+export interface ChatUiGridProps extends HoistProps, Partial<ChatUiGridSpecProps> {
+    /** True while the props stream - the preview shows the rows that are complete so far. */
+    isPartial?: boolean;
+
+    /**
+     * The data of a table by reference, from the catalog's `context.data`. Takes the place of
+     * `columns` and `rows`.
+     */
+    dataHandle?: ChatDataHandle;
+
+    /** The registry that holds the artifact of `dataHandle`, for the full grid. */
+    registry?: ChatArtifactRegistry;
+
+    /** The view over the artifact of `dataHandle`: its columns, sort, filter and units. */
+    view?: ChatDataView;
+}
+
+/**
+ * The result table that {@link chatUiGridSpec} renders: a card with the preview of the result,
+ * and its full Hoist grid on Expand. Takes rows inline, as `columns` and `rows`, or an artifact by
+ * reference, as `dataHandle`, `registry` and `view`.
+ *
+ * The preview shows at most `ChatUiGrid.defaults.previewRows` rows and `previewColumns` columns,
+ * fewer where they do not fit, and formats each cell as the full grid does. Its download exports
+ * every row of the result, not just the preview.
+ */
+export const [ChatUiGrid, chatUiGrid] = hoistCmp.withFactory<ChatUiGridProps, ChatUiGridDefaults>({
+    displayName: 'ChatUiGrid',
+    // Takes any model in context, as `useLocalModel()` needs a component with a model spec.
+    model: uses('*', {optional: true}),
+    className: 'xh-chat-ui-grid',
+    defaults: CHAT_UI_GRID_DEFAULTS,
+
+    render({className, title}) {
+        const impl = useLocalModel(ChatUiGridLocalModel),
+            resizeRef = useOnResize(rect => impl.setWidth(rect.width), {debounce: 50}),
+            ref = (node: HTMLElement) => {
+                resizeRef(node);
+                impl.setNode(node);
+            };
+
+        return div({
+            ref,
+            className: classNames(className, {'xh-chat-ui-grid--compact': impl.isCompact}),
+            items: [cardFrame(impl, title), expandDialog(impl)]
+        });
+    }
+});
+
+//------------------
+// Implementation
+//------------------
+// TODO(design-open B1): the inline tier is the preview table, and the Grid opens only in the side
+// panel or a dialog - P4's default, open with Anselm.
+
+const DESCRIPTION =
+    'A data table - records with typed columns. Use it for lists of records, such as ' +
+    'positions, trades or orders, and for any table of more than a few rows. The chat shows the ' +
+    'first rows inline, and the user can open the whole table. Declare each column with its type ' +
+    'and number format, then send the rows as objects keyed by column field.';
+
+const REF_DESCRIPTION =
+    'A data table of a result set that a tool produced - an artifact. Name the artifact by its ' +
+    'id in `data`, and never copy its rows. Choose and order the columns, sort, filter and scale ' +
+    'numbers with the view props. The chat shows the first rows inline, and the user can open ' +
+    'the whole result.';
+
+// Width each preview column needs, and the width below which the card is compact.
+const COLUMN_WIDTH = 110,
+    COMPACT_WIDTH = 420,
+    COMPACT_COLUMNS = 3;
+
+const VIEW_PROPS = ['columns', 'sortBy', 'filter', 'top', 'units'];
+
+function createInlineSpec(opts: ChatUiGridSpecOptions): ChatUiComponentSpec<ChatUiGridSpecProps> {
+    const {name = 'grid', description = DESCRIPTION, maxRows = 100, maxColumns = 12} = opts;
 
     return {
         name,
@@ -159,7 +264,7 @@ export function chatUiGridSpec(
             }
         },
         validate: validateGridProps,
-        render: (props, {isPartial}) => chatUiGrid({...props, isPartial, maxHeight}),
+        render: (props, {isPartial}) => chatUiGrid({...props, isPartial}),
         example: {
             title: 'Top positions',
             columns: [
@@ -176,156 +281,326 @@ export function chatUiGridSpec(
     };
 }
 
-/** Props for {@link ChatUiGrid}. */
-export interface ChatUiGridProps extends HoistProps, Partial<ChatUiGridSpecProps> {
-    /** True while the props stream - the grid shows the rows that are complete so far. */
-    isPartial?: boolean;
+function createRefSpec(opts: ChatUiGridSpecOptions): ChatUiComponentSpec<ChatUiGridRefSpecProps> {
+    const {name = 'grid', description = REF_DESCRIPTION} = opts;
 
-    /** Tallest the grid grows, in pixels, before it scrolls. Default 360. */
-    maxHeight?: number;
+    return {
+        name,
+        description,
+        props: {
+            type: 'object',
+            required: ['data'],
+            additionalProperties: false,
+            properties: {
+                title: {type: 'string', maxLength: 120, description: 'Short title for the table.'},
+                data: {
+                    type: 'string',
+                    minLength: 1,
+                    maxLength: 200,
+                    description: 'Id of the artifact to show - a result set a tool produced.'
+                },
+                ...CHAT_DATA_VIEW_PROPERTIES
+            }
+        },
+        // The first page holds the rows the preview sorts and filters, and the full grid's first.
+        dataProps: [{name: 'data', pageSize: CHAT_UI_GRID_DEFAULTS.pageSize}],
+        render: (props, {isPartial, data, artifacts}) =>
+            chatUiGrid({
+                title: props.title,
+                dataHandle: data.data ?? null,
+                registry: artifacts,
+                view: pick(props, VIEW_PROPS) as ChatDataView,
+                isPartial
+            }),
+        example: {
+            title: 'Largest positions',
+            data: 'positions-1',
+            columns: ['symbol', 'desk', 'gross', 'pnl'],
+            sortBy: 'gross|desc',
+            units: 'millions'
+        }
+    };
 }
 
-/**
- * A compact Hoist grid of the columns and rows given by the model - the component that
- * {@link chatUiGridSpec} renders. Its {@link GridModel} is created when the columns are complete
- * and destroyed with the component. Rows load into the same model as they stream.
- *
- * Columns size to their content and headers as rows load, until the user resizes one. Text
- * columns stop at a maximum width and number columns keep a minimum, so that a narrow chat
- * scrolls the grid sideways rather than hide its numbers.
- */
-export const [ChatUiGrid, chatUiGrid] = hoistCmp.withFactory<ChatUiGridProps>({
-    displayName: 'ChatUiGrid',
-    // Takes any model in context, as `useLocalModel()` needs a component with a model spec.
-    model: uses('*', {optional: true}),
-    className: 'xh-chat-ui-grid',
+/** Where the card's rows are, for the preview and the full tier. */
+interface GridSource {
+    /**
+     * `building` until the columns and the first rows or reference arrive; else the state of the
+     * data - see `ChatDataHandleState`.
+     */
+    state: 'building' | ChatDataHandle['state'];
+    frame: ChatDataFrame;
+    view: ChatDataView;
+    isComplete: boolean;
+    error: unknown;
+}
 
-    render({className, title, isPartial}) {
-        const impl = useLocalModel(ChatUiGridLocalModel),
-            {gridModel, rowCount} = impl,
-            // A placeholder until the first row is complete, rather than an empty grid.
-            isReady = gridModel && (rowCount > 0 || !isPartial);
+class ChatUiGridLocalModel extends ChatUiExpandModel {
+    @observable accessor width: number = null;
+    @observable accessor isCompactHost = false;
 
-        return chatUiFrame({
-            className,
-            title,
-            meta: isReady ? pluralize('row', rowCount, true) : null,
-            item: isReady
-                ? grid({model: gridModel, height: impl.height})
-                : chatUiSkeleton(SKELETON_HEIGHT)
-        });
-    }
-});
+    private node: HTMLElement = null;
+    private inlineRegistry: ChatArtifactRegistry = null;
+    private inlineRegistryFrame: ChatDataFrame = null;
 
-//------------------
-// Implementation
-//------------------
-const DESCRIPTION =
-    'A data grid - a table of records with typed, sortable columns. Use it for lists of ' +
-    'records, such as positions, trades or orders, and for any table of more than a few rows. ' +
-    'Declare each column with its type and number format, then send the rows as objects keyed ' +
-    'by column field.';
-
-const DEFAULT_MAX_HEIGHT = 360,
-    SKELETON_HEIGHT = 120;
-
-class ChatUiGridLocalModel extends HoistModel {
-    override xhImpl = true;
-
-    /** The grid's model - null until the columns are complete. */
-    @managed @observableRef accessor gridModel: GridModel = null;
-
-    private get props(): ChatUiGridProps {
+    get props(): ChatUiGridProps {
         return this.componentProps as ChatUiGridProps;
     }
 
-    /**
-     * The columns, once complete. The model writes the rows after the columns, so the columns
-     * are complete once the rows begin.
-     */
+    get defaults(): ChatUiGridDefaults {
+        return ChatUiGrid.defaults;
+    }
+
+    /** True at compact density - in a `.xh-chat--compact` chat, or a narrow card. */
+    get isCompact(): boolean {
+        const {width} = this;
+        return this.isCompactHost || (width > 0 && width < COMPACT_WIDTH);
+    }
+
+    /** Columns the preview has room for - all it may show until measured. */
+    get maxColumns(): number {
+        const {width, isCompact} = this,
+            {previewColumns} = this.defaults,
+            fit = width > 0 ? Math.max(1, Math.floor(width / COLUMN_WIDTH)) : previewColumns,
+            ret = Math.min(previewColumns, fit);
+        return isCompact ? Math.min(ret, COMPACT_COLUMNS) : ret;
+    }
+
     @computed
-    get columns() {
-        const {columns, rows, isPartial} = this.props;
-        return isPartial && rows == null ? null : (columns ?? null);
+    get source(): GridSource {
+        const {dataHandle, view, columns, rows, sortBy, isPartial} = this.props;
+        if (dataHandle) {
+            const {state, frame, isComplete, error} = dataHandle;
+            return {state, frame, view: view ?? {}, isComplete, error};
+        }
+
+        // The model writes the rows after the columns, so the columns are complete once the
+        // rows begin.
+        const validColumns = (columns ?? []).filter(it => isPlainObject(it) && isString(it.field));
+        if (!validColumns.length || (isPartial && rows == null)) {
+            const state = isPartial ? 'building' : 'missing';
+            return {state, frame: null, view: null, isComplete: false, error: null};
+        }
+        return {
+            state: 'ready',
+            frame: toInlineFrame(validColumns, rows, !!isPartial),
+            view: toInlineView(sortBy, validColumns),
+            isComplete: true,
+            error: null
+        };
     }
 
-    /** Store data for the rows written so far. */
+    /** The preview, or the error that a view which does not fit its data threw. */
     @computed
-    get data(): PlainObject[] {
-        const {columns} = this;
-        return columns ? toGridData(this.props.rows, columns, !!this.props.isPartial) : [];
+    get preview(): {preview: ChatUiTablePreview; error: Error} {
+        const {frame, view, isComplete, state} = this.source;
+        if (state !== 'ready' || !frame) return {preview: null, error: null};
+        try {
+            const preview = toTablePreview(frame, view, {
+                isComplete,
+                maxRows: this.defaults.previewRows,
+                maxColumns: this.maxColumns
+            });
+            return {preview, error: null};
+        } catch (e) {
+            return {preview: null, error: e as Error};
+        }
     }
 
-    get rowCount(): number {
-        return this.data.length;
-    }
-
-    /** Height to show every row, up to `maxHeight`. */
-    @computed
-    get height(): number {
-        const {gridModel, rowCount} = this,
-            {maxHeight = DEFAULT_MAX_HEIGHT} = this.props;
-        if (!gridModel) return null;
-
-        // Hoist's own row and header heights for the grid's sizing mode - see AgGrid.
-        const {sizingMode} = gridModel,
-            agGrid = AgGrid as any,
-            rowHeight = agGrid.getRowHeightForSizingMode(sizingMode),
-            headerHeight = agGrid.getHeaderHeightForSizingMode(sizingMode);
-        return Math.min(headerHeight + Math.max(rowCount, 1) * rowHeight + 2, maxHeight);
-    }
-
-    override onLinked() {
-        this.addReaction(
-            {
-                track: () => this.columns,
-                run: columns => this.createGridModel(columns),
-                equals: 'structural',
-                fireImmediately: true
-            },
-            {
-                track: () => [this.gridModel, this.data] as const,
-                run: ([gridModel, data]) => gridModel?.loadData(data),
-                fireImmediately: true
-            },
-            {
-                // The model may write `sortBy` after the rows.
-                track: () => this.props.sortBy,
-                run: () => this.gridModel?.setSortBy(this.getSorter())
-            }
-        );
+    /** True while the model still writes the rows inline - the result is not yet whole. */
+    get isStreaming(): boolean {
+        return !this.props.dataHandle && !!this.props.isPartial;
     }
 
     @action
-    private createGridModel(columns: ChatUiGridProps['columns']) {
-        XH.safeDestroy(this.gridModel);
-        this.gridModel = columns
-            ? new GridModel({
-                  xhImpl: true,
-                  store: {fields: toFieldSpecs(columns)},
-                  columns: toColumnSpecs(columns),
-                  sortBy: this.getSorter(),
-                  sizingMode: 'compact',
-                  stripeRows: true,
-                  showHover: true,
-                  emptyText: 'No rows.',
-                  // Fit the columns to their content as rows load, then share out any spare width.
-                  autosizeOptions: {
-                      mode: 'managed',
-                      showMask: false,
-                      bufferPx: 10,
-                      fillMode: 'all'
-                  },
-                  enableExport: true,
-                  exportOptions: {filename: this.props.title ?? 'Chat data'},
-                  contextMenu: ['copyCell', '-', 'autosizeColumns', '-', 'export', 'exportCsv']
-              })
-            : null;
+    setWidth(width: number) {
+        this.width = width;
+        this.isCompactHost = !!this.node?.closest('.xh-chat--compact');
     }
 
-    private getSorter() {
-        const {sortBy} = this.props,
-            {columns} = this;
-        return columns ? toGridSorter(sortBy, columns) : null;
+    @action
+    setNode(node: HTMLElement) {
+        this.node = node;
+        if (node) this.isCompactHost = !!node.closest('.xh-chat--compact');
+    }
+
+    /** Open the full grid. */
+    openFullTable(opener: HTMLElement) {
+        const request = this.createRequest();
+        if (request) this.expand(request, opener);
+    }
+
+    /** Export every row of the result, as the card's view shows them. */
+    async downloadAsync() {
+        const request = this.createRequest();
+        if (!request) return;
+        const {pageSize, exportConfirmAbove} = this.defaults;
+        try {
+            await exportResultAsync({...request, pageSize, exportConfirmAbove});
+        } catch (e) {
+            XH.handleException(e, {title: 'Download failed'});
+        }
+    }
+
+    /** Load the first page again, after it failed. */
+    retry() {
+        this.props.dataHandle?.loadRangeAsync(0, this.defaults.pageSize).catch(() => null);
+    }
+
+    private createRequest() {
+        const {dataHandle, registry, title} = this.props,
+            {view, frame} = this.source;
+        if (dataHandle) {
+            return registry
+                ? {type: 'table' as const, artifactId: dataHandle.artifactId, view, registry, title}
+                : null;
+        }
+        if (!frame) return null;
+        return {
+            type: 'table' as const,
+            artifactId: INLINE_ID,
+            view,
+            registry: this.getInlineRegistry(frame),
+            title
+        };
+    }
+
+    // A registry of the rows written inline, made again only if they change.
+    private getInlineRegistry(frame: ChatDataFrame): ChatArtifactRegistry {
+        if (this.inlineRegistryFrame !== frame) {
+            this.inlineRegistryFrame = frame;
+            this.inlineRegistry = new ChatArtifactRegistry({
+                artifacts: [
+                    {
+                        id: INLINE_ID,
+                        columns: frame.columns,
+                        rows: frame.rows,
+                        totalRows: frame.rows.length
+                    }
+                ]
+            });
+        }
+        return this.inlineRegistry;
+    }
+}
+
+const INLINE_ID = 'xh-inline-grid';
+
+function cardFrame(impl: ChatUiGridLocalModel, title: string): ReactNode {
+    const {state, frame, error} = impl.source,
+        {preview, error: viewError} = impl.preview,
+        icon = Icon.grid();
+
+    if (state === 'building' && !title) {
+        return chatUiFrame({status: 'Building table…', item: reservedBody(null)});
+    }
+    if (state === 'building' || state === 'waiting' || state === 'loading') {
+        return chatUiFrame({
+            title,
+            icon,
+            item: previewSkeleton(impl.defaults.previewRows),
+            footer: span({className: 'xh-chat-ui-grid__busy', item: 'Loading rows…'})
+        });
+    }
+    if (!preview) {
+        return chatUiFrame({
+            title,
+            icon,
+            item: reservedBody(unavailable(impl, state, viewError ?? error)),
+            footer: frame
+                ? span(`${fmtRows(frame.totalRows)} · ${fmtCount(frame.columns.length)} columns`)
+                : null
+        });
+    }
+
+    const counts = describePreview(preview, impl.isCompact),
+        canExpand = preview.hasMore && !impl.isStreaming,
+        isOpen = impl.isOpenInPanel;
+
+    return chatUiFrame({
+        title,
+        icon,
+        headerItems: canExpand
+            ? [
+                  chatUiExpandButton({
+                      title,
+                      isActive: isOpen,
+                      onClick: opener => impl.openFullTable(opener)
+                  })
+              ]
+            : [],
+        item: preview.records.length
+            ? previewTable(preview, counts)
+            : div({className: 'xh-chat-ui-center xh-chat-ui-grid__empty', item: 'No rows.'}),
+        footer: [
+            span({key: 'counts', className: 'xh-chat-ui-grid__counts', item: counts}),
+            isOpen
+                ? span({
+                      key: 'open',
+                      className: 'xh-chat-ui-grid__open',
+                      items: [Icon.arrowRight(), 'Open in panel']
+                  })
+                : null,
+            div({key: 'fill', className: 'xh-chat-ui-frame__fill'}),
+            canExpand
+                ? button({
+                      key: 'full',
+                      icon: Icon.openExternal(),
+                      text: impl.isCompact ? 'Full Table' : 'View Full Table',
+                      active: isOpen,
+                      onClick: e => impl.openFullTable(e.currentTarget as HTMLElement)
+                  })
+                : null,
+            button({
+                key: 'download',
+                className: 'xh-chat-ui-frame__button',
+                icon: Icon.download(),
+                tooltip: 'Download every row',
+                'aria-label': title ? `Download ${title}` : 'Download',
+                disabled: impl.isStreaming,
+                onClick: () => impl.downloadAsync()
+            })
+        ]
+    });
+}
+
+// A body at the height the loading preview took, so that nothing below moves when it fails.
+function reservedBody(content: ReactNode): ReactNode {
+    return div({className: 'xh-chat-ui-grid__reserved', item: content});
+}
+
+// Why the preview is not available, with only the actions that can work: Retry for a load that
+// failed, nothing for data that is gone or a view that does not fit it.
+function unavailable(
+    impl: ChatUiGridLocalModel,
+    state: GridSource['state'],
+    error: unknown
+): ReactNode {
+    const canRetry = state === 'failed';
+    return div({
+        className: 'xh-chat-ui-center',
+        role: 'alert',
+        item: errorMessage({
+            error: error ?? {},
+            title: 'Preview unavailable',
+            message: getUnavailableText(state, error),
+            actionFn: canRetry ? () => impl.retry() : null,
+            actionButtonProps: canRetry ? {text: 'Retry', icon: Icon.refresh()} : null
+        })
+    });
+}
+
+function getUnavailableText(state: GridSource['state'], error: unknown): string {
+    switch (state) {
+        case 'missing':
+            return 'The data for this table is no longer available.';
+        case 'tooLarge':
+            return 'This result has too many rows to show here.';
+        case 'failed':
+            return "The table's rows could not be loaded.";
+        default:
+            return error instanceof Error && error.message.startsWith('Invalid data view')
+                ? 'This table names a column that its result does not have.'
+                : 'This table could not be shown.';
     }
 }

@@ -1,34 +1,28 @@
+@use '../../../styles/mixins' as *;
+
+// A record card (P4): the title in the header strip, labeled values below, and follow-up chips
+// after the frame, at the reply's part gap.
 .xh-chat-ui-card {
-  .xh-chat-ui-frame__body {
-    gap: var(--xh-pad-px);
-    padding: var(--xh-pad-px) calc(var(--xh-pad) * 1.4px);
-  }
-
-  &__header {
-    display: flex;
-    flex-direction: column;
-    gap: calc(var(--xh-pad) * 0.25px);
-  }
-
-  &__title {
-    font-size: calc(var(--xh-font-size) * 1.2px);
-    font-weight: 600;
-  }
-
-  &__subtitle {
-    color: var(--xh-chat-meta-text-color);
-  }
+  display: flex;
+  flex-direction: column;
+  gap: var(--xh-chat-part-gap, var(--xh-pad-px));
+  min-width: 0;
 
   &__fields {
     display: grid;
     gap: var(--xh-pad-px) calc(var(--xh-pad) * 2px);
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    padding: var(--xh-chat-card-section-pad, var(--xh-pad-px)) 12px;
+
+    &:empty {
+      display: none;
+    }
   }
 
   &__field {
     display: flex;
     flex-direction: column;
-    gap: calc(var(--xh-pad) * 0.25px);
+    gap: 2px;
     min-width: 0;
   }
 
@@ -44,10 +38,32 @@
   }
 
   &__actions {
-    border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
     display: flex;
     flex-wrap: wrap;
-    gap: var(--xh-pad-half-px);
-    padding-top: var(--xh-pad-px);
+    gap: 5px;
+    max-width: var(--xh-chat-prose-max-width, 640px);
+  }
+
+  // Follow-up chips: outlined, in link color, one line each. A long chip is cut short - its
+  // tooltip shows what it sends.
+  @include hoist-button('.xh-chat-ui-card__action') {
+    background-color: var(--xh-chat-bg);
+    border-radius: var(--xh-chat-border-radius);
+    color: var(--xh-chat-followup-text-color, var(--xh-intent-primary-text-color));
+    font-size: var(--xh-chat-code-font-size, 12px);
+    max-width: 100%;
+    min-height: var(--xh-chat-followup-height, 24px);
+    min-width: 0;
+    padding: 0 8px;
+
+    &:hover:not(:disabled) {
+      background-color: var(--xh-chat-followup-hover-bg, var(--xh-intent-primary-trans1));
+    }
+
+    .bp6-button-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
   }
 }

@@ -1,7 +1,8 @@
 import {dropRight, isFinite, isPlainObject} from 'lodash';
 import type {ReactNode} from 'react';
-import {div} from '@xh/hoist/cmp/layout';
+import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
+import {Icon} from '@xh/hoist/icon';
 import type {ChatUiComponentSpec} from '../../../genui';
 import {classNames} from '../../../impl/ClassNames';
 import {
@@ -31,7 +32,10 @@ export interface ChatUiMetric {
     /** Decimal places for a numeric value. Default suits the value and the format. */
     decimals?: number;
 
-    /** Change in the value, shown under it with an arrow, green when up and red when down. */
+    /**
+     * Change in the value, shown under it with an arrow, in Hoist's positive color when up and
+     * its negative color when down - or the reverse with `invert`.
+     */
     delta?: number;
 
     /**
@@ -43,7 +47,10 @@ export interface ChatUiMetric {
     /** What the delta compares against, such as `vs last month`. */
     deltaLabel?: string;
 
-    /** Color for the tile's accent - for example `danger` for a breached limit. Default `none`. */
+    /** True for a metric where up is bad, such as a risk measure: a rise shows in red. */
+    invert?: boolean;
+
+    /** Color for the tile's outline - for example `danger` for a breached limit. Default `none`. */
     intent?: ChatUiIntent;
 }
 
@@ -55,7 +62,7 @@ export interface ChatUiMetricsSpecProps {
 
 /** Options for {@link chatUiMetricsSpec}. */
 export interface ChatUiMetricsSpecOptions extends ChatUiSpecOptions {
-    /** Most tiles the model may send. Default 8. */
+    /** Most tiles the model may send. Default 4 - more metrics read better as a table. */
     maxItems?: number;
 }
 
@@ -68,7 +75,7 @@ export interface ChatUiMetricsSpecOptions extends ChatUiSpecOptions {
 export function chatUiMetricsSpec(
     opts: ChatUiMetricsSpecOptions = {}
 ): ChatUiComponentSpec<ChatUiMetricsSpecProps> {
-    const {name = 'metrics', description = DESCRIPTION, maxItems = 8} = opts;
+    const {name = 'metrics', description = DESCRIPTION, maxItems = 4} = opts;
 
     return {
         name,
@@ -111,11 +118,17 @@ export function chatUiMetricsSpec(
                                 maxLength: 40,
                                 description: 'What the delta compares against - e.g. "vs Q2".'
                             },
+                            invert: {
+                                type: 'boolean',
+                                description:
+                                    'True where up is bad, such as a risk measure, so a rise ' +
+                                    'shows in red.'
+                            },
                             intent: {
                                 enum: ['none', 'primary', 'success', 'warning', 'danger'],
                                 description:
-                                    'Accent color, to flag a tile - e.g. "danger" for a breach. ' +
-                                    'Default "none".'
+                                    'Outline color, to flag a tile - e.g. "danger" for a ' +
+                                    'breach. Default "none".'
                             }
                         }
                     }
@@ -143,9 +156,11 @@ export interface ChatUiMetricsProps extends HoistProps {
 }
 
 /**
- * A responsive row of KPI tiles - the component that {@link chatUiMetricsSpec} renders. Tiles wrap
- * to fit the width, and a number is never cut short: a large value shows in a compact form, such
- * as `$48.5B`, with the full value in a tooltip.
+ * A responsive row of KPI tiles - the component that {@link chatUiMetricsSpec} renders. Tiles are
+ * outlined, at least 150 px wide, and wrap to fit the width - four at 820 px, two per row at 380
+ * px. A number is never cut short: a large value shows in a compact form, such as `$48.5B`, with
+ * the full value in a tooltip. Only the delta has color, always with an arrow, so that color is
+ * never the only signal. Screen readers hear a list, each tile as its label, value and delta.
  */
 export const [ChatUiMetrics, chatUiMetrics] = hoistCmp.withFactory<ChatUiMetricsProps>({
     displayName: 'ChatUiMetrics',
@@ -159,6 +174,7 @@ export const [ChatUiMetrics, chatUiMetrics] = hoistCmp.withFactory<ChatUiMetrics
 
         return div({
             className,
+            role: 'list',
             items: tiles.map((it, idx) => metricTile(it, idx))
         });
     }
@@ -174,12 +190,40 @@ const DESCRIPTION =
 const SKELETON_HEIGHT = 76;
 
 function metricTile(metric: ChatUiMetric, idx: number): ReactNode {
-    const {label, value, format, decimals, delta, deltaLabel} = metric,
+    const {label, value, format, decimals, delta, deltaLabel, invert} = metric,
         deltaFormat = metric.deltaFormat ?? format,
-        isNumeric = isFinite(value);
+        deltaDecimals = deltaFormat === format ? decimals : null,
+        isNumeric = isFinite(value),
+        hasDelta = isFinite(delta),
+        direction = !hasDelta || delta === 0 ? 'flat' : delta > 0 ? 'up' : 'down',
+        tone = direction === 'flat' ? 'flat' : (direction === 'up') !== !!invert ? 'pos' : 'neg',
+        valueText = isNumeric
+            ? (fmtChatUiNumber(value as number, format, decimals, {
+                  compact: true,
+                  asHtml: true
+              }) as string)
+            : String(value),
+        deltaText = hasDelta
+            ? (fmtChatUiNumber(Math.abs(delta), deltaFormat, deltaDecimals, {
+                  compact: true,
+                  asHtml: true
+              }) as string)
+            : null;
 
     return div({
         key: idx,
+        role: 'listitem',
+        'aria-label': [
+            label,
+            valueText,
+            hasDelta
+                ? [direction === 'flat' ? 'unchanged' : `${direction} ${deltaText}`, deltaLabel]
+                      .filter(Boolean)
+                      .join(' ')
+                : null
+        ]
+            .filter(Boolean)
+            .join(', '),
         className: classNames(
             'xh-chat-ui-metrics__tile',
             `xh-chat-ui-metrics__tile--${metric.intent ?? 'none'}`
@@ -197,18 +241,23 @@ function metricTile(metric: ChatUiMetric, idx: number): ReactNode {
                     ? fmtChatUiNumber(value as number, format, decimals, {compact: true})
                     : value
             }),
-            isFinite(delta)
+            hasDelta
                 ? div({
                       className: 'xh-chat-ui-metrics__delta',
                       items: [
-                          fmtChatUiNumber(
-                              delta,
-                              deltaFormat,
-                              deltaFormat === format ? decimals : null,
-                              {compact: true, colorSpec: true, withSignGlyph: true}
-                          ),
+                          span({
+                              className: `xh-chat-ui-metrics__change xh-chat-ui-metrics__change--${tone}`,
+                              items: [
+                                  direction === 'up'
+                                      ? Icon.arrowUp()
+                                      : direction === 'down'
+                                        ? Icon.arrowDown()
+                                        : null,
+                                  deltaText
+                              ]
+                          }),
                           deltaLabel
-                              ? div({
+                              ? span({
                                     className: 'xh-chat-ui-metrics__delta-label',
                                     item: deltaLabel
                                 })

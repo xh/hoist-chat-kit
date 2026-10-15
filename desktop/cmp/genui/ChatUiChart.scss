@@ -1,5 +1,40 @@
+// The chart card (P4): a Hoist chart at a fixed height - 220 px, or 160 px at compact density.
+// Never sized to its data.
 .xh-chat-ui-chart {
-  .xh-chat-ui-frame__body {
+  min-width: 0;
+
+  &__body {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    height: var(--xh-chat-chart-height, 220px);
     padding: var(--xh-pad-half-px) var(--xh-pad-half-px) 0;
+
+    > .xh-chat-ui-skeleton {
+      flex: 1 1 auto;
+    }
+  }
+
+  &__plot {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+
+    > .xh-chart {
+      flex: 1 1 auto;
+    }
+  }
+
+  &__busy {
+    color: var(--xh-chat-busy-color);
+  }
+
+  &__open {
+    color: var(--xh-chat-citation-text-color, var(--xh-intent-primary-text-color));
+  }
+
+  &__empty-icon {
+    font-size: 16px;
   }
 }

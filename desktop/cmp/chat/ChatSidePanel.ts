@@ -16,6 +16,8 @@ import {
     ChatSidePanelModel
 } from '../../../core';
 import {getSourceFileName, isWebUrl, openSourceUrl} from '../../../impl/sources';
+import {chatUiChartView} from '../genui/ChatUiChartView';
+import {chatUiTableView} from '../genui/ChatUiTableView';
 import '../../../styles/vars.scss';
 import './ChatSidePanel.scss';
 import {chatCopyButton} from './impl/ChatCopyButton';
@@ -33,7 +35,12 @@ export interface ChatSidePanelProps extends HoistProps<ChatSidePanelModel> {
 
 /**
  * The frame of the side panel's open request: a Hoist `Panel` with the request's title, Close, a
- * toolbar with Back, and the content the app renders. Renders nothing with no request open.
+ * toolbar with Back, and the content. Renders nothing with no request open, or one it cannot
+ * render.
+ *
+ * A table renders as the full Hoist grid of a result card, which pages through the artifact - see
+ * `ChatUiTableView`. A chart renders as the expanded chart, with switchers for its type and axes -
+ * see `ChatUiChartView`.
  *
  * For a document, the content is the app's `documentRenderer`, and the frame shows the viewer's
  * progress, as the viewer reports it with `setDocumentStatus()`: a mask while the document opens,
@@ -51,15 +58,52 @@ export const [ChatSidePanel, chatSidePanel] = hoistCmp.withFactory<ChatSidePanel
 
     render({model, className, panelProps}, ref) {
         const {request} = model;
-        if (request?.type !== 'document' || !model.documentRenderer) return null;
+        if (!request || !model.canRender(request)) return null;
+
+        let label: string, item: ReactNode;
+        switch (request.type) {
+            case 'document':
+                label = getTitle(request) ?? 'Document';
+                item = documentFrame({model, request, panelProps});
+                break;
+            case 'table':
+                label = request.title || 'Table';
+                item = chatUiTableView({
+                    // A new request starts a new grid.
+                    key: getRequestKey(request),
+                    request,
+                    tbarItems: [backButton(model)],
+                    panelProps: {
+                        ...panelProps,
+                        title: label,
+                        icon: Icon.grid(),
+                        headerItems: [closeButton(model)]
+                    }
+                });
+                break;
+            case 'chart':
+                label = request.title || 'Chart';
+                item = chatUiChartView({
+                    key: getRequestKey(request),
+                    request,
+                    tbarItems: [backButton(model)],
+                    panelProps: {
+                        ...panelProps,
+                        title: label,
+                        icon: Icon.chartLine(),
+                        headerItems: [closeButton(model)]
+                    }
+                });
+                break;
+        }
 
         return div({
             ref,
             className,
             role: 'complementary',
-            'aria-label': getTitle(request) ?? 'Document',
+            'aria-label': label,
             onKeyDown: (e: KeyboardEvent) => onFrameKeyDown(e, model),
-            item: documentFrame({model, request, panelProps})
+            item
         });
     }
 });
@@ -136,24 +180,9 @@ const documentFrame = hoistCmp.factory<DocumentFrameProps>({
                           onClick: () => openSourceUrl(source)
                       })
                     : null,
-                button({
-                    key: 'close',
-                    icon: Icon.close(),
-                    tooltip: 'Close',
-                    'aria-label': 'Close',
-                    onClick: () => model.close()
-                })
+                closeButton(model)
             ],
-            tbar: [
-                button({
-                    key: 'back',
-                    icon: Icon.arrowLeft(),
-                    text: citation != null ? `Back to ${citation}` : 'Back',
-                    disabled: !model.canGoBack,
-                    onClick: () => model.back()
-                }),
-                ...pageItems(status)
-            ],
+            tbar: [backButton(model, citation), ...pageItems(status)],
             mask:
                 state === 'opening'
                     ? mask({
@@ -196,6 +225,34 @@ const documentFrame = hoistCmp.factory<DocumentFrameProps>({
         });
     }
 });
+
+// A key for each request opened, so that a new one mounts a new view.
+const requestKeys = new WeakMap<object, number>();
+let lastRequestKey = 0;
+function getRequestKey(request: object): number {
+    if (!requestKeys.has(request)) requestKeys.set(request, ++lastRequestKey);
+    return requestKeys.get(request);
+}
+
+function backButton(model: ChatSidePanelModel, citation: number = null): ReactNode {
+    return button({
+        key: 'back',
+        icon: Icon.arrowLeft(),
+        text: citation != null ? `Back to ${citation}` : 'Back',
+        disabled: !model.canGoBack,
+        onClick: () => model.back()
+    });
+}
+
+function closeButton(model: ChatSidePanelModel): ReactNode {
+    return button({
+        key: 'close',
+        icon: Icon.close(),
+        tooltip: 'Close',
+        'aria-label': 'Close',
+        onClick: () => model.close()
+    });
+}
 
 function getTitle({source}: ChatDocumentRequest): string {
     return source.title || getSourceFileName(source) || formatHost(source.url) || null;

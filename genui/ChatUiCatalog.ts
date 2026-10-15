@@ -1072,6 +1072,7 @@ const chatUiComponent = hoistCmp.factory<ChatUiComponentProps>({
             children,
             slots,
             data: handles,
+            artifacts: registry,
             runActionAsync: action => catalog.runActionAsync(action, context)
         };
         return spec.render(props, renderContext);

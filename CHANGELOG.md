@@ -21,6 +21,15 @@
   every number matches a marker. Numbers follow `marker` and never renumber.
 * Changed `ChatMarkdownCitations.renderMarker` to replace the marker button, and to receive the
   number that cites the source.
+* Changed `chatUiGrid` to render a light preview table inline, in place of a Hoist grid. Its full
+  grid opens in the side panel or a dialog. Removed its `maxHeight` option and prop.
+* Changed the `table` and `chart` requests of `ChatSidePanelModel` to take a `ChatDataView` or
+  `ChatChartView` as `view`, and a `registry` that holds the artifact. A chart request requires
+  its `view`.
+* Changed the default height of `chatUiChart` from 280 px to the `--xh-chat-chart-height` CSS
+  variable, 220 px or 160 px at compact density.
+* Lowered the default `maxItems` of `chatUiMetricsSpec()` from 8 to 4. More metrics read better
+  as a table.
 
 ### 🎁 New Features
 
@@ -260,6 +269,18 @@
 * Added agents and failures to the announcement of a finished reply. It leaves out plan and
   hidden calls, and timeline narration.
 
+* Added the full tier of result tables and charts. Expand opens one Hoist grid that pages
+  through the result, with find, a column chooser and export, or a chart with type and axis
+  switchers. It opens in the chat's side panel, else in a dialog.
+* Added `ChatUiTableView` and `ChatUiChartView`, the full tiers, for apps to mount in their own
+  layouts.
+* Added `byReference` to `chatUiGridSpec()` and `chatUiChartSpec()`, for a table or chart of an
+  artifact with a view over it. The model names the artifact and never copies its rows.
+* Added `ChatUiGrid.defaults` for the preview's rows and columns, the page size and the row count
+  above which an export asks first. Added `ChatUiChart.defaults` for the inline series and points.
+* Added `invert` to metric tiles, for a metric where up is bad.
+* Added `artifacts` to `ChatUiRenderContext`, and `decimals` to `ChatDataColumn`.
+
 ### 🐞 Bug Fixes
 
 * Fixed a failed reply announcing twice to screen readers. The failed row and the "Not sent"
@@ -288,6 +309,9 @@
 
 ### ✨ Styles
 
+* Restyled the generative UI cards to the design: a 28 px header strip with Expand and options,
+  a footer that says what a preview leaves out, and loading, failed and empty states that keep
+  their height. Metric tiles are outlined, and card actions are follow-up chips after the card.
 * Replaced the typing dots with a live status in the reply header, such as "Writing 6s". Added a
   caret at the end of streaming text. Inline spinners use Hoist's `Spinner` at 1em.
 * Changed the generative UI skeleton from an endless pulse to a shimmer that starts after 1 s,

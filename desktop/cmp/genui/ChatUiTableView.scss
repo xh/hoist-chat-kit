@@ -1,0 +1,21 @@
+// The full tier of a result table: a Hoist grid with find, columns and export above, and the
+// loaded count and Load Next below.
+.xh-chat-ui-table-view {
+  &__count {
+    color: var(--xh-chat-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+    font-variant-numeric: tabular-nums;
+    padding: 0 6px;
+    white-space: nowrap;
+  }
+
+  &__note {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+    min-width: 0;
+    overflow: hidden;
+    padding: 0 6px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

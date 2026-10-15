@@ -431,7 +431,7 @@
       "title": "Desktop Generative UI Components",
       "mcpCategory": "package",
       "viewerCategory": "desktop",
-      "description": "Built-in generative UI components for a ChatUiCatalog: a Hoist grid, a Hoist chart, KPI tiles and a detail card.",
+      "description": "Built-in generative UI components for a ChatUiCatalog: a result table in two tiers, a Hoist chart, KPI tiles and a detail card.",
       "keywords": [
         "chatUiGridSpec",
         "chatUiChartSpec",
@@ -455,8 +455,18 @@
         "fmtChatUiNumber",
         "CHAT_UI_NUMBER_FORMAT_SCHEMA",
         "compact",
-        "autosize",
-        "pie"
+        "pie",
+        "ChatUiTableView",
+        "ChatUiChartView",
+        "preview table",
+        "full table",
+        "two tiers",
+        "byReference",
+        "ChatUiGrid.defaults",
+        "ChatUiChart.defaults",
+        "exportConfirmAbove",
+        "side panel",
+        "Expand"
       ]
     },
     {

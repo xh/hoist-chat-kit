@@ -1,13 +1,6 @@
-import {LocalDate} from '@xh/hoist/utils/datetime';
 import {describe, expect, it} from 'vitest';
 import type {ChatUiGridColumn} from '../ChatUiGrid';
-import {
-    toColumnSpecs,
-    toFieldSpecs,
-    toGridData,
-    toGridSorter,
-    validateGridProps
-} from './ChatUiGridData';
+import {toInlineFrame, toInlineView, validateGridProps} from './ChatUiGridData';
 
 const COLUMNS: ChatUiGridColumn[] = [
     {field: 'id', headerName: 'Trade'},
@@ -16,73 +9,61 @@ const COLUMNS: ChatUiGridColumn[] = [
     {field: 'settled', type: 'boolean'}
 ];
 
-describe('toFieldSpecs', () => {
-    it('keys fields by column position, typed to suit each column', () => {
-        expect(toFieldSpecs(COLUMNS)).toEqual([
-            {name: 'col0', type: 'string', displayName: 'Trade'},
-            {name: 'col1', type: 'localDate', displayName: 'Trade Date'},
-            {name: 'col2', type: 'number', displayName: 'Pnl'},
-            {name: 'col3', type: 'bool', displayName: 'Settled'}
-        ]);
-    });
-});
-
-describe('toColumnSpecs', () => {
-    it('maps each column type to a Hoist column with a matching renderer', () => {
-        const [trade, date, pnl, settled] = toColumnSpecs(COLUMNS);
-        expect(trade).toMatchObject({field: 'col0', headerName: 'Trade'});
-        expect(date).toMatchObject({field: 'col1', align: 'right'});
-        expect(pnl).toMatchObject({field: 'col2', align: 'right'});
-        expect(settled).toMatchObject({field: 'col3', align: 'center'});
-    });
-
-    it('leaves every column free to autosize, with bounds that keep numbers readable', () => {
-        const [trade, date, pnl, settled] = toColumnSpecs(COLUMNS);
-        [trade, date, pnl, settled].forEach(it => expect(it.flex).toBeFalsy());
-        expect(trade.maxWidth).toBeGreaterThan(0);
-        expect(pnl.minWidth).toBeGreaterThan(0);
-    });
-
-    it('renders numbers in the column format', () => {
-        const pnl = toColumnSpecs(COLUMNS)[2],
-            renderer = pnl.renderer as (v: number) => unknown;
-        expect(renderer(-42000)).toBeTruthy();
-        expect(renderer(null)).toBe('');
-    });
-});
-
-describe('toGridData', () => {
+describe('toInlineFrame', () => {
     const rows = [
         {id: 'T1', trade_date: '2026-10-01', pnl: 1200, settled: true},
         {id: 'T2', trade_date: 'yesterday', pnl: '12', settled: 'yes'},
-        {id: 'T3', trade_date: '2026-10-0', pnl: 99}
+        {id: 'T3', trade_date: '2026-02-31', pnl: 99}
     ];
 
     it('converts values to their column types, with values that do not fit as null', () => {
-        expect(toGridData(rows, COLUMNS, false)).toEqual([
-            {id: 0, col0: 'T1', col1: LocalDate.get('2026-10-01'), col2: 1200, col3: true},
-            {id: 1, col0: 'T2', col1: null, col2: null, col3: null},
-            {id: 2, col0: 'T3', col1: null, col2: 99, col3: null}
+        expect(toInlineFrame(COLUMNS, rows, false).rows).toEqual([
+            {id: 'T1', trade_date: '2026-10-01', pnl: 1200, settled: true, xhChatRowId: 0},
+            {id: 'T2', trade_date: null, pnl: null, settled: null, xhChatRowId: 1},
+            {id: 'T3', trade_date: null, pnl: 99, settled: null, xhChatRowId: 2}
+        ]);
+    });
+
+    it('describes each column with its header, type and format', () => {
+        expect(toInlineFrame(COLUMNS, rows, false).columns).toEqual([
+            {name: 'id', type: 'string', label: 'Trade', format: undefined, decimals: undefined},
+            {
+                name: 'trade_date',
+                type: 'date',
+                label: 'Trade Date',
+                format: undefined,
+                decimals: undefined
+            },
+            {name: 'pnl', type: 'number', label: 'Pnl', format: 'currency', decimals: 0},
+            {
+                name: 'settled',
+                type: 'boolean',
+                label: 'Settled',
+                format: undefined,
+                decimals: undefined
+            }
         ]);
     });
 
     it('leaves out the last row while the rows stream, as it may be cut short', () => {
-        expect(toGridData(rows, COLUMNS, true).map(it => it.col0)).toEqual(['T1', 'T2']);
+        const frame = toInlineFrame(COLUMNS, rows, true);
+        expect(frame.rows.map(it => it.id)).toEqual(['T1', 'T2']);
+        expect(frame.totalRows).toBe(2);
     });
 
     it('returns no rows for missing rows', () => {
-        expect(toGridData(undefined, COLUMNS, true)).toEqual([]);
+        expect(toInlineFrame(COLUMNS, undefined, true).rows).toEqual([]);
     });
 });
 
-describe('toGridSorter', () => {
-    it('maps a field and direction to the column key', () => {
-        expect(toGridSorter('pnl|desc', COLUMNS)).toEqual({colId: 'col2', sort: 'desc'});
-        expect(toGridSorter('id', COLUMNS)).toEqual({colId: 'col0', sort: 'asc'});
+describe('toInlineView', () => {
+    it('sorts by a field that names a column', () => {
+        expect(toInlineView('pnl|desc', COLUMNS)).toEqual({sortBy: 'pnl|desc'});
     });
 
-    it('returns null for a field that names no column', () => {
-        expect(toGridSorter('qty|desc', COLUMNS)).toBeNull();
+    it('leaves out a sort by a field that names no column', () => {
+        expect(toInlineView('qty|desc', COLUMNS)).toEqual({});
+        expect(toInlineView(undefined, COLUMNS)).toEqual({});
     });
 });
 

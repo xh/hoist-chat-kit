@@ -1,7 +1,6 @@
 import {fireEvent, render, screen} from '@testing-library/react';
 import type {ReactElement} from 'react';
 import {ChartModel} from '@xh/hoist/cmp/chart';
-import {GridModel} from '@xh/hoist/cmp/grid';
 import {fragment} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, uses} from '@xh/hoist/core';
 import {runInAction} from '@xh/hoist/mobx';
@@ -12,7 +11,6 @@ import type {ChatUiAction} from '../../../genui';
 import {ScriptedChatTransport} from '../../../transport';
 import {chatUiCard} from './ChatUiCard';
 import {chatUiChart, type ChatUiChartProps} from './ChatUiChart';
-import {chatUiGrid, type ChatUiGridProps} from './ChatUiGrid';
 import {chatUiMetrics} from './ChatUiMetrics';
 
 /**
@@ -27,57 +25,6 @@ describe('generative UI components', () => {
     // jsdom has no layout, and so no ResizeObserver.
     beforeEach(() => {
         vi.stubGlobal('ResizeObserver', NoopResizeObserver);
-    });
-
-    describe('ChatUiGrid', () => {
-        const columns: ChatUiGridProps['columns'] = [
-            {field: 'symbol'},
-            {field: 'pnl', type: 'number', format: 'currency'}
-        ];
-
-        it('creates its grid once the rows begin, and fills the same model as they stream', () => {
-            const loadData = vi.spyOn(GridModel.prototype, 'loadData'),
-                {container, rerender} = renderInChat(chatUiGrid({columns, isPartial: true}));
-            onTestFinished(() => loadData.mockRestore());
-
-            // Columns alone may still be streaming - a placeholder shows.
-            expect(container.querySelector('.xh-chat-ui-skeleton')).toBeTruthy();
-            expect(loadData).not.toHaveBeenCalled();
-
-            const rows = [
-                {symbol: 'AAPL', pnl: 1},
-                {symbol: 'MSFT', pnl: 2},
-                {symbol: 'NVDA', pnl: 3}
-            ];
-            rerender(chatUiGrid({columns, rows: rows.slice(0, 2), isPartial: true}));
-            rerender(chatUiGrid({columns, rows, isPartial: true}));
-            rerender(chatUiGrid({columns, rows, isPartial: false}));
-
-            const models = new Set(loadData.mock.contexts);
-            expect(models.size).toBe(1);
-            // The last row loads only once complete, as it may be cut short while streaming.
-            expect(loadData.mock.calls.map(([data]) => data.length)).toEqual([1, 2, 3]);
-        });
-
-        it('applies a sortBy that arrives after the rows', () => {
-            const rows = [{symbol: 'AAPL', pnl: 1}],
-                {rerender} = renderInChat(chatUiGrid({columns, rows, isPartial: true})),
-                setSortBy = vi.spyOn(GridModel.prototype, 'setSortBy');
-            onTestFinished(() => setSortBy.mockRestore());
-
-            rerender(chatUiGrid({columns, rows, sortBy: 'pnl|desc', isPartial: false}));
-
-            expect(setSortBy).toHaveBeenCalledWith({colId: 'col1', sort: 'desc'});
-        });
-
-        it('destroys its grid model when it unmounts', () => {
-            const destroy = vi.spyOn(GridModel.prototype, 'destroy'),
-                {unmount} = renderInChat(chatUiGrid({columns, rows: [{symbol: 'AAPL', pnl: 1}]}));
-            onTestFinished(() => destroy.mockRestore());
-
-            unmount();
-            expect(destroy).toHaveBeenCalledOnce();
-        });
     });
 
     describe('ChatUiChart', () => {
@@ -135,6 +82,32 @@ describe('generative UI components', () => {
             expect(screen.getByText('Revenue')).toBeTruthy();
             expect(screen.queryByText('Margin')).toBeNull();
         });
+        it('colors only the delta, with an arrow, and flips the colors with invert', () => {
+            const {container} = render(
+                chatUiMetrics({
+                    metrics: [
+                        {label: 'P&L', value: 4820000, delta: 1100000, deltaLabel: 'vs last week'},
+                        {label: 'VaR', value: 6100000, delta: 400000, invert: true}
+                    ]
+                })
+            );
+
+            const [pnl, risk] = container.querySelectorAll('.xh-chat-ui-metrics__change');
+            expect(pnl.className).toContain('--pos');
+            expect(risk.className).toContain('--neg');
+            expect(pnl.querySelector('svg')).toBeTruthy();
+        });
+
+        it('reads each tile as its label, value and delta in words', () => {
+            render(
+                chatUiMetrics({
+                    metrics: [{label: 'P&L', value: 4820000, delta: -1100000, deltaLabel: 'vs Q2'}]
+                })
+            );
+            expect(screen.getByRole('listitem').getAttribute('aria-label')).toBe(
+                'P&L, 4.82M, down 1.1M vs Q2'
+            );
+        });
     });
 
     describe('ChatUiCard', () => {
@@ -148,6 +121,26 @@ describe('generative UI components', () => {
                 label: 'Open report',
                 url: 'https://example.com/report'
             };
+
+        it('shows actions as chips after the card, each with a tooltip of what it sends', () => {
+            const chatModel = createChatModel(),
+                {container} = render(
+                    chatUiCard({
+                        title: 'Acme Corp',
+                        fields: [],
+                        actions: [send],
+                        chatModel,
+                        runActionAsync: vi.fn()
+                    })
+                ),
+                chip = screen.getByRole('button', {name: 'Show trades'});
+
+            expect(chip.closest('.xh-chat-ui-frame')).toBeNull();
+            expect(container.querySelector('.xh-chat-ui-frame__header').textContent).toBe(
+                'Acme Corp'
+            );
+            expect(chip.className).toContain('xh-chat-ui-card__action');
+        });
 
         it('runs the clicked action, and describes it in the tooltip', () => {
             const chatModel = createChatModel(),

@@ -88,8 +88,9 @@ export interface ChatSidePanelConfig {
  * chart - shown beside the chat. Opening a request replaces the last. Back and close return
  * focus to the element that opened it.
  *
- * The kit draws the panel's frame and status, and leaves the content to the app: a document
- * renders with the app's `documentRenderer`. The kit has no document viewer of its own.
+ * The kit draws the panel's frame and status. It renders tables and charts itself, as a Hoist grid
+ * and chart over the request's artifact. A document renders with the app's `documentRenderer`, as
+ * the kit has no document viewer of its own.
  *
  * `ChatWorkspace` creates one as `ChatWorkspaceModel.sidePanel`. Components in the chat find it in
  * model context through the {@link ChatSidePanelHost} interface.
@@ -142,9 +143,10 @@ export class ChatSidePanelModel extends HoistModel implements ChatSidePanelHost 
         switch (request?.type) {
             case 'document':
                 return !!this.documentRenderer;
+            case 'table':
+            case 'chart':
+                return !!request.registry;
             default:
-                // TODO(D69): tables and charts render in the side panel once the generative UI
-                // package supplies their renderers.
                 return false;
         }
     }

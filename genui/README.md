@@ -366,6 +366,10 @@ const resultGridSpec: ChatUiComponentSpec<{data: string} & ChatDataView> = {
 };
 ```
 
+The built-in table and chart take data this way with `byReference: true`, and need no spec of
+their own: `chatUiGridSpec({byReference: true})` and `chatUiChartSpec({byReference: true})`. See
+[`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md#show-a-table-by-reference).
+
 Render by the handle's `state`:
 
 - `waiting` - no artifact has that id yet, and the reply still streams.
@@ -602,6 +606,7 @@ Passed to `render`. Extends the chat's `ChatPartRenderContext`, which holds `cha
 | `children` | `ReactNode[]` | Rendered `children`, for a container. |
 | `slots` | `Record<string, ReactNode[]>` | Rendered named slots, for a container. |
 | `data` | `Record<string, ChatDataHandle>` | The data behind each reference prop with a value. |
+| `artifacts` | `ChatArtifactRegistry` | The registry `data` reads, for a side panel request. |
 | `runActionAsync` | `(action) => Promise<unknown>` | Check and run a typed action. |
 
 ### ChatUiDocument and ChatUiElement

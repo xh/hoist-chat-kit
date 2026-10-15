@@ -240,6 +240,9 @@ message view looks for one in Hoist's model context. `ChatWorkspace` publishes o
 `ChatSidePanelModel` above the chat and render it with `ChatSidePanel`. See
 [the side panel](../../../core/README.md#side-panel).
 
+A result card's Expand opens its table or chart in the same panel. See
+[the two tiers](../genui/README.md#two-tiers).
+
 The marker whose passage the panel shows stays active, with `aria-pressed`. Without a host, or
 without room, a document opens with `onSourceClick`, else at its URL in a new tab. When the panel
 has a viewer but no room, a toast says so.
@@ -923,7 +926,7 @@ Use it directly only for a list of your own.
 | `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |
 | `ChatSources` | `sources`, `uncitedSources`, `defaultExpanded`, `onSourceClick`, `allowImages` | Show a list of sources. Each shows its `marker`, else its position. Uncited sources are counted, not numbered. |
 | `ChatNoAnswer` | `part`, `onEditQuestion` | Show a fixed "not found" reply, for example inside an app's own renderer for `xh.chat.noAnswer`. |
-| `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Back, Close, the viewer's status and the app's viewer. |
+| `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Back, Close, and the content - the app's viewer with its status, or the full table or chart of a result card. |
 | `ChatCodeBlock` | `content`, `language` | Show code in a card with a copy button. A block over 20 lines shows its first 20, with a button for the rest. |
 | `ChatFileChip` | `file`, `onRemove`, `allowImages` | Show a file, with a remove button when `onRemove` is set. An image at a URL shows a thumbnail only if `allowImages` permits it. |
 | `ChatEmptyState` | `icon`, `title`, `text`, `suggestions` | Welcome the user to an empty chat. |
