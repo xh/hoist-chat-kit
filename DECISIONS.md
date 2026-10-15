@@ -804,3 +804,292 @@ interface costs little when the coupling is small, and keeps the full chat worki
 
 **Alternatives.** A separate headless package, or a runtime abstraction like those of other chat
 kits. Both cost more than the reuse we know of today.
+
+## D58. Design tokens replace the kit's theme variables
+
+
+**Decision.** `styles/vars.scss` takes the design's tokens and drops the old names, with no
+aliases. The kit is pre-1.0 (D26), so the changelog lists the renames as breaking.
+
+- Sizes are unitless numbers with a `-px` twin, as Hoist's `--xh-pad` and `--xh-pad-px` are.
+  Timings are unitless milliseconds with a `-ms` twin. Percentages and easing curves have no twin.
+- Each `--xh-chat-*` token reads an unprefixed hook first, as today: `--chat-turn-gap` overrides
+  `--xh-chat-turn-gap`. Tokens live on `body`, so a hook works only on `body` or above.
+- Values follow the specs: one 4 px radius, a 1,100 px column and a 640 px prose cap, a 13 px body,
+  full `--xh-border-color` frames, and no shadows or literal colors.
+- `--xh-chat-meta-text-color` is the one dark override, for contrast (A6).
+- `.xh-chat--compact` sets the compact values on the `-px` twins directly, because a descendant
+  cannot re-derive a twin computed on `body`. A component sets it when docked or under 380 px of
+  measured width.
+- The renames follow the table in `04-build-map.md`. Each component's tokens sit in its own section
+  of `vars.scss`.
+
+**Why.** Hoist's own variables use unitless numbers with twins, so apps theme the kit as they theme
+Hoist. The old px-only names could not feed a `calc()` with other Hoist sizes.
+
+**Alternatives.** Keep the old names as aliases. They would double the token list before 1.0, when
+no release promises them.
+
+## D59. Kit-wide settings live in `ChatKit.defaults`
+
+
+**Decision.** `core/ChatKit.ts` exports `ChatKit`, a class with a `static defaults` object, as
+`GridModel.defaults` and `FetchService.defaults` are in Hoist. An app sets fields at startup, in
+its `AppModel` or `Bootstrap.ts`. A setting that belongs to one component sits in that component's
+`defaults`, as with Hoist's `Button.defaults`. Instance config and props always win. Section 3
+lists every setting and its home.
+
+**Why.** A library has no app config of its own, and several settings span many components. Hoist's
+`static defaults` pattern needs no service install and no server round trip, and Hoist developers
+already know it.
+
+**Alternatives.** Fields on `ChatService`. It is optional, it reads the backend config (D50), and a
+chat without a backend still needs these settings. A soft config. It suits server-admin settings,
+but icons and key bindings are code.
+
+## D60. Reduced motion, with `reducedMotionSpinner`
+
+
+**Decision.** Under `prefers-reduced-motion: reduce`, or inside an `.xh-chat--reduced-motion`
+element, each moving cue in chat has a static twin: a solid caret, no shimmer, instant reveals,
+and text that lands in whole lines at most 4 times a second. The ticking elapsed time and the
+status words still show "busy". `ChatKit.defaults.reducedMotionSpinner` is `'static'` or `'spin'`,
+default `'static'`. Static swaps Hoist's `Spinner` for a static hourglass icon inside chat only.
+`'spin'` keeps Hoist's spinner.
+
+**Why.** Anselm chose the static spinner (A1). Hoist's spinner ignores reduced motion on purpose,
+because Citrix sessions often report it. The flag lets an app on Citrix keep Hoist's behavior.
+
+## D61. The assistant icon and assistant profiles
+
+
+**Decision.** `ChatKit.defaults.assistantIcon` is a function that returns the icon, default
+`() => Icon.ai()`. A `ChatAssistantProfile` `{id, name, icon?, description?, status?}` overrides it
+for one assistant. A component's `assistantIcon` prop overrides both. The reply header, the
+empty state, the helper button and header, the workspace header and the launcher read it in that
+order: prop, profile, kit default. A reply names its profile in `metadata.assistantId`, set from a
+routing event when the backend sends one.
+
+**Why.** Anselm chose sparkles, never the wand, and made it configurable (A5). The kit already names
+the props `assistantName` and `assistantIcon`, and a second word for the same thing would split the
+API (R15). A function returns a fresh element for each use.
+
+## D62. A display status over the existing statuses
+
+
+**Decision.** `ChatReplyStatus` is the display vocabulary: `idle`, `submitted`, `streaming`,
+`recomposing`, `runningTool`, `paused`, `waitingToRetry`, `detached`, `stalled`, `interrupted`,
+`cancelledByServer`, `error` and `aborted`. A pure function in `core/` derives it from a message,
+its turn's activity time and the clock. `ChatStatus` and `ChatMessageStatus` do not change. Each
+value has one icon, one label and one color in one desktop table.
+
+- `interrupted` and `cancelledByServer` come from `RUN_ERROR` codes `interrupted` and `cancelled`,
+  with the server's text as the reason.
+- `waitingToRetry` is an error with `retryAfterSeconds` while its countdown runs.
+- P6's `stopping` state is left out, as `stop()` takes effect at once (R3).
+
+**Why.** The specs need a richer vocabulary than the model's lifecycle, but most of it is a reading
+of state the model already holds. A derived value keeps the model's statuses small, and a pure
+function is easy to test against P6's matrix.
+
+**Alternatives.** Add the states to `ChatMessageStatus`. Stored history would then hold clock
+states such as `stalled`.
+
+## D63. Stalled is a soft state before D34's hard timeout
+
+
+**Decision.** A reply is `stalled` after `ChatKit.defaults.stallAfterMs` (30 s) with no bytes,
+heartbeats included. Its spinner and caret give way to "No response for 30s" in place, the status
+region offers Refresh Status where it can (R1), and Stop stays. The next byte clears it with no
+notice. With heartbeats but no events, a timeline shows P2's quiet state, which keeps its spinner.
+D34's `idleTimeout` stays the hard failure and must be longer than `stallAfterMs`. A transport
+reports each byte it reads, decoded or not, through a new activity callback on the step, so the
+model sees heartbeats that never decode.
+
+**Why.** Slow is not broken. A soft state tells the user early without ending a run that may still
+answer. Today a heartbeat resets the transport's timer but never reaches the model.
+
+## D64. A failure shows inline, and the next action sits above the composer
+
+
+**Decision.** The inline failed row in the reply records what happened, with Edit Prompt and Copy
+Details. The composer's status region holds the thread's one next action. `ChatErrorBanner`, an
+internal component, goes. A body-wide error uses Hoist's `ErrorMessage`.
+
+- "Try Again" resends a turn. "Retry" re-fetches a part.
+- A failure is retry-safe unless `RUN_ERROR.metadata.retrySafe` is false. In server mode, the kit's
+  own `stalled` and `incomplete-stream` errors are not retry-safe. This amends D34 and D44 for
+  server mode.
+- A failure that is not retry-safe offers Refresh Status, which calls
+  `ChatThreadsModel.reloadThreadAsync()`. Without a thread layer it offers Try Again with "It may
+  still be running".
+- A retry-safe error with `retryAfterSeconds` counts down and retries at zero, with Cancel.
+- The model records feedback and undo failures in observables, and shows no toasts. Components
+  render them inline.
+
+**Why.** A failure shows once, at the smallest scope that holds it (P6). A resend that could run a
+write twice needs the server's word that it is safe. A client-mode chat keeps its Try Again (R1).
+
+## D65. One announcer for the chat
+
+
+**Decision.** The message list is `role="log"` with `aria-live="off"`. A kit announcer renders two
+hidden live regions, one polite and one assertive. The announcer reads a finished reply once: the
+assistant, its tool count and time, then its first paragraph, cut at 300 characters. Polite
+announcements wait at least 2 s apart and coalesce. Assertive ones never wait. Tokens, verb
+changes, elapsed ticks and countdown seconds are never announced. `announceSteps` is `'none'`,
+`'failures'` or `'all'`, default `'failures'`, in `ChatKit.defaults` and as a message list prop.
+
+**Why.** A live region on the list reads every token. One announcer keeps announcements spaced and
+in order across the list, the timeline and the composer.
+
+## D66. The keyboard map, configurable
+
+
+**Decision.** `ChatKit.defaults.shortcuts` maps each action to a key combo, in the format of Hoist's
+`useHotkeys`, or to null to drop it:
+
+| Action | Default | Scope |
+|---|---|---|
+| `newChat` | `mod+shift+o` | Workspace or dock |
+| `toggleDock` | `ctrl+.` | Page-wide, only while a dock exists |
+| `openHelper` | `mod+i` | Focus inside a component with a helper |
+| `focusComposer` | `/` | Focus outside a text field |
+| `cycleRegions` | `f6`, Shift+F6 back | Workspace, dock or helper |
+| `toggleSidebar` | null | Workspace |
+
+Esc does one thing per press, scoped to the region with focus (H4). No shortcut ever approves,
+applies or deletes.
+
+**Why.** Browsers bind some of these keys, so each needs a remap or a way out (B3). Hoist's hotkeys
+register keys but offer apps no remap, so the kit owns the map (H5).
+
+## D67. Drafts persist in local storage
+
+
+**Decision.** The composer saves its draft text per thread, after each 500 ms pause, through
+`XH.localStorageService`, which keys by app and user. Attachments stay in memory only. A restored
+draft shows "Draft from 10:31 restored" with Discard. The draft goes when its message sends.
+`ChatKit.defaults.drafts` is `'local'` or `'memory'`, default `'local'`. `ChatKit.clearLocalData()`
+removes every kit key. Hoist has no logout hook, so an app calls it from its logout.
+
+**Why.** A draft that survives a reload is the expected behavior (B6). Attachments are base64 in
+memory, too large for local storage and too sensitive to leave on disk.
+
+**Alternatives.** Server drafts. They follow the user across machines, but need a store method
+that no backend offers.
+
+## D68. The side panel is a request seam, with no viewer in the kit
+
+
+**Decision.** `ChatSidePanelModel` holds one open request at a time. A request is a discriminated
+union: `{type: 'document', source, page?, passage?, citation?}`, `{type: 'table', artifactId,
+view}` or `{type: 'chart', artifactId, view}`. Opening one replaces the last, and Back returns
+focus to the element that opened it. Components reach it through `ChatSidePanelHost`, a narrow
+interface. The kit renders tables and charts. An app supplies `documentRenderer` for documents.
+Without one, or without room (788 px, P3), a document opens in a new tab with a toast. With no side
+panel, a table opens in a dialog (`GENUI-2.md` 5).
+
+**Why.** A document viewer will land in hoist-react (A3). The kit owns only the chat side: the slot,
+the request and Back.
+
+## D69. A result table renders a preview inline and the Grid in the side panel
+
+
+**Decision.** `chatUiGrid` keeps its name and spec. Inline, it renders a plain HTML table of at most
+8 rows and 6 columns, on Hoist's compact grid tokens. The footer always states what is hidden. View
+Full Table opens one Hoist `Grid` in the side panel (D68), paged from the `ChatDataSource`. A result
+that fits the preview gets no full tier. `ChatUiGrid.defaults` holds `previewRows`,
+`previewColumns`, `pageSize` and `exportConfirmAbove`. `ChatUiChart.defaults` holds
+`maxInlineSeries` and `maxInlinePoints`. This replaces the inline grid of `GENUI-2.md` 5.
+
+**Why.** A long thread with many ag-Grid instances is heavy, and B1 makes the preview the inline
+tier. Keeping the names keeps app catalogs working.
+
+## D70. Feedback reasons and the inline form
+
+
+**Decision.** `ChatFeedbackConfig` gains `reasons?: string[]`, the optional toggles of the form, and
+`ChatFeedbackSpec` gains `reasons?: string[]`. The comment form opens inline under the action bar,
+never in a popover. With `requireComment`, a rating saves only with its comment. Without it, a
+rating saves at once and the comment follows as an update. `commentOn` and `requireComment` keep
+their defaults (R5). After a reload the rating comes back, and the comment and reasons do not.
+
+**Why.** P6's form holds required text, an error state and a 380 px layout, which a popover cannot
+keep through an outside click. Comment rules depend on the backend, so they stay config.
+
+## D71. Suggestions fill the composer
+
+
+**Decision.** An empty-state suggestion fills the composer and never sends. Suggestions hide once
+the input has text. Follow-up chips on a reply still send, with D17's tooltip.
+
+**Why.** The user reads and can edit a prompt before it goes. A follow-up belongs to one reply and
+is a quick action, so it keeps its one click.
+
+## D72. Source kinds, favicons and fixed no-answer replies
+
+
+**Decision.** `ChatSourcePart` gains `sourceType: 'url' | 'document'`, default `'url'` when the part
+has a URL. A document marker opens the side panel (D68). A URL marker pins its hover card. A
+favicon in `metadata.favicon` follows the image policy (R9). The sources list follows marker order
+and never renumbers (R19). A `data` part with `dataType` `xh.chat.noAnswer` renders the fixed
+"not found" template, with no sources list and no Regenerate.
+
+**Why.** Each keeps the part model of D2 and the image policy of D16, and gives P3 what it needs to
+tell sources apart.
+
+## D73. Helpers extend tool groups
+
+
+**Decision.** `ChatToolGroup` gains optional members for the helper UI: `title`, `boundary()` for
+the data boundary line, `isChangedSince(snapshot)` to retire Undo, `highlight(targets)` for the
+change flash, and `docs`, the only pages an answer may cite. A helper's conversation lives in
+memory for the life of its component (A2). `ChatAssistantModel` owns the chat. A desktop button and
+a container dock inside the component at 740 px or wider, else open as a popover. A tool that
+removes something asks first (R11). Several changes from one turn share one card and one Undo,
+under D48.
+
+**Why.** Tool groups already hold the tools, the context and the undo (D48, D51). Optional members
+add what P7 draws, with no second adapter type.
+
+## D74. Thread list additions
+
+
+**Decision.** `ChatThreadSummary` gains `lastRunEnd?: 'complete' | 'interrupted' | 'failed'` and
+`lastRunReason?`. The thread layer tracks "finished away" per session. A store declares whether its
+search covers message text, with `searchesMessages`, and returns `snippet` per match. Otherwise
+the list says "Searching titles". A route-selected thread that the store reports missing is "not
+found" (R14). Sidebar width and its collapsed state persist through `persistWith`.
+
+**Why.** Each row state in P5 needs one field the summary lacks. Search falls back to titles
+(`02-backend-capabilities.md` row 7).
+
+## D75. Small API additions the specs need
+
+
+**Decision.**
+
+- `approveToolCallAsync(id, reason?)`, as `denyToolCallAsync()` already takes one (P2).
+- `ChatModelConfig.dataRefreshedAt`, a function that returns the app's last data refresh, for the
+  stale reply warning (P1, `02-backend-capabilities.md` row 15).
+- The reducer flags a text part that `xh.chat.textReplace` shortened, so the view can hold the old
+  text as "Revising" (P6).
+- `ChatComposerHost` gains optional members for the status region (D64).
+
+**Why.** Each fills a gap between the specs and the model, without a change to an existing
+contract.
+
+## D76. The design reconciliation is adopted, with the owner to confirm
+
+**Decision.** The design handoff in `.tmp/design-handoff/` is the authority on visual design and
+interaction, not on implementation, API shape or core behavior. `planning/design-reconciliation.md`
+lists 28 conflicts between the handoff and the repo, or within the handoff, each with a
+recommended resolution. The build follows every recommendation (R1 to R20, H1 to H8), and D58 to
+D75 record the ones that change the API or conventions. Anselm confirms or changes them after the
+fact. A change to one updates the matching decision.
+
+**Why.** The owner asked for progress while away, with the design brief used as guidance and the
+repo in charge of code. Each recommendation keeps a repo contract unless the design is clearly
+better for users.
+
