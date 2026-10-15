@@ -1,20 +1,32 @@
-# Handoff - Design Build, eRESI Path First
+# Handoff
 
-State as of 2026-10-15 early morning, for the next session or after a context reset. Read this, then
-`DECISIONS.md` D57 to D79 and `planning/design-reconciliation.md`.
+The one status document for the kit: where things stand, the standing instructions, and what
+comes next. Read it at the start of a session or after a context reset, then the decisions it
+names in `DECISIONS.md`.
 
 ## Where things are
 
 | Repo and branch | State |
 |---|---|
-| `hoist-chat-kit` `develop` | Plan 2 core merged (#7). Snapshot `1.0.0-SNAPSHOT.1792010786479` under `next`. |
-| `hoist-chat-kit` `feature/layered-api` | Pushed, no PR. `ChatComposerHost`, public `ChatStreamReducer`, `createChatRunRequest()`, D57. |
-| `hoist-chat-kit` `feature/design-ui` | Stacked on `feature/layered-api`. Pushed, no PR. All seven design packages built, D58 to D79. Review 6 written and fixed. 1,507 tests pass, and lint, typecheck and build are clean. |
-| `toolbox` `feature/weatherv2-chat-kit` | On the published kit. Guide folder builds and tests. Pushed. |
-| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-chatkit`, on the local kit. Guideline Assistant tab, Agent timeline demo, Grid Helper tab. Pushed. |
+| `hoist-chat-kit` `develop` | Plan 2 (#7), the layered API and the design UI (#8) merged, then pared back: no component helper (D80), no `ChatService` (D81). Published under `next`. |
+| `hoist-chat-kit` `archive/helpers` | The removed helper code and its plan, `planning/HELPERS.md`. Not for merge. |
+| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-chatkit`, on the local kit. Guideline Assistant tab and the Chat Kit demos. Pushed. |
+| `toolbox` `feature/weatherv2-chat-kit` | On the published kit. Pushed. |
+| `toolbox` `archive/chat-kit-grid-helper` | The removed Grid Helper tab. Not for merge. |
+
+## Next
+
+1. The owner confirms the design reconciliation defaults (D76, `planning/design-reconciliation.md`).
+2. The first app integration starts on the published snapshot: a guideline assistant with
+   server-owned threads, document scope, `[n]` citations, a source viewer, and feedback with a
+   comment required on a thumbs down.
+3. Known kit gaps: no source line on help answers, no transport resume for a reconnect, no Continue
+   after a reply is cut at its length limit.
 
 ## Standing instructions from Anselm
 
+- **Scope.** Build for the integrations in hand. A use case on the table is not a request to build
+  it. Ask hoist-react and hoist-core only for what the kit cannot work without.
 - **The design handoff** (`.tmp/design-handoff/`) is the authority on look and interaction only.
   The repo decides code structure, API and behavior. Record departures as decisions.
 - **CSS variables** follow hoist-react's `css-var-simplify` branch: `--xh-chat-*` only, units in
@@ -23,59 +35,48 @@ State as of 2026-10-15 early morning, for the next session or after a context re
   them, then run Hoist's codemod.
 - **Layering (D57)** is a goal, not a rule: prefer a narrow interface over a hard `ChatModel`
   dependency when cheap.
-- **eRESI first.** The first real integration is the eRESI guideline assistant in Veracity
-  (server-owned threads, document scope, `[n]` citations, a source viewer, feedback with a comment
-  required on down, text reset). Never name the client or app in kit or Toolbox files.
-- **Git.** Kit: commit and push on dedicated feature branches. Toolbox: commit and push freely on
-  `feature/weatherv2-chat-kit` and new branches made for this project; never touch `develop`,
-  `master` or other existing branches. Merges to `develop` need Anselm. No AI attribution.
-- **hoist-react** gaps (an hourglass icon): stub in the
-  kit and list them for Anselm. Do not change hoist-react.
-- **Browser checks** in Toolbox may use the local link recipe in Toolbox's
-  `docs/running-locally.md`. Never commit the link. A hidden tab throttles timers: set a scripted
-  demo's `transport.delayMs = 0` from the page to finish it.
-- Open design items B1 to B6: build to the default, mark `// TODO(design-open B<n>)`.
+- **Names.** Never name a client or a private app in kit or Toolbox files. Toolbox may be named.
+- **Git.** Kit: commit and push on feature branches, and open PRs to `develop`. Merges to
+  `develop` need Anselm's request. Toolbox: commit and push only on branches made for this
+  project, never on `develop`, `master` or other existing branches. No AI attribution.
+- **hoist-react.** Do not change it. Stub a gap in the kit and list it for Anselm.
+- **Open design items** B1 to B6: build to the default, and mark `// TODO(design-open B<n>)`.
 
-## Build order (eRESI path first)
+## Upstream asks
 
-All done, each with specs, a Toolbox check and a commit:
-
-1. Tokens (D58), on the simplified CSS model.
-2. P6 primitives: `ChatKit.defaults`, `ChatReplyStatus`, soft stall, live cues, the announcer.
-3. P5 thread list and workspace shell.
-4. P1 restyle, the inline failed row, `ChatMessageListHost`.
-5. P5 composer: pills, the scope chip, the status region, drafts, the empty state.
-6. P3: source types, the sources list, hover cards, the side panel seam, no-answer.
-7. P6: feedback form (D70, D77), approvals, undo failure, the keyboard map.
-8. Toolbox guideline assistant page, checked at 1,440, 900 and 380.
-9. P2 timeline (D78), P4 result cards (D69), P7 component helper (D79).
-10. Review 6 (`planning/reviews/review-6-design-ui.md`) and its fixes.
-
-Next: the owner reviews and merges `feature/layered-api` and `feature/design-ui`, confirms the
-reconciliation defaults (D76), and the eRESI integration starts on the published snapshot.
+- xh/hoist-core#618 (open): streaming responses and a streaming proxy mode. Each app now relays a
+  token stream with its own Groovy, and `renderNDJSON` buffers 32 KB before it flushes.
+- xh/hoist-react#4855 (open): let `FetchService` abort a streamed response. The kit works around it
+  with `fetchOpts.signal` (D14).
+- Icons: Hoist registers no hourglass or code-branch icon. The kit uses stand-ins.
 
 ## Toolbox worktree
 
 - `../toolbox-chatkit` (branch `feature/chat-kit-guide-ui`). The main `../toolbox` checkout
-  belongs to another session (uncommitted SegmentedControl work) - never touch it.
+  belongs to another session. Never touch it.
 - The worktree links the local kit through uncommitted edits to `client-app/package.json`,
   `pnpm-lock.yaml`, `rsbuild.config.mjs` and `tsconfig.json`. Never commit those four. Commit
   with explicit paths.
-- Its server runs from the worktree with a copied `.env`, H2 and the agent login. Coordinate
-  ports with the hoist-react session (`hoist-react-38`) if it needs Toolbox.
-
-## Files to know
-
-- Design: `.tmp/design-handoff/` (README, `01-decisions.md`, `04-build-map.md`, `specs/p*.md`,
-  `screens/`). Reconciliation: `planning/design-reconciliation.md`.
-- eRESI: `.tmp/hoist-chat-kit-feedback-1/veracity-eresi-chat-integration-brief.md` and
-  `eresi-api/`. Toolbox's emulation: `client-app/src/examples/chatkit/guide/`.
-- Plans: `planning/PLAN-2.md`, `SERVER-MODE.md`, `GENUI-2.md`, `HELPERS.md`.
 
 ## Running Toolbox
 
-- Throwaway server on :8080 with an H2 database and the agent login from
-  `/tmp/toolbox-agent-session.env`. Start it with the `bootRun` command in Toolbox's
-  `docs/running-locally.md` ("Agent-driven sessions"). Client: `pnpm start` in `client-app`. Log in by
-  POSTing to `/api/xh/login` from a page on :3000.
+- Start a throwaway server on :8080, with an H2 database and the agent login, by the `bootRun`
+  command in Toolbox's `docs/running-locally.md` ("Agent-driven sessions"). Start the client with
+  `pnpm start` in `client-app`. Log in by POSTing to `/api/xh/login` from a page on :3000.
+- The live model demo needs the `llmApiKey` and `llmModel` configs. The other demos are scripted.
+- A hidden tab throttles timers. Set a scripted demo's `transport.delayMs = 0` from the page to
+  finish it.
 - Stop the servers you started when done.
+
+## Files to know
+
+- Plans: `planning/PLAN-2.md`, `planning/SERVER-MODE.md`, `planning/GENUI.md`.
+- Design: `.tmp/design-handoff/` and `planning/design-reconciliation.md`.
+- The first integration's brief and API: `.tmp/hoist-chat-kit-feedback-1/`. Toolbox's emulation:
+  `client-app/src/examples/chatkit/guide/`.
+- Reviews: `planning/reviews/`.
+
+## Release notes for later
+
+- npm's `latest` tag points at a snapshot from the first setup publish, because npm tags a
+  package's first publish as `latest`. Correct it at the first real release.
