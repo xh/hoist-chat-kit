@@ -1,10 +1,10 @@
 @use '../../../styles/mixins' as *;
 
-// The frame of the side panel's request. It stretches to its row's full height.
+// The frame of the side panel's request. A row, so that its Panel stretches to the full height
+// and keeps the width its PanelModel gives it.
 .xh-chat-side-panel {
   display: flex;
   flex: 1 1 auto;
-  flex-direction: column;
   min-height: 0;
   min-width: 0;
 
@@ -59,11 +59,13 @@
     position: relative;
   }
 
+  // The document scrolls inside the panel, unless the viewer scrolls it itself.
   &__content {
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
     min-height: 0;
+    overflow: auto;
 
     &[aria-hidden='true'] {
       visibility: hidden;

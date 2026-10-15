@@ -37,8 +37,9 @@ export interface ChatSidePanelProps extends HoistProps<ChatSidePanelModel> {
  *
  * For a document, the content is the app's `documentRenderer`, and the frame shows the viewer's
  * progress, as the viewer reports it with `setDocumentStatus()`: a mask while the document opens,
- * a status strip under the toolbar while it locates the passage or could not, the page, and a
- * failure with only the actions that can work. The kit draws no document itself.
+ * a status strip under the toolbar while it locates the passage or could not, the page if the
+ * viewer reports one, and a failure with only the actions that can work. The kit draws no
+ * document itself.
  *
  * Back returns focus to the citation that opened the request, and leaves the panel open. Close -
  * or Esc with focus in the panel - closes it and returns focus to the citation. Alt+Left is Back.
@@ -145,16 +146,13 @@ const documentFrame = hoistCmp.factory<DocumentFrameProps>({
             ],
             tbar: [
                 button({
+                    key: 'back',
                     icon: Icon.arrowLeft(),
                     text: citation != null ? `Back to ${citation}` : 'Back',
                     disabled: !model.canGoBack,
                     onClick: () => model.back()
                 }),
-                toolbarSep(),
-                span({
-                    className: 'xh-chat-side-panel__page',
-                    item: formatPage(status)
-                })
+                ...pageItems(status)
             ],
             mask:
                 state === 'opening'
@@ -299,9 +297,19 @@ function getAnnouncement(status: ChatDocumentStatus, title: string): string {
     }
 }
 
-function formatPage(status: ChatDocumentStatus): string {
+// The page, only once the viewer reports one - a document without pages shows none.
+function pageItems(status: ChatDocumentStatus): ReactNode[] {
     const {page, pageCount} = status ?? {};
-    return `Page ${isFinite(page) ? page : '—'} of ${isFinite(pageCount) ? pageCount : '—'}`;
+    if (!isFinite(page)) return [];
+
+    return [
+        toolbarSep({key: 'pageSep'}),
+        span({
+            key: 'page',
+            className: 'xh-chat-side-panel__page',
+            item: isFinite(pageCount) ? `Page ${page} of ${pageCount}` : `Page ${page}`
+        })
+    ];
 }
 
 function formatSize(bytes: number): string {

@@ -79,6 +79,99 @@ describe('ChatWorkspace', () => {
             expect(model).toMatchObject({isSidePanelShown: false, isSidePanelOpen: true});
         });
 
+        it('gives the side panel 400 px and the sidebar its rail at 900 px, leaving the rest', () => {
+            const {model} = setup({sidePanelOpen: true});
+            model.setWidth(900);
+
+            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 400});
+            // The user's saved width stays as it was.
+            expect(model.sidePanelModel.size).toBe(520);
+        });
+
+        it('opens the sidebar at 240 px between 1,000 and 1,279 px, and the side panel at 460', () => {
+            const {model} = setup();
+            model.setWidth(1100);
+            expect(model).toMatchObject({sidebarMode: 'open', sidebarWidth: 240});
+
+            model.openSidePanel();
+            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 460});
+        });
+
+        it('narrows the side panel so that the conversation keeps its minimum', () => {
+            const {model} = setup({sidePanelOpen: true});
+
+            // 788 - 40 for the rail - 8 for the splitter - 380 for the conversation.
+            model.setWidth(788);
+            expect(model.sidePanelWidth).toBe(360);
+
+            // 1,000 - 40 - 8 - 480.
+            model.sidePanelModel.size = 900;
+            model.setWidth(1000);
+            expect(model.sidePanelWidth).toBe(472);
+        });
+
+        it('gives way with the sidebar first, when a wide workspace cannot fit both panels', () => {
+            const {model} = setup({sidePanelOpen: true});
+            model.setWidth(1440);
+            model.sidebarModel.size = 400;
+            expect(model).toMatchObject({sidebarMode: 'open', sidePanelWidth: 520});
+
+            model.setWidth(1300);
+            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 520});
+        });
+
+        it("holds the user's width in the band where they set it and wider, not narrower", () => {
+            const {model} = setup();
+            model.setWidth(1100);
+            model.sidebarModel.size = 300;
+            expect(model.sidebarWidth).toBe(300);
+
+            model.setWidth(1440);
+            expect(model.sidebarWidth).toBe(300);
+
+            model.setWidth(900);
+            model.expandSidebar();
+            expect(model.sidebarWidth).toBe(240);
+            expect(model.sidebarModel.size).toBe(300);
+        });
+
+        it('lays out from its measured width on the first render, with no wait', () => {
+            stubRootWidth(900);
+            renderWorkspace({}, {documentRenderer: () => 'Viewer'}, model =>
+                model.sidePanel.open({
+                    type: 'document',
+                    source: {type: 'source', id: 'd1', title: 'Reserves Policy'}
+                })
+            );
+
+            expect(screen.queryByRole('listbox')).toBeNull();
+            expect(screen.getByRole('button', {name: 'Expand sidebar'})).toBeTruthy();
+            expect(sidePanelBox().style.width).toBe('408px');
+        });
+
+        it('applies a resize at once, and the last of a burst once it settles', async () => {
+            const {model} = renderWorkspace();
+
+            reportWidth(900);
+            expect(model.width).toBe(900);
+
+            reportWidth(1000);
+            reportWidth(1300);
+            expect(model.width).toBe(900);
+            await act(() => wait(150));
+            expect(model.width).toBe(1300);
+        });
+
+        it('measures for a new model, when the model it renders changes', () => {
+            const {model, rerender} = renderWorkspace(),
+                {model: next} = setup();
+            rerender(chatWorkspace({model: next}));
+
+            reportWidth(900);
+            expect(next.width).toBe(900);
+            expect(model.width).toBeNull();
+        });
+
         it('sets compact density at 380 px or less, measured on its own element', async () => {
             const {container} = renderWorkspace();
             const root = container.querySelector('.xh-chat-workspace');
@@ -358,10 +451,35 @@ function setup({
 
 function renderWorkspace(
     props: Omit<ChatWorkspaceProps, 'model'> = {},
-    config: Parameters<typeof setup>[0] = {}
+    config: Parameters<typeof setup>[0] = {},
+    beforeRender: (model: ChatWorkspaceModel) => void = null
 ) {
     const ret = setup(config);
+    beforeRender?.(ret.model);
     return {...ret, ...render(chatWorkspace({model: ret.model, ...props}))};
+}
+
+/** Give the workspace's element a width, as the browser lays it out, for its first measure. */
+function stubRootWidth(width: number) {
+    const original = HTMLElement.prototype.getBoundingClientRect,
+        spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+            this: HTMLElement
+        ) {
+            return this.classList.contains('xh-chat-workspace')
+                ? ({width, height: 600} as DOMRect)
+                : original.call(this);
+        });
+    onTestFinished(() => spy.mockRestore());
+}
+
+/** Report a new size from the latest ResizeObserver, without waiting. */
+function reportWidth(width: number) {
+    const entry = {contentRect: {width, height: 600}} as ResizeObserverEntry;
+    act(() => resizeCallbacks.at(-1)([entry], null));
+}
+
+function sidePanelBox(): HTMLElement {
+    return document.querySelector('.xh-chat-workspace__side-panel');
 }
 
 function widthToMode(model: ChatWorkspaceModel, width: number) {

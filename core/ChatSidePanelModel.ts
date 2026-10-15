@@ -35,10 +35,10 @@ export type ChatDocumentState =
 export interface ChatDocumentStatus {
     state: ChatDocumentState;
 
-    /** The page that shows, counting from 1. */
+    /** The page that shows, counting from 1. The panel shows the page only if given. */
     page?: number;
 
-    /** The number of pages in the document. */
+    /** The number of pages in the document, shown after the page if given. */
     pageCount?: number;
 
     /** Size of the document in bytes, shown if it is still opening after 10 seconds. */

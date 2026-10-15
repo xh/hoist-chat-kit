@@ -35,7 +35,24 @@ describe('ChatSidePanel', () => {
         expect(renderer).toHaveBeenCalledWith(model.request, model);
         expect(screen.getByRole('button', {name: 'Back to 2'})).toBeTruthy();
         expect(screen.getByRole('button', {name: 'Close'})).toBeTruthy();
-        expect(screen.getByText('Page — of —')).toBeTruthy();
+    });
+
+    it('shows the page only once the viewer reports one', () => {
+        const model = panel();
+        model.open(request());
+        const {container} = render(chatSidePanel({model}));
+        const pageLabel = () => container.querySelector('.xh-chat-side-panel__page');
+
+        expect(pageLabel()).toBeNull();
+
+        setStatus(model, {state: 'located'});
+        expect(pageLabel()).toBeNull();
+
+        setStatus(model, {state: 'located', page: 3});
+        expect(pageLabel().textContent).toBe('Page 3');
+
+        setStatus(model, {state: 'located', page: 3, pageCount: 12});
+        expect(pageLabel().textContent).toBe('Page 3 of 12');
     });
 
     it('returns focus to the citation on Back, and closes on Close or Esc', () => {

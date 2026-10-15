@@ -31,10 +31,11 @@ Key features:
   panel that the app fills.
 - **Documents beside the chat** - with a `documentRenderer`, a cited document opens in the side
   panel, in the app's own viewer.
-- **Layout by width** - the sidebar narrows to its rail and then hides, the side panel shows only
-  where there is room, and the chat turns compact at 380 px or less.
-- **Persistence** - the sidebar's width and collapsed state, and the side panel's width, persist
-  per user through `persistWith`.
+- **Layout by width** - the sidebar narrows to its rail and then hides, the side panel narrows
+  and shows only where there is room, the conversation keeps a minimum width, and the chat turns
+  compact at 380 px or less.
+- **Persistence** - the sidebar's width and collapsed state, the side panel's width, and the
+  selected thread persist per user through `persistWith`.
 - **Keyboard** - Ctrl/Cmd+Shift+O starts a new chat, `/` focuses the composer, and F6 moves
   between regions. Escape in the side panel closes it. See
   [Keyboard](../chat/README.md#keyboard).
@@ -51,6 +52,7 @@ ChatWorkspaceModel (HoistModel)
 ├── isSidePanelOpen: boolean          # The app's wish (bindable)
 ├── Computed:
 │   ├── sidebarMode                   # 'open', 'rail' or 'hidden'
+│   ├── sidebarWidth, sidePanelWidth  # The widths that show, in pixels
 │   ├── isSidePanelShown              # Open or a request open, and the workspace has room
 │   └── isCompact                     # 380 px or less
 └── Methods:
@@ -68,19 +70,29 @@ ChatWorkspace (hoistCmp)
 
 ### Layout by width
 
-The workspace measures its own element with a `ResizeObserver`, debounced 100 ms, and picks the
-layout from its width:
+The workspace measures its own element as it mounts, before the first paint, and then with a
+`ResizeObserver`. The observer applies a change at once, and the last of a burst again after
+100 ms. The workspace picks the layout from its width:
 
-| Workspace width | Sidebar | Side panel |
-|---|---|---|
-| 1,280 px and up | Open | Beside the conversation |
-| 1,000 to 1,279 px | Open, or the rail while the side panel is open | Beside the conversation |
-| 788 to 999 px | The rail, unless the user expands it | Beside the conversation |
-| Under 788 px | Hidden. The header offers the list in a popover | Not shown |
+| Workspace width | Sidebar | Side panel | Conversation |
+|---|---|---|---|
+| 1,280 px and up | Open, 260 px | 520 px | The rest, at least 480 px |
+| 1,000 to 1,279 px | Open, 240 px. The rail while the side panel shows | 460 px | At least 480 px |
+| 788 to 999 px | The rail, unless the user expands it | 400 px | At least 380 px |
+| Under 788 px | Hidden. The header offers the list in a popover | Not shown. A document opens in a new tab | All of it |
+
+When the conversation would drop below its minimum, the sidebar gives way to its rail first.
+Then the side panel narrows, below its 400 px drag minimum if it must. The model's
+`sidebarWidth` and `sidePanelWidth` give the widths that show.
+
+A width the user drags a panel to replaces the default in the band where they drag it, and in
+every wider band. In a narrower band, the band's default applies, never wider than the user's
+width. A saved width holds in the band where the workspace first shows it.
 
 The layout never changes the user's saved state. A collapse the user makes holds at every width
 that shows a sidebar. An expand the user makes from the rail holds until the width crosses into
-another row of the table. Under 1,000 px, that expand closes the side panel first.
+another row of the table, or the side panel opens. Under 1,280 px, that expand closes the side
+panel first.
 
 ## Configuration Pattern
 
@@ -117,6 +129,11 @@ chatWorkspace({model: model.workspaceModel});
 
 The workspace model loads the thread list. If nothing is selected when it is created, it starts
 a new thread, so that the conversation pane always holds a chat.
+
+With `persistWith`, the workspace also saves the selected thread. A new workspace model, as after
+a reload, starts with a new chat and selects the saved thread once the list shows it. It skips
+the saved thread if the store no longer lists it, or if the user or a route picks a thread first.
+A new chat with no messages yet is not saved.
 
 ## Common Usage Patterns
 
@@ -185,7 +202,7 @@ document opens at its URL in a new tab, with a toast.
 | Property | Type | Description |
 |----------|------|-------------|
 | `threadsModel` | `ChatThreadsModel` | The threads to show. Required. |
-| `persistWith` | `PersistOptions` | Persists the panel widths and the sidebar's collapsed state. The workspace adds `.sidebar` and `.sidePanel` to `path`, which defaults to 'chatWorkspace'. |
+| `persistWith` | `PersistOptions` | Persists the panel widths, the sidebar's collapsed state and the selected thread. The workspace adds `.sidebar`, `.sidePanel` and `.selectedThreadId` to `path`, which defaults to 'chatWorkspace'. |
 | `sidePanelOpen` | `boolean` | True to open the side panel at the start, for the app's own content. Default false. |
 | `documentRenderer` | `(request, panel) => ReactNode` | The app's document viewer. With it, a cited document opens in the side panel. |
 
@@ -198,6 +215,8 @@ document opens at its URL in a new tab, with a toast.
 | `sidePanel` | `ChatSidePanelModel` | The side panel's open request. Components in the conversation find it in model context. |
 | `width` | `number` | Measured width, or null before render. |
 | `sidebarMode` | `'open' \| 'rail' \| 'hidden'` | How the sidebar shows. |
+| `sidebarWidth` | `number` | Width of the open sidebar, or null when it is not open. |
+| `sidePanelWidth` | `number` | Width of the side panel, or null when it does not show. |
 | `isSidePanelOpen` | `boolean` | True if the app wants the side panel open. Bindable. |
 | `isSidePanelShown` | `boolean` | True if the side panel shows: a request or the app's content, with room. |
 | `isCompact` | `boolean` | True at 380 px or less. |

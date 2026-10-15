@@ -1,5 +1,6 @@
+import {isNumber} from 'lodash';
 import type {LoadSpec, PersistOptions} from '@xh/hoist/core';
-import {HoistModel, managed} from '@xh/hoist/core';
+import {HoistModel, managed, PersistableState, PersistenceProvider, XH} from '@xh/hoist/core';
 import {PanelModel} from '@xh/hoist/desktop/cmp/panel';
 import {action, bindable, computed, observable} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
@@ -12,9 +13,9 @@ export interface ChatWorkspaceConfig {
     threadsModel: ChatThreadsModel;
 
     /**
-     * Options to persist the sidebar's width and collapsed state, and the side panel's width, per
-     * user. The workspace adds `.sidebar` and `.sidePanel` to `path`, which defaults to
-     * 'chatWorkspace'.
+     * Options to persist, per user, the sidebar's width and collapsed state, the side panel's
+     * width, and the selected thread. The workspace adds `.sidebar`, `.sidePanel` and
+     * `.selectedThreadId` to `path`, which defaults to 'chatWorkspace'.
      */
     persistWith?: PersistOptions;
 
@@ -36,16 +37,20 @@ export type ChatWorkspaceSidebarMode = 'open' | 'rail' | 'hidden';
  * Model for a {@link ChatWorkspace}: the threads it shows, the sidebar and side panel, and the
  * layout the workspace picks from its own measured width.
  *
- * The sidebar is a Hoist `PanelModel` - resizable from 200 to 400 px, and collapsible to a 40 px
- * rail - whose width and collapsed state persist per user with `persistWith`. The layout narrows
- * the sidebar as the workspace narrows, without changing the user's saved state:
+ * The sidebar and the side panel are Hoist `PanelModel`s. Their widths, and the sidebar's
+ * collapsed state, persist per user with `persistWith`. The layout picks the widths that show
+ * from the workspace's width, and never changes the saved state:
  *
- * | Workspace width | Sidebar | Side panel |
- * |---|---|---|
- * | 1,280 px and up | Open | Beside the conversation |
- * | 1,000 to 1,279 px | Open, or the rail while the side panel is open | Beside the conversation |
- * | 788 to 999 px | The rail, unless the user expands it | Beside the conversation |
- * | Under 788 px | Hidden - the header offers the list in a popover | Not shown |
+ * | Workspace width | Sidebar | Side panel | Conversation |
+ * |---|---|---|---|
+ * | 1,280 px and up | Open, 260 px | 520 px | The rest, at least 480 px |
+ * | 1,000 to 1,279 px | Open, 240 px. The rail while the side panel shows | 460 px | At least 480 px |
+ * | 788 to 999 px | The rail, unless the user expands it | 400 px | At least 380 px |
+ * | Under 788 px | Hidden. The header offers the list in a popover | Not shown | All of it |
+ *
+ * A width the user drags a panel to replaces the default in the band where they drag it, and in
+ * every wider band. When the conversation would drop below its minimum, the sidebar gives way to
+ * its rail first, and then the side panel narrows.
  *
  * At 380 px or less, the workspace shows the chat at compact density.
  */
@@ -58,10 +63,10 @@ export class ChatWorkspaceModel extends HoistModel {
     /** The user's threads. */
     readonly threadsModel: ChatThreadsModel;
 
-    /** The thread sidebar's panel: its width and collapsed state. */
+    /** The thread sidebar's panel: the user's width and collapsed state. */
     @managed readonly sidebarModel: PanelModel;
 
-    /** The side panel's panel: its width. */
+    /** The side panel's panel: the user's width. */
     @managed readonly sidePanelModel: PanelModel;
 
     /**
@@ -89,13 +94,25 @@ export class ChatWorkspaceModel extends HoistModel {
      */
     @computed
     get sidebarMode(): ChatWorkspaceSidebarMode {
-        const {width} = this;
-        if (width != null && width < SIDE_PANEL_MIN_WORKSPACE_WIDTH) return 'hidden';
-        if (this.sidebarModel.collapsed) return 'rail';
-        if (width == null || this.isSidebarExpanded) return 'open';
-        if (width < RAIL_BELOW_WIDTH) return 'rail';
-        if (width < WIDE_WIDTH && this.isSidePanelShown) return 'rail';
-        return 'open';
+        return this.layout.sidebarMode;
+    }
+
+    /**
+     * Width of the open sidebar, in pixels, or null when it is not open: the user's width or the
+     * default for the workspace's width, cut to leave the conversation its minimum.
+     */
+    @computed
+    get sidebarWidth(): number {
+        return this.layout.sidebarWidth;
+    }
+
+    /**
+     * Width of the side panel, in pixels, or null when it does not show: the user's width or the
+     * default for the workspace's width, cut to leave the conversation its minimum.
+     */
+    @computed
+    get sidePanelWidth(): number {
+        return this.layout.sidePanelWidth;
     }
 
     /**
@@ -132,7 +149,7 @@ export class ChatWorkspaceModel extends HoistModel {
         const path = persistWith?.path ?? 'chatWorkspace';
         this.sidebarModel = new PanelModel({
             side: 'left',
-            defaultSize: SIDEBAR_DEFAULT_WIDTH,
+            defaultSize: SIDEBAR_WIDTHS[WIDE_BAND],
             minSize: SIDEBAR_MIN_WIDTH,
             maxSize: SIDEBAR_MAX_WIDTH,
             collapsible: true,
@@ -143,7 +160,7 @@ export class ChatWorkspaceModel extends HoistModel {
         });
         this.sidePanelModel = new PanelModel({
             side: 'right',
-            defaultSize: SIDE_PANEL_DEFAULT_WIDTH,
+            defaultSize: SIDE_PANEL_WIDTHS[WIDE_BAND],
             minSize: SIDE_PANEL_MIN_WIDTH,
             maxSize: SIDE_PANEL_MAX_WIDTH,
             collapsible: false,
@@ -156,17 +173,44 @@ export class ChatWorkspaceModel extends HoistModel {
             hasRoom: () => this.hasSidePanelRoom
         });
 
-        // A user's expand of the rail holds only at the width where they made it.
+        // A saved width holds in the band where the workspace first shows it.
+        if (this.sidebarModel.size !== SIDEBAR_WIDTHS[WIDE_BAND]) {
+            this.sidebarSizeBand = RESTORED_BAND;
+        }
+        if (this.sidePanelModel.size !== SIDE_PANEL_WIDTHS[WIDE_BAND]) {
+            this.sidePanelSizeBand = RESTORED_BAND;
+        }
+
         this.addReaction(
             {
+                // A user's expand of the rail holds only at the width where they made it.
                 track: () => this.widthBand,
-                run: () => this.setSidebarExpanded(false)
+                run: band => {
+                    this.setSidebarExpanded(false);
+                    this.resolveRestoredBands(band);
+                }
             },
             {
                 track: () => this.sidebarModel.collapsed,
                 run: collapsed => {
                     if (collapsed) this.setSidebarExpanded(false);
                 }
+            },
+            {
+                // The side panel takes the room back from an expanded rail.
+                track: () => this.isSidePanelShown,
+                run: shown => {
+                    if (shown) this.setSidebarExpanded(false);
+                }
+            },
+            {
+                // A drag of a splitter sets the user's width, for this band and wider ones.
+                track: () => this.sidebarModel.size,
+                run: () => this.noteUserSize('sidebar')
+            },
+            {
+                track: () => this.sidePanelModel.size,
+                run: () => this.noteUserSize('sidePanel')
             }
         );
 
@@ -176,8 +220,14 @@ export class ChatWorkspaceModel extends HoistModel {
             run: () => this.sidePanel.open(null)
         });
 
-        // The conversation pane always shows a chat.
-        if (threadsModel.selectedThreadId == null) threadsModel.newThread();
+        // The conversation pane always shows a chat. The thread the user last had open returns
+        // once the list shows that it still exists. A thread that a route selected comes first.
+        if (threadsModel.selectedThreadId == null) {
+            this.initialThreadId = threadsModel.newThread().threadId;
+        }
+        if (persistWith) {
+            this.persistSelectedThread({...persistWith, path: `${path}.selectedThreadId`});
+        }
     }
 
     /** Load the thread list. */
@@ -198,7 +248,7 @@ export class ChatWorkspaceModel extends HoistModel {
         this.sidebarModel.setCollapsed(false);
         if (width != null && width < WIDE_WIDTH) {
             this.isSidebarExpanded = true;
-            if (width < RAIL_BELOW_WIDTH) this.closeSidePanel();
+            if (this.isSidePanelShown) this.closeSidePanel();
         }
     }
 
@@ -241,6 +291,16 @@ export class ChatWorkspaceModel extends HoistModel {
     // True while the user has expanded the rail at a width that would otherwise show it.
     @observable private accessor isSidebarExpanded = false;
 
+    // The band where the user set each panel's width, or null for the default width.
+    @observable private accessor sidebarSizeBand: number = null;
+    @observable private accessor sidePanelSizeBand: number = null;
+
+    // The saved thread to select once the list shows it, while the new chat is untouched.
+    @observable private accessor restoreThreadId: string = null;
+
+    // The new thread the workspace started with.
+    private initialThreadId: string = null;
+
     @computed
     private get widthBand(): number {
         const {width} = this;
@@ -248,24 +308,204 @@ export class ChatWorkspaceModel extends HoistModel {
         return BANDS.findIndex(it => width < it);
     }
 
+    @computed
+    private get layout(): Layout {
+        const {width} = this,
+            band = this.widthBand ?? WIDE_BAND;
+        if (band === HIDDEN_BAND) {
+            return {sidebarMode: 'hidden', sidebarWidth: null, sidePanelWidth: null};
+        }
+
+        const isPanelShown = this.isSidePanelShown;
+        let sidebarMode = this.getSidebarMode(band, isPanelShown),
+            sidebarWidth = sidebarMode === 'open' ? this.getPreferredWidth('sidebar', band) : null,
+            sidePanelWidth = isPanelShown ? this.getPreferredWidth('sidePanel', band) : null;
+        if (width == null) return {sidebarMode, sidebarWidth, sidePanelWidth};
+
+        // When the conversation would drop below its minimum, the sidebar gives way to its rail
+        // first, and then the side panel narrows.
+        const minConversation =
+                band === NARROW_BAND ? NARROW_MIN_CONVERSATION_WIDTH : MIN_CONVERSATION_WIDTH,
+            getSpare = () =>
+                width -
+                minConversation -
+                (sidebarMode === 'open' ? sidebarWidth + SPLITTER_WIDTH : RAIL_WIDTH) -
+                (isPanelShown ? sidePanelWidth + SPLITTER_WIDTH : 0);
+
+        if (isPanelShown && sidebarMode === 'open' && getSpare() < 0) {
+            sidebarMode = 'rail';
+            sidebarWidth = null;
+        }
+        if (isPanelShown && getSpare() < 0) {
+            sidePanelWidth = Math.max(0, sidePanelWidth + getSpare());
+        }
+        if (sidebarMode === 'open' && getSpare() < 0) {
+            sidebarWidth = Math.max(0, sidebarWidth + getSpare());
+        }
+        return {sidebarMode, sidebarWidth, sidePanelWidth};
+    }
+
+    private getSidebarMode(band: number, isPanelShown: boolean): ChatWorkspaceSidebarMode {
+        if (this.sidebarModel.collapsed) return 'rail';
+        if (this.isSidebarExpanded) return 'open';
+        if (band === NARROW_BAND) return 'rail';
+        if (band === MEDIUM_BAND && isPanelShown) return 'rail';
+        return 'open';
+    }
+
+    // The user's width holds in the band where they set it, and in wider ones. Elsewhere, the
+    // band's default - never wider than the user's width.
+    private getPreferredWidth(panel: PanelName, band: number): number {
+        const {panelModel, sizeBand, widths} = this.getPanelSpec(panel),
+            size = isNumber(panelModel.size) ? panelModel.size : widths[WIDE_BAND];
+        if (sizeBand === RESTORED_BAND || (sizeBand != null && band >= sizeBand)) return size;
+        return Math.min(size, widths[band]);
+    }
+
+    private getPanelSpec(panel: PanelName) {
+        return panel === 'sidebar'
+            ? {
+                  panelModel: this.sidebarModel,
+                  sizeBand: this.sidebarSizeBand,
+                  widths: SIDEBAR_WIDTHS
+              }
+            : {
+                  panelModel: this.sidePanelModel,
+                  sizeBand: this.sidePanelSizeBand,
+                  widths: SIDE_PANEL_WIDTHS
+              };
+    }
+
+    @action
+    private noteUserSize(panel: PanelName) {
+        const {panelModel, widths} = this.getPanelSpec(panel),
+            band = panelModel.size === widths[WIDE_BAND] ? null : (this.widthBand ?? WIDE_BAND);
+        if (panel === 'sidebar') {
+            this.sidebarSizeBand = band;
+        } else {
+            this.sidePanelSizeBand = band;
+        }
+    }
+
+    @action
+    private resolveRestoredBands(band: number) {
+        if (band == null) return;
+        if (this.sidebarSizeBand === RESTORED_BAND) this.sidebarSizeBand = band;
+        if (this.sidePanelSizeBand === RESTORED_BAND) this.sidePanelSizeBand = band;
+    }
+
     @action
     private setSidebarExpanded(expanded: boolean) {
         this.isSidebarExpanded = expanded;
+    }
+
+    //------------------------
+    // Selected thread
+    //------------------------
+    private persistSelectedThread(persistOptions: PersistOptions) {
+        PersistenceProvider.create({
+            persistOptions,
+            owner: this,
+            target: {
+                getPersistableState: () => new PersistableState(this.threadIdToPersist),
+                setPersistableState: ({value}) => this.setRestoreThreadId(value ?? null)
+            }
+        });
+
+        const {threadsModel} = this;
+        this.addReaction({
+            track: () => [threadsModel.threads, threadsModel.lastLoadCompleted],
+            run: () => this.restoreThread(),
+            fireImmediately: true
+        });
+    }
+
+    // The selected thread, once the store lists it - a new chat has nothing to return to. The
+    // saved thread, while it waits for the list.
+    @computed
+    private get threadIdToPersist(): string {
+        const {threadsModel, restoreThreadId} = this;
+        if (restoreThreadId != null && this.isUntouched) return restoreThreadId;
+        return threadsModel.selectedSummary ? threadsModel.selectedThreadId : null;
+    }
+
+    // True while the new chat the workspace started with is selected and empty.
+    private get isUntouched(): boolean {
+        const {threadsModel, initialThreadId} = this;
+        return (
+            initialThreadId != null &&
+            threadsModel.selectedThreadId === initialThreadId &&
+            !!threadsModel.chatModel?.isEmpty
+        );
+    }
+
+    private restoreThread() {
+        const {threadsModel, restoreThreadId: threadId} = this;
+        if (threadId == null) return;
+
+        // The user, or a route, chose a thread first.
+        if (!this.isUntouched || this.isRouteSelected) {
+            this.setRestoreThreadId(null);
+            return;
+        }
+
+        if (threadsModel.threads.some(it => it.id === threadId)) {
+            this.setRestoreThreadId(null);
+            threadsModel.selectThreadAsync(threadId).catchDefault();
+        } else if (threadsModel.lastLoadCompleted && !threadsModel.listError) {
+            // Listed, and gone: the new chat stays.
+            this.setRestoreThreadId(null);
+        }
+    }
+
+    // True if the threads model's route names a thread.
+    private get isRouteSelected(): boolean {
+        const {route} = this.threadsModel,
+            state = XH.routerState;
+        if (!route || !state) return false;
+        const isOnRoute = state.name === route.name || state.name?.startsWith(route.name + '.');
+        return isOnRoute && state.params?.[route.param] != null;
+    }
+
+    @action
+    private setRestoreThreadId(threadId: string) {
+        this.restoreThreadId = threadId;
     }
 }
 
 //------------------
 // Layout constants
 //------------------
-const SIDEBAR_DEFAULT_WIDTH = 260,
-    SIDEBAR_MIN_WIDTH = 200,
+type PanelName = 'sidebar' | 'sidePanel';
+
+interface Layout {
+    sidebarMode: ChatWorkspaceSidebarMode;
+    sidebarWidth: number;
+    sidePanelWidth: number;
+}
+
+const SIDEBAR_MIN_WIDTH = 200,
     SIDEBAR_MAX_WIDTH = 400,
-    SIDE_PANEL_DEFAULT_WIDTH = 520,
     SIDE_PANEL_MIN_WIDTH = 400,
     SIDE_PANEL_MAX_WIDTH = 900,
+    // Hoist's splitter beside a resizable panel, and the sidebar's rail.
+    SPLITTER_WIDTH = 8,
+    RAIL_WIDTH = 40,
     // 380 for the conversation, 8 for the splitter and 400 for the side panel.
     SIDE_PANEL_MIN_WORKSPACE_WIDTH = 788,
     RAIL_BELOW_WIDTH = 1000,
     WIDE_WIDTH = 1280,
     COMPACT_MAX_WIDTH = 380,
-    BANDS = [SIDE_PANEL_MIN_WORKSPACE_WIDTH, RAIL_BELOW_WIDTH, WIDE_WIDTH, Infinity];
+    MIN_CONVERSATION_WIDTH = 480,
+    NARROW_MIN_CONVERSATION_WIDTH = 380,
+    // The bands of width, by index - each up to the next breakpoint.
+    BANDS = [SIDE_PANEL_MIN_WORKSPACE_WIDTH, RAIL_BELOW_WIDTH, WIDE_WIDTH, Infinity],
+    HIDDEN_BAND = 0,
+    NARROW_BAND = 1,
+    MEDIUM_BAND = 2,
+    WIDE_BAND = 3,
+    // A saved width, before the workspace measures the band it first shows in.
+    RESTORED_BAND = -1,
+    // Default widths by band. The widest band's are the panels' default sizes.
+    SIDEBAR_WIDTHS = [null, 240, 240, 260],
+    SIDE_PANEL_WIDTHS = [null, 400, 460, 520];

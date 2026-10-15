@@ -16,6 +16,15 @@
     min-width: 0;
   }
 
+  // The boxes around the sidebar and the side panel set the widths that show. Each panel
+  // stretches to the row's full height.
+  &__sidebar-box,
+  &__side-panel {
+    display: flex;
+    flex: none;
+    min-height: 0;
+  }
+
   // The sidebar shares the conversation's surface. Its border does the separating.
   &__sidebar {
     background-color: var(--xh-chat-sidebar-bg);
@@ -89,12 +98,6 @@
   }
 
   &__conversation {
-    min-height: 0;
-  }
-
-  &__side-panel {
-    display: flex;
-    flex: none;
     min-height: 0;
   }
 }
