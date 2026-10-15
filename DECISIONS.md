@@ -797,6 +797,8 @@ on a record then has to spell the record's id out in its text.
 
 ## D57. The kit is usable in layers
 
+**Refined** by [D82](#d82-a-narrow-interface-needs-a-second-implementer).
+
 **Decision.** Apps should be able to use the kit at four levels: building blocks alone, the engine
 without the kit's UI, the kit's components over the app's own state, and the whole chat. Where a
 component or model needs only part of `ChatModel`, it depends on a narrow interface that
@@ -1181,3 +1183,37 @@ removed. This withdraws D50 and the service half of D24. `ChatCompletionsCodec` 
 
 **Why.** Its only caller was the component helper, removed by D80. An app builds its transport
 in a line or two, with the codec its server relays.
+
+## D82. A narrow interface needs a second implementer
+
+**Decision.** This refines D57. A component depends on a narrow interface only where a second
+implementer really exists. Otherwise it takes `ChatModel`. By that test, the four host
+interfaces come out as follows.
+
+- `ChatComposerHost` stays, trimmed to `isBusy`, `sendAsync`, `messages` and
+  `sendBlockedReason`. A prompt box that sends elsewhere, such as an app's "Ask the assistant"
+  search, is a real second implementer.
+- `ChatThreadListHost` stays. An inbox-like list that is not a `ChatThreadsModel` is plausible,
+  and the README shows one.
+- `ChatSidePanelHost` stays. It is a request-dispatch seam that a workspace or an app's own panel
+  can implement.
+- `ChatMessageListHost` gives way to `ChatTranscript`: `messages`, `dataRenderers` and `catalog`.
+  Its only implementer was `ChatModel`. Streaming, approvals, feedback and undo need the turn
+  loop, so the one real second case is a read-only transcript, such as an admin's chat log.
+  Interactive children take the `ChatModel`, and show only when the host is one - see
+  `isChatModel()`.
+
+`createChatRunRequest()` and the public `ChatStreamReducer` stay. They are the headless engine
+layer, with real uses in tests and services.
+
+**Why.** `ChatMessageListHost` had about 25 members, nearly all optional, and one implementer. Its
+children guarded each action with `host.x?.()` before they could act. An interface that nothing
+else implements costs its readers and buys no reuse.
+
+**Next.** `ChatModel` has about 1,960 lines and 87 public members. Split it into managed
+sub-models - feedback, undo, the server-mode run lifecycle and thread binding - that components
+bind with `uses()`, the way `GridModel` composes its parts. That gives the layers real seams
+without more host interfaces.
+
+**Alternatives.** Keep `ChatMessageListHost` for symmetry with the other hosts. It would keep the
+guards, and the optional members no app implements.

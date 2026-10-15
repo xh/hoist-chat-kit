@@ -127,7 +127,8 @@ Apps should be able to take one piece of the kit without the rest: a building bl
 markdown renderer or a generative UI grid, the engine without our UI, our components over their
 own state, or the whole chat. This is a goal, not a hard rule - do not build for reuse no one has
 asked for. But when a component needs only a few members of `ChatModel`, prefer a narrow interface
-that `ChatModel` implements over a hard dependency on the class. See D57.
+that `ChatModel` implements over a hard dependency on the class. See D57. Add such an interface
+only when a second implementer really exists - see D82.
 
 ### Hoist conventions apply
 
