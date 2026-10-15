@@ -1,12 +1,13 @@
 import {
     chatAnnouncer,
     ChatKit,
-    type ChatModel,
+    type ChatTranscript,
     type ChatToolCallPart,
     isToolCallFailed,
     isToolCallFinal
 } from '../../../../core';
 import {formatStepDuration} from './ChatTimelineItems';
+import {getHostToolSpec} from './groupParts';
 import {getErrorLine, getToolTitle} from './ToolCallStatus';
 
 /** Which steps the announcer reads as they finish - see `ChatKit.defaults.announceSteps`. */
@@ -29,12 +30,12 @@ export class ChatStepAnnouncer {
         calls: ChatToolCallPart[],
         {
             isLive,
-            chatModel,
+            host,
             announceSteps,
             stepOffset = 0
         }: {
             isLive: boolean;
-            chatModel: ChatModel;
+            host: ChatTranscript;
             announceSteps?: ChatAnnounceSteps;
             stepOffset?: number;
         }
@@ -49,7 +50,7 @@ export class ChatStepAnnouncer {
             this.knownFinal.add(call.id);
             if (!isLive || announceSteps === 'none' || call.cancelled) return;
 
-            const title = getToolTitle(call, chatModel?.getToolSpec(call.toolName));
+            const title = getToolTitle(call, getHostToolSpec(host, call.toolName));
             if (isToolCallFailed(call)) {
                 const cause = getErrorLine(call);
                 chatAnnouncer.announce(`Step failed: ${title}${cause ? `, ${cause}` : ''}.`);

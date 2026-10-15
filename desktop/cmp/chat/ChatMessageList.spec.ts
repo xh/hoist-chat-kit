@@ -648,6 +648,37 @@ describe('ChatMessageList', () => {
         }
     });
 
+    it("renders a transcript's generative UI calls as their components, from its catalog", () => {
+        const catalog = new ChatUiCatalog({
+                modes: ['tools'],
+                components: [
+                    {
+                        name: 'badge',
+                        description: 'A badge.',
+                        props: {
+                            type: 'object',
+                            required: ['label'],
+                            properties: {label: {type: 'string'}}
+                        },
+                        render: ({label}) => div({className: 'test-badge', item: label})
+                    }
+                ]
+            }),
+            badgeCall: ChatToolCallPart = {
+                ...call('c1', 'show_badge'),
+                inputText: '{"label":"Top seller"}',
+                input: {label: 'Top seller'}
+            },
+            host: ChatTranscript = {
+                messages: [new ChatMessage({id: 'a1', role: 'assistant', parts: [badgeCall]})],
+                catalog
+            },
+            {container} = render(appContext({item: chatMessageList({host})}));
+
+        expect(screen.getByText('Top seller', {selector: '.test-badge'})).toBeTruthy();
+        expect(container.querySelector('.xh-chat-tool-call__header')).toBeNull();
+    });
+
     describe('suggestions', () => {
         it("fill the chat's composer", () => {
             const chatModel = createModel({}, []);

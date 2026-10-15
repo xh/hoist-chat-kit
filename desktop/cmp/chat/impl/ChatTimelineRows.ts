@@ -6,7 +6,7 @@ import {Icon} from '@xh/hoist/icon';
 import {pluralize} from '@xh/hoist/utils/js';
 import {chatMarkdown} from '../../../../cmp/markdown';
 import {
-    type ChatModel,
+    type ChatTranscript,
     type ChatPartRenderContext,
     type ChatToolCallPart,
     type ChatToolSpec
@@ -29,6 +29,7 @@ import {
     summarizeInput
 } from './ChatTimelineItems';
 import type {ChatTimelineLocalModel} from './ChatTimelineLocalModel';
+import {getHostToolSpec} from './groupParts';
 import {CHAT_MARKDOWN_COMPONENTS} from './MarkdownComponents';
 import {getErrorLine, getToolTitle, isAwaitingAnswer} from './ToolCallStatus';
 
@@ -42,8 +43,8 @@ export const TIMELINE_PANE_MAX_LINES = 500;
 export interface ChatTimelineRowContext {
     impl: ChatTimelineLocalModel;
 
-    /** The chat, for the specs of its tools - null for a transcript. */
-    chatModel: ChatModel;
+    /** The conversation, for the specs of its tools. */
+    host: ChatTranscript;
     context: ChatPartRenderContext;
 
     /** True once the reply was stopped - calls still in flight show as cancelled. */
@@ -181,8 +182,8 @@ function callRow(
     parentName: string
 ): ReactNode {
     const {part, retry} = item,
-        {impl, chatModel, isStopped} = ctx,
-        spec = chatModel?.getToolSpec(part.toolName),
+        {impl, host, isStopped} = ctx,
+        spec = getHostToolSpec(host, part.toolName),
         state = getRowState(part, spec, isStopped),
         title = getToolTitle(part, spec),
         input = summarizeInput(part, spec),
@@ -247,10 +248,10 @@ function batchRow(
     depth: number,
     parentName: string
 ): ReactNode {
-    const {impl, chatModel, isStopped} = ctx,
+    const {impl, host, isStopped} = ctx,
         calls = item.items.map(it => it.part),
         first = calls[0],
-        spec = chatModel?.getToolSpec(first.toolName),
+        spec = getHostToolSpec(host, first.toolName),
         title = getToolTitle(first, spec),
         states = calls.map(it => getRowState(it, spec, isStopped)),
         failed = states.filter(it => it === 'failed').length,

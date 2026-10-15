@@ -152,7 +152,7 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                 impl.viewportRef
             ),
             contentRef = useOnResize(impl.onContentResize),
-            host: ChatTranscript | ChatModel = hostProp ?? model;
+            host: ChatTranscript = hostProp ?? model;
         throwIf(!host, 'ChatMessageList needs a ChatModel, or a host.');
 
         const {messages} = host,

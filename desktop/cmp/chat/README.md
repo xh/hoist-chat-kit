@@ -493,9 +493,10 @@ chatComposer({model: notesModel.composerModel, placeholder: 'Add a note...'});
 
 To show a conversation read-only, such as an admin's chat log or a saved conversation, pass a
 `ChatTranscript` as `host`: `messages`, plus optional `dataRenderers` and `catalog`. `ChatModel`
-implements it. The list renders every part, with Copy and any `messageActions`. Edit,
-Regenerate, Undo, feedback, approvals and Stop need the turn loop, so they show only for a
-`ChatModel`. Part renderers receive a context whose `chatModel` is null.
+implements it. The list renders every part, with Copy and any `messageActions`. Calls to the
+catalog's tools show as their components, as in the live chat. Edit, Regenerate, Undo, feedback,
+approvals and Stop need the turn loop, so they show only for a `ChatModel`. Part renderers
+receive a context whose `chatModel` is null.
 
 ```typescript
 export class NotesModel extends HoistModel implements ChatTranscript {

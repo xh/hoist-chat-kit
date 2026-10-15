@@ -18,12 +18,13 @@ import {
     type ChatTextPart,
     type ChatToolCallPart,
     type ChatToolSpec,
+    type ChatTranscript,
     isChatSubagentPart,
     isToolCallCancelled,
     isToolCallFailed,
     isToolCallFinal
 } from '../../../../core';
-import type {ChatGroupingHost} from './groupParts';
+import {getHostToolSpec} from './groupParts';
 import {isAwaitingAnswer} from './ToolCallStatus';
 
 /**
@@ -86,7 +87,7 @@ export const TIMELINE_BATCH_MIN = 3;
  * between, merge into a batch. A call that waits for the user never joins a batch.
  * @internal
  */
-export function buildTimelineItems(parts: ChatPart[], host: ChatGroupingHost): ChatTimelineItem[] {
+export function buildTimelineItems(parts: ChatPart[], host: ChatTranscript): ChatTimelineItem[] {
     const agentIds = new Set(parts.filter(isChatSubagentPart).map(it => it.id)),
         retries = getRetries(parts),
         scopeOf = (part: ChatPart): string => {
@@ -206,10 +207,10 @@ export interface ChatTimelineSummary {
 export function summarizeTimeline(
     items: ChatTimelineItem[],
     pinned: ChatToolCallPart[],
-    host: ChatGroupingHost
+    host: ChatTranscript
 ): ChatTimelineSummary {
     const calls = getTimelineCalls(items),
-        specOf = (call: ChatToolCallPart) => host?.getToolSpec(call.toolName),
+        specOf = (call: ChatToolCallPart) => getHostToolSpec(host, call.toolName),
         failed = calls.filter(isToolCallFailed),
         newest = last(items);
 
@@ -509,7 +510,7 @@ function isSameCall(a: ChatToolCallPart, b: ChatToolCallPart): boolean {
     );
 }
 
-function batchCalls(items: ChatTimelineItem[], host: ChatGroupingHost): ChatTimelineItem[] {
+function batchCalls(items: ChatTimelineItem[], host: ChatTranscript): ChatTimelineItem[] {
     const ret: ChatTimelineItem[] = [];
     let run: ChatTimelineCallItem[] = [];
     const flush = () => {
@@ -525,7 +526,7 @@ function batchCalls(items: ChatTimelineItem[], host: ChatGroupingHost): ChatTime
         const canBatch =
             item.type === 'call' &&
             item.part.state !== 'approval-requested' &&
-            !isAwaitingAnswer(item.part, host?.getToolSpec(item.part.toolName));
+            !isAwaitingAnswer(item.part, getHostToolSpec(host, item.part.toolName));
         if (canBatch && run.length && run[0].part.toolName !== item.part.toolName) flush();
         if (canBatch) {
             run.push(item);

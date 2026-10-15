@@ -264,9 +264,9 @@ export interface ChatPartRenderContext {
 
     /**
      * The conversation that shows the part - the `ChatModel`, or any other `ChatTranscript`. Null
-     * if the view that renders the part has no host.
+     * if the view that renders the part has no host. Use `chatModel` for its actions.
      */
-    host?: ChatTranscript | ChatModel;
+    host?: ChatTranscript;
 
     /** Id of the message that holds the part. */
     messageId: string;

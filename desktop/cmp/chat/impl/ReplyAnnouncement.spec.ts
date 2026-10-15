@@ -1,5 +1,7 @@
-import {describe, expect, it} from 'vitest';
-import {ChatMessage, type ChatPart} from '../../../../core';
+import {initTestAppAsync} from '@xh/hoist/test-support';
+import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {ChatMessage, ChatModel, type ChatPart} from '../../../../core';
+import {ScriptedChatTransport} from '../../../../transport';
 import {formatReplyAnnouncement} from './ReplyAnnouncement';
 
 /**
@@ -7,6 +9,8 @@ import {formatReplyAnnouncement} from './ReplyAnnouncement';
  * took, then the start of the answer as plain words - never markup, and never the whole reply.
  */
 describe('formatReplyAnnouncement', () => {
+    beforeAll(() => initTestAppAsync());
+
     it('names the assistant, its tool count and time, then the first paragraph', () => {
         const message = reply(
             'HY Credit is the **only** desk over its limit.\n\nEM Rates is next.',
@@ -72,10 +76,17 @@ describe('formatReplyAnnouncement', () => {
                     {type: 'text', id: 't1', text: 'Two desks are over.', state: 'done'}
                 ]
             }),
-            display = {plan: 'pinned', step: 'timeline', log: 'hidden'},
-            host = {getToolSpec: (name: string) => ({name, display: display[name]})};
+            host = new ChatModel({
+                transport: new ScriptedChatTransport(),
+                tools: [
+                    {name: 'plan', display: 'pinned'},
+                    {name: 'step', display: 'timeline'},
+                    {name: 'log', display: 'hidden'}
+                ]
+            });
+        onTestFinished(() => host.destroy());
 
-        expect(formatReplyAnnouncement(message, 'Bot', host as any)).toBe(
+        expect(formatReplyAnnouncement(message, 'Bot', host)).toBe(
             'Bot replied after 2 tools and 1 agent, 1 failed. Two desks are over.'
         );
     });

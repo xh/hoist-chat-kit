@@ -1,7 +1,9 @@
-import {describe, expect, it} from 'vitest';
+import {initTestAppAsync} from '@xh/hoist/test-support';
+import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {ScriptedChatTransport} from '../../../../transport';
 import {
     CHAT_SUBAGENT_DATA_TYPE,
-    type ChatModel,
+    ChatModel,
     type ChatPart,
     type ChatToolCallPart,
     type ChatToolCallState,
@@ -20,6 +22,8 @@ import {
  * tool calls into a quiet "Used 3 tools" row, while calls that need the user stay in view.
  */
 describe('groupParts', () => {
+    beforeAll(() => initTestAppAsync());
+
     it('folds two or more consecutive tool calls of one step into a group', () => {
         const parts = [text('t1'), call('c1'), call('c2'), call('c3'), text('t2')],
             groups = groupParts(parts, chatModel());
@@ -100,6 +104,8 @@ describe('groupParts', () => {
  * output. Users rely on a reply's steps reading as one block, split only by text between them.
  */
 describe('groupProcessRuns', () => {
+    beforeAll(() => initTestAppAsync());
+
     it('gathers consecutive reasoning, tool rows and tool groups into one run', () => {
         const host = chatModel(),
             runs = groupProcessRuns(
@@ -144,6 +150,8 @@ describe('groupProcessRuns', () => {
  * between them, and `card` calls and reasoning alone keep their rows.
  */
 describe('groupParts by display mode', () => {
+    beforeAll(() => initTestAppAsync());
+
     const tools: ChatToolSpec[] = [
         {name: 'step', display: 'timeline'},
         {name: 'plan', display: 'pinned'},
@@ -273,7 +281,9 @@ describe('groupParts by display mode', () => {
 // Helpers
 //------------------
 function chatModel(tools: ChatToolSpec[] = []): ChatModel {
-    return {getToolSpec: (name: string) => tools.find(it => it.name === name) ?? null} as ChatModel;
+    const ret = new ChatModel({transport: new ScriptedChatTransport(), tools});
+    onTestFinished(() => ret.destroy());
+    return ret;
 }
 
 function reasoning(id: string, content: string = 'Thinking it over.'): ChatPart {

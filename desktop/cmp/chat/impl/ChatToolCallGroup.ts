@@ -15,6 +15,7 @@ import {
 import {chatToolCall} from '../ChatToolCall';
 import {classNames} from '../../../../impl/ClassNames';
 import {chatErrorBoundary} from './ChatErrorBoundary';
+import {getHostToolSpec} from './groupParts';
 import {getToolTitle} from './ToolCallStatus';
 import {chatSpinner} from '../../../impl/ChatLiveCues';
 
@@ -42,7 +43,7 @@ export const chatToolCallGroup = hoistCmp.factory<ChatToolCallGroupProps>({
             isExpanded = impl.expanded ?? isRunning,
             count = parts.length,
             names = uniq(
-                parts.map(it => getToolTitle(it, context.chatModel?.getToolSpec(it.toolName)))
+                parts.map(it => getToolTitle(it, getHostToolSpec(context.host, it.toolName)))
             ),
             title = `${isRunning ? 'Using' : 'Used'} ${pluralize('tool', count, true)}`,
             problems = getProblems(parts);

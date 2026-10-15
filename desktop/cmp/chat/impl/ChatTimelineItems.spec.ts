@@ -1,8 +1,10 @@
-import {describe, expect, it} from 'vitest';
+import {initTestAppAsync} from '@xh/hoist/test-support';
+import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {ScriptedChatTransport} from '../../../../transport';
 import {
     CHAT_SUBAGENT_DATA_TYPE,
     ChatMessage,
-    type ChatModel,
+    ChatModel,
     type ChatPart,
     type ChatToolCallPart,
     type ChatToolCallState,
@@ -26,6 +28,8 @@ import {
  * "retried" once a retry succeeded.
  */
 describe('ChatTimelineItems', () => {
+    beforeAll(() => initTestAppAsync());
+
     it('merges three or more consecutive calls of one tool into a batch', () => {
         const items = buildTimelineItems(
             [call('a1', 'query'), call('a2', 'query'), call('a3', 'query'), call('b1', 'read')],
@@ -195,7 +199,9 @@ describe('ChatTimelineItems', () => {
 // Helpers
 //------------------
 function host(tools: ChatToolSpec[] = []): ChatModel {
-    return {getToolSpec: (name: string) => tools.find(it => it.name === name) ?? null} as ChatModel;
+    const ret = new ChatModel({transport: new ScriptedChatTransport(), tools});
+    onTestFinished(() => ret.destroy());
+    return ret;
 }
 
 function summarize(parts: ChatPart[], tools: ChatToolSpec[] = []) {

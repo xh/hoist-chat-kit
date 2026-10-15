@@ -20,7 +20,10 @@ export interface ChatTranscript {
     /** Renderers for data parts, keyed by `dataType`. A part with none shows as JSON. */
     readonly dataRenderers?: Record<string, ChatDataRenderer>;
 
-    /** Catalog whose component tags render in the text of replies. */
+    /**
+     * Catalog whose components render in replies - for the tags in their text, and for calls to
+     * its tools, which show as their components.
+     */
     readonly catalog?: ChatUiCatalog;
 }
 

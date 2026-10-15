@@ -29,7 +29,7 @@ export class ChatMessageListLocalModel extends HoistModel {
     override xhImpl = true;
 
     /** The conversation the list shows - its `host` prop, else its `ChatModel`. */
-    get host(): ChatTranscript | ChatModel {
+    get host(): ChatTranscript {
         const {host, model} = this.componentProps as PlainObject;
         return host ?? model;
     }
@@ -171,7 +171,7 @@ export class ChatMessageListLocalModel extends HoistModel {
 
         if (message.status === 'complete') {
             const name = (this.componentProps as PlainObject).assistantName ?? 'Assistant';
-            chatAnnouncer.announce(formatReplyAnnouncement(message, name, this.chatModel));
+            chatAnnouncer.announce(formatReplyAnnouncement(message, name, this.host));
         } else if (message.status === 'aborted' && !message.metadata.detached) {
             chatAnnouncer.announce('Reply stopped.');
         }

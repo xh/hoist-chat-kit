@@ -40,7 +40,7 @@ import {
 import {ChatTimelineLocalModel} from './impl/ChatTimelineLocalModel';
 import {timelinePlan, timelineRows} from './impl/ChatTimelineRows';
 import {chatToolApproval} from './impl/ChatToolApproval';
-import {groupParts} from './impl/groupParts';
+import {getHostToolSpec, groupParts} from './impl/groupParts';
 import {useChatClock} from './impl/useChatClock';
 import {getToolTitle} from './impl/ToolCallStatus';
 
@@ -50,10 +50,10 @@ export interface ChatTimelineProps extends HoistProps {
     message: ChatMessage;
 
     /**
-     * The conversation that holds the reply. A `ChatModel` supplies its tool specs, and approves,
+     * The conversation that holds the reply, for its tool specs. A `ChatModel` also approves,
      * denies and answers calls. Any other {@link ChatTranscript} shows the calls read-only.
      */
-    host: ChatTranscript | ChatModel;
+    host: ChatTranscript;
 
     /**
      * The parts the block holds: calls to `timeline` tools, sub-agents, and the narration and
@@ -128,10 +128,10 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
                 useOnResize(rect => impl.setWidth(rect.width)),
                 ref
             ),
-            {parts, pinned} = getBlockParts(props, chatModel),
+            {parts, pinned} = getBlockParts(props),
             context = props.context ?? {chatModel, host, messageId: message.id},
-            items = buildTimelineItems(parts, chatModel),
-            summary = summarizeTimeline(items, pinned, chatModel),
+            items = buildTimelineItems(parts, host),
+            summary = summarizeTimeline(items, pinned, host),
             isLive = message.isStreaming,
             now = useChatClock(isLive),
             lastActivityAt = isLast && isLive ? (chatModel?.lastActivityAt ?? null) : null,
@@ -148,17 +148,17 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
         useEffect(() => {
             impl.steps.note(summary.calls, {
                 isLive: isLive || message.status === 'paused',
-                chatModel,
+                host,
                 announceSteps: props.announceSteps,
                 stepOffset: props.stepOffset
             });
-            impl.noteQuiet(state === 'quiet' ? quietMs : null, runningTitle(summary, chatModel));
+            impl.noteQuiet(state === 'quiet' ? quietMs : null, runningTitle(summary, host));
         });
 
         const firstRowId = items[0]?.id ?? null,
             rowCtx = {
                 impl,
-                chatModel,
+                host,
                 context,
                 isStopped: state === 'stopped',
                 isLive,
@@ -187,7 +187,7 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
                                 className: 'xh-chat-timeline__head-icon',
                                 item: lineIcon(state)
                             }),
-                            lineStage(state, summary, chatModel, impl, now),
+                            lineStage(state, summary, host, impl, now),
                             lineMeta(state, summary, message, impl, quietMs),
                             span({
                                 className: 'xh-chat-timeline__chevron',
@@ -201,14 +201,14 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
                     ? chatToolApproval({
                           className: 'xh-chat-timeline__ask',
                           part: summary.approval,
-                          spec: chatModel.getToolSpec(summary.approval.toolName),
+                          spec: getHostToolSpec(host, summary.approval.toolName),
                           chatModel
                       })
                     : null,
                 summary.question && state === 'question'
                     ? questionPanel({
                           part: summary.question,
-                          spec: chatModel?.getToolSpec(summary.question.toolName),
+                          spec: getHostToolSpec(host, summary.question.toolName),
                           chatModel,
                           context
                       })
@@ -241,13 +241,10 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
 //------------------
 // Implementation
 //------------------
-function getBlockParts(
-    props: ChatTimelineProps,
-    chatModel: ChatModel
-): {parts: ChatPart[]; pinned: ChatToolCallPart[]} {
-    const {parts, pinned, message} = props;
+function getBlockParts(props: ChatTimelineProps): {parts: ChatPart[]; pinned: ChatToolCallPart[]} {
+    const {parts, pinned, message, host} = props;
     if (parts) return {parts, pinned: pinned ?? []};
-    const block = groupParts(message.parts, chatModel).find(it => it.type === 'timeline');
+    const block = groupParts(message.parts, host).find(it => it.type === 'timeline');
     return block?.type === 'timeline'
         ? {parts: block.parts, pinned: pinned ?? block.pinned}
         : {parts: [], pinned: pinned ?? []};
@@ -275,7 +272,7 @@ function lineIcon(state: ChatTimelineState): ReactNode {
 function lineStage(
     state: ChatTimelineState,
     summary: ChatTimelineSummary,
-    chatModel: ChatModel,
+    host: ChatTranscript,
     impl: ChatTimelineLocalModel,
     now: number
 ): ReactNode {
@@ -294,10 +291,10 @@ function lineStage(
             const activePlanItem = plan?.items?.find(it => it.status === 'active');
             if (activePlanItem) return stage(impl.holdStage(activePlanItem.title, now));
             if (summary.narration) return stage(impl.holdStage(summary.narration, now), true);
-            return stage(impl.holdStage(runningStage(summary, chatModel), now));
+            return stage(impl.holdStage(runningStage(summary, host), now));
         }
         case 'quiet': {
-            const title = runningTitle(summary, chatModel);
+            const title = runningTitle(summary, host);
             return stage(title ? `Waiting on ${title}` : 'Waiting for a response');
         }
         case 'approval':
@@ -317,18 +314,18 @@ function lineStage(
     }
 }
 
-function runningStage(summary: ChatTimelineSummary, chatModel: ChatModel): string {
+function runningStage(summary: ChatTimelineSummary, host: ChatTranscript): string {
     const {running, runningAgents, isThinking} = summary;
     if (running.length > 1) return `Running ${running.length} steps`;
-    if (running.length === 1) return runningTitle(summary, chatModel);
+    if (running.length === 1) return runningTitle(summary, host);
     if (runningAgents.length) return runningAgents[runningAgents.length - 1].name;
     return isThinking ? 'Thinking' : 'Working';
 }
 
 // The title of the newest running call, or of the newest running sub-agent.
-function runningTitle(summary: ChatTimelineSummary, chatModel: ChatModel): string {
+function runningTitle(summary: ChatTimelineSummary, host: ChatTranscript): string {
     const call = summary.running[summary.running.length - 1];
-    if (call) return getToolTitle(call, chatModel?.getToolSpec(call.toolName));
+    if (call) return getToolTitle(call, getHostToolSpec(host, call.toolName));
     const agent = summary.runningAgents[summary.runningAgents.length - 1];
     return agent?.name ?? null;
 }

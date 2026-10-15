@@ -2,10 +2,11 @@ import {compact} from 'lodash';
 import {
     type ChatMessage,
     type ChatTextPart,
+    type ChatTranscript,
     isChatSubagentPart,
     isToolCallFailed
 } from '../../../../core';
-import {type ChatGroupingHost, getToolCallDisplay, groupParts} from './groupParts';
+import {getToolCallDisplay, groupParts} from './groupParts';
 
 /**
  * What the announcer reads when a reply finishes: who replied, after how many tools and agents,
@@ -14,14 +15,14 @@ import {type ChatGroupingHost, getToolCallDisplay, groupParts} from './groupPart
  * replied after 7 tools and 1 agent, 42 seconds, 1 failed. HY Credit is the only desk over its
  * limit." This is also the activity timeline's done summary, which is never announced alone.
  *
- * With a chat to say how each tool displays, calls to `hidden` and `pinned` tools do not count,
+ * With a host to say how each tool displays, calls to `hidden` and `pinned` tools do not count,
  * and narration in an activity timeline is not read as the answer.
  * @internal
  */
 export function formatReplyAnnouncement(
     message: ChatMessage,
     assistantName: string,
-    host: ChatGroupingHost = null
+    host: ChatTranscript = null
 ): string {
     const calls = message.toolCalls.filter(it => !host || isCounted(getToolCallDisplay(it, host))),
         tools = calls.length,
@@ -53,7 +54,7 @@ function isCounted(display: string): boolean {
 }
 
 /** The reply's text, less the narration that its activity timelines hold. */
-function getAnswerText(message: ChatMessage, host: ChatGroupingHost) {
+function getAnswerText(message: ChatMessage, host: ChatTranscript) {
     const narrationIds = new Set(
         groupParts(message.parts, host).flatMap(group =>
             group.type === 'timeline' ? group.parts.map(it => it.id) : []

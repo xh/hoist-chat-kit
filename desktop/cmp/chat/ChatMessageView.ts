@@ -107,10 +107,10 @@ export interface ChatMessageViewProps extends HoistProps {
     message: ChatMessage;
 
     /**
-     * The conversation that holds the message - for its renderers, and with a `ChatModel` for its
-     * tools and actions. Any other {@link ChatTranscript} shows the message read-only.
+     * The conversation that holds the message - for its renderers and tools. A `ChatModel` also
+     * offers its actions. Any other {@link ChatTranscript} shows the message read-only.
      */
-    host: ChatTranscript | ChatModel;
+    host: ChatTranscript;
 
     /** Name shown on assistant messages. Default 'Assistant'. */
     assistantName?: string;
@@ -258,12 +258,11 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
         // Calls shown outside a timeline announce as they finish. A timeline announces its own.
         useEffect(() => {
             if (!message.isAssistant) return;
-            const {chatModel} = context;
             impl.cardSteps.note(
-                message.toolCalls.filter(it => isAnnouncedOutsideTimeline(it, chatModel)),
+                message.toolCalls.filter(it => isAnnouncedOutsideTimeline(it, host)),
                 {
                     isLive: message.isStreaming || message.status === 'paused',
-                    chatModel,
+                    host,
                     announceSteps: props.announceSteps
                 }
             );
@@ -659,9 +658,9 @@ function assistantContent(
     references: ChatReference[],
     markerSources: ChatSourcePart[]
 ): ReactNode[] {
-    const {message, isLast, messageActions} = props,
+    const {message, host, isLast, messageActions} = props,
         {chatModel} = context,
-        runs = groupProcessRuns(groupParts(message.parts, chatModel), chatModel),
+        runs = groupProcessRuns(groupParts(message.parts, host), host),
         // A fixed "not found" reply lists no sources.
         isNoAnswer = !!getChatNoAnswerPart(message),
         uncitedSources = isNoAnswer ? [] : collectUncitedSources(message.parts, references),
@@ -781,8 +780,8 @@ function getStepOffsets(runs: Array<ChatPartGroup | ChatProcessRun>): Map<string
 }
 
 // A call whose finish the message view announces: one it shows, outside a timeline.
-function isAnnouncedOutsideTimeline(call: ChatToolCallPart, chatModel: ChatModel): boolean {
-    const display = getToolCallDisplay(call, chatModel);
+function isAnnouncedOutsideTimeline(call: ChatToolCallPart, host: ChatTranscript): boolean {
+    const display = getToolCallDisplay(call, host);
     return display !== 'timeline' && display !== 'hidden' && display !== 'pinned';
 }
 
@@ -802,7 +801,7 @@ function renderGroup(
 }
 
 function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactNode {
-    const {message, isLast, assistantName, assistantIcon, messageHeaderItems} = props,
+    const {message, host, isLast, assistantName, assistantIcon, messageHeaderItems} = props,
         {chatModel} = context,
         {status, metadata, createdAt} = message,
         isLive = message.isStreaming,
@@ -813,7 +812,7 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
         // A timeline counts its own failures.
         failedTools = isDone
             ? message.toolCalls.filter(
-                  it => isToolCallFailed(it) && getToolCallDisplay(it, chatModel) !== 'timeline'
+                  it => isToolCallFailed(it) && getToolCallDisplay(it, host) !== 'timeline'
               ).length
             : 0,
         endedAt = createdAt + (metadata?.elapsedMs ?? 0),
@@ -969,7 +968,7 @@ interface TextPartProps extends HoistProps {
     markerSources: ChatSourcePart[];
     links: ChatSourceLinks;
     context: ChatPartRenderContext;
-    host: ChatTranscript | ChatModel;
+    host: ChatTranscript;
     markdownComponents: ChatMarkdownComponents;
     markdownPlugins: ChatMarkdownPlugins;
     allowImages: ChatImagePolicy;
@@ -1068,7 +1067,7 @@ const textPart = hoistCmp.factory<TextPartProps>({
 interface DataPartProps extends HoistProps {
     part: ChatDataPart;
     context: ChatPartRenderContext;
-    host: ChatTranscript | ChatModel;
+    host: ChatTranscript;
 
     /** Edit Question, for a fixed "not found" reply. */
     onEditQuestion: () => void;

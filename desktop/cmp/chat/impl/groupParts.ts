@@ -1,10 +1,12 @@
 import {last} from 'lodash';
 import {
     type ChatFilePart,
-    type ChatModel,
     type ChatPart,
     type ChatToolCallPart,
     type ChatToolDisplay,
+    type ChatToolSpec,
+    type ChatTranscript,
+    isChatModel,
     isChatSubagentPart
 } from '../../../../core';
 import {isAwaitingAnswer} from './ToolCallStatus';
@@ -61,11 +63,15 @@ export interface ChatProcessRun {
 }
 
 /**
- * Where grouping finds the specs of tools: the chat, or null for a transcript, whose calls show
- * with the default display.
+ * The spec of a tool, for how its calls display: the chat's own, or for a plain transcript the
+ * display-only tools of its catalog, so that its generative UI calls render as their components.
+ * Null if the host has none, or if there is no host.
  * @internal
  */
-export type ChatGroupingHost = Pick<ChatModel, 'getToolSpec'>;
+export function getHostToolSpec(host: ChatTranscript, name: string): ChatToolSpec {
+    if (isChatModel(host)) return host.getToolSpec(name);
+    return host?.catalog?.displayTools.find(it => it.name === name) ?? null;
+}
 
 /**
  * How a call displays, from its tool's spec - see `ChatToolDisplay`. A call a sub-agent made
@@ -73,11 +79,8 @@ export type ChatGroupingHost = Pick<ChatModel, 'getToolSpec'>;
  * it waits for the user, so that a turn never waits on a call no one can see.
  * @internal
  */
-export function getToolCallDisplay(
-    call: ChatToolCallPart,
-    host: ChatGroupingHost
-): ChatToolDisplay {
-    const spec = host?.getToolSpec(call.toolName),
+export function getToolCallDisplay(call: ChatToolCallPart, host: ChatTranscript): ChatToolDisplay {
+    const spec = getHostToolSpec(host, call.toolName),
         display = spec?.display ?? (call.subagentRunId != null ? 'timeline' : 'card');
     if (display === 'hidden' && isWaitingForUser(call, host)) return 'card';
     return display;
@@ -99,7 +102,7 @@ export function getToolCallDisplay(
  *
  * @internal
  */
-export function groupParts(parts: ChatPart[], host: ChatGroupingHost): ChatPartGroup[] {
+export function groupParts(parts: ChatPart[], host: ChatTranscript): ChatPartGroup[] {
     const shown = parts.filter(part => isShown(part, host)),
         roles = shown.map(part => getRole(part, host)),
         hasTimeline = roles.includes('timeline'),
@@ -144,7 +147,7 @@ export function groupParts(parts: ChatPart[], host: ChatGroupingHost): ChatPartG
  */
 export function groupProcessRuns(
     groups: ChatPartGroup[],
-    host: ChatGroupingHost
+    host: ChatTranscript
 ): Array<ChatPartGroup | ChatProcessRun> {
     const ret: Array<ChatPartGroup | ChatProcessRun> = [];
     groups.forEach(group => {
@@ -168,7 +171,7 @@ export function groupProcessRuns(
 /** What a part is to the timeline: a member, text that may fold in, a plan, or other content. */
 type PartRole = 'timeline' | 'fold' | 'pinned' | 'other';
 
-function getRole(part: ChatPart, host: ChatGroupingHost): PartRole {
+function getRole(part: ChatPart, host: ChatTranscript): PartRole {
     switch (part.type) {
         case 'toolCall': {
             const display = getToolCallDisplay(part, host);
@@ -194,7 +197,7 @@ function foldsIntoTimeline(roles: PartRole[], idx: number): boolean {
     return false;
 }
 
-function isShown(part: ChatPart, host: ChatGroupingHost): boolean {
+function isShown(part: ChatPart, host: ChatTranscript): boolean {
     switch (part.type) {
         case 'source':
             return false;
@@ -207,7 +210,7 @@ function isShown(part: ChatPart, host: ChatGroupingHost): boolean {
     }
 }
 
-function addPart(ret: ChatPartGroup[], part: ChatPart, host: ChatGroupingHost) {
+function addPart(ret: ChatPartGroup[], part: ChatPart, host: ChatTranscript) {
     const prev = last(ret);
     if (part.type === 'file') {
         if (prev?.type === 'fileGroup') {
@@ -236,24 +239,24 @@ function addPart(ret: ChatPartGroup[], part: ChatPart, host: ChatGroupingHost) {
     ret.push(part);
 }
 
-function isWaitingForUser(call: ChatToolCallPart, host: ChatGroupingHost): boolean {
+function isWaitingForUser(call: ChatToolCallPart, host: ChatTranscript): boolean {
     return (
         call.state === 'approval-requested' ||
-        isAwaitingAnswer(call, host?.getToolSpec(call.toolName))
+        isAwaitingAnswer(call, getHostToolSpec(host, call.toolName))
     );
 }
 
 /** True for a call shown as a card row - a pinned call outside a timeline shows as one. */
-function isCardRow(call: ChatToolCallPart, host: ChatGroupingHost): boolean {
+function isCardRow(call: ChatToolCallPart, host: ChatTranscript): boolean {
     const display = getToolCallDisplay(call, host);
     return display === 'card' || display === 'pinned';
 }
 
-function isGroupable(call: ChatToolCallPart, host: ChatGroupingHost): boolean {
+function isGroupable(call: ChatToolCallPart, host: ChatTranscript): boolean {
     return isCardRow(call, host) && !isWaitingForUser(call, host);
 }
 
-function isProcessGroup(group: ChatPartGroup, host: ChatGroupingHost): boolean {
+function isProcessGroup(group: ChatPartGroup, host: ChatTranscript): boolean {
     switch (group.type) {
         case 'reasoning':
         case 'toolCallGroup':
