@@ -256,10 +256,14 @@ this repo's `CLAUDE.md`, so read the sibling's before you write to it.
 
 ## Changelog
 
-`CHANGELOG.md` follows hoist-react's format. Read it with `hoist-docs read docs/changelog-format.md`
-before you add an entry. New entries go under the topmost `-SNAPSHOT` heading, in emoji-prefixed
-sections such as `### 🎁 New Features` and `### 🐞 Bug Fixes`. Write one past-tense bullet per
-change, one to three lines, hard-wrapped at 100 characters.
+Until 1.0.0 ships, `CHANGELOG.md` holds only a short intro to the first release. Do not add
+entries for changes, as there is no earlier release to change from.
+
+After 1.0.0, `CHANGELOG.md` follows hoist-react's format. Read it with
+`hoist-docs read docs/changelog-format.md` before you add an entry. New entries go under the
+topmost `-SNAPSHOT` heading, in emoji-prefixed sections such as `### 🎁 New Features` and
+`### 🐞 Bug Fixes`. Write one past-tense bullet per change, one to three lines, hard-wrapped at
+100 characters.
 
 ## Publishing
 
