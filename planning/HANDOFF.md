@@ -14,6 +14,13 @@ names in `DECISIONS.md`.
 | `toolbox` `feature/weatherv2-chat-kit` | On the published kit. Pushed. |
 | `toolbox` `archive/chat-kit-grid-helper` | The removed Grid Helper tab. Not for merge. |
 
+## Layered API course correction (D82)
+
+- `ChatMessageListHost` is gone. The list and view take a read-only `ChatTranscript` or a `ChatModel`, and `isChatModel()` gates every action.
+- `ChatComposerHost` is trimmed to `isBusy`, `sendAsync`, `messages` and `sendBlockedReason`. Stop, drafts per thread and the status region need a `ChatModel`.
+- `ChatThreadListHost` and `ChatSidePanelHost` stay as they were. `createChatRunRequest()` and `ChatStreamReducer` stay.
+- Next structural task: split `ChatModel` into managed sub-models (feedback, undo, run lifecycle, thread binding), bound with `uses()`.
+
 ## Next
 
 1. The owner confirms the design reconciliation defaults (D76, `planning/design-reconciliation.md`).
@@ -33,8 +40,8 @@ names in `DECISIONS.md`.
   values, no unprefixed hooks, no `-px` or `-ms` twins, Hoist's naming grammar. Reads of Hoist's
   own variables keep the installed v89 names until the kit moves to the Hoist major that renames
   them, then run Hoist's codemod.
-- **Layering (D57)** is a goal, not a rule: prefer a narrow interface over a hard `ChatModel`
-  dependency when cheap.
+- **Layering (D57, D82)** is a goal, not a rule: prefer a narrow interface over a hard
+  `ChatModel` dependency only where a second implementer really exists.
 - **Names.** Never name a client or a private app in kit or Toolbox files. Toolbox may be named.
 - **Git.** Kit: commit and push on feature branches, and open PRs to `develop`. Merges to
   `develop` need Anselm's request. Toolbox: commit and push only on branches made for this
