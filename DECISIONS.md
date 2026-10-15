@@ -789,3 +789,18 @@ system message after the first.
 
 **Alternatives.** For the context, leave it out of the card's default schema. A button that acts
 on a record then has to spell the record's id out in its text.
+
+## D57. The kit is usable in layers
+
+**Decision.** Apps should be able to use the kit at four levels: building blocks alone, the engine
+without the kit's UI, the kit's components over the app's own state, and the whole chat. Where a
+component or model needs only part of `ChatModel`, it depends on a narrow interface that
+`ChatModel` implements, rather than on the class. This is a design goal, weighed against cost, not
+a rule that every part must meet.
+
+**Why.** Teams may want one piece, such as the composer or a generative UI grid, without adopting
+the whole conversation model. A hard dependency on `ChatModel` forces that adoption. A narrow
+interface costs little when the coupling is small, and keeps the full chat working as before.
+
+**Alternatives.** A separate headless package, or a runtime abstraction like those of other chat
+kits. Both cost more than the reuse we know of today.

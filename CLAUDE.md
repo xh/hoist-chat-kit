@@ -121,6 +121,14 @@ Consequences:
 - The `files` field in `package.json` lists what gets published. Add each new top-level source
   directory there.
 
+### Usable in layers
+
+Apps should be able to take one piece of the kit without the rest: a building block such as the
+markdown renderer or a generative UI grid, the engine without our UI, our components over their
+own state, or the whole chat. This is a goal, not a hard rule - do not build for reuse no one has
+asked for. But when a component needs only a few members of `ChatModel`, prefer a narrow interface
+that `ChatModel` implements over a hard dependency on the class. See D57.
+
 ### Hoist conventions apply
 
 Code here follows the conventions of the Hoist version it targets. Read them with
