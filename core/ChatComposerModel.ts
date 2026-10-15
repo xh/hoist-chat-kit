@@ -77,8 +77,9 @@ export interface ChatComposerRetryWait {
  * The attachment settings are bindable, so an app can change them after construction - for
  * example to allow files only for an agent that reads them.
  *
- * The composer keeps its text per thread. When its `ChatModel` host moves to another thread, outside
- * a turn, the composer saves the text for the old thread and shows the new thread's draft, or empties.
+ * The composer keeps its text per thread. When its `ChatModel` host moves to another thread,
+ * outside a turn, the composer saves the text for the old thread and shows the new thread's draft,
+ * or empties.
  * With `drafts: 'local'`, it saves the text after each pause of 500 ms, through
  * `XH.localStorageService`, so that the draft survives a reload. With `drafts: 'memory'`, it keeps
  * the drafts in the composer only. Attachments stay in memory, and go with a thread change. The

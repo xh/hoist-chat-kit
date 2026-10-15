@@ -818,8 +818,8 @@ host is a `ChatModel` - see `ChatComposerModel.chatModel`. Render the model with
 `chatComposer`. See
 [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#use-the-composer-without-a-chatmodel).
 
-`ChatModel` also satisfies `ChatMessageListHost`, the members the desktop message list reads. See
-[ChatMessageListHost](#chatmessagelisthost) and
+`ChatModel` also implements `ChatTranscript`, the read-only conversation the desktop message list
+can show in its place. See [ChatTranscript](#chattranscript) and
 [Show messages without a ChatModel](../desktop/cmp/chat/README.md#show-messages-without-a-chatmodel).
 
 ### Recover from a failed reply
@@ -1154,9 +1154,9 @@ The `context` of `execute` is a `ChatToolContext`: `chatModel`, `toolCallId`, an
 that aborts when the user stops the turn.
 
 The `context` of `renderer`, and of a data renderer, is a `ChatPartRenderContext`: `chatModel`,
-the `host` and the `messageId` of the message that holds the part. `host` is any
-`ChatMessageListHost`, and `chatModel` is null unless the host is a `ChatModel`. The context stays the same object while
-the message streams, so a part re-renders only when it changes. A renderer that needs the whole
+the `host` and the `messageId` of the message that holds the part. `host` is a `ChatModel` or a
+read-only `ChatTranscript`, and `chatModel` is null unless the host is a `ChatModel`. The context
+stays the same object while the message streams, so a part re-renders only when it changes. A renderer that needs the whole
 message reads `chatModel.getMessage(messageId)`, and then re-renders on every change to it.
 
 The chat renders each renderer as a component of its own, so a renderer may call hooks, such as
@@ -1218,33 +1218,17 @@ need the turn loop, so they work only when the host is a `ChatModel`.
 | `sendBlockedReason` | `string` | Optional. Why sending must wait, or null. |
 | `messages` | `{isUser, text}[]` | Optional. The conversation, oldest first, for `recallLastMessage()`. |
 
-### ChatMessageListHost
+### ChatTranscript
 
-The members the desktop message list and its message views read. `ChatModel` satisfies it. Make
-them observable, so that the views update as they change. Each optional action shows its button
-only when the host has it.
+A read-only conversation, for the desktop message list to show without a `ChatModel`.
+`ChatModel` implements it. Make the members observable, so that the views update as they change.
+`isChatModel(host)` tells a `ChatModel` from a plain transcript.
 
 | Member | Type | Description |
 |--------|------|-------------|
 | `messages` | `ChatMessage[]` | The conversation, oldest first. |
-| `threadId` | `string` | Optional. An open feedback form keeps its draft per thread for the session. |
-| `isBusy` | `boolean` | True while a reply is in progress. Edit, Regenerate and Undo wait while busy. |
-| `lastActivityAt`, `stallAfterMs` | `number` | Optional. Show a quiet reply as stalled - see [Display status](#display-status). |
-| `sendBlockedReason` | `string` | Optional. Why an edit cannot resend yet, or null. |
-| `dataRefreshedAt` | `number` | Optional. Epoch millis of the app's last data refresh. An older reply shows "Data refreshed since". |
-| `dataRenderers`, `catalog` | - | Optional. Renderers for data parts, and the catalog for component tags. |
-| `getToolSpec(name)` | `(string) => ChatToolSpec` | Optional. How a tool's calls display. |
-| `sendAsync(spec)` | `(ChatSendSpec) => Promise<void>` | Optional. Lets a part in a reply, such as a card's action, send a message. |
-| `editMessageAsync(id, text)` | `Promise<void>` | Optional. Shows Edit on user messages, and Edit Prompt on a failed reply. |
-| `regenerateAsync(id)` | `Promise<void>` | Optional. Shows Regenerate on the last reply. |
-| `canUndoTurn(id)`, `undoTurnAsync(id)` | - | Optional. Show Undo on a reply whose changes the user can undo. |
-| `undoErrors` | `Record<string, Error>` | Optional. Why an undo failed, by message id. A rejected `undoTurnAsync()` shows the same way. |
-| `canSubmitFeedback`, `feedback`, `submitFeedbackAsync(id, rating, comment, reasons)` | - | Optional. Show thumbs, and the comment form a rating asks for. |
-| `feedbackErrors` | `Record<string, Error>` | Optional. Why feedback failed, by message id. A rejected `submitFeedbackAsync()` shows the same way. |
-| `approveToolCallAsync(id, reason)`, `denyToolCallAsync(id, reason)` | `Promise<void>` | Optional. Show Allow and Deny on a call that waits for approval. |
-| `addToolOutputAsync(id, output)` | `Promise<void>` | Optional. Shows the choice buttons of a question in the activity timeline. |
-| `stop()` | `() => void` | Optional. Escape stops the reply in progress. |
-| `composerModel` | `{focus(), text?}` | Optional. Focused after an edit resends, and after Escape stops a reply. While `text` is empty, a new approval request takes focus from the conversation. |
+| `dataRenderers` | `Record<string, ChatDataRenderer>` | Optional. Renderers for data parts, by `dataType`. |
+| `catalog` | `ChatUiCatalog` | Optional. The catalog whose component tags render in replies. |
 
 ### ChatSidePanelHost
 

@@ -8,8 +8,12 @@
   apps override the variables on `body.xh-app`. The unprefixed `--chat-*` hooks are gone. Some
   variables merged or went away, such as `--xh-chat-shadow`. See
   [Theming](desktop/cmp/chat/README.md#theming).
-* Renamed the `chatModel` prop of `ChatMessageView` to `host`, which takes any
-  `ChatMessageListHost`, such as a `ChatModel`.
+* Renamed the `chatModel` prop of `ChatMessageView` to `host`, which takes a `ChatModel` or a
+  read-only `ChatTranscript`.
+* Replaced `ChatMessageListHost` with `ChatTranscript`: `messages`, `dataRenderers` and `catalog`.
+  Edit, Regenerate, Undo, feedback, approvals and Stop show only for a `ChatModel`. Trimmed
+  `ChatComposerHost` to `isBusy`, `sendAsync`, `messages` and `sendBlockedReason`, and removed
+  the `host` prop of `ChatToolCall`, which reads `context.chatModel`.
 * Removed the error banner with Retry from the end of the message list. A failed reply shows what
   happened inline, and the composer's status region holds the next action.
 * Changed empty-state suggestions to fill the composer rather than send, so the user reads and
@@ -209,8 +213,8 @@
 * Added a static twin for each moving chat cue, under reduced motion or inside an
   `xh-chat--reduced-motion` element. Set `ChatKit.defaults.reducedMotionSpinner` to `'spin'` to
   keep Hoist's spinner.
-* Added `ChatMessageListHost`, the members the message list and its views read. `ChatModel`
-  satisfies it. Pass a `host` of your own to show messages without a `ChatModel`.
+* Added `ChatTranscript`, a read-only conversation that the message list shows without a
+  `ChatModel`, such as a saved chat log. `ChatModel` implements it.
 * Added an inline failed row to a failed reply, with Edit Prompt and Copy Details. A message whose
   turn failed before its run started shows "Not sent" with Edit.
 * Added thumbs to each reply when the chat takes feedback. A rating that asks for a comment opens
@@ -250,8 +254,8 @@
 * Added `ChatModelConfig.dataRefreshedAt`, and an optional reason to `approveToolCallAsync()`.
 * Added `metadata.runStarted` to a reply whose run the backend began, and `metadata.endedAt` to
   each settled reply. A wait before a retry runs from `endedAt`.
-* Added `host` to `ChatPartRenderContext`, and an optional `sendAsync()` to
-  `ChatMessageListHost`, so that part renderers work over a host that is not a `ChatModel`.
+* Added `host` to `ChatPartRenderContext`, so that part renderers work over a transcript that is
+  not a `ChatModel`.
 * Added `ChatTextPart.revising`, set while the server rewrites streamed text that
   `xh.chat.textReplace` shortened. The reply then reads as `recomposing`, "Revising".
 * Added a thread's run options to its chat when it opens, from its last question, so that a
@@ -282,7 +286,6 @@
 * Added `announceSteps` to the message list, which also announces calls shown as cards.
 * Added `startedAt` and `endedAt` to tool call parts, for the time each call took.
 * Added `subagentEvents()`, and an `error` option for `toolCallEvents()`, to script agent runs.
-* Added `addToolOutputAsync()` to `ChatMessageListHost`, for the timeline's question buttons.
 * Added agents and failures to the announcement of a finished reply. It leaves out plan and
   hidden calls, and timeline narration.
 * Added `emptyStateProps` to `ChatPanel`, for the heading, text and icon of its empty state, and
