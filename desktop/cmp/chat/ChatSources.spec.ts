@@ -153,9 +153,9 @@ describe('sources and citations', () => {
             expect(isFaviconAllowed(data, false)).toBe(true);
             expect(isFaviconAllowed('data:text/html,hi', true)).toBe(false);
             expect(isFaviconAllowed(url, false)).toBe(false);
-            expect(isFaviconAllowed(url, src => src.startsWith('https://icons.example'))).toBe(
-                true
-            );
+            expect(
+                isFaviconAllowed(url, src => new URL(src).origin === 'https://icons.example')
+            ).toBe(true);
             expect(isFaviconAllowed('javascript:alert(1)', true)).toBe(false);
         });
 

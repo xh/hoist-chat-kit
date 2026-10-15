@@ -173,7 +173,10 @@ describe('ChatMessageList', () => {
         );
 
         rerender(
-            chatMessageList({model: chatModel, allowImages: src => src.startsWith('https://img.')})
+            chatMessageList({
+                model: chatModel,
+                allowImages: src => new URL(src).origin === 'https://img.example'
+            })
         );
         expect(container.querySelector('img').getAttribute('src')).toBe(
             'https://img.example/c.png'
