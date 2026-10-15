@@ -39,6 +39,7 @@ import type {
     ChatTransport
 } from '../transport';
 import {ChatAbortError, type ChatAbortReason} from './ChatAbortError';
+import type {ChatComposerHost} from './ChatComposerHost';
 import {ChatComposerModel, type ChatComposerConfig} from './ChatComposerModel';
 import type {ChatContextProvider} from './ChatContextProvider';
 import type {
@@ -54,7 +55,7 @@ import {ChatRunError} from './ChatRunError';
 import {ChatToolResult, type ChatToolUndo} from './ChatToolResult';
 import type {ChatToolSpec} from './ChatToolSpec';
 import {isAbortError, raceAbort} from '../impl/abort';
-import {ChatStreamReducer} from './impl/ChatStreamReducer';
+import {ChatStreamReducer} from './ChatStreamReducer';
 import {genChatId} from '../impl/ids';
 import {
     createTextPart,
@@ -154,8 +155,8 @@ export interface ChatModelConfig {
      */
     track?: boolean | ChatTrackOptions;
 
-    /** Config for the managed {@link ChatComposerModel}. */
-    composer?: ChatComposerConfig;
+    /** Config for the managed {@link ChatComposerModel}. The chat is its host. */
+    composer?: Omit<ChatComposerConfig, 'host'>;
 
     /**
      * Decides whether the user may send now. Return the reason sending must wait - such as
@@ -291,7 +292,7 @@ export interface ChatSendSpec {
  * Only one turn runs at a time. Render the model with a desktop `ChatPanel`, or with the
  * lower-level message list and composer components.
  */
-export class ChatModel extends HoistModel {
+export class ChatModel extends HoistModel implements ChatComposerHost {
     declare config: ChatModelConfig;
 
     //-----------------------
@@ -533,7 +534,7 @@ export class ChatModel extends HoistModel {
                 );
             }
         });
-        this.composerModel = new ChatComposerModel({...composer, chatModel: this});
+        this.composerModel = new ChatComposerModel({...composer, host: this});
     }
 
     override destroy() {

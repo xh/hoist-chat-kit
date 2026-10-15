@@ -5,7 +5,7 @@
 | [Overview](#overview) | How the chat gets events from a backend, and the key features |
 | [Architecture](#architecture) | Transports, codecs, `ChatEvent`, and how they fit together |
 | [Configuration Pattern](#configuration-pattern) | Choosing and configuring a transport and a codec |
-| [Common Usage Patterns](#common-usage-patterns) | Hoist servers, Anthropic, bring your own LLM, AG-UI agents, server-owned conversations, scripted demos and tests |
+| [Common Usage Patterns](#common-usage-patterns) | Hoist servers, Anthropic, bring your own LLM, AG-UI agents, server-owned conversations, scripted demos and tests, use without `ChatModel` |
 | [Server Contracts](#server-contracts) | What each transport expects from its backend |
 | [Hoist Server Example](#hoist-server-example) | A hoist-core controller that relays an Anthropic stream |
 | [Properties/API Reference](#propertiesapi-reference) | Config tables, the event vocabulary, and `xh.chat.*` events |
@@ -534,6 +534,53 @@ describe('AssistantModel tools', () => {
     });
 });
 ```
+
+### Use a transport without ChatModel
+
+An app that keeps its own conversation state can still use the kit's transports and codecs. Build a
+request with `createChatRunRequest()`, iterate `transport.run()`, and fold the events into an
+assistant message with `ChatStreamReducer` from `/core/`.
+
+```typescript
+import {ChatMessage, ChatStreamReducer} from '@xh/hoist-chat-kit/core';
+import {
+    AnthropicCodec,
+    createChatRunRequest,
+    HoistChatTransport
+} from '@xh/hoist-chat-kit/transport';
+
+const transport = new HoistChatTransport({url: 'chat/stream', codec: new AnthropicCodec()}),
+    controller = new AbortController(),
+    request = createChatRunRequest({
+        messages: [new ChatMessage({role: 'user', content: 'Summarize this quarter.'})],
+        signal: controller.signal
+    }),
+    reducer = new ChatStreamReducer(request.stepIndex);
+
+let reply = new ChatMessage({role: 'assistant', status: 'pending'});
+for await (const event of transport.run(request)) {
+    reply = reducer.apply(reply, [event]);
+    onReply(reply);                       // Your own state update
+}
+reply = reducer.finish(reply);
+if (reply.status !== 'error') reply = reply.withChanges({status: 'complete'});
+```
+
+`createChatRunRequest()` needs only the messages. Every other field defaults to what `ChatModel`
+sends for the first step of a turn in client mode. The request gets new thread and run ids, and the
+last user message as `turnId` and `newMessages`. It has no tools and no context.
+
+Pass any field to set it. Pass the same `threadId` for each turn of a conversation. Pass a `signal`
+if you want to stop the step, because the default signal never aborts.
+
+The reducer returns a new message for each batch and never marks it `complete`. `finish()` fails a
+reply whose stream ended without `RUN_FINISHED`, or that finished with no content.
+
+To answer the client tool calls in the reply, run the tools yourself. Give each tool call part its
+`output` and the state `output-available`, in a new message. Then send a request for the next step.
+Pass the same `threadId` and `turnId`, `trigger: 'continue'` and the next `stepIndex`. Pass the
+reply as the last of the `messages` and as `newMessages`. Fold that step's events into the same
+reply, with a new reducer.
 
 ## Server Contracts
 

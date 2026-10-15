@@ -2,8 +2,9 @@ import {observable, runInAction} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ScriptedChatTransport, textEvents} from '../transport';
-import type {ChatComposerConfig} from './ChatComposerModel';
-import {ChatModel} from './ChatModel';
+import type {ChatComposerHost} from './ChatComposerHost';
+import {type ChatComposerConfig, ChatComposerModel} from './ChatComposerModel';
+import {ChatModel, type ChatSendSpec} from './ChatModel';
 
 /**
  * ChatComposerModel holds the draft of the next message. Its send rules decide when the user can
@@ -72,6 +73,60 @@ describe('ChatComposerModel', () => {
 
             expect(chatModel.messages[0].text).toBe('Hello');
             expect(composer.text).toBe('');
+        });
+    });
+
+    describe('with a host of its own', () => {
+        it('sends the trimmed draft through the host and clears it', async () => {
+            const {host} = createHost(),
+                composer = createComposer(host);
+            composer.text = '  Hello  ';
+
+            await composer.submitAsync();
+
+            expect(host.sendAsync).toHaveBeenCalledExactlyOnceWith({text: 'Hello', files: []});
+            expect(composer.text).toBe('');
+        });
+
+        it('keeps the draft while the host is busy or gives a reason to wait', async () => {
+            const {host, state} = createHost(),
+                composer = createComposer(host);
+            composer.text = 'Hello';
+
+            runInAction(() => (state.isBusy = true));
+            expect(composer.canSend).toBe(false);
+            await composer.submitAsync();
+
+            runInAction(() => {
+                state.isBusy = false;
+                state.sendBlockedReason = 'Choose a document first.';
+            });
+            expect(composer.canSend).toBe(false);
+            await composer.submitAsync();
+
+            expect(host.sendAsync).not.toHaveBeenCalled();
+            expect(composer.text).toBe('Hello');
+
+            runInAction(() => (state.sendBlockedReason = null));
+            expect(composer.canSend).toBe(true);
+        });
+
+        it('recalls the last user message only if the host has messages', () => {
+            const withMessages = createComposer(
+                    createHost({
+                        messages: [
+                            {isUser: true, text: 'First'},
+                            {isUser: false, text: 'Reply'}
+                        ]
+                    }).host
+                ),
+                withoutMessages = createComposer(createHost().host);
+
+            withMessages.recallLastMessage();
+            withoutMessages.recallLastMessage();
+
+            expect(withMessages.text).toBe('First');
+            expect(withoutMessages.text).toBe('');
         });
     });
 
@@ -182,13 +237,35 @@ describe('ChatComposerModel', () => {
 //------------------
 // Helpers
 //------------------
-function createChatModel(composer: ChatComposerConfig = {}): ChatModel {
+function createChatModel(composer: Omit<ChatComposerConfig, 'host'> = {}): ChatModel {
     const model = new ChatModel({
         transport: new ScriptedChatTransport({respond: () => textEvents('Reply.'), delayMs: 10}),
         composer
     });
     onTestFinished(() => model.destroy());
     return model;
+}
+
+/** A host over observable app state, with no ChatModel. */
+function createHost(extra: Partial<ChatComposerHost> = {}) {
+    const state = observable({isBusy: false, sendBlockedReason: null as string}),
+        host = {
+            get isBusy() {
+                return state.isBusy;
+            },
+            get sendBlockedReason() {
+                return state.sendBlockedReason;
+            },
+            sendAsync: vi.fn(async (_spec: ChatSendSpec) => {}),
+            ...extra
+        };
+    return {host, state};
+}
+
+function createComposer(host: ChatComposerHost): ChatComposerModel {
+    const composer = new ChatComposerModel({host});
+    onTestFinished(() => composer.destroy());
+    return composer;
 }
 
 function file(name: string, type: string = 'text/plain', content: string = 'x'): File {

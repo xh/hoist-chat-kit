@@ -148,6 +148,12 @@
   builds a transport for it, so a helper agent needs no wiring of its own.
 * Added `gridTools` and `dashCanvasTools`, tool groups that let a helper agent arrange a grid or a
   `DashCanvas`, each with a context provider, a prompt, suggestions and undo for every change.
+* Added `ChatStreamReducer` and `createChatRunRequest()`, so an app can run a transport without
+  `ChatModel`. The helper fills in a request from the messages, and the reducer folds the streamed
+  events into the app's own `ChatMessage`.
+* Added `ChatComposerHost`, the members a composer needs from its conversation. `ChatModel`
+  implements it. Create a `ChatComposerModel` with a `host` of your own to use the composer
+  without a `ChatModel`.
 
 ### 🐞 Bug Fixes
 

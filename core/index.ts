@@ -1,4 +1,5 @@
 export * from './ChatAbortError';
+export * from './ChatComposerHost';
 export * from './ChatComposerModel';
 export * from './ChatContextProvider';
 export * from './ChatFeedback';
@@ -8,3 +9,4 @@ export * from './ChatPart';
 export * from './ChatRunError';
 export * from './ChatToolResult';
 export * from './ChatToolSpec';
+export * from './ChatStreamReducer';

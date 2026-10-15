@@ -1,37 +1,52 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {logDebug, logWarn} from '@xh/hoist/utils/js';
 import {findLast, isEmpty, isPlainObject, isString, pick} from 'lodash';
-import type {ChatEvent} from '../../transport';
-import type {ChatMessage, ChatMessageSpec} from '../ChatMessage';
-import type {ChatTextTransform} from '../ChatModel';
+import type {ChatEvent} from '../transport';
+import type {ChatMessage, ChatMessageSpec} from './ChatMessage';
+import type {ChatTextTransform} from './ChatModel';
 import type {
     ChatPart,
     ChatProviderData,
     ChatReasoningPart,
     ChatTextPart,
     ChatToolCallPart
-} from '../ChatPart';
-import {mergeArtifacts} from '../../impl/artifacts';
-import {genChatId} from '../../impl/ids';
-import {parsePartialJson} from './parsePartialJson';
+} from './ChatPart';
+import {mergeArtifacts} from '../impl/artifacts';
+import {genChatId} from '../impl/ids';
+import {parsePartialJson} from './impl/parsePartialJson';
 
 /**
  * Applies the {@link ChatEvent}s of one step - one model call - to the assistant message being
- * built.
+ * built. `ChatModel` uses it for every step. Apps that run a transport without `ChatModel` use it
+ * to fold the stream into a `ChatMessage` of their own.
  *
- * Create one reducer per step and pass it each batch of events as they arrive. The reducer never
- * mutates its input: it returns a new message, holding new objects for only the parts that
- * changed, or the same message if nothing changed. Its own state maps the text and reasoning
- * message ids of the step onto part ids, so a backend may reuse those from one step to the next.
- * Tool call parts take the tool call id as their own id, so tool call ids must be unique within a
- * turn.
+ * Create one reducer per step, with the step's index. Pass each batch of events to `apply()` as
+ * they arrive, then call `finish()` once when the stream ends:
+ *
+ * ```ts
+ * const reducer = new ChatStreamReducer(0);
+ * let reply = new ChatMessage({role: 'assistant', status: 'pending'});
+ * for await (const event of transport.run(request)) {
+ *     reply = reducer.apply(reply, [event]);
+ * }
+ * reply = reducer.finish(reply);
+ * ```
+ *
+ * The reducer never mutates its input: it returns a new message, holding new objects for only the
+ * parts that changed, or the same message if nothing changed. Content moves a `pending` message to
+ * `streaming`, and a `RUN_ERROR` event moves it to `error`. The reducer never marks a message
+ * `complete` - the caller does that once the turn is done.
+ *
+ * Its own state maps the text and reasoning message ids of the step onto part ids, so a backend
+ * may reuse those from one step to the next. Tool call parts take the tool call id as their own
+ * id, so tool call ids must be unique within a turn. A later step of the same turn gets a new
+ * reducer and the message that the earlier step left.
  *
  * Text parts store the result of the `textTransform`, if one is given. The reducer keeps the raw
  * text of each part it writes, and transforms the whole of it on each change, so a transform sees
  * the complete text so far rather than its own earlier output.
  *
  * Events the kit does not act on, and unknown event types, are ignored.
- * @internal
  */
 export class ChatStreamReducer {
     /** Index of the step within the turn - set as the `step` of each new part. */
@@ -69,6 +84,11 @@ export class ChatStreamReducer {
     private startedRunId: string = null;
     private userMessageServerId: string = null;
 
+    /**
+     * @param step - zero-based index of the step within its turn - the request's `stepIndex`.
+     * @param opts.textTransform - rewrites model text before it is stored - see
+     *      `ChatModelConfig.textTransform`.
+     */
     constructor(step: number, opts: {textTransform?: ChatTextTransform} = {}) {
         this.step = step;
         this.textTransform = opts.textTransform ?? null;

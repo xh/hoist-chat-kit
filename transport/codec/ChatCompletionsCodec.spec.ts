@@ -3,7 +3,7 @@ import type {PlainObject} from '@xh/hoist/core';
 import {hoistCore, initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it} from 'vitest';
 import {ChatMessage, type ChatPart, type ChatToolCallPart} from '../../core';
-import {ChatStreamReducer} from '../../core/impl/ChatStreamReducer';
+import {ChatStreamReducer} from '../../core/ChatStreamReducer';
 import type {ChatEvent} from '../ChatEvent';
 import type {ChatRunRequest} from '../ChatTransport';
 import {SseChatTransport} from '../SseChatTransport';

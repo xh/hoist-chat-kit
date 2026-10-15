@@ -38,17 +38,18 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
 /**
  * The input for writing a message: an auto-growing text area with a send button, inside a rounded
  * card. Enter sends and Shift+Enter starts a new line. Up arrow in an empty input recalls the last
- * message. While a reply streams, the send button becomes a stop button, and Escape stops it too.
+ * message. While a reply streams, the send button becomes a stop button, and Escape stops it too -
+ * if the composer's host can stop.
  *
- * While the chat's `sendBlocker` gives a reason to wait, the send button is disabled, with the
- * reason as its tooltip and its accessible description.
+ * While the host gives a reason to wait, such as the chat's `sendBlocker`, the send button is
+ * disabled, with the reason as its tooltip and its accessible description.
  *
  * When the model enables attachments, files can be added with the attach button, by pasting, or
  * by dropping them on the composer. They show as chips above the input until sent. Files left out
  * - of the wrong type, too large, or over the limit - are named under the chips.
  *
- * Uses a {@link ChatComposerModel} from props, or else the `composerModel` of the
- * {@link ChatModel} in context.
+ * Uses a {@link ChatComposerModel} from props, or else the `composerModel` of the `ChatModel` in
+ * context. A composer model over an app's own {@link ChatComposerHost} needs no `ChatModel`.
  */
 export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerProps>({
     displayName: 'ChatComposer',
@@ -196,11 +197,11 @@ function attachmentErrorRow(composerModel: ChatComposerModel): ReactNode {
 // A send blocker's reason shows as the disabled button's tooltip, and in a status element that
 // describes the button for assistive technology.
 function sendButton(composerModel: ChatComposerModel, impl: ChatComposerLocalModel): ReactNode[] {
-    const {chatModel, canSend} = composerModel,
-        {sendBlockedReason} = chatModel,
+    const {host, canSend} = composerModel,
+        sendBlockedReason = host.sendBlockedReason ?? null,
         reasonId = `${impl.xhId}-send-reason`;
 
-    if (chatModel.isBusy) {
+    if (host.isBusy && host.stop) {
         return [
             button({
                 key: 'stop',
@@ -209,7 +210,7 @@ function sendButton(composerModel: ChatComposerModel, impl: ChatComposerLocalMod
                 tooltip: 'Stop',
                 'aria-label': 'Stop',
                 minimal: false,
-                onClick: () => chatModel.stop()
+                onClick: () => host.stop()
             })
         ];
     }

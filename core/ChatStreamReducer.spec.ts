@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
-import type {ChatEvent} from '../../transport';
-import {ChatMessage} from '../ChatMessage';
+import type {ChatEvent} from '../transport';
+import {ChatMessage} from './ChatMessage';
 import type {
     ChatDataPart,
     ChatFilePart,
@@ -8,7 +8,7 @@ import type {
     ChatSourcePart,
     ChatTextPart,
     ChatToolCallPart
-} from '../ChatPart';
+} from './ChatPart';
 import {ChatStreamReducer} from './ChatStreamReducer';
 
 /**

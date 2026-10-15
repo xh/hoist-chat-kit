@@ -7,7 +7,7 @@
 | [Configuration Pattern](#configuration-pattern) | Creating a `ChatModel` with a transport, tools, and a composer |
 | [Common Usage Patterns](#common-usage-patterns) | Sending, tools, approvals, live context, undo, server-owned conversations, feedback, persistence, errors |
 | [Properties/API Reference](#propertiesapi-reference) | Config, state, methods, statuses, parts, and metadata |
-| [Extension Points](#extension-points) | Tools, data renderers, transports, and app metadata |
+| [Extension Points](#extension-points) | Tools, data renderers, transports, the stream reducer, and app metadata |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
 | [Related Packages](#related-packages) | Transports, components, markdown, and Hoist packages |
 
@@ -83,6 +83,11 @@ ChatMessage (immutable)
 
 ChatPart = ChatTextPart | ChatReasoningPart | ChatToolCallPart
          | ChatFilePart | ChatSourcePart | ChatDataPart
+
+ChatStreamReducer                     # Folds the events of one step into the reply
+├── apply(message, events)            # A new message for each batch of events
+├── finish(message)                   # Close out the step when its stream ends
+└── runId, runThreadId, userServerId  # Ids the step's events reported, or null
 ```
 
 ### Turns and steps
@@ -664,10 +669,37 @@ new ChatModel({
 
 See [Protocols](../docs/protocols.md) for how data parts carry generative UI.
 
+### Use the composer without a ChatModel
+
+`ChatModel` implements `ChatComposerHost`, the members a composer needs from its conversation.
+Implement it yourself to use the composer over your own state. See
+[ChatComposerHost](#chatcomposerhost) for its members.
+
+```typescript
+class NotesModel extends HoistModel implements ChatComposerHost {
+    @bindable accessor isBusy = false;
+
+    @managed readonly composerModel = new ChatComposerModel({host: this});
+
+    async sendAsync({text}: ChatSendSpec) {
+        this.isBusy = true;
+        try {
+            await this.saveNoteAsync(text);
+        } finally {
+            this.isBusy = false;
+        }
+    }
+}
+```
+
+The composer calls `sendAsync()` only when `canSend` is true, and clears its draft as it calls.
+Render the model with a desktop `chatComposer`. See
+[`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#use-the-composer-without-a-chatmodel).
+
 ## Properties/API Reference
 
-See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts` and `ChatComposerModel.ts`
-for the full doc comments.
+See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatComposerModel.ts` and
+`ChatComposerHost.ts` for the full doc comments.
 
 ### ChatModelConfig
 
@@ -686,7 +718,7 @@ for the full doc comments.
 | `textTransform` | `(text, context) => string` | Rewrites reply text before it is stored. `context` holds the `message` and `isStreaming`. |
 | `feedback` | `ChatFeedbackConfig` | `submitAsync`, `commentOn` (default `negative`) and `requireComment` (default false). |
 | `track` | `boolean \| ChatTrackOptions` | True, or `{category, severity, logData}`, to track each finished turn. Default false. |
-| `composer` | `ChatComposerConfig` | Config for the managed `composerModel`. |
+| `composer` | `ChatComposerConfig` | Config for the managed `composerModel`, without `host`. The chat is the host. |
 | `sendBlocker` | `() => string` | Returns why sending must wait, or null to allow it. Read as a computed value. While blocked, the composer disables Send and shows the reason, and `sendAsync`, `editMessageAsync`, `retryAsync` and `regenerateAsync` do nothing. Blockers added with `addSendBlocker()` work the same way. |
 | `dataRenderers` | `Record<string, ChatDataRenderer>` | Renderers for data parts, keyed by `dataType`. A renderer is `(part, context) => ReactNode`, with a `ChatPartRenderContext`. |
 | `onTurnComplete` | `(message) => void` | Called when a turn ends - complete, failed or stopped - with its final message. Not called when a turn pauses. |
@@ -864,12 +896,13 @@ The chat renders each renderer as a component of its own, so a renderer may call
 
 ### ChatComposerConfig and ChatComposerModel
 
-Pass the config as `ChatModelConfig.composer`. The `ChatModel` creates and manages the composer.
-Presentation settings, such as `placeholder` and `maxRows`, are props of the `ChatComposer`
+Pass the config as `ChatModelConfig.composer`, without `host`. The `ChatModel` creates and
+manages the composer, as its host. Presentation settings, such as `placeholder` and `maxRows`, are props of the `ChatComposer`
 component. See [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#customize-the-composer).
 
 | Property | Type | Description |
 |----------|------|-------------|
+| `host` | `ChatComposerHost` | The conversation the composer sends to. Required for a composer you create. |
 | `enableAttachments` | `boolean` | True to let the user attach files. Default false. |
 | `accept` | `string[]` | MIME types (`image/*`, `application/pdf`) or extensions (`.csv`). Default any. |
 | `maxFiles` | `number` | Most files per message. Default 10. |
@@ -883,13 +916,27 @@ construction, for example to allow files only while an agent that reads them is 
 | `text` | Draft text. `@bindable` - assign it directly. |
 | `attachments` | Files attached to the draft, as `ChatFilePart[]`. |
 | `isEmpty` | True if the draft has no text and no files. |
-| `canSend` | True if the draft is not empty, the chat is not busy, and the `sendBlocker` gives no reason to wait. |
-| `submitAsync()` | Send the draft, if it can be sent. |
+| `host` | The `ChatComposerHost` the composer sends to. |
+| `canSend` | True if the draft is not empty, the host is not busy, and the host gives no `sendBlockedReason`. |
+| `submitAsync()` | Send the draft through `host.sendAsync()` and clear it, if it can be sent. |
 | `addFilesAsync(files)` | Read files into base64 parts. Files that break the rules are left out, and `attachmentErrors` names them. Throws if attachments are off. |
 | `removeAttachment(id)` | Remove one attachment. |
 | `clear()` | Clear the text and the attachments. |
 | `recallLastMessage()` | Put the text of the last user message into an empty draft. |
 | `focus()` | Focus the input, through `inputRef`. A composer component sets the ref. |
+
+### ChatComposerHost
+
+The members a composer reads. Make them observable, so that the composer updates as they
+change.
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `isBusy` | `boolean` | True while a reply is in progress. The composer cannot send while busy. |
+| `sendAsync(spec)` | `(ChatSendSpec) => Promise<void>` | Send a user message. The composer passes its trimmed draft as `{text, files}`. |
+| `sendBlockedReason` | `string` | Optional. Why sending must wait, or null. |
+| `stop()` | `() => void` | Optional. Stop the reply in progress. Without it, the composer shows no Stop button. |
+| `messages` | `{isUser, text}[]` | Optional. The conversation, oldest first, for `recallLastMessage()`. |
 
 ## Extension Points
 
@@ -907,6 +954,9 @@ construction, for example to allow files only while an agent that reads them is 
 - **Feedback** - send ratings to your backend with `feedback.submitAsync`.
 - **Message records** - build history in code with `ChatMessageSpec` and `loadMessages()`, for
   example a greeting, or a thread loaded from your server.
+- **Stream reducer** - run a transport without `ChatModel`, and fold its events into your own
+  `ChatMessage` with `ChatStreamReducer`. `ChatModel` uses the same reducer for every step. See
+  [Use a transport without ChatModel](../transport/README.md#use-a-transport-without-chatmodel).
 
 ## Common Pitfalls
 

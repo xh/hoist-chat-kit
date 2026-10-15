@@ -1,5 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
+import {findLast, isUndefined, omitBy} from 'lodash';
 import type {ChatHistoryMode, ChatMessage, ChatToolSpec} from '../core';
+import {genChatId} from '../impl/ids';
 import type {ChatEvent} from './ChatEvent';
 
 /**
@@ -126,6 +128,55 @@ export interface ChatRunRequest {
      * Aborts the step. Its `reason` is a `ChatAbortError`, which says why the turn stopped.
      */
     signal: AbortSignal;
+}
+
+/**
+ * Input to {@link createChatRunRequest}: the messages to send, plus any request fields to set
+ * rather than default.
+ */
+export interface ChatRunRequestSpec extends Partial<ChatRunRequest> {
+    /**
+     * The conversation so far, oldest first. `ChatModel` also appends the empty assistant message
+     * it is about to build. The kit's codecs skip an empty message, so that is optional here.
+     */
+    messages: ChatMessage[];
+}
+
+/**
+ * Build a {@link ChatRunRequest} for the first step of a new turn, for an app that runs a
+ * transport without `ChatModel`. Fields left out of the spec match what `ChatModel` sends for
+ * that step in client mode:
+ *
+ *  - `threadId` and `runId` - new ids.
+ *  - `historyMode` - 'client'. `trigger` - 'submit'. `stepIndex` - 0.
+ *  - `turnId` - id of the last user message. `newMessages` - that message alone.
+ *  - `runOptions` - the `metadata.runOptions` of that message, or null.
+ *  - `replacedMessageId` and `catalogVersion` - null. `tools` and `context` - empty.
+ *  - `signal` - the signal of a new `AbortController`, which nothing aborts. Pass your own
+ *    signal to be able to stop the step.
+ *
+ * Fold the events of the step into a message with a `ChatStreamReducer`.
+ */
+export function createChatRunRequest(spec: ChatRunRequestSpec): ChatRunRequest {
+    const {messages} = spec,
+        userMessage = findLast(messages, it => it.isUser) ?? null;
+    return {
+        threadId: genChatId(),
+        runId: genChatId(),
+        historyMode: 'client',
+        trigger: 'submit',
+        turnId: userMessage?.id ?? null,
+        stepIndex: 0,
+        messages,
+        newMessages: userMessage ? [userMessage] : [],
+        replacedMessageId: null,
+        runOptions: userMessage?.metadata.runOptions ?? null,
+        catalogVersion: null,
+        tools: [],
+        context: [],
+        signal: new AbortController().signal,
+        ...omitBy(spec, isUndefined)
+    };
 }
 
 /**

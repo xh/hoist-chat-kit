@@ -1,7 +1,7 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatMessage, ChatModel} from '../core';
-import {ChatStreamReducer} from '../core/impl/ChatStreamReducer';
+import {ChatStreamReducer} from '../core/ChatStreamReducer';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRequest} from './ChatTransport';
 import {

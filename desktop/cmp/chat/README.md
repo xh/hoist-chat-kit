@@ -190,6 +190,19 @@ new ChatModel({
 });
 ```
 
+### Use the composer without a ChatModel
+
+The composer needs only a `ChatComposerHost`, such as an app model with `isBusy` and
+`sendAsync()`. Create a `ChatComposerModel` with that host, and render it with `chatComposer`. On
+send, the composer passes the draft to `sendAsync()` and clears it. While the host is busy, the
+composer shows Stop only if the host has `stop()`. See
+[Use the composer without a ChatModel](../../../core/README.md#use-the-composer-without-a-chatmodel)
+for the host and an example.
+
+```typescript
+chatComposer({model: notesModel.composerModel, placeholder: 'Add a note...'});
+```
+
 ### Replace the empty state
 
 `suggestions` adds prompt chips to the default empty state. For your own heading and text, pass
@@ -463,7 +476,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `model` | `ChatComposerModel` | The draft to edit. Default the `composerModel` of the `ChatModel` in context. |
+| `model` | `ChatComposerModel` | The draft to edit. Default the `composerModel` of the `ChatModel` in context. A composer model over another `ChatComposerHost` needs no `ChatModel`. |
 | `placeholder` | `string` | Prompt in the empty input. Default `'Send a message...'`. |
 | `maxRows` | `number` | Rows the input grows to before it scrolls. Default 10. |
 | `topItems` | `ReactNode` | Content above the input, inside the composer. |
@@ -473,7 +486,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 
 Enter sends, and Shift+Enter starts a new line. An Enter that confirms an IME candidate does not
 send. Up arrow in an empty input recalls the last user message. While a reply streams, the send
-button stops it, and so does Escape. The composer names any file it cannot attach under the
+button stops it, and so does Escape, if the host has `stop()`. The composer names any file it cannot attach under the
 attachments, such as one of the wrong type, too large, or over the limit. The names come from the
 composer model's `attachmentErrors`, and stay until the user dismisses them or adds more files.
 

@@ -3,7 +3,7 @@ import {HoistModel} from '@xh/hoist/core';
 import {action, observable} from '@xh/hoist/mobx';
 import {withDefault} from '@xh/hoist/utils/js';
 import {createObservableRef} from '@xh/hoist/utils/react';
-import {type ChatComposerModel, ChatModel} from '../../../../core';
+import {ChatComposerModel} from '../../../../core';
 import {fitTextAreaToContent, isImeComposing} from './AutoGrow';
 import {hasFiles} from './FileDrop';
 
@@ -25,11 +25,11 @@ export class ChatComposerLocalModel extends HoistModel {
 
     readonly fileInputRef = createObservableRef<HTMLInputElement>();
 
-    /** The composer model from props, or else that of the ChatModel in context. */
+    /** The composer model from props, or else that of a model in context, such as a ChatModel. */
     get composerModel(): ChatComposerModel {
         return (
             (this.componentProps.model as ChatComposerModel) ??
-            this.lookupModel(ChatModel)?.composerModel ??
+            this.lookupModel<ComposerOwner>(hasComposerModel)?.composerModel ??
             null
         );
     }
@@ -54,9 +54,9 @@ export class ChatComposerLocalModel extends HoistModel {
         } else if (e.key === 'ArrowUp' && !composerModel.text) {
             e.preventDefault();
             composerModel.recallLastMessage();
-        } else if (e.key === 'Escape' && composerModel.chatModel.isBusy) {
+        } else if (e.key === 'Escape' && composerModel.host.isBusy && composerModel.host.stop) {
             e.preventDefault();
-            composerModel.chatModel.stop();
+            composerModel.host.stop();
         }
     };
 
@@ -119,4 +119,14 @@ export class ChatComposerLocalModel extends HoistModel {
     private setDragging(isDragging: boolean) {
         this.isDragging = isDragging;
     }
+}
+
+//------------------
+// Implementation
+//------------------
+/** A model in context that owns a composer - in the kit, a ChatModel. */
+type ComposerOwner = HoistModel & {composerModel: ChatComposerModel};
+
+function hasComposerModel(model: HoistModel): boolean {
+    return (model as ComposerOwner).composerModel instanceof ChatComposerModel;
 }

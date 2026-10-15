@@ -1,7 +1,9 @@
 import {fireEvent, render, screen} from '@testing-library/react';
+import {hoistCmp, uses} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {ChatModel, type ChatModelConfig} from '../../../core';
+import {ChatComposerModel, ChatModel, type ChatModelConfig} from '../../../core';
+import type {ChatComposerHost} from '../../../core/ChatComposerHost';
 import {ScriptedChatTransport, textEvents} from '../../../transport';
 import {chatComposer} from './ChatComposer';
 
@@ -100,11 +102,57 @@ describe('ChatComposer', () => {
         expect(screen.getByRole('status').textContent).toBe('Choose a document first.');
         expect(send.getAttribute('aria-describedby')).toBe(screen.getByRole('status').id);
     });
+
+    it('uses the composer of the ChatModel in context', () => {
+        const chatModel = createModel(),
+            send = vi.spyOn(chatModel, 'sendAsync');
+        render(chatHost({model: chatModel}));
+
+        typeDraft(chatModel, 'Hello');
+        fireEvent.keyDown(input(), {key: 'Enter'});
+
+        expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    describe('with a host of its own', () => {
+        it('sends the draft through the host on Enter, and clears it', () => {
+            const host = createHost(),
+                composer = renderHostComposer(host);
+
+            composer.text = 'Hello';
+            fireEvent.keyDown(input(), {key: 'Enter'});
+
+            expect(host.sendAsync).toHaveBeenCalledExactlyOnceWith({text: 'Hello', files: []});
+            expect(composer.text).toBe('');
+        });
+
+        it('shows Stop while busy, and stops on Escape, if the host can stop', () => {
+            const host = createHost({isBusy: true, stop: vi.fn()});
+            renderHostComposer(host);
+
+            fireEvent.keyDown(input(), {key: 'Escape'});
+            fireEvent.click(screen.getByRole('button', {name: 'Stop'}));
+
+            expect(host.stop).toHaveBeenCalledTimes(2);
+        });
+
+        it('keeps a disabled Send while busy if the host cannot stop', () => {
+            renderHostComposer(createHost({isBusy: true}));
+
+            expect(screen.queryByRole('button', {name: 'Stop'})).toBeNull();
+            expect(screen.getByRole('button', {name: 'Send'}).hasAttribute('disabled')).toBe(true);
+        });
+    });
 });
 
 //------------------
 // Helpers
 //------------------
+const chatHost = hoistCmp.factory({
+    model: uses(ChatModel),
+    render: () => chatComposer()
+});
+
 class NoopResizeObserver {
     observe() {}
     unobserve() {}
@@ -122,6 +170,17 @@ function createModel(config: Partial<ChatModelConfig> = {}): ChatModel {
 
 function renderComposer(chatModel: ChatModel) {
     return render(chatComposer({model: chatModel.composerModel}));
+}
+
+function createHost(config: Partial<ChatComposerHost> = {}): ChatComposerHost {
+    return {isBusy: false, sendAsync: vi.fn(async () => {}), ...config};
+}
+
+function renderHostComposer(host: ChatComposerHost): ChatComposerModel {
+    const composer = new ChatComposerModel({host});
+    onTestFinished(() => composer.destroy());
+    render(chatComposer({model: composer}));
+    return composer;
 }
 
 function input(): HTMLTextAreaElement {

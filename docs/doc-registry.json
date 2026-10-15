@@ -196,6 +196,9 @@
       "keywords": [
         "ChatTransport",
         "ChatRunRequest",
+        "createChatRunRequest",
+        "ChatStreamReducer",
+        "without ChatModel",
         "server-owned conversations",
         "newMessages",
         "cancelAsync",

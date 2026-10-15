@@ -4,12 +4,18 @@ import {action, bindable, bindableRef, computed, observableRef} from '@xh/hoist/
 import {pluralize, throwIf} from '@xh/hoist/utils/js';
 import {createObservableRef} from '@xh/hoist/utils/react';
 import {findLast, isEmpty, round, take} from 'lodash';
-import type {ChatModel} from './ChatModel';
+import type {ChatComposerHost} from './ChatComposerHost';
 import type {ChatFilePart} from './ChatPart';
 import {genChatId} from '../impl/ids';
 
-/** Configuration for a {@link ChatComposerModel}, usually passed via `ChatModelConfig.composer`. */
+/**
+ * Configuration for a {@link ChatComposerModel}. Pass it as `ChatModelConfig.composer`, without
+ * `host`, for the composer of a `ChatModel`.
+ */
 export interface ChatComposerConfig {
+    /** The conversation the composer sends to. A `ChatModel` sets itself for its own composer. */
+    host: ChatComposerHost;
+
     /** True to let the user attach files. Default false. */
     enableAttachments?: boolean;
 
@@ -24,14 +30,12 @@ export interface ChatComposerConfig {
 
     /** Maximum size per file, in bytes. Default 10 MB. */
     maxFileSize?: number;
-
-    /** @internal - set by the owning ChatModel. */
-    chatModel?: ChatModel;
 }
 
 /**
  * Model for the message composer: the draft text and attachments of the next user message.
- * Created and managed by {@link ChatModel} as its `composerModel`.
+ * A `ChatModel` creates and manages one as its `composerModel`. To use the composer without a
+ * `ChatModel`, create one with a {@link ChatComposerHost} of the app's own.
  *
  * The attachment settings are bindable, so an app can change them after construction - for
  * example to allow files only for an agent that reads them.
@@ -42,7 +46,8 @@ export class ChatComposerModel extends HoistModel {
     //-----------------------
     // Immutable Properties
     //-----------------------
-    readonly chatModel: ChatModel;
+    /** The conversation the composer sends to. */
+    readonly host: ChatComposerHost;
 
     /**
      * Ref to the Hoist input that edits the draft. A composer component sets it as the input's
@@ -87,25 +92,26 @@ export class ChatComposerModel extends HoistModel {
     }
 
     /**
-     * True if the draft can be sent now: it has content, no reply is in progress, and the chat's
-     * `sendBlocker` gives no reason to wait.
+     * True if the draft can be sent now: it has content, the host is not busy, and the host gives
+     * no reason to wait.
      */
     @computed
     get canSend(): boolean {
-        const {chatModel} = this;
-        return !this.isEmpty && !chatModel.isBusy && !chatModel.sendBlockedReason;
+        const {host} = this;
+        return !this.isEmpty && !host.isBusy && !host.sendBlockedReason;
     }
 
     constructor(config: ChatComposerConfig) {
         super();
         const {
-            chatModel,
+            host,
             enableAttachments = false,
             accept = null,
             maxFiles = 10,
             maxFileSize = 10 * MB
         } = config;
-        this.chatModel = chatModel;
+        throwIf(!host, 'ChatComposerModel requires a host.');
+        this.host = host;
         this.enableAttachments = enableAttachments;
         this.accept = accept;
         this.maxFiles = maxFiles;
@@ -115,10 +121,16 @@ export class ChatComposerModel extends HoistModel {
     //------------------
     // Actions
     //------------------
-    /** Send the draft. Does nothing if it cannot be sent. */
+    /**
+     * Send the draft through the host, and clear it. Does nothing if it cannot be sent.
+     *
+     * @returns a promise that resolves when the host's `sendAsync` does.
+     */
     async submitAsync(): Promise<void> {
         if (!this.canSend) return;
-        await this.chatModel.sendAsync();
+        const spec = {text: this.text.trim(), files: this.attachments};
+        this.clear();
+        await this.host.sendAsync(spec);
     }
 
     /**
@@ -174,11 +186,14 @@ export class ChatComposerModel extends HoistModel {
         this.attachmentErrors = [];
     }
 
-    /** Put the text of the last user message into an empty draft, for re-use. */
+    /**
+     * Put the text of the last user message into an empty draft, for re-use. Does nothing if the
+     * host has no `messages`.
+     */
     @action
     recallLastMessage() {
         if (this.text.trim()) return;
-        const message = findLast(this.chatModel.messages, it => it.isUser);
+        const message = findLast(this.host.messages, it => it.isUser);
         if (message) this.text = message.text;
     }
 
