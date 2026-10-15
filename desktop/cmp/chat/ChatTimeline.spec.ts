@@ -293,6 +293,24 @@ describe('ChatTimeline', () => {
     });
 
     describe('when done', () => {
+        it('separates the time taken and the failures with the same spaced dot', () => {
+            const {container} = renderReply(
+                [call('c1', {state: 'output-error'}), call('c2')],
+                {},
+                {status: 'complete', metadata: {elapsedMs: 20_000}}
+            );
+
+            const meta = timeline(container).querySelector('.xh-chat-timeline__meta');
+            expect(meta.textContent).toBe('20s · 1 failed, retried');
+            // One separator, outside the warning, styled to keep its spaces.
+            const seps = meta.querySelectorAll('.xh-chat-timeline__sep');
+            expect(seps).toHaveLength(1);
+            expect(seps[0].textContent).toBe(' · ');
+            expect(meta.querySelector('.xh-chat-timeline__fails').textContent).toBe(
+                '1 failed, retried'
+            );
+        });
+
         it('counts failures in the warning color, and shows the error on the failed row', () => {
             const {container} = renderReply(
                 [call('c1'), call('c2', {state: 'output-error', toolName: 'fetch_marks'})],

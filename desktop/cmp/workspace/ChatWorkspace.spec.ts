@@ -135,6 +135,52 @@ describe('ChatWorkspace', () => {
             expect(model.sidebarModel.size).toBe(300);
         });
 
+        it('opens a table or chart at 60% of the width it shares with the conversation', () => {
+            const {model} = setup();
+            model.setWidth(1440);
+
+            // The sidebar gives way to its rail. 60% of 1,440 - 40 for the rail.
+            model.sidePanel.open(TABLE_REQUEST);
+            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 840});
+
+            // A document keeps the side panel's own width.
+            model.sidePanel.open(DOCUMENT_REQUEST);
+            expect(model).toMatchObject({sidebarMode: 'open', sidePanelWidth: 520});
+
+            // Capped at 900 px.
+            model.setWidth(1920);
+            model.sidePanel.open(CHART_REQUEST);
+            expect(model).toMatchObject({sidebarMode: 'open', sidePanelWidth: 900});
+            expect(model.sidePanelModel.size).toBe(520);
+        });
+
+        it('narrows a table so that the conversation keeps its minimum', () => {
+            const {model} = setup();
+            model.sidePanel.open(TABLE_REQUEST);
+
+            // 1,100 - 40 for the rail - 8 for the splitter - 480 for the conversation.
+            model.setWidth(1100);
+            expect(model.sidePanelWidth).toBe(572);
+
+            // 900 - 40 - 8 - 380.
+            model.setWidth(900);
+            expect(model.sidePanelWidth).toBe(472);
+        });
+
+        it('holds a width the user drags a table to, and ignores one dragged for a document', () => {
+            const {model} = setup();
+            model.setWidth(1440);
+            model.sidePanel.open(DOCUMENT_REQUEST);
+            model.sidePanelModel.size = 600;
+            expect(model.sidePanelWidth).toBe(600);
+
+            model.sidePanel.open(TABLE_REQUEST);
+            expect(model.sidePanelWidth).toBe(840);
+
+            model.sidePanelModel.size = 700;
+            expect(model.sidePanelWidth).toBe(700);
+        });
+
         it('lays out from its measured width on the first render, with no wait', () => {
             stubRootWidth(900);
             renderWorkspace({}, {documentRenderer: () => 'Viewer'}, model =>
@@ -414,6 +460,18 @@ const CITED_THREADS: LocalChatThread[] = [
         ]
     }
 ];
+
+// Side panel requests. The layout reads only their type.
+const DOCUMENT_REQUEST = {
+        type: 'document' as const,
+        source: {type: 'source' as const, id: 'd1', title: 'Reserves Policy'}
+    },
+    TABLE_REQUEST = {type: 'table' as const, artifactId: 'r1'},
+    CHART_REQUEST = {
+        type: 'chart' as const,
+        artifactId: 'r1',
+        view: {type: 'line' as const, x: 'date', y: ['nav']}
+    };
 
 /** Callbacks of the workspace's ResizeObserver, to resize it by hand. */
 const resizeCallbacks: ResizeObserverCallback[] = [];

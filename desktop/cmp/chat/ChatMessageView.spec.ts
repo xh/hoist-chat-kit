@@ -545,21 +545,33 @@ describe('ChatMessageView', () => {
             expect(code()).toContain('line 25');
         });
 
-        it('scrolls a markdown table of more than 12 rows inside its frame', () => {
+        it('caps a markdown table of more than 12 rows in a card, with Show All', () => {
             const table = (rows: number) =>
                     ['| A |', '|---|', ...Array.from({length: rows}, (_, i) => `| ${i} |`)].join(
                         '\n'
                     ),
                 chatModel = createModel({}, [
                     question(),
-                    reply('a1', [text('t1', `${table(12)}\n\nThen:\n\n${table(13)}`)])
+                    reply('a1', [text('t1', `${table(12)}\n\nThen:\n\n${table(40)}`)])
                 ]);
             const {container} = renderList(chatModel);
 
-            const tables = container.querySelectorAll('.xh-chat-markdown table');
+            const tables = container.querySelectorAll('.xh-chat-markdown table'),
+                card = container.querySelector('.xh-chat-markdown__table-card'),
+                rowCount = (el: Element) => el.querySelectorAll('tbody tr').length,
+                footer = () => card.querySelector('.xh-chat-ui-frame__footer span').textContent;
             expect(tables).toHaveLength(2);
-            expect(tables[0].classList.contains('xh-chat-markdown__table--scroll')).toBe(false);
-            expect(tables[1].classList.contains('xh-chat-markdown__table--scroll')).toBe(true);
+            expect(tables[0].closest('.xh-chat-markdown__table-card')).toBeNull();
+            expect(rowCount(tables[0])).toBe(12);
+            expect(rowCount(card)).toBe(12);
+            expect(footer()).toBe('Showing 12 of 40 rows');
+
+            fireEvent.click(screen.getByRole('button', {name: 'Show All'}));
+            expect(rowCount(card)).toBe(40);
+            expect(footer()).toBe('40 rows');
+
+            fireEvent.click(screen.getByRole('button', {name: 'Show Less'}));
+            expect(rowCount(card)).toBe(12);
         });
     });
 });

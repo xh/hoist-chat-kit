@@ -41,7 +41,9 @@ its tools.
 | Send ratings and comments on replies | [`/core/`](../core/README.md#rate-a-reply) |
 | Describe the app's live state to the model at every step | [`/core/`](../core/README.md#send-live-context-with-every-step) |
 | Let the user undo the changes a reply made | [`/core/`](../core/README.md#undo-a-replys-changes) |
-| Add a helper agent beside a grid or a dashboard | [`/assist/`](../assist/README.md) |
+| Add a helper agent beside a grid or a dashboard | [`/assist/`](../assist/README.md#put-a-helper-beside-a-component) |
+| Dock a helper inside a component, or open it in a popover | [`/desktop/cmp/assist/`](../desktop/cmp/assist/README.md) |
+| Show the user what a helper's model can see | [`/desktop/cmp/assist/`](../desktop/cmp/assist/README.md#chatdataboundaryline) |
 | Let the model arrange a grid: columns, sorts, groups, filters | [`/assist/`](../assist/README.md#arrange-a-grid) |
 | Let the model arrange a `DashCanvas` and its views | [`/assist/`](../assist/README.md#arrange-a-dashboard) |
 | Use the app's configured LLM backend, with no wiring | [`/svc/`](../svc/README.md) |
@@ -80,7 +82,8 @@ its tools.
 | Add feedback buttons or other message actions | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#add-message-actions-such-as-feedback) |
 | Render a tool call or a data part as UI | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#render-a-tool-call-as-ui) |
 | Allow markdown images in replies | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#allow-images) |
-| Let the model show grids, charts, KPI tiles and cards | [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) |
+| Let the model show grids, charts, KPI tiles and cards | [`/desktop/cmp/assist/`](../desktop/cmp/assist/README.md) | Desktop component helper: the entry button and badge, a container that docks the helper or opens a popover, and the data boundary line | ChatAssistantButton, ChatAssistantContainer, ChatAssistantView, ChatDataBoundaryLine, dock, popover, badge, change lines, Show, Undo retire, Ctrl+I, openHelper, Escape, compact density |
+| [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) |
 | Render streaming markdown | [`/cmp/markdown/`](../cmp/markdown/README.md) |
 | Write or update a doc | [Documentation Conventions](./doc-conventions.md) |
 
@@ -94,7 +97,7 @@ its tools.
 | [`/threads/`](../threads/README.md) | Platform-neutral thread layer: a store adapter, one chat per open thread, background turns, paging, search, edits with rollback and deep links | ChatThreadsModel, ChatThreadStore, ChatThreadSummary, ChatThreadListHost, LocalChatThreadStore, groupThreadsByRecency, background turns, runningThreadIds, createThreadAsync, re-keying, optimistic rename and delete, paged history, search, route binding, concurrency rules |
 | [`/transport/`](../transport/README.md) | Transports and codecs that turn a backend's stream into AG-UI events, with server contracts | ChatTransport, HoistChatTransport, SseChatTransport, ScriptedChatTransport, HttpChatTransport, AgUiCodec, AnthropicCodec, ChatCompletionsCodec, bring your own LLM, OpenAI chat completions, ChatRunContext, ChatEvent, xh.chat events, NDJSON, Grails controller, prompt caching, citationEvents, server-owned conversations, turnId, newMessages, cancelUrl, createChatRunRequest, ChatStreamReducer |
 | [`/svc/`](../svc/README.md) | `ChatService`, which resolves the app's default LLM backend from the `chatConfig` soft config | ChatService, XH.chatService, chatConfig, ChatConfig, isEnabled, createTransport, bring your own LLM, codec, anthropic, openai-chat, agui |
-| [`/assist/`](../assist/README.md), [`/desktop/assist/`](../assist/README.md#arrange-a-dashboard) | Tool groups for component helper agents: `gridTools`, and `dashCanvasTools` in `/desktop/assist/` | ChatToolGroup, gridTools, dashCanvasTools, GridToolCapability, DashCanvasToolCapability, settingsSchema, helper agents, GridModel, DashCanvasModel, ViewManagerModel, undo, context provider, suggestions |
+| [`/assist/`](../assist/README.md), [`/desktop/assist/`](../assist/README.md#arrange-a-dashboard) | Component helper agents: `ChatAssistantModel`, and tool groups - `gridTools`, and `dashCanvasTools` in `/desktop/assist/` | ChatAssistantModel, ChatToolGroup, gridTools, dashCanvasTools, GridToolCapability, DashCanvasToolCapability, settingsSchema, helper agents, boundary, snapshot, isChangedSince, highlight, docs, targets, onAskInChat, transient conversation, GridModel, DashCanvasModel, ViewManagerModel, undo, context provider, suggestions |
 | [`/genui/`](../genui/README.md) | Generative UI: a catalog of app components the model can show inline, as tools, tags or nested documents, with data by reference, typed actions and a server export | ChatUiCatalog, ChatUiComponentSpec, ChatUiDocument, ChatUiRenderContext, ChatArtifactRegistry, ChatDataView, ChatUiAction, ChatUiAdapter, parseTags, show_ui, JSON Schema subset, partial props, inline display |
 
 ### Components

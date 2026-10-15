@@ -16,6 +16,8 @@ import {
     findIndex,
     findLast,
     isEmpty,
+    isEqual,
+    isFunction,
     isNil,
     isUndefined,
     keys,
@@ -24,8 +26,13 @@ import {
     pickBy,
     uniq
 } from 'lodash';
-import {type ChatContextProvider, chatToolResult, type ChatToolSpec} from '../core';
-import type {ChatToolGroup} from './ChatToolGroup';
+import {
+    type ChatChangeTarget,
+    type ChatContextProvider,
+    chatToolResult,
+    type ChatToolSpec
+} from '../core';
+import type {ChatDataBoundary, ChatDocLink, ChatToolGroup} from './ChatToolGroup';
 import {arraySchema, enumSchema, joinNames, objectSchema} from '../impl/toolSchema';
 
 /**
@@ -52,6 +59,19 @@ export interface GridToolsConfig {
 
     /** What the grid shows, for the model - such as 'Open positions, one row per trade'. */
     description?: string;
+
+    /** Name of the grid, for a helper's header and button - such as 'Positions grid'. */
+    title?: string;
+
+    /**
+     * What the model sees of the grid, for a helper's data boundary line. Default its structure -
+     * columns, sorts, groups, filters and row counts - and no row values, which is what the group
+     * sends. Set it when you add context of your own.
+     */
+    boundary?: ChatDataBoundary | (() => ChatDataBoundary);
+
+    /** Documentation pages about the grid, and the only pages a helper's answers may cite. */
+    docs?: ChatDocLink[];
 }
 
 /**
@@ -79,18 +99,41 @@ export function gridTools(gridModel: GridModel, config: GridToolsConfig = {}): C
             'See GridToolCapability.'
     );
 
-    const tools = new GridTools(gridModel);
+    const tools = new GridTools(gridModel),
+        {title = 'Grid', boundary = DEFAULT_BOUNDARY, docs = null} = config;
     return {
         tools: capabilities.flatMap(it => tools.forCapability(it as GridToolCapability)),
         contextProvider: tools.createContextProvider(description, capabilities),
         prompt: createPrompt(description, capabilities as GridToolCapability[]),
-        suggestions: tools.createSuggestions(capabilities as GridToolCapability[])
+        suggestions: tools.createSuggestions(capabilities as GridToolCapability[]),
+        title,
+        kind: 'grid',
+        intro: "I can change this grid's layout, or explain any of its options.",
+        boundary: isFunction(boundary) ? boundary : () => boundary,
+        snapshot: () => tools.snapshot(),
+        isChangedSince: snapshot => tools.isChangedSince(snapshot as GridSnapshot),
+        highlight: (targets, opts) => tools.highlight(targets, opts),
+        docs
     };
 }
 
 //------------------
 // Implementation
 //------------------
+const DEFAULT_BOUNDARY: ChatDataBoundary = {
+    text: 'Sees column names and filters, not row data',
+    shared: ['Column names, types and widths', 'Sorting and grouping', 'Filters', 'Row counts'],
+    notShared: ['Row values']
+};
+
+/** The state a grid helper compares to retire Undo. Selection is left out: a click is no edit. */
+interface GridSnapshot {
+    columnState: ColumnState[];
+    sortBy: string[];
+    groupBy: string[];
+    filter: PlainObject;
+}
+
 type CapabilityMap = Record<GridToolCapability, boolean>;
 
 function getSupportedCapabilities(gridModel: GridModel): CapabilityMap {
@@ -291,7 +334,7 @@ class GridTools {
                 return chatToolResult(
                     `Updated ${pluralize('column', updates.length, true)}: ` +
                         `${this.columnNames(map(changes, 'column'))}.`,
-                    {undo}
+                    {undo, targets: this.columnTargets(map(changes, 'column'))}
                 );
             }
         };
@@ -339,7 +382,7 @@ class GridTools {
                 return chatToolResult(
                     `Moved ${this.columnNames(columns)} ` +
                         (before ? `before ${this.columnNames([before])}.` : 'to the end.'),
-                    {undo}
+                    {undo, targets: this.columnTargets(columns)}
                 );
             }
         };
@@ -369,7 +412,14 @@ class GridTools {
                     isEmpty(columns)
                         ? 'Sized the columns to fit.'
                         : `Sized ${this.columnNames(columns)} to fit.`,
-                    {undo}
+                    {
+                        undo,
+                        targets: this.columnTargets(
+                            isEmpty(columns)
+                                ? map(gridModel.getVisibleLeafColumns(), 'colId')
+                                : columns
+                        )
+                    }
                 );
             }
         };
@@ -433,7 +483,10 @@ class GridTools {
                 );
                 return chatToolResult(
                     isEmpty(sorts) ? 'Cleared sorting.' : `Sorted by ${sortNames.join(', then ')}.`,
-                    {undo: () => gridModel.setSortBy(prior)}
+                    {
+                        undo: () => gridModel.setSortBy(prior),
+                        targets: this.columnTargets(map(sorts, 'column'))
+                    }
                 );
             }
         };
@@ -468,7 +521,10 @@ class GridTools {
                     isEmpty(columns)
                         ? 'Removed grouping.'
                         : `Grouped by ${this.columnNames(columns)}.`,
-                    {undo: () => gridModel.setGroupBy(prior)}
+                    {
+                        undo: () => gridModel.setGroupBy(prior),
+                        targets: isEmpty(columns) ? null : [{type: 'groups'}]
+                    }
                 );
             }
         };
@@ -674,8 +730,56 @@ class GridTools {
     }
 
     //------------------
+    // Helper support
+    //------------------
+    snapshot(): GridSnapshot {
+        const {gridModel} = this;
+        return {
+            columnState: gridModel.columnState,
+            sortBy: gridModel.sortBy.map(it => it.toString()),
+            groupBy: gridModel.groupBy,
+            filter: gridModel.filterModel?.filter?.toJSON() ?? null
+        };
+    }
+
+    isChangedSince(snapshot: GridSnapshot): boolean {
+        return !isEqual(this.snapshot(), snapshot);
+    }
+
+    /**
+     * Flash the cells of the changed columns that show, through ag-Grid's `flashCells()` - the
+     * flash of Hoist's cell-change highlight. Hidden columns cannot show it. With `scroll`, the
+     * first changed column scrolls into view.
+     */
+    highlight(targets: ChatChangeTarget[], {scroll = false}: {scroll?: boolean} = {}) {
+        const {gridModel} = this,
+            colIds = uniq(
+                map(
+                    targets.filter(it => it.type === 'column'),
+                    'id'
+                )
+            );
+        // TODO(hoist-react): Hoist offers no flash for structural changes - group rows, and a
+        // column that moved. `flashCells()` flashes value cells only, so group rows show none.
+        if (isEmpty(colIds)) return;
+        // Wait a tick, for the grid to render a column just shown.
+        wait().then(() => {
+            const {agApi} = gridModel;
+            if (!gridModel.isReady || !agApi || agApi.isDestroyed()) return;
+            const visible = colIds.filter(it => gridModel.isColumnVisible(it));
+            if (isEmpty(visible)) return;
+            if (scroll) agApi.ensureColumnVisible(visible[0]);
+            agApi.flashCells({columns: visible});
+        });
+    }
+
+    //------------------
     // Helpers
     //------------------
+    private columnTargets(colIds: string[]): ChatChangeTarget[] {
+        return uniq(colIds).map(id => ({type: 'column', id}));
+    }
+
     /** An undo that restores the current column state - order, visibility, widths and pins. */
     private columnStateUndo(): () => void {
         const {gridModel} = this,

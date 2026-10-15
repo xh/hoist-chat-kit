@@ -70,7 +70,10 @@ export interface ChatShortcuts {
     /** Open or close the dock, page-wide, while a dock exists. Default `ctrl+.`. */
     toggleDock: string;
 
-    /** Open the helper of the focused component. Default `mod+i`. */
+    /**
+     * Open or close a component's helper, with focus anywhere in the component or its helper.
+     * Default `mod+i`.
+     */
     openHelper: string;
 
     /** Focus the composer, when focus is not in a text field. Default `/`. */

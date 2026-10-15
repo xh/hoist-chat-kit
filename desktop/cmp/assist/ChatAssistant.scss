@@ -1,0 +1,300 @@
+@use '../../../styles/mixins' as *;
+
+// Component helper (P7): the entry button and its badge, the container that docks the helper,
+// the helper itself, its change lines, the data boundary line, and the change highlight on the
+// component. Each token falls back to its default, for a page that loads no kit variables.
+
+//------------------------
+// Entry button and badge
+//------------------------
+.xh-chat-hbtn {
+  display: inline-flex;
+  position: relative;
+}
+
+// Static: shape carries the state, the tooltip and accessible name carry the words.
+.xh-chat-hbadge {
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--xh-panel-title-bg);
+  box-sizing: border-box;
+  height: var(--xh-chat-helper-badge-size, 7px);
+  pointer-events: none;
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: var(--xh-chat-helper-badge-size, 7px);
+
+  &--busy {
+    background: var(--xh-panel-title-bg);
+    border: 1.5px solid var(--xh-chat-busy-color);
+  }
+
+  &--ready {
+    background: var(--xh-chat-busy-color);
+  }
+
+  &--attention {
+    background: var(--xh-chat-attention-color);
+  }
+
+  &--error {
+    background: var(--xh-chat-error-color);
+  }
+}
+
+//------------------------
+// Container
+//------------------------
+.xh-chat-assistant-container {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+
+  &__body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  &__dock {
+    border-left: var(--xh-border-width-px) solid
+      var(--xh-chat-helper-border-color, var(--xh-panel-border-color));
+  }
+}
+
+//------------------------
+// The helper
+//------------------------
+.xh-chat-helper {
+  background: var(--xh-chat-helper-bg, var(--xh-chat-bg));
+  box-sizing: border-box;
+  color: var(--xh-chat-text-color);
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  font-size: var(--xh-chat-font-size);
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+
+  &__header {
+    align-items: center;
+    background: var(--xh-chat-helper-header-bg, var(--xh-chat-part-header-bg));
+    border-bottom: var(--xh-border-width-px) solid
+      var(--xh-chat-helper-border-color, var(--xh-panel-border-color));
+    display: flex;
+    flex: none;
+    font-weight: 600;
+    gap: 6px;
+    height: var(--xh-chat-helper-header-height, 32px);
+    padding: 0 2px 0 10px;
+    white-space: nowrap;
+  }
+
+  &__icon {
+    display: inline-flex;
+  }
+
+  &__title {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__messages {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  &__bottom {
+    flex: none;
+  }
+
+  &__composer {
+    padding: 6px 8px 8px;
+  }
+
+  // The empty state sits at the bottom, beside the composer its suggestions fill.
+  &--empty .xh-chat-message-list__content {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-height: 100%;
+  }
+
+  &__empty {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  // The popover: 360 wide, up to 520 tall, the thread scrolling inside.
+  &--popover {
+    height: var(--xh-chat-helper-popover-max-height, 520px);
+    max-height: var(--xh-chat-helper-popover-max-height, 520px);
+    width: var(--xh-chat-helper-popover-width, 360px);
+  }
+}
+
+.xh-chat-helper-popover {
+  border-radius: var(--xh-chat-border-radius);
+  box-shadow: var(--xh-popover-box-shadow);
+  overflow: hidden;
+}
+
+//------------------------
+// Change lines and Ask in chat
+//------------------------
+.xh-chat-hline {
+  align-items: baseline;
+  display: grid;
+  font-size: var(--xh-chat-meta-font-size);
+  gap: 6px;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  padding: 1px 0;
+
+  &__icon {
+    color: var(--xh-intent-success-text-color);
+    display: inline-flex;
+    justify-content: center;
+  }
+
+  &--running &__icon {
+    color: var(--xh-chat-busy-color);
+  }
+
+  @include hoist-button('.xh-chat-hline__show') {
+    min-height: 0;
+    padding: 0 4px;
+  }
+}
+
+.xh-chat-assistant-ask {
+  padding: 4px 0;
+}
+
+//------------------------
+// Data boundary line
+//------------------------
+.xh-chat-boundary {
+  align-items: center;
+  background: var(--xh-chat-boundary-bg, var(--xh-chat-part-header-bg));
+  border-bottom: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  box-sizing: border-box;
+  color: var(--xh-chat-boundary-text-color, var(--xh-chat-meta-text-color));
+  cursor: default;
+  display: flex;
+  font-size: var(--xh-chat-meta-font-size);
+  gap: 6px;
+  height: var(--xh-chat-boundary-height, 24px);
+  padding: 0 8px;
+  white-space: nowrap;
+  width: 100%;
+
+  &[role='button'] {
+    cursor: pointer;
+  }
+
+  &:focus-visible {
+    outline: var(--xh-chat-focus-ring-width, 2px) solid var(--xh-chat-focus-ring-color);
+    outline-offset: -2px;
+  }
+
+  &__text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &__admin {
+    align-items: center;
+    display: inline-flex;
+    flex: none;
+    gap: 3px;
+  }
+
+  // The popover target wraps the line, and must take its full width.
+  &__target {
+    display: block;
+    width: 100%;
+  }
+
+  &__list {
+    display: flex;
+    flex-direction: column;
+    font-size: var(--xh-chat-meta-font-size);
+    gap: 8px;
+    max-width: 320px;
+    padding: 8px 10px;
+
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    li {
+      display: flex;
+      gap: 6px;
+    }
+  }
+
+  &__list-title {
+    color: var(--xh-chat-meta-text-color);
+    font-weight: 600;
+    margin-bottom: 2px;
+  }
+
+  &__list-note {
+    color: var(--xh-chat-meta-text-color);
+  }
+
+  // A helper with no declaration says so, still in meta color.
+  &--missing {
+    cursor: default;
+  }
+}
+
+//------------------------
+// The change, on the component
+//------------------------
+// Hoist's own cell-change flash color, so a helper's change reads like any other change. It fades,
+// or under reduced motion holds, then goes in one frame. An important rule would beat the fade.
+.xh-chat-changed:not(.xh-chat-changed--fade) {
+  background-color: var(
+    --xh-chat-helper-change-bg,
+    var(--xh-grid-cell-change-bg-highlight)
+  ) !important;
+}
+
+.xh-chat-changed--fade {
+  animation: xh-chat-change-fade var(--xh-chat-helper-change-duration, 1500ms) ease-out forwards;
+}
+
+.xh-chat-changed-outline {
+  outline: 2px solid var(--xh-chat-helper-change-outline-color, var(--xh-intent-primary-text-color));
+  outline-offset: -2px;
+}
+
+@keyframes xh-chat-change-fade {
+  from {
+    background-color: var(--xh-chat-helper-change-bg, var(--xh-grid-cell-change-bg-highlight));
+  }
+
+  to {
+    background-color: transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xh-chat-changed--fade {
+    animation: none;
+  }
+}

@@ -30,6 +30,8 @@
   variable, 220 px or 160 px at compact density.
 * Lowered the default `maxItems` of `chatUiMetricsSpec()` from 8 to 4. More metrics read better
   as a table.
+* Changed `dashCanvasTools` to ask before `remove_widgets`, and before a `set_dashboard` that
+  drops widgets. The `views` capability is now opt-in: name it in `capabilities` to offer it.
 
 ### 🎁 New Features
 
@@ -177,6 +179,13 @@
   builds a transport for it, so a helper agent needs no wiring of its own.
 * Added `gridTools` and `dashCanvasTools`, tool groups that let a helper agent arrange a grid or a
   `DashCanvas`, each with a context provider, a prompt, suggestions and undo for every change.
+* Added `ChatAssistantModel`, a helper agent beside one component. It owns a short-lived chat
+  built from the component's tool groups, and offers "Ask in chat" through an app seam.
+* Added `chatAssistantButton` and `chatAssistantContainer`, which dock the helper inside a
+  component 740 px or wider, or open it in a popover. `Ctrl/Cmd+I` opens it from the component.
+* Added optional helper members to `ChatToolGroup`: `title`, `boundary()`, `snapshot()`,
+  `isChangedSince()`, `highlight()` and `docs`. Undo retires once the component changes by hand.
+* Added `targets` to `chatToolResult()`, for a helper to flash what a tool call changed.
 * Added `ChatStreamReducer` and `createChatRunRequest()`, so an app can run a transport without
   `ChatModel`. The helper fills in a request from the messages, and the reducer folds the streamed
   events into the app's own `ChatMessage`.
@@ -306,6 +315,8 @@
   page only once the viewer reports one.
 * Fixed a reload of `ChatWorkspace` dropping the open thread. With `persistWith`, the workspace
   returns to the saved thread once the list shows it.
+* Fixed the timeline line running the time taken into its failures, as "20s·". A spaced dot
+  separates each part of the line.
 
 ### ✨ Styles
 
@@ -320,7 +331,8 @@
   tool calls stack as 28px outline rows. Prose stops at the prose width, and the action bar sits
   in the gap below a reply.
 * Restyled markdown in replies. H1 and H2 render at Hoist's large font size, and tables render
-  plain on Hoist's compact grid tokens. A table of more than 12 rows scrolls in its frame.
+  plain on Hoist's compact grid tokens. A table of more than 12 rows shows its first 12 in a
+  card, with "Showing 12 of N rows" and Show All.
 * Restyled code blocks as cards with a 28px header strip. A block over 20 lines shows its first
   20, with a button for the rest.
 * Restyled the composer to the design: one hairline border, Hoist's focus border and shadow, and
@@ -332,6 +344,8 @@
 * Restyled citations and the sources list to the design: 14 px markers that never start a line,
   three rows then "Show N More", and document and web page rows styled apart. Favicons follow the
   image policy, else a letter tile shows.
+* Changed the workspace side panel to open a table or chart wider than a document. It takes 60%
+  of the width it shares with the conversation, from 480 to 900 px.
 * Added the `xh-chat--compact` density class for narrow hosts, such as a docked side panel.
 * Added `--xh-chat-*` CSS variables for the chat's colors, widths, radii and fonts, built from
   Hoist's theme variables, with light and dark defaults.

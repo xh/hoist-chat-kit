@@ -13,17 +13,21 @@ import {
     compact,
     countBy,
     difference,
+    groupBy,
     isEmpty,
+    isEqual,
+    isFunction,
     isNil,
     keys,
     map,
     omitBy,
     pick,
-    pickBy
+    pickBy,
+    uniq
 } from 'lodash';
-import type {ChatContextProvider, ChatToolSpec} from '../../core';
+import type {ChatChangeTarget, ChatContextProvider, ChatToolSpec} from '../../core';
 import {chatToolResult} from '../../core';
-import type {ChatToolGroup} from '../../assist';
+import type {ChatDataBoundary, ChatDocLink, ChatToolGroup} from '../../assist';
 import {arraySchema, enumSchema, joinNames, objectSchema} from '../../impl/toolSchema';
 
 /**
@@ -31,15 +35,16 @@ import {arraySchema, enumSchema, joinNames, objectSchema} from '../../impl/toolS
  *
  *  - `widgets` - add, remove, move, resize, rename and configure widgets.
  *  - `layout` - replace the whole dashboard, clear it, or reset it to its defaults.
- *  - `views` - save, open and reset saved views. Needs a `viewManagerModel`.
+ *  - `views` - save, open and reset saved views. Needs a `viewManagerModel`, and is never on by
+ *    default: a helper changes the dashboard, and the user decides what to save.
  */
 export type DashCanvasToolCapability = 'widgets' | 'layout' | 'views';
 
 /** Options for {@link dashCanvasTools}. */
 export interface DashCanvasToolsConfig {
     /**
-     * What the tools may do. Default every capability the dashboard supports - see
-     * {@link DashCanvasToolCapability}. Throws if given one it does not support.
+     * What the tools may do. Default `widgets` and `layout` - name `views` to add it. See
+     * {@link DashCanvasToolCapability}. Throws if given one the dashboard does not support.
      */
     capabilities?: DashCanvasToolCapability[];
 
@@ -54,6 +59,19 @@ export interface DashCanvasToolsConfig {
 
     /** The view manager that saves this dashboard's views, for the `views` capability. */
     viewManagerModel?: ViewManagerModel;
+
+    /** Name of the dashboard, for a helper's header and button - such as 'Desk dashboard'. */
+    title?: string;
+
+    /**
+     * What the model sees of the dashboard, for a helper's data boundary line. Default its widgets'
+     * types, titles, positions and declared settings - what the group sends - and none of their
+     * data. Set it when you add context of your own.
+     */
+    boundary?: ChatDataBoundary | (() => ChatDataBoundary);
+
+    /** Documentation pages about the dashboard, and the only pages a helper may cite. */
+    docs?: ChatDocLink[];
 }
 
 /** What the model may know and change about one widget type - see {@link dashCanvasTools}. */
@@ -75,8 +93,8 @@ export interface DashCanvasWidgetInfo {
  * move, resize and configure widgets, replace or reset the whole layout, and - with a view
  * manager - save and open views. Each tool acts only on the given dashboard, through its public
  * API, and returns an undo that restores the dashboard's persistable state from before the call.
- * Clearing and resetting the dashboard, overwriting a saved view, and leaving unsaved changes ask
- * the user first.
+ * Removing widgets, a rebuild that drops widgets, clearing and resetting the dashboard, overwriting
+ * a saved view, and leaving unsaved changes ask the user first.
  *
  * The prompt lists the widget types the model may add, with their descriptions and settings. The
  * context provider describes the current widgets on every step - their ids, types, titles,
@@ -95,26 +113,48 @@ export function dashCanvasTools(
             layout: true,
             views: !!viewManagerModel
         },
-        capabilities = (config.capabilities ??
-            keys(pickBy(supported))) as DashCanvasToolCapability[],
+        capabilities = config.capabilities ?? DEFAULT_CAPABILITIES,
         unsupported = capabilities.filter(it => !supported[it]);
     throwIf(
         !isEmpty(unsupported),
         `dashCanvasTools cannot offer ${unsupported.join(', ')} - it needs a viewManagerModel.`
     );
 
-    const tools = new DashCanvasTools(dashCanvasModel, widgets, viewManagerModel);
+    const tools = new DashCanvasTools(dashCanvasModel, widgets, viewManagerModel),
+        {title = 'Dashboard', boundary = DEFAULT_BOUNDARY, docs = null} = config;
     return {
         tools: capabilities.flatMap(it => tools.forCapability(it)),
         contextProvider: tools.createContextProvider(description),
         prompt: tools.createPrompt(description, capabilities),
-        suggestions: tools.createSuggestions(capabilities)
+        suggestions: tools.createSuggestions(capabilities),
+        title,
+        kind: 'dashboard',
+        intro: 'I can add, arrange and remove widgets, or explain what one shows.',
+        boundary: isFunction(boundary) ? boundary : () => boundary,
+        snapshot: () => dashCanvasModel.getPersistableState().value,
+        isChangedSince: snapshot => !isEqual(dashCanvasModel.getPersistableState().value, snapshot),
+        highlight: (targets, opts) => tools.highlight(targets, opts),
+        docs
     };
 }
 
 //------------------
 // Implementation
 //------------------
+const DEFAULT_CAPABILITIES: DashCanvasToolCapability[] = ['widgets', 'layout'];
+
+const DEFAULT_BOUNDARY: ChatDataBoundary = {
+    text: 'Sees widget titles, positions and settings, not their data',
+    shared: ['Widget types, titles, positions and sizes', 'Widget settings the app declares'],
+    notShared: ['The data the widgets show']
+};
+
+/** How long a change highlight holds, then fades - `--xh-chat-helper-change-duration`. */
+const HIGHLIGHT_MS = 1500;
+
+/** Under reduced motion, the highlight holds this long, then goes in one frame. */
+const HIGHLIGHT_REDUCED_MS = 2000;
+
 const CAPABILITY_PHRASES: Record<DashCanvasToolCapability, string> = {
     widgets: 'add, remove, move, resize, rename and configure widgets',
     layout: 'replace the whole dashboard, clear it, or reset it to its defaults',
@@ -279,7 +319,10 @@ class DashCanvasTools {
                         height,
                         state: settings
                     });
-                return chatToolResult(`Added ${view.title} as '${view.id}'.`, {undo});
+                return chatToolResult(`Added ${view.title} as '${view.id}'.`, {
+                    undo,
+                    targets: [{type: 'widget', id: view.id, isNew: true}]
+                });
             }
         };
     }
@@ -304,6 +347,10 @@ class DashCanvasTools {
             displayName: 'Remove widgets',
             icon: Icon.delete(),
             summary: ({input}) => this.widgetTitles(compact(input?.widgets)),
+            needsApproval: true,
+            approvalPrompt: ({widgets}) =>
+                `Remove ${pluralize('widget', widgets?.length ?? 0, true)} from the dashboard?`,
+            preview: ({widgets}) => `Will remove ${this.widgetTitles(compact(widgets))}.`,
             execute: ({widgets}) => {
                 this.checkContentUnlocked();
                 const views = widgets.map(it => this.requireView(it));
@@ -361,7 +408,7 @@ class DashCanvasTools {
                 return chatToolResult(
                     `Moved ${this.widgetTitles([widget])} to x ${changed.x}, y ${changed.y}, ` +
                         `${changed.w} wide and ${changed.h} high.`,
-                    {undo}
+                    {undo, targets: [{type: 'widget', id: widget}]}
                 );
             }
         };
@@ -400,7 +447,10 @@ class DashCanvasTools {
                 const undo = this.stateUndo();
                 if (title != null) view.title = title;
                 if (!isEmpty(settings)) view.setViewState({...view.viewState, ...settings});
-                return chatToolResult(`Updated ${view.title}.`, {undo});
+                return chatToolResult(`Updated ${view.title}.`, {
+                    undo,
+                    targets: [{type: 'widget', id: view.id}]
+                });
             }
         };
     }
@@ -439,6 +489,12 @@ class DashCanvasTools {
             icon: Icon.gridLarge(),
             summary: ({input}) =>
                 input?.widgets ? pluralize('widget', input.widgets.length, true) : null,
+            // A rebuild that drops widgets removes them, so it asks first.
+            needsApproval: ({widgets}) => !isEmpty(this.droppedWidgets(widgets)),
+            approvalPrompt: ({widgets}) =>
+                `Rebuild the dashboard, and remove ${pluralize('widget', this.droppedWidgets(widgets).length, true)}?`,
+            preview: ({widgets}) =>
+                `Will remove ${joinNames(map(this.droppedWidgets(widgets), 'title'))}.`,
             execute: ({widgets}) => {
                 this.checkContentUnlocked();
                 this.checkLayoutUnlocked();
@@ -458,6 +514,7 @@ class DashCanvasTools {
                 );
 
                 const undo = this.stateUndo(),
+                    priorIds = this.widgetIds,
                     state: DashCanvasItemState[] = widgets.map(
                         ({type, title, x, y, width, height, settings}) => ({
                             viewSpecId: type,
@@ -470,7 +527,14 @@ class DashCanvasTools {
                 return chatToolResult(
                     `Built the dashboard with ${pluralize('widget', state.length, true)}: ` +
                         `${joinNames(map(this.dashCanvasModel.viewModels, 'id'))}.`,
-                    {undo}
+                    {
+                        undo,
+                        targets: this.widgetIds.map(id => ({
+                            type: 'widget',
+                            id,
+                            isNew: !priorIds.includes(id)
+                        }))
+                    }
                 );
             }
         };
@@ -627,6 +691,45 @@ class DashCanvasTools {
     }
 
     //------------------
+    // Helper support
+    //------------------
+    /**
+     * Flash the changed widgets, with Hoist's cell-change highlight color, through each view's
+     * `ref`. A new widget also takes an outline, and scrolls into view - as do all of them with
+     * `scroll`. Removed widgets cannot show it.
+     */
+    highlight(targets: ChatChangeTarget[], {scroll = false}: {scroll?: boolean} = {}) {
+        const ids = uniq(
+            map(
+                targets.filter(it => it.type === 'widget'),
+                'id'
+            )
+        );
+        if (isEmpty(ids)) return;
+        // Wait a tick, for a widget just added to render.
+        wait().then(() => {
+            ids.forEach((id, idx) => {
+                const view = this.dashCanvasModel.viewModels.find(it => it.id === id),
+                    el = view?.ref.current,
+                    isNew = targets.some(it => it.id === id && it.isNew);
+                if (!el) return;
+                if ((scroll || isNew) && idx === 0) view.ensureVisible();
+                flashElement(el, isNew);
+            });
+        });
+    }
+
+    /** Widgets that a `set_dashboard` call would drop. */
+    droppedWidgets(widgets: PlainObject[]): DashCanvasViewModel[] {
+        // `loadState()` keeps a view by type and position among its type, so a type's extra
+        // views go.
+        const counts = countBy(widgets ?? [], 'type');
+        return Object.values(groupBy(this.dashCanvasModel.viewModels, 'viewSpec.id')).flatMap(
+            views => views.slice(counts[views[0].viewSpec.id] ?? 0)
+        );
+    }
+
+    //------------------
     // Helpers
     //------------------
     /** View specs the model may add. */
@@ -724,4 +827,22 @@ class DashCanvasTools {
         if (isEmpty(viewModels)) return 'nothing - the dashboard is empty';
         return `${pluralize('widget', viewModels.length, true)}: ${joinNames(map(viewModels, 'title'))}`;
     }
+}
+
+/** Show the change highlight on an element, then fade it. A new element also takes an outline. */
+function flashElement(el: HTMLElement, isNew: boolean) {
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+        classes = [
+            'xh-chat-changed',
+            reduced ? null : 'xh-chat-changed--fade',
+            isNew ? 'xh-chat-changed-outline' : null
+        ].filter(it => it);
+    el.classList.remove(...classes);
+    // Restart the animation of a flash still running.
+    void el.offsetWidth;
+    el.classList.add(...classes);
+    window.setTimeout(
+        () => el.classList.remove(...classes),
+        reduced ? HIGHLIGHT_REDUCED_MS : HIGHLIGHT_MS
+    );
 }

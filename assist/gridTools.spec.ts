@@ -259,6 +259,48 @@ describe('gridTools', () => {
         });
     });
 
+    describe('helper members', () => {
+        it('names the grid, and says it sees structure, not row data', () => {
+            const group = gridTools(createGrid(), {title: 'Positions grid'});
+
+            expect(group.title).toBe('Positions grid');
+            expect(group.kind).toBe('grid');
+            expect(group.boundary()).toMatchObject({
+                text: 'Sees column names and filters, not row data',
+                notShared: ['Row values']
+            });
+        });
+
+        it('reports a hand edit since a snapshot, but not a selection', () => {
+            const gridModel = createGrid(),
+                group = gridTools(gridModel),
+                snapshot = group.snapshot();
+
+            gridModel.selModel.select(gridModel.store.records[0]);
+            expect(group.isChangedSince(snapshot)).toBe(false);
+
+            gridModel.setGroupBy(['region']);
+            expect(group.isChangedSince(snapshot)).toBe(true);
+        });
+
+        it('names the columns a call changed, and the groups', async () => {
+            const gridModel = createGrid(),
+                shown = await run(gridModel, 'update_columns', {
+                    changes: [
+                        {column: 'qty', visible: false},
+                        {column: 'price', pinned: 'left'}
+                    ]
+                }),
+                grouped = await run(gridModel, 'group_grid', {columns: ['region']});
+
+            expect(shown.targets).toEqual([
+                {type: 'column', id: 'qty'},
+                {type: 'column', id: 'price'}
+            ]);
+            expect(grouped.targets).toEqual([{type: 'groups'}]);
+        });
+    });
+
     describe('export and select', () => {
         it('exports to Excel or CSV through the grid', async () => {
             const gridModel = createGrid(),

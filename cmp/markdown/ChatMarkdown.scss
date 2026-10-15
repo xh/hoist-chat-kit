@@ -173,14 +173,17 @@
     background-color: var(--xh-grid-bg-odd);
   }
 
-  // A table with more rows than show plain scrolls inside its frame, under a sticky header.
-  table.xh-chat-markdown__table--scroll {
-    max-height: calc(var(--xh-chat-table-row-height) * 13);
-    overflow-y: auto;
+  // A table with more rows than show plain, framed as a card where the platform supplies one. The
+  // card draws the border, and fits its table.
+  &__table-card {
+    margin: var(--xh-chat-paragraph-gap, 8px) 0 0;
+    max-width: 100%;
+    width: fit-content;
 
-    th {
-      position: sticky;
-      top: 0;
+    table {
+      border: none;
+      border-radius: 0;
+      margin: 0;
     }
   }
 

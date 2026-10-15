@@ -355,30 +355,40 @@ function lineMeta(
             elapsed(message, summary, state)
         ]);
 
+    if (failedCount) {
+        segments.push(
+            span({
+                key: 'fails',
+                className: 'xh-chat-timeline__fails',
+                items: [
+                    Icon.warning(),
+                    isNarrow
+                        ? span({
+                              title: `${failedCount} failed`,
+                              'aria-label': `${failedCount} failed`,
+                              item: failedCount
+                          })
+                        : `${failedCount} failed${isAllRetried ? ', retried' : ''}`
+                ]
+            })
+        );
+    }
+
     return span({
         className: 'xh-chat-timeline__meta',
-        items: [
-            ...segments.flatMap((it, idx) =>
-                idx ? [span({key: `sep${idx}`, 'aria-hidden': true, item: ' · '}), it] : [it]
-            ),
-            failedCount
-                ? span({
-                      key: 'fails',
-                      className: 'xh-chat-timeline__fails',
-                      items: [
-                          segments.length ? span({'aria-hidden': true, item: ' · '}) : null,
-                          Icon.warning(),
-                          isNarrow
-                              ? span({
-                                    title: `${failedCount} failed`,
-                                    'aria-label': `${failedCount} failed`,
-                                    item: failedCount
-                                })
-                              : `${failedCount} failed${isAllRetried ? ', retried' : ''}`
-                      ]
-                  })
-                : null
-        ]
+        items: segments.flatMap((it, idx) =>
+            idx
+                ? [
+                      span({
+                          key: `sep${idx}`,
+                          className: 'xh-chat-timeline__sep',
+                          'aria-hidden': true,
+                          item: ' · '
+                      }),
+                      it
+                  ]
+                : [it]
+        )
     });
 }
 

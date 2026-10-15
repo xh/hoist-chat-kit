@@ -110,6 +110,11 @@
     white-space: nowrap;
   }
 
+  // A spaced dot between segments. Its spaces would collapse at the edge of a flex item.
+  &__sep {
+    white-space: pre;
+  }
+
   // Failures are warnings, never danger: the run went on.
   &__fails {
     align-items: center;

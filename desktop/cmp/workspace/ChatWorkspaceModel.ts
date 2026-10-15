@@ -1,4 +1,4 @@
-import {isNumber} from 'lodash';
+import {clamp, isNumber} from 'lodash';
 import type {LoadSpec, PersistOptions} from '@xh/hoist/core';
 import {HoistModel, managed, PersistableState, PersistenceProvider, XH} from '@xh/hoist/core';
 import {PanelModel} from '@xh/hoist/desktop/cmp/panel';
@@ -47,6 +47,9 @@ export type ChatWorkspaceSidebarMode = 'open' | 'rail' | 'hidden';
  * | 1,000 to 1,279 px | Open, 240 px. The rail while the side panel shows | 460 px | At least 480 px |
  * | 788 to 999 px | The rail, unless the user expands it | 400 px | At least 380 px |
  * | Under 788 px | Hidden. The header offers the list in a popover | Not shown | All of it |
+ *
+ * A table or chart in the side panel takes 60% of the width it shares with the conversation, from
+ * 480 to 900 px, in place of the side panel's width above.
  *
  * A width the user drags a panel to replaces the default in the band where they drag it, and in
  * every wider band. When the conversation would drop below its minimum, the sidebar gives way to
@@ -107,8 +110,10 @@ export class ChatWorkspaceModel extends HoistModel {
     }
 
     /**
-     * Width of the side panel, in pixels, or null when it does not show: the user's width or the
-     * default for the workspace's width, cut to leave the conversation its minimum.
+     * Width of the side panel, in pixels, or null when it does not show, cut to leave the
+     * conversation its minimum. A table or chart takes 60% of the width it shares with the
+     * conversation, from 480 to 900 px. A document, or the app's content, takes the user's width
+     * or the default for the workspace's width.
      */
     @computed
     get sidePanelWidth(): number {
@@ -295,6 +300,9 @@ export class ChatWorkspaceModel extends HoistModel {
     @observable private accessor sidebarSizeBand: number = null;
     @observable private accessor sidePanelSizeBand: number = null;
 
+    // The band where the user dragged the side panel while a table or chart showed, or null.
+    @observable private accessor dataSizeBand: number = null;
+
     // The saved thread to select once the list shows it, while the new chat is untouched.
     @observable private accessor restoreThreadId: string = null;
 
@@ -318,8 +326,14 @@ export class ChatWorkspaceModel extends HoistModel {
 
         const isPanelShown = this.isSidePanelShown;
         let sidebarMode = this.getSidebarMode(band, isPanelShown),
-            sidebarWidth = sidebarMode === 'open' ? this.getPreferredWidth('sidebar', band) : null,
-            sidePanelWidth = isPanelShown ? this.getPreferredWidth('sidePanel', band) : null;
+            sidebarWidth = sidebarMode === 'open' ? this.getPreferredWidth('sidebar', band) : null;
+        const getSidebarSpace = () =>
+                sidebarMode === 'open' ? sidebarWidth + SPLITTER_WIDTH : RAIL_WIDTH,
+            getSidePanelWidth = () =>
+                isPanelShown
+                    ? this.getSidePanelWidth(band, width == null ? null : width - getSidebarSpace())
+                    : null;
+        let sidePanelWidth = getSidePanelWidth();
         if (width == null) return {sidebarMode, sidebarWidth, sidePanelWidth};
 
         // When the conversation would drop below its minimum, the sidebar gives way to its rail
@@ -329,12 +343,14 @@ export class ChatWorkspaceModel extends HoistModel {
             getSpare = () =>
                 width -
                 minConversation -
-                (sidebarMode === 'open' ? sidebarWidth + SPLITTER_WIDTH : RAIL_WIDTH) -
+                getSidebarSpace() -
                 (isPanelShown ? sidePanelWidth + SPLITTER_WIDTH : 0);
 
         if (isPanelShown && sidebarMode === 'open' && getSpare() < 0) {
             sidebarMode = 'rail';
             sidebarWidth = null;
+            // A table or chart widens into the room the sidebar gave up.
+            sidePanelWidth = getSidePanelWidth();
         }
         if (isPanelShown && getSpare() < 0) {
             sidePanelWidth = Math.max(0, sidePanelWidth + getSpare());
@@ -362,6 +378,30 @@ export class ChatWorkspaceModel extends HoistModel {
         return Math.min(size, widths[band]);
     }
 
+    // A table or chart takes its share of the width that the side panel shares with the
+    // conversation, unless the user dragged the panel while one showed. Then the user's width
+    // holds as above. Everything else takes the side panel's preferred width.
+    private getSidePanelWidth(band: number, sharedWidth: number): number {
+        if (!this.isDataRequestOpen || sharedWidth == null) {
+            return this.getPreferredWidth('sidePanel', band);
+        }
+        const {dataSizeBand} = this,
+            {size} = this.sidePanelModel,
+            dataWidth = clamp(
+                Math.round(sharedWidth * DATA_PANEL_SHARE),
+                DATA_PANEL_MIN_WIDTH,
+                DATA_PANEL_MAX_WIDTH
+            );
+        if (dataSizeBand == null || !isNumber(size)) return dataWidth;
+        return band >= dataSizeBand ? size : Math.min(size, dataWidth);
+    }
+
+    // True if the side panel's request is a table or a chart.
+    private get isDataRequestOpen(): boolean {
+        const type = this.sidePanel.request?.type;
+        return type === 'table' || type === 'chart';
+    }
+
     private getPanelSpec(panel: PanelName) {
         return panel === 'sidebar'
             ? {
@@ -384,6 +424,7 @@ export class ChatWorkspaceModel extends HoistModel {
             this.sidebarSizeBand = band;
         } else {
             this.sidePanelSizeBand = band;
+            if (this.isDataRequestOpen) this.dataSizeBand = this.widthBand ?? WIDE_BAND;
         }
     }
 
@@ -488,6 +529,10 @@ const SIDEBAR_MIN_WIDTH = 200,
     SIDEBAR_MAX_WIDTH = 400,
     SIDE_PANEL_MIN_WIDTH = 400,
     SIDE_PANEL_MAX_WIDTH = 900,
+    // A table or chart's share of the width beside the sidebar, and its bounds.
+    DATA_PANEL_SHARE = 0.6,
+    DATA_PANEL_MIN_WIDTH = 480,
+    DATA_PANEL_MAX_WIDTH = 900,
     // Hoist's splitter beside a resizable panel, and the sidebar's rail.
     SPLITTER_WIDTH = 8,
     RAIL_WIDTH = 40,

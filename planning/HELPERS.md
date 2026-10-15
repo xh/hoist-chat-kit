@@ -78,12 +78,16 @@ Check every Hoist API with the hoist-react MCP tools before writing a tool: colu
 ## 4. The assistant model and form factor
 
 - `ChatAssistantModel` (in `assist/`) builds and owns a `ChatModel` from tool groups, context
-  providers, a short prompt and the default transport. Config: `{title, groups, prompt?,
-  suggestions?, transport?}`. Without `transport`, it asks `XH.chatService` for the default.
-- `chatAssistantButton` (desktop) goes in a `Panel` header. It opens a docked panel of 360 to
-  420 px, or a popover anchored to the component, with one `ChatModel` shared across open and
-  close. Its visual design follows Claude Design prompt 7 when the handoff lands.
-- Persistence is optional: the last conversation per component through `persistWith`.
+  providers, a short prompt and the default transport. Config: `{groups, title?, prompt?,
+  suggestions?, transport?, onAskInChat?}`. Without `transport`, it asks `XH.chatService` for the
+  default.
+- `chatAssistantButton` (desktop) goes last in a `Panel` header. `chatAssistantContainer` wraps
+  the panel's content. In a component 740 px or wider, the helper docks inside it, 360 to 420
+  px. Otherwise it opens in a popover anchored to the button. One `ChatModel` serves open and
+  close. The look follows Claude Design prompt 7 (D73).
+- No persistence (A2, R12). The conversation lives in memory for the life of the component, and
+  never shows in a thread list. "Ask in chat", through `onAskInChat`, is the bridge to a real
+  thread.
 
 ## 5. Bring your own LLM
 

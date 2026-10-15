@@ -25,6 +25,17 @@
     min-height: 0;
   }
 
+  // The side panel's box can be wider than its PanelModel's size, as for a table or a chart. Its
+  // resize container, and the panel in it, stretch to fill the box.
+  &__side-panel > .xh-resizable,
+  &__side-panel > .xh-chat-side-panel > .xh-resizable {
+    width: 100%;
+
+    > :not(.xh-resizable-splitter, .xh-resizable-dragger) {
+      flex-grow: 1;
+    }
+  }
+
   // The sidebar shares the conversation's surface. Its border does the separating.
   &__sidebar {
     background-color: var(--xh-chat-sidebar-bg);

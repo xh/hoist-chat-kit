@@ -1124,3 +1124,24 @@ below 480px. Reconnect markers, server stages and server narration marks wait fo
 **Why.** It builds P2 on events AG-UI already defines, with no backend capability the kit cannot
 see. The approval and question panels are shared with the tool call card, and the composer's
 status region announces a paused turn, so the timeline does not announce it again (D65).
+
+## D79. Choices in the component helper
+
+**Decision.** `ChatAssistantModel` (in `assist/`) owns one in-memory `ChatModel` for a component,
+built from one or more tool groups, with a system prompt that keeps the helper to its component
+and its `docs`. Its conversation lives and dies with the component (A2). Without a transport it
+uses `XH.chatService.createTransport()`, and with no backend the button does not render.
+`ChatToolGroup` gains optional `title`, `kind`, `intro`, `boundary()`, `snapshot()`,
+`isChangedSince()`, `highlight()` and `docs` (D73 plus `snapshot`, which `isChangedSince` needs).
+`chatToolResult()` takes `targets`, the parts of the component a call changed, for Show and the
+change flash. A reply's Undo retires once `isChangedSince()` reports a hand edit, through a
+`ChatUndoGuard` found in model context. Change lines are one line per call, and Undo stays in the
+reply's action bar under D48. The desktop container docks the helper in the component at 740px
+or wider, and opens a popover below that. Only one popover helper is open per page. Removals ask
+first, and `views` is no longer a default capability (R11).
+
+**Why.** It reuses the tool groups, context providers and undo the kit already has (D48, D51),
+and keeps `assist/` platform-neutral. One line per call keeps D48's single undoable reply exact.
+
+**Alternatives.** P7's framed change card with its own Undo. It would need changes to the model
+and the timeline for a second undo path.

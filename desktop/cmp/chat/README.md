@@ -266,7 +266,8 @@ The block is one 28px line. Its height never changes, and it changes only its wo
 
 The line swaps to its done summary in place once the answer starts below the block. Failures
 show in the warning color, as "1 failed", and as "1 failed, retried" once every failed call was
-retried with success. A retry is a later call with the same tool, input and sub-agent.
+retried with success. A retry is a later call with the same tool, input and sub-agent. A spaced
+dot separates the meta's parts, as in "20s · 1 failed, retried".
 
 The block starts collapsed, and never opens or closes by itself. The one exception is a call that
 waits for the user. Its approval panel, or its question, shows under the line whether or not the
@@ -784,6 +785,10 @@ Define the object once, at module level, so the markdown blocks stay memoized.
 `markdownComponents` swaps how markdown elements render in assistant messages, keyed by tag
 name. The kit renders fenced code with `ChatCodeBlock` by default, and your entries merge over
 that default. Pass a module-level constant, so the markdown blocks stay memoized.
+
+The kit also supplies `table`. A table of up to 12 rows renders plain. A longer one renders as a
+card with its first 12 rows, the footer "Showing 12 of N rows", and Show All. It has no side
+panel view, because a markdown table carries no result set. A `table` entry replaces both.
 
 ```typescript
 const MARKDOWN_COMPONENTS: ChatMarkdownComponents = {

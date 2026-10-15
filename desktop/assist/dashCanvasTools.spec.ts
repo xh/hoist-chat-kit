@@ -51,6 +51,20 @@ describe('dashCanvasTools', () => {
             );
         });
 
+        it('leaves the view tools out unless the app names them (R11)', async () => {
+            const {dashModel, viewManagerModel} = await createViewDashAsync();
+
+            expect(map(dashCanvasTools(dashModel, {viewManagerModel}).tools, 'name')).not.toContain(
+                'save_view'
+            );
+            expect(
+                map(
+                    dashCanvasTools(dashModel, {viewManagerModel, capabilities: ['views']}).tools,
+                    'name'
+                )
+            ).toEqual(['save_view', 'open_view', 'reset_view']);
+        });
+
         it('describes the widgets, with only the settings the app declares', async () => {
             const dashModel = createDash(),
                 {contextProvider} = dashCanvasTools(dashModel, {
@@ -251,6 +265,61 @@ describe('dashCanvasTools', () => {
         });
     });
 
+    describe('removals', () => {
+        it('asks before removing widgets, with the targets in the preview (R11)', () => {
+            const remove = getTool(dashCanvasTools(createDash()), 'remove_widgets');
+
+            expect(remove.needsApproval).toBe(true);
+            expect(
+                (remove.preview as (input: PlainObject) => string)({widgets: ['summary_0']})
+            ).toBe('Will remove Summary.');
+        });
+
+        it('asks before a rebuild only when it drops widgets', () => {
+            const build = getTool(dashCanvasTools(createDash()), 'set_dashboard'),
+                needsApproval = build.needsApproval as (input: PlainObject) => boolean,
+                chart = {type: 'chart', x: 0, y: 0, width: 6, height: 4},
+                summary = {type: 'summary', x: 6, y: 0, width: 4, height: 2};
+
+            expect(needsApproval({widgets: [chart, summary, {...chart, x: 0, y: 4}]})).toBe(false);
+            expect(needsApproval({widgets: [chart, chart]})).toBe(true);
+            expect((build.preview as (input: PlainObject) => string)({widgets: [chart]})).toBe(
+                'Will remove Summary.'
+            );
+        });
+    });
+
+    describe('helper members', () => {
+        it('names the dashboard, and says what the model sees of it', () => {
+            const group = dashCanvasTools(createDash(), {title: 'Desk dashboard'});
+
+            expect(group.title).toBe('Desk dashboard');
+            expect(group.kind).toBe('dashboard');
+            expect(group.boundary().text).toBe(
+                'Sees widget titles, positions and settings, not their data'
+            );
+        });
+
+        it('reports a change since a snapshot, made by any means', () => {
+            const dashModel = createDash(),
+                group = dashCanvasTools(dashModel),
+                snapshot = group.snapshot();
+
+            expect(group.isChangedSince(snapshot)).toBe(false);
+            dashModel.removeView('summary_0');
+            expect(group.isChangedSince(snapshot)).toBe(true);
+        });
+
+        it('names what a call changed, marking a new widget', async () => {
+            const dashModel = createDash(),
+                added = await run(dashModel, 'add_widget', {type: 'chart'}),
+                moved = await run(dashModel, 'move_widget', {widget: 'chart_0', x: 2});
+
+            expect(added.targets).toEqual([{type: 'widget', id: 'chart_1', isNew: true}]);
+            expect(moved.targets).toEqual([{type: 'widget', id: 'chart_0'}]);
+        });
+    });
+
     describe('views', () => {
         it('saves the dashboard, with the changes made just before, as a new view', async () => {
             const {dashModel, viewManagerModel} = await createViewDashAsync();
@@ -258,7 +327,7 @@ describe('dashCanvasTools', () => {
             await run(dashModel, 'add_widget', {type: 'chart'});
 
             const output = await getTool(
-                dashCanvasTools(dashModel, {viewManagerModel}),
+                dashCanvasTools(dashModel, {viewManagerModel, capabilities: ['views']}),
                 'save_view'
             ).execute({name: 'Mine'}, null);
 
@@ -273,7 +342,15 @@ describe('dashCanvasTools', () => {
 
         it('opens a view by name, and undoes it', async () => {
             const {dashModel, viewManagerModel} = await createViewDashAsync(),
-                result = await run(dashModel, 'open_view', {name: 'Charts'}, {viewManagerModel});
+                result = await run(
+                    dashModel,
+                    'open_view',
+                    {name: 'Charts'},
+                    {
+                        viewManagerModel,
+                        capabilities: ['views']
+                    }
+                );
 
             expect(result.output).toBe("Opened the view 'Charts'.");
             expect(viewManagerModel.view.name).toBe('Charts');
@@ -286,7 +363,10 @@ describe('dashCanvasTools', () => {
 
         it('asks before saving over the current view', async () => {
             const {dashModel, viewManagerModel} = await createViewDashAsync(),
-                save = getTool(dashCanvasTools(dashModel, {viewManagerModel}), 'save_view'),
+                save = getTool(
+                    dashCanvasTools(dashModel, {viewManagerModel, capabilities: ['views']}),
+                    'save_view'
+                ),
                 needsApproval = save.needsApproval as (input: PlainObject) => boolean;
 
             expect(needsApproval({})).toBe(true);
@@ -314,6 +394,9 @@ describe('dashCanvasTools', () => {
         onTestFinished(() => model.destroy());
 
         await model.sendAsync('Swap the summary for a chart');
+        // The step's calls wait for the removal's approval.
+        expect(widgetIds(dashModel)).toEqual(['chart_0', 'summary_0']);
+        await model.approveToolCallAsync(model.pendingApprovals[0].id);
         expect(widgetIds(dashModel)).toEqual(['chart_0', 'chart_1']);
 
         await model.undoTurnAsync(model.lastMessage.id);

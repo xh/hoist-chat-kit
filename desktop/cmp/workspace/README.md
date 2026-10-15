@@ -81,6 +81,10 @@ The workspace measures its own element as it mounts, before the first paint, and
 | 788 to 999 px | The rail, unless the user expands it | 400 px | At least 380 px |
 | Under 788 px | Hidden. The header offers the list in a popover | Not shown. A document opens in a new tab | All of it |
 
+A table or chart in the side panel takes 60% of the width it shares with the conversation, from
+480 to 900 px, in place of the side panel widths above. The shared width is the workspace less
+the sidebar or its rail. A document, and the app's own content, keep the widths above.
+
 When the conversation would drop below its minimum, the sidebar gives way to its rail first.
 Then the side panel narrows, below its 400 px drag minimum if it must. The model's
 `sidebarWidth` and `sidePanelWidth` give the widths that show.
@@ -88,6 +92,10 @@ Then the side panel narrows, below its 400 px drag minimum if it must. The model
 A width the user drags a panel to replaces the default in the band where they drag it, and in
 every wider band. In a narrower band, the band's default applies, never wider than the user's
 width. A saved width holds in the band where the workspace first shows it.
+
+The side panel has one saved width. A drag while a table or chart shows sets that width for
+tables and charts too, for the rest of the session. A width saved for documents never applies to
+a table or chart.
 
 The layout never changes the user's saved state. A collapse the user makes holds at every width
 that shows a sidebar. An expand the user makes from the rail holds until the width crosses into
@@ -165,7 +173,8 @@ workspaceModel.openSidePanel();
 ```
 
 The panel has a close button, its own splitter, and a persisted width from 400 to 900 px. Its
-content renders only while the panel shows.
+content renders only while the panel shows. A result card's table or chart opens wider, as
+[Layout by width](#layout-by-width) describes.
 
 ### Open cited documents in the side panel
 
@@ -216,7 +225,7 @@ document opens at its URL in a new tab, with a toast.
 | `width` | `number` | Measured width, or null before render. |
 | `sidebarMode` | `'open' \| 'rail' \| 'hidden'` | How the sidebar shows. |
 | `sidebarWidth` | `number` | Width of the open sidebar, or null when it is not open. |
-| `sidePanelWidth` | `number` | Width of the side panel, or null when it does not show. |
+| `sidePanelWidth` | `number` | Width of the side panel, or null when it does not show. 60% of the shared width for a table or chart. |
 | `isSidePanelOpen` | `boolean` | True if the app wants the side panel open. Bindable. |
 | `isSidePanelShown` | `boolean` | True if the side panel shows: a request or the app's content, with room. |
 | `isCompact` | `boolean` | True at 380 px or less. |

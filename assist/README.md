@@ -3,8 +3,8 @@
 | Section | Description |
 |---------|-------------|
 | [Overview](#overview) | What tool groups are, and the key features |
-| [Architecture](#architecture) | `ChatToolGroup`, `gridTools`, `dashCanvasTools`, and how a group fits a chat |
-| [Configuration Pattern](#configuration-pattern) | Building a helper chat from a tool group |
+| [Architecture](#architecture) | `ChatAssistantModel`, `ChatToolGroup`, `gridTools`, `dashCanvasTools` |
+| [Configuration Pattern](#configuration-pattern) | Building a helper from a tool group |
 | [Common Usage Patterns](#common-usage-patterns) | Grids, dashboards, settings, approvals, and adding app tools |
 | [Properties/API Reference](#propertiesapi-reference) | Options, capabilities, and the tools of each group |
 | [Extension Points](#extension-points) | Changing tools, and writing a group of your own |
@@ -22,6 +22,11 @@ A tool group derives those tools from the component's Hoist model. Each tool cal
 public API, acts only on that one component, and returns an undo. The group also describes the
 component to the model on every step, and supplies a short prompt and suggestion chips.
 
+`ChatAssistantModel` turns one or more groups into a helper. It owns the helper's chat, which
+lives in memory for the life of the component, and the state of the helper's UI. The desktop
+button and container that draw it live in
+[`/desktop/cmp/assist/`](../desktop/cmp/assist/README.md).
+
 `gridTools` is platform-neutral and lives here. `dashCanvasTools` acts on a desktop
 `DashCanvasModel`, so it lives in `/desktop/assist/`. This README covers both.
 
@@ -35,8 +40,10 @@ Key features:
   change a dashboard widget's settings only through a schema the app supplies.
 - **Every change can be undone** - each tool returns an undo from the model's own state, and the
   user undoes a reply's changes from the message.
-- **Approval where it matters** - clearing or resetting a dashboard, overwriting a saved view, and
-  leaving unsaved changes ask the user first, with a preview of the change.
+- **Approval where it matters** - removing widgets, clearing or resetting a dashboard,
+  overwriting a saved view, and leaving unsaved changes ask the user first, with a preview.
+- **A short-lived conversation** - a helper's chat is never persisted, and never shows in a
+  thread list. It goes with the component.
 - **Structure, not data** - the context describes columns, sorts, filters and widgets, with no row
   values.
 - **Opt-in capabilities** - each group offers what its component supports, or the subset you name.
@@ -44,11 +51,23 @@ Key features:
 ## Architecture
 
 ```
+ChatAssistantModel
+├── chatModel: ChatModel                # The helper's chat, built from the groups
+├── isOpen, mode: 'dock' | 'popover'    # The helper's UI state
+├── badge: ChatAssistantBadge           # What the closed helper's button shows
+└── Methods: open(), close(), askInChat(), startOver(), showChange()
+
 ChatToolGroup
 ├── tools: ChatToolSpec[]               # Tools that act on one component, each with an undo
 ├── contextProvider: ChatContextProvider # The component's structure, on every step
 ├── prompt: string                      # What the tools can do, for the system prompt
-└── suggestions: string[]               # Three prompts to start with
+├── suggestions: string[]               # Three prompts to start with
+└── Helper members, all optional:
+    ├── title, kind, intro              # Names for the helper's header, width and empty state
+    ├── boundary()                      # What the model sees, for the data boundary line
+    ├── snapshot(), isChangedSince()    # Retire Undo after a change by other means
+    ├── highlight(targets)              # Flash what a change touched
+    └── docs: ChatDocLink[]             # The only pages an answer may cite
 
 gridTools(gridModel, {capabilities?, description?})            # /assist/
 dashCanvasTools(dashCanvasModel, {capabilities?, description?,  # /desktop/assist/
@@ -67,7 +86,28 @@ user message -> ChatModel -> step: contextProvider + tools -> transport -> model
 
 ## Configuration Pattern
 
-Build one `ChatModel` per helper, from a group:
+Build one `ChatAssistantModel` per component, from its groups. Create it with the component's
+model, and mark it `@managed`:
+
+```typescript
+import {ChatAssistantModel, gridTools} from '@xh/hoist-chat-kit/assist';
+
+export class PositionsPanelModel extends HoistModel {
+    @managed gridModel = new GridModel({...});
+    @managed assistantModel = new ChatAssistantModel({
+        groups: gridTools(this.gridModel, {
+            title: 'Positions grid',
+            description: 'Open positions, one row per trade'
+        })
+    });
+}
+```
+
+Without a `transport`, the model asks `XH.chatService` for the app's default. With no backend,
+`isEnabled` is false and the helper's button does not render. Draw the helper with the
+components in [`/desktop/cmp/assist/`](../desktop/cmp/assist/README.md).
+
+To use a group without the helper UI, build a `ChatModel` from it:
 
 ```typescript
 import {gridTools} from '@xh/hoist-chat-kit/assist';
@@ -133,7 +173,7 @@ also gives the grid's sorts, grouping, filter, filter fields, and row and select
 |------------|-------|-------|
 | `widgets` | `add_widget`, `remove_widgets`, `move_widget`, `configure_widget` | - |
 | `layout` | `set_dashboard`, `clear_dashboard`, `reset_dashboard` | - |
-| `views` | `save_view`, `open_view`, `reset_view` | A `viewManagerModel` |
+| `views` | `save_view`, `open_view`, `reset_view` | A `viewManagerModel`, and `views` named in `capabilities` |
 
 The prompt lists the widget types that the model may add, with each type's title, default size,
 and any description and settings you give. The context lists the current widgets, with their ids,
@@ -172,10 +212,11 @@ saved state.
 
 ### Ask before a change
 
-The groups ask the user to approve the tools that discard work: `clear_dashboard`,
-`reset_dashboard`, `reset_view`, `save_view` with no name, which saves over the current view, and
-`open_view` while the dashboard has unsaved changes. The card shows a `preview` of the change,
-such as "Will remove 3 widgets: Map, News and Chart."
+The groups ask the user to approve the tools that remove or discard work: `remove_widgets`, a
+`set_dashboard` that drops widgets, `clear_dashboard`, `reset_dashboard`, `reset_view`,
+`save_view` with no name, which saves over the current view, and `open_view` while the dashboard
+has unsaved changes. The card shows a `preview` of the change, such as "Will remove 3 widgets:
+Map, News and Chart." Changes that add or rearrange apply at once, and the user can undo them.
 
 To ask before every change, set `needsApproval` on the tools you want. Each call to a group
 factory builds new specs, so set the property on them directly:
@@ -183,6 +224,32 @@ factory builds new specs, so set the property on them directly:
 ```typescript
 group.tools.forEach(it => (it.needsApproval = true));
 ```
+
+### Put a helper beside a component
+
+`ChatAssistantModel` takes the groups, and optionally the app's own tools, context providers
+and prompt. It adds rules of its own to the system prompt: change only this component, never
+save or submit anything, and cite only the groups' `docs`.
+
+```typescript
+new ChatAssistantModel({
+    groups: [gridTools(gridModel, {title: 'Positions grid', docs: GRID_DOCS})],
+    prompt: 'Positions are in USD.',
+    onAskInChat: question => this.askInMainChat(question) // The app's own method
+});
+```
+
+The conversation lives in memory for the life of the model. Closing and reopening the helper
+keeps it. Destroying the component's model drops it. The helper persists nothing.
+
+With `onAskInChat`, the helper offers an Ask in chat button for a question about anything other
+than its component. The app decides where the question goes, such as a new thread in its dock.
+
+Each tool returns `chatToolResult(output, {undo, targets})`. The helper flashes the `targets` on
+the component through the group's `highlight()`, and Show on the change's line flashes them
+again. Once a reply's changes become undoable, the helper takes a `snapshot()`. If
+`isChangedSince()` then reports a change, such as a hand edit, the reply's Undo gives way to the
+reason.
 
 ### Add tools of your own
 
@@ -201,21 +268,63 @@ Return `chatToolResult(output, {undo})` from your own tools, so their changes ca
 
 ## Properties/API Reference
 
+### ChatAssistantConfig
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `groups` | `ChatToolGroup \| ChatToolGroup[]` | The component's tool groups. Required. |
+| `title` | `string` | Name of the component. Default the first group's `title`. |
+| `intro` | `string` | The sentence of the empty state. Default the first group's `intro`. |
+| `suggestions` | `string[]` | Up to three prompts for the empty state. Default the groups' suggestions. |
+| `prompt` | `string` | The app's own instructions, after the groups' prompts. |
+| `tools` | `ChatToolSpec[]` | The app's own tools. |
+| `contextProviders` | `ChatContextProvider[]` | The app's own context providers. |
+| `transport` | `ChatTransport \| (systemPrompt) => ChatTransport` | Default `XH.chatService.createTransport()`. A function receives the system prompt. |
+| `onAskInChat` | `(question) => void` | Asks a question in the app's main chat. Turns on Ask in chat. |
+| `dockMinWidth` | `number` | Width at which the helper docks, else a popover. Default 740. |
+| `chatModelConfig` | `Partial<ChatModelConfig>` | More config for the chat. Default `maxSteps` 8. |
+
+### ChatToolGroup helper members
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `title` | `string` | Name of the component, for the header and the button. |
+| `kind` | `string` | Kind of component. Helpers of one kind share their docked width. |
+| `intro` | `string` | One sentence on what the helper can do, for the empty state. |
+| `boundary()` | `ChatDataBoundary` | What the model sees, in the app's words. |
+| `snapshot()` | `unknown` | The component's state, for `isChangedSince()`. |
+| `isChangedSince(snapshot)` | `boolean` | True after a change by other means. Retires Undo. |
+| `highlight(targets, opts?)` | `void` | Flashes what a change touched. `scroll` brings it into view. |
+| `docs` | `ChatDocLink[]` | The only pages an answer may cite. |
+
 ### GridToolsConfig
 
 | Property | Type | Description |
 |----------|------|-------------|
 | `capabilities` | `GridToolCapability[]` | What the tools may do. Default every capability the grid supports. |
 | `description` | `string` | What the grid shows, for the prompt and the context. |
+| `title` | `string` | Name of the grid, for a helper. Default 'Grid'. |
+| `boundary` | `ChatDataBoundary \| () => ChatDataBoundary` | What the model sees. Default its structure, not row data. |
+| `docs` | `ChatDocLink[]` | Pages a helper may cite. |
 
 ### DashCanvasToolsConfig
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `capabilities` | `DashCanvasToolCapability[]` | What the tools may do. Default `widgets` and `layout`, plus `views` with a view manager. |
+| `capabilities` | `DashCanvasToolCapability[]` | What the tools may do. Default `widgets` and `layout`. Name `views` to offer it. |
 | `description` | `string` | What the dashboard is for, for the prompt and the context. |
 | `widgets` | `Record<string, DashCanvasWidgetInfo>` | Per view spec id: a `description` for the model, and a `settingsSchema` of the settings it may change. |
 | `viewManagerModel` | `ViewManagerModel` | The view manager that saves the dashboard's views. Required for `views`. |
+| `title` | `string` | Name of the dashboard, for a helper. Default 'Dashboard'. |
+| `boundary` | `ChatDataBoundary \| () => ChatDataBoundary` | What the model sees. Default widget titles, positions and settings. |
+| `docs` | `ChatDocLink[]` | Pages a helper may cite. |
+
+### Highlights
+
+| Group | Targets | Highlight |
+|-------|---------|-----------|
+| `gridTools` | Columns a call showed, moved, sized, pinned or sorted, and `groups` | ag-Grid's `flashCells()` on the visible columns. Group rows do not flash. |
+| `dashCanvasTools` | Widgets a call added, moved or configured | The cell-change color on the widget, and an outline on a new one, which scrolls into view. |
 
 ### Undo
 
@@ -265,6 +374,8 @@ context provider or a tool of your own. Decide first what may leave the browser.
 - [`/svc/`](../svc/README.md) - `ChatService`, the app's default LLM backend
 - [`/transport/`](../transport/README.md) - codecs, and
   [Bring your own LLM](../transport/README.md#bring-your-own-llm)
+- [`/desktop/cmp/assist/`](../desktop/cmp/assist/README.md) - the helper's button, container and
+  boundary line
 - [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) - the chat components, and the Undo action
 - hoist-react `/cmp/grid/` - `GridModel`, column state, sorting, grouping and filters
 - hoist-react `/desktop/cmp/dash/` - `DashCanvasModel`, view specs and persistable state
