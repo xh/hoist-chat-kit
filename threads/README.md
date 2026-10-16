@@ -204,6 +204,21 @@ export class AssistantModel extends HoistModel {
 A `ChatThreadsModel` that a component creates, with `creates()` or `useLocalModel()`, loads its
 list when the component mounts, as any Hoist model with `doLoadAsync()` does.
 
+### Hide Edit and Regenerate for a backend that cannot do them
+
+A backend whose history only grows cannot re-run a thread from an edited message, or replace a
+reply. Set `allowEdit` or `allowRegenerate` to false on the store. The threads model then turns
+off the same setting on each chat it opens, and the message views hide Edit or Regenerate. A
+store that leaves them out keeps the settings each chat has from `createChatModel`.
+
+```typescript
+export class AssistantThreadStore implements ChatThreadStore {
+    readonly allowEdit = false;
+    readonly allowRegenerate = false;
+    // ...
+}
+```
+
 ## Common Usage Patterns
 
 ### Select a thread, or start one
@@ -379,6 +394,7 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`.
 |--------|-------------|
 | `listThreadsAsync({search, cursor, limit})` | Required. A `ChatThreadPage`: threads most recently active first, and a `nextCursor`. |
 | `searchesMessages` | Property. True if the search covers message text, not just titles. Then each match may carry a `snippet`. |
+| `allowEdit`, `allowRegenerate` | Properties. False if the backend cannot re-run from an edited message, or replace a reply. The threads model turns off the same setting on each chat. Default true. |
 | `loadMessagesAsync({threadId, cursor, limit})` | Required. A `ChatMessagePage`: the newest messages, or those older than `cursor`, oldest first, and a `nextCursor` for older ones. |
 | `createThreadAsync({localId, title})` | Create the thread and return its summary, with the backend's id. Idempotent per `localId`. |
 | `renameThreadAsync(threadId, title)` | Rename a thread. |
@@ -409,6 +425,7 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`.
 | `delayMs` config | Latency of each call. Default 0. |
 | `mintIds` config | True to implement `createThreadAsync` and mint ids. Default false. |
 | `omit` config | Optional methods to leave out. |
+| `allowEdit`, `allowRegenerate` config | False to act as a backend that cannot edit or regenerate. Default true. |
 | `saveThread(thread)` | Add or update a thread, as the backend would on a run. |
 | `getThread(threadId)` | A copy of a thread, or null. |
 | `hold(method, isHeld?)` | Hold calls to a method until the test releases each one. |

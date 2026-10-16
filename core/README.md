@@ -54,6 +54,7 @@ ChatModel (HoistModel)
 ├── threadId: string                  # Identifies the conversation to the backend
 ├── historyMode: ChatHistoryMode      # 'client' | 'server' - who owns the history
 ├── runOptions: PlainObject           # Options for the next turn (bindable)
+├── allowEdit, allowRegenerate        # Show Edit and Regenerate (bindable)
 ├── hasOlderMessages: boolean         # More history to page in (bindable)
 ├── Computed:
 │   ├── isBusy                        # True while a turn runs - false while paused
@@ -338,6 +339,21 @@ await chatModel.editMessageAsync(message.id, text);  // New text, same files, re
 `retryAsync()` suits a failed turn. `regenerateAsync()` suits a reply the user did not like.
 Both discard the messages after the point they re-run from. The desktop components wire these
 actions to the error banner and the message hover bar.
+
+### Hide Edit and Regenerate
+
+Some agent services keep a history that only grows. They cannot re-run a thread from an edited
+message, or replace a reply. For such a backend, set `allowEdit` or `allowRegenerate` to false.
+The message views then hide Edit, Edit Prompt and Edit Question, or Regenerate, and
+`editMessageAsync()` or `regenerateAsync()` does nothing.
+
+```typescript
+new ChatModel({transport, historyMode: 'server', allowEdit: false, allowRegenerate: false});
+```
+
+Both are `@bindable`, so an app can change them at run time, for example when the user picks an
+agent that supports neither. A thread store can turn them off for every chat it opens - see
+[`/threads/`](../threads/README.md#configuration-pattern). Try Again still re-runs a failed turn.
 
 ### Run a server-owned conversation
 
@@ -937,6 +953,8 @@ See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatCom
 | `threadId` | `string` | Identifies the conversation to the backend. Default a new UUID. |
 | `historyMode` | `'client' \| 'server'` | Who owns the history. Default `client`. See [Run a server-owned conversation](#run-a-server-owned-conversation). |
 | `runOptions` | `PlainObject` | Initial value of `runOptions`. Default null. |
+| `allowEdit` | `boolean` | Initial value of `allowEdit`. Default true. |
+| `allowRegenerate` | `boolean` | Initial value of `allowRegenerate`. Default true. |
 | `textTransform` | `(text, context) => string` | Rewrites reply text before it is stored. `context` holds the `message` and `isStreaming`. |
 | `feedback` | `ChatFeedbackConfig` | `submitAsync`, `commentOn`, `requireComment`, `reasons`, `clearable` and `maxCommentLength`. See [Rate a reply](#rate-a-reply). |
 | `dataRefreshedAt` | `() => number` | Returns the epoch millis of the app's last data refresh, or null. Read as a computed value. A reply that finished before it shows that the data changed. Default none. |
@@ -961,6 +979,8 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `lastActivityAt` | `number` | Epoch millis of the last data from the server for the step in flight, heartbeats included. Null while no step is in flight. Changes at most once a second. Observable. |
 | `threadId` | `string` | Current thread. Observable. `clear()` and `loadMessages()` change it. In server mode, the first run of a new thread can change it once. Read-only. |
 | `runOptions` | `PlainObject` | Options for the next turn. `@bindableRef` - replace the value to change it. |
+| `allowEdit` | `boolean` | True to show Edit, Edit Prompt and Edit Question. While false, `editMessageAsync()` does nothing. `@bindable`. |
+| `allowRegenerate` | `boolean` | True to show Regenerate. While false, `regenerateAsync()` does nothing. `@bindable`. |
 | `hasOlderMessages` | `boolean` | True if older history remains to page in. `@bindable`. Default false. |
 | `canSubmitFeedback` | `boolean` | True if `feedback.submitAsync` or a thread layer submitter is set. |
 | `feedbackErrors` | `Record<string, Error>` | Why the last feedback on a message failed to save, by message id, for the form to show. Cleared on the next submit. Observable. |
@@ -987,8 +1007,8 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `stop()` | Stop the current turn, running or paused. Content stays, and the message becomes `aborted`. Asks the transport to cancel a step in flight. |
 | `detach()` | Stop following the current turn, with no cancel. In server mode the reply gets `metadata.detached`. |
 | `retryAsync()` | Re-run the last user message, replacing everything after it. |
-| `regenerateAsync(messageId?)` | Replace an assistant reply, by default the last one. Ignored for a reply with no user message before it. |
-| `editMessageAsync(messageId, text)` | Change the text of a user message, keep its files, and re-run from it. |
+| `regenerateAsync(messageId?)` | Replace an assistant reply, by default the last one. Ignored for a reply with no user message before it, and while `allowRegenerate` is false. |
+| `editMessageAsync(messageId, text)` | Change the text of a user message, keep its files, and re-run from it. Ignored while `allowEdit` is false. |
 | `approveToolCallAsync(toolCallId, reason?)` | Approve a call in `approval-requested`. The reason is recorded on the call as `approvalReason`. |
 | `denyToolCallAsync(toolCallId, reason?)` | Deny a call in `approval-requested`. The model sees the reason. |
 | `addToolOutputAsync(toolCallId, output)` | Give the result of a call to an interactive tool. |

@@ -199,7 +199,9 @@
         "undo",
         "undoTurnAsync",
         "canUndoTurn",
-        "preview"
+        "preview",
+        "allowEdit",
+        "allowRegenerate"
       ]
     },
     {
@@ -241,7 +243,9 @@
         "deep links",
         "allowConcurrentTurns",
         "concurrency rules",
-        "recency groups"
+        "recency groups",
+        "allowEdit",
+        "allowRegenerate"
       ]
     },
     {

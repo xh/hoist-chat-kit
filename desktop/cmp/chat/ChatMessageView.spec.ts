@@ -370,6 +370,30 @@ describe('ChatMessageView', () => {
         });
     });
 
+    describe('edit and regenerate', () => {
+        it('hide Edit and Regenerate once the chat stops allowing them', () => {
+            const chatModel = createModel({}, [question(), reply('a1', [text('t1', 'Answer')])]);
+            renderList(chatModel);
+            expect(screen.getByRole('button', {name: 'Edit'})).toBeTruthy();
+            expect(screen.getByRole('button', {name: 'Regenerate'})).toBeTruthy();
+
+            act(() => {
+                chatModel.allowEdit = false;
+                chatModel.allowRegenerate = false;
+            });
+
+            expect(screen.queryByRole('button', {name: 'Edit'})).toBeNull();
+            expect(screen.queryByRole('button', {name: 'Regenerate'})).toBeNull();
+        });
+
+        it('offer no Edit Prompt on a failed reply in a chat that cannot edit', () => {
+            const chatModel = createModel({allowEdit: false}, [question(), failedReply({})]);
+            renderList(chatModel);
+
+            expect(screen.queryByRole('button', {name: /Edit/})).toBeNull();
+        });
+    });
+
     describe('over a transcript', () => {
         it('shows messages, and offers Copy alone', () => {
             const host: ChatTranscript = {

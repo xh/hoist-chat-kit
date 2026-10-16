@@ -191,6 +191,18 @@ export interface ChatModelConfig {
     sendBlocker?: () => string;
 
     /**
+     * True to let the user edit a sent message and re-run the conversation from it. Default true.
+     * Set false for a backend that cannot rewrite its history - see {@link ChatModel.allowEdit}.
+     */
+    allowEdit?: boolean;
+
+    /**
+     * True to let the user replace the last reply with a new one. Default true. Set false for a
+     * backend that cannot replace a reply - see {@link ChatModel.allowRegenerate}.
+     */
+    allowRegenerate?: boolean;
+
+    /**
      * Renderers for data parts, keyed by `dataType`. Data parts carry app- and protocol-defined
      * content, such as generative UI. Parts without a renderer display as JSON.
      */
@@ -403,6 +415,21 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      */
     @bindable accessor hasOlderMessages: boolean = false;
 
+    /**
+     * True if the user may edit a sent message and re-run from it. While false, the message views
+     * hide Edit, Edit Prompt and Edit Question, and `editMessageAsync` does nothing. A thread
+     * layer sets it false for a store that cannot edit - see `ChatThreadStore.allowEdit`.
+     * (bindable)
+     */
+    @bindable accessor allowEdit: boolean = true;
+
+    /**
+     * True if the user may replace the last reply with a new one. While false, the message views
+     * hide Regenerate, and `regenerateAsync` does nothing. A thread layer sets it false for a
+     * store that cannot regenerate - see `ChatThreadStore.allowRegenerate`. (bindable)
+     */
+    @bindable accessor allowRegenerate: boolean = true;
+
     /** State of the conversation. (observable) */
     @observable accessor status: ChatStatus = 'ready';
 
@@ -548,6 +575,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             composer,
             dataRenderers = {},
             sendBlocker,
+            allowEdit = true,
+            allowRegenerate = true,
             dataRefreshedAt,
             onTurnComplete
         } = config;
@@ -602,6 +631,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.trackOptions = track === true ? {} : track || null;
         this.dataRenderers = {...catalog?.createDataRenderers(), ...dataRenderers};
         this.sendBlockers = sendBlocker ? [sendBlocker] : [];
+        this.allowEdit = allowEdit;
+        this.allowRegenerate = allowRegenerate;
         this.onTurnComplete = onTurnComplete;
         this.modelTools = tools.filter(
             it => it.sendToModel ?? (it.execute != null || !!it.interactive)
@@ -714,13 +745,17 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
 
     /**
      * Replace an assistant reply with a new one, discarding any later messages. Ignored while
-     * busy, while a send blocker gives a reason to wait, and for a reply with no user message
-     * before it, such as a greeting.
+     * busy, while a send blocker gives a reason to wait, while {@link allowRegenerate} is false,
+     * and for a reply with no user message before it, such as a greeting.
      *
      * @param messageId - default the last assistant message.
      */
     async regenerateAsync(messageId?: string): Promise<void> {
         if (this.isTurnRunning || this.sendBlockedReason) return;
+        if (!this.allowRegenerate) {
+            this.logWarn('Regenerate ignored - this chat does not allow it.');
+            return;
+        }
 
         const {messages} = this,
             idx = findLastIndex(messages, it =>
@@ -743,10 +778,15 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
 
     /**
      * Change the text of a user message and re-run from it, discarding later messages. Files
-     * attached to the message are kept.
+     * attached to the message are kept. Ignored while busy, while a send blocker gives a reason
+     * to wait, and while {@link allowEdit} is false.
      */
     async editMessageAsync(messageId: string, text: string): Promise<void> {
         if (this.isTurnRunning || this.sendBlockedReason) return;
+        if (!this.allowEdit) {
+            this.logWarn('Edit ignored - this chat does not allow it.');
+            return;
+        }
 
         const idx = findLastIndex(this.messages, it => it.id === messageId),
             message = this.messages[idx];

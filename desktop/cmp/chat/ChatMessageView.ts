@@ -221,7 +221,8 @@ export interface ChatMessageViewProps extends HoistProps {
  * Once a reply's turn ends, its action bar shows in the gap below it - always on the last reply,
  * on hover or focus on older ones: Copy, Regenerate on the last reply, Undo, thumbs for feedback,
  * then any `messageActions`. Actions other than Copy and `messageActions` need a `ChatModel`, and
- * each shows only when it applies. System messages show as a centered note.
+ * each shows only when it applies. Edit and Regenerate also hide when the chat's `allowEdit` or
+ * `allowRegenerate` is false. System messages show as a centered note.
  */
 export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessageViewProps>({
     displayName: 'ChatMessageView',
@@ -563,7 +564,7 @@ function underBubble(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNo
                                     item: notSentReason
                                 })
                               : null,
-                          chatModel
+                          chatModel?.allowEdit
                               ? button({
                                     ref: impl.editButtonRef,
                                     text: 'Edit',
@@ -940,7 +941,8 @@ function renderPartGroup(
                 context,
                 host,
                 // Stable, so that the part skips render as the message changes.
-                onEditQuestion: onEditPrompt && context.chatModel ? impl.editQuestion : null
+                onEditQuestion:
+                    onEditPrompt && context.chatModel?.allowEdit ? impl.editQuestion : null
             });
         default:
             return null;
@@ -1144,7 +1146,7 @@ function replyNotice(props: ViewProps, chatModel: ChatModel): ReactNode {
                             })
                         ]
                     }),
-                    onEditPrompt && chatModel
+                    onEditPrompt && chatModel?.allowEdit
                         ? button({
                               className: 'xh-chat-message__failed-edit',
                               icon: Icon.edit(),
@@ -1228,9 +1230,14 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
             // A failed reply has nothing to regenerate: Try Again, above the composer, covers it.
             // TODO(design-open B2) - Regenerate replaces the reply, with no branch switcher.
             canRegenerate =
-                !!chatModel && isAssistant && isLast && !isBusy && !isFailed && !isNoAnswer,
+                !!chatModel?.allowRegenerate &&
+                isAssistant &&
+                isLast &&
+                !isBusy &&
+                !isFailed &&
+                !isNoAnswer,
             {canUndo, isUndoing} = impl,
-            canEdit = isUser && !!chatModel,
+            canEdit = isUser && !!chatModel?.allowEdit,
             appActions = extraActions?.(message, context) ?? [],
             primary = [
                 isFailed

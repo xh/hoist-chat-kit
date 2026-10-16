@@ -887,7 +887,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
 | `onSourceClick` | `(source, context) => void` | Called when the user clicks a source or a marker. Default opens a document in the side panel when one is in reach, and a web page in a new tab. Pass a stable function. |
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
-| `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit, Regenerate, Undo and the thumbs. Pass a stable function. |
+| `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit, Regenerate, Undo and the thumbs. Edit and Regenerate show only while the chat's `allowEdit` and `allowRegenerate` are true. Pass a stable function. |
 | `messageHeaderItems` | `(message, context) => ReactNode[]` | Items in an assistant message's header. Pass a stable function. |
 | `announceSteps` | `'none' \| 'failures' \| 'all'` | Steps of a running reply to announce as they finish. Default from `ChatKit.defaults.announceSteps`. |
 

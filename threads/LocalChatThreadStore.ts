@@ -29,6 +29,12 @@ export interface LocalChatThreadStoreConfig {
 
     /** Optional methods to leave out, to show how the threads model works without them. */
     omit?: LocalChatThreadStoreOptionalMethod[];
+
+    /** False to act as a backend that cannot edit - see `ChatThreadStore.allowEdit`. */
+    allowEdit?: boolean;
+
+    /** False to act as a backend that cannot regenerate - see `ChatThreadStore.allowRegenerate`. */
+    allowRegenerate?: boolean;
 }
 
 /** A thread held by a {@link LocalChatThreadStore}: its summary and its messages. */
@@ -81,6 +87,9 @@ export class LocalChatThreadStore implements ChatThreadStore {
     /** Calls made to the store, oldest first. */
     readonly calls: LocalChatThreadStoreCall[] = [];
 
+    readonly allowEdit: boolean;
+    readonly allowRegenerate: boolean;
+
     createThreadAsync?: (spec: ChatThreadCreateSpec) => Promise<ChatThreadSummary>;
     renameThreadAsync?: (threadId: string, title: string) => Promise<void>;
     deleteThreadsAsync?: (threadIds: string[]) => Promise<void>;
@@ -91,9 +100,13 @@ export class LocalChatThreadStore implements ChatThreadStore {
         threads = [],
         delayMs = 0,
         mintIds = false,
-        omit = []
+        omit = [],
+        allowEdit = true,
+        allowRegenerate = true
     }: LocalChatThreadStoreConfig = {}) {
         this.delayMs = delayMs;
+        this.allowEdit = allowEdit;
+        this.allowRegenerate = allowRegenerate;
         threads.forEach(it => this.saveThread(it));
 
         if (mintIds) {

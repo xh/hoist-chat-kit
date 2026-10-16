@@ -216,6 +216,7 @@ its render, renderer included.
 | Lifecycle | `onTurnComplete`, observable `status` and `lastError` | Save history, show toasts, react to errors |
 | History mode | `ChatModelConfig.historyMode` | Let an agent service own the history and the threads |
 | Run options | `ChatModel.runOptions` | Send per-turn choices, such as a document scope, fixed at send time |
+| Edit and Regenerate | `allowEdit` and `allowRegenerate` on `ChatModel`, or on a `ChatThreadStore` | Hide actions that the backend cannot do |
 | Cancel | `ChatTransport.cancelAsync`, or `cancelUrl` on the HTTP transports | Stop a run on a backend that keeps going after a disconnect |
 | Text transform | `ChatModelConfig.textTransform` | Strip markup a model leaks, before the text is stored |
 | Feedback | `ChatModelConfig.feedback` | Send ratings and comments on replies to the backend |
