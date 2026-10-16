@@ -81,7 +81,6 @@ its tools.
 | Allow markdown images in replies | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#allow-images) |
 | Let the model show grids, charts, KPI tiles and cards | [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) |
 | Render streaming markdown | [`/cmp/markdown/`](../cmp/markdown/README.md) |
-| Write or update a doc | [Documentation Conventions](./doc-conventions.md) |
 
 ## Package Documentation
 
@@ -111,9 +110,3 @@ its tools.
 | [Hoist Chat Kit](../README.md) | What the kit provides, a quick start that adds a chat to an app, and how to install the kit | features, quick start, installation, extraIncludePaths, peer dependencies |
 | [Architecture](./architecture.md) | The kit's layers, the flow of one turn, the two conversation shapes, render performance, extension seams and the platform split | layers, turn flow, conversation shapes, server mode, immutable messages, flush batching, memoization, extension points, desktop, mobile |
 | [Protocols](./protocols.md) | How AG-UI, Anthropic, OpenAI, A2UI, OpenUI, MCP Apps and the Vercel AI SDK relate to the kit | AG-UI, Anthropic, OpenAI, A2UI, OpenUI, MCP Apps, generative UI, data parts, Vercel AI SDK, tool states |
-
-## Conventions
-
-| Doc | Description | Key Topics |
-|-----|-------------|------------|
-| [Documentation Conventions](./doc-conventions.md) | How to write and maintain the kit's docs | README template, index, registry, code examples, anti-patterns |

@@ -143,8 +143,12 @@ Write each doc with that reader in mind:
   even when the package ships others.
 - **Name the task in each heading.** A search returns one section, not the whole doc. A heading
   such as "Relay Claude through a Hoist server" finds its reader. "Usage" does not.
-- **Link with relative paths.** The tools rewrite a relative link to a full doc id when they serve
-  a doc, so the same link works on GitHub and for agents.
+- **Link with relative paths.** When the tools serve a doc, they rewrite a relative link to a
+  registered doc as its full doc id. A link to any other file in the package becomes a path that
+  an agent can open. The same link works on GitHub and for agents.
+- **Mark maintainer docs.** Give a doc for kit maintainers, such as this one,
+  `"mcpAudience": "maintainers"`. The tools then serve it only to agents in this repo. Link to it
+  only from text for maintainers. In an app, such a link leads to the raw file, not a served doc.
 
 ### Agent Guidance
 

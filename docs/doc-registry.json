@@ -57,6 +57,7 @@
     {
       "id": "docs/doc-conventions.md",
       "title": "Documentation Conventions",
+      "mcpAudience": "maintainers",
       "mcpCategory": "conventions",
       "viewerCategory": "overview",
       "description": "How to write and maintain the kit's docs.",
