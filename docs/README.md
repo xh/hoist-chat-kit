@@ -9,9 +9,11 @@ concept docs, with a description and the key topics of each, for fast and target
 classes and patterns you work with. Use the [Quick Reference by Task](#quick-reference-by-task)
 table to map a goal to the right doc.
 
-**Application developers:** Start with [Architecture](./architecture.md) for how the parts fit
-together. Then read [`/core/`](../core/README.md) for the chat model, and
-[`/transport/`](../transport/README.md) to connect it to your server.
+**Application developers:** Install the kit and put a first chat on screen with the root
+[README](../README.md#quick-start-add-a-chat-to-an-app). Next, read
+[Architecture](./architecture.md) for how the parts fit together. Then read
+[`/core/`](../core/README.md) for the chat model, and [`/transport/`](../transport/README.md) to
+connect it to your server.
 
 **Library developers:** See `CLAUDE.md` at the root of the repository for the development guide,
 and [Documentation Conventions](./doc-conventions.md) before you write or change a doc.
@@ -23,8 +25,9 @@ its tools.
 
 | If you need to... | Start here |
 |---|---|
+| Install the kit in an app | [README](../README.md#installation) |
+| Add a chat to an app | [README](../README.md#quick-start-add-a-chat-to-an-app) |
 | Understand how the kit fits together | [Architecture](./architecture.md) |
-| Add a chat to an app | [`/core/`](../core/README.md#configuration-pattern) |
 | Configure a `ChatModel` and its composer | [`/core/`](../core/README.md) |
 | Let the model act on the app with client tools | [`/core/`](../core/README.md#configuration-pattern) |
 | Ask the user to approve a tool call, with a question of your own | [`/core/`](../core/README.md#ask-for-approval-before-a-tool-runs) |
@@ -105,6 +108,7 @@ its tools.
 
 | Concept | Description | Key Topics |
 |---------|-------------|------------|
+| [Hoist Chat Kit](../README.md) | What the kit provides, a quick start that adds a chat to an app, and how to install the kit | features, quick start, installation, extraIncludePaths, peer dependencies |
 | [Architecture](./architecture.md) | The kit's layers, the flow of one turn, the two conversation shapes, render performance, extension seams and the platform split | layers, turn flow, conversation shapes, server mode, immutable messages, flush batching, memoization, extension points, desktop, mobile |
 | [Protocols](./protocols.md) | How AG-UI, Anthropic, OpenAI, A2UI, OpenUI, MCP Apps and the Vercel AI SDK relate to the kit | AG-UI, Anthropic, OpenAI, A2UI, OpenUI, MCP Apps, generative UI, data parts, Vercel AI SDK, tool states |
 

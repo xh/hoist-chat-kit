@@ -7,8 +7,7 @@ indexed. The docs ship in the npm package next to the source, as hoist-react's d
 
 This kit uses the same documentation structure as hoist-react: package READMEs, a `docs/README.md`
 index, and a `docs/doc-registry.json` catalog. hoist-react's MCP server and Toolbox's doc viewer
-both read that catalog format. Matching it keeps the option open for either tool to serve these
-docs later, with no rewrite.
+both read that catalog format. See [How Agents Read These Docs](#how-agents-read-these-docs).
 
 ## What to Write
 
@@ -123,3 +122,37 @@ When you add or change a doc, update the index and the registry in the same chan
     search ranking.
 
 Also add each new top-level source package to the `files` list in `package.json`, so it ships.
+
+## How Agents Read These Docs
+
+The `hoist` field in `package.json` points hoist-react's tools at the registry:
+
+```json
+"hoist": {"docRegistry": "docs/doc-registry.json"}
+```
+
+When an app installs the kit, the `hoist-react` MCP server and the `hoist-docs` CLI load the
+registry and serve each registered doc next to Hoist's own. Each doc id gets the package name as a
+prefix, so `core/README.md` becomes `@xh/hoist-chat-kit/core/README.md`. Agents in this repo get
+the same docs, because the kit opts itself in. The hoist-react doc
+`docs/companion-library-docs.md` holds the full contract.
+
+Write each doc with that reader in mind:
+
+- **Register every doc that an app developer reads.** Agents in an app see only registered docs,
+  even when the package ships others.
+- **Name the task in each heading.** A search returns one section, not the whole doc. A heading
+  such as "Relay Claude through a Hoist server" finds its reader. "Usage" does not.
+- **Link with relative paths.** The tools rewrite a relative link to a full doc id when they serve
+  a doc, so the same link works on GitHub and for agents.
+
+### Agent Guidance
+
+`mcpInstructions` in the registry holds short rules for agents. The MCP server adds them to its
+instructions, so they reach an agent that never searches the docs.
+
+- **Write rules, not features.** Name the hand-rolled approach or Hoist API to avoid, and the kit
+  API to use instead. The index already says what the kit provides.
+- **Keep the list under 1,500 characters.** The server cuts longer guidance.
+- **Update a rule when its subject changes.** For example, remove "The kit has desktop components
+  only." when the first mobile component ships.

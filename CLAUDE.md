@@ -178,8 +178,9 @@ or feature is not done until its README, doc comments, index row, and registry e
 
 Read [`docs/doc-conventions.md`](docs/doc-conventions.md) before you write or change a doc. It
 covers the README template, the `docs/README.md` index, and the `docs/doc-registry.json` catalog.
-These match hoist-react's documentation structure, so hoist-react's tools could serve these docs
-later. Follow the `xh:clear-writing` skill for all prose.
+These match hoist-react's documentation structure. The `hoist.docRegistry` field in `package.json`
+declares the registry, so the `hoist-react` MCP server and `hoist-docs` CLI serve the kit's docs
+to agents in any app that installs it. Follow the `xh:clear-writing` skill for all prose.
 
 ## Test Harness: Toolbox
 

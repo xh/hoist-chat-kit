@@ -33,6 +33,28 @@
       "aliases": ["index"]
     },
     {
+      "id": "README.md",
+      "title": "Hoist Chat Kit",
+      "mcpCategory": "concept",
+      "viewerCategory": "overview",
+      "description": "What the kit provides, a quick start that adds a chat to an app, and how to install the kit.",
+      "keywords": [
+        "getting started",
+        "quick start",
+        "add a chat",
+        "install",
+        "installation",
+        "extraIncludePaths",
+        "rsbuild",
+        "peer dependencies",
+        "features",
+        "chatPanel",
+        "ChatModel",
+        "HoistChatTransport"
+      ],
+      "aliases": ["overview"]
+    },
+    {
       "id": "docs/doc-conventions.md",
       "title": "Documentation Conventions",
       "mcpCategory": "conventions",

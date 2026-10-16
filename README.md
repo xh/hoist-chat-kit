@@ -29,7 +29,7 @@ follows Hoist's own conventions, so it reads and behaves like the rest of a Hois
 - **Built for hoist-core** - the default transport streams NDJSON from your own server, with
   Hoist's auth, tracing and error handling.
 
-## Quick Start
+## Quick Start: Add a Chat to an App
 
 Create a `ChatModel` with a transport and a tool, then render it with `chatPanel`.
 
