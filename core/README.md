@@ -352,8 +352,8 @@ new ChatModel({transport, historyMode: 'server', allowEdit: false, allowRegenera
 ```
 
 Both are `@bindable`, so an app can change them at run time, for example when the user picks an
-agent that supports neither. A thread store can turn them off for every chat it opens - see
-[`/threads/`](../threads/README.md#configuration-pattern). Try Again still re-runs a failed turn.
+agent that supports neither. With a thread layer, set them in `createChatModel`. Try Again still
+re-runs a failed turn.
 
 ### Run a server-owned conversation
 

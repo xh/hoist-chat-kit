@@ -417,16 +417,13 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
 
     /**
      * True if the user may edit a sent message and re-run from it. While false, the message views
-     * hide Edit, Edit Prompt and Edit Question, and `editMessageAsync` does nothing. A thread
-     * layer sets it false for a store that cannot edit - see `ChatThreadStore.allowEdit`.
-     * (bindable)
+     * hide Edit, Edit Prompt and Edit Question, and `editMessageAsync` does nothing. (bindable)
      */
     @bindable accessor allowEdit: boolean = true;
 
     /**
      * True if the user may replace the last reply with a new one. While false, the message views
-     * hide Regenerate, and `regenerateAsync` does nothing. A thread layer sets it false for a
-     * store that cannot regenerate - see `ChatThreadStore.allowRegenerate`. (bindable)
+     * hide Regenerate, and `regenerateAsync` does nothing. (bindable)
      */
     @bindable accessor allowRegenerate: boolean = true;
 

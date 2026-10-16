@@ -21,19 +21,6 @@ export interface ChatThreadStore {
      */
     readonly searchesMessages?: boolean;
 
-    /**
-     * False if the backend cannot re-run a thread from an edited message, as with an agent
-     * service whose history only grows. The threads model then sets `allowEdit` false on each
-     * chat it opens, which hides Edit. Default true.
-     */
-    readonly allowEdit?: boolean;
-
-    /**
-     * False if the backend cannot replace a reply with a new one. The threads model then sets
-     * `allowRegenerate` false on each chat it opens, which hides Regenerate. Default true.
-     */
-    readonly allowRegenerate?: boolean;
-
     /** A page of the user's threads, most recently active first. */
     listThreadsAsync(query: ChatThreadQuery): Promise<ChatThreadPage>;
 

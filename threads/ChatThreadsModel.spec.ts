@@ -778,34 +778,6 @@ describe('ChatThreadsModel', () => {
         });
     });
 
-    describe('edit and regenerate', () => {
-        it('hides edit and regenerate in every chat for a store that cannot do them', async () => {
-            const {model} = setup({
-                store: new LocalChatThreadStore({
-                    threads: THREADS,
-                    allowEdit: false,
-                    allowRegenerate: false
-                })
-            });
-
-            await model.selectThreadAsync('t1');
-            const newChat = model.newThread();
-
-            expect(model.chatModel).toBe(newChat);
-            expect(newChat.allowEdit).toBe(false);
-            expect(newChat.allowRegenerate).toBe(false);
-        });
-
-        it("leaves the chat's own settings for a store that does not say", async () => {
-            const {model} = setup({chat: {allowRegenerate: false}});
-
-            await model.selectThreadAsync('t1');
-
-            expect(model.chatModel.allowEdit).toBe(true);
-            expect(model.chatModel.allowRegenerate).toBe(false);
-        });
-    });
-
     describe('feedback', () => {
         it("gives each chat the store's feedback submitter", async () => {
             const {model, store} = setup();

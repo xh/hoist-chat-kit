@@ -1226,12 +1226,12 @@ guards, and the optional members no app implements.
 
 **Decision.** `ChatModel` gains `@bindable` `allowEdit` and `allowRegenerate`, default true from
 config. While false, the message views hide Edit, Edit Prompt and Edit Question, or Regenerate,
-and `editMessageAsync()` or `regenerateAsync()` logs a warning and does nothing. A
-`ChatThreadStore` can set `allowEdit` or `allowRegenerate` to false, and the threads model then
-sets the same on each chat it opens. A store that leaves them out keeps each chat's own setting.
-Try Again and `retryAsync()` are unchanged.
+and `editMessageAsync()` or `regenerateAsync()` logs a warning and does nothing. Try Again and
+`retryAsync()` are unchanged.
 
 **Why.** An agent service whose history only grows cannot re-run from an edited message or replace
-a reply. The store already hides rename, pin and delete by leaving out their methods. Edit and
-Regenerate run through the transport, not the store, so the store declares them with flags, as it
-does `searchesMessages`. The settings are bindable, so an app can change them per agent.
+a reply. The first integration's backend is one: it only appends to a session. The settings are
+bindable, so an app can change them per agent.
+
+**Alternatives.** Flags on `ChatThreadStore` that the threads model applies to each chat. An app
+already sets both in `createChatModel`, so the flags would add surface for no new capability.

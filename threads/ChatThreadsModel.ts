@@ -499,8 +499,6 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         if (store.createThreadAsync) {
             chatModel.setThreadCreator(spec => this.createThreadAsync(spec));
         }
-        if (store.allowEdit === false) chatModel.allowEdit = false;
-        if (store.allowRegenerate === false) chatModel.allowRegenerate = false;
 
         const thread = new OpenThread({
             chatModel,

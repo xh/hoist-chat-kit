@@ -243,9 +243,7 @@
         "deep links",
         "allowConcurrentTurns",
         "concurrency rules",
-        "recency groups",
-        "allowEdit",
-        "allowRegenerate"
+        "recency groups"
       ]
     },
     {
