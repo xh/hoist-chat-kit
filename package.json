@@ -27,6 +27,9 @@
     "!**/*.spec.ts",
     "!**/*.spec.tsx"
   ],
+  "hoist": {
+    "docRegistry": "docs/doc-registry.json"
+  },
   "scripts": {
     "lint": "pnpm lint:all",
     "lint:all": "pnpm lint:code && pnpm lint:styles && pnpm lint:format",

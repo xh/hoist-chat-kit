@@ -1,4 +1,14 @@
 {
+  "mcpInstructions": [
+    "Read @xh/hoist-chat-kit/docs/README.md before you build a chat, assistant, or other LLM feature.",
+    "Build a conversation on ChatModel and render it with chatPanel or chatWorkspace. Do not hand-roll message lists, composers, or turn state.",
+    "Stream replies through a kit transport and codec. Do not parse SSE or NDJSON streams by hand.",
+    "Keep model API keys and model choice on the Hoist server, as in @xh/hoist-chat-kit/transport/README.md 'Relay Claude through a Hoist server'. Never call a model provider from the browser.",
+    "Render model output with chatMarkdown, not Hoist's markdown. It renders half-written syntax cleanly as text streams, and it blocks raw HTML and images by default.",
+    "Show app components in a reply through a ChatUiCatalog. Do not parse model text for UI.",
+    "Import from the package barrels, such as @xh/hoist-chat-kit/core and @xh/hoist-chat-kit/desktop/cmp/chat. Never import from impl folders.",
+    "The kit has desktop components only."
+  ],
   "mcpCategories": [
     {"id": "package", "title": "Package Documentation"},
     {"id": "concept", "title": "Concept Documentation"},
