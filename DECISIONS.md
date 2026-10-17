@@ -57,6 +57,9 @@ do not invent a protocol of our own.
 learn and gives no interop. A runtime dependency on `@ag-ui/core` pulls in `zod` as a peer for
 types we can mirror in one file.
 
+Superseded in part by [D84](#d84-build-on-the-official-ag-ui-packages-at-the-protocol-layer):
+the kit depends on `@ag-ui/core` and `@ag-ui/client`. AG-UI stays the wire vocabulary.
+
 ## D5. Codecs translate wire formats, transports carry them
 
 **Decision.** A `ChatTransport` gets events from a backend. A `ChatCodec` encodes the request
@@ -259,6 +262,9 @@ agent service that owns the loop, the tools and the threads. None runs a tool in
 client shape still serves helper agents on Hoist components, so neither shape replaces the other.
 Updates D7.
 
+Amended by [D85](#d85-ag-ui-requests-carry-the-whole-history-the-chat-holds): an AG-UI request
+carries every message the chat holds, in both modes.
+
 ## D20. A thread layer in the kit
 
 **Decision.** `ChatThreadStore` is an adapter the app implements against its backend: list,
@@ -350,6 +356,9 @@ sends an `xh.chat.interrupt` custom event.
 
 **Why.** AG-UI 1.0 standardizes the interrupt outcome and resume entries. A fallback keeps agents
 on older adapters working.
+
+Amended by [D86](#d86-interrupts-use-standard-ag-ui-only): the `xh.chat.interrupt` fallback is
+dropped.
 
 ## D30. Backend tool errors travel in the result's metadata
 
@@ -1235,3 +1244,65 @@ bindable, so an app can change them per agent.
 
 **Alternatives.** Flags on `ChatThreadStore` that the threads model applies to each chat. An app
 already sets both in `createChatModel`, so the flags would add surface for no new capability.
+
+## D84. Build on the official AG-UI packages at the protocol layer
+
+**Decision.** The kit takes its AG-UI event and request types from `@ag-ui/core`. `AgUiCodec`
+runs `@ag-ui/client`'s enforcement, chunk expansion and sequence verification on every AG-UI
+stream, with no switch to turn them off. A malformed stream fails the turn, as AG-UI 1.0
+requires. RxJS, which the checks need, stays inside one internal module. The kit keeps its own
+message model, reducer and Hoist-integrated transports. It does not let the client's agent
+classes own a conversation, and does not use `HttpAgent`. The interrupt and shared state work
+uses the client's interrupt helpers and its JSON Patch support. The official conformance suite
+runs in CI. This supersedes D4's choice of no runtime dependency.
+
+**Why.** Hoist builds on curated libraries, and writes its own only with good reason. The checks
+hold about 3,000 lines of spec logic that the official TypeScript client maintains and the
+conformance suite tests. A spike, recorded in `planning/AG-UI.md`, measured them:
+
+- They raised the kit from 30 to 51 of the 61 conformance fixtures that apply to it.
+- They cost about 11 ms for a 2,000-token reply, and 63 KB gzipped, a small share of a Hoist app.
+- They fit inside the codec's decoder, with no change to the transports or the API.
+
+The client's agent classes deep-copy their message list on every event, which cost 0.2 to 1.1
+seconds per reply on long threads. Their plain messages also cannot carry the kit's parts.
+Front ends outside CopilotKit make the same split: the official types and checks, with their own
+message handling.
+
+**Costs.** RxJS and a copy of Zod 3 in app bundles, until upstream moves to Zod 4. Upgrades on
+CopilotKit's release cadence. The checks warn through the console, not Hoist's logging.
+
+**Alternatives.** Keep the kit's own handling, and track the spec by hand with the suite as a
+check. Take only the types, as TanStack AI does, which leaves the strictness rules to write.
+
+## D85. AG-UI requests carry the whole history the chat holds
+
+**Decision.** `AgUiCodec` sends every message the chat holds as `messages`, in both history
+modes. A request that carries only the new messages becomes an opt-in, which the docs mark as
+outside the spec, for a backend that needs it. A tool result always travels with the assistant
+message that called the tool. This amends D19 for AG-UI requests.
+
+**Why.** AG-UI 1.0 says the agent "MUST treat it as the complete history it is being shown", and
+has no delta mode. Adapters that keep state, such as LangGraph, ADK and Mastra, merge by message
+id, so the whole history works with them. Adapters that keep none, the default for Pydantic AI
+and Microsoft Agent Framework, lose all context when sent only the new messages. CopilotKit sends
+the whole thread. Mastra calls a tool again if its result arrives without the call. Upstream
+issues ask for a delta mode, with no ruling yet.
+
+**Cost.** Larger requests on long threads. A paged thread sends only the pages it has loaded.
+
+## D86. Interrupts use standard AG-UI only
+
+**Decision.** A server agent asks the user a question, or asks to run a tool, through the AG-UI
+1.0 `interrupt` outcome on `RUN_FINISHED`. The kit answers in the next run's `resume` list. The
+`xh.chat.interrupt` event of D29 is dropped. A LangGraph agent turns on its adapter's
+`emitInterruptOutcome` setting. The kit renders a `responseSchema` that is a flat object of
+simple fields as a Hoist form, and offers Decline for any other schema. A question with no schema
+gets a text box. A new message declines the open questions. The full design is in
+`planning/AG-UI.md`. This amends D29.
+
+**Why.** The interrupt outcome is standard AG-UI 1.0, and the official client has helpers for it.
+Any backend that can send a custom event can send the standard outcome as easily, so the kit's own
+event bought nothing. LangGraph's legacy channel is undocumented. AG-UI leaves the answer schema
+unbounded, so which schemas render as a form is the kit's call.
+

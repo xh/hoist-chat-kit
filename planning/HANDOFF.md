@@ -13,6 +13,7 @@ names in `DECISIONS.md`.
 | `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-chatkit`, on the local kit. Guideline Assistant tab and the Chat Kit demos. Pushed. |
 | `toolbox` `feature/weatherv2-chat-kit` | On the published kit. Pushed. |
 | `toolbox` `archive/chat-kit-grid-helper` | The removed Grid Helper tab. Not for merge. |
+| `hoist-chat-kit` `spike/ag-ui-client` | Local only, worktree `.claude/worktrees/ag-ui-spike`. The AG-UI spike behind D84. Not for merge. |
 
 ## Layered API course correction (D82)
 
@@ -29,6 +30,41 @@ names in `DECISIONS.md`.
    comment required on a thumbs down.
 3. Known kit gaps: no source line on help answers, no transport resume for a reconnect, no Continue
    after a reply is cut at its length limit.
+
+## Next dev effort: AG-UI 1.0 (agreed with Anselm, 2026-10-17)
+
+The plan, the evidence and the design are in `planning/AG-UI.md`. The decisions are D84 to D86.
+Three deliverables first, as three pull requests to `develop`, in order:
+
+1. Remove the `announceSteps` setting.
+2. Build the AG-UI protocol layer on `@ag-ui/core` and `@ag-ui/client`, with the official
+   conformance suite in CI and whole history in AG-UI requests (D84, D85).
+3. Interrupts, standard AG-UI only (D86), after a short spec that Anselm reviews.
+
+The spike that informed it is on the local branch `spike/ag-ui-client`, in the worktree
+`.claude/worktrees/ag-ui-spike`. It is not for merge.
+
+## Open review threads with Anselm
+
+A layer-by-layer review of the kit is in progress, to find what the OpenUI-based enterprise app's
+feedback drove too far. That app has committed to OpenUI and will not adopt the kit. These are
+topics to discuss with Anselm, not work to start.
+
+- **Done:** the engine layer. It led to the AG-UI effort above.
+- **Next:** the chat UI layer. Check its depth feature by feature. Much of it came from a design
+  brief that aimed at all four use cases at once.
+- **Then:** the generative UI layer. Each of these has no consumer outside that app:
+  - nested documents, with slots and the `show_ui` tool
+  - the `ChatUiAdapter` socket
+  - catalog versions and migrations
+  - the five action types
+  D15's premise, winning that client back from OpenUI, no longer holds. Toolbox uses only
+  per-component tools with the four built-ins.
+- **Stale decisions:** D61 plans assistant profiles and `metadata.assistantId`. Neither was
+  built.
+- **Curated libraries:** at each layer, ask whether a library should replace the kit's own SSE
+  parser, its parser for partial JSON, its JSON Schema checker or its streaming markdown. The
+  research names Streamdown for markdown.
 
 ## Standing instructions from Anselm
 
@@ -77,7 +113,8 @@ names in `DECISIONS.md`.
 
 ## Files to know
 
-- Plans: `planning/PLAN-2.md`, `planning/SERVER-MODE.md`, `planning/GENUI.md`.
+- Plans: `planning/AG-UI.md` (the current effort), `planning/PLAN-2.md`,
+  `planning/SERVER-MODE.md`, `planning/GENUI.md`.
 - Design: `.tmp/design-handoff/` and `planning/design-reconciliation.md`.
 - The first integration's brief and API: `.tmp/hoist-chat-kit-feedback-1/`. Toolbox's emulation:
   `client-app/src/examples/chatkit/guide/`.
