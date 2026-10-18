@@ -401,8 +401,8 @@ While a reply is in progress, Send becomes a Stop button with the word "Stop", i
 
 ### Add a pill to the composer
 
-`chatComposerPill` is a small chip for the left slot. It shows an optional status dot, an icon,
-its words, a count and a chevron, and opens a menu or a popover upward. Bind its choices to
+`chatComposerPill` is a small chip for the left slot. It shows an icon, its words, a count and a
+chevron, and opens a menu or a popover upward. Bind its choices to
 `chatModel.runOptions`, so that each turn records them and a change never reaches a reply in
 progress.
 
@@ -415,11 +415,8 @@ chatComposerPill({
 });
 ```
 
-Pass `menuItems` for a single choice, or `content` for a list of checkboxes. Set `readonly` when
-the app decides the value, such as a router that picks the agent. The pill then shows a lock,
-opens nothing, and keeps its tooltip, which should say who decides. A status dot always needs
-`statusText`, as the dot alone never carries the status. In a compact host, a pill shows only
-its icon and count.
+Pass `menuItems` for a single choice, or `content` for a list of checkboxes. A pill with neither
+opens nothing. In a compact host, a pill shows only its icon and count.
 
 ### Scope questions to documents
 
@@ -971,8 +968,8 @@ Use it directly only for a list of your own.
 | `ChatEmptyState` | `icon`, `title`, `text`, `suggestions`, `composerModel` | Welcome the user to an empty chat. |
 | `ChatSuggestions` | `suggestions`, `onSelect`, `composerModel` | Show prompt cards that fill the composer: `composerModel`, else the `ChatModel`'s. `onSelect` replaces the fill. With neither, it renders nothing. |
 | `ChatStatusRegion` | `model`, `assistantName` | Show the thread's next action above a composer, in a custom layout. |
-| `ChatComposerPill` | `text`, `icon`, `count`, `status`, `statusText`, `menuItems`, `content`, `readonly`, `tooltip` | Add a pill to the composer's left slot. |
-| `ChatScopeChip` | `documents`, `runOption`, `value`, `onChange`, `searchThreshold`, `readonly`, `tooltip` | Scope the next question to some documents. Default binds `runOptions.documentIds`. |
+| `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip` | Add a pill to the composer's left slot. |
+| `ChatScopeChip` | `documents`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip` | Scope the next question to some documents. Default binds `runOptions.documentIds`. |
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |
 | `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |
 

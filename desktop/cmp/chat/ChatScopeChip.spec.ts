@@ -98,16 +98,6 @@ describe('ChatScopeChip', () => {
         changeSearch('escrow');
         expect(screen.getByText("No documents match 'escrow'")).toBeTruthy();
     });
-
-    it('opens nothing while read-only', () => {
-        render(chatScopeChip({model: createModel(), documents: DOCS, readonly: true}));
-
-        const chip = screen.getByRole('button', {name: 'Document scope: All documents'});
-        fireEvent.click(chip);
-
-        expect(chip.getAttribute('aria-disabled')).toBe('true');
-        expect(screen.queryByRole('checkbox')).toBeNull();
-    });
 });
 
 //------------------

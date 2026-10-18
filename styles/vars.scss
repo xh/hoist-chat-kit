@@ -155,10 +155,6 @@ body {
   --xh-chat-suggestion-hover-bg: var(--xh-chat-sidebar-row-hover-bg);
   // The empty state's centered column: title, suggestions and composer.
   --xh-chat-composer-centered-max-width: 680px;
-  // The agent status dot, always paired with words.
-  --xh-chat-composer-online-color: var(--xh-intent-success-text-color);
-  --xh-chat-composer-degraded-color: var(--xh-intent-warning-text-color);
-  --xh-chat-composer-offline-color: var(--xh-gray);
 
   //------------------------
   // Motion and feedback

@@ -1,4 +1,4 @@
-// A small chip in the composer's left slot: dot, icon, words, count and chevron, at meta size.
+// A small chip in the composer's left slot: icon, words, count and chevron, at meta size.
 // The pill is a Hoist button, so its rules match the specificity of Hoist's button rules.
 .xh-app .xh-chat-composer-pill.xh-button.bp6-button {
   // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
@@ -21,8 +21,7 @@
     background-color: var(--xh-chat-sidebar-row-hover-bg);
   }
 
-  > .svg-inline--fa,
-  .xh-chat-composer-pill__lead .svg-inline--fa {
+  > .svg-inline--fa {
     color: var(--xh-chat-meta-text-color);
   }
 
@@ -32,18 +31,6 @@
 
   &.xh-chat-composer-pill--open {
     background-color: var(--xh-chat-citation-active-bg);
-  }
-
-  // Read-only while the app decides: dotted border and a lock, with no hover.
-  &.xh-chat-composer-pill--readonly {
-    border-style: dotted;
-    color: var(--xh-chat-meta-text-color);
-    cursor: default;
-    padding-right: 6px;
-
-    &:hover {
-      background-color: var(--xh-chat-bg);
-    }
   }
 }
 
@@ -74,36 +61,6 @@
     min-width: 14px;
     padding: 0 3px;
     text-align: center;
-  }
-
-  &__lead {
-    align-items: center;
-    display: inline-flex;
-    gap: 5px;
-  }
-
-  &__dot {
-    border-radius: 50%;
-    display: inline-block;
-    flex: none;
-    height: 7px;
-    width: 7px;
-
-    &--online {
-      background-color: var(--xh-chat-composer-online-color);
-    }
-
-    &--degraded {
-      background-color: var(--xh-chat-composer-degraded-color);
-    }
-
-    &--offline {
-      background-color: var(--xh-chat-composer-offline-color);
-    }
-
-    &--danger {
-      background-color: var(--xh-chat-error-color);
-    }
   }
 
   &__chevron {

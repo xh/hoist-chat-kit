@@ -47,12 +47,6 @@ export interface ChatScopeChipProps extends HoistProps<ChatModel> {
     /** Show a search box above the list once it holds more documents than this. Default 8. */
     searchThreshold?: number;
 
-    /**
-     * True while the app, not the user, decides the scope. The chip opens nothing and shows a
-     * lock, with `tooltip` saying who decides.
-     */
-    readonly?: boolean;
-
     /** Tooltip. Default the names of the selected documents. */
     tooltip?: string;
 }
@@ -84,7 +78,6 @@ export const [ChatScopeChip, chatScopeChip] = hoistCmp.withFactory<ChatScopeChip
                 value,
                 onChange,
                 searchThreshold = 8,
-                readonly,
                 tooltip
             } = props,
             isBound = value !== undefined || onChange != null;
@@ -111,7 +104,6 @@ export const [ChatScopeChip, chatScopeChip] = hoistCmp.withFactory<ChatScopeChip
             icon: Icon.book(),
             text: isEmpty(selectedIds) ? 'All documents' : 'Documents',
             count: isEmpty(selectedIds) ? null : count,
-            readonly,
             tooltip: tooltip ?? scopeTooltip(selected, selectedIds, count),
             'aria-label': `Document scope: ${scopeWords(selectedIds, count)}`,
             content: scopeList({
