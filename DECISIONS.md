@@ -1433,7 +1433,7 @@ shows it is cheap, so it stays.
   `requireComment` applies to a thumbs down. The comment being typed lives on the chat, in
   `ChatModel.feedbackDrafts`, with its sending state and error, so a redraw of the message list
   keeps the form as it was. The threads model keeps these drafts across a thread switch for the
-  session.
+  session, and matches each to its message by the kit's id or the server's.
 - **Table cap.** The row limit is `ChatKit.defaults.markdownTableMaxRows`, default 100. The same
   table renders in replies, reasoning, tool output and the timeline, so one kit-wide setting
   covers them all.
@@ -1442,15 +1442,17 @@ shows it is cheap, so it stays.
   empty thread. `ChatThreadsModel.isThreadNotFound` reports it. This replaces rule 8 of
   `planning/SERVER-MODE.md` for the 404 case.
 - **The route.** A thread's id goes into the route only once the backend has the thread: once the
-  store lists it, or once its first reply streams. A new chat keeps the base route, so a reload
-  before the first send opens a new chat, not "Thread not found".
+  store lists it, or once its first run starts. A run has started when its reply has content, is
+  paused for the user, or the server reported the run. A new chat keeps the base route, so a reload
+  before the first send, or after a first send that never reached the server, opens a new chat.
 - **"Ended early" rows.** `ChatThreadsModel.endedEarlyThreads` holds them. A background turn that
   fails, or that the server interrupts or cancels, marks its thread for the session. The store's
   `lastRunEnd` marks a thread with no open chat, but only if the thread changed since the user
-  last saw it.
+  last saw it. A chat with a session mark stays open until the user opens its thread, so the
+  failed turn and its Retry show even when the backend does not store failed runs.
 - **Workspace widths.** The sidebar keeps its modes by window width: full, rail or popover. Each
-  panel keeps one saved width, clamped so the conversation keeps its minimum width. The default
-  widths per band are gone.
+  panel keeps one saved width, clamped so the conversation keeps its minimum width. Each resizable
+  panel sits beside the conversation, as Hoist's panel resizing requires.
 - **Paging.** Only an optional `nextCursor` on `ChatMessagePage` remains. The kit ignores it.
 - **`LocalChatThreadStore`** lives in `test/support/`. The package check fails if a shipped file
   imports test support.
