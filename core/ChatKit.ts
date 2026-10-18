@@ -10,8 +10,8 @@ import {CHAT_STORAGE_PREFIX, chatDraftKey} from './impl/localData';
  */
 export interface ChatKitDefaults {
     /**
-     * Returns the icon that marks the assistant - in a reply's header, the empty state and the
-     * helper button. Called for each use, so that each gets its own element. A component's
+     * Returns the icon that marks the assistant - in a reply's header and the empty state.
+     * Called for each use, so that each gets its own element. A component's
      * `assistantIcon` prop overrides it. Default `() => Icon.ai()`, Hoist's sparkles.
      */
     assistantIcon: () => ReactElement;
