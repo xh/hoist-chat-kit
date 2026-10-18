@@ -578,8 +578,9 @@ send, the form closes and focus returns to the thumb.
 
 One form is open per chat. A thumb on another reply closes an empty form, but waits while the
 open form has a draft. The chat holds the draft in `feedbackDrafts`, so it survives a scroll or a
-new view of the message list. It goes when the comment is sent, when the form is cancelled, and
-when the chat clears or loads a thread. Regenerate closes the form of the reply it replaces.
+new view of the message list. A `ChatThreadsModel` keeps it while the user is in another thread,
+for the session. It goes when the comment is sent, when the form is cancelled, and when the chat
+clears or loads another thread. Regenerate closes the form of the reply it replaces.
 
 After a reload, the chosen thumb shows alone, from `metadata.feedback`. The comment does not come
 back, so the reply shows no comment mark. The announcer reads "Feedback sent." on a save,

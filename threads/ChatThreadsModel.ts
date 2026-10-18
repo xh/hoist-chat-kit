@@ -9,6 +9,7 @@ import {
     isEqual,
     keys,
     omit,
+    omitBy,
     pickBy,
     some,
     union,
@@ -18,7 +19,7 @@ import type {LoadSpec, PlainObject} from '@xh/hoist/core';
 import {HoistModel, managed, TaskObserver, XH} from '@xh/hoist/core';
 import {action, bindable, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {debounced, throwIf} from '@xh/hoist/utils/js';
-import {ChatKit, type ChatModel, getChatReplyStatus} from '../core';
+import {type ChatFeedbackDraft, ChatKit, type ChatModel, getChatReplyStatus} from '../core';
 import {genChatId} from '../impl/ids';
 import type {
     ChatMessagePage,
@@ -91,10 +92,10 @@ export interface ChatSeedSpec {
  *
  * The model lists the threads, with server-side search, and renames and deletes them at once,
  * rolling back with a toast if the store fails. It holds a `ChatModel` for each open thread: the
- * selected one, and any other with a turn running. A turn therefore runs on
- * in the background when the user switches threads, and the list shows its thread as running. A
- * chat that is neither selected nor busy is destroyed. The thread's draft and run options are kept
- * for when it opens again.
+ * selected one, and any other with a turn running. A turn therefore runs on in the background
+ * when the user switches threads, and the list shows its thread as running. A chat that is
+ * neither selected nor busy is destroyed. The thread's draft, run options and unsent feedback
+ * comments are kept for when it opens again.
  *
  * Every async result is checked before it is applied. A thread list applies only if no newer list
  * has, with pending renames and deletes laid over it. A thread's history applies only to the
@@ -407,6 +408,9 @@ export class ChatThreadsModel extends HoistModel {
     // Drafts and run options of closed threads, for when they open again.
     private readonly drafts = new Map<string, ThreadDraft>();
 
+    // Feedback comments of closed threads, by thread id, for when their history loads again.
+    private readonly feedbackDrafts = new Map<string, Record<string, ChatFeedbackDraft>>();
+
     // The run options each chat was built with, so that a draft keeps only the user's changes.
     private readonly defaultRunOptions = new WeakMap<ChatModel, PlainObject>();
 
@@ -605,6 +609,7 @@ export class ChatThreadsModel extends HoistModel {
             thread?.chatModel.stop();
             thread?.destroy();
             this.drafts.delete(id);
+            this.feedbackDrafts.delete(id);
         });
         // After the chats close, as a composer saves its draft when destroyed.
         ChatKit.clearLocalData(threadIds);
@@ -613,7 +618,10 @@ export class ChatThreadsModel extends HoistModel {
         this.endedEarlyHere = omit(this.endedEarlyHere, threadIds);
     }
 
-    /** Keep the draft of a closed chat, if the user changed its text or run options. */
+    /**
+     * Keep the draft of a closed chat, if the user changed its text or run options, and its
+     * unsent feedback comments.
+     */
     private saveDraft(threadId: string, chatModel: ChatModel) {
         const {composerModel, runOptions} = chatModel,
             isChanged =
@@ -621,6 +629,10 @@ export class ChatThreadsModel extends HoistModel {
         if (isChanged) {
             this.drafts.set(threadId, {text: composerModel.text, runOptions});
         }
+
+        // A comment that is sending has left the form - its send ends without the chat.
+        const feedbackDrafts = omitBy(chatModel.feedbackDrafts, it => it.isSending);
+        if (!isEmpty(feedbackDrafts)) this.feedbackDrafts.set(threadId, feedbackDrafts);
     }
 
     private restoreDraft(threadId: string, chatModel: ChatModel) {
@@ -658,6 +670,7 @@ export class ChatThreadsModel extends HoistModel {
     private applyHistory(thread: OpenThread, threadId: string, page: ChatMessagePage) {
         const {chatModel} = thread;
         chatModel.loadMessages(page.messages ?? [], threadId);
+        this.restoreFeedbackDrafts(threadId, chatModel);
         // TODO(design-open B4) - run options, such as a document scope, belong to the thread.
         // The thread opens with those of its last question, unless the user changed them here.
         const lastRunOptions = findLast(chatModel.messages, it => it.isUser)?.metadata.runOptions;
@@ -668,6 +681,16 @@ export class ChatThreadsModel extends HoistModel {
             chatModel.runOptions = cloneDeep(lastRunOptions);
         }
         thread.endLoad();
+    }
+
+    /** Give a loaded chat back the feedback comments it had when it closed, for its messages. */
+    private restoreFeedbackDrafts(threadId: string, chatModel: ChatModel) {
+        const drafts = this.feedbackDrafts.get(threadId);
+        if (!drafts) return;
+        this.feedbackDrafts.delete(threadId);
+        Object.entries(drafts).forEach(([messageId, draft]) => {
+            if (chatModel.getMessage(messageId)) chatModel.setFeedbackDraft(messageId, draft);
+        });
     }
 
     //------------------------

@@ -769,6 +769,26 @@ describe('ChatThreadsModel', () => {
             });
         });
 
+        it('keeps a feedback comment the user typed across a thread switch', async () => {
+            const {model} = setup(),
+                draft = {
+                    rating: 'negative' as const,
+                    comment: 'The figures are stale.',
+                    isPending: true,
+                    isSending: false,
+                    error: null
+                };
+            await model.selectThreadAsync('t1');
+            model.chatModel.setFeedbackDraft('t1-a1', draft);
+            model.chatModel.setFeedbackDraft('t1-u1', {...draft, isSending: true});
+
+            await model.selectThreadAsync('t2');
+            await model.selectThreadAsync('t1');
+
+            // A comment that was sending has left the form, and does not come back.
+            expect(model.chatModel.feedbackDrafts).toEqual({'t1-a1': draft});
+        });
+
         it("leaves a chat's own feedback submitter in place", async () => {
             const submitAsync = vi.fn(async () => {}),
                 {model, store} = setup({chat: {feedback: {submitAsync}}});

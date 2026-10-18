@@ -79,8 +79,9 @@ The threads model holds a `ChatModel` for each open thread. It keeps a chat whil
 selected, busy, or paused for the user, and destroys it otherwise. A turn therefore keeps running
 after the user switches away, and a turn that waits for an approval keeps its question. When the
 turn ends, the model closes the chat and reloads the list, because the backend may have titled the
-thread. The model keeps a closed thread's draft and run options, and gives them back when the thread
-opens again.
+thread. The model keeps a closed thread's draft, run options and unsent feedback comments, in
+memory for the session, and gives them back when the thread opens again. A comment that was
+sending as the chat closed does not come back.
 
 The app builds each chat with `createChatModel`. The threads model then wires three seams on
 it:

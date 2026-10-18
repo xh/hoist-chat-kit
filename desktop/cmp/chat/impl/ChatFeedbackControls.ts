@@ -38,7 +38,8 @@ export function isFeedbackRejected(error: Error): boolean {
  * cancelled.
  *
  * The form's comment lives in the chat's {@link ChatModel.feedbackDrafts}, so it survives a new
- * view of the message. The model keeps at most one draft open per chat.
+ * view of the message, and a thread switch in a `ChatThreadsModel`, which keeps it while the
+ * thread is closed. The model keeps at most one draft open per chat.
  * @internal
  */
 export class ChatMessageFeedbackModel extends HoistModel {
@@ -67,7 +68,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
     constructor() {
         super();
         // Focus moves to the comment only when the user opened the form - never when the form
-        // mounts again in a new view.
+        // mounts again in a new view, or as a thread the user returns to restores its draft.
         this.addReaction({
             track: () => this.inputRef.current,
             run: el => {
