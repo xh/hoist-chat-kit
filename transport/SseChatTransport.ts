@@ -25,7 +25,8 @@ export interface SseChatTransportConfig extends HttpChatTransportConfig {}
  *    codec's format - AG-UI events by default, or Anthropic stream events with an
  *    {@link AnthropicCodec}. The `event` name is passed to the codec along with the data.
  *    Comments (keep-alives), `[DONE]` sentinels and data that is not JSON are skipped. Any data
- *    resets the `idleTimeout`, so a comment serves as a heartbeat.
+ *    resets the `idleTimeout`, so a comment serves as a heartbeat. An event longer than 10 MB
+ *    fails the turn as `invalid-stream`.
  *  - It ends the response when the step ends, after the codec's closing record -
  *    `RUN_FINISHED` in AG-UI, `message_stop` from Anthropic. A response that ends without one
  *    fails the turn as incomplete. It should stop work when the client disconnects. The transport

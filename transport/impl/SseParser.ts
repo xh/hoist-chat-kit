@@ -1,4 +1,5 @@
 import {isEmpty, isString} from 'lodash';
+import {ChatRunError} from '../../core';
 
 /**
  * One event from a `text/event-stream` body.
@@ -20,7 +21,9 @@ export interface SseEvent {
  *
  * Feed it chunks of the response body as they arrive - a chunk may end anywhere, mid-line or
  * mid-character. Comments, `retry` and unknown fields are skipped. An event left incomplete when
- * the stream ends is discarded, as the format requires.
+ * the stream ends is discarded, as the format requires. A line or event longer than
+ * `maxEventChars` throws a `ChatRunError` coded `invalid-stream`, so a server that never ends one
+ * cannot fill the browser's memory.
  *
  * @see https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream
  * @internal
@@ -32,6 +35,9 @@ export class SseParser {
     private dataLines: string[] = [];
     private eventName: string = null;
     private lastId: string = null;
+    private dataChars = 0;
+
+    constructor(private readonly maxEventChars = MAX_EVENT_CHARS) {}
 
     /** Parse the next chunk of the stream, returning the events it completes. */
     feed(chunk: Uint8Array | string): SseEvent[] {
@@ -45,6 +51,7 @@ export class SseParser {
         const lines = (this.pending + text).split(LINE_BREAK),
             ret: SseEvent[] = [];
         this.pending = lines.pop();
+        this.checkSize(this.pending.length);
 
         lines.forEach(line => {
             const event = this.processLine(line);
@@ -68,6 +75,8 @@ export class SseParser {
         switch (field) {
             case 'data':
                 this.dataLines.push(value);
+                this.dataChars += value.length + 1;
+                this.checkSize(this.dataChars);
                 break;
             case 'event':
                 this.eventName = value;
@@ -82,10 +91,23 @@ export class SseParser {
     private dispatch(): SseEvent {
         const {dataLines, eventName, lastId} = this;
         this.dataLines = [];
+        this.dataChars = 0;
         this.eventName = null;
         if (isEmpty(dataLines)) return null;
         return {event: eventName || 'message', data: dataLines.join('\n'), id: lastId};
     }
+
+    private checkSize(chars: number) {
+        if (chars > this.maxEventChars) {
+            throw new ChatRunError(
+                `The stream sent an event longer than ${this.maxEventChars} characters.`,
+                'invalid-stream'
+            );
+        }
+    }
 }
+
+/** Matches the cap in `@ag-ui/client`'s own SSE parser. */
+const MAX_EVENT_CHARS = 10 * 1024 * 1024;
 
 const LINE_BREAK = /\r\n|\r|\n/;

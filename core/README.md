@@ -756,7 +756,7 @@ this.addReaction({
 | `ChatRunError` with code `empty-response` | The run finished with nothing in the reply |
 | `ChatRunError` with code `stalled` | The server sent nothing for longer than the transport's `idleTimeout` |
 | `ChatRunError` with code `unsupported-interrupt` | The run ended with interrupts, on a transport that cannot answer them |
-| `ChatRunError` with code `invalid-stream` | An AG-UI stream broke the spec's rules, for example it did not open with `RUN_STARTED`. Hoist reports it too, as a backend bug. |
+| `ChatRunError` with code `invalid-stream` | An AG-UI stream broke the spec's rules, for example it did not open with `RUN_STARTED`, or an SSE stream sent an event longer than 10 MB. Hoist reports it too, as a backend bug. |
 | `ChatRunError` with code `invalid-request` | An AG-UI request failed the spec's check before it went, for example a `context` value that is not a string |
 | `ChatRunError` with a null code | The run reported an error with no code |
 | `ChatRunError` with `retryAfterSeconds` | The run asked for a wait before a retry, through `metadata.retryAfterSeconds` on `RUN_ERROR` |
