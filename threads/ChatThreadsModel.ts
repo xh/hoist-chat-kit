@@ -11,14 +11,13 @@ import {
     pickBy,
     some,
     union,
-    uniq,
     without
 } from 'lodash';
 import type {LoadSpec, PlainObject} from '@xh/hoist/core';
 import {HoistModel, managed, TaskObserver, XH} from '@xh/hoist/core';
 import {action, bindable, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {debounced, throwIf} from '@xh/hoist/utils/js';
-import {ChatKit, type ChatModel, type ChatThreadCreatorSpec} from '../core';
+import {ChatKit, type ChatModel} from '../core';
 import {genChatId} from '../impl/ids';
 import type {
     ChatMessagePage,
@@ -259,9 +258,8 @@ export class ChatThreadsModel extends HoistModel {
     // Actions
     //------------------
     /**
-     * Start a new thread, and select it. The thread exists only here until its first turn - when
-     * the store's `createThreadAsync`, if any, creates it, or else the backend creates it on the
-     * first run.
+     * Start a new thread, and select it. The thread exists only here until its first turn, when
+     * the backend creates it. A backend that mints its own id reports it on `RUN_STARTED`.
      *
      * @returns the new thread's chat.
      */
@@ -335,7 +333,7 @@ export class ChatThreadsModel extends HoistModel {
             threadIds.length > 1
                 ? 'The conversations were not deleted.'
                 : 'The conversation was not deleted.',
-            () => this.deleteFromStoreAsync(threadIds)
+            () => this.store.deleteThreadsAsync(threadIds)
         );
     }
 
@@ -362,9 +360,6 @@ export class ChatThreadsModel extends HoistModel {
     // Lists requested, and the number of the last one applied - see `isListCurrent`.
     private listCount = 0;
     private appliedListNumber = -1;
-
-    // Calls to the store's `createThreadAsync`, by local id - resolving to the thread's id.
-    private readonly threadCreates = new Map<string, Promise<string>>();
 
     // Drafts and run options of closed threads, for when they open again.
     private readonly drafts = new Map<string, ThreadDraft>();
@@ -404,9 +399,6 @@ export class ChatThreadsModel extends HoistModel {
         if (store.submitFeedbackAsync && !chatModel.feedback.submitAsync) {
             chatModel.setFeedbackSubmitter(spec => store.submitFeedbackAsync(spec));
         }
-        if (store.createThreadAsync) {
-            chatModel.setThreadCreator(spec => this.createThreadAsync(spec));
-        }
 
         const thread = new OpenThread({
             chatModel,
@@ -440,39 +432,6 @@ export class ChatThreadsModel extends HoistModel {
                 return 'The conversation did not load. Reload it to continue.';
         }
         return null;
-    }
-
-    /**
-     * The thread creator for each chat. Calls the store once per local id - a retry of the first
-     * turn reuses the call - and again only if it failed. The store is idempotent per local id, so
-     * a retry after a lost response finds the thread already created.
-     */
-    private createThreadAsync({threadId: localId, userMessage}: ChatThreadCreatorSpec) {
-        let ret = this.threadCreates.get(localId);
-        if (!ret) {
-            ret = this.store
-                .createThreadAsync({localId, title: titleFromText(userMessage?.text)})
-                .then(summary => {
-                    this.updateThread(localId, omit(summary, 'id'));
-                    return summary.id;
-                });
-            ret.catch(() => this.threadCreates.delete(localId));
-            this.threadCreates.set(localId, ret);
-        }
-        return ret;
-    }
-
-    /**
-     * Delete threads from the store, with the backend's ids for those whose create is in flight or
-     * done. A thread deleted during its first turn's create still has its backend thread deleted.
-     */
-    private async deleteFromStoreAsync(threadIds: string[]): Promise<void> {
-        const creates = threadIds.map(id => this.threadCreates.get(id)).filter(Boolean);
-        if (isEmpty(creates)) return this.store.deleteThreadsAsync(threadIds);
-
-        threadIds.forEach(id => this.threadCreates.delete(id));
-        const created = await Promise.all(creates.map(it => it.catch(() => null)));
-        return this.store.deleteThreadsAsync(uniq([...threadIds, ...compact(created)]));
     }
 
     @action

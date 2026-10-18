@@ -492,6 +492,13 @@ What a server-mode backend sends back:
   generative UI components show by reference.
 - `RUN_ERROR` with `metadata.retryAfterSeconds`, to ask for a wait before a retry.
 
+A backend that mints its own thread ids needs no separate create call. A new thread's first
+request carries the id the browser minted. Create the thread when that request arrives, in the
+server's run endpoint or in a custom transport. Then report the backend's id on `RUN_STARTED`.
+The chat adopts it, and `ChatThreadsModel` re-keys the thread's summary, selection, draft and
+route to it. Key the create by the browser's id. A retry of a first turn that failed before
+`RUN_STARTED` then finds the same thread.
+
 A stop closes the connection and calls `cancelAsync()`. With a `cancelUrl`, the HTTP transports
 post `{threadId, runId, turnId}` there, with the `headers` and `params` of the stopped step. The
 `runId` is the one the server reported on `RUN_STARTED`. A detach, a clear or a load also closes

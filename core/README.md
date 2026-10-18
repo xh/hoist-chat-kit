@@ -1058,7 +1058,6 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `refreshStatusAsync()` | Reload the thread to learn how a run ended. Does nothing without a refresher. |
 | `setFeedbackSubmitter(submitAsync)` | Set the submitter to use when `feedback.submitAsync` is not configured. For a thread layer. |
 | `addSendBlocker(blocker)` | Add a reason for sends to wait, checked after the `sendBlocker`. For a thread layer. |
-| `setThreadCreator(createAsync)` | Set a function that creates a new thread on the backend. The chat awaits it before the first request of a new thread, and adopts the id it returns. For a thread layer. |
 | `getMessageSpecs()` | The conversation as `ChatMessageSpec[]`, for storage. |
 | `getMessage(id)` | A message by id, as it is now, or null. |
 | `getToolSpec(name)` | The spec for a tool, or null. |

@@ -1,11 +1,9 @@
 import {cloneDeep, find, omit, orderBy, pull, remove} from 'lodash';
 import {wait} from '@xh/hoist/promise';
 import {type ChatFeedbackSpec, ChatMessage, type ChatMessageSpec} from '../core';
-import {genChatId} from '../impl/ids';
 import type {
     ChatMessagePage,
     ChatMessageQuery,
-    ChatThreadCreateSpec,
     ChatThreadPage,
     ChatThreadQuery,
     ChatThreadStore,
@@ -20,12 +18,6 @@ export interface LocalChatThreadStoreConfig {
 
     /** Latency of each call, in milliseconds. Default 0. */
     delayMs?: number;
-
-    /**
-     * True to mint thread ids, as a backend that creates its threads does. The store then
-     * implements `createThreadAsync`. Default false.
-     */
-    mintIds?: boolean;
 
     /** Optional methods to leave out, to show how the threads model works without them. */
     omit?: LocalChatThreadStoreOptionalMethod[];
@@ -81,24 +73,14 @@ export class LocalChatThreadStore implements ChatThreadStore {
     /** Calls made to the store, oldest first. */
     readonly calls: LocalChatThreadStoreCall[] = [];
 
-    createThreadAsync?: (spec: ChatThreadCreateSpec) => Promise<ChatThreadSummary>;
     renameThreadAsync?: (threadId: string, title: string) => Promise<void>;
     deleteThreadsAsync?: (threadIds: string[]) => Promise<void>;
     submitFeedbackAsync?: (spec: ChatFeedbackSpec) => Promise<void>;
 
-    constructor({
-        threads = [],
-        delayMs = 0,
-        mintIds = false,
-        omit = []
-    }: LocalChatThreadStoreConfig = {}) {
+    constructor({threads = [], delayMs = 0, omit = []}: LocalChatThreadStoreConfig = {}) {
         this.delayMs = delayMs;
         threads.forEach(it => this.saveThread(it));
 
-        if (mintIds) {
-            this.createThreadAsync = spec =>
-                this.callAsync('createThreadAsync', [spec], 'write', () => this.createThread(spec));
-        }
         if (!omit.includes('renameThreadAsync')) {
             this.renameThreadAsync = (threadId, title) =>
                 this.callAsync('renameThreadAsync', [threadId, title], 'write', () => {
@@ -189,7 +171,6 @@ export class LocalChatThreadStore implements ChatThreadStore {
     private readonly threads: LocalChatThread[] = [];
     private readonly heldMethods = new Set<ChatThreadStoreMethod>();
     private readonly failures = new Map<ChatThreadStoreMethod, Error>();
-    private readonly mintedIds = new Map<string, string>();
 
     private async callAsync<T>(
         method: ChatThreadStoreMethod,
@@ -256,16 +237,6 @@ export class LocalChatThreadStore implements ChatThreadStore {
 
     private loadMessages({threadId}: ChatMessageQuery): ChatMessagePage {
         return {messages: this.getOrThrow(threadId).messages};
-    }
-
-    private createThread({localId, title}: ChatThreadCreateSpec): ChatThreadSummary {
-        let threadId = this.mintedIds.get(localId);
-        if (!threadId) {
-            threadId = genChatId();
-            this.mintedIds.set(localId, threadId);
-            this.saveThread({id: threadId, title});
-        }
-        return toSummary(this.getOrThrow(threadId));
     }
 
     private saveFeedback({threadId, messageId, rating, comment}: ChatFeedbackSpec) {

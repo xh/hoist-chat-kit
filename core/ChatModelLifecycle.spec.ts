@@ -400,58 +400,6 @@ describe('ChatModel run lifecycle', () => {
     });
 
     describe('thread layer seams', () => {
-        it('awaits the thread creator before the first request, and adopts its id', async () => {
-            let resolve: (threadId: string) => void;
-            const transport = scripted([textEvents('One.'), textEvents('Two.')]),
-                createAsync = vi.fn(() => new Promise<string>(it => (resolve = it))),
-                model = createModel({transport});
-            model.setThreadCreator(createAsync);
-            const localId = model.threadId;
-
-            const done = model.sendAsync('First');
-            await Promise.resolve();
-            expect(transport.requests).toEqual([]);
-            expect(createAsync).toHaveBeenCalledExactlyOnceWith({
-                threadId: localId,
-                userMessage: model.messages[0]
-            });
-            resolve('srv-thread');
-            await done;
-            await model.sendAsync('Second');
-
-            expect(createAsync).toHaveBeenCalledOnce();
-            expect(transport.requests.map(it => it.threadId)).toEqual(['srv-thread', 'srv-thread']);
-        });
-
-        it('fails the turn when the thread creator fails, and calls it again on retry', async () => {
-            spyHandleException();
-            const createAsync = vi
-                    .fn<() => Promise<string>>()
-                    .mockRejectedValueOnce(new Error('Create failed'))
-                    .mockResolvedValue('srv-thread'),
-                model = createModel({transport: scripted([textEvents('Hi.')])});
-            model.setThreadCreator(createAsync);
-
-            await model.sendAsync('Hi');
-            expect(model.lastError.message).toBe('Create failed');
-            await model.retryAsync();
-
-            expect(model.threadId).toBe('srv-thread');
-            expect(model.lastMessage.text).toBe('Hi.');
-        });
-
-        it('never calls the thread creator for a thread loaded with its id', async () => {
-            const createAsync = vi.fn(async () => 'srv-other'),
-                model = createModel([textEvents('Hi.')]);
-            model.setThreadCreator(createAsync);
-            model.loadMessages([{role: 'user', content: 'Earlier'}], 'srv-known');
-
-            await model.sendAsync('Hi');
-
-            expect(createAsync).not.toHaveBeenCalled();
-            expect(model.threadId).toBe('srv-known');
-        });
-
         it('blocks sends with an added blocker, after the configured one', async () => {
             const state = {configured: null, added: 'Wait for the history.'},
                 transport = scripted([textEvents('Hi.')]),
@@ -579,12 +527,6 @@ function runStarted(threadId: string, runId: string): ChatEvent {
 
 function custom(name: string, value: any): ChatEvent {
     return {type: 'CUSTOM', name, value};
-}
-
-function spyHandleException() {
-    const ret = vi.spyOn(XH, 'handleException').mockImplementation(() => {});
-    onTestFinished(() => ret.mockRestore());
-    return ret;
 }
 
 function spyTrack() {

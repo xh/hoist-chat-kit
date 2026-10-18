@@ -29,18 +29,14 @@ describe('LocalChatThreadStore', () => {
         });
     });
 
-    it('creates each thread once per local id, and titles a saved thread from its first message', async () => {
-        const store = new LocalChatThreadStore({mintIds: true});
+    it('titles a saved thread from its first message', async () => {
+        const store = new LocalChatThreadStore();
 
-        const first = await store.createThreadAsync({localId: 'local-1', title: 'Hello'}),
-            again = await store.createThreadAsync({localId: 'local-1'});
         store.saveThread({
             id: 'saved',
             messages: [{role: 'user', content: 'Plan a  trip\nto Rome'}]
         });
 
-        expect(again.id).toBe(first.id);
-        expect(first.id).not.toBe('local-1');
         expect(store.getThread('saved').title).toBe('Plan a trip to Rome');
     });
 
@@ -82,7 +78,6 @@ describe('LocalChatThreadStore', () => {
 
         expect(store.renameThreadAsync).toBeUndefined();
         expect(store.submitFeedbackAsync).toBeUndefined();
-        expect(store.createThreadAsync).toBeUndefined();
         expect(store.deleteThreadsAsync).toBeDefined();
     });
 });

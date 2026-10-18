@@ -25,13 +25,13 @@ Import from `@xh/hoist-chat-kit/threads`.
 Key features:
 
 - **A store adapter** - two required methods, to list threads and to load a thread's history.
-  Rename, delete, create and feedback are optional. The model hides each action the store
+  Rename, delete and feedback are optional. The model hides each action the store
   lacks.
 - **One chat per open thread** - the selected thread's chat, and any other chat with a turn
   running. A turn runs on in the background when the user switches threads, and the list shows
   its thread as running.
 - **Both kinds of thread id** - ids the browser mints, with the backend creating the thread on
-  its first run, and ids the backend mints, through `createThreadAsync` or `RUN_STARTED`.
+  its first run, and ids the backend mints and reports on `RUN_STARTED`.
 - **Server-side search** - debounced, through the store's query.
 - **Edits that show at once** - rename and delete apply before the store answers, and roll
   back with a toast if it fails.
@@ -70,8 +70,7 @@ ChatThreadsModel (HoistModel)
 ChatThreadStore (implemented by the app)
 ├── listThreadsAsync(query)           # Required
 ├── loadMessagesAsync(query)          # Required
-└── createThreadAsync?, renameThreadAsync?, deleteThreadsAsync?,
-    submitFeedbackAsync?
+└── renameThreadAsync?, deleteThreadsAsync?, submitFeedbackAsync?
 ```
 
 ### Open chats
@@ -88,20 +87,18 @@ it:
 
 - `setFeedbackSubmitter()`, with the store's `submitFeedbackAsync`, unless the chat has its own
   `feedback.submitAsync`.
-- `setThreadCreator()`, with the store's `createThreadAsync`, if the store has one.
 - `addSendBlocker()`, which holds back sends while the history loads or after it fails.
+- `setStatusRefresher()`, which reloads the thread's history for Refresh Status.
 
 ### Thread ids
 
-A new thread starts with an id the browser mints. It can change once, on its first turn:
+A new thread starts with an id the browser mints. It can change once, on its first turn. In
+server mode, the first `RUN_STARTED` can report the backend's id, and the chat adopts it. A
+backend that mints its own ids creates the thread on that first request - see
+[Server-owned conversations](../transport/README.md#server-owned-conversations).
 
-- If the store has `createThreadAsync`, the chat awaits it before the first request, and runs
-  under the id it returns. The model calls it once per local id. A retry of the first turn reuses
-  the call, and calls the store again only if the call failed.
-- In server mode, the first `RUN_STARTED` can report the backend's id. The chat adopts it.
-
-Either way, the threads model then re-keys the thread: its chat, its summary, any pending edit,
-the selection and the route parameter. A chat that changes its id while idle, after `clear()` or
+The threads model then re-keys the thread: its chat, its summary, any pending edit, the
+selection and the route parameter. The composer moves the thread's draft. A chat that changes its id while idle, after `clear()` or
 `loadMessages()`, holds a new thread. The old thread stays in the list.
 
 ### Concurrency rules
@@ -115,10 +112,9 @@ spec, and each has a unit test.
 | 2 | A history load for thread B is discarded if the user has since selected C. Its failure is logged, never shown in C. | Each load takes a key from its open thread. Leaving B closes its chat, so the key no longer matches, and the result or the error goes nowhere. |
 | 3 | A new thread opened during a load never shows the old thread's messages. | A new thread gets a new chat. A load writes only to the chat that asked for it. |
 | 4 | Events from a run apply only to that run's chat. | The threads model never routes events. Each chat guards its own turn. |
-| 5 | `createThreadAsync` is awaited before the first run, once per local id. | The chat awaits its thread creator before the first request. The model shares one call per local id. |
-| 6 | Run options and drafts never leak into another thread. | Each thread has its own chat. A closed thread's draft is kept under its id. |
-| 7 | A 404 or an empty page is an empty thread. Any other failure blocks sends on that thread only, with an error and a reload. | The thread's load state feeds its own send blocker and `loadError`. |
-| 8 | A turn that ends with no content is an error. | `ChatModel` fails a run that finishes with an empty reply, with code `empty-response`. |
+| 5 | Run options and drafts never leak into another thread. | Each thread has its own chat. A closed thread's draft is kept under its id. |
+| 6 | A 404 or an empty page is an empty thread. Any other failure blocks sends on that thread only, with an error and a reload. | The thread's load state feeds its own send blocker and `loadError`. |
+| 7 | A turn that ends with no content is an error. | `ChatModel` fails a run that finishes with an empty reply, with code `empty-response`. |
 
 ## Configuration Pattern
 
@@ -356,7 +352,6 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save
 | `listThreadsAsync({search})` | Required. A `ChatThreadPage`: threads most recently active first. The store decides how many. |
 | `searchesMessages` | Property. True if the search covers message text, not just titles. Then each match may carry a `snippet`. |
 | `loadMessagesAsync({threadId})` | Required. A `ChatMessagePage`: the thread's messages, oldest first. Its optional `nextCursor` is not yet read by the kit. |
-| `createThreadAsync({localId, title})` | Create the thread and return its summary, with the backend's id. Idempotent per `localId`. |
 | `renameThreadAsync(threadId, title)` | Rename a thread. |
 | `deleteThreadsAsync(threadIds)` | Delete threads. Deleting a missing thread succeeds. |
 | `submitFeedbackAsync(spec)` | Save a rating. See `ChatFeedbackSpec` in [`/core/`](../core/README.md#rate-a-reply). |
@@ -381,7 +376,6 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save
 |--------|-------------|
 | `threads` config | Threads to start with, each a summary with `messages`. |
 | `delayMs` config | Latency of each call. Default 0. |
-| `mintIds` config | True to implement `createThreadAsync` and mint ids. Default false. |
 | `omit` config | Optional methods to leave out. |
 | `saveThread(thread)` | Add or update a thread, as the backend would on a run. |
 | `getThread(threadId)` | A copy of a thread, or null. |
@@ -399,8 +393,8 @@ released.
   load methods.
 - **Chat creation** - `createChatModel` configures each chat as usual: transport, tools,
   renderers, `feedback`, `track` and a `sendBlocker` of the app's own.
-- **Chat seams** - `ChatModel.setThreadCreator()`, `addSendBlocker()` and
-  `setFeedbackSubmitter()` are public. A custom thread layer can use them too. See
+- **Chat seams** - `ChatModel.addSendBlocker()`, `setFeedbackSubmitter()` and
+  `setStatusRefresher()` are public. A custom thread layer can use them too. See
   [`/core/`](../core/README.md).
 
 ## Common Pitfalls

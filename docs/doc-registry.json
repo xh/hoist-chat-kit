@@ -236,7 +236,6 @@
         "threads",
         "background turns",
         "runningThreadIds",
-        "createThreadAsync",
         "re-keying",
         "server thread id",
         "optimistic rename",

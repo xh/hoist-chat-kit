@@ -30,15 +30,6 @@ export interface ChatThreadStore {
     /** A thread's messages, oldest first. */
     loadMessagesAsync(query: ChatMessageQuery): Promise<ChatMessagePage>;
 
-    /**
-     * Create a thread on the backend, for a backend that mints its own thread ids. The threads
-     * model calls it before the first run of a new thread, and runs the thread under the id it
-     * returns. Must be idempotent per `localId`: a second call after a lost response must return
-     * the same thread, never create another. Leave it out if the backend takes the id the browser
-     * mints, and creates the thread on its first run.
-     */
-    createThreadAsync?(spec: ChatThreadCreateSpec): Promise<ChatThreadSummary>;
-
     /** Rename a thread. */
     renameThreadAsync?(threadId: string, title: string): Promise<void>;
 
@@ -114,13 +105,4 @@ export interface ChatMessagePage {
      * to page in older history later.
      */
     nextCursor?: string;
-}
-
-/** Passed to {@link ChatThreadStore.createThreadAsync}. */
-export interface ChatThreadCreateSpec {
-    /** The id the browser minted for the thread - the key that makes the call idempotent. */
-    localId: string;
-
-    /** A title for the thread, from the start of its first message. */
-    title?: string;
 }
