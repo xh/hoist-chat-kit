@@ -66,7 +66,7 @@ import {
 } from './impl/ChatFeedbackControls';
 import {chatCaret, chatSpinner} from '../../impl/ChatLiveCues';
 import {chatReplyLiveStatus} from './impl/ChatReplyLiveStatus';
-import {type ChatAnnounceSteps, ChatStepAnnouncer} from './impl/ChatStepAnnouncer';
+import {ChatStepAnnouncer} from './impl/ChatStepAnnouncer';
 import {chatErrorBoundary} from './impl/ChatErrorBoundary';
 import {formatElapsed} from './impl/ChatFormat';
 import {chatToolCallGroup} from './impl/ChatToolCallGroup';
@@ -152,12 +152,6 @@ export interface ChatMessageViewProps extends HoistProps {
 
     /** Items to add to an assistant message's header. Pass a stable function. */
     messageHeaderItems?: ChatMessageRenderFn;
-
-    /**
-     * Which steps of a running reply the screen reader announcer reads as they finish: none,
-     * failures or all. Default from `ChatKit.defaults.announceSteps`.
-     */
-    announceSteps?: ChatAnnounceSteps;
 
     /**
      * True if this is the last message in the conversation. Its action bar stays shown, and an
@@ -256,15 +250,14 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
         });
         impl.feedback.configure(message, context.chatModel);
 
-        // Calls shown outside a timeline announce as they finish. A timeline announces its own.
+        // Calls shown outside a timeline announce when they fail. A timeline announces its own.
         useEffect(() => {
             if (!message.isAssistant) return;
             impl.cardSteps.note(
                 message.toolCalls.filter(it => isAnnouncedOutsideTimeline(it, host)),
                 {
                     isLive: message.isStreaming || message.status === 'paused',
-                    host,
-                    announceSteps: props.announceSteps
+                    host
                 }
             );
         });
@@ -320,7 +313,7 @@ class ChatMessageViewLocalModel extends HoistModel {
     /** The message's thumbs and comment form. */
     @managed readonly feedback = new ChatMessageFeedbackModel();
 
-    /** Announces the calls shown outside a timeline as they finish. */
+    /** Announces the calls shown outside a timeline that fail. */
     readonly cardSteps = new ChatStepAnnouncer();
 
     readonly rootRef = createObservableRef<HTMLElement>();
@@ -664,8 +657,7 @@ function assistantContent(
         runs = groupProcessRuns(groupParts(message.parts, host), host),
         // A fixed "not found" reply lists no sources.
         isNoAnswer = !!getChatNoAnswerPart(message),
-        uncitedSources = isNoAnswer ? [] : collectUncitedSources(message.parts, references),
-        stepOffsets = getStepOffsets(runs);
+        uncitedSources = isNoAnswer ? [] : collectUncitedSources(message.parts, references);
 
     return [
         div({
@@ -680,13 +672,7 @@ function assistantContent(
                             run.type === 'process'
                                 ? processRun(run, props, impl, context, references, markerSources)
                                 : run.type === 'timeline'
-                                  ? timelineBlock(
-                                        run,
-                                        props,
-                                        context,
-                                        idx < runs.length - 1,
-                                        stepOffsets.get(run.id)
-                                    )
+                                  ? timelineBlock(run, props, context, idx < runs.length - 1)
                                   : renderGroup(
                                         run,
                                         props,
@@ -748,10 +734,9 @@ function timelineBlock(
     group: ChatTimelineGroup,
     props: ViewProps,
     context: ChatPartRenderContext,
-    isFollowed: boolean,
-    stepOffset: number
+    isFollowed: boolean
 ): ReactNode {
-    const {message, host, isLast, announceSteps} = props;
+    const {message, host, isLast} = props;
     return chatErrorBoundary({
         key: group.id,
         item: chatTimeline({
@@ -761,23 +746,9 @@ function timelineBlock(
             pinned: group.pinned,
             context,
             isFollowed,
-            isLast,
-            announceSteps,
-            stepOffset
+            isLast
         })
     });
-}
-
-// The calls in each timeline block's earlier blocks, by block id, so that steps count across them.
-function getStepOffsets(runs: Array<ChatPartGroup | ChatProcessRun>): Map<string, number> {
-    const ret = new Map<string, number>();
-    let count = 0;
-    runs.forEach(run => {
-        if (run.type !== 'timeline') return;
-        ret.set(run.id, count);
-        count += run.parts.filter(it => it.type === 'toolCall').length;
-    });
-    return ret;
 }
 
 // A call whose finish the message view announces: one it shows, outside a timeline.

@@ -4,7 +4,6 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import {afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     chatAnnouncer,
-    ChatKit,
     ChatMessage,
     type ChatMessageSpec,
     ChatModel,
@@ -198,53 +197,7 @@ describe('ChatTimeline', () => {
             ]);
         });
 
-        it('announces every step with announceSteps "all", and none with "none"', () => {
-            const announce = vi.spyOn(chatAnnouncer, 'announce'),
-                running = [call('c1', {state: 'running'})],
-                done = [{...call('c1'), startedAt: 1000, endedAt: 4100}];
-            ChatKit.defaults.announceSteps = 'all';
-            onTestFinished(() => {
-                ChatKit.defaults.announceSteps = 'failures';
-            });
-
-            const chatModel = createChat([reply(running, {status: 'streaming'})]);
-            renderChat(chatModel);
-            act(() => setMessages(chatModel, [reply(done, {status: 'streaming'})]));
-            expect(announce).toHaveBeenLastCalledWith('Step 1 done: Lookup, 3.1s.');
-
-            ChatKit.defaults.announceSteps = 'none';
-            act(() =>
-                setMessages(chatModel, [
-                    reply([...done, call('c2', {state: 'output-error'})], {status: 'streaming'})
-                ])
-            );
-            expect(announce).toHaveBeenCalledTimes(1);
-        });
-
-        it('takes announceSteps from the message list, and counts steps across blocks', () => {
-            const announce = vi.spyOn(chatAnnouncer, 'announce'),
-                card = call('k1', {toolName: 'show_card'}),
-                chatModel = createChat(
-                    [
-                        reply([call('c1'), card, call('c2', {state: 'running'})], {
-                            status: 'streaming'
-                        })
-                    ],
-                    [{name: 'show_card', display: 'card'}]
-                );
-            render(chatMessageList({model: chatModel, announceSteps: 'all'}));
-
-            act(() =>
-                setMessages(chatModel, [
-                    reply([call('c1'), card, {...call('c2'), startedAt: 1000, endedAt: 2000}], {
-                        status: 'streaming'
-                    })
-                ])
-            );
-            expect(announce.mock.calls.map(it => it[0])).toEqual(['Step 2 done: Lookup, 1.0s.']);
-        });
-
-        it('announces a failed call shown as a card under the default "failures"', () => {
+        it('announces a failed call shown as a card', () => {
             const announce = vi.spyOn(chatAnnouncer, 'announce'),
                 tools = [{name: 'show_card', display: 'card' as const}],
                 chatModel = createChat(

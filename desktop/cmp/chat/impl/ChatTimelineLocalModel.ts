@@ -83,7 +83,7 @@ export class ChatTimelineLocalModel extends HoistModel {
     //------------------
     // Announcements
     //------------------
-    /** Announces the block's steps as they finish - see {@link ChatStepAnnouncer}. */
+    /** Announces the block's steps that fail - see {@link ChatStepAnnouncer}. */
     readonly steps = new ChatStepAnnouncer();
 
     /** Announce once, after two minutes with no event, what a running block waits on. */

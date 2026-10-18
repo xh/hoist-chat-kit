@@ -956,11 +956,14 @@ write twice needs the server's word that it is safe. A client-mode chat keeps it
 hidden live regions, one polite and one assertive. The announcer reads a finished reply once: the
 assistant, its tool count and time, then its first paragraph, cut at 300 characters. Polite
 announcements wait at least 2 s apart and coalesce. Assertive ones never wait. Tokens, verb
-changes, elapsed ticks and countdown seconds are never announced. `announceSteps` is `'none'`,
-`'failures'` or `'all'`, default `'failures'`, in `ChatKit.defaults` and as a message list prop.
+changes, elapsed ticks and countdown seconds are never announced. A step that fails while a reply
+runs is announced. Steps that succeed are not.
 
 **Why.** A live region on the list reads every token. One announcer keeps announcements spaced and
 in order across the list, the timeline and the composer.
+
+Amended by item 1 of `planning/AG-UI.md`: the `announceSteps` setting, with its "Step N done"
+mode, is gone.
 
 ## D66. The keyboard map, configurable
 

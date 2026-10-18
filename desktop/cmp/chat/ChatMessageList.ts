@@ -18,7 +18,6 @@ import {type ChatMessageRenderFn, type ChatSourceClickFn, chatMessageView} from 
 import type {ChatSuggestion} from './ChatSuggestions';
 import {chatAnnouncerRegions} from './impl/ChatAnnouncerRegions';
 import {chatErrorBoundary} from './impl/ChatErrorBoundary';
-import type {ChatAnnounceSteps} from './impl/ChatStepAnnouncer';
 import {ChatMessageListLocalModel} from './impl/ChatMessageListLocalModel';
 import {refuseFileDrop} from './impl/FileDrop';
 import {getFailureCause, isReplyNotSent} from './impl/ReplyFailure';
@@ -90,12 +89,6 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
      * example a model name or a cost. Pass a stable function.
      */
     messageHeaderItems?: ChatMessageRenderFn;
-
-    /**
-     * Which steps of a running reply the screen reader announcer reads as they finish: none,
-     * failures or all. Default from `ChatKit.defaults.announceSteps`.
-     */
-    announceSteps?: ChatAnnounceSteps;
 }
 
 /**
@@ -118,7 +111,7 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
  * The list is a `role="log"` region with `aria-live="off"`, so screen readers never hear tokens.
  * It renders the regions of the kit's announcer instead, which read each reply once as it
  * finishes: the assistant's name, its tool count and time, then its first paragraph. Steps that
- * fail while a reply runs are read too, or every step with `announceSteps: 'all'`.
+ * fail while a reply runs are read too.
  */
 export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessageListProps>({
     displayName: 'ChatMessageList',
@@ -141,7 +134,6 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
             markdownPlugins,
             messageActions,
             messageHeaderItems,
-            announceSteps,
             ...rest
         },
         ref
@@ -212,7 +204,6 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                                           markdownPlugins,
                                           messageActions,
                                           messageHeaderItems,
-                                          announceSteps,
                                           isEditing: impl.editingId === message.id,
                                           onEditingChange: impl.onEditingChange,
                                           onEditPrompt: impl.onEditPrompt

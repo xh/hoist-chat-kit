@@ -26,7 +26,6 @@ import {chatElapsed} from './ChatElapsed';
 import './ChatTimeline.scss';
 import {formatStallDuration} from './impl/ChatFormat';
 import {chatSpinner} from '../../impl/ChatLiveCues';
-import type {ChatAnnounceSteps} from './impl/ChatStepAnnouncer';
 import {
     buildTimelineItems,
     type ChatTimelineState,
@@ -81,18 +80,6 @@ export interface ChatTimelineProps extends HoistProps {
      * belongs to - for the quiet state. Default false.
      */
     isLast?: boolean;
-
-    /**
-     * Which steps the screen reader announcer reads as they finish: none, failures or all.
-     * Default from `ChatKit.defaults.announceSteps`.
-     */
-    announceSteps?: ChatAnnounceSteps;
-
-    /**
-     * Steps of the reply's earlier blocks, so that "Step N done" counts across the reply.
-     * @internal
-     */
-    stepOffset?: number;
 }
 
 /**
@@ -112,8 +99,8 @@ export interface ChatTimelineProps extends HoistProps {
  * input and output, mounted only while open. The tree is one tab stop, with arrow keys between
  * rows. The block never opens or closes by itself. Below 480 px it drops the step count first.
  *
- * Failures, and with `announceSteps: 'all'` every step, are announced as they happen. The done
- * summary is not: it rides in the reply's own announcement.
+ * A step that fails is announced as it happens. The done summary is not: it rides in the reply's
+ * own announcement.
  */
 export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelineProps>({
     displayName: 'ChatTimeline',
@@ -148,9 +135,7 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
         useEffect(() => {
             impl.steps.note(summary.calls, {
                 isLive: isLive || message.status === 'paused',
-                host,
-                announceSteps: props.announceSteps,
-                stepOffset: props.stepOffset
+                host
             });
             impl.noteQuiet(state === 'quiet' ? quietMs : null, runningTitle(summary, host));
         });

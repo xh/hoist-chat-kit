@@ -1278,12 +1278,11 @@ Fields of `ChatKit.defaults`. See `ChatKit.ts`.
 | `assistantIcon` | `() => ReactElement` | Returns the icon that marks the assistant. A component's `assistantIcon` prop overrides it. Default `() => Icon.ai()`. |
 | `reducedMotionSpinner` | `'static' \| 'spin'` | Under reduced motion, `static` swaps the chat's spinners for a static icon, and `spin` keeps Hoist's spinner. Default `static`. |
 | `stallAfterMs` | `number` | Milliseconds with no data from the server before a reply shows as stalled. `ChatModelConfig.stallAfterMs` overrides it. Default 30,000. |
-| `announceSteps` | `'none' \| 'failures' \| 'all'` | Which steps of a reply the announcer reads, besides the finished reply. Default `failures`. |
 | `drafts` | `'local' \| 'memory'` | Where the composer keeps its unsent draft text: local storage, per thread, or memory only. Default `local`. See [Keep drafts](#keep-drafts). |
 | `shortcuts` | `ChatShortcuts` | Key combos in the format of Hoist's `useHotkeys`, by action: `newChat`, `toggleDock`, `focusComposer`, `cycleRegions` and `toggleSidebar`. Null drops a shortcut. See [Keyboard](../desktop/cmp/chat/README.md#keyboard). |
 
-The kit reads `announceSteps`, `drafts` and `shortcuts` from the components that use them. The
-activity timeline reads `announceSteps`. Set `shortcuts` before the chat components render.
+The kit reads `drafts` and `shortcuts` from the components that use them. Set `shortcuts` before
+the chat components render.
 
 `ChatKit.clearLocalData()` removes everything the kit keeps in local storage for the current
 user, such as drafts. Call it from your logout. `ChatKit.clearLocalData(threadIds)` removes the

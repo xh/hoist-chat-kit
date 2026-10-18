@@ -301,10 +301,9 @@ Down move between rows, and Home and End jump to the ends. Right opens a row or 
 child. Left closes it or goes to its parent. Enter and Space toggle a row. Escape inside a row's
 details returns to the row.
 
-The timeline announces a step that fails while the reply runs. With `announceSteps: 'all'`, it
-announces every step, numbered across all the blocks of the reply. The message list takes
-`announceSteps` too, and announces calls shown as cards the same way. After two minutes with no data, it announces once what it waits on. It
-never announces its done summary. The reply's announcement says it instead, as "Analyst replied
+The timeline announces a step that fails while the reply runs. The message list announces a
+failed call shown as a card the same way. After two minutes with no data, the timeline announces
+once what it waits on. It never announces its done summary. The reply's announcement says it instead, as "Analyst replied
 after 7 tools and 1 agent, 42 seconds, 1 failed."
 
 Below 480px, the block takes the `xh-chat-timeline--narrow` class. It drops the step count
@@ -889,7 +888,6 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
 | `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit, Regenerate, Undo and the thumbs. Edit and Regenerate show only while the chat's `allowEdit` and `allowRegenerate` are true. Pass a stable function. |
 | `messageHeaderItems` | `(message, context) => ReactNode[]` | Items in an assistant message's header. Pass a stable function. |
-| `announceSteps` | `'none' \| 'failures' \| 'all'` | Steps of a running reply to announce as they finish. Default from `ChatKit.defaults.announceSteps`. |
 
 Each message is a focusable `article`, named for its author and time. With a message focused, Up
 and Down move to the one before or after. Escape stops a reply in progress while focus is in the
@@ -936,7 +934,7 @@ Use it directly only for a list of your own.
 | Component | Props | Use it to |
 |-----------|-------|-----------|
 | `ChatToolCall` | `part`, `context` | Show a tool call row, for example inside a renderer of your own. Reads tool specs and approvals from `context.chatModel`. |
-| `ChatTimeline` | `message`, `host`, `parts`, `pinned`, `context`, `isFollowed`, `isLast`, `announceSteps` | Show a reply's activity timeline in a layout of your own. `parts` and `pinned` default to the reply's first timeline block. `isFollowed` says the answer has started below it. |
+| `ChatTimeline` | `message`, `host`, `parts`, `pinned`, `context`, `isFollowed`, `isLast` | Show a reply's activity timeline in a layout of your own. `parts` and `pinned` default to the reply's first timeline block. `isFollowed` says the answer has started below it. |
 | `ChatClearButton` | `chatModel`, and any `ButtonProps` | Clear the conversation, from a panel header. |
 | `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |
 | `ChatSources` | `sources`, `uncitedSources`, `defaultExpanded`, `onSourceClick`, `allowImages` | Show a list of sources. Each shows its `marker`, else its position. Uncited sources are counted, not numbered. |

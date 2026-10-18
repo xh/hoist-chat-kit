@@ -38,12 +38,6 @@ export interface ChatKitDefaults {
     stallAfterMs: number;
 
     /**
-     * Which steps of a reply the screen reader announcer reads, besides the finished reply:
-     * none, only failures, or all. Default 'failures'.
-     */
-    announceSteps: 'none' | 'failures' | 'all';
-
-    /**
      * Where the composer keeps its unsent draft text.
      *
      *  - `local` - in local storage, per thread, through `XH.localStorageService`, which keys it
@@ -98,7 +92,6 @@ export class ChatKit {
         assistantIcon: () => Icon.ai(),
         reducedMotionSpinner: 'static',
         stallAfterMs: 30_000,
-        announceSteps: 'failures',
         // TODO(design-open B6) - local drafts, cleared on logout by `ChatKit.clearLocalData()`.
         drafts: 'local',
         // TODO(design-open B3) - shortcuts on by default, each one remappable or off.
