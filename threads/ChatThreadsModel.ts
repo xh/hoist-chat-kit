@@ -392,6 +392,9 @@ export class ChatThreadsModel extends HoistModel {
     // When the user last saw each thread, in this session, by id - see `endedEarlyThreads`.
     @observableRef private accessor seenActivityAt: Record<string, number> = {};
 
+    // Threads whose turn ended while selected, to take the seen activity from the next list.
+    private readonly seenOnNextList = new Set<string>();
+
     // Threads whose turn ended early in the background, in this session - see `endedEarlyThreads`.
     @observableRef private accessor endedEarlyHere: Record<string, ChatThreadEndedEarly> = {};
 
@@ -495,8 +498,9 @@ export class ChatThreadsModel extends HoistModel {
             this.rekeyThread(prevThreadId, threadId);
         } else {
             thread.resetLoad();
-            // A cleared chat holds a thread the backend has not seen. Loaded messages are saved.
-            thread.setSaved(!thread.chatModel.isEmpty);
+            // A cleared chat holds a thread the backend has not seen. Loaded history with a user
+            // message is saved - a greeting alone is not.
+            thread.setSaved(some(thread.chatModel.messages, 'isUser'));
         }
         this.openThreads = {...omit(this.openThreads, prevThreadId), [threadId]: thread};
         if (this.selectedThreadId === prevThreadId) this.selectedThreadId = threadId;
@@ -511,8 +515,9 @@ export class ChatThreadsModel extends HoistModel {
             return;
         }
 
-        // The backend has seen the thread once a turn ends, whether or not it answered.
-        thread.setSaved(true);
+        // The backend has seen the thread once a run of it started. A turn that failed before
+        // any response, or stopped before the run started, leaves it unsaved.
+        if (hasRunStarted(chatModel)) thread.setSaved(true);
         // A turn that pauses for the user has not finished - the thread lists as awaiting.
         if (!chatModel.isAwaitingUser) this.noteTurnEnd(threadId, getEndedEarly(chatModel));
         // The backend may have set a title, or the thread's place in the list may change.
@@ -534,6 +539,8 @@ export class ChatThreadsModel extends HoistModel {
     private noteTurnEnd(threadId: string, endedEarly: ChatThreadEndedEarly) {
         if (threadId === this.selectedThreadId) {
             this.noteSeen(threadId);
+            // The next list may report the turn's activity by a server clock that runs ahead.
+            this.seenOnNextList.add(threadId);
             return;
         }
         if (endedEarly) {
@@ -552,6 +559,19 @@ export class ChatThreadsModel extends HoistModel {
         if (threadId == null) return;
         const listed = find(this.threads, {id: threadId})?.lastActivityAt ?? 0;
         this.seenActivityAt = {...this.seenActivityAt, [threadId]: Math.max(Date.now(), listed)};
+    }
+
+    /**
+     * Raise the seen activity of threads whose turn the user watched end to the activity the
+     * store lists for them - see `seenOnNextList`.
+     */
+    @action
+    private noteSeenFromList(threads: ChatThreadSummary[]) {
+        threads.forEach(({id, lastActivityAt}) => {
+            if (!this.seenOnNextList.delete(id)) return;
+            const seen = Math.max(this.seenActivityAt[id] ?? 0, lastActivityAt ?? 0);
+            this.seenActivityAt = {...this.seenActivityAt, [id]: seen};
+        });
     }
 
     @action
@@ -707,6 +727,7 @@ export class ChatThreadsModel extends HoistModel {
         this.listedSearch = this.searchQuery;
         this.listedThreads = threads;
         this.localThreads = differenceBy(this.localThreads, threads, 'id');
+        this.noteSeenFromList(threads);
         this.pendingChanges = this.pendingChanges.filter(it => listNumber < it.doneBefore);
         this.listError = null;
     }
@@ -832,9 +853,9 @@ export class ChatThreadsModel extends HoistModel {
      */
     @computed
     private get routeThreadId(): string {
-        const {selectedThreadId: threadId, selectedThread: thread} = this;
-        if (!thread || thread.isSaved || some(this.listedThreads, {id: threadId})) return threadId;
-        return null;
+        const {selectedThreadId: threadId, selectedThread: thread} = this,
+            isSaved = thread && (thread.isSaved || some(this.listedThreads, {id: threadId}));
+        return isSaved ? threadId : null;
     }
 
     /** Put the selected thread in the route, replacing the current history entry. */
@@ -943,4 +964,14 @@ function restoreFeedbackDrafts(chatModel: ChatModel, saved: SavedFeedbackDraft[]
         );
         if (message) chatModel.setFeedbackDraft(message.id, draft);
     });
+}
+
+/**
+ * True if a chat's last turn reached the backend's run: its reply has content, is paused for the
+ * user, or recorded the run's id from `RUN_STARTED`.
+ */
+function hasRunStarted(chatModel: ChatModel): boolean {
+    const reply = chatModel.lastMessage;
+    if (!reply?.isAssistant) return false;
+    return reply.status === 'paused' || !isEmpty(reply.parts) || reply.metadata.runId != null;
 }

@@ -291,9 +291,10 @@ On the route with no parameter, the model writes the current selection into it. 
 ignores other routes.
 
 A new thread stays out of the route until the backend has it: until its first reply starts to
-stream, its first turn ends, or the store lists it. The route stays on its base path until then,
-so a reload or a bookmark before the first send opens a new chat. A thread that adopts the
-backend's id goes into the route under that id.
+stream, a turn ends whose run started, or the store lists it. A turn that fails before any
+response, or that the user stops before its run starts, leaves the thread out. The route stays on
+its base path until then, so a reload or a bookmark before the first send opens a new chat. A
+thread that adopts the backend's id goes into the route under that id.
 
 A deep link to a thread that the store reports missing, with a 404, sets `isThreadNotFound`, and
 the thread blocks sends, so that a send never recreates a deleted id. The workspace then shows

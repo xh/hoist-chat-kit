@@ -455,6 +455,25 @@ describe('ChatThreadsModel', () => {
             expect(model.endedEarlyThreads.cut?.runEnd).toBe('failed');
         });
 
+        it('does not mark a watched turn again when the server clock runs ahead', async () => {
+            spyHandleException();
+            const {model, store} = setup({respond: () => errorEvents('The model is overloaded.')}),
+                chatModel = model.newThread(),
+                {threadId} = chatModel;
+            await chatModel.sendAsync('Hello');
+            store.saveThread({
+                id: threadId,
+                lastRunEnd: 'failed',
+                lastActivityAt: Date.now() + 60_000
+            });
+
+            // The user leaves before the list refreshes.
+            await model.selectThreadAsync('t1');
+            await model.refreshAsync();
+
+            expect(model.endedEarlyThreads[threadId]).toBeUndefined();
+        });
+
         it('keeps a chat whose turn waits for the user, and lists it as awaiting', async () => {
             const {model} = setup({
                     respond: () => toolCallEvents('delete_rows', {count: 3}),

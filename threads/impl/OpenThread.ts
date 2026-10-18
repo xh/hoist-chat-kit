@@ -35,8 +35,9 @@ export class OpenThread extends HoistBase {
 
     /**
      * True if the thread may exist on the backend: one opened to load its history, or a new one
-     * whose first run has started to answer or has ended. False for a new thread until then, so
-     * that a route never holds an id the backend has not seen. (observable)
+     * whose reply has started to stream, or whose turn ended after its run started. False for a
+     * new thread until then, so that a route never holds an id the backend has not seen.
+     * (observable)
      */
     @observable accessor isSaved: boolean;
 
