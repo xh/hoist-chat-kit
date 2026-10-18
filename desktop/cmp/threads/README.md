@@ -67,7 +67,7 @@ A row shows at most one unusual state, in this order:
 
 Interrupted and Failed are the two looks of "ended early". The threads model sets them from a
 background turn that failed or that the server cut short, and from the store's `lastRunEnd` for a
-thread with no open chat.
+thread with no open chat. A thread the user has seen since its last activity shows no mark.
 
 A row in no unusual state shows no icon.
 

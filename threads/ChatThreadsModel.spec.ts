@@ -389,6 +389,37 @@ describe('ChatThreadsModel', () => {
             expect(model.endedEarlyThreads).toEqual({});
         });
 
+        it('does not mark a thread again after the user leaves it', async () => {
+            spyHandleException();
+            const store = new LocalChatThreadStore({
+                    threads: [
+                        {id: 'cut', lastRunEnd: 'interrupted', lastActivityAt: Date.now() - 1000},
+                        {id: 'other', lastActivityAt: Date.now() - 2000}
+                    ]
+                }),
+                {model} = setup({store, respond: () => errorEvents('The model is overloaded.')});
+            await model.loadAsync();
+
+            // A store-marked thread the user opens and leaves.
+            await model.selectThreadAsync('cut');
+            await model.selectThreadAsync('other');
+            expect(model.endedEarlyThreads).toEqual({});
+
+            // A turn that fails while the user watches, which the store then reports.
+            const chatModel = model.newThread(),
+                {threadId} = chatModel;
+            await chatModel.sendAsync('Hello');
+            store.saveThread({id: threadId, lastRunEnd: 'failed'});
+            await model.refreshAsync();
+            await model.selectThreadAsync('other');
+            expect(model.endedEarlyThreads).toEqual({});
+
+            // A later run on the server, after the user left, marks the thread again.
+            store.saveThread({id: 'cut', lastRunEnd: 'failed', lastActivityAt: Date.now() + 1000});
+            await model.refreshAsync();
+            expect(model.endedEarlyThreads.cut?.runEnd).toBe('failed');
+        });
+
         it('keeps a chat whose turn waits for the user, and lists it as awaiting', async () => {
             const {model} = setup({
                     respond: () => toolCallEvents('delete_rows', {count: 3}),

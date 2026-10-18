@@ -3,6 +3,7 @@ import {
     compact,
     difference,
     differenceBy,
+    find,
     findLast,
     isEmpty,
     isEqual,
@@ -193,18 +194,17 @@ export class ChatThreadsModel extends HoistModel {
      *
      *  - A turn that ended early in the background, in this session. The mark holds until the user
      *    opens the thread, or a new turn starts in it.
-     *  - The store's `lastRunEnd` and `lastRunReason`, for a thread with no open chat.
+     *  - The store's `lastRunEnd` and `lastRunReason`, for a thread with no open chat, unless the
+     *    user has seen the thread since its last activity in this session.
      */
     @computed
     get endedEarlyThreads(): Record<string, ChatThreadEndedEarly> {
-        const ret: Record<string, ChatThreadEndedEarly> = {};
-        this.threads.forEach(({id, lastRunEnd, lastRunReason}) => {
-            if (
-                (lastRunEnd === 'interrupted' || lastRunEnd === 'failed') &&
-                !this.openThreads[id]
-            ) {
-                ret[id] = {runEnd: lastRunEnd, reason: lastRunReason ?? null};
-            }
+        const ret: Record<string, ChatThreadEndedEarly> = {},
+            {openThreads, seenActivityAt} = this;
+        this.threads.forEach(({id, lastRunEnd, lastRunReason, lastActivityAt}) => {
+            if (lastRunEnd !== 'interrupted' && lastRunEnd !== 'failed') return;
+            if (openThreads[id] || lastActivityAt <= (seenActivityAt[id] ?? -Infinity)) return;
+            ret[id] = {runEnd: lastRunEnd, reason: lastRunReason ?? null};
         });
         return {...ret, ...this.endedEarlyHere};
     }
@@ -388,6 +388,9 @@ export class ChatThreadsModel extends HoistModel {
     // Threads started here that the store has not listed yet, newest first.
     @observableRef private accessor localThreads: ChatThreadSummary[] = [];
 
+    // When the user last saw each thread, in this session, by id - see `endedEarlyThreads`.
+    @observableRef private accessor seenActivityAt: Record<string, number> = {};
+
     // Threads whose turn ended early in the background, in this session - see `endedEarlyThreads`.
     @observableRef private accessor endedEarlyHere: Record<string, ChatThreadEndedEarly> = {};
 
@@ -522,12 +525,26 @@ export class ChatThreadsModel extends HoistModel {
      */
     @action
     private noteTurnEnd(threadId: string, endedEarly: ChatThreadEndedEarly) {
-        if (threadId === this.selectedThreadId) return;
+        if (threadId === this.selectedThreadId) {
+            this.noteSeen(threadId);
+            return;
+        }
         if (endedEarly) {
             this.endedEarlyHere = {...this.endedEarlyHere, [threadId]: endedEarly};
         } else {
             this.finishedAwayThreadIds = union(this.finishedAwayThreadIds, [threadId]);
         }
+    }
+
+    /**
+     * Record that the user has seen a thread as of now, or as of its listed activity if that is
+     * later - a server's clock may run ahead.
+     */
+    @action
+    private noteSeen(threadId: string) {
+        if (threadId == null) return;
+        const listed = find(this.threads, {id: threadId})?.lastActivityAt ?? 0;
+        this.seenActivityAt = {...this.seenActivityAt, [threadId]: Math.max(Date.now(), listed)};
     }
 
     @action
@@ -538,6 +555,9 @@ export class ChatThreadsModel extends HoistModel {
 
     @action
     private setSelectedThreadId(threadId: string) {
+        // The user has seen the thread they leave, and the one they open, as of now.
+        this.noteSeen(this.selectedThreadId);
+        this.noteSeen(threadId);
         this.selectedThreadId = threadId;
         this.finishedAwayThreadIds = without(this.finishedAwayThreadIds, threadId);
         this.clearEndedEarly(threadId);
