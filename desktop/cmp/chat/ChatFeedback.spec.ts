@@ -288,7 +288,9 @@ describe('ChatMessageView feedback', () => {
             expect(chatModel.feedbackDrafts.a1).toEqual({
                 rating: 'negative',
                 comment: 'Kept for later.',
-                isPending: true
+                isPending: true,
+                isSending: false,
+                error: null
             });
             render(chatMessageList({model: chatModel}));
 
@@ -299,6 +301,27 @@ describe('ChatMessageView feedback', () => {
             typeComment('Kept, and sent.');
             await act(() => fireEvent.click(sendButton()));
             expect(chatModel.feedbackDrafts).toEqual({});
+        });
+
+        it('keeps a send in progress, and its failure, across a new view of the list', async () => {
+            let reject: (e: Error) => void;
+            const submitAsync = vi.fn(() => new Promise<void>((_, it) => (reject = it))),
+                {chatModel, unmount} = renderChat({requireComment: true, submitAsync});
+
+            await clickThumb('Bad response');
+            typeComment('Mid-flight.');
+            fireEvent.click(sendButton());
+            unmount();
+            render(chatMessageList({model: chatModel}));
+
+            expect(screen.getByRole('button', {name: 'Sending…'})).toHaveProperty('disabled', true);
+            expect(screen.queryByRole('button', {name: 'Send Feedback'})).toBeNull();
+
+            await act(async () => reject(new Error('Gateway timeout')));
+            expect(formError().textContent).toBe("Couldn't send feedback. Your comment is kept.");
+            expect(screen.getByRole('button', {name: 'Retry'})).toBeTruthy();
+            expect((commentField() as HTMLTextAreaElement).value).toBe('Mid-flight.');
+            expect(submitAsync).toHaveBeenCalledOnce();
         });
 
         it('drops the draft on Cancel, and when the chat clears', async () => {

@@ -458,8 +458,8 @@ without a comment suits `{requireComment: true}`. See
 [Collect feedback](../desktop/cmp/chat/README.md#collect-feedback) for the form.
 
 `feedbackDrafts` holds the comment typed in an open form, by message id, until it is sent. The
-form writes it with `setFeedbackDraft()`. A half-typed comment then survives a redraw of the
-message list. A draft goes when its comment is sent, when its message goes, and when the chat
+form writes it with `setFeedbackDraft()`, with `isSending` and the last `error`. A half-typed
+comment and a send in progress then survive a redraw of the message list. A draft goes when its comment is sent, when its message goes, and when the chat
 clears or loads a thread.
 
 ### Clean up model text
@@ -1041,7 +1041,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `hasOlderMessages` | `boolean` | True if older history remains to page in. `@bindable`. Default false. |
 | `canSubmitFeedback` | `boolean` | True if `feedback.submitAsync` or a thread layer submitter is set. |
 | `feedbackErrors` | `Record<string, Error>` | Why the last feedback on a message failed to save, by message id, for the form to show. Cleared on the next submit. Observable. |
-| `feedbackDrafts` | `Record<string, ChatFeedbackDraft>` | Comments typed in feedback forms and not yet sent, by message id. Observable. |
+| `feedbackDrafts` | `Record<string, ChatFeedbackDraft>` | Comments typed in feedback forms and not yet sent, by message id, with their send state and last error. Observable. |
 | `undoErrors` | `Record<string, Error>` | Why the last undo of a reply failed, by message id. Cleared on the next try. Observable. |
 | `canRefreshStatus` | `boolean` | True once a refresher is set with `setStatusRefresher()`. |
 | `isBusy` | `boolean` | True for `submitted` or `streaming`. False while a turn is paused. |

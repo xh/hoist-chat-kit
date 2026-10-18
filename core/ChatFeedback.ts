@@ -80,4 +80,10 @@ export interface ChatFeedbackDraft {
 
     /** True if the rating saves only with the comment, so nothing is saved yet. */
     isPending: boolean;
+
+    /** True while the comment sends. */
+    isSending: boolean;
+
+    /** Why the last send of the comment failed, or null. */
+    error: Error;
 }

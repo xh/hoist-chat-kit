@@ -2,7 +2,7 @@ import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ScriptedChatTransport, textEvents} from '../transport';
-import type {ChatFeedbackSpec} from './ChatFeedback';
+import type {ChatFeedbackDraft, ChatFeedbackSpec} from './ChatFeedback';
 import type {ChatMessageSpec} from './ChatMessage';
 import {ChatModel, type ChatModelConfig} from './ChatModel';
 
@@ -110,7 +110,7 @@ describe('ChatModel feedback and paged history', () => {
             );
         });
 
-        it('asks no comment when comments are off, even where one is required', async () => {
+        it('saves a thumbs down with no comment when comments are off, even with requireComment', async () => {
             const model = createModel({
                 feedback: {submitAsync: async () => {}, allowComment: false, requireComment: true}
             });
@@ -172,7 +172,13 @@ describe('ChatModel feedback and paged history', () => {
     });
 
     describe('feedbackDrafts', () => {
-        const DRAFT = {rating: 'negative', comment: 'Half typed', isPending: true} as const;
+        const DRAFT: ChatFeedbackDraft = {
+            rating: 'negative',
+            comment: 'Half typed',
+            isPending: true,
+            isSending: false,
+            error: null
+        };
 
         it('keeps a draft by message, and drops it once its comment is sent', async () => {
             const model = createModel({feedback: {submitAsync: async () => {}}});

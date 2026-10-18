@@ -1076,7 +1076,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
 
     /**
      * Keep the comment typed in a message's feedback form, or remove it with null - see
-     * {@link feedbackDrafts}. The feedback form calls this as the user types.
+     * {@link feedbackDrafts}. The feedback form calls this as the user types and as it sends.
+     * The kit's form keeps one draft open per chat at a time.
      */
     @action
     setFeedbackDraft(messageId: string, draft: ChatFeedbackDraft) {

@@ -1,4 +1,4 @@
-import {first, keys, last} from 'lodash';
+import {isEmpty, keys, last, pickBy} from 'lodash';
 import type {ReactElement, ReactNode, RefObject} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps} from '@xh/hoist/core';
@@ -53,12 +53,6 @@ export class ChatMessageFeedbackModel extends HoistModel {
     /** True while a rating saves without a form. */
     @observable accessor isSaving = false;
 
-    /** True while the form sends. */
-    @observable accessor isSubmitting = false;
-
-    /** Why the form's last send failed, or null. Cleared by any change to the comment. */
-    @observableRef accessor formError: Error = null;
-
     readonly upRef = createObservableRef<HTMLElement>();
     readonly downRef = createObservableRef<HTMLElement>();
     readonly inputRef = createObservableRef<HTMLInputElement>();
@@ -72,8 +66,8 @@ export class ChatMessageFeedbackModel extends HoistModel {
 
     constructor() {
         super();
-        // Focus moves to the comment only when the user opened the form - never when it mounts
-        // again after a scroll or a thread switch.
+        // Focus moves to the comment only when the user opened the form - never when the form
+        // mounts again in a new view.
         this.addReaction({
             track: () => this.inputRef.current,
             run: el => {
@@ -129,9 +123,18 @@ export class ChatMessageFeedbackModel extends HoistModel {
     setComment(comment: string) {
         const {form} = this;
         if (!form) return;
-        this.chatModel.setFeedbackDraft(this.message.id, {...form, comment});
         // A change after a failed send makes a new payload, so Send replaces Retry.
-        this.formError = null;
+        this.chatModel.setFeedbackDraft(this.message.id, {...form, comment, error: null});
+    }
+
+    /** True while the form sends. Kept on the draft, so that a new view of the form sees it. */
+    get isSubmitting(): boolean {
+        return !!this.form?.isSending;
+    }
+
+    /** Why the form's last send failed, or null. Kept on the draft, as `isSubmitting` is. */
+    get formError(): Error {
+        return this.form?.error ?? null;
     }
 
     /** True if the server refused the form's comment itself - see {@link isFeedbackRejected}. */
@@ -154,9 +157,10 @@ export class ChatMessageFeedbackModel extends HoistModel {
      * closes instead.
      */
     get blockReason(): string {
-        const open = this.openDraft;
-        if (!open || !open.draft.comment.trim()) return null;
-        return open.messageId === this.message.id
+        const drafts = this.chatModel?.feedbackDrafts ?? {},
+            blocking = keys(pickBy(drafts, it => it.comment.trim()));
+        if (isEmpty(blocking)) return null;
+        return blocking.includes(this.message.id)
             ? 'Send or cancel your comment first.'
             : 'Finish or cancel your other feedback.';
     }
@@ -231,20 +235,20 @@ export class ChatMessageFeedbackModel extends HoistModel {
 
     /** Send the open form's rating and comment. */
     async sendAsync() {
-        const {form} = this;
+        const {form, chatModel, message} = this;
         if (!this.canSend) return;
 
         const payload: FeedbackPayload = {rating: form.rating, comment: form.comment};
-        this.setSubmitting(true);
-        this.setFormError(null);
+        chatModel.setFeedbackDraft(message.id, {...form, isSending: true, error: null});
         focusSoon(this.sendRef);
         const error = await this.submitAsync(payload);
-        this.setSubmitting(false);
+
+        // The draft goes once its comment is sent, or if the chat cleared while the send ran.
+        const current = chatModel.feedbackDrafts[message.id];
+        if (current) chatModel.setFeedbackDraft(message.id, {...current, isSending: false, error});
 
         if (error) {
-            // The form closed while the send ran, as when the chat cleared.
-            if (!this.form) return;
-            this.setFormError(error);
+            if (!current) return;
             chatAnnouncer.announce(
                 this.isRejected ? error.message : 'Feedback not sent. Your comment is kept.',
                 'assertive'
@@ -317,25 +321,23 @@ export class ChatMessageFeedbackModel extends HoistModel {
         return last(this.chatModel.messages.filter(it => it.isUser))?.id ?? '';
     }
 
-    /** The chat's open form, for this message or another, or null. */
-    private get openDraft(): {messageId: string; draft: ChatFeedbackDraft} {
-        const drafts = this.chatModel?.feedbackDrafts ?? {},
-            messageId = first(keys(drafts));
-        return messageId != null ? {messageId, draft: drafts[messageId]} : null;
-    }
-
     private requiresComment(rating: ChatFeedbackRating): boolean {
         return this.asksComment(rating) && this.settings.requireComment;
     }
 
-    @action
     private openForm(rating: ChatFeedbackRating, isPending: boolean) {
-        this.formError = null;
         this.isFocusPending = true;
-        this.chatModel.setFeedbackDraft(this.message.id, {rating, comment: '', isPending});
+        this.chatModel.setFeedbackDraft(this.message.id, {
+            rating,
+            comment: '',
+            isPending,
+            isSending: false,
+            error: null
+        });
     }
 
     // The chat keeps one form open - opening one closes the rest.
+    @action
     private closeForms() {
         const {chatModel} = this;
         keys(chatModel.feedbackDrafts).forEach(id => chatModel.setFeedbackDraft(id, null));
@@ -415,16 +417,6 @@ export class ChatMessageFeedbackModel extends HoistModel {
     @action
     private setSaving(isSaving: boolean) {
         this.isSaving = isSaving;
-    }
-
-    @action
-    private setSubmitting(isSubmitting: boolean) {
-        this.isSubmitting = isSubmitting;
-    }
-
-    @action
-    private setFormError(error: Error) {
-        this.formError = error;
     }
 
     @action
