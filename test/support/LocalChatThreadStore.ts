@@ -1,6 +1,6 @@
 import {cloneDeep, find, omit, orderBy, pull, remove} from 'lodash';
 import {wait} from '@xh/hoist/promise';
-import {type ChatFeedbackSpec, ChatMessage, type ChatMessageSpec} from '../core';
+import {type ChatFeedbackSpec, ChatMessage, type ChatMessageSpec} from '../../core';
 import type {
     ChatMessagePage,
     ChatMessageQuery,
@@ -8,8 +8,8 @@ import type {
     ChatThreadQuery,
     ChatThreadStore,
     ChatThreadSummary
-} from './ChatThreadStore';
-import {titleFromText} from './impl/threadUtils';
+} from '../../threads';
+import {titleFromText} from '../../threads/impl/threadUtils';
 
 /** Configuration for a {@link LocalChatThreadStore}. */
 export interface LocalChatThreadStoreConfig {
@@ -54,8 +54,8 @@ export interface LocalChatThreadStoreCall {
 }
 
 /**
- * A {@link ChatThreadStore} that holds its threads in memory, for tests, demos and offline
- * development. It answers as a backend would: threads most recently active first, a missing
+ * A {@link ChatThreadStore} that holds its threads in memory, for the kit's own specs. It is a
+ * test fixture, and does not ship in the package. It answers as a backend would: threads most recently active first, a missing
  * thread as a 404, and a delete of a missing thread as a success.
  *
  * Tests control its timing. `hold()` makes calls to a method wait until the test releases or fails

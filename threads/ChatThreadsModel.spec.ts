@@ -13,7 +13,7 @@ import {
     toolCallEvents
 } from '../transport';
 import {type ChatThreadsConfig, ChatThreadsModel} from './ChatThreadsModel';
-import {type LocalChatThread, LocalChatThreadStore} from './LocalChatThreadStore';
+import {type LocalChatThread, LocalChatThreadStore} from '../test/support/LocalChatThreadStore';
 
 /**
  * The thread layer's contract. Apps rely on it to keep each conversation's state in its own chat,

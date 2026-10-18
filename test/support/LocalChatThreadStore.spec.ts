@@ -2,9 +2,9 @@ import {describe, expect, it} from 'vitest';
 import {LocalChatThreadStore} from './LocalChatThreadStore';
 
 /**
- * The in-memory thread store that tests and demos run against. It must answer as a real backend
- * does - with 404s for missing threads and idempotent creates - and give tests exact
- * control over when each call completes.
+ * The in-memory thread store that the kit's specs run against. It must answer as a real backend
+ * does - with 404s for missing threads - and give tests exact control over when each call
+ * completes.
  */
 describe('LocalChatThreadStore', () => {
     it('lists threads most recent first, with search', async () => {

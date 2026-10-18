@@ -230,7 +230,6 @@
         "ChatThreadPage",
         "ChatMessagePage",
         "ChatSeedSpec",
-        "LocalChatThreadStore",
         "groupThreadsByRecency",
         "ChatThreadGroup",
         "thread list",

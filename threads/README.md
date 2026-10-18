@@ -6,7 +6,7 @@
 | [Architecture](#architecture) | `ChatThreadsModel`, `ChatThreadStore`, open chats, and the concurrency rules |
 | [Configuration Pattern](#configuration-pattern) | Implementing a store and creating a `ChatThreadsModel` |
 | [Common Usage Patterns](#common-usage-patterns) | Selecting, background turns, search, edits, deep links, grouping |
-| [Properties/API Reference](#propertiesapi-reference) | Config, state, methods, the store contract, and the local store |
+| [Properties/API Reference](#propertiesapi-reference) | Config, state, methods, and the store contract |
 | [Extension Points](#extension-points) | Stores, chat creation, and the chat seams the layer uses |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
 | [Related Packages](#related-packages) | Core models, transports, and Hoist packages |
@@ -38,8 +38,6 @@ Key features:
 - **Deep links** - the selected thread and a route parameter stay in sync both ways.
 - **Recency groups** - `groupThreadsByRecency()` sorts threads into Today, Yesterday and older
   groups for a list UI.
-- **`LocalChatThreadStore`** - an in-memory store for tests, demos and offline work, with
-  latency, failures and held calls on request.
 
 ## Architecture
 
@@ -295,29 +293,8 @@ const groups = groupThreadsByRecency(threadsModel.threads);
 ```
 
 Threads group by the calendar day of `lastActivityAt` in the browser's time zone: Today,
-Yesterday, Previous 7 days, Previous 30 days and Older. Each group is
-sorted most recent first, and empty groups are left out.
-
-### Test or demo with the local store
-
-```typescript
-const store = new LocalChatThreadStore({
-    threads: [{id: 't1', title: 'Budget review', messages: [{role: 'user', content: 'Hi'}]}],
-    delayMs: 300
-});
-
-// In a test, force responses out of order
-store.hold('listThreadsAsync');
-const first = threadsModel.loadAsync(),
-    second = threadsModel.refreshAsync();
-const [older, newer] = store.heldCalls('listThreadsAsync');
-newer.release();
-older.release();
-```
-
-The store does not see the chat's runs. Record what the backend would with `saveThread()`, from
-a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save from
-`onTurnPause` too, so that a reply paused on an agent's questions keeps them across a reload.
+Yesterday, Previous 7 days, Previous 30 days and Older. Each group is sorted most recent first,
+and empty groups are left out.
 
 ## Properties/API Reference
 
@@ -382,23 +359,6 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save
 | `lastRunEnd` | `'complete' \| 'interrupted' \| 'failed'` | How the last run ended, if the backend reports it. Feeds `endedEarlyThreads` for a thread with no open chat. Optional. |
 | `lastRunReason` | `string` | Why the last run ended so, for a tooltip. Optional. |
 | `metadata` | `PlainObject` | App data. Optional. |
-
-### LocalChatThreadStore
-
-| Member | Description |
-|--------|-------------|
-| `threads` config | Threads to start with, each a summary with `messages`. |
-| `delayMs` config | Latency of each call. Default 0. |
-| `omit` config | Optional methods to leave out. |
-| `saveThread(thread)` | Add or update a thread, as the backend would on a run. |
-| `getThread(threadId)` | A copy of a thread, or null. |
-| `hold(method, isHeld?)` | Hold calls to a method until the test releases each one. |
-| `heldCalls(method?)` | Calls still held. Each has `release()` and `fail(error?)`. |
-| `failNext(method, error?)` | Fail the next call to a method. |
-| `calls` | Every call made, with its method and arguments. |
-
-A held read answers with the data as it was when called. A held write takes effect when
-released.
 
 ## Extension Points
 

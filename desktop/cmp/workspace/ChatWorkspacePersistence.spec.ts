@@ -3,7 +3,8 @@ import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished} from 'vitest';
 import {ChatModel} from '../../../core';
-import {ChatThreadsModel, LocalChatThreadStore} from '../../../threads';
+import {LocalChatThreadStore} from '../../../test/support/LocalChatThreadStore';
+import {ChatThreadsModel} from '../../../threads';
 import {ScriptedChatTransport, textEvents} from '../../../transport';
 import {ChatWorkspaceModel} from './ChatWorkspaceModel';
 

@@ -4,7 +4,7 @@ import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'v
 import {ChatModel} from '../core';
 import {type ChatEvent, ScriptedChatTransport, textEvents} from '../transport';
 import {ChatThreadsModel} from './ChatThreadsModel';
-import {LocalChatThreadStore} from './LocalChatThreadStore';
+import {LocalChatThreadStore} from '../test/support/LocalChatThreadStore';
 
 /**
  * Route binding for ChatThreadsModel, against Hoist's real router. A deep link must open its
