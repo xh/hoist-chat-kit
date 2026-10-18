@@ -21,7 +21,12 @@ import {classNames} from '../../impl/ClassNames';
 import {htmlButton} from '../../impl/HtmlTags';
 import '../../styles/vars.scss';
 import './ChatMarkdown.scss';
-import {findCitedSource, getExcerpt, openSourceUrl} from '../../impl/sources';
+import {
+    findCitedSource,
+    getCitationGroupLabels,
+    getExcerpt,
+    openSourceUrl
+} from '../../impl/sources';
 import {CITATION_TAG, remarkCitations} from './impl/CitationMarkers';
 import {closeMarkdownSyntax, isProseBlock, splitMarkdownBlocks} from './impl/StreamingMarkdown';
 
@@ -68,9 +73,10 @@ export interface ChatMarkdownCitations {
     renderMarker?: (marker: ReactElement, source: ChatSourcePart, number: number) => ReactNode;
 
     /**
-     * Renders the one button that stands for a marker of four or more sources, such as `[2–5]`, in
-     * place of the default. Receives the default button, labeled with the first and last numbers,
-     * and the cited sources with their numbers. Read as each marker renders.
+     * Renders the one button that stands for a marker of four or more sources, such as
+     * `[2, 3, 4, 5]`, in place of the default. Receives the default button and the cited sources
+     * with their numbers. The default button reads "2–5" for consecutive numbers, else "4
+     * sources". Read as each marker renders.
      *
      * The default button lists every source in its tooltip, but a click opens only the first.
      * Replace it to give the user a way to open each source, as the desktop chat's card does.
@@ -431,26 +437,26 @@ function createCitation(citationsRef: {current: ChatMarkdownCitations}) {
     };
 }
 
-// One button for a marker of many sources, labeled with the first and last numbers. A click opens
-// the first source - `renderGroup` replaces the button to offer each.
+// One button for a marker of many sources - labeled with the first and last numbers when they
+// run in order, else with the count. A click opens the first source - `renderGroup` replaces the
+// button to offer each.
 function groupMarker(
     cited: ChatCitedSource[],
     onClick: (source: ChatSourcePart) => void,
     renderGroup: ChatMarkdownCitations['renderGroup']
 ): ReactNode {
-    const first = cited[0].number,
-        last = cited[cited.length - 1].number,
+    const {text, label} = getCitationGroupLabels(cited.map(it => it.number)),
         marker = htmlButton({
             type: 'button',
             className: `${CITATION_CLS}-marker ${CITATION_CLS}-marker--group`,
-            'aria-label': `Sources ${first} to ${last}`,
+            'aria-label': label,
             title: renderGroup
                 ? null
                 : cited
                       .map(({number, source}) => `${number}. ${getSourceLabel(source)}`)
                       .join('\n'),
             onClick: () => (onClick ?? openSourceUrl)(cited[0].source),
-            item: `${first}–${last}`
+            item: text
         });
     return renderGroup ? renderGroup(marker, cited) : marker;
 }

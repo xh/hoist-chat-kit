@@ -200,9 +200,11 @@ part that ends in a code block, a table or a quote puts them on the last paragra
 Numbers run across the whole reply, in order of first citation, and never change once given.
 Sources that arrive after the text take the numbers of their citations.
 
-Some backends cite inline instead, as `[1]`, `[1, 3]` or `[2–5]` in the text. With
+Some backends cite inline instead, as `[1]`, `[1, 3]` or `[1][3]` in the text. With
 `citationMarkers` on, each number renders as a 14 px marker for the source it cites. A marker for
-four or more sources collapses to one marker, such as "2–5". See
+four or more sources collapses to one marker. It reads "2–5" when the numbers are consecutive,
+and "4 sources" when they are not. Its card lists each source. A range such as `[2-5]` stays as
+written. See
 [Citation markers](../../../cmp/markdown/README.md#citation-markers) for how markers match
 sources. Sources then take the numbers that cite them: their `marker`, or their position when no
 source has a marker.
@@ -212,6 +214,9 @@ number, the icon, the title, the file name and page or the host, and the excerpt
 Open Passage or Open Link, and Copy Excerpt. It shows only what the source carries. Tab moves
 into the card's buttons and on to the next marker. Esc closes the card and keeps focus on the
 marker.
+
+A click on a marker opens its source, as a click on its row in the sources list does. A source
+that nothing can open pins its card instead.
 
 ### Sources list
 
@@ -225,9 +230,10 @@ A source's `sourceType` sets its row and what a click does:
 | `sourceType` | Row | Click |
 |---|---|---|
 | `document` | File-type icon, title, then `metadata.fileName` and `metadata.page` | Opens the side panel when one is in reach, else `onSourceClick`, else its URL in a new tab |
-| `url` | Favicon or letter tile, title as a link, then the host and an external-link icon | Opens a new tab, or `onSourceClick` in its place. A web page's marker pins its card instead |
+| `url` | Favicon or letter tile, title as a link, then the host and an external-link icon | Opens a new tab, or `onSourceClick` in its place |
 
-A Ctrl or Cmd click opens a source's URL in a new tab. Only `http` and `https` URLs open.
+A Ctrl or Cmd click on a row opens the source's URL in a new tab. Only `http` and `https` URLs
+open.
 
 A favicon comes from `metadata.favicon` only, and follows the image policy. A `data:` image always
 shows, and an image URL loads only if `allowImages` permits it. Otherwise a letter tile shows. The

@@ -238,19 +238,12 @@ describe('sources and citations', () => {
             expect(screen.getByRole('group', {name: 'Source 2'})).toBeTruthy();
         });
 
-        it("pins a web page's card on click, and opens the page from the card or on Ctrl-click", () => {
+        it("opens a web page's marker in a new tab, as its row does", () => {
             renderReply('See [3].', [WEB3]);
 
             fireEvent.click(marker(3));
-            fireEvent.mouseLeave(marker(3).parentElement);
-            expect(screen.getByRole('group', {name: 'Source 3'})).toBeTruthy();
-            expect(open).not.toHaveBeenCalled();
-
-            fireEvent.click(screen.getByRole('button', {name: 'Open Link'}));
-            expect(open).toHaveBeenCalledWith(WEB3.url, '_blank', 'noopener,noreferrer');
-
-            fireEvent.click(marker(3), {ctrlKey: true});
-            expect(open).toHaveBeenCalledTimes(2);
+            expect(open).toHaveBeenCalledExactlyOnceWith(WEB3.url, '_blank', 'noopener,noreferrer');
+            expect(screen.queryByRole('group', {name: 'Source 3'})).toBeNull();
         });
 
         it("opens a document's marker in the side panel, and shows it active", () => {
@@ -281,13 +274,22 @@ describe('sources and citations', () => {
 
         it('collapses four or more sources into one marker whose card lists them all', () => {
             const sources = [1, 2, 3, 4, 5].map(n => doc(n));
-            renderReply('All agree [2–5].', sources);
+            renderReply('All agree [2, 3, 4, 5].', sources);
             const group = screen.getByRole('button', {name: 'Sources 2 to 5'});
+            expect(group.textContent).toBe('2–5');
 
             fireEvent.click(group);
             const card = screen.getByRole('group', {name: 'Sources 2 to 5'});
             expect(card.textContent).toContain('Doc 2');
             expect(card.textContent).toContain('Doc 5');
+        });
+
+        it('labels a group with its count when the numbers are not consecutive', () => {
+            const sources = [1, 2, 3, 4, 5].map(n => doc(n));
+            renderReply('All agree [1, 2, 4, 5].', sources);
+
+            const group = screen.getByRole('button', {name: 'Sources 1, 2, 4, 5'});
+            expect(group.textContent).toBe('4 sources');
         });
     });
 });

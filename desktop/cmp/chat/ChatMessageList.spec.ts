@@ -460,9 +460,8 @@ describe('ChatMessageList', () => {
             fireEvent.click(screen.getByRole('button', {name: /Source 2/}));
             expect(onSourceClick).toHaveBeenLastCalledWith(SOURCES[1], context);
 
-            // A web page's marker pins its card, whose Open Link opens it.
+            // A web page's marker opens it, as any other source's does.
             fireEvent.click(container.querySelector('.xh-chat-citations .xh-chat-citation-marker'));
-            fireEvent.click(screen.getByRole('button', {name: 'Open Link'}));
             expect(onSourceClick).toHaveBeenLastCalledWith(SOURCES[0], context);
 
             fireEvent.click(screen.getByRole('button', {name: 'Guideline 4.2'}));
