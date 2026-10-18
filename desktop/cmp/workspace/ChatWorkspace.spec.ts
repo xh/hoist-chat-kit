@@ -191,6 +191,7 @@ describe('ChatWorkspace', () => {
         });
 
         it('resizes the sidebar and the side panel against the conversation, their sibling', () => {
+            // Resize containers' offsetWidth, each a panel's size plus its 8 px splitter.
             const widths: Record<string, number> = {
                 'xh-chat-workspace__sidebar': 268,
                 'xh-chat-workspace__side-panel': 528
@@ -218,6 +219,8 @@ describe('ChatWorkspace', () => {
             expect(sidebarEl.nextElementSibling).toBe(main);
             expect(sidePanelEl.previousElementSibling).toBe(main);
 
+            // Hoist's DraggerModel starts from the resize container's offsetWidth, which includes
+            // the splitter, so a drag of N px grows the panel by more than N.
             act(() => dragPanel(sidebarEl, 40));
             expect(model.sidebarModel.size).toBe(308);
 
