@@ -183,18 +183,19 @@ describe('ChatThreadsModel', () => {
         });
 
         it('5. keeps drafts and run options in their own thread', async () => {
-            const {model} = setup(),
-                first = model.newThread(),
-                firstId = first.threadId;
+            const {model} = setup();
+            await model.selectThreadAsync('t1');
+            const first = model.chatModel;
             first.composerModel.text = 'Draft for the first';
             first.runOptions = {scope: ['doc-1']};
 
-            const second = model.newThread({runOptions: {scope: ['doc-2']}});
+            await model.selectThreadAsync('t2');
+            const second = model.chatModel;
             expect(second.composerModel.text).toBe('');
-            expect(second.runOptions).toEqual({scope: ['doc-2']});
+            expect(second.runOptions).not.toEqual({scope: ['doc-1']});
             expect(first.isDestroyed).toBe(true);
 
-            await model.selectThreadAsync(firstId);
+            await model.selectThreadAsync('t1');
             expect(model.chatModel.composerModel.text).toBe('Draft for the first');
             expect(model.chatModel.runOptions).toEqual({scope: ['doc-1']});
         });
@@ -552,6 +553,21 @@ describe('ChatThreadsModel', () => {
 
             expect(savedDraft('t1')).toBeNull();
             expect(savedDraft('t2')).toBeNull();
+        });
+
+        it('discards the drafts of a new thread the backend never saw, when it closes', async () => {
+            const {model} = setup({chat: {composer: {drafts: 'local'}}}),
+                chatModel = model.newThread(),
+                {threadId} = chatModel;
+            chatModel.composerModel.text = 'A question I never sent';
+            chatModel.runOptions = {scope: ['doc-1']};
+
+            model.newThread();
+
+            expect(chatModel.isDestroyed).toBe(true);
+            expect(savedDraft(threadId)).toBeNull();
+            await model.selectThreadAsync(threadId);
+            expect(model.chatModel.composerModel.text).toBe('');
         });
 
         it('removes the saved draft of a deleted thread not opened this session', async () => {

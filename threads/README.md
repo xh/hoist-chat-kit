@@ -83,7 +83,8 @@ thread. The model keeps a closed thread's draft, run options and unsent feedback
 memory for the session, and gives them back when the thread opens again. A comment finds its
 message in the reloaded history by the id the chat streamed it under, or by the server's id that
 the reply recorded. A comment that was sending as the chat closed does not come back. A reload of
-an open thread keeps its comments too.
+an open thread keeps its comments too. A new thread that the backend never saw drops its drafts
+when its chat closes, in memory and in local storage, as no list can bring it back.
 
 The app builds each chat with `createChatModel`. The threads model then wires three seams on
 it:

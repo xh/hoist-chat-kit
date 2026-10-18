@@ -626,11 +626,25 @@ export class ChatThreadsModel extends HoistModel {
         );
         if (isEmpty(idle)) return;
 
+        // A thread the backend never saw can never be listed or opened again, so its drafts go.
+        const unsavedIds: string[] = [];
         Object.entries(idle).forEach(([id, thread]) => {
-            this.saveDraft(id, thread.chatModel);
+            if (this.isThreadSaved(thread)) {
+                this.saveDraft(id, thread.chatModel);
+            } else {
+                unsavedIds.push(id);
+            }
             thread.destroy();
         });
+        // After the chats close, as a composer saves its draft when destroyed.
+        if (!isEmpty(unsavedIds)) ChatKit.clearLocalData(unsavedIds);
         this.openThreads = omit(this.openThreads, keys(idle));
+    }
+
+    /** True if the backend may have a thread: saved by its chat, or listed by the store. */
+    private isThreadSaved(thread: OpenThread): boolean {
+        const {threadId} = thread.chatModel;
+        return thread.isSaved || some(this.listedThreads, {id: threadId});
     }
 
     /**
@@ -866,9 +880,8 @@ export class ChatThreadsModel extends HoistModel {
      */
     @computed
     private get routeThreadId(): string {
-        const {selectedThreadId: threadId, selectedThread: thread} = this,
-            isSaved = thread && (thread.isSaved || some(this.listedThreads, {id: threadId}));
-        return isSaved ? threadId : null;
+        const {selectedThreadId: threadId, selectedThread: thread} = this;
+        return thread && this.isThreadSaved(thread) ? threadId : null;
     }
 
     /** Put the selected thread in the route, replacing the current history entry. */
