@@ -40,8 +40,8 @@ export interface ChatKitDefaults {
      * Where the composer keeps its unsent draft text.
      *
      *  - `local` - in local storage, per thread, through `XH.localStorageService`, which keys it
-     *    by app and user. A draft survives a reload, and shows "Draft from 10:31 restored" when
-     *    it comes back. Call {@link ChatKit.clearLocalData} on logout to remove the drafts.
+     *    by app and user, so no other user sees it. A draft survives a reload, and shows "Draft
+     *    from 10:31 restored" when it comes back.
      *  - `memory` - in the composer only, lost with the page.
      *
      * Attachments always stay in memory. `ChatComposerConfig.drafts` overrides it for one
@@ -95,7 +95,6 @@ export class ChatKit {
         assistantIcon: () => Icon.ai(),
         reducedMotionSpinner: 'static',
         stallAfterMs: 30_000,
-        // TODO(design-open B6) - local drafts, cleared on logout by `ChatKit.clearLocalData()`.
         drafts: 'local',
         shortcuts: {
             newChat: 'mod+shift+o',
@@ -107,12 +106,12 @@ export class ChatKit {
     };
 
     /**
-     * Remove everything the kit keeps in local storage for the current user, such as composer
-     * drafts. Hoist has no logout hook, so call it from the app's logout - before
-     * `XH.logoutAsync()`.
+     * Remove the kit's local data for the current user: all of it, such as every composer draft,
+     * or the drafts of the given threads. `XH.localStorageService` keys the data by app and user,
+     * so an app need not call this on logout. Call it for a "forget my drafts" action, or for
+     * threads the app deletes outside a `ChatThreadsModel`, which clears its own.
      *
-     * @param threadIds - threads to remove the data of, such as threads the user deleted. Default
-     *      all.
+     * @param threadIds - threads to remove the drafts of. Default all of the kit's data.
      */
     static clearLocalData(threadIds: string[] = null) {
         const storage = XH.localStorageService;

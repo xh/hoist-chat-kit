@@ -473,8 +473,9 @@ The composer saves its draft text per thread through `XH.localStorageService`, a
 of 500 ms. When the thread opens again, the composer restores the text and the status region
 shows "Draft from 10:31am restored." with Discard. A chat that moves to a thread with no draft
 empties its composer. The draft goes when its message sends.
-Attachments stay in memory only. Call `ChatKit.clearLocalData()` from your logout, as Hoist has
-no logout hook. See [Keep drafts](../../../core/README.md#keep-drafts) for the settings.
+Attachments stay in memory only. `XH.localStorageService` keys each draft by app and user, so
+another user never sees it. See [Keep drafts](../../../core/README.md#keep-drafts) for the
+settings.
 
 ### Use the composer without a ChatModel
 

@@ -945,15 +945,23 @@ draft in memory.
 - Attachments stay in memory only.
 
 Set `composer: {drafts: 'memory'}` for a short-lived chat, such as a component helper. The
-composer then keeps each thread's draft in memory, and saves nothing. Hoist has no logout hook,
-so call `ChatKit.clearLocalData()` from your logout, before `XH.logoutAsync()`. It removes every
-key the kit wrote. Pass thread ids to remove the drafts of those threads only.
+composer then keeps each thread's draft in memory, and saves nothing.
+
+### Clear the kit's local data
+
+`ChatKit.clearLocalData()` removes all of the kit's local data for the current user, such as
+every composer draft. `ChatKit.clearLocalData(threadIds)` removes the drafts of those threads
+only. `XH.localStorageService` keys each draft by app and user, so another user never sees it.
+An app therefore need not call this on logout.
+
+Call it when the app itself should forget drafts:
+
+- A "Forget my drafts" action in the app's settings.
+- Threads the app deletes outside `ChatThreadsModel`, which clears the drafts of its own deletes.
 
 ```typescript
-async logoutAsync() {
-    ChatKit.clearLocalData();
-    await XH.logoutAsync();
-}
+// The app deleted these threads through its own service.
+ChatKit.clearLocalData(deletedThreadIds);
 ```
 
 ### Announce to screen readers
@@ -1343,9 +1351,9 @@ Fields of `ChatKit.defaults`. See `ChatKit.ts`.
 The kit reads `drafts` and `shortcuts` from the components that use them. Set `shortcuts` before
 the chat components render.
 
-`ChatKit.clearLocalData()` removes everything the kit keeps in local storage for the current
-user, such as drafts. Call it from your logout. `ChatKit.clearLocalData(threadIds)` removes the
-drafts of those threads only, for example threads the user deleted.
+`ChatKit.clearLocalData()` removes all of the kit's local data for the current user.
+`ChatKit.clearLocalData(threadIds)` removes the drafts of those threads only. See
+[Clear the kit's local data](#clear-the-kits-local-data).
 
 ### chatAnnouncer
 
