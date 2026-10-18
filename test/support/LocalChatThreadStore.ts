@@ -55,8 +55,8 @@ export interface LocalChatThreadStoreCall {
 
 /**
  * A {@link ChatThreadStore} that holds its threads in memory, for the kit's own specs. It is a
- * test fixture, and does not ship in the package. It answers as a backend would: threads most recently active first, a missing
- * thread as a 404, and a delete of a missing thread as a success.
+ * test fixture, and does not ship in the package. It answers as a backend would: threads most
+ * recently active first, a missing thread as a 404, and a delete of a missing thread as a success.
  *
  * Tests control its timing. `hold()` makes calls to a method wait until the test releases or fails
  * each one, which forces responses out of order. `failNext()` fails the next call to a method.

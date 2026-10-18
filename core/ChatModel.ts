@@ -140,8 +140,8 @@ export interface ChatModelConfig {
     /**
      * Identifies the conversation to the backend. Default a new UUID. An id given with
      * `initialMessages` that hold a user message is the backend's. Otherwise the thread is new,
-     * even with a greeting, and a thread creator or, in server mode, the server may replace its
-     * id once - see {@link ChatModel.threadId}.
+     * even with a greeting, and in server mode the server may replace its id once - see
+     * {@link ChatModel.threadId}.
      */
     threadId?: string;
 

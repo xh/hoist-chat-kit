@@ -88,8 +88,7 @@ export interface ChatMessagePage {
 
     /**
      * Cursor for older messages, for a backend that returns history a page at a time, or null if
-     * there are none. Not yet read by the kit, which shows the messages returned. It leaves room
-     * to page in older history later.
+     * there are none. The kit ignores it, and shows the messages returned.
      */
     nextCursor?: string;
 }

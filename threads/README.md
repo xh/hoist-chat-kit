@@ -103,6 +103,11 @@ selection and the route parameter. The composer moves the thread's draft. A chat
 its id while idle, after `clear()` or `loadMessages()`, holds a new thread. The old thread stays
 in the list.
 
+A delete during a new thread's first turn, before `RUN_STARTED`, stops the turn and deletes the
+browser's id from the store. A backend that mints its own ids may already have created the
+thread under its id, which the kit never learned. That thread comes back on the next list, and
+the user can delete it again.
+
 ### Concurrency rules
 
 The model applies each async result only where it still belongs. These rules are the model's
@@ -231,8 +236,8 @@ The threads model does not page. It shows the threads that `listThreadsAsync` re
 messages that `loadMessagesAsync` returns. A store over a large backend caps each, as the
 example above caps the list at the 100 most recent threads.
 
-A store whose backend returns history a page at a time can set `nextCursor` on the page now. The
-kit does not read it yet. It leaves room to page in older messages later.
+A store whose backend returns history a page at a time can set `nextCursor` on the page. The
+kit ignores it, and shows the messages the page holds.
 
 ### Search
 
@@ -254,8 +259,8 @@ await threadsModel.deleteThreadsAsync([threadId, otherThreadId]);
 Each change shows at once. If the store fails, the change rolls back and a toast says so. A
 delete closes the threads' chats, and stops any turn running in one. It also removes their
 drafts, in memory and in local storage, through `ChatKit.clearLocalData(threadIds)`. If it
-deletes the selected thread, the model selects a new one. Check `canRename` and `canDelete` before you show each
-action. A call the store cannot make throws.
+deletes the selected thread, the model selects a new one. Check `canRename` and `canDelete`
+before you show each action. A call the store cannot make throws.
 
 ### Recover from a failed load
 
@@ -350,7 +355,7 @@ and empty groups are left out.
 | Method | Description |
 |--------|-------------|
 | `listThreadsAsync({search})` | Required. A `ChatThreadPage`: threads most recently active first. The store decides how many. |
-| `loadMessagesAsync({threadId})` | Required. A `ChatMessagePage`: the thread's messages, oldest first. Its optional `nextCursor` is not yet read by the kit. |
+| `loadMessagesAsync({threadId})` | Required. A `ChatMessagePage`: the thread's messages, oldest first. The kit ignores its optional `nextCursor`. |
 | `renameThreadAsync(threadId, title)` | Rename a thread. |
 | `deleteThreadsAsync(threadIds)` | Delete threads. Deleting a missing thread succeeds. |
 | `submitFeedbackAsync(spec)` | Save a rating. See `ChatFeedbackSpec` in [`/core/`](../core/README.md#rate-a-reply). |

@@ -21,7 +21,8 @@ export type ChatThreadGroupKey =
 /**
  * Group threads for a thread list by the day of their last activity - Today, Yesterday, Previous
  * 7 days, Previous 30 days and Older. Days are calendar days in the browser's time zone, so a
- * thread active late last night is in Yesterday, however few hours ago that was. Each group is sorted most recent first. Empty groups are left out.
+ * thread active late last night is in Yesterday, however few hours ago that was. Each group is
+ * sorted most recent first. Empty groups are left out.
  *
  * @param now - the current time, in epoch milliseconds. Default now.
  */

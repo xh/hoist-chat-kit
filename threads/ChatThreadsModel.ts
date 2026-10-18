@@ -488,8 +488,9 @@ export class ChatThreadsModel extends HoistModel {
         const {threadId, isBusy} = thread.chatModel;
         if (this.openThreads[prevThreadId] !== thread) return;
 
-        // A chat changes its thread id mid-turn only to adopt the backend's id for the same thread.
-        // Otherwise the app cleared it, or loaded other messages into it, and it holds a new thread.
+        // A chat changes its thread id mid-turn only to adopt the backend's id for the same
+        // thread. Otherwise the app cleared it, or loaded other messages into it, and it holds a
+        // new thread.
         if (isBusy) {
             this.rekeyThread(prevThreadId, threadId);
         } else {
