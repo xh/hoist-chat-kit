@@ -34,8 +34,10 @@ names in `DECISIONS.md`.
 ## Next session: start here
 
 Anselm walked the chat UI layer's cut and trim lists on 2026-10-18 (review 7, D89 to D91). The
-calls are built on `feature/chat-ui-review-7`, reviewed twice, and fixed. Anselm reviews that
-branch and the uncommitted Toolbox changes, then pushes.
+calls are built on `feature/chat-ui-review-7`. Code reviews ran on every round of work, and the
+Toolbox agent checked the branch twice in a browser, with a real router. All findings are fixed.
+Anselm reviews that branch and the uncommitted Toolbox changes, then pushes. The branch also fixes
+a bug on `develop`: the workspace sidebar could not be resized.
 
 Still open from review 7:
 
@@ -43,7 +45,8 @@ Still open from review 7:
   `pinned` display. Then the Weather V2 proposals that show them.
 - Slim the CSS variables once the first integration sets its theme. Keep every color, type and
   spacing token.
-- Check every component in a 380 px panel.
+- Check every component in a 380 px panel. Known: below 788 px the side panel hides, but a cited
+  document's source row still offers "open in viewer".
 - D89's seams: the threads model with a chat of the app's own, and the workspace slot for the
   app's conversation view. Build them when an app needs them.
 - Then the generative UI layer review. See
