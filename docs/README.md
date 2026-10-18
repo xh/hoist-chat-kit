@@ -40,7 +40,8 @@ its tools.
 | Let the user scope a question to some documents | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#scope-questions-to-documents) |
 | Add an agent, tools or other pill to the composer | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#add-a-pill-to-the-composer) |
 | Offer Try Again or Refresh Status after a failed reply | [`/core/`](../core/README.md#recover-from-a-failed-reply) |
-| Keep the user's unsent draft across reloads, and clear it on logout | [`/core/`](../core/README.md#keep-drafts) |
+| Keep the user's unsent draft across reloads | [`/core/`](../core/README.md#keep-drafts) |
+| Clear the kit's local data, such as drafts | [`/core/`](../core/README.md#clear-the-kits-local-data) |
 | Stop a run, or leave it running on the server | [`/core/`](../core/README.md#stop-or-detach-a-turn) |
 | Send ratings and comments on replies | [`/core/`](../core/README.md#rate-a-reply) |
 | Describe the app's live state to the model at every step | [`/core/`](../core/README.md#send-live-context-with-every-step) |

@@ -110,16 +110,31 @@ describe('ChatToolCall display modes', () => {
         Element.prototype.scrollTo ??= () => {};
     });
 
-    it('shows the output of an answer tool as the answer, with no row', () => {
-        const chatModel = createChat({tools: [{name: 'final_answer', display: 'answer'}]}, [
+    it('shows the output of an inline tool with no renderer, as markdown, with no row', () => {
+        const chatModel = createChat({tools: [{name: 'final_answer', display: 'inline'}]}, [
             reply(toolCall('final_answer', {output: 'HY Credit is **over** its limit.'}))
         ]);
         const {container} = renderList(chatModel);
 
-        const answer = container.querySelector('.xh-chat-tool-call__answer');
-        expect(answer.textContent).toBe('HY Credit is over its limit.');
-        expect(answer.querySelector('strong')).toBeTruthy();
+        const output = container.querySelector('.xh-chat-tool-call__output');
+        expect(output.textContent).toBe('HY Credit is over its limit.');
+        expect(output.querySelector('strong')).toBeTruthy();
         expect(container.querySelector('.xh-chat-tool-call__header')).toBeNull();
+    });
+
+    it('shows the JSON output of an inline tool with no renderer, once it has one', () => {
+        const tools = [{name: 'lookup', display: 'inline' as const}],
+            running = createChat({tools}, [
+                reply(toolCall('lookup', {state: 'input-available', output: undefined}))
+            ]),
+            {container, unmount} = renderList(running);
+        expect(container.querySelector('.xh-chat-tool-call__output')).toBeNull();
+        unmount();
+
+        const done = createChat({tools}, [reply(toolCall('lookup', {output: {limit: 75}}))]);
+        expect(
+            renderList(done).container.querySelector('.xh-chat-tool-call__output').textContent
+        ).toContain('limit');
     });
 
     it('shows nothing for a hidden tool, until a call waits for approval', () => {

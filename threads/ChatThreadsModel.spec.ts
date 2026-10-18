@@ -719,8 +719,7 @@ describe('ChatThreadsModel', () => {
                 serverId: null,
                 runId: null,
                 rating: 'positive',
-                comment: null,
-                reasons: null
+                comment: null
             });
             expect(store.getThread('t1').messages[1].metadata.feedback).toEqual({
                 rating: 'positive'

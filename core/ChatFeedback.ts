@@ -11,24 +11,17 @@ export interface ChatFeedbackConfig {
     submitAsync?: ChatFeedbackSubmitter;
 
     /**
-     * Ratings for which the UI opens the comment form at once. Other ratings save at once and
-     * offer "Add a comment" after, unless this is 'none'. Default 'negative'.
+     * True if the user can add a comment to a rating. A thumbs down then opens the comment form
+     * at once. A thumbs up saves at once and offers "Add a comment" after. Default true.
      */
-    commentOn?: 'negative' | 'positive' | 'both' | 'none';
+    allowComment?: boolean;
 
     /**
-     * True if a rating in `commentOn` saves only with a comment. The rating then saves nothing
-     * until the user sends a non-blank comment. Otherwise it saves at once, and the comment
-     * follows as an update. Default false.
+     * True if a thumbs down saves only with a comment. The rating then saves nothing until the
+     * user sends a non-blank comment. Otherwise it saves at once, and the comment follows as an
+     * update. Applies only with `allowComment`. Default false.
      */
     requireComment?: boolean;
-
-    /**
-     * Reasons the user may pick on a negative rating, as toggles above the comment, such as
-     * `['Wrong data', 'Incomplete']`. Optional for the user, and never a substitute for a
-     * required comment. Default none.
-     */
-    reasons?: string[];
 
     /**
      * True if a click on the chosen thumb clears the rating, by submitting a null rating. Set
@@ -64,17 +57,33 @@ export interface ChatFeedbackSpec {
 
     /** The user's comment, or null. */
     comment?: string;
-
-    /** The reasons the user picked, from `ChatFeedbackConfig.reasons`, or null. */
-    reasons?: string[];
 }
 
 /**
  * Feedback recorded on an assistant message, as `metadata.feedback`. A rating restored from
- * history usually comes back without its comment and reasons, which backends rarely return.
+ * history usually comes back without its comment, which backends rarely return.
  */
 export interface ChatFeedback {
     rating: ChatFeedbackRating;
     comment?: string;
-    reasons?: string[];
+}
+
+/**
+ * A comment typed in a feedback form and not yet sent - see {@link ChatModel.feedbackDrafts}.
+ */
+export interface ChatFeedbackDraft {
+    /** The rating the comment goes with. */
+    rating: ChatFeedbackRating;
+
+    /** The comment so far. */
+    comment: string;
+
+    /** True if the rating saves only with the comment, so nothing is saved yet. */
+    isPending: boolean;
+
+    /** True while the comment sends. */
+    isSending: boolean;
+
+    /** Why the last send of the comment failed, or null. */
+    error: Error;
 }

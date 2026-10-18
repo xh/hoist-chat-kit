@@ -10,12 +10,6 @@ import {classNames} from '../../../impl/ClassNames';
 import '../../../styles/vars.scss';
 import './ChatComposerPill.scss';
 
-/**
- * The status dot of a {@link ChatComposerPill}. Always paired with words, in the pill's
- * `statusText` - the dot alone never carries the status.
- */
-export type ChatComposerPillStatus = 'online' | 'degraded' | 'offline' | 'danger';
-
 /** Props for {@link ChatComposerPill}. */
 export interface ChatComposerPillProps extends HoistProps {
     /** The pill's words - for example the agent's name, or 'Tools'. */
@@ -27,12 +21,6 @@ export interface ChatComposerPillProps extends HoistProps {
     /** A count after the words - for example of the tools turned on. Null for none. */
     count?: number;
 
-    /** A status dot before the icon, for example an agent's state. Null for none. */
-    status?: ChatComposerPillStatus;
-
-    /** The words for the status dot, read in the pill's accessible name and its tooltip. */
-    statusText?: string;
-
     /** Items of a menu the pill opens. Use this or `content`. */
     menuItems?: MenuItemLike[];
 
@@ -42,23 +30,16 @@ export interface ChatComposerPillProps extends HoistProps {
      */
     content?: ReactNode | ((close: () => void) => ReactNode);
 
-    /**
-     * True when the app, not the user, decides the pill's value - for example a router that picks
-     * the agent. The pill shows a dotted border and a lock, opens nothing, and stays focusable so
-     * that its tooltip, which should say who decides, is reachable.
-     */
-    readonly?: boolean;
-
     /** Tooltip. For a compact pill, the words show only here and in the accessible name. */
     tooltip?: string;
 
-    /** Accessible name. Default the words, the count and the status words. */
+    /** Accessible name. Default the words and the count. */
     'aria-label'?: string;
 }
 
 /**
- * A small chip for the composer's left slot, which opens a menu or a popover upward: an optional
- * status dot, an icon, the words, a count and a chevron. Use it for an agent, tool or skill
+ * A small chip for the composer's left slot, which opens a menu or a popover upward: an icon, the
+ * words, a count and a chevron. Use it for an agent, tool or skill
  * picker, or build on it, as {@link ChatScopeChip} does for a document scope.
  *
  * Changes made through a pill apply to the next turn - bind them to `ChatModel.runOptions` - and
@@ -76,24 +57,18 @@ export const [ChatComposerPill, chatComposerPill] = hoistCmp.withFactory<ChatCom
                 text,
                 icon,
                 count,
-                status,
-                statusText,
                 menuItems,
                 content,
-                readonly,
                 tooltip,
                 'aria-label': ariaLabel
             } = props,
             [isOpen, setIsOpen] = useState(false),
-            canOpen = !readonly && (menuItems != null || content != null),
-            name = ariaLabel ?? defaultName(text, count, statusText);
+            canOpen = menuItems != null || content != null,
+            name = ariaLabel ?? defaultName(text, count);
 
         const pill = button({
-            className: classNames(className, {
-                'xh-chat-composer-pill--open': isOpen,
-                'xh-chat-composer-pill--readonly': readonly
-            }),
-            icon: leadIcon(status, readonly ? Icon.lock() : icon),
+            className: classNames(className, {'xh-chat-composer-pill--open': isOpen}),
+            icon,
             text: span({
                 className: 'xh-chat-composer-pill__body',
                 items: [
@@ -109,11 +84,10 @@ export const [ChatComposerPill, chatComposerPill] = hoistCmp.withFactory<ChatCom
                     : Icon.chevronDown({className: 'xh-chat-composer-pill__chevron'})
                 : null,
             minimal: true,
-            tooltip: tooltip ?? statusText,
+            tooltip,
             'aria-label': name,
             'aria-haspopup': canOpen ? (menuItems ? 'menu' : 'dialog') : undefined,
-            'aria-expanded': canOpen ? isOpen : undefined,
-            'aria-disabled': readonly || undefined
+            'aria-expanded': canOpen ? isOpen : undefined
         });
         if (!canOpen) return pill;
 
@@ -137,21 +111,7 @@ export const [ChatComposerPill, chatComposerPill] = hoistCmp.withFactory<ChatCom
 //------------------
 // Implementation
 //------------------
-function leadIcon(status: ChatComposerPillStatus, icon: ReactElement): ReactElement {
-    if (!status) return icon;
-    return span({
-        className: 'xh-chat-composer-pill__lead',
-        items: [
-            span({
-                className: `xh-chat-composer-pill__dot xh-chat-composer-pill__dot--${status}`,
-                'aria-hidden': true
-            }),
-            icon
-        ]
-    });
-}
-
-function defaultName(text: ReactNode, count: number, statusText: string): string {
+function defaultName(text: ReactNode, count: number): string {
     const words = typeof text === 'string' ? text : '';
-    return [words, count != null ? `${count}` : null, statusText].filter(Boolean).join(', ');
+    return [words, count != null ? `${count}` : null].filter(Boolean).join(', ');
 }

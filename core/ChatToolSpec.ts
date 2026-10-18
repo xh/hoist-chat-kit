@@ -100,17 +100,16 @@ export interface ChatToolSpec {
  *  - `card` - a quiet row with the call's title, summary and status, that opens to show the
  *    call's input and output, or the output of `renderer`. Consecutive calls of one step fold into
  *    one "Used 3 tools" row. The default.
- *  - `inline` - the output of `renderer` alone, as part of the reply. The rendered output is the
- *    call's progress, so a status line shows only while the input streams, while the call waits
- *    for approval, and if it fails or is denied. A quiet toggle to view the input shows on hover.
- *    A denied call renders nothing, and so does a call waiting for approval, unless `preview` is
- *    true. For tools that show UI to the user, such as those of a `ChatUiCatalog`.
+ *  - `inline` - the output of `renderer` alone, as part of the reply. A tool with no `renderer`
+ *    shows the call's output itself once it has one, as markdown if it is text. The rendered
+ *    output is the call's progress, so a status line shows only while the input streams, while
+ *    the call waits for approval, and if it fails or is denied. A quiet toggle to view the input
+ *    shows on hover. A denied call renders nothing, and so does a call waiting for approval,
+ *    unless `preview` is true. For tools that show UI to the user, such as those of a
+ *    `ChatUiCatalog`, and for a tool whose result is the answer.
  *  - `timeline` - a row in the reply's activity timeline: one compact block that sums up an
  *    agent's run in a single line, and opens to list every call, with the text between calls as
  *    narration. For agents that make many calls per reply.
- *  - `answer` - the call's output is part of the answer, shown in place with no row: the output
- *    of `renderer`, or else the output itself, as markdown if it is text. Status shows as for
- *    `inline`. For a tool whose result is what the user asked for, such as a final answer tool.
  *  - `pinned` - the latest call shows as the plan pinned to the top of the reply's activity
  *    timeline, and no call shows as a row. The plan is read from the call's output, or else its
  *    input, as a list of items with a title and a status (below), or rendered by `renderer`. In
@@ -123,7 +122,7 @@ export interface ChatToolSpec {
  * `pending`, `active` (or `in_progress`, `running`), `done` (or `completed`, `complete`) or
  * `skipped` (or `cancelled`).
  */
-export type ChatToolDisplay = 'card' | 'inline' | 'timeline' | 'answer' | 'pinned' | 'hidden';
+export type ChatToolDisplay = 'card' | 'inline' | 'timeline' | 'pinned' | 'hidden';
 
 /** Passed to {@link ChatToolSpec.execute}. */
 export interface ChatToolContext {

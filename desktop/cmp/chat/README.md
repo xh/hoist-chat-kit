@@ -183,7 +183,6 @@ ChatKit.defaults.shortcuts.toggleSidebar = 'mod+b';
 | `focusComposer` | `/` | Focus in a `ChatPanel` or workspace, outside a text field | Focuses the composer. |
 | `cycleRegions` | `f6`, with Shift to go back | Focus in a workspace | Moves focus through the thread list, the conversation, the composer and the side panel. |
 | `toggleSidebar` | null | Focus in a workspace | Collapses or expands the thread sidebar. |
-| `toggleDock` | `ctrl+.` | Page-wide, while a dock exists | Reserved for the dock, which is still to come. |
 
 `mod` is Cmd on a Mac and Ctrl elsewhere. No shortcut ever approves, applies or deletes.
 
@@ -201,9 +200,11 @@ part that ends in a code block, a table or a quote puts them on the last paragra
 Numbers run across the whole reply, in order of first citation, and never change once given.
 Sources that arrive after the text take the numbers of their citations.
 
-Some backends cite inline instead, as `[1]`, `[1, 3]` or `[2–5]` in the text. With
+Some backends cite inline instead, as `[1]`, `[1, 3]` or `[1][3]` in the text. With
 `citationMarkers` on, each number renders as a 14 px marker for the source it cites. A marker for
-four or more sources collapses to one marker, such as "2–5". See
+four or more sources collapses to one marker. It reads "2–5" when the numbers are consecutive,
+and "4 sources" when they are not. Its card lists each source. A range such as `[2-5]` stays as
+written. See
 [Citation markers](../../../cmp/markdown/README.md#citation-markers) for how markers match
 sources. Sources then take the numbers that cite them: their `marker`, or their position when no
 source has a marker.
@@ -214,25 +215,26 @@ Open Passage or Open Link, and Copy Excerpt. It shows only what the source carri
 into the card's buttons and on to the next marker. Esc closes the card and keeps focus on the
 marker.
 
+A click on a marker opens its source, as a click on its row in the sources list does. A source
+that nothing can open pins its card instead.
+
 ### Sources list
 
 `ChatSources` lists the sources under the reply's text, in the order of their numbers. It never
 renumbers them, so `[2]`, its marker and the row numbered 2 agree even when the numbers skip.
-Three rows show, and the rest sit behind "Show N More". Sources that the reply searched
-but never cites show as a count on one line, without numbers.
+Three rows show, and the rest sit behind "Show N More". A source that a citing reply never cites
+takes no number and no row.
 
-A source's `sourceType` sets its row and what a click does:
+Every row has the same layout: the number, an icon, the title and a meta line. A source's
+`sourceType` sets the icon, the meta line and what a click does:
 
-| `sourceType` | Row | Click |
+| `sourceType` | Icon and meta | Click |
 |---|---|---|
-| `document` | File-type icon, title, then `metadata.fileName` and `metadata.page` | Opens the side panel when one is in reach, else `onSourceClick`, else its URL in a new tab |
-| `url` | Favicon or letter tile, title as a link, then the host and an external-link icon | Opens a new tab, or `onSourceClick` in its place. A web page's marker pins its card instead |
+| `document` | File-type icon, then `metadata.fileName` and `metadata.page` | Opens the side panel when one is in reach, else `onSourceClick`, else its URL in a new tab |
+| `url` | Globe, then the host | Opens a new tab, or `onSourceClick` in its place |
 
-A Ctrl or Cmd click opens a source's URL in a new tab. Only `http` and `https` URLs open.
-
-A favicon comes from `metadata.favicon` only, and follows the image policy. A `data:` image always
-shows, and an image URL loads only if `allowImages` permits it. Otherwise a letter tile shows. The
-kit never fetches a favicon from a third-party service.
+A Ctrl or Cmd click on a row opens the source's URL in a new tab. Only `http` and `https` URLs
+open. The list loads no image, so it sends no request of its own.
 
 ### Side panel
 
@@ -402,8 +404,8 @@ While a reply is in progress, Send becomes a Stop button with the word "Stop", i
 
 ### Add a pill to the composer
 
-`chatComposerPill` is a small chip for the left slot. It shows an optional status dot, an icon,
-its words, a count and a chevron, and opens a menu or a popover upward. Bind its choices to
+`chatComposerPill` is a small chip for the left slot. It shows an icon, its words, a count and a
+chevron, and opens a menu or a popover upward. Bind its choices to
 `chatModel.runOptions`, so that each turn records them and a change never reaches a reply in
 progress.
 
@@ -416,11 +418,8 @@ chatComposerPill({
 });
 ```
 
-Pass `menuItems` for a single choice, or `content` for a list of checkboxes. Set `readonly` when
-the app decides the value, such as a router that picks the agent. The pill then shows a lock,
-opens nothing, and keeps its tooltip, which should say who decides. A status dot always needs
-`statusText`, as the dot alone never carries the status. In a compact host, a pill shows only
-its icon and count.
+Pass `menuItems` for a single choice, or `content` for a list of checkboxes. A pill with neither
+opens nothing. In a compact host, a pill shows only its icon and count.
 
 ### Scope questions to documents
 
@@ -474,8 +473,9 @@ The composer saves its draft text per thread through `XH.localStorageService`, a
 of 500 ms. When the thread opens again, the composer restores the text and the status region
 shows "Draft from 10:31am restored." with Discard. A chat that moves to a thread with no draft
 empties its composer. The draft goes when its message sends.
-Attachments stay in memory only. Call `ChatKit.clearLocalData()` from your logout, as Hoist has
-no logout hook. See [Keep drafts](../../../core/README.md#keep-drafts) for the settings.
+Attachments stay in memory only. `XH.localStorageService` keys each draft by app and user, so
+another user never sees it. See [Keep drafts](../../../core/README.md#keep-drafts) for the
+settings.
 
 ### Use the composer without a ChatModel
 
@@ -549,24 +549,25 @@ new ChatModel({
     feedback: {
         submitAsync: spec => XH.postJson({url: 'chat/feedback', body: spec}),
         requireComment: true,
-        reasons: ['Wrong data', 'Wrong math', 'Incomplete', 'Not helpful'],
-        clearable: false
+        clearable: false,
+        maxCommentLength: 2000
     }
 });
 ```
 
-A rating outside `commentOn` saves on click and shows "Thanks" for 3 s. An "Add a comment" link
-then stays until the next send, and opens an optional form. A rating in `commentOn` opens the
-comment form inline, under the action bar, with focus in the comment. The form never opens in a
-popover, so an outside click cannot lose the comment.
+A thumbs up saves on click and shows "Thanks" for 3 s. An "Add a comment" link then stays until
+the next send, and opens an optional form. A thumbs down opens the comment form inline, under the
+action bar, with focus in the comment. The form never opens in a popover, so an outside click
+cannot lose the comment. With `allowComment: false`, both thumbs save on click and offer no
+comment.
 
-| Config | A rating in `commentOn` |
+| Config | A thumbs down |
 |---|---|
-| `requireComment: true` | Saves nothing until the user sends a non-blank comment. The thumb shows pressed meanwhile. Reasons are optional and never count as a comment. Cancel or Escape restores the earlier rating. |
-| `requireComment: false` | Saves at once, and opens an optional form. The comment and reasons follow as an update. Cancel or Escape keeps the rating. |
+| `requireComment: true` | Saves nothing until the user sends a non-blank comment. The thumb shows pressed meanwhile. Cancel or Escape restores the earlier rating. |
+| `requireComment: false` | Saves at once, and opens an optional form. The comment follows as an update. Cancel or Escape keeps the rating. |
 
-Reasons show as toggles on a negative rating only. In the form, Enter adds a new line, and
-Ctrl/Cmd+Enter sends. A counter shows from 90% of `maxCommentLength`. While the form sends, the
+Send enables once the comment has text. In the form, Enter adds a new line, and Ctrl/Cmd+Enter
+sends. A counter shows from 90% of `maxCommentLength`. While the form sends, the
 thumbs and the form disable, and Cancel goes, as the request is already on its way.
 
 Failures show inline, never as a toast. A rating that fails to save un-presses, and "Couldn't save
@@ -575,12 +576,13 @@ with Retry. A server that refuses the comment itself, with a 400, 413 or 422 sta
 reason shown under the field, with no Retry, as resending the same comment cannot work. After a
 send, the form closes and focus returns to the thumb.
 
-One form is open per thread. A thumb on another reply closes an empty form, but waits while the
-open form has a draft. The draft survives a scroll, and a switch to another thread and back, for
-the session. Regenerate closes the form of the reply it replaces.
+One form is open per chat. A thumb on another reply closes an empty form, but waits while the
+open form has a draft. The chat holds the draft in `feedbackDrafts`, so it survives a scroll or a
+new view of the message list. It goes when the comment is sent, when the form is cancelled, and
+when the chat clears or loads a thread. Regenerate closes the form of the reply it replaces.
 
-After a reload, the chosen thumb shows alone, from `metadata.feedback`. The comment and reasons do
-not come back, so the reply shows no comment mark. The announcer reads "Feedback sent." on a save,
+After a reload, the chosen thumb shows alone, from `metadata.feedback`. The comment does not come
+back, so the reply shows no comment mark. The announcer reads "Feedback sent." on a save,
 and reads a failure at once.
 
 ### Approve a tool call
@@ -715,6 +717,9 @@ denied call renders no output. A call that waits for approval renders none eithe
 tool sets `preview: true` to show what it will display. A `ChatUiCatalog` declares its
 tools this way - see [`/genui/`](../../../genui/README.md).
 
+An inline tool with no `renderer` shows the call's output itself, once it has one. Text renders
+as markdown, and any other value as JSON. This suits a tool whose result is the answer.
+
 An interactive tool needs a renderer, because the default card has no controls for an answer.
 `ChatModel` logs a warning for an interactive tool with no `renderer`. While a call waits for
 its answer, the card shows "Waiting for you". See
@@ -818,9 +823,10 @@ Define the object once, at module level, so the markdown blocks stay memoized.
 name. The kit renders fenced code with `ChatCodeBlock` by default, and your entries merge over
 that default. Pass a module-level constant, so the markdown blocks stay memoized.
 
-The kit also supplies `table`. A table of up to 12 rows renders plain. A longer one renders as a
-card with its first 12 rows, the footer "Showing 12 of N rows", and Show All. It has no side
-panel view, because a markdown table carries no result set. A `table` entry replaces both.
+The kit also supplies `table`. A table of up to 100 body rows renders plain. A longer one renders
+as a card with its first 100 rows, the footer "Showing 100 of N rows", and Show All. Set
+`ChatKit.defaults.markdownTableMaxRows` to change the limit. The card has no side panel view,
+because a markdown table carries no result set. A `table` entry replaces both.
 
 ```typescript
 const MARKDOWN_COMPONENTS: ChatMarkdownComponents = {
@@ -964,7 +970,7 @@ Use it directly only for a list of your own.
 | `ChatTimeline` | `message`, `host`, `parts`, `pinned`, `context`, `isFollowed`, `isLast` | Show a reply's activity timeline in a layout of your own. `parts` and `pinned` default to the reply's first timeline block. `isFollowed` says the answer has started below it. |
 | `ChatClearButton` | `chatModel`, and any `ButtonProps` | Clear the conversation, from a panel header. |
 | `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |
-| `ChatSources` | `sources`, `uncitedSources`, `defaultExpanded`, `onSourceClick`, `allowImages` | Show a list of sources. Each shows its `marker`, else its position. Uncited sources are counted, not numbered. |
+| `ChatSources` | `sources`, `defaultExpanded`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
 | `ChatNoAnswer` | `part`, `onEditQuestion` | Show a fixed "not found" reply, for example inside an app's own renderer for `xh.chat.noAnswer`. |
 | `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Back, Close, and the content - the app's viewer with its status, or the full table or chart of a result card. |
 | `ChatCodeBlock` | `content`, `language`, `isStreaming` | Show code in a card with a copy button. A finished block over 20 lines shows its first 20, with a button for the rest. |
@@ -972,8 +978,8 @@ Use it directly only for a list of your own.
 | `ChatEmptyState` | `icon`, `title`, `text`, `suggestions`, `composerModel` | Welcome the user to an empty chat. |
 | `ChatSuggestions` | `suggestions`, `onSelect`, `composerModel` | Show prompt cards that fill the composer: `composerModel`, else the `ChatModel`'s. `onSelect` replaces the fill. With neither, it renders nothing. |
 | `ChatStatusRegion` | `model`, `assistantName` | Show the thread's next action above a composer, in a custom layout. |
-| `ChatComposerPill` | `text`, `icon`, `count`, `status`, `statusText`, `menuItems`, `content`, `readonly`, `tooltip` | Add a pill to the composer's left slot. |
-| `ChatScopeChip` | `documents`, `runOption`, `value`, `onChange`, `searchThreshold`, `readonly`, `tooltip` | Scope the next question to some documents. Default binds `runOptions.documentIds`. |
+| `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip` | Add a pill to the composer's left slot. |
+| `ChatScopeChip` | `documents`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip` | Scope the next question to some documents. Default binds `runOptions.documentIds`. |
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |
 | `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |
 

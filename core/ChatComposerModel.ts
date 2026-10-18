@@ -226,8 +226,6 @@ export class ChatComposerModel extends HoistModel {
         this.maxFiles = maxFiles;
         this.maxFileSize = maxFileSize;
 
-        // TODO(design-open B6) - drafts in local storage, keyed by user and thread, removed by
-        // `ChatKit.clearLocalData()` on logout.
         this.restoreDraft(this.threadId);
         if (this.isLocalDrafts) {
             this.addReaction({

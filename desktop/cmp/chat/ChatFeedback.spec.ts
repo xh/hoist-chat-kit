@@ -7,7 +7,6 @@ import {
     chatAnnouncer,
     type ChatFeedbackConfig,
     type ChatFeedbackSpec,
-    ChatKit,
     type ChatMessageSpec,
     ChatModel
 } from '../../../core';
@@ -18,7 +17,8 @@ import {chatMessageList} from './ChatMessageList';
  * Feedback on a reply, inline under its action bar. A backend that requires a comment on a down
  * vote relies on the rating saving only with its comment, and on a failure keeping the comment,
  * with Retry, never a toast. Users rely on Cancel restoring the earlier rating, on one form open
- * per thread, and on a reload restoring the rating without inventing a comment.
+ * per chat, on a half-typed comment surviving a redraw, and on a reload restoring the rating
+ * without inventing a comment.
  */
 describe('ChatMessageView feedback', () => {
     beforeAll(() => initTestAppAsync());
@@ -32,13 +32,9 @@ describe('ChatMessageView feedback', () => {
     });
 
     describe('a down vote that requires a comment', () => {
-        const REQUIRED: ChatFeedbackConfig = {
-            requireComment: true,
-            clearable: false,
-            reasons: ['Wrong data', 'Incomplete']
-        };
+        const REQUIRED: ChatFeedbackConfig = {requireComment: true, clearable: false};
 
-        it('saves nothing until a comment is sent, and reasons alone never enable Send', async () => {
+        it('saves nothing until a non-blank comment is sent', async () => {
             const {submitAsync} = renderChat(REQUIRED);
 
             await clickThumb('Bad response');
@@ -48,10 +44,8 @@ describe('ChatMessageView feedback', () => {
             expect(screen.getByText('Comment required')).toBeTruthy();
             expect(screen.getByText('Not saved until you send')).toBeTruthy();
 
-            fireEvent.click(screen.getByRole('button', {name: 'Wrong data'}));
-            expect(
-                screen.getByRole('button', {name: 'Wrong data'}).getAttribute('aria-pressed')
-            ).toBe('true');
+            expect(sendButton().disabled).toBe(true);
+            typeComment('   ');
             expect(sendButton().disabled).toBe(true);
 
             typeComment('Uses yesterday’s limits.');
@@ -61,13 +55,12 @@ describe('ChatMessageView feedback', () => {
             expect(submitAsync).toHaveBeenCalledExactlyOnceWith(
                 expect.objectContaining({
                     rating: 'negative',
-                    comment: 'Uses yesterday’s limits.',
-                    reasons: ['Wrong data']
+                    comment: 'Uses yesterday’s limits.'
                 })
             );
             expect(screen.queryByRole('group', {name: 'What went wrong?'})).toBeNull();
             expect(screen.getByText('Thanks, feedback sent')).toBeTruthy();
-            expect(screen.getByText('Wrong data')).toBeTruthy();
+            expect(screen.getByLabelText('Your comment: Uses yesterday’s limits.')).toBeTruthy();
             await settle();
             expect(document.activeElement).toBe(thumb('Bad response'));
         });
@@ -167,7 +160,6 @@ describe('ChatMessageView feedback', () => {
             fireEvent.click(screen.getByRole('button', {name: 'Add a comment'}));
             expect(screen.getByRole('group', {name: 'What worked?'})).toBeTruthy();
             expect(screen.getByText('Optional')).toBeTruthy();
-            expect(screen.queryByRole('group', {name: 'Reasons'})).toBeNull();
 
             typeComment('Clear and quick.');
             await act(() => fireEvent.click(screen.getByRole('button', {name: 'Send Comment'})));
@@ -206,7 +198,7 @@ describe('ChatMessageView feedback', () => {
 
     describe('a down vote with an optional comment', () => {
         it('saves at once and opens the form, and Cancel keeps the rating', async () => {
-            const {submitAsync} = renderChat({reasons: ['Incomplete']});
+            const {submitAsync} = renderChat({});
 
             await clickThumb('Bad response');
             expect(submitAsync).toHaveBeenCalledExactlyOnceWith(
@@ -218,6 +210,22 @@ describe('ChatMessageView feedback', () => {
             fireEvent.click(screen.getByRole('button', {name: 'Cancel'}));
             expect(screen.queryByRole('group', {name: 'What went wrong?'})).toBeNull();
             expect(thumb('Bad response').getAttribute('aria-pressed')).toBe('true');
+        });
+    });
+
+    describe('with comments off', () => {
+        it('saves a down vote at once, and offers no comment on either thumb', async () => {
+            const {submitAsync} = renderChat({allowComment: false, requireComment: true});
+
+            await clickThumb('Bad response');
+            expect(submitAsync).toHaveBeenCalledExactlyOnceWith(
+                expect.objectContaining({rating: 'negative', comment: null})
+            );
+            expect(screen.queryByRole('group', {name: 'What went wrong?'})).toBeNull();
+
+            await clickThumb('Good response');
+            expect(screen.getByText('Thanks')).toBeTruthy();
+            expect(screen.queryByRole('button', {name: 'Add a comment'})).toBeNull();
         });
     });
 
@@ -243,7 +251,7 @@ describe('ChatMessageView feedback', () => {
         });
     });
 
-    describe('in a thread', () => {
+    describe('across the chat', () => {
         it('keeps one form open, holding a second thumb while the first form has a draft', async () => {
             const {submitAsync} = renderChat({requireComment: true}, {}, TWO_REPLIES);
             const [, secondDown] = screen.getAllByRole('button', {name: 'Bad response'}),
@@ -271,29 +279,65 @@ describe('ChatMessageView feedback', () => {
             expect(screen.queryByRole('group', {name: 'What went wrong?'})).toBeNull();
         });
 
-        it('keeps a draft when the list renders again, as after a thread switch', async () => {
+        it('keeps a draft on the chat when the list draws again', async () => {
             const {chatModel, unmount} = renderChat({requireComment: true});
 
             await clickThumb('Bad response');
             typeComment('Kept for later.');
             unmount();
+            expect(chatModel.feedbackDrafts.a1).toEqual({
+                rating: 'negative',
+                comment: 'Kept for later.',
+                isPending: true,
+                isSending: false,
+                error: null
+            });
             render(chatMessageList({model: chatModel}));
 
             expect((commentField() as HTMLTextAreaElement).value).toBe('Kept for later.');
+            expect(thumb('Bad response').getAttribute('aria-pressed')).toBe('true');
             expect(document.activeElement).not.toBe(commentField());
+
+            typeComment('Kept, and sent.');
+            await act(() => fireEvent.click(sendButton()));
+            expect(chatModel.feedbackDrafts).toEqual({});
         });
 
-        it('drops an open draft on ChatKit.clearLocalData(), as on logout', async () => {
-            const {chatModel, unmount} = renderChat({requireComment: true});
+        it('keeps a send in progress, and its failure, across a new view of the list', async () => {
+            let reject: (e: Error) => void;
+            const submitAsync = vi.fn(() => new Promise<void>((_, it) => (reject = it))),
+                {chatModel, unmount} = renderChat({requireComment: true, submitAsync});
+
+            await clickThumb('Bad response');
+            typeComment('Mid-flight.');
+            fireEvent.click(sendButton());
+            unmount();
+            render(chatMessageList({model: chatModel}));
+
+            const sending = screen.getByRole('button', {name: 'Sending…'}) as HTMLButtonElement;
+            expect(sending.disabled).toBe(true);
+            expect(screen.queryByRole('button', {name: 'Send Feedback'})).toBeNull();
+
+            await act(async () => reject(new Error('Gateway timeout')));
+            expect(formError().textContent).toBe("Couldn't send feedback. Your comment is kept.");
+            expect(screen.getByRole('button', {name: 'Retry'})).toBeTruthy();
+            expect((commentField() as HTMLTextAreaElement).value).toBe('Mid-flight.');
+            expect(submitAsync).toHaveBeenCalledOnce();
+        });
+
+        it('drops the draft on Cancel, and when the chat clears', async () => {
+            const {chatModel} = renderChat({requireComment: true});
+
+            await clickThumb('Bad response');
+            typeComment('Not now.');
+            fireEvent.click(screen.getByRole('button', {name: 'Cancel'}));
+            expect(chatModel.feedbackDrafts).toEqual({});
 
             await clickThumb('Bad response');
             typeComment('Private words.');
-            unmount();
-            ChatKit.clearLocalData();
-            render(chatMessageList({model: chatModel}));
-
-            expect(screen.queryByRole('group', {name: 'What went wrong?'})).toBeNull();
-            expect(thumb('Bad response').getAttribute('aria-pressed')).toBe('false');
+            act(() => chatModel.clear());
+            expect(chatModel.feedbackDrafts).toEqual({});
+            expect(commentField()).toBeNull();
         });
 
         it('drops a pending rating when its reply is regenerated', async () => {
@@ -305,6 +349,7 @@ describe('ChatMessageView feedback', () => {
             fireEvent.click(screen.getByRole('button', {name: 'Regenerate'}));
 
             expect(regenerate).toHaveBeenCalledOnce();
+            expect(chatModel.feedbackDrafts).toEqual({});
             expect(screen.queryByRole('group', {name: 'What went wrong?'})).toBeNull();
             expect(thumb('Bad response').getAttribute('aria-pressed')).toBe('false');
         });

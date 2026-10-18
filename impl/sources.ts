@@ -181,6 +181,19 @@ export function isWebUrl(url: string): boolean {
     }
 }
 
+/**
+ * The text and accessible label of a citation marker for many sources: "2–5" and "Sources 2 to 5"
+ * for consecutive numbers, else "4 sources" and "Sources 1, 2, 4, 5".
+ * @internal
+ */
+export function getCitationGroupLabels(numbers: number[]): {text: string; label: string} {
+    const first = numbers[0],
+        last = numbers[numbers.length - 1];
+    return numbers.every((it, idx) => it === first + idx)
+        ? {text: `${first}–${last}`, label: `Sources ${first} to ${last}`}
+        : {text: `${numbers.length} sources`, label: `Sources ${numbers.join(', ')}`};
+}
+
 /** True if any of the sources has a `marker`. @internal */
 export function hasMarkers(sources: ChatSourcePart[]): boolean {
     return !!sources?.some(it => it.marker != null);

@@ -55,7 +55,6 @@ import {
     type ChatReference,
     chatCitations,
     collectReferences,
-    collectUncitedSources,
     createMarkerRenderers,
     toSourceList
 } from './impl/ChatCitations';
@@ -243,12 +242,11 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
                 citationMarkers ? (message.parts.filter(isSource) as ChatSourcePart[]) : null,
                 isEqual
             ),
-            {onSourceClick, allowImages = false} = props;
+            {onSourceClick} = props;
         impl.sourceLinks.configure({
             messageId: message.id,
             sidePanel: impl.sidePanel,
-            onSourceClick: onSourceClick ? source => onSourceClick(source, context) : null,
-            allowImages
+            onSourceClick: onSourceClick ? source => onSourceClick(source, context) : null
         });
         impl.feedback.configure(message, context.chatModel);
 
@@ -658,8 +656,7 @@ function assistantContent(
         {chatModel} = context,
         runs = groupProcessRuns(groupParts(message.parts, host), host),
         // A fixed "not found" reply lists no sources.
-        isNoAnswer = !!getChatNoAnswerPart(message),
-        uncitedSources = isNoAnswer ? [] : collectUncitedSources(message.parts, references);
+        isNoAnswer = !!getChatNoAnswerPart(message);
 
     return [
         div({
@@ -699,12 +696,8 @@ function assistantContent(
                         replyNotice(props, chatModel)
                     ]
                 }),
-                !isNoAnswer && (references.length || uncitedSources.length)
-                    ? chatSources({
-                          sources: toSourceList(references),
-                          uncitedSources,
-                          links: impl.sourceLinks
-                      })
+                !isNoAnswer && references.length
+                    ? chatSources({sources: toSourceList(references), links: impl.sourceLinks})
                     : null,
                 // Actions wait for the turn to end - including one paused for the user's answer.
                 message.isStreaming || message.status === 'paused'
@@ -840,10 +833,7 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
             ? message.toolCalls.filter(
                   it => isToolCallFailed(it) && getToolCallDisplay(it, host) !== 'timeline'
               ).length
-            : 0,
-        endedAt = createdAt + (metadata?.elapsedMs ?? 0),
-        dataRefreshedAt = chatModel?.dataRefreshedAt,
-        isStale = status === 'complete' && dataRefreshedAt != null && dataRefreshedAt > endedAt;
+            : 0;
 
     return div({
         className: 'xh-chat-message__header',
@@ -900,15 +890,6 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
                 ? span({
                       className: 'xh-chat-message__segment xh-chat-message__warning',
                       items: [Icon.warning(), `${pluralize('tool', failedTools, true)} failed`]
-                  })
-                : null,
-            isStale
-                ? span({
-                      className: 'xh-chat-message__segment xh-chat-message__warning',
-                      title:
-                          `Replied ${fmtDateTime(endedAt) as string}. ` +
-                          `Data refreshed ${fmtDateTime(dataRefreshedAt) as string}.`,
-                      items: [Icon.warning(), 'Data refreshed since']
                   })
                 : null,
             ...(messageHeaderItems?.(message, context) ?? [])

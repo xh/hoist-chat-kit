@@ -141,7 +141,7 @@ export function groupParts(parts: ChatPart[], host: ChatTranscript): ChatPartGro
 /**
  * Gather consecutive process groups - reasoning, tool calls shown as rows, and groups of them -
  * into runs. A run ends at any output part, such as text, so text between two steps starts a new
- * run. A call with `display: 'inline'` or `'answer'` is output, not process, and a timeline block
+ * run. A call with `display: 'inline'` is output, not process, and a timeline block
  * stands on its own.
  * @internal
  */

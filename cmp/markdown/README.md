@@ -28,8 +28,8 @@ Key features:
 - **Safe output** - raw HTML renders as plain text. Images do not load unless `allowImages`
   permits them. Links open in a new tab, with `rel="noopener noreferrer"`.
 - **Element overrides** - `components` replaces how any element renders, keyed by tag name.
-- **Citation markers** - with `citations` set, `[1]`, `[1, 2]` and `[2–5]` in the text render as
-  compact buttons for the sources they cite.
+- **Citation markers** - with `citations` set, `[1]`, `[1, 2]` and `[1][2]` in the text render
+  as compact buttons for the sources they cite.
 - **App plugins** - `markdownPlugins` adds remark and rehype plugins, such as those for math.
   The kit takes no math dependency.
 
@@ -66,9 +66,9 @@ open. A link needs a click, so the user sees the URL before anything loads.
 ### Citation markers
 
 With `citations` set, a remark plugin reads the parsed markdown and replaces each marker in the
-text, such as `[1]`, `[1, 2]`, `[2–5]` or `[1][2]`, with a citation element. A range takes an en
-dash or a hyphen. `[n]` cites the source with
-`marker` n. When no source has a marker, `[n]` cites the nth source, counting from 1.
+text, such as `[1]`, `[1, 2]` or `[1][2]`, with a citation element. `[n]` cites the source with
+`marker` n. When no source has a marker, `[n]` cites the nth source, counting from 1. A range
+such as `[2-5]` stays as written.
 
 The plugin skips code, inline code, links and link references, so `arr[1]` and `[1](url)` stay
 as written. Footnote syntax (`[^1]`) never matches. A marker converts only if every number in it
@@ -78,14 +78,14 @@ partial marker such as a trailing `[1` stays plain text until its closing bracke
 Each run of markers sits in a span with the word before it and the punctuation after it. The span
 does not wrap, so a marker never starts a line.
 
-Each number renders as its own button, labeled for screen readers as "Source 1: <title>". A
-click calls `citations.onClick`, or opens the source's `url` in a new tab. The button shows the
-source title and excerpt as a native tooltip. The excerpt is `metadata.excerpt`, or else the
-source's `snippet`. `citations.renderMarker` replaces each button, for example to add a card of
-the platform's own. A marker of four or more sources collapses to one button, labeled with the
-first and last numbers, such as "2–5". Its tooltip lists every source, but a click opens only
-the first. `citations.renderGroup` replaces that button, to offer each source. The desktop chat
-uses both for its citation cards.
+Each number renders as its own button, labeled for screen readers as "Source 1: <title>". A click
+calls `citations.onClick`, or opens the source's `url` in a new tab. The button shows the source
+title and excerpt as a native tooltip. The excerpt is `metadata.excerpt`, or else the source's
+`snippet`. `citations.renderMarker` replaces each button, for example to add a card of the
+platform's own. A marker of four or more sources collapses to one button. It reads "2–5" when the
+numbers are consecutive, and "4 sources" when they are not. Its tooltip lists every source, but a
+click opens only the first. `citations.renderGroup` replaces that button, to offer each source. The
+desktop chat uses both for its citation cards.
 
 The plugin needs the sources to decide which markers convert, so the blocks re-parse when the
 sources change. `ChatMarkdown` compares the sources by value, so a new array of the same

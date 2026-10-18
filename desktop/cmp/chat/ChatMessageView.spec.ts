@@ -4,6 +4,7 @@ import {creates, hoistCmp, HoistModel} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
+    ChatKit,
     ChatMessage,
     type ChatMessageSpec,
     ChatModel,
@@ -262,18 +263,6 @@ describe('ChatMessageView', () => {
                 'ModuleNotFoundError: scipy'
             );
         });
-
-        it("flags a reply that finished before the chat's last data refresh", () => {
-            const chatModel = createModel({dataRefreshedAt: () => 2000}, [
-                    reply('a1', [text('t1', 'Answer')], {
-                        createdAt: 1000,
-                        metadata: {elapsedMs: 500}
-                    })
-                ]),
-                {container} = renderList(chatModel);
-
-            expect(header(container).textContent).toContain('Data refreshed since');
-        });
     });
 
     describe('the action bar', () => {
@@ -328,10 +317,10 @@ describe('ChatMessageView', () => {
 
         it('saves a down rating that requires a comment only once the comment is sent', async () => {
             const submitAsync = vi.fn(() => Promise.resolve()),
-                chatModel = createModel(
-                    {feedback: {submitAsync, commentOn: 'negative', requireComment: true}},
-                    [question(), reply('a1', [text('t1', 'Answer')])]
-                );
+                chatModel = createModel({feedback: {submitAsync, requireComment: true}}, [
+                    question(),
+                    reply('a1', [text('t1', 'Answer')])
+                ]);
             renderList(chatModel);
 
             await act(() => fireEvent.click(screen.getByRole('button', {name: 'Bad response'})));
@@ -539,7 +528,32 @@ describe('ChatMessageView', () => {
             expect(code()).toContain('line 25');
         });
 
-        it('caps a markdown table of more than 12 rows in a card, with Show All', () => {
+        it('caps a markdown table of more than 100 rows in a card, with Show All', () => {
+            const table = (rows: number) =>
+                    ['| A |', '|---|', ...Array.from({length: rows}, (_, i) => `| ${i} |`)].join(
+                        '\n'
+                    ),
+                chatModel = createModel({}, [
+                    question(),
+                    reply('a1', [text('t1', `${table(100)}\n\nThen:\n\n${table(101)}`)])
+                ]);
+            const {container} = renderList(chatModel);
+
+            const tables = container.querySelectorAll('.xh-chat-markdown table'),
+                card = container.querySelector('.xh-chat-markdown__table-card');
+            expect(tables[0].closest('.xh-chat-markdown__table-card')).toBeNull();
+            expect(card.querySelectorAll('tbody tr')).toHaveLength(100);
+            expect(card.querySelector('.xh-chat-ui-frame__footer span').textContent).toBe(
+                'Showing 100 of 101 rows'
+            );
+        });
+
+        it('caps tables at the row limit in ChatKit.defaults', () => {
+            const maxRows = ChatKit.defaults.markdownTableMaxRows;
+            ChatKit.defaults.markdownTableMaxRows = 12;
+            onTestFinished(() => {
+                ChatKit.defaults.markdownTableMaxRows = maxRows;
+            });
             const table = (rows: number) =>
                     ['| A |', '|---|', ...Array.from({length: rows}, (_, i) => `| ${i} |`)].join(
                         '\n'

@@ -1,8 +1,8 @@
 import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {ScriptedChatTransport} from '../transport';
-import type {ChatFeedbackSpec} from './ChatFeedback';
+import {ScriptedChatTransport, textEvents} from '../transport';
+import type {ChatFeedbackDraft, ChatFeedbackSpec} from './ChatFeedback';
 import type {ChatMessageSpec} from './ChatMessage';
 import {ChatModel, type ChatModelConfig} from './ChatModel';
 
@@ -35,8 +35,7 @@ describe('ChatModel feedback', () => {
                 serverId: 'srv-a1',
                 runId: 'run-a1',
                 rating: 'negative',
-                comment: 'Out of date.',
-                reasons: null
+                comment: 'Out of date.'
             } satisfies ChatFeedbackSpec);
         });
 
@@ -110,37 +109,13 @@ describe('ChatModel feedback', () => {
             );
         });
 
-        it('sends and records the reasons the user picked, and null for none', async () => {
-            const submitAsync = vi.fn(async () => {}),
-                model = createModel({
-                    feedback: {submitAsync, reasons: ['Wrong data', 'Incomplete']}
-                });
-
-            await model.submitFeedbackAsync('a1', 'negative', 'Old limits.', ['Wrong data']);
-            expect(submitAsync).toHaveBeenLastCalledWith(
-                expect.objectContaining({comment: 'Old limits.', reasons: ['Wrong data']})
-            );
-            expect(model.getMessage('a1').metadata.feedback).toEqual({
-                rating: 'negative',
-                comment: 'Old limits.',
-                reasons: ['Wrong data']
-            });
-
-            await model.submitFeedbackAsync('a1', 'positive', null, []);
-            expect(submitAsync).toHaveBeenLastCalledWith(
-                expect.objectContaining({rating: 'positive', reasons: null})
-            );
-            expect(model.getMessage('a1').metadata.feedback).toEqual({rating: 'positive'});
-        });
-
-        it('takes reasons alone as no comment, where a comment is required', async () => {
+        it('saves a thumbs down with no comment when comments are off, even with requireComment', async () => {
             const model = createModel({
-                feedback: {submitAsync: async () => {}, requireComment: true, reasons: ['Other']}
+                feedback: {submitAsync: async () => {}, allowComment: false, requireComment: true}
             });
 
-            await expect(
-                model.submitFeedbackAsync('a1', 'negative', null, ['Other'])
-            ).rejects.toThrow('comment is required');
+            await expect(model.submitFeedbackAsync('a1', 'negative')).resolves.toBeUndefined();
+            expect(model.getMessage('a1').metadata.feedback).toEqual({rating: 'negative'});
         });
 
         it('refuses to clear a rating when the backend cannot remove one', async () => {
@@ -192,6 +167,59 @@ describe('ChatModel feedback', () => {
                 })
             );
             expect(JSON.stringify(track.mock.calls)).not.toContain('Private remark');
+        });
+    });
+
+    describe('feedbackDrafts', () => {
+        const DRAFT: ChatFeedbackDraft = {
+            rating: 'negative',
+            comment: 'Half typed',
+            isPending: true,
+            isSending: false,
+            error: null
+        };
+
+        it('keeps a draft by message, and drops it once its comment is sent', async () => {
+            const model = createModel({feedback: {submitAsync: async () => {}}});
+
+            model.setFeedbackDraft('a1', DRAFT);
+            expect(model.feedbackDrafts).toEqual({a1: DRAFT});
+
+            await model.submitFeedbackAsync('a1', 'negative');
+            expect(model.feedbackDrafts).toEqual({a1: DRAFT});
+
+            await model.submitFeedbackAsync('a1', 'negative', 'Half typed');
+            expect(model.feedbackDrafts).toEqual({});
+        });
+
+        it('keeps a draft when its comment fails to send', async () => {
+            spyHandleException();
+            const model = createModel({
+                feedback: {submitAsync: () => Promise.reject(new Error('Down'))}
+            });
+
+            model.setFeedbackDraft('a1', DRAFT);
+            await model.submitFeedbackAsync('a1', 'negative', 'Half typed');
+
+            expect(model.feedbackDrafts).toEqual({a1: DRAFT});
+        });
+
+        it('drops a draft when its message goes, and all drafts when the chat clears', async () => {
+            const model = createModel({
+                transport: new ScriptedChatTransport({delayMs: 0, responses: [textEvents('New')]})
+            });
+
+            model.setFeedbackDraft('a1', DRAFT);
+            await model.regenerateAsync();
+            expect(model.feedbackDrafts).toEqual({});
+
+            model.setFeedbackDraft(model.lastMessage.id, DRAFT);
+            model.clear();
+            expect(model.feedbackDrafts).toEqual({});
+
+            model.setFeedbackDraft('a1', DRAFT);
+            model.loadMessages(HISTORY, 'thread-2');
+            expect(model.feedbackDrafts).toEqual({});
         });
     });
 });

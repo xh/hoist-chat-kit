@@ -18,13 +18,14 @@ export interface RemarkCitationsOptions {
 export const CITATION_RUN_CLASS = 'xh-chat-markdown__citation-run';
 
 /**
- * A remark plugin that turns citation markers in text - `[1]`, `[1, 2]`, `[2–5]` and `[1][2]` -
- * into citation elements, rendered by the component registered for {@link CITATION_TAG}.
+ * A remark plugin that turns citation markers in text - `[1]`, `[1, 2]` and `[1][2]` - into
+ * citation elements, rendered by the component registered for {@link CITATION_TAG}.
  *
  * A marker converts only if every number in it cites a source - see {@link findCitedSource}. Any
- * other bracketed text stays as written. Markers inside code, links and link references stay as
- * written too, and footnote syntax (`[^1]`) never matches. A marker still streaming in, such as a
- * trailing `[1`, has no closing bracket yet and so stays plain text until it closes.
+ * other bracketed text stays as written, a range such as `[2-5]` included. Markers inside code,
+ * links and link references stay as written too, and footnote syntax (`[^1]`) never matches. A
+ * marker still streaming in, such as a trailing `[1`, has no closing bracket yet and so stays plain
+ * text until it closes.
  *
  * Each run of markers sits in a span with the word before it and any punctuation after it, which
  * the kit's styles keep on one line, so that a marker never starts a line.
@@ -50,12 +51,9 @@ export interface MdastNode {
 //------------------
 // Implementation
 //------------------
-// One bracketed list of numbers and ranges, such as `[1]`, `[1, 2]` or `[2–5]`. Adjacent
-// markers - `[1][2]` - match one at a time.
-const NUMBER = String.raw`\d{1,4}(?:\s*[–-]\s*\d{1,4})?`,
-    MARKER = new RegExp(String.raw`\[(${NUMBER}(?:\s*,\s*${NUMBER})*)\]`, 'g'),
-    // The most numbers one range may stand for.
-    MAX_RANGE = 50;
+// One bracketed list of numbers, such as `[1]` or `[1, 2]`. Adjacent markers - `[1][2]` - match
+// one at a time.
+const MARKER = /\[(\d{1,4}(?:\s*,\s*\d{1,4})*)\]/g;
 
 // Nodes whose text is never a citation: links show their text as written, and code has no text
 // children to visit.
@@ -78,8 +76,8 @@ function splitText(node: MdastNode, sources: ChatSourcePart[]): MdastNode[] {
         run: MdastNode = null;
 
     for (const match of text.matchAll(MARKER)) {
-        const numbers = parseNumbers(match[1]);
-        if (!numbers?.every(it => findCitedSource(sources, it))) continue;
+        const numbers = match[1].split(',').map(it => parseInt(it, 10));
+        if (!numbers.every(it => findCitedSource(sources, it))) continue;
 
         const citation = createCitation(match[0], numbers);
         if (run && match.index === start) {
@@ -101,18 +99,6 @@ function splitText(node: MdastNode, sources: ChatSourcePart[]): MdastNode[] {
     if (!run) return [node];
     const rest = takePunctuation(run, text.slice(start));
     if (rest) ret.push(textNode(rest));
-    return ret;
-}
-
-// The numbers of a marker, with each range expanded - or null for a range that runs backwards or
-// stands for too many numbers.
-function parseNumbers(list: string): number[] {
-    const ret: number[] = [];
-    for (const item of list.split(',')) {
-        const [from, to = from] = item.split(/[–-]/).map(it => parseInt(it, 10));
-        if (to < from || to - from >= MAX_RANGE) return null;
-        for (let n = from; n <= to; n++) ret.push(n);
-    }
     return ret;
 }
 
