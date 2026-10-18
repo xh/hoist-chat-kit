@@ -819,9 +819,10 @@ Define the object once, at module level, so the markdown blocks stay memoized.
 name. The kit renders fenced code with `ChatCodeBlock` by default, and your entries merge over
 that default. Pass a module-level constant, so the markdown blocks stay memoized.
 
-The kit also supplies `table`. A table of up to 12 rows renders plain. A longer one renders as a
-card with its first 12 rows, the footer "Showing 12 of N rows", and Show All. It has no side
-panel view, because a markdown table carries no result set. A `table` entry replaces both.
+The kit also supplies `table`. A table of up to 100 body rows renders plain. A longer one renders
+as a card with its first 100 rows, the footer "Showing 100 of N rows", and Show All. Set
+`ChatKit.defaults.markdownTableMaxRows` to change the limit. The card has no side panel view,
+because a markdown table carries no result set. A `table` entry replaces both.
 
 ```typescript
 const MARKDOWN_COMPONENTS: ChatMarkdownComponents = {

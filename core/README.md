@@ -1338,6 +1338,7 @@ Fields of `ChatKit.defaults`. See `ChatKit.ts`.
 | `stallAfterMs` | `number` | Milliseconds with no data from the server before a reply shows as stalled. `ChatModelConfig.stallAfterMs` overrides it. Default 30,000. |
 | `drafts` | `'local' \| 'memory'` | Where the composer keeps its unsent draft text: local storage, per thread, or memory only. Default `local`. See [Keep drafts](#keep-drafts). |
 | `shortcuts` | `ChatShortcuts` | Key combos in the format of Hoist's `useHotkeys`, by action: `newChat`, `focusComposer`, `cycleRegions` and `toggleSidebar`. Null drops a shortcut. See [Keyboard](../desktop/cmp/chat/README.md#keyboard). |
+| `markdownTableMaxRows` | `number` | Most body rows a markdown table shows in full, in a reply, its reasoning or a tool's output. A longer table shows that many in a card, with Show All. Default 100. |
 
 The kit reads `drafts` and `shortcuts` from the components that use them. Set `shortcuts` before
 the chat components render.

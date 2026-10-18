@@ -51,6 +51,13 @@ export interface ChatKitDefaults {
 
     /** Key combos for the chat's keyboard shortcuts - see {@link ChatShortcuts}. */
     shortcuts: ChatShortcuts;
+
+    /**
+     * Most body rows a markdown table shows in full - in a reply, its reasoning or a tool's
+     * output. A longer table shows this many rows in a card, with a row count and Show All. Read
+     * as each table renders. Default 100.
+     */
+    markdownTableMaxRows: number;
 }
 
 /**
@@ -95,7 +102,8 @@ export class ChatKit {
             focusComposer: '/',
             cycleRegions: 'f6',
             toggleSidebar: null
-        }
+        },
+        markdownTableMaxRows: 100
     };
 
     /**

@@ -507,6 +507,7 @@
         "composerProps",
         "messageListProps",
         "theming",
+        "markdownTableMaxRows",
         "--xh-chat",
         "ChatPartRenderContext",
         "messageActions",
