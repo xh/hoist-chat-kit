@@ -47,8 +47,9 @@ interface ChatCitationMarkerProps extends HoistProps {
  *
  * A click on the marker opens the source, as a click on its row in the sources list does: a
  * document in the side panel when one is in reach, a web page in a new tab. A source that nothing
- * can open pins its card instead. Esc closes the card and keeps focus on the marker. The card renders next to
- * the marker in the DOM, so Tab moves into its buttons and then on to the next marker.
+ * can open pins its card instead. Esc closes the card and keeps focus on the marker. The card
+ * renders next to the marker in the DOM, so Tab moves into its buttons and then on to the next
+ * marker.
  * @internal
  */
 export const chatCitationMarker = hoistCmp.factory<ChatCitationMarkerProps>({

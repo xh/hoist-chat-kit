@@ -457,10 +457,10 @@ With `requireComment`, `submitFeedbackAsync()` throws for a thumbs down with no 
 without a comment suits `{requireComment: true}`. See
 [Collect feedback](../desktop/cmp/chat/README.md#collect-feedback) for the form.
 
-`feedbackDrafts` holds the comment typed in an open form, by message id, until it is sent. The
-form writes it with `setFeedbackDraft()`, with `isSending` and the last `error`. A half-typed
-comment and a send in progress then survive a redraw of the message list. A draft goes when its comment is sent, when its message goes, and when the chat
-clears or loads a thread.
+`feedbackDrafts` holds the comment typed in an open form, by message id, until it is sent. The form
+writes it with `setFeedbackDraft()`, with `isSending` and the last `error`. A half-typed comment and
+a send in progress then survive a redraw of the message list. A draft goes when its comment is sent,
+when its message goes, and when the chat clears or loads a thread.
 
 ### Clean up model text
 

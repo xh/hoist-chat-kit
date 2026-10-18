@@ -78,14 +78,14 @@ partial marker such as a trailing `[1` stays plain text until its closing bracke
 Each run of markers sits in a span with the word before it and the punctuation after it. The span
 does not wrap, so a marker never starts a line.
 
-Each number renders as its own button, labeled for screen readers as "Source 1: <title>". A
-click calls `citations.onClick`, or opens the source's `url` in a new tab. The button shows the
-source title and excerpt as a native tooltip. The excerpt is `metadata.excerpt`, or else the
-source's `snippet`. `citations.renderMarker` replaces each button, for example to add a card of
-the platform's own. A marker of four or more sources collapses to one button. It reads "2–5" when
-the numbers are consecutive, and "4 sources" when they are not. Its tooltip lists every source,
-but a click opens only the first. `citations.renderGroup` replaces that button, to offer each source. The desktop chat
-uses both for its citation cards.
+Each number renders as its own button, labeled for screen readers as "Source 1: <title>". A click
+calls `citations.onClick`, or opens the source's `url` in a new tab. The button shows the source
+title and excerpt as a native tooltip. The excerpt is `metadata.excerpt`, or else the source's
+`snippet`. `citations.renderMarker` replaces each button, for example to add a card of the
+platform's own. A marker of four or more sources collapses to one button. It reads "2–5" when the
+numbers are consecutive, and "4 sources" when they are not. Its tooltip lists every source, but a
+click opens only the first. `citations.renderGroup` replaces that button, to offer each source. The
+desktop chat uses both for its citation cards.
 
 The plugin needs the sources to decide which markers convert, so the blocks re-parse when the
 sources change. `ChatMarkdown` compares the sources by value, so a new array of the same

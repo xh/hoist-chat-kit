@@ -314,7 +314,8 @@ describe('ChatMessageView feedback', () => {
             unmount();
             render(chatMessageList({model: chatModel}));
 
-            expect(screen.getByRole('button', {name: 'Sending…'})).toHaveProperty('disabled', true);
+            const sending = screen.getByRole('button', {name: 'Sending…'}) as HTMLButtonElement;
+            expect(sending.disabled).toBe(true);
             expect(screen.queryByRole('button', {name: 'Send Feedback'})).toBeNull();
 
             await act(async () => reject(new Error('Gateway timeout')));

@@ -57,8 +57,9 @@ export interface ChatToolCallProps extends HoistProps {
  * `renderer` and `approvalPrompt`. A tool with `display: 'inline'` shows its renderer's output with
  * no row, or with no renderer its output itself. The output is the call's progress, so a quiet
  * status line shows below it only while its input streams, and if the call waits for approval,
- * fails or is denied. A tool with `display: 'hidden'` shows nothing, except while a call waits for the user. A `timeline`
- * call shows here as a row - in a reply, the message view puts it in a `ChatTimeline` instead.
+ * fails or is denied. A tool with `display: 'hidden'` shows nothing, except while a call waits for
+ * the user. A `timeline` call shows here as a row - in a reply, the message view puts it in a
+ * `ChatTimeline` instead.
  *
  * The body mounts only while the row is open, and a custom renderer renders as a component of its
  * own, so it may use hooks. The row re-renders only when its part changes.

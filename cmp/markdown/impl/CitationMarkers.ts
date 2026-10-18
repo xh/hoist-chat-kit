@@ -22,9 +22,10 @@ export const CITATION_RUN_CLASS = 'xh-chat-markdown__citation-run';
  * citation elements, rendered by the component registered for {@link CITATION_TAG}.
  *
  * A marker converts only if every number in it cites a source - see {@link findCitedSource}. Any
- * other bracketed text stays as written, a range such as `[2-5]` included. Markers inside code, links and link references stay as
- * written too, and footnote syntax (`[^1]`) never matches. A marker still streaming in, such as a
- * trailing `[1`, has no closing bracket yet and so stays plain text until it closes.
+ * other bracketed text stays as written, a range such as `[2-5]` included. Markers inside code,
+ * links and link references stay as written too, and footnote syntax (`[^1]`) never matches. A
+ * marker still streaming in, such as a trailing `[1`, has no closing bracket yet and so stays plain
+ * text until it closes.
  *
  * Each run of markers sits in a span with the word before it and any punctuation after it, which
  * the kit's styles keep on one line, so that a marker never starts a line.

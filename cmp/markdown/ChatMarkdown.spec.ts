@@ -119,9 +119,10 @@ describe('ChatMarkdown', () => {
                 id: `s${n}`,
                 title: `Doc ${n}`
             }));
-            const {container} = renderMarkdown({content: 'All agree [1–3].', citations: {sources}});
+            const content = 'All agree [1–3].',
+                {container} = renderMarkdown({content, citations: {sources}});
 
-            expect(container.textContent).toBe('All agree [1–3].');
+            expect(container.textContent).toBe(content);
             expect(screen.queryByRole('button')).toBeNull();
         });
 
