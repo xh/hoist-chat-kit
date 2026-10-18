@@ -473,6 +473,8 @@ export class ChatThreadsModel extends HoistModel {
                 return 'Wait for the conversation to load.';
             case 'failed':
                 return 'The conversation did not load. Reload it to continue.';
+            case 'notFound':
+                return 'This conversation does not exist. Start a new chat.';
         }
         return null;
     }

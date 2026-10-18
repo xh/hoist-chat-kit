@@ -3,7 +3,7 @@ import {XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {ChatModel} from '../../../core';
+import {type ChatMessageSpec, ChatModel} from '../../../core';
 import {
     type LocalChatThread,
     LocalChatThreadStore
@@ -435,6 +435,18 @@ describe('ChatWorkspace', () => {
             expect(screen.getByText('Hello')).toBeTruthy();
         });
 
+        it('shows "Thread not found", with no composer, even when the chat starts with a greeting', async () => {
+            const {threadsModel} = renderWorkspace(
+                {},
+                {initialMessages: [{role: 'assistant', content: 'Ask me anything.'}]}
+            );
+            await act(() => threadsModel.selectThreadAsync('deleted'));
+
+            expect(heading()).toBe('Thread not found');
+            expect(document.querySelector('.xh-chat-workspace__not-found')).not.toBeNull();
+            expect(document.querySelector('.xh-chat-composer')).toBeNull();
+        });
+
         it('shows "Thread not found" for a thread the store reports missing, with New Chat', async () => {
             const {threadsModel} = renderWorkspace();
             await act(() => threadsModel.selectThreadAsync('deleted'));
@@ -539,16 +551,18 @@ class CapturingResizeObserver {
 function setup({
     sidePanelOpen = false,
     documentRenderer = undefined,
-    threads = THREADS
+    threads = THREADS,
+    initialMessages = undefined
 }: Partial<Pick<ChatWorkspaceConfig, 'sidePanelOpen' | 'documentRenderer'>> & {
     threads?: LocalChatThread[];
+    initialMessages?: ChatMessageSpec[];
 } = {}) {
     const store = new LocalChatThreadStore({threads}),
         transport = new ScriptedChatTransport({responses: [textEvents('Hi.')], delayMs: 0}),
         threadsModel = new ChatThreadsModel({
             store,
             createChatModel: ({threadId}) =>
-                new ChatModel({transport, threadId, historyMode: 'server'})
+                new ChatModel({transport, threadId, historyMode: 'server', initialMessages})
         }),
         model = new ChatWorkspaceModel({threadsModel, sidePanelOpen, documentRenderer});
     onTestFinished(() => {

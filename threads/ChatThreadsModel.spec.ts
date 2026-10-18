@@ -207,10 +207,22 @@ describe('ChatThreadsModel', () => {
             expect(model.isThreadNotFound).toBe(true);
             expect(model.chatModel.isEmpty).toBe(true);
             expect(model.loadError).toBeNull();
-            expect(model.chatModel.sendBlockedReason).toBeNull();
 
             model.newThread();
             expect(model.isThreadNotFound).toBe(false);
+        });
+
+        it('6. blocks sends in a thread the store reports missing, even one with a greeting', async () => {
+            const {model, transport} = setup({
+                chat: {initialMessages: [{role: 'assistant', content: 'Ask me anything.'}]}
+            });
+            await model.selectThreadAsync('missing');
+
+            expect(model.chatModel.sendBlockedReason).toBe(
+                'This conversation does not exist. Start a new chat.'
+            );
+            await model.chatModel.sendAsync('Hello');
+            expect(transport.requests).toEqual([]);
         });
 
         it('6. opens a thread whose history is an empty page as an empty thread', async () => {

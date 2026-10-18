@@ -336,7 +336,7 @@ function conversation(
     if (!chatModel) return null;
 
     // A thread the store reports missing, as from a deep link, offers a new chat in its place.
-    if (threadsModel.isThreadNotFound && chatModel.isEmpty) {
+    if (threadsModel.isThreadNotFound) {
         return errorMessage({
             key: chatModel.xhId,
             className: 'xh-chat-workspace__not-found',

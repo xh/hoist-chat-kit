@@ -114,7 +114,7 @@ spec, and each has a unit test.
 | 3 | A new thread opened during a load never shows the old thread's messages. | A new thread gets a new chat. A load writes only to the chat that asked for it. |
 | 4 | Events from a run apply only to that run's chat. | The threads model never routes events. Each chat guards its own turn. |
 | 5 | Run options and drafts never leak into another thread. | Each thread has its own chat. A closed thread's draft is kept under its id. |
-| 6 | A 404 is a missing thread, and an empty page an empty one. Any other failure blocks sends on that thread only, with an error and a reload. | The thread's load state feeds `isThreadNotFound`, its own send blocker and `loadError`. |
+| 6 | A 404 is a missing thread, which blocks sends, and an empty page an empty one. Any other failure blocks sends on that thread only, with an error and a reload. | The thread's load state feeds `isThreadNotFound`, its own send blocker and `loadError`. |
 | 7 | A turn that ends with no content is an error. | `ChatModel` fails a run that finishes with an empty reply, with code `empty-response`. |
 
 ## Configuration Pattern
@@ -285,8 +285,9 @@ stream, its first turn ends, or the store lists it. The route stays on its base 
 so a reload or a bookmark before the first send opens a new chat. A thread that adopts the
 backend's id goes into the route under that id.
 
-A deep link to a thread that the store reports missing, with a 404, sets `isThreadNotFound`. The
-workspace then shows "Thread not found" with New Chat, in place of an empty chat. An app with its
+A deep link to a thread that the store reports missing, with a 404, sets `isThreadNotFound`, and
+the thread blocks sends, so that a send never recreates a deleted id. The workspace then shows
+"Thread not found" with New Chat, in place of the chat. An app with its
 own layout reads the flag the same way.
 
 ### Group the list by recency
