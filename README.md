@@ -84,7 +84,8 @@ The kit needs `@xh/hoist` v89 or later, with `react` and `react-dom` v19. Your a
 as peer dependencies.
 
 The package ships as TypeScript and SCSS source, as `@xh/hoist` does, and your app compiles it
-with the rest of its code.
+with the rest of its code. It depends on the official AG-UI packages, `@ag-ui/core` and
+`@ag-ui/client`, which bring RxJS and Zod 3 with them.
 
 1. Add the package: `pnpm add @xh/hoist-chat-kit`.
 2. Add it to `extraIncludePaths` in your app's `rsbuild.config.mjs`, so the build transpiles it:

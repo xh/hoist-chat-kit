@@ -25,8 +25,9 @@ Import from `@xh/hoist-chat-kit/transport`.
 Key features:
 
 - **AG-UI events as the wire vocabulary** - every transport yields `ChatEvent`s, which are AG-UI
-  1.0 events with the same type strings and field names. Any AG-UI agent server works with the
-  kit, with no adapter.
+  1.0 events, typed from the official `@ag-ui/core`. `AgUiCodec` runs the official
+  `@ag-ui/client` checks on each stream. Any AG-UI agent server works with the kit, with no
+  adapter.
 - **Transports carry, codecs translate** - the framing (NDJSON or Server-Sent Events) and the
   format (AG-UI, Anthropic or OpenAI chat completions) vary on their own. Pick one of each.
 - **`HoistChatTransport`** - NDJSON from your own hoist-core server, through `XH.fetchNdjson`,
@@ -41,8 +42,8 @@ Key features:
 - **`ScriptedChatTransport`** - canned events with realistic pacing, for demos and unit tests.
 - **Real cancellation** - a stop closes the HTTP connection, so the server can stop generating
   tokens. A `cancelUrl` also posts a cancel, for a backend that keeps running after a disconnect.
-- **Both conversation shapes** - each request carries the whole history for a stateless backend,
-  and the new messages and the turn's ids for an agent service that owns the history.
+- **Both conversation shapes** - each request carries the whole history. For an agent service
+  that owns the history, it also carries the turn's ids.
 
 ## Architecture
 
@@ -62,7 +63,7 @@ ChatTransport (interface)
 ChatCodec (interface)
 ├── encodeRequest(request): body                # May be async
 ├── createDecoder(request): ChatDecoder         # One decoder per step, may hold state
-├── AgUiCodec                                   # AG-UI RunAgentInput, events pass through
+├── AgUiCodec                                   # AG-UI RunAgentInput, official checks on events
 ├── AnthropicCodec                              # Messages API body, Anthropic stream events
 └── ChatCompletionsCodec                        # Chat completions body, OpenAI chunks
 
@@ -344,17 +345,38 @@ Tools go out as `{name, description, parameters}`. `context`, `forwardedProps` a
 value, or a function that builds the value for each step. `state` defaults to `{}`. The structured
 context of the turn's user message, from `metadata.context`, goes last in `context`, as JSON.
 
-Decoding passes each record through as a `ChatEvent`. The decoder drops records of an unknown
-`type`.
+Before it sends a request, the codec runs the official `@ag-ui/client` check on it. The check
+strips fields AG-UI does not define, with a console warning. A malformed field, such as a
+`context` value that is not a string, fails the turn before the request goes, with a
+`ChatRunError` coded `invalid-request`.
 
-In server mode, `AgUiCodec` sends only the new messages, and puts the turn in `forwardedProps`.
-See [Server-owned conversations](#server-owned-conversations).
+Decoding runs the official `@ag-ui/client` checks on each record, in the order its own agents run
+them:
+
+- **Enforcement.** The decoder drops a record of an unknown `type`, and strips fields AG-UI does
+  not define, each with a console warning. A malformed value in a field AG-UI defines fails the
+  turn.
+- **Chunk expansion.** `TEXT_MESSAGE_CHUNK`, `REASONING_MESSAGE_CHUNK` and `TOOL_CALL_CHUNK`
+  become start, content and end events, so the chat sees only those.
+- **Sequence checks.** A stream must open with `RUN_STARTED`, close each message before
+  `RUN_FINISHED`, and follow AG-UI's other ordering rules.
+
+A stream that breaks a rule fails the turn with a `ChatRunError` coded `invalid-stream`, such as
+`Invalid AG-UI stream: First event must be 'RUN_STARTED'`. Hoist reports it as a client error, as
+it is a bug in the backend. The checks cannot be turned
+off. A stream that ends before `RUN_FINISHED` passes them, and the chat then fails it as
+`incomplete-stream`. A backend that emits AG-UI by hand must follow the spec, so test its streams
+with the kit. See [Support by spec area](../docs/protocols.md#support-by-spec-area) for
+what the kit does with each part of the spec.
+
+`AgUiCodec` sends every message the chat holds, in both history modes. In server mode it also
+puts the turn in `forwardedProps`. See [Server-owned conversations](#server-owned-conversations).
 
 ### Server-owned conversations
 
 With `historyMode: 'server'` on the `ChatModel`, an agent service owns the history, the threads
 and the tool loop. Each request still holds the whole history in `messages`, so a client-mode
-codec works unchanged. A server-mode codec sends these fields instead:
+codec works unchanged. A server-mode codec also sends these fields:
 
 | Field | Value |
 |-------|-------|
@@ -369,16 +391,36 @@ codec works unchanged. A server-mode codec sends these fields instead:
 A backend with an idempotency key keys runs by `turnId` and `trigger`. It replays a finished run
 for a `retry`, and starts a new run for a `regenerate` or an `edit`.
 
-`AgUiCodec` encodes a server-mode request as a `RunAgentInput` whose `messages` holds only the
-new messages. On a `continue` step, that is the client tool calls of the reply's last step, with
-the results the client gave them. The server wrote the step's text and ran its own calls, so they
-are left out. The turn goes in `forwardedProps`, merged under any props the app sets:
+`AgUiCodec` encodes a server-mode request as a `RunAgentInput` whose `messages` holds every
+message the chat holds, as in client mode. AG-UI 1.0 has no mode for new messages only: an agent
+"MUST treat it as the complete history it is being shown". Adapters that keep state, such as
+LangGraph's, merge the history by message id. Adapters that keep none, such as Pydantic AI's by
+default, need all of it. A tool result always travels with the assistant message that called the
+tool. A thread loaded a page at a time sends only the pages it has loaded.
+
+Each message goes with the server's id where the chat has one, so that an adapter that merges by
+id finds its own messages. A message takes its `metadata.serverId`. A reply that streamed as
+several AG-UI messages goes back as those messages, with the ids its parts keep. Their order is
+the order the official client assembles them in. A message with no server id takes the kit's id.
+
+A backend that cannot take the whole history can set `newMessagesOnly: true` on the codec. This
+is outside the AG-UI spec. In server mode, `messages` then holds only what the server has not
+seen. On the first step of a turn, that is the user message. On a `continue` step, it is the
+client tool calls of the reply's last step, with their results. Each result still travels with the assistant
+message that called the tool. Use it only with a backend that keeps the history itself and needs
+this. A stateless adapter loses all context with it.
+
+The turn goes in `forwardedProps`, merged under any props the app sets:
 
 ```json
 {
     "threadId": "7f3c...",
     "runId": "b21e...",
-    "messages": [{"id": "9a4d...", "role": "user", "content": "Which form applies?"}],
+    "messages": [
+        {"id": "51c0...", "role": "user", "content": "What changed in the leave policy?"},
+        {"id": "e7a2...", "role": "assistant", "content": "Two things changed..."},
+        {"id": "9a4d...", "role": "user", "content": "Which form applies?"}
+    ],
     "forwardedProps": {
         "turnId": "9a4d...",
         "trigger": "submit",
@@ -578,8 +620,13 @@ events. The `AnthropicCodec` produces them from Anthropic's stream.
   `STEP_STARTED` and `STEP_FINISHED` mark stages within a run. The kit ignores them.
 - A stream that ends with neither `RUN_FINISHED` nor `RUN_ERROR` fails the turn, with error code
   `incomplete-stream`.
-- After `RUN_ERROR`, the chat stops reading. The `message` shows to the user, and the `code`
-  becomes `ChatRunError.code`.
+- With `AgUiCodec`, a stream must also follow AG-UI's rules. It opens with `RUN_STARTED`, closes
+  each message before `RUN_FINISHED`, and sends well-formed fields. A stream that breaks a rule
+  fails the turn. See [Connect to an AG-UI agent server](#connect-to-an-ag-ui-agent-server).
+- After `RUN_ERROR`, the chat reads on until the stream ends, as it does after `RUN_FINISHED`, so
+  close the stream after the last run. A `RUN_STARTED` after the error starts a new run, as AG-UI
+  allows, and clears the error. If the stream ends on the error, its `message` shows to the user,
+  and its `code` becomes `ChatRunError.code`.
 - Tool call ids must be unique within a turn. A tool call part takes its id, and the chat ignores
   a second `TOOL_CALL_START` with an id already used in the turn. Text message ids can repeat from
   one step to the next.
@@ -938,6 +985,7 @@ Shared by `HoistChatTransport` and `SseChatTransport`.
 | `context` | `AgUiContext[] \| (request) => AgUiContext[]` | Ambient information for the agent, as `{description, value}` items. The chat's live context follows these entries. Default none. |
 | `forwardedProps` | `PlainObject \| (request) => PlainObject` | App values passed to the agent untouched. Default none. |
 | `state` | `PlainObject \| (request) => PlainObject` | The agent's state, sent as `state`. Default `{}`. |
+| `newMessagesOnly` | `boolean` | True to send only what the server has not seen, in server mode. Outside the AG-UI spec. See [Server-owned conversations](#server-owned-conversations). Default false. |
 
 ### ScriptedChatTransportConfig
 
@@ -956,27 +1004,28 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 | `RUN_STARTED` | `threadId`, `runId` | Records `metadata.runId`. In server mode, the first run of a new thread may set the chat's `threadId`. |
 | `RUN_FINISHED` | `outcome?`, `usage?`, `metadata?`, `result?` | Records `finishReason`, `usage` and any `metadata`. A `result.messageId` sets `metadata.serverId`, if no event set it. Marks the step complete. |
 | `RUN_ERROR` | `message`, `code?`, `metadata?` | Fails the message, with `metadata.errorCode`. Records `metadata.retryAfterSeconds` if given. |
-| `TEXT_MESSAGE_START` | `messageId` | Opens a text part on its first content. |
+| `TEXT_MESSAGE_START` | `messageId` | Opens a text part on its first content, with the `messageId` as its `serverId`. |
 | `TEXT_MESSAGE_CONTENT` | `messageId`, `delta` | Appends to the text part. |
 | `TEXT_MESSAGE_END` | `messageId` | Marks the text part `done`. |
 | `TEXT_MESSAGE_CHUNK` | `messageId?`, `delta?` | Opens or appends. |
-| `REASONING_START`, `REASONING_MESSAGE_START` | `messageId` | Opens a reasoning part. Both ids map to one part. |
+| `REASONING_START`, `REASONING_MESSAGE_START` | `messageId` | Opens a reasoning part. Both ids map to one part. The `REASONING_MESSAGE_START` id is its `serverId`. |
 | `REASONING_MESSAGE_CONTENT`, `REASONING_MESSAGE_CHUNK` | `messageId`, `delta` | Appends to the reasoning part. |
 | `REASONING_MESSAGE_END` | `messageId` | Marks the reasoning part `done`. |
 | `REASONING_END` | `messageId` | Marks every reasoning part of the step `done`. |
 | `REASONING_ENCRYPTED_VALUE` | `subtype`, `entityId`, `encryptedValue` | Stores the signature on the reasoning part or the tool call. |
-| `TOOL_CALL_START` | `toolCallId`, `toolCallName` | Adds a tool call in `input-streaming`. |
+| `TOOL_CALL_START` | `toolCallId`, `toolCallName`, `parentMessageId?` | Adds a tool call in `input-streaming`, with the `parentMessageId` as its `parentServerId`. |
 | `TOOL_CALL_ARGS` | `toolCallId`, `delta` | Appends to `inputText`, with a best-effort parse into `input`. |
 | `TOOL_CALL_END` | `toolCallId` | Parses the input. `input-available`, or `output-error` for bad JSON. |
 | `TOOL_CALL_CHUNK` | `toolCallId?`, `toolCallName?`, `delta?` | Starts or appends. |
-| `TOOL_CALL_RESULT` | `toolCallId`, `content`, `metadata?` | `output-available`, with `providerExecuted: true`. JSON content is parsed. `output-error` if `metadata.error` or `metadata.isError` is set. |
+| `TOOL_CALL_RESULT` | `toolCallId`, `messageId`, `content`, `metadata?` | `output-available`, with `providerExecuted: true` and the `messageId` as `resultServerId`. JSON content is parsed. `output-error` if `metadata.error` or `metadata.isError` is set. |
 | `ACTIVITY_SNAPSHOT` | `messageId`, `activityType`, `content`, `replace?` | Adds or replaces a data part, with `dataType` set to `activityType`. |
 | `SUBAGENT_STARTED` | `subagentRunId`, `name`, `description?`, `parentSubagentRunId?` | Adds a data part of type `xh.chat.subagent`, with the run id as its id. Tool calls with the same `subagentRunId` nest under it in the activity timeline. |
 | `SUBAGENT_FINISHED`, `SUBAGENT_ERROR` | `subagentRunId`, `result?` or `message` | Ends the sub-agent's data part, with its result or error. |
 | `CUSTOM` | `name`, `value` | The `xh.chat.*` events below. Others are ignored. |
 
 Ignored: `STEP_STARTED`, `STEP_FINISHED`, `RAW`, `STATE_SNAPSHOT`, `STATE_DELTA`,
-`MESSAGES_SNAPSHOT` and `ACTIVITY_DELTA`. Unknown types never throw.
+`MESSAGES_SNAPSHOT` and `ACTIVITY_DELTA`. `AgUiCodec` drops events of an unknown type, and expands
+chunk events before the chat sees them.
 
 When a stream ends, the chat closes the step. Open text and reasoning parts become `done`, and
 tool calls that never saw `TOOL_CALL_END` get their input parsed.

@@ -8,3 +8,4 @@ pnpm-lock.yaml
 pnpm-workspace.yaml
 *.md
 .tmp
+/test/conformance/ag-ui-1.0

@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest';
-import type {ChatEvent} from '../transport';
+import type {ChatEvent, RunFinishedEvent} from '../transport';
 import {ChatMessage} from './ChatMessage';
 import type {
     ChatDataPart,
@@ -42,15 +42,18 @@ describe('ChatStreamReducer', () => {
         });
 
         it.each([
-            ['success', 'stop'],
-            ['interrupt', 'other'],
-            ['cancelled', 'other']
-        ] as const)('maps outcome %s to finish reason %s when none is given', (type, reason) => {
-            const message = reduce([
-                {type: 'RUN_FINISHED', threadId: 't', runId: 'r', outcome: {type}}
-            ]);
-            expect(message.metadata.finishReason).toBe(reason);
-        });
+            ['success', 'stop', {type: 'success'}],
+            ['interrupt', 'other', {type: 'interrupt', interrupts: []}],
+            ['cancelled', 'other', {type: 'cancelled'}]
+        ] as Array<[string, string, RunFinishedEvent['outcome']]>)(
+            'maps outcome %s to finish reason %s when none is given',
+            (_, reason, outcome) => {
+                const message = reduce([
+                    {type: 'RUN_FINISHED', threadId: 't', runId: 'r', outcome}
+                ]);
+                expect(message.metadata.finishReason).toBe(reason);
+            }
+        );
 
         it('appends the usage of each step to that of earlier steps', () => {
             const first = reduce([
@@ -70,6 +73,29 @@ describe('ChatStreamReducer', () => {
             expect(message.status).toBe('error');
             expect(message.error).toBe('Rate limit exceeded');
             expect(message.metadata.errorCode).toBe('rate_limit_error');
+        });
+
+        it('keeps the first error of a run over a later one', () => {
+            const message = reduce([
+                {type: 'RUN_STARTED', threadId: 't', runId: 'r1'},
+                {type: 'RUN_ERROR', message: 'Busy', code: 'busy'},
+                {type: 'RUN_ERROR', message: 'The server stopped responding.', code: 'stalled'}
+            ]);
+            expect(message).toMatchObject({error: 'Busy', metadata: {errorCode: 'busy'}});
+        });
+
+        it('clears a failed run when the stream starts a new one, as AG-UI allows', () => {
+            const message = reduce([
+                {type: 'RUN_STARTED', threadId: 't', runId: 'r1'},
+                {type: 'RUN_ERROR', message: 'Busy', code: 'busy', metadata: {retrySafe: false}},
+                {type: 'RUN_STARTED', threadId: 't', runId: 'r2'},
+                ...text('m1', 'Second try.'),
+                {type: 'RUN_FINISHED', threadId: 't', runId: 'r2'}
+            ]);
+            expect(message).toMatchObject({status: 'streaming', error: null, text: 'Second try.'});
+            expect(message.metadata).toMatchObject({runId: 'r2'});
+            expect(message.metadata).not.toHaveProperty('errorCode');
+            expect(message.metadata).not.toHaveProperty('retrySafe');
         });
 
         it('leaves the message unchanged for stage events', () => {
@@ -696,6 +722,56 @@ describe('ChatStreamReducer', () => {
                 {id: 'c1', sourceId: 's1', citedText: 'fast'},
                 {id: 'c2', url: 'https://xh.io'}
             ]);
+        });
+    });
+
+    describe('server ids', () => {
+        it("keeps a text message's id on its part, apart from the part's own id", () => {
+            const [part] = reduce(text('m1', 'Hi')).parts;
+            expect(part).toMatchObject({type: 'text', serverId: 'm1'});
+            expect(part.id).not.toBe('m1');
+        });
+
+        it('keeps the reasoning message id, not the span id, on a reasoning part', () => {
+            const [part] = reduce([
+                {type: 'REASONING_START', messageId: 'span1'},
+                {type: 'REASONING_MESSAGE_START', messageId: 'r1', role: 'reasoning'},
+                {type: 'REASONING_MESSAGE_CONTENT', messageId: 'r1', delta: 'Hmm.'}
+            ]).parts;
+            expect(part).toMatchObject({type: 'reasoning', serverId: 'r1'});
+        });
+
+        it("keeps a call's parent message id, and the id of its result's tool message", () => {
+            const message = reduce([
+                {
+                    type: 'TOOL_CALL_START',
+                    toolCallId: 'c1',
+                    toolCallName: 'a',
+                    parentMessageId: 'm1'
+                },
+                {type: 'TOOL_CALL_END', toolCallId: 'c1'},
+                {type: 'TOOL_CALL_RESULT', toolCallId: 'c1', messageId: 't1', content: 'ok'},
+                {type: 'TOOL_CALL_START', toolCallId: 'c2', toolCallName: 'b'},
+                {type: 'TOOL_CALL_END', toolCallId: 'c2'},
+                {
+                    type: 'TOOL_CALL_RESULT',
+                    toolCallId: 'c2',
+                    messageId: 't2',
+                    content: 'Boom',
+                    metadata: {isError: true}
+                }
+            ]);
+            expect(message.parts).toMatchObject([
+                {id: 'c1', parentServerId: 'm1', resultServerId: 't1'},
+                {id: 'c2', state: 'output-error', resultServerId: 't2'}
+            ]);
+            expect(message.parts[1]).not.toHaveProperty('parentServerId');
+        });
+
+        it('sets no server id on text a kit event adds', () => {
+            const [part] = reduce([custom('xh.chat.textReplace', {text: 'Final.'})]).parts;
+            expect(part).toMatchObject({type: 'text', text: 'Final.'});
+            expect(part).not.toHaveProperty('serverId');
         });
     });
 

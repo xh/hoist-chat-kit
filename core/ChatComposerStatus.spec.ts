@@ -27,6 +27,8 @@ describe('isChatRetrySafe', () => {
         ['a stall in server mode', {errorCode: 'stalled'}, 'server', false],
         ['a dropped stream in server mode', {errorCode: 'incomplete-stream'}, 'server', false],
         ['a dropped stream in client mode', {errorCode: 'incomplete-stream'}, 'client', true],
+        ['a rejected AG-UI stream in server mode', {errorCode: 'invalid-stream'}, 'server', false],
+        ['a rejected AG-UI stream in client mode', {errorCode: 'invalid-stream'}, 'client', true],
         ['a lost connection in server mode', {errorCode: 'connection-lost'}, 'server', false],
         ['a lost connection in client mode', {errorCode: 'connection-lost'}, 'client', true],
         ['a server error code in server mode', {errorCode: 'overloaded_error'}, 'server', true]

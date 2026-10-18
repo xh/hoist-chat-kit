@@ -373,10 +373,11 @@ this.chatModel = new ChatModel({
 
 In server mode:
 
-- Each `ChatRunRequest` still holds the whole history in `messages`. A codec sends
-  `newMessages` instead: the user message on the first step, or the reply with its tool results
-  on a later step. The request also names the turn, with `turnId`, `trigger` and `stepIndex`. See
-  [`/transport/`](../transport/README.md#server-owned-conversations).
+- Each `ChatRunRequest` still holds the whole history in `messages`, and `AgUiCodec` sends all
+  of it, as AG-UI requires. Its `newMessagesOnly` setting, outside the spec, sends only what the
+  server has not seen. `newMessages` holds what the server has not seen, for a codec whose
+  backend takes only that. The request also names the turn, with `turnId`, `trigger` and
+  `stepIndex`. See [`/transport/`](../transport/README.md#server-owned-conversations).
 - The chat records the server's ids, and never changes its own. `RUN_STARTED` sets the reply's
   `metadata.runId`. An `xh.chat.message` event, or `result.messageId` on `RUN_FINISHED`, sets
   `metadata.serverId` on the reply or the user message.
@@ -710,6 +711,8 @@ this.addReaction({
 | `ChatRunError` with code `incomplete-stream` | The stream ended with neither `RUN_FINISHED` nor `RUN_ERROR`, for example on a dropped connection |
 | `ChatRunError` with code `empty-response` | The run finished with nothing in the reply |
 | `ChatRunError` with code `stalled` | The server sent nothing for longer than the transport's `idleTimeout` |
+| `ChatRunError` with code `invalid-stream` | An AG-UI stream broke the spec's rules, for example it did not open with `RUN_STARTED`. Hoist reports it too, as a backend bug. |
+| `ChatRunError` with code `invalid-request` | An AG-UI request failed the spec's check before it went, for example a `context` value that is not a string |
 | `ChatRunError` with a null code | The run reported an error with no code |
 | `ChatRunError` with `retryAfterSeconds` | The run asked for a wait before a retry, through `metadata.retryAfterSeconds` on `RUN_ERROR` |
 | Hoist `FetchException` | The request failed before or during the stream, for example a 500 from the server |
@@ -851,8 +854,8 @@ historyMode)` decides it:
 
 - A failure is retry-safe unless the server's `RUN_ERROR` sets `metadata.retrySafe: false`. The
   reply records the flag as `metadata.retrySafe`.
-- In server mode, the kit's own `stalled` and `incomplete-stream` errors are not retry-safe,
-  because the server may still be running the turn.
+- In server mode, the kit's own `stalled`, `incomplete-stream` and `invalid-stream` errors are
+  not retry-safe, because the server may still be running the turn.
 - In server mode, a stream that throws, such as on a network reset or a gateway timeout, records
   `metadata.errorCode: 'connection-lost'`, which is not retry-safe either. A 4xx response is the
   exception: the server refused the request, so nothing ran.
@@ -1088,13 +1091,16 @@ merges them into the message.
 ### Parts
 
 Every part has an `id`, unique within its message, and a `step`. User message parts have no
-`step`.
+`step`. The kit mints the `id` of a text or reasoning part. The server's ids for the AG-UI
+messages that the parts streamed as stay in the `serverId` fields, which `AgUiCodec` sends back
+with the history. A thread store that loads a reply should keep them, so that a backend that
+merges its history by id finds its own messages.
 
 | Type | Key fields | Notes |
 |------|------------|-------|
-| `text` | `text`, `state`, `citations?` | Markdown. `state` is `streaming`, then `done`. |
-| `reasoning` | `text`, `state`, `startedAt`, `endedAt`, `encryptedValue?`, `providerData?` | The model's thinking. `encryptedValue` holds a signature that goes back with the history. |
-| `toolCall` | `toolName`, `state`, `inputText`, `input`, `output`, `errorText`, `providerExecuted?`, `startedAt?`, `endedAt?`, `subagentRunId?`, `cancelled?` | The `id` is the provider's tool call id. `subagentRunId` names the sub-agent that made the call. `cancelled` marks a call that was open when the user stopped the turn. |
+| `text` | `text`, `state`, `citations?`, `serverId?` | Markdown. `state` is `streaming`, then `done`. `serverId` is the server's id for the message the text streamed as. |
+| `reasoning` | `text`, `state`, `startedAt`, `endedAt`, `encryptedValue?`, `providerData?`, `serverId?` | The model's thinking. `encryptedValue` holds a signature that goes back with the history. `serverId` is the server's id for the reasoning message. |
+| `toolCall` | `toolName`, `state`, `inputText`, `input`, `output`, `errorText`, `providerExecuted?`, `startedAt?`, `endedAt?`, `subagentRunId?`, `cancelled?`, `parentServerId?`, `resultServerId?` | The `id` is the provider's tool call id. `subagentRunId` names the sub-agent that made the call. `cancelled` marks a call that was open when the user stopped the turn. `parentServerId` and `resultServerId` are the server's ids for the messages that hold the call and its result. |
 | `file` | `name`, `mediaType`, `size?`, `url?`, `data?` | `data` is base64. |
 | `source` | `sourceType?`, `url?`, `title?`, `snippet?`, `marker?`, `metadata?` | A source the model consulted. `marker` is the number that cites it in the text, as in `[1]`. `sourceType` is `url` or `document`, by default `url` for a source with a `url`. The kit reads `metadata.excerpt`, `fileName`, `page` and `favicon`. |
 | `data` | `dataType`, `data` | App or protocol content, drawn by `dataRenderers`. |

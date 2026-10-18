@@ -69,6 +69,13 @@ export interface ChatTextPart extends ChatPartBase {
     citations?: ChatCitation[];
 
     /**
+     * The server's id for the message this text streamed as - the AG-UI `messageId`, if the
+     * backend gave one. `AgUiCodec` sends it back as the message's id in the history, so that a
+     * backend that merges its history by id matches it.
+     */
+    serverId?: string;
+
+    /**
      * True while the part streams after the server replaced its text with shorter text, with
      * `xh.chat.textReplace`, until the new text is as long as the text it replaced. A view can
      * keep the replaced text on screen meanwhile. Gone once the part is done.
@@ -100,6 +107,12 @@ export interface ChatReasoningPart extends ChatPartBase {
 
     /** Opaque provider data - see {@link ChatProviderData}. */
     providerData?: ChatProviderData;
+
+    /**
+     * The server's id for the reasoning message - the `messageId` of AG-UI's
+     * `REASONING_MESSAGE_START`, if the backend gave one. Sent back as the message's id.
+     */
+    serverId?: string;
 }
 
 /** A call by the model to a tool, with its input and - once run - its output. */
@@ -151,6 +164,18 @@ export interface ChatToolCallPart extends ChatPartBase {
 
     /** Signature for the call that must go back with the history. Never displayed. */
     encryptedValue?: string;
+
+    /**
+     * The server's id for the assistant message that holds the call - AG-UI's `parentMessageId`,
+     * if the backend gave one. Sent back as that message's id.
+     */
+    parentServerId?: string;
+
+    /**
+     * The server's id for the tool message that holds the call's result - the `messageId` of
+     * AG-UI's `TOOL_CALL_RESULT`, if the backend gave one. Sent back as that message's id.
+     */
+    resultServerId?: string;
 
     /** Opaque provider data - see {@link ChatProviderData}. */
     providerData?: ChatProviderData;

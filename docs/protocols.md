@@ -10,7 +10,7 @@ change. Check each project's own docs for its current state.
 
 | Protocol | What it is | Layer | In the kit |
 |----------|------------|-------|------------|
-| [AG-UI](#ag-ui) | Event stream between an agent backend and a frontend | Wire events | **Built.** The kit's own event vocabulary. |
+| [AG-UI](#ag-ui) | Event stream between an agent backend and a frontend | Wire events | **Built.** The kit's own event vocabulary, on the official packages. |
 | [Anthropic Messages API](#anthropic-messages-api) | Claude's request format and SSE stream | Provider format | **Built.** `AnthropicCodec`. |
 | [OpenAI](#openai) | The Responses and Chat Completions streams | Provider format | **Chat Completions built.** `ChatCompletionsCodec`. A codec can add Responses. |
 | [A2UI](#a2ui) | Declarative JSON UI, drawn from a client catalog | UI payload | **Adapter seam built.** An app adapter maps it to catalog components. |
@@ -30,9 +30,11 @@ AG-UI is an open, MIT-licensed protocol for the event stream between an agent ba
 frontend. It reached 1.0 in October 2026. Agent frameworks such as LangGraph, Mastra, Pydantic AI
 and Google ADK emit it.
 
-Every kit transport yields `ChatEvent`s. These are the AG-UI 1.0 events, with the same type
-strings and field names. The kit mirrors the types in `transport/ChatEvent.ts` and takes no
-runtime dependency on `@ag-ui/*`.
+Every kit transport yields `ChatEvent`s. These are the AG-UI 1.0 events, typed from the official
+`@ag-ui/core` package, with `type` widened to its string. `AgUiCodec` runs the official
+`@ag-ui/client` checks on every AG-UI stream, so the kit follows the spec's rules for what to
+accept, strip and reject. A stream that breaks them fails the turn. The kit keeps its own message
+model and reducer, and does not use the client's agent classes.
 
 - **AG-UI servers work with no adapter.** `SseChatTransport` with the default `AgUiCodec` posts
   an AG-UI `RunAgentInput` and reads the SSE event stream, as AG-UI's HTTP agents expect.
@@ -41,17 +43,28 @@ runtime dependency on `@ag-ui/*`.
 - **One AG-UI run is one kit step**, that is one model call. AG-UI's `STEP_STARTED` and
   `STEP_FINISHED` mark stages within a run, and the kit ignores them.
 
-| AG-UI events | Kit support |
-|--------------|-------------|
-| `RUN_STARTED`, `RUN_FINISHED`, `RUN_ERROR` | Used. `RUN_FINISHED` sets the finish reason, usage and metadata. |
-| `TEXT_MESSAGE_*` | Used. Text parts. |
-| `REASONING_*`, `REASONING_ENCRYPTED_VALUE` | Used. Reasoning parts, with signatures kept for the history. |
-| `TOOL_CALL_*`, `TOOL_CALL_RESULT` | Used. Tool call parts, run in the browser or by the backend. A result with `metadata.error` fails its call. |
-| `ACTIVITY_SNAPSHOT` | Used. Data parts, keyed by `activityType`. |
-| `CUSTOM` | Used for the kit's `xh.chat.*` events. Others ignored. |
-| `STATE_SNAPSHOT`, `STATE_DELTA`, `MESSAGES_SNAPSHOT` | Ignored. |
-| `SUBAGENT_*` | Used. Data parts of type `xh.chat.subagent`, which the activity timeline nests calls under. |
-| `ACTIVITY_DELTA`, `RAW`, `STEP_*` | Ignored. |
+### Support by spec area
+
+| Spec area | Supported | Not yet |
+|-----------|-----------|---------|
+| Run lifecycle | `RUN_STARTED`, `RUN_FINISHED` and `RUN_ERROR`. `RUN_FINISHED` sets the finish reason, usage and metadata. A new run after `RUN_ERROR` clears the error. The kit checks the sequence rules. | Acting on the `interrupt` outcome. |
+| Validation | The kit drops events of an unknown type and strips unknown fields, each with a console warning. A malformed known field fails the turn. | - |
+| Text | `TEXT_MESSAGE_*`, chunks included, as text parts that keep the server's message ids. | - |
+| Tool calls | `TOOL_CALL_*` and `TOOL_CALL_RESULT`, as tool call parts, run in the browser or by the backend. A call keeps the server's ids for its message and its result. A result with `metadata.error` fails its call. | Metadata on a call. |
+| Reasoning | `REASONING_*` and `REASONING_ENCRYPTED_VALUE`, as reasoning parts, with signatures and the server's message ids kept for the history. | - |
+| Activity | `ACTIVITY_SNAPSHOT`, as data parts keyed by `activityType`. | `ACTIVITY_DELTA`. |
+| Sub-agents | `SUBAGENT_*`, as data parts of type `xh.chat.subagent`. The timeline nests their calls. | Attribution of text and reasoning to a sub-agent. |
+| Metadata | `metadata` on events the kit reads, such as `RUN_ERROR` and `TOOL_CALL_RESULT`. | Metadata on messages and tool calls. |
+| Shared state | The `state` a codec sends with each run. | `STATE_SNAPSHOT` and `STATE_DELTA`. |
+| History snapshots | - | `MESSAGES_SNAPSHOT`. |
+| Pass-through | `CUSTOM` events named `xh.chat.*`. Others are ignored, as is `RAW`. | - |
+| Requests | A `RunAgentInput` with `protocolVersion: '1.0'`, the whole history with the server's ids, tools, context, `state` and `forwardedProps`, checked before it goes. | `resume`. |
+| Interrupts | - | The `interrupt` outcome and `resume`. |
+
+The official AG-UI 1.0 conformance corpus runs in the kit's CI, from `test/conformance/` in the
+repo. Of the 61 fixtures that apply to a client other than the official ones, 44 pass. 8 more
+fail only because the kit keeps no shared state. A committed list names each gap and its reason, and a gap that closes fails the run until
+it leaves the list.
 
 An AG-UI `RUN_FINISHED` with an `outcome` of `success` maps to the finish reason `stop`. Any
 other outcome, such as `interrupt`, maps to `other`. The kit pauses for the user through its own

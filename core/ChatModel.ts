@@ -1293,7 +1293,6 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
                 if (!this.isCurrent(turn)) return;
                 this.noteActivity();
                 turn.pendingEvents.push(event);
-                if (event.type === 'RUN_ERROR') break;
                 turn.flushTimer ??= setTimeout(() => this.flush(turn), STREAM_FLUSH_MS);
             }
         } catch (e) {
@@ -1609,6 +1608,10 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             endedAt: Date.now()
         };
         if (detached) metadata.detached = true;
+        // A thrown ChatRunError, such as for a stream the codec rejected, names its own failure.
+        if (status === 'error' && error instanceof ChatRunError && error.code != null) {
+            metadata.errorCode ??= error.code;
+        }
         if (status === 'error' && turn.isConnectionLost) metadata.errorCode ??= 'connection-lost';
         // Stored with the reply, so that its UI can migrate once the catalog changes.
         try {

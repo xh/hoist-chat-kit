@@ -20,7 +20,7 @@ describe('SseChatTransport', () => {
         const stream = sseStream();
         hoistCore.route('POST', 'agent', () => stream.response);
         stream.write(
-            `: connected\n\ndata: ${JSON.stringify(TEXT_START)}\n\n`,
+            `: connected\n\ndata: ${JSON.stringify(STARTED)}\n\ndata: ${JSON.stringify(TEXT_START)}\n\n`,
             `data: ${JSON.stringify(TEXT_CONTENT)}\n\ndata: [DONE]\n\n`
         );
         stream.close();
@@ -28,7 +28,7 @@ describe('SseChatTransport', () => {
         const transport = new SseChatTransport({url: 'agent', headers: {'X-Agent-Key': 'k1'}}),
             events = await collect(transport.run(request()));
 
-        expect(events).toEqual([TEXT_START, TEXT_CONTENT]);
+        expect(events).toEqual([STARTED, TEXT_START, TEXT_CONTENT]);
 
         const [req] = hoistCore.requestsTo('agent');
         expect(req.headers).toMatchObject({
@@ -58,12 +58,12 @@ describe('SseChatTransport', () => {
     it('skips data that is not JSON, such as a plain-text keep-alive', async () => {
         const stream = sseStream();
         hoistCore.route('POST', 'agent', () => stream.response);
-        stream.write('data: ping\n\n', `data: ${JSON.stringify(TEXT_START)}\n\n`);
+        stream.write('data: ping\n\n', `data: ${JSON.stringify(STARTED)}\n\n`);
         stream.close();
 
         const events = await collect(new SseChatTransport({url: 'agent'}).run(request()));
 
-        expect(events).toEqual([TEXT_START]);
+        expect(events).toEqual([STARTED]);
     });
 
     it('resets the idle timeout on a keep-alive comment', async () => {
@@ -77,10 +77,10 @@ describe('SseChatTransport', () => {
             await new Promise(resolve => setTimeout(resolve, 50));
             stream.write(': ping\n\n');
         }
-        stream.write(`data: ${JSON.stringify(TEXT_START)}\n\n`);
+        stream.write(`data: ${JSON.stringify(STARTED)}\n\n`);
         stream.close();
 
-        expect(await events).toEqual([TEXT_START]);
+        expect(await events).toEqual([STARTED]);
     });
 
     it('yields no events for an empty response', async () => {
@@ -95,9 +95,7 @@ describe('SseChatTransport', () => {
         const stream = sseStream(),
             signals = spyFetchSignals('agent');
         hoistCore.route('POST', 'agent', () => stream.response);
-        stream.write(
-            `data: ${JSON.stringify(TEXT_START)}\n\ndata: ${JSON.stringify(TEXT_CONTENT)}\n\n`
-        );
+        stream.write(`data: ${JSON.stringify(STARTED)}\n\ndata: ${JSON.stringify(TEXT_START)}\n\n`);
 
         for await (const event of new SseChatTransport({url: 'agent'}).run(request())) {
             if (event.type === 'TEXT_MESSAGE_START') break;
@@ -113,7 +111,7 @@ describe('SseChatTransport', () => {
         hoistCore.route('POST', 'agent', () => stream.response);
 
         const events = new SseChatTransport({url: 'agent'}).run(request(controller.signal));
-        stream.write(`data: ${JSON.stringify(TEXT_START)}\n\n`);
+        stream.write(`data: ${JSON.stringify(STARTED)}\n\n`);
         await events.next();
 
         const next = events.next();
@@ -138,7 +136,9 @@ describe('SseChatTransport', () => {
 //------------------
 // Helpers
 //------------------
-const TEXT_START: ChatEvent = {type: 'TEXT_MESSAGE_START', messageId: 'm1', role: 'assistant'},
+// A conforming AG-UI stream, which the codec's checks require, opens with RUN_STARTED.
+const STARTED: ChatEvent = {type: 'RUN_STARTED', threadId: 't1', runId: 'r1'},
+    TEXT_START: ChatEvent = {type: 'TEXT_MESSAGE_START', messageId: 'm1', role: 'assistant'},
     TEXT_CONTENT: ChatEvent = {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'Hello'};
 
 function request(signal: AbortSignal = new AbortController().signal): ChatRunRequest {

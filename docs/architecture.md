@@ -43,9 +43,10 @@ spinner and the keyboard shortcuts, live in `desktop/impl/`. Both are internal, 
 reaches into another's `impl/`.
 
 - **Transports and codecs** carry the request to a backend and turn its stream into
-  `ChatEvent`s, which are AG-UI 1.0 events. A transport owns the framing, such as NDJSON or SSE.
-  A codec owns the format, such as AG-UI or the Anthropic Messages API. See
-  [`/transport/`](../transport/README.md).
+  `ChatEvent`s, which are AG-UI 1.0 events typed from the official `@ag-ui/core`. A transport
+  owns the framing, such as NDJSON or SSE. A codec owns the format, such as AG-UI or the
+  Anthropic Messages API. `AgUiCodec` runs the official `@ag-ui/client` checks on each AG-UI
+  stream. See [`/transport/`](../transport/README.md).
 - **Models** hold the conversation. `ChatModel` runs each turn, applies the events to immutable
   `ChatMessage` records, and runs client tools. See [`/core/`](../core/README.md). A
   `ChatUiCatalog` turns app components into tools the model calls to show UI. See
@@ -126,7 +127,7 @@ A conversation has one owner of its history, set by `ChatModelConfig.historyMode
 |---|---|---|
 | Who owns the history | The browser | An agent service |
 | Who runs the tool loop | The chat, with client tools | The agent. The chat can still run client tools |
-| Each request carries | The whole history | The new messages, with the turn's ids |
+| Each request carries | The whole history | The whole history, with the turn's ids |
 | Threads | One per `ChatModel`, saved by the app | Saved by the server, listed by a thread layer |
 | A stop | Closes the connection | Closes the connection, and asks the transport to cancel the run |
 | A clear, load or detach | Closes the connection | Leaves the run going on the server |
@@ -136,9 +137,10 @@ In client mode, the chat is the source of truth. Each step resends the whole con
 `getMessageSpecs()` and `loadMessages()` persist it.
 
 In server mode, the agent service is the source of truth, and the chat is a view of it. Each
-request still holds the whole history in `messages`, so the request type stays the same. A
-server-mode codec sends `newMessages` instead: the user message on the first step, or the client's
-tool results on a later one. It also sends the turn's ids:
+request still holds the whole history in `messages`, and `AgUiCodec` sends all of it, as AG-UI
+requires. A codec for a backend that takes only what it has not seen sends `newMessages`. That
+is the user message on the first step, or the client's tool results on a later one. A
+server-mode codec also sends the turn's ids:
 
 - `turnId` is the id of the user message the turn answers. A retry sends it again, so a backend
   with an idempotency key can replay the result rather than start a second run.

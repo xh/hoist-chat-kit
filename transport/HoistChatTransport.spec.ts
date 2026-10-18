@@ -1,7 +1,7 @@
 import {type PlainObject, XH} from '@xh/hoist/core';
 import {hoistCore, hoistError, initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {ChatMessage, ChatModel, ChatRunError} from '../core';
+import {ChatMessage, ChatModel, ChatRunError, isChatRetrySafe} from '../core';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRequest} from './ChatTransport';
 import {AnthropicCodec} from './codec/AnthropicCodec';
@@ -20,7 +20,7 @@ describe('HoistChatTransport', () => {
     it('posts the encoded request as JSON and yields the decoded events', async () => {
         const stream = ndjsonStream();
         hoistCore.route('POST', 'chat', () => stream.response);
-        stream.push(TEXT_START, TEXT_CONTENT, FINISHED);
+        stream.push(STARTED, TEXT_START, TEXT_CONTENT, TEXT_END, FINISHED);
         stream.close();
 
         const transport = new HoistChatTransport({
@@ -30,7 +30,7 @@ describe('HoistChatTransport', () => {
             }),
             events = await collect(transport.run(request()));
 
-        expect(events).toEqual([TEXT_START, TEXT_CONTENT, FINISHED]);
+        expect(events).toEqual([STARTED, TEXT_START, TEXT_CONTENT, TEXT_END, FINISHED]);
 
         const [req] = hoistCore.requestsTo('chat');
         expect(req.headers).toMatchObject({
@@ -50,6 +50,9 @@ describe('HoistChatTransport', () => {
         hoistCore.route('POST', 'chat', () => stream.response);
 
         const events = new HoistChatTransport({url: 'chat'}).run(request());
+        stream.push(STARTED);
+        expect((await events.next()).value).toEqual(STARTED);
+
         stream.push(TEXT_START);
         expect((await events.next()).value).toEqual(TEXT_START);
 
@@ -93,7 +96,7 @@ describe('HoistChatTransport', () => {
         hoistCore.route('POST', 'chat', () => stream.response);
 
         const events = new HoistChatTransport({url: 'chat'}).run(request(controller.signal));
-        stream.push(TEXT_START);
+        stream.push(STARTED);
         await events.next();
 
         // The server sends nothing more - the pending read must still end promptly.
@@ -108,7 +111,7 @@ describe('HoistChatTransport', () => {
         const stream = ndjsonStream(),
             signals = spyFetchSignals('chat');
         hoistCore.route('POST', 'chat', () => stream.response);
-        stream.push(TEXT_START, TEXT_CONTENT);
+        stream.push(STARTED, TEXT_START, TEXT_CONTENT);
 
         for await (const event of new HoistChatTransport({url: 'chat'}).run(request())) {
             if (event.type === 'TEXT_MESSAGE_START') break;
@@ -240,13 +243,14 @@ describe('HoistChatTransport', () => {
             const stream = ndjsonStream(),
                 signals = spyFetchSignals('chat');
             hoistCore.route('POST', 'chat', () => stream.response);
-            stream.push(TEXT_START);
+            stream.push(STARTED, TEXT_START);
 
             const events = await collect(
                 new HoistChatTransport({url: 'chat', idleTimeout: 50}).run(request())
             );
 
             expect(events).toEqual([
+                STARTED,
                 TEXT_START,
                 {type: 'RUN_ERROR', message: 'The server stopped responding.', code: 'stalled'}
             ]);
@@ -264,24 +268,24 @@ describe('HoistChatTransport', () => {
                 await sleep(50);
                 stream.push({type: 'xh.heartbeat'});
             }
-            stream.push(TEXT_START, FINISHED);
+            stream.push(STARTED, FINISHED);
             stream.close();
 
-            expect(await events).toEqual([TEXT_START, FINISHED]);
+            expect(await events).toEqual([STARTED, FINISHED]);
         });
 
         it('reports each record it reads as activity, heartbeats included', async () => {
             const stream = ndjsonStream(),
                 onActivity = vi.fn();
             hoistCore.route('POST', 'chat', () => stream.response);
-            stream.push(TEXT_START, {type: 'xh.heartbeat'}, {type: 'xh.heartbeat'}, FINISHED);
+            stream.push(STARTED, {type: 'xh.heartbeat'}, {type: 'xh.heartbeat'}, FINISHED);
             stream.close();
 
             const events = await collect(
                 new HoistChatTransport({url: 'chat'}).run({...request(), onActivity})
             );
 
-            expect(events).toEqual([TEXT_START, FINISHED]);
+            expect(events).toEqual([STARTED, FINISHED]);
             expect(onActivity).toHaveBeenCalledTimes(4);
         });
 
@@ -356,11 +360,83 @@ describe('HoistChatTransport', () => {
             expect(handleException).not.toHaveBeenCalled();
         });
 
+        it('fails the turn on a stream that breaks the AG-UI rules, and reports it', async () => {
+            const {handleException, logOnServer} = spyExceptionPipeline(),
+                stream = ndjsonStream();
+            hoistCore.route('POST', 'chat', () => stream.response);
+            stream.push(TEXT_START, TEXT_CONTENT);
+            stream.close();
+            const chatModel = createChat();
+
+            await chatModel.sendAsync('Hi');
+
+            expect(chatModel.lastError).toBeInstanceOf(ChatRunError);
+            expect(chatModel.lastError).toMatchObject({code: 'invalid-stream'});
+            expect(chatModel.lastMessage).toMatchObject({
+                status: 'error',
+                error: "Invalid AG-UI stream: First event must be 'RUN_STARTED'",
+                metadata: expect.objectContaining({errorCode: 'invalid-stream'})
+            });
+            expect(handleException).toHaveBeenCalledOnce();
+            expect(logOnServer).toHaveBeenCalledOnce();
+        });
+
+        it('records a rejected stream in server mode as such, not as a lost connection', async () => {
+            spyExceptionPipeline();
+            const stream = ndjsonStream();
+            hoistCore.route('POST', 'chat', () => stream.response);
+            stream.push(TEXT_START);
+            stream.close();
+            const chatModel = new ChatModel({
+                transport: new HoistChatTransport({url: 'chat'}),
+                historyMode: 'server'
+            });
+            onTestFinished(() => chatModel.destroy());
+
+            await chatModel.sendAsync('Hi');
+
+            expect(chatModel.lastMessage.metadata.errorCode).toBe('invalid-stream');
+            expect(isChatRetrySafe(chatModel.lastMessage, 'server')).toBe(false);
+        });
+
+        it('reads on after RUN_ERROR, so a later run in the stream completes the turn', async () => {
+            const stream = ndjsonStream();
+            hoistCore.route('POST', 'chat', () => stream.response);
+            stream.push(
+                STARTED,
+                {type: 'RUN_ERROR', message: 'The first run failed.'},
+                {type: 'RUN_STARTED', threadId: 't1', runId: 'r2'},
+                TEXT_START,
+                TEXT_CONTENT,
+                TEXT_END,
+                {type: 'RUN_FINISHED', threadId: 't1', runId: 'r2'}
+            );
+            stream.close();
+            const chatModel = createChat();
+
+            await chatModel.sendAsync('Hi');
+
+            expect(chatModel.lastError).toBeNull();
+            expect(chatModel.lastMessage).toMatchObject({status: 'complete', text: 'Hello'});
+        });
+
+        it('fails the turn with the error of a stream that ends on RUN_ERROR', async () => {
+            const stream = ndjsonStream();
+            hoistCore.route('POST', 'chat', () => stream.response);
+            stream.push(STARTED, {type: 'RUN_ERROR', message: 'Busy.', code: 'busy'});
+            stream.close();
+            const chatModel = createChat();
+
+            await chatModel.sendAsync('Hi');
+
+            expect(chatModel.lastError).toMatchObject({code: 'busy', message: 'Busy.'});
+        });
+
         it('shows a stream that ends early, without reporting an exception', async () => {
             const {handleException} = spyExceptionPipeline(),
                 stream = ndjsonStream();
             hoistCore.route('POST', 'chat', () => stream.response);
-            stream.push(TEXT_START, TEXT_CONTENT);
+            stream.push(STARTED, TEXT_START, TEXT_CONTENT);
             stream.close();
             const chatModel = createChat();
 
@@ -394,8 +470,11 @@ function spyExceptionPipeline() {
     return {handleException, logOnServer};
 }
 
-const TEXT_START: ChatEvent = {type: 'TEXT_MESSAGE_START', messageId: 'm1', role: 'assistant'},
+// A conforming AG-UI stream, which the codec's checks require, opens with RUN_STARTED.
+const STARTED: ChatEvent = {type: 'RUN_STARTED', threadId: 't1', runId: 'r1'},
+    TEXT_START: ChatEvent = {type: 'TEXT_MESSAGE_START', messageId: 'm1', role: 'assistant'},
     TEXT_CONTENT: ChatEvent = {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'Hello'},
+    TEXT_END: ChatEvent = {type: 'TEXT_MESSAGE_END', messageId: 'm1'},
     FINISHED: ChatEvent = {type: 'RUN_FINISHED', threadId: 't1', runId: 'r1'};
 
 function request(signal: AbortSignal = new AbortController().signal): ChatRunRequest {

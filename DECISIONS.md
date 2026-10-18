@@ -1309,3 +1309,26 @@ Any backend that can send a custom event can send the standard outcome as easily
 event bought nothing. LangGraph's legacy channel is undocumented. AG-UI leaves the answer schema
 unbounded, so which schemas render as a form is the kit's call.
 
+
+## D87. Choices in the AG-UI protocol layer
+
+**Decision.** The kit's event types extend the official `@ag-ui/core` types. Each widens `type`
+from the enum member to its string, so app code that writes `{type: 'RUN_STARTED'}` compiles.
+`AgUiCodec` checks each request with the client's `enforceOutgoingInput()` as well as each stream.
+A rejected stream fails the turn with a `ChatRunError` coded `invalid-stream`, and a rejected
+request with one coded `invalid-request`. A thrown `ChatRunError` records its code on the reply.
+In server mode, `invalid-stream` is not retry-safe. The chat reads a stream to its end after
+`RUN_ERROR`, and a `RUN_STARTED` after the error starts a new run that clears it. Text and reasoning parts keep the server's
+AG-UI message id as `serverId`, and tool calls keep `parentServerId` and `resultServerId`.
+`AgUiCodec` sends each message back with the server's id, grouped as the official client
+assembles them. A tool call with no parent id joins the step's last assistant message, as the
+kit grouped calls before. The opt-in for new messages only is `AgUiCodecConfig.newMessagesOnly`,
+for server mode. The conformance suite runs in `pnpm test`, against a committed list of gaps.
+
+**Why.** Apps tell failures apart by code, and AG-UI separates a client's rejection from a run's
+own error. A rejected stream is a backend bug, so Hoist still reports it. Under D85, an adapter
+that merges by id, such as LangGraph's, would add duplicates if the kit sent its own ids for
+server messages. The message ids, item 5 of `planning/AG-UI.md`, came
+forward for that reason. The official client gives a call with no parent id a message of its
+own. No fixture covers that case, and keeping the call with its text suits the model APIs that
+stateless adapters relay to.

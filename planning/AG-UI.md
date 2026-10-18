@@ -184,8 +184,8 @@ conformance gap list is current.
 ### 3. History in AG-UI requests (D85)
 
 - `AgUiCodec` sends every message the chat holds, in both modes.
-- Add an opt-in for new messages only, marked in the docs as outside the spec. Settle its name
-  with Anselm.
+- Add an opt-in for new messages only, marked in the docs as outside the spec:
+  `AgUiCodecConfig.newMessagesOnly`, for server mode (D87).
 - Tool results always travel with the assistant message that called them.
 - Update the transport README's "Server-owned conversations" section and
   `planning/SERVER-MODE.md`.
@@ -230,8 +230,8 @@ Proposed defaults, to confirm in the spec:
 
 Close only what the suite reports:
 
-- keep the server's message ids on parts
-- append when a closed message reopens
+- keep the server's message ids on parts - done with item 3, as the whole history needs them
+  (D87). It also closed the reopened-message fixture.
 - merge per-item metadata onto parts
 - attribute text and reasoning to their sub-agent
 

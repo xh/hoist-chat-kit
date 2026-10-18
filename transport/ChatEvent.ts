@@ -1,12 +1,14 @@
+import type * as AgUi from '@ag-ui/core';
 import type {PlainObject} from '@xh/hoist/core';
 
 /**
  * Streaming event from a chat backend - the kit's wire vocabulary.
  *
- * These are the events of the AG-UI protocol (version 1.0), with the same `type` strings and
- * field names, so any AG-UI agent server can drive the kit directly. The kit mirrors the types it
- * reads rather than depending on `@ag-ui/core`. Events the kit does not act on are still accepted
- * and ignored.
+ * These are the events of the AG-UI protocol (version 1.0), typed from `@ag-ui/core`. Each kit
+ * type takes its fields from the official type of the same name, and widens `type` to its string,
+ * so code can write `{type: 'RUN_STARTED', ...}` as well as `EventType.RUN_STARTED`. Any AG-UI
+ * agent server can drive the kit directly. Events the kit does not act on are still accepted and
+ * ignored.
  *
  * One AG-UI run is one step of a kit turn: a single model call, from `RUN_STARTED` to
  * `RUN_FINISHED` or `RUN_ERROR`. AG-UI's own `STEP_STARTED` and `STEP_FINISHED` events mark
@@ -50,17 +52,11 @@ export type ChatEvent =
 /** Discriminator values for {@link ChatEvent}. */
 export type ChatEventType = ChatEvent['type'];
 
-/** Fields common to all events. */
-export interface ChatEventBase {
-    /** Epoch millis when the event was created. */
-    timestamp?: number;
+/** Fields common to all events: `timestamp`, `rawEvent` and `metadata`. */
+export type ChatEventBase = Omit<AgUi.BaseEvent, 'type'>;
 
-    /** Provider-native event this one was translated from, for debugging. */
-    rawEvent?: any;
-
-    /** Open-ended extra information. */
-    metadata?: PlainObject;
-}
+/** Token counts for one step, as reported on `RUN_FINISHED`. */
+export type ChatTokenUsage = AgUi.TokenUsage;
 
 //------------------
 // Lifecycle
@@ -68,23 +64,15 @@ export interface ChatEventBase {
 /**
  * A run - one step of the turn - has started. Its `runId` is recorded on the message as
  * `metadata.runId`. In server mode, the first run of a new thread may report the server's own
- * `threadId`, which the chat adopts.
+ * `threadId`, which the chat adopts. AG-UI requires it as the first event of every stream.
  */
-export interface RunStartedEvent extends ChatEventBase {
-    type: 'RUN_STARTED';
-    threadId: string;
-    runId: string;
-}
+export interface RunStartedEvent extends Wire<AgUi.RunStartedEvent> {}
 
 /**
  * The run has finished normally. A stream sends it once, as its last event. A stream that ends
  * without this event, or `RUN_ERROR`, fails the turn as incomplete.
  */
-export interface RunFinishedEvent extends ChatEventBase {
-    type: 'RUN_FINISHED';
-    threadId: string;
-    runId: string;
-
+export interface RunFinishedEvent extends Wire<AgUi.RunFinishedEvent> {
     /**
      * The agent's result, if any. A `messageId` in it is recorded as the reply's
      * `metadata.serverId`, unless an `xh.chat.message` event reported one first.
@@ -92,7 +80,7 @@ export interface RunFinishedEvent extends ChatEventBase {
     result?: any;
 
     /** How the run ended. Maps to the finish reason when `metadata.finishReason` is not given. */
-    outcome?: {type: 'success' | 'interrupt' | 'cancelled'; [key: string]: any};
+    outcome?: AgUi.RunFinishedOutcome;
 
     /** Token counts for the run, recorded as `metadata.usage` on the message. */
     usage?: ChatTokenUsage[];
@@ -106,9 +94,7 @@ export interface RunFinishedEvent extends ChatEventBase {
  * `metadata.retrySafe`, and the composer then offers Refresh Status rather than Try Again - see
  * `isChatRetrySafe()`.
  */
-export interface RunErrorEvent extends ChatEventBase {
-    type: 'RUN_ERROR';
-
+export interface RunErrorEvent extends Wire<AgUi.RunErrorEvent> {
     /** Error text, shown to the user. */
     message: string;
 
@@ -117,162 +103,70 @@ export interface RunErrorEvent extends ChatEventBase {
 }
 
 /** A stage within the run has started - not a kit step. Ignored. */
-export interface StepStartedEvent extends ChatEventBase {
-    type: 'STEP_STARTED';
-    stepName: string;
-}
+export interface StepStartedEvent extends Wire<AgUi.StepStartedEvent> {}
 
 /** A stage within the run has finished - not a kit step. Ignored. */
-export interface StepFinishedEvent extends ChatEventBase {
-    type: 'STEP_FINISHED';
-    stepName: string;
-}
-
-/** Token counts for one step, as reported on `RUN_FINISHED`. */
-export interface ChatTokenUsage {
-    /** Provider that served the call, e.g. 'anthropic'. */
-    provider?: string;
-
-    /** Model that served the call. */
-    model?: string;
-
-    /** Input tokens, including those read from or written to a prompt cache. */
-    inputTokens?: number;
-
-    /** Output tokens, including reasoning. */
-    outputTokens?: number;
-
-    /** Input plus output tokens. */
-    totalTokens?: number;
-
-    /** Output tokens spent on reasoning, where reported. */
-    reasoningTokens?: number;
-
-    /** Input tokens read from a prompt cache. */
-    cachedInputTokens?: number;
-
-    /** Input tokens written to a prompt cache. */
-    cacheWriteInputTokens?: number;
-}
+export interface StepFinishedEvent extends Wire<AgUi.StepFinishedEvent> {}
 
 //------------------
 // Text
 //------------------
 /** A text message has started. Its part opens with its first content. */
-export interface TextMessageStartEvent extends ChatEventBase {
-    type: 'TEXT_MESSAGE_START';
-    messageId: string;
-    role?: 'developer' | 'system' | 'assistant' | 'user';
-}
+export interface TextMessageStartEvent extends Wire<AgUi.TextMessageStartEvent> {}
 
 /** A fragment of a text message. */
-export interface TextMessageContentEvent extends ChatEventBase {
-    type: 'TEXT_MESSAGE_CONTENT';
-    messageId: string;
-    delta: string;
-}
+export interface TextMessageContentEvent extends Wire<AgUi.TextMessageContentEvent> {}
 
 /** A text message has ended. */
-export interface TextMessageEndEvent extends ChatEventBase {
-    type: 'TEXT_MESSAGE_END';
-    messageId: string;
-}
+export interface TextMessageEndEvent extends Wire<AgUi.TextMessageEndEvent> {}
 
-/** Convenience form that opens, extends, or continues a text message. */
-export interface TextMessageChunkEvent extends ChatEventBase {
-    type: 'TEXT_MESSAGE_CHUNK';
-    messageId?: string;
-    role?: 'developer' | 'system' | 'assistant' | 'user';
-    delta?: string;
-}
+/**
+ * Convenience form that opens, extends, or continues a text message. The kit's AG-UI decoder
+ * expands chunks into start, content and end events before the chat sees them.
+ */
+export interface TextMessageChunkEvent extends Wire<AgUi.TextMessageChunkEvent> {}
 
 //------------------
 // Reasoning
 //------------------
 /** A span of reasoning has started. */
-export interface ReasoningStartEvent extends ChatEventBase {
-    type: 'REASONING_START';
-    messageId: string;
-}
+export interface ReasoningStartEvent extends Wire<AgUi.ReasoningStartEvent> {}
 
 /** A reasoning message, within a reasoning span, has started. */
-export interface ReasoningMessageStartEvent extends ChatEventBase {
-    type: 'REASONING_MESSAGE_START';
-    messageId: string;
-    role: 'reasoning';
-}
+export interface ReasoningMessageStartEvent extends Wire<AgUi.ReasoningMessageStartEvent> {}
 
 /** A fragment of a reasoning message. */
-export interface ReasoningMessageContentEvent extends ChatEventBase {
-    type: 'REASONING_MESSAGE_CONTENT';
-    messageId: string;
-    delta: string;
-}
+export interface ReasoningMessageContentEvent extends Wire<AgUi.ReasoningMessageContentEvent> {}
 
 /** A reasoning message has ended. */
-export interface ReasoningMessageEndEvent extends ChatEventBase {
-    type: 'REASONING_MESSAGE_END';
-    messageId: string;
-}
+export interface ReasoningMessageEndEvent extends Wire<AgUi.ReasoningMessageEndEvent> {}
 
 /** Convenience form that opens, extends, or continues a reasoning message. */
-export interface ReasoningMessageChunkEvent extends ChatEventBase {
-    type: 'REASONING_MESSAGE_CHUNK';
-    messageId?: string;
-    delta?: string;
-}
+export interface ReasoningMessageChunkEvent extends Wire<AgUi.ReasoningMessageChunkEvent> {}
 
 /** A span of reasoning has ended. */
-export interface ReasoningEndEvent extends ChatEventBase {
-    type: 'REASONING_END';
-    messageId: string;
-}
+export interface ReasoningEndEvent extends Wire<AgUi.ReasoningEndEvent> {}
 
 /** A signature for a reasoning message or tool call, such as an Anthropic thinking signature. */
-export interface ReasoningEncryptedValueEvent extends ChatEventBase {
-    type: 'REASONING_ENCRYPTED_VALUE';
-    subtype: 'tool-call' | 'message';
-    entityId: string;
-    encryptedValue: string;
-}
+export interface ReasoningEncryptedValueEvent extends Wire<AgUi.ReasoningEncryptedValueEvent> {}
 
 //------------------
 // Tool calls
 //------------------
 /** The model has started a tool call. */
-export interface ToolCallStartEvent extends ChatEventBase {
-    type: 'TOOL_CALL_START';
-    toolCallId: string;
-    toolCallName: string;
-    parentMessageId?: string;
-
+export interface ToolCallStartEvent extends Wire<AgUi.ToolCallStartEvent> {
     /** The sub-agent that made the call - see {@link SubagentStartedEvent}. */
     subagentRunId?: string;
 }
 
-/** A fragment of a tool call's arguments. */
-export interface ToolCallArgsEvent extends ChatEventBase {
-    type: 'TOOL_CALL_ARGS';
-    toolCallId: string;
-
-    /** Fragment of the arguments' JSON text. */
-    delta: string;
-}
+/** A fragment of a tool call's arguments, as JSON text. */
+export interface ToolCallArgsEvent extends Wire<AgUi.ToolCallArgsEvent> {}
 
 /** The model has finished writing a tool call's arguments. */
-export interface ToolCallEndEvent extends ChatEventBase {
-    type: 'TOOL_CALL_END';
-    toolCallId: string;
-}
+export interface ToolCallEndEvent extends Wire<AgUi.ToolCallEndEvent> {}
 
-/** Convenience form that opens or extends a tool call. */
-export interface ToolCallChunkEvent extends ChatEventBase {
-    type: 'TOOL_CALL_CHUNK';
-    toolCallId?: string;
-    toolCallName?: string;
-    parentMessageId?: string;
-    delta?: string;
-
+/** Convenience form that opens or extends a tool call. Expanded like a text chunk. */
+export interface ToolCallChunkEvent extends Wire<AgUi.ToolCallChunkEvent> {
     /** The sub-agent that made the call - see {@link SubagentStartedEvent}. */
     subagentRunId?: string;
 }
@@ -288,14 +182,9 @@ export interface ToolCallChunkEvent extends ChatEventBase {
  * A result may also carry the result sets the tool produced, as `metadata.artifacts` - a list of
  * `ChatArtifact`. They are recorded on the reply as the `xh.chat.artifact` event records them.
  */
-export interface ToolCallResultEvent extends ChatEventBase {
-    type: 'TOOL_CALL_RESULT';
-    messageId: string;
-    toolCallId: string;
-
+export interface ToolCallResultEvent extends Wire<AgUi.ToolCallResultEvent> {
     /** The result - JSON-parsed into the part's `output` when it parses. */
-    content: string | PlainObject[];
-    role?: 'tool';
+    content: string | AgUi.ContentPart[];
 
     /** Set `error` or `isError` to report that the tool failed, and `artifacts` to add data. */
     metadata?: PlainObject & {error?: string; isError?: boolean; artifacts?: PlainObject[]};
@@ -304,18 +193,12 @@ export interface ToolCallResultEvent extends ChatEventBase {
 //------------------
 // Generative UI
 //------------------
-/** A typed activity payload to render in the message, such as a progress card or a form. */
-export interface ActivitySnapshotEvent extends ChatEventBase {
-    type: 'ACTIVITY_SNAPSHOT';
-    messageId: string;
-
-    /** Kind of activity - becomes the `dataType` of its data part. */
-    activityType: string;
-    content: PlainObject;
-
-    /** False to keep the existing content of a part with the same id. Default true. */
-    replace?: boolean;
-}
+/**
+ * A typed activity payload to render in the message, such as a progress card or a form. Its
+ * `activityType` becomes the `dataType` of its data part. A `replace: false` keeps the existing
+ * content of a part with the same id.
+ */
+export interface ActivitySnapshotEvent extends Wire<AgUi.ActivitySnapshotEvent> {}
 
 //------------------
 // Sub-agents
@@ -325,47 +208,16 @@ export interface ActivitySnapshotEvent extends ChatEventBase {
  * `subagentRunId`. The kit records the sub-agent as a data part of type `xh.chat.subagent`, and
  * the activity timeline nests its calls under it.
  */
-export interface SubagentStartedEvent extends ChatEventBase {
-    type: 'SUBAGENT_STARTED';
+export interface SubagentStartedEvent extends Wire<AgUi.SubagentStartedEvent> {}
 
-    /** Identifies this run of the sub-agent. */
-    subagentRunId: string;
-
-    /** The sub-agent's name, for display. */
-    name: string;
-
-    /** What the sub-agent is doing, for display. */
-    description?: string;
-
-    /** The sub-agent that started this one, when sub-agents nest. */
-    parentSubagentRunId?: string;
-
-    /** The tool call that started this sub-agent, for agents exposed to a model as tools. */
-    parentToolCallId?: string;
-
-    /** The message that holds that tool call. */
-    parentMessageId?: string;
-}
-
-/** A sub-agent has finished its work. */
-export interface SubagentFinishedEvent extends ChatEventBase {
-    type: 'SUBAGENT_FINISHED';
-    subagentRunId: string;
-
-    /** What the sub-agent found or did. Text shows as its result line in the timeline. */
-    result?: any;
-
-    /** `success`, or `suspended` while the sub-agent waits on an interrupt. */
-    outcome?: {type: 'success'} | {type: 'suspended'; interruptIds?: string[]};
-}
+/**
+ * A sub-agent has finished its work. Its `result`, when text, shows as its result line in the
+ * timeline.
+ */
+export interface SubagentFinishedEvent extends Wire<AgUi.SubagentFinishedEvent> {}
 
 /** A sub-agent has failed. */
-export interface SubagentErrorEvent extends ChatEventBase {
-    type: 'SUBAGENT_ERROR';
-    subagentRunId: string;
-    message: string;
-    code?: string;
-}
+export interface SubagentErrorEvent extends Wire<AgUi.SubagentErrorEvent> {}
 
 //------------------
 // Extension
@@ -374,17 +226,15 @@ export interface SubagentErrorEvent extends ChatEventBase {
  * An application-defined event. The kit acts on those named in {@link ChatCustomEventName} and
  * ignores the rest.
  */
-export interface ChatCustomEvent extends ChatEventBase {
-    type: 'CUSTOM';
-    name: string;
-    value: any;
-}
+export interface ChatCustomEvent extends Wire<AgUi.CustomEvent> {}
 
 /** AG-UI events the kit accepts but does not act on. */
-export interface IgnoredEvent extends ChatEventBase {
-    type: 'RAW' | 'STATE_SNAPSHOT' | 'STATE_DELTA' | 'MESSAGES_SNAPSHOT' | 'ACTIVITY_DELTA';
-    [key: string]: any;
-}
+export type IgnoredEvent =
+    | Wire<AgUi.RawEvent>
+    | Wire<AgUi.StateSnapshotEvent>
+    | Wire<AgUi.StateDeltaEvent>
+    | Wire<AgUi.MessagesSnapshotEvent>
+    | Wire<AgUi.ActivityDeltaEvent>;
 
 /**
  * Names of the `CUSTOM` events with which a backend sends kit-specific content:
@@ -427,3 +277,9 @@ export type ChatCustomEventName =
     | 'xh.chat.textReplace'
     | 'xh.chat.message'
     | 'xh.chat.artifact';
+
+//------------------
+// Implementation
+//------------------
+/** An official AG-UI event type, with its `type` widened from the enum member to its string. */
+type Wire<E extends AgUi.BaseEvent> = Omit<E, 'type'> & {type: `${E['type']}`};

@@ -1,6 +1,16 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {logDebug, logWarn} from '@xh/hoist/utils/js';
-import {findLast, isBoolean, isEmpty, isNil, isPlainObject, isString, omitBy, pick} from 'lodash';
+import {
+    findLast,
+    isBoolean,
+    isEmpty,
+    isNil,
+    isPlainObject,
+    isString,
+    omit,
+    omitBy,
+    pick
+} from 'lodash';
 import type {ChatEvent} from '../transport';
 import type {ChatMessage, ChatMessageSpec} from './ChatMessage';
 import type {ChatTextTransform} from './ChatModel';
@@ -191,9 +201,17 @@ export class ChatStreamReducer {
                 break;
 
             case 'REASONING_START':
-            case 'REASONING_MESSAGE_START':
                 this.openReasoning(draft, event.messageId);
                 break;
+            case 'REASONING_MESSAGE_START': {
+                // The message id, not the span's, names the reasoning message in AG-UI's history.
+                const part = getPart<ChatReasoningPart>(
+                    draft,
+                    this.openReasoning(draft, event.messageId)
+                );
+                if (part) putPart(draft, {...part, serverId: event.messageId});
+                break;
+            }
             case 'REASONING_MESSAGE_CONTENT':
             case 'REASONING_MESSAGE_CHUNK':
                 this.appendReasoning(draft, event.messageId, event.delta);
@@ -220,12 +238,7 @@ export class ChatStreamReducer {
             }
 
             case 'TOOL_CALL_START':
-                this.startToolCall(
-                    draft,
-                    event.toolCallId,
-                    event.toolCallName,
-                    event.subagentRunId
-                );
+                this.startToolCall(draft, event);
                 break;
             case 'TOOL_CALL_ARGS':
                 this.appendToolArgs(draft, event.toolCallId, event.delta);
@@ -236,20 +249,20 @@ export class ChatStreamReducer {
             case 'TOOL_CALL_CHUNK': {
                 const id = event.toolCallId ?? this.lastToolCallId;
                 if (!getPart(draft, id) && event.toolCallName) {
-                    this.startToolCall(draft, id, event.toolCallName, event.subagentRunId);
+                    this.startToolCall(draft, {...event, toolCallId: id});
                 }
                 this.appendToolArgs(draft, id, event.delta);
                 break;
             }
             case 'TOOL_CALL_RESULT': {
-                const {toolCallId, content, metadata} = event;
+                const {toolCallId, content, metadata, messageId} = event;
                 if (isString(metadata?.error) || metadata?.isError) {
                     const errorText = isString(metadata.error)
                         ? metadata.error
                         : contentText(content);
-                    this.setToolError(draft, toolCallId, errorText);
+                    this.setToolError(draft, toolCallId, errorText, messageId);
                 } else {
-                    this.setToolResult(draft, toolCallId, content);
+                    this.setToolResult(draft, toolCallId, content, messageId);
                 }
                 if (metadata?.artifacts != null) addArtifacts(draft, metadata.artifacts);
                 break;
@@ -305,6 +318,9 @@ export class ChatStreamReducer {
                 break;
 
             case 'RUN_STARTED':
+                // A stream may start a new run after one fails, which clears the failure.
+                if (draft.status === 'error') clearError(draft);
+                this.runFinished = false;
                 this.threadId = event.threadId ?? null;
                 this.startedRunId = event.runId ?? null;
                 // Marks a reply whose run the backend began. A reply that failed without it was
@@ -333,6 +349,9 @@ export class ChatStreamReducer {
                 break;
             }
             case 'RUN_ERROR': {
+                // The first error of a run stands, such as over the stalled error of a backend
+                // that holds the stream open after its own.
+                if (draft.status === 'error') break;
                 setError(draft, event.message ?? 'Unknown error.', event.code);
                 const {retryAfterSeconds, retrySafe} = event.metadata ?? {};
                 if (retryAfterSeconds != null) setMetadata(draft, {retryAfterSeconds});
@@ -366,7 +385,14 @@ export class ChatStreamReducer {
         const part = getPart<ChatTextPart>(draft, id);
         this.putText(
             draft,
-            part ?? {type: 'text', id, step: this.step, text: '', state: 'streaming'},
+            part ?? {
+                type: 'text',
+                id,
+                step: this.step,
+                text: '',
+                state: 'streaming',
+                ...(messageId != null ? {serverId: messageId} : {})
+            },
             this.getRawText(part) + delta
         );
         this.openTextId = this.lastTextId = id;
@@ -533,9 +559,17 @@ export class ChatStreamReducer {
     //------------------
     private startToolCall(
         draft: Draft,
-        toolCallId: string,
-        toolName: string,
-        subagentRunId: string = null
+        {
+            toolCallId,
+            toolCallName,
+            parentMessageId,
+            subagentRunId
+        }: {
+            toolCallId: string;
+            toolCallName?: string;
+            parentMessageId?: string;
+            subagentRunId?: string;
+        }
     ) {
         if (toolCallId == null) return;
         if (getPart(draft, toolCallId)) {
@@ -546,14 +580,14 @@ export class ChatStreamReducer {
             type: 'toolCall',
             id: toolCallId,
             step: this.step,
-            toolName,
+            toolName: toolCallName,
             state: 'input-streaming',
             inputText: '',
             input: null,
             output: null,
             errorText: null,
             startedAt: Date.now(),
-            ...(subagentRunId != null ? {subagentRunId} : {})
+            ...omitBy({subagentRunId, parentServerId: parentMessageId}, isNil)
         });
         this.lastToolCallId = toolCallId;
     }
@@ -585,18 +619,30 @@ export class ChatStreamReducer {
         }
     }
 
-    private setToolResult(draft: Draft, toolCallId: string, content: string | PlainObject[]) {
+    private setToolResult(
+        draft: Draft,
+        toolCallId: string,
+        content: string | PlainObject[],
+        resultServerId: string = null
+    ) {
         this.finishToolCall(draft, toolCallId, {
             state: 'output-available',
-            output: isString(content) ? parseIfJson(content) : content
+            output: isString(content) ? parseIfJson(content) : content,
+            ...omitBy({resultServerId}, isNil)
         });
     }
 
-    private setToolError(draft: Draft, toolCallId: string, errorText: string) {
+    private setToolError(
+        draft: Draft,
+        toolCallId: string,
+        errorText: string,
+        resultServerId: string = null
+    ) {
         this.finishToolCall(draft, toolCallId, {
             state: 'output-error',
             output: null,
-            errorText: errorText || 'The tool failed.'
+            errorText: errorText || 'The tool failed.',
+            ...omitBy({resultServerId}, isNil)
         });
     }
 
@@ -814,6 +860,13 @@ function addArtifacts(draft: Draft, artifacts: unknown) {
     const current = draft.metadata.artifacts,
         merged = mergeArtifacts(current, artifacts);
     if (merged !== current && merged.length) setMetadata(draft, {artifacts: merged});
+}
+
+function clearError(draft: Draft) {
+    draft.status = 'streaming';
+    draft.error = null;
+    draft.metadata = omit(draft.metadata, ['errorCode', 'retryAfterSeconds', 'retrySafe']);
+    draft.changed = true;
 }
 
 function setError(draft: Draft, error: string, errorCode: string) {

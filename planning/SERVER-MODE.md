@@ -56,7 +56,9 @@ runOptions: PlainObject;     // copy taken at send time
 ```
 
 `messages` stays the full history in both modes, so client-mode codecs do not change. A server-mode
-codec sends `newMessages`, `turnId`, `trigger` and `runOptions` and ignores `messages`.
+codec sends `turnId`, `trigger` and `runOptions` too. `AgUiCodec` sends `messages` in both modes,
+as AG-UI 1.0 requires (D85). `newMessages` serves a codec whose backend takes only what it has not
+seen.
 
 `turnId` is the user message's kit id. A retry of the same turn reuses it, so a backend with an
 idempotency key returns the original result rather than starting a second run.

@@ -67,8 +67,9 @@ export interface ChatRunRequest {
     runId: string;
 
     /**
-     * Who owns the history. In `client` mode a codec sends `messages`. In `server` mode the
-     * backend holds the history, and a codec sends `newMessages` and the turn's ids instead.
+     * Who owns the history. In `server` mode the backend holds it, and a codec also sends the
+     * turn's ids. A codec for a backend that takes only what it has not seen sends `newMessages`
+     * in place of `messages`. `AgUiCodec` sends `messages` in both modes, as AG-UI requires.
      */
     historyMode: ChatHistoryMode;
 

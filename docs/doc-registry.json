@@ -101,7 +101,7 @@
       "title": "Agent-to-UI Protocols",
       "mcpCategory": "concept",
       "viewerCategory": "concepts",
-      "description": "How AG-UI, Anthropic, OpenAI, A2UI, OpenUI, MCP Apps and the Vercel AI SDK relate to the kit.",
+      "description": "How AG-UI, Anthropic, OpenAI, A2UI, OpenUI, MCP Apps and the Vercel AI SDK relate to the kit, with the kit's AG-UI support by spec area.",
       "keywords": [
         "AG-UI",
         "Anthropic",
@@ -118,7 +118,11 @@
         "Vercel AI SDK",
         "UIMessage",
         "tool states",
-        "component catalog"
+        "component catalog",
+        "AG-UI support",
+        "conformance",
+        "@ag-ui/core",
+        "@ag-ui/client"
       ]
     },
     {
@@ -295,7 +299,11 @@
         "OpenAI chat completions",
         "bring your own LLM",
         "model gateway",
-        "ChatRunContext"
+        "ChatRunContext",
+        "AG-UI checks",
+        "malformed stream",
+        "chunk expansion",
+        "whole history"
       ]
     },
     {

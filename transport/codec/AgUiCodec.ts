@@ -1,31 +1,25 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {logDebug} from '@xh/hoist/utils/js';
-import {
-    compact,
-    find,
-    flatMap,
-    groupBy,
-    has,
-    isEmpty,
-    isFunction,
-    isNil,
-    last,
-    map,
-    omitBy
-} from 'lodash';
+import {compact, find, flatMap, isEmpty, isFunction, isNil, last, map, omitBy} from 'lodash';
 import {
     type ChatFilePart,
     type ChatMessage,
     type ChatPart,
-    type ChatReasoningPart,
     type ChatTextPart,
     type ChatToolCallPart,
     isToolCallFinal
 } from '../../core';
 import type {ChatCodec, ChatDecoder} from '../ChatCodec';
-import type {ChatEvent, ChatEventType} from '../ChatEvent';
+import type {ChatEvent} from '../ChatEvent';
 import type {ChatRunRequest} from '../ChatTransport';
+import {checkAgUiInput, withAgUiChecks} from '../impl/agUiChecks';
 import {contextValueText, messageContext} from '../impl/context';
+import {
+    type AgUiMessageGroup,
+    getAgUiAssistantText,
+    getPartServerIds,
+    groupAgUiMessages,
+    takeAgUiId
+} from '../impl/agUiMessages';
 import {partsBySteps, toolResultText} from '../impl/history';
 
 /** Configuration for an {@link AgUiCodec}. */
@@ -47,6 +41,14 @@ export interface AgUiCodecConfig {
      * from the app's current selection. Default an empty object.
      */
     state?: PlainObject | ((request: ChatRunRequest) => PlainObject);
+
+    /**
+     * True to send only what the server has not seen, in server mode: the user message on the
+     * first step of a turn, or, on a `continue` step, the client tool calls of the reply's last
+     * step with their results. This is outside the AG-UI spec, which requires the whole history.
+     * Set it only for a backend that needs it. Ignored in client mode. Default false.
+     */
+    newMessagesOnly?: boolean;
 }
 
 /** A named piece of ambient information for an AG-UI agent. */
@@ -78,11 +80,13 @@ export interface AgUiContext {
  * value as text, or as JSON for an object. The structured context of the turn's user message,
  * from its `metadata.context`, goes last, as JSON.
  *
- * In server mode the agent holds the history, so `messages` carries only what it has not seen:
- * the user message on the first step of a turn, or, on a `continue` step, the client tool calls
- * of the reply's last step and the results the client gave them. The step's text, and the calls
- * the server ran, are left out. The turn's ids and options go in
- * `forwardedProps`, alongside any the app adds:
+ * `messages` carries every message the chat holds, in both history modes, as AG-UI requires: an
+ * agent "MUST treat it as the complete history it is being shown". A tool result always travels
+ * with the assistant message that called the tool. Each message goes with the server's id where
+ * the chat has one: a message's `metadata.serverId`, and for a reply the ids its parts keep, so
+ * that it goes back as the AG-UI messages it streamed as. A backend that cannot take the whole
+ * history can set `newMessagesOnly`, outside the spec. In server mode the turn's ids and options go
+ * in `forwardedProps`, alongside any the app adds:
  *
  * ```
  * {turnId, trigger, runOptions, replacedMessageId, catalogVersion}
@@ -92,8 +96,12 @@ export interface AgUiContext {
  * with a generative UI catalog. The app's own `forwardedProps` take
  * precedence over these keys.
  *
- * The kit's events are AG-UI events, so decoding passes each record through as is. Records of an
- * unknown `type` are dropped.
+ * Before it sends a request, the codec runs the official `@ag-ui/client` check on it, which strips
+ * fields AG-UI does not define and fails the turn for a malformed one.
+ *
+ * The kit's events are AG-UI events. Decoding runs the official `@ag-ui/client` checks on each
+ * record: it drops events of an unknown `type`, strips unknown fields, expands chunk events, and
+ * checks the event sequence. A stream that breaks AG-UI's rules fails the turn.
  */
 export class AgUiCodec implements ChatCodec {
     /** Ambient information for the agent, or a function to build it per run. */
@@ -105,24 +113,35 @@ export class AgUiCodec implements ChatCodec {
     /** The agent's state, or a function to build it per run. */
     readonly state: AgUiCodecConfig['state'];
 
-    constructor({context = null, forwardedProps = null, state = null}: AgUiCodecConfig = {}) {
+    /** True to send only what the server has not seen, in server mode. */
+    readonly newMessagesOnly: boolean;
+
+    constructor({
+        context = null,
+        forwardedProps = null,
+        state = null,
+        newMessagesOnly = false
+    }: AgUiCodecConfig = {}) {
         this.context = context;
         this.forwardedProps = forwardedProps;
         this.state = state;
+        this.newMessagesOnly = newMessagesOnly;
     }
 
     encodeRequest(request: ChatRunRequest): PlainObject {
         const {threadId, runId, historyMode, messages, newMessages, tools} = request,
             {context, state} = this,
-            isServerMode = historyMode === 'server';
-        return {
+            // Each id goes out once per request.
+            usedIds = new Set<string>();
+        return checkAgUiInput({
             threadId,
             runId,
             protocolVersion: '1.0',
             state: (isFunction(state) ? state(request) : state) ?? {},
-            messages: isServerMode
-                ? flatMap(newMessages, encodeNewMessage)
-                : flatMap(messages, encodeMessage),
+            messages:
+                this.newMessagesOnly && historyMode === 'server'
+                    ? flatMap(newMessages, it => encodeNewMessage(it, usedIds))
+                    : flatMap(messages, it => encodeMessage(it, usedIds)),
             tools: tools.map(({name, description, parameters}) => ({
                 name,
                 description: description ?? '',
@@ -137,15 +156,11 @@ export class AgUiCodec implements ChatCodec {
                 ...encodeMessageContext(request)
             ],
             forwardedProps: this.getForwardedProps(request)
-        };
+        });
     }
 
     createDecoder(): ChatDecoder {
-        return raw => {
-            if (has(EVENT_TYPES, raw?.type)) return [raw as ChatEvent];
-            logDebug(['Ignored record of unknown type', raw?.type], this);
-            return [];
-        };
+        return withAgUiChecks(raw => [raw as ChatEvent]);
     }
 
     //------------------
@@ -168,55 +183,36 @@ export class AgUiCodec implements ChatCodec {
 //------------------
 // Implementation
 //------------------
-// Typed as a record so that the compiler flags any event type missing from it.
-const EVENT_TYPES: Record<ChatEventType, true> = {
-    RUN_STARTED: true,
-    RUN_FINISHED: true,
-    RUN_ERROR: true,
-    STEP_STARTED: true,
-    STEP_FINISHED: true,
-    TEXT_MESSAGE_START: true,
-    TEXT_MESSAGE_CONTENT: true,
-    TEXT_MESSAGE_END: true,
-    TEXT_MESSAGE_CHUNK: true,
-    REASONING_START: true,
-    REASONING_MESSAGE_START: true,
-    REASONING_MESSAGE_CONTENT: true,
-    REASONING_MESSAGE_END: true,
-    REASONING_MESSAGE_CHUNK: true,
-    REASONING_END: true,
-    REASONING_ENCRYPTED_VALUE: true,
-    TOOL_CALL_START: true,
-    TOOL_CALL_ARGS: true,
-    TOOL_CALL_END: true,
-    TOOL_CALL_CHUNK: true,
-    TOOL_CALL_RESULT: true,
-    ACTIVITY_SNAPSHOT: true,
-    CUSTOM: true,
-    RAW: true,
-    STATE_SNAPSHOT: true,
-    STATE_DELTA: true,
-    MESSAGES_SNAPSHOT: true,
-    ACTIVITY_DELTA: true,
-    SUBAGENT_STARTED: true,
-    SUBAGENT_FINISHED: true,
-    SUBAGENT_ERROR: true
-};
-
-function encodeMessage(message: ChatMessage): PlainObject[] {
+function encodeMessage(message: ChatMessage, usedIds: Set<string>): PlainObject[] {
     if (message.isEmpty) return [];
 
-    const {id, role} = message;
+    // The server's id, where it gave one, so that a backend that merges by id finds its own.
+    const {role} = message;
     switch (role) {
         case 'user':
-            return [{id, role, content: encodeUserContent(message.parts)}];
-        case 'system':
-            return [{id, role, content: message.text}];
-        case 'assistant':
+        case 'system': {
+            const id = takeAgUiId(usedIds, message.metadata.serverId, message.id),
+                content = role === 'user' ? encodeUserContent(message.parts) : message.text;
+            return [{id, role, content}];
+        }
+        case 'assistant': {
+            const baseId = getReplyBaseId(message);
             return flatMap(partsBySteps(message), (parts, idx) =>
-                encodeAssistantStep(parts, idx ? `${id}-${idx}` : id)
+                encodeAssistantStep(parts, idx ? `${baseId}-${idx}` : baseId, usedIds)
             );
+        }
     }
+}
+
+/**
+ * The id that a reply's parts with no server id of their own fall back to: the reply's server id,
+ * unless one of its parts names that id for a message of its own, else the kit's id.
+ */
+function getReplyBaseId(message: ChatMessage): string {
+    const {serverId} = message.metadata;
+    return serverId != null && !getPartServerIds(message.parts).has(serverId)
+        ? serverId
+        : message.id;
 }
 
 /** The structured context of the turn's user message, as a context entry of each step. */
@@ -232,12 +228,13 @@ function encodeMessageContext({messages, turnId}: ChatRunRequest): AgUiContext[]
  * that the client answered, with their results. The server wrote the rest of the step, and ran
  * its own calls, so it holds them already.
  */
-function encodeNewMessage(message: ChatMessage): PlainObject[] {
-    if (!message.isAssistant || message.isEmpty) return encodeMessage(message);
+function encodeNewMessage(message: ChatMessage, usedIds: Set<string>): PlainObject[] {
+    if (!message.isAssistant || message.isEmpty) return encodeMessage(message, usedIds);
     const steps = partsBySteps(message),
         stepIdx = steps.length - 1,
+        baseId = getReplyBaseId(message),
         clientCalls = last(steps).filter(it => it.type === 'toolCall' && !it.providerExecuted);
-    return encodeAssistantStep(clientCalls, stepIdx ? `${message.id}-${stepIdx}` : message.id);
+    return encodeAssistantStep(clientCalls, stepIdx ? `${baseId}-${stepIdx}` : baseId, usedIds);
 }
 
 /** User content as plain text, or as a list of parts when the message has attachments. */
@@ -271,46 +268,48 @@ function encodeFile({mediaType, data, url}: ChatFilePart): PlainObject {
 }
 
 /**
- * One step of an assistant turn: its reasoning, then what the model said and called, then the
- * results of the calls.
+ * One step of an assistant turn, as the AG-UI messages it makes, with the server's ids - see
+ * {@link groupAgUiMessages}. Calls not yet finished, and data parts, are left out.
  */
-function encodeAssistantStep(parts: ChatPart[], messageId: string): PlainObject[] {
-    const {reasoning = [], text = [], toolCall = []} = groupBy(parts, 'type'),
-        toolCalls = (toolCall as ChatToolCallPart[]).filter(isToolCallFinal),
-        content = joinText(text as ChatTextPart[]),
-        ret: PlainObject[] = (reasoning as ChatReasoningPart[]).map(it =>
-            omitBy(
-                {id: it.id, role: 'reasoning', content: it.text, encryptedValue: it.encryptedValue},
-                isNil
-            )
-        );
+function encodeAssistantStep(
+    parts: ChatPart[],
+    defaultId: string,
+    usedIds: Set<string>
+): PlainObject[] {
+    const finished = parts.filter(it => it.type !== 'toolCall' || isToolCallFinal(it));
+    return compact(groupAgUiMessages(finished, defaultId, usedIds).map(encodeGroup));
+}
 
-    if (content || !isEmpty(toolCalls)) {
-        ret.push(
-            omitBy(
+function encodeGroup(group: AgUiMessageGroup): PlainObject {
+    const {id} = group;
+    switch (group.role) {
+        case 'reasoning': {
+            const {text, encryptedValue} = group.part;
+            return omitBy({id, role: 'reasoning', content: text, encryptedValue}, isNil);
+        }
+        case 'assistant': {
+            const content = getAgUiAssistantText(group),
+                {calls} = group;
+            if (!content && isEmpty(calls)) return null;
+            return omitBy(
                 {
-                    id: messageId,
+                    id,
                     role: 'assistant',
                     content: content || null,
-                    toolCalls: isEmpty(toolCalls) ? null : toolCalls.map(encodeToolCall)
+                    toolCalls: isEmpty(calls) ? null : calls.map(encodeToolCall)
                 },
                 isNil
-            )
-        );
+            );
+        }
+        case 'tool': {
+            const {call} = group,
+                content = toolResultText(call),
+                error = call.state === 'output-available' ? null : content;
+            return omitBy({id, role: 'tool', toolCallId: call.id, content, error}, isNil);
+        }
+        default:
+            return null;
     }
-
-    toolCalls.forEach(call => {
-        const content = toolResultText(call),
-            error = call.state === 'output-available' ? null : content;
-        ret.push(
-            omitBy(
-                {id: `${call.id}-result`, role: 'tool', toolCallId: call.id, content, error},
-                isNil
-            )
-        );
-    });
-
-    return ret;
 }
 
 function encodeToolCall(call: ChatToolCallPart): PlainObject {
