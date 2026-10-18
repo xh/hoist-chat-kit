@@ -261,7 +261,7 @@ export class ChatThreadsModel extends HoistModel {
                     fireImmediately: true
                 },
                 {
-                    track: () => this.selectedThreadId,
+                    track: () => this.routeThreadId,
                     run: () => this.syncToRoute()
                 }
             );
@@ -485,6 +485,8 @@ export class ChatThreadsModel extends HoistModel {
             this.rekeyThread(prevThreadId, threadId);
         } else {
             thread.resetLoad();
+            // A cleared chat holds a thread the backend has not seen. Loaded messages are saved.
+            thread.setSaved(!thread.chatModel.isEmpty);
         }
         this.openThreads = {...omit(this.openThreads, prevThreadId), [threadId]: thread};
         if (this.selectedThreadId === prevThreadId) this.selectedThreadId = threadId;
@@ -499,6 +501,8 @@ export class ChatThreadsModel extends HoistModel {
             return;
         }
 
+        // The backend has seen the thread once a turn ends, whether or not it answered.
+        thread.setSaved(true);
         // A turn that pauses for the user has not finished - the thread lists as awaiting.
         if (!chatModel.isAwaitingUser) this.noteTurnEnd(threadId, getEndedEarly(chatModel));
         // The backend may have set a title, or the thread's place in the list may change.
@@ -778,13 +782,24 @@ export class ChatThreadsModel extends HoistModel {
         }
     }
 
+    /**
+     * The thread id for the route: the selected thread's, once the backend may have it - see
+     * `OpenThread.isSaved` - else null, which leaves the route on its base path.
+     */
+    @computed
+    private get routeThreadId(): string {
+        const {selectedThreadId: threadId, selectedThread: thread} = this;
+        if (!thread || thread.isSaved || some(this.listedThreads, {id: threadId})) return threadId;
+        return null;
+    }
+
     /** Put the selected thread in the route, replacing the current history entry. */
     private syncToRoute() {
         if (!this.isOnRoute()) return;
 
         const {name, params} = XH.routerState,
             {param} = this.route,
-            threadId = this.selectedThreadId;
+            threadId = this.routeThreadId;
         if ((params[param] ?? null) === threadId) return;
 
         XH.navigate(

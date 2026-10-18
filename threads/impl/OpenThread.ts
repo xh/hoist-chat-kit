@@ -33,10 +33,20 @@ export class OpenThread extends HoistBase {
     /** Why the history failed to load, or null. (observable) */
     @observableRef accessor loadError: Error = null;
 
+    /**
+     * True if the thread may exist on the backend: one opened to load its history, or a new one
+     * whose first run has started to answer or has ended. False for a new thread until then, so
+     * that a route never holds an id the backend has not seen. (observable)
+     */
+    @observable accessor isSaved: boolean;
+
     constructor({chatModel, isLoaded, onThreadIdChange, onBusyChange}: OpenThreadConfig) {
         super();
         this.chatModel = chatModel;
         this.loadState = isLoaded ? 'loaded' : 'loading';
+        this.isSaved = !isLoaded;
+        // A chat adopts the backend's id before its reply moves to streaming, in the same flush,
+        // so the thread is re-keyed before it counts as saved.
         this.addReaction(
             {
                 track: () => chatModel.threadId,
@@ -45,8 +55,19 @@ export class OpenThread extends HoistBase {
             {
                 track: () => chatModel.isBusy,
                 run: () => onBusyChange(this)
+            },
+            {
+                track: () => chatModel.status === 'streaming',
+                run: isStreaming => {
+                    if (isStreaming) this.setSaved(true);
+                }
             }
         );
+    }
+
+    @action
+    setSaved(isSaved: boolean) {
+        this.isSaved = isSaved;
     }
 
     /**

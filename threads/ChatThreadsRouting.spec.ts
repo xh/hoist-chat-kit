@@ -1,4 +1,5 @@
 import {type HoistRoute, XH} from '@xh/hoist/core';
+import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync, TestAppModel} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatModel} from '../core';
@@ -38,8 +39,23 @@ describe('ChatThreadsModel route binding', () => {
         expect(model.selectedThreadId).toBe('deleted');
 
         model.newThread();
-        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe(model.selectedThreadId));
+        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBeUndefined());
         expect(model.isThreadNotFound).toBe(false);
+    });
+
+    it('keeps a new thread out of the route until its first send, so a reload opens a new chat', async () => {
+        await navigateAsync('default.chat', {threadId: 't1'});
+        const first = createModel();
+        await vi.waitFor(() => expect(first.selectedThreadId).toBe('t1'));
+
+        first.newThread();
+        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBeUndefined());
+        first.destroy();
+
+        const second = createModel();
+        await wait(50);
+        expect(second.selectedThreadId).toBeNull();
+        expect(second.isThreadNotFound).toBe(false);
     });
 
     it('follows the route to another thread', async () => {
@@ -71,16 +87,21 @@ describe('ChatThreadsModel route binding', () => {
         await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('t1'));
     });
 
-    it("replaces the thread in the route when the chat adopts the server's id", async () => {
+    it("puts a new thread in the route under the server's id, once its reply starts", async () => {
         await navigateAsync('default.chat');
         const model = createModel(),
-            chatModel = model.newThread();
-        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe(chatModel.threadId));
+            chatModel = model.newThread(),
+            localId = chatModel.threadId,
+            navigate = vi.spyOn(XH, 'navigate');
+        onTestFinished(() => navigate.mockRestore());
+        await wait(50);
+        expect(XH.routerState.params.threadId).toBeUndefined();
 
         await chatModel.sendAsync('Hello');
 
         expect(chatModel.threadId).toBe('srv-1');
         await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('srv-1'));
+        expect(navigate.mock.calls.map(it => it[1]?.threadId)).not.toContain(localId);
     });
 
     it('leaves other routes alone', async () => {

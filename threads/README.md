@@ -279,6 +279,11 @@ A deep link selects its thread. A selection replaces the parameter, with no new 
 On the route with no parameter, the model writes the current selection into it. The model
 ignores other routes.
 
+A new thread stays out of the route until the backend has it: until its first reply starts to
+stream, its first turn ends, or the store lists it. The route stays on its base path until then,
+so a reload or a bookmark before the first send opens a new chat. A thread that adopts the
+backend's id goes into the route under that id.
+
 A deep link to a thread that the store reports missing, with a 404, sets `isThreadNotFound`. The
 workspace then shows "Thread not found" with New Chat, in place of an empty chat. An app with its
 own layout reads the flag the same way.
