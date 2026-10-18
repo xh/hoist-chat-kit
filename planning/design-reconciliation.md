@@ -15,13 +15,13 @@ handoff's.
 | R2 | A duplicate-request wait | Count down and retry by itself, if the error is retry-safe | Design | D64 |
 | R3 | Stop | Takes effect at once. No wait for the server | Repo | - |
 | R4 | A detached reply | "Still working", with Refresh Status | Repo | D62 |
-| R5 | A thumbs down | Saves at once. A comment is required only when `feedback.requireComment` is set. Optional `reasons` | Repo, with the design's form | D70, D77 |
+| R5 | A thumbs down | Saves at once. A comment is required only when `feedback.requireComment` is set. No `reasons` (D90) | Repo, with the design's form | D70, D77, D90 |
 | R6 | Where failures show | Inline, not in toasts | Design | D64 |
 | R7 | A suggestion click | Fills the composer. A reply's follow-up chips still send | Design | D71 |
 | R8 | A follow-up chip's tooltip | Shows the prompt it sends | Repo | - |
-| R9 | Favicons | A URL favicon follows `allowImages`. A `data:` favicon always shows. Else a letter tile | Repo | D72 |
+| R9 | Favicons | None. A web source shows a globe icon (D90) | - | D72, D90 |
 | R13 | The inline grid | A preview table inline, the full Grid in the side panel | Design (B1) | D69 |
-| R14 | A missing deep-linked thread | "Not found" when the store reports it missing | Repo | D74 |
+| R14 | A missing deep-linked thread | "Not found" when the store reports it missing | Repo | D74, D90 |
 | R15 | The assistant icon's name | `assistantIcon`. Assistant profiles are not built | Repo | D61 |
 | R16 | A "Not sent" user message | Shown when the turn failed before the run started. No new message status | Repo | D43 |
 | R17 | A no-answer reply | A `data` part with `dataType` `xh.chat.noAnswer` | Repo | D72 |
@@ -41,7 +41,7 @@ R10, R11 and R12 were about the component helper, which the kit no longer ships 
 | H4 | The Esc order | Popups first. Then the region with focus acts: the viewer closes, an edit cancels, a reply stops. One action per press |
 | H5 | Remapping shortcuts | Kit config, `ChatKit.defaults.shortcuts` (D66) |
 | H6 | Timeline or process rows | The timeline for `display: 'timeline'` calls. Plain rows for `card` calls and for reasoning alone (D78) |
-| H7 | Markdown tables | Up to 12 rows plain, larger ones capped |
+| H7 | Markdown tables | Capped past a configurable row limit, default 100 (D90) |
 | H8 | Status region order | Interrupted, cancelled and detached rank with failed |
 
 ## Open design items
@@ -52,10 +52,10 @@ The build follows each default, and the code carries `// TODO(design-open B<n>)`
 |---|---|
 | B1. Inline grid or preview table | Preview table inline, the Grid in the side panel |
 | B2. Regenerate | Replaces the reply. No branch switcher |
-| B3. Shortcuts | On, each one remappable or off in `ChatKit.defaults.shortcuts` |
+| B3. Shortcuts | Settled as built (D90): on, each one remappable or off in `ChatKit.defaults.shortcuts` |
 | B4. Document scope | Per thread. Each question stores its scope |
 | B5. Citation numbers | One sequence for documents and web pages |
-| B6. Drafts | Local storage, keyed by user and thread. An app clears them with `ChatKit.clearLocalData()` |
+| B6. Drafts | Settled as built (D90): local storage through `XH.localStorageService`, keyed by app, user and thread. Deleting a thread clears its draft |
 
 ## In the handoff, not built
 

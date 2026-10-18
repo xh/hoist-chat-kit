@@ -10,7 +10,7 @@ names in `DECISIONS.md`.
 |---|---|
 | `hoist-chat-kit` `develop` | Plan 2 (#7), the layered API and the design UI (#8) merged, then pared back: no component helper (D80), no `ChatService` (D81). The AG-UI 1.0 effort's three deliverables squash-merged and pushed on 2026-10-17. |
 | `hoist-chat-kit` `archive/helpers` | The removed helper code and its plan, `planning/HELPERS.md`. Not for merge. |
-| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-worktrees/feature-chat-kit-guide-ui`, on the local kit. Guideline Assistant tab and the Chat Kit demos, with the Agent Questions demo. Its last two commits, a Hoist snapshot bump and that demo, are not yet pushed. |
+| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-worktrees/feature-chat-kit-guide-ui`, on the local kit. Guideline Assistant tab and the Chat Kit demos, with the Agent Questions demo. Pushed. |
 | `toolbox` `feature/weatherv2-chat-kit` | On the published kit. Pushed. |
 | `toolbox` `archive/chat-kit-grid-helper` | The removed Grid Helper tab. Not for merge. |
 | `hoist-chat-kit` `spike/ag-ui-client` | Local only, with no worktree. The AG-UI spike behind D84, cited in `planning/AG-UI.md`. Not for merge. |
@@ -34,7 +34,9 @@ names in `DECISIONS.md`.
 
 The review of the kit's three layers - the engine, the chat UI and the generative UI - resumes
 with Anselm. The engine work is done for now. Anselm settles whether any engine work remains, then
-the review moves to the chat UI layer. See [Open review threads](#open-review-threads-with-anselm).
+walks `planning/reviews/review-7-chat-ui-layer.md`. It proposes a cut, trim or keep call for each
+chat UI feature, changes to the reconciliation rows, and Weather V2 upgrades. See
+[Open review threads](#open-review-threads-with-anselm).
 
 ## AG-UI 1.0 effort: done (2026-10-17)
 
@@ -72,8 +74,8 @@ Engine work still on the table, for Anselm to decide on:
   during a run, and a size cap.
 - **Item 7** - activity patches, history snapshots and a status line from `STEP_*`. Wait for a
   consumer.
-- **Curated libraries** - whether `@ag-ui/client`'s `parseSSEStream` should replace the kit's
-  own SSE parser.
+- **Curated libraries** - settled for the SSE parser: keep ours (review 7). The kit took the
+  official parser's 10 MB cap on one event.
 
 The official client's checks warn through the console, not Hoist's logging (D84). Toolbox's Agent
 Questions demo shows each interrupt shape. The spike behind D84 is on the local branch

@@ -808,7 +808,8 @@ on a record then has to spell the record's id out in its text.
 
 ## D57. The kit is usable in layers
 
-**Refined** by [D82](#d82-a-narrow-interface-needs-a-second-implementer).
+**Refined** by [D82](#d82-a-narrow-interface-needs-a-second-implementer) and
+[D89](#d89-the-kit-is-built-from-swappable-subsystems).
 
 **Decision.** Apps should be able to use the kit at four levels: building blocks alone, the engine
 without the kit's UI, the kit's components over the app's own state, and the whole chat. Where a
@@ -1200,6 +1201,8 @@ in a line or two, with the codec its server relays.
 
 ## D82. A narrow interface needs a second implementer
 
+**Refined** by [D89](#d89-the-kit-is-built-from-swappable-subsystems).
+
 **Decision.** This refines D57. A component depends on a narrow interface only where a second
 implementer really exists. Otherwise it takes `ChatModel`. By that test, the four host
 interfaces come out as follows.
@@ -1354,3 +1357,68 @@ Retry and regenerate discard the reply that raised them, so the set cannot live 
 Adapters disagree on how to approve, so the schema decides. A server call with a result from the
 chat would contradict the server's own record. A waiting sub-agent ends as `error` when its reply
 closes, so the timeline never shows it waiting forever.
+
+## D89. The kit is built from swappable subsystems
+
+**Decision.** This refines D57 and D82. The kit is a set of subsystems. Each one is a complete
+component and model pair: threads (`ChatThreadsModel` and `chatThreadList`), the conversation
+(`ChatModel` and `chatPanel`), the side panel (`ChatSidePanelModel` and `chatSidePanel`), and the
+workspace that composes them. The built-ins fit each other with no setup. The seams sit between
+subsystems, each a small contract that the built-in meets. An app can swap one subsystem for a
+model of its own and keep the rest. No interface sits inside a subsystem, and none mirrors a
+whole class.
+
+Two seams follow from this:
+
+- **Threads and the active chat.** `ChatThreadsModel` talks to the chat of the open thread through
+  a contract of about five members: the thread it shows, whether a reply runs, whether it waits on
+  the user, load a thread's history, and detach. `ChatModel` meets it. The wiring that the threads
+  model now pushes into `ChatModel` (feedback, the status refresh, scope and drafts per thread)
+  moves into `ChatModel`'s own thread binding, the sub-model D82 planned.
+- **The workspace and the conversation view.** `ChatWorkspace` takes the app's own conversation
+  view in place of `chatPanel`.
+
+`ChatThreadListHost` goes. The thread list and `ChatThreadsModel` are a pair, and the swap point is
+the chat behind the model, not the model behind the list. `ChatSidePanelHost` stays, as the side
+panel's seam.
+
+**Why.** An enterprise app that runs its conversation on OpenUI may not move it to the kit. It can
+still show its threads and the chrome around them in Hoist, with the kit's thread list and its
+model whole, and a small chat model that delegates to OpenUI. The thread list is generic UI that
+users know well. Seams between subsystems give that kind of app a real path. Interfaces inside a
+subsystem gave none: `ChatMessageListHost` mirrored `ChatModel` with about 25 optional members and
+no second implementer (D82).
+
+**Next.** Build both seams when that app or another is ready to use them. Today's cuts already
+shrink the threads-to-chat contract, as paging and the one-reply-at-a-time setting leave.
+
+**Alternatives.** Keep `ChatThreadListHost`, so an app writes its own threads model behind the
+kit's list. The app would rebuild backend loading, optimistic rename and delete, routing and
+recency groups for each use.
+
+## D90. The chat UI layer is cut back to its consumers
+
+**Decision.** Anselm walked review 7 (`planning/reviews/review-7-chat-ui-layer.md`) and made a call
+on each feature of the chat UI layer. The review holds the full tables. In short:
+
+- **Cut:** pins, thread list paging and history paging, `allowConcurrentTurns`, the restore of the
+  selected thread after a reload, `dataRefreshedAt`, `shortcuts.toggleDock`, the composer pill's
+  `status` and `readonly`, feedback `reasons` and comments on a thumbs up, `ChatThreadListHost`
+  (D89), and the thread create call. A transport for a backend that mints thread ids creates the
+  thread on its first request and reports the id on `RUN_STARTED` (D39). Citation ranges, web
+  citation pinning and source favicons go too.
+- **Kept, with changes:** the deep link `route`, with the missing "not found" view built. The
+  markdown table cap, with a configurable limit that defaults to 100 rows. Citation grouping,
+  labeled "N sources" when the numbers are not consecutive. "Ended early" thread rows, which the
+  kit also sets from its own chats. Local drafts, cleared when their thread is deleted.
+- **Simplified:** the workspace keeps one saved width per panel. `ChatToolDisplay` folds `answer`
+  into `inline`.
+- **Kept as built:** the side panel, the status vocabulary and the shortcuts.
+
+The design reconciliation changes to match: R5, R9 and H7 change, R14 is built, and B3 and B6
+settle as built.
+
+**Why.** Much of the layer came from a design brief that aimed at every use case at once, and from
+two apps that will not adopt the kit. A feature stays if a consumer in hand needs it or if it
+shows the direction of chat UI. When the conversation model already holds a state, the UI that
+shows it is cheap, so it stays.
