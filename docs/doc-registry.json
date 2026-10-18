@@ -171,6 +171,7 @@
         "drafts",
         "clearLocalData",
         "feedbackErrors",
+        "feedbackDrafts",
         "undoErrors",
         "ChatRunError",
         "ChatStatus",

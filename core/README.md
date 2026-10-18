@@ -429,37 +429,38 @@ new ChatModel({
     transport,
     feedback: {
         submitAsync: spec => XH.postJson({url: 'chat/feedback', body: spec}),
-        commentOn: 'negative',
         requireComment: true,
-        reasons: ['Wrong data', 'Incomplete', 'Not helpful'],
-        clearable: false
+        clearable: false,
+        maxCommentLength: 2000
     }
 });
 
-await chatModel.submitFeedbackAsync(message.id, 'negative', 'The rate is out of date.', [
-    'Wrong data'
-]);
+await chatModel.submitFeedbackAsync(message.id, 'negative', 'The rate is out of date.');
 await chatModel.submitFeedbackAsync(message.id, null);  // Clear the rating
 ```
 
 The submitter gets a `ChatFeedbackSpec`: the `threadId`, the kit `messageId`, the `serverId` and
-`runId` from the message's metadata, the `rating`, the `comment` and the `reasons`. With no
+`runId` from the message's metadata, the `rating` and the `comment`. With no
 `submitAsync`, the chat uses the submitter that a thread layer passes to `setFeedbackSubmitter()`.
 `canSubmitFeedback` is false when there is neither, and `submitFeedbackAsync()` then throws.
 
 | `ChatFeedbackConfig` | Default | Description |
 |---|---|---|
 | `submitAsync` | The thread layer's | Sends a `ChatFeedbackSpec` to the backend. |
-| `commentOn` | `'negative'` | Ratings that open the comment form at once. Other ratings offer "Add a comment" after they save, unless this is `'none'`. |
-| `requireComment` | false | True if a rating in `commentOn` saves only with a non-blank comment. Reasons never count as one. |
-| `reasons` | none | Toggles above the comment on a negative rating. Optional for the user. |
+| `allowComment` | true | True if the user can comment on a rating. A thumbs down opens the comment form at once. A thumbs up offers "Add a comment" after it saves. |
+| `requireComment` | false | True if a thumbs down saves only with a non-blank comment. Applies only with `allowComment`. |
 | `clearable` | true | True if a click on the chosen thumb clears the rating. Set false for a backend that cannot remove a rating. |
 | `maxCommentLength` | 1,000 | Most characters the comment takes. A counter shows from 90%. |
 
-With `requireComment`, `submitFeedbackAsync()` throws for a rating in `commentOn` that has no
-comment. With `clearable` false, it throws for a null rating. A backend that rejects a down vote
+With `requireComment`, `submitFeedbackAsync()` throws for a thumbs down with no comment. With
+`clearable` false, it throws for a null rating. A backend that rejects a down vote
 without a comment suits `{requireComment: true}`. See
 [Collect feedback](../desktop/cmp/chat/README.md#collect-feedback) for the form.
+
+`feedbackDrafts` holds the comment typed in an open form, by message id, until it is sent. The
+form writes it with `setFeedbackDraft()`. A half-typed comment then survives a redraw of the
+message list. A draft goes when its comment is sent, when its message goes, and when the chat
+clears or loads a thread.
 
 ### Clean up model text
 
@@ -1004,7 +1005,7 @@ See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatCom
 | `allowEdit` | `boolean` | Initial value of `allowEdit`. Default true. |
 | `allowRegenerate` | `boolean` | Initial value of `allowRegenerate`. Default true. |
 | `textTransform` | `(text, context) => string` | Rewrites reply text before it is stored. `context` holds the `message` and `isStreaming`. |
-| `feedback` | `ChatFeedbackConfig` | `submitAsync`, `commentOn`, `requireComment`, `reasons`, `clearable` and `maxCommentLength`. See [Rate a reply](#rate-a-reply). |
+| `feedback` | `ChatFeedbackConfig` | `submitAsync`, `allowComment`, `requireComment`, `clearable` and `maxCommentLength`. See [Rate a reply](#rate-a-reply). |
 | `stallAfterMs` | `number` | Milliseconds with no data from the server, heartbeats included, before a reply shows as stalled. Default `ChatKit.defaults.stallAfterMs`. |
 | `track` | `boolean \| ChatTrackOptions` | True, or `{category, severity, logData}`, to track each finished turn. Default false. |
 | `composer` | `ChatComposerConfig` | Config for the managed `composerModel`, without `host`. The chat is the host. |
@@ -1032,6 +1033,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `hasOlderMessages` | `boolean` | True if older history remains to page in. `@bindable`. Default false. |
 | `canSubmitFeedback` | `boolean` | True if `feedback.submitAsync` or a thread layer submitter is set. |
 | `feedbackErrors` | `Record<string, Error>` | Why the last feedback on a message failed to save, by message id, for the form to show. Cleared on the next submit. Observable. |
+| `feedbackDrafts` | `Record<string, ChatFeedbackDraft>` | Comments typed in feedback forms and not yet sent, by message id. Observable. |
 | `undoErrors` | `Record<string, Error>` | Why the last undo of a reply failed, by message id. Cleared on the next try. Observable. |
 | `canRefreshStatus` | `boolean` | True once a refresher is set with `setStatusRefresher()`. |
 | `isBusy` | `boolean` | True for `submitted` or `streaming`. False while a turn is paused. |
@@ -1069,7 +1071,8 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `clear()` | Remove all messages and start a new thread. |
 | `loadMessages(specs, threadId?)` | Replace the conversation. Default a new thread id. |
 | `prependMessages(specs)` | Add older messages ahead of the conversation, skipping ids already present. |
-| `submitFeedbackAsync(messageId, rating, comment?, reasons?)` | Rate a reply, or clear its rating with null. Shows at once. If the submit fails, it reverts and records the error in `feedbackErrors`, with no toast. |
+| `submitFeedbackAsync(messageId, rating, comment?)` | Rate a reply, or clear its rating with null. Shows at once. If the submit fails, it reverts and records the error in `feedbackErrors`, with no toast. |
+| `setFeedbackDraft(messageId, draft)` | Keep the comment typed in a message's feedback form, or remove it with null. For the feedback form. |
 | `setStatusRefresher(refreshAsync)` | Set the function that reloads the thread, for Refresh Status. For a thread layer. |
 | `refreshStatusAsync()` | Reload the thread to learn how a run ended. Does nothing without a refresher. |
 | `setFeedbackSubmitter(submitAsync)` | Set the submitter to use when `feedback.submitAsync` is not configured. For a thread layer. |
@@ -1126,7 +1129,7 @@ The kit records these keys in the `metadata` of an assistant message:
 | `serverId` | The server's id for the message, from `xh.chat.message` or `RUN_FINISHED`. Also set on a user message. |
 | `detached` | True on a reply left running on the server by `detach()`, `clear()` or `loadMessages()`, in server mode. |
 | `undone` | True on a reply whose changes the user undid with `undoTurnAsync()`. |
-| `feedback` | The user's rating, as `{rating, comment?, reasons?}`. History usually restores the rating alone. |
+| `feedback` | The user's rating, as `{rating, comment?}`. History usually restores the rating alone. |
 | `artifacts` | `ChatArtifact[]` that the reply's tools produced, for generative UI. Restored to `artifacts` with the history. |
 | `catalogVersion` | Version of the chat's catalog, on a reply that shows its UI. |
 

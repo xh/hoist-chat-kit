@@ -545,24 +545,25 @@ new ChatModel({
     feedback: {
         submitAsync: spec => XH.postJson({url: 'chat/feedback', body: spec}),
         requireComment: true,
-        reasons: ['Wrong data', 'Wrong math', 'Incomplete', 'Not helpful'],
-        clearable: false
+        clearable: false,
+        maxCommentLength: 2000
     }
 });
 ```
 
-A rating outside `commentOn` saves on click and shows "Thanks" for 3 s. An "Add a comment" link
-then stays until the next send, and opens an optional form. A rating in `commentOn` opens the
-comment form inline, under the action bar, with focus in the comment. The form never opens in a
-popover, so an outside click cannot lose the comment.
+A thumbs up saves on click and shows "Thanks" for 3 s. An "Add a comment" link then stays until
+the next send, and opens an optional form. A thumbs down opens the comment form inline, under the
+action bar, with focus in the comment. The form never opens in a popover, so an outside click
+cannot lose the comment. With `allowComment: false`, both thumbs save on click and offer no
+comment.
 
-| Config | A rating in `commentOn` |
+| Config | A thumbs down |
 |---|---|
-| `requireComment: true` | Saves nothing until the user sends a non-blank comment. The thumb shows pressed meanwhile. Reasons are optional and never count as a comment. Cancel or Escape restores the earlier rating. |
-| `requireComment: false` | Saves at once, and opens an optional form. The comment and reasons follow as an update. Cancel or Escape keeps the rating. |
+| `requireComment: true` | Saves nothing until the user sends a non-blank comment. The thumb shows pressed meanwhile. Cancel or Escape restores the earlier rating. |
+| `requireComment: false` | Saves at once, and opens an optional form. The comment follows as an update. Cancel or Escape keeps the rating. |
 
-Reasons show as toggles on a negative rating only. In the form, Enter adds a new line, and
-Ctrl/Cmd+Enter sends. A counter shows from 90% of `maxCommentLength`. While the form sends, the
+Send enables once the comment has text. In the form, Enter adds a new line, and Ctrl/Cmd+Enter
+sends. A counter shows from 90% of `maxCommentLength`. While the form sends, the
 thumbs and the form disable, and Cancel goes, as the request is already on its way.
 
 Failures show inline, never as a toast. A rating that fails to save un-presses, and "Couldn't save
@@ -571,12 +572,13 @@ with Retry. A server that refuses the comment itself, with a 400, 413 or 422 sta
 reason shown under the field, with no Retry, as resending the same comment cannot work. After a
 send, the form closes and focus returns to the thumb.
 
-One form is open per thread. A thumb on another reply closes an empty form, but waits while the
-open form has a draft. The draft survives a scroll, and a switch to another thread and back, for
-the session. Regenerate closes the form of the reply it replaces.
+One form is open per chat. A thumb on another reply closes an empty form, but waits while the
+open form has a draft. The chat holds the draft in `feedbackDrafts`, so it survives a scroll or a
+new view of the message list. It goes when the comment is sent, when the form is cancelled, and
+when the chat clears or loads a thread. Regenerate closes the form of the reply it replaces.
 
-After a reload, the chosen thumb shows alone, from `metadata.feedback`. The comment and reasons do
-not come back, so the reply shows no comment mark. The announcer reads "Feedback sent." on a save,
+After a reload, the chosen thumb shows alone, from `metadata.feedback`. The comment does not come
+back, so the reply shows no comment mark. The announcer reads "Feedback sent." on a save,
 and reads a failure at once.
 
 ### Approve a tool call

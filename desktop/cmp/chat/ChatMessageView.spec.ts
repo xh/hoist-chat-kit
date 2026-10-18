@@ -316,10 +316,10 @@ describe('ChatMessageView', () => {
 
         it('saves a down rating that requires a comment only once the comment is sent', async () => {
             const submitAsync = vi.fn(() => Promise.resolve()),
-                chatModel = createModel(
-                    {feedback: {submitAsync, commentOn: 'negative', requireComment: true}},
-                    [question(), reply('a1', [text('t1', 'Answer')])]
-                );
+                chatModel = createModel({feedback: {submitAsync, requireComment: true}}, [
+                    question(),
+                    reply('a1', [text('t1', 'Answer')])
+                ]);
             renderList(chatModel);
 
             await act(() => fireEvent.click(screen.getByRole('button', {name: 'Bad response'})));

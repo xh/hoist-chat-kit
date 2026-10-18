@@ -46,6 +46,7 @@ import type {ChatContextProvider} from './ChatContextProvider';
 import type {
     ChatFeedback,
     ChatFeedbackConfig,
+    ChatFeedbackDraft,
     ChatFeedbackRating,
     ChatFeedbackSpec,
     ChatFeedbackSubmitter
@@ -567,6 +568,13 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     @observableRef accessor feedbackErrors: Record<string, Error> = {};
 
     /**
+     * Feedback comments typed and not yet sent, by message id, so that an open feedback form
+     * keeps its comment when the message list draws again. A draft goes once its comment is sent,
+     * when its message goes, and when the chat clears or loads a thread. (observable)
+     */
+    @observableRef accessor feedbackDrafts: Record<string, ChatFeedbackDraft> = {};
+
+    /**
      * Why the last undo of a reply's changes failed, by message id - for the reply to show
      * inline. A reply's entry clears when its undo is tried again. (observable)
      */
@@ -643,9 +651,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.maxSteps = maxSteps;
         this.historyMode = historyMode;
         this.feedback = {
-            commentOn: 'negative',
+            allowComment: true,
             requireComment: false,
-            reasons: [],
             clearable: true,
             maxCommentLength: 1000,
             ...feedback
@@ -995,16 +1002,14 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      * show. History restores a rating from the same key.
      *
      * @param rating - the rating, or null to clear it.
-     * @param comment - the user's comment. Required for a rating that asks for one, if
-     *      `feedback.requireComment` is set.
-     * @param reasons - the reasons the user picked, from `feedback.reasons`.
+     * @param comment - the user's comment. Required for a thumbs down if
+     *      `feedback.requireComment` is set. A sent comment removes the message's draft.
      * @returns a promise that resolves once the submit ends, whether or not it succeeded.
      */
     async submitFeedbackAsync(
         messageId: string,
         rating: ChatFeedbackRating,
-        comment?: string,
-        reasons?: string[]
+        comment?: string
     ): Promise<void> {
         const message = this.getMessage(messageId);
         if (!message?.isAssistant) {
@@ -1013,24 +1018,21 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         }
 
         const submitAsync = this.feedback.submitAsync ?? this.feedbackSubmitter,
-            {requireComment, commentOn, clearable} = this.feedback;
+            {requireComment, allowComment, clearable} = this.feedback;
         comment = comment?.trim() || null;
-        reasons = reasons?.length ? [...reasons] : null;
         throwIf(
             !submitAsync,
             'ChatModel cannot submit feedback - configure feedback.submitAsync, or use the chat ' +
                 'in a thread layer that supplies a submitter.'
         );
         throwIf(
-            rating && requireComment && !comment && (commentOn === 'both' || commentOn === rating),
+            rating === 'negative' && allowComment && requireComment && !comment,
             `A comment is required with ${rating} feedback.`
         );
         throwIf(!rating && !clearable, 'This chat cannot clear a rating - see feedback.clearable.');
 
         const prior: ChatFeedback = message.metadata.feedback ?? null,
-            feedback: ChatFeedback = rating
-                ? {rating, ...(comment ? {comment} : {}), ...(reasons ? {reasons} : {})}
-                : null,
+            feedback: ChatFeedback = rating ? {rating, ...(comment ? {comment} : {})} : null,
             {threadId} = this,
             spec: ChatFeedbackSpec = {
                 threadId,
@@ -1038,8 +1040,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
                 serverId: message.metadata.serverId ?? null,
                 runId: message.metadata.runId ?? null,
                 rating: rating ?? null,
-                comment,
-                reasons
+                comment
             };
 
         // Numbered, so that a failure reverts only if no later submit for the message started.
@@ -1060,17 +1061,26 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             });
             return;
         }
+        if (comment) this.setFeedbackDraft(messageId, null);
 
         this.trackActivity('Feedback submitted', {
             rating: spec.rating,
             hasComment: !!comment,
-            reasons,
             threadId,
             messageId,
             serverId: spec.serverId,
             runId: spec.runId,
             historyMode: this.historyMode
         });
+    }
+
+    /**
+     * Keep the comment typed in a message's feedback form, or remove it with null - see
+     * {@link feedbackDrafts}. The feedback form calls this as the user types.
+     */
+    @action
+    setFeedbackDraft(messageId: string, draft: ChatFeedbackDraft) {
+        this.feedbackDrafts = withEntry(this.feedbackDrafts, messageId, draft);
     }
 
     /**
@@ -1760,6 +1770,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.artifacts.clear();
         this.addArtifactsOf(this.messages);
         this.undoStacks = {};
+        this.feedbackDrafts = {};
         this.hasOlderMessages = false;
         this.status = 'ready';
         this.lastError = null;
@@ -1787,11 +1798,11 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             });
         this.turn = turn;
         this.messages = [...history, message];
-        // Replies discarded by a retry, regenerate or edit take their undo functions with them.
-        this.undoStacks = pick(
-            this.undoStacks,
-            history.map(it => it.id)
-        );
+        // Replies discarded by a retry, regenerate or edit take their undo functions and feedback
+        // drafts with them.
+        const historyIds = history.map(it => it.id);
+        this.undoStacks = pick(this.undoStacks, historyIds);
+        this.feedbackDrafts = pick(this.feedbackDrafts, historyIds);
         this.status = 'submitted';
         this.lastError = null;
         return turn;

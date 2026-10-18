@@ -1,167 +1,22 @@
-import {isEmpty, last, without} from 'lodash';
+import {first, keys, last} from 'lodash';
 import type {ReactElement, ReactNode, RefObject} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
-import {HoistBase, hoistCmp, HoistModel, type HoistProps} from '@xh/hoist/core';
+import {hoistCmp, HoistModel, type HoistProps} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {textArea} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
-import {action, bindable, observable, observableRef} from '@xh/hoist/mobx';
+import {action, observable, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {createObservableRef} from '@xh/hoist/utils/react';
 import {
     chatAnnouncer,
+    type ChatFeedbackDraft,
     type ChatFeedbackRating,
     type ChatMessage,
     type ChatModel
 } from '../../../../core';
 import {classNames} from '../../../../impl/ClassNames';
-import {onClearLocalData} from '../../../../impl/clearLocalData';
 import {chatSpinner} from '../../../impl/ChatLiveCues';
-
-/**
- * One open feedback form: the rating it is for, and the draft of its comment and reasons. A
- * thread has at most one - see {@link ChatMessageFeedbackModel}.
- * @internal
- */
-export class ChatFeedbackForm extends HoistModel {
-    override xhImpl = true;
-
-    /** The message the form rates. */
-    readonly messageId: string;
-
-    /** The rating the form sends. */
-    readonly rating: ChatFeedbackRating;
-
-    /** True if the rating saves only with this form - nothing is saved yet. */
-    readonly isPending: boolean;
-
-    @bindable accessor comment: string = '';
-    @observableRef accessor reasons: string[] = [];
-    @observable accessor isSubmitting = false;
-
-    /** Why the last send failed, or null. Cleared by any change to the draft. */
-    @observableRef accessor error: Error = null;
-
-    readonly inputRef = createObservableRef<HTMLInputElement>();
-    readonly sendRef = createObservableRef<HTMLElement>();
-    readonly retryRef = createObservableRef<HTMLElement>();
-
-    /** True if the draft has no comment and no reasons, so that closing it loses nothing. */
-    get isEmpty(): boolean {
-        return !this.comment.trim() && isEmpty(this.reasons);
-    }
-
-    /** True if the server refused the draft itself - see {@link isFeedbackRejected}. */
-    get isRejected(): boolean {
-        return isFeedbackRejected(this.error);
-    }
-
-    constructor(opts: {
-        messageId: string;
-        rating: ChatFeedbackRating;
-        isPending: boolean;
-        maxLength: number;
-    }) {
-        super();
-        const {messageId, rating, isPending, maxLength} = opts;
-        this.messageId = messageId;
-        this.rating = rating;
-        this.isPending = isPending;
-
-        this.addReaction(
-            {
-                // A change after a failed send makes a new payload, so Send replaces Retry.
-                track: () => [this.comment, this.reasons],
-                run: () => this.setError(null)
-            },
-            {
-                // Focus moves to the comment only when the user opened the form - never when it
-                // mounts again after a scroll or a thread switch.
-                track: () => this.inputRef.current,
-                run: el => {
-                    if (!el) return;
-                    el.maxLength = maxLength;
-                    if (this.isFocusPending) {
-                        this.isFocusPending = false;
-                        el.focus();
-                    }
-                },
-                fireImmediately: true
-            }
-        );
-    }
-
-    @action
-    toggleReason(reason: string) {
-        const {reasons} = this;
-        this.reasons = reasons.includes(reason) ? without(reasons, reason) : [...reasons, reason];
-    }
-
-    @action
-    setSubmitting(isSubmitting: boolean) {
-        this.isSubmitting = isSubmitting;
-    }
-
-    @action
-    setError(error: Error) {
-        this.error = error;
-    }
-
-    private isFocusPending = true;
-}
-
-/**
- * The feedback state of one model, which the views of its messages share: the views of one
- * message list, or of one thread across a switch away and back. At most one form is open.
- *
- * A thread's state is kept for the session only while its form is open, so that closed forms
- * leave nothing behind. `ChatKit.clearLocalData()` drops it too.
- * @internal
- */
-export class ChatFeedbackThreadState extends HoistBase {
-    @observableRef accessor form: ChatFeedbackForm = null;
-
-    /** The thread the state belongs to, or null for one kept by its chat. */
-    readonly threadId: string;
-
-    constructor(threadId: string = null) {
-        super();
-        this.threadId = threadId;
-    }
-
-    @action
-    open(form: ChatFeedbackForm) {
-        this.form?.destroy();
-        this.form = form;
-        if (this.threadId != null) statesByThread.set(this.threadId, this);
-    }
-
-    @action
-    close() {
-        this.form?.destroy();
-        this.form = null;
-        if (this.threadId != null && statesByThread.get(this.threadId) === this) {
-            statesByThread.delete(this.threadId);
-        }
-    }
-}
-
-/**
- * The feedback state for a chat's thread - by its `threadId` if it has one, so that a draft
- * survives a switch to another thread and back, for the session. A thread with no open form gets
- * a new state, which the session keeps once a form opens in it.
- * @internal
- */
-export function getFeedbackThreadState(chatModel: ChatModel): ChatFeedbackThreadState {
-    const {threadId} = chatModel;
-    if (threadId != null) {
-        // Observable, so that the views of a thread see a form another view opens.
-        return statesByThread.get(threadId) ?? new ChatFeedbackThreadState(threadId);
-    }
-    let ret = statesByChat.get(chatModel);
-    if (!ret) statesByChat.set(chatModel, (ret = new ChatFeedbackThreadState()));
-    return ret;
-}
 
 /**
  * True if the server refused the feedback itself - an empty or over-long comment, say - rather
@@ -181,6 +36,9 @@ export function isFeedbackRejected(error: Error): boolean {
  * optimistically, and the comment follows as an update. A failed save shows inline, never as a
  * toast: a rating's failure in the thanks slot for 8 s, a form's in the form until resent or
  * cancelled.
+ *
+ * The form's comment lives in the chat's {@link ChatModel.feedbackDrafts}, so it survives a new
+ * view of the message. The model keeps at most one draft open per chat.
  * @internal
  */
 export class ChatMessageFeedbackModel extends HoistModel {
@@ -195,13 +53,39 @@ export class ChatMessageFeedbackModel extends HoistModel {
     /** True while a rating saves without a form. */
     @observable accessor isSaving = false;
 
+    /** True while the form sends. */
+    @observable accessor isSubmitting = false;
+
+    /** Why the form's last send failed, or null. Cleared by any change to the comment. */
+    @observableRef accessor formError: Error = null;
+
     readonly upRef = createObservableRef<HTMLElement>();
     readonly downRef = createObservableRef<HTMLElement>();
+    readonly inputRef = createObservableRef<HTMLInputElement>();
+    readonly sendRef = createObservableRef<HTMLElement>();
+    readonly retryRef = createObservableRef<HTMLElement>();
 
     message: ChatMessage = null;
 
     /** The chat that takes the feedback - null for a transcript, which offers no thumbs. */
     chatModel: ChatModel = null;
+
+    constructor() {
+        super();
+        // Focus moves to the comment only when the user opened the form - never when it mounts
+        // again after a scroll or a thread switch.
+        this.addReaction({
+            track: () => this.inputRef.current,
+            run: el => {
+                if (!el) return;
+                el.maxLength = this.settings.maxCommentLength;
+                if (this.isFocusPending) {
+                    this.isFocusPending = false;
+                    el.focus();
+                }
+            }
+        });
+    }
 
     /** Set the message and chat - called as the view renders. */
     configure(message: ChatMessage, chatModel: ChatModel) {
@@ -211,13 +95,12 @@ export class ChatMessageFeedbackModel extends HoistModel {
 
     get settings() {
         const {
-            commentOn = 'negative',
+            allowComment = true,
             requireComment = false,
-            reasons = [],
             clearable = true,
             maxCommentLength = 1000
         } = this.chatModel?.feedback ?? {};
-        return {commentOn, requireComment, reasons, clearable, maxCommentLength};
+        return {allowComment, requireComment, clearable, maxCommentLength};
     }
 
     /** True if the user can rate the message now. */
@@ -232,15 +115,28 @@ export class ChatMessageFeedbackModel extends HoistModel {
         );
     }
 
-    get threadState(): ChatFeedbackThreadState {
-        return getFeedbackThreadState(this.chatModel);
+    /** This message's open form - the draft of its comment - or null. */
+    get form(): ChatFeedbackDraft {
+        return this.chatModel?.feedbackDrafts[this.message.id] ?? null;
     }
 
-    /** This message's open form, or null. */
-    get form(): ChatFeedbackForm {
-        if (!this.chatModel) return null;
-        const {form} = this.threadState;
-        return form?.messageId === this.message.id ? form : null;
+    /** The open form's comment, bound to its text area. */
+    get comment(): string {
+        return this.form?.comment ?? '';
+    }
+
+    @action
+    setComment(comment: string) {
+        const {form} = this;
+        if (!form) return;
+        this.chatModel.setFeedbackDraft(this.message.id, {...form, comment});
+        // A change after a failed send makes a new payload, so Send replaces Retry.
+        this.formError = null;
+    }
+
+    /** True if the server refused the form's comment itself - see {@link isFeedbackRejected}. */
+    get isRejected(): boolean {
+        return isFeedbackRejected(this.formError);
     }
 
     /** The rating saved on the message, or null. */
@@ -254,20 +150,15 @@ export class ChatMessageFeedbackModel extends HoistModel {
     }
 
     /**
-     * Why the thumbs wait, or null: a form in the thread holds a draft, or is sending. A form
-     * with nothing in it closes instead.
+     * Why the thumbs wait, or null: a form in the chat holds a comment. A form with nothing in it
+     * closes instead.
      */
     get blockReason(): string {
-        const {form} = this.threadState;
-        if (!form || (form.isEmpty && !form.isSubmitting) || !this.isLive(form)) return null;
-        return form.messageId === this.message.id
+        const open = this.openDraft;
+        if (!open || !open.draft.comment.trim()) return null;
+        return open.messageId === this.message.id
             ? 'Send or cancel your comment first.'
             : 'Finish or cancel your other feedback.';
-    }
-
-    /** True while the form sends, when the thumbs and the form disable. */
-    get isSubmitting(): boolean {
-        return !!this.form?.isSubmitting;
     }
 
     /** True if "Add a comment" shows - after a rating saved with no form, until the next send. */
@@ -282,20 +173,15 @@ export class ChatMessageFeedbackModel extends HoistModel {
         );
     }
 
-    /** The comment and reasons sent this session, or null - a reload does not restore them. */
-    get sentNote(): {comment: string; reasons: string[]} {
-        const {feedback} = this.message.metadata;
-        if (!feedback || this.form || (!feedback.comment && isEmpty(feedback.reasons))) {
-            return null;
-        }
-        return {comment: feedback.comment ?? null, reasons: feedback.reasons ?? []};
+    /** The comment sent this session, or null - a reload does not restore it. */
+    get sentComment(): string {
+        return this.form ? null : (this.message.metadata.feedback?.comment ?? null);
     }
 
     /** True if the open form can send. */
     get canSend(): boolean {
         const {form} = this;
-        if (!form || form.isSubmitting || form.isRejected) return false;
-        return !!form.comment.trim() || (!form.isPending && !isEmpty(form.reasons));
+        return !!form && !this.isSubmitting && !this.isRejected && !!form.comment.trim();
     }
 
     /**
@@ -308,7 +194,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
         const current = this.shownRating,
             wasPending = !!this.form?.isPending;
         this.clearNotes();
-        this.threadState.close();
+        this.closeForms();
 
         if (rating === current) {
             // A pending rating saved nothing, so closing its form restores the earlier one.
@@ -339,38 +225,35 @@ export class ChatMessageFeedbackModel extends HoistModel {
         const rating = this.savedRating;
         if (rating == null || this.blockReason) return;
         this.clearNotes();
-        this.threadState.close();
+        this.closeForms();
         this.openForm(rating, false);
     }
 
-    /** Send the open form's rating, comment and reasons. */
+    /** Send the open form's rating and comment. */
     async sendAsync() {
         const {form} = this;
         if (!this.canSend) return;
 
-        const payload: FeedbackPayload = {
-            rating: form.rating,
-            comment: form.comment,
-            reasons: form.rating === 'negative' ? form.reasons : []
-        };
-        form.setSubmitting(true);
-        form.setError(null);
-        focusSoon(form.sendRef);
+        const payload: FeedbackPayload = {rating: form.rating, comment: form.comment};
+        this.setSubmitting(true);
+        this.setFormError(null);
+        focusSoon(this.sendRef);
         const error = await this.submitAsync(payload);
-        form.setSubmitting(false);
-        if (form !== this.threadState.form) return;
+        this.setSubmitting(false);
 
         if (error) {
-            form.setError(error);
+            // The form closed while the send ran, as when the chat cleared.
+            if (!this.form) return;
+            this.setFormError(error);
             chatAnnouncer.announce(
-                form.isRejected ? error.message : 'Feedback not sent. Your comment is kept.',
+                this.isRejected ? error.message : 'Feedback not sent. Your comment is kept.',
                 'assertive'
             );
-            focusSoon(form.isRejected ? form.inputRef : form.retryRef);
+            focusSoon(this.isRejected ? this.inputRef : this.retryRef);
             return;
         }
 
-        this.threadState.close();
+        this.closeForms();
         this.clearNotes();
         this.showThanks('Thanks, feedback sent');
         chatAnnouncer.announce('Feedback sent.');
@@ -383,14 +266,14 @@ export class ChatMessageFeedbackModel extends HoistModel {
      */
     cancelForm() {
         const {form} = this;
-        if (!form || form.isSubmitting) return;
-        this.threadState.close();
+        if (!form || this.isSubmitting) return;
+        this.closeForms();
         focusSoon(this.thumbRef(form.rating));
     }
 
     /** Close this message's form, if open - before the reply it describes is replaced. */
     discardForm() {
-        if (this.form) this.threadState.close();
+        if (this.form) this.chatModel.setFeedbackDraft(this.message.id, null);
     }
 
     // Typed as Hoist's TextArea types its onKeyDown. Enter adds a newline: this is a comment, not
@@ -409,9 +292,9 @@ export class ChatMessageFeedbackModel extends HoistModel {
         return rating === 'positive' ? this.upRef : this.downRef;
     }
 
+    /** True if the rating opens the comment form at once - a thumbs down, if comments are on. */
     asksComment(rating: ChatFeedbackRating): boolean {
-        const {commentOn} = this.settings;
-        return commentOn === 'both' || commentOn === rating;
+        return rating === 'negative' && this.settings.allowComment;
     }
 
     override destroy() {
@@ -426,6 +309,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
     /** The last user message when "Add a comment" was offered - it shows until the next send. */
     @observable private accessor offeredUntil: string = null;
 
+    private isFocusPending = false;
     private thanksTimer: any;
     private failureTimer: any;
 
@@ -433,24 +317,28 @@ export class ChatMessageFeedbackModel extends HoistModel {
         return last(this.chatModel.messages.filter(it => it.isUser))?.id ?? '';
     }
 
+    /** The chat's open form, for this message or another, or null. */
+    private get openDraft(): {messageId: string; draft: ChatFeedbackDraft} {
+        const drafts = this.chatModel?.feedbackDrafts ?? {},
+            messageId = first(keys(drafts));
+        return messageId != null ? {messageId, draft: drafts[messageId]} : null;
+    }
+
     private requiresComment(rating: ChatFeedbackRating): boolean {
         return this.asksComment(rating) && this.settings.requireComment;
     }
 
-    // A form whose message is gone - replaced by a regenerate, say - blocks nothing.
-    private isLive(form: ChatFeedbackForm): boolean {
-        return this.chatModel.messages.some(it => it.id === form.messageId);
+    @action
+    private openForm(rating: ChatFeedbackRating, isPending: boolean) {
+        this.formError = null;
+        this.isFocusPending = true;
+        this.chatModel.setFeedbackDraft(this.message.id, {rating, comment: '', isPending});
     }
 
-    private openForm(rating: ChatFeedbackRating, isPending: boolean) {
-        this.threadState.open(
-            new ChatFeedbackForm({
-                messageId: this.message.id,
-                rating,
-                isPending,
-                maxLength: this.settings.maxCommentLength
-            })
-        );
+    // The chat keeps one form open - opening one closes the rest.
+    private closeForms() {
+        const {chatModel} = this;
+        keys(chatModel.feedbackDrafts).forEach(id => chatModel.setFeedbackDraft(id, null));
     }
 
     private async saveAsync(payload: FeedbackPayload, offerComment: boolean = false) {
@@ -467,7 +355,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
             return;
         }
         this.showThanks('Thanks');
-        if (offerComment && this.settings.commentOn !== 'none') {
+        if (offerComment && this.settings.allowComment) {
             this.setOfferedUntil(this.lastUserMessageId);
         }
         chatAnnouncer.announce('Feedback sent.');
@@ -476,14 +364,9 @@ export class ChatMessageFeedbackModel extends HoistModel {
     // The chat's error - it records it and resolves - or the promise's.
     private async submitAsync(payload: FeedbackPayload): Promise<Error> {
         const {chatModel, message} = this,
-            {rating, comment, reasons} = payload;
+            {rating, comment} = payload;
         try {
-            await chatModel.submitFeedbackAsync(
-                message.id,
-                rating,
-                comment || undefined,
-                isEmpty(reasons) ? undefined : reasons
-            );
+            await chatModel.submitFeedbackAsync(message.id, rating, comment || undefined);
         } catch (e) {
             return e;
         }
@@ -535,6 +418,16 @@ export class ChatMessageFeedbackModel extends HoistModel {
     }
 
     @action
+    private setSubmitting(isSubmitting: boolean) {
+        this.isSubmitting = isSubmitting;
+    }
+
+    @action
+    private setFormError(error: Error) {
+        this.formError = error;
+    }
+
+    @action
     private setOfferedUntil(messageId: string) {
         this.offeredUntil = messageId;
     }
@@ -542,7 +435,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
 
 /**
  * Thumbs up and down, as toggle buttons, then what follows a rating: "Thanks", a failure with
- * Retry, the comment and reasons sent, and "Add a comment". A fixed "not found" reply keeps only
+ * Retry, the comment sent, and "Add a comment". A fixed "not found" reply keeps only
  * the thumbs down, which says the answer is in the documents.
  * @internal
  */
@@ -594,7 +487,7 @@ export function feedbackThumbs(model: ChatMessageFeedbackModel, isNoAnswer: bool
 
 /** What follows the thumbs - always shown, as the chosen thumb is. */
 function feedbackStatus(model: ChatMessageFeedbackModel): ReactNode {
-    const {failure, thanks, sentNote, showsCommentLink} = model;
+    const {failure, thanks, sentComment, showsCommentLink} = model;
     if (failure) {
         return span({
             key: 'status',
@@ -613,13 +506,13 @@ function feedbackStatus(model: ChatMessageFeedbackModel): ReactNode {
     }
 
     const items = [
-        sentNote
+        sentComment
             ? span({
                   key: 'note',
                   className: 'xh-chat-message__feedback-note',
-                  title: sentNote.comment ?? undefined,
-                  'aria-label': sentNote.comment ? `Your comment: ${sentNote.comment}` : undefined,
-                  items: [Icon.comment(), sentNote.reasons.join(', ') || null]
+                  title: sentComment,
+                  'aria-label': `Your comment: ${sentComment}`,
+                  item: Icon.comment()
               })
             : null,
         thanks
@@ -657,8 +550,7 @@ interface FeedbackFormProps extends HoistProps {
 
 /**
  * The comment form for a rating, inline under the action bar - never in a popover, so that an
- * outside click cannot lose the comment. Reasons show as toggles on a negative rating. A required
- * comment must be non-blank before Send Feedback enables - reasons alone never satisfy it.
+ * outside click cannot lose the comment. A comment must be non-blank before Send enables.
  * @internal
  */
 export const chatFeedbackForm = hoistCmp.factory<FeedbackFormProps>({
@@ -669,12 +561,13 @@ export const chatFeedbackForm = hoistCmp.factory<FeedbackFormProps>({
         const {form} = model;
         if (!form) return null;
 
-        const {rating, isPending, isSubmitting, error, isRejected, comment} = form,
-            {reasons, maxCommentLength} = model.settings,
+        const {rating, isPending, comment} = form,
+            {isSubmitting, formError: error, isRejected} = model,
+            {maxCommentLength} = model.settings,
             isNegative = rating === 'negative',
             heading = isNegative ? 'What went wrong?' : 'What worked?',
-            hintId = `${form.xhId}-hint`,
-            errorId = `${form.xhId}-error`,
+            hintId = `${model.xhId}-hint`,
+            errorId = `${model.xhId}-error`,
             isBlank = !comment.trim(),
             isFailed = !!error && !isRejected,
             sendLabel = !isNegative && !isPending ? 'Send Comment' : 'Send Feedback';
@@ -695,37 +588,15 @@ export const chatFeedbackForm = hoistCmp.factory<FeedbackFormProps>({
                         })
                     ]
                 }),
-                isNegative && !isEmpty(reasons)
-                    ? div({
-                          className: 'xh-chat-message__feedback-reasons',
-                          role: 'group',
-                          'aria-label': 'Reasons',
-                          items: reasons.map(reason => {
-                              const isOn = form.reasons.includes(reason);
-                              return button({
-                                  key: reason,
-                                  className: classNames('xh-chat-message__feedback-reason', {
-                                      'xh-chat-message__feedback-reason--on': isOn
-                                  }),
-                                  text: reason,
-                                  outlined: true,
-                                  active: isOn,
-                                  'aria-pressed': isOn,
-                                  disabled: isSubmitting,
-                                  onClick: () => form.toggleReason(reason)
-                              });
-                          })
-                      })
-                    : null,
                 textArea({
-                    model: form,
+                    model,
                     bind: 'comment',
                     commitOnChange: true,
                     spellCheck: true,
                     width: null,
                     height: null,
                     disabled: isSubmitting,
-                    inputRef: form.inputRef,
+                    inputRef: model.inputRef,
                     placeholder: isNegative
                         ? 'Say what was wrong. A sentence is enough.'
                         : 'Anything we should keep doing',
@@ -753,7 +624,7 @@ export const chatFeedbackForm = hoistCmp.factory<FeedbackFormProps>({
                     items: [
                         isFailed
                             ? button({
-                                  ref: form.retryRef,
+                                  ref: model.retryRef,
                                   icon: Icon.refresh(),
                                   text: 'Retry',
                                   intent: 'primary',
@@ -762,7 +633,7 @@ export const chatFeedbackForm = hoistCmp.factory<FeedbackFormProps>({
                               })
                             : span({
                                   // Holds focus while Send is disabled mid-flight.
-                                  ref: form.sendRef,
+                                  ref: model.sendRef,
                                   className: 'xh-chat-message__feedback-send',
                                   tabIndex: -1,
                                   items: [
@@ -771,7 +642,7 @@ export const chatFeedbackForm = hoistCmp.factory<FeedbackFormProps>({
                                           intent: 'primary',
                                           minimal: false,
                                           tooltip:
-                                              isBlank && !isSubmitting && isPending
+                                              isBlank && !isSubmitting
                                                   ? 'Add a comment to send'
                                                   : null,
                                           disabled: !model.canSend,
@@ -801,7 +672,6 @@ export const chatFeedbackForm = hoistCmp.factory<FeedbackFormProps>({
 interface FeedbackPayload {
     rating: ChatFeedbackRating;
     comment?: string;
-    reasons?: string[];
 }
 
 // HTTP statuses for a request the server understood and refused: bad, too large, unprocessable.
@@ -809,17 +679,6 @@ const REJECTED_STATUSES = [400, 413, 422];
 
 const THANKS_MS = 3_000,
     FAILURE_MS = 8_000;
-
-// States with an open form, by thread id, and states by chat for a chat with no thread id.
-const statesByThread = observable.map<string, ChatFeedbackThreadState>({}, {deep: false}),
-    statesByChat = new WeakMap<ChatModel, ChatFeedbackThreadState>();
-
-onClearLocalData(threadIds => {
-    const states = threadIds
-        ? threadIds.map(id => statesByThread.get(id)).filter(it => it)
-        : Array.from(statesByThread.values());
-    states.forEach(it => it.close());
-});
 
 function footHint(
     comment: string,
