@@ -8,13 +8,12 @@ names in `DECISIONS.md`.
 
 | Repo and branch | State |
 |---|---|
-| `hoist-chat-kit` `develop` | Plan 2 (#7), the layered API and the design UI (#8) merged, then pared back: no component helper (D80), no `ChatService` (D81). The AG-UI 1.0 effort's three deliverables squash-merged locally on 2026-10-17, not yet pushed. |
+| `hoist-chat-kit` `develop` | Plan 2 (#7), the layered API and the design UI (#8) merged, then pared back: no component helper (D80), no `ChatService` (D81). The AG-UI 1.0 effort's three deliverables squash-merged and pushed on 2026-10-17. |
 | `hoist-chat-kit` `archive/helpers` | The removed helper code and its plan, `planning/HELPERS.md`. Not for merge. |
-| `hoist-chat-kit` `feature/remove-announce-steps`, `feature/ag-ui-protocol-layer`, `feature/ag-ui-interrupts` | Local only. Squash-merged into `develop`. Safe to delete. |
-| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-worktrees/feature-chat-kit-guide-ui`, on the local kit. Guideline Assistant tab and the Chat Kit demos. Pushed, except the uncommitted Agent Questions demo. |
+| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-worktrees/feature-chat-kit-guide-ui`, on the local kit. Guideline Assistant tab and the Chat Kit demos, with the Agent Questions demo. Its last two commits, a Hoist snapshot bump and that demo, are not yet pushed. |
 | `toolbox` `feature/weatherv2-chat-kit` | On the published kit. Pushed. |
 | `toolbox` `archive/chat-kit-grid-helper` | The removed Grid Helper tab. Not for merge. |
-| `hoist-chat-kit` `spike/ag-ui-client` | Local only, worktree `.claude/worktrees/ag-ui-spike`. The AG-UI spike behind D84. Not for merge. |
+| `hoist-chat-kit` `spike/ag-ui-client` | Local only, with no worktree. The AG-UI spike behind D84, cited in `planning/AG-UI.md`. Not for merge. |
 
 ## Layered API course correction (D82)
 
@@ -25,18 +24,17 @@ names in `DECISIONS.md`.
 
 ## Next
 
-1. The owner confirms the design reconciliation defaults (D76, `planning/design-reconciliation.md`).
-2. The first app integration starts on the published snapshot: a guideline assistant with
+1. The first app integration starts on the published snapshot: a guideline assistant with
    server-owned threads, document scope, `[n]` citations, a source viewer, and feedback with a
    comment required on a thumbs down.
-3. Known kit gaps: no source line on help answers, no transport reconnect after a reload, no Continue
+2. Known kit gaps: no source line on help answers, no transport reconnect after a reload, no Continue
    after a reply is cut at its length limit.
 
 ## Next session: start here
 
 The review of the kit's three layers - the engine, the chat UI and the generative UI - resumes
-with Anselm. The engine work is done for now. Catch up on it below, settle whether any engine work
-remains, then move to the chat UI layer. See [Open review threads](#open-review-threads-with-anselm).
+with Anselm. The engine work is done for now. Anselm settles whether any engine work remains, then
+the review moves to the chat UI layer. See [Open review threads](#open-review-threads-with-anselm).
 
 ## AG-UI 1.0 effort: done (2026-10-17)
 
@@ -77,16 +75,9 @@ Engine work still on the table, for Anselm to decide on:
 - **Curated libraries** - whether `@ag-ui/client`'s `parseSSEStream` should replace the kit's
   own SSE parser.
 
-Open points:
-
-- Toolbox's Agent Questions demo (`client-app/src/examples/chatkit/demos/interruptsDemo.ts`, and
-  its entry in `DemosModel.ts`) is uncommitted, as Toolbox's rules ask before a commit.
-- Toolbox shows one type error against the local kit, from the different Hoist snapshots of the
-  two repos. It predates this effort.
-- The client's checks warn through the console, not Hoist's logging (D84).
-
-The spike behind D84 is on the local branch `spike/ag-ui-client`, in the worktree
-`.claude/worktrees/ag-ui-spike`. It is not for merge.
+The official client's checks warn through the console, not Hoist's logging (D84). Toolbox's Agent
+Questions demo shows each interrupt shape. The spike behind D84 is on the local branch
+`spike/ag-ui-client`. It is not for merge.
 
 ## Open review threads with Anselm
 
@@ -96,7 +87,9 @@ topics to discuss with Anselm, not work to start.
 
 - **Done:** the engine layer. It led to the AG-UI effort above, now merged.
 - **Next:** the chat UI layer. Check its depth feature by feature. Much of it came from a design
-  brief that aimed at all four use cases at once.
+  brief that aimed at all four use cases at once. Walk the design reconciliation rows (R1 to R20,
+  H1 to H8 in `planning/design-reconciliation.md`) as part of it. The build followed each
+  recommendation (D76), and any row Anselm does not change stands as confirmed.
 - **Then:** the generative UI layer. Each of these has no consumer outside that app:
   - nested documents, with slots and the `show_ui` tool
   - the `ChatUiAdapter` socket
@@ -143,7 +136,11 @@ topics to discuss with Anselm, not work to start.
 - `../toolbox-worktrees/feature-chat-kit-guide-ui` (branch `feature/chat-kit-guide-ui`). The main
   `../toolbox` checkout belongs to another session. Never touch it.
 - The worktree links the local kit through uncommitted edits to `client-app/package.json`,
-  `pnpm-lock.yaml` and `rsbuild.config.mjs`. Never commit those. Commit with explicit paths.
+  `pnpm-lock.yaml`, `rsbuild.config.mjs` and `tsconfig.json`. The `tsconfig.json` edit is the
+  `paths` block from Toolbox's `docs/running-locally.md`, which gives `tsc` one copy of Hoist's
+  types. Never commit those four. Commit with explicit paths.
+- To bump Hoist in Toolbox, set the four aside, run `pnpm update @xh/hoist` in `client-app`,
+  stage the lockfile, then restore the link edits and run `pnpm install` before committing.
 - The local kit is the main checkout, so Toolbox shows whichever kit branch is checked out.
 
 ## Running Toolbox
