@@ -41,7 +41,7 @@ export interface LocalChatThread extends Partial<ChatThreadSummary> {
 
 /** An optional method that a {@link LocalChatThreadStore} can leave out. */
 export type LocalChatThreadStoreOptionalMethod =
-    'renameThreadAsync' | 'deleteThreadsAsync' | 'pinThreadAsync' | 'submitFeedbackAsync';
+    'renameThreadAsync' | 'deleteThreadsAsync' | 'submitFeedbackAsync';
 
 /** A method of a {@link ChatThreadStore}. */
 export type ChatThreadStoreMethod = keyof ChatThreadStore;
@@ -84,7 +84,6 @@ export class LocalChatThreadStore implements ChatThreadStore {
     createThreadAsync?: (spec: ChatThreadCreateSpec) => Promise<ChatThreadSummary>;
     renameThreadAsync?: (threadId: string, title: string) => Promise<void>;
     deleteThreadsAsync?: (threadIds: string[]) => Promise<void>;
-    pinThreadAsync?: (threadId: string, pinned: boolean) => Promise<void>;
     submitFeedbackAsync?: (spec: ChatFeedbackSpec) => Promise<void>;
 
     constructor({
@@ -110,12 +109,6 @@ export class LocalChatThreadStore implements ChatThreadStore {
             this.deleteThreadsAsync = threadIds =>
                 this.callAsync('deleteThreadsAsync', [threadIds], 'write', () => {
                     remove(this.threads, it => threadIds.includes(it.id));
-                });
-        }
-        if (!omit.includes('pinThreadAsync')) {
-            this.pinThreadAsync = (threadId, pinned) =>
-                this.callAsync('pinThreadAsync', [threadId, pinned], 'write', () => {
-                    this.getOrThrow(threadId).pinned = pinned;
                 });
         }
         if (!omit.includes('submitFeedbackAsync')) {

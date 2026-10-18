@@ -17,7 +17,7 @@ import {chatThreadList} from './ChatThreadList';
 
 /**
  * The thread list's contract. Apps rely on it to show a user's threads grouped by recency, open
- * the one clicked, rename, pin and delete in place - always confirming a delete - and show the
+ * the one clicked, rename and delete in place - always confirming a delete - and show the
  * actions only where the store supports them. It also marks threads that run, wait for the user,
  * or finished while the user was away.
  */
@@ -27,11 +27,16 @@ describe('ChatThreadList', () => {
     // jsdom has no layout, and so no ResizeObserver. The setup unstubs globals after each test.
     beforeEach(() => vi.stubGlobal('ResizeObserver', NoopResizeObserver));
 
-    it('groups the threads by recency, with Pinned first', async () => {
+    it('groups the threads by recency', async () => {
         await renderList();
 
-        expect(groupLabels()).toEqual(['Pinned', 'Today', 'Yesterday', 'Previous 7 days']);
-        expect(rowTitles()).toEqual(['Pinned plan', 'Budget review', 'Travel', 'Old notes']);
+        expect(groupLabels()).toEqual([
+            'Today',
+            'Yesterday',
+            'Previous 7 days',
+            'Previous 30 days'
+        ]);
+        expect(rowTitles()).toEqual(['Budget review', 'Travel', 'Old notes', 'Old plan']);
     });
 
     it('opens a thread on click, and marks it selected', async () => {
@@ -63,13 +68,13 @@ describe('ChatThreadList', () => {
     it('moves between rows with the arrow keys, and opens one with Enter', async () => {
         const {model} = await renderList();
 
-        row('Pinned plan').focus();
-        fireEvent.keyDown(row('Pinned plan'), {key: 'ArrowDown'});
-        expect(document.activeElement).toBe(row('Budget review'));
+        row('Budget review').focus();
+        fireEvent.keyDown(row('Budget review'), {key: 'ArrowDown'});
+        expect(document.activeElement).toBe(row('Travel'));
 
-        fireEvent.keyDown(row('Budget review'), {key: 'Enter'});
+        fireEvent.keyDown(row('Travel'), {key: 'Enter'});
         await act(() => wait());
-        expect(model.selectedThreadId).toBe('t1');
+        expect(model.selectedThreadId).toBe('t2');
     });
 
     it('renames a thread in place, saving on Enter', async () => {
@@ -152,35 +157,21 @@ describe('ChatThreadList', () => {
         expect(model.selectedThreadId).toBe('t2');
     });
 
-    it('shows Pin and Rename only if the store supports them', async () => {
+    it('shows Rename only if the store supports it', async () => {
         const {model} = await renderList({
             store: new LocalChatThreadStore({
                 threads: THREADS,
-                omit: ['renameThreadAsync', 'pinThreadAsync', 'deleteThreadsAsync']
+                omit: ['renameThreadAsync', 'deleteThreadsAsync']
             })
         });
         const travel = within(row('Travel'));
 
         expect(travel.queryByRole('button', {name: 'Rename'})).toBeNull();
-        expect(travel.queryByRole('button', {name: 'Pin'})).toBeNull();
         expect(travel.getByRole('button', {name: 'More'})).toBeTruthy();
 
         fireEvent.keyDown(row('Travel'), {key: 'F2'});
         expect(screen.queryByLabelText('Rename thread')).toBeNull();
         expect(model.canDelete).toBe(false);
-    });
-
-    it('pins a thread from its row', async () => {
-        const {model} = await renderList();
-
-        fireEvent.click(within(row('Travel')).getByRole('button', {name: 'Pin'}));
-        await act(() => wait());
-
-        expect(model.threads.find(it => it.id === 't2').pinned).toBe(true);
-        expect(groupLabels()[0]).toBe('Pinned');
-        expect(
-            within(screen.getByRole('rowgroup', {name: 'Pinned'})).getByText('Travel')
-        ).toBeTruthy();
     });
 
     it('binds the search input to the model, and clears it on Escape', async () => {
@@ -293,7 +284,6 @@ describe('ChatThreadList', () => {
             renderHostList(new TestHost({threads: [summary('a', 'Only')]}));
 
             expect(within(row('Only')).queryByRole('button', {name: 'Rename'})).toBeNull();
-            expect(within(row('Only')).queryByRole('button', {name: 'Pin'})).toBeNull();
             expect(screen.queryByLabelText('Search threads')).toBeNull();
         });
 
@@ -320,7 +310,7 @@ const THREADS: LocalChatThread[] = [
     {id: 't1', title: 'Budget review', lastActivityAt: NOW, messages: textMessages('Hi')},
     {id: 't2', title: 'Travel', lastActivityAt: NOW - DAY, messages: textMessages('Hello')},
     {id: 't3', title: 'Old notes', lastActivityAt: NOW - 3 * DAY},
-    {id: 't4', title: 'Pinned plan', lastActivityAt: NOW - 10 * DAY, pinned: true}
+    {id: 't4', title: 'Old plan', lastActivityAt: NOW - 10 * DAY}
 ];
 
 class NoopResizeObserver {

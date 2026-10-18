@@ -52,7 +52,7 @@ its tools.
 | Run turns in the background while the user reads another thread | [`/threads/`](../threads/README.md#let-turns-run-in-the-background) |
 | Link to a thread with a route parameter | [`/threads/`](../threads/README.md#link-to-a-thread) |
 | Group a thread list into Today, Yesterday and older | [`/threads/`](../threads/README.md#group-the-list-by-recency) |
-| Show a user's threads in a sidebar, with rename, pin and delete | [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) |
+| Show a user's threads in a sidebar, with rename and delete | [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) |
 | Show the thread list over threads the app holds | [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md#back-the-list-with-your-own-model) |
 | Put a full-page chat on screen, with a thread sidebar and a side panel | [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md) |
 | Fill the workspace's side panel, header or notice line | [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md#common-usage-patterns) |
@@ -102,7 +102,7 @@ its tools.
 | Package | Description | Key Topics |
 |---------|-------------|------------|
 | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) | Desktop chat components: panel, message list, message view, composer, tool cards and more | ChatPanel, ChatMessageList, ChatMessageView, ChatComposer, ChatToolCall, ChatClearButton, ChatReasoning, ChatSources, ChatSidePanel, ChatNoAnswer, ChatEmptyState, ChatSuggestions, ChatTranscript, read-only transcripts, render context, message actions, tool call groups, inline tool calls, citations, approvalPrompt, allowImages, theming |
-| [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) | Desktop thread list: recency groups, search, inline rename, pin, delete with confirm, and row states | ChatThreadList, ChatThreadListHost, ChatThreadsModel, recency groups, inline rename, pin, delete confirm, running, awaiting, finishedAwayThreadIds, lastRunEnd, tree grid, keyboard |
+| [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) | Desktop thread list: recency groups, search, inline rename, delete with confirm, and row states | ChatThreadList, ChatThreadListHost, ChatThreadsModel, recency groups, inline rename, delete confirm, running, awaiting, finishedAwayThreadIds, lastRunEnd, tree grid, keyboard |
 | [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md) | Desktop full-page chat: a thread sidebar and rail, the conversation, header and notice slots, and a side panel, laid out by its own width | ChatWorkspace, ChatWorkspaceModel, sidebar, rail, side panel, header, notice, PanelModel, persistWith, ResizeObserver, breakpoints, compact density |
 | [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) | Built-in generative UI components for a ChatUiCatalog: a result table in two tiers, a Hoist chart, KPI tiles and a detail card | chatUiGridSpec, chatUiChartSpec, chatUiMetricsSpec, chatUiCardSpec, ChatUiGrid, ChatUiChart, ChatUiMetrics, ChatUiCard, ChatUiTableView, ChatUiChartView, ChatUiFrame, fmtChatUiNumber, preview table, byReference, number formats, compact numbers, streaming |
 | [`/cmp/markdown/`](../cmp/markdown/README.md) | Platform-neutral markdown renderer for streaming model output | ChatMarkdown, streaming, block memoization, markdown components, useChatMarkdownStreaming, image policy, links, trailingContent |

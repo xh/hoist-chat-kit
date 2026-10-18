@@ -75,10 +75,11 @@ describe('LocalChatThreadStore', () => {
         await rename;
         expect(store.getThread('t1').title).toBe('Renamed');
 
-        store.failNext('pinThreadAsync', new Error('Down'));
-        await expect(store.pinThreadAsync('t1', true)).rejects.toThrow('Down');
-        await store.pinThreadAsync('t1', true);
-        expect(store.getThread('t1').pinned).toBe(true);
+        store.hold('renameThreadAsync', false);
+        store.failNext('renameThreadAsync', new Error('Down'));
+        await expect(store.renameThreadAsync('t1', 'Again')).rejects.toThrow('Down');
+        await store.renameThreadAsync('t1', 'Again');
+        expect(store.getThread('t1').title).toBe('Again');
     });
 
     it('leaves out the optional methods it is told to', () => {

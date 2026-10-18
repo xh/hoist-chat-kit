@@ -16,13 +16,12 @@ export interface ChatThreadGroup {
 
 /** Identifies a {@link ChatThreadGroup}. */
 export type ChatThreadGroupKey =
-    'pinned' | 'today' | 'yesterday' | 'previous7Days' | 'previous30Days' | 'older';
+    'today' | 'yesterday' | 'previous7Days' | 'previous30Days' | 'older';
 
 /**
- * Group threads for a thread list: pinned threads first, then the rest by the day of their last
- * activity - Today, Yesterday, Previous 7 days, Previous 30 days and Older. Days are calendar days
- * in the browser's time zone, so a thread active late last night is in Yesterday, however few
- * hours ago that was. Each group is sorted most recent first. Empty groups are left out.
+ * Group threads for a thread list by the day of their last activity - Today, Yesterday, Previous
+ * 7 days, Previous 30 days and Older. Days are calendar days in the browser's time zone, so a
+ * thread active late last night is in Yesterday, however few hours ago that was. Each group is sorted most recent first. Empty groups are left out.
  *
  * @param now - the current time, in epoch milliseconds. Default now.
  */
@@ -42,7 +41,6 @@ export function groupThreadsByRecency(
 // Implementation
 //------------------
 const GROUPS: Array<Omit<ChatThreadGroup, 'threads'>> = [
-    {key: 'pinned', label: 'Pinned'},
     {key: 'today', label: 'Today'},
     {key: 'yesterday', label: 'Yesterday'},
     {key: 'previous7Days', label: 'Previous 7 days'},
@@ -51,8 +49,6 @@ const GROUPS: Array<Omit<ChatThreadGroup, 'threads'>> = [
 ];
 
 function getGroupKey(thread: ChatThreadSummary, today: LocalDate): ChatThreadGroupKey {
-    if (thread.pinned) return 'pinned';
-
     // A time ahead of the browser's clock - a server's clock may run ahead - counts as today.
     const day = LocalDate.from(thread.lastActivityAt);
     if (day >= today) return 'today';

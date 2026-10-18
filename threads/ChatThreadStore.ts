@@ -42,9 +42,6 @@ export interface ChatThreadStore {
     /** Delete threads. Deleting a thread that does not exist succeeds. */
     deleteThreadsAsync?(threadIds: string[]): Promise<void>;
 
-    /** Pin a thread, or unpin it. */
-    pinThreadAsync?(threadId: string, pinned: boolean): Promise<void>;
-
     /**
      * Save a user's rating of a message. The threads model gives it to each chat it creates, unless
      * the chat has a `feedback.submitAsync` of its own.
@@ -65,9 +62,6 @@ export interface ChatThreadSummary {
 
     /** When the thread was created, in epoch milliseconds. */
     createdAt?: number;
-
-    /** True if the user has pinned the thread. */
-    pinned?: boolean;
 
     /** True if the backend reports a run in progress in the thread. */
     isRunning?: boolean;

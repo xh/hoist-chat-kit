@@ -49,9 +49,6 @@ export interface ChatThreadListHost {
     /** True to show Delete. Requires {@link deleteThreadsAsync}. */
     readonly canDelete?: boolean;
 
-    /** True to show Pin and Unpin. Requires {@link pinThreadAsync}. */
-    readonly canPin?: boolean;
-
     /** Start a new thread, and select it. */
     newThread(): unknown;
 
@@ -60,9 +57,6 @@ export interface ChatThreadListHost {
 
     /** Rename a thread. */
     renameThreadAsync?(threadId: string, title: string): Promise<unknown>;
-
-    /** Pin a thread, or unpin it. */
-    pinThreadAsync?(threadId: string, pinned: boolean): Promise<unknown>;
 
     /** Delete threads. The list confirms with the user first. */
     deleteThreadsAsync?(threadIds: string[]): Promise<unknown>;

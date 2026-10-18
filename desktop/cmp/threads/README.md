@@ -22,11 +22,11 @@ Import from `@xh/hoist-chat-kit/desktop/cmp/threads`.
 
 Key features:
 
-- **Recency groups** - Pinned, Today, Yesterday, Previous 7 days, Previous 30 days and Older,
+- **Recency groups** - Today, Yesterday, Previous 7 days, Previous 30 days and Older,
   from `groupThreadsByRecency()`. A search shows one group of results instead, each with the
   matching snippet when the host gives one. A host whose search skips message text shows
   "Searching titles".
-- **Row actions** - Pin, Rename and a More menu replace the time on hover or focus. More holds
+- **Row actions** - Rename and a More menu replace the time on hover or focus. More holds
   Copy Thread ID and Delete. The list hides each action the host cannot take.
 - **Inline rename** - Enter or a blur saves, and Escape keeps the old title.
 - **Delete with confirm** - the list always asks first, with focus on Cancel. If the open thread
@@ -67,7 +67,7 @@ A row shows at most one unusual state, in this order:
 | Interrupted | `lastRunEnd: 'interrupted'` | Warning, with `lastRunReason` as tooltip | "last reply interrupted" |
 | Failed | `lastRunEnd: 'failed'` | Warning, in the error color | "last reply failed" |
 
-A pinned thread in the Pinned group shows a pin. Other rows show no icon.
+A row in no unusual state shows no icon.
 
 ## Configuration Pattern
 
@@ -162,7 +162,6 @@ It also takes Hoist's `BoxProps` for layout.
 | `listTask` | `TaskObserver` | Shows the skeleton while the first load is pending. |
 | `hasMoreThreads`, `loadMoreThreadsAsync()` | | Load More, and a load on scroll near the end. |
 | `canRename`, `renameThreadAsync()` | | Rename. |
-| `canPin`, `pinThreadAsync()` | | Pin and Unpin. |
 | `canDelete`, `deleteThreadsAsync()` | | Delete. |
 | `refreshAsync()` | method | Retry after a failed load. |
 
@@ -197,7 +196,7 @@ object fails the model lookup.
 
 ### Expecting a failed rename to show under its row
 
-A `ChatThreadsModel` rolls back a failed rename, pin or delete with a toast. The list shows the
+A `ChatThreadsModel` rolls back a failed rename or delete with a toast. The list shows the
 old title again, and says nothing of its own.
 
 ## Related Packages

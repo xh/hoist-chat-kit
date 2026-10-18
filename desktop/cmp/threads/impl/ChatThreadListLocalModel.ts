@@ -123,10 +123,6 @@ export class ChatThreadListLocalModel extends HoistModel {
         this.host.refreshAsync?.().catchDefault();
     }
 
-    togglePin(thread: ChatThreadSummary) {
-        this.host.pinThreadAsync(thread.id, !thread.pinned).catchDefault();
-    }
-
     @action
     startRename(thread: ChatThreadSummary) {
         if (!this.canRename) return;
@@ -181,10 +177,6 @@ export class ChatThreadListLocalModel extends HoistModel {
 
     get canRename(): boolean {
         return !!(this.host?.canRename && this.host.renameThreadAsync);
-    }
-
-    get canPin(): boolean {
-        return !!(this.host?.canPin && this.host.pinThreadAsync);
     }
 
     get canDelete(): boolean {

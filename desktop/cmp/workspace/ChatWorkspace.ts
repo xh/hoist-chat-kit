@@ -292,12 +292,6 @@ function threadMenuItems(model: ChatWorkspaceModel): MenuItemLike[] {
     if (!summary) return [];
 
     return [
-        {
-            text: summary.pinned ? 'Unpin' : 'Pin',
-            icon: Icon.pin(),
-            omit: !threadsModel.canPin,
-            actionFn: () => threadsModel.pinThreadAsync(summary.id, !summary.pinned).catchDefault()
-        },
         clipboardMenuItem({
             text: 'Copy Thread ID',
             icon: Icon.copy(),

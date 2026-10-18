@@ -93,15 +93,15 @@ export interface ChatSeedSpec {
  * The app implements a {@link ChatThreadStore} against its backend, and supplies a
  * `createChatModel` function that builds the chat for a thread.
  *
- * The model lists the threads a page at a time, with server-side search, and renames, pins and
- * deletes them at once, rolling back with a toast if the store fails. It holds a `ChatModel` for
+ * The model lists the threads a page at a time, with server-side search, and renames and deletes
+ * them at once, rolling back with a toast if the store fails. It holds a `ChatModel` for
  * each open thread: the selected one, and any other with a turn running. A turn therefore runs on
  * in the background when the user switches threads, and the list shows its thread as running. A
  * chat that is neither selected nor busy is destroyed. The thread's draft and run options are kept
  * for when it opens again.
  *
  * Every async result is checked before it is applied. A thread list applies only if no newer list
- * has, with pending renames, pins and deletes laid over it. A thread's history applies only to the
+ * has, with pending renames and deletes laid over it. A thread's history applies only to the
  * chat that asked for it, while that chat is open. Each chat applies only its own run's events, as
  * the threads model never routes events itself.
  *
@@ -153,7 +153,7 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
 
     /**
      * The threads to list, in the store's order. Threads started here that the store has not yet
-     * listed come first, unless a search is active. Pending renames, pins and deletes show at once.
+     * listed come first, unless a search is active. Pending renames and deletes show at once.
      */
     @computed
     get threads(): ChatThreadSummary[] {
@@ -232,11 +232,6 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     /** True if the store's search covers message text, not just titles. */
     get searchesMessages(): boolean {
         return !!this.store.searchesMessages;
-    }
-
-    /** True if the store can pin threads. */
-    get canPin(): boolean {
-        return !!this.store.pinThreadAsync;
     }
 
     constructor(config: ChatThreadsConfig) {
@@ -392,21 +387,6 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     }
 
     /**
-     * Pin a thread, or unpin it. The change shows at once, and reverts with a toast if the store
-     * fails. Requires the store's `pinThreadAsync` - see {@link canPin}.
-     */
-    async pinThreadAsync(threadId: string, pinned: boolean): Promise<void> {
-        throwIf(!this.canPin, 'The thread store cannot pin threads.');
-
-        await this.changeThreadsAsync(
-            [threadId],
-            {pinned},
-            pinned ? 'The conversation was not pinned.' : 'The conversation was not unpinned.',
-            () => this.store.pinThreadAsync(threadId, pinned)
-        );
-    }
-
-    /**
      * Delete threads. They leave the list at once, and return with a toast if the store fails.
      * Their chats close, and a turn running in one is stopped. If the selected thread is deleted,
      * a new thread is selected. Requires the store's `deleteThreadsAsync` - see {@link canDelete}.
@@ -442,7 +422,7 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     // Threads started here that the store has not listed yet, newest first.
     @observableRef private accessor localThreads: ChatThreadSummary[] = [];
 
-    // Renames, pins and deletes, laid over the threads until a list requested after they ended.
+    // Renames and deletes, laid over the threads until a list requested after they ended.
     @observableRef private accessor pendingChanges: PendingChange[] = [];
 
     // Search of the applied list, and its cursor for the next page.
@@ -950,7 +930,7 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
 /** Wait after the search changes before the list reloads. */
 const SEARCH_DEBOUNCE_MS = 300;
 
-/** A rename, pin or delete, laid over the threads - see `changeThreadsAsync`. */
+/** A rename or delete, laid over the threads - see `changeThreadsAsync`. */
 interface PendingChange {
     threadId: string;
 

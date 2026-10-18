@@ -34,16 +34,16 @@ describe('ChatThreadsModel', () => {
             await model.loadAsync();
 
             expect(ids(model.threads)).toEqual(['t1', 't2', 't3']);
-            expect(model).toMatchObject({canRename: true, canDelete: true, canPin: true});
+            expect(model).toMatchObject({canRename: true, canDelete: true});
             expect(model.hasMoreThreads).toBe(false);
         });
 
         it('hides the actions the store lacks', async () => {
             const {model} = setup({
-                store: new LocalChatThreadStore({omit: ['renameThreadAsync', 'pinThreadAsync']})
+                store: new LocalChatThreadStore({omit: ['renameThreadAsync']})
             });
 
-            expect(model).toMatchObject({canRename: false, canDelete: true, canPin: false});
+            expect(model).toMatchObject({canRename: false, canDelete: true});
             await expect(model.renameThreadAsync('t1', 'New')).rejects.toThrow('cannot rename');
         });
 
@@ -639,19 +639,6 @@ describe('ChatThreadsModel', () => {
             await older;
 
             expect(model.threads[0].title).toBe('Newer');
-        });
-
-        it('pins at once, and rolls back if the store fails', async () => {
-            spyHandleException();
-            const {model, store} = setup();
-            await model.loadAsync();
-
-            await model.pinThreadAsync('t3', true);
-            expect(model.threads[2].pinned).toBe(true);
-
-            store.failNext('pinThreadAsync');
-            await model.pinThreadAsync('t3', false);
-            expect(model.threads[2].pinned).toBe(true);
         });
 
         it('deletes at once, and restores the threads with a toast if the store fails', async () => {

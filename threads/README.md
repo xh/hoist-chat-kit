@@ -25,7 +25,7 @@ Import from `@xh/hoist-chat-kit/threads`.
 Key features:
 
 - **A store adapter** - two required methods, to list threads and to load a page of history.
-  Rename, delete, pin, create and feedback are optional. The model hides each action the store
+  Rename, delete, create and feedback are optional. The model hides each action the store
   lacks.
 - **One chat per open thread** - the selected thread's chat, and any other chat with a turn
   running. A turn runs on in the background when the user switches threads, and the list shows
@@ -35,11 +35,11 @@ Key features:
 - **Paged lists and paged history** - further pages of threads, and older messages loaded ahead
   of the conversation.
 - **Server-side search** - debounced, through the store's query.
-- **Edits that show at once** - rename, pin and delete apply before the store answers, and roll
+- **Edits that show at once** - rename and delete apply before the store answers, and roll
   back with a toast if it fails.
 - **Deep links** - the selected thread and a route parameter stay in sync both ways.
-- **Recency groups** - `groupThreadsByRecency()` sorts threads into Pinned, Today, Yesterday and
-  older groups for a list UI.
+- **Recency groups** - `groupThreadsByRecency()` sorts threads into Today, Yesterday and older
+  groups for a list UI.
 - **`LocalChatThreadStore`** - an in-memory store for tests, demos and offline work, with
   latency, failures and held calls on request.
 
@@ -61,7 +61,7 @@ ChatThreadsModel (HoistModel)
 │   ├── finishedAwayThreadIds         # Threads whose turn ended while not selected
 │   ├── hasMoreThreads                # True if the store has another page
 │   ├── loadError                     # Why the selected thread's history failed, or null
-│   └── canRename / canDelete / canPin
+│   └── canRename / canDelete
 └── Methods:
     ├── loadAsync() / refreshAsync()  # Load or reload the list
     ├── loadMoreThreadsAsync()        # Load the next page of threads
@@ -70,14 +70,13 @@ ChatThreadsModel (HoistModel)
     ├── reloadThreadAsync()           # Load the selected thread's history again
     ├── loadOlderMessagesAsync()      # Load a page of older messages
     ├── renameThreadAsync()           # Rename, at once, with rollback
-    ├── pinThreadAsync()              # Pin or unpin, at once, with rollback
     └── deleteThreadsAsync()          # Delete, at once, with rollback
 
 ChatThreadStore (implemented by the app)
 ├── listThreadsAsync(query)           # Required
 ├── loadMessagesAsync(query)          # Required
 └── createThreadAsync?, renameThreadAsync?, deleteThreadsAsync?,
-    pinThreadAsync?, submitFeedbackAsync?
+    submitFeedbackAsync?
 ```
 
 ### Open chats
@@ -260,18 +259,17 @@ active, the list shows only what the store returned for it.
 textInput({bind: 'search', model: threadsModel, placeholder: 'Search conversations'});
 ```
 
-### Rename, pin and delete
+### Rename and delete
 
 ```typescript
 await threadsModel.renameThreadAsync(threadId, 'Q3 budget');
-await threadsModel.pinThreadAsync(threadId, true);
 await threadsModel.deleteThreadsAsync([threadId, otherThreadId]);
 ```
 
 Each change shows at once. If the store fails, the change rolls back and a toast says so. A
 delete closes the threads' chats, and stops any turn running in one. If it deletes the selected
-thread, the model selects a new one. Check `canRename`, `canPin` and `canDelete` before you show
-each action. A call the store cannot make throws.
+thread, the model selects a new one. Check `canRename` and `canDelete` before you show each
+action. A call the store cannot make throws.
 
 ### Recover from a failed load
 
@@ -303,11 +301,11 @@ ignores other routes.
 import {groupThreadsByRecency} from '@xh/hoist-chat-kit/threads';
 
 const groups = groupThreadsByRecency(threadsModel.threads);
-// [{key: 'pinned', label: 'Pinned', threads}, {key: 'today', label: 'Today', threads}, ...]
+// [{key: 'today', label: 'Today', threads}, {key: 'yesterday', label: 'Yesterday', threads}, ...]
 ```
 
-Pinned threads come first. The rest group by the calendar day of `lastActivityAt` in the
-browser's time zone: Today, Yesterday, Previous 7 days, Previous 30 days and Older. Each group is
+Threads group by the calendar day of `lastActivityAt` in the browser's time zone: Today,
+Yesterday, Previous 7 days, Previous 30 days and Older. Each group is
 sorted most recent first, and empty groups are left out.
 
 ### Test or demo with the local store
@@ -362,7 +360,7 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save
 | `listTask` | `TaskObserver` | Pending while the list loads. |
 | `loadTask` | `TaskObserver` | Pending while the selected thread's history loads. |
 | `olderMessagesTask` | `TaskObserver` | Pending while older messages load. |
-| `canRename`, `canDelete`, `canPin` | `boolean` | True if the store has the method. |
+| `canRename`, `canDelete` | `boolean` | True if the store has the method. |
 
 ### ChatThreadsModel methods
 
@@ -375,7 +373,6 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save
 | `reloadThreadAsync()` | Load the selected thread's history again. Ignored while its turn runs. |
 | `loadOlderMessagesAsync()` | Prepend the next page of older messages to the selected chat. |
 | `renameThreadAsync(threadId, title)` | Rename at once. Rolls back with a toast on failure. |
-| `pinThreadAsync(threadId, pinned)` | Pin or unpin at once. Rolls back with a toast on failure. |
 | `deleteThreadsAsync(threadIds)` | Delete at once, closing the chats. Rolls back with a toast on failure. |
 
 ### ChatThreadStore
@@ -388,7 +385,6 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save
 | `createThreadAsync({localId, title})` | Create the thread and return its summary, with the backend's id. Idempotent per `localId`. |
 | `renameThreadAsync(threadId, title)` | Rename a thread. |
 | `deleteThreadsAsync(threadIds)` | Delete threads. Deleting a missing thread succeeds. |
-| `pinThreadAsync(threadId, pinned)` | Pin or unpin a thread. |
 | `submitFeedbackAsync(spec)` | Save a rating. See `ChatFeedbackSpec` in [`/core/`](../core/README.md#rate-a-reply). |
 
 ### ChatThreadSummary
@@ -399,7 +395,6 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save
 | `title` | `string` | Title to show. |
 | `lastActivityAt` | `number` | Epoch millis of the last change. Drives sorting and recency groups. |
 | `createdAt` | `number` | Epoch millis of creation. Optional. |
-| `pinned` | `boolean` | True if pinned. Optional. |
 | `isRunning` | `boolean` | True if the backend reports a run in progress. Optional. |
 | `lastRunEnd` | `'complete' \| 'interrupted' \| 'failed'` | How the last run ended, if the backend reports it. A thread list marks `interrupted` and `failed`. Optional. |
 | `lastRunReason` | `string` | Why the last run ended so, for a tooltip. Optional. |

@@ -46,9 +46,9 @@ export interface ChatThreadListProps extends HoistProps<ChatThreadListHostModel>
 
 /**
  * A list of a user's threads, for a sidebar: New Chat, a search input, and the threads grouped by
- * recency - Pinned, Today, Yesterday and older - with the selected thread highlighted.
+ * recency - Today, Yesterday and older - with the selected thread highlighted.
  *
- * A row shows its title and time. Hover or focus swaps the time for Pin, Rename and a More menu,
+ * A row shows its title and time. Hover or focus swaps the time for Rename and a More menu,
  * whose items include Copy Thread ID and Delete. Rename edits the title in place. Delete asks the
  * user to confirm first. A row also shows when its thread is working, waits for the user, has a
  * reply the user has not seen, or ended its last run early.
@@ -209,16 +209,12 @@ function threadGroup(impl: ChatThreadListLocalModel, group: ChatThreadGroup): Re
                 'aria-hidden': true,
                 item: group.label
             }),
-            ...group.threads.map(thread => threadRow(impl, thread, group))
+            ...group.threads.map(thread => threadRow(impl, thread))
         ]
     });
 }
 
-function threadRow(
-    impl: ChatThreadListLocalModel,
-    thread: ChatThreadSummary,
-    group: ChatThreadGroup
-): ReactNode {
+function threadRow(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): ReactNode {
     const {host} = impl,
         {id, title} = thread,
         // A snippet shows only in search results.
@@ -257,7 +253,7 @@ function threadRow(
                       className: 'xh-chat-thread-list__cell',
                       role: 'gridcell',
                       items: [
-                          rowIcon(thread, status, group),
+                          rowIcon(thread, status),
                           snippet
                               ? span({
                                     className: 'xh-chat-thread-list__text',
@@ -284,7 +280,7 @@ function threadRow(
     });
 }
 
-function rowIcon(thread: ChatThreadSummary, status: RowStatus, group: ChatThreadGroup): ReactNode {
+function rowIcon(thread: ChatThreadSummary, status: RowStatus): ReactNode {
     const className = 'xh-chat-thread-list__icon';
     switch (status) {
         case 'running':
@@ -301,12 +297,11 @@ function rowIcon(thread: ChatThreadSummary, status: RowStatus, group: ChatThread
                 item: Icon.warningCircle()
             });
     }
-    return span({className, item: group.key === 'pinned' ? Icon.pin() : null});
+    return span({className});
 }
 
 function rowActions(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): ReactNode {
-    const {canPin, canRename} = impl,
-        pinLabel = thread.pinned ? 'Unpin' : 'Pin';
+    const {canRename} = impl;
 
     // Clicks on the buttons stay off the row, which would open the thread.
     return div({
@@ -315,15 +310,6 @@ function rowActions(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): 
         role: 'gridcell',
         onClick: e => e.stopPropagation(),
         items: [
-            canPin
-                ? button({
-                      icon: Icon.pin(),
-                      tooltip: pinLabel,
-                      'aria-label': pinLabel,
-                      tabIndex: -1,
-                      onClick: () => impl.togglePin(thread)
-                  })
-                : null,
             canRename
                 ? button({
                       icon: Icon.edit(),
@@ -356,12 +342,6 @@ function moreMenuItems(impl: ChatThreadListLocalModel, thread: ChatThreadSummary
             icon: Icon.edit(),
             omit: !impl.canRename,
             actionFn: () => impl.startRename(thread)
-        },
-        {
-            text: thread.pinned ? 'Unpin' : 'Pin',
-            icon: Icon.pin(),
-            omit: !impl.canPin,
-            actionFn: () => impl.togglePin(thread)
         },
         clipboardMenuItem({
             text: 'Copy Thread ID',
