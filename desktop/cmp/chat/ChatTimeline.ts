@@ -182,14 +182,17 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
                     })
                 }),
                 // Pending approvals and questions show whether or not the block is open.
-                summary.approval && state === 'approval' && chatModel
-                    ? chatToolApproval({
-                          className: 'xh-chat-timeline__ask',
-                          part: summary.approval,
-                          spec: getHostToolSpec(host, summary.approval.toolName),
-                          chatModel
-                      })
-                    : null,
+                ...(state === 'approval' && chatModel
+                    ? summary.approvals.map(part =>
+                          chatToolApproval({
+                              key: part.id,
+                              className: 'xh-chat-timeline__ask',
+                              part,
+                              spec: getHostToolSpec(host, part.toolName),
+                              chatModel
+                          })
+                      )
+                    : []),
                 summary.question && state === 'question'
                     ? questionPanel({
                           part: summary.question,

@@ -5,6 +5,7 @@ export * from './ChatComposerModel';
 export * from './ChatComposerStatus';
 export * from './ChatContextProvider';
 export * from './ChatFeedback';
+export * from './ChatInterrupt';
 export * from './ChatKit';
 export * from './ChatMessage';
 export * from './ChatModel';

@@ -64,6 +64,21 @@ import type {ChatToolSpec} from './ChatToolSpec';
 import type {ChatTranscript} from './ChatTranscript';
 import {isAbortError, raceAbort} from '../impl/abort';
 import {ChatStreamReducer} from './ChatStreamReducer';
+import type {ChatInterrupt, ChatInterruptResponse} from './ChatInterrupt';
+import {getApprovalPayload, isApprovalSchema} from '../impl/interruptSchema';
+import {
+    buildResume,
+    createInterruptSet,
+    declineRest,
+    hasAllResponses,
+    type InterruptSet,
+    isExpired,
+    markDelivered,
+    restoreInterruptSet,
+    withResponse,
+    writeInterrupts
+} from './impl/interrupts';
+import type {Interrupt} from '@ag-ui/core';
 import {genChatId} from '../impl/ids';
 import {
     createTextPart,
@@ -215,6 +230,13 @@ export interface ChatModelConfig {
      * `editMessageAsync` stops or closes, just before its message is discarded.
      */
     onTurnComplete?: (message: ChatMessage) => void;
+
+    /**
+     * Called when a turn pauses for the user - for tool calls to approve or answer, or for a
+     * server agent's interrupts - with the paused message. Save the conversation here, as well as
+     * in `onTurnComplete`, to keep a paused reply across a reload.
+     */
+    onTurnPause?: (message: ChatMessage) => void;
 }
 
 /** Who owns the conversation history - see {@link ChatModelConfig.historyMode}. */
@@ -488,13 +510,40 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     get waitingToolCalls(): ChatToolCallPart[] {
         const {lastMessage} = this;
         if (this.isBusy || !lastMessage?.isAssistant) return [];
-        return lastMessage.toolCalls.filter(it => this.isWaitingToolCall(it));
+        const isPausedOnInterrupts = !!this.pausedInterruptSet;
+        return lastMessage.toolCalls.filter(
+            it =>
+                this.isWaitingToolCall(it) ||
+                (isPausedOnInterrupts && it.awaitsResume && it.state === 'approval-requested')
+        );
     }
 
-    /** True if a turn is paused, waiting for the user to answer its tool calls. */
+    /**
+     * True if a turn is paused, waiting for the user to answer its tool calls or a server
+     * agent's interrupts.
+     */
     @computed
     get isAwaitingUser(): boolean {
-        return !isEmpty(this.waitingToolCalls);
+        return !isEmpty(this.waitingToolCalls) || !!this.pausedInterruptSet;
+    }
+
+    /**
+     * The interrupts the paused reply holds - questions, or requests to run a server tool, that a
+     * server agent raised by ending its run with AG-UI's `interrupt` outcome. Answered or not,
+     * until the user submits them. Empty unless a turn is paused on them. See
+     * {@link ChatInterrupt}.
+     */
+    @computed
+    get pendingInterrupts(): ChatInterrupt[] {
+        return this.pausedInterruptSet?.interrupts ?? [];
+    }
+
+    /**
+     * The pending interrupts with no response yet and not past their `expiresAt` - see
+     * {@link pendingInterrupts}. The user can submit once this is empty.
+     */
+    get openInterrupts(): ChatInterrupt[] {
+        return this.pendingInterrupts.filter(it => it.response == null && !isExpired(it));
     }
 
     /** Tool calls waiting for the user to approve or deny them - a subset of `waitingToolCalls`. */
@@ -575,7 +624,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             allowEdit = true,
             allowRegenerate = true,
             dataRefreshedAt,
-            onTurnComplete
+            onTurnComplete,
+            onTurnPause
         } = config;
         throwIf(!transport, 'ChatModel requires a transport.');
         throwIf(!(maxSteps >= 1), 'ChatModel maxSteps must be at least 1.');
@@ -631,6 +681,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.allowEdit = allowEdit;
         this.allowRegenerate = allowRegenerate;
         this.onTurnComplete = onTurnComplete;
+        this.onTurnPause = onTurnPause;
         this.modelTools = tools.filter(
             it => it.sendToModel ?? (it.execute != null || !!it.interactive)
         );
@@ -803,12 +854,17 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
 
     /**
      * Approve a tool call that is waiting for approval. The turn continues - running the tool -
-     * once no other call is waiting.
+     * once no other call is waiting. For a server call that an interrupt asks to run, it answers
+     * the interrupt, in the shape its `responseSchema` asks for. The run resumes at once if that
+     * interrupt is the only one.
      *
      * @param reason - the user's words with the approval, recorded on the call as
      *      `approvalReason`.
      */
     async approveToolCallAsync(toolCallId: string, reason?: string): Promise<void> {
+        if (this.isServerApproval(toolCallId)) {
+            return this.respondToApprovalAsync(toolCallId, true, reason);
+        }
         const turn = this.getPausedTurn(toolCallId, it => it.state === 'approval-requested');
         if (!turn) return;
 
@@ -822,9 +878,13 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
 
     /**
      * Deny a tool call that is waiting for approval. The model is told of the denial, with the
-     * given reason, once no other call is waiting.
+     * given reason, once no other call is waiting. For a server call that an interrupt asks to
+     * run, it answers the interrupt, as for {@link approveToolCallAsync}.
      */
     async denyToolCallAsync(toolCallId: string, reason?: string): Promise<void> {
+        if (this.isServerApproval(toolCallId)) {
+            return this.respondToApprovalAsync(toolCallId, false, reason);
+        }
         const turn = this.getPausedTurn(toolCallId, it => it.state === 'approval-requested');
         if (!turn) return;
 
@@ -848,6 +908,45 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         if (!turn) return;
 
         this.updateToolCall(turn, toolCallId, {state: 'output-available', output});
+        await this.resumeTurnAsync(turn);
+    }
+
+    /**
+     * Answer an interrupt of the paused reply - see {@link pendingInterrupts}. Call it again to
+     * change the answer. The run resumes on {@link submitInterruptsAsync}. Never blocked by a
+     * `sendBlocker`.
+     *
+     * @param payload - the answer, in the shape of the interrupt's `responseSchema`. Omit it for
+     *      a question the user answered with nothing.
+     */
+    answerInterrupt(interruptId: string, payload?: unknown) {
+        this.respondToInterrupt(interruptId, {
+            status: 'resolved',
+            ...(payload !== undefined ? {payload} : {})
+        });
+    }
+
+    /**
+     * Decline an interrupt of the paused reply, which tells the agent the user abandoned it. Call
+     * {@link answerInterrupt} to change it back. Never blocked by a `sendBlocker`.
+     */
+    declineInterrupt(interruptId: string) {
+        this.respondToInterrupt(interruptId, {status: 'cancelled'});
+    }
+
+    /**
+     * Send the responses to the paused reply's interrupts, and resume its run - once every one
+     * has a response, or has expired, and no client tool call waits. An expired interrupt goes as
+     * declined. Never blocked by a `sendBlocker`.
+     */
+    async submitInterruptsAsync(): Promise<void> {
+        const set = this.pausedInterruptSet,
+            turn = set && hasAllResponses(set) ? this.getOrRestoreTurn() : null;
+        if (!turn || this.hasWaitingToolCalls(turn)) {
+            this.logWarn('Interrupts not submitted - the user still has to answer.');
+            return;
+        }
+        this.setInterruptSet({...set, isSubmitted: true});
         await this.resumeTurnAsync(turn);
     }
 
@@ -1097,6 +1196,10 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     // Implementation
     //------------------
     private readonly onTurnComplete: (message: ChatMessage) => void;
+    private readonly onTurnPause: (message: ChatMessage) => void;
+
+    /** The interrupts the next request must cover - see `openInterrupts`. */
+    @observableRef private accessor interruptSet: InterruptSet = null;
     private readonly modelTools: ChatToolSpec[];
     private readonly textTransform: ChatTextTransform;
     private readonly trackOptions: ChatTrackOptions;
@@ -1129,6 +1232,133 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
 
     private isCurrent(turn: ChatTurn): boolean {
         return this.turn === turn;
+    }
+
+    /** The interrupt set, while the reply that holds it is paused on it. */
+    @computed
+    private get pausedInterruptSet(): InterruptSet {
+        const {interruptSet: set, lastMessage} = this;
+        return set &&
+            !set.isSubmitted &&
+            !this.isBusy &&
+            lastMessage?.id === set.messageId &&
+            lastMessage.status === 'paused'
+            ? set
+            : null;
+    }
+
+    /** Record a response on the interrupt set, and on the reply that holds it. */
+    private respondToInterrupt(interruptId: string, response: ChatInterruptResponse) {
+        const set = this.isTurnRunning ? null : this.pausedInterruptSet,
+            interrupt = set?.interrupts.find(it => it.id === interruptId);
+        if (!interrupt || isExpired(interrupt)) {
+            this.logWarn(`Response ignored - interrupt '${interruptId}' is not open.`);
+            return;
+        }
+        this.setInterruptSet(withResponse(set, interruptId, response));
+    }
+
+    @action
+    private setInterruptSet(set: InterruptSet) {
+        const previous = this.interruptSet,
+            message = this.getMessage(set?.messageId ?? previous?.messageId);
+        this.interruptSet = set;
+        if (message && set) this.replaceMessage(writeInterrupts(message, set));
+    }
+
+    /** True if a call is a server call that an interrupt asks the user to approve. */
+    private isServerApproval(toolCallId: string): boolean {
+        return !!this.lastMessage?.toolCalls.find(it => it.id === toolCallId)?.awaitsResume;
+    }
+
+    /** Approve or deny a server call, answering the interrupt that asks to run it. */
+    private async respondToApprovalAsync(toolCallId: string, isApproved: boolean, reason: string) {
+        const set = this.isTurnRunning ? null : this.pausedInterruptSet,
+            interrupt = set?.interrupts.find(it => it.toolCallId === toolCallId),
+            {lastMessage} = this,
+            call = lastMessage.toolCalls.find(it => it.id === toolCallId);
+        if (!interrupt || call.state !== 'approval-requested' || isExpired(interrupt)) {
+            this.logWarn(`Tool call ignored - '${toolCallId}' is not waiting for the user.`);
+            return;
+        }
+
+        const note = reason?.trim() || null,
+            payload = getApprovalPayload(interrupt.responseSchema, isApproved, note);
+        this.updateMessagePart<ChatToolCallPart>(
+            lastMessage,
+            toolCallId,
+            isApproved
+                ? {state: 'input-available', ...(note ? {approvalReason: note} : {})}
+                : {
+                      state: 'output-denied',
+                      errorText: note ?? 'The user denied this tool call.',
+                      endedAt: Date.now()
+                  }
+        );
+        this.answerInterrupt(interrupt.id, payload);
+        if (set.interrupts.length === 1) await this.submitInterruptsAsync();
+    }
+
+    /**
+     * After a step's run finishes: a resume it carried is delivered, and an interrupt outcome
+     * opens a new set. Any other outcome clears the set.
+     */
+    @action
+    private noteRunOutcome(turn: ChatTurn, request: ChatRunRequest) {
+        const {reducer} = turn;
+        if (!reducer.isRunFinished) return;
+
+        const previous = this.interruptSet;
+        if (previous && !isEmpty(request.resume)) this.setInterruptSet(markDelivered(previous));
+
+        const {outcome} = reducer;
+        if (outcome?.type !== 'interrupt') {
+            this.interruptSet = null;
+            return;
+        }
+        if (!this.transport.supportsInterrupts) {
+            this.interruptSet = null;
+            this.updateTurnMessage(turn, message =>
+                message.withChanges({
+                    status: 'error',
+                    error: 'The agent asked a question this chat cannot answer.',
+                    metadata: {...message.metadata, errorCode: 'unsupported-interrupt'}
+                })
+            );
+            return;
+        }
+
+        // A run that failed after its interrupts shows no answer panels. Its set still goes out
+        // declined, on the next request.
+        const message = this.getTurnMessage(turn);
+        if (message.status !== 'error') this.markServerCalls(turn, outcome.interrupts);
+        this.interruptSet = createInterruptSet(this.getTurnMessage(turn), reducer.finishedRunId);
+    }
+
+    /**
+     * Mark the calls an interrupted run left open that the chat cannot run - those that name no
+     * tool of the chat - as the server's. One that an interrupt asks to approve waits for the user.
+     */
+    private markServerCalls(turn: ChatTurn, interrupts: Interrupt[]) {
+        this.updateTurnMessage(turn, message => {
+            let ret = message;
+            message.toolCalls.forEach(call => {
+                if (call.step !== turn.step || call.providerExecuted || isToolCallFinal(call)) {
+                    return;
+                }
+                if (this.getToolSpec(call.toolName)) return;
+
+                const approval = interrupts.find(
+                    it => it.toolCallId === call.id && isApprovalSchema(it.responseSchema)
+                );
+                ret = updatePart<ChatToolCallPart>(ret, call.id, {
+                    providerExecuted: true,
+                    awaitsResume: true,
+                    ...(approval ? {state: 'approval-requested'} : {})
+                });
+            });
+            return ret;
+        });
     }
 
     private isInteractive(call: ChatToolCallPart): boolean {
@@ -1193,15 +1423,20 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
                 const outcome = await this.runToolCallsAsync(turn);
                 if (!this.isCurrent(turn)) return;
 
-                if (outcome === 'paused') {
+                // A server agent's interrupts wait for the user, after any client calls ran.
+                const set = this.interruptSet,
+                    isAwaitingInterrupts = set?.messageId === turn.messageId && !set.isSubmitted;
+                if (outcome === 'paused' || isAwaitingInterrupts) {
                     this.pauseTurn(turn);
                     return;
                 }
-                if (outcome === 'done') {
+                // Submitted responses still need a step to carry them.
+                if (outcome === 'done' && !set?.isSubmitted) {
                     this.endTurn(turn, 'complete');
                     return;
                 }
-                if (turn.step + 1 >= this.maxSteps) {
+                // A step that carries submitted responses always goes, as AG-UI requires them.
+                if (turn.step + 1 >= this.maxSteps && !set?.isSubmitted) {
                     this.logWarn(`Turn ended at the limit of ${this.maxSteps} steps.`);
                     this.updateTurnMessage(turn, message =>
                         message.withChanges({
@@ -1270,6 +1505,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
                 replacedMessageId: turn.replacedMessageId,
                 runOptions: turn.runOptions,
                 catalogVersion: this.catalog?.version ?? null,
+                resume: this.interruptSet?.isSubmitted ? buildResume(this.interruptSet) : null,
                 tools: this.modelTools,
                 context: [],
                 signal: turn.abortController.signal,
@@ -1301,6 +1537,11 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             if (this.historyMode === 'server' && !isAbortError(e) && !isRefusedRequest(e)) {
                 turn.isConnectionLost = true;
             }
+            // A run that finished before the stream failed delivered any resume it carried.
+            if (this.isCurrent(turn)) {
+                this.flush(turn);
+                this.noteRunOutcome(turn, request);
+            }
             throw e;
         } finally {
             turn.request = null;
@@ -1310,6 +1551,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         if (!this.isCurrent(turn)) return;
         this.flush(turn);
         this.updateTurnMessage(turn, message => turn.reducer.finish(message));
+        this.noteRunOutcome(turn, request);
     }
 
     /**
@@ -1449,6 +1691,17 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         const run = reason === 'stop' ? this.getRunRef(turn) : null,
             detached = reason !== 'stop' && !!turn.request && this.historyMode === 'server';
 
+        // A stop declines the open interrupts. A stopped resume declines its answers too, so an
+        // answer that may have reached the server never goes twice.
+        const set = this.interruptSet,
+            isResuming = !isEmpty(turn.request?.resume);
+        if (set && reason === 'detach' && isResuming && this.historyMode === 'server') {
+            // The run goes on with the answers on the server, which holds them now.
+            this.interruptSet = null;
+        } else if (set && (reason === 'stop' || reason === 'detach')) {
+            this.setInterruptSet(declineRest(set, isResuming));
+        }
+
         turn.abortController.abort(new ChatAbortError(reason));
         this.endTurn(turn, 'aborted', null, detached);
         if (run) this.cancelRun(run);
@@ -1523,6 +1776,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this._threadId = threadId ?? genChatId();
         this.isThreadIdProvisional = threadId == null || !hasHistory(specs);
         this.messages = restoreMessages(specs);
+        this.interruptSet = restoreInterruptSet(this.messages);
         this.artifacts.clear();
         this.addArtifactsOf(this.messages);
         this.undoStacks = {};
@@ -1538,6 +1792,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         getHistory: () => ChatMessage[],
         replacedMessageId: string
     ): ChatTurn {
+        // A new turn declines the open interrupts, in its first request, as AG-UI requires.
+        if (this.interruptSet) this.setInterruptSet(declineRest(this.interruptSet));
         this.closePausedTurn();
 
         const history = getHistory(),
@@ -1582,6 +1838,11 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
                 metadata: {...message.metadata, elapsedMs}
             })
         );
+        try {
+            this.onTurnPause?.(this.getTurnMessage(turn));
+        } catch (e) {
+            this.logError('Error in onTurnPause', e);
+        }
     }
 
     @action
@@ -1788,6 +2049,15 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             changes = {endedAt: Date.now(), ...changes};
         }
         this.updateTurnMessage(turn, message => updatePart(message, toolCallId, changes));
+    }
+
+    @action
+    private updateMessagePart<T extends ChatPart>(
+        message: ChatMessage,
+        partId: string,
+        changes: Partial<T>
+    ) {
+        this.replaceMessage(updatePart<T>(message, partId, changes));
     }
 
     @action

@@ -317,6 +317,7 @@ function agentRow(
         isRunning = data?.status === 'running' && isLive,
         isFailed = data?.status === 'error',
         isCancelled = data?.status === 'cancelled',
+        isWaiting = data?.status === 'waiting',
         // Open while it runs, closed once done - until the user opens or closes it.
         isOpen = impl.isRowOpen(item.id, isRunning),
         steps = getTimelineCalls(item.items).length,
@@ -343,7 +344,9 @@ function agentRow(
                   ? `failed: ${data.error}`
                   : isCancelled
                     ? 'cancelled'
-                    : null
+                    : isWaiting
+                      ? 'waiting for you'
+                      : null
         ]).join(', '),
         items: [
             rowLine({
@@ -358,7 +361,12 @@ function agentRow(
                       ? span({className: 'xh-chat-timeline__icon--error', item: Icon.xCircle()})
                       : isCancelled
                         ? Icon.stopCircle()
-                        : Icon.sparkles(),
+                        : isWaiting
+                          ? span({
+                                className: 'xh-chat-timeline__icon--attention',
+                                item: Icon.pauseCircle()
+                            })
+                          : Icon.sparkles(),
                 title: depthTitle(name, depth, parentName),
                 input: isOpen
                     ? data?.description
@@ -366,7 +374,13 @@ function agentRow(
                           data?.description,
                           steps ? pluralize('step', steps, true) : null
                       ]).join(' · '),
-                status: isFailed ? data.error : isCancelled ? 'Cancelled' : null,
+                status: isFailed
+                    ? data.error
+                    : isCancelled
+                      ? 'Cancelled'
+                      : isWaiting
+                        ? 'Waiting for you'
+                        : null,
                 time: isRunning
                     ? liveTime(data.startedAt)
                     : took != null

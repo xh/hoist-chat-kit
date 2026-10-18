@@ -33,7 +33,8 @@ export interface AgUiAssistantGroup {
  *  - a tool call joins the `assistant` message its `parentServerId` names. A call with none joins
  *    the step's last `assistant` message.
  *  - each finished call's result is a `tool` message, with its `resultServerId`, right after the
- *    `assistant` message that made the call.
+ *    `assistant` message that made the call. A server call an interrupted run left open has none
+ *    until the server sends its result.
  *  - a data part is an `activity` message. Sub-agent parts, which AG-UI holds outside its
  *    messages, are left out.
  *
@@ -95,7 +96,7 @@ export function groupAgUiMessages(
         group.role === 'assistant'
             ? [
                   group,
-                  ...group.calls.filter(isToolCallFinal).map(call => ({
+                  ...group.calls.filter(hasResult).map(call => ({
                       role: 'tool' as const,
                       id: takeId(call.resultServerId, `${call.id}-result`),
                       call
@@ -103,6 +104,14 @@ export function groupAgUiMessages(
               ]
             : [group]
     );
+}
+
+/**
+ * True if a call's result goes back as a tool message. A server call an interrupted run left open
+ * has none until the server sends it, whatever the chat shows for it.
+ */
+function hasResult(call: ChatToolCallPart): boolean {
+    return isToolCallFinal(call) && !(call.awaitsResume && call.resultServerId == null);
 }
 
 /**

@@ -77,7 +77,7 @@ import {
     propPath,
     typeOf,
     validateSchema
-} from './impl/validateSchema';
+} from '../impl/validateSchema';
 
 /**
  * How the model delivers generative UI - see the genui README:

@@ -205,7 +205,12 @@
         "canUndoTurn",
         "preview",
         "allowEdit",
-        "allowRegenerate"
+        "allowRegenerate",
+        "AG-UI interrupts",
+        "ChatInterrupt",
+        "answerInterrupt",
+        "submitInterruptsAsync",
+        "onTurnPause"
       ]
     },
     {

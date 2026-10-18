@@ -72,6 +72,15 @@ export function isRunningSubagent(part: ChatPart): part is ChatDataPart {
 }
 
 /**
+ * True if a part is a sub-agent that is running, or waiting on the user.
+ * @internal
+ */
+export function isOpenSubagent(part: ChatPart): part is ChatDataPart {
+    const status = isChatSubagentPart(part) ? (part.data as ChatSubagentData)?.status : null;
+    return status === 'running' || status === 'waiting';
+}
+
+/**
  * Tool calls from one step of an assistant message that the client must resolve - those not run
  * by the backend.
  * @internal
@@ -105,7 +114,10 @@ function settleParts(
                     changed = true;
                     return {...part, state: 'done', endedAt: now};
                 case 'toolCall':
-                    if (toolCallReason == null || isToolCallFinal(part)) return part;
+                    // A server call that waits on an interrupt gets its result from the server.
+                    if (toolCallReason == null || isToolCallFinal(part) || part.awaitsResume) {
+                        return part;
+                    }
                     changed = true;
                     return {
                         ...part,
@@ -116,7 +128,7 @@ function settleParts(
                         ...(isCancelled ? {cancelled: true} : {})
                     };
                 case 'data': {
-                    if (toolCallReason == null || !isRunningSubagent(part)) return part;
+                    if (toolCallReason == null || !isOpenSubagent(part)) return part;
                     changed = true;
                     const data: ChatSubagentData = {
                         ...part.data,

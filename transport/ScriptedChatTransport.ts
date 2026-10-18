@@ -1,3 +1,4 @@
+import type {Interrupt} from '@ag-ui/core';
 import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
 import {findLast, flattenDeep, isArray, isEmpty, isNil, isString, omitBy, pick} from 'lodash';
@@ -102,6 +103,9 @@ export class ScriptedChatTransport implements ChatTransport {
     /** Pause before each scripted event, in milliseconds. */
     readonly delayMs: number;
 
+    /** True - a script reads the `resume` list from each request. */
+    readonly supportsInterrupts = true;
+
     /**
      * Requests received, oldest first - for tests to inspect what the chat sent. Each request
      * holds the history it carried, so the list grows with every step the transport runs.
@@ -120,14 +124,25 @@ export class ScriptedChatTransport implements ChatTransport {
         this.requests.push(request);
 
         const response = await this.getResponseAsync(request, context);
-        let isStarted = false;
+        let isStarted = false,
+            started = {threadId, runId};
         for await (const event of this.playAsync(response, signal)) {
             if (!isStarted && event.type !== 'RUN_STARTED') {
                 yield {type: 'RUN_STARTED', threadId, runId};
             }
             isStarted = true;
+            if (event.type === 'RUN_STARTED') started = event;
+            if (event.type === 'RUN_FINISHED') {
+                // A script may leave the run's ids to the transport - see `interruptEvents()`.
+                yield {
+                    ...event,
+                    threadId: event.threadId ?? started.threadId,
+                    runId: event.runId ?? started.runId
+                };
+                return;
+            }
             yield event;
-            if (event.type === 'RUN_FINISHED' || event.type === 'RUN_ERROR') return;
+            if (event.type === 'RUN_ERROR') return;
         }
 
         if (!isStarted) yield {type: 'RUN_STARTED', threadId, runId};
@@ -460,6 +475,25 @@ export function noAnswerEvents(data: ChatNoAnswerData = {}, opts: {id?: string} 
 /** An event for an app-defined data part, rendered by the chat's renderer for `dataType`. */
 export function dataEvents(dataType: string, data: any, opts: {id?: string} = {}): ChatEvent[] {
     return [{type: 'CUSTOM', name: 'xh.chat.data', value: {id: opts.id, dataType, data}}];
+}
+
+/**
+ * An event that ends the run with AG-UI's `interrupt` outcome, to ask the user questions or to
+ * approve a server tool call. The transport fills in the run's ids, and ends the response after
+ * it. The chat answers in the next request's `resume` list.
+ *
+ * @param interrupts - each with an `id` unique within the run, a `reason`, and optionally a
+ *      `message`, a `toolCallId`, a `responseSchema` and an `expiresAt`.
+ */
+export function interruptEvents(interrupts: Interrupt[]): ChatEvent[] {
+    return [
+        {
+            type: 'RUN_FINISHED',
+            threadId: null,
+            runId: null,
+            outcome: {type: 'interrupt', interrupts}
+        }
+    ];
 }
 
 /**

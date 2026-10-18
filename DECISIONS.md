@@ -1147,7 +1147,7 @@ run id, that `SUBAGENT_FINISHED` and `SUBAGENT_ERROR` close, and a tool call car
 record `startedAt` and `endedAt` for durations. Where the spec leaves a rule open, the kit counts
 a later call with the same tool, input and sub-agent as a retry, and applies the narrow layout
 below 480px. Reconnect markers, server stages and server narration marks wait for a transport
-`resume` and backend signals.
+`reconnect` and backend signals.
 
 **Why.** It builds P2 on events AG-UI already defines, with no backend capability the kit cannot
 see. The approval and question panels are shared with the tool call card, and the composer's
@@ -1332,3 +1332,25 @@ server messages. The message ids, item 5 of `planning/AG-UI.md`, came
 forward for that reason. The official client gives a call with no parent id a message of its
 own. No fixture covers that case, and keeping the call with its text suits the model APIs that
 stateless adapters relay to.
+
+## D88. Choices in AG-UI interrupts
+
+**Decision.** `ChatModel` holds the thread's open interrupts, as the official client's
+`pendingInterrupts` does. Each interrupt outcome replaces the set, and any other `RUN_FINISHED`
+clears it. Every request on the thread covers the set until a run that carried it finishes. A new
+turn or a stop declines what has no response, and a stopped resume declines its answers too. The
+user answers with `answerInterrupt()` and `declineInterrupt()`, and sends with
+`submitInterruptsAsync()`. A lone question submits as soon as it is answered. Several end in a
+review step. The request field is `resume`, after AG-UI, and the reserved reattach method is
+`ChatTransport.reconnect()`. A server call an interrupted run leaves open is marked
+`awaitsResume`, never gets a result from the chat, and goes back with no tool message. An
+approval follows the shape its `responseSchema` asks for, or sends `{approved}`. The answer form
+covers a flat object of simple fields, a string enum and a boolean, after reading Pydantic's
+local `$ref`s and nullable fields. The full design is in `planning/INTERRUPTS.md`. This builds on
+D86.
+
+**Why.** AG-UI requires the next run to cover every interrupt of the last interrupted run.
+Retry and regenerate discard the reply that raised them, so the set cannot live only on the reply.
+Adapters disagree on how to approve, so the schema decides. A server call with a result from the
+chat would contradict the server's own record. A waiting sub-agent ends as `error` when its reply
+closes, so the timeline never shows it waiting forever.

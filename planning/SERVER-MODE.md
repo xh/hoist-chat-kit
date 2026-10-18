@@ -88,7 +88,7 @@ signal's `reason`.
   later gets the server's final answer.
 - `ChatTransport.cancelAsync?(run: ChatRunRef): Promise<void>` is new and optional.
   `HttpChatTransport` gains `cancelUrl?` (a value or a function of the run) to POST a cancel.
-- `ChatTransport.resume?` is defined as a type now and implemented in v1.1.
+- `ChatTransport.reconnect?` is defined as a type now and implemented in v1.1.
 
 ### 2.5 New events
 

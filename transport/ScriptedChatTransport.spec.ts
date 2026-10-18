@@ -5,6 +5,7 @@ import {ChatStreamReducer} from '../core/ChatStreamReducer';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRequest} from './ChatTransport';
 import {
+    interruptEvents,
     citationEvents,
     errorEvents,
     noAnswerEvents,
@@ -45,6 +46,25 @@ describe('ScriptedChatTransport', () => {
             expect(first[0]).toEqual({type: 'RUN_STARTED', threadId: 't1', runId: 'r1'});
             expect(second.at(-1)).toEqual({type: 'RUN_FINISHED', threadId: 't1', runId: 'r2'});
             expect(transport.requests.map(it => it.runId)).toEqual(['r1', 'r2']);
+        });
+
+        it('ends a run with interrupts, filling in the run ids, and supports interrupts', async () => {
+            const transport = new ScriptedChatTransport({
+                    responses: [interruptEvents([{id: 'q1', reason: 'input_required'}])],
+                    delayMs: 0
+                }),
+                events = await collect(transport.run(request('r1')));
+
+            expect(transport.supportsInterrupts).toBe(true);
+            expect(events).toEqual([
+                {type: 'RUN_STARTED', threadId: 't1', runId: 'r1'},
+                {
+                    type: 'RUN_FINISHED',
+                    threadId: 't1',
+                    runId: 'r1',
+                    outcome: {type: 'interrupt', interrupts: [{id: 'q1', reason: 'input_required'}]}
+                }
+            ]);
         });
 
         it('keeps lifecycle events that a response provides', async () => {

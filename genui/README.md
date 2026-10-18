@@ -672,7 +672,7 @@ compile. Pair a `pattern` with a `maxLength`, as a long string makes a costly ma
 
 Each problem is a message prefixed with the path of the prop at fault, such as
 `rows[3].value: expected number, got string`. In a document, the path starts at the element, as
-in `elements.chart.props.rows[3].value`. See `genui/impl/validateSchema.ts` for the details.
+in `elements.chart.props.rows[3].value`. See `impl/validateSchema.ts` for the details.
 
 ## Extension Points
 

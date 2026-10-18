@@ -45,6 +45,13 @@ describe('HoistChatTransport', () => {
         });
     });
 
+    it('supports interrupts when its codec sends a resume list', () => {
+        expect(new HoistChatTransport({url: 'chat'}).supportsInterrupts).toBe(true);
+        expect(
+            new HoistChatTransport({url: 'chat', codec: new AnthropicCodec()}).supportsInterrupts
+        ).toBe(false);
+    });
+
     it('yields each event as its line arrives', async () => {
         const stream = ndjsonStream();
         hoistCore.route('POST', 'chat', () => stream.response);

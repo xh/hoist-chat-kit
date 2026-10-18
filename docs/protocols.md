@@ -47,7 +47,7 @@ model and reducer, and does not use the client's agent classes.
 
 | Spec area | Supported | Not yet |
 |-----------|-----------|---------|
-| Run lifecycle | `RUN_STARTED`, `RUN_FINISHED` and `RUN_ERROR`. `RUN_FINISHED` sets the finish reason, usage and metadata. A new run after `RUN_ERROR` clears the error. The kit checks the sequence rules. | Acting on the `interrupt` outcome. |
+| Run lifecycle | `RUN_STARTED`, `RUN_FINISHED` and `RUN_ERROR`. `RUN_FINISHED` sets the finish reason, usage and metadata. A new run after `RUN_ERROR` clears the error. The kit checks the sequence rules. | - |
 | Validation | The kit drops events of an unknown type and strips unknown fields, each with a console warning. A malformed known field fails the turn. | - |
 | Text | `TEXT_MESSAGE_*`, chunks included, as text parts that keep the server's message ids. | - |
 | Tool calls | `TOOL_CALL_*` and `TOOL_CALL_RESULT`, as tool call parts, run in the browser or by the backend. A call keeps the server's ids for its message and its result. A result with `metadata.error` fails its call. | Metadata on a call. |
@@ -58,8 +58,8 @@ model and reducer, and does not use the client's agent classes.
 | Shared state | The `state` a codec sends with each run. | `STATE_SNAPSHOT` and `STATE_DELTA`. |
 | History snapshots | - | `MESSAGES_SNAPSHOT`. |
 | Pass-through | `CUSTOM` events named `xh.chat.*`. Others are ignored, as is `RAW`. | - |
-| Requests | A `RunAgentInput` with `protocolVersion: '1.0'`, the whole history with the server's ids, tools, context, `state` and `forwardedProps`, checked before it goes. | `resume`. |
-| Interrupts | - | The `interrupt` outcome and `resume`. |
+| Requests | A `RunAgentInput` with `protocolVersion: '1.0'`, the whole history with the server's ids, tools, context, `state`, `forwardedProps` and `resume`, checked before it goes. | - |
+| Interrupts | The `interrupt` outcome on `RUN_FINISHED`, answered in the next run's `resume`: questions, forms of simple fields, and approvals of server tool calls. A sub-agent's `suspended` outcome. | A form beyond a flat object of simple fields. Approval with edited arguments. |
 
 The official AG-UI 1.0 conformance corpus runs in the kit's CI, from `test/conformance/` in the
 repo. Of the 61 fixtures that apply to a client other than the official ones, 44 pass. 8 more
@@ -67,8 +67,9 @@ fail only because the kit keeps no shared state. A committed list names each gap
 it leaves the list.
 
 An AG-UI `RUN_FINISHED` with an `outcome` of `success` maps to the finish reason `stop`. Any
-other outcome, such as `interrupt`, maps to `other`. The kit pauses for the user through its own
-tool states, approvals and interactive tools, and not through AG-UI interrupts.
+other outcome maps to `other`. An `interrupt` outcome pauses the reply for the user, who answers
+in the next run's `resume` list. See
+[Answer an agent's questions](../core/README.md#answer-an-agents-questions).
 
 Content that AG-UI has no event for travels as `CUSTOM` events named `xh.chat.*`: sources,
 citations, data parts, files, provider data and tool errors. See

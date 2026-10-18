@@ -2,7 +2,7 @@ import type {PlainObject} from '@xh/hoist/core';
 import {isArray, isPlainObject, isString, last, pick, uniq} from 'lodash';
 import type {ChatUiDocument, ChatUiElement} from '../ChatUiDocument';
 import type {ChatUiComponentSpec} from '../ChatUiComponentSpec';
-import {formatError, propPath, typeOf} from './validateSchema';
+import {formatError, propPath, typeOf} from '../../impl/validateSchema';
 
 /** Options for {@link findStructureProblems}. */
 export interface StructureOptions {

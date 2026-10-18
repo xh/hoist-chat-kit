@@ -50,7 +50,8 @@ Key features:
 ```
 ChatTransport (interface)
 ├── cancelAsync?(run): Promise<void>            # Cancel a run the user stopped
-├── resume?(run, signal)                        # Reserved - reattach to a running run
+├── reconnect?(run, signal)                     # Reserved - reattach to a running run
+├── supportsInterrupts?: boolean                # True if it can send a resume list
 └── run(request): AsyncIterable<ChatEvent>      # One step - one model call
     │
     ├── HttpChatTransport (abstract)            # POST a JSON body, read a streamed response
@@ -76,6 +77,7 @@ ChatRunRequest
 ├── replacedMessageId: string                   # The reply a retry or regenerate replaces
 ├── runOptions: PlainObject                     # Options the user picked, copied at send
 ├── catalogVersion: string                      # Version of the chat's generative UI catalog
+├── resume?: ResumeEntry[]                      # Responses to the last interrupted run
 ├── tools: ChatToolSpec[]                       # Tools to send to the model
 ├── context: ChatRunContext[]                   # Live context from the context providers
 └── signal: AbortSignal                         # Aborts the step, with a ChatAbortError
@@ -387,6 +389,7 @@ codec works unchanged. A server-mode codec also sends these fields:
 | `replacedMessageId` | The reply that a `retry` or `regenerate` replaces, or null. |
 | `runOptions` | The options the user picked, copied when the message was sent, or null. |
 | `catalogVersion` | Version of the chat's generative UI catalog, or null. The server compares it with the version of the catalog export it loaded. |
+| `resume` | The responses to the interrupts of the thread's last interrupted run, as AG-UI resume entries, or null. `AgUiCodec` sends them as `RunAgentInput.resume`. See [Answer an agent's questions](../core/README.md#answer-an-agents-questions). |
 
 A backend with an idempotency key keys runs by `turnId` and `trigger`. It replays a finished run
 for a `retry`, and starts a new run for a `regenerate` or an `edit`.
@@ -519,13 +522,14 @@ new ScriptedChatTransport({
 ```
 
 The helpers are `textEvents()`, `reasoningEvents()`, `toolCallEvents()`, `subagentEvents()`,
-`sourceEvents()`, `citationEvents()`, `dataEvents()`, `noAnswerEvents()`, `errorEvents()` and
-`scriptedDelay()`. A citation attaches to the text part before it, and refers to a source by
+`sourceEvents()`, `citationEvents()`, `dataEvents()`, `noAnswerEvents()`, `errorEvents()`,
+`interruptEvents()` and `scriptedDelay()`. A citation attaches to the text part before it, and refers to a source by
 `sourceId` or by `url`. A source can carry a `sourceType`, a `marker`, the number that cites it as
 `[n]` in the text, and `metadata`. `noAnswerEvents()` writes a fixed "not found" reply. Pass
 `{retryAfterSeconds}` as the third argument of `errorEvents()` to ask for a wait before a retry.
 Pass a `result` to `toolCallEvents()` to simulate a tool that the backend runs, or an `error` for
-one that fails. `subagentEvents()` wraps events in a sub-agent's start and end, and marks its tool
+one that fails. `interruptEvents()` ends the run with interrupts, to ask the user questions. A
+script reads the answers from the next request's `resume`. `subagentEvents()` wraps events in a sub-agent's start and end, and marks its tool
 calls as the sub-agent's, so the activity timeline nests them. A response can also be an async
 iterable of events, which sets its own pace.
 
@@ -1002,7 +1006,7 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 | Event | Fields used | Effect on the assistant message |
 |-------|-------------|---------------------------------|
 | `RUN_STARTED` | `threadId`, `runId` | Records `metadata.runId`. In server mode, the first run of a new thread may set the chat's `threadId`. |
-| `RUN_FINISHED` | `outcome?`, `usage?`, `metadata?`, `result?` | Records `finishReason`, `usage` and any `metadata`. A `result.messageId` sets `metadata.serverId`, if no event set it. Marks the step complete. |
+| `RUN_FINISHED` | `outcome?`, `usage?`, `metadata?`, `result?` | Records `finishReason`, `usage` and any `metadata`. A `result.messageId` sets `metadata.serverId`, if no event set it. An `interrupt` outcome adds its interrupts to `metadata.interrupts`, and the reply pauses for the user. Marks the step complete. |
 | `RUN_ERROR` | `message`, `code?`, `metadata?` | Fails the message, with `metadata.errorCode`. Records `metadata.retryAfterSeconds` if given. |
 | `TEXT_MESSAGE_START` | `messageId` | Opens a text part on its first content, with the `messageId` as its `serverId`. |
 | `TEXT_MESSAGE_CONTENT` | `messageId`, `delta` | Appends to the text part. |
@@ -1020,7 +1024,7 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 | `TOOL_CALL_RESULT` | `toolCallId`, `messageId`, `content`, `metadata?` | `output-available`, with `providerExecuted: true` and the `messageId` as `resultServerId`. JSON content is parsed. `output-error` if `metadata.error` or `metadata.isError` is set. |
 | `ACTIVITY_SNAPSHOT` | `messageId`, `activityType`, `content`, `replace?` | Adds or replaces a data part, with `dataType` set to `activityType`. |
 | `SUBAGENT_STARTED` | `subagentRunId`, `name`, `description?`, `parentSubagentRunId?` | Adds a data part of type `xh.chat.subagent`, with the run id as its id. Tool calls with the same `subagentRunId` nest under it in the activity timeline. |
-| `SUBAGENT_FINISHED`, `SUBAGENT_ERROR` | `subagentRunId`, `result?` or `message` | Ends the sub-agent's data part, with its result or error. |
+| `SUBAGENT_FINISHED`, `SUBAGENT_ERROR` | `subagentRunId`, `result?` or `message`, `outcome?` | Ends the sub-agent's data part, with its result or error. A `suspended` outcome sets it `waiting` for the user, until a later run starts it again. |
 | `CUSTOM` | `name`, `value` | The `xh.chat.*` events below. Others are ignored. |
 
 Ignored: `STEP_STARTED`, `STEP_FINISHED`, `RAW`, `STATE_SNAPSHOT`, `STATE_DELTA`,

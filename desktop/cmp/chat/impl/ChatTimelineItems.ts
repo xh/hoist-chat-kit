@@ -190,6 +190,9 @@ export interface ChatTimelineSummary {
     /** The first call waiting for approval, or null. */
     approval: ChatToolCallPart;
 
+    /** Every call waiting for approval, in order. */
+    approvals: ChatToolCallPart[];
+
     /** The first call waiting for the user's answer, or null. */
     question: ChatToolCallPart;
 
@@ -230,6 +233,7 @@ export function summarizeTimeline(
             .map(it => it.data)
             .filter(it => it?.status === 'running'),
         approval: calls.find(it => it.state === 'approval-requested') ?? null,
+        approvals: calls.filter(it => it.state === 'approval-requested'),
         question: calls.find(it => isAwaitingAnswer(it, specOf(it))) ?? null,
         narration: newest?.type === 'narration' ? lastSentence(newest.part) : null,
         isThinking: newest?.type === 'reasoning' && newest.part.state === 'streaming',

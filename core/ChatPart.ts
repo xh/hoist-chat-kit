@@ -172,6 +172,13 @@ export interface ChatToolCallPart extends ChatPartBase {
     parentServerId?: string;
 
     /**
+     * True for a server call that an interrupted run left open - see {@link ChatInterrupt}. It
+     * waits for the server's result after the run resumes, and never gets one from the chat. The
+     * chat sends it back in its assistant message's `toolCalls`, with no result, until then.
+     */
+    awaitsResume?: boolean;
+
+    /**
      * The server's id for the tool message that holds the call's result - the `messageId` of
      * AG-UI's `TOOL_CALL_RESULT`, if the backend gave one. Sent back as that message's id.
      */

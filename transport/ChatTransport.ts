@@ -1,3 +1,4 @@
+import type {ResumeEntry} from '@ag-ui/core';
 import type {PlainObject} from '@xh/hoist/core';
 import {findLast, isUndefined, omitBy} from 'lodash';
 import type {ChatHistoryMode, ChatMessage, ChatToolSpec} from '../core';
@@ -31,6 +32,13 @@ export interface ChatTransport {
     run(request: ChatRunRequest): AsyncIterable<ChatEvent>;
 
     /**
+     * True if the transport can send a `resume` list, to answer the interrupts a server agent
+     * raises - see `ChatModel.openInterrupts`. A run that ends with interrupts on a transport that
+     * cannot answer them fails, with code `unsupported-interrupt`. Default false.
+     */
+    readonly supportsInterrupts?: boolean;
+
+    /**
      * Ask the backend to cancel a run, for a backend that does not stop when the client
      * disconnects. The chat calls it, without waiting, when the user stops a turn while a step is
      * in flight - never for a detach, a clear or a load. A failure is logged, never shown.
@@ -39,9 +47,9 @@ export interface ChatTransport {
 
     /**
      * Reattach to a run still in progress on the server, for example after a page reload, and
-     * yield its events from the start. Reserved - the kit does not call it yet.
+     * yield its events from the start - AG-UI's `connect`. Reserved - the kit does not call it yet.
      */
-    resume?(run: ChatRunRef, signal: AbortSignal): AsyncIterable<ChatEvent>;
+    reconnect?(run: ChatRunRef, signal: AbortSignal): AsyncIterable<ChatEvent>;
 }
 
 /**
@@ -116,6 +124,14 @@ export interface ChatRunRequest {
      */
     catalogVersion: string;
 
+    /**
+     * Responses to the interrupts the thread's last interrupted run raised, as AG-UI resume
+     * entries - or null. It covers every interrupt of that run, answered or declined, as AG-UI
+     * requires - see `ChatModel.openInterrupts`. `AgUiCodec` sends it as `RunAgentInput.resume`.
+     * Optional.
+     */
+    resume?: ResumeEntry[];
+
     /** Tools the model may call - only those to be sent to the model. */
     tools: ChatToolSpec[];
 
@@ -161,7 +177,7 @@ export interface ChatRunRequestSpec extends Partial<ChatRunRequest> {
  *  - `historyMode` - 'client'. `trigger` - 'submit'. `stepIndex` - 0.
  *  - `turnId` - id of the last user message. `newMessages` - that message alone.
  *  - `runOptions` - the `metadata.runOptions` of that message, or null.
- *  - `replacedMessageId` and `catalogVersion` - null. `tools` and `context` - empty.
+ *  - `replacedMessageId`, `catalogVersion` and `resume` - null. `tools` and `context` - empty.
  *  - `signal` - the signal of a new `AbortController`, which nothing aborts. Pass your own
  *    signal to be able to stop the step.
  *
@@ -182,6 +198,7 @@ export function createChatRunRequest(spec: ChatRunRequestSpec): ChatRunRequest {
         replacedMessageId: null,
         runOptions: userMessage?.metadata.runOptions ?? null,
         catalogVersion: null,
+        resume: null,
         tools: [],
         context: [],
         signal: new AbortController().signal,

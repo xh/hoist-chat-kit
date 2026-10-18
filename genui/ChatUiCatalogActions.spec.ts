@@ -5,7 +5,7 @@ import {ChatModel, type ChatToolSpec} from '../core';
 import {ScriptedChatTransport, textEvents} from '../transport';
 import {type ChatUiAction, chatUiActionSchema, describeChatUiAction} from './ChatUiAction';
 import {ChatUiCatalog, type ChatUiCatalogConfig} from './ChatUiCatalog';
-import {findSchemaProblems, validateSchema} from './impl/validateSchema';
+import {findSchemaProblems, validateSchema} from '../impl/validateSchema';
 
 /**
  * Components run actions that the model wrote, such as the buttons of a card. The model's output

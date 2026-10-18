@@ -1,4 +1,4 @@
-import {findLastIndex, isEqual, sumBy} from 'lodash';
+import {findLastIndex, isEmpty, isEqual, minBy, sumBy, uniq} from 'lodash';
 import {type ReactElement, type ReactNode, useEffect, useLayoutEffect, useMemo} from 'react';
 import {getRelativeTimestamp, relativeTimestamp} from '@xh/hoist/cmp/relativetimestamp';
 import {div, span} from '@xh/hoist/cmp/layout';
@@ -23,6 +23,7 @@ import {
     type ChatCitation,
     type ChatDataPart,
     type ChatFilePart,
+    type ChatInterrupt,
     ChatKit,
     CHAT_NO_ANSWER_DATA_TYPE,
     type ChatMessage,
@@ -69,6 +70,7 @@ import {chatReplyLiveStatus} from './impl/ChatReplyLiveStatus';
 import {ChatStepAnnouncer} from './impl/ChatStepAnnouncer';
 import {chatErrorBoundary} from './impl/ChatErrorBoundary';
 import {formatElapsed} from './impl/ChatFormat';
+import {chatInterrupts} from './impl/ChatInterrupts';
 import {chatToolCallGroup} from './impl/ChatToolCallGroup';
 import {formatChatUiContext} from '../../../genui/ChatUiAction';
 import {classNames} from '../../../impl/ClassNames';
@@ -668,19 +670,31 @@ function assistantContent(
                 div({
                     className: 'xh-chat-message__body',
                     items: [
-                        ...runs.map((run, idx) =>
-                            run.type === 'process'
-                                ? processRun(run, props, impl, context, references, markerSources)
-                                : run.type === 'timeline'
-                                  ? timelineBlock(run, props, context, idx < runs.length - 1)
-                                  : renderGroup(
-                                        run,
-                                        props,
-                                        impl,
-                                        context,
-                                        references,
-                                        markerSources
-                                    )
+                        ...withInterrupts(
+                            runs,
+                            message,
+                            chatModel,
+                            runs.map((run, idx) =>
+                                run.type === 'process'
+                                    ? processRun(
+                                          run,
+                                          props,
+                                          impl,
+                                          context,
+                                          references,
+                                          markerSources
+                                      )
+                                    : run.type === 'timeline'
+                                      ? timelineBlock(run, props, context, idx < runs.length - 1)
+                                      : renderGroup(
+                                            run,
+                                            props,
+                                            impl,
+                                            context,
+                                            references,
+                                            markerSources
+                                        )
+                            )
                         ),
                         replyNotice(props, chatModel)
                     ]
@@ -724,6 +738,46 @@ function processRun(
             renderGroup(group, props, impl, context, references, markerSources)
         )
     });
+}
+
+/**
+ * The rendered runs of a reply, with a server agent's questions after the step whose run asked
+ * them - before the first run of a later step, or at the end.
+ */
+function withInterrupts(
+    runs: Array<ChatPartGroup | ChatProcessRun>,
+    message: ChatMessage,
+    chatModel: ChatModel,
+    items: ReactNode[]
+): ReactNode[] {
+    const steps = uniq(((message.metadata.interrupts ?? []) as ChatInterrupt[]).map(it => it.step));
+    if (isEmpty(steps)) return items;
+
+    const ret: ReactNode[] = [],
+        placed = new Set<number>(),
+        place = (step: number) => {
+            placed.add(step);
+            ret.push(chatInterrupts({key: `interrupts-${step}`, message, chatModel, step}));
+        };
+    runs.forEach((run, idx) => {
+        const first = getFirstStep(run);
+        steps.forEach(step => {
+            if (step != null && first != null && first > step && !placed.has(step)) place(step);
+        });
+        ret.push(items[idx]);
+    });
+    steps.filter(it => !placed.has(it)).forEach(place);
+    return ret;
+}
+
+function getFirstStep(run: ChatPartGroup | ChatProcessRun): number {
+    const parts: ChatPart[] =
+        run.type === 'process'
+            ? run.groups.flatMap(it => ('parts' in it ? it.parts : [it as ChatPart]))
+            : 'parts' in run
+              ? run.parts
+              : [run as ChatPart];
+    return minBy(parts, 'step')?.step ?? null;
 }
 
 /**

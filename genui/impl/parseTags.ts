@@ -3,7 +3,7 @@ import {castArray, isEmpty} from 'lodash';
 import type {ChatUiComponentSpec} from '../ChatUiComponentSpec';
 import type {ChatUiTextSegment} from '../ChatUiTextSegment';
 import {getOwn} from '../../impl/objects';
-import {formatError} from './validateSchema';
+import {formatError} from '../../impl/validateSchema';
 
 /** What {@link parseTags} needs from its catalog. */
 export interface ParseTagsContext {

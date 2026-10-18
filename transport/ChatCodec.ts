@@ -12,6 +12,12 @@ import type {ChatRunRequest} from './ChatTransport';
  */
 export interface ChatCodec {
     /**
+     * True if the codec sends a request's `resume` list, to answer a server agent's interrupts.
+     * An HTTP transport reports it as its own `supportsInterrupts`. Default false.
+     */
+    readonly supportsInterrupts?: boolean;
+
+    /**
      * Build the request body for one step. May be async, for codecs that gather live context
      * before each call.
      */

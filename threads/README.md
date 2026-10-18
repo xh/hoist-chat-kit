@@ -328,7 +328,8 @@ older.release();
 ```
 
 The store does not see the chat's runs. Record what the backend would with `saveThread()`, from
-a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`.
+a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save from
+`onTurnPause` too, so that a reply paused on an agent's questions keeps them across a reload.
 
 ## Properties/API Reference
 

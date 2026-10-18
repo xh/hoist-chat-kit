@@ -103,6 +103,11 @@ export abstract class HttpChatTransport implements ChatTransport {
     /** Encodes requests and decodes the streamed records. */
     readonly codec: ChatCodec;
 
+    /** True if the codec sends the `resume` list that answers interrupts. */
+    get supportsInterrupts(): boolean {
+        return this.codec.supportsInterrupts === true;
+    }
+
     /** Extra headers for each request, a function to build them, or null. */
     readonly headers: HttpChatTransportValue<PlainObject>;
 

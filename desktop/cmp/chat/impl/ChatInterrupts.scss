@@ -1,0 +1,153 @@
+@use '../../../../styles/mixins' as *;
+
+// A server agent's questions, framed apart from the reply's text, after Claude Code's clarifying
+// questions: a header that names who asks, the question, then large rows to choose from.
+.xh-chat-interrupts {
+  border: var(--xh-border-width-px) solid var(--xh-chat-attention-color);
+  border-radius: var(--xh-chat-border-radius);
+  display: flex;
+  flex-direction: column;
+  gap: var(--xh-pad-px);
+  margin-top: var(--xh-chat-part-gap);
+  max-width: var(--xh-chat-prose-max-width);
+  padding: var(--xh-pad-px);
+
+  &--record {
+    border: none;
+    gap: var(--xh-pad-half-px);
+    padding: 0;
+  }
+
+  &__header {
+    align-items: center;
+    color: var(--xh-chat-meta-text-color);
+    display: flex;
+    font-size: var(--xh-chat-meta-font-size);
+    gap: var(--xh-pad-half-px);
+  }
+
+  &__icon {
+    color: var(--xh-chat-attention-color);
+  }
+
+  &__step {
+    margin-left: auto;
+  }
+
+  &__question {
+    color: var(--xh-chat-text-color);
+    font-size: var(--xh-chat-font-size);
+    line-height: var(--xh-chat-line-height);
+  }
+
+  &__options {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-pad-half-px);
+  }
+
+  @include hoist-button('.xh-chat-interrupts__option') {
+    justify-content: flex-start;
+    min-height: 40px;
+    padding: var(--xh-pad-half-px) var(--xh-pad-px);
+    text-align: left;
+    width: 100%;
+  }
+
+  &__option--chosen {
+    border-color: var(--xh-chat-attention-color);
+  }
+
+  &__option-text {
+    display: grid;
+    gap: 0 var(--xh-pad-px);
+    grid-template-columns: auto 1fr;
+  }
+
+  &__option-index {
+    color: var(--xh-chat-meta-text-color);
+    grid-row: span 2;
+    min-width: 1.5ch;
+  }
+
+  &__option-label {
+    color: var(--xh-chat-text-color);
+    font-weight: 500;
+  }
+
+  &__option-description {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+    white-space: normal;
+  }
+
+  &__text {
+    align-items: flex-end;
+    display: flex;
+    gap: var(--xh-pad-half-px);
+
+    > :first-child {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+  }
+
+  &__bar {
+    align-items: center;
+    display: flex;
+    gap: var(--xh-pad-half-px);
+  }
+
+  &__spacer {
+    flex: 1 1 auto;
+  }
+
+  @include hoist-button('.xh-chat-interrupts__decline') {
+    --xh-button-text-color: var(--xh-chat-meta-text-color);
+  }
+
+  &__note,
+  &__answer {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+  }
+
+  &__problem {
+    color: var(--xh-chat-error-color);
+    font-size: var(--xh-chat-meta-font-size);
+  }
+
+  &__review {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-pad-half-px);
+  }
+
+  &__review-row {
+    align-items: center;
+    border-bottom: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    display: flex;
+    gap: var(--xh-pad-px);
+    padding-bottom: var(--xh-pad-half-px);
+  }
+
+  &__review-text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  &__record {
+    align-items: baseline;
+    display: flex;
+    font-size: var(--xh-chat-meta-font-size);
+    gap: var(--xh-pad-half-px);
+  }
+
+  &__record-question {
+    color: var(--xh-chat-text-color);
+  }
+
+  &__record-question::after {
+    content: ' -';
+  }
+}

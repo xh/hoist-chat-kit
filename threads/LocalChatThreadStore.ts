@@ -72,7 +72,7 @@ export interface LocalChatThreadStoreCall {
  * released.
  *
  * The store does not see the chat's runs. Record what a backend would with {@link saveThread} -
- * from a scripted transport's `respond`, or from a chat's `onTurnComplete`.
+ * from a scripted transport's `respond`, or from a chat's `onTurnComplete` and `onTurnPause`.
  */
 export class LocalChatThreadStore implements ChatThreadStore {
     /** Latency of each call, in milliseconds. */

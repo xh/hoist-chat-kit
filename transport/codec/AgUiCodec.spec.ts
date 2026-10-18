@@ -313,6 +313,57 @@ describe('AgUiCodec', () => {
         });
     });
 
+    describe('interrupts', () => {
+        it('sends the resume list, and leaves it out when there is none', () => {
+            const codec = new AgUiCodec(),
+                resume = [
+                    {interruptId: 'q1', status: 'resolved' as const, payload: {region: 'EU'}}
+                ];
+            expect(codec.supportsInterrupts).toBe(true);
+            expect(codec.encodeRequest(request([user('Hi')], {resume})).resume).toEqual(resume);
+            expect(codec.encodeRequest(request([user('Hi')])).resume).toBeUndefined();
+            expect(codec.encodeRequest(request([user('Hi')], {resume: []})).resume).toBeUndefined();
+        });
+
+        it('sends a server call an interrupt left open with no result, until the server sends one', () => {
+            const reply = (call: Partial<ChatToolCallPart>) =>
+                    new ChatMessage({
+                        id: 'a1',
+                        role: 'assistant',
+                        status: 'paused',
+                        parts: [
+                            textPart('k1', 'Shall I?', {serverId: 'm1'}),
+                            toolCall('c1', 0, {
+                                parentServerId: 'm1',
+                                providerExecuted: true,
+                                awaitsResume: true,
+                                ...call
+                            })
+                        ]
+                    }),
+                encode = (call: Partial<ChatToolCallPart>) =>
+                    new AgUiCodec().encodeRequest(request([user('Hi'), reply(call)])).messages;
+
+            for (const state of [
+                'approval-requested',
+                'input-available',
+                'output-denied'
+            ] as const) {
+                expect(encode({state}).slice(1)).toEqual([
+                    {
+                        id: 'm1',
+                        role: 'assistant',
+                        content: 'Shall I?',
+                        toolCalls: [expect.objectContaining({id: 'c1'})]
+                    }
+                ]);
+            }
+            expect(
+                encode({state: 'output-available', output: 'Done.', resultServerId: 't1'}).at(-1)
+            ).toEqual({id: 't1', role: 'tool', toolCallId: 'c1', content: 'Done.'});
+        });
+    });
+
     describe('unique ids in one request', () => {
         it("keeps a reply's server id for the part that names it, not for a step before it", () => {
             const reply = new ChatMessage({

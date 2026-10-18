@@ -60,6 +60,7 @@ describe('createChatRunRequest', () => {
             replacedMessageId: null,
             runOptions: null,
             catalogVersion: null,
+            resume: null,
             tools: [],
             context: [],
             signal: expect.any(AbortSignal)

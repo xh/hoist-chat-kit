@@ -9,7 +9,7 @@ import {
     type ChatDataView,
     findDataViewProblems
 } from './ChatDataView';
-import {findSchemaProblems, validateSchema} from './impl/validateSchema';
+import {findSchemaProblems, validateSchema} from '../impl/validateSchema';
 
 /**
  * A view is how the model asks for a slice of an artifact - which rows, in what order, which

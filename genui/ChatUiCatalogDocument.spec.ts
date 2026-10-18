@@ -11,7 +11,7 @@ import {ChatArtifactRegistry, type ChatDataHandle} from './ChatArtifactRegistry'
 import {ChatUiCatalog, type ChatUiCatalogConfig} from './ChatUiCatalog';
 import type {ChatUiComponentSpec, ChatUiDocumentContext} from './ChatUiComponentSpec';
 import type {ChatUiDocument} from './ChatUiDocument';
-import {validateSchema} from './impl/validateSchema';
+import {validateSchema} from '../impl/validateSchema';
 
 /**
  * Every generative UI answer is a flat document of elements keyed by id. Apps rely on the catalog

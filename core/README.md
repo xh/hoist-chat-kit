@@ -5,7 +5,7 @@
 | [Overview](#overview) | What the core models do, and the key features |
 | [Architecture](#architecture) | `ChatModel`, `ChatMessage`, parts, tools, and the turn loop |
 | [Configuration Pattern](#configuration-pattern) | Creating a `ChatModel` with a transport, tools, and a composer |
-| [Common Usage Patterns](#common-usage-patterns) | Sending, tools, approvals, live context, undo, server-owned conversations, feedback, persistence, errors |
+| [Common Usage Patterns](#common-usage-patterns) | Sending, tools, approvals, an agent's questions, live context, undo, server-owned conversations, feedback, persistence, errors |
 | [Properties/API Reference](#propertiesapi-reference) | Config, state, methods, statuses, parts, and metadata |
 | [Extension Points](#extension-points) | Tools, data renderers, transports, the stream reducer, and app metadata |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -642,6 +642,50 @@ const askUser: ChatToolSpec = {
 for an answer, so the turn waits with no way for the user to resume it. `ChatModel` logs a
 warning for such a tool when it is created.
 
+### Answer an agent's questions
+
+A server agent asks the user a question, or asks to run a tool, by ending its run with the AG-UI
+1.0 `interrupt` outcome. The chat pauses the reply, and answers in the next run's `resume` list.
+`chatPanel` and `chatMessageList` render the questions at the foot of the reply. An approval shows
+on its tool call. Most apps write no code for this.
+
+Each interrupt is a `ChatInterrupt`, kept in the reply's `metadata.interrupts` with the user's
+response. While the reply waits, `pendingInterrupts` lists them, and `openInterrupts` lists those
+with no response yet. To answer from your own UI:
+
+```typescript
+const {chatModel} = this,
+    [question] = chatModel.openInterrupts;
+
+chatModel.answerInterrupt(question.id, {region: 'EU'}); // In the shape of its responseSchema
+chatModel.declineInterrupt(otherId);                    // Abandon one
+await chatModel.submitInterruptsAsync();                // Resume, once each has a response
+```
+
+AG-UI requires the next run to cover every interrupt of the last interrupted run. The chat makes
+sure it does:
+
+- A new message, retry, regenerate or edit declines the open interrupts, in its first request.
+- `stop()` declines them, and the next request carries the declines. A stop during the resumed
+  run declines its answers too, so an answer that may have reached the server never goes twice.
+- An interrupt past its `expiresAt` goes as declined, whatever the user answered.
+- A resumed run that fails keeps the answers, and Try Again sends them again.
+
+A server tool call that an interrupt asks to approve waits in `approval-requested`, marked
+`awaitsResume`. `approveToolCallAsync()` and `denyToolCallAsync()` answer it, in the shape its
+`responseSchema` asks for, or as `{approved}` when it has none. A denial is an answer, not a
+decline. The chat never gives a server call a result of its own.
+
+The transport must carry the `resume` list. `AgUiCodec` and `ScriptedChatTransport` do, and so
+report `supportsInterrupts`. A run that ends with interrupts on any other transport fails, with
+code `unsupported-interrupt`. A LangGraph agent emits the interrupt outcome only with its
+adapter's `emitInterruptOutcome: true`.
+
+The chat restores the open interrupts with a reloaded conversation, from the last reply. Save a
+paused reply as well as a finished one, for example from `onTurnPause`, to keep the questions
+across a reload. In server mode, the backend reports them in the history it loads, on a `paused`
+reply with `metadata.interrupts`.
+
 ### Persist and restore a conversation
 
 `getMessageSpecs()` returns the conversation as plain objects. `loadMessages()` restores it as a
@@ -711,6 +755,7 @@ this.addReaction({
 | `ChatRunError` with code `incomplete-stream` | The stream ended with neither `RUN_FINISHED` nor `RUN_ERROR`, for example on a dropped connection |
 | `ChatRunError` with code `empty-response` | The run finished with nothing in the reply |
 | `ChatRunError` with code `stalled` | The server sent nothing for longer than the transport's `idleTimeout` |
+| `ChatRunError` with code `unsupported-interrupt` | The run ended with interrupts, on a transport that cannot answer them |
 | `ChatRunError` with code `invalid-stream` | An AG-UI stream broke the spec's rules, for example it did not open with `RUN_STARTED`. Hoist reports it too, as a backend bug. |
 | `ChatRunError` with code `invalid-request` | An AG-UI request failed the spec's check before it went, for example a `context` value that is not a string |
 | `ChatRunError` with a null code | The run reported an error with no code |
@@ -967,6 +1012,7 @@ See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatCom
 | `sendBlocker` | `() => string` | Returns why sending must wait, or null to allow it. Read as a computed value. While blocked, the composer disables Send and shows the reason, and `sendAsync`, `editMessageAsync`, `retryAsync` and `regenerateAsync` do nothing. Blockers added with `addSendBlocker()` work the same way. |
 | `dataRenderers` | `Record<string, ChatDataRenderer>` | Renderers for data parts, keyed by `dataType`. A renderer is `(part, context) => ReactNode`, with a `ChatPartRenderContext`. |
 | `onTurnComplete` | `(message) => void` | Called when a turn ends - complete, failed or stopped - with its final message. Not called when a turn pauses. |
+| `onTurnPause` | `(message) => void` | Called when a turn pauses for the user, with the paused message. Save here to keep a paused reply across a reload. |
 
 `onTurnComplete` also runs for a turn that `clear()`, `loadMessages()`, `retryAsync()`,
 `regenerateAsync()` or `editMessageAsync()` stops or closes, just before the chat discards its
@@ -995,7 +1041,9 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `isEmpty` | `boolean` | True if there are no messages. |
 | `lastMessage` | `ChatMessage` | The newest message, or null. |
 | `waitingToolCalls` | `ChatToolCallPart[]` | Calls the paused turn waits on. Empty unless paused. |
-| `isAwaitingUser` | `boolean` | True if a turn is paused for the user. |
+| `isAwaitingUser` | `boolean` | True if a turn is paused for the user, on its tool calls or on a server agent's interrupts. |
+| `pendingInterrupts` | `ChatInterrupt[]` | The interrupts the paused reply waits on, answered or not, until the user submits them. Empty unless paused on them. |
+| `openInterrupts` | `ChatInterrupt[]` | The pending interrupts with no response and not expired. |
 | `pendingApprovals` | `ChatToolCallPart[]` | The calls in `waitingToolCalls` that wait for approval. |
 | `undoableMessageId` | `string` | The reply whose changes the user can undo now, or null. |
 | `composerModel` | `ChatComposerModel` | Draft of the next message. |
@@ -1012,8 +1060,11 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `retryAsync()` | Re-run the last user message, replacing everything after it. |
 | `regenerateAsync(messageId?)` | Replace an assistant reply, by default the last one. Ignored for a reply with no user message before it, and while `allowRegenerate` is false. |
 | `editMessageAsync(messageId, text)` | Change the text of a user message, keep its files, and re-run from it. Ignored while `allowEdit` is false. |
-| `approveToolCallAsync(toolCallId, reason?)` | Approve a call in `approval-requested`. The reason is recorded on the call as `approvalReason`. |
-| `denyToolCallAsync(toolCallId, reason?)` | Deny a call in `approval-requested`. The model sees the reason. |
+| `approveToolCallAsync(toolCallId, reason?)` | Approve a call in `approval-requested`. The reason is recorded on the call as `approvalReason`. For a server call an interrupt asks to approve, it answers the interrupt, and resumes the run if that interrupt is the only one. |
+| `denyToolCallAsync(toolCallId, reason?)` | Deny a call in `approval-requested`. The model sees the reason. For a server call, it answers the interrupt as for approve. |
+| `answerInterrupt(interruptId, payload?)` | Answer a pending interrupt, or change the answer. |
+| `declineInterrupt(interruptId)` | Decline a pending interrupt, which abandons it. |
+| `submitInterruptsAsync()` | Send the responses and resume the run, once every pending interrupt has one or has expired, and no client call waits. |
 | `addToolOutputAsync(toolCallId, output)` | Give the result of a call to an interactive tool. |
 | `canUndoTurn(messageId)` | True if the user can undo the reply's changes now. Reads observable state. |
 | `undoTurnAsync(messageId)` | Run the reply's undo functions, newest first, and mark it `metadata.undone`. A failure stops the undo and goes in `undoErrors`. |
@@ -1100,7 +1151,7 @@ merges its history by id finds its own messages.
 |------|------------|-------|
 | `text` | `text`, `state`, `citations?`, `serverId?` | Markdown. `state` is `streaming`, then `done`. `serverId` is the server's id for the message the text streamed as. |
 | `reasoning` | `text`, `state`, `startedAt`, `endedAt`, `encryptedValue?`, `providerData?`, `serverId?` | The model's thinking. `encryptedValue` holds a signature that goes back with the history. `serverId` is the server's id for the reasoning message. |
-| `toolCall` | `toolName`, `state`, `inputText`, `input`, `output`, `errorText`, `providerExecuted?`, `startedAt?`, `endedAt?`, `subagentRunId?`, `cancelled?`, `parentServerId?`, `resultServerId?` | The `id` is the provider's tool call id. `subagentRunId` names the sub-agent that made the call. `cancelled` marks a call that was open when the user stopped the turn. `parentServerId` and `resultServerId` are the server's ids for the messages that hold the call and its result. |
+| `toolCall` | `toolName`, `state`, `inputText`, `input`, `output`, `errorText`, `providerExecuted?`, `startedAt?`, `endedAt?`, `subagentRunId?`, `cancelled?`, `awaitsResume?`, `parentServerId?`, `resultServerId?` | The `id` is the provider's tool call id. `subagentRunId` names the sub-agent that made the call. `cancelled` marks a call that was open when the user stopped the turn. `awaitsResume` marks a server call that an interrupted run left open, which gets its result from the server. `parentServerId` and `resultServerId` are the server's ids for the messages that hold the call and its result. |
 | `file` | `name`, `mediaType`, `size?`, `url?`, `data?` | `data` is base64. |
 | `source` | `sourceType?`, `url?`, `title?`, `snippet?`, `marker?`, `metadata?` | A source the model consulted. `marker` is the number that cites it in the text, as in `[1]`. `sourceType` is `url` or `document`, by default `url` for a source with a `url`. The kit reads `metadata.excerpt`, `fileName`, `page` and `favicon`. |
 | `data` | `dataType`, `data` | App or protocol content, drawn by `dataRenderers`. |

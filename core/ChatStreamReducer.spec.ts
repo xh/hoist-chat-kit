@@ -725,6 +725,81 @@ describe('ChatStreamReducer', () => {
         });
     });
 
+    describe('interrupts', () => {
+        it('records the questions of an interrupted run on the reply, and keeps the outcome', () => {
+            const reducer = new ChatStreamReducer(0),
+                question = {id: 'q1', reason: 'input_required', message: 'Which region?'},
+                message = reducer.finish(
+                    reducer.apply(pendingMessage(), [
+                        {type: 'RUN_STARTED', threadId: 't', runId: 'r1'},
+                        {
+                            type: 'RUN_FINISHED',
+                            threadId: 't',
+                            runId: 'r1',
+                            outcome: {type: 'interrupt', interrupts: [question]}
+                        }
+                    ])
+                );
+
+            expect(reducer.outcome).toEqual({type: 'interrupt', interrupts: [question]});
+            expect(reducer.finishedRunId).toBe('r1');
+            expect(message.status).not.toBe('error');
+            expect(message.metadata.interrupts).toEqual([
+                {...question, runId: 'r1', step: 0, response: null, delivered: false}
+            ]);
+        });
+
+        it('adds the questions of a later step to those the reply already holds', () => {
+            const first = reduce([
+                    {
+                        type: 'RUN_FINISHED',
+                        threadId: 't',
+                        runId: 'r1',
+                        outcome: {type: 'interrupt', interrupts: [{id: 'q1', reason: 'a'}]}
+                    }
+                ]),
+                second = new ChatStreamReducer(1).apply(first, [
+                    {
+                        type: 'RUN_FINISHED',
+                        threadId: 't',
+                        runId: 'r2',
+                        outcome: {type: 'interrupt', interrupts: [{id: 'q1', reason: 'b'}]}
+                    }
+                ]);
+            expect(second.metadata.interrupts.map(it => [it.runId, it.reason])).toEqual([
+                ['r1', 'a'],
+                ['r2', 'b']
+            ]);
+        });
+
+        it('keeps a suspended sub-agent waiting past the run, and runs it again when it continues', () => {
+            const reducer = new ChatStreamReducer(0),
+                waiting = reducer.finish(
+                    reducer.apply(pendingMessage(), [
+                        {type: 'SUBAGENT_STARTED', subagentRunId: 's1', name: 'Planner'},
+                        {
+                            type: 'SUBAGENT_FINISHED',
+                            subagentRunId: 's1',
+                            outcome: {type: 'suspended', interruptIds: ['q1']}
+                        },
+                        {
+                            type: 'RUN_FINISHED',
+                            threadId: 't',
+                            runId: 'r1',
+                            outcome: {type: 'interrupt', interrupts: [{id: 'q1', reason: 'a'}]}
+                        }
+                    ])
+                );
+            expect(waiting.parts[0]).toMatchObject({data: {status: 'waiting', endedAt: null}});
+
+            const resumed = new ChatStreamReducer(1).apply(waiting, [
+                {type: 'SUBAGENT_STARTED', subagentRunId: 's1', name: 'Planner'}
+            ]);
+            expect(resumed.parts).toHaveLength(1);
+            expect(resumed.parts[0]).toMatchObject({data: {status: 'running', endedAt: null}});
+        });
+    });
+
     describe('server ids', () => {
         it("keeps a text message's id on its part, apart from the part's own id", () => {
             const [part] = reduce(text('m1', 'Hi')).parts;

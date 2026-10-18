@@ -36,9 +36,15 @@ export const chatToolApproval = hoistCmp.factory<ChatToolApprovalProps>({
         const impl = useLocalModel(ApprovalLocalModel),
             {approvalPrompt, preview} = spec ?? {},
             input = part.input ?? {},
-            prompt = isFunction(approvalPrompt)
-                ? approvalPrompt(input)
-                : (approvalPrompt ?? 'Allow this action to run?'),
+            // A server agent's interrupt asks in its own words.
+            interruptPrompt = part.awaitsResume
+                ? chatModel.pendingInterrupts.find(it => it.toolCallId === part.id)?.message
+                : null,
+            prompt =
+                interruptPrompt ??
+                (isFunction(approvalPrompt)
+                    ? approvalPrompt(input)
+                    : (approvalPrompt ?? 'Allow this action to run?')),
             previewContent = isFunction(preview) ? preview(input) : null,
             reasonOf = () => impl.reason.trim() || undefined;
         impl.chatModel = chatModel;

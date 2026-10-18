@@ -7,7 +7,7 @@ import {
     type ChatDataFrame,
     type ChatDataUnits
 } from './ChatData';
-import {formatError} from './impl/validateSchema';
+import {formatError} from '../impl/validateSchema';
 
 /** An operator of a {@link ChatDataFilter} - a closed set, so the kit never evaluates code. */
 export type ChatDataFilterOp = 'eq' | 'neq' | 'gt' | 'gte' | 'lt' | 'lte' | 'in' | 'notNull';

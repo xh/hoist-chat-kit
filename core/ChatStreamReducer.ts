@@ -24,7 +24,10 @@ import type {
 } from './ChatPart';
 import {CHAT_SUBAGENT_DATA_TYPE, type ChatSubagentData} from './ChatSubagent';
 import {mergeArtifacts} from '../impl/artifacts';
+import {getRunOutcome} from '@ag-ui/client';
+import type {RunFinishedEvent as AgUiRunFinishedEvent, RunFinishedOutcome} from '@ag-ui/core';
 import {genChatId} from '../impl/ids';
+import type {ChatInterrupt} from './ChatInterrupt';
 import {isRunningSubagent, SUBAGENT_UNFINISHED} from './impl/messageUtils';
 import {parsePartialJson} from './impl/parsePartialJson';
 
@@ -85,6 +88,16 @@ export class ChatStreamReducer {
         return this.userMessageServerId;
     }
 
+    /** The outcome of the step's last `RUN_FINISHED`, or null. */
+    get outcome(): RunFinishedOutcome {
+        return this.lastOutcome;
+    }
+
+    /** Run id of the step's last `RUN_FINISHED`, or null. */
+    get finishedRunId(): string {
+        return this.lastFinishedRunId;
+    }
+
     private readonly textTransform: ChatTextTransform;
     private partIds = new Map<string, string>();
     private rawTexts = new Map<string, string>();
@@ -98,6 +111,8 @@ export class ChatStreamReducer {
     private threadId: string = null;
     private startedRunId: string = null;
     private userMessageServerId: string = null;
+    private lastOutcome: RunFinishedOutcome = null;
+    private lastFinishedRunId: string = null;
 
     /**
      * @param step - zero-based index of the step within its turn - the request's `stepIndex`.
@@ -147,7 +162,7 @@ export class ChatStreamReducer {
         if (draft.status !== 'error') {
             if (!this.runFinished) {
                 setError(draft, 'The response ended before it was complete.', 'incomplete-stream');
-            } else if (isEmpty(draft.parts)) {
+            } else if (isEmpty(draft.parts) && this.lastOutcome?.type !== 'interrupt') {
                 setError(draft, 'The response ended without any content.', 'empty-response');
             }
         }
@@ -155,7 +170,8 @@ export class ChatStreamReducer {
         // A sub-agent ends with its run, whether or not its end event came.
         const isFailed = draft.status === 'error';
         draft.parts.forEach(part => {
-            if (part.step !== this.step || !isRunningSubagent(part)) return;
+            // A sub-agent continued from an earlier step ends with this run too.
+            if (!isRunningSubagent(part)) return;
             this.endSubagent(
                 draft,
                 part.id,
@@ -283,7 +299,16 @@ export class ChatStreamReducer {
             case 'SUBAGENT_STARTED': {
                 const {subagentRunId, name, description, parentSubagentRunId, parentToolCallId} =
                     event;
-                if (subagentRunId == null || getPart(draft, subagentRunId)) break;
+                if (subagentRunId == null) break;
+                // A later run continues a sub-agent that waited on the user.
+                const existing = getPart<ChatDataPart>(draft, subagentRunId);
+                if (existing) {
+                    if (existing.data?.status === 'waiting') {
+                        const resumed = {...existing.data, status: 'running', endedAt: null};
+                        putPart(draft, {...existing, data: resumed});
+                    }
+                    break;
+                }
                 const data: ChatSubagentData = {
                     name: name ?? 'Agent',
                     ...omitBy({description, parentSubagentRunId, parentToolCallId}, isNil),
@@ -301,6 +326,10 @@ export class ChatStreamReducer {
                 break;
             }
             case 'SUBAGENT_FINISHED':
+                if (event.outcome?.type === 'suspended') {
+                    this.endSubagent(draft, event.subagentRunId, {status: 'waiting'});
+                    break;
+                }
                 this.endSubagent(draft, event.subagentRunId, {
                     status: 'complete',
                     ...(event.result !== undefined ? {result: event.result} : {})
@@ -343,6 +372,19 @@ export class ChatStreamReducer {
                 const serverId = event.result?.messageId;
                 if (serverId != null && metadata.serverId == null) {
                     draft.metadata.serverId = serverId;
+                }
+                // An interrupted run records its questions on the reply, to answer in the next run.
+                this.lastOutcome = getRunOutcome(event as AgUiRunFinishedEvent) ?? null;
+                this.lastFinishedRunId = event.runId ?? null;
+                if (this.lastOutcome?.type === 'interrupt') {
+                    const raised: ChatInterrupt[] = this.lastOutcome.interrupts.map(it => ({
+                        ...it,
+                        runId: event.runId,
+                        step: this.step,
+                        response: null,
+                        delivered: false
+                    }));
+                    draft.metadata.interrupts = [...(metadata.interrupts ?? []), ...raised];
                 }
                 draft.changed = true;
                 this.runFinished = true;
@@ -670,7 +712,8 @@ export class ChatStreamReducer {
             logDebug(['Ignored end of unknown sub-agent', subagentRunId], this);
             return;
         }
-        putPart(draft, {...part, data: {...part.data, ...changes, endedAt: Date.now()}});
+        const endedAt = changes.status === 'waiting' ? null : Date.now();
+        putPart(draft, {...part, data: {...part.data, ...changes, endedAt}});
     }
 
     //------------------

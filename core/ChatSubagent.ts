@@ -27,9 +27,10 @@ export interface ChatSubagentData {
     /**
      * `running` until the sub-agent finishes, then `complete` or `error` - or `cancelled` if the
      * user stopped the turn first. A sub-agent still running when its run ends, with no end event,
-     * ends with the run.
+     * ends with the run. `waiting` while it waits on the user's answer to an interrupt - a later
+     * run continues it. A reply that closes before then ends it as `error`.
      */
-    status: 'running' | 'complete' | 'error' | 'cancelled';
+    status: 'running' | 'waiting' | 'complete' | 'error' | 'cancelled';
 
     /** What the sub-agent found or did, once complete. */
     result?: any;

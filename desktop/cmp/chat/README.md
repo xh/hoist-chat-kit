@@ -30,6 +30,8 @@ Key features:
   block at a tighter gap than the reply's output. Two or more consecutive tool calls of one step
   fold into one row, such as "Used 3 tools". A call that waits for the user stays in view, and
   asks for approval in the words of the tool's `approvalPrompt`.
+- **An agent's questions** - a server agent's AG-UI interrupts show in a framed panel at the foot
+  of the reply, with large rows to choose from, a text box or a form, and Decline.
 - **Inline generative UI** - a tool with `display: 'inline'` shows its rendered output as part
   of the reply, with a status only while it streams, waits or fails.
 - **Activity timeline** - calls to tools with `display: 'timeline'` gather into one 28px block
@@ -591,6 +593,31 @@ in a form. Enter in the reason sends nothing, and no shortcut ever allows a call
 When a request arrives, focus moves to Allow only if focus was in the conversation and the
 composer is empty. A user who is typing keeps the keyboard. Allow and Deny move focus to the
 reply, as the panel goes once the call is decided.
+
+### Answer an agent's questions
+
+A server agent's questions, from AG-UI interrupts, show in one framed panel at the foot of the
+reply. It follows Claude Code's clarifying questions, framed in the attention color. It names who
+asks, the assistant or a sub-agent, then shows the question and an answer control chosen from
+its `responseSchema`:
+
+| Schema | Control |
+|--------|---------|
+| None | A text box, with Send |
+| One choice of three options or fewer | Large rows, one per option, with its description. A click answers. |
+| A string enum or a boolean | Choice rows, or Yes and No |
+| A flat object of simple fields | A Hoist form, with Send |
+| Anything else | The question, with "This question cannot be answered here." |
+
+Every question offers Decline. A lone question resumes the run as soon as the user answers it.
+Several show one at a time, then a review step that lists each answer, with Change and Submit.
+A question past its `expiresAt` shows as expired and goes back declined. Once the run resumes,
+each question shrinks to one line with its answer, such as "How often? - Weekly".
+
+A server tool call that an interrupt asks to approve shows the approval panel on its call, in
+the agent's words. See
+[Answer an agent's questions](../../../core/README.md#answer-an-agents-questions) for the model
+API.
 
 ### Undo a reply's changes
 

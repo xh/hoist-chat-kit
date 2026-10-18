@@ -8,9 +8,10 @@ names in `DECISIONS.md`.
 
 | Repo and branch | State |
 |---|---|
-| `hoist-chat-kit` `develop` | Plan 2 (#7), the layered API and the design UI (#8) merged, then pared back: no component helper (D80), no `ChatService` (D81). Published under `next`. |
+| `hoist-chat-kit` `develop` | Plan 2 (#7), the layered API and the design UI (#8) merged, then pared back: no component helper (D80), no `ChatService` (D81). The AG-UI 1.0 effort's three deliverables squash-merged locally on 2026-10-17, not yet pushed. |
 | `hoist-chat-kit` `archive/helpers` | The removed helper code and its plan, `planning/HELPERS.md`. Not for merge. |
-| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-chatkit`, on the local kit. Guideline Assistant tab and the Chat Kit demos. Pushed. |
+| `hoist-chat-kit` `feature/remove-announce-steps`, `feature/ag-ui-protocol-layer`, `feature/ag-ui-interrupts` | Local only. Squash-merged into `develop`. Safe to delete. |
+| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-worktrees/feature-chat-kit-guide-ui`, on the local kit. Guideline Assistant tab and the Chat Kit demos. Pushed, except the uncommitted Agent Questions demo. |
 | `toolbox` `feature/weatherv2-chat-kit` | On the published kit. Pushed. |
 | `toolbox` `archive/chat-kit-grid-helper` | The removed Grid Helper tab. Not for merge. |
 | `hoist-chat-kit` `spike/ag-ui-client` | Local only, worktree `.claude/worktrees/ag-ui-spike`. The AG-UI spike behind D84. Not for merge. |
@@ -28,20 +29,63 @@ names in `DECISIONS.md`.
 2. The first app integration starts on the published snapshot: a guideline assistant with
    server-owned threads, document scope, `[n]` citations, a source viewer, and feedback with a
    comment required on a thumbs down.
-3. Known kit gaps: no source line on help answers, no transport resume for a reconnect, no Continue
+3. Known kit gaps: no source line on help answers, no transport reconnect after a reload, no Continue
    after a reply is cut at its length limit.
 
-## Next dev effort: AG-UI 1.0 (agreed with Anselm, 2026-10-17)
+## Next session: start here
 
-The plan, the evidence and the design are in `planning/AG-UI.md`. The decisions are D84 to D86.
-Three deliverables first, as three pull requests to `develop`, in order:
+The review of the kit's three layers - the engine, the chat UI and the generative UI - resumes
+with Anselm. The engine work is done for now. Catch up on it below, settle whether any engine work
+remains, then move to the chat UI layer. See [Open review threads](#open-review-threads-with-anselm).
 
-1. Remove the `announceSteps` setting.
-2. Build the AG-UI protocol layer on `@ag-ui/core` and `@ag-ui/client`, with the official
-   conformance suite in CI and whole history in AG-UI requests (D84, D85).
-3. Interrupts, standard AG-UI only (D86), after a short spec that Anselm reviews.
+## AG-UI 1.0 effort: done (2026-10-17)
 
-The spike that informed it is on the local branch `spike/ag-ui-client`, in the worktree
+The engine layer is now an AG-UI 1.0 client on the official packages. The plan and evidence are in
+`planning/AG-UI.md`, the interrupt design in `planning/INTERRUPTS.md`, and the decisions in D84
+to D88. Three squash commits on `develop`:
+
+1. **Remove `announceSteps`.** Failed steps are always announced. The "Step N done" mode is gone.
+2. **The protocol layer.**
+   - Event types come from `@ag-ui/core`.
+   - `AgUiCodec` runs `@ag-ui/client`'s checks on every stream and request. A rejected stream
+     fails as `invalid-stream`, and a rejected request as `invalid-request`.
+   - Each request carries the whole history, with the server's message ids (D85, D87). The
+     `newMessagesOnly` opt-in is outside the spec.
+   - The chat reads on after `RUN_ERROR`, so a later run in the stream can follow.
+   - The official conformance corpus runs in `pnpm test`, against a committed gap list.
+3. **Interrupts.**
+   - A server agent's questions and tool approvals pause the reply. The chat answers in the next
+     run's `resume`, and covers every interrupt as AG-UI requires.
+   - Answer panels in Claude Code's style, Hoist forms of simple fields, and a review step.
+   - `ChatTransport.resume()` is now `reconnect()`.
+
+Conformance stands at 44 of the 61 fixtures that apply. The 17 gaps are listed with reasons in
+`test/conformance/agUiKnownGaps.ts`:
+
+- 8 shared state (plan item 6)
+- 3 metadata on parts and calls, and 2 sub-agent attribution of text (plan item 5)
+- 2 history snapshots and 1 activity patch (plan item 7)
+- 1 by design: an encrypted value with no message keeps a part of its own
+
+Engine work still on the table, for Anselm to decide on:
+
+- **Item 5** - metadata on parts and calls, and sub-agent attribution of text.
+- **Item 6** - shared state. Settle first: how a backend returns the state on reload, edits
+  during a run, and a size cap.
+- **Item 7** - activity patches, history snapshots and a status line from `STEP_*`. Wait for a
+  consumer.
+- **Curated libraries** - whether `@ag-ui/client`'s `parseSSEStream` should replace the kit's
+  own SSE parser.
+
+Open points:
+
+- Toolbox's Agent Questions demo (`client-app/src/examples/chatkit/demos/interruptsDemo.ts`, and
+  its entry in `DemosModel.ts`) is uncommitted, as Toolbox's rules ask before a commit.
+- Toolbox shows one type error against the local kit, from the different Hoist snapshots of the
+  two repos. It predates this effort.
+- The client's checks warn through the console, not Hoist's logging (D84).
+
+The spike behind D84 is on the local branch `spike/ag-ui-client`, in the worktree
 `.claude/worktrees/ag-ui-spike`. It is not for merge.
 
 ## Open review threads with Anselm
@@ -50,7 +94,7 @@ A layer-by-layer review of the kit is in progress, to find what the OpenUI-based
 feedback drove too far. That app has committed to OpenUI and will not adopt the kit. These are
 topics to discuss with Anselm, not work to start.
 
-- **Done:** the engine layer. It led to the AG-UI effort above.
+- **Done:** the engine layer. It led to the AG-UI effort above, now merged.
 - **Next:** the chat UI layer. Check its depth feature by feature. Much of it came from a design
   brief that aimed at all four use cases at once.
 - **Then:** the generative UI layer. Each of these has no consumer outside that app:
@@ -79,9 +123,10 @@ topics to discuss with Anselm, not work to start.
 - **Layering (D57, D82)** is a goal, not a rule: prefer a narrow interface over a hard
   `ChatModel` dependency only where a second implementer really exists.
 - **Names.** Never name a client or a private app in kit or Toolbox files. Toolbox may be named.
-- **Git.** Kit: commit and push on feature branches, and open PRs to `develop`. Merges to
-  `develop` need Anselm's request. Toolbox: commit and push only on branches made for this
-  project, never on `develop`, `master` or other existing branches. No AI attribution.
+- **Git.** Kit: commit on feature branches as you go when Anselm asks for it, never on
+  `develop`. Anselm pushes and opens the pull requests. Toolbox: ask before a commit, and never
+  commit on `develop`, `master` or other existing branches. No AI attribution.
+- **Hoist snapshot.** Always take the latest `next` snapshot when the lockfile changes.
 - **hoist-react.** Do not change it. Stub a gap in the kit and list it for Anselm.
 - **Open design items** B1 to B6: build to the default, and mark `// TODO(design-open B<n>)`.
 
@@ -95,11 +140,11 @@ topics to discuss with Anselm, not work to start.
 
 ## Toolbox worktree
 
-- `../toolbox-chatkit` (branch `feature/chat-kit-guide-ui`). The main `../toolbox` checkout
-  belongs to another session. Never touch it.
+- `../toolbox-worktrees/feature-chat-kit-guide-ui` (branch `feature/chat-kit-guide-ui`). The main
+  `../toolbox` checkout belongs to another session. Never touch it.
 - The worktree links the local kit through uncommitted edits to `client-app/package.json`,
-  `pnpm-lock.yaml`, `rsbuild.config.mjs` and `tsconfig.json`. Never commit those four. Commit
-  with explicit paths.
+  `pnpm-lock.yaml` and `rsbuild.config.mjs`. Never commit those. Commit with explicit paths.
+- The local kit is the main checkout, so Toolbox shows whichever kit branch is checked out.
 
 ## Running Toolbox
 
@@ -113,8 +158,9 @@ topics to discuss with Anselm, not work to start.
 
 ## Files to know
 
-- Plans: `planning/AG-UI.md` (the current effort), `planning/PLAN-2.md`,
-  `planning/SERVER-MODE.md`, `planning/GENUI.md`.
+- Plans: `planning/AG-UI.md` (the current effort), `planning/INTERRUPTS.md`,
+  `planning/PLAN-2.md`, `planning/SERVER-MODE.md`, `planning/GENUI.md`.
+- AG-UI conformance: `test/conformance/README.md`, and the gap list beside it.
 - Design: `.tmp/design-handoff/` and `planning/design-reconciliation.md`.
 - The first integration's brief and API: `.tmp/hoist-chat-kit-feedback-1/`. Toolbox's emulation:
   `client-app/src/examples/chatkit/guide/`.

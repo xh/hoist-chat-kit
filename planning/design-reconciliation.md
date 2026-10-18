@@ -67,7 +67,7 @@ Each needs a backend capability, an app decision or a spec the handoff lacks:
 - "Answered in another window" for approvals (P6).
 - A server-side export over the confirm threshold (P4, P6).
 - A status endpoint per run, for Refresh Status beyond a thread reload (P5).
-- Reattach after a reconnect, which needs `ChatTransport.resume` (P2, P5).
+- Reattach after a reconnect, which needs `ChatTransport.reconnect` (P2, P5).
 - Continue after a reply is cut at its length limit (P1).
 - The page dock, the launcher and "Open Full Page" (P3, P4, P5).
 - Mentions of people, desks and records (P5).

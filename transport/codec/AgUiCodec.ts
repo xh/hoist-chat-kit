@@ -99,6 +99,10 @@ export interface AgUiContext {
  * Before it sends a request, the codec runs the official `@ag-ui/client` check on it, which strips
  * fields AG-UI does not define and fails the turn for a malformed one.
  *
+ * A request's `resume` list, which answers the interrupts of the thread's last interrupted run,
+ * goes as `resume`. A server call that run left open goes back in its assistant message's
+ * `toolCalls`, with no tool message, until the server sends its result.
+ *
  * The kit's events are AG-UI events. Decoding runs the official `@ag-ui/client` checks on each
  * record: it drops events of an unknown `type`, strips unknown fields, expands chunk events, and
  * checks the event sequence. A stream that breaks AG-UI's rules fails the turn.
@@ -115,6 +119,9 @@ export class AgUiCodec implements ChatCodec {
 
     /** True to send only what the server has not seen, in server mode. */
     readonly newMessagesOnly: boolean;
+
+    /** True - the codec sends the request's `resume` list, to answer interrupts. */
+    readonly supportsInterrupts = true;
 
     constructor({
         context = null,
@@ -155,7 +162,8 @@ export class AgUiCodec implements ChatCodec {
                 })),
                 ...encodeMessageContext(request)
             ],
-            forwardedProps: this.getForwardedProps(request)
+            forwardedProps: this.getForwardedProps(request),
+            ...(isEmpty(request.resume) ? {} : {resume: request.resume})
         });
     }
 
@@ -276,7 +284,10 @@ function encodeAssistantStep(
     defaultId: string,
     usedIds: Set<string>
 ): PlainObject[] {
-    const finished = parts.filter(it => it.type !== 'toolCall' || isToolCallFinal(it));
+    // A server call an interrupted run left open goes back with no result - see `awaitsResume`.
+    const finished = parts.filter(
+        it => it.type !== 'toolCall' || isToolCallFinal(it) || it.awaitsResume
+    );
     return compact(groupAgUiMessages(finished, defaultId, usedIds).map(encodeGroup));
 }
 
