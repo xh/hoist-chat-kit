@@ -190,6 +190,41 @@ describe('ChatWorkspace', () => {
             expect(model.sidePanelWidth).toBe(472);
         });
 
+        it('resizes the sidebar and the side panel against the conversation, their sibling', () => {
+            const widths: Record<string, number> = {
+                'xh-chat-workspace__sidebar': 268,
+                'xh-chat-workspace__side-panel': 528
+            };
+            const offsetSpy = vi
+                    .spyOn(HTMLElement.prototype, 'offsetWidth', 'get')
+                    .mockImplementation(function (this: HTMLElement) {
+                        const key = Object.keys(widths).find(it => this.classList.contains(it));
+                        return key ? widths[key] : 0;
+                    }),
+                clientSpy = vi
+                    .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+                    .mockImplementation(function (this: HTMLElement) {
+                        return this.classList.contains('xh-chat-workspace__main') ? 600 : 0;
+                    });
+            onTestFinished(() => {
+                offsetSpy.mockRestore();
+                clientSpy.mockRestore();
+            });
+            stubRootWidth(1440);
+            const {model} = renderWorkspace({sidePanel: 'Notes'}, {sidePanelOpen: true}),
+                main = document.querySelector('.xh-chat-workspace__main'),
+                sidebarEl = document.querySelector<HTMLElement>('.xh-chat-workspace__sidebar'),
+                sidePanelEl = document.querySelector<HTMLElement>('.xh-chat-workspace__side-panel');
+            expect(sidebarEl.nextElementSibling).toBe(main);
+            expect(sidePanelEl.previousElementSibling).toBe(main);
+
+            act(() => dragPanel(sidebarEl, 40));
+            expect(model.sidebarModel.size).toBe(308);
+
+            act(() => dragPanel(sidePanelEl, -40));
+            expect(model.sidePanelModel.size).toBe(568);
+        });
+
         it('lays out from its measured width on the first render, with no wait', () => {
             stubRootWidth(900);
             renderWorkspace({}, {documentRenderer: () => 'Viewer'}, model =>
@@ -201,8 +236,8 @@ describe('ChatWorkspace', () => {
 
             expect(screen.queryByRole('treegrid')).toBeNull();
             expect(screen.getByRole('button', {name: 'Expand sidebar'})).toBeTruthy();
-            // 472, cut for the conversation, and 8 for the splitter.
-            expect(sidePanelBox().style.width).toBe('480px');
+            // Cut to 472 for the conversation.
+            expect(shownWidth('side-panel')).toBe('472px');
         });
 
         it('applies a resize at once, and the last of a burst once it settles', async () => {
@@ -601,8 +636,29 @@ function reportWidth(width: number) {
     act(() => resizeCallbacks.at(-1)([entry], null));
 }
 
-function sidePanelBox(): HTMLElement {
-    return document.querySelector('.xh-chat-workspace__side-panel');
+/** A panel's width that shows, from the CSS variable the workspace sets for its content. */
+function shownWidth(panel: 'sidebar' | 'side-panel'): string {
+    return document
+        .querySelector<HTMLElement>('.xh-chat-workspace__body')
+        .style.getPropertyValue(`--xh-chat-workspace-${panel}-width`);
+}
+
+/** Drag a resizable panel's dragger by `dx` pixels, as the browser reports a drag. */
+function dragPanel(panelEl: HTMLElement, dx: number) {
+    const dragger = panelEl.querySelector('.xh-resizable-dragger'),
+        fire = (type: string, clientX: number) =>
+            dragger.dispatchEvent(
+                Object.assign(new Event(type, {bubbles: true}), {
+                    clientX,
+                    clientY: 10,
+                    screenX: clientX,
+                    screenY: 10,
+                    buttons: 1
+                })
+            );
+    fire('dragstart', 300);
+    fire('drag', 300 + dx);
+    fire('dragend', 300 + dx);
 }
 
 function widthToMode(model: ChatWorkspaceModel, width: number) {

@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import type {CSSProperties, ReactNode} from 'react';
 import {isFunction, isString} from 'lodash';
 import {clipboardMenuItem} from '@xh/hoist/cmp/clipboard';
 import {errorMessage} from '@xh/hoist/cmp/error';
@@ -113,6 +113,7 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
                 div({
                     ref: impl.bodyRef,
                     className: 'xh-chat-workspace__body',
+                    style: shownWidths(model),
                     items: [
                         sidebar(model, impl, threadListProps, testId),
                         div({
@@ -151,35 +152,44 @@ function sidebar(
             return rail(model, impl);
     }
 
-    // The box sets the width that shows, which the layout may cut below the user's saved width.
-    return div({
+    // A sibling of the conversation, as Hoist's dragger resizes a panel against its sibling.
+    return panel({
         key: 'sidebar',
-        className: 'xh-chat-workspace__sidebar-box',
-        style: {width: model.sidebarWidth + SPLITTER_WIDTH},
-        item: panel({
-            model: model.sidebarModel,
-            className: 'xh-chat-workspace__sidebar',
-            testId: getTestId(testId, 'sidebar'),
-            item: nav({
-                className: 'xh-chat-workspace__nav',
-                'aria-label': 'Threads',
-                item: chatThreadList({
-                    model: model.threadsModel,
-                    searchInputRef: impl.searchInputRef,
-                    topItems: [
-                        button({
-                            key: 'collapse',
-                            icon: Icon.chevronLeft(),
-                            tooltip: 'Collapse sidebar',
-                            'aria-label': 'Collapse sidebar',
-                            onClick: () => model.collapseSidebar()
-                        })
-                    ],
-                    ...threadListProps
-                })
+        model: model.sidebarModel,
+        className: 'xh-chat-workspace__sidebar',
+        testId: getTestId(testId, 'sidebar'),
+        item: nav({
+            className: 'xh-chat-workspace__nav',
+            'aria-label': 'Threads',
+            item: chatThreadList({
+                model: model.threadsModel,
+                searchInputRef: impl.searchInputRef,
+                topItems: [
+                    button({
+                        key: 'collapse',
+                        icon: Icon.chevronLeft(),
+                        tooltip: 'Collapse sidebar',
+                        'aria-label': 'Collapse sidebar',
+                        onClick: () => model.collapseSidebar()
+                    })
+                ],
+                ...threadListProps
             })
         })
     });
+}
+
+/**
+ * The widths that show, as CSS variables for the panels' content. The layout may cut a panel
+ * below its saved size, to leave the conversation its minimum.
+ */
+function shownWidths(model: ChatWorkspaceModel): CSSProperties {
+    const {sidebarWidth, sidePanelWidth} = model;
+    return {
+        '--xh-chat-workspace-sidebar-width': sidebarWidth == null ? null : `${sidebarWidth}px`,
+        '--xh-chat-workspace-side-panel-width':
+            sidePanelWidth == null ? null : `${sidePanelWidth}px`
+    } as CSSProperties;
 }
 
 function rail(model: ChatWorkspaceModel, impl: ChatWorkspaceLocalModel): ReactNode {
@@ -379,49 +389,43 @@ function sidePanelView(
 ): ReactNode {
     if (!model.isSidePanelShown) return null;
 
-    // The box sets the width that shows, which the layout may cut below the user's saved width.
-    const style = {width: model.sidePanelWidth + SPLITTER_WIDTH};
-
     // A request opened by the conversation - a document, a table or a chart - comes first.
+    let item: ReactNode;
     if (model.sidePanel.request) {
-        return div({
-            key: 'sidePanel',
-            className: 'xh-chat-workspace__side-panel',
-            style,
-            item: chatSidePanel({
-                model: model.sidePanel,
-                panelProps: {model: model.sidePanelModel, testId: getTestId(testId, 'sidePanel')}
+        item = chatSidePanel({model: model.sidePanel});
+    } else if (sidePanel != null) {
+        const {headerItems = [], ...rest} = sidePanelProps ?? {};
+        item = div({
+            className: 'xh-chat-workspace__side-panel-content',
+            role: 'complementary',
+            onKeyDown: impl.onSidePanelKeyDown,
+            'aria-label': isString(rest.title) ? rest.title : 'Side panel',
+            item: panel({
+                ...rest,
+                headerItems: [
+                    ...headerItems,
+                    button({
+                        key: 'close',
+                        icon: Icon.close(),
+                        tooltip: 'Close',
+                        'aria-label': 'Close side panel',
+                        onClick: () => model.closeSidePanel()
+                    })
+                ],
+                item: isFunction(sidePanel) ? sidePanel() : sidePanel
             })
         });
+    } else {
+        return null;
     }
-    if (sidePanel == null) return null;
 
-    const {headerItems = [], ...rest} = sidePanelProps ?? {};
-    return div({
+    // A sibling of the conversation, as Hoist's dragger resizes a panel against its sibling. The
+    // content inside sets its own frame.
+    return panel({
         key: 'sidePanel',
+        model: model.sidePanelModel,
         className: 'xh-chat-workspace__side-panel',
-        style,
-        role: 'complementary',
-        onKeyDown: impl.onSidePanelKeyDown,
-        'aria-label': isString(rest.title) ? rest.title : 'Side panel',
-        item: panel({
-            model: model.sidePanelModel,
-            testId: getTestId(testId, 'sidePanel'),
-            ...rest,
-            headerItems: [
-                ...headerItems,
-                button({
-                    key: 'close',
-                    icon: Icon.close(),
-                    tooltip: 'Close',
-                    'aria-label': 'Close side panel',
-                    onClick: () => model.closeSidePanel()
-                })
-            ],
-            item: isFunction(sidePanel) ? sidePanel() : sidePanel
-        })
+        testId: getTestId(testId, 'sidePanel'),
+        item
     });
 }
-
-// Hoist's splitter, beside each resizable panel.
-const SPLITTER_WIDTH = 8;
