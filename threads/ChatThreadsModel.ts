@@ -20,7 +20,6 @@ import {action, bindable, computed, observable, observableRef} from '@xh/hoist/m
 import {debounced, throwIf} from '@xh/hoist/utils/js';
 import {ChatKit, type ChatModel, type ChatThreadCreatorSpec} from '../core';
 import {genChatId} from '../impl/ids';
-import type {ChatThreadListHost} from './ChatThreadListHost';
 import type {
     ChatMessagePage,
     ChatThreadPage,
@@ -97,7 +96,7 @@ export interface ChatSeedSpec {
  * {@link ChatModel.threadId}. The model then re-keys the thread, its summary, the selection and
  * the route.
  */
-export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
+export class ChatThreadsModel extends HoistModel {
     declare config: ChatThreadsConfig;
 
     //-----------------------

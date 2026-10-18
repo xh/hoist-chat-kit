@@ -3,7 +3,7 @@ import {XH} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
 import {
     type ChatThreadGroup,
-    type ChatThreadListHost,
+    type ChatThreadsModel,
     type ChatThreadSummary,
     groupThreadsByRecency
 } from '../../threads';
@@ -33,18 +33,18 @@ export function confirmDeleteThreadAsync(thread: ChatThreadSummary): Promise<boo
  * @internal
  */
 export async function deleteThreadAsync(
-    host: ChatThreadListHost,
+    threadsModel: ChatThreadsModel,
     thread: ChatThreadSummary,
     onDeleting?: (nextId: string) => void
 ): Promise<boolean> {
-    const ids = getListedThreadIds(host),
+    const ids = getListedThreadIds(threadsModel),
         index = ids.indexOf(thread.id),
         nextId = index >= 0 ? (ids[index + 1] ?? ids[index - 1] ?? null) : null;
     if (!(await confirmDeleteThreadAsync(thread))) return false;
 
-    const wasSelected = host.selectedThreadId === thread.id,
-        deletion = host.deleteThreadsAsync([thread.id]);
-    if (wasSelected && nextId) host.selectThreadAsync(nextId).catchDefault();
+    const wasSelected = threadsModel.selectedThreadId === thread.id,
+        deletion = threadsModel.deleteThreadsAsync([thread.id]);
+    if (wasSelected && nextId) threadsModel.selectThreadAsync(nextId).catchDefault();
     onDeleting?.(nextId);
     await deletion;
     return true;
@@ -54,10 +54,10 @@ export async function deleteThreadAsync(
  * The groups a thread list shows: one group of results while searching, else groups by recency.
  * @internal
  */
-export function getThreadGroups(host: ChatThreadListHost): ChatThreadGroup[] {
-    const threads = host?.threads ?? [];
+export function getThreadGroups(threadsModel: ChatThreadsModel): ChatThreadGroup[] {
+    const {threads} = threadsModel;
     if (!threads.length) return [];
-    if (!host.search?.trim()) return groupThreadsByRecency(threads);
+    if (!threadsModel.search?.trim()) return groupThreadsByRecency(threads);
 
     const label = threads.length === 1 ? '1 result' : `${threads.length} results`;
     return [{key: null, label, threads}];
@@ -67,6 +67,6 @@ export function getThreadGroups(host: ChatThreadListHost): ChatThreadGroup[] {
  * Ids of the threads in the order a thread list shows them.
  * @internal
  */
-export function getListedThreadIds(host: ChatThreadListHost): string[] {
-    return flatMap(getThreadGroups(host), it => it.threads.map(thread => thread.id));
+export function getListedThreadIds(threadsModel: ChatThreadsModel): string[] {
+    return flatMap(getThreadGroups(threadsModel), it => it.threads.map(thread => thread.id));
 }

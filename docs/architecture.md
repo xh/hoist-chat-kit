@@ -223,7 +223,7 @@ its render, renderer included.
 | Text transform | `ChatModelConfig.textTransform` | Strip markup a model leaks, before the text is stored |
 | Feedback | `ChatModelConfig.feedback` | Send ratings and comments on replies to the backend |
 | Telemetry | `ChatModelConfig.track` | Record each finished turn with Hoist activity tracking |
-| Host interfaces | `ChatComposerHost`, `ChatTranscript`, `ChatThreadListHost`, `ChatSidePanelHost` | Use the composer, the message list, the thread list or the side panel over the app's own state. Each exists because a second implementer does - see D82 |
+| Host interfaces | `ChatComposerHost`, `ChatTranscript`, `ChatSidePanelHost` | Use the composer, the message list or the side panel over the app's own state. Each exists because a second implementer does - see D82 |
 | Component slots | `ChatPanel` and `ChatComposer` props | Add header buttons, composer toolbars, an empty state and suggestions |
 | Markdown | `markdownComponents` on the message list | Replace how markdown elements render, such as code blocks |
 | Markdown plugins | `markdownPlugins` on the message list | Add remark and rehype plugins, such as math with KaTeX |

@@ -399,9 +399,6 @@ released.
   load methods.
 - **Chat creation** - `createChatModel` configures each chat as usual: transport, tools,
   renderers, `feedback`, `track` and a `sendBlocker` of the app's own.
-- **A list of your own threads** - `ChatThreadListHost` is what a thread list needs from its
-  model. `ChatThreadsModel` implements it. Implement it on a `HoistModel` to show the desktop
-  thread list over threads the app holds.
 - **Chat seams** - `ChatModel.setThreadCreator()`, `addSendBlocker()` and
   `setFeedbackSubmitter()` are public. A custom thread layer can use them too. See
   [`/core/`](../core/README.md).

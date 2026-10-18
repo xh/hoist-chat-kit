@@ -1,14 +1,12 @@
 import {act, fireEvent, render, screen, within} from '@testing-library/react';
-import {HoistModel, XH} from '@xh/hoist/core';
-import {observable, observableRef} from '@xh/hoist/mobx';
+import {XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatModel} from '../../../core';
 import {
-    type ChatThreadListHost,
+    type ChatThreadQuery,
     ChatThreadsModel,
-    type ChatThreadSummary,
     type LocalChatThread,
     LocalChatThreadStore
 } from '../../../threads';
@@ -218,74 +216,81 @@ describe('ChatThreadList', () => {
         expect(rowTitles()).toHaveLength(4);
     });
 
-    describe('with a host of its own', () => {
-        it('marks threads that run, wait for the user, have a new reply or were interrupted', () => {
-            const host = new TestHost({
+    it('starts a new thread from New Chat', async () => {
+        const {model} = await renderList();
+        await act(() => model.selectThreadAsync('t1'));
+
+        fireEvent.click(screen.getByRole('button', {name: 'New Chat'}));
+
+        expect(model.selectedThreadId).not.toBe('t1');
+        expect(model.chatModel.isEmpty).toBe(true);
+    });
+
+    it('marks threads that run, wait for the user, have a new reply or were interrupted', async () => {
+        const store = new LocalChatThreadStore({
                 threads: [
-                    summary('a', 'Running'),
-                    summary('b', 'Awaiting'),
-                    summary('c', 'Finished away'),
-                    summary('d', 'Cut short', {lastRunEnd: 'interrupted'}),
-                    summary('e', 'Plain')
-                ],
-                runningThreadIds: ['a'],
-                awaitingThreadIds: ['b'],
-                finishedAwayThreadIds: ['c']
-            });
-            renderHostList(host);
+                    thread('a', 'Running', {isRunning: true}),
+                    thread('b', 'Awaiting'),
+                    thread('c', 'Finished away'),
+                    thread('d', 'Cut short', {lastRunEnd: 'interrupted'}),
+                    thread('e', 'Plain')
+                ]
+            }),
+            model = createModel(store);
+        vi.spyOn(model, 'awaitingThreadIds', 'get').mockReturnValue(['b']);
+        vi.spyOn(model, 'finishedAwayThreadIds', 'get').mockReturnValue(['c']);
+        await model.loadAsync();
+        render(chatThreadList({model}));
 
-            expect(row('Running').getAttribute('aria-label')).toBe('Running, working');
-            expect(within(row('Running')).getByText('Working')).toBeTruthy();
-            expect(row('Awaiting').getAttribute('aria-label')).toBe('Awaiting, waiting for you');
-            expect(row('Finished away').getAttribute('aria-label')).toBe(
-                'Finished away, new reply'
-            );
-            expect(row('Cut short').getAttribute('aria-label')).toBe(
-                'Cut short, last reply interrupted'
-            );
-            expect(row('Plain').getAttribute('aria-label')).toMatch(/^Plain, \d\d:\d\d$/);
+        expect(row('Running').getAttribute('aria-label')).toBe('Running, working');
+        expect(within(row('Running')).getByText('Working')).toBeTruthy();
+        expect(row('Awaiting').getAttribute('aria-label')).toBe('Awaiting, waiting for you');
+        expect(row('Finished away').getAttribute('aria-label')).toBe('Finished away, new reply');
+        expect(row('Cut short').getAttribute('aria-label')).toBe(
+            'Cut short, last reply interrupted'
+        );
+        expect(row('Plain').getAttribute('aria-label')).toMatch(/^Plain, \d\d:\d\d$/);
+    });
+
+    it('says it searches titles only, for a store whose search skips message text', async () => {
+        vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']});
+        const {model} = await renderList();
+
+        act(() => (model.search = 'budget'));
+        await act(() => vi.advanceTimersByTimeAsync(350));
+
+        expect(screen.getByText('Searching titles')).toBeTruthy();
+    });
+
+    it('shows the matching snippet under a result, for a store that searches messages', async () => {
+        vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']});
+        const store = new LocalChatThreadStore({threads: THREADS}),
+            listThreadsAsync = store.listThreadsAsync.bind(store);
+        Object.assign(store, {
+            searchesMessages: true,
+            listThreadsAsync: async (query: ChatThreadQuery) => {
+                const page = await listThreadsAsync(query);
+                if (!query.search) return page;
+                return {threads: page.threads.map(it => ({...it, snippet: 'the Q3 budget'}))};
+            }
         });
+        const {model} = await renderList({store});
 
-        it('says it searches titles only, for a host whose search skips message text', () => {
-            renderHostList(
-                new TestHost({threads: [summary('a', 'Budget review')], search: 'budget'})
-            );
-            expect(screen.getByText('Searching titles')).toBeTruthy();
-        });
+        act(() => (model.search = 'budget'));
+        await act(() => vi.advanceTimersByTimeAsync(350));
 
-        it('shows the matching snippet under a result, for a host that searches messages', () => {
-            renderHostList(
-                new TestHost({
-                    threads: [summary('a', 'Budget review', {snippet: 'the Q3 budget is final'})],
-                    search: 'budget',
-                    searchesMessages: true
-                })
-            );
-            expect(screen.queryByText('Searching titles')).toBeNull();
-            const result = row('Budget review');
-            expect(within(result).getByText('the Q3 budget is final')).toBeTruthy();
-            expect(result.getAttribute('aria-label')).toMatch(
-                /^Budget review, the Q3 budget is final/
-            );
-        });
+        expect(screen.queryByText('Searching titles')).toBeNull();
+        const result = row('Budget review');
+        expect(within(result).getByText('the Q3 budget')).toBeTruthy();
+        expect(result.getAttribute('aria-label')).toMatch(/^Budget review, the Q3 budget/);
+    });
 
-        it('hides the actions and the search the host leaves out', () => {
-            renderHostList(new TestHost({threads: [summary('a', 'Only')]}));
+    it('hides the search input with enableSearch false', async () => {
+        const model = createModel(new LocalChatThreadStore({threads: THREADS}));
+        await model.loadAsync();
+        render(chatThreadList({model, enableSearch: false}));
 
-            expect(within(row('Only')).queryByRole('button', {name: 'Rename'})).toBeNull();
-            expect(screen.queryByLabelText('Search threads')).toBeNull();
-        });
-
-        it('calls the host to start a thread and to open one', () => {
-            const host = new TestHost({threads: [summary('a', 'Only')]});
-            renderHostList(host);
-
-            fireEvent.click(screen.getByRole('button', {name: 'New Chat'}));
-            fireEvent.click(row('Only'));
-
-            expect(host.newThread).toHaveBeenCalledTimes(1);
-            expect(host.selectThreadAsync).toHaveBeenCalledWith('a');
-        });
+        expect(screen.queryByLabelText('Search threads')).toBeNull();
     });
 });
 
@@ -311,6 +316,13 @@ class NoopResizeObserver {
 async function renderList({
     store = new LocalChatThreadStore({threads: THREADS})
 }: {store?: LocalChatThreadStore} = {}) {
+    const model = createModel(store);
+    await model.loadAsync();
+    render(chatThreadList({model}));
+    return {model, store};
+}
+
+function createModel(store: LocalChatThreadStore): ChatThreadsModel {
     const transport = new ScriptedChatTransport({responses: [textEvents('Hi.')], delayMs: 0}),
         model = new ChatThreadsModel({
             store,
@@ -318,42 +330,10 @@ async function renderList({
                 new ChatModel({transport, threadId, historyMode: 'server'})
         });
     onTestFinished(() => model.destroy());
-
-    await model.loadAsync();
-    render(chatThreadList({model}));
-    return {model, store};
+    return model;
 }
 
-/** A host of an app's own - a plain HoistModel with only the members it needs. */
-class TestHost extends HoistModel implements ChatThreadListHost {
-    @observableRef accessor threads: ChatThreadSummary[];
-    @observable accessor selectedThreadId: string = null;
-    readonly runningThreadIds: string[];
-    readonly awaitingThreadIds: string[];
-    readonly finishedAwayThreadIds: string[];
-    readonly searchesMessages: boolean;
-    search: string;
-
-    newThread = vi.fn();
-    selectThreadAsync = vi.fn(async () => {});
-
-    constructor(config: Partial<ChatThreadListHost>) {
-        super();
-        this.threads = config.threads ?? [];
-        this.runningThreadIds = config.runningThreadIds ?? [];
-        this.awaitingThreadIds = config.awaitingThreadIds ?? [];
-        this.finishedAwayThreadIds = config.finishedAwayThreadIds ?? [];
-        this.search = config.search;
-        this.searchesMessages = config.searchesMessages;
-    }
-}
-
-function renderHostList(host: TestHost) {
-    onTestFinished(() => host.destroy());
-    render(chatThreadList({model: host}));
-}
-
-function summary(id: string, title: string, rest: Partial<ChatThreadSummary> = {}) {
+function thread(id: string, title: string, rest: Partial<LocalChatThread> = {}) {
     return {id, title, lastActivityAt: NOW, ...rest};
 }
 

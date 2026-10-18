@@ -6,7 +6,6 @@ import {div, span, vframe} from '@xh/hoist/cmp/layout';
 import {
     type BoxProps,
     hoistCmp,
-    type HoistModel,
     type HoistProps,
     type MenuItemLike,
     useLocalModel,
@@ -22,19 +21,16 @@ import {getTestId} from '@xh/hoist/utils/js';
 import {classNames} from '../../../impl/ClassNames';
 import {chatSpinner} from '../chat';
 import '../../../styles/vars.scss';
-import type {ChatThreadGroup, ChatThreadListHost, ChatThreadSummary} from '../../../threads';
+import {type ChatThreadGroup, ChatThreadsModel, type ChatThreadSummary} from '../../../threads';
 import './ChatThreadList.scss';
-import {ChatThreadListLocalModel, isChatThreadListHost} from './impl/ChatThreadListLocalModel';
-
-/** A `HoistModel` that implements {@link ChatThreadListHost}, such as a `ChatThreadsModel`. */
-export type ChatThreadListHostModel = HoistModel & ChatThreadListHost;
+import {ChatThreadListLocalModel} from './impl/ChatThreadListLocalModel';
 
 /** Props for {@link ChatThreadList}. */
-export interface ChatThreadListProps extends HoistProps<ChatThreadListHostModel>, BoxProps {
+export interface ChatThreadListProps extends HoistProps<ChatThreadsModel>, BoxProps {
     /** Items to show after New Chat, such as a button that collapses a sidebar. */
     topItems?: ReactNode[];
 
-    /** False to hide the search input. Default true, if the host has a `search` property. */
+    /** False to hide the search input. Default true. */
     enableSearch?: boolean;
 
     /** Placeholder for the search input. Default 'Search threads'. */
@@ -53,14 +49,14 @@ export interface ChatThreadListProps extends HoistProps<ChatThreadListHostModel>
  * user to confirm first. A row also shows when its thread is working, waits for the user, has a
  * reply the user has not seen, or ended its last run early.
  *
- * Backed by a {@link ChatThreadListHost}, such as a `ChatThreadsModel`: pass it as `model`, or
- * put it in context. The list hides each action the host cannot take. The list is a tree grid of
+ * Backed by a `ChatThreadsModel`: pass it as `model`, or put it in context. The list hides each
+ * action the model's store cannot take. The list is a tree grid of
  * one level, as a row holds buttons: Up and Down move between rows, Enter opens one, F2 renames
  * it, and Delete or Backspace deletes it. Right and Left move between a row and its buttons.
  */
 export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadListProps>({
     displayName: 'ChatThreadList',
-    model: uses(isChatThreadListHost),
+    model: uses(ChatThreadsModel),
     className: 'xh-chat-thread-list',
 
     render(props, ref) {
@@ -74,9 +70,7 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
                 testId,
                 ...rest
             } = props,
-            impl = useLocalModel(ChatThreadListLocalModel),
-            host = model as ChatThreadListHost,
-            showSearch = enableSearch && host.search !== undefined;
+            impl = useLocalModel(ChatThreadListLocalModel);
 
         return vframe({
             ref,
@@ -98,11 +92,11 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
                         ...topItems
                     ]
                 }),
-                showSearch
+                enableSearch
                     ? div({
                           className: 'xh-chat-thread-list__search',
                           item: textInput({
-                              value: host.search,
+                              value: model.search,
                               onChange: v => impl.setSearch(v),
                               commitOnChange: true,
                               leftIcon: Icon.search(),
@@ -126,17 +120,17 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
 // Implementation
 //------------------
 function body(impl: ChatThreadListLocalModel): ReactNode {
-    const {host, groups} = impl,
-        {listError} = host;
+    const {model, groups} = impl,
+        {listError} = model;
 
-    if (listError && isEmpty(host.threads)) {
+    if (listError && isEmpty(model.threads)) {
         return div({
             className: 'xh-chat-thread-list__error',
             role: 'alert',
             item: errorMessage({
                 error: listError,
                 title: "Couldn't load threads",
-                actionFn: host.refreshAsync ? () => impl.retryList() : null,
+                actionFn: () => impl.retryList(),
                 actionButtonProps: {text: 'Retry', icon: Icon.refresh()}
             })
         });
@@ -167,17 +161,11 @@ function body(impl: ChatThreadListLocalModel): ReactNode {
                   items: [
                       Icon.warningCircle(),
                       span("Couldn't refresh threads."),
-                      host.refreshAsync
-                          ? button({
-                                text: 'Retry',
-                                minimal: true,
-                                onClick: () => impl.retryList()
-                            })
-                          : null
+                      button({text: 'Retry', minimal: true, onClick: () => impl.retryList()})
                   ]
               })
             : null,
-        impl.searchQuery != null && !host.searchesMessages
+        impl.searchQuery != null && !model.searchesMessages
             ? div({key: 'scope', className: 'xh-chat-thread-list__scope', item: 'Searching titles'})
             : null,
         div({
@@ -185,7 +173,7 @@ function body(impl: ChatThreadListLocalModel): ReactNode {
             className: 'xh-chat-thread-list__list',
             role: 'treegrid',
             'aria-label': 'Threads',
-            'aria-busy': !!host.listTask?.isPending,
+            'aria-busy': model.listTask.isPending,
             onKeyDown: impl.onListKeyDown,
             items: groups.map(group => threadGroup(impl, group))
         })
@@ -211,12 +199,12 @@ function threadGroup(impl: ChatThreadListLocalModel, group: ChatThreadGroup): Re
 }
 
 function threadRow(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): ReactNode {
-    const {host} = impl,
+    const {model} = impl,
         {id, title} = thread,
         // A snippet shows only in search results.
         snippet = impl.searchQuery != null ? thread.snippet?.trim() || null : null,
-        isSelected = id === host.selectedThreadId,
-        status = getRowStatus(host, thread, isSelected),
+        isSelected = id === model.selectedThreadId,
+        status = getRowStatus(model, thread, isSelected),
         isRenaming = impl.renamingThreadId === id,
         time = fmtRowTime(thread.lastActivityAt);
 
@@ -401,14 +389,14 @@ type RowStatus = 'running' | 'awaiting' | 'new' | 'interrupted' | 'failed';
 
 /** The one unusual state a row shows, in order of priority, or null. */
 function getRowStatus(
-    host: ChatThreadListHost,
+    model: ChatThreadsModel,
     thread: ChatThreadSummary,
     isSelected: boolean
 ): RowStatus {
     const {id, lastRunEnd} = thread;
-    if (includes(host.runningThreadIds, id)) return 'running';
-    if (includes(host.awaitingThreadIds, id)) return 'awaiting';
-    if (!isSelected && includes(host.finishedAwayThreadIds, id)) return 'new';
+    if (includes(model.runningThreadIds, id)) return 'running';
+    if (includes(model.awaitingThreadIds, id)) return 'awaiting';
+    if (!isSelected && includes(model.finishedAwayThreadIds, id)) return 'new';
     if (lastRunEnd === 'interrupted' || lastRunEnd === 'failed') return lastRunEnd;
     return null;
 }
@@ -422,7 +410,7 @@ const STATUS_WORDS: Record<RowStatus, string> = {
     failed: 'last reply failed'
 };
 
-/** Tooltips for a row whose last run ended early, when the host gives no reason. */
+/** Tooltips for a row whose last run ended early, when the store gives no reason. */
 const STATUS_TIPS: Partial<Record<RowStatus, string>> = {
     interrupted: 'The last reply was interrupted.',
     failed: 'The last reply failed.'

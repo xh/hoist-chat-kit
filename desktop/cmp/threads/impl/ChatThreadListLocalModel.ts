@@ -1,9 +1,9 @@
 import type {KeyboardEvent as ReactKeyboardEvent} from 'react';
-import {find, findIndex, isFunction} from 'lodash';
-import {HoistModel} from '@xh/hoist/core';
+import {find, findIndex} from 'lodash';
+import {HoistModel, lookup} from '@xh/hoist/core';
 import {action, bindable, computed, observable} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
-import type {ChatThreadGroup, ChatThreadListHost, ChatThreadSummary} from '../../../../threads';
+import {type ChatThreadGroup, ChatThreadsModel, type ChatThreadSummary} from '../../../../threads';
 import {
     deleteThreadAsync,
     getListedThreadIds,
@@ -11,23 +11,16 @@ import {
 } from '../../../impl/ChatThreadDelete';
 
 /**
- * Selects a model that can back a thread list - see {@link ChatThreadListHost}. An arrow function,
- * as Hoist reads a function with a prototype as a model class.
- */
-export const isChatThreadListHost = (model: unknown): boolean => {
-    const host = model as ChatThreadListHost;
-    return !!host && 'threads' in host && isFunction(host.selectThreadAsync);
-};
-
-/**
  * Local model for a ChatThreadList: the groups to show, the row being renamed, keyboard focus,
- * and the confirm before a delete. Reads the host from the component's props, or else from a
- * model in context.
+ * and the confirm before a delete.
  *
  * @internal
  */
 export class ChatThreadListLocalModel extends HoistModel {
     override xhImpl = true;
+
+    /** The threads the list shows. */
+    @lookup(ChatThreadsModel) model: ChatThreadsModel;
 
     /** Id of the thread whose title is being edited, or null. (observable) */
     @observable accessor renamingThreadId: string = null;
@@ -41,44 +34,36 @@ export class ChatThreadListLocalModel extends HoistModel {
     /** Id of the row whose More menu is open, or null. (observable) */
     @observable accessor menuThreadId: string = null;
 
-    get host(): ChatThreadListHost {
-        return (
-            (this.componentProps.model as unknown as ChatThreadListHost) ??
-            (this.lookupModel(isChatThreadListHost) as unknown as ChatThreadListHost) ??
-            null
-        );
-    }
-
     /** The search text, trimmed, or null. */
     @computed
     get searchQuery(): string {
-        return this.host?.search?.trim() || null;
+        return this.model.search?.trim() || null;
     }
 
     /** Groups to show: one group of results while searching, else groups by recency. */
     @computed
     get groups(): ChatThreadGroup[] {
-        return getThreadGroups(this.host);
+        return getThreadGroups(this.model);
     }
 
     /** Ids of the threads in the order the list shows them. */
     @computed
     get orderedThreadIds(): string[] {
-        return getListedThreadIds(this.host);
+        return getListedThreadIds(this.model);
     }
 
     /** Id of the row that takes focus on Tab: the focused row, else the selected, else the first. */
     @computed
     get tabbableThreadId(): string {
         const ids = this.orderedThreadIds,
-            candidates = [this.focusThreadId, this.host?.selectedThreadId];
+            candidates = [this.focusThreadId, this.model.selectedThreadId];
         return find(candidates, it => it != null && ids.includes(it)) ?? ids[0] ?? null;
     }
 
     /** True while the list loads and has no threads to show yet. */
     get isLoadingFirst(): boolean {
-        const {host} = this;
-        return !!host?.listTask?.isPending && !host.threads?.length;
+        const {model} = this;
+        return model.listTask.isPending && !model.threads.length;
     }
 
     override onLinked() {
@@ -86,7 +71,7 @@ export class ChatThreadListLocalModel extends HoistModel {
         // thread first appears in the list, as after a deep link.
         this.addReaction({
             track: () => {
-                const id = this.host?.selectedThreadId;
+                const id = this.model.selectedThreadId;
                 return [id, this.orderedThreadIds.includes(id)];
             },
             run: ([id]) => this.scrollRowIntoView(id as string),
@@ -99,21 +84,21 @@ export class ChatThreadListLocalModel extends HoistModel {
     //------------------
     newThread() {
         this.cancelRename();
-        this.host.newThread();
+        this.model.newThread();
     }
 
     selectThread(threadId: string) {
         if (this.renamingThreadId === threadId) return;
         this.setFocusThreadId(threadId);
-        this.host.selectThreadAsync(threadId).catchDefault();
+        this.model.selectThreadAsync(threadId).catchDefault();
     }
 
     setSearch(value: string) {
-        this.host.search = value;
+        this.model.search = value;
     }
 
     retryList() {
-        this.host.refreshAsync?.().catchDefault();
+        this.model.refreshAsync().catchDefault();
     }
 
     @action
@@ -133,7 +118,7 @@ export class ChatThreadListLocalModel extends HoistModel {
 
         this.endRename();
         if (title && thread && title !== thread.title) {
-            this.host.renameThreadAsync(threadId, title).catchDefault();
+            this.model.renameThreadAsync(threadId, title).catchDefault();
         }
         this.focusRow(threadId);
     }
@@ -152,7 +137,7 @@ export class ChatThreadListLocalModel extends HoistModel {
      */
     async deleteThreadAsync(thread: ChatThreadSummary) {
         if (!this.canDelete) return;
-        const confirmed = await deleteThreadAsync(this.host, thread, nextId => {
+        const confirmed = await deleteThreadAsync(this.model, thread, nextId => {
             if (nextId) this.focusRow(nextId);
         });
         if (!confirmed) this.focusRow(thread.id);
@@ -169,11 +154,11 @@ export class ChatThreadListLocalModel extends HoistModel {
     }
 
     get canRename(): boolean {
-        return !!(this.host?.canRename && this.host.renameThreadAsync);
+        return this.model.canRename;
     }
 
     get canDelete(): boolean {
-        return !!(this.host?.canDelete && this.host.deleteThreadsAsync);
+        return this.model.canDelete;
     }
 
     //------------------
@@ -236,7 +221,7 @@ export class ChatThreadListLocalModel extends HoistModel {
     };
 
     onSearchKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape' && this.host.search) {
+        if (e.key === 'Escape' && this.model.search) {
             e.preventDefault();
             e.stopPropagation();
             this.setSearch(null);
@@ -267,7 +252,7 @@ export class ChatThreadListLocalModel extends HoistModel {
     }
 
     private findThread(threadId: string): ChatThreadSummary {
-        return find(this.host?.threads, {id: threadId}) ?? null;
+        return find(this.model.threads, {id: threadId}) ?? null;
     }
 
     private moveFocus(threadId: string, key: string) {
