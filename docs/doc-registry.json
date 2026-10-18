@@ -172,7 +172,6 @@
         "clearLocalData",
         "feedbackErrors",
         "undoErrors",
-        "dataRefreshedAt",
         "ChatRunError",
         "ChatStatus",
         "sendAsync",

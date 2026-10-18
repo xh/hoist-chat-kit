@@ -840,10 +840,7 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
             ? message.toolCalls.filter(
                   it => isToolCallFailed(it) && getToolCallDisplay(it, host) !== 'timeline'
               ).length
-            : 0,
-        endedAt = createdAt + (metadata?.elapsedMs ?? 0),
-        dataRefreshedAt = chatModel?.dataRefreshedAt,
-        isStale = status === 'complete' && dataRefreshedAt != null && dataRefreshedAt > endedAt;
+            : 0;
 
     return div({
         className: 'xh-chat-message__header',
@@ -900,15 +897,6 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
                 ? span({
                       className: 'xh-chat-message__segment xh-chat-message__warning',
                       items: [Icon.warning(), `${pluralize('tool', failedTools, true)} failed`]
-                  })
-                : null,
-            isStale
-                ? span({
-                      className: 'xh-chat-message__segment xh-chat-message__warning',
-                      title:
-                          `Replied ${fmtDateTime(endedAt) as string}. ` +
-                          `Data refreshed ${fmtDateTime(dataRefreshedAt) as string}.`,
-                      items: [Icon.warning(), 'Data refreshed since']
                   })
                 : null,
             ...(messageHeaderItems?.(message, context) ?? [])

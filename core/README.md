@@ -1005,7 +1005,6 @@ See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatCom
 | `allowRegenerate` | `boolean` | Initial value of `allowRegenerate`. Default true. |
 | `textTransform` | `(text, context) => string` | Rewrites reply text before it is stored. `context` holds the `message` and `isStreaming`. |
 | `feedback` | `ChatFeedbackConfig` | `submitAsync`, `commentOn`, `requireComment`, `reasons`, `clearable` and `maxCommentLength`. See [Rate a reply](#rate-a-reply). |
-| `dataRefreshedAt` | `() => number` | Returns the epoch millis of the app's last data refresh, or null. Read as a computed value. A reply that finished before it shows that the data changed. Default none. |
 | `stallAfterMs` | `number` | Milliseconds with no data from the server, heartbeats included, before a reply shows as stalled. Default `ChatKit.defaults.stallAfterMs`. |
 | `track` | `boolean \| ChatTrackOptions` | True, or `{category, severity, logData}`, to track each finished turn. Default false. |
 | `composer` | `ChatComposerConfig` | Config for the managed `composerModel`, without `host`. The chat is the host. |
@@ -1035,7 +1034,6 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `feedbackErrors` | `Record<string, Error>` | Why the last feedback on a message failed to save, by message id, for the form to show. Cleared on the next submit. Observable. |
 | `undoErrors` | `Record<string, Error>` | Why the last undo of a reply failed, by message id. Cleared on the next try. Observable. |
 | `canRefreshStatus` | `boolean` | True once a refresher is set with `setStatusRefresher()`. |
-| `dataRefreshedAt` | `number` | The app's last data refresh, from the config, or null. |
 | `isBusy` | `boolean` | True for `submitted` or `streaming`. False while a turn is paused. |
 | `sendBlockedReason` | `string` | Why sending must wait - while an undo runs, or from the `sendBlocker` or an added blocker - or null. |
 | `isEmpty` | `boolean` | True if there are no messages. |

@@ -1,5 +1,4 @@
 import {XH} from '@xh/hoist/core';
-import {observable, runInAction} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
@@ -790,21 +789,6 @@ describe('ChatModel', () => {
                 errorText: 'Stopped by the user.'
             });
             expect(onTurnComplete).toHaveBeenCalledExactlyOnceWith(model.lastMessage);
-        });
-    });
-
-    describe('dataRefreshedAt', () => {
-        it('reads the app refresh time from its config, as it changes', () => {
-            const state = observable({refreshedAt: 1000}),
-                model = createModel({
-                    transport: scripted([textEvents('Hi.')]),
-                    dataRefreshedAt: () => state.refreshedAt
-                });
-            expect(model.dataRefreshedAt).toBe(1000);
-
-            runInAction(() => (state.refreshedAt = 2000));
-            expect(model.dataRefreshedAt).toBe(2000);
-            expect(createModel({transport: scripted([])}).dataRefreshedAt).toBeNull();
         });
     });
 

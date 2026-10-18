@@ -172,14 +172,6 @@ export interface ChatModelConfig {
     feedback?: ChatFeedbackConfig;
 
     /**
-     * Returns the epoch millis of the app's last refresh of the data the assistant answers from,
-     * or null. A reply that finished before it shows that the data has changed since. Read as a
-     * computed value, so return an observable for the chat to update - see
-     * {@link ChatModel.dataRefreshedAt}. Default none.
-     */
-    dataRefreshedAt?: () => number;
-
-    /**
      * Milliseconds without data from the server, heartbeats included, after which a reply shows
      * as stalled - see {@link ChatModel.lastActivityAt}. Default `ChatKit.defaults.stallAfterMs`.
      */
@@ -569,15 +561,6 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     }
 
     /**
-     * Epoch millis of the app's last data refresh, from the `dataRefreshedAt` config, or null. A
-     * reply's header reads it to say the data has changed since the reply.
-     */
-    @computed
-    get dataRefreshedAt(): number {
-        return this.dataRefreshedAtFn?.() ?? null;
-    }
-
-    /**
      * Why the last feedback on a message failed to save, by message id - for the feedback form to
      * show inline. A message's entry clears when its feedback is submitted again. (observable)
      */
@@ -623,7 +606,6 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             sendBlocker,
             allowEdit = true,
             allowRegenerate = true,
-            dataRefreshedAt,
             onTurnComplete,
             onTurnPause
         } = config;
@@ -669,7 +651,6 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             ...feedback
         };
         this.stallAfterMs = stallAfterMs ?? ChatKit.defaults.stallAfterMs;
-        this.dataRefreshedAtFn = dataRefreshedAt ?? null;
         this._threadId = threadId ?? genChatId();
         // An id given with history is the backend's. A new thread's may yet be replaced by it.
         this.isThreadIdProvisional = threadId == null || !hasHistory(initialMessages);
@@ -1210,7 +1191,6 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     @observableRef private accessor sendBlockers: Array<() => string>;
     private threadCreator: ChatThreadCreator = null;
     @observableRef private accessor statusRefresher: () => Promise<void> = null;
-    private readonly dataRefreshedAtFn: () => number;
 
     // The latest feedback submit for each message, by count - see `submitFeedbackAsync`.
     private readonly feedbackSubmits = new Map<string, number>();

@@ -262,18 +262,6 @@ describe('ChatMessageView', () => {
                 'ModuleNotFoundError: scipy'
             );
         });
-
-        it("flags a reply that finished before the chat's last data refresh", () => {
-            const chatModel = createModel({dataRefreshedAt: () => 2000}, [
-                    reply('a1', [text('t1', 'Answer')], {
-                        createdAt: 1000,
-                        metadata: {elapsedMs: 500}
-                    })
-                ]),
-                {container} = renderList(chatModel);
-
-            expect(header(container).textContent).toContain('Data refreshed since');
-        });
     });
 
     describe('the action bar', () => {
