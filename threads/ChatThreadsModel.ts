@@ -207,11 +207,6 @@ export class ChatThreadsModel extends HoistModel {
         return !!this.store.deleteThreadsAsync;
     }
 
-    /** True if the store's search covers message text, not just titles. */
-    get searchesMessages(): boolean {
-        return !!this.store.searchesMessages;
-    }
-
     constructor(config: ChatThreadsConfig) {
         super();
         const {store, createChatModel, route = null} = config;

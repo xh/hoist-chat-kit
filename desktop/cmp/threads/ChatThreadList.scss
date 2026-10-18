@@ -142,36 +142,6 @@
     white-space: nowrap;
   }
 
-  // A search result's title over its matching snippet.
-  &__row--snippet {
-    height: auto;
-    min-height: var(--xh-chat-sidebar-row-height);
-    padding-bottom: 4px;
-    padding-top: 4px;
-  }
-
-  &__text {
-    display: flex;
-    flex: 1 1 auto;
-    flex-direction: column;
-    min-width: 0;
-  }
-
-  &__snippet {
-    color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-chat-meta-font-size);
-    font-weight: 400;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &__scope {
-    color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-chat-meta-font-size);
-    padding: 2px 8px 4px;
-  }
-
   &__time {
     color: var(--xh-chat-meta-text-color);
     flex: none;

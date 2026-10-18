@@ -23,9 +23,7 @@ Import from `@xh/hoist-chat-kit/desktop/cmp/threads`.
 Key features:
 
 - **Recency groups** - Today, Yesterday, Previous 7 days, Previous 30 days and Older,
-  from `groupThreadsByRecency()`. A search shows one group of results instead, each with the
-  matching snippet when the store gives one. A store whose search skips message text shows
-  "Searching titles".
+  from `groupThreadsByRecency()`. A search shows one group of results instead.
 - **Row actions** - Rename and a More menu replace the time on hover or focus. More holds
   Copy Thread ID and Delete. The list hides each action the store cannot take.
 - **Inline rename** - Enter or a blur saves, and Escape keeps the old title.
@@ -134,7 +132,6 @@ It also takes Hoist's `BoxProps` for layout.
 | `selectedThreadId` | `string` | The open thread. |
 | `newThread()`, `selectThreadAsync()` | methods | New Chat, and a click on a row. |
 | `search` | `string` | Text to search for. The search input reads and writes it. |
-| `searchesMessages` | `boolean` | True if the store's search covers message text. Without it, the list shows "Searching titles". |
 | `runningThreadIds`, `awaitingThreadIds`, `finishedAwayThreadIds` | `string[]` | Row states. |
 | `listError` | `Error` | The last list failure. |
 | `listTask` | `TaskObserver` | Shows the skeleton while the first load is pending. |

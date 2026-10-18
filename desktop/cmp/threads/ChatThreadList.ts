@@ -165,9 +165,6 @@ function body(impl: ChatThreadListLocalModel): ReactNode {
                   ]
               })
             : null,
-        impl.searchQuery != null && !model.searchesMessages
-            ? div({key: 'scope', className: 'xh-chat-thread-list__scope', item: 'Searching titles'})
-            : null,
         div({
             key: 'list',
             className: 'xh-chat-thread-list__list',
@@ -201,8 +198,6 @@ function threadGroup(impl: ChatThreadListLocalModel, group: ChatThreadGroup): Re
 function threadRow(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): ReactNode {
     const {model} = impl,
         {id, title} = thread,
-        // A snippet shows only in search results.
-        snippet = impl.searchQuery != null ? thread.snippet?.trim() || null : null,
         isSelected = id === model.selectedThreadId,
         status = getRowStatus(model, thread, isSelected),
         isRenaming = impl.renamingThreadId === id,
@@ -215,10 +210,9 @@ function threadRow(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): R
         'aria-level': 1,
         tabIndex: impl.tabbableThreadId === id ? 0 : -1,
         'aria-selected': isSelected,
-        'aria-label': [title, snippet, STATUS_WORDS[status] ?? time].filter(Boolean).join(', '),
+        'aria-label': [title, STATUS_WORDS[status] ?? time].filter(Boolean).join(', '),
         className: classNames(
             'xh-chat-thread-list__row',
-            snippet && 'xh-chat-thread-list__row--snippet',
             isSelected && 'xh-chat-thread-list__row--selected',
             status && `xh-chat-thread-list__row--${status}`,
             impl.menuThreadId === id && 'xh-chat-thread-list__row--menu-open',
@@ -238,21 +232,7 @@ function threadRow(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): R
                       role: 'gridcell',
                       items: [
                           rowIcon(thread, status),
-                          snippet
-                              ? span({
-                                    className: 'xh-chat-thread-list__text',
-                                    items: [
-                                        span({
-                                            className: 'xh-chat-thread-list__title',
-                                            item: title
-                                        }),
-                                        span({
-                                            className: 'xh-chat-thread-list__snippet',
-                                            item: snippet
-                                        })
-                                    ]
-                                })
-                              : span({className: 'xh-chat-thread-list__title', item: title}),
+                          span({className: 'xh-chat-thread-list__title', item: title}),
                           span({
                               className: 'xh-chat-thread-list__time',
                               item: status === 'running' ? 'Working' : time

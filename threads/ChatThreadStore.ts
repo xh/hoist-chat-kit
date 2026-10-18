@@ -15,13 +15,6 @@ import type {ChatFeedbackSpec, ChatMessageSpec} from '../core';
  */
 export interface ChatThreadStore {
     /**
-     * True if the search of `listThreadsAsync` covers the text of messages, not just titles. A
-     * store that sets it may return each match's `snippet`. Without it, a thread list says
-     * "Searching titles" while it searches.
-     */
-    readonly searchesMessages?: boolean;
-
-    /**
      * The user's threads, most recently active first. The store decides how many to return, such
      * as the most recent 100.
      */
@@ -68,12 +61,6 @@ export interface ChatThreadSummary {
 
     /** Why the last run ended as it did, for a thread list to show in a tooltip. */
     lastRunReason?: string;
-
-    /**
-     * For a search result, the passage of the thread that matched, as plain text - see
-     * {@link ChatThreadStore.searchesMessages}. A thread list shows it under the title.
-     */
-    snippet?: string;
 
     /** App data about the thread. */
     metadata?: PlainObject;

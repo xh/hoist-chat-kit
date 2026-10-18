@@ -4,12 +4,7 @@ import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatModel} from '../../../core';
-import {
-    type ChatThreadQuery,
-    ChatThreadsModel,
-    type LocalChatThread,
-    LocalChatThreadStore
-} from '../../../threads';
+import {ChatThreadsModel, type LocalChatThread, LocalChatThreadStore} from '../../../threads';
 import {ScriptedChatTransport, textEvents} from '../../../transport';
 import {chatThreadList} from './ChatThreadList';
 
@@ -250,39 +245,6 @@ describe('ChatThreadList', () => {
             'Cut short, last reply interrupted'
         );
         expect(row('Plain').getAttribute('aria-label')).toMatch(/^Plain, \d\d:\d\d$/);
-    });
-
-    it('says it searches titles only, for a store whose search skips message text', async () => {
-        vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']});
-        const {model} = await renderList();
-
-        act(() => (model.search = 'budget'));
-        await act(() => vi.advanceTimersByTimeAsync(350));
-
-        expect(screen.getByText('Searching titles')).toBeTruthy();
-    });
-
-    it('shows the matching snippet under a result, for a store that searches messages', async () => {
-        vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']});
-        const store = new LocalChatThreadStore({threads: THREADS}),
-            listThreadsAsync = store.listThreadsAsync.bind(store);
-        Object.assign(store, {
-            searchesMessages: true,
-            listThreadsAsync: async (query: ChatThreadQuery) => {
-                const page = await listThreadsAsync(query);
-                if (!query.search) return page;
-                return {threads: page.threads.map(it => ({...it, snippet: 'the Q3 budget'}))};
-            }
-        });
-        const {model} = await renderList({store});
-
-        act(() => (model.search = 'budget'));
-        await act(() => vi.advanceTimersByTimeAsync(350));
-
-        expect(screen.queryByText('Searching titles')).toBeNull();
-        const result = row('Budget review');
-        expect(within(result).getByText('the Q3 budget')).toBeTruthy();
-        expect(result.getAttribute('aria-label')).toMatch(/^Budget review, the Q3 budget/);
     });
 
     it('hides the search input with enableSearch false', async () => {
