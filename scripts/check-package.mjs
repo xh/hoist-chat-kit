@@ -36,7 +36,7 @@ for (const file of files) {
     if (!file.endsWith('.ts')) continue;
     const source = readFileSync(path.join(root, file), 'utf8');
     // Static, side-effect and dynamic imports, and re-exports.
-    for (const [, spec] of source.matchAll(/(?:from|import)\s*\(?'(\.{1,2}\/[^']+)'/g)) {
+    for (const [, spec] of source.matchAll(/(?:from|import)\s*\(?\s*'(\.{1,2}\/[^']+)'/g)) {
         const target = path.posix.normalize(path.posix.join(path.posix.dirname(file), spec));
         if (target.startsWith('test/')) {
             errors.push(`Imports test support: ${file} imports ${spec}`);
