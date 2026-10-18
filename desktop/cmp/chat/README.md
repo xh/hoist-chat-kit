@@ -717,6 +717,9 @@ denied call renders no output. A call that waits for approval renders none eithe
 tool sets `preview: true` to show what it will display. A `ChatUiCatalog` declares its
 tools this way - see [`/genui/`](../../../genui/README.md).
 
+An inline tool with no `renderer` shows the call's output itself, once it has one. Text renders
+as markdown, and any other value as JSON. This suits a tool whose result is the answer.
+
 An interactive tool needs a renderer, because the default card has no controls for an answer.
 `ChatModel` logs a warning for an interactive tool with no `renderer`. While a call waits for
 its answer, the card shows "Waiting for you". See

@@ -1216,14 +1216,13 @@ views show it as cancelled, not failed. `isToolCallCancelled(part)` tests for it
 
 #### Tool display
 
-`display` takes one of six values. Each tool sets its own, and a reply can mix them.
+`display` takes one of five values. Each tool sets its own, and a reply can mix them.
 
 | Value | Shows each call as | Use it for |
 |-------|--------------------|------------|
 | `card` | A quiet row with title, summary and status, that opens to the input and output, or to the `renderer` output. Two or more calls of one step fold into one "Used 3 tools" row. | Replies with a few calls. The default. |
-| `inline` | The `renderer` output alone, in the reply. A status shows only while the input streams, while the call waits for approval, or once it fails or is denied. A denied call renders no output. | Tools that show UI, such as the tools of a `ChatUiCatalog`. |
+| `inline` | The `renderer` output alone, in the reply. With no `renderer`, the output itself once the call has one, as markdown if it is text. A status shows only while the input streams, while the call waits for approval, or once it fails or is denied. A denied call renders no output. | Tools that show UI, such as the tools of a `ChatUiCatalog`. A tool whose result is the answer. |
 | `timeline` | A row in the reply's activity timeline, one compact block for the whole run. Text between two timeline calls folds into the block as narration. | Agents that make many calls per reply. See [Activity timeline](../desktop/cmp/chat/README.md#activity-timeline). |
-| `answer` | Part of the answer, with no row: the `renderer` output, or else the output itself, as markdown if it is text. Status shows as for `inline`. | A tool whose result is the answer, such as a final answer tool. |
 | `pinned` | The plan pinned to the top of the reply's timeline, from the latest call only. With no timeline in the reply, a `card`. | A plan or checklist tool. |
 | `hidden` | Nothing, unless the call waits for the user to approve or answer it. Hidden calls count in no summary. | Bookkeeping calls the user has no use for. |
 

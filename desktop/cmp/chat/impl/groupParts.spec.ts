@@ -156,7 +156,7 @@ describe('groupParts by display mode', () => {
         {name: 'step', display: 'timeline'},
         {name: 'plan', display: 'pinned'},
         {name: 'secret', display: 'hidden'},
-        {name: 'final', display: 'answer'},
+        {name: 'final', display: 'inline'},
         {name: 'ask', interactive: true, display: 'hidden', renderer: () => null}
     ];
 
@@ -247,7 +247,7 @@ describe('groupParts by display mode', () => {
         expect(groups.map(it => it.id)).toEqual(['c2', 't1']);
     });
 
-    it('treats answer calls as output, not process', () => {
+    it('treats inline calls as output, not process', () => {
         const host = chatModel(tools),
             runs = groupProcessRuns(
                 groupParts([call('c1'), call('c2', {toolName: 'final', step: 1})], host),
