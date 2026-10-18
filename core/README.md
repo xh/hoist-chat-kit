@@ -55,7 +55,6 @@ ChatModel (HoistModel)
 ├── historyMode: ChatHistoryMode      # 'client' | 'server' - who owns the history
 ├── runOptions: PlainObject           # Options for the next turn (bindable)
 ├── allowEdit, allowRegenerate        # Show Edit and Regenerate (bindable)
-├── hasOlderMessages: boolean         # More history to page in (bindable)
 ├── Computed:
 │   ├── isBusy                        # True while a turn runs - false while paused
 │   ├── isAwaitingUser                # True while a turn waits on the user
@@ -74,7 +73,6 @@ ChatModel (HoistModel)
     ├── addToolOutputAsync()          # Answer a call to an interactive tool
     ├── submitFeedbackAsync()         # Rate a reply, or clear its rating
     ├── loadMessages() / clear()      # Replace the conversation, as a new thread
-    ├── prependMessages()             # Add a page of older history
     └── getMessageSpecs()             # The conversation as JSON, for storage
 
 ChatMessage (immutable)
@@ -483,20 +481,6 @@ Hoist activity tracking. Each turn tracks once, in category `Chat` by default, a
 complete`, `Turn failed` or `Turn stopped`. Its data holds `elapsedMs`, `steps`, `toolCalls`,
 `toolErrors`, `finishReason`, `errorCode`, `threadId`, `runId` and `historyMode`. It never holds
 message text. A submitted rating tracks as `Feedback submitted`, without its comment.
-
-### Page in older history
-
-A thread layer that loads history a page at a time calls `prependMessages()` with each older
-page, and sets `hasOlderMessages` to show whether more remain. The chat skips messages already
-present, by id.
-
-```typescript
-const page = await store.loadMessagesAsync({threadId, cursor});
-chatModel.prependMessages(page.messages);
-chatModel.hasOlderMessages = !!page.nextCursor;
-```
-
-`ChatThreadsModel` does this for you. See [`/threads/`](../threads/README.md).
 
 ### Ask for approval before a tool runs
 
@@ -1030,7 +1014,6 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `runOptions` | `PlainObject` | Options for the next turn. `@bindableRef` - replace the value to change it. |
 | `allowEdit` | `boolean` | True to show Edit, Edit Prompt and Edit Question. While false, `editMessageAsync()` does nothing. `@bindable`. |
 | `allowRegenerate` | `boolean` | True to show Regenerate. While false, `regenerateAsync()` does nothing. `@bindable`. |
-| `hasOlderMessages` | `boolean` | True if older history remains to page in. `@bindable`. Default false. |
 | `canSubmitFeedback` | `boolean` | True if `feedback.submitAsync` or a thread layer submitter is set. |
 | `feedbackErrors` | `Record<string, Error>` | Why the last feedback on a message failed to save, by message id, for the form to show. Cleared on the next submit. Observable. |
 | `undoErrors` | `Record<string, Error>` | Why the last undo of a reply failed, by message id. Cleared on the next try. Observable. |
@@ -1070,7 +1053,6 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `undoTurnAsync(messageId)` | Run the reply's undo functions, newest first, and mark it `metadata.undone`. A failure stops the undo and goes in `undoErrors`. |
 | `clear()` | Remove all messages and start a new thread. |
 | `loadMessages(specs, threadId?)` | Replace the conversation. Default a new thread id. |
-| `prependMessages(specs)` | Add older messages ahead of the conversation, skipping ids already present. |
 | `submitFeedbackAsync(messageId, rating, comment?, reasons?)` | Rate a reply, or clear its rating with null. Shows at once. If the submit fails, it reverts and records the error in `feedbackErrors`, with no toast. |
 | `setStatusRefresher(refreshAsync)` | Set the function that reloads the thread, for Refresh Status. For a thread layer. |
 | `refreshStatusAsync()` | Reload the thread to learn how a run ended. Does nothing without a refresher. |

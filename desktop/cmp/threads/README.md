@@ -34,7 +34,7 @@ Key features:
 - **Row states** - a spinner and "Working" for a running turn, a pause icon for a turn that
   waits for the user, a dot for a reply the user has not seen, and a warning for a run that
   ended early.
-- **List states** - a static skeleton while the first page loads, an empty message, no search
+- **List states** - a static skeleton while the first list loads, an empty message, no search
   results, and a failed load with Retry, through Hoist's `ErrorMessage`.
 - **Keyboard and screen reader support** - a tree grid named "Threads", one level deep, with
   arrow keys between rows. A grid, not a listbox, because each row holds buttons.
@@ -160,7 +160,6 @@ It also takes Hoist's `BoxProps` for layout.
 | `runningThreadIds`, `awaitingThreadIds`, `finishedAwayThreadIds` | `string[]` | Row states. |
 | `listError` | `Error` | The last list failure. |
 | `listTask` | `TaskObserver` | Shows the skeleton while the first load is pending. |
-| `hasMoreThreads`, `loadMoreThreadsAsync()` | | Load More, and a load on scroll near the end. |
 | `canRename`, `renameThreadAsync()` | | Rename. |
 | `canDelete`, `deleteThreadsAsync()` | | Delete. |
 | `refreshAsync()` | method | Retry after a failed load. |

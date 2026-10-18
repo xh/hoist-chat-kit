@@ -166,11 +166,6 @@ describe('ChatModel catalog', () => {
             });
             expect(model.artifacts.get('sales')).not.toBeNull();
 
-            model.prependMessages([
-                {role: 'assistant', parts: [], metadata: {artifacts: [artifact('older', 1)]}}
-            ]);
-            expect(model.artifacts.get('older')).not.toBeNull();
-
             model.loadMessages([
                 {role: 'assistant', parts: [], metadata: {artifacts: [artifact('costs', 2)]}}
             ]);

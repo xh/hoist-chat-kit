@@ -35,7 +35,6 @@ describe('ChatThreadsModel', () => {
 
             expect(ids(model.threads)).toEqual(['t1', 't2', 't3']);
             expect(model).toMatchObject({canRename: true, canDelete: true});
-            expect(model.hasMoreThreads).toBe(false);
         });
 
         it('hides the actions the store lacks', async () => {
@@ -45,22 +44,6 @@ describe('ChatThreadsModel', () => {
 
             expect(model).toMatchObject({canRename: false, canDelete: true});
             await expect(model.renameThreadAsync('t1', 'New')).rejects.toThrow('cannot rename');
-        });
-
-        it('loads further pages, and keeps them when the list refreshes', async () => {
-            const {model, store} = setup({pageSize: 2});
-
-            await model.loadAsync();
-            expect(ids(model.threads)).toEqual(['t1', 't2']);
-            expect(model.hasMoreThreads).toBe(true);
-
-            await model.loadMoreThreadsAsync();
-            expect(ids(model.threads)).toEqual(['t1', 't2', 't3']);
-            expect(model.hasMoreThreads).toBe(false);
-
-            await model.refreshAsync();
-            expect(ids(model.threads)).toEqual(['t1', 't2', 't3']);
-            expect(listCalls(store).at(-1)).toMatchObject({limit: 3});
         });
 
         it('searches on the server, debounced, and drops results for an older search', async () => {
@@ -664,30 +647,7 @@ describe('ChatThreadsModel', () => {
         });
     });
 
-    describe('history paging', () => {
-        it('loads history a page at a time, newest first', async () => {
-            const messages = ['m1', 'm2', 'm3', 'm4', 'm5'].map(id => ({
-                    id,
-                    role: 'user' as const,
-                    content: id
-                })),
-                {model} = setup({
-                    store: new LocalChatThreadStore({threads: [{id: 'long', messages}]}),
-                    historyPageSize: 2
-                });
-
-            await model.selectThreadAsync('long');
-            expect(texts(model.chatModel)).toEqual(['m4', 'm5']);
-            expect(model.chatModel.hasOlderMessages).toBe(true);
-
-            await model.loadOlderMessagesAsync();
-            expect(texts(model.chatModel)).toEqual(['m2', 'm3', 'm4', 'm5']);
-
-            await model.loadOlderMessagesAsync();
-            expect(texts(model.chatModel)).toEqual(['m1', 'm2', 'm3', 'm4', 'm5']);
-            expect(model.chatModel.hasOlderMessages).toBe(false);
-        });
-
+    describe('history', () => {
         it("applies only the newest load of a thread's history", async () => {
             const {model, store} = setup();
             store.hold('loadMessagesAsync');

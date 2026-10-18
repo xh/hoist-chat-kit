@@ -7,11 +7,10 @@ import type {ChatMessageSpec} from './ChatMessage';
 import {ChatModel, type ChatModelConfig} from './ChatModel';
 
 /**
- * Feedback and paged history on a ChatModel. A rating must show at once and revert if the
- * backend rejects it, without undoing a newer rating, and must reach the backend with the ids it
- * keys on. Older pages of a thread must slot in ahead of the conversation without duplicates.
+ * Feedback on a ChatModel. A rating must show at once and revert if the backend rejects it,
+ * without undoing a newer rating, and must reach the backend with the ids it keys on.
  */
-describe('ChatModel feedback and paged history', () => {
+describe('ChatModel feedback', () => {
     beforeAll(async () => {
         await initTestAppAsync();
     });
@@ -193,43 +192,6 @@ describe('ChatModel feedback and paged history', () => {
                 })
             );
             expect(JSON.stringify(track.mock.calls)).not.toContain('Private remark');
-        });
-    });
-
-    describe('prependMessages', () => {
-        it('adds older messages ahead of the conversation, skipping those already present', () => {
-            const model = createModel();
-
-            model.prependMessages([
-                {id: 'u0', role: 'user', content: 'Older'},
-                {id: 'a0', role: 'assistant', content: 'Older reply'},
-                {id: 'u1', role: 'user', content: 'Duplicate'}
-            ]);
-            model.hasOlderMessages = true;
-
-            expect(model.messages.map(it => it.id)).toEqual(['u0', 'a0', 'u1', 'a1']);
-            expect(model.messages[2].text).toBe('Question');
-            expect(model.hasOlderMessages).toBe(true);
-        });
-
-        it('closes a paused turn among older messages', () => {
-            const model = createModel();
-
-            model.prependMessages([
-                {id: 'u0', role: 'user', content: 'Older'},
-                {id: 'a0', role: 'assistant', status: 'paused', parts: []}
-            ]);
-
-            expect(model.getMessage('a0').status).toBe('complete');
-        });
-
-        it('resets hasOlderMessages when another thread loads', () => {
-            const model = createModel();
-            model.hasOlderMessages = true;
-
-            model.loadMessages([], 'thread-2');
-
-            expect(model.hasOlderMessages).toBe(false);
         });
     });
 });

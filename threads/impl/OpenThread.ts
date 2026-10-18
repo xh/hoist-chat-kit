@@ -33,12 +33,6 @@ export class OpenThread extends HoistBase {
     /** Why the history failed to load, or null. (observable) */
     @observableRef accessor loadError: Error = null;
 
-    /** Cursor for the page of older history, or null if there is none. */
-    olderCursor: string = null;
-
-    /** The load of older history in flight, or null. */
-    olderLoad: Promise<void> = null;
-
     constructor({chatModel, isLoaded, onThreadIdChange, onBusyChange}: OpenThreadConfig) {
         super();
         this.chatModel = chatModel;
@@ -80,13 +74,7 @@ export class OpenThread extends HoistBase {
     @action
     resetLoad() {
         this.loadCount++;
-        this.olderCursor = null;
         this.endLoad();
-    }
-
-    /** Key of the latest load - see {@link isLoadCurrent}. */
-    get loadKey(): number {
-        return this.loadCount;
     }
 
     /** True if the load with this key is the latest, and the thread is still open. */

@@ -116,11 +116,7 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
                           })
                       })
                     : null,
-                div({
-                    className: 'xh-chat-thread-list__body',
-                    onScroll: impl.onBodyScroll,
-                    items: [body(impl), loadMoreButton(impl)]
-                })
+                div({className: 'xh-chat-thread-list__body', item: body(impl)})
             ]
         });
     }
@@ -380,21 +376,6 @@ function renameInput(impl: ChatThreadListLocalModel): ReactNode {
     });
 }
 
-function loadMoreButton(impl: ChatThreadListLocalModel): ReactNode {
-    const {host} = impl;
-    if (!host.hasMoreThreads || !host.loadMoreThreadsAsync || isEmpty(host.threads)) return null;
-    return div({
-        key: 'more',
-        className: 'xh-chat-thread-list__more',
-        item: button({
-            text: 'Load More',
-            minimal: true,
-            disabled: !!host.listTask?.isPending,
-            onClick: () => impl.loadMore()
-        })
-    });
-}
-
 function emptyList(): ReactNode {
     return div({
         className: 'xh-chat-thread-list__empty',
@@ -461,5 +442,5 @@ function fmtRowTime(timestamp: number): string {
     return fmtDate(timestamp, fmt) as string;
 }
 
-/** Placeholder rows while the first page of threads loads. */
+/** Placeholder rows while the first list of threads loads. */
 const SKELETON_ROWS = 6;

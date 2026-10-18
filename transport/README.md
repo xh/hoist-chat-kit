@@ -438,7 +438,7 @@ message the chat holds, as in client mode. AG-UI 1.0 has no mode for new message
 "MUST treat it as the complete history it is being shown". Adapters that keep state, such as
 LangGraph's, merge the history by message id. Adapters that keep none, such as Pydantic AI's by
 default, need all of it. A tool result always travels with the assistant message that called the
-tool. A thread loaded a page at a time sends only the pages it has loaded.
+tool.
 
 Each message goes with the server's id where the chat has one, so that an adapter that merges by
 id finds its own messages. A message takes its `metadata.serverId`. A reply that streamed as

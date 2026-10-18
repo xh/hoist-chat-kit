@@ -40,9 +40,6 @@ export interface ChatThreadListHost {
     /** Tracks loads of the list. The list shows a skeleton while the first load is pending. */
     readonly listTask?: TaskObserver;
 
-    /** True if there are more threads to list - see {@link loadMoreThreadsAsync}. */
-    readonly hasMoreThreads?: boolean;
-
     /** True to show Rename. Requires {@link renameThreadAsync}. */
     readonly canRename?: boolean;
 
@@ -60,9 +57,6 @@ export interface ChatThreadListHost {
 
     /** Delete threads. The list confirms with the user first. */
     deleteThreadsAsync?(threadIds: string[]): Promise<unknown>;
-
-    /** Load the next page of threads. The list shows Load More while `hasMoreThreads`. */
-    loadMoreThreadsAsync?(): Promise<unknown>;
 
     /** Reload the list. The list offers it as Retry after a failed load. */
     refreshAsync?(): Promise<unknown>;

@@ -218,17 +218,6 @@ describe('ChatThreadList', () => {
         expect(rowTitles()).toHaveLength(4);
     });
 
-    it('loads more threads from the Load More button', async () => {
-        const {model} = await renderList({pageSize: 2});
-        expect(rowTitles()).toHaveLength(2);
-
-        fireEvent.click(screen.getByRole('button', {name: 'Load More'}));
-        await act(() => wait());
-
-        expect(rowTitles()).toHaveLength(4);
-        expect(model.hasMoreThreads).toBe(false);
-    });
-
     describe('with a host of its own', () => {
         it('marks threads that run, wait for the user, have a new reply or were interrupted', () => {
             const host = new TestHost({
@@ -320,13 +309,11 @@ class NoopResizeObserver {
 }
 
 async function renderList({
-    store = new LocalChatThreadStore({threads: THREADS}),
-    pageSize = 50
-}: {store?: LocalChatThreadStore; pageSize?: number} = {}) {
+    store = new LocalChatThreadStore({threads: THREADS})
+}: {store?: LocalChatThreadStore} = {}) {
     const transport = new ScriptedChatTransport({responses: [textEvents('Hi.')], delayMs: 0}),
         model = new ChatThreadsModel({
             store,
-            pageSize,
             createChatModel: ({threadId}) =>
                 new ChatModel({transport, threadId, historyMode: 'server'})
         });

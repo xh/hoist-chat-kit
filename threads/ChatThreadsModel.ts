@@ -42,12 +42,6 @@ export interface ChatThreadsConfig {
      */
     createChatModel: (spec: ChatThreadChatSpec) => ChatModel;
 
-    /** Threads to list per page. Default 50. */
-    pageSize?: number;
-
-    /** Messages to load per page of a thread's history. Default 50. */
-    historyPageSize?: number;
-
     /**
      * True to let threads run turns at the same time. Default true. If false, a thread cannot
      * send while another thread's turn runs - for a backend that runs one turn per user.
@@ -93,9 +87,9 @@ export interface ChatSeedSpec {
  * The app implements a {@link ChatThreadStore} against its backend, and supplies a
  * `createChatModel` function that builds the chat for a thread.
  *
- * The model lists the threads a page at a time, with server-side search, and renames and deletes
- * them at once, rolling back with a toast if the store fails. It holds a `ChatModel` for
- * each open thread: the selected one, and any other with a turn running. A turn therefore runs on
+ * The model lists the threads, with server-side search, and renames and deletes them at once,
+ * rolling back with a toast if the store fails. It holds a `ChatModel` for each open thread: the
+ * selected one, and any other with a turn running. A turn therefore runs on
  * in the background when the user switches threads, and the list shows its thread as running. A
  * chat that is neither selected nor busy is destroyed. The thread's draft and run options are kept
  * for when it opens again.
@@ -118,26 +112,17 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     /** Adapter to the backend that stores the threads. */
     readonly store: ChatThreadStore;
 
-    /** Threads to list per page. */
-    readonly pageSize: number;
-
-    /** Messages to load per page of a thread's history. */
-    readonly historyPageSize: number;
-
     /** True if threads may run turns at the same time. */
     readonly allowConcurrentTurns: boolean;
 
     /** The route that holds the selected thread, or null. */
     readonly route: ChatThreadsRoute;
 
-    /** Tracks loads of the thread list - the first page, a refresh, or a further page. */
+    /** Tracks loads of the thread list. */
     @managed readonly listTask = TaskObserver.trackLast();
 
     /** Tracks the load of the selected thread's history. */
     @managed readonly loadTask = TaskObserver.trackLast();
-
-    /** Tracks the load of older history for the selected thread. */
-    @managed readonly olderMessagesTask = TaskObserver.trackLast();
 
     //-----------------------
     // Observable State
@@ -204,12 +189,6 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
      */
     @observableRef accessor finishedAwayThreadIds: string[] = [];
 
-    /** True if the store has more threads to list - see {@link loadMoreThreadsAsync}. */
-    @computed
-    get hasMoreThreads(): boolean {
-        return this.nextCursor != null;
-    }
-
     /**
      * Why the selected thread's history failed to load, or null. Sends wait in that thread - and
      * only that thread - until {@link reloadThreadAsync} succeeds.
@@ -236,21 +215,12 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
 
     constructor(config: ChatThreadsConfig) {
         super();
-        const {
-            store,
-            createChatModel,
-            pageSize = 50,
-            historyPageSize = 50,
-            allowConcurrentTurns = true,
-            route = null
-        } = config;
+        const {store, createChatModel, allowConcurrentTurns = true, route = null} = config;
         throwIf(!store, 'ChatThreadsModel requires a store.');
         throwIf(!createChatModel, 'ChatThreadsModel requires a createChatModel function.');
 
         this.store = store;
         this.createChatModel = createChatModel;
-        this.pageSize = pageSize;
-        this.historyPageSize = historyPageSize;
         this.allowConcurrentTurns = allowConcurrentTurns;
         this.route = route;
 
@@ -274,19 +244,15 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         }
     }
 
-    /** Load the first page of threads, for the current search, or reload as many as are listed. */
+    /** Load the threads, for the current search. */
     override async doLoadAsync(loadSpec: LoadSpec) {
         // Ordered by a count of our own rather than `loadSpec.isStale`, as a list applies unless a
-        // newer list has already applied, and further pages are checked against the same count.
+        // newer list has already applied.
         const search = this.searchQuery,
-            listNumber = this.listCount++,
-            limit =
-                search === this.listedSearch
-                    ? Math.max(this.pageSize, this.listedThreads.length)
-                    : this.pageSize;
+            listNumber = this.listCount++;
 
         try {
-            const page = await this.store.listThreadsAsync({search, limit}).linkTo(this.listTask);
+            const page = await this.store.listThreadsAsync({search}).linkTo(this.listTask);
             if (this.isListCurrent(listNumber, search)) this.applyThreadPage(page, listNumber);
         } catch (e) {
             if (!this.isListCurrent(listNumber, search)) return;
@@ -346,30 +312,6 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     }
 
     /**
-     * Load the page of older messages for the selected thread, ahead of those shown. Sets the
-     * chat's `hasOlderMessages` to show whether more remain.
-     */
-    async loadOlderMessagesAsync(): Promise<void> {
-        const thread = this.selectedThread;
-        if (!thread?.olderCursor || thread.loadState !== 'loaded') return;
-
-        thread.olderLoad ??= this.doLoadOlderMessagesAsync(thread).finally(() => {
-            thread.olderLoad = null;
-        });
-        await thread.olderLoad;
-    }
-
-    /** Load the next page of threads, if the store has more - see {@link hasMoreThreads}. */
-    async loadMoreThreadsAsync(): Promise<void> {
-        if (this.nextCursor == null) return;
-
-        this.moreThreadsLoad ??= this.doLoadMoreThreadsAsync().finally(() => {
-            this.moreThreadsLoad = null;
-        });
-        await this.moreThreadsLoad;
-    }
-
-    /**
      * Rename a thread. The new title shows at once, and reverts with a toast if the store fails.
      * Requires the store's `renameThreadAsync` - see {@link canRename}.
      */
@@ -416,7 +358,7 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     // Threads with an open chat, by thread id.
     @observableRef private accessor openThreads: Record<string, OpenThread> = {};
 
-    // Threads from the store's applied list and its further pages, as the store sent them.
+    // Threads from the store's applied list, as the store sent them.
     @observableRef private accessor listedThreads: ChatThreadSummary[] = [];
 
     // Threads started here that the store has not listed yet, newest first.
@@ -425,15 +367,12 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     // Renames and deletes, laid over the threads until a list requested after they ended.
     @observableRef private accessor pendingChanges: PendingChange[] = [];
 
-    // Search of the applied list, and its cursor for the next page.
+    // Search of the applied list.
     @observable private accessor listedSearch: string = null;
-    @observable private accessor nextCursor: string = null;
 
     // Lists requested, and the number of the last one applied - see `isListCurrent`.
     private listCount = 0;
     private appliedListNumber = -1;
-
-    private moreThreadsLoad: Promise<void> = null;
 
     // Calls to the store's `createThreadAsync`, by local id - resolving to the thread's id.
     private readonly threadCreates = new Map<string, Promise<string>>();
@@ -598,7 +537,6 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         this.selectedThreadId = threadId;
         this.finishedAwayThreadIds = without(this.finishedAwayThreadIds, threadId);
         this.loadTask.clear();
-        this.olderMessagesTask.clear();
         this.closeIdleThreads();
     }
 
@@ -674,9 +612,7 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
             loadKey = thread.beginLoad();
 
         try {
-            const page = await this.store
-                .loadMessagesAsync({threadId, limit: this.historyPageSize})
-                .linkTo(this.loadTask);
+            const page = await this.store.loadMessagesAsync({threadId}).linkTo(this.loadTask);
             if (thread.isLoadCurrent(loadKey)) this.applyHistory(thread, threadId, page);
         } catch (e) {
             if (!thread.isLoadCurrent(loadKey)) {
@@ -694,7 +630,6 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     private applyHistory(thread: OpenThread, threadId: string, page: ChatMessagePage) {
         const {chatModel} = thread;
         chatModel.loadMessages(page.messages ?? [], threadId);
-        chatModel.hasOlderMessages = page.nextCursor != null;
         // TODO(design-open B4) - run options, such as a document scope, belong to the thread.
         // The thread opens with those of its last question, unless the user changed them here.
         const lastRunOptions = findLast(chatModel.messages, it => it.isUser)?.metadata.runOptions;
@@ -704,39 +639,7 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         ) {
             chatModel.runOptions = cloneDeep(lastRunOptions);
         }
-        thread.olderCursor = page.nextCursor ?? null;
         thread.endLoad();
-    }
-
-    private async doLoadOlderMessagesAsync(thread: OpenThread) {
-        const {chatModel, olderCursor: cursor, loadKey} = thread,
-            {threadId} = chatModel;
-
-        try {
-            const page = await this.store
-                .loadMessagesAsync({threadId, cursor, limit: this.historyPageSize})
-                .linkTo(this.olderMessagesTask);
-            if (thread.isLoadCurrent(loadKey) && thread.olderCursor === cursor) {
-                this.applyOlderMessages(thread, page);
-            }
-        } catch (e) {
-            if (!thread.isLoadCurrent(loadKey)) {
-                this.logWarn(`Discarded a failed load of thread ${threadId}, no longer open`, e);
-                return;
-            }
-            XH.handleException(e, {
-                message: 'Older messages did not load. Try again.',
-                alertType: 'toast'
-            });
-        }
-    }
-
-    @action
-    private applyOlderMessages(thread: OpenThread, page: ChatMessagePage) {
-        const {chatModel} = thread;
-        chatModel.prependMessages(page.messages ?? []);
-        chatModel.hasOlderMessages = page.nextCursor != null;
-        thread.olderCursor = page.nextCursor ?? null;
     }
 
     //------------------------
@@ -753,41 +656,9 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         this.appliedListNumber = listNumber;
         this.listedSearch = this.searchQuery;
         this.listedThreads = threads;
-        this.nextCursor = page.nextCursor ?? null;
         this.localThreads = differenceBy(this.localThreads, threads, 'id');
         this.pendingChanges = this.pendingChanges.filter(it => listNumber < it.doneBefore);
         this.listError = null;
-    }
-
-    private async doLoadMoreThreadsAsync() {
-        const {nextCursor: cursor, appliedListNumber, listedSearch: search} = this,
-            // The page continues the applied list, and applies only while that list is current.
-            isCurrent = () =>
-                !this.isDestroyed &&
-                this.appliedListNumber === appliedListNumber &&
-                this.nextCursor === cursor &&
-                this.searchQuery === search;
-
-        try {
-            const page = await this.store
-                .listThreadsAsync({search, cursor, limit: this.pageSize})
-                .linkTo(this.listTask);
-            if (isCurrent()) this.appendThreadPage(page);
-        } catch (e) {
-            if (!isCurrent()) return;
-            XH.handleException(e, {
-                message: 'More conversations did not load. Try again.',
-                alertType: 'toast'
-            });
-        }
-    }
-
-    @action
-    private appendThreadPage(page: ChatThreadPage) {
-        const threads = differenceBy(page.threads ?? [], this.listedThreads, 'id');
-        this.listedThreads = [...this.listedThreads, ...threads];
-        this.nextCursor = page.nextCursor ?? null;
-        this.localThreads = differenceBy(this.localThreads, threads, 'id');
     }
 
     /**

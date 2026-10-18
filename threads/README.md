@@ -5,7 +5,7 @@
 | [Overview](#overview) | What the thread layer does, and the key features |
 | [Architecture](#architecture) | `ChatThreadsModel`, `ChatThreadStore`, open chats, and the concurrency rules |
 | [Configuration Pattern](#configuration-pattern) | Implementing a store and creating a `ChatThreadsModel` |
-| [Common Usage Patterns](#common-usage-patterns) | Selecting, background turns, paging, search, edits, deep links, grouping |
+| [Common Usage Patterns](#common-usage-patterns) | Selecting, background turns, search, edits, deep links, grouping |
 | [Properties/API Reference](#propertiesapi-reference) | Config, state, methods, the store contract, and the local store |
 | [Extension Points](#extension-points) | Stores, chat creation, and the chat seams the layer uses |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -24,7 +24,7 @@ Import from `@xh/hoist-chat-kit/threads`.
 
 Key features:
 
-- **A store adapter** - two required methods, to list threads and to load a page of history.
+- **A store adapter** - two required methods, to list threads and to load a thread's history.
   Rename, delete, create and feedback are optional. The model hides each action the store
   lacks.
 - **One chat per open thread** - the selected thread's chat, and any other chat with a turn
@@ -32,8 +32,6 @@ Key features:
   its thread as running.
 - **Both kinds of thread id** - ids the browser mints, with the backend creating the thread on
   its first run, and ids the backend mints, through `createThreadAsync` or `RUN_STARTED`.
-- **Paged lists and paged history** - further pages of threads, and older messages loaded ahead
-  of the conversation.
 - **Server-side search** - debounced, through the store's query.
 - **Edits that show at once** - rename and delete apply before the store answers, and roll
   back with a toast if it fails.
@@ -52,23 +50,20 @@ ChatThreadsModel (HoistModel)
 ├── selectedThreadId: string          # Null before the first selection (observable)
 ├── search: string                    # Text to search for - reloads the list (bindable)
 ├── listError: Error                  # Error from the last list load, or null (observable)
-├── listTask, loadTask, olderMessagesTask: TaskObserver
+├── listTask, loadTask: TaskObserver
 ├── Computed:
 │   ├── chatModel                     # The selected thread's ChatModel
 │   ├── selectedSummary               # The selected thread's summary
 │   ├── runningThreadIds              # Threads with a turn running, here or on the server
 │   ├── awaitingThreadIds             # Threads whose turn waits for the user
 │   ├── finishedAwayThreadIds         # Threads whose turn ended while not selected
-│   ├── hasMoreThreads                # True if the store has another page
 │   ├── loadError                     # Why the selected thread's history failed, or null
 │   └── canRename / canDelete
 └── Methods:
     ├── loadAsync() / refreshAsync()  # Load or reload the list
-    ├── loadMoreThreadsAsync()        # Load the next page of threads
     ├── newThread()                   # Start a thread, and select it
     ├── selectThreadAsync()           # Open a thread and load its history
     ├── reloadThreadAsync()           # Load the selected thread's history again
-    ├── loadOlderMessagesAsync()      # Load a page of older messages
     ├── renameThreadAsync()           # Rename, at once, with rollback
     └── deleteThreadsAsync()          # Delete, at once, with rollback
 
@@ -138,27 +133,20 @@ import {XH} from '@xh/hoist/core';
 import type {ChatThreadStore} from '@xh/hoist-chat-kit/threads';
 
 export class AssistantThreadStore implements ChatThreadStore {
-    async listThreadsAsync({search, cursor, limit}) {
-        const {chats, next} = await XH.fetchJson({
-            url: 'assistant/chats',
-            params: {search, cursor, limit}
-        });
+    async listThreadsAsync({search}) {
+        const chats = await XH.fetchJson({url: 'assistant/chats', params: {search, limit: 100}});
         return {
             threads: chats.map(it => ({
                 id: it.sessionId,
                 title: it.title,
                 lastActivityAt: it.lastActivityAt * 1000
-            })),
-            nextCursor: next
+            }))
         };
     }
 
-    async loadMessagesAsync({threadId, cursor, limit}) {
-        const {messages, next} = await XH.fetchJson({
-            url: `assistant/chats/${threadId}/messages`,
-            params: {cursor, limit}
-        });
-        return {messages: messages.flatMap(toMessageSpecs), nextCursor: next};
+    async loadMessagesAsync({threadId}) {
+        const messages = await XH.fetchJson({url: `assistant/chats/${threadId}/messages`});
+        return {messages: messages.flatMap(toMessageSpecs)};
     }
 
     async renameThreadAsync(threadId: string, title: string) {
@@ -238,16 +226,14 @@ The thread leaves it when the user selects it, so a list can mark the reply as n
 For a backend that runs one turn per user, set `allowConcurrentTurns: false`. Each other thread
 then shows "Wait for the reply in another conversation to finish." in place of Send.
 
-### Page through threads and history
+### Cap the list and the history
 
-```typescript
-if (threadsModel.hasMoreThreads) await threadsModel.loadMoreThreadsAsync();
+The threads model does not page. It shows the threads that `listThreadsAsync` returns, and the
+messages that `loadMessagesAsync` returns. A store over a large backend caps each, as the
+example above caps the list at the 100 most recent threads.
 
-if (threadsModel.chatModel.hasOlderMessages) await threadsModel.loadOlderMessagesAsync();
-```
-
-A refresh asks the store for as many threads as the list holds, so pages the user scrolled
-through stay in the list.
+A store whose backend returns history a page at a time can set `nextCursor` on the page now. The
+kit does not read it yet. It leaves room to page in older messages later.
 
 ### Search
 
@@ -337,8 +323,6 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save
 |----------|------|-------------|
 | `store` | `ChatThreadStore` | Adapter to the backend. Required. |
 | `createChatModel` | `({threadId, isNew}) => ChatModel` | Builds the chat for a thread. Must pass `threadId` to the `ChatModel`. `isNew` is false for a thread whose history is about to load. A new thread may start with a greeting in `initialMessages`. Required. |
-| `pageSize` | `number` | Threads per page. Default 50. |
-| `historyPageSize` | `number` | Messages per page of history. Default 50. |
 | `allowConcurrentTurns` | `boolean` | False to block sends while any thread runs. Default true. |
 | `route` | `{name, param}` | Route whose parameter holds the selected thread id. Default none. |
 
@@ -354,24 +338,20 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save
 | `runningThreadIds` | `string[]` | Threads with a turn running here, or reported running by the store. |
 | `awaitingThreadIds` | `string[]` | Threads whose turn is paused for the user. Their chats stay open. |
 | `finishedAwayThreadIds` | `string[]` | Threads whose turn ended while another thread was selected. A thread leaves it when selected. Held for the session only. |
-| `hasMoreThreads` | `boolean` | True if the store has another page of threads. |
 | `loadError` | `Error` | Why the selected thread's history failed to load, or null. |
 | `listError` | `Error` | Error from the last list load, or null. The list keeps its threads. |
 | `listTask` | `TaskObserver` | Pending while the list loads. |
 | `loadTask` | `TaskObserver` | Pending while the selected thread's history loads. |
-| `olderMessagesTask` | `TaskObserver` | Pending while older messages load. |
 | `canRename`, `canDelete` | `boolean` | True if the store has the method. |
 
 ### ChatThreadsModel methods
 
 | Method | Description |
 |--------|-------------|
-| `loadAsync()`, `refreshAsync()` | Load the first page for the current search, or reload as many threads as are listed. |
-| `loadMoreThreadsAsync()` | Load the next page. Ignored if there is none, or while one loads. |
+| `loadAsync()`, `refreshAsync()` | Load the threads for the current search. |
 | `newThread(seed?)` | Open a new thread and select it. `seed` holds a `draft` and `runOptions`. Returns its chat. |
 | `selectThreadAsync(threadId)` | Select a thread, opening its chat and loading its history if needed. |
 | `reloadThreadAsync()` | Load the selected thread's history again. Ignored while its turn runs. |
-| `loadOlderMessagesAsync()` | Prepend the next page of older messages to the selected chat. |
 | `renameThreadAsync(threadId, title)` | Rename at once. Rolls back with a toast on failure. |
 | `deleteThreadsAsync(threadIds)` | Delete at once, closing the chats. Rolls back with a toast on failure. |
 
@@ -379,9 +359,9 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save
 
 | Method | Description |
 |--------|-------------|
-| `listThreadsAsync({search, cursor, limit})` | Required. A `ChatThreadPage`: threads most recently active first, and a `nextCursor`. |
+| `listThreadsAsync({search})` | Required. A `ChatThreadPage`: threads most recently active first. The store decides how many. |
 | `searchesMessages` | Property. True if the search covers message text, not just titles. Then each match may carry a `snippet`. |
-| `loadMessagesAsync({threadId, cursor, limit})` | Required. A `ChatMessagePage`: the newest messages, or those older than `cursor`, oldest first, and a `nextCursor` for older ones. |
+| `loadMessagesAsync({threadId})` | Required. A `ChatMessagePage`: the thread's messages, oldest first. Its optional `nextCursor` is not yet read by the kit. |
 | `createThreadAsync({localId, title})` | Create the thread and return its summary, with the backend's id. Idempotent per `localId`. |
 | `renameThreadAsync(threadId, title)` | Rename a thread. |
 | `deleteThreadsAsync(threadIds)` | Delete threads. Deleting a missing thread succeeds. |
@@ -464,7 +444,7 @@ therefore resume while another thread runs.
 
 ## Related Packages
 
-- [`/core/`](../core/README.md) - `ChatModel`, history paging, feedback and server mode
+- [`/core/`](../core/README.md) - `ChatModel`, feedback and server mode
 - [`/transport/`](../transport/README.md) - transports, `ScriptedChatTransport`, and server ids
 - [Architecture](../docs/architecture.md) - the two conversation shapes
 - hoist-react `/core/` - `HoistModel`, `loadAsync()`, and `TaskObserver`

@@ -198,12 +198,6 @@
     min-width: 0;
   }
 
-  &__more {
-    display: flex;
-    justify-content: center;
-    padding-top: 4px;
-  }
-
   &__empty {
     color: var(--xh-chat-meta-text-color);
     display: flex;
@@ -232,7 +226,7 @@
     padding: 0 8px 4px;
   }
 
-  // A static skeleton - no spinner, no shimmer - while the first page loads.
+  // A static skeleton - no spinner, no shimmer - while the first list loads.
   &__skeleton {
     display: flex;
     flex-direction: column;

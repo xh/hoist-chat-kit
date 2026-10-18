@@ -112,13 +112,6 @@ export class ChatThreadListLocalModel extends HoistModel {
         this.host.search = value;
     }
 
-    loadMore() {
-        const {host} = this;
-        if (host.hasMoreThreads && host.loadMoreThreadsAsync && !host.listTask?.isPending) {
-            host.loadMoreThreadsAsync().catchDefault();
-        }
-    }
-
     retryList() {
         this.host.refreshAsync?.().catchDefault();
     }
@@ -250,12 +243,6 @@ export class ChatThreadListLocalModel extends HoistModel {
         }
     };
 
-    /** Load the next page when the user scrolls near the end of the list. */
-    onBodyScroll = (e: {currentTarget: HTMLElement}) => {
-        const {scrollTop, scrollHeight, clientHeight} = e.currentTarget;
-        if (scrollHeight - scrollTop - clientHeight < LOAD_MORE_THRESHOLD_PX) this.loadMore();
-    };
-
     /** DOM id of a thread's row. */
     rowDomId(threadId: string): string {
         return `${this.rowDomIdPrefix}${threadId}`;
@@ -328,6 +315,3 @@ export class ChatThreadListLocalModel extends HoistModel {
         return document.getElementById(this.rowDomId(threadId));
     }
 }
-
-/** Distance from the end of the list, in pixels, at which the next page loads. */
-const LOAD_MORE_THRESHOLD_PX = 112;

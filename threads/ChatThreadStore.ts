@@ -21,10 +21,13 @@ export interface ChatThreadStore {
      */
     readonly searchesMessages?: boolean;
 
-    /** A page of the user's threads, most recently active first. */
+    /**
+     * The user's threads, most recently active first. The store decides how many to return, such
+     * as the most recent 100.
+     */
     listThreadsAsync(query: ChatThreadQuery): Promise<ChatThreadPage>;
 
-    /** A page of a thread's messages - the newest, or those older than the query's cursor. */
+    /** A thread's messages, oldest first. */
     loadMessagesAsync(query: ChatMessageQuery): Promise<ChatMessagePage>;
 
     /**
@@ -89,38 +92,27 @@ export interface ChatThreadSummary {
 export interface ChatThreadQuery {
     /** Text to search for, or null for all threads. */
     search?: string;
-
-    /** Cursor from the previous page, or null for the first page. */
-    cursor?: string;
-
-    /** Most threads to return. */
-    limit?: number;
 }
 
-/** A page of threads. */
+/** The threads that {@link ChatThreadStore.listThreadsAsync} returns. */
 export interface ChatThreadPage {
     threads: ChatThreadSummary[];
-
-    /** Cursor for the next page, or null if there is none. */
-    nextCursor?: string;
 }
 
 /** Query for {@link ChatThreadStore.loadMessagesAsync}. */
 export interface ChatMessageQuery {
     threadId: string;
-
-    /** Cursor from the previous page, to load older messages, or null for the newest. */
-    cursor?: string;
-
-    /** Most messages to return. */
-    limit?: number;
 }
 
-/** A page of a thread's messages, oldest first. */
+/** A thread's messages, oldest first. */
 export interface ChatMessagePage {
     messages: ChatMessageSpec[];
 
-    /** Cursor for the page of older messages, or null if there are none. */
+    /**
+     * Cursor for older messages, for a backend that returns history a page at a time, or null if
+     * there are none. Not yet read by the kit, which shows the messages returned. It leaves room
+     * to page in older history later.
+     */
     nextCursor?: string;
 }
 

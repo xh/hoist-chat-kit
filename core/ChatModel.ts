@@ -2,7 +2,6 @@ import {
     cloneDeep,
     compact,
     countBy,
-    differenceBy,
     findLast,
     findLastIndex,
     intersection,
@@ -430,12 +429,6 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      * its user message. Replace the value to change it. (bindable)
      */
     @bindableRef accessor runOptions: PlainObject;
-
-    /**
-     * True if the backend holds messages older than the first one loaded - set by the code that
-     * pages in history, such as a thread layer, alongside {@link prependMessages}. (bindable)
-     */
-    @bindable accessor hasOlderMessages: boolean = false;
 
     /**
      * True if the user may edit a sent message and re-run from it. While false, the message views
@@ -1164,19 +1157,6 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.replaceThread(specs, threadId, 'load');
     }
 
-    /**
-     * Add older messages ahead of the conversation, for history loaded a page at a time. Messages
-     * already present, by id, are skipped. Messages left in progress are closed, as with
-     * `loadMessages`. Set {@link hasOlderMessages} alongside, to show whether more remain.
-     */
-    @action
-    prependMessages(specs: ChatMessageSpec[]) {
-        const older = restoreMessages(differenceBy(specs, this.messages, 'id'), false);
-        if (isEmpty(older)) return;
-        this.messages = [...older, ...this.messages];
-        this.addArtifactsOf(older);
-    }
-
     /** The conversation as plain objects, for storage. */
     getMessageSpecs(): ChatMessageSpec[] {
         return this.messages.map(it => it.toSpec());
@@ -1780,7 +1760,6 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.artifacts.clear();
         this.addArtifactsOf(this.messages);
         this.undoStacks = {};
-        this.hasOlderMessages = false;
         this.status = 'ready';
         this.lastError = null;
     }
@@ -2196,19 +2175,17 @@ function stopTurnClock(turn: ChatTurn): number {
 }
 
 /**
- * Messages from stored specs, with anything left in progress closed - see `loadMessages`.
- *
- * @param isLatest - true if the specs end the conversation, so a paused turn at their end stays
- *      paused. False for older history, which closes it.
+ * Messages from stored specs, with anything left in progress closed - see `loadMessages`. A
+ * paused turn at the end of the specs stays paused.
  */
-function restoreMessages(specs: ChatMessageSpec[], isLatest: boolean = true): ChatMessage[] {
+function restoreMessages(specs: ChatMessageSpec[]): ChatMessage[] {
     const messages = specs.map(it => new ChatMessage(it)),
         lastIdx = messages.length - 1;
 
     return messages.map((message, idx) => {
         switch (message.status) {
             case 'paused':
-                return isLatest && idx === lastIdx && message.isAssistant
+                return idx === lastIdx && message.isAssistant
                     ? settleStreamingParts(message)
                     : settleOpenParts(message, SETTLE_REASONS.complete).withChanges({
                           status: 'complete'
