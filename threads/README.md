@@ -210,9 +210,9 @@ panel to it in a component that observes the threads model.
 
 ### Let turns run in the background
 
-Turns run in the background, in as many threads at once as the user starts. The list shows a running indicator for each id in
-`runningThreadIds`. That includes a thread whose summary has `isRunning` from the store, such as
-a turn that a closed chat left running on the server.
+Turns run in the background, in as many threads at once as the user starts. The list shows a
+running indicator for each id in `runningThreadIds`. That includes a thread whose summary has
+`isRunning` from the store, such as a turn that a closed chat left running on the server.
 
 A background turn that pauses for an approval, or for the answer to an interactive tool, waits
 for the user. Its chat stays open, and its id is in `awaitingThreadIds`. Show it in the list, so

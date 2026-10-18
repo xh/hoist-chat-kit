@@ -1,6 +1,6 @@
-import {clamp, cloneDeep, isEqual, isNumber} from 'lodash';
-import type {LoadSpec, PersistOptions, PlainObject} from '@xh/hoist/core';
-import {HoistModel, managed, PersistableState, PersistenceProvider, XH} from '@xh/hoist/core';
+import {clamp, isNumber} from 'lodash';
+import type {LoadSpec, PersistOptions} from '@xh/hoist/core';
+import {HoistModel, managed} from '@xh/hoist/core';
 import {PanelModel} from '@xh/hoist/desktop/cmp/panel';
 import {action, bindable, computed, observable} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
@@ -13,9 +13,9 @@ export interface ChatWorkspaceConfig {
     threadsModel: ChatThreadsModel;
 
     /**
-     * Options to persist, per user, the sidebar's width and collapsed state, the side panel's
-     * width, and the selected thread. The workspace adds `.sidebar`, `.sidePanel` and
-     * `.selectedThreadId` to `path`, which defaults to 'chatWorkspace'.
+     * Options to persist, per user, the sidebar's width and collapsed state, and the side panel's
+     * width. The workspace adds `.sidebar` and `.sidePanel` to `path`, which defaults to
+     * 'chatWorkspace'.
      */
     persistWith?: PersistOptions;
 
@@ -225,15 +225,8 @@ export class ChatWorkspaceModel extends HoistModel {
             run: () => this.sidePanel.open(null)
         });
 
-        // The conversation pane always shows a chat. The thread the user last had open returns
-        // once the list shows that it still exists. A thread that a route selected comes first.
-        if (threadsModel.selectedThreadId == null) {
-            this.initialThreadId = threadsModel.newThread().threadId;
-            this.initialRunOptions = cloneDeep(threadsModel.chatModel?.runOptions ?? null);
-        }
-        if (persistWith) {
-            this.persistSelectedThread({...persistWith, path: `${path}.selectedThreadId`});
-        }
+        // The conversation pane always shows a chat. A thread that a route selected comes first.
+        if (threadsModel.selectedThreadId == null) threadsModel.newThread();
     }
 
     /** Load the thread list. */
@@ -313,15 +306,8 @@ export class ChatWorkspaceModel extends HoistModel {
     // The band where the user dragged the side panel while a table or chart showed, or null.
     @observable private accessor dataSizeBand: number = null;
 
-    // The saved thread to select once the list shows it, while the new chat is untouched.
-    @observable private accessor restoreThreadId: string = null;
-
     // Width of the sidebar's rail, from its CSS variable once mounted.
     @observable private accessor railWidth: number = null;
-
-    // The new thread the workspace started with, and its run options at the start.
-    private initialThreadId: string = null;
-    private initialRunOptions: PlainObject = null;
 
     @computed
     private get widthBand(): number {
@@ -454,83 +440,6 @@ export class ChatWorkspaceModel extends HoistModel {
     @action
     private setSidebarExpanded(expanded: boolean) {
         this.isSidebarExpanded = expanded;
-    }
-
-    //------------------------
-    // Selected thread
-    //------------------------
-    private persistSelectedThread(persistOptions: PersistOptions) {
-        PersistenceProvider.create({
-            persistOptions,
-            owner: this,
-            target: {
-                getPersistableState: () => new PersistableState(this.threadIdToPersist),
-                setPersistableState: ({value}) => this.setRestoreThreadId(value ?? null)
-            }
-        });
-
-        const {threadsModel} = this;
-        this.addReaction({
-            track: () => [threadsModel.threads, threadsModel.lastLoadCompleted],
-            run: () => this.restoreThread(),
-            fireImmediately: true
-        });
-    }
-
-    // The selected thread, once the store lists it - a new chat has nothing to return to. The
-    // saved thread, while it waits for the list.
-    @computed
-    private get threadIdToPersist(): string {
-        const {threadsModel, restoreThreadId} = this;
-        if (restoreThreadId != null && this.isUntouched) return restoreThreadId;
-        return threadsModel.selectedSummary ? threadsModel.selectedThreadId : null;
-    }
-
-    // True while the new chat the workspace started with is selected, and the user has not used
-    // it: no messages, nothing in the composer, and its run options as they started.
-    private get isUntouched(): boolean {
-        const {threadsModel, initialThreadId} = this,
-            {chatModel} = threadsModel;
-        return (
-            initialThreadId != null &&
-            threadsModel.selectedThreadId === initialThreadId &&
-            !!chatModel?.isEmpty &&
-            !!chatModel.composerModel?.isEmpty &&
-            isEqual(chatModel.runOptions ?? null, this.initialRunOptions)
-        );
-    }
-
-    private restoreThread() {
-        const {threadsModel, restoreThreadId: threadId} = this;
-        if (threadId == null) return;
-
-        // The user, or a route, chose a thread first.
-        if (!this.isUntouched || this.isRouteSelected) {
-            this.setRestoreThreadId(null);
-            return;
-        }
-
-        if (threadsModel.threads.some(it => it.id === threadId)) {
-            this.setRestoreThreadId(null);
-            threadsModel.selectThreadAsync(threadId).catchDefault();
-        } else if (threadsModel.lastLoadCompleted && !threadsModel.listError) {
-            // Listed, and gone: the new chat stays.
-            this.setRestoreThreadId(null);
-        }
-    }
-
-    // True if the threads model's route names a thread.
-    private get isRouteSelected(): boolean {
-        const {route} = this.threadsModel,
-            state = XH.routerState;
-        if (!route || !state) return false;
-        const isOnRoute = state.name === route.name || state.name?.startsWith(route.name + '.');
-        return isOnRoute && state.params?.[route.param] != null;
-    }
-
-    @action
-    private setRestoreThreadId(threadId: string) {
-        this.restoreThreadId = threadId;
     }
 }
 

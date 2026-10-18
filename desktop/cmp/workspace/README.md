@@ -34,8 +34,8 @@ Key features:
 - **Layout by width** - the sidebar narrows to its rail and then hides, the side panel narrows
   and shows only where there is room, the conversation keeps a minimum width, and the chat turns
   compact at 380 px or less.
-- **Persistence** - the sidebar's width and collapsed state, the side panel's width, and the
-  selected thread persist per user through `persistWith`.
+- **Persistence** - the sidebar's width and collapsed state, and the side panel's width, persist
+  per user through `persistWith`.
 - **Keyboard** - Ctrl/Cmd+Shift+O starts a new chat, `/` focuses the composer, and F6 moves
   between regions. Escape in the side panel closes it. See
   [Keyboard](../chat/README.md#keyboard).
@@ -136,12 +136,9 @@ chatWorkspace({model: model.workspaceModel});
 ```
 
 The workspace model loads the thread list. If nothing is selected when it is created, it starts
-a new thread, so that the conversation pane always holds a chat.
-
-With `persistWith`, the workspace also saves the selected thread. A new workspace model, as after
-a reload, starts with a new chat and selects the saved thread once the list shows it. It skips
-the saved thread if the store no longer lists it, or if the user or a route picks a thread first.
-A new chat with no messages yet is not saved.
+a new thread, so that the conversation pane always holds a chat. A reload therefore opens a new
+chat. The most recently active thread leads the list, one click away. A deep link through the
+threads model's `route` opens its thread instead.
 
 ## Common Usage Patterns
 
@@ -211,7 +208,7 @@ document opens at its URL in a new tab, with a toast.
 | Property | Type | Description |
 |----------|------|-------------|
 | `threadsModel` | `ChatThreadsModel` | The threads to show. Required. |
-| `persistWith` | `PersistOptions` | Persists the panel widths, the sidebar's collapsed state and the selected thread. The workspace adds `.sidebar`, `.sidePanel` and `.selectedThreadId` to `path`, which defaults to 'chatWorkspace'. |
+| `persistWith` | `PersistOptions` | Persists the panel widths and the sidebar's collapsed state. The workspace adds `.sidebar` and `.sidePanel` to `path`, which defaults to 'chatWorkspace'. |
 | `sidePanelOpen` | `boolean` | True to open the side panel at the start, for the app's own content. Default false. |
 | `documentRenderer` | `(request, panel) => ReactNode` | The app's document viewer. With it, a cited document opens in the side panel. |
 
