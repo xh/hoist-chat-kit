@@ -83,22 +83,23 @@ describe('ChatWorkspace', () => {
             expect(model).toMatchObject({isSidePanelShown: false, isSidePanelOpen: true});
         });
 
-        it('gives the side panel 400 px and the sidebar its rail at 900 px, leaving the rest', () => {
+        it('shows the rail at 900 px, and cuts the side panel to leave the conversation 380 px', () => {
             const {model} = setup({sidePanelOpen: true});
             model.setWidth(900);
 
-            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 400});
+            // 900 - 40 for the rail - 8 for the splitter - 380 for the conversation.
+            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 472});
             // The user's saved width stays as it was.
             expect(model.sidePanelModel.size).toBe(520);
         });
 
-        it('opens the sidebar at 240 px between 1,000 and 1,279 px, and the side panel at 460', () => {
+        it('shows each panel at its one saved width where there is room', () => {
             const {model} = setup();
             model.setWidth(1100);
-            expect(model).toMatchObject({sidebarMode: 'open', sidebarWidth: 240});
+            expect(model).toMatchObject({sidebarMode: 'open', sidebarWidth: 260});
 
             model.openSidePanel();
-            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 460});
+            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 520});
         });
 
         it('narrows the side panel so that the conversation keeps its minimum', () => {
@@ -134,17 +135,22 @@ describe('ChatWorkspace', () => {
             expect(model.sidePanelWidth).toBe(344);
         });
 
-        it('gives way with the sidebar first, when a wide workspace cannot fit both panels', () => {
+        it('cuts the side panel, and keeps the sidebar open, when a wide workspace cannot fit both', () => {
             const {model} = setup({sidePanelOpen: true});
             model.setWidth(1440);
             model.sidebarModel.size = 400;
             expect(model).toMatchObject({sidebarMode: 'open', sidePanelWidth: 520});
 
+            // 1,300 - 408 for the sidebar - 8 for the splitter - 480 for the conversation.
             model.setWidth(1300);
-            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 520});
+            expect(model).toMatchObject({
+                sidebarMode: 'open',
+                sidebarWidth: 400,
+                sidePanelWidth: 404
+            });
         });
 
-        it("holds the user's width in the band where they set it and wider, not narrower", () => {
+        it("keeps the user's one sidebar width at every width that shows it open", () => {
             const {model} = setup();
             model.setWidth(1100);
             model.sidebarModel.size = 300;
@@ -155,31 +161,24 @@ describe('ChatWorkspace', () => {
 
             model.setWidth(900);
             model.expandSidebar();
-            expect(model.sidebarWidth).toBe(240);
+            expect(model.sidebarWidth).toBe(300);
             expect(model.sidebarModel.size).toBe(300);
         });
 
-        it('opens a table or chart at 60% of the width it shares with the conversation', () => {
+        it('shows a document, a table and a chart at the one side panel width', () => {
             const {model} = setup();
             model.setWidth(1440);
+            model.sidePanelModel.size = 600;
 
-            // The sidebar gives way to its rail. 60% of 1,440 - 40 for the rail.
-            model.sidePanel.open(TABLE_REQUEST);
-            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 840});
-
-            // A document keeps the side panel's own width.
-            model.sidePanel.open(DOCUMENT_REQUEST);
-            expect(model).toMatchObject({sidebarMode: 'open', sidePanelWidth: 520});
-
-            // Capped at 900 px.
-            model.setWidth(1920);
-            model.sidePanel.open(CHART_REQUEST);
-            expect(model).toMatchObject({sidebarMode: 'open', sidePanelWidth: 900});
-            expect(model.sidePanelModel.size).toBe(520);
+            [DOCUMENT_REQUEST, TABLE_REQUEST, CHART_REQUEST].forEach(request => {
+                model.sidePanel.open(request);
+                expect(model).toMatchObject({sidebarMode: 'open', sidePanelWidth: 600});
+            });
         });
 
         it('narrows a table so that the conversation keeps its minimum', () => {
             const {model} = setup();
+            model.sidePanelModel.size = 900;
             model.sidePanel.open(TABLE_REQUEST);
 
             // 1,100 - 40 for the rail - 8 for the splitter - 480 for the conversation.
@@ -189,20 +188,6 @@ describe('ChatWorkspace', () => {
             // 900 - 40 - 8 - 380.
             model.setWidth(900);
             expect(model.sidePanelWidth).toBe(472);
-        });
-
-        it('holds a width the user drags a table to, and ignores one dragged for a document', () => {
-            const {model} = setup();
-            model.setWidth(1440);
-            model.sidePanel.open(DOCUMENT_REQUEST);
-            model.sidePanelModel.size = 600;
-            expect(model.sidePanelWidth).toBe(600);
-
-            model.sidePanel.open(TABLE_REQUEST);
-            expect(model.sidePanelWidth).toBe(840);
-
-            model.sidePanelModel.size = 700;
-            expect(model.sidePanelWidth).toBe(700);
         });
 
         it('lays out from its measured width on the first render, with no wait', () => {
@@ -216,7 +201,8 @@ describe('ChatWorkspace', () => {
 
             expect(screen.queryByRole('treegrid')).toBeNull();
             expect(screen.getByRole('button', {name: 'Expand sidebar'})).toBeTruthy();
-            expect(sidePanelBox().style.width).toBe('408px');
+            // 472, cut for the conversation, and 8 for the splitter.
+            expect(sidePanelBox().style.width).toBe('480px');
         });
 
         it('applies a resize at once, and the last of a burst once it settles', async () => {

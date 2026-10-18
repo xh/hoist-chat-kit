@@ -37,23 +37,21 @@ export type ChatWorkspaceSidebarMode = 'open' | 'rail' | 'hidden';
  * Model for a {@link ChatWorkspace}: the threads it shows, the sidebar and side panel, and the
  * layout the workspace picks from its own measured width.
  *
- * The sidebar and the side panel are Hoist `PanelModel`s. Their widths, and the sidebar's
- * collapsed state, persist per user with `persistWith`. The layout picks the widths that show
- * from the workspace's width, and never changes the saved state:
+ * The sidebar and the side panel are Hoist `PanelModel`s. Each has one width, 260 and 520 px by
+ * default, which the user drags and which persists per user with `persistWith`, as does the
+ * sidebar's collapsed state. The layout picks how the sidebar shows from the workspace's width,
+ * and never changes the saved state:
  *
  * | Workspace width | Sidebar | Side panel | Conversation |
  * |---|---|---|---|
- * | 1,280 px and up | Open, 260 px | 520 px | The rest, at least 480 px |
- * | 1,000 to 1,279 px | Open, 240 px. The rail while the side panel shows | 460 px | At least 480 px |
- * | 788 to 999 px | The rail, unless the user expands it | 400 px | At least 380 px |
+ * | 1,280 px and up | Open | Shown | At least 480 px |
+ * | 1,000 to 1,279 px | Open. The rail while the side panel shows | Shown | At least 480 px |
+ * | 788 to 999 px | The rail, unless the user expands it | Shown | At least 380 px |
  * | Under 788 px | Hidden. The header offers the list in a popover | Not shown | All of it |
  *
- * A table or chart in the side panel takes 60% of the width it shares with the conversation, from
- * 480 to 900 px, in place of the side panel's width above.
- *
- * A width the user drags a panel to replaces the default in the band where they drag it, and in
- * every wider band. When the conversation would drop below its minimum, the sidebar gives way to
- * its rail first, and then the side panel narrows.
+ * Each panel shows at its saved width, cut where needed so that the conversation keeps its
+ * minimum. The sidebar is cut first against the conversation alone, then the side panel against
+ * what is left.
  *
  * At 380 px or less, the workspace shows the chat at compact density.
  */
@@ -101,8 +99,8 @@ export class ChatWorkspaceModel extends HoistModel {
     }
 
     /**
-     * Width of the open sidebar, in pixels, or null when it is not open: the user's width or the
-     * default for the workspace's width, cut to leave the conversation its minimum.
+     * Width of the open sidebar, in pixels, or null when it is not open: its saved width, cut to
+     * leave the conversation its minimum.
      */
     @computed
     get sidebarWidth(): number {
@@ -110,10 +108,8 @@ export class ChatWorkspaceModel extends HoistModel {
     }
 
     /**
-     * Width of the side panel, in pixels, or null when it does not show, cut to leave the
-     * conversation its minimum. A table or chart takes 60% of the width it shares with the
-     * conversation, from 480 to 900 px. A document, or the app's content, takes the user's width
-     * or the default for the workspace's width.
+     * Width of the side panel, in pixels, or null when it does not show: its saved width, cut to
+     * leave the conversation its minimum.
      */
     @computed
     get sidePanelWidth(): number {
@@ -154,7 +150,7 @@ export class ChatWorkspaceModel extends HoistModel {
         const path = persistWith?.path ?? 'chatWorkspace';
         this.sidebarModel = new PanelModel({
             side: 'left',
-            defaultSize: SIDEBAR_WIDTHS[WIDE_BAND],
+            defaultSize: SIDEBAR_DEFAULT_WIDTH,
             minSize: SIDEBAR_MIN_WIDTH,
             maxSize: SIDEBAR_MAX_WIDTH,
             collapsible: true,
@@ -165,7 +161,7 @@ export class ChatWorkspaceModel extends HoistModel {
         });
         this.sidePanelModel = new PanelModel({
             side: 'right',
-            defaultSize: SIDE_PANEL_WIDTHS[WIDE_BAND],
+            defaultSize: SIDE_PANEL_DEFAULT_WIDTH,
             minSize: SIDE_PANEL_MIN_WIDTH,
             maxSize: SIDE_PANEL_MAX_WIDTH,
             collapsible: false,
@@ -178,22 +174,11 @@ export class ChatWorkspaceModel extends HoistModel {
             hasRoom: () => this.hasSidePanelRoom
         });
 
-        // A saved width holds in the band where the workspace first shows it.
-        if (this.sidebarModel.size !== SIDEBAR_WIDTHS[WIDE_BAND]) {
-            this.sidebarSizeBand = RESTORED_BAND;
-        }
-        if (this.sidePanelModel.size !== SIDE_PANEL_WIDTHS[WIDE_BAND]) {
-            this.sidePanelSizeBand = RESTORED_BAND;
-        }
-
         this.addReaction(
             {
                 // A user's expand of the rail holds only at the width where they made it.
                 track: () => this.widthBand,
-                run: band => {
-                    this.setSidebarExpanded(false);
-                    this.resolveRestoredBands(band);
-                }
+                run: () => this.setSidebarExpanded(false)
             },
             {
                 track: () => this.sidebarModel.collapsed,
@@ -207,15 +192,6 @@ export class ChatWorkspaceModel extends HoistModel {
                 run: shown => {
                     if (shown) this.setSidebarExpanded(false);
                 }
-            },
-            {
-                // A drag of a splitter sets the user's width, for this band and wider ones.
-                track: () => this.sidebarModel.size,
-                run: () => this.noteUserSize('sidebar')
-            },
-            {
-                track: () => this.sidePanelModel.size,
-                run: () => this.noteUserSize('sidePanel')
             }
         );
 
@@ -299,13 +275,6 @@ export class ChatWorkspaceModel extends HoistModel {
     // True while the user has expanded the rail at a width that would otherwise show it.
     @observable private accessor isSidebarExpanded = false;
 
-    // The band where the user set each panel's width, or null for the default width.
-    @observable private accessor sidebarSizeBand: number = null;
-    @observable private accessor sidePanelSizeBand: number = null;
-
-    // The band where the user dragged the side panel while a table or chart showed, or null.
-    @observable private accessor dataSizeBand: number = null;
-
     // Width of the sidebar's rail, from its CSS variable once mounted.
     @observable private accessor railWidth: number = null;
 
@@ -324,41 +293,29 @@ export class ChatWorkspaceModel extends HoistModel {
             return {sidebarMode: 'hidden', sidebarWidth: null, sidePanelWidth: null};
         }
 
-        const isPanelShown = this.isSidePanelShown;
-        let sidebarMode = this.getSidebarMode(band, isPanelShown),
-            sidebarWidth = sidebarMode === 'open' ? this.getPreferredWidth('sidebar', band) : null;
-        const getSidebarSpace = () =>
-                sidebarMode === 'open'
-                    ? sidebarWidth + SPLITTER_WIDTH
-                    : (this.railWidth ?? RAIL_WIDTH),
-            getSidePanelWidth = () =>
-                isPanelShown
-                    ? this.getSidePanelWidth(band, width == null ? null : width - getSidebarSpace())
-                    : null;
-        let sidePanelWidth = getSidePanelWidth();
+        const isPanelShown = this.isSidePanelShown,
+            sidebarMode = this.getSidebarMode(band, isPanelShown);
+        let sidebarWidth = sidebarMode === 'open' ? savedWidth(this.sidebarModel) : null,
+            sidePanelWidth = isPanelShown ? savedWidth(this.sidePanelModel) : null;
         if (width == null) return {sidebarMode, sidebarWidth, sidePanelWidth};
 
-        // When the conversation would drop below its minimum, the sidebar gives way to its rail
-        // first, and then the side panel narrows.
+        // Each panel is cut to leave the conversation its minimum: the sidebar first, against the
+        // conversation alone, then the side panel, against what is left.
         const minConversation =
-                band === NARROW_BAND ? NARROW_MIN_CONVERSATION_WIDTH : MIN_CONVERSATION_WIDTH,
-            getSpare = () =>
-                width -
-                minConversation -
-                getSidebarSpace() -
-                (isPanelShown ? sidePanelWidth + SPLITTER_WIDTH : 0);
-
-        if (isPanelShown && sidebarMode === 'open' && getSpare() < 0) {
-            sidebarMode = 'rail';
-            sidebarWidth = null;
-            // A table or chart widens into the room the sidebar gave up.
-            sidePanelWidth = getSidePanelWidth();
+            band === NARROW_BAND ? NARROW_MIN_CONVERSATION_WIDTH : MIN_CONVERSATION_WIDTH;
+        if (sidebarMode === 'open') {
+            sidebarWidth = clamp(sidebarWidth, 0, width - minConversation - SPLITTER_WIDTH);
         }
-        if (isPanelShown && getSpare() < 0) {
-            sidePanelWidth = Math.max(0, sidePanelWidth + getSpare());
-        }
-        if (sidebarMode === 'open' && getSpare() < 0) {
-            sidebarWidth = Math.max(0, sidebarWidth + getSpare());
+        if (isPanelShown) {
+            const sidebarSpace =
+                sidebarMode === 'open'
+                    ? sidebarWidth + SPLITTER_WIDTH
+                    : (this.railWidth ?? RAIL_WIDTH);
+            sidePanelWidth = clamp(
+                sidePanelWidth,
+                0,
+                width - minConversation - sidebarSpace - SPLITTER_WIDTH
+            );
         }
         return {sidebarMode, sidebarWidth, sidePanelWidth};
     }
@@ -371,72 +328,6 @@ export class ChatWorkspaceModel extends HoistModel {
         return 'open';
     }
 
-    // The user's width holds in the band where they set it, and in wider ones. Elsewhere, the
-    // band's default - never wider than the user's width.
-    private getPreferredWidth(panel: PanelName, band: number): number {
-        const {panelModel, sizeBand, widths} = this.getPanelSpec(panel),
-            size = isNumber(panelModel.size) ? panelModel.size : widths[WIDE_BAND];
-        if (sizeBand === RESTORED_BAND || (sizeBand != null && band >= sizeBand)) return size;
-        return Math.min(size, widths[band]);
-    }
-
-    // A table or chart takes its share of the width that the side panel shares with the
-    // conversation, unless the user dragged the panel while one showed. Then the user's width
-    // holds as above. Everything else takes the side panel's preferred width.
-    private getSidePanelWidth(band: number, sharedWidth: number): number {
-        if (!this.isDataRequestOpen || sharedWidth == null) {
-            return this.getPreferredWidth('sidePanel', band);
-        }
-        const {dataSizeBand} = this,
-            {size} = this.sidePanelModel,
-            dataWidth = clamp(
-                Math.round(sharedWidth * DATA_PANEL_SHARE),
-                DATA_PANEL_MIN_WIDTH,
-                DATA_PANEL_MAX_WIDTH
-            );
-        if (dataSizeBand == null || !isNumber(size)) return dataWidth;
-        return band >= dataSizeBand ? size : Math.min(size, dataWidth);
-    }
-
-    // True if the side panel's request is a table or a chart.
-    private get isDataRequestOpen(): boolean {
-        const type = this.sidePanel.request?.type;
-        return type === 'table' || type === 'chart';
-    }
-
-    private getPanelSpec(panel: PanelName) {
-        return panel === 'sidebar'
-            ? {
-                  panelModel: this.sidebarModel,
-                  sizeBand: this.sidebarSizeBand,
-                  widths: SIDEBAR_WIDTHS
-              }
-            : {
-                  panelModel: this.sidePanelModel,
-                  sizeBand: this.sidePanelSizeBand,
-                  widths: SIDE_PANEL_WIDTHS
-              };
-    }
-
-    @action
-    private noteUserSize(panel: PanelName) {
-        const {panelModel, widths} = this.getPanelSpec(panel),
-            band = panelModel.size === widths[WIDE_BAND] ? null : (this.widthBand ?? WIDE_BAND);
-        if (panel === 'sidebar') {
-            this.sidebarSizeBand = band;
-        } else {
-            this.sidePanelSizeBand = band;
-            if (this.isDataRequestOpen) this.dataSizeBand = this.widthBand ?? WIDE_BAND;
-        }
-    }
-
-    @action
-    private resolveRestoredBands(band: number) {
-        if (band == null) return;
-        if (this.sidebarSizeBand === RESTORED_BAND) this.sidebarSizeBand = band;
-        if (this.sidePanelSizeBand === RESTORED_BAND) this.sidePanelSizeBand = band;
-    }
-
     @action
     private setSidebarExpanded(expanded: boolean) {
         this.isSidebarExpanded = expanded;
@@ -446,22 +337,18 @@ export class ChatWorkspaceModel extends HoistModel {
 //------------------
 // Layout constants
 //------------------
-type PanelName = 'sidebar' | 'sidePanel';
-
 interface Layout {
     sidebarMode: ChatWorkspaceSidebarMode;
     sidebarWidth: number;
     sidePanelWidth: number;
 }
 
-const SIDEBAR_MIN_WIDTH = 200,
+const SIDEBAR_DEFAULT_WIDTH = 260,
+    SIDEBAR_MIN_WIDTH = 200,
     SIDEBAR_MAX_WIDTH = 400,
+    SIDE_PANEL_DEFAULT_WIDTH = 520,
     SIDE_PANEL_MIN_WIDTH = 400,
     SIDE_PANEL_MAX_WIDTH = 900,
-    // A table or chart's share of the width beside the sidebar, and its bounds.
-    DATA_PANEL_SHARE = 0.6,
-    DATA_PANEL_MIN_WIDTH = 480,
-    DATA_PANEL_MAX_WIDTH = 900,
     // Hoist's splitter beside a resizable panel, and the default of the sidebar's rail.
     SPLITTER_WIDTH = 8,
     RAIL_WIDTH = 40,
@@ -477,9 +364,10 @@ const SIDEBAR_MIN_WIDTH = 200,
     HIDDEN_BAND = 0,
     NARROW_BAND = 1,
     MEDIUM_BAND = 2,
-    WIDE_BAND = 3,
-    // A saved width, before the workspace measures the band it first shows in.
-    RESTORED_BAND = -1,
-    // Default widths by band. The widest band's are the panels' default sizes.
-    SIDEBAR_WIDTHS = [null, 240, 240, 260],
-    SIDE_PANEL_WIDTHS = [null, 400, 460, 520];
+    WIDE_BAND = 3;
+
+/** A panel's saved width, or its default if the saved size is not in pixels. */
+function savedWidth(panelModel: PanelModel): number {
+    const {size, defaultSize} = panelModel;
+    return isNumber(size) ? size : (defaultSize as number);
+}

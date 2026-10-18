@@ -25,8 +25,8 @@
     min-height: 0;
   }
 
-  // The side panel's box can be wider than its PanelModel's size, as for a table or a chart. Its
-  // resize container, and the panel in it, stretch to fill the box.
+  // The side panel's box sets the width that shows, which the layout may cut below its
+  // PanelModel's size. Its resize container, and the panel in it, fill the box.
   &__side-panel > .xh-resizable,
   &__side-panel > .xh-chat-side-panel > .xh-resizable {
     width: 100%;
