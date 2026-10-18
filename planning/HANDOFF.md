@@ -9,8 +9,9 @@ names in `DECISIONS.md`.
 | Repo and branch | State |
 |---|---|
 | `hoist-chat-kit` `develop` | Plan 2 (#7), the layered API and the design UI (#8) merged, then pared back: no component helper (D80), no `ChatService` (D81). The AG-UI 1.0 effort's three deliverables squash-merged and pushed on 2026-10-17. |
+| `hoist-chat-kit` `feature/chat-ui-review-7` | Worktree `../hoist-chat-kit-worktrees/chat-ui-review-7`. Review 7's calls (D89 to D91), built, reviewed and fixed. Local only, for Anselm to review and push. The main checkout stays on `develop`, so Toolbox's local link is unaffected. |
 | `hoist-chat-kit` `archive/helpers` | The removed helper code and its plan, `planning/HELPERS.md`. Not for merge. |
-| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-worktrees/feature-chat-kit-guide-ui`, on the local kit. Guideline Assistant tab and the Chat Kit demos, with the Agent Questions demo. Pushed. |
+| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-worktrees/feature-chat-kit-guide-ui`, on the local kit. Guideline Assistant tab and the Chat Kit demos, with the Agent Questions demo. Pushed. Uncommitted, for Anselm's review: the guide recipe's review 7 settings (`clearable: false`, `maxCommentLength`, no edit or regenerate, `stripLeakedTags`), and edits that work with both `develop` and the review 7 branch. |
 | `toolbox` `feature/weatherv2-chat-kit` | On the published kit. Pushed. |
 | `toolbox` `archive/chat-kit-grid-helper` | The removed Grid Helper tab. Not for merge. |
 | `hoist-chat-kit` `spike/ag-ui-client` | Local only, with no worktree. The AG-UI spike behind D84, cited in `planning/AG-UI.md`. Not for merge. |
@@ -19,7 +20,7 @@ names in `DECISIONS.md`.
 
 - `ChatMessageListHost` is gone. The list and view take a read-only `ChatTranscript` or a `ChatModel`, and `isChatModel()` gates every action.
 - `ChatComposerHost` is trimmed to `isBusy`, `sendAsync`, `messages` and `sendBlockedReason`. Stop, drafts per thread and the status region need a `ChatModel`.
-- `ChatThreadListHost` and `ChatSidePanelHost` stay as they were. `createChatRunRequest()` and `ChatStreamReducer` stay.
+- `ChatSidePanelHost` stays. `ChatThreadListHost` goes in favor of D89's seam between the threads model and the chat. `createChatRunRequest()` and `ChatStreamReducer` stay.
 - Next structural task: split `ChatModel` into managed sub-models (feedback, undo, run lifecycle, thread binding), bound with `uses()`. It waits until the first integration ships.
 
 ## Next
@@ -32,11 +33,21 @@ names in `DECISIONS.md`.
 
 ## Next session: start here
 
-The review of the kit's three layers - the engine, the chat UI and the generative UI - resumes
-with Anselm. The engine work is done for now. Anselm settles whether any engine work remains, then
-walks `planning/reviews/review-7-chat-ui-layer.md`. It proposes a cut, trim or keep call for each
-chat UI feature, changes to the reconciliation rows, and Weather V2 upgrades. See
-[Open review threads](#open-review-threads-with-anselm).
+Anselm walked the chat UI layer's cut and trim lists on 2026-10-18 (review 7, D89 to D91). The
+calls are built on `feature/chat-ui-review-7`, reviewed twice, and fixed. Anselm reviews that
+branch and the uncommitted Toolbox changes, then pushes.
+
+Still open from review 7:
+
+- The "Keep, and give it a showcase" section: the timeline trim, undo, interrupt panels, and the
+  `pinned` display. Then the Weather V2 proposals that show them.
+- Slim the CSS variables once the first integration sets its theme. Keep every color, type and
+  spacing token.
+- Check every component in a 380 px panel.
+- D89's seams: the threads model with a chat of the app's own, and the workspace slot for the
+  app's conversation view. Build them when an app needs them.
+- Then the generative UI layer review. See
+  [Open review threads](#open-review-threads-with-anselm).
 
 ## AG-UI 1.0 effort: done (2026-10-17)
 
@@ -146,6 +157,9 @@ topics to discuss with Anselm, not work to start.
 - The local kit is the main checkout, so Toolbox shows whichever kit branch is checked out.
 
 ## Running Toolbox
+
+- With Toolbox linked to a local kit, plain `vitest` loads a second `@xh/hoist` from the kit's
+  `node_modules`. A config with `resolve.dedupe` for `@xh/hoist`, `react` and `mobx` fixes it.
 
 - Start a throwaway server on :8080, with an H2 database and the agent login, by the `bootRun`
   command in Toolbox's `docs/running-locally.md` ("Agent-driven sessions"). Start the client with

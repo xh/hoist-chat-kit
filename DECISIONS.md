@@ -1080,6 +1080,7 @@ add what P7 draws, with no second adapter type.
 
 ## D74. Thread list additions
 
+**Amended** by [D91](#d91-choices-made-in-building-d90).
 
 **Decision.** `ChatThreadSummary` gains `lastRunEnd?: 'complete' | 'interrupted' | 'failed'` and
 `lastRunReason?`. The thread layer tracks "finished away" per session. A store declares whether its
@@ -1422,3 +1423,38 @@ settle as built.
 two apps that will not adopt the kit. A feature stays if a consumer in hand needs it or if it
 shows the direction of chat UI. When the conversation model already holds a state, the UI that
 shows it is cheap, so it stays.
+
+## D91. Choices made in building D90
+
+**Decision.** Building the D90 calls settled these points of API and behavior. This amends D74.
+
+- **Feedback comments.** `ChatFeedbackConfig.commentOn` gives way to `allowComment`, default true.
+  A thumbs down opens the comment form, and a saved rating offers "Add a comment".
+  `requireComment` applies to a thumbs down. The comment being typed lives on the chat, in
+  `ChatModel.feedbackDrafts`, with its sending state and error, so a redraw of the message list
+  keeps the form as it was. The threads model keeps these drafts across a thread switch for the
+  session.
+- **Table cap.** The row limit is `ChatKit.defaults.markdownTableMaxRows`, default 100. The same
+  table renders in replies, reasoning, tool output and the timeline, so one kit-wide setting
+  covers them all.
+- **A missing thread.** A store's load that fails with a 404 means the thread is not found, and
+  the workspace shows "Thread not found" with New Chat and blocks sends. An empty page means an
+  empty thread. `ChatThreadsModel.isThreadNotFound` reports it. This replaces rule 8 of
+  `planning/SERVER-MODE.md` for the 404 case.
+- **The route.** A thread's id goes into the route only once the backend has the thread: once the
+  store lists it, or once its first reply streams. A new chat keeps the base route, so a reload
+  before the first send opens a new chat, not "Thread not found".
+- **"Ended early" rows.** `ChatThreadsModel.endedEarlyThreads` holds them. A background turn that
+  fails, or that the server interrupts or cancels, marks its thread for the session. The store's
+  `lastRunEnd` marks a thread with no open chat, but only if the thread changed since the user
+  last saw it.
+- **Workspace widths.** The sidebar keeps its modes by window width: full, rail or popover. Each
+  panel keeps one saved width, clamped so the conversation keeps its minimum width. The default
+  widths per band are gone.
+- **Paging.** Only an optional `nextCursor` on `ChatMessagePage` remains. The kit ignores it.
+- **`LocalChatThreadStore`** lives in `test/support/`. The package check fails if a shipped file
+  imports test support.
+
+**Why.** Each choice is the simplest one that keeps the behavior D90 asked for. The route rule
+fixes a bug the cuts exposed: the workspace opens a new chat on load, and its id went into the URL
+before the backend knew it.
