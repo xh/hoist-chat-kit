@@ -9,10 +9,10 @@ import {
     isEqual,
     keys,
     omit,
-    omitBy,
     pickBy,
     some,
     union,
+    uniq,
     without
 } from 'lodash';
 import type {LoadSpec, PlainObject} from '@xh/hoist/core';
@@ -409,7 +409,7 @@ export class ChatThreadsModel extends HoistModel {
     private readonly drafts = new Map<string, ThreadDraft>();
 
     // Feedback comments of closed threads, by thread id, for when their history loads again.
-    private readonly feedbackDrafts = new Map<string, Record<string, ChatFeedbackDraft>>();
+    private readonly feedbackDrafts = new Map<string, SavedFeedbackDraft[]>();
 
     // The run options each chat was built with, so that a draft keeps only the user's changes.
     private readonly defaultRunOptions = new WeakMap<ChatModel, PlainObject>();
@@ -631,8 +631,7 @@ export class ChatThreadsModel extends HoistModel {
             this.drafts.set(threadId, {text: composerModel.text, runOptions});
         }
 
-        // A comment that is sending has left the form - its send ends without the chat.
-        const feedbackDrafts = omitBy(chatModel.feedbackDrafts, it => it.isSending);
+        const feedbackDrafts = getFeedbackDrafts(chatModel);
         if (!isEmpty(feedbackDrafts)) this.feedbackDrafts.set(threadId, feedbackDrafts);
     }
 
@@ -669,9 +668,16 @@ export class ChatThreadsModel extends HoistModel {
 
     @action
     private applyHistory(thread: OpenThread, threadId: string, page: ChatMessagePage) {
-        const {chatModel} = thread;
+        const {chatModel} = thread,
+            // The comments of a closed thread, and those open in a chat that reloads, which the
+            // load clears.
+            feedbackDrafts = [
+                ...(this.feedbackDrafts.get(threadId) ?? []),
+                ...getFeedbackDrafts(chatModel)
+            ];
+        this.feedbackDrafts.delete(threadId);
         chatModel.loadMessages(page.messages ?? [], threadId);
-        this.restoreFeedbackDrafts(threadId, chatModel);
+        restoreFeedbackDrafts(chatModel, feedbackDrafts);
         // TODO(design-open B4) - run options, such as a document scope, belong to the thread.
         // The thread opens with those of its last question, unless the user changed them here.
         const lastRunOptions = findLast(chatModel.messages, it => it.isUser)?.metadata.runOptions;
@@ -682,16 +688,6 @@ export class ChatThreadsModel extends HoistModel {
             chatModel.runOptions = cloneDeep(lastRunOptions);
         }
         thread.endLoad();
-    }
-
-    /** Give a loaded chat back the feedback comments it had when it closed, for its messages. */
-    private restoreFeedbackDrafts(threadId: string, chatModel: ChatModel) {
-        const drafts = this.feedbackDrafts.get(threadId);
-        if (!drafts) return;
-        this.feedbackDrafts.delete(threadId);
-        Object.entries(drafts).forEach(([messageId, draft]) => {
-            if (chatModel.getMessage(messageId)) chatModel.setFeedbackDraft(messageId, draft);
-        });
     }
 
     //------------------------
@@ -875,6 +871,17 @@ interface PendingChange {
     doneBefore: number;
 }
 
+/** A feedback comment kept for a thread, with the ids its message may come back under. */
+interface SavedFeedbackDraft {
+    /** The message's id when the comment was typed. */
+    messageId: string;
+
+    /** The server's ids of the message, from its metadata and its parts. */
+    serverIds: string[];
+
+    draft: ChatFeedbackDraft;
+}
+
 /** Draft and run options of a closed thread. */
 interface ThreadDraft {
     text: string;
@@ -900,4 +907,38 @@ function getEndedEarly(chatModel: ChatModel): ChatThreadEndedEarly {
         runEnd: isCutShort ? 'interrupted' : 'failed',
         reason: chatModel.lastError?.message ?? null
     };
+}
+
+/**
+ * A chat's unsent feedback comments, with the server's ids of their messages. A comment that is
+ * sending has left the form, and its send ends without the chat, so it is left out.
+ */
+function getFeedbackDrafts(chatModel: ChatModel): SavedFeedbackDraft[] {
+    return compact(
+        Object.entries(chatModel.feedbackDrafts).map(([messageId, draft]) => {
+            if (draft.isSending) return null;
+            const message = chatModel.getMessage(messageId),
+                serverIds = compact([
+                    message?.metadata.serverId,
+                    ...(message?.parts.map(it => ('serverId' in it ? it.serverId : null)) ?? [])
+                ]);
+            return {messageId, serverIds: uniq(serverIds), draft};
+        })
+    );
+}
+
+/**
+ * Give loaded messages back their feedback comments. A message from history may carry the id the
+ * chat streamed it under, or the server's id for it.
+ */
+function restoreFeedbackDrafts(chatModel: ChatModel, saved: SavedFeedbackDraft[]) {
+    saved.forEach(({messageId, serverIds, draft}) => {
+        const message = chatModel.messages.find(
+            it =>
+                it.id === messageId ||
+                serverIds.includes(it.id) ||
+                serverIds.includes(it.metadata.serverId)
+        );
+        if (message) chatModel.setFeedbackDraft(message.id, draft);
+    });
 }

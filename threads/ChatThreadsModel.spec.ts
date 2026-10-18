@@ -789,6 +789,60 @@ describe('ChatThreadsModel', () => {
             expect(model.chatModel.feedbackDrafts).toEqual({'t1-a1': draft});
         });
 
+        it('keeps a feedback comment on a new thread whose history comes back under server ids', async () => {
+            const {model, store} = setup({
+                    respond: () => [
+                        {
+                            type: 'CUSTOM',
+                            name: 'xh.chat.message',
+                            value: {role: 'assistant', serverId: 'srv-a1'}
+                        },
+                        ...textEvents('The answer.')
+                    ]
+                }),
+                chatModel = model.newThread(),
+                {threadId} = chatModel;
+            await chatModel.sendAsync('A question');
+            // The backend keeps the turn under its own ids.
+            store.saveThread({
+                id: threadId,
+                messages: [
+                    {id: 'srv-u1', role: 'user', content: 'A question'},
+                    {id: 'srv-a1', role: 'assistant', content: 'The answer.'}
+                ]
+            });
+            const draft = {
+                rating: 'negative' as const,
+                comment: 'Missing the 2025 update.',
+                isPending: true,
+                isSending: false,
+                error: null
+            };
+            chatModel.setFeedbackDraft(chatModel.lastMessage.id, draft);
+
+            await model.selectThreadAsync('t1');
+            await model.selectThreadAsync(threadId);
+
+            expect(model.chatModel.feedbackDrafts).toEqual({'srv-a1': draft});
+        });
+
+        it('keeps an open feedback comment when the thread reloads', async () => {
+            const {model} = setup(),
+                draft = {
+                    rating: 'negative' as const,
+                    comment: 'Too vague.',
+                    isPending: true,
+                    isSending: false,
+                    error: null
+                };
+            await model.selectThreadAsync('t1');
+            model.chatModel.setFeedbackDraft('t1-a1', draft);
+
+            await model.reloadThreadAsync();
+
+            expect(model.chatModel.feedbackDrafts).toEqual({'t1-a1': draft});
+        });
+
         it("leaves a chat's own feedback submitter in place", async () => {
             const submitAsync = vi.fn(async () => {}),
                 {model, store} = setup({chat: {feedback: {submitAsync}}});

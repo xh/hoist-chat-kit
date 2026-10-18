@@ -80,8 +80,10 @@ selected, busy, or paused for the user, and destroys it otherwise. A turn theref
 after the user switches away, and a turn that waits for an approval keeps its question. When the
 turn ends, the model closes the chat and reloads the list, because the backend may have titled the
 thread. The model keeps a closed thread's draft, run options and unsent feedback comments, in
-memory for the session, and gives them back when the thread opens again. A comment that was
-sending as the chat closed does not come back.
+memory for the session, and gives them back when the thread opens again. A comment finds its
+message in the reloaded history by the id the chat streamed it under, or by the server's id that
+the reply recorded. A comment that was sending as the chat closed does not come back. A reload of
+an open thread keeps its comments too.
 
 The app builds each chat with `createChatModel`. The threads model then wires three seams on
 it:
