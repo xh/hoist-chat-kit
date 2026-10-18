@@ -43,12 +43,6 @@ export interface ChatThreadsConfig {
     createChatModel: (spec: ChatThreadChatSpec) => ChatModel;
 
     /**
-     * True to let threads run turns at the same time. Default true. If false, a thread cannot
-     * send while another thread's turn runs - for a backend that runs one turn per user.
-     */
-    allowConcurrentTurns?: boolean;
-
-    /**
      * A route whose parameter holds the selected thread's id, for deep links. The selection and
      * the parameter then stay in sync both ways.
      */
@@ -111,9 +105,6 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     //-----------------------
     /** Adapter to the backend that stores the threads. */
     readonly store: ChatThreadStore;
-
-    /** True if threads may run turns at the same time. */
-    readonly allowConcurrentTurns: boolean;
 
     /** The route that holds the selected thread, or null. */
     readonly route: ChatThreadsRoute;
@@ -215,13 +206,12 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
 
     constructor(config: ChatThreadsConfig) {
         super();
-        const {store, createChatModel, allowConcurrentTurns = true, route = null} = config;
+        const {store, createChatModel, route = null} = config;
         throwIf(!store, 'ChatThreadsModel requires a store.');
         throwIf(!createChatModel, 'ChatThreadsModel requires a createChatModel function.');
 
         this.store = store;
         this.createChatModel = createChatModel;
-        this.allowConcurrentTurns = allowConcurrentTurns;
         this.route = route;
 
         this.addReaction({
@@ -449,11 +439,6 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
                 return 'Wait for the conversation to load.';
             case 'failed':
                 return 'The conversation did not load. Reload it to continue.';
-        }
-
-        const {threadId} = thread.chatModel;
-        if (!this.allowConcurrentTurns && this.runningThreadIds.some(it => it !== threadId)) {
-            return 'Wait for the reply in another conversation to finish.';
         }
         return null;
     }

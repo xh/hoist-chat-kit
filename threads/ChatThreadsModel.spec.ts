@@ -275,25 +275,7 @@ describe('ChatThreadsModel', () => {
             expect(model.chatModel.runOptions).toEqual({scope: ['doc-1']});
         });
 
-        it('7. blocks sends in every other thread while one runs, if turns may not overlap', async () => {
-            const turns = new TurnGates(),
-                {model, transport} = setup({respond: turns.respond, allowConcurrentTurns: false}),
-                first = model.newThread(),
-                firstDone = first.sendAsync('First');
-
-            const second = model.newThread();
-            expect(second.sendBlockedReason).toBe(
-                'Wait for the reply in another conversation to finish.'
-            );
-            await second.sendAsync('Second');
-            expect(transport.requests).toHaveLength(1);
-
-            turns.open(first.threadId);
-            await firstDone;
-            expect(second.sendBlockedReason).toBeNull();
-        });
-
-        it('8. opens a thread the store does not have as an empty thread', async () => {
+        it('7. opens a thread the store does not have as an empty thread', async () => {
             const {model} = setup();
 
             await model.selectThreadAsync('missing');
@@ -303,7 +285,7 @@ describe('ChatThreadsModel', () => {
             expect(model.chatModel.sendBlockedReason).toBeNull();
         });
 
-        it('8. blocks sends only in a thread that failed to load, until it reloads', async () => {
+        it('7. blocks sends only in a thread that failed to load, until it reloads', async () => {
             spyHandleException();
             const turns = new TurnGates(),
                 {model, store} = setup({respond: turns.respond}),
@@ -326,7 +308,7 @@ describe('ChatThreadsModel', () => {
             await done;
         });
 
-        it('9. fails a turn that ends with no content', async () => {
+        it('8. fails a turn that ends with no content', async () => {
             const {model} = setup({respond: () => []}),
                 chatModel = model.newThread();
 

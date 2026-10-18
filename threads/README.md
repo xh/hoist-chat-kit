@@ -89,8 +89,7 @@ it:
 - `setFeedbackSubmitter()`, with the store's `submitFeedbackAsync`, unless the chat has its own
   `feedback.submitAsync`.
 - `setThreadCreator()`, with the store's `createThreadAsync`, if the store has one.
-- `addSendBlocker()`, which holds back sends while the history loads or after it fails, and while
-  another thread runs if `allowConcurrentTurns` is false.
+- `addSendBlocker()`, which holds back sends while the history loads or after it fails.
 
 ### Thread ids
 
@@ -118,9 +117,8 @@ spec, and each has a unit test.
 | 4 | Events from a run apply only to that run's chat. | The threads model never routes events. Each chat guards its own turn. |
 | 5 | `createThreadAsync` is awaited before the first run, once per local id. | The chat awaits its thread creator before the first request. The model shares one call per local id. |
 | 6 | Run options and drafts never leak into another thread. | Each thread has its own chat. A closed thread's draft is kept under its id. |
-| 7 | With `allowConcurrentTurns: false`, a send waits while any thread runs, with a reason. | The send blocker reads `runningThreadIds`. |
-| 8 | A 404 or an empty page is an empty thread. Any other failure blocks sends on that thread only, with an error and a reload. | The thread's load state feeds its own send blocker and `loadError`. |
-| 9 | A turn that ends with no content is an error. | `ChatModel` fails a run that finishes with an empty reply, with code `empty-response`. |
+| 7 | A 404 or an empty page is an empty thread. Any other failure blocks sends on that thread only, with an error and a reload. | The thread's load state feeds its own send blocker and `loadError`. |
+| 8 | A turn that ends with no content is an error. | `ChatModel` fails a run that finishes with an empty reply, with code `empty-response`. |
 
 ## Configuration Pattern
 
@@ -212,7 +210,7 @@ panel to it in a component that observes the threads model.
 
 ### Let turns run in the background
 
-Turns run in the background by default. The list shows a running indicator for each id in
+Turns run in the background, in as many threads at once as the user starts. The list shows a running indicator for each id in
 `runningThreadIds`. That includes a thread whose summary has `isRunning` from the store, such as
 a turn that a closed chat left running on the server.
 
@@ -222,9 +220,6 @@ the user knows the thread needs them.
 
 A turn that ends while another thread is selected puts its thread in `finishedAwayThreadIds`.
 The thread leaves it when the user selects it, so a list can mark the reply as new until then.
-
-For a backend that runs one turn per user, set `allowConcurrentTurns: false`. Each other thread
-then shows "Wait for the reply in another conversation to finish." in place of Send.
 
 ### Cap the list and the history
 
@@ -323,7 +318,6 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save
 |----------|------|-------------|
 | `store` | `ChatThreadStore` | Adapter to the backend. Required. |
 | `createChatModel` | `({threadId, isNew}) => ChatModel` | Builds the chat for a thread. Must pass `threadId` to the `ChatModel`. `isNew` is false for a thread whose history is about to load. A new thread may start with a greeting in `initialMessages`. Required. |
-| `allowConcurrentTurns` | `boolean` | False to block sends while any thread runs. Default true. |
 | `route` | `{name, param}` | Route whose parameter holds the selected thread id. Default none. |
 
 ### ChatThreadsModel state
@@ -435,12 +429,6 @@ A chat closes when it is neither selected nor busy, and a closed chat is destroy
 
 The model shows a thread as empty only for an empty page or a 404. Any other error blocks sends
 on the thread. A store whose backend reports a missing thread some other way should map it.
-
-### Resuming a paused turn while turns may not overlap
-
-With `allowConcurrentTurns: false`, a send, retry, regenerate or edit waits while another thread
-runs. Approving a tool call, or answering an interactive tool, does not wait. A paused turn can
-therefore resume while another thread runs.
 
 ## Related Packages
 
