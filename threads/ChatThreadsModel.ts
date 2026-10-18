@@ -353,8 +353,9 @@ export class ChatThreadsModel extends HoistModel {
 
     /**
      * Delete threads. They leave the list at once, and return with a toast if the store fails.
-     * Their chats close, and a turn running in one is stopped. If the selected thread is deleted,
-     * a new thread is selected. Requires the store's `deleteThreadsAsync` - see {@link canDelete}.
+     * Their chats close, a turn running in one is stopped, and their drafts are removed - from
+     * memory and from local storage. If the selected thread is deleted, a new thread is selected.
+     * Requires the store's `deleteThreadsAsync` - see {@link canDelete}.
      */
     async deleteThreadsAsync(threadIds: string[]): Promise<void> {
         throwIf(!this.canDelete, 'The thread store cannot delete threads.');

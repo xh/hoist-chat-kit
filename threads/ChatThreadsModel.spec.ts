@@ -444,6 +444,16 @@ describe('ChatThreadsModel', () => {
             expect(savedDraft('t2')).toBeNull();
         });
 
+        it('removes the saved draft of a deleted thread not opened this session', async () => {
+            const {model} = setup();
+            XH.localStorageService.set('xhChat.draft.t3', {text: 'Draft from yesterday'});
+            await model.loadAsync();
+
+            await model.deleteThreadsAsync(['t3']);
+
+            expect(savedDraft('t3')).toBeNull();
+        });
+
         it("adopts the server's id even when its chat starts with a greeting", async () => {
             const {model} = setup({
                     respond: () => [runStarted('srv-9'), textEvents('Hi there.')],

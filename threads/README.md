@@ -59,7 +59,7 @@ ChatThreadsModel (HoistModel)
 │   ├── finishedAwayThreadIds         # Threads whose turn ended while not selected
 │   ├── endedEarlyThreads             # Threads whose last run failed or was cut short
 │   ├── loadError                     # Why the selected thread's history failed, or null
-│   ├── isThreadNotFound              # True if the store reported the selected thread missing
+│   ├── isThreadNotFound              # True if the selected thread is missing
 │   └── canRename / canDelete
 └── Methods:
     ├── loadAsync() / refreshAsync()  # Load or reload the list
@@ -100,8 +100,9 @@ backend that mints its own ids creates the thread on that first request - see
 [Server-owned conversations](../transport/README.md#server-owned-conversations).
 
 The threads model then re-keys the thread: its chat, its summary, any pending edit, the
-selection and the route parameter. The composer moves the thread's draft. A chat that changes its id while idle, after `clear()` or
-`loadMessages()`, holds a new thread. The old thread stays in the list.
+selection and the route parameter. The composer moves the thread's draft. A chat that changes
+its id while idle, after `clear()` or `loadMessages()`, holds a new thread. The old thread stays
+in the list.
 
 ### Concurrency rules
 
@@ -251,8 +252,9 @@ await threadsModel.deleteThreadsAsync([threadId, otherThreadId]);
 ```
 
 Each change shows at once. If the store fails, the change rolls back and a toast says so. A
-delete closes the threads' chats, and stops any turn running in one. If it deletes the selected
-thread, the model selects a new one. Check `canRename` and `canDelete` before you show each
+delete closes the threads' chats, and stops any turn running in one. It also removes their
+drafts, in memory and in local storage, through `ChatKit.clearLocalData(threadIds)`. If it
+deletes the selected thread, the model selects a new one. Check `canRename` and `canDelete` before you show each
 action. A call the store cannot make throws.
 
 ### Recover from a failed load
