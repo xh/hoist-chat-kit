@@ -228,7 +228,9 @@ The thread leaves it when the user selects it, so a list can mark the reply as n
 
 A background turn that fails, or that the server interrupts or cancels, goes in
 `endedEarlyThreads` instead, with its error as the reason. The mark holds until the user opens
-the thread, or a new turn starts in it. For a thread with no open chat, the store's `lastRunEnd`
+the thread, or a new turn starts in it. The thread's chat stays open until then, so the user
+sees the failed turn with its error and Retry, even from a backend that does not store failed
+turns. For a thread with no open chat, the store's `lastRunEnd`
 and `lastRunReason` fill the same map. The model skips them if the user has seen the thread, in
 this session, since its last activity. A list marks each such row as ended early.
 

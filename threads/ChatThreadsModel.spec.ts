@@ -351,6 +351,29 @@ describe('ChatThreadsModel', () => {
             expect(model.endedEarlyThreads[threadId]).toBeUndefined();
         });
 
+        it('keeps the chat of a background turn that ended early until the user has seen it', async () => {
+            spyHandleException();
+            const turns = new TurnGates(() => errorEvents('The model is overloaded.')),
+                {model} = setup({respond: turns.respond}),
+                chatModel = model.newThread(),
+                {threadId} = chatModel,
+                done = chatModel.sendAsync('Long question');
+
+            await model.selectThreadAsync('t1');
+            turns.open(threadId);
+            await done;
+            expect(chatModel.isDestroyed).toBe(false);
+
+            // Opening it shows the failed turn, with no reload that a backend might answer
+            // without it.
+            await model.selectThreadAsync(threadId);
+            expect(model.chatModel).toBe(chatModel);
+            expect(chatModel.lastMessage.status).toBe('error');
+
+            await model.selectThreadAsync('t1');
+            expect(chatModel.isDestroyed).toBe(true);
+        });
+
         it('marks a background turn that the server interrupted or cancelled as interrupted', async () => {
             spyHandleException();
             const codes: Record<string, string> = {},

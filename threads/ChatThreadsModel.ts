@@ -579,7 +579,8 @@ export class ChatThreadsModel extends HoistModel {
 
     /**
      * Close the chats that are not selected, and neither run a turn nor wait for the user, keeping
-     * their drafts.
+     * their drafts. A chat whose turn ended early in the background stays open until the user has
+     * seen it, as a backend may not store a failed turn, and the chat holds its error and Retry.
      */
     @action
     private closeIdleThreads() {
@@ -588,7 +589,8 @@ export class ChatThreadsModel extends HoistModel {
             (thread, id) =>
                 id !== this.selectedThreadId &&
                 !thread.chatModel.isBusy &&
-                !thread.chatModel.isAwaitingUser
+                !thread.chatModel.isAwaitingUser &&
+                !this.endedEarlyHere[id]
         );
         if (isEmpty(idle)) return;
 
