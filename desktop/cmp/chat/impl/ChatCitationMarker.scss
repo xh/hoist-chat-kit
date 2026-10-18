@@ -144,22 +144,3 @@
   box-shadow: 0 0 0 2px var(--xh-chat-passage-bg);
   color: inherit;
 }
-
-// A web page's favicon, or its letter tile.
-.xh-chat-favicon {
-  border-radius: 3px;
-  box-sizing: border-box;
-  height: 14px;
-  width: 14px;
-
-  &--letter {
-    background-color: var(--xh-chat-part-header-bg);
-    border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
-    color: var(--xh-chat-meta-text-color);
-    display: inline-block;
-    font-size: 8px;
-    font-weight: 700;
-    line-height: 12px;
-    text-align: center;
-  }
-}

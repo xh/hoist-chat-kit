@@ -252,8 +252,6 @@ export interface ChatSourcePart extends ChatPartBase {
      *    of `snippet`.
      *  - `fileName` - the document's file name, shown after its title and used for its file icon.
      *  - `page` - the page the passage is on, shown as "p. 41" and sent with a document request.
-     *  - `favicon` - an icon for a web page, as a `data:` image URI or an image URL. A URL loads
-     *    only if the chat's `allowImages` permits it, else a letter tile shows.
      */
     metadata?: PlainObject;
 }

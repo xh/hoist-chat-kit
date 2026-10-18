@@ -55,7 +55,6 @@ import {
     type ChatReference,
     chatCitations,
     collectReferences,
-    collectUncitedSources,
     createMarkerRenderers,
     toSourceList
 } from './impl/ChatCitations';
@@ -243,12 +242,11 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
                 citationMarkers ? (message.parts.filter(isSource) as ChatSourcePart[]) : null,
                 isEqual
             ),
-            {onSourceClick, allowImages = false} = props;
+            {onSourceClick} = props;
         impl.sourceLinks.configure({
             messageId: message.id,
             sidePanel: impl.sidePanel,
-            onSourceClick: onSourceClick ? source => onSourceClick(source, context) : null,
-            allowImages
+            onSourceClick: onSourceClick ? source => onSourceClick(source, context) : null
         });
         impl.feedback.configure(message, context.chatModel);
 
@@ -658,8 +656,7 @@ function assistantContent(
         {chatModel} = context,
         runs = groupProcessRuns(groupParts(message.parts, host), host),
         // A fixed "not found" reply lists no sources.
-        isNoAnswer = !!getChatNoAnswerPart(message),
-        uncitedSources = isNoAnswer ? [] : collectUncitedSources(message.parts, references);
+        isNoAnswer = !!getChatNoAnswerPart(message);
 
     return [
         div({
@@ -699,12 +696,8 @@ function assistantContent(
                         replyNotice(props, chatModel)
                     ]
                 }),
-                !isNoAnswer && (references.length || uncitedSources.length)
-                    ? chatSources({
-                          sources: toSourceList(references),
-                          uncitedSources,
-                          links: impl.sourceLinks
-                      })
+                !isNoAnswer && references.length
+                    ? chatSources({sources: toSourceList(references), links: impl.sourceLinks})
                     : null,
                 // Actions wait for the turn to end - including one paused for the user's answer.
                 message.isStreaming || message.status === 'paused'

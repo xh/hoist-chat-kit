@@ -8,8 +8,7 @@
   min-width: 0;
   padding-top: 4px;
 
-  &__head,
-  &__also {
+  &__head {
     align-items: center;
     color: var(--xh-chat-meta-text-color);
     display: flex;
@@ -91,7 +90,6 @@
     text-align: left;
   }
 
-  a.xh-chat-sources__title:hover,
   button.xh-chat-sources__title:hover {
     color: var(--xh-chat-text-color);
     text-decoration: underline;
@@ -104,17 +102,6 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  // A web page's host and the external-link icon, at the row's right edge in link color.
-  &__ext {
-    align-items: center;
-    color: var(--xh-chat-citation-text-color);
-    display: inline-flex;
-    flex: none;
-    font-size: var(--xh-chat-meta-font-size);
-    gap: 4px;
     white-space: nowrap;
   }
 

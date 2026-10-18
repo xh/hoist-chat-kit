@@ -140,7 +140,7 @@ export const chatCitationGroupMarker = hoistCmp.factory<ChatCitationGroupMarkerP
                                   numberPill(number),
                                   span({
                                       className: 'xh-chat-source-card__icon',
-                                      item: sourceIcon(source, links.allowImages)
+                                      item: sourceIcon(source)
                                   }),
                                   links.canOpen(source)
                                       ? htmlButton({
@@ -383,7 +383,7 @@ const sourceCard = hoistCmp.factory<SourceCardProps>({
                         numberPill(number),
                         span({
                             className: 'xh-chat-source-card__icon',
-                            item: sourceIcon(source, links.allowImages)
+                            item: sourceIcon(source)
                         }),
                         span({className: 'xh-chat-source-card__title', item: getTitle(source)})
                     ]

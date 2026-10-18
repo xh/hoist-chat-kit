@@ -222,22 +222,19 @@ that nothing can open pins its card instead.
 
 `ChatSources` lists the sources under the reply's text, in the order of their numbers. It never
 renumbers them, so `[2]`, its marker and the row numbered 2 agree even when the numbers skip.
-Three rows show, and the rest sit behind "Show N More". Sources that the reply searched
-but never cites show as a count on one line, without numbers.
+Three rows show, and the rest sit behind "Show N More". A source that a citing reply never cites
+takes no number and no row.
 
-A source's `sourceType` sets its row and what a click does:
+Every row has the same layout: the number, an icon, the title and a meta line. A source's
+`sourceType` sets the icon, the meta line and what a click does:
 
-| `sourceType` | Row | Click |
+| `sourceType` | Icon and meta | Click |
 |---|---|---|
-| `document` | File-type icon, title, then `metadata.fileName` and `metadata.page` | Opens the side panel when one is in reach, else `onSourceClick`, else its URL in a new tab |
-| `url` | Favicon or letter tile, title as a link, then the host and an external-link icon | Opens a new tab, or `onSourceClick` in its place |
+| `document` | File-type icon, then `metadata.fileName` and `metadata.page` | Opens the side panel when one is in reach, else `onSourceClick`, else its URL in a new tab |
+| `url` | Globe, then the host | Opens a new tab, or `onSourceClick` in its place |
 
 A Ctrl or Cmd click on a row opens the source's URL in a new tab. Only `http` and `https` URLs
-open.
-
-A favicon comes from `metadata.favicon` only, and follows the image policy. A `data:` image always
-shows, and an image URL loads only if `allowImages` permits it. Otherwise a letter tile shows. The
-kit never fetches a favicon from a third-party service.
+open. The list loads no image, so it sends no request of its own.
 
 ### Side panel
 
@@ -968,7 +965,7 @@ Use it directly only for a list of your own.
 | `ChatTimeline` | `message`, `host`, `parts`, `pinned`, `context`, `isFollowed`, `isLast` | Show a reply's activity timeline in a layout of your own. `parts` and `pinned` default to the reply's first timeline block. `isFollowed` says the answer has started below it. |
 | `ChatClearButton` | `chatModel`, and any `ButtonProps` | Clear the conversation, from a panel header. |
 | `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |
-| `ChatSources` | `sources`, `uncitedSources`, `defaultExpanded`, `onSourceClick`, `allowImages` | Show a list of sources. Each shows its `marker`, else its position. Uncited sources are counted, not numbered. |
+| `ChatSources` | `sources`, `defaultExpanded`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
 | `ChatNoAnswer` | `part`, `onEditQuestion` | Show a fixed "not found" reply, for example inside an app's own renderer for `xh.chat.noAnswer`. |
 | `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Back, Close, and the content - the app's viewer with its status, or the full table or chart of a result card. |
 | `ChatCodeBlock` | `content`, `language`, `isStreaming` | Show code in a card with a copy button. A finished block over 20 lines shows its first 20, with a button for the rest. |
