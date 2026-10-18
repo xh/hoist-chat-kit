@@ -398,8 +398,9 @@ export class ChatThreadsModel extends HoistModel {
     // When the user last saw each thread, in this session, by id - see `endedEarlyThreads`.
     @observableRef private accessor seenActivityAt: Record<string, number> = {};
 
-    // Threads whose turn ended while selected, to take the seen activity from the next list.
-    private readonly seenOnNextList = new Set<string>();
+    // Threads whose turn ended while selected, to take the seen activity from the next list: the
+    // number of the first list request that can report the turn, by thread id.
+    private readonly seenOnNextList = new Map<string, number>();
 
     // Threads whose turn ended early in the background, in this session - see `endedEarlyThreads`.
     @observableRef private accessor endedEarlyHere: Record<string, ChatThreadEndedEarly> = {};
@@ -546,7 +547,7 @@ export class ChatThreadsModel extends HoistModel {
         if (threadId === this.selectedThreadId) {
             this.noteSeen(threadId);
             // The next list may report the turn's activity by a server clock that runs ahead.
-            this.seenOnNextList.add(threadId);
+            this.seenOnNextList.set(threadId, this.listCount);
             return;
         }
         if (endedEarly) {
@@ -569,13 +570,18 @@ export class ChatThreadsModel extends HoistModel {
 
     /**
      * Raise the seen activity of threads whose turn the user watched end to the activity the
-     * store lists for them - see `seenOnNextList`.
+     * store lists for them - see `seenOnNextList`. Only a list requested after the turn ended
+     * counts. An unfiltered one that leaves a thread out ends its wait.
      */
     @action
-    private noteSeenFromList(threads: ChatThreadSummary[]) {
-        threads.forEach(({id, lastActivityAt}) => {
-            if (!this.seenOnNextList.delete(id)) return;
-            const seen = Math.max(this.seenActivityAt[id] ?? 0, lastActivityAt ?? 0);
+    private noteSeenFromList(threads: ChatThreadSummary[], listNumber: number, search: string) {
+        this.seenOnNextList.forEach((firstListNumber, id) => {
+            if (listNumber < firstListNumber) return;
+            const listed = find(threads, {id});
+            if (!listed && search != null) return;
+            this.seenOnNextList.delete(id);
+            if (!listed) return;
+            const seen = Math.max(this.seenActivityAt[id] ?? 0, listed.lastActivityAt ?? 0);
             this.seenActivityAt = {...this.seenActivityAt, [id]: seen};
         });
     }
@@ -639,6 +645,7 @@ export class ChatThreadsModel extends HoistModel {
             thread?.destroy();
             this.drafts.delete(id);
             this.feedbackDrafts.delete(id);
+            this.seenOnNextList.delete(id);
         });
         // After the chats close, as a composer saves its draft when destroyed.
         ChatKit.clearLocalData(threadIds);
@@ -733,7 +740,7 @@ export class ChatThreadsModel extends HoistModel {
         this.listedSearch = this.searchQuery;
         this.listedThreads = threads;
         this.localThreads = differenceBy(this.localThreads, threads, 'id');
-        this.noteSeenFromList(threads);
+        this.noteSeenFromList(threads, listNumber, this.listedSearch);
         this.pendingChanges = this.pendingChanges.filter(it => listNumber < it.doneBefore);
         this.listError = null;
     }

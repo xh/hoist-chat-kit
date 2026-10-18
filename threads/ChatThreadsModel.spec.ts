@@ -474,6 +474,31 @@ describe('ChatThreadsModel', () => {
             expect(model.endedEarlyThreads[threadId]).toBeUndefined();
         });
 
+        it('takes the seen activity only from a list requested after the turn ended', async () => {
+            spyHandleException();
+            const {model, store} = setup({respond: () => errorEvents('The model is overloaded.')}),
+                chatModel = model.newThread(),
+                {threadId} = chatModel;
+            store.saveThread({id: threadId, lastActivityAt: Date.now()});
+            store.hold('listThreadsAsync');
+            const stale = model.refreshAsync();
+            store.hold('listThreadsAsync', false);
+
+            await chatModel.sendAsync('Hello');
+            store.saveThread({
+                id: threadId,
+                lastRunEnd: 'failed',
+                lastActivityAt: Date.now() + 60_000
+            });
+            store.heldCalls('listThreadsAsync')[0].release();
+            await stale;
+
+            await model.selectThreadAsync('t1');
+            await model.refreshAsync();
+
+            expect(model.endedEarlyThreads[threadId]).toBeUndefined();
+        });
+
         it('keeps a chat whose turn waits for the user, and lists it as awaiting', async () => {
             const {model} = setup({
                     respond: () => toolCallEvents('delete_rows', {count: 3}),
