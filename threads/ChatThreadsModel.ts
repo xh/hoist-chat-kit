@@ -19,7 +19,13 @@ import type {LoadSpec, PlainObject} from '@xh/hoist/core';
 import {HoistModel, managed, TaskObserver, XH} from '@xh/hoist/core';
 import {action, bindable, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {debounced, throwIf} from '@xh/hoist/utils/js';
-import {type ChatFeedbackDraft, ChatKit, type ChatModel, getChatReplyStatus} from '../core';
+import {
+    type ChatFeedbackDraft,
+    ChatKit,
+    type ChatMessage,
+    type ChatModel,
+    getChatReplyStatus
+} from '../core';
 import {genChatId} from '../impl/ids';
 import type {
     ChatMessagePage,
@@ -899,8 +905,11 @@ interface SavedFeedbackDraft {
     /** The message's id when the comment was typed. */
     messageId: string;
 
-    /** The server's ids of the message, from its metadata and its parts. */
-    serverIds: string[];
+    /** The server's id of the message, from its `metadata.serverId`, or null. */
+    serverId: string;
+
+    /** The server's ids of the message's parts. */
+    partServerIds: string[];
 
     draft: ChatFeedbackDraft;
 }
@@ -940,30 +949,45 @@ function getFeedbackDrafts(chatModel: ChatModel): SavedFeedbackDraft[] {
     return compact(
         Object.entries(chatModel.feedbackDrafts).map(([messageId, draft]) => {
             if (draft.isSending) return null;
-            const message = chatModel.getMessage(messageId),
-                serverIds = compact([
-                    message?.metadata.serverId,
-                    ...(message?.parts.map(it => ('serverId' in it ? it.serverId : null)) ?? [])
-                ]);
-            return {messageId, serverIds: uniq(serverIds), draft};
+            const message = chatModel.getMessage(messageId);
+            return {
+                messageId,
+                serverId: message?.metadata.serverId ?? null,
+                partServerIds: message ? getPartServerIds(message) : [],
+                draft
+            };
         })
     );
 }
 
 /**
- * Give loaded messages back their feedback comments. A message from history may carry the id the
- * chat streamed it under, or the server's id for it.
+ * Give loaded replies back their feedback comments. A reply from history may carry the id the chat
+ * streamed it under, or the server's id for it or one of its parts. The match tries each, in that
+ * order, and skips a comment that more than one reply matches at the first tier that finds any.
  */
 function restoreFeedbackDrafts(chatModel: ChatModel, saved: SavedFeedbackDraft[]) {
-    saved.forEach(({messageId, serverIds, draft}) => {
-        const message = chatModel.messages.find(
-            it =>
-                it.id === messageId ||
-                serverIds.includes(it.id) ||
-                serverIds.includes(it.metadata.serverId)
-        );
-        if (message) chatModel.setFeedbackDraft(message.id, draft);
+    const replies = chatModel.messages.filter(it => it.isAssistant);
+    saved.forEach(({messageId, serverId, partServerIds, draft}) => {
+        const isServerId = (ids: string[], message: ChatMessage) =>
+                ids.includes(message.id) ||
+                ids.includes(message.metadata.serverId) ||
+                getPartServerIds(message).some(it => ids.includes(it)),
+            tiers: Array<(message: ChatMessage) => boolean> = [
+                it => it.id === messageId,
+                it => serverId != null && isServerId([serverId], it),
+                it => isServerId(partServerIds, it)
+            ];
+        for (const tier of tiers) {
+            const matches = replies.filter(tier);
+            if (matches.length === 1) chatModel.setFeedbackDraft(matches[0].id, draft);
+            if (matches.length) return;
+        }
     });
+}
+
+/** The server's ids of a message's parts. */
+function getPartServerIds(message: ChatMessage): string[] {
+    return uniq(compact(message.parts.map(it => ('serverId' in it ? it.serverId : null))));
 }
 
 /**

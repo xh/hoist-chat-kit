@@ -868,6 +868,45 @@ describe('ChatThreadsModel', () => {
             expect(model.chatModel.feedbackDrafts).toEqual({'srv-a1': draft});
         });
 
+        it("matches a reply's own server id before a part id that another reply shares", async () => {
+            const {model, store} = setup({
+                    respond: () => [
+                        {
+                            type: 'CUSTOM',
+                            name: 'xh.chat.message',
+                            value: {role: 'assistant', serverId: 'srv-a2'}
+                        },
+                        ...textEvents('The answer.', {messageId: 'msg-1'})
+                    ]
+                }),
+                chatModel = model.newThread(),
+                {threadId} = chatModel;
+            await chatModel.sendAsync('A question');
+            // An earlier reply comes back under the id that the streamed part carried.
+            store.saveThread({
+                id: threadId,
+                messages: [
+                    {id: 'srv-u1', role: 'user', content: 'Earlier'},
+                    {id: 'msg-1', role: 'assistant', content: 'Earlier answer.'},
+                    {id: 'srv-u2', role: 'user', content: 'A question'},
+                    {id: 'srv-a2', role: 'assistant', content: 'The answer.'}
+                ]
+            });
+            const draft = {
+                rating: 'negative' as const,
+                comment: 'Wrong year.',
+                isPending: true,
+                isSending: false,
+                error: null
+            };
+            chatModel.setFeedbackDraft(chatModel.lastMessage.id, draft);
+
+            await model.selectThreadAsync('t1');
+            await model.selectThreadAsync(threadId);
+
+            expect(model.chatModel.feedbackDrafts).toEqual({'srv-a2': draft});
+        });
+
         it('keeps an open feedback comment when the thread reloads', async () => {
             const {model} = setup(),
                 draft = {
