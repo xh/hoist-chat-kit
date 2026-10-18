@@ -5,6 +5,7 @@ import {ChatModel, type ChatModelConfig, ChatRunError} from '../core';
 import {
     type ChatEvent,
     type ChatRunRequest,
+    errorEvents,
     ScriptedChatTransport,
     type ScriptedRequestContext,
     type ScriptedResponse,
@@ -315,6 +316,77 @@ describe('ChatThreadsModel', () => {
             await chatModel.sendAsync('Hello');
 
             expect(model.finishedAwayThreadIds).toEqual([]);
+        });
+
+        it('marks a thread whose background turn failed as ended early, until it is selected', async () => {
+            spyHandleException();
+            const turns = new TurnGates(() => errorEvents('The model is overloaded.')),
+                {model} = setup({respond: turns.respond}),
+                chatModel = model.newThread(),
+                {threadId} = chatModel,
+                done = chatModel.sendAsync('Long question');
+
+            await model.selectThreadAsync('t1');
+            turns.open(threadId);
+            await done;
+            expect(model.endedEarlyThreads[threadId]).toEqual({
+                runEnd: 'failed',
+                reason: 'The model is overloaded.'
+            });
+            expect(model.finishedAwayThreadIds).toEqual([]);
+
+            await model.selectThreadAsync(threadId);
+            expect(model.endedEarlyThreads[threadId]).toBeUndefined();
+        });
+
+        it('marks a background turn that the server interrupted or cancelled as interrupted', async () => {
+            spyHandleException();
+            const codes: Record<string, string> = {},
+                turns = new TurnGates(id => errorEvents('Stopped by the server.', codes[id])),
+                {model} = setup({respond: turns.respond}),
+                interrupted = model.newThread(),
+                interruptedDone = interrupted.sendAsync('One'),
+                cancelled = model.newThread(),
+                cancelledDone = cancelled.sendAsync('Two');
+            codes[interrupted.threadId] = 'interrupted';
+            codes[cancelled.threadId] = 'cancelled';
+
+            await model.selectThreadAsync('t1');
+            turns.open(interrupted.threadId);
+            turns.open(cancelled.threadId);
+            await Promise.all([interruptedDone, cancelledDone]);
+
+            expect(model.endedEarlyThreads[interrupted.threadId].runEnd).toBe('interrupted');
+            expect(model.endedEarlyThreads[cancelled.threadId].runEnd).toBe('interrupted');
+        });
+
+        it('does not mark a thread whose turn failed while it was selected', async () => {
+            spyHandleException();
+            const {model} = setup({respond: () => errorEvents('The model is overloaded.')}),
+                chatModel = model.newThread();
+
+            await chatModel.sendAsync('Hello');
+
+            expect(chatModel.status).toBe('error');
+            expect(model.endedEarlyThreads).toEqual({});
+        });
+
+        it("falls back to the store's lastRunEnd for a thread with no open chat", async () => {
+            const {model} = setup({
+                store: new LocalChatThreadStore({
+                    threads: [
+                        {id: 'cut', lastRunEnd: 'interrupted', lastRunReason: 'Server restarted.'},
+                        {id: 'done', lastRunEnd: 'complete'}
+                    ]
+                })
+            });
+            await model.loadAsync();
+            expect(model.endedEarlyThreads).toEqual({
+                cut: {runEnd: 'interrupted', reason: 'Server restarted.'}
+            });
+
+            await model.selectThreadAsync('cut');
+            expect(model.endedEarlyThreads).toEqual({});
         });
 
         it('keeps a chat whose turn waits for the user, and lists it as awaiting', async () => {
@@ -717,6 +789,11 @@ function setup({
 class TurnGates {
     private gates = new Map<string, {promise: Promise<void>; open: () => void}>();
 
+    constructor(
+        private readonly events: (threadId: string) => ChatEvent[] = threadId =>
+            textEvents(`Reply in ${threadId}`)
+    ) {}
+
     respond: Respond = request => this.gated(request.threadId);
 
     open(threadId: string) {
@@ -734,7 +811,7 @@ class TurnGates {
 
     private async *gated(threadId: string): AsyncGenerator<ChatEvent> {
         await this.gate(threadId).promise;
-        yield* textEvents(`Reply in ${threadId}`);
+        yield* this.events(threadId);
     }
 }
 

@@ -17,7 +17,7 @@ import type {LoadSpec, PlainObject} from '@xh/hoist/core';
 import {HoistModel, managed, TaskObserver, XH} from '@xh/hoist/core';
 import {action, bindable, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {debounced, throwIf} from '@xh/hoist/utils/js';
-import {ChatKit, type ChatModel} from '../core';
+import {ChatKit, type ChatModel, getChatReplyStatus} from '../core';
 import {genChatId} from '../impl/ids';
 import type {
     ChatMessagePage,
@@ -63,6 +63,15 @@ export interface ChatThreadsRoute {
 
     /** Name of the route parameter that holds the thread id, such as 'threadId'. */
     param: string;
+}
+
+/** How a thread's last run ended early - see {@link ChatThreadsModel.endedEarlyThreads}. */
+export interface ChatThreadEndedEarly {
+    /** `failed` for a run that ended in an error, `interrupted` for one the server cut short. */
+    runEnd: 'interrupted' | 'failed';
+
+    /** Why the run ended so, for a tooltip, or null. */
+    reason: string;
 }
 
 /** How to start a new thread - see {@link ChatThreadsModel.newThread}. */
@@ -177,6 +186,28 @@ export class ChatThreadsModel extends HoistModel {
      * them. Held for the session only. A thread list shows each as having a new reply.
      */
     @observableRef accessor finishedAwayThreadIds: string[] = [];
+
+    /**
+     * Threads whose last run ended early, by thread id: failed, or interrupted or cancelled by the
+     * server. A thread list marks each row. Two sources feed it:
+     *
+     *  - A turn that ended early in the background, in this session. The mark holds until the user
+     *    opens the thread, or a new turn starts in it.
+     *  - The store's `lastRunEnd` and `lastRunReason`, for a thread with no open chat.
+     */
+    @computed
+    get endedEarlyThreads(): Record<string, ChatThreadEndedEarly> {
+        const ret: Record<string, ChatThreadEndedEarly> = {};
+        this.threads.forEach(({id, lastRunEnd, lastRunReason}) => {
+            if (
+                (lastRunEnd === 'interrupted' || lastRunEnd === 'failed') &&
+                !this.openThreads[id]
+            ) {
+                ret[id] = {runEnd: lastRunEnd, reason: lastRunReason ?? null};
+            }
+        });
+        return {...ret, ...this.endedEarlyHere};
+    }
 
     /**
      * Why the selected thread's history failed to load, or null. Sends wait in that thread - and
@@ -356,6 +387,9 @@ export class ChatThreadsModel extends HoistModel {
     // Threads started here that the store has not listed yet, newest first.
     @observableRef private accessor localThreads: ChatThreadSummary[] = [];
 
+    // Threads whose turn ended early in the background, in this session - see `endedEarlyThreads`.
+    @observableRef private accessor endedEarlyHere: Record<string, ChatThreadEndedEarly> = {};
+
     // Renames and deletes, laid over the threads until a list requested after they ended.
     @observableRef private accessor pendingChanges: PendingChange[] = [];
 
@@ -456,15 +490,19 @@ export class ChatThreadsModel extends HoistModel {
     }
 
     private onBusyChange(thread: OpenThread) {
-        const {chatModel} = thread;
+        const {chatModel} = thread,
+            {threadId} = chatModel;
         this.noteActivity(chatModel);
-        if (!chatModel.isBusy) {
-            // A turn that pauses for the user has not finished - the thread lists as awaiting.
-            if (!chatModel.isAwaitingUser) this.noteFinishedAway(chatModel.threadId);
-            // The backend may have set a title, or the thread's place in the list may change.
-            this.refreshThreadsSoon();
-            this.closeIdleThreads();
+        if (chatModel.isBusy) {
+            this.clearEndedEarly(threadId);
+            return;
         }
+
+        // A turn that pauses for the user has not finished - the thread lists as awaiting.
+        if (!chatModel.isAwaitingUser) this.noteTurnEnd(threadId, getEndedEarly(chatModel));
+        // The backend may have set a title, or the thread's place in the list may change.
+        this.refreshThreadsSoon();
+        this.closeIdleThreads();
     }
 
     // Turns that end close together reload the list once.
@@ -473,17 +511,31 @@ export class ChatThreadsModel extends HoistModel {
         if (!this.isDestroyed) this.refreshAsync();
     }
 
-    /** Mark a thread whose turn ended while another thread was selected. */
+    /**
+     * Mark a thread whose turn ended while another thread was selected: as ended early if it did,
+     * else as finished away.
+     */
     @action
-    private noteFinishedAway(threadId: string) {
+    private noteTurnEnd(threadId: string, endedEarly: ChatThreadEndedEarly) {
         if (threadId === this.selectedThreadId) return;
-        this.finishedAwayThreadIds = union(this.finishedAwayThreadIds, [threadId]);
+        if (endedEarly) {
+            this.endedEarlyHere = {...this.endedEarlyHere, [threadId]: endedEarly};
+        } else {
+            this.finishedAwayThreadIds = union(this.finishedAwayThreadIds, [threadId]);
+        }
+    }
+
+    @action
+    private clearEndedEarly(threadId: string) {
+        if (this.endedEarlyHere[threadId])
+            this.endedEarlyHere = omit(this.endedEarlyHere, threadId);
     }
 
     @action
     private setSelectedThreadId(threadId: string) {
         this.selectedThreadId = threadId;
         this.finishedAwayThreadIds = without(this.finishedAwayThreadIds, threadId);
+        this.clearEndedEarly(threadId);
         this.loadTask.clear();
         this.closeIdleThreads();
     }
@@ -531,6 +583,7 @@ export class ChatThreadsModel extends HoistModel {
         ChatKit.clearLocalData(threadIds);
         this.openThreads = omit(this.openThreads, threadIds);
         this.finishedAwayThreadIds = difference(this.finishedAwayThreadIds, threadIds);
+        this.endedEarlyHere = omit(this.endedEarlyHere, threadIds);
     }
 
     /** Keep the draft of a closed chat, if the user changed its text or run options. */
@@ -774,4 +827,15 @@ function applyChange(thread: ChatThreadSummary, change: PendingChange): ChatThre
 
 function applyChanges(thread: ChatThreadSummary, changes: PendingChange[]): ChatThreadSummary {
     return changes.reduce((ret, change) => ret && applyChange(ret, change), thread);
+}
+
+/** How a chat's last turn ended early - failed, or cut short by the server - or null. */
+function getEndedEarly(chatModel: ChatModel): ChatThreadEndedEarly {
+    if (chatModel.status !== 'error') return null;
+    const replyStatus = getChatReplyStatus({message: chatModel.lastMessage}),
+        isCutShort = replyStatus === 'interrupted' || replyStatus === 'cancelledByServer';
+    return {
+        runEnd: isCutShort ? 'interrupted' : 'failed',
+        reason: chatModel.lastError?.message ?? null
+    };
 }

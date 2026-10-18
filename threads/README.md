@@ -57,6 +57,7 @@ ChatThreadsModel (HoistModel)
 │   ├── runningThreadIds              # Threads with a turn running, here or on the server
 │   ├── awaitingThreadIds             # Threads whose turn waits for the user
 │   ├── finishedAwayThreadIds         # Threads whose turn ended while not selected
+│   ├── endedEarlyThreads             # Threads whose last run failed or was cut short
 │   ├── loadError                     # Why the selected thread's history failed, or null
 │   ├── isThreadNotFound              # True if the store reported the selected thread missing
 │   └── canRename / canDelete
@@ -218,6 +219,11 @@ the user knows the thread needs them.
 A turn that ends while another thread is selected puts its thread in `finishedAwayThreadIds`.
 The thread leaves it when the user selects it, so a list can mark the reply as new until then.
 
+A background turn that fails, or that the server interrupts or cancels, goes in
+`endedEarlyThreads` instead, with its error as the reason. The mark holds until the user opens
+the thread, or a new turn starts in it. For a thread with no open chat, the store's `lastRunEnd`
+and `lastRunReason` fill the same map. A list marks each such row as ended early.
+
 ### Cap the list and the history
 
 The threads model does not page. It shows the threads that `listThreadsAsync` returns, and the
@@ -333,6 +339,7 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save
 | `runningThreadIds` | `string[]` | Threads with a turn running here, or reported running by the store. |
 | `awaitingThreadIds` | `string[]` | Threads whose turn is paused for the user. Their chats stay open. |
 | `finishedAwayThreadIds` | `string[]` | Threads whose turn ended while another thread was selected. A thread leaves it when selected. Held for the session only. |
+| `endedEarlyThreads` | `Record<string, ChatThreadEndedEarly>` | Threads whose last run ended early, by id, each with `runEnd` (`'interrupted'` or `'failed'`) and a `reason`. From background turns in this session, and the store's `lastRunEnd` for threads with no open chat. |
 | `loadError` | `Error` | Why the selected thread's history failed to load, or null. |
 | `isThreadNotFound` | `boolean` | True if the store reported the selected thread missing, with a 404. |
 | `listError` | `Error` | Error from the last list load, or null. The list keeps its threads. |
@@ -370,7 +377,7 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save
 | `lastActivityAt` | `number` | Epoch millis of the last change. Drives sorting and recency groups. |
 | `createdAt` | `number` | Epoch millis of creation. Optional. |
 | `isRunning` | `boolean` | True if the backend reports a run in progress. Optional. |
-| `lastRunEnd` | `'complete' \| 'interrupted' \| 'failed'` | How the last run ended, if the backend reports it. A thread list marks `interrupted` and `failed`. Optional. |
+| `lastRunEnd` | `'complete' \| 'interrupted' \| 'failed'` | How the last run ended, if the backend reports it. Feeds `endedEarlyThreads` for a thread with no open chat. Optional. |
 | `lastRunReason` | `string` | Why the last run ended so, for a tooltip. Optional. |
 | `metadata` | `PlainObject` | App data. Optional. |
 

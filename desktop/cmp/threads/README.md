@@ -62,8 +62,12 @@ A row shows at most one unusual state, in this order:
 | Running | `runningThreadIds` | Spinner, and "Working" in place of the time | "working" |
 | Awaiting | `awaitingThreadIds` | Pause | "waiting for you" |
 | New reply | `finishedAwayThreadIds`, unless selected | Dot, and a bold title | "new reply" |
-| Interrupted | `lastRunEnd: 'interrupted'` | Warning, with `lastRunReason` as tooltip | "last reply interrupted" |
-| Failed | `lastRunEnd: 'failed'` | Warning, in the error color | "last reply failed" |
+| Interrupted | `endedEarlyThreads`, with `runEnd: 'interrupted'` | Warning, with the reason as tooltip | "last reply interrupted" |
+| Failed | `endedEarlyThreads`, with `runEnd: 'failed'` | Warning, in the error color | "last reply failed" |
+
+Interrupted and Failed are the two looks of "ended early". The threads model sets them from a
+background turn that failed or that the server cut short, and from the store's `lastRunEnd` for a
+thread with no open chat.
 
 A row in no unusual state shows no icon.
 
@@ -132,7 +136,7 @@ It also takes Hoist's `BoxProps` for layout.
 | `selectedThreadId` | `string` | The open thread. |
 | `newThread()`, `selectThreadAsync()` | methods | New Chat, and a click on a row. |
 | `search` | `string` | Text to search for. The search input reads and writes it. |
-| `runningThreadIds`, `awaitingThreadIds`, `finishedAwayThreadIds` | `string[]` | Row states. |
+| `runningThreadIds`, `awaitingThreadIds`, `finishedAwayThreadIds`, `endedEarlyThreads` | | Row states. |
 | `listError` | `Error` | The last list failure. |
 | `listTask` | `TaskObserver` | Shows the skeleton while the first load is pending. |
 | `canRename`, `renameThreadAsync()` | | Rename, if the store can. |

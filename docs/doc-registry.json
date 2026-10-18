@@ -220,6 +220,7 @@
       "description": "Platform-neutral thread layer: a store adapter, one chat per open thread, background turns, search, edits with rollback and deep links.",
       "keywords": [
         "finishedAwayThreadIds",
+        "endedEarlyThreads",
         "lastRunEnd",
         "ChatThreadsModel",
         "ChatThreadsConfig",
@@ -388,6 +389,7 @@
         "awaiting",
         "new reply",
         "finishedAwayThreadIds",
+        "endedEarlyThreads",
         "lastRunEnd",
         "interrupted",
         "tree grid",

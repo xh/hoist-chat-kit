@@ -231,7 +231,7 @@ function threadRow(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): R
                       className: 'xh-chat-thread-list__cell',
                       role: 'gridcell',
                       items: [
-                          rowIcon(thread, status),
+                          rowIcon(model, thread, status),
                           span({className: 'xh-chat-thread-list__title', item: title}),
                           span({
                               className: 'xh-chat-thread-list__time',
@@ -244,7 +244,7 @@ function threadRow(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): R
     });
 }
 
-function rowIcon(thread: ChatThreadSummary, status: RowStatus): ReactNode {
+function rowIcon(model: ChatThreadsModel, thread: ChatThreadSummary, status: RowStatus): ReactNode {
     const className = 'xh-chat-thread-list__icon';
     switch (status) {
         case 'running':
@@ -257,7 +257,7 @@ function rowIcon(thread: ChatThreadSummary, status: RowStatus): ReactNode {
         case 'failed':
             return span({
                 className,
-                title: thread.lastRunReason ?? STATUS_TIPS[status],
+                title: model.endedEarlyThreads[thread.id]?.reason ?? STATUS_TIPS[status],
                 item: Icon.warningCircle()
             });
     }
@@ -373,12 +373,11 @@ function getRowStatus(
     thread: ChatThreadSummary,
     isSelected: boolean
 ): RowStatus {
-    const {id, lastRunEnd} = thread;
+    const {id} = thread;
     if (includes(model.runningThreadIds, id)) return 'running';
     if (includes(model.awaitingThreadIds, id)) return 'awaiting';
     if (!isSelected && includes(model.finishedAwayThreadIds, id)) return 'new';
-    if (lastRunEnd === 'interrupted' || lastRunEnd === 'failed') return lastRunEnd;
-    return null;
+    return model.endedEarlyThreads[id]?.runEnd ?? null;
 }
 
 /** Words a screen reader reads after a row's title, in place of its time. */
@@ -390,7 +389,7 @@ const STATUS_WORDS: Record<RowStatus, string> = {
     failed: 'last reply failed'
 };
 
-/** Tooltips for a row whose last run ended early, when the store gives no reason. */
+/** Tooltips for a row whose last run ended early, when no reason is known. */
 const STATUS_TIPS: Partial<Record<RowStatus, string>> = {
     interrupted: 'The last reply was interrupted.',
     failed: 'The last reply failed.'
