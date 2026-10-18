@@ -183,7 +183,6 @@ ChatKit.defaults.shortcuts.toggleSidebar = 'mod+b';
 | `focusComposer` | `/` | Focus in a `ChatPanel` or workspace, outside a text field | Focuses the composer. |
 | `cycleRegions` | `f6`, with Shift to go back | Focus in a workspace | Moves focus through the thread list, the conversation, the composer and the side panel. |
 | `toggleSidebar` | null | Focus in a workspace | Collapses or expands the thread sidebar. |
-| `toggleDock` | `ctrl+.` | Page-wide, while a dock exists | Reserved for the dock, which is still to come. |
 
 `mod` is Cmd on a Mac and Ctrl elsewhere. No shortcut ever approves, applies or deletes.
 

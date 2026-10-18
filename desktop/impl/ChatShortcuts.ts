@@ -29,8 +29,6 @@ export interface ChatShortcutHandlers {
  *
  * @internal
  */
-// TODO(design-open B3) - shortcuts on by default, each one remappable or null in `ChatKit.defaults`.
-// TODO(dock): bind `toggleDock` page-wide once the kit has a page dock.
 export function getChatHotkeys(handlers: ChatShortcutHandlers): ChatHotkeyConfig[] {
     const {shortcuts} = ChatKit.defaults,
         ret: ChatHotkeyConfig[] = [],

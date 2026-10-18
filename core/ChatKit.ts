@@ -59,11 +59,8 @@ export interface ChatKitDefaults {
  * `mod+shift+o`. Set an action to null to drop its shortcut.
  */
 export interface ChatShortcuts {
-    /** Start a new chat, in a workspace or dock. Default `mod+shift+o`. */
+    /** Start a new chat, in a workspace. Default `mod+shift+o`. */
     newChat: string;
-
-    /** Open or close the dock, page-wide, while a dock exists. Default `ctrl+.`. */
-    toggleDock: string;
 
     /** Focus the composer, when focus is not in a text field. Default `/`. */
     focusComposer: string;
@@ -94,10 +91,8 @@ export class ChatKit {
         stallAfterMs: 30_000,
         // TODO(design-open B6) - local drafts, cleared on logout by `ChatKit.clearLocalData()`.
         drafts: 'local',
-        // TODO(design-open B3) - shortcuts on by default, each one remappable or off.
         shortcuts: {
             newChat: 'mod+shift+o',
-            toggleDock: 'ctrl+.',
             focusComposer: '/',
             cycleRegions: 'f6',
             toggleSidebar: null
