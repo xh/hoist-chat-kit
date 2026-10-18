@@ -444,6 +444,27 @@ describe('ChatWorkspace', () => {
             expect(threadsModel.loadError).toBeNull();
             expect(screen.getByText('Hello')).toBeTruthy();
         });
+
+        it('shows "Thread not found" for a thread the store reports missing, with New Chat', async () => {
+            const {threadsModel} = renderWorkspace();
+            await act(() => threadsModel.selectThreadAsync('deleted'));
+
+            expect(
+                screen.getByText('This conversation does not exist, or it was deleted.')
+            ).toBeTruthy();
+            expect(heading()).toBe('Thread not found');
+            expect(document.querySelector('.xh-chat-composer')).toBeNull();
+
+            const notFound = document.querySelector<HTMLElement>('.xh-chat-workspace__not-found');
+            fireEvent.click(within(notFound).getByRole('button', {name: 'New Chat'}));
+            await act(() => wait());
+
+            expect(threadsModel.selectedThreadId).not.toBe('deleted');
+            expect(threadsModel.isThreadNotFound).toBe(false);
+            expect(heading()).toBe('New chat');
+            expect(screen.queryByText('Thread not found')).toBeNull();
+            expect(document.querySelector('.xh-chat-composer')).not.toBeNull();
+        });
     });
 });
 

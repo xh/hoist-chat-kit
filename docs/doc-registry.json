@@ -243,6 +243,8 @@
         "search",
         "route binding",
         "deep links",
+        "isThreadNotFound",
+        "thread not found",
         "concurrency rules",
         "recency groups"
       ]

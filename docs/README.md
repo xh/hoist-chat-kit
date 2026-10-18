@@ -50,7 +50,7 @@ its tools.
 | List a user's stored threads, and switch between them | [`/threads/`](../threads/README.md) |
 | Implement a thread store for your backend | [`/threads/`](../threads/README.md#configuration-pattern) |
 | Run turns in the background while the user reads another thread | [`/threads/`](../threads/README.md#let-turns-run-in-the-background) |
-| Link to a thread with a route parameter | [`/threads/`](../threads/README.md#link-to-a-thread) |
+| Link to a thread with a route parameter, and show a missing one as not found | [`/threads/`](../threads/README.md#link-to-a-thread) |
 | Group a thread list into Today, Yesterday and older | [`/threads/`](../threads/README.md#group-the-list-by-recency) |
 | Show a user's threads in a sidebar, with rename and delete | [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) |
 | Put a full-page chat on screen, with a thread sidebar and a side panel | [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md) |

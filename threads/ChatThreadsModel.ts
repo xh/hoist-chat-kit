@@ -187,6 +187,16 @@ export class ChatThreadsModel extends HoistModel {
         return this.selectedThread?.loadError ?? null;
     }
 
+    /**
+     * True if the store reported the selected thread missing, with a 404. A deep link to a
+     * deleted thread is the usual cause. A workspace shows "Thread not found" in place of its
+     * chat.
+     */
+    @computed
+    get isThreadNotFound(): boolean {
+        return this.selectedThread?.loadState === 'notFound';
+    }
+
     /** True if the store can rename threads. */
     get canRename(): boolean {
         return !!this.store.renameThreadAsync;
@@ -273,7 +283,7 @@ export class ChatThreadsModel extends HoistModel {
 
     /**
      * Select a thread, opening its chat and loading its history if it is not open already. A
-     * thread the store does not have opens empty.
+     * thread that the store reports missing opens empty - see {@link isThreadNotFound}.
      *
      * @returns a promise that resolves once the history has loaded, or failed to - see
      *      {@link loadError}.
@@ -561,7 +571,7 @@ export class ChatThreadsModel extends HoistModel {
             if (!thread.isLoadCurrent(loadKey)) {
                 this.logWarn(`Discarded a failed load of thread ${threadId}, no longer open`, e);
             } else if (isNotFound(e)) {
-                thread.endLoad();
+                thread.endLoadNotFound();
             } else {
                 thread.endLoad(e);
                 XH.handleException(e, {showAlert: false});

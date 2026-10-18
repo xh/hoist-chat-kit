@@ -198,14 +198,30 @@ describe('ChatThreadsModel', () => {
             expect(model.chatModel.runOptions).toEqual({scope: ['doc-1']});
         });
 
-        it('6. opens a thread the store does not have as an empty thread', async () => {
+        it('6. marks a thread the store reports missing as not found, with no error', async () => {
             const {model} = setup();
 
             await model.selectThreadAsync('missing');
 
+            expect(model.isThreadNotFound).toBe(true);
             expect(model.chatModel.isEmpty).toBe(true);
             expect(model.loadError).toBeNull();
             expect(model.chatModel.sendBlockedReason).toBeNull();
+
+            model.newThread();
+            expect(model.isThreadNotFound).toBe(false);
+        });
+
+        it('6. opens a thread whose history is an empty page as an empty thread', async () => {
+            const {model} = setup({
+                store: new LocalChatThreadStore({threads: [{id: 'blank', title: 'Blank'}]})
+            });
+
+            await model.selectThreadAsync('blank');
+
+            expect(model.isThreadNotFound).toBe(false);
+            expect(model.chatModel.isEmpty).toBe(true);
+            expect(model.loadError).toBeNull();
         });
 
         it('6. blocks sends only in a thread that failed to load, until it reloads', async () => {

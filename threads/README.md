@@ -58,6 +58,7 @@ ChatThreadsModel (HoistModel)
 │   ├── awaitingThreadIds             # Threads whose turn waits for the user
 │   ├── finishedAwayThreadIds         # Threads whose turn ended while not selected
 │   ├── loadError                     # Why the selected thread's history failed, or null
+│   ├── isThreadNotFound              # True if the store reported the selected thread missing
 │   └── canRename / canDelete
 └── Methods:
     ├── loadAsync() / refreshAsync()  # Load or reload the list
@@ -113,14 +114,14 @@ spec, and each has a unit test.
 | 3 | A new thread opened during a load never shows the old thread's messages. | A new thread gets a new chat. A load writes only to the chat that asked for it. |
 | 4 | Events from a run apply only to that run's chat. | The threads model never routes events. Each chat guards its own turn. |
 | 5 | Run options and drafts never leak into another thread. | Each thread has its own chat. A closed thread's draft is kept under its id. |
-| 6 | A 404 or an empty page is an empty thread. Any other failure blocks sends on that thread only, with an error and a reload. | The thread's load state feeds its own send blocker and `loadError`. |
+| 6 | A 404 is a missing thread, and an empty page an empty one. Any other failure blocks sends on that thread only, with an error and a reload. | The thread's load state feeds `isThreadNotFound`, its own send blocker and `loadError`. |
 | 7 | A turn that ends with no content is an error. | `ChatModel` fails a run that finishes with an empty reply, with code `empty-response`. |
 
 ## Configuration Pattern
 
 Implement the store against your backend. Map the backend's records to `ChatThreadSummary` and
-`ChatMessageSpec`, and report a missing thread with an empty page or an error with `httpStatus`
-404. Hoist's `FetchService` throws such an error for a 404.
+`ChatMessageSpec`. Report a missing thread with an error that has `httpStatus` 404, as Hoist's
+`FetchService` throws for a 404. Return an empty page for a thread with no messages yet.
 
 ```typescript
 import {XH} from '@xh/hoist/core';
@@ -272,6 +273,10 @@ A deep link selects its thread. A selection replaces the parameter, with no new 
 On the route with no parameter, the model writes the current selection into it. The model
 ignores other routes.
 
+A deep link to a thread that the store reports missing, with a 404, sets `isThreadNotFound`. The
+workspace then shows "Thread not found" with New Chat, in place of an empty chat. An app with its
+own layout reads the flag the same way.
+
 ### Group the list by recency
 
 ```typescript
@@ -329,6 +334,7 @@ a `ScriptedChatTransport`'s `respond`, or from the chat's `onTurnComplete`. Save
 | `awaitingThreadIds` | `string[]` | Threads whose turn is paused for the user. Their chats stay open. |
 | `finishedAwayThreadIds` | `string[]` | Threads whose turn ended while another thread was selected. A thread leaves it when selected. Held for the session only. |
 | `loadError` | `Error` | Why the selected thread's history failed to load, or null. |
+| `isThreadNotFound` | `boolean` | True if the store reported the selected thread missing, with a 404. |
 | `listError` | `Error` | Error from the last list load, or null. The list keeps its threads. |
 | `listTask` | `TaskObserver` | Pending while the list loads. |
 | `loadTask` | `TaskObserver` | Pending while the selected thread's history loads. |
@@ -418,8 +424,17 @@ A chat closes when it is neither selected nor busy, and a closed chat is destroy
 
 ### Reporting a missing thread as an error
 
-The model shows a thread as empty only for an empty page or a 404. Any other error blocks sends
-on the thread. A store whose backend reports a missing thread some other way should map it.
+The model marks a thread not found only for a 404, and shows an empty page as an empty thread.
+Any other error blocks sends on the thread. A store whose backend reports a missing thread some
+other way should map it to an error with `httpStatus` 404.
+
+```typescript
+// ✅ Do: Report a missing thread as a 404
+if (!chat) throw Object.assign(new Error('Chat not found.'), {httpStatus: 404});
+
+// ❌ Don't: An empty page reads as an empty thread, never "Thread not found"
+if (!chat) return {messages: []};
+```
 
 ## Related Packages
 

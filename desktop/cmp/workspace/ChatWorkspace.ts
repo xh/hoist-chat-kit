@@ -75,7 +75,8 @@ export interface ChatWorkspaceProps extends HoistProps<ChatWorkspaceModel>, BoxP
  * The sidebar is a Hoist `Panel`, resizable and collapsible to a rail with New Chat and search.
  * Under 788 px it hides, and the header offers the list in a popover. The conversation is a
  * `ChatPanel` for the selected thread's chat. It clears the moment the selection changes, and
- * shows a failed load in its place with Retry.
+ * shows a failed load in its place with Retry. A thread the store reports missing, as from a deep
+ * link, shows "Thread not found" with New Chat.
  *
  * The side panel shows the request open in the model's `sidePanel` - such as a document that a
  * citation opened, rendered by the model's `documentRenderer` - else the app's own `sidePanel`
@@ -122,7 +123,7 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
                                     ? defaultHeader(model, impl, headerItems, threadListProps)
                                     : header,
                                 noticeLine(notice),
-                                conversation(model, chatPanelProps, testId)
+                                conversation(model, impl, chatPanelProps, testId)
                             ]
                         }),
                         sidePanelView(model, impl, sidePanel, sidePanelProps, testId)
@@ -236,7 +237,9 @@ function defaultHeader(
                 className: 'xh-chat-workspace__title',
                 role: 'heading',
                 'aria-level': 2,
-                item: summary?.title ?? 'New chat'
+                item: threadsModel.isThreadNotFound
+                    ? 'Thread not found'
+                    : (summary?.title ?? 'New chat')
             }),
             filler(),
             ...headerItems,
@@ -324,6 +327,7 @@ function noticeLine(notice: ReactNode): ReactNode {
 
 function conversation(
     model: ChatWorkspaceModel,
+    impl: ChatWorkspaceLocalModel,
     chatPanelProps: ChatWorkspaceProps['chatPanelProps'],
     testId: string
 ): ReactNode {
@@ -331,7 +335,20 @@ function conversation(
         {chatModel, loadError} = threadsModel;
     if (!chatModel) return null;
 
-    // TODO(R14, D74): show "Thread not found" for a deep-linked thread the store reports missing.
+    // A thread the store reports missing, as from a deep link, offers a new chat in its place.
+    if (threadsModel.isThreadNotFound && chatModel.isEmpty) {
+        return errorMessage({
+            key: chatModel.xhId,
+            className: 'xh-chat-workspace__not-found',
+            testId: getTestId(testId, 'notFound'),
+            error: true,
+            title: 'Thread not found',
+            message: 'This conversation does not exist, or it was deleted.',
+            actionFn: () => impl.newChat(),
+            actionButtonProps: {text: 'New Chat', icon: Icon.add()}
+        });
+    }
+
     // TODO(D65): announce "Opened [title]" once a selected thread's messages load.
     return chatPanel({
         // A new chat per thread, so that the pane never shows the last thread's messages.

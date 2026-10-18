@@ -26,7 +26,8 @@ Key features:
   wide, resizable from 200 to 400 px, and collapsible to a 40 px rail.
 - **A rail** - expand, New Chat, search, and a spinner while any thread works.
 - **The conversation** - a `ChatPanel` for the selected thread's chat. It clears the moment the
-  selection changes, masks while history loads, and shows a failed load with Retry.
+  selection changes, masks while history loads, and shows a failed load with Retry. A thread the
+  store reports missing shows "Thread not found" with New Chat.
 - **Slots** - a header with the thread's title and actions by default, a notice line, and a side
   panel that the app fills.
 - **Documents beside the chat** - with a `documentRenderer`, a cited document opens in the side
@@ -138,7 +139,8 @@ chatWorkspace({model: model.workspaceModel});
 The workspace model loads the thread list. If nothing is selected when it is created, it starts
 a new thread, so that the conversation pane always holds a chat. A reload therefore opens a new
 chat. The most recently active thread leads the list, one click away. A deep link through the
-threads model's `route` opens its thread instead.
+threads model's `route` opens its thread instead. If the store reports that thread missing, the
+conversation pane shows "Thread not found", with New Chat in place of the composer.
 
 ## Common Usage Patterns
 

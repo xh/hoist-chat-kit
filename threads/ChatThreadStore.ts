@@ -9,9 +9,9 @@ import type {ChatFeedbackSpec, ChatMessageSpec} from '../core';
  * action whose method the store leaves out - for example, it cannot rename a thread without
  * `renameThreadAsync`.
  *
- * A store reports a thread that does not exist with an empty page, or by throwing an error with
- * `httpStatus` 404, as Hoist's `FetchService` does. The threads model shows such a thread as
- * empty. Any other error fails the load.
+ * A store reports a thread that does not exist by throwing an error with `httpStatus` 404, as
+ * Hoist's `FetchService` does. The threads model then marks the thread not found. A thread with
+ * no messages yet returns an empty page. Any other error fails the load.
  */
 export interface ChatThreadStore {
     /**

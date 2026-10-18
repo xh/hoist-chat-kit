@@ -2,8 +2,8 @@ import {HoistBase, managed} from '@xh/hoist/core';
 import {action, observable, observableRef} from '@xh/hoist/mobx';
 import type {ChatModel} from '../../core';
 
-/** State of an open thread's history. */
-export type OpenThreadLoadState = 'loading' | 'loaded' | 'failed';
+/** State of an open thread's history. `notFound` if the store reported the thread missing. */
+export type OpenThreadLoadState = 'loading' | 'loaded' | 'notFound' | 'failed';
 
 /** Configuration for an {@link OpenThread}. */
 export interface OpenThreadConfig {
@@ -65,6 +65,13 @@ export class OpenThread extends HoistBase {
     endLoad(error: Error = null) {
         this.loadState = error ? 'failed' : 'loaded';
         this.loadError = error;
+    }
+
+    /** End the current load for a thread that the store reported missing. */
+    @action
+    endLoadNotFound() {
+        this.loadState = 'notFound';
+        this.loadError = null;
     }
 
     /**

@@ -29,6 +29,19 @@ describe('ChatThreadsModel route binding', () => {
         expect(model.selectedThreadId).toBe('t1');
     });
 
+    it('marks a deep-linked thread that the store reports missing as not found', async () => {
+        await navigateAsync('default.chat', {threadId: 'deleted'});
+
+        const model = createModel();
+
+        await vi.waitFor(() => expect(model.isThreadNotFound).toBe(true));
+        expect(model.selectedThreadId).toBe('deleted');
+
+        model.newThread();
+        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe(model.selectedThreadId));
+        expect(model.isThreadNotFound).toBe(false);
+    });
+
     it('follows the route to another thread', async () => {
         await navigateAsync('default.chat', {threadId: 't1'});
         const model = createModel();
