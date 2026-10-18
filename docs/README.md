@@ -59,6 +59,7 @@ its tools.
 | Open cited documents beside the chat, in the app's own viewer | [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md#open-cited-documents-in-the-side-panel) |
 | Show a fixed "not found" reply when a search matched nothing | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#fixed-not-found-replies) |
 | Encode a request for a server-owned conversation | [`/transport/`](../transport/README.md#server-owned-conversations) |
+| Choose between a direct call and a Hoist server relay | [`/transport/`](../transport/README.md#choose-where-requests-go) |
 | Connect to a hoist-core server | [`/transport/`](../transport/README.md#relay-claude-through-a-hoist-server) |
 | Write a Grails controller that streams a model reply | [`/transport/`](../transport/README.md#hoist-server-example) |
 | Call Claude, with a system prompt and prompt caching | [`/transport/`](../transport/README.md#relay-claude-through-a-hoist-server) |
