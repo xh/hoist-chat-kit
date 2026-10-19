@@ -15,8 +15,8 @@ import {getToolCallDisplay, groupParts} from './groupParts';
  * replied after 7 tools and 1 agent, 42 seconds, 1 failed. HY Credit is the only desk over its
  * limit." This is also the activity timeline's done summary, which is never announced alone.
  *
- * With a host to say how each tool displays, calls to `hidden` and `pinned` tools do not count,
- * and narration in an activity timeline is not read as the answer.
+ * With a host to say how each tool displays, calls to `hidden` tools do not count, and narration
+ * in an activity timeline is not read as the answer.
  * @internal
  */
 export function formatReplyAnnouncement(
@@ -24,7 +24,9 @@ export function formatReplyAnnouncement(
     assistantName: string,
     host: ChatTranscript = null
 ): string {
-    const calls = message.toolCalls.filter(it => !host || isCounted(getToolCallDisplay(it, host))),
+    const calls = message.toolCalls.filter(
+            it => !host || getToolCallDisplay(it, host) !== 'hidden'
+        ),
         tools = calls.length,
         agents = message.parts.filter(isChatSubagentPart).length,
         failed = calls.filter(isToolCallFailed).length,
@@ -48,10 +50,6 @@ export function formatReplyAnnouncement(
 // Implementation
 //------------------
 const MAX_CHARS = 300;
-
-function isCounted(display: string): boolean {
-    return display !== 'hidden' && display !== 'pinned';
-}
 
 /** The reply's text, less the narration that its activity timelines hold. */
 function getAnswerText(message: ChatMessage, host: ChatTranscript) {

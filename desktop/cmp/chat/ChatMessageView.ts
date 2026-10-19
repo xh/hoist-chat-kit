@@ -790,7 +790,6 @@ function timelineBlock(
             message,
             host,
             parts: group.parts,
-            pinned: group.pinned,
             context,
             isFollowed,
             isLast
@@ -801,7 +800,7 @@ function timelineBlock(
 // A call whose finish the message view announces: one it shows, outside a timeline.
 function isAnnouncedOutsideTimeline(call: ChatToolCallPart, host: ChatTranscript): boolean {
     const display = getToolCallDisplay(call, host);
-    return display !== 'timeline' && display !== 'hidden' && display !== 'pinned';
+    return display !== 'timeline' && display !== 'hidden';
 }
 
 function renderGroup(

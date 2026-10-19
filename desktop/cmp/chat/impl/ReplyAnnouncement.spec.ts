@@ -52,7 +52,7 @@ describe('formatReplyAnnouncement', () => {
         );
     });
 
-    it('counts agents and failures, leaving out plan and hidden calls, and narration', () => {
+    it('counts agents and failures, leaving out hidden calls and narration', () => {
         const call = (id: string, toolName: string, state = 'output-available'): ChatPart => ({
                 type: 'toolCall',
                 id,
@@ -67,7 +67,6 @@ describe('formatReplyAnnouncement', () => {
             message = new ChatMessage({
                 role: 'assistant',
                 parts: [
-                    call('p1', 'plan'),
                     {type: 'data', id: 'sa1', dataType: 'xh.chat.subagent', data: {name: 'A'}},
                     call('c1', 'step', 'output-error'),
                     {type: 'text', id: 'n1', text: 'Checking the marks.', state: 'done'},
@@ -79,7 +78,6 @@ describe('formatReplyAnnouncement', () => {
             host = new ChatModel({
                 transport: new ScriptedChatTransport(),
                 tools: [
-                    {name: 'plan', display: 'pinned'},
                     {name: 'step', display: 'timeline'},
                     {name: 'log', display: 'hidden'}
                 ]

@@ -1,5 +1,6 @@
 import {act, fireEvent, render, screen, within} from '@testing-library/react';
 import {runInAction} from '@xh/hoist/mobx';
+import {button} from '@xh/hoist/desktop/cmp/button';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
@@ -66,13 +67,12 @@ describe('ChatTimeline', () => {
             expect(container.querySelector('.xh-chat-tool-call')).toBeNull();
         });
 
-        it('opens to the pinned plan and a tree of rows: calls, narration, a batch and a sub-agent', async () => {
+        it('opens to a tree of rows: calls, narration, a batch and a sub-agent', async () => {
             const {container} = await runAgent();
             fireEvent.click(lineButton(container));
 
             const block = timeline(container);
             expect(lineButton(container).getAttribute('aria-expanded')).toBe('true');
-            expect(within(block).getByRole('list', {name: 'Plan, 3 of 3'})).toBeTruthy();
 
             const tree = within(block).getByRole('tree'),
                 topRows = Array.from(tree.children);
@@ -155,7 +155,7 @@ describe('ChatTimeline', () => {
             await runAgent({assistantName: 'Analyst'});
 
             const texts = announce.mock.calls.map(it => it[0]);
-            // The plan's calls are not tools, and narration is not the answer.
+            // Narration is not the answer.
             expect(texts).toContainEqual(
                 expect.stringMatching(
                     /^Analyst replied after 7 tools and 1 agent, (.*, )?1 failed\. Two desks are over/
@@ -546,7 +546,7 @@ describe('ChatTimeline', () => {
             expect(chatModel.approveToolCallAsync).toHaveBeenCalledWith('c2', undefined);
         });
 
-        it('offers up to three choices as buttons, and answers with the one chosen', () => {
+        it('shows a call that waits for an answer as its card, open to its renderer', () => {
             const chatModel = createChat(
                 [
                     reply(
@@ -555,33 +555,46 @@ describe('ChatTimeline', () => {
                             call('q1', {
                                 state: 'input-available',
                                 toolName: 'ask',
-                                input: {
-                                    question: 'Which marks should I use?',
-                                    choices: ['Intraday', 'Prior Close', 'Official EOD']
-                                }
+                                input: {question: 'Which marks should I use?'}
                             })
                         ],
                         {status: 'paused'}
                     )
                 ],
-                [{name: 'ask', display: 'timeline', interactive: true}]
+                [
+                    {
+                        name: 'ask',
+                        display: 'timeline',
+                        interactive: true,
+                        displayName: 'Choose marks',
+                        renderer: (part, {chatModel}) =>
+                            button({
+                                text: 'Intraday',
+                                onClick: () => chatModel.addToolOutputAsync(part.id, 'Intraday')
+                            })
+                    }
+                ]
             );
             const {container} = renderChat(chatModel),
-                question = within(timeline(container)).getByRole('group', {name: 'Question'});
+                block = timeline(container);
 
+            expect(lineButton(container).getAttribute('aria-expanded')).toBe('false');
             expect(lineButton(container).textContent).toContain('Waiting for your answer');
-            expect(question.textContent).toContain('Which marks should I use?');
-            expect(
-                within(question)
-                    .getAllByRole('button')
-                    .map(it => it.textContent)
-            ).toEqual(['Intraday', 'Prior Close', 'Official EOD']);
+            expect(block.classList).toContain('xh-chat-timeline--attention');
+            const card = block.querySelector<HTMLElement>('.xh-chat-tool-call');
+            expect(card.textContent).toContain('Choose marks');
 
-            fireEvent.click(within(question).getByRole('button', {name: 'Intraday'}));
+            fireEvent.click(within(card).getByRole('button', {name: 'Intraday'}));
             expect(chatModel.addToolOutputAsync).toHaveBeenCalledWith('q1', 'Intraday');
+
+            // The row in the tree defers to the card, so the renderer mounts once.
+            fireEvent.click(lineButton(container));
+            const row = screen.getAllByRole('treeitem')[1];
+            expect(row.getAttribute('aria-label')).toBe('Choose marks, waiting for your answer');
+            expect(row.getAttribute('aria-expanded')).toBeNull();
         });
 
-        it('shows an answered question as one row with the answer as a token', () => {
+        it('shows an answered call as a done row that opens to its renderer', () => {
             const {container} = renderReply(
                 [call('q1', {toolName: 'ask', output: 'Intraday'})],
                 {},
@@ -591,16 +604,17 @@ describe('ChatTimeline', () => {
                         name: 'ask',
                         display: 'timeline',
                         interactive: true,
-                        displayName: 'Asked which marks'
+                        displayName: 'Choose marks',
+                        renderer: part => `Chose ${part.output}`
                     }
                 ]
             );
             fireEvent.click(lineButton(container));
 
             const row = screen.getByRole('treeitem');
-            expect(row.getAttribute('aria-label')).toBe('Asked which marks, you chose Intraday');
-            expect(row.querySelector('.xh-chat-timeline__chosen').textContent).toBe('Intraday');
-            expect(row.getAttribute('aria-expanded')).toBeNull();
+            expect(row.getAttribute('aria-label')).toBe('Choose marks, Rates, done');
+            fireEvent.keyDown(row, {key: 'Enter'});
+            expect(row.textContent).toContain('Chose Intraday');
         });
     });
 

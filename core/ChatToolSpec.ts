@@ -109,20 +109,12 @@ export interface ChatToolSpec {
  *    `ChatUiCatalog`, and for a tool whose result is the answer.
  *  - `timeline` - a row in the reply's activity timeline: one compact block that sums up an
  *    agent's run in a single line, and opens to list every call, with the text between calls as
- *    narration. For agents that make many calls per reply.
- *  - `pinned` - the latest call shows as the plan pinned to the top of the reply's activity
- *    timeline, and no call shows as a row. The plan is read from the call's output, or else its
- *    input, as a list of items with a title and a status (below), or rendered by `renderer`. In
- *    a reply with no timeline, each call shows as a `card`.
+ *    narration. For agents that make many calls per reply. A call that waits for approval or for
+ *    an answer shows its panel or its tool call card under the line, open or not.
  *  - `hidden` - nothing, unless a call waits for the user to approve or answer it. Hidden calls
  *    count in no summary.
- *
- * A pinned plan reads its items from `items`, `steps`, `todos` or `plan`, or from a plain array.
- * Each item gives its text as `title`, `content`, `text` or `name`, and its `status` as
- * `pending`, `active` (or `in_progress`, `running`), `done` (or `completed`, `complete`) or
- * `skipped` (or `cancelled`).
  */
-export type ChatToolDisplay = 'card' | 'inline' | 'timeline' | 'pinned' | 'hidden';
+export type ChatToolDisplay = 'card' | 'inline' | 'timeline' | 'hidden';
 
 /** Passed to {@link ChatToolSpec.execute}. */
 export interface ChatToolContext {

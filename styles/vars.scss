@@ -54,7 +54,6 @@ body {
   --xh-chat-error-color: var(--xh-intent-danger-text-color);
   --xh-chat-success-color: var(--xh-intent-success-text-color);
   --xh-chat-mention-bg: var(--xh-intent-primary-trans1);
-  --xh-chat-mention-text-color: var(--xh-intent-primary-text-color);
   --xh-chat-rated-color: var(--xh-intent-primary-text-color);
 
   //------------------------
@@ -71,8 +70,6 @@ body {
   --xh-chat-timeline-border-color: var(--xh-chat-part-border-color);
   --xh-chat-timeline-row-hover-bg: var(--xh-grid-bg-hover);
   --xh-chat-timeline-row-open-bg: var(--xh-grid-bg-odd);
-  // Opaque, as rows scroll beneath the pinned plan.
-  --xh-chat-timeline-plan-bg: var(--xh-bg-alt);
   --xh-chat-timeline-narration-color: var(--xh-chat-meta-text-color);
   --xh-chat-timeline-done-icon-color: var(--xh-chat-meta-text-color);
   --xh-chat-timeline-pane-bg: var(--xh-chat-code-bg);

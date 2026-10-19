@@ -138,52 +138,6 @@
   }
 
   //------------------
-  // Plan
-  //------------------
-  // Pinned to the thread's scroll top while the block is in view. Opaque, as rows scroll under it.
-  &__plan {
-    background-color: var(--xh-chat-timeline-plan-bg);
-    border-bottom: var(--xh-border-width-px) solid var(--xh-chat-timeline-border-color);
-    display: flex;
-    flex-direction: column;
-    font-size: var(--xh-chat-code-font-size);
-    gap: 1px;
-    padding: 5px 8px 6px;
-    position: sticky;
-    top: 0;
-    z-index: 1;
-  }
-
-  &__plan-head {
-    color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-font-size-small-px);
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    line-height: 18px;
-    text-transform: uppercase;
-  }
-
-  &__plan-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-
-  &__plan-item {
-    align-items: center;
-    color: var(--xh-chat-meta-text-color);
-    display: flex;
-    gap: 6px;
-    line-height: 16px;
-    min-height: 20px;
-
-    &--active {
-      color: var(--xh-chat-text-color);
-      font-weight: 500;
-    }
-  }
-
-  //------------------
   // Rows
   //------------------
   &__tree,
@@ -330,14 +284,6 @@
     text-align: right;
   }
 
-  &__chosen {
-    background-color: var(--xh-chat-mention-bg);
-    border-radius: var(--xh-chat-border-radius);
-    color: var(--xh-chat-mention-text-color);
-    font-weight: 500;
-    padding: 0 4px;
-  }
-
   // Narration and results align with the row titles: pad, icon and gap.
   &__narration,
   &__result,
@@ -450,17 +396,6 @@
     flex-direction: column;
     gap: 8px;
     padding: 8px 10px;
-  }
-
-  &__ask-q {
-    font-weight: 500;
-  }
-
-  &__ask-buttons {
-    align-items: center;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
   }
 
   //------------------

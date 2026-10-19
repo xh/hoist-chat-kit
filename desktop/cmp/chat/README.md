@@ -36,7 +36,7 @@ Key features:
   of the reply, with a status only while it streams, waits or fails.
 - **Activity timeline** - calls to tools with `display: 'timeline'` gather into one 28px block
   that sums up an agent's run: the current step while it runs, then "Used 7 tools and 1 agent".
-  It opens to a tree of rows, with sub-agents, batches, narration and a pinned plan.
+  It opens to a tree of rows, with sub-agents, batches and narration.
 - **Citations in place** - numbered markers sit in the text or at the end of the paragraph they
   support, and keep their numbers while the reply streams. Each opens a card with the source's
   title and excerpt. The sources list under the reply shares the numbers.
@@ -262,7 +262,7 @@ The block is one 28px line. Its height never changes, and it changes only its wo
 
 | State | Line | Meta |
 |-------|------|------|
-| Running | The active plan item, else the latest finished sentence of narration, else the running call. "Running 3 steps" while calls run at once. | Step count or plan position, time so far, failures |
+| Running | The latest finished sentence of narration, else the running call. "Running 3 steps" while calls run at once. | Step count, time so far, failures |
 | Quiet | "Waiting on" the running step, once the chat has had no data for its `stallAfterMs`. The spinner stays. | "no update for 34s" first |
 | Waiting | "Waiting for approval" or "Waiting for your answer", in the attention color | As running, with the time held |
 | Paused | "Paused", when the reply waits on the user for something outside the block | As running, with the time held |
@@ -276,14 +276,22 @@ retried with success. A retry is a later call with the same tool, input and sub-
 dot separates the meta's parts, as in "20s · 1 failed, retried".
 
 The block starts collapsed, and never opens or closes by itself. The one exception is a call that
-waits for the user. Its approval panel, or its question, shows under the line whether or not the
-block is open, and the block frames itself in the attention color. Approval uses the chat's
-`approveToolCallAsync()` and `denyToolCallAsync()`, as a tool row does. A question with up to
-three `choices` in its input shows them as buttons, and more show in a select. The answer goes to
-the chat's `addToolOutputAsync()`. A tool `renderer` replaces the buttons. A transcript shows the
-question with no controls, and no approval panel.
+waits for the user. It shows under the line whether or not the block is open, and the block frames
+itself in the attention color:
 
-Open, the block shows the pinned plan, then a tree of rows:
+- **Approval** - the approval panel, with Allow and Deny. They call the chat's
+  `approveToolCallAsync()` and `denyToolCallAsync()`, as a tool row does. A transcript shows no
+  approval panel.
+- **An answer** - a call to an interactive tool shows as its tool call card, with the tool's
+  `renderer` open. The user answers through the renderer, which passes the answer to the chat's
+  `addToolOutputAsync()`. The call's row in the tree does not open while the card shows. Once
+  answered, the card leaves and the row opens to the renderer like any other call.
+
+The timeline has no controls of its own for a question. A browser tool asks through its
+`renderer`. A server agent asks through AG-UI interrupts, in the panel at the foot of the reply.
+See [Answer an agent's questions](#answer-an-agents-questions).
+
+Open, the block shows a tree of rows:
 
 - **Calls** - status or kind icon, title, a one-line summary of the input, and the time taken.
   Status words replace the summary when a call fails, waits or is denied. A row opens to its
@@ -316,6 +324,25 @@ first, shows failures as a count beside the warning icon, and shortens its words
 A backend shows sub-agents with AG-UI's `SUBAGENT_STARTED`, `SUBAGENT_FINISHED` and
 `SUBAGENT_ERROR` events, and marks a sub-agent's calls with `subagentRunId` on `TOOL_CALL_START`.
 `subagentEvents()` scripts the same events for `ScriptedChatTransport`.
+
+#### Show an agent's plan
+
+The timeline does not read a plan or a to-do list from a tool's data. No protocol defines one.
+An app that shows a plan renders it in one of two ways:
+
+- **A plan tool** - give the tool `display: 'inline'` and a `renderer` that draws the plan from
+  the call's input or output. The plan then shows in the reply, in the app's own design.
+- **An AG-UI activity** - have the agent send the plan as an `ACTIVITY_SNAPSHOT`, and register a
+  data renderer for its `activityType`. See
+  [Render data parts](../../../core/README.md#render-data-parts).
+
+```typescript
+const planTool: ChatToolSpec = {
+    name: 'update_plan',
+    display: 'inline',
+    renderer: ({input}) => planList({steps: input?.steps ?? []})
+};
+```
 
 ### Fixed "not found" replies
 
@@ -968,7 +995,7 @@ Use it directly only for a list of your own.
 | Component | Props | Use it to |
 |-----------|-------|-----------|
 | `ChatToolCall` | `part`, `context` | Show a tool call row, for example inside a renderer of your own. Reads tool specs and approvals from `context.chatModel`. |
-| `ChatTimeline` | `message`, `host`, `parts`, `pinned`, `context`, `isFollowed`, `isLast` | Show a reply's activity timeline in a layout of your own. `parts` and `pinned` default to the reply's first timeline block. `isFollowed` says the answer has started below it. |
+| `ChatTimeline` | `message`, `host`, `parts`, `context`, `isFollowed`, `isLast` | Show a reply's activity timeline in a layout of your own. `parts` defaults to the reply's first timeline block. `isFollowed` says the answer has started below it. |
 | `ChatClearButton` | `chatModel`, and any `ButtonProps` | Clear the conversation, from a panel header. |
 | `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |
 | `ChatSources` | `sources`, `defaultExpanded`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |

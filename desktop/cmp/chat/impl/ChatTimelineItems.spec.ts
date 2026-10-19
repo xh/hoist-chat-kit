@@ -17,7 +17,6 @@ import {
     type ChatTimelineCallItem,
     formatStepDuration,
     getTimelineState,
-    parsePlan,
     summarizeInput,
     summarizeTimeline
 } from './ChatTimelineItems';
@@ -122,29 +121,6 @@ describe('ChatTimelineItems', () => {
         expect(done.narration).toBe('Two desks are over.');
     });
 
-    it('reads a plan from common shapes, and leaves other values to render as they are', () => {
-        const todos = parsePlan(
-                call('p1', 'todo', {
-                    input: {
-                        todos: [
-                            {content: 'Load limits', status: 'completed'},
-                            {content: 'Compare', status: 'in_progress'},
-                            {content: 'Save', status: 'cancelled'}
-                        ]
-                    }
-                }),
-                () => null
-            ),
-            other = parsePlan(call('p2', 'todo', {input: {x: 1}}), () => null);
-
-        expect(todos.items).toEqual([
-            {title: 'Load limits', status: 'done'},
-            {title: 'Compare', status: 'active'},
-            {title: 'Save', status: 'skipped'}
-        ]);
-        expect(other.items).toBeNull();
-    });
-
     it('summarizes input on one line, from the tool or the first text value', () => {
         const sql = call('c1', 'run_sql', {
             input: {sql: 'SELECT desk,   gross_limit\n  FROM limits'}
@@ -206,7 +182,7 @@ function host(tools: ChatToolSpec[] = []): ChatModel {
 
 function summarize(parts: ChatPart[], tools: ChatToolSpec[] = []) {
     const h = host(tools);
-    return summarizeTimeline(buildTimelineItems(parts, h), [], h);
+    return summarizeTimeline(buildTimelineItems(parts, h), h);
 }
 
 function state(

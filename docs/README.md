@@ -33,6 +33,7 @@ its tools.
 | Ask the user to approve a tool call, with a question of your own | [`/core/`](../core/README.md#ask-for-approval-before-a-tool-runs) |
 | Answer a server agent's questions and approvals (AG-UI interrupts) | [`/core/`](../core/README.md#answer-an-agents-questions) |
 | Let the user answer a tool call | [`/core/`](../core/README.md#let-the-user-answer-a-tool-call) |
+| Show an agent's plan or to-do list | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#show-an-agents-plan) |
 | Save and restore a conversation | [`/core/`](../core/README.md#persist-and-restore-a-conversation) |
 | Handle errors, retries and finish reasons | [`/core/`](../core/README.md#handle-errors-and-finish-reasons) |
 | Connect to an agent service that owns the history and threads | [`/core/`](../core/README.md#run-a-server-owned-conversation) |

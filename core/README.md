@@ -1198,23 +1198,20 @@ views show it as cancelled, not failed. `isToolCallCancelled(part)` tests for it
 
 #### Tool display
 
-`display` takes one of five values. Each tool sets its own, and a reply can mix them.
+`display` takes one of four values. Each tool sets its own, and a reply can mix them.
 
 | Value | Shows each call as | Use it for |
 |-------|--------------------|------------|
 | `card` | A quiet row with title, summary and status, that opens to the input and output, or to the `renderer` output. Two or more calls of one step fold into one "Used 3 tools" row. | Replies with a few calls. The default. |
 | `inline` | The `renderer` output alone, in the reply. With no `renderer`, the output itself once the call has one, as markdown if it is text. A status shows only while the input streams, while the call waits for approval, or once it fails or is denied. A denied call renders no output. | Tools that show UI, such as the tools of a `ChatUiCatalog`. A tool whose result is the answer. |
-| `timeline` | A row in the reply's activity timeline, one compact block for the whole run. Text between two timeline calls folds into the block as narration. | Agents that make many calls per reply. See [Activity timeline](../desktop/cmp/chat/README.md#activity-timeline). |
-| `pinned` | The plan pinned to the top of the reply's timeline, from the latest call only. With no timeline in the reply, a `card`. | A plan or checklist tool. |
+| `timeline` | A row in the reply's activity timeline, one compact block for the whole run. Text between two timeline calls folds into the block as narration. A call that waits for an answer shows as its card under the block's line. | Agents that make many calls per reply. See [Activity timeline](../desktop/cmp/chat/README.md#activity-timeline). |
 | `hidden` | Nothing, unless the call waits for the user to approve or answer it. Hidden calls count in no summary. | Bookkeeping calls the user has no use for. |
 
 A call that a sub-agent makes defaults to `timeline`, where it nests under the sub-agent.
 
-A pinned plan is a list of items, read from the call's output, or else its input. The list is a
-plain array, or the `items`, `steps`, `todos` or `plan` of an object. Each item gives its text as
-`title`, `content`, `text` or `name`, and its `status` as `pending`, `active`, `done` or
-`skipped`. The kit also reads `in_progress`, `completed` and `cancelled`. A value of any other
-shape renders with the tool's `renderer`, or as JSON.
+To show an agent's plan, give a plan tool `display: 'inline'` and a `renderer`, or render an
+AG-UI activity with a data renderer. See
+[Show an agent's plan](../desktop/cmp/chat/README.md#show-an-agents-plan).
 
 The `context` of `execute` is a `ChatToolContext`: `chatModel`, `toolCallId`, and a `signal`
 that aborts when the user stops the turn.
