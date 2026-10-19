@@ -8,10 +8,9 @@ names in `DECISIONS.md`.
 
 | Repo and branch | State |
 |---|---|
-| `hoist-chat-kit` `develop` | Plan 2 (#7), the layered API and the design UI (#8) merged, then pared back: no component helper (D80), no `ChatService` (D81). The AG-UI 1.0 effort's three deliverables squash-merged and pushed on 2026-10-17. |
-| `hoist-chat-kit` `feature/chat-ui-review-7` | Worktree `../hoist-chat-kit-worktrees/chat-ui-review-7`. Review 7's calls (D89 to D91), built, reviewed and fixed. Local only, for Anselm to review and push. The main checkout stays on `develop`, so Toolbox's local link is unaffected. |
+| `hoist-chat-kit` `develop` | Plan 2 (#7), the layered API and the design UI (#8) merged, then pared back: no component helper (D80), no `ChatService` (D81). The AG-UI 1.0 effort's three deliverables squash-merged and pushed on 2026-10-17. Review 7 (D89 to D92) squash-merged on 2026-10-19. |
 | `hoist-chat-kit` `archive/helpers` | The removed helper code and its plan, `planning/HELPERS.md`. Not for merge. |
-| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-worktrees/feature-chat-kit-guide-ui`, on the local kit. Guideline Assistant tab and the Chat Kit demos, with the Agent Questions demo. Pushed. Uncommitted, for Anselm's review: the guide recipe's review 7 settings (`clearable: false`, `maxCommentLength`, no edit or regenerate, `stripLeakedTags`), and edits that work with both `develop` and the review 7 branch. |
+| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-worktrees/feature-chat-kit-guide-ui`, on the local kit. Weather V2, the Chat Kit app with its demos, and the Guideline Assistant. Weather V2's merge work (inline answers, the LLM role gate and limits) goes to a PR to Toolbox `develop`. |
 | `toolbox` `feature/weatherv2-chat-kit` | On the published kit. Pushed. |
 | `toolbox` `archive/chat-kit-grid-helper` | The removed Grid Helper tab. Not for merge. |
 | `hoist-chat-kit` `spike/ag-ui-client` | Local only, with no worktree. The AG-UI spike behind D84, cited in `planning/AG-UI.md`. Not for merge. |
@@ -25,27 +24,25 @@ names in `DECISIONS.md`.
 
 ## Next
 
-1. The first app integration starts on the published snapshot: a guideline assistant with
-   server-owned threads, document scope, `[n]` citations, a source viewer, and feedback with a
-   comment required on a thumbs down.
+1. The first app integration starts now, on the snapshot published from `develop` with review 7:
+   a guideline assistant with server-owned threads, document scope, `[n]` citations, a source
+   viewer, and feedback with a comment required on a thumbs down. Toolbox's Guideline Assistant is
+   the recipe: `clearable: false`, `maxCommentLength: 2000`, no edit or regenerate, and a
+   `textTransform` that strips leaked tags.
 2. Known kit gaps: no source line on help answers, no transport reconnect after a reload, no Continue
    after a reply is cut at its length limit.
 
 ## Next session: start here
 
-Anselm walked the chat UI layer's cut and trim lists on 2026-10-18 (review 7, D89 to D91). The
-calls, and the showcase calls of D92, are built on `feature/chat-ui-review-7`. Code reviews ran on every round of work, and the
-Toolbox agent checked the branch twice in a browser, with a real router. All findings are fixed.
-Anselm reviews that branch and the uncommitted Toolbox changes, then pushes. The branch also fixes
-a bug on `develop`: the workspace sidebar could not be resized.
+Review 7 is merged (D89 to D92): the chat UI layer's cuts, trims and showcase calls, reviewed on
+every round and checked in a browser through Toolbox. The first real integration builds on it.
+Start there, and record what it teaches as decisions.
 
 Still open from review 7:
 
-- Weather V2 proposals 2 to 5 from review 7. The showcase calls (D92) are built: the timeline is
-  trimmed, per-tool undo is gone, and Weather V2's tools use the timeline. Toolbox's Weather V2
-  merge work, on `feature/chat-kit-guide-ui`, adds inline weather answers with the genui
-  built-ins, card follow-ups as plain prompts, feedback through activity tracking, and a role
-  gate and rate limit on the LLM relay.
+- Weather V2 proposals still to walk: preview before apply, and approval for bulk removes.
+  Weather V2 already shows inline answers with the genui built-ins, card follow-ups as plain
+  prompts, the timeline, approval and feedback.
 - Slim the CSS variables once the first integration sets its theme. Keep every color, type and
   spacing token.
 - Check every component in a 380 px panel. Known: below 788 px the side panel hides, but a cited
