@@ -1,5 +1,5 @@
 import type {CSSProperties, ReactNode} from 'react';
-import {isFunction, isString} from 'lodash';
+import {isFunction, isString, omit} from 'lodash';
 import {clipboardMenuItem} from '@xh/hoist/cmp/clipboard';
 import {errorMessage} from '@xh/hoist/cmp/error';
 import {div, filler, nav, span, vframe} from '@xh/hoist/cmp/layout';
@@ -174,7 +174,7 @@ function sidebar(
         case 'hidden':
             return null;
         case 'rail':
-            return rail(model, impl);
+            return rail(model, impl, threadListProps);
     }
 
     // A sibling of the conversation, as Hoist's dragger resizes a panel against its sibling.
@@ -217,7 +217,11 @@ function shownWidths(model: ChatWorkspaceModel): CSSProperties {
     } as CSSProperties;
 }
 
-function rail(model: ChatWorkspaceModel, impl: ChatWorkspaceLocalModel): ReactNode {
+function rail(
+    model: ChatWorkspaceModel,
+    impl: ChatWorkspaceLocalModel,
+    threadListProps: ChatWorkspaceProps['threadListProps']
+): ReactNode {
     const isAnyRunning = !!model.threadsModel.runningThreadIds.length;
     return nav({
         key: 'rail',
@@ -230,12 +234,7 @@ function rail(model: ChatWorkspaceModel, impl: ChatWorkspaceLocalModel): ReactNo
                 'aria-label': 'Expand sidebar',
                 onClick: () => model.expandSidebar()
             }),
-            button({
-                icon: Icon.add(),
-                tooltip: 'New Chat',
-                'aria-label': 'New Chat',
-                onClick: () => impl.newChat()
-            }),
+            newChatIconButton(impl, threadListProps),
             button({
                 icon: Icon.search(),
                 tooltip: 'Search threads',
@@ -252,6 +251,24 @@ function rail(model: ChatWorkspaceModel, impl: ChatWorkspaceLocalModel): ReactNo
                   })
                 : null
         ]
+    });
+}
+
+/**
+ * New Chat as an icon, for the rail and the header. It takes the thread list's
+ * `newChatButtonProps`, less `text`, so that every New Chat button matches.
+ */
+function newChatIconButton(
+    impl: ChatWorkspaceLocalModel,
+    threadListProps: ChatWorkspaceProps['threadListProps']
+): ReactNode {
+    return button({
+        icon: Icon.add(),
+        tooltip: 'New Chat',
+        'aria-label': 'New Chat',
+        intent: 'primary',
+        ...omit(threadListProps?.newChatButtonProps, 'text', 'testId'),
+        onClick: () => impl.newChat()
     });
 }
 
@@ -278,14 +295,7 @@ function defaultHeader(
             }),
             filler(),
             ...headerItems,
-            sidebarMode !== 'open'
-                ? button({
-                      icon: Icon.add(),
-                      tooltip: 'New Chat',
-                      'aria-label': 'New Chat',
-                      onClick: () => impl.newChat()
-                  })
-                : null,
+            sidebarMode !== 'open' ? newChatIconButton(impl, threadListProps) : null,
             summary
                 ? menuButton({
                       icon: Icon.ellipsisHorizontal(),

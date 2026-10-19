@@ -337,6 +337,24 @@ describe('ChatWorkspace', () => {
             );
         });
 
+        it("gives every New Chat button the thread list's newChatButtonProps, less text", async () => {
+            const {unmount} = renderWorkspace();
+            await resizeTo(900);
+            expect(newChatIntents()).toEqual(['primary', 'primary']);
+            unmount();
+
+            renderWorkspace({
+                threadListProps: {newChatButtonProps: {intent: 'success', text: 'Ask'}}
+            });
+            // The rail and the header each show New Chat at 900 px, and the header alone at 700.
+            await resizeTo(900);
+            expect(newChatIntents()).toEqual(['success', 'success']);
+            expect(screen.queryByText('Ask')).toBeNull();
+
+            await resizeTo(700);
+            expect(newChatIntents()).toEqual(['success']);
+        });
+
         it('offers the list from the header when too narrow for a sidebar', async () => {
             renderWorkspace();
             await resizeTo(700);
@@ -700,6 +718,13 @@ async function resizeTo(width: number) {
     const entry = {contentRect: {width, height: 600}} as ResizeObserverEntry;
     resizeCallbacks.forEach(it => it([entry], null));
     await act(() => wait(150));
+}
+
+/** The intent of each New Chat button that shows, on the rail or in the header. */
+function newChatIntents(): string[] {
+    return screen
+        .getAllByRole('button', {name: 'New Chat'})
+        .map(it => /xh-button--intent-(\w+)/.exec(it.className)[1]);
 }
 
 /** The header of the panel in the side panel slot. */

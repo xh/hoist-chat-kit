@@ -122,6 +122,7 @@ Pass `searchInputRef`, as the workspace does from its rail's search button.
 |----------|------|-------------|
 | `model` | `ChatThreadsModel` | The threads to list. Default a `ChatThreadsModel` in context. |
 | `topItems` | `ReactNode[]` | Items after New Chat. |
+| `newChatButtonProps` | `ButtonProps` | Props for the New Chat button, such as `intent`. Default outlined, with `intent: 'primary'`. `ChatWorkspace` applies them, less `text`, to its rail and header New Chat buttons too. |
 | `enableSearch` | `boolean` | False to hide the search input. Default true. |
 | `searchPlaceholder` | `string` | Placeholder for the search input. Default 'Search threads'. |
 | `searchInputRef` | `Ref<HTMLInputElement>` | Ref to the search input's element. |

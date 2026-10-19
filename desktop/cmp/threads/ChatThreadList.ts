@@ -11,7 +11,7 @@ import {
     useLocalModel,
     uses
 } from '@xh/hoist/core';
-import {button} from '@xh/hoist/desktop/cmp/button';
+import {button, type ButtonProps} from '@xh/hoist/desktop/cmp/button';
 import {textInput} from '@xh/hoist/desktop/cmp/input';
 import {menuButton} from '@xh/hoist/desktop/cmp/menu';
 import {fmtDate} from '@xh/hoist/format';
@@ -29,6 +29,13 @@ import {ChatThreadListLocalModel} from './impl/ChatThreadListLocalModel';
 export interface ChatThreadListProps extends HoistProps<ChatThreadsModel>, BoxProps {
     /** Items to show after New Chat, such as a button that collapses a sidebar. */
     topItems?: ReactNode[];
+
+    /**
+     * Props for the New Chat button, such as `intent` or `outlined`. Default an outlined button
+     * with `intent: 'primary'`. `ChatWorkspace` applies them, less `text`, to its other New Chat
+     * buttons too.
+     */
+    newChatButtonProps?: Omit<ButtonProps, 'onClick'>;
 
     /** False to hide the search input. Default true. */
     enableSearch?: boolean;
@@ -64,6 +71,7 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
                 model,
                 className,
                 topItems = [],
+                newChatButtonProps,
                 enableSearch = true,
                 searchPlaceholder = 'Search threads',
                 searchInputRef,
@@ -86,7 +94,9 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
                             icon: Icon.add(),
                             text: 'New Chat',
                             outlined: true,
+                            intent: 'primary',
                             testId: getTestId(testId, 'new'),
+                            ...newChatButtonProps,
                             onClick: () => impl.newThread()
                         }),
                         ...topItems

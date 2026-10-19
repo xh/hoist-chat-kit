@@ -1,4 +1,4 @@
-import {act, fireEvent, render, screen, within} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, screen, within} from '@testing-library/react';
 import {XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
@@ -10,7 +10,7 @@ import {
 } from '../../../test/support/LocalChatThreadStore';
 import {ChatThreadsModel} from '../../../threads';
 import {ScriptedChatTransport, textEvents} from '../../../transport';
-import {chatThreadList} from './ChatThreadList';
+import {chatThreadList, type ChatThreadListProps} from './ChatThreadList';
 
 /**
  * The thread list's contract. Apps rely on it to show a user's threads grouped by recency, open
@@ -23,6 +23,18 @@ describe('ChatThreadList', () => {
 
     // jsdom has no layout, and so no ResizeObserver. The setup unstubs globals after each test.
     beforeEach(() => vi.stubGlobal('ResizeObserver', NoopResizeObserver));
+
+    it('shows New Chat as an outlined primary button, unless newChatButtonProps say otherwise', async () => {
+        await renderList();
+        let newChat = screen.getByRole('button', {name: 'New Chat'});
+        expect(newChat.classList).toContain('xh-button--intent-primary');
+        expect(newChat.classList).toContain('xh-button--outlined');
+        cleanup();
+
+        await renderList({props: {newChatButtonProps: {intent: 'success'}}});
+        newChat = screen.getByRole('button', {name: 'New Chat'});
+        expect(newChat.classList).toContain('xh-button--intent-success');
+    });
 
     it('groups the threads by recency', async () => {
         await renderList();
@@ -280,11 +292,12 @@ class NoopResizeObserver {
 }
 
 async function renderList({
-    store = new LocalChatThreadStore({threads: THREADS})
-}: {store?: LocalChatThreadStore} = {}) {
+    store = new LocalChatThreadStore({threads: THREADS}),
+    props = {}
+}: {store?: LocalChatThreadStore; props?: Omit<ChatThreadListProps, 'model'>} = {}) {
     const model = createModel(store);
     await model.loadAsync();
-    render(chatThreadList({model}));
+    render(chatThreadList({model, ...props}));
     return {model, store};
 }
 
