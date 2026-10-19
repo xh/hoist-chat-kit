@@ -34,15 +34,18 @@ names in `DECISIONS.md`.
 ## Next session: start here
 
 Anselm walked the chat UI layer's cut and trim lists on 2026-10-18 (review 7, D89 to D91). The
-calls are built on `feature/chat-ui-review-7`. Code reviews ran on every round of work, and the
+calls, and the showcase calls of D92, are built on `feature/chat-ui-review-7`. Code reviews ran on every round of work, and the
 Toolbox agent checked the branch twice in a browser, with a real router. All findings are fixed.
 Anselm reviews that branch and the uncommitted Toolbox changes, then pushes. The branch also fixes
 a bug on `develop`: the workspace sidebar could not be resized.
 
 Still open from review 7:
 
-- The "Keep, and give it a showcase" section: the timeline trim, undo, interrupt panels, and the
-  `pinned` display. Then the Weather V2 proposals that show them.
+- Weather V2 proposals 2 to 5 from review 7. The showcase calls (D92) are built: the timeline is
+  trimmed, per-tool undo is gone, and Weather V2's tools use the timeline. Toolbox's Weather V2
+  merge work, on `feature/chat-kit-guide-ui`, adds inline weather answers with the genui
+  built-ins, card follow-ups as plain prompts, feedback through activity tracking, and a role
+  gate and rate limit on the LLM relay.
 - Slim the CSS variables once the first integration sets its theme. Keep every color, type and
   spacing token.
 - Check every component in a 380 px panel. Known: below 788 px the side panel hides, but a cited
