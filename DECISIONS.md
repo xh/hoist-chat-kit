@@ -1515,6 +1515,19 @@ with a server-owned conversation. Its first live calls taught the kit the follow
   marker to its source by `marker`, and never renumbers to close a gap, as its specs require.
 - **The turn id works as an idempotency key.** Resending a finished turn's key replays its answer
   once, with no new model run.
+- **A source's number is not a marker in the text.** The backend numbers each source, but writes
+  no `[n]` in its answer. The sources list carries the numbers. `desktop/cmp/chat/README.md` now
+  says so.
+- **The document seam fits a plain viewer.** The app's viewer shows a PDF from a short-lived link
+  in an iframe, in about 60 lines, and cannot find a passage. It reports `opening`, then
+  `notLocated`, and the side panel adds the status strip and Copy Excerpt. Back, focus return and
+  deep links needed no app code.
+- **A reload opens a new chat.** `ChatWorkspaceModel` starts a new thread when none is selected,
+  as `desktop/cmp/workspace/README.md` says. This app accepts it. Another app may expect its last
+  thread back. Revisit if one asks.
+- **Symbol tools miss the kit.** Hoist's MCP server serves the kit's docs, but its symbol tools
+  cover `@xh/hoist` only, so an agent reads the kit's source for exact types. Symbol lookup for
+  companion libraries is a hoist-react ask.
 
 **Why.** These came from real traffic, not from a spec or an emulator. They confirm the
 server-mode design, and they add two transport options and two doc rules.

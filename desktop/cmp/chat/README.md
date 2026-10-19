@@ -787,7 +787,9 @@ inline `data`, such as the user's own attachment, always shows, as it loads noth
 ### Show citation markers and open sources in the app
 
 Turn on `citationMarkers` when the backend writes `[n]` markers in its text. Give each source a
-`marker` if the numbers do not follow the order of the sources, and a `sourceType`. In a
+`marker` if the numbers do not follow the order of the sources, and a `sourceType`. A source's
+`marker` does not mean the text cites it: a backend may number its sources and write no markers.
+The sources list then shows the numbers, and the option renders nothing inline. In a
 `ChatWorkspace`, give the model a `documentRenderer`, and a document's marker opens it in the side
 panel:
 
