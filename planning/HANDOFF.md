@@ -146,6 +146,11 @@ topics to discuss with Anselm, not work to start.
 - xh/hoist-react#4855 (open): let `FetchService` abort a streamed response. The kit works around it
   with `fetchOpts.signal` (D14).
 - Icons: Hoist registers no hourglass or code-branch icon. The kit uses stand-ins.
+- xh/hoist-react#4884 (open): symbol lookup for companion libraries. The MCP server serves the
+  kit's docs, but its symbol tools cover `@xh/hoist` only. Drop the "symbol tools cover @xh/hoist
+  only" line from the kit's MCP guidance once it lands.
+- xh/hoist-dev-utils#83 (open): add dev proxies without replacing the default `/api` proxy. Apps
+  that proxy a direct-call backend in dev repeat Hoist's entry today (transport README).
 - `traceparent` on cross-origin calls: Hoist sends it on every request when tracing is on. The kit
   relies on the workaround - an app returns `traceparent: null` from `headers` (transport README).
   A proposed hoist-react `FetchOptions.propagateTrace` (branch `fetchPropagateTrace`) is not
