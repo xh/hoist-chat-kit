@@ -146,6 +146,12 @@ topics to discuss with Anselm, not work to start.
 - xh/hoist-react#4855 (open): let `FetchService` abort a streamed response. The kit works around it
   with `fetchOpts.signal` (D14).
 - Icons: Hoist registers no hourglass or code-branch icon. The kit uses stand-ins.
+- hoist-react `FetchOptions.propagateTrace` (branch `fetchPropagateTrace`, targets 90.0.0): a
+  per-request switch for the `traceparent` header. Its default sends the header only to the app's
+  own origin, so cross-origin transports need no option. On 89.x an app drops the header with
+  `traceparent: null` in `headers` (transport README). When the kit moves to Hoist 90, decide
+  whether `HttpChatTransport` should also pass `propagateTrace` through, as it does
+  `correlationId`.
 
 ## Toolbox worktree
 
