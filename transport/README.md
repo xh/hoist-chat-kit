@@ -188,7 +188,12 @@ rules must also allow each header you send, such as `Authorization`, any API key
 `Content-Type`. Hoist adds headers of its own: `X-Correlation-ID` when the app turns on
 `FetchService.defaults.autoGenCorrelationIds`, and `traceparent` when Hoist tracing is on. If the
 backend does not allow `X-Correlation-ID`, pass `correlationId: false`. If it does not allow
-`traceparent`, return `traceparent: null` from `headers`. Hoist sends no header set to null. A local dev server that proxies the backend on your app's own origin hides all of
+`traceparent`, return `traceparent: null` from `headers`. Hoist sends no header set to null.
+
+In local dev, a backend's CORS rules may not list your dev server's origin. Proxy the backend
+through the dev server instead, with a `proxy` in the `devServerOptions` of `configureRsbuild()`,
+and point the app's URLs at the proxied paths. That `proxy` replaces Hoist's default one for
+`/api`, so repeat that entry too. Copy it from `configureRsbuild.js` in `@xh/hoist-dev-utils`. A local dev server that proxies the backend on your app's own origin hides all of
 this, so test against the real origin before you deploy.
 
 ### Relay Claude through a Hoist server

@@ -1494,3 +1494,27 @@ and AG-UI's interrupts already cover questions. Undo reverted only the tools tha
 reply could be partly undone, and it could skip a newer change to undo an older one. No chat kit
 or agent protocol defines tool undo. Agent products that offer it use checkpoints that the app
 owns.
+
+## D93. Lessons from the first real server-mode integration
+
+**Decision.** The first app to ship on the kit calls a retrieval backend straight from the browser,
+with a server-owned conversation. Its first live calls taught the kit the following:
+
+- **No sources is not always "not found".** The backend marks every reply with no sources the same
+  way, a greeting included. The fixed `xh.chat.noAnswer` reply fits only a backend that reports a
+  search that found nothing apart from a reply with no search. `core/README.md` now says so.
+- **Cross-origin calls need Hoist's extras turned off.** Hoist sends cookies, and can send
+  `X-Correlation-ID` and `traceparent`, on every request. A backend's CORS rules may reject each
+  one. The HTTP transports now take `fetchOpts` and `correlationId`, and an app drops
+  `traceparent` with a null header. A dev server proxy hides all of this, so test the real origin.
+- **Some backends batch their stream.** This one sends headers at once, then nothing for 11 to 16
+  seconds, then every chunk at once. The reply shows its thinking state for the wait, and the
+  stall cue at 30 seconds does not fire. No change. Keep `stallAfterMs` above a backend's
+  longest silence.
+- **Markers are not sequential.** One answer cites `[1]`, `[2]` and `[15]`. The kit matches a
+  marker to its source by `marker`, and never renumbers to close a gap, as its specs require.
+- **The turn id works as an idempotency key.** Resending a finished turn's key replays its answer
+  once, with no new model run.
+
+**Why.** These came from real traffic, not from a spec or an emulator. They confirm the
+server-mode design, and they add two transport options and two doc rules.

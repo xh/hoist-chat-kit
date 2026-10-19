@@ -772,6 +772,10 @@ matched nothing. Its `data` is a `ChatNoAnswerData`: the `documents` searched, b
 and no Regenerate. A renderer registered for the type replaces the template. A scripted transport
 writes one with `noAnswerEvents()`.
 
+Send it only when the backend reports that a search ran and found nothing. Some backends mark
+every reply with no sources the same way, small talk included. A greeting would then read as "not
+found". For such a backend, keep the backend's own text and send no fixed reply.
+
 ### Side panel
 
 `ChatSidePanelModel` holds the one request that the side panel shows beside the chat: a document,
