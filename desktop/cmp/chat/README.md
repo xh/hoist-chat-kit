@@ -284,8 +284,9 @@ itself in the attention color:
   approval panel.
 - **An answer** - a call to an interactive tool shows as its tool call card, with the tool's
   `renderer` open. The user answers through the renderer, which passes the answer to the chat's
-  `addToolOutputAsync()`. The call's row in the tree does not open while the card shows. Once
-  answered, the card leaves and the row opens to the renderer like any other call.
+  `addToolOutputAsync()`. Each waiting call has its own card. The call's row in the tree does
+  not open while the card shows. Once answered, the card leaves, focus inside it moves to the
+  reply, and the row opens to the renderer like any other call.
 
 The timeline has no controls of its own for a question. A browser tool asks through its
 `renderer`. A server agent asks through AG-UI interrupts, in the panel at the foot of the reply.

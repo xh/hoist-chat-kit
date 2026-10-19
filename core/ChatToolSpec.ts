@@ -10,9 +10,9 @@ import type {ChatToolCallPart} from './ChatPart';
  *  - A client tool, with `execute`. The {@link ChatModel} runs it in the browser when the model
  *    calls it, sends the result back, and continues the turn. Client tools are how a model acts on
  *    the app - changing a dashboard, opening a view, filtering a grid.
- *  - An interactive tool, with `interactive: true`. The user answers each call - through the tool
- *    call card or a custom `renderer` - and the app passes the answer to
- *    {@link ChatModel.addToolOutputAsync}. The turn pauses until every such call is answered.
+ *  - An interactive tool, with `interactive: true`. The user answers each call through its
+ *    `renderer`, which passes the answer to {@link ChatModel.addToolOutputAsync}. The turn
+ *    pauses until every such call is answered.
  *  - A backend tool, with neither. The backend runs it and streams its result, and the spec only
  *    configures how its calls display. A call that ends its step with no result fails with an
  *    error result, as a call to an unknown tool does, so the turn never waits on it.

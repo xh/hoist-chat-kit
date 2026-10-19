@@ -186,6 +186,9 @@ export interface ChatTimelineSummary {
     /** The first call waiting for the user's answer, or null. */
     question: ChatToolCallPart;
 
+    /** Every call waiting for the user's answer, in order. */
+    questions: ChatToolCallPart[];
+
     /** The latest finished sentence of narration, if narration is the newest row, or null. */
     narration: string;
 
@@ -201,6 +204,7 @@ export function summarizeTimeline(
     const calls = getTimelineCalls(items),
         specOf = (call: ChatToolCallPart) => getHostToolSpec(host, call.toolName),
         failed = calls.filter(isToolCallFailed),
+        questions = calls.filter(it => isAwaitingAnswer(it, specOf(it))),
         newest = last(items);
 
     return {
@@ -220,7 +224,8 @@ export function summarizeTimeline(
             .filter(it => it?.status === 'running'),
         approval: calls.find(it => it.state === 'approval-requested') ?? null,
         approvals: calls.filter(it => it.state === 'approval-requested'),
-        question: calls.find(it => isAwaitingAnswer(it, specOf(it))) ?? null,
+        question: questions[0] ?? null,
+        questions,
         narration: newest?.type === 'narration' ? lastSentence(newest.part) : null,
         isThinking: newest?.type === 'reasoning' && newest.part.state === 'streaming'
     };

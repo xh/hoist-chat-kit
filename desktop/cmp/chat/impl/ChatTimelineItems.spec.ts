@@ -42,6 +42,25 @@ describe('ChatTimelineItems', () => {
         ]);
     });
 
+    it('never batches a call that waits for the user, which splits the run around it', () => {
+        const ask = (id: string, state: ChatToolCallState = 'output-available') =>
+                call(id, 'ask', {state}),
+            items = buildTimelineItems(
+                [
+                    ask('a1'),
+                    ask('a2'),
+                    ask('a3'),
+                    ask('a4', 'input-available'),
+                    ask('a5'),
+                    ask('a6'),
+                    ask('a7')
+                ],
+                host([{name: 'ask', interactive: true, renderer: () => null}])
+            );
+        expect(items.map(it => it.type)).toEqual(['batch', 'call', 'batch']);
+        expect(items[1].id).toBe('a4');
+    });
+
     it('never batches across narration, nor two calls alone', () => {
         const items = buildTimelineItems(
             [call('a1', 'query'), call('a2', 'query'), text('t1'), call('a3', 'query')],

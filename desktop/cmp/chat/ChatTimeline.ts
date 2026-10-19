@@ -1,5 +1,5 @@
 import {compact} from 'lodash';
-import {type ReactNode, useEffect, useId} from 'react';
+import {type ReactNode, useEffect, useId, useLayoutEffect, useRef} from 'react';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {div, span, ul} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, useLocalModel} from '@xh/hoist/core';
@@ -11,6 +11,7 @@ import {
     type ChatMessage,
     type ChatPart,
     type ChatPartRenderContext,
+    type ChatToolCallPart,
     type ChatTranscript,
     isChatModel,
     isToolCallFinal
@@ -31,7 +32,7 @@ import {
 } from './impl/ChatTimelineItems';
 import {ChatTimelineLocalModel} from './impl/ChatTimelineLocalModel';
 import {timelineRows} from './impl/ChatTimelineRows';
-import {chatToolApproval} from './impl/ChatToolApproval';
+import {chatToolApproval, focusReplyOf} from './impl/ChatToolApproval';
 import {getHostToolSpec, groupParts} from './impl/groupParts';
 import {useChatClock} from './impl/useChatClock';
 import {getToolTitle} from './impl/ToolCallStatus';
@@ -42,8 +43,8 @@ export interface ChatTimelineProps extends HoistProps {
     message: ChatMessage;
 
     /**
-     * The conversation that holds the reply, for its tool specs. A `ChatModel` also approves,
-     * denies and answers calls. Any other {@link ChatTranscript} shows the calls read-only.
+     * The conversation that holds the reply, for its tool specs. A `ChatModel` also approves and
+     * denies calls. Any other {@link ChatTranscript} shows the calls read-only.
      */
     host: ChatTranscript;
 
@@ -82,12 +83,13 @@ export interface ChatTimelineProps extends HoistProps {
  * Once done, it reads "Used 7 tools and 1 agent", with the time taken and any failures in the
  * warning color. A call that waits for approval shows its approval panel under the line, open or
  * not. A call that waits for an answer shows its tool call card there, with the tool's `renderer`
- * open, as the user answers through it. Either frames the block in the attention color.
+ * open, as the user answers through it. Each waiting call has its own panel or card, and either
+ * frames the block in the attention color.
  *
  * The line is a button that opens the block. Open, it shows a tree of rows: each call with its
- * status, title, input, and time; batches of repeated calls;
- * sub-agents with their calls nested under them; reasoning; and narration. A row opens to its
- * input and output, mounted only while open. The tree is one tab stop, with arrow keys between
+ * status, title, input, and time; batches of repeated calls; sub-agents with their calls nested
+ * under them; reasoning; and narration. A row opens to its input and output, mounted only while
+ * open. The tree is one tab stop, with arrow keys between
  * rows. The block never opens or closes by itself. Below 480 px it drops the step count first.
  *
  * A step that fails is announced as it happens. The done summary is not: it rides in the reply's
@@ -184,12 +186,9 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
                           })
                       )
                     : []),
-                state === 'question'
-                    ? div({
-                          className: 'xh-chat-timeline__ask',
-                          item: chatToolCall({part: summary.question, context})
-                      })
-                    : null,
+                ...(state === 'question'
+                    ? summary.questions.map(part => timelineQuestion({key: part.id, part, context}))
+                    : []),
                 isExpanded
                     ? div({
                           id: bodyId,
@@ -389,3 +388,34 @@ function elapsed(
                   : null;
     return endedAt != null ? chatElapsed({key: 'elapsed', startedAt: createdAt, endedAt}) : null;
 }
+
+//------------------
+// Question
+//------------------
+interface TimelineQuestionProps extends HoistProps {
+    part: ChatToolCallPart;
+    context: ChatPartRenderContext;
+}
+
+/**
+ * The card of a call that waits for an answer, with the tool's renderer open. Once answered, the
+ * card goes, and focus inside it moves to the reply rather than to the page.
+ */
+const timelineQuestion = hoistCmp.factory<TimelineQuestionProps>({
+    displayName: 'ChatTimelineQuestion',
+    model: false,
+
+    render({part, context}) {
+        const ref = useRef<HTMLDivElement>(null);
+
+        // A layout cleanup runs while the card is still in the document.
+        useLayoutEffect(() => {
+            const el = ref.current;
+            return () => {
+                if (el?.contains(document.activeElement)) focusReplyOf(el);
+            };
+        }, []);
+
+        return div({ref, className: 'xh-chat-timeline__ask', item: chatToolCall({part, context})});
+    }
+});
