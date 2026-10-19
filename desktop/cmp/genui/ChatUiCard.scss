@@ -41,7 +41,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 5px;
-    max-width: var(--xh-chat-prose-max-width, 640px);
+    max-width: var(--xh-chat-prose-max-width, none);
   }
 
   // Follow-up chips: outlined, in link color, one line each. A long chip is cut short - its

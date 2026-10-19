@@ -241,8 +241,8 @@
     color: var(--xh-chat-held-text-color);
   }
 
-  // Prose stays at the prose width at every column width. Cards - code, tables and components -
-  // span the column.
+  // Prose takes the prose cap, if an app sets one. Cards - code, tables and components - span the
+  // column.
   &__text .xh-chat-markdown > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6, hr, dl) {
     max-width: var(--xh-chat-prose-max-width);
   }

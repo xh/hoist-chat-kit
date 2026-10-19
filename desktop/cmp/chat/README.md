@@ -1044,8 +1044,8 @@ that others derive from on `body.xh-app`.
 | | `--xh-chat-heading-font-size` | `--xh-font-size-large`, for markdown H1 and H2 |
 | | `--xh-chat-code-font-size` | `--xh-font-size` minus 1 |
 | | `--xh-chat-meta-font-size` | `--xh-font-size` times 0.9 |
-| Layout | `--xh-chat-column-max-width` | `1100px`, for the thread, cards and composer |
-| | `--xh-chat-prose-max-width` | `640px`, for markdown text |
+| Layout | `--xh-chat-column-max-width` | `808px`, for the thread, cards and composer. Includes the side padding, so content runs to 768px |
+| | `--xh-chat-prose-max-width` | `none`. Set it for markdown text narrower than the column |
 | | `--xh-chat-side-pad` | `--xh-pad-double` (20px) |
 | | `--xh-chat-turn-gap` | `24px`, between messages |
 | | `--xh-chat-part-gap`, `--xh-chat-process-gap` | `--xh-pad`, `--xh-pad-half` |

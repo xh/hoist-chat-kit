@@ -18,9 +18,12 @@ body {
   //------------------------
   // Layout and rhythm
   //------------------------
-  // Cards span the column, up to its max width. Markdown text is capped at the prose width.
-  --xh-chat-column-max-width: 1100px;
-  --xh-chat-prose-max-width: 640px;
+  // One centered column holds the thread and the composer. Its cap includes the side padding, so
+  // its content runs to 768px. Text, tables, cards and the sources list all share its edge.
+  --xh-chat-column-max-width: 808px;
+  // An optional narrower cap on markdown text and other prose blocks inside the column. Default
+  // none: prose runs the column's full width.
+  --xh-chat-prose-max-width: none;
   // Between markdown paragraphs and blocks.
   --xh-chat-paragraph-gap: 8px;
   --xh-chat-side-pad: var(--xh-pad-double-px);

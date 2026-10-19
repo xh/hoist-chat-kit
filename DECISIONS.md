@@ -1531,3 +1531,21 @@ with a server-owned conversation. Its first live calls taught the kit the follow
 
 **Why.** These came from real traffic, not from a spec or an emulator. They confirm the
 server-mode design, and they add two transport options and two doc rules.
+
+## D94. One column width, with no separate cap on prose
+
+**Decision.** The conversation is one centered column, and its cap is the only width limit by
+default. `--xh-chat-column-max-width` drops from 1,100px to 808px: 768px of content plus the side
+padding. `--xh-chat-prose-max-width` defaults to `none`, so markdown text, tables, code, cards, the
+divider above the sources and the sources rows all share one edge. An app that wants narrower
+text sets the prose variable. This amends the width values of D58.
+
+**Why.** In a wide workspace, text wrapped at 640px while rules, rows and tables ran to the 1,100px
+column, which read as a mistake. The common chat UIs cap one container instead. Gemini's
+conversation container is about 760px to 768px (48rem), and the userstyles that widen it, and
+ChatGPT's thread, raise one `max-width` that the text follows. We did not verify Claude.ai's or
+Copilot's widths.
+
+**Alternatives.** Keep two caps, and align the rules and rows to the prose cap. That leaves a
+second, narrower edge inside the column for tables and cards.
+
