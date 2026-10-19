@@ -185,7 +185,9 @@ origin exactly. A backend that authenticates by header alone often sends neither
 then blocks every call. Pass `fetchOpts: {credentials: 'omit'}` to the transport, and the same
 `fetchOpts` to any other `XH.fetchJson` call your app makes to that backend. The backend's CORS
 rules must also allow each header you send, such as `Authorization`, any API key header, and
-`Content-Type`. A local dev server that proxies the backend on your app's own origin hides all of
+`Content-Type`. Hoist adds headers of its own: `X-Correlation-ID` when the app turns on
+`FetchService.defaults.autoGenCorrelationIds`, and `traceparent` when Hoist tracing is on. If the
+backend does not allow `X-Correlation-ID`, pass `correlationId: false`. A local dev server that proxies the backend on your app's own origin hides all of
 this, so test against the real origin before you deploy.
 
 ### Relay Claude through a Hoist server
@@ -1015,7 +1017,8 @@ Shared by `HoistChatTransport` and `SseChatTransport`.
 | `timeout` | `PromiseTimeoutSpec` | Wait for the response to start. Default the `FetchService` default. No timeout applies once the response streams. |
 | `idleTimeout` | `number` | Longest wait for data, in milliseconds, from the request to the first record and between records. Fails the step with code `stalled`. Default none. |
 | `fetchOpts` | `PlainObject` | Options for the browser's `fetch`, such as `{credentials: 'omit'}` for a cross-origin backend. The transport's own `signal` wins. Default none. |
-| `cancelUrl` | `string \| (run) => Awaitable<string>` | Endpoint to post `{threadId, runId, turnId}` to when the user stops a run, with the `headers`, `params` and `fetchOpts` of the stopped step. Default none. |
+| `correlationId` | `boolean` | False to send no correlation id header, true to always send one. Default the `FetchService` default. |
+| `cancelUrl` | `string \| (run) => Awaitable<string>` | Endpoint to post `{threadId, runId, turnId}` to when the user stops a run, with the `headers`, `params`, `fetchOpts` and `correlationId` of the stopped step. Default none. |
 
 ### AnthropicCodecConfig
 

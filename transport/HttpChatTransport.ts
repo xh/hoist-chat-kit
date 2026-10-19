@@ -68,10 +68,18 @@ export interface HttpChatTransportConfig {
     fetchOpts?: PlainObject;
 
     /**
+     * False to send no correlation id header with each request, as with
+     * `FetchOptions.correlationId`. Use it for a cross-origin backend whose CORS rules do not
+     * allow the header, in an app that sets `FetchService.defaults.autoGenCorrelationIds`. True
+     * to send one even when the app does not. Default the `FetchService` default.
+     */
+    correlationId?: boolean;
+
+    /**
      * Endpoint to post to when the user stops a run, for a backend that does not stop when the
      * client disconnects - or a function of the run to build it. The body is the run's ids,
      * `{threadId, runId, turnId}`, and the request carries the `headers` and `params` of the
-     * stopped step, and the `fetchOpts`. Default none: a stop only closes the connection.
+     * stopped step, and the `fetchOpts` and `correlationId`. Default none: a stop only closes the connection.
      */
     cancelUrl?: string | ((run: ChatRunRef) => Awaitable<string>);
 }
@@ -135,6 +143,9 @@ export abstract class HttpChatTransport implements ChatTransport {
     /** Options for the browser's `fetch`, or null. */
     readonly fetchOpts: PlainObject;
 
+    /** True or false to send a correlation id header or not, or undefined for the default. */
+    readonly correlationId: boolean;
+
     /** Endpoint to post a cancel to, a function to build it, or null. */
     readonly cancelUrl: HttpChatTransportConfig['cancelUrl'];
 
@@ -147,6 +158,7 @@ export abstract class HttpChatTransport implements ChatTransport {
         timeout,
         idleTimeout = null,
         fetchOpts = null,
+        correlationId,
         cancelUrl = null
     }: HttpChatTransportConfig) {
         throwIf(!url, 'A chat transport url is required.');
@@ -159,6 +171,8 @@ export abstract class HttpChatTransport implements ChatTransport {
         this.timeout = timeout;
         this.idleTimeout = idleTimeout;
         this.fetchOpts = fetchOpts;
+        // Left undefined when not configured, so the FetchService default applies.
+        this.correlationId = correlationId;
         this.cancelUrl = cancelUrl;
     }
 
@@ -201,6 +215,7 @@ export abstract class HttpChatTransport implements ChatTransport {
                 params,
                 track,
                 timeout,
+                correlationId: this.correlationId,
                 fetchOpts: {...this.fetchOpts, signal: AbortSignal.any([signal, aborter.signal])}
             });
             for await (const {data, eventName} of abortable(
@@ -242,6 +257,7 @@ export abstract class HttpChatTransport implements ChatTransport {
             body: {threadId, runId, turnId},
             headers,
             params,
+            correlationId: this.correlationId,
             fetchOpts: this.fetchOpts
         });
     }

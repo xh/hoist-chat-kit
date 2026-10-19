@@ -264,6 +264,7 @@
         "fetchOpts",
         "CORS",
         "credentials",
+        "correlationId",
         "xh.chat.textReplace",
         "xh.chat.message",
         "retryAfterSeconds",

@@ -1,5 +1,6 @@
+import {FetchService} from '@xh/hoist/svc';
 import {hoistCore, hoistError, initTestAppAsync, noContent} from '@xh/hoist/test-support';
-import {beforeAll, describe, expect, it, vi} from 'vitest';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatMessage} from '../core';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRequest} from './ChatTransport';
@@ -137,6 +138,30 @@ describe('SseChatTransport', () => {
 
         expect(inits[0].credentials).toBe('omit');
         expect(inits[0].signal).not.toBe(appSignal);
+    });
+
+    it('sends no correlation id when correlationId is false, though the app turns them on', async () => {
+        const {defaults} = FetchService,
+            autoGen = defaults.autoGenCorrelationIds;
+        defaults.autoGenCorrelationIds = true;
+        onTestFinished(() => {
+            defaults.autoGenCorrelationIds = autoGen;
+        });
+        hoistCore.route(
+            'POST',
+            'agent',
+            () =>
+                new Response(`data: ${JSON.stringify(STARTED)}\n\n`, {
+                    headers: {'Content-Type': 'text/event-stream'}
+                })
+        );
+
+        await collect(new SseChatTransport({url: 'agent'}).run(request()));
+        await collect(new SseChatTransport({url: 'agent', correlationId: false}).run(request()));
+
+        const [withDefault, withFalse] = hoistCore.requestsTo('agent');
+        expect(withDefault.headers['x-correlation-id']).toBeTruthy();
+        expect(withFalse.headers).not.toHaveProperty('x-correlation-id');
     });
 
     it('throws the server error, with its details, when the request fails', async () => {
