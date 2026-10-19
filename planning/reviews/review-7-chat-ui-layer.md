@@ -159,6 +159,19 @@ The calls below go against a strict "no consumer, cut it" reading. They follow t
   `InterruptsLocalModel`.
 - **Tool approval, reasoning, code blocks, attachments and the error boundary:** keep as built.
 
+### Showcase: Anselm's calls (2026-10-18)
+
+| Feature | Call |
+|---|---|
+| Activity timeline | Keep the summary row, steps, nested sub-agents, retry detection and the quiet state. Drop the plan, the `pinned` display and the built-in question buttons |
+| Undo | Remove per-tool undo. Nothing in its place until a clear spec exists |
+| Interrupt panels | Keep as built: one question at a time, then a review step |
+| Tool approval, reasoning, code blocks, attachments, error boundary | Keep as built |
+| Weather V2 1: build as a timeline | Do it: the dashboard tools use `display: 'timeline'` |
+
+Weather V2 proposals 2 to 5 (preview before apply, follow-up chips, reasoning, approval for bulk
+removes) are still to walk. Proposal 1 of the original list, undo, is dropped with undo.
+
 ## Library calls
 
 - **SSE parser: keep ours.** `@ag-ui/client`'s `parseSSEStream` drops event names, fails on CRLF

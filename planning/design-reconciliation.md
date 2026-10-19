@@ -36,11 +36,11 @@ R10, R11 and R12 were about the component helper, which the kit no longer ships 
 | # | Question | Built |
 |---|---|---|
 | H1 | The export confirm threshold | One threshold, default 10,000 rows, on `ChatUiGrid.defaults` |
-| H2 | Redo after Undo | No Redo (D48) |
+| H2 | Redo after Undo | No undo or redo. Per-tool undo is removed (D92) |
 | H3 | A failed apply | Retry for a previewed apply. None for a change that applied at once |
 | H4 | The Esc order | Popups first. Then the region with focus acts: the viewer closes, an edit cancels, a reply stops. One action per press |
 | H5 | Remapping shortcuts | Kit config, `ChatKit.defaults.shortcuts` (D66) |
-| H6 | Timeline or process rows | The timeline for `display: 'timeline'` calls. Plain rows for `card` calls and for reasoning alone (D78) |
+| H6 | Timeline or process rows | The timeline for `display: 'timeline'` calls, with no pinned plan. Plain rows for `card` calls and for reasoning alone (D78, D92) |
 | H7 | Markdown tables | Capped past a configurable row limit, default 100 (D90) |
 | H8 | Status region order | Interrupted, cancelled and detached rank with failed |
 

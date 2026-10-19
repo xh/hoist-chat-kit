@@ -297,6 +297,8 @@ stream and keeps numbers exact. A server-run loop also cannot take client tools.
 
 ## D23. An activity timeline, and one tool display setting
 
+**Amended** by [D92](#d92-the-showcase-features-what-stays).
+
 **Decision.** Agentic replies show their tool calls, reasoning and narration in one collapsible
 timeline, with nested sub-agents. `ChatToolSpec.display` becomes one enum: `card`, `inline`,
 `timeline`, `answer`, `pinned` or `hidden`.
@@ -609,6 +611,8 @@ choices where the spec is open or differs from the kit's conventions:
 open.
 
 ## D48. Only the latest reply with changes can be undone
+
+**Superseded** by [D92](#d92-the-showcase-features-what-stays).
 
 **Decision.** `ChatModel.undoableMessageId` names the latest reply that holds undo functions, once
 its turn ends, and only while no turn runs or waits for the user. `undoTurnAsync()` runs that
@@ -1139,6 +1143,8 @@ design's approval controls (P6).
 
 ## D78. Choices in the activity timeline
 
+**Amended** by [D92](#d92-the-showcase-features-what-stays).
+
 **Decision.** `ChatToolSpec.display` takes the full D23 enum: `card` (default), `inline`,
 `timeline`, `answer`, `pinned` and `hidden`. `timeline` calls and sub-agent parts form one
 timeline block per run of them. Text and reasoning fold into the block only when another
@@ -1460,3 +1466,29 @@ shows it is cheap, so it stays.
 **Why.** Each choice is the simplest one that keeps the behavior D90 asked for. The route rule
 fixes a bug the cuts exposed: the workspace opens a new chat on load, and its id went into the URL
 before the backend knew it.
+
+## D92. The showcase features: what stays
+
+**Decision.** Anselm walked the "Keep, and give it a showcase" section of review 7.
+
+- **Activity timeline.** Keep the summary row, the list of steps, nested sub-agents (AG-UI's
+  `parentSubagentRunId`), retry detection and the quiet state. Drop the plan read from a tool's
+  output, with the `pinned` display, and the timeline's own question and choice buttons. An app
+  that wants a plan renders it with the tool's `renderer`, or with a data renderer for an AG-UI
+  activity. A browser tool that asks the user answers through its own `renderer` or card. A server
+  agent asks through AG-UI interrupts.
+- **Undo.** Remove per-tool undo: `ChatToolResult.undo`, `ChatModel.undoTurnAsync()` and the rest.
+  Add nothing in its place until a clear spec exists to follow.
+- **Interrupt panels.** Keep as built: one question at a time, then a review step, as Claude Code
+  does.
+- **Tool approval, reasoning, code blocks, attachments and the error boundary.** Keep as built.
+- **Weather V2.** Its dashboard tools use `display: 'timeline'`, so a build reads as one line that
+  opens into its steps.
+
+This supersedes D48, and amends D23 and D78.
+
+**Why.** The plan and the question buttons read guessed field names, with no spec to conform to,
+and AG-UI's interrupts already cover questions. Undo reverted only the tools that opted in, so a
+reply could be partly undone, and it could skip a newer change to undo an older one. No chat kit
+or agent protocol defines tool undo. Agent products that offer it use checkpoints that the app
+owns.
