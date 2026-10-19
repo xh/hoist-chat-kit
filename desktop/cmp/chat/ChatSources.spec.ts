@@ -123,6 +123,29 @@ describe('sources and citations', () => {
             );
         });
 
+        it("toggles a row's excerpt on a click anywhere on the row outside its title", () => {
+            const {container} = renderReply('Caps [1].', [DOC1]),
+                row = container.querySelector('.xh-chat-sources__row'),
+                excerpt = () => container.querySelector('.xh-chat-sources__excerpt');
+
+            fireEvent.click(row.querySelector('.xh-chat-sources__meta'));
+            expect(excerpt()).toBeTruthy();
+            expect(
+                screen.getByRole('button', {name: 'Hide excerpt'}).getAttribute('aria-expanded')
+            ).toBe('true');
+
+            fireEvent.click(row);
+            expect(excerpt()).toBeNull();
+        });
+
+        it('opens the source on a click on the title, without toggling the excerpt', () => {
+            const {container, sidePanel} = renderReply('Caps [1].', [DOC1]);
+
+            fireEvent.click(screen.getByRole('button', {name: DOC1.title}));
+            expect(sidePanel.request).toMatchObject({citation: 1});
+            expect(container.querySelector('.xh-chat-sources__excerpt')).toBeNull();
+        });
+
         it('highlights the markers of a hovered row, and the row of a hovered marker', () => {
             const {container} = renderReply('Caps [1] and [2].', [DOC1, DOC2]),
                 [row1, row2] = Array.from(container.querySelectorAll('.xh-chat-sources__row'));

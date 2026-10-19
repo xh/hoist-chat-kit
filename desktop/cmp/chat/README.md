@@ -226,14 +226,17 @@ Three rows show, and the rest sit behind "Show N More". A source that a citing r
 takes no number and no row.
 
 Every row has the same layout: the number, an icon, the title and a meta line. A source's
-`sourceType` sets the icon, the meta line and what a click does:
+`sourceType` sets the icon, the meta line and what a click on the title does:
 
-| `sourceType` | Icon and meta | Click |
+| `sourceType` | Icon and meta | Title click |
 |---|---|---|
 | `document` | File-type icon, then `metadata.fileName` and `metadata.page` | Opens the side panel when one is in reach, else `onSourceClick`, else its URL in a new tab |
 | `url` | Globe, then the host | Opens a new tab, or `onSourceClick` in its place |
 
-A Ctrl or Cmd click on a row opens the source's URL in a new tab. Only `http` and `https` URLs
+A row with an excerpt expands to show it on a click on its chevron, or anywhere else on the row
+outside the title. For the keyboard, the title and the chevron are the row's controls.
+
+A Ctrl or Cmd click on a title opens the source's URL in a new tab. Only `http` and `https` URLs
 open. The list loads no image, so it sends no request of its own.
 
 ### Side panel

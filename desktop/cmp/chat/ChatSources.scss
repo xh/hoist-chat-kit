@@ -50,6 +50,10 @@
     &--active {
       background-color: var(--xh-chat-source-highlight-bg);
     }
+
+    &--expandable {
+      cursor: pointer;
+    }
   }
 
   // Numbers are labels here, not buttons.

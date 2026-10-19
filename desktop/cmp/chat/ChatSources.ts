@@ -46,7 +46,11 @@ export interface ChatSourcesProps extends HoistProps {
  * Rows follow the citation numbers. Each row shows its number, an icon, its title and a meta line.
  * A document shows its file-type icon, file name and page, and opens in the side panel when one is
  * in reach. A web page shows a globe and its host, and opens in a new tab. Three rows show, and
- * the rest sit behind "Show N More". A row with an excerpt expands to show it.
+ * the rest sit behind "Show N More".
+ *
+ * The title opens the source. A row with an excerpt expands to show it, on a click on its chevron
+ * or anywhere else on the row outside the title. For the keyboard, the title and the chevron are
+ * the row's tab stops.
  *
  * Hovering a row highlights its markers in the text, and hovering a marker highlights its row.
  */
@@ -178,9 +182,17 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
             items: [
                 div({
                     className: classNames('xh-chat-sources__row', {
+                        'xh-chat-sources__row--expandable': !!excerpt,
                         'xh-chat-sources__row--highlight': links.hoveredNumber === number,
                         'xh-chat-sources__row--active': isActive
                     }),
+                    // A larger target for the pointer. The chevron is the toggle for the keyboard
+                    // and for screen readers, so the row itself is no control.
+                    onClick: excerpt
+                        ? (e: MouseEvent<HTMLElement>) => {
+                              if (isRowToggleClick(e)) impl.toggleExcerpt(source.id);
+                          }
+                        : undefined,
                     onMouseEnter: () => links.setHoveredNumber(number),
                     onMouseLeave: () => {
                         if (links.hoveredNumber === number) links.setHoveredNumber(null);
@@ -216,6 +228,15 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
         });
     }
 });
+
+/**
+ * True for a click on the row that should toggle its excerpt: not on a button in the row, and not
+ * the end of a drag that selected text.
+ */
+function isRowToggleClick(e: MouseEvent<HTMLElement>): boolean {
+    if ((e.target as Element).closest('button, a')) return false;
+    return !window.getSelection()?.toString();
+}
 
 // A title is a button that opens the source, if anything can.
 function sourceTitle(source: ChatSourcePart, number: number, links: ChatSourceLinks): ReactNode {
