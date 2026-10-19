@@ -40,6 +40,15 @@ describe('ChatScopeChip', () => {
         expect(chip.getAttribute('title')).toBe('Policy manual, Credit memo');
     });
 
+    it('gives each document its full name as a tooltip, as a long one truncates', () => {
+        const name = 'Mortgage Underwriting Guidelines: Credit, Capacity, Collateral and Reserves';
+        render(chatScopeChip({model: createModel(), documents: [{id: 'd1', name}, ...DOCS]}));
+
+        openChip();
+        const option = screen.getByRole('checkbox', {name}).closest('label');
+        expect(option.querySelector('[title]').getAttribute('title')).toBe(name);
+    });
+
     it('counts only chosen documents that are still in the list', () => {
         render(
             chatScopeChip({

@@ -181,6 +181,7 @@ const scopeList = hoistCmp.factory<HoistProps & ScopeListProps>({
                                   value: selectedIds.includes(doc.id),
                                   label: span({
                                       className: 'xh-chat-scope-chip__option-label',
+                                      title: doc.name,
                                       items: [
                                           doc.icon ?? Icon.fileText(),
                                           span({

@@ -454,7 +454,9 @@ opens nothing. In a compact host, a pill shows only its icon and count.
 `chatScopeChip` scopes the next question to some of the app's documents. The app supplies the
 documents, each with an `id`, a `name` and an optional `icon`. The chip reads "All documents"
 with none chosen, else "Documents" with the count. Its popover lists the documents as
-checkboxes, with a search box for a long list, and Clear.
+checkboxes, with a search box for a long list, and Clear. A name too long for the popover ends
+in an ellipsis, with the full name in a tooltip. To widen the popover, set the CSS variable
+`--xh-chat-scope-popover-width`, which defaults to 320px.
 
 ```typescript
 chatPanel({
