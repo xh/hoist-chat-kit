@@ -2,7 +2,8 @@ import type {CSSProperties, ReactNode} from 'react';
 import {isFunction, isString, omit} from 'lodash';
 import {clipboardMenuItem} from '@xh/hoist/cmp/clipboard';
 import {errorMessage} from '@xh/hoist/cmp/error';
-import {div, filler, nav, span, vframe} from '@xh/hoist/cmp/layout';
+import {div, filler, nav, placeholder, span, vframe} from '@xh/hoist/cmp/layout';
+import {mask} from '@xh/hoist/cmp/mask';
 import {
     type BoxProps,
     hoistCmp,
@@ -391,6 +392,16 @@ function conversation(
             message: 'This conversation does not exist, or it was deleted.',
             actionFn: () => impl.newChat(),
             actionButtonProps: {text: 'New Chat', icon: Icon.add()}
+        });
+    }
+
+    // A thread that has not loaded yet shows a plain pane under the mask, not a new chat's empty
+    // state - centered composer and suggestions - which its empty chat would otherwise show.
+    if (threadsModel.isThreadLoading && chatModel.isEmpty) {
+        return placeholder({
+            className: 'xh-chat-workspace__loading',
+            testId: getTestId(testId, 'loading'),
+            item: mask({bind: threadsModel.loadTask, spinner: true})
         });
     }
 

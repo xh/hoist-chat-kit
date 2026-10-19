@@ -291,6 +291,29 @@ describe('ChatWorkspace', () => {
             expect(heading()).toBe('Budget review');
         });
 
+        it("shows a plain pane while a thread loads, not a new chat's empty state", async () => {
+            const {container, threadsModel} = renderWorkspace(
+                {chatPanelProps: {suggestions: [{text: 'Summarize the budget'}]}},
+                {storeDelayMs: 50}
+            );
+            await act(() => threadsModel.loadAsync());
+            expect(screen.getByText('Summarize the budget')).toBeTruthy();
+
+            let selected: Promise<void>;
+            act(() => {
+                selected = threadsModel.selectThreadAsync('t1');
+            });
+            expect(threadsModel.isThreadLoading).toBe(true);
+            expect(container.querySelector('.xh-chat-workspace__loading')).toBeTruthy();
+            expect(container.querySelector('.xh-chat-panel--empty')).toBeNull();
+            expect(screen.queryByText('Summarize the budget')).toBeNull();
+
+            await act(() => selected);
+            expect(threadsModel.isThreadLoading).toBe(false);
+            expect(container.querySelector('.xh-chat-workspace__loading')).toBeNull();
+            expect(screen.getByRole('textbox', {name: /message/i})).toBeTruthy();
+        });
+
         it('collapses to a rail with New Chat and search, and expands again', async () => {
             const {model} = renderWorkspace();
             await resizeTo(1440);
@@ -634,12 +657,14 @@ function setup({
     sidePanelOpen = false,
     documentRenderer = undefined,
     threads = THREADS,
-    initialMessages = undefined
+    initialMessages = undefined,
+    storeDelayMs = 0
 }: Partial<Pick<ChatWorkspaceConfig, 'sidePanelOpen' | 'documentRenderer'>> & {
     threads?: LocalChatThread[];
     initialMessages?: ChatMessageSpec[];
+    storeDelayMs?: number;
 } = {}) {
-    const store = new LocalChatThreadStore({threads}),
+    const store = new LocalChatThreadStore({threads, delayMs: storeDelayMs}),
         transport = new ScriptedChatTransport({responses: [textEvents('Hi.')], delayMs: 0}),
         threadsModel = new ChatThreadsModel({
             store,

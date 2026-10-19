@@ -58,6 +58,7 @@ ChatThreadsModel (HoistModel)
 │   ├── endedEarlyThreads             # Threads whose last run failed or was cut short
 │   ├── loadError                     # Why the selected thread's history failed, or null
 │   ├── isThreadNotFound              # True if the selected thread is missing
+│   ├── isThreadLoading               # True while the selected thread's history loads
 │   └── canRename / canDelete
 └── Methods:
     ├── loadAsync() / refreshAsync()  # Load or reload the list
@@ -340,6 +341,7 @@ and empty groups are left out.
 | `endedEarlyThreads` | `Record<string, ChatThreadEndedEarly>` | Threads whose last run ended early, by id, each with `runEnd` (`'interrupted'` or `'failed'`) and a `reason`. From background turns in this session, and the store's `lastRunEnd` for threads with no open chat that the user has not seen since their last activity. |
 | `loadError` | `Error` | Why the selected thread's history failed to load, or null. |
 | `isThreadNotFound` | `boolean` | True if the store reported the selected thread missing, with a 404. |
+| `isThreadLoading` | `boolean` | True while the selected thread's history loads. Its chat is empty until then, so a layout shows a plain placeholder rather than a new chat's empty state. `ChatWorkspace` does. |
 | `listError` | `Error` | Error from the last list load, or null. The list keeps its threads. |
 | `listTask` | `TaskObserver` | Pending while the list loads. |
 | `loadTask` | `TaskObserver` | Pending while the selected thread's history loads. |

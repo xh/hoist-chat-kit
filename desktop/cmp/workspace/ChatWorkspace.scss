@@ -114,6 +114,12 @@
   &__conversation {
     min-height: 0;
   }
+
+  // The pane while a thread loads: a placeholder under the load mask.
+  &__loading {
+    min-height: 0;
+    position: relative;
+  }
 }
 
 // The thread list in the history popover of a narrow workspace.

@@ -235,6 +235,16 @@ export class ChatThreadsModel extends HoistModel {
         return this.selectedThread?.loadState === 'notFound';
     }
 
+    /**
+     * True while the selected thread's history loads. Its chat holds no messages until the load
+     * ends, so a layout shows a plain placeholder in its place, rather than a new chat's empty
+     * state. A workspace does.
+     */
+    @computed
+    get isThreadLoading(): boolean {
+        return this.selectedThread?.loadState === 'loading';
+    }
+
     /** True if the store can rename threads. */
     get canRename(): boolean {
         return !!this.store.renameThreadAsync;

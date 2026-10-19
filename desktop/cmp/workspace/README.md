@@ -133,7 +133,8 @@ The workspace model loads the thread list. If nothing is selected when it is cre
 a new thread, so that the conversation pane always holds a chat. A reload therefore opens a new
 chat. The most recently active thread leads the list, one click away. A deep link through the
 threads model's `route` opens its thread instead. If the store reports that thread missing, the
-conversation pane shows "Thread not found", with New Chat in place of the composer.
+conversation pane shows "Thread not found", with New Chat in place of the composer. While a
+thread's history loads, the pane shows only the loading mask, not a new chat's empty state.
 
 ## Common Usage Patterns
 
