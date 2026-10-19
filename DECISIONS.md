@@ -1476,7 +1476,9 @@ before the backend knew it.
   output, with the `pinned` display, and the timeline's own question and choice buttons. An app
   that wants a plan renders it with the tool's `renderer`, or with a data renderer for an AG-UI
   activity. A browser tool that asks the user answers through its own `renderer` or card. A server
-  agent asks through AG-UI interrupts.
+  agent asks through AG-UI interrupts. While an interactive call waits for an answer, its card
+  shows under the timeline line, as an approval does. The timeline reads no answers or results
+  from guessed fields: a result shows as text, or else as JSON.
 - **Undo.** Remove per-tool undo: `ChatToolResult.undo`, `ChatModel.undoTurnAsync()` and the rest.
   Add nothing in its place until a clear spec exists to follow.
 - **Interrupt panels.** Keep as built: one question at a time, then a review step, as Claude Code
