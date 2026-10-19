@@ -207,6 +207,25 @@ describe('HoistChatTransport', () => {
             expect(req.headers).toMatchObject({'x-turn': 'u1'});
         });
 
+        it('posts the cancel with the fetchOpts', async () => {
+            hoistCore.route('POST', 'chat/cancel', () => null);
+            const inits: RequestInit[] = [],
+                fetch = globalThis.fetch;
+            vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
+                if (String(input).includes('chat/cancel')) inits.push(init);
+                return fetch(input, init);
+            });
+            const transport = new HoistChatTransport({
+                url: 'chat',
+                cancelUrl: 'chat/cancel',
+                fetchOpts: {credentials: 'omit'}
+            });
+
+            await transport.cancelAsync({threadId: 't1', runId: 'r1', turnId: 'u1'});
+
+            expect(inits[0].credentials).toBe('omit');
+        });
+
         it('does nothing without a cancelUrl', async () => {
             const transport = new HoistChatTransport({url: 'chat'});
             await expect(

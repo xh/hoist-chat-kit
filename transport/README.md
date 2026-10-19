@@ -179,6 +179,15 @@ new ChatModel({
 See Hoist's `docs/authentication.md` for the `AuthModel` and its access tokens. The examples below
 use the same `getTokenAsync()`.
 
+Hoist sends cookies with every request (`credentials: 'include'`). A browser allows that across
+origins only when the backend answers with `Access-Control-Allow-Credentials: true` and names your
+origin exactly. A backend that authenticates by header alone often sends neither, and the browser
+then blocks every call. Pass `fetchOpts: {credentials: 'omit'}` to the transport, and the same
+`fetchOpts` to any other `XH.fetchJson` call your app makes to that backend. The backend's CORS
+rules must also allow each header you send, such as `Authorization`, any API key header, and
+`Content-Type`. A local dev server that proxies the backend on your app's own origin hides all of
+this, so test against the real origin before you deploy.
+
 ### Relay Claude through a Hoist server
 
 The server holds the API key, and the browser builds the Messages API body.
@@ -1005,7 +1014,8 @@ Shared by `HoistChatTransport` and `SseChatTransport`.
 | `track` | `string \| TrackOptions` | Track each step with Hoist activity tracking, as `FetchOptions.track` does. |
 | `timeout` | `PromiseTimeoutSpec` | Wait for the response to start. Default the `FetchService` default. No timeout applies once the response streams. |
 | `idleTimeout` | `number` | Longest wait for data, in milliseconds, from the request to the first record and between records. Fails the step with code `stalled`. Default none. |
-| `cancelUrl` | `string \| (run) => Awaitable<string>` | Endpoint to post `{threadId, runId, turnId}` to when the user stops a run, with the `headers` and `params` of the stopped step. Default none. |
+| `fetchOpts` | `PlainObject` | Options for the browser's `fetch`, such as `{credentials: 'omit'}` for a cross-origin backend. The transport's own `signal` wins. Default none. |
+| `cancelUrl` | `string \| (run) => Awaitable<string>` | Endpoint to post `{threadId, runId, turnId}` to when the user stops a run, with the `headers`, `params` and `fetchOpts` of the stopped step. Default none. |
 
 ### AnthropicCodecConfig
 

@@ -93,7 +93,7 @@ describe('SseChatTransport', () => {
 
     it('closes the connection when the caller stops reading early', async () => {
         const stream = sseStream(),
-            signals = spyFetchSignals('agent');
+            inits = spyFetchInits('agent');
         hoistCore.route('POST', 'agent', () => stream.response);
         stream.write(`data: ${JSON.stringify(STARTED)}\n\ndata: ${JSON.stringify(TEXT_START)}\n\n`);
 
@@ -101,12 +101,12 @@ describe('SseChatTransport', () => {
             if (event.type === 'TEXT_MESSAGE_START') break;
         }
 
-        expect(signals[0].aborted).toBe(true);
+        expect(inits[0].signal.aborted).toBe(true);
     });
 
     it('stops at once and closes the connection when the signal aborts mid-stream', async () => {
         const stream = sseStream(),
-            signals = spyFetchSignals('agent'),
+            inits = spyFetchInits('agent'),
             controller = new AbortController();
         hoistCore.route('POST', 'agent', () => stream.response);
 
@@ -118,7 +118,25 @@ describe('SseChatTransport', () => {
         controller.abort();
 
         await expect(next).rejects.toMatchObject({name: 'AbortError'});
-        expect(signals[0].aborted).toBe(true);
+        expect(inits[0].signal.aborted).toBe(true);
+    });
+
+    it('passes fetchOpts to fetch, keeping its own signal', async () => {
+        const stream = sseStream(),
+            inits = spyFetchInits('agent'),
+            appSignal = new AbortController().signal;
+        hoistCore.route('POST', 'agent', () => stream.response);
+        stream.write(`data: ${JSON.stringify(STARTED)}\n\n`);
+        stream.close();
+
+        const transport = new SseChatTransport({
+            url: 'agent',
+            fetchOpts: {credentials: 'omit', signal: appSignal}
+        });
+        await collect(transport.run(request()));
+
+        expect(inits[0].credentials).toBe('omit');
+        expect(inits[0].signal).not.toBe(appSignal);
     });
 
     it('throws the server error, with its details, when the request fails', async () => {
@@ -180,12 +198,12 @@ async function collect(events: AsyncIterable<ChatEvent>): Promise<ChatEvent[]> {
     return ret;
 }
 
-/** The abort signal passed to `fetch()` for each request to `path`, in order. */
-function spyFetchSignals(path: string): AbortSignal[] {
-    const ret: AbortSignal[] = [],
+/** The options passed to `fetch()` for each request to `path`, in order. */
+function spyFetchInits(path: string): RequestInit[] {
+    const ret: RequestInit[] = [],
         fetch = globalThis.fetch;
     vi.spyOn(globalThis, 'fetch').mockImplementation((input, init) => {
-        if (String(input).includes(path)) ret.push(init?.signal);
+        if (String(input).includes(path)) ret.push(init);
         return fetch(input, init);
     });
     return ret;

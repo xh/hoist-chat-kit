@@ -59,10 +59,19 @@ export interface HttpChatTransportConfig {
     idleTimeout?: number;
 
     /**
+     * Options for the browser's `fetch`, as with `FetchOptions.fetchOpts`. Hoist sends cookies
+     * with every request (`credentials: 'include'`), which a cross-origin backend must allow with
+     * `Access-Control-Allow-Credentials: true`. For a backend that authenticates by header alone,
+     * pass `{credentials: 'omit'}`. The transport sets its own `signal`, so a signal here is
+     * ignored. Default none.
+     */
+    fetchOpts?: PlainObject;
+
+    /**
      * Endpoint to post to when the user stops a run, for a backend that does not stop when the
      * client disconnects - or a function of the run to build it. The body is the run's ids,
      * `{threadId, runId, turnId}`, and the request carries the `headers` and `params` of the
-     * stopped step. Default none: a stop only closes the connection.
+     * stopped step, and the `fetchOpts`. Default none: a stop only closes the connection.
      */
     cancelUrl?: string | ((run: ChatRunRef) => Awaitable<string>);
 }
@@ -123,6 +132,9 @@ export abstract class HttpChatTransport implements ChatTransport {
     /** Longest wait for data from the server, in milliseconds, or null for no limit. */
     readonly idleTimeout: number;
 
+    /** Options for the browser's `fetch`, or null. */
+    readonly fetchOpts: PlainObject;
+
     /** Endpoint to post a cancel to, a function to build it, or null. */
     readonly cancelUrl: HttpChatTransportConfig['cancelUrl'];
 
@@ -134,6 +146,7 @@ export abstract class HttpChatTransport implements ChatTransport {
         track = null,
         timeout,
         idleTimeout = null,
+        fetchOpts = null,
         cancelUrl = null
     }: HttpChatTransportConfig) {
         throwIf(!url, 'A chat transport url is required.');
@@ -145,6 +158,7 @@ export abstract class HttpChatTransport implements ChatTransport {
         // Left undefined when not configured, as null would disable the FetchService timeout.
         this.timeout = timeout;
         this.idleTimeout = idleTimeout;
+        this.fetchOpts = fetchOpts;
         this.cancelUrl = cancelUrl;
     }
 
@@ -187,7 +201,7 @@ export abstract class HttpChatTransport implements ChatTransport {
                 params,
                 track,
                 timeout,
-                fetchOpts: {signal: AbortSignal.any([signal, aborter.signal])}
+                fetchOpts: {...this.fetchOpts, signal: AbortSignal.any([signal, aborter.signal])}
             });
             for await (const {data, eventName} of abortable(
                 records,
@@ -223,7 +237,13 @@ export abstract class HttpChatTransport implements ChatTransport {
                 request ? resolveValue(this.headers, request) : null,
                 request ? resolveValue(this.params, request) : null
             ]);
-        await XH.postJson({url, body: {threadId, runId, turnId}, headers, params});
+        await XH.postJson({
+            url,
+            body: {threadId, runId, turnId},
+            headers,
+            params,
+            fetchOpts: this.fetchOpts
+        });
     }
 
     /**
