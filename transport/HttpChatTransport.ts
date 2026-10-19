@@ -120,6 +120,9 @@ export abstract class HttpChatTransport implements ChatTransport {
     /** Encodes requests and decodes the streamed records. */
     readonly codec: ChatCodec;
 
+    /** True, as the transport calls `onRequestSent` before it sends each request. */
+    readonly reportsRequestSent = true;
+
     /** True if the codec sends the `resume` list that answers interrupts. */
     get supportsInterrupts(): boolean {
         return this.codec.supportsInterrupts === true;
@@ -207,6 +210,7 @@ export abstract class HttpChatTransport implements ChatTransport {
 
         try {
             startIdleTimer();
+            request.onRequestSent?.();
             const records = this.fetchRecords({
                 url,
                 method: 'POST',

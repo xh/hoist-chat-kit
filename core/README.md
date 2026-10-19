@@ -867,7 +867,10 @@ historyMode)` decides it:
   not retry-safe, because the server may still be running the turn.
 - In server mode, a stream that throws, such as on a network reset or a gateway timeout, records
   `metadata.errorCode: 'connection-lost'`, which is not retry-safe either. A 4xx response is the
-  exception: the server refused the request, so nothing ran.
+  exception: the server refused the request, so nothing ran. So is a failure before the request
+  went, such as a `headers` function that could not get a token: the kit's HTTP transports report
+  when they send, with `ChatRunRequest.onRequestSent`. A custom transport opts in with
+  `reportsRequestSent`.
 
 A retry-safe failure offers Try Again, through `retryAsync()`. One that is not offers Refresh
 Status, through `refreshStatusAsync()`, when the host can refresh. Without a thread layer, it

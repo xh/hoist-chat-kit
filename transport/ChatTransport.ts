@@ -39,6 +39,14 @@ export interface ChatTransport {
     readonly supportsInterrupts?: boolean;
 
     /**
+     * True if the transport calls `request.onRequestSent` as each step's request goes out. In
+     * server mode, the chat then knows that a failure before the call, such as a token that could
+     * not be fetched for the request's headers, never reached the server, and offers Try Again.
+     * Default false: the chat takes any failure to be one that the server may have seen.
+     */
+    readonly reportsRequestSent?: boolean;
+
+    /**
      * Ask the backend to cancel a run, for a backend that does not stop when the client
      * disconnects. The chat calls it, without waiting, when the user stops a turn while a step is
      * in flight - never for a detach, a clear or a load. A failure is logged, never shown.
@@ -154,6 +162,13 @@ export interface ChatRunRequest {
      * reports activity through the events it yields. Optional.
      */
     onActivity?: () => void;
+
+    /**
+     * Called by the transport as the step's request goes out, if the transport has
+     * `reportsRequestSent`. The kit's HTTP transports call it once the url, headers, params and
+     * body are built, as they hand the request to `FetchService`. Optional.
+     */
+    onRequestSent?: () => void;
 }
 
 /**

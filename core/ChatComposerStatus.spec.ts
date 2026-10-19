@@ -1,6 +1,6 @@
-import {initTestAppAsync} from '@xh/hoist/test-support';
+import {hoistCore, hoistError, initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {errorEvents, ScriptedChatTransport, textEvents} from '../transport';
+import {errorEvents, ScriptedChatTransport, SseChatTransport, textEvents} from '../transport';
 import type {ChatEvent, ChatTransport} from '../transport';
 import type {ChatComposerHost} from './ChatComposerHost';
 import {ChatComposerModel} from './ChatComposerModel';
@@ -177,6 +177,41 @@ describe('ChatComposerModel status', () => {
         await chatModel.sendAsync('Add the note');
 
         expect(chatModel.lastMessage.metadata.errorCode).toBeUndefined();
+    });
+
+    it('keeps a failure before the request went retry-safe, as with a token that could not be had', async () => {
+        const chatModel = createChatModel([], {
+            historyMode: 'server',
+            transport: new SseChatTransport({
+                url: 'https://agents.example/run',
+                headers: async () => {
+                    throw new Error('Your authentication has expired.');
+                }
+            })
+        });
+        chatModel.setStatusRefresher(async () => {});
+
+        await chatModel.sendAsync('Add the note');
+
+        expect(chatModel.lastMessage.metadata.errorCode).toBeUndefined();
+        expect(chatModel.composerModel.getStatus()).toMatchObject({
+            action: 'tryAgain',
+            isRetrySafe: true
+        });
+    });
+
+    it('still records a lost connection for a request that went out, then failed', async () => {
+        hoistCore.route('POST', 'agent', () => hoistError(503, {message: 'Agent unavailable.'}));
+        const chatModel = createChatModel([], {
+            historyMode: 'server',
+            transport: new SseChatTransport({url: 'agent'})
+        });
+        chatModel.setStatusRefresher(async () => {});
+
+        await chatModel.sendAsync('Add the note');
+
+        expect(chatModel.lastMessage.metadata.errorCode).toBe('connection-lost');
+        expect(chatModel.composerModel.getStatus()).toMatchObject({action: 'refreshStatus'});
     });
 
     it('keeps a request the server refused retry-safe', async () => {

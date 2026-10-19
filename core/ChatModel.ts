@@ -1332,6 +1332,9 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
 
     /** Make one step - one model call - streaming its events into the turn's message. */
     private async runStepAsync(turn: ChatTurn) {
+        // Whether the server may have seen the request. A transport that reports when it sends
+        // says so itself, else the request counts as sent.
+        let isRequestSent = !this.transport.reportsRequestSent;
         const {step, turnId} = turn,
             isFirstStep = step === 0,
             request: ChatRunRequest = {
@@ -1352,6 +1355,9 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
                 signal: turn.abortController.signal,
                 onActivity: () => {
                     if (this.isCurrent(turn) && turn.request === request) this.noteActivity();
+                },
+                onRequestSent: () => {
+                    isRequestSent = true;
                 }
             };
         if (!isEmpty(this.contextProviders)) {
@@ -1374,8 +1380,13 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             }
         } catch (e) {
             // In server mode, the request may have reached the server, which can go on to run the
-            // turn - unless the server refused it.
-            if (this.historyMode === 'server' && !isAbortError(e) && !isRefusedRequest(e)) {
+            // turn - unless it never went, or the server refused it.
+            if (
+                this.historyMode === 'server' &&
+                isRequestSent &&
+                !isAbortError(e) &&
+                !isRefusedRequest(e)
+            ) {
                 turn.isConnectionLost = true;
             }
             // A run that finished before the stream failed delivered any resume it carried.

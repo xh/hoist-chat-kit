@@ -27,12 +27,13 @@ describe('createChatRunRequest', () => {
 
         await chatModel.sendAsync('Hello');
 
-        // The chat adds its own activity callback, which an app's request has no need for.
-        const [{onActivity, ...sent}] = transport.requests,
+        // The chat adds its own callbacks, which an app's request has no need for.
+        const [{onActivity, onRequestSent, ...sent}] = transport.requests,
             userMessage = chatModel.messages[0],
             request = createChatRunRequest({messages: [userMessage]});
 
         expect(onActivity).toBeInstanceOf(Function);
+        expect(onRequestSent).toBeInstanceOf(Function);
         expect(request).toEqual({
             ...sent,
             threadId: expect.any(String),
