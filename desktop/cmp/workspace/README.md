@@ -231,7 +231,8 @@ document opens at its URL in a new tab, with a toast.
 | `headerItems` | `ReactNode[]` | Items for the default header, before its own actions. |
 | `notice` | `ReactNode` | One line under the header. A string notice also shows as its tooltip. |
 | `sidePanel` | `ReactNode \| () => ReactNode` | Content for the side panel. |
-| `sidePanelProps` | `PanelProps` | Props for the side panel's `Panel`, such as `title`. |
+| `sidePanelProps` | `PanelProps` | Props for the side panel's `Panel` around the app's own content, such as `title`. Its header is compact by default. |
+| `requestPanelProps` | `PanelProps` | Props for the `Panel` of a request open in the side panel - a document, a table or a chart - as `ChatSidePanel`'s `panelProps`. Its header is compact by default. Pass `compactHeader: false` for a full one. |
 | `chatPanelProps` | `ChatPanelProps` | Props for the conversation's `ChatPanel`. |
 | `threadListProps` | `ChatThreadListProps` | Props for the sidebar's `ChatThreadList`. |
 

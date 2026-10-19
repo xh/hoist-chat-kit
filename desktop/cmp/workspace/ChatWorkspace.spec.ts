@@ -358,6 +358,7 @@ describe('ChatWorkspace', () => {
 
             act(() => model.openSidePanel());
             expect(screen.getByRole('complementary', {name: 'Sources'})).toBeTruthy();
+            expect(sidePanelHeader().classList).toContain('xh-panel-header--compact');
             expect(screen.getByText('Policy document')).toBeTruthy();
 
             fireEvent.click(screen.getByRole('button', {name: 'Close side panel'}));
@@ -395,6 +396,31 @@ describe('ChatWorkspace', () => {
             fireEvent.click(screen.getByRole('button', {name: 'Close'}));
             expect(model.sidePanel.request).toBeNull();
             expect(document.activeElement).toBe(screen.getByRole('button', {name: /^Source 1:/}));
+        });
+
+        it('frames a request with a compact header, unless requestPanelProps asks for a full one', async () => {
+            const {model, threadsModel, unmount} = renderWorkspace(
+                {chatPanelProps: {citationMarkers: true}},
+                {documentRenderer: viewer, threads: CITED_THREADS}
+            );
+            await resizeTo(1440);
+            await act(() => threadsModel.selectThreadAsync('t3'));
+            fireEvent.click(screen.getByRole('button', {name: /^Source 1:/}));
+            expect(model.sidePanel.request).not.toBeNull();
+            expect(sidePanelHeader().classList).toContain('xh-panel-header--compact');
+            unmount();
+
+            const full = renderWorkspace(
+                {
+                    chatPanelProps: {citationMarkers: true},
+                    requestPanelProps: {compactHeader: false}
+                },
+                {documentRenderer: viewer, threads: CITED_THREADS}
+            );
+            await resizeTo(1440);
+            await act(() => full.threadsModel.selectThreadAsync('t3'));
+            fireEvent.click(screen.getByRole('button', {name: /^Source 1:/}));
+            expect(sidePanelHeader().classList).not.toContain('xh-panel-header--compact');
         });
 
         it('opens a document in a new tab, with a toast, when too narrow for the panel', async () => {
@@ -674,6 +700,11 @@ async function resizeTo(width: number) {
     const entry = {contentRect: {width, height: 600}} as ResizeObserverEntry;
     resizeCallbacks.forEach(it => it([entry], null));
     await act(() => wait(150));
+}
+
+/** The header of the panel in the side panel slot. */
+function sidePanelHeader(): HTMLElement {
+    return document.querySelector('.xh-chat-workspace__side-panel .xh-panel-header');
 }
 
 function heading(): string {

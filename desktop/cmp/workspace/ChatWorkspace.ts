@@ -22,7 +22,13 @@ import {getTestId} from '@xh/hoist/utils/js';
 import {useComposedRefs} from '@xh/hoist/utils/react';
 import {classNames} from '../../../impl/ClassNames';
 import '../../../styles/vars.scss';
-import {chatPanel, type ChatPanelProps, chatSidePanel, chatSpinner} from '../chat';
+import {
+    chatPanel,
+    type ChatPanelProps,
+    chatSidePanel,
+    type ChatSidePanelProps,
+    chatSpinner
+} from '../chat';
 import {chatThreadList, type ChatThreadListProps} from '../threads';
 import {deleteThreadAsync} from '../../impl/ChatThreadDelete';
 import {ChatWorkspaceModel} from './ChatWorkspaceModel';
@@ -57,8 +63,19 @@ export interface ChatWorkspaceProps extends HoistProps<ChatWorkspaceModel>, BoxP
      */
     sidePanel?: ChatWorkspaceSidePanel;
 
-    /** Props for the side panel's Hoist `Panel` around the app's own content, such as `title`. */
+    /**
+     * Props for the side panel's Hoist `Panel` around the app's own content, such as `title`. Its
+     * header is compact by default, as the conversation's is - pass `compactHeader: false` for a
+     * full one.
+     */
     sidePanelProps?: Omit<PanelProps, 'model' | 'modelConfig' | 'modelRef'>;
+
+    /**
+     * Props for the Hoist `Panel` of a request open in the side panel - a document, a table or a
+     * chart - as `ChatSidePanel`'s `panelProps`. Its header is compact by default, as the
+     * conversation's is - pass `compactHeader: false` for a full one.
+     */
+    requestPanelProps?: ChatSidePanelProps['panelProps'];
 
     /** Props for the conversation's `ChatPanel`, such as `suggestions` and `composerProps`. */
     chatPanelProps?: Omit<ChatPanelProps, 'model' | 'modelConfig' | 'modelRef'>;
@@ -96,6 +113,7 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
                 notice,
                 sidePanel,
                 sidePanelProps,
+                requestPanelProps,
                 chatPanelProps,
                 threadListProps,
                 testId,
@@ -127,7 +145,14 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
                                 conversation(model, impl, chatPanelProps, testId)
                             ]
                         }),
-                        sidePanelView(model, impl, sidePanel, sidePanelProps, testId)
+                        sidePanelView(
+                            model,
+                            impl,
+                            sidePanel,
+                            sidePanelProps,
+                            requestPanelProps,
+                            testId
+                        )
                     ]
                 }),
                 impl.hotkeys
@@ -385,6 +410,7 @@ function sidePanelView(
     impl: ChatWorkspaceLocalModel,
     sidePanel: ChatWorkspaceSidePanel,
     sidePanelProps: ChatWorkspaceProps['sidePanelProps'],
+    requestPanelProps: ChatWorkspaceProps['requestPanelProps'],
     testId: string
 ): ReactNode {
     if (!model.isSidePanelShown) return null;
@@ -392,7 +418,10 @@ function sidePanelView(
     // A request opened by the conversation - a document, a table or a chart - comes first.
     let item: ReactNode;
     if (model.sidePanel.request) {
-        item = chatSidePanel({model: model.sidePanel});
+        item = chatSidePanel({
+            model: model.sidePanel,
+            panelProps: {compactHeader: true, ...requestPanelProps}
+        });
     } else if (sidePanel != null) {
         const {headerItems = [], ...rest} = sidePanelProps ?? {};
         item = div({
@@ -401,6 +430,7 @@ function sidePanelView(
             onKeyDown: impl.onSidePanelKeyDown,
             'aria-label': isString(rest.title) ? rest.title : 'Side panel',
             item: panel({
+                compactHeader: true,
                 ...rest,
                 headerItems: [
                     ...headerItems,

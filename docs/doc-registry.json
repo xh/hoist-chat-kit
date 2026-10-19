@@ -406,6 +406,8 @@
         "chatWorkspace",
         "ChatWorkspaceModel",
         "documentRenderer",
+        "requestPanelProps",
+        "compactHeader",
         "cited documents",
         "workspace",
         "full page",
