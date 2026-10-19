@@ -23,8 +23,17 @@ export interface ChatSourcesProps extends HoistProps {
      */
     sources: ChatSourcePart[];
 
-    /** True to show every row at the start. Default false: three show, the rest behind a toggle. */
+    /**
+     * True to show every row at the start. Default false: `visibleRows` show, the rest behind a
+     * toggle.
+     */
     defaultExpanded?: boolean;
+
+    /**
+     * Rows to show before "Show N More", or null to show every row. Default
+     * `ChatSources.defaults.visibleRows`.
+     */
+    visibleRows?: number;
 
     /**
      * Called when the user clicks a source. By default a document opens in the side panel when one
@@ -40,13 +49,23 @@ export interface ChatSourcesProps extends HoistProps {
     links?: ChatSourceLinks;
 }
 
+/** App-wide settings for {@link ChatSources} - see `ChatSources.defaults`. */
+export interface ChatSourcesDefaults {
+    /**
+     * Rows a sources list shows before "Show N More", or null to show every row. Read as each
+     * list renders, so it covers the lists in every reply. Default 3.
+     */
+    visibleRows: number;
+}
+
 /**
  * The sources behind a reply, under its text and above its action bar, after a hairline.
  *
  * Rows follow the citation numbers. Each row shows its number, an icon, its title and a meta line.
  * A document shows its file-type icon, file name and page, and opens in the side panel when one is
  * in reach. A web page shows a globe and its host, and opens in a new tab. Three rows show, and
- * the rest sit behind "Show N More".
+ * the rest sit behind "Show N More" - see `visibleRows`, and `ChatSources.defaults` to set it
+ * app-wide.
  *
  * The title opens the source. A row with an excerpt expands to show it, on a click on its chevron
  * or anywhere else on the row outside the title. For the keyboard, the title and the chevron are
@@ -54,12 +73,21 @@ export interface ChatSourcesProps extends HoistProps {
  *
  * Hovering a row highlights its markers in the text, and hovering a marker highlights its row.
  */
-export const [ChatSources, chatSources] = hoistCmp.withFactory<ChatSourcesProps>({
+export const [ChatSources, chatSources] = hoistCmp.withFactory<
+    ChatSourcesProps,
+    ChatSourcesDefaults
+>({
     displayName: 'ChatSources',
     className: 'xh-chat-sources',
+    defaults: {visibleRows: 3},
 
     render(props, ref) {
-        const {className, sources, defaultExpanded = false} = props,
+        const {
+                className,
+                sources,
+                defaultExpanded = false,
+                visibleRows = ChatSources.defaults.visibleRows
+            } = props,
             impl = useLocalModel(ChatSourcesLocalModel),
             links = props.links ?? impl.links;
         if (!props.links) {
@@ -72,8 +100,9 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<ChatSourcesProps>
 
         // TODO(design-open B5) - documents and web pages share one numbered sequence.
         const isExpanded = impl.expanded ?? defaultExpanded,
-            shown = isExpanded ? sources : sources.slice(0, VISIBLE_ROWS),
-            hidden = sources.length - VISIBLE_ROWS;
+            limit = visibleRows ?? sources.length,
+            shown = isExpanded ? sources : sources.slice(0, limit),
+            hidden = sources.length - limit;
 
         return div({
             ref,
@@ -111,8 +140,6 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<ChatSourcesProps>
 //------------------
 // Implementation
 //------------------
-const VISIBLE_ROWS = 3;
-
 class ChatSourcesLocalModel extends HoistModel {
     override xhImpl = true;
 

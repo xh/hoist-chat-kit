@@ -475,6 +475,8 @@
       "viewerCategory": "desktop",
       "description": "Desktop chat components: panel, message list, message view, composer, tool cards and more.",
       "keywords": [
+        "visibleRows",
+        "ChatSources.defaults",
         "ChatPanel",
         "chatPanel",
         "ChatMessageList",

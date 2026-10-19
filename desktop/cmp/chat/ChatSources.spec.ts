@@ -12,6 +12,7 @@ import {
 } from '../../../core';
 import {ScriptedChatTransport} from '../../../transport';
 import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
+import {ChatSources} from './ChatSources';
 
 /**
  * The sources under a reply and the citation markers in its text (P3). Users rely on numbers that
@@ -112,6 +113,26 @@ describe('sources and citations', () => {
 
             fireEvent.click(screen.getByRole('button', {name: 'Show Fewer'}));
             expect(numbers(container)).toEqual(['1', '2', '3']);
+        });
+
+        it('shows as many rows as ChatSources.defaults says, or every row for null', () => {
+            const {defaults} = ChatSources,
+                visibleRows = defaults.visibleRows;
+            onTestFinished(() => {
+                defaults.visibleRows = visibleRows;
+            });
+            const sources = [1, 2, 3, 4, 5].map(n => doc(n));
+
+            defaults.visibleRows = 4;
+            const {container, unmount} = renderReply('All [1] [2] [3] [4] [5].', sources);
+            expect(numbers(container)).toEqual(['1', '2', '3', '4']);
+            expect(screen.getByRole('button', {name: 'Show 1 More'})).toBeTruthy();
+            unmount();
+
+            defaults.visibleRows = null;
+            const all = renderReply('All [1] [2] [3] [4] [5].', sources);
+            expect(numbers(all.container)).toEqual(['1', '2', '3', '4', '5']);
+            expect(screen.queryByRole('button', {name: /^Show/})).toBeNull();
         });
 
         it('expands a row to show its excerpt', () => {
