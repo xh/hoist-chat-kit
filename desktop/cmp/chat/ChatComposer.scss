@@ -100,26 +100,26 @@
     font-size: var(--xh-chat-font-size);
     line-height: 20px;
     max-height: var(--xh-chat-composer-input-max-height);
-    min-height: 32px;
-    padding: 8px 10px 4px;
+    min-height: 38px;
+    padding: var(--xh-chat-composer-input-padding);
     width: 100%;
   }
 
-  // The 30px bar: pills on the left, then the right slot, attach and Send.
+  // The 34px bar: pills on the left, then the right slot, attach and Send.
   &__toolbar {
     align-items: center;
     display: flex;
-    gap: 4px;
-    min-height: 30px;
+    gap: 6px;
+    min-height: 34px;
     min-width: 0;
-    padding: 2px 4px 4px 6px;
+    padding: var(--xh-chat-composer-toolbar-padding);
   }
 
   &__left {
     align-items: center;
     display: flex;
     flex: 1 1 auto;
-    gap: 4px;
+    gap: 6px;
     min-width: 0;
     overflow: hidden;
   }
@@ -128,7 +128,7 @@
     align-items: center;
     display: flex;
     flex: none;
-    gap: 4px;
+    gap: 6px;
   }
 
   &__send-wrap {
