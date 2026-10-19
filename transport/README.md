@@ -187,7 +187,8 @@ then blocks every call. Pass `fetchOpts: {credentials: 'omit'}` to the transport
 rules must also allow each header you send, such as `Authorization`, any API key header, and
 `Content-Type`. Hoist adds headers of its own: `X-Correlation-ID` when the app turns on
 `FetchService.defaults.autoGenCorrelationIds`, and `traceparent` when Hoist tracing is on. If the
-backend does not allow `X-Correlation-ID`, pass `correlationId: false`. A local dev server that proxies the backend on your app's own origin hides all of
+backend does not allow `X-Correlation-ID`, pass `correlationId: false`. If it does not allow
+`traceparent`, return `traceparent: null` from `headers`. Hoist sends no header set to null. A local dev server that proxies the backend on your app's own origin hides all of
 this, so test against the real origin before you deploy.
 
 ### Relay Claude through a Hoist server
