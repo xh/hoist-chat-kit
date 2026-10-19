@@ -3,8 +3,12 @@ import {XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {ChatModel} from '../../../core';
-import {ChatThreadsModel, type LocalChatThread, LocalChatThreadStore} from '../../../threads';
+import {type ChatMessageSpec, ChatModel} from '../../../core';
+import {
+    type LocalChatThread,
+    LocalChatThreadStore
+} from '../../../test/support/LocalChatThreadStore';
+import {ChatThreadsModel} from '../../../threads';
 import {ScriptedChatTransport, textEvents} from '../../../transport';
 import {chatWorkspace, type ChatWorkspaceProps} from './ChatWorkspace';
 import {type ChatWorkspaceConfig, ChatWorkspaceModel} from './ChatWorkspaceModel';
@@ -79,22 +83,23 @@ describe('ChatWorkspace', () => {
             expect(model).toMatchObject({isSidePanelShown: false, isSidePanelOpen: true});
         });
 
-        it('gives the side panel 400 px and the sidebar its rail at 900 px, leaving the rest', () => {
+        it('shows the rail at 900 px, and cuts the side panel to leave the conversation 380 px', () => {
             const {model} = setup({sidePanelOpen: true});
             model.setWidth(900);
 
-            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 400});
+            // 900 - 40 for the rail - 8 for the splitter - 380 for the conversation.
+            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 472});
             // The user's saved width stays as it was.
             expect(model.sidePanelModel.size).toBe(520);
         });
 
-        it('opens the sidebar at 240 px between 1,000 and 1,279 px, and the side panel at 460', () => {
+        it('shows each panel at its one saved width where there is room', () => {
             const {model} = setup();
             model.setWidth(1100);
-            expect(model).toMatchObject({sidebarMode: 'open', sidebarWidth: 240});
+            expect(model).toMatchObject({sidebarMode: 'open', sidebarWidth: 260});
 
             model.openSidePanel();
-            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 460});
+            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 520});
         });
 
         it('narrows the side panel so that the conversation keeps its minimum', () => {
@@ -130,17 +135,22 @@ describe('ChatWorkspace', () => {
             expect(model.sidePanelWidth).toBe(344);
         });
 
-        it('gives way with the sidebar first, when a wide workspace cannot fit both panels', () => {
+        it('cuts the side panel, and keeps the sidebar open, when a wide workspace cannot fit both', () => {
             const {model} = setup({sidePanelOpen: true});
             model.setWidth(1440);
             model.sidebarModel.size = 400;
             expect(model).toMatchObject({sidebarMode: 'open', sidePanelWidth: 520});
 
+            // 1,300 - 408 for the sidebar - 8 for the splitter - 480 for the conversation.
             model.setWidth(1300);
-            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 520});
+            expect(model).toMatchObject({
+                sidebarMode: 'open',
+                sidebarWidth: 400,
+                sidePanelWidth: 404
+            });
         });
 
-        it("holds the user's width in the band where they set it and wider, not narrower", () => {
+        it("keeps the user's one sidebar width at every width that shows it open", () => {
             const {model} = setup();
             model.setWidth(1100);
             model.sidebarModel.size = 300;
@@ -151,31 +161,24 @@ describe('ChatWorkspace', () => {
 
             model.setWidth(900);
             model.expandSidebar();
-            expect(model.sidebarWidth).toBe(240);
+            expect(model.sidebarWidth).toBe(300);
             expect(model.sidebarModel.size).toBe(300);
         });
 
-        it('opens a table or chart at 60% of the width it shares with the conversation', () => {
+        it('shows a document, a table and a chart at the one side panel width', () => {
             const {model} = setup();
             model.setWidth(1440);
+            model.sidePanelModel.size = 600;
 
-            // The sidebar gives way to its rail. 60% of 1,440 - 40 for the rail.
-            model.sidePanel.open(TABLE_REQUEST);
-            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 840});
-
-            // A document keeps the side panel's own width.
-            model.sidePanel.open(DOCUMENT_REQUEST);
-            expect(model).toMatchObject({sidebarMode: 'open', sidePanelWidth: 520});
-
-            // Capped at 900 px.
-            model.setWidth(1920);
-            model.sidePanel.open(CHART_REQUEST);
-            expect(model).toMatchObject({sidebarMode: 'open', sidePanelWidth: 900});
-            expect(model.sidePanelModel.size).toBe(520);
+            [DOCUMENT_REQUEST, TABLE_REQUEST, CHART_REQUEST].forEach(request => {
+                model.sidePanel.open(request);
+                expect(model).toMatchObject({sidebarMode: 'open', sidePanelWidth: 600});
+            });
         });
 
         it('narrows a table so that the conversation keeps its minimum', () => {
             const {model} = setup();
+            model.sidePanelModel.size = 900;
             model.sidePanel.open(TABLE_REQUEST);
 
             // 1,100 - 40 for the rail - 8 for the splitter - 480 for the conversation.
@@ -187,18 +190,42 @@ describe('ChatWorkspace', () => {
             expect(model.sidePanelWidth).toBe(472);
         });
 
-        it('holds a width the user drags a table to, and ignores one dragged for a document', () => {
-            const {model} = setup();
-            model.setWidth(1440);
-            model.sidePanel.open(DOCUMENT_REQUEST);
-            model.sidePanelModel.size = 600;
-            expect(model.sidePanelWidth).toBe(600);
+        it('resizes the sidebar and the side panel against the conversation, their sibling', () => {
+            // Resize containers' offsetWidth, each a panel's size plus its 8 px splitter.
+            const widths: Record<string, number> = {
+                'xh-chat-workspace__sidebar': 268,
+                'xh-chat-workspace__side-panel': 528
+            };
+            const offsetSpy = vi
+                    .spyOn(HTMLElement.prototype, 'offsetWidth', 'get')
+                    .mockImplementation(function (this: HTMLElement) {
+                        const key = Object.keys(widths).find(it => this.classList.contains(it));
+                        return key ? widths[key] : 0;
+                    }),
+                clientSpy = vi
+                    .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+                    .mockImplementation(function (this: HTMLElement) {
+                        return this.classList.contains('xh-chat-workspace__main') ? 600 : 0;
+                    });
+            onTestFinished(() => {
+                offsetSpy.mockRestore();
+                clientSpy.mockRestore();
+            });
+            stubRootWidth(1440);
+            const {model} = renderWorkspace({sidePanel: 'Notes'}, {sidePanelOpen: true}),
+                main = document.querySelector('.xh-chat-workspace__main'),
+                sidebarEl = document.querySelector<HTMLElement>('.xh-chat-workspace__sidebar'),
+                sidePanelEl = document.querySelector<HTMLElement>('.xh-chat-workspace__side-panel');
+            expect(sidebarEl.nextElementSibling).toBe(main);
+            expect(sidePanelEl.previousElementSibling).toBe(main);
 
-            model.sidePanel.open(TABLE_REQUEST);
-            expect(model.sidePanelWidth).toBe(840);
+            // Hoist's DraggerModel starts from the resize container's offsetWidth, which includes
+            // the splitter, so a drag of N px grows the panel by more than N.
+            act(() => dragPanel(sidebarEl, 40));
+            expect(model.sidebarModel.size).toBe(308);
 
-            model.sidePanelModel.size = 700;
-            expect(model.sidePanelWidth).toBe(700);
+            act(() => dragPanel(sidePanelEl, -40));
+            expect(model.sidePanelModel.size).toBe(568);
         });
 
         it('lays out from its measured width on the first render, with no wait', () => {
@@ -212,7 +239,8 @@ describe('ChatWorkspace', () => {
 
             expect(screen.queryByRole('treegrid')).toBeNull();
             expect(screen.getByRole('button', {name: 'Expand sidebar'})).toBeTruthy();
-            expect(sidePanelBox().style.width).toBe('408px');
+            // Cut to 472 for the conversation.
+            expect(shownWidth('side-panel')).toBe('472px');
         });
 
         it('applies a resize at once, and the last of a burst once it settles', async () => {
@@ -444,6 +472,39 @@ describe('ChatWorkspace', () => {
             expect(threadsModel.loadError).toBeNull();
             expect(screen.getByText('Hello')).toBeTruthy();
         });
+
+        it('shows "Thread not found", with no composer, even when the chat starts with a greeting', async () => {
+            const {threadsModel} = renderWorkspace(
+                {},
+                {initialMessages: [{role: 'assistant', content: 'Ask me anything.'}]}
+            );
+            await act(() => threadsModel.selectThreadAsync('deleted'));
+
+            expect(heading()).toBe('Thread not found');
+            expect(document.querySelector('.xh-chat-workspace__not-found')).not.toBeNull();
+            expect(document.querySelector('.xh-chat-composer')).toBeNull();
+        });
+
+        it('shows "Thread not found" for a thread the store reports missing, with New Chat', async () => {
+            const {threadsModel} = renderWorkspace();
+            await act(() => threadsModel.selectThreadAsync('deleted'));
+
+            expect(
+                screen.getByText('This conversation does not exist, or it was deleted.')
+            ).toBeTruthy();
+            expect(heading()).toBe('Thread not found');
+            expect(document.querySelector('.xh-chat-composer')).toBeNull();
+
+            const notFound = document.querySelector<HTMLElement>('.xh-chat-workspace__not-found');
+            fireEvent.click(within(notFound).getByRole('button', {name: 'New Chat'}));
+            await act(() => wait());
+
+            expect(threadsModel.selectedThreadId).not.toBe('deleted');
+            expect(threadsModel.isThreadNotFound).toBe(false);
+            expect(heading()).toBe('New chat');
+            expect(screen.queryByText('Thread not found')).toBeNull();
+            expect(document.querySelector('.xh-chat-composer')).not.toBeNull();
+        });
     });
 });
 
@@ -528,16 +589,18 @@ class CapturingResizeObserver {
 function setup({
     sidePanelOpen = false,
     documentRenderer = undefined,
-    threads = THREADS
+    threads = THREADS,
+    initialMessages = undefined
 }: Partial<Pick<ChatWorkspaceConfig, 'sidePanelOpen' | 'documentRenderer'>> & {
     threads?: LocalChatThread[];
+    initialMessages?: ChatMessageSpec[];
 } = {}) {
     const store = new LocalChatThreadStore({threads}),
         transport = new ScriptedChatTransport({responses: [textEvents('Hi.')], delayMs: 0}),
         threadsModel = new ChatThreadsModel({
             store,
             createChatModel: ({threadId}) =>
-                new ChatModel({transport, threadId, historyMode: 'server'})
+                new ChatModel({transport, threadId, historyMode: 'server', initialMessages})
         }),
         model = new ChatWorkspaceModel({threadsModel, sidePanelOpen, documentRenderer});
     onTestFinished(() => {
@@ -576,8 +639,29 @@ function reportWidth(width: number) {
     act(() => resizeCallbacks.at(-1)([entry], null));
 }
 
-function sidePanelBox(): HTMLElement {
-    return document.querySelector('.xh-chat-workspace__side-panel');
+/** A panel's width that shows, from the CSS variable the workspace sets for its content. */
+function shownWidth(panel: 'sidebar' | 'side-panel'): string {
+    return document
+        .querySelector<HTMLElement>('.xh-chat-workspace__body')
+        .style.getPropertyValue(`--xh-chat-workspace-${panel}-width`);
+}
+
+/** Drag a resizable panel's dragger by `dx` pixels, as the browser reports a drag. */
+function dragPanel(panelEl: HTMLElement, dx: number) {
+    const dragger = panelEl.querySelector('.xh-resizable-dragger'),
+        fire = (type: string, clientX: number) =>
+            dragger.dispatchEvent(
+                Object.assign(new Event(type, {bubbles: true}), {
+                    clientX,
+                    clientY: 10,
+                    screenX: clientX,
+                    screenY: 10,
+                    buttons: 1
+                })
+            );
+    fire('dragstart', 300);
+    fire('drag', 300 + dx);
+    fire('dragend', 300 + dx);
 }
 
 function widthToMode(model: ChatWorkspaceModel, width: number) {

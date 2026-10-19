@@ -1,15 +1,14 @@
 import type {MouseEvent, ReactNode} from 'react';
-import {a, div, li, ol, span} from '@xh/hoist/cmp/layout';
+import {div, li, ol, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, managed, useLocalModel} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
 import {action, observable, observableRef} from '@xh/hoist/mobx';
 import {pluralize} from '@xh/hoist/utils/js';
-import type {ChatImagePolicy} from '../../../cmp/markdown';
 import type {ChatSidePanelHost, ChatSourcePart} from '../../../core';
 import {classNames} from '../../../impl/ClassNames';
 import {htmlButton} from '../../../impl/HtmlTags';
-import {getExcerpt, getSourceType, isWebUrl} from '../../../impl/sources';
+import {getExcerpt, getSourceType} from '../../../impl/sources';
 import '../../../styles/vars.scss';
 import './ChatSources.scss';
 import {excerptText, getSourceMeta} from './impl/ChatCitationMarker';
@@ -24,12 +23,6 @@ export interface ChatSourcesProps extends HoistProps {
      */
     sources: ChatSourcePart[];
 
-    /**
-     * Sources that were searched but never cited. The list counts them on one line, without
-     * numbers, so that every number matches a marker.
-     */
-    uncitedSources?: ChatSourcePart[];
-
     /** True to show every row at the start. Default false: three show, the rest behind a toggle. */
     defaultExpanded?: boolean;
 
@@ -39,9 +32,6 @@ export interface ChatSourcesProps extends HoistProps {
      * tab. A handler replaces the new tab, and opens a document that the side panel cannot show.
      */
     onSourceClick?: (source: ChatSourcePart) => void;
-
-    /** Which favicon URLs may load - see `ChatMarkdownProps.allowImages`. Default false. */
-    allowImages?: ChatImagePolicy;
 
     /**
      * How the message opens its sources, shared with its citation markers.
@@ -53,11 +43,10 @@ export interface ChatSourcesProps extends HoistProps {
 /**
  * The sources behind a reply, under its text and above its action bar, after a hairline.
  *
- * Rows follow the citation numbers. A document row shows its file-type icon, title, file name and
- * page, and opens the document - in the side panel when one is in reach. A web page row shows its
- * favicon or a letter tile, its title as a link that opens a new tab, and its host. Three rows
- * show, and the rest sit behind "Show N More". A row with an excerpt expands to show it. Sources
- * searched but never cited are counted on one line, not numbered.
+ * Rows follow the citation numbers. Each row shows its number, an icon, its title and a meta line.
+ * A document shows its file-type icon, file name and page, and opens in the side panel when one is
+ * in reach. A web page shows a globe and its host, and opens in a new tab. Three rows show, and
+ * the rest sit behind "Show N More". A row with an excerpt expands to show it.
  *
  * Hovering a row highlights its markers in the text, and hovering a marker highlights its row.
  */
@@ -66,19 +55,16 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<ChatSourcesProps>
     className: 'xh-chat-sources',
 
     render(props, ref) {
-        const {className, sources, uncitedSources, defaultExpanded = false} = props,
+        const {className, sources, defaultExpanded = false} = props,
             impl = useLocalModel(ChatSourcesLocalModel),
             links = props.links ?? impl.links;
         if (!props.links) {
             impl.links.configure({
                 sidePanel: impl.sidePanel,
-                onSourceClick: props.onSourceClick ?? null,
-                allowImages: props.allowImages ?? false
+                onSourceClick: props.onSourceClick ?? null
             });
         }
-
-        const uncited = uncitedSources?.length ?? 0;
-        if (!sources?.length && !uncited) return null;
+        if (!sources?.length) return null;
 
         // TODO(design-open B5) - documents and web pages share one numbered sequence.
         const isExpanded = impl.expanded ?? defaultExpanded,
@@ -91,21 +77,19 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<ChatSourcesProps>
             role: 'region',
             'aria-label': 'Sources',
             items: [
-                sources.length ? listHead(sources) : null,
-                sources.length
-                    ? ol({
-                          className: 'xh-chat-sources__list',
-                          items: shown.map((source, idx) =>
-                              sourceRow({
-                                  key: source.id,
-                                  source,
-                                  number: source.marker ?? idx + 1,
-                                  links,
-                                  impl
-                              })
-                          )
-                      })
-                    : null,
+                listHead(sources),
+                ol({
+                    className: 'xh-chat-sources__list',
+                    items: shown.map((source, idx) =>
+                        sourceRow({
+                            key: source.id,
+                            source,
+                            number: source.marker ?? idx + 1,
+                            links,
+                            impl
+                        })
+                    )
+                }),
                 hidden > 0
                     ? button({
                           className: 'xh-chat-sources__more',
@@ -113,16 +97,6 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<ChatSourcesProps>
                           text: isExpanded ? 'Show Fewer' : `Show ${hidden} More`,
                           'aria-expanded': isExpanded,
                           onClick: () => impl.setExpanded(!isExpanded)
-                      })
-                    : null,
-                uncited
-                    ? div({
-                          className: 'xh-chat-sources__also',
-                          item: `Also searched ${pluralize(
-                              uncitedNoun(uncitedSources),
-                              uncited,
-                              true
-                          )} with no matching passage`
                       })
                     : null
             ]
@@ -182,11 +156,6 @@ function listHead(sources: ChatSourcePart[]): ReactNode {
     });
 }
 
-// Documents, unless every uncited source is a web page.
-function uncitedNoun(sources: ChatSourcePart[]): string {
-    return sources.every(it => getSourceType(it) === 'url') ? 'web page' : 'document';
-}
-
 interface SourceRowProps extends HoistProps {
     source: ChatSourcePart;
     number: number;
@@ -199,18 +168,13 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
     model: false,
 
     render({source, number, links, impl}) {
-        const isDocument = getSourceType(source) === 'document',
-            excerpt = getExcerpt(source),
+        const excerpt = getExcerpt(source),
             isExcerptOpen = !!excerpt && impl.openExcerpts.includes(source.id),
             isActive = links.isActive(number),
-            meta = isDocument ? getSourceMeta(source) : [],
-            host = isDocument ? null : formatHost(source.url);
+            meta = [...getSourceMeta(source), isActive ? 'open in viewer' : null].filter(it => it);
 
         return li({
-            className: classNames(
-                'xh-chat-sources__item',
-                `xh-chat-sources__item--${isDocument ? 'document' : 'url'}`
-            ),
+            className: 'xh-chat-sources__item',
             items: [
                 div({
                     className: classNames('xh-chat-sources__row', {
@@ -227,26 +191,9 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
                             'aria-label': `Source ${number}`,
                             item: number
                         }),
-                        span({
-                            className: 'xh-chat-sources__icon',
-                            item: sourceIcon(source, links.allowImages)
-                        }),
+                        span({className: 'xh-chat-sources__icon', item: sourceIcon(source)}),
                         sourceTitle(source, number, links),
-                        meta.length || isActive
-                            ? span({
-                                  className: 'xh-chat-sources__meta',
-                                  item: [...meta, isActive ? 'open in viewer' : null]
-                                      .filter(it => it)
-                                      .join(' · ')
-                              })
-                            : span({className: 'xh-chat-sources__meta'}),
-                        host
-                            ? span({
-                                  className: 'xh-chat-sources__ext',
-                                  'aria-hidden': true,
-                                  items: [host, Icon.openExternal()]
-                              })
-                            : null,
+                        span({className: 'xh-chat-sources__meta', item: meta.join(' · ')}),
                         excerpt
                             ? button({
                                   className: 'xh-chat-sources__expander',
@@ -270,28 +217,10 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
     }
 });
 
-// A web page's title is a real link. A document's title is a button that opens it, if anything
-// can.
+// A title is a button that opens the source, if anything can.
 function sourceTitle(source: ChatSourcePart, number: number, links: ChatSourceLinks): ReactNode {
-    const {url} = source,
-        title = source.title || formatHost(url) || 'Untitled',
+    const title = source.title || formatHost(source.url) || 'Untitled',
         className = 'xh-chat-sources__title';
-
-    if (getSourceType(source) === 'url' && isWebUrl(url)) {
-        return a({
-            className,
-            href: url,
-            target: '_blank',
-            rel: 'noopener noreferrer',
-            onClick: (e: MouseEvent) => {
-                if (links.onSourceClick && !e.ctrlKey && !e.metaKey) {
-                    e.preventDefault();
-                    links.onSourceClick(source);
-                }
-            },
-            item: title
-        });
-    }
 
     if (links.canOpen(source)) {
         return htmlButton({

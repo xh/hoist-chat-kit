@@ -1,10 +1,17 @@
 import {type HoistRoute, XH} from '@xh/hoist/core';
+import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync, TestAppModel} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatModel} from '../core';
-import {type ChatEvent, ScriptedChatTransport, textEvents} from '../transport';
+import {
+    type ChatEvent,
+    type ChatRunRequest,
+    ScriptedChatTransport,
+    type ScriptedChatTransportConfig,
+    textEvents
+} from '../transport';
 import {ChatThreadsModel} from './ChatThreadsModel';
-import {LocalChatThreadStore} from './LocalChatThreadStore';
+import {LocalChatThreadStore} from '../test/support/LocalChatThreadStore';
 
 /**
  * Route binding for ChatThreadsModel, against Hoist's real router. A deep link must open its
@@ -27,6 +34,34 @@ describe('ChatThreadsModel route binding', () => {
 
         await vi.waitFor(() => expect(model.chatModel?.lastMessage?.text).toBe('Hello.'));
         expect(model.selectedThreadId).toBe('t1');
+    });
+
+    it('marks a deep-linked thread that the store reports missing as not found', async () => {
+        await navigateAsync('default.chat', {threadId: 'deleted'});
+
+        const model = createModel();
+
+        await vi.waitFor(() => expect(model.isThreadNotFound).toBe(true));
+        expect(model.selectedThreadId).toBe('deleted');
+
+        model.newThread();
+        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBeUndefined());
+        expect(model.isThreadNotFound).toBe(false);
+    });
+
+    it('keeps a new thread out of the route until its first send, so a reload opens a new chat', async () => {
+        await navigateAsync('default.chat', {threadId: 't1'});
+        const first = createModel();
+        await vi.waitFor(() => expect(first.selectedThreadId).toBe('t1'));
+
+        first.newThread();
+        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBeUndefined());
+        first.destroy();
+
+        const second = createModel();
+        await wait(50);
+        expect(second.selectedThreadId).toBeNull();
+        expect(second.isThreadNotFound).toBe(false);
     });
 
     it('follows the route to another thread', async () => {
@@ -58,16 +93,70 @@ describe('ChatThreadsModel route binding', () => {
         await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('t1'));
     });
 
-    it("replaces the thread in the route when the chat adopts the server's id", async () => {
+    it("puts a new thread in the route under the server's id, once its reply starts", async () => {
         await navigateAsync('default.chat');
         const model = createModel(),
-            chatModel = model.newThread();
-        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe(chatModel.threadId));
+            chatModel = model.newThread(),
+            localId = chatModel.threadId,
+            navigate = vi.spyOn(XH, 'navigate');
+        onTestFinished(() => navigate.mockRestore());
+        await wait(50);
+        expect(XH.routerState.params.threadId).toBeUndefined();
 
         await chatModel.sendAsync('Hello');
 
         expect(chatModel.threadId).toBe('srv-1');
         await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('srv-1'));
+        expect(navigate.mock.calls.map(it => it[1]?.threadId)).not.toContain(localId);
+    });
+
+    it('keeps a new thread out of the route after a turn that never reached the backend', async () => {
+        await navigateAsync('default.chat');
+        vi.spyOn(XH, 'handleException').mockImplementation(() => {});
+        const failing = createModel(() => {
+                throw new Error('Network down.');
+            }),
+            failed = failing.newThread();
+        await failed.sendAsync('Hello');
+        expect(failed.status).toBe('error');
+        await wait(50);
+        expect(XH.routerState.params.threadId).toBeUndefined();
+        failing.destroy();
+
+        const stopping = createModel(untilAborted),
+            stopped = stopping.newThread(),
+            sent = stopped.sendAsync('Hello');
+        stopped.stop();
+        await sent;
+
+        await wait(50);
+        expect(XH.routerState.params.threadId).toBeUndefined();
+    });
+
+    it('never puts a thread in the route that is deleted before its first reply', async () => {
+        await navigateAsync('default.chat', {threadId: 't1'});
+        const model = createModel(untilAborted),
+            navigate = vi.spyOn(XH, 'navigate');
+        await vi.waitFor(() => expect(model.selectedThreadId).toBe('t1'));
+        const chatModel = model.newThread(),
+            {threadId} = chatModel;
+        chatModel.sendAsync('Hello');
+
+        await model.deleteThreadsAsync([threadId]);
+        await wait(50);
+
+        expect(navigate.mock.calls.map(it => it[1]?.threadId)).not.toContain(threadId);
+        expect(XH.routerState.params.threadId).toBeUndefined();
+    });
+
+    it('keeps a chat cleared and loaded with only a greeting out of the route', async () => {
+        await navigateAsync('default.chat', {threadId: 't1'});
+        const model = createModel();
+        await vi.waitFor(() => expect(model.selectedThreadId).toBe('t1'));
+
+        model.chatModel.loadMessages([{role: 'assistant', content: 'Ask me anything.'}]);
+
+        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBeUndefined());
     });
 
     it('leaves other routes alone', async () => {
@@ -98,11 +187,13 @@ class RoutedTestModel extends TestAppModel {
     }
 }
 
-function createModel(): ChatThreadsModel {
-    const transport = new ScriptedChatTransport({
-            respond: () => [runStarted('srv-1'), textEvents('Hi there.')],
-            delayMs: 0
-        }),
+function createModel(
+    respond: ScriptedChatTransportConfig['respond'] = () => [
+        runStarted('srv-1'),
+        textEvents('Hi there.')
+    ]
+): ChatThreadsModel {
+    const transport = new ScriptedChatTransport({respond, delayMs: 0}),
         model = new ChatThreadsModel({
             store: new LocalChatThreadStore({
                 threads: [
@@ -125,4 +216,11 @@ async function navigateAsync(name: string, params: Record<string, string> = {}) 
 
 function runStarted(threadId: string): ChatEvent {
     return {type: 'RUN_STARTED', threadId, runId: 'run-1'};
+}
+
+/** A response that never comes, and fails once the request is aborted. */
+function untilAborted(request: ChatRunRequest): Promise<never> {
+    return new Promise((_, reject) =>
+        request.signal.addEventListener('abort', () => reject(request.signal.reason))
+    );
 }

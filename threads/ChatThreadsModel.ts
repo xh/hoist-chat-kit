@@ -3,6 +3,7 @@ import {
     compact,
     difference,
     differenceBy,
+    find,
     findLast,
     isEmpty,
     isEqual,
@@ -18,9 +19,14 @@ import type {LoadSpec, PlainObject} from '@xh/hoist/core';
 import {HoistModel, managed, TaskObserver, XH} from '@xh/hoist/core';
 import {action, bindable, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {debounced, throwIf} from '@xh/hoist/utils/js';
-import {ChatKit, type ChatModel, type ChatThreadCreatorSpec} from '../core';
+import {
+    type ChatFeedbackDraft,
+    ChatKit,
+    type ChatMessage,
+    type ChatModel,
+    getChatReplyStatus
+} from '../core';
 import {genChatId} from '../impl/ids';
-import type {ChatThreadListHost} from './ChatThreadListHost';
 import type {
     ChatMessagePage,
     ChatThreadPage,
@@ -41,18 +47,6 @@ export interface ChatThreadsConfig {
      * it is selected, or created with `newThread`.
      */
     createChatModel: (spec: ChatThreadChatSpec) => ChatModel;
-
-    /** Threads to list per page. Default 50. */
-    pageSize?: number;
-
-    /** Messages to load per page of a thread's history. Default 50. */
-    historyPageSize?: number;
-
-    /**
-     * True to let threads run turns at the same time. Default true. If false, a thread cannot
-     * send while another thread's turn runs - for a backend that runs one turn per user.
-     */
-    allowConcurrentTurns?: boolean;
 
     /**
      * A route whose parameter holds the selected thread's id, for deep links. The selection and
@@ -79,6 +73,15 @@ export interface ChatThreadsRoute {
     param: string;
 }
 
+/** How a thread's last run ended early - see {@link ChatThreadsModel.endedEarlyThreads}. */
+export interface ChatThreadEndedEarly {
+    /** `failed` for a run that ended in an error, `interrupted` for one the server cut short. */
+    runEnd: 'interrupted' | 'failed';
+
+    /** Why the run ended so, for a tooltip, or null. */
+    reason: string;
+}
+
 /** How to start a new thread - see {@link ChatThreadsModel.newThread}. */
 export interface ChatSeedSpec {
     /** Draft text to put in the composer. */
@@ -93,15 +96,15 @@ export interface ChatSeedSpec {
  * The app implements a {@link ChatThreadStore} against its backend, and supplies a
  * `createChatModel` function that builds the chat for a thread.
  *
- * The model lists the threads a page at a time, with server-side search, and renames, pins and
- * deletes them at once, rolling back with a toast if the store fails. It holds a `ChatModel` for
- * each open thread: the selected one, and any other with a turn running. A turn therefore runs on
- * in the background when the user switches threads, and the list shows its thread as running. A
- * chat that is neither selected nor busy is destroyed. The thread's draft and run options are kept
- * for when it opens again.
+ * The model lists the threads, with server-side search, and renames and deletes them at once,
+ * rolling back with a toast if the store fails. It holds a `ChatModel` for each open thread: the
+ * selected one, and any other with a turn running. A turn therefore runs on in the background
+ * when the user switches threads, and the list shows its thread as running. A chat that is
+ * neither selected nor busy is destroyed. The thread's draft, run options and unsent feedback
+ * comments are kept for when it opens again.
  *
  * Every async result is checked before it is applied. A thread list applies only if no newer list
- * has, with pending renames, pins and deletes laid over it. A thread's history applies only to the
+ * has, with pending renames and deletes laid over it. A thread's history applies only to the
  * chat that asked for it, while that chat is open. Each chat applies only its own run's events, as
  * the threads model never routes events itself.
  *
@@ -109,7 +112,7 @@ export interface ChatSeedSpec {
  * {@link ChatModel.threadId}. The model then re-keys the thread, its summary, the selection and
  * the route.
  */
-export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
+export class ChatThreadsModel extends HoistModel {
     declare config: ChatThreadsConfig;
 
     //-----------------------
@@ -118,26 +121,14 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     /** Adapter to the backend that stores the threads. */
     readonly store: ChatThreadStore;
 
-    /** Threads to list per page. */
-    readonly pageSize: number;
-
-    /** Messages to load per page of a thread's history. */
-    readonly historyPageSize: number;
-
-    /** True if threads may run turns at the same time. */
-    readonly allowConcurrentTurns: boolean;
-
     /** The route that holds the selected thread, or null. */
     readonly route: ChatThreadsRoute;
 
-    /** Tracks loads of the thread list - the first page, a refresh, or a further page. */
+    /** Tracks loads of the thread list. */
     @managed readonly listTask = TaskObserver.trackLast();
 
     /** Tracks the load of the selected thread's history. */
     @managed readonly loadTask = TaskObserver.trackLast();
-
-    /** Tracks the load of older history for the selected thread. */
-    @managed readonly olderMessagesTask = TaskObserver.trackLast();
 
     //-----------------------
     // Observable State
@@ -153,7 +144,7 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
 
     /**
      * The threads to list, in the store's order. Threads started here that the store has not yet
-     * listed come first, unless a search is active. Pending renames, pins and deletes show at once.
+     * listed come first, unless a search is active. Pending renames and deletes show at once.
      */
     @computed
     get threads(): ChatThreadSummary[] {
@@ -204,10 +195,25 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
      */
     @observableRef accessor finishedAwayThreadIds: string[] = [];
 
-    /** True if the store has more threads to list - see {@link loadMoreThreadsAsync}. */
+    /**
+     * Threads whose last run ended early, by thread id: failed, or interrupted or cancelled by the
+     * server. A thread list marks each row. Two sources feed it:
+     *
+     *  - A turn that ended early in the background, in this session. The mark holds until the user
+     *    opens the thread, or a new turn starts in it.
+     *  - The store's `lastRunEnd` and `lastRunReason`, for a thread with no open chat, unless the
+     *    user has seen the thread since its last activity in this session.
+     */
     @computed
-    get hasMoreThreads(): boolean {
-        return this.nextCursor != null;
+    get endedEarlyThreads(): Record<string, ChatThreadEndedEarly> {
+        const ret: Record<string, ChatThreadEndedEarly> = {},
+            {openThreads, seenActivityAt} = this;
+        this.threads.forEach(({id, lastRunEnd, lastRunReason, lastActivityAt}) => {
+            if (lastRunEnd !== 'interrupted' && lastRunEnd !== 'failed') return;
+            if (openThreads[id] || lastActivityAt <= (seenActivityAt[id] ?? -Infinity)) return;
+            ret[id] = {runEnd: lastRunEnd, reason: lastRunReason ?? null};
+        });
+        return {...ret, ...this.endedEarlyHere};
     }
 
     /**
@@ -217,6 +223,16 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     @computed
     get loadError(): Error {
         return this.selectedThread?.loadError ?? null;
+    }
+
+    /**
+     * True if the store reported the selected thread missing, with a 404. A deep link to a
+     * deleted thread is the usual cause. A workspace shows "Thread not found" in place of its
+     * chat.
+     */
+    @computed
+    get isThreadNotFound(): boolean {
+        return this.selectedThread?.loadState === 'notFound';
     }
 
     /** True if the store can rename threads. */
@@ -229,34 +245,14 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         return !!this.store.deleteThreadsAsync;
     }
 
-    /** True if the store's search covers message text, not just titles. */
-    get searchesMessages(): boolean {
-        return !!this.store.searchesMessages;
-    }
-
-    /** True if the store can pin threads. */
-    get canPin(): boolean {
-        return !!this.store.pinThreadAsync;
-    }
-
     constructor(config: ChatThreadsConfig) {
         super();
-        const {
-            store,
-            createChatModel,
-            pageSize = 50,
-            historyPageSize = 50,
-            allowConcurrentTurns = true,
-            route = null
-        } = config;
+        const {store, createChatModel, route = null} = config;
         throwIf(!store, 'ChatThreadsModel requires a store.');
         throwIf(!createChatModel, 'ChatThreadsModel requires a createChatModel function.');
 
         this.store = store;
         this.createChatModel = createChatModel;
-        this.pageSize = pageSize;
-        this.historyPageSize = historyPageSize;
-        this.allowConcurrentTurns = allowConcurrentTurns;
         this.route = route;
 
         this.addReaction({
@@ -272,26 +268,22 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
                     fireImmediately: true
                 },
                 {
-                    track: () => this.selectedThreadId,
+                    track: () => this.routeThreadId,
                     run: () => this.syncToRoute()
                 }
             );
         }
     }
 
-    /** Load the first page of threads, for the current search, or reload as many as are listed. */
+    /** Load the threads, for the current search. */
     override async doLoadAsync(loadSpec: LoadSpec) {
         // Ordered by a count of our own rather than `loadSpec.isStale`, as a list applies unless a
-        // newer list has already applied, and further pages are checked against the same count.
+        // newer list has already applied.
         const search = this.searchQuery,
-            listNumber = this.listCount++,
-            limit =
-                search === this.listedSearch
-                    ? Math.max(this.pageSize, this.listedThreads.length)
-                    : this.pageSize;
+            listNumber = this.listCount++;
 
         try {
-            const page = await this.store.listThreadsAsync({search, limit}).linkTo(this.listTask);
+            const page = await this.store.listThreadsAsync({search}).linkTo(this.listTask);
             if (this.isListCurrent(listNumber, search)) this.applyThreadPage(page, listNumber);
         } catch (e) {
             if (!this.isListCurrent(listNumber, search)) return;
@@ -309,9 +301,8 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     // Actions
     //------------------
     /**
-     * Start a new thread, and select it. The thread exists only here until its first turn - when
-     * the store's `createThreadAsync`, if any, creates it, or else the backend creates it on the
-     * first run.
+     * Start a new thread, and select it. The thread exists only here until its first turn, when
+     * the backend creates it. A backend that mints its own id reports it on `RUN_STARTED`.
      *
      * @returns the new thread's chat.
      */
@@ -325,7 +316,7 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
 
     /**
      * Select a thread, opening its chat and loading its history if it is not open already. A
-     * thread the store does not have opens empty.
+     * thread that the store reports missing opens empty - see {@link isThreadNotFound}.
      *
      * @returns a promise that resolves once the history has loaded, or failed to - see
      *      {@link loadError}.
@@ -351,30 +342,6 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     }
 
     /**
-     * Load the page of older messages for the selected thread, ahead of those shown. Sets the
-     * chat's `hasOlderMessages` to show whether more remain.
-     */
-    async loadOlderMessagesAsync(): Promise<void> {
-        const thread = this.selectedThread;
-        if (!thread?.olderCursor || thread.loadState !== 'loaded') return;
-
-        thread.olderLoad ??= this.doLoadOlderMessagesAsync(thread).finally(() => {
-            thread.olderLoad = null;
-        });
-        await thread.olderLoad;
-    }
-
-    /** Load the next page of threads, if the store has more - see {@link hasMoreThreads}. */
-    async loadMoreThreadsAsync(): Promise<void> {
-        if (this.nextCursor == null) return;
-
-        this.moreThreadsLoad ??= this.doLoadMoreThreadsAsync().finally(() => {
-            this.moreThreadsLoad = null;
-        });
-        await this.moreThreadsLoad;
-    }
-
-    /**
      * Rename a thread. The new title shows at once, and reverts with a toast if the store fails.
      * Requires the store's `renameThreadAsync` - see {@link canRename}.
      */
@@ -392,24 +359,10 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     }
 
     /**
-     * Pin a thread, or unpin it. The change shows at once, and reverts with a toast if the store
-     * fails. Requires the store's `pinThreadAsync` - see {@link canPin}.
-     */
-    async pinThreadAsync(threadId: string, pinned: boolean): Promise<void> {
-        throwIf(!this.canPin, 'The thread store cannot pin threads.');
-
-        await this.changeThreadsAsync(
-            [threadId],
-            {pinned},
-            pinned ? 'The conversation was not pinned.' : 'The conversation was not unpinned.',
-            () => this.store.pinThreadAsync(threadId, pinned)
-        );
-    }
-
-    /**
      * Delete threads. They leave the list at once, and return with a toast if the store fails.
-     * Their chats close, and a turn running in one is stopped. If the selected thread is deleted,
-     * a new thread is selected. Requires the store's `deleteThreadsAsync` - see {@link canDelete}.
+     * Their chats close, a turn running in one is stopped, and their drafts are removed - from
+     * memory and from local storage. If the selected thread is deleted, a new thread is selected.
+     * Requires the store's `deleteThreadsAsync` - see {@link canDelete}.
      */
     async deleteThreadsAsync(threadIds: string[]): Promise<void> {
         throwIf(!this.canDelete, 'The thread store cannot delete threads.');
@@ -424,7 +377,7 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
             threadIds.length > 1
                 ? 'The conversations were not deleted.'
                 : 'The conversation was not deleted.',
-            () => this.deleteFromStoreAsync(threadIds)
+            () => this.store.deleteThreadsAsync(threadIds)
         );
     }
 
@@ -436,30 +389,37 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
     // Threads with an open chat, by thread id.
     @observableRef private accessor openThreads: Record<string, OpenThread> = {};
 
-    // Threads from the store's applied list and its further pages, as the store sent them.
+    // Threads from the store's applied list, as the store sent them.
     @observableRef private accessor listedThreads: ChatThreadSummary[] = [];
 
     // Threads started here that the store has not listed yet, newest first.
     @observableRef private accessor localThreads: ChatThreadSummary[] = [];
 
-    // Renames, pins and deletes, laid over the threads until a list requested after they ended.
+    // When the user last saw each thread, in this session, by id - see `endedEarlyThreads`.
+    @observableRef private accessor seenActivityAt: Record<string, number> = {};
+
+    // Threads whose turn ended while selected, to take the seen activity from the next list: the
+    // number of the first list request that can report the turn, by thread id.
+    private readonly seenOnNextList = new Map<string, number>();
+
+    // Threads whose turn ended early in the background, in this session - see `endedEarlyThreads`.
+    @observableRef private accessor endedEarlyHere: Record<string, ChatThreadEndedEarly> = {};
+
+    // Renames and deletes, laid over the threads until a list requested after they ended.
     @observableRef private accessor pendingChanges: PendingChange[] = [];
 
-    // Search of the applied list, and its cursor for the next page.
+    // Search of the applied list.
     @observable private accessor listedSearch: string = null;
-    @observable private accessor nextCursor: string = null;
 
     // Lists requested, and the number of the last one applied - see `isListCurrent`.
     private listCount = 0;
     private appliedListNumber = -1;
 
-    private moreThreadsLoad: Promise<void> = null;
-
-    // Calls to the store's `createThreadAsync`, by local id - resolving to the thread's id.
-    private readonly threadCreates = new Map<string, Promise<string>>();
-
     // Drafts and run options of closed threads, for when they open again.
     private readonly drafts = new Map<string, ThreadDraft>();
+
+    // Feedback comments of closed threads, by thread id, for when their history loads again.
+    private readonly feedbackDrafts = new Map<string, SavedFeedbackDraft[]>();
 
     // The run options each chat was built with, so that a draft keeps only the user's changes.
     private readonly defaultRunOptions = new WeakMap<ChatModel, PlainObject>();
@@ -496,9 +456,6 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         if (store.submitFeedbackAsync && !chatModel.feedback.submitAsync) {
             chatModel.setFeedbackSubmitter(spec => store.submitFeedbackAsync(spec));
         }
-        if (store.createThreadAsync) {
-            chatModel.setThreadCreator(spec => this.createThreadAsync(spec));
-        }
 
         const thread = new OpenThread({
             chatModel,
@@ -530,46 +487,10 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
                 return 'Wait for the conversation to load.';
             case 'failed':
                 return 'The conversation did not load. Reload it to continue.';
-        }
-
-        const {threadId} = thread.chatModel;
-        if (!this.allowConcurrentTurns && this.runningThreadIds.some(it => it !== threadId)) {
-            return 'Wait for the reply in another conversation to finish.';
+            case 'notFound':
+                return 'This conversation does not exist. Start a new chat.';
         }
         return null;
-    }
-
-    /**
-     * The thread creator for each chat. Calls the store once per local id - a retry of the first
-     * turn reuses the call - and again only if it failed. The store is idempotent per local id, so
-     * a retry after a lost response finds the thread already created.
-     */
-    private createThreadAsync({threadId: localId, userMessage}: ChatThreadCreatorSpec) {
-        let ret = this.threadCreates.get(localId);
-        if (!ret) {
-            ret = this.store
-                .createThreadAsync({localId, title: titleFromText(userMessage?.text)})
-                .then(summary => {
-                    this.updateThread(localId, omit(summary, 'id'));
-                    return summary.id;
-                });
-            ret.catch(() => this.threadCreates.delete(localId));
-            this.threadCreates.set(localId, ret);
-        }
-        return ret;
-    }
-
-    /**
-     * Delete threads from the store, with the backend's ids for those whose create is in flight or
-     * done. A thread deleted during its first turn's create still has its backend thread deleted.
-     */
-    private async deleteFromStoreAsync(threadIds: string[]): Promise<void> {
-        const creates = threadIds.map(id => this.threadCreates.get(id)).filter(Boolean);
-        if (isEmpty(creates)) return this.store.deleteThreadsAsync(threadIds);
-
-        threadIds.forEach(id => this.threadCreates.delete(id));
-        const created = await Promise.all(creates.map(it => it.catch(() => null)));
-        return this.store.deleteThreadsAsync(uniq([...threadIds, ...compact(created)]));
     }
 
     @action
@@ -577,27 +498,38 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         const {threadId, isBusy} = thread.chatModel;
         if (this.openThreads[prevThreadId] !== thread) return;
 
-        // A chat changes its thread id mid-turn only to adopt the backend's id for the same thread.
-        // Otherwise the app cleared it, or loaded other messages into it, and it holds a new thread.
+        // A chat changes its thread id mid-turn only to adopt the backend's id for the same
+        // thread. Otherwise the app cleared it, or loaded other messages into it, and it holds a
+        // new thread.
         if (isBusy) {
             this.rekeyThread(prevThreadId, threadId);
         } else {
             thread.resetLoad();
+            // A cleared chat holds a thread the backend has not seen. Loaded history with a user
+            // message is saved - a greeting alone is not.
+            thread.setSaved(some(thread.chatModel.messages, 'isUser'));
         }
         this.openThreads = {...omit(this.openThreads, prevThreadId), [threadId]: thread};
         if (this.selectedThreadId === prevThreadId) this.selectedThreadId = threadId;
     }
 
     private onBusyChange(thread: OpenThread) {
-        const {chatModel} = thread;
+        const {chatModel} = thread,
+            {threadId} = chatModel;
         this.noteActivity(chatModel);
-        if (!chatModel.isBusy) {
-            // A turn that pauses for the user has not finished - the thread lists as awaiting.
-            if (!chatModel.isAwaitingUser) this.noteFinishedAway(chatModel.threadId);
-            // The backend may have set a title, or the thread's place in the list may change.
-            this.refreshThreadsSoon();
-            this.closeIdleThreads();
+        if (chatModel.isBusy) {
+            this.clearEndedEarly(threadId);
+            return;
         }
+
+        // The backend has seen the thread once a run of it started. A turn that failed before
+        // any response, or stopped before the run started, leaves it unsaved.
+        if (hasRunStarted(chatModel)) thread.setSaved(true);
+        // A turn that pauses for the user has not finished - the thread lists as awaiting.
+        if (!chatModel.isAwaitingUser) this.noteTurnEnd(threadId, getEndedEarly(chatModel));
+        // The backend may have set a title, or the thread's place in the list may change.
+        this.refreshThreadsSoon();
+        this.closeIdleThreads();
     }
 
     // Turns that end close together reload the list once.
@@ -606,19 +538,69 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         if (!this.isDestroyed) this.refreshAsync();
     }
 
-    /** Mark a thread whose turn ended while another thread was selected. */
+    /**
+     * Mark a thread whose turn ended while another thread was selected: as ended early if it did,
+     * else as finished away.
+     */
     @action
-    private noteFinishedAway(threadId: string) {
-        if (threadId === this.selectedThreadId) return;
-        this.finishedAwayThreadIds = union(this.finishedAwayThreadIds, [threadId]);
+    private noteTurnEnd(threadId: string, endedEarly: ChatThreadEndedEarly) {
+        if (threadId === this.selectedThreadId) {
+            this.noteSeen(threadId);
+            // The next list may report the turn's activity by a server clock that runs ahead.
+            this.seenOnNextList.set(threadId, this.listCount);
+            return;
+        }
+        if (endedEarly) {
+            this.endedEarlyHere = {...this.endedEarlyHere, [threadId]: endedEarly};
+        } else {
+            this.finishedAwayThreadIds = union(this.finishedAwayThreadIds, [threadId]);
+        }
+    }
+
+    /**
+     * Record that the user has seen a thread as of now, or as of its listed activity if that is
+     * later - a server's clock may run ahead.
+     */
+    @action
+    private noteSeen(threadId: string) {
+        if (threadId == null) return;
+        const listed = find(this.threads, {id: threadId})?.lastActivityAt ?? 0;
+        this.seenActivityAt = {...this.seenActivityAt, [threadId]: Math.max(Date.now(), listed)};
+    }
+
+    /**
+     * Raise the seen activity of threads whose turn the user watched end to the activity the
+     * store lists for them - see `seenOnNextList`. Only a list requested after the turn ended
+     * counts. An unfiltered one that leaves a thread out ends its wait.
+     */
+    @action
+    private noteSeenFromList(threads: ChatThreadSummary[], listNumber: number, search: string) {
+        this.seenOnNextList.forEach((firstListNumber, id) => {
+            if (listNumber < firstListNumber) return;
+            const listed = find(threads, {id});
+            if (!listed && search != null) return;
+            this.seenOnNextList.delete(id);
+            if (!listed) return;
+            const seen = Math.max(this.seenActivityAt[id] ?? 0, listed.lastActivityAt ?? 0);
+            this.seenActivityAt = {...this.seenActivityAt, [id]: seen};
+        });
+    }
+
+    @action
+    private clearEndedEarly(threadId: string) {
+        if (this.endedEarlyHere[threadId])
+            this.endedEarlyHere = omit(this.endedEarlyHere, threadId);
     }
 
     @action
     private setSelectedThreadId(threadId: string) {
+        // The user has seen the thread they leave, and the one they open, as of now.
+        this.noteSeen(this.selectedThreadId);
+        this.noteSeen(threadId);
         this.selectedThreadId = threadId;
         this.finishedAwayThreadIds = without(this.finishedAwayThreadIds, threadId);
+        this.clearEndedEarly(threadId);
         this.loadTask.clear();
-        this.olderMessagesTask.clear();
         this.closeIdleThreads();
     }
 
@@ -629,7 +611,8 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
 
     /**
      * Close the chats that are not selected, and neither run a turn nor wait for the user, keeping
-     * their drafts.
+     * their drafts. A chat whose turn ended early in the background stays open until the user has
+     * seen it, as a backend may not store a failed turn, and the chat holds its error and Retry.
      */
     @action
     private closeIdleThreads() {
@@ -638,15 +621,30 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
             (thread, id) =>
                 id !== this.selectedThreadId &&
                 !thread.chatModel.isBusy &&
-                !thread.chatModel.isAwaitingUser
+                !thread.chatModel.isAwaitingUser &&
+                !this.endedEarlyHere[id]
         );
         if (isEmpty(idle)) return;
 
+        // A thread the backend never saw can never be listed or opened again, so its drafts go.
+        const unsavedIds: string[] = [];
         Object.entries(idle).forEach(([id, thread]) => {
-            this.saveDraft(id, thread.chatModel);
+            if (this.isThreadSaved(thread)) {
+                this.saveDraft(id, thread.chatModel);
+            } else {
+                unsavedIds.push(id);
+            }
             thread.destroy();
         });
+        // After the chats close, as a composer saves its draft when destroyed.
+        if (!isEmpty(unsavedIds)) ChatKit.clearLocalData(unsavedIds);
         this.openThreads = omit(this.openThreads, keys(idle));
+    }
+
+    /** True if the backend may have a thread: saved by its chat, or listed by the store. */
+    private isThreadSaved(thread: OpenThread): boolean {
+        const {threadId} = thread.chatModel;
+        return thread.isSaved || some(this.listedThreads, {id: threadId});
     }
 
     /**
@@ -660,14 +658,20 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
             thread?.chatModel.stop();
             thread?.destroy();
             this.drafts.delete(id);
+            this.feedbackDrafts.delete(id);
+            this.seenOnNextList.delete(id);
         });
         // After the chats close, as a composer saves its draft when destroyed.
         ChatKit.clearLocalData(threadIds);
         this.openThreads = omit(this.openThreads, threadIds);
         this.finishedAwayThreadIds = difference(this.finishedAwayThreadIds, threadIds);
+        this.endedEarlyHere = omit(this.endedEarlyHere, threadIds);
     }
 
-    /** Keep the draft of a closed chat, if the user changed its text or run options. */
+    /**
+     * Keep the draft of a closed chat, if the user changed its text or run options, and its
+     * unsent feedback comments.
+     */
     private saveDraft(threadId: string, chatModel: ChatModel) {
         const {composerModel, runOptions} = chatModel,
             isChanged =
@@ -675,6 +679,9 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         if (isChanged) {
             this.drafts.set(threadId, {text: composerModel.text, runOptions});
         }
+
+        const feedbackDrafts = getFeedbackDrafts(chatModel);
+        if (!isEmpty(feedbackDrafts)) this.feedbackDrafts.set(threadId, feedbackDrafts);
     }
 
     private restoreDraft(threadId: string, chatModel: ChatModel) {
@@ -694,15 +701,13 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
             loadKey = thread.beginLoad();
 
         try {
-            const page = await this.store
-                .loadMessagesAsync({threadId, limit: this.historyPageSize})
-                .linkTo(this.loadTask);
+            const page = await this.store.loadMessagesAsync({threadId}).linkTo(this.loadTask);
             if (thread.isLoadCurrent(loadKey)) this.applyHistory(thread, threadId, page);
         } catch (e) {
             if (!thread.isLoadCurrent(loadKey)) {
                 this.logWarn(`Discarded a failed load of thread ${threadId}, no longer open`, e);
             } else if (isNotFound(e)) {
-                thread.endLoad();
+                thread.endLoadNotFound();
             } else {
                 thread.endLoad(e);
                 XH.handleException(e, {showAlert: false});
@@ -712,9 +717,16 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
 
     @action
     private applyHistory(thread: OpenThread, threadId: string, page: ChatMessagePage) {
-        const {chatModel} = thread;
+        const {chatModel} = thread,
+            // The comments of a closed thread, and those open in a chat that reloads, which the
+            // load clears.
+            feedbackDrafts = [
+                ...(this.feedbackDrafts.get(threadId) ?? []),
+                ...getFeedbackDrafts(chatModel)
+            ];
+        this.feedbackDrafts.delete(threadId);
         chatModel.loadMessages(page.messages ?? [], threadId);
-        chatModel.hasOlderMessages = page.nextCursor != null;
+        restoreFeedbackDrafts(chatModel, feedbackDrafts);
         // TODO(design-open B4) - run options, such as a document scope, belong to the thread.
         // The thread opens with those of its last question, unless the user changed them here.
         const lastRunOptions = findLast(chatModel.messages, it => it.isUser)?.metadata.runOptions;
@@ -724,39 +736,7 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         ) {
             chatModel.runOptions = cloneDeep(lastRunOptions);
         }
-        thread.olderCursor = page.nextCursor ?? null;
         thread.endLoad();
-    }
-
-    private async doLoadOlderMessagesAsync(thread: OpenThread) {
-        const {chatModel, olderCursor: cursor, loadKey} = thread,
-            {threadId} = chatModel;
-
-        try {
-            const page = await this.store
-                .loadMessagesAsync({threadId, cursor, limit: this.historyPageSize})
-                .linkTo(this.olderMessagesTask);
-            if (thread.isLoadCurrent(loadKey) && thread.olderCursor === cursor) {
-                this.applyOlderMessages(thread, page);
-            }
-        } catch (e) {
-            if (!thread.isLoadCurrent(loadKey)) {
-                this.logWarn(`Discarded a failed load of thread ${threadId}, no longer open`, e);
-                return;
-            }
-            XH.handleException(e, {
-                message: 'Older messages did not load. Try again.',
-                alertType: 'toast'
-            });
-        }
-    }
-
-    @action
-    private applyOlderMessages(thread: OpenThread, page: ChatMessagePage) {
-        const {chatModel} = thread;
-        chatModel.prependMessages(page.messages ?? []);
-        chatModel.hasOlderMessages = page.nextCursor != null;
-        thread.olderCursor = page.nextCursor ?? null;
     }
 
     //------------------------
@@ -773,41 +753,10 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         this.appliedListNumber = listNumber;
         this.listedSearch = this.searchQuery;
         this.listedThreads = threads;
-        this.nextCursor = page.nextCursor ?? null;
         this.localThreads = differenceBy(this.localThreads, threads, 'id');
+        this.noteSeenFromList(threads, listNumber, this.listedSearch);
         this.pendingChanges = this.pendingChanges.filter(it => listNumber < it.doneBefore);
         this.listError = null;
-    }
-
-    private async doLoadMoreThreadsAsync() {
-        const {nextCursor: cursor, appliedListNumber, listedSearch: search} = this,
-            // The page continues the applied list, and applies only while that list is current.
-            isCurrent = () =>
-                !this.isDestroyed &&
-                this.appliedListNumber === appliedListNumber &&
-                this.nextCursor === cursor &&
-                this.searchQuery === search;
-
-        try {
-            const page = await this.store
-                .listThreadsAsync({search, cursor, limit: this.pageSize})
-                .linkTo(this.listTask);
-            if (isCurrent()) this.appendThreadPage(page);
-        } catch (e) {
-            if (!isCurrent()) return;
-            XH.handleException(e, {
-                message: 'More conversations did not load. Try again.',
-                alertType: 'toast'
-            });
-        }
-    }
-
-    @action
-    private appendThreadPage(page: ChatThreadPage) {
-        const threads = differenceBy(page.threads ?? [], this.listedThreads, 'id');
-        this.listedThreads = [...this.listedThreads, ...threads];
-        this.nextCursor = page.nextCursor ?? null;
-        this.localThreads = differenceBy(this.localThreads, threads, 'id');
     }
 
     /**
@@ -925,13 +874,23 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
         }
     }
 
+    /**
+     * The thread id for the route: the selected thread's, once the backend may have it - see
+     * `OpenThread.isSaved` - else null, which leaves the route on its base path.
+     */
+    @computed
+    private get routeThreadId(): string {
+        const {selectedThreadId: threadId, selectedThread: thread} = this;
+        return thread && this.isThreadSaved(thread) ? threadId : null;
+    }
+
     /** Put the selected thread in the route, replacing the current history entry. */
     private syncToRoute() {
         if (!this.isOnRoute()) return;
 
         const {name, params} = XH.routerState,
             {param} = this.route,
-            threadId = this.selectedThreadId;
+            threadId = this.routeThreadId;
         if ((params[param] ?? null) === threadId) return;
 
         XH.navigate(
@@ -950,7 +909,7 @@ export class ChatThreadsModel extends HoistModel implements ChatThreadListHost {
 /** Wait after the search changes before the list reloads. */
 const SEARCH_DEBOUNCE_MS = 300;
 
-/** A rename, pin or delete, laid over the threads - see `changeThreadsAsync`. */
+/** A rename or delete, laid over the threads - see `changeThreadsAsync`. */
 interface PendingChange {
     threadId: string;
 
@@ -959,6 +918,20 @@ interface PendingChange {
 
     /** Number of the first list requested after the store call succeeded, or Infinity. */
     doneBefore: number;
+}
+
+/** A feedback comment kept for a thread, with the ids its message may come back under. */
+interface SavedFeedbackDraft {
+    /** The message's id when the comment was typed. */
+    messageId: string;
+
+    /** The server's id of the message, from its `metadata.serverId`, or null. */
+    serverId: string;
+
+    /** The server's ids of the message's parts. */
+    partServerIds: string[];
+
+    draft: ChatFeedbackDraft;
 }
 
 /** Draft and run options of a closed thread. */
@@ -975,4 +948,74 @@ function applyChange(thread: ChatThreadSummary, change: PendingChange): ChatThre
 
 function applyChanges(thread: ChatThreadSummary, changes: PendingChange[]): ChatThreadSummary {
     return changes.reduce((ret, change) => ret && applyChange(ret, change), thread);
+}
+
+/** How a chat's last turn ended early - failed, or cut short by the server - or null. */
+function getEndedEarly(chatModel: ChatModel): ChatThreadEndedEarly {
+    if (chatModel.status !== 'error') return null;
+    const replyStatus = getChatReplyStatus({message: chatModel.lastMessage}),
+        isCutShort = replyStatus === 'interrupted' || replyStatus === 'cancelledByServer';
+    return {
+        runEnd: isCutShort ? 'interrupted' : 'failed',
+        reason: chatModel.lastError?.message ?? null
+    };
+}
+
+/**
+ * A chat's unsent feedback comments, with the server's ids of their messages. A comment that is
+ * sending has left the form, and its send ends without the chat, so it is left out.
+ */
+function getFeedbackDrafts(chatModel: ChatModel): SavedFeedbackDraft[] {
+    return compact(
+        Object.entries(chatModel.feedbackDrafts).map(([messageId, draft]) => {
+            if (draft.isSending) return null;
+            const message = chatModel.getMessage(messageId);
+            return {
+                messageId,
+                serverId: message?.metadata.serverId ?? null,
+                partServerIds: message ? getPartServerIds(message) : [],
+                draft
+            };
+        })
+    );
+}
+
+/**
+ * Give loaded replies back their feedback comments. A reply from history may carry the id the chat
+ * streamed it under, or the server's id for it or one of its parts. The match tries each, in that
+ * order, and skips a comment that more than one reply matches at the first tier that finds any.
+ */
+function restoreFeedbackDrafts(chatModel: ChatModel, saved: SavedFeedbackDraft[]) {
+    const replies = chatModel.messages.filter(it => it.isAssistant);
+    saved.forEach(({messageId, serverId, partServerIds, draft}) => {
+        const isServerId = (ids: string[], message: ChatMessage) =>
+                ids.includes(message.id) ||
+                ids.includes(message.metadata.serverId) ||
+                getPartServerIds(message).some(it => ids.includes(it)),
+            tiers: Array<(message: ChatMessage) => boolean> = [
+                it => it.id === messageId,
+                it => serverId != null && isServerId([serverId], it),
+                it => isServerId(partServerIds, it)
+            ];
+        for (const tier of tiers) {
+            const matches = replies.filter(tier);
+            if (matches.length === 1) chatModel.setFeedbackDraft(matches[0].id, draft);
+            if (matches.length) return;
+        }
+    });
+}
+
+/** The server's ids of a message's parts. */
+function getPartServerIds(message: ChatMessage): string[] {
+    return uniq(compact(message.parts.map(it => ('serverId' in it ? it.serverId : null))));
+}
+
+/**
+ * True if a chat's last turn reached the backend's run: its reply has content, is paused for the
+ * user, or recorded the run's id from `RUN_STARTED`.
+ */
+function hasRunStarted(chatModel: ChatModel): boolean {
+    const reply = chatModel.lastMessage;
+    if (!reply?.isAssistant) return false;
+    return reply.status === 'paused' || !isEmpty(reply.parts) || reply.metadata.runId != null;
 }

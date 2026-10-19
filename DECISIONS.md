@@ -297,6 +297,8 @@ stream and keeps numbers exact. A server-run loop also cannot take client tools.
 
 ## D23. An activity timeline, and one tool display setting
 
+**Amended** by [D92](#d92-the-showcase-features-what-stays).
+
 **Decision.** Agentic replies show their tool calls, reasoning and narration in one collapsible
 timeline, with nested sub-agents. `ChatToolSpec.display` becomes one enum: `card`, `inline`,
 `timeline`, `answer`, `pinned` or `hidden`.
@@ -610,6 +612,8 @@ open.
 
 ## D48. Only the latest reply with changes can be undone
 
+**Superseded** by [D92](#d92-the-showcase-features-what-stays).
+
 **Decision.** `ChatModel.undoableMessageId` names the latest reply that holds undo functions, once
 its turn ends, and only while no turn runs or waits for the user. `undoTurnAsync()` runs that
 reply's undo functions, newest first. Once it is undone, the reply before it with changes becomes
@@ -808,7 +812,8 @@ on a record then has to spell the record's id out in its text.
 
 ## D57. The kit is usable in layers
 
-**Refined** by [D82](#d82-a-narrow-interface-needs-a-second-implementer).
+**Refined** by [D82](#d82-a-narrow-interface-needs-a-second-implementer) and
+[D89](#d89-the-kit-is-built-from-swappable-subsystems).
 
 **Decision.** Apps should be able to use the kit at four levels: building blocks alone, the engine
 without the kit's UI, the kit's components over the app's own state, and the whole chat. Where a
@@ -1079,6 +1084,7 @@ add what P7 draws, with no second adapter type.
 
 ## D74. Thread list additions
 
+**Amended** by [D91](#d91-choices-made-in-building-d90).
 
 **Decision.** `ChatThreadSummary` gains `lastRunEnd?: 'complete' | 'interrupted' | 'failed'` and
 `lastRunReason?`. The thread layer tracks "finished away" per session. A store declares whether its
@@ -1136,6 +1142,8 @@ own length. A retry of a rejected comment would fail the same way. Allow and Den
 design's approval controls (P6).
 
 ## D78. Choices in the activity timeline
+
+**Amended** by [D92](#d92-the-showcase-features-what-stays).
 
 **Decision.** `ChatToolSpec.display` takes the full D23 enum: `card` (default), `inline`,
 `timeline`, `answer`, `pinned` and `hidden`. `timeline` calls and sub-agent parts form one
@@ -1199,6 +1207,8 @@ removed. This withdraws D50 and the service half of D24. `ChatCompletionsCodec` 
 in a line or two, with the codec its server relays.
 
 ## D82. A narrow interface needs a second implementer
+
+**Refined** by [D89](#d89-the-kit-is-built-from-swappable-subsystems).
 
 **Decision.** This refines D57. A component depends on a narrow interface only where a second
 implementer really exists. Otherwise it takes `ChatModel`. By that test, the four host
@@ -1354,3 +1364,133 @@ Retry and regenerate discard the reply that raised them, so the set cannot live 
 Adapters disagree on how to approve, so the schema decides. A server call with a result from the
 chat would contradict the server's own record. A waiting sub-agent ends as `error` when its reply
 closes, so the timeline never shows it waiting forever.
+
+## D89. The kit is built from swappable subsystems
+
+**Decision.** This refines D57 and D82. The kit is a set of subsystems. Each one is a complete
+component and model pair: threads (`ChatThreadsModel` and `chatThreadList`), the conversation
+(`ChatModel` and `chatPanel`), the side panel (`ChatSidePanelModel` and `chatSidePanel`), and the
+workspace that composes them. The built-ins fit each other with no setup. The seams sit between
+subsystems, each a small contract that the built-in meets. An app can swap one subsystem for a
+model of its own and keep the rest. No interface sits inside a subsystem, and none mirrors a
+whole class.
+
+Two seams follow from this:
+
+- **Threads and the active chat.** `ChatThreadsModel` talks to the chat of the open thread through
+  a contract of about five members: the thread it shows, whether a reply runs, whether it waits on
+  the user, load a thread's history, and detach. `ChatModel` meets it. The wiring that the threads
+  model now pushes into `ChatModel` (feedback, the status refresh, scope and drafts per thread)
+  moves into `ChatModel`'s own thread binding, the sub-model D82 planned.
+- **The workspace and the conversation view.** `ChatWorkspace` takes the app's own conversation
+  view in place of `chatPanel`.
+
+`ChatThreadListHost` goes. The thread list and `ChatThreadsModel` are a pair, and the swap point is
+the chat behind the model, not the model behind the list. `ChatSidePanelHost` stays, as the side
+panel's seam.
+
+**Why.** An enterprise app that runs its conversation on OpenUI may not move it to the kit. It can
+still show its threads and the chrome around them in Hoist, with the kit's thread list and its
+model whole, and a small chat model that delegates to OpenUI. The thread list is generic UI that
+users know well. Seams between subsystems give that kind of app a real path. Interfaces inside a
+subsystem gave none: `ChatMessageListHost` mirrored `ChatModel` with about 25 optional members and
+no second implementer (D82).
+
+**Next.** Build both seams when that app or another is ready to use them. Today's cuts already
+shrink the threads-to-chat contract, as paging and the one-reply-at-a-time setting leave.
+
+**Alternatives.** Keep `ChatThreadListHost`, so an app writes its own threads model behind the
+kit's list. The app would rebuild backend loading, optimistic rename and delete, routing and
+recency groups for each use.
+
+## D90. The chat UI layer is cut back to its consumers
+
+**Decision.** Anselm walked review 7 (`planning/reviews/review-7-chat-ui-layer.md`) and made a call
+on each feature of the chat UI layer. The review holds the full tables. In short:
+
+- **Cut:** pins, thread list paging and history paging, `allowConcurrentTurns`, the restore of the
+  selected thread after a reload, `dataRefreshedAt`, `shortcuts.toggleDock`, the composer pill's
+  `status` and `readonly`, feedback `reasons` and comments on a thumbs up, `ChatThreadListHost`
+  (D89), and the thread create call. A transport for a backend that mints thread ids creates the
+  thread on its first request and reports the id on `RUN_STARTED` (D39). Citation ranges, web
+  citation pinning and source favicons go too.
+- **Kept, with changes:** the deep link `route`, with the missing "not found" view built. The
+  markdown table cap, with a configurable limit that defaults to 100 rows. Citation grouping,
+  labeled "N sources" when the numbers are not consecutive. "Ended early" thread rows, which the
+  kit also sets from its own chats. Local drafts, cleared when their thread is deleted.
+- **Simplified:** the workspace keeps one saved width per panel. `ChatToolDisplay` folds `answer`
+  into `inline`.
+- **Kept as built:** the side panel, the status vocabulary and the shortcuts.
+
+The design reconciliation changes to match: R5, R9 and H7 change, R14 is built, and B3 and B6
+settle as built.
+
+**Why.** Much of the layer came from a design brief that aimed at every use case at once, and from
+two apps that will not adopt the kit. A feature stays if a consumer in hand needs it or if it
+shows the direction of chat UI. When the conversation model already holds a state, the UI that
+shows it is cheap, so it stays.
+
+## D91. Choices made in building D90
+
+**Decision.** Building the D90 calls settled these points of API and behavior. This amends D74.
+
+- **Feedback comments.** `ChatFeedbackConfig.commentOn` gives way to `allowComment`, default true.
+  A thumbs down opens the comment form, and a saved rating offers "Add a comment".
+  `requireComment` applies to a thumbs down. The comment being typed lives on the chat, in
+  `ChatModel.feedbackDrafts`, with its sending state and error, so a redraw of the message list
+  keeps the form as it was. The threads model keeps these drafts across a thread switch for the
+  session, and matches each to its message by the kit's id or the server's.
+- **Table cap.** The row limit is `ChatKit.defaults.markdownTableMaxRows`, default 100. The same
+  table renders in replies, reasoning, tool output and the timeline, so one kit-wide setting
+  covers them all.
+- **A missing thread.** A store's load that fails with a 404 means the thread is not found, and
+  the workspace shows "Thread not found" with New Chat and blocks sends. An empty page means an
+  empty thread. `ChatThreadsModel.isThreadNotFound` reports it. This replaces rule 8 of
+  `planning/SERVER-MODE.md` for the 404 case.
+- **The route.** A thread's id goes into the route only once the backend has the thread: once the
+  store lists it, or once its first run starts. A run has started when its reply has content, is
+  paused for the user, or the server reported the run. A new chat keeps the base route, so a reload
+  before the first send, or after a first send that never reached the server, opens a new chat.
+- **"Ended early" rows.** `ChatThreadsModel.endedEarlyThreads` holds them. A background turn that
+  fails, or that the server interrupts or cancels, marks its thread for the session. The store's
+  `lastRunEnd` marks a thread with no open chat, but only if the thread changed since the user
+  last saw it. A chat with a session mark stays open until the user opens its thread, so the
+  failed turn and its Retry show even when the backend does not store failed runs.
+- **Workspace widths.** The sidebar keeps its modes by window width: full, rail or popover. Each
+  panel keeps one saved width, clamped so the conversation keeps its minimum width. Each resizable
+  panel sits beside the conversation, as Hoist's panel resizing requires.
+- **Paging.** Only an optional `nextCursor` on `ChatMessagePage` remains. The kit ignores it.
+- **`LocalChatThreadStore`** lives in `test/support/`. The package check fails if a shipped file
+  imports test support.
+
+**Why.** Each choice is the simplest one that keeps the behavior D90 asked for. The route rule
+fixes a bug the cuts exposed: the workspace opens a new chat on load, and its id went into the URL
+before the backend knew it.
+
+## D92. The showcase features: what stays
+
+**Decision.** Anselm walked the "Keep, and give it a showcase" section of review 7.
+
+- **Activity timeline.** Keep the summary row, the list of steps, nested sub-agents (AG-UI's
+  `parentSubagentRunId`), retry detection and the quiet state. Drop the plan read from a tool's
+  output, with the `pinned` display, and the timeline's own question and choice buttons. An app
+  that wants a plan renders it with the tool's `renderer`, or with a data renderer for an AG-UI
+  activity. A browser tool that asks the user answers through its own `renderer` or card. A server
+  agent asks through AG-UI interrupts. While an interactive call waits for an answer, its card
+  shows under the timeline line, as an approval does. The timeline reads no answers or results
+  from guessed fields: a result shows as text, or else as JSON.
+- **Undo.** Remove per-tool undo: `ChatToolResult.undo`, `ChatModel.undoTurnAsync()` and the rest.
+  Add nothing in its place until a clear spec exists to follow.
+- **Interrupt panels.** Keep as built: one question at a time, then a review step, as Claude Code
+  does.
+- **Tool approval, reasoning, code blocks, attachments and the error boundary.** Keep as built.
+- **Weather V2.** Its dashboard tools use `display: 'timeline'`, so a build reads as one line that
+  opens into its steps.
+
+This supersedes D48, and amends D23 and D78.
+
+**Why.** The plan and the question buttons read guessed field names, with no spec to conform to,
+and AG-UI's interrupts already cover questions. Undo reverted only the tools that opted in, so a
+reply could be partly undone, and it could skip a newer change to undo an older one. No chat kit
+or agent protocol defines tool undo. Agent products that offer it use checkpoints that the app
+owns.

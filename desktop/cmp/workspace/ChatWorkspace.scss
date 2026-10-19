@@ -16,29 +16,32 @@
     min-width: 0;
   }
 
-  // The boxes around the sidebar and the side panel set the widths that show. Each panel
-  // stretches to the row's full height.
-  &__sidebar-box,
+  // The sidebar and the side panel are resizable Hoist panels, siblings of the conversation. The
+  // layout may show one narrower than its saved size, to leave the conversation its minimum.
+  &__sidebar > :not(.xh-resizable-splitter, .xh-resizable-dragger) {
+    max-width: var(--xh-chat-workspace-sidebar-width, none);
+  }
+
   &__side-panel {
-    display: flex;
-    flex: none;
     min-height: 0;
   }
 
-  // The side panel's box can be wider than its PanelModel's size, as for a table or a chart. Its
-  // resize container, and the panel in it, stretch to fill the box.
-  &__side-panel > .xh-resizable,
-  &__side-panel > .xh-chat-side-panel > .xh-resizable {
-    width: 100%;
+  &__side-panel > :not(.xh-resizable-splitter, .xh-resizable-dragger) {
+    max-width: var(--xh-chat-workspace-side-panel-width, none);
+  }
 
-    > :not(.xh-resizable-splitter, .xh-resizable-dragger) {
-      flex-grow: 1;
-    }
+  // The app's own side panel content, or a request's frame, fills the side panel.
+  &__side-panel-content {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
   }
 
   // The sidebar shares the conversation's surface. Its border does the separating.
   &__sidebar {
     background-color: var(--xh-chat-sidebar-bg);
+    min-height: 0;
     border-right: var(--xh-border-width-px) solid var(--xh-chat-sidebar-border-color);
     box-sizing: border-box;
   }

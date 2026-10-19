@@ -37,7 +37,7 @@ export interface ChatReference {
  * first citation across all of the text, then any source whose marker another source already
  * holds, each taking the next free number. A message that cites nothing - no markers, no
  * citations - numbers all of its sources in the order reported. A source that a citing message
- * never cites takes no number - see {@link collectUncitedSources}.
+ * never cites takes no number, and the sources list leaves it out.
  *
  * Numbers stay stable while the message streams, and never renumber (R19). Text only grows, so a
  * citation keeps the number it first took, and no two references share one. Sources that arrive
@@ -81,20 +81,6 @@ export function collectReferences(parts: ChatPart[], citationMarkers = false): C
         }
     });
     return sortBy(ret, 'number');
-}
-
-/**
- * The sources of a message that its text never cites - searched, but with no matching passage.
- * The sources list counts them without numbers, so that every number matches a marker. Empty for
- * a message that cites nothing, as then every source takes a number.
- * @internal
- */
-export function collectUncitedSources(
-    parts: ChatPart[],
-    references: ChatReference[]
-): ChatSourcePart[] {
-    const sources = parts.filter(it => it.type === 'source') as ChatSourcePart[];
-    return sources.filter(source => !references.some(it => it.source?.id === source.id));
 }
 
 /**

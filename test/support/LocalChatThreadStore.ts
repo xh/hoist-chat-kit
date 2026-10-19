@@ -1,17 +1,15 @@
 import {cloneDeep, find, omit, orderBy, pull, remove} from 'lodash';
 import {wait} from '@xh/hoist/promise';
-import {type ChatFeedbackSpec, ChatMessage, type ChatMessageSpec} from '../core';
-import {genChatId} from '../impl/ids';
+import {type ChatFeedbackSpec, ChatMessage, type ChatMessageSpec} from '../../core';
 import type {
     ChatMessagePage,
     ChatMessageQuery,
-    ChatThreadCreateSpec,
     ChatThreadPage,
     ChatThreadQuery,
     ChatThreadStore,
     ChatThreadSummary
-} from './ChatThreadStore';
-import {titleFromText} from './impl/threadUtils';
+} from '../../threads';
+import {titleFromText} from '../../threads/impl/threadUtils';
 
 /** Configuration for a {@link LocalChatThreadStore}. */
 export interface LocalChatThreadStoreConfig {
@@ -20,12 +18,6 @@ export interface LocalChatThreadStoreConfig {
 
     /** Latency of each call, in milliseconds. Default 0. */
     delayMs?: number;
-
-    /**
-     * True to mint thread ids, as a backend that creates its threads does. The store then
-     * implements `createThreadAsync`. Default false.
-     */
-    mintIds?: boolean;
 
     /** Optional methods to leave out, to show how the threads model works without them. */
     omit?: LocalChatThreadStoreOptionalMethod[];
@@ -41,7 +33,7 @@ export interface LocalChatThread extends Partial<ChatThreadSummary> {
 
 /** An optional method that a {@link LocalChatThreadStore} can leave out. */
 export type LocalChatThreadStoreOptionalMethod =
-    'renameThreadAsync' | 'deleteThreadsAsync' | 'pinThreadAsync' | 'submitFeedbackAsync';
+    'renameThreadAsync' | 'deleteThreadsAsync' | 'submitFeedbackAsync';
 
 /** A method of a {@link ChatThreadStore}. */
 export type ChatThreadStoreMethod = keyof ChatThreadStore;
@@ -62,9 +54,9 @@ export interface LocalChatThreadStoreCall {
 }
 
 /**
- * A {@link ChatThreadStore} that holds its threads in memory, for tests, demos and offline
- * development. It answers as a backend would: threads most recently active first, history in
- * pages, a missing thread as a 404, and a delete of a missing thread as a success.
+ * A {@link ChatThreadStore} that holds its threads in memory, for the kit's own specs. It is a
+ * test fixture, and does not ship in the package. It answers as a backend would: threads most
+ * recently active first, a missing thread as a 404, and a delete of a missing thread as a success.
  *
  * Tests control its timing. `hold()` makes calls to a method wait until the test releases or fails
  * each one, which forces responses out of order. `failNext()` fails the next call to a method.
@@ -81,25 +73,14 @@ export class LocalChatThreadStore implements ChatThreadStore {
     /** Calls made to the store, oldest first. */
     readonly calls: LocalChatThreadStoreCall[] = [];
 
-    createThreadAsync?: (spec: ChatThreadCreateSpec) => Promise<ChatThreadSummary>;
     renameThreadAsync?: (threadId: string, title: string) => Promise<void>;
     deleteThreadsAsync?: (threadIds: string[]) => Promise<void>;
-    pinThreadAsync?: (threadId: string, pinned: boolean) => Promise<void>;
     submitFeedbackAsync?: (spec: ChatFeedbackSpec) => Promise<void>;
 
-    constructor({
-        threads = [],
-        delayMs = 0,
-        mintIds = false,
-        omit = []
-    }: LocalChatThreadStoreConfig = {}) {
+    constructor({threads = [], delayMs = 0, omit = []}: LocalChatThreadStoreConfig = {}) {
         this.delayMs = delayMs;
         threads.forEach(it => this.saveThread(it));
 
-        if (mintIds) {
-            this.createThreadAsync = spec =>
-                this.callAsync('createThreadAsync', [spec], 'write', () => this.createThread(spec));
-        }
         if (!omit.includes('renameThreadAsync')) {
             this.renameThreadAsync = (threadId, title) =>
                 this.callAsync('renameThreadAsync', [threadId, title], 'write', () => {
@@ -110,12 +91,6 @@ export class LocalChatThreadStore implements ChatThreadStore {
             this.deleteThreadsAsync = threadIds =>
                 this.callAsync('deleteThreadsAsync', [threadIds], 'write', () => {
                     remove(this.threads, it => threadIds.includes(it.id));
-                });
-        }
-        if (!omit.includes('pinThreadAsync')) {
-            this.pinThreadAsync = (threadId, pinned) =>
-                this.callAsync('pinThreadAsync', [threadId, pinned], 'write', () => {
-                    this.getOrThrow(threadId).pinned = pinned;
                 });
         }
         if (!omit.includes('submitFeedbackAsync')) {
@@ -196,7 +171,6 @@ export class LocalChatThreadStore implements ChatThreadStore {
     private readonly threads: LocalChatThread[] = [];
     private readonly heldMethods = new Set<ChatThreadStoreMethod>();
     private readonly failures = new Map<ChatThreadStoreMethod, Error>();
-    private readonly mintedIds = new Map<string, string>();
 
     private async callAsync<T>(
         method: ChatThreadStoreMethod,
@@ -251,36 +225,18 @@ export class LocalChatThreadStore implements ChatThreadStore {
         return readResult;
     }
 
-    private listThreads({search, cursor, limit = 50}: ChatThreadQuery): ChatThreadPage {
+    private listThreads({search}: ChatThreadQuery): ChatThreadPage {
         const term = search?.toLowerCase(),
             matches = orderBy(
                 this.threads.filter(it => !term || it.title.toLowerCase().includes(term)),
                 'lastActivityAt',
                 'desc'
-            ),
-            start = cursor ? Number(cursor) : 0,
-            end = start + limit;
-        return {
-            threads: matches.slice(start, end).map(toSummary),
-            nextCursor: end < matches.length ? String(end) : null
-        };
+            );
+        return {threads: matches.map(toSummary)};
     }
 
-    private loadMessages({threadId, cursor, limit = 50}: ChatMessageQuery): ChatMessagePage {
-        const {messages} = this.getOrThrow(threadId),
-            end = cursor ? Number(cursor) : messages.length,
-            start = Math.max(0, end - limit);
-        return {messages: messages.slice(start, end), nextCursor: start > 0 ? String(start) : null};
-    }
-
-    private createThread({localId, title}: ChatThreadCreateSpec): ChatThreadSummary {
-        let threadId = this.mintedIds.get(localId);
-        if (!threadId) {
-            threadId = genChatId();
-            this.mintedIds.set(localId, threadId);
-            this.saveThread({id: threadId, title});
-        }
-        return toSummary(this.getOrThrow(threadId));
+    private loadMessages({threadId}: ChatMessageQuery): ChatMessagePage {
+        return {messages: this.getOrThrow(threadId).messages};
     }
 
     private saveFeedback({threadId, messageId, rating, comment}: ChatFeedbackSpec) {

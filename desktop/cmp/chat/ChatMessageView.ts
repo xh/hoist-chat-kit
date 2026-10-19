@@ -7,8 +7,7 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {textArea} from '@xh/hoist/desktop/cmp/input';
 import {fmtDateTime} from '@xh/hoist/format';
 import {Icon} from '@xh/hoist/icon';
-import {action, bindable, observable, observableRef} from '@xh/hoist/mobx';
-import {wait} from '@xh/hoist/promise';
+import {action, bindable, observable} from '@xh/hoist/mobx';
 import {pluralize} from '@xh/hoist/utils/js';
 import {createObservableRef, useCached, useComposedRefs} from '@xh/hoist/utils/react';
 import {
@@ -19,7 +18,6 @@ import {
     chatMarkdown
 } from '../../../cmp/markdown';
 import {
-    chatAnnouncer,
     type ChatCitation,
     type ChatDataPart,
     type ChatFilePart,
@@ -55,7 +53,6 @@ import {
     type ChatReference,
     chatCitations,
     collectReferences,
-    collectUncitedSources,
     createMarkerRenderers,
     toSourceList
 } from './impl/ChatCitations';
@@ -65,7 +62,7 @@ import {
     ChatMessageFeedbackModel,
     feedbackThumbs
 } from './impl/ChatFeedbackControls';
-import {chatCaret, chatSpinner} from '../../impl/ChatLiveCues';
+import {chatCaret} from '../../impl/ChatLiveCues';
 import {chatReplyLiveStatus} from './impl/ChatReplyLiveStatus';
 import {ChatStepAnnouncer} from './impl/ChatStepAnnouncer';
 import {chatErrorBoundary} from './impl/ChatErrorBoundary';
@@ -215,8 +212,8 @@ export interface ChatMessageViewProps extends HoistProps {
  * streamed change to the message.
  *
  * Once a reply's turn ends, its action bar shows in the gap below it - always on the last reply,
- * on hover or focus on older ones: Copy, Regenerate on the last reply, Undo, thumbs for feedback,
- * then any `messageActions`. Actions other than Copy and `messageActions` need a `ChatModel`, and
+ * on hover or focus on older ones: Copy, Regenerate on the last reply, thumbs for feedback, then
+ * any `messageActions`. Actions other than Copy and `messageActions` need a `ChatModel`, and
  * each shows only when it applies. Edit and Regenerate also hide when the chat's `allowEdit` or
  * `allowRegenerate` is false. System messages show as a centered note.
  */
@@ -243,12 +240,11 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
                 citationMarkers ? (message.parts.filter(isSource) as ChatSourcePart[]) : null,
                 isEqual
             ),
-            {onSourceClick, allowImages = false} = props;
+            {onSourceClick} = props;
         impl.sourceLinks.configure({
             messageId: message.id,
             sidePanel: impl.sidePanel,
-            onSourceClick: onSourceClick ? source => onSourceClick(source, context) : null,
-            allowImages
+            onSourceClick: onSourceClick ? source => onSourceClick(source, context) : null
         });
         impl.feedback.configure(message, context.chatModel);
 
@@ -299,12 +295,6 @@ class ChatMessageViewLocalModel extends HoistModel {
 
     @bindable accessor draft: string = '';
     @observable accessor localEditing = false;
-
-    /** True while this view's undo of the reply's changes runs. (observable) */
-    @observable accessor isUndoing = false;
-
-    /** Why the last undo failed, if the chat's promise rejected. (observable) */
-    @observableRef accessor undoRejection: Error = null;
 
     /** The side panel in reach, which shows the documents the message cites - or null. */
     sidePanel: ChatSidePanelHost = null;
@@ -393,61 +383,6 @@ class ChatMessageViewLocalModel extends HoistModel {
             this.submitEdit();
         }
     };
-
-    //------------------
-    // Undo
-    //------------------
-    /** True if the user can undo the reply's changes now. */
-    get canUndo(): boolean {
-        return !!this.chatModel?.canUndoTurn(this.props.message.id);
-    }
-
-    /**
-     * Why the last undo failed, while the reply can still be undone - so that Retry can work -
-     * or null.
-     */
-    get undoError(): Error {
-        if (this.isUndoing || !this.canUndo) return null;
-        return this.chatModel.undoErrors[this.props.message.id] ?? this.undoRejection;
-    }
-
-    /**
-     * Undo the reply's changes. A failure shows inline, with Retry - never as a toast. Undo goes
-     * once it succeeds, so focus on it moves to the reply.
-     */
-    async undoAsync() {
-        const {chatModel} = this,
-            {message} = this.props;
-        if (this.isUndoing || !this.canUndo) return;
-        const reply = this.rootRef.current,
-            hadFocus = !!reply?.contains(document.activeElement);
-        this.setUndoState(true, null);
-        let rejection: Error = null;
-        try {
-            await chatModel.undoTurnAsync(message.id);
-        } catch (e) {
-            rejection = e;
-        }
-        this.setUndoState(false, rejection);
-        if (rejection ?? chatModel.undoErrors[message.id]) {
-            chatAnnouncer.announce('Change not undone.', 'assertive');
-        } else {
-            chatAnnouncer.announce('Change undone.');
-            if (hadFocus) {
-                // After the render that removes the button.
-                wait().then(() => {
-                    const active = document.activeElement;
-                    if (!active || active === document.body) reply.focus();
-                });
-            }
-        }
-    }
-
-    @action
-    private setUndoState(isUndoing: boolean, rejection: Error) {
-        this.isUndoing = isUndoing;
-        this.undoRejection = rejection;
-    }
 
     private isFocusPending = false;
 
@@ -658,8 +593,7 @@ function assistantContent(
         {chatModel} = context,
         runs = groupProcessRuns(groupParts(message.parts, host), host),
         // A fixed "not found" reply lists no sources.
-        isNoAnswer = !!getChatNoAnswerPart(message),
-        uncitedSources = isNoAnswer ? [] : collectUncitedSources(message.parts, references);
+        isNoAnswer = !!getChatNoAnswerPart(message);
 
     return [
         div({
@@ -699,12 +633,8 @@ function assistantContent(
                         replyNotice(props, chatModel)
                     ]
                 }),
-                !isNoAnswer && (references.length || uncitedSources.length)
-                    ? chatSources({
-                          sources: toSourceList(references),
-                          uncitedSources,
-                          links: impl.sourceLinks
-                      })
+                !isNoAnswer && references.length
+                    ? chatSources({sources: toSourceList(references), links: impl.sourceLinks})
                     : null,
                 // Actions wait for the turn to end - including one paused for the user's answer.
                 message.isStreaming || message.status === 'paused'
@@ -797,7 +727,6 @@ function timelineBlock(
             message,
             host,
             parts: group.parts,
-            pinned: group.pinned,
             context,
             isFollowed,
             isLast
@@ -808,7 +737,7 @@ function timelineBlock(
 // A call whose finish the message view announces: one it shows, outside a timeline.
 function isAnnouncedOutsideTimeline(call: ChatToolCallPart, host: ChatTranscript): boolean {
     const display = getToolCallDisplay(call, host);
-    return display !== 'timeline' && display !== 'hidden' && display !== 'pinned';
+    return display !== 'timeline' && display !== 'hidden';
 }
 
 function renderGroup(
@@ -840,10 +769,7 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
             ? message.toolCalls.filter(
                   it => isToolCallFailed(it) && getToolCallDisplay(it, host) !== 'timeline'
               ).length
-            : 0,
-        endedAt = createdAt + (metadata?.elapsedMs ?? 0),
-        dataRefreshedAt = chatModel?.dataRefreshedAt,
-        isStale = status === 'complete' && dataRefreshedAt != null && dataRefreshedAt > endedAt;
+            : 0;
 
     return div({
         className: 'xh-chat-message__header',
@@ -900,15 +826,6 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
                 ? span({
                       className: 'xh-chat-message__segment xh-chat-message__warning',
                       items: [Icon.warning(), `${pluralize('tool', failedTools, true)} failed`]
-                  })
-                : null,
-            isStale
-                ? span({
-                      className: 'xh-chat-message__segment xh-chat-message__warning',
-                      title:
-                          `Replied ${fmtDateTime(endedAt) as string}. ` +
-                          `Data refreshed ${fmtDateTime(dataRefreshedAt) as string}.`,
-                      items: [Icon.warning(), 'Data refreshed since']
                   })
                 : null,
             ...(messageHeaderItems?.(message, context) ?? [])
@@ -1199,14 +1116,6 @@ function replyNotice(props: ViewProps, chatModel: ChatModel): ReactNode {
             return notice(null, chatStatusCue({status}));
     }
 
-    // No Redo: the user can ask again.
-    if (message.metadata.undone) {
-        return notice('xh-chat-message__notice--undone', [
-            Icon.undo({key: 'icon'}),
-            span({key: 'text', item: 'Changes undone.'})
-        ]);
-    }
-
     if (message.metadata.finishReason === 'length') {
         return notice('xh-chat-message__notice--warning', [
             Icon.warning({key: 'icon'}),
@@ -1261,7 +1170,6 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
                 !isBusy &&
                 !isFailed &&
                 !isNoAnswer,
-            {canUndo, isUndoing} = impl,
             canEdit = isUser && !!chatModel?.allowEdit,
             appActions = extraActions?.(message, context) ?? [],
             primary = [
@@ -1299,16 +1207,6 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
                               chatModel.regenerateAsync(message.id).catchDefault();
                           }
                       })
-                    : null,
-                canUndo || isUndoing
-                    ? button({
-                          key: 'undo',
-                          icon: isUndoing ? chatSpinner() : Icon.undo(),
-                          tooltip: 'Undo changes',
-                          'aria-label': 'Undo changes',
-                          disabled: isUndoing,
-                          onClick: () => impl.undoAsync()
-                      })
                     : null
             ].filter(it => it),
             thumbs = impl.feedback.canRate
@@ -1339,42 +1237,13 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
     }
 });
 
-/**
- * What shows under a reply, below its action bar: a failed undo of its changes, with Retry, and the
- * open feedback form.
- */
+/** What shows under a reply, below its action bar: the open feedback form. */
 function afterReply(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNode {
-    const {undoError, feedback} = impl,
-        undoFailure = undoError
-            ? div({
-                  key: 'undoFailed',
-                  className: 'xh-chat-message__undo-failed',
-                  items: [
-                      Icon.error({className: 'xh-chat-message__undo-failed-icon'}),
-                      span({
-                          className: 'xh-chat-message__undo-failed-text',
-                          item: "Couldn't undo the changes."
-                      }),
-                      undoError.message
-                          ? span({
-                                className: 'xh-chat-message__undo-failed-cause',
-                                item: undoError.message
-                            })
-                          : null,
-                      button({
-                          icon: Icon.refresh(),
-                          text: 'Retry',
-                          onClick: () => impl.undoAsync()
-                      })
-                  ]
-              })
-            : null,
-        form = feedback.form ? chatFeedbackForm({key: 'feedback', model: feedback}) : null;
-
-    if (!undoFailure && !form) return null;
+    const {feedback} = impl;
+    if (!feedback.form) return null;
     return div({
         key: 'after',
         className: 'xh-chat-message__after',
-        items: [undoFailure, form]
+        item: chatFeedbackForm({key: 'feedback', model: feedback})
     });
 }

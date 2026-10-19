@@ -13,8 +13,8 @@ export function titleFromText(text: string): string {
 }
 
 /**
- * True for an error that reports a missing thread - an HTTP 404, as Hoist's `FetchService` and a
- * `LocalChatThreadStore` report it.
+ * True for an error that reports a missing thread - an HTTP 404, as Hoist's `FetchService`
+ * reports it.
  * @internal
  */
 export function isNotFound(e: any): boolean {

@@ -1,17 +1,12 @@
 import {describe, expect, it} from 'vitest';
 import type {ChatCitation, ChatPart, ChatSourcePart} from '../../../../core';
-import {
-    collectReferences,
-    collectUncitedSources,
-    numberCitations,
-    toSourceList
-} from './ChatCitations';
+import {collectReferences, numberCitations, toSourceList} from './ChatCitations';
 
 /**
  * Citation chips carry numbers that match the source list below the reply. Apps rely on each
  * citation showing with a number that no other reference uses, on numbers that hold steady while
- * the reply streams and never renumber, and on sources that were searched but never cited being
- * counted rather than numbered, so that every number matches a marker.
+ * the reply streams and never renumber, and on sources that were searched but never cited taking
+ * no number, so that every number matches a marker.
  */
 describe('citation numbering', () => {
     const S1: ChatSourcePart = {type: 'source', id: 's1', url: 'https://a.example'},
@@ -35,13 +30,12 @@ describe('citation numbering', () => {
         ]);
     });
 
-    it('counts the sources a citing message never cites, without numbers', () => {
+    it('numbers no source that a citing message never cites', () => {
         const S3: ChatSourcePart = {type: 'source', id: 's3', url: 'https://c.example'},
             parts = [text('t1', [{id: 'c1', sourceId: 's2'}]), S1, S2, S3],
             refs = collectReferences(parts);
 
         expect(refs.map(it => it.source.id)).toEqual(['s2']);
-        expect(collectUncitedSources(parts, refs)).toEqual([S1, S3]);
     });
 
     it('numbers every source in order when the message cites nothing', () => {
@@ -52,7 +46,6 @@ describe('citation numbering', () => {
             [1, 's1'],
             [2, 's2']
         ]);
-        expect(collectUncitedSources(parts, refs)).toEqual([]);
     });
 
     it('keeps each number once assigned, as text and sources stream in', () => {
@@ -148,11 +141,10 @@ describe('citation numbering', () => {
             expect(list[1].id).toBe('s2');
         });
 
-        it('counts a source with no marker among marked ones as searched, not cited', () => {
+        it('numbers no source that lacks a marker among marked ones', () => {
             const parts = [{...S1, marker: 1}, S2],
                 refs = collectReferences(parts);
             expect(refs.map(it => it.source.id)).toEqual(['s1']);
-            expect(collectUncitedSources(parts, refs)).toEqual([S2]);
         });
 
         it('never renumbers sources to close a gap in their markers', () => {

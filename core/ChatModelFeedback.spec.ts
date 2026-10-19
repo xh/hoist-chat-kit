@@ -1,17 +1,16 @@
 import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {ScriptedChatTransport} from '../transport';
-import type {ChatFeedbackSpec} from './ChatFeedback';
+import {ScriptedChatTransport, textEvents} from '../transport';
+import type {ChatFeedbackDraft, ChatFeedbackSpec} from './ChatFeedback';
 import type {ChatMessageSpec} from './ChatMessage';
 import {ChatModel, type ChatModelConfig} from './ChatModel';
 
 /**
- * Feedback and paged history on a ChatModel. A rating must show at once and revert if the
- * backend rejects it, without undoing a newer rating, and must reach the backend with the ids it
- * keys on. Older pages of a thread must slot in ahead of the conversation without duplicates.
+ * Feedback on a ChatModel. A rating must show at once and revert if the backend rejects it,
+ * without undoing a newer rating, and must reach the backend with the ids it keys on.
  */
-describe('ChatModel feedback and paged history', () => {
+describe('ChatModel feedback', () => {
     beforeAll(async () => {
         await initTestAppAsync();
     });
@@ -36,8 +35,7 @@ describe('ChatModel feedback and paged history', () => {
                 serverId: 'srv-a1',
                 runId: 'run-a1',
                 rating: 'negative',
-                comment: 'Out of date.',
-                reasons: null
+                comment: 'Out of date.'
             } satisfies ChatFeedbackSpec);
         });
 
@@ -111,37 +109,13 @@ describe('ChatModel feedback and paged history', () => {
             );
         });
 
-        it('sends and records the reasons the user picked, and null for none', async () => {
-            const submitAsync = vi.fn(async () => {}),
-                model = createModel({
-                    feedback: {submitAsync, reasons: ['Wrong data', 'Incomplete']}
-                });
-
-            await model.submitFeedbackAsync('a1', 'negative', 'Old limits.', ['Wrong data']);
-            expect(submitAsync).toHaveBeenLastCalledWith(
-                expect.objectContaining({comment: 'Old limits.', reasons: ['Wrong data']})
-            );
-            expect(model.getMessage('a1').metadata.feedback).toEqual({
-                rating: 'negative',
-                comment: 'Old limits.',
-                reasons: ['Wrong data']
-            });
-
-            await model.submitFeedbackAsync('a1', 'positive', null, []);
-            expect(submitAsync).toHaveBeenLastCalledWith(
-                expect.objectContaining({rating: 'positive', reasons: null})
-            );
-            expect(model.getMessage('a1').metadata.feedback).toEqual({rating: 'positive'});
-        });
-
-        it('takes reasons alone as no comment, where a comment is required', async () => {
+        it('saves a thumbs down with no comment when comments are off, even with requireComment', async () => {
             const model = createModel({
-                feedback: {submitAsync: async () => {}, requireComment: true, reasons: ['Other']}
+                feedback: {submitAsync: async () => {}, allowComment: false, requireComment: true}
             });
 
-            await expect(
-                model.submitFeedbackAsync('a1', 'negative', null, ['Other'])
-            ).rejects.toThrow('comment is required');
+            await expect(model.submitFeedbackAsync('a1', 'negative')).resolves.toBeUndefined();
+            expect(model.getMessage('a1').metadata.feedback).toEqual({rating: 'negative'});
         });
 
         it('refuses to clear a rating when the backend cannot remove one', async () => {
@@ -196,40 +170,56 @@ describe('ChatModel feedback and paged history', () => {
         });
     });
 
-    describe('prependMessages', () => {
-        it('adds older messages ahead of the conversation, skipping those already present', () => {
-            const model = createModel();
+    describe('feedbackDrafts', () => {
+        const DRAFT: ChatFeedbackDraft = {
+            rating: 'negative',
+            comment: 'Half typed',
+            isPending: true,
+            isSending: false,
+            error: null
+        };
 
-            model.prependMessages([
-                {id: 'u0', role: 'user', content: 'Older'},
-                {id: 'a0', role: 'assistant', content: 'Older reply'},
-                {id: 'u1', role: 'user', content: 'Duplicate'}
-            ]);
-            model.hasOlderMessages = true;
+        it('keeps a draft by message, and drops it once its comment is sent', async () => {
+            const model = createModel({feedback: {submitAsync: async () => {}}});
 
-            expect(model.messages.map(it => it.id)).toEqual(['u0', 'a0', 'u1', 'a1']);
-            expect(model.messages[2].text).toBe('Question');
-            expect(model.hasOlderMessages).toBe(true);
+            model.setFeedbackDraft('a1', DRAFT);
+            expect(model.feedbackDrafts).toEqual({a1: DRAFT});
+
+            await model.submitFeedbackAsync('a1', 'negative');
+            expect(model.feedbackDrafts).toEqual({a1: DRAFT});
+
+            await model.submitFeedbackAsync('a1', 'negative', 'Half typed');
+            expect(model.feedbackDrafts).toEqual({});
         });
 
-        it('closes a paused turn among older messages', () => {
-            const model = createModel();
+        it('keeps a draft when its comment fails to send', async () => {
+            spyHandleException();
+            const model = createModel({
+                feedback: {submitAsync: () => Promise.reject(new Error('Down'))}
+            });
 
-            model.prependMessages([
-                {id: 'u0', role: 'user', content: 'Older'},
-                {id: 'a0', role: 'assistant', status: 'paused', parts: []}
-            ]);
+            model.setFeedbackDraft('a1', DRAFT);
+            await model.submitFeedbackAsync('a1', 'negative', 'Half typed');
 
-            expect(model.getMessage('a0').status).toBe('complete');
+            expect(model.feedbackDrafts).toEqual({a1: DRAFT});
         });
 
-        it('resets hasOlderMessages when another thread loads', () => {
-            const model = createModel();
-            model.hasOlderMessages = true;
+        it('drops a draft when its message goes, and all drafts when the chat clears', async () => {
+            const model = createModel({
+                transport: new ScriptedChatTransport({delayMs: 0, responses: [textEvents('New')]})
+            });
 
-            model.loadMessages([], 'thread-2');
+            model.setFeedbackDraft('a1', DRAFT);
+            await model.regenerateAsync();
+            expect(model.feedbackDrafts).toEqual({});
 
-            expect(model.hasOlderMessages).toBe(false);
+            model.setFeedbackDraft(model.lastMessage.id, DRAFT);
+            model.clear();
+            expect(model.feedbackDrafts).toEqual({});
+
+            model.setFeedbackDraft('a1', DRAFT);
+            model.loadMessages(HISTORY, 'thread-2');
+            expect(model.feedbackDrafts).toEqual({});
         });
     });
 });

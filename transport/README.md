@@ -5,7 +5,7 @@
 | [Overview](#overview) | How the chat gets events from a backend, and the key features |
 | [Architecture](#architecture) | Transports, codecs, `ChatEvent`, and how they fit together |
 | [Configuration Pattern](#configuration-pattern) | Choosing and configuring a transport and a codec |
-| [Common Usage Patterns](#common-usage-patterns) | Hoist servers, Anthropic, bring your own LLM, AG-UI agents, server-owned conversations, scripted demos and tests, use without `ChatModel` |
+| [Common Usage Patterns](#common-usage-patterns) | Direct calls or a Hoist relay, Anthropic, bring your own LLM, AG-UI agents, server-owned conversations, scripted demos and tests, use without `ChatModel` |
 | [Server Contracts](#server-contracts) | What each transport expects from its backend |
 | [Hoist Server Example](#hoist-server-example) | A hoist-core controller that relays an Anthropic stream |
 | [Properties/API Reference](#propertiesapi-reference) | Config tables, the event vocabulary, and `xh.chat.*` events |
@@ -28,11 +28,15 @@ Key features:
   1.0 events, typed from the official `@ag-ui/core`. `AgUiCodec` runs the official
   `@ag-ui/client` checks on each stream. Any AG-UI agent server works with the kit, with no
   adapter.
+- **Direct calls or a Hoist relay** - call a backend from the browser with the user's OAuth
+  token, or relay it through your Hoist server when it needs a secret key. The kit supports both
+  equally. See [Choose where requests go](#choose-where-requests-go).
 - **Transports carry, codecs translate** - the framing (NDJSON or Server-Sent Events) and the
   format (AG-UI, Anthropic or OpenAI chat completions) vary on their own. Pick one of each.
 - **`HoistChatTransport`** - NDJSON from your own hoist-core server, through `XH.fetchNdjson`,
   with Hoist's auth headers, correlation IDs, tracing, activity tracking and error handling.
-- **`SseChatTransport`** - Server-Sent Events (SSE) from an AG-UI agent server or an SSE proxy.
+- **`SseChatTransport`** - Server-Sent Events (SSE) straight from an AG-UI agent server, or from
+  an SSE proxy.
 - **`AnthropicCodec`** - lets a server relay Claude's stream line by line, with nothing to
   translate. The kit translates the stream in tested TypeScript.
 - **`ChatCompletionsCodec`** - the same for the OpenAI chat completions format, which most model
@@ -128,7 +132,7 @@ The function may be async, for example to fetch a short-lived token before each 
 ```typescript
 new SseChatTransport({
     url: req => `https://agents.example.com/threads/${req.threadId}/runs`,
-    headers: async () => ({Authorization: `Bearer ${await tokenService.getTokenAsync()}`})
+    headers: async () => ({Authorization: `Bearer ${await getTokenAsync()}`})
 });
 ```
 
@@ -139,10 +143,45 @@ transport reads a heartbeat as data, never decodes it, and resets the timer.
 
 ## Common Usage Patterns
 
+### Choose where requests go
+
+The kit supports two ways to reach a backend, and neither is preferred. Pick by what the backend
+needs.
+
+| The backend | Call it | Transport |
+|---|---|---|
+| Takes the user's OAuth token, and checks access and limits itself | Straight from the browser | `SseChatTransport`, or your own |
+| Needs a secret API key, such as a model provider | Through a relay on your Hoist server | `HoistChatTransport` |
+| Needs server-side work first, such as data the browser cannot see | Through a relay on your Hoist server | `HoistChatTransport` |
+
+If a backend accepts the user's OAuth token, call it from the browser. The request skips a hop,
+and the backend's team owns its own access rules. Never put a secret API key in the browser,
+where any user can read it.
+
+For a direct call, get the token from the OAuth client that your app's `AuthModel` holds. Name an
+access token for the backend in that client's `accessTokens` config, then fetch it before each
+step:
+
+```typescript
+async function getTokenAsync(): Promise<string> {
+    const token = await XH.authModel.client.getAccessTokenAsync('agentService');
+    return token.value;
+}
+
+new ChatModel({
+    transport: new SseChatTransport({
+        url: 'https://agents.example.com/portfolio',
+        headers: async () => ({Authorization: `Bearer ${await getTokenAsync()}`})
+    })
+});
+```
+
+See Hoist's `docs/authentication.md` for the `AuthModel` and its access tokens. The examples below
+use the same `getTokenAsync()`.
+
 ### Relay Claude through a Hoist server
 
-This is the default for a Hoist app. The server holds the API key, and the browser builds the
-Messages API body.
+The server holds the API key, and the browser builds the Messages API body.
 
 ```typescript
 new ChatModel({
@@ -323,7 +362,7 @@ import {AgUiCodec, SseChatTransport} from '@xh/hoist-chat-kit/transport';
 new ChatModel({
     transport: new SseChatTransport({
         url: 'https://agents.example.com/portfolio',
-        headers: {Authorization: `Bearer ${token}`},
+        headers: async () => ({Authorization: `Bearer ${await getTokenAsync()}`}),
         codec: new AgUiCodec({
             context: () => [{description: 'Selected sector', value: this.selectedSector}],
             forwardedProps: {tenant: 'emea'},
@@ -399,7 +438,7 @@ message the chat holds, as in client mode. AG-UI 1.0 has no mode for new message
 "MUST treat it as the complete history it is being shown". Adapters that keep state, such as
 LangGraph's, merge the history by message id. Adapters that keep none, such as Pydantic AI's by
 default, need all of it. A tool result always travels with the assistant message that called the
-tool. A thread loaded a page at a time sends only the pages it has loaded.
+tool.
 
 Each message goes with the server's id where the chat has one, so that an adapter that merges by
 id finds its own messages. A message takes its `metadata.serverId`. A reply that streamed as
@@ -453,6 +492,13 @@ What a server-mode backend sends back:
   generative UI components show by reference.
 - `RUN_ERROR` with `metadata.retryAfterSeconds`, to ask for a wait before a retry.
 
+A backend that mints its own thread ids needs no separate create call. A new thread's first
+request carries the id the browser minted. Create the thread when that request arrives, in the
+server's run endpoint or in a custom transport. Then report the backend's id on `RUN_STARTED`.
+The chat adopts it, and `ChatThreadsModel` re-keys the thread's summary, selection, draft and
+route to it. Key the create by the browser's id. A retry of a first turn that failed before
+`RUN_STARTED` then finds the same thread.
+
 A stop closes the connection and calls `cancelAsync()`. With a `cancelUrl`, the HTTP transports
 post `{threadId, runId, turnId}` there, with the `headers` and `params` of the stopped step. The
 `runId` is the one the server reported on `RUN_STARTED`. A detach, a clear or a load also closes
@@ -463,7 +509,7 @@ the client disconnects, and save its answer for the next load of the thread.
 new SseChatTransport({
     url: 'https://agents.example.com/runs',
     cancelUrl: run => `https://agents.example.com/runs/${run.runId}/cancel`,
-    headers: async () => ({Authorization: `Bearer ${await tokenService.getTokenAsync()}`})
+    headers: async () => ({Authorization: `Bearer ${await getTokenAsync()}`})
 });
 ```
 

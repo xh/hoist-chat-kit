@@ -23,19 +23,20 @@ Import from `@xh/hoist-chat-kit/desktop/cmp/workspace`.
 Key features:
 
 - **A thread sidebar** - a Hoist `Panel` with the [thread list](../threads/README.md), 260 px
-  wide, resizable from 200 to 400 px, and collapsible to a 40 px rail.
+  wide by default, resizable from 200 to 400 px, and collapsible to a 40 px rail.
 - **A rail** - expand, New Chat, search, and a spinner while any thread works.
 - **The conversation** - a `ChatPanel` for the selected thread's chat. It clears the moment the
-  selection changes, masks while history loads, and shows a failed load with Retry.
+  selection changes, masks while history loads, and shows a failed load with Retry. A thread the
+  store reports missing shows "Thread not found" with New Chat.
 - **Slots** - a header with the thread's title and actions by default, a notice line, and a side
   panel that the app fills.
 - **Documents beside the chat** - with a `documentRenderer`, a cited document opens in the side
   panel, in the app's own viewer.
-- **Layout by width** - the sidebar narrows to its rail and then hides, the side panel narrows
-  and shows only where there is room, the conversation keeps a minimum width, and the chat turns
-  compact at 380 px or less.
-- **Persistence** - the sidebar's width and collapsed state, the side panel's width, and the
-  selected thread persist per user through `persistWith`.
+- **Layout by width** - the sidebar turns to its rail and then hides, the side panel shows only
+  where there is room, each panel keeps one saved width, cut so the conversation stays readable,
+  and the chat turns compact at 380 px or less.
+- **Persistence** - the sidebar's width and collapsed state, and the side panel's width, persist
+  per user through `persistWith`.
 - **Keyboard** - Ctrl/Cmd+Shift+O starts a new chat, `/` focuses the composer, and F6 moves
   between regions. Escape in the side panel closes it. See
   [Keyboard](../chat/README.md#keyboard).
@@ -52,7 +53,7 @@ ChatWorkspaceModel (HoistModel)
 ├── isSidePanelOpen: boolean          # The app's wish (bindable)
 ├── Computed:
 │   ├── sidebarMode                   # 'open', 'rail' or 'hidden'
-│   ├── sidebarWidth, sidePanelWidth  # The widths that show, in pixels
+│   ├── sidebarWidth, sidePanelWidth  # The widths that show, cut for the conversation
 │   ├── isSidePanelShown              # Open or a request open, and the workspace has room
 │   └── isCompact                     # 380 px or less
 └── Methods:
@@ -76,26 +77,19 @@ The workspace measures its own element as it mounts, before the first paint, and
 
 | Workspace width | Sidebar | Side panel | Conversation |
 |---|---|---|---|
-| 1,280 px and up | Open, 260 px | 520 px | The rest, at least 480 px |
-| 1,000 to 1,279 px | Open, 240 px. The rail while the side panel shows | 460 px | At least 480 px |
-| 788 to 999 px | The rail, unless the user expands it | 400 px | At least 380 px |
+| 1,280 px and up | Open | Shown | At least 480 px |
+| 1,000 to 1,279 px | Open. The rail while the side panel shows | Shown | At least 480 px |
+| 788 to 999 px | The rail, unless the user expands it | Shown | At least 380 px |
 | Under 788 px | Hidden. The header offers the list in a popover | Not shown. A document opens in a new tab | All of it |
 
-A table or chart in the side panel takes 60% of the width it shares with the conversation, from
-480 to 900 px, in place of the side panel widths above. The shared width is the workspace less
-the sidebar or its rail. A document, and the app's own content, keep the widths above.
+Each panel has one width: 260 px for the sidebar and 520 px for the side panel, until the user
+drags it. `PanelModel` saves the width the user drags to. It applies at every workspace width,
+and to every kind of side panel content.
 
-When the conversation would drop below its minimum, the sidebar gives way to its rail first.
-Then the side panel narrows, below its 400 px drag minimum if it must. The model's
-`sidebarWidth` and `sidePanelWidth` give the widths that show.
-
-A width the user drags a panel to replaces the default in the band where they drag it, and in
-every wider band. In a narrower band, the band's default applies, never wider than the user's
-width. A saved width holds in the band where the workspace first shows it.
-
-The side panel has one saved width. A drag while a table or chart shows sets that width for
-tables and charts too, for the rest of the session. A width saved for documents never applies to
-a table or chart.
+Each panel shows at that width, cut where needed so that the conversation keeps its minimum. The
+sidebar is cut first, against the conversation alone. Then the side panel takes what is left,
+below its 400 px drag minimum if it must. The model's `sidebarWidth` and `sidePanelWidth` give
+the widths that show.
 
 The layout never changes the user's saved state. A collapse the user makes holds at every width
 that shows a sidebar. An expand the user makes from the rail holds until the width crosses into
@@ -136,12 +130,10 @@ chatWorkspace({model: model.workspaceModel});
 ```
 
 The workspace model loads the thread list. If nothing is selected when it is created, it starts
-a new thread, so that the conversation pane always holds a chat.
-
-With `persistWith`, the workspace also saves the selected thread. A new workspace model, as after
-a reload, starts with a new chat and selects the saved thread once the list shows it. It skips
-the saved thread if the store no longer lists it, or if the user or a route picks a thread first.
-A new chat with no messages yet is not saved.
+a new thread, so that the conversation pane always holds a chat. A reload therefore opens a new
+chat. The most recently active thread leads the list, one click away. A deep link through the
+threads model's `route` opens its thread instead. If the store reports that thread missing, the
+conversation pane shows "Thread not found", with New Chat in place of the composer.
 
 ## Common Usage Patterns
 
@@ -173,8 +165,7 @@ workspaceModel.openSidePanel();
 ```
 
 The panel has a close button, its own splitter, and a persisted width from 400 to 900 px. Its
-content renders only while the panel shows. A result card's table or chart opens wider, as
-[Layout by width](#layout-by-width) describes.
+content renders only while the panel shows.
 
 ### Open cited documents in the side panel
 
@@ -211,7 +202,7 @@ document opens at its URL in a new tab, with a toast.
 | Property | Type | Description |
 |----------|------|-------------|
 | `threadsModel` | `ChatThreadsModel` | The threads to show. Required. |
-| `persistWith` | `PersistOptions` | Persists the panel widths, the sidebar's collapsed state and the selected thread. The workspace adds `.sidebar`, `.sidePanel` and `.selectedThreadId` to `path`, which defaults to 'chatWorkspace'. |
+| `persistWith` | `PersistOptions` | Persists the panel widths and the sidebar's collapsed state. The workspace adds `.sidebar` and `.sidePanel` to `path`, which defaults to 'chatWorkspace'. |
 | `sidePanelOpen` | `boolean` | True to open the side panel at the start, for the app's own content. Default false. |
 | `documentRenderer` | `(request, panel) => ReactNode` | The app's document viewer. With it, a cited document opens in the side panel. |
 
@@ -224,8 +215,8 @@ document opens at its URL in a new tab, with a toast.
 | `sidePanel` | `ChatSidePanelModel` | The side panel's open request. Components in the conversation find it in model context. |
 | `width` | `number` | Measured width, or null before render. |
 | `sidebarMode` | `'open' \| 'rail' \| 'hidden'` | How the sidebar shows. |
-| `sidebarWidth` | `number` | Width of the open sidebar, or null when it is not open. |
-| `sidePanelWidth` | `number` | Width of the side panel, or null when it does not show. 60% of the shared width for a table or chart. |
+| `sidebarWidth` | `number` | Width of the open sidebar, or null when it is not open. Its saved width, cut for the conversation. |
+| `sidePanelWidth` | `number` | Width of the side panel, or null when it does not show. Its saved width, cut for the conversation. |
 | `isSidePanelOpen` | `boolean` | True if the app wants the side panel open. Bindable. |
 | `isSidePanelShown` | `boolean` | True if the side panel shows: a request or the app's content, with room. |
 | `isCompact` | `boolean` | True at 380 px or less. |

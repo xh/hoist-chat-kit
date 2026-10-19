@@ -104,12 +104,15 @@ export const chatToolApproval = hoistCmp.factory<ChatToolApprovalProps>({
     }
 });
 
-// Move focus from a button that is about to go to the reply that holds it - unless focus is
-// somewhere else of the user's choosing.
-function focusReplyOf(button: HTMLElement) {
-    const reply = button.closest<HTMLElement>('.xh-chat-message'),
+/**
+ * Move focus from an element that is about to go to the reply that holds it - unless focus is
+ * somewhere else of the user's choosing.
+ * @internal
+ */
+export function focusReplyOf(el: HTMLElement) {
+    const reply = el.closest<HTMLElement>('.xh-chat-message'),
         active = document.activeElement;
-    if (!reply || (active && active !== document.body && !button.contains(active))) return;
+    if (!reply || (active && active !== document.body && !el.contains(active))) return;
     reply.focus();
 }
 

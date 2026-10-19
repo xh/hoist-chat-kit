@@ -12,13 +12,12 @@ import {
 } from '../../../core';
 import {ScriptedChatTransport} from '../../../transport';
 import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
-import {isFaviconAllowed} from './impl/ChatSourceLinks';
 
 /**
  * The sources under a reply and the citation markers in its text (P3). Users rely on numbers that
- * match the markers and never renumber, on documents and web pages that look and act apart, on a
- * card that opens on hover or focus and closes with Esc, and on a document opening beside the
- * chat. Apps rely on favicons loading only as the image policy permits.
+ * match the markers and never renumber, on one row style for documents and web pages, on a card
+ * that opens on hover or focus and closes with Esc, and on a document opening beside the chat.
+ * Apps rely on a source list that loads no image.
  */
 describe('sources and citations', () => {
     beforeAll(() => initTestAppAsync());
@@ -66,7 +65,7 @@ describe('sources and citations', () => {
         };
 
     describe('the sources list', () => {
-        it('lists sources in marker order, never renumbered, and counts the uncited ones', () => {
+        it('lists cited sources in marker order, never renumbered, and leaves out the rest', () => {
             const {container} = renderReply('See [4] and [2].', [
                 {...DOC1, marker: 4},
                 {...DOC2, marker: 2},
@@ -74,31 +73,33 @@ describe('sources and citations', () => {
             ]);
 
             expect(numbers(container)).toEqual(['2', '4']);
-            expect(container.querySelector('.xh-chat-sources__also').textContent).toBe(
-                'Also searched 1 web page with no matching passage'
-            );
+            expect(container.textContent).not.toContain(WEB3.title);
         });
 
-        it('styles document rows and web rows apart, showing only the metadata given', () => {
+        it('gives documents and web pages one row style, showing only the metadata given', () => {
             const {container} = renderReply('Caps [1] [2] [3].', [DOC1, DOC2, WEB3]),
                 [doc1, doc2, web] = Array.from(
                     container.querySelectorAll('.xh-chat-sources__item')
                 );
 
-            expect(doc1.classList).toContain('xh-chat-sources__item--document');
             expect(doc1.querySelector('.xh-chat-sources__meta').textContent).toBe(
                 'Credit Guidelines v4.pdf · p. 41'
             );
             expect(doc2.querySelector('.xh-chat-sources__meta').textContent).toBe(
                 'Reserves Policy.pdf'
             );
+            expect(web.querySelector('.xh-chat-sources__meta').textContent).toBe('news.example');
+            expect(web.querySelector('.xh-chat-sources__icon .fa-globe')).toBeTruthy();
+        });
 
-            expect(web.classList).toContain('xh-chat-sources__item--url');
-            const link = web.querySelector('a.xh-chat-sources__title');
-            expect(link.getAttribute('href')).toBe(WEB3.url);
-            expect(link.getAttribute('target')).toBe('_blank');
-            expect(link.getAttribute('rel')).toContain('noopener');
-            expect(web.querySelector('.xh-chat-sources__ext').textContent).toBe('news.example');
+        it('opens a web row in a new tab, and loads no image for it', () => {
+            const {container} = renderReply('See [3].', [
+                {...WEB3, metadata: {favicon: 'https://icons.example/n.png'}}
+            ]);
+
+            fireEvent.click(screen.getByRole('button', {name: WEB3.title}));
+            expect(open).toHaveBeenCalledExactlyOnceWith(WEB3.url, '_blank', 'noopener,noreferrer');
+            expect(container.querySelector('.xh-chat-sources img')).toBeNull();
         });
 
         it('shows three rows, then the rest behind Show N More', () => {
@@ -142,39 +143,6 @@ describe('sources and citations', () => {
             expect(sidePanel.request).toMatchObject({citation: 1, messageId: 'a1', page: 41});
             expect(container.querySelector('.xh-chat-sources__row--active')).toBeTruthy();
             expect(marker(1).getAttribute('aria-pressed')).toBe('true');
-        });
-    });
-
-    describe('favicons', () => {
-        it('always shows a data: image, and an image URL only as the image policy permits', () => {
-            const data = 'data:image/png;base64,AAAA',
-                url = 'https://icons.example/n.png';
-
-            expect(isFaviconAllowed(data, false)).toBe(true);
-            expect(isFaviconAllowed('data:text/html,hi', true)).toBe(false);
-            expect(isFaviconAllowed(url, false)).toBe(false);
-            expect(
-                isFaviconAllowed(url, src => new URL(src).origin === 'https://icons.example')
-            ).toBe(true);
-            expect(isFaviconAllowed('javascript:alert(1)', true)).toBe(false);
-        });
-
-        it('shows a letter tile for a favicon the policy blocks', () => {
-            const {container} = renderReply('See [3].', [
-                {...WEB3, metadata: {favicon: 'https://icons.example/n.png'}}
-            ]);
-
-            expect(container.querySelector('.xh-chat-sources img')).toBeNull();
-            expect(container.querySelector('.xh-chat-favicon--letter').textContent).toBe('N');
-        });
-
-        it('shows a favicon the policy allows', () => {
-            const {container} = renderReply(
-                'See [3].',
-                [{...WEB3, metadata: {favicon: 'https://icons.example/n.png'}}],
-                {allowImages: true}
-            );
-            expect(container.querySelector('.xh-chat-sources img.xh-chat-favicon')).toBeTruthy();
         });
     });
 
@@ -238,19 +206,12 @@ describe('sources and citations', () => {
             expect(screen.getByRole('group', {name: 'Source 2'})).toBeTruthy();
         });
 
-        it("pins a web page's card on click, and opens the page from the card or on Ctrl-click", () => {
+        it("opens a web page's marker in a new tab, as its row does", () => {
             renderReply('See [3].', [WEB3]);
 
             fireEvent.click(marker(3));
-            fireEvent.mouseLeave(marker(3).parentElement);
-            expect(screen.getByRole('group', {name: 'Source 3'})).toBeTruthy();
-            expect(open).not.toHaveBeenCalled();
-
-            fireEvent.click(screen.getByRole('button', {name: 'Open Link'}));
-            expect(open).toHaveBeenCalledWith(WEB3.url, '_blank', 'noopener,noreferrer');
-
-            fireEvent.click(marker(3), {ctrlKey: true});
-            expect(open).toHaveBeenCalledTimes(2);
+            expect(open).toHaveBeenCalledExactlyOnceWith(WEB3.url, '_blank', 'noopener,noreferrer');
+            expect(screen.queryByRole('group', {name: 'Source 3'})).toBeNull();
         });
 
         it("opens a document's marker in the side panel, and shows it active", () => {
@@ -281,13 +242,22 @@ describe('sources and citations', () => {
 
         it('collapses four or more sources into one marker whose card lists them all', () => {
             const sources = [1, 2, 3, 4, 5].map(n => doc(n));
-            renderReply('All agree [2–5].', sources);
+            renderReply('All agree [2, 3, 4, 5].', sources);
             const group = screen.getByRole('button', {name: 'Sources 2 to 5'});
+            expect(group.textContent).toBe('2–5');
 
             fireEvent.click(group);
             const card = screen.getByRole('group', {name: 'Sources 2 to 5'});
             expect(card.textContent).toContain('Doc 2');
             expect(card.textContent).toContain('Doc 5');
+        });
+
+        it('labels a group with its count when the numbers are not consecutive', () => {
+            const sources = [1, 2, 3, 4, 5].map(n => doc(n));
+            renderReply('All agree [1, 2, 4, 5].', sources);
+
+            const group = screen.getByRole('button', {name: 'Sources 1, 2, 4, 5'});
+            expect(group.textContent).toBe('4 sources');
         });
     });
 });

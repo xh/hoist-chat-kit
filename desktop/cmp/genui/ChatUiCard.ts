@@ -164,7 +164,7 @@ export interface ChatUiCardProps extends HoistProps, Partial<ChatUiCardSpecProps
  * to one line. Its tooltip always shows what the click does, as D17 requires. Actions that send a
  * message or run a tool are disabled while the chat is busy, and hidden with no `ChatModel`.
  *
- * TODO(P7): an Apply card - a previewed change with Apply, Cancel and Undo - is the component
+ * TODO(P7): an Apply card - a previewed change with Apply and Cancel - is the component
  * helper's, and lands with it.
  */
 export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({

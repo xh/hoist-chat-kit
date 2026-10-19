@@ -17,7 +17,6 @@ import {
     type ChatTimelineCallItem,
     formatStepDuration,
     getTimelineState,
-    parsePlan,
     summarizeInput,
     summarizeTimeline
 } from './ChatTimelineItems';
@@ -41,6 +40,25 @@ describe('ChatTimelineItems', () => {
             'a2',
             'a3'
         ]);
+    });
+
+    it('never batches a call that waits for the user, which splits the run around it', () => {
+        const ask = (id: string, state: ChatToolCallState = 'output-available') =>
+                call(id, 'ask', {state}),
+            items = buildTimelineItems(
+                [
+                    ask('a1'),
+                    ask('a2'),
+                    ask('a3'),
+                    ask('a4', 'input-available'),
+                    ask('a5'),
+                    ask('a6'),
+                    ask('a7')
+                ],
+                host([{name: 'ask', interactive: true, renderer: () => null}])
+            );
+        expect(items.map(it => it.type)).toEqual(['batch', 'call', 'batch']);
+        expect(items[1].id).toBe('a4');
     });
 
     it('never batches across narration, nor two calls alone', () => {
@@ -122,29 +140,6 @@ describe('ChatTimelineItems', () => {
         expect(done.narration).toBe('Two desks are over.');
     });
 
-    it('reads a plan from common shapes, and leaves other values to render as they are', () => {
-        const todos = parsePlan(
-                call('p1', 'todo', {
-                    input: {
-                        todos: [
-                            {content: 'Load limits', status: 'completed'},
-                            {content: 'Compare', status: 'in_progress'},
-                            {content: 'Save', status: 'cancelled'}
-                        ]
-                    }
-                }),
-                () => null
-            ),
-            other = parsePlan(call('p2', 'todo', {input: {x: 1}}), () => null);
-
-        expect(todos.items).toEqual([
-            {title: 'Load limits', status: 'done'},
-            {title: 'Compare', status: 'active'},
-            {title: 'Save', status: 'skipped'}
-        ]);
-        expect(other.items).toBeNull();
-    });
-
     it('summarizes input on one line, from the tool or the first text value', () => {
         const sql = call('c1', 'run_sql', {
             input: {sql: 'SELECT desk,   gross_limit\n  FROM limits'}
@@ -206,7 +201,7 @@ function host(tools: ChatToolSpec[] = []): ChatModel {
 
 function summarize(parts: ChatPart[], tools: ChatToolSpec[] = []) {
     const h = host(tools);
-    return summarizeTimeline(buildTimelineItems(parts, h), [], h);
+    return summarizeTimeline(buildTimelineItems(parts, h), h);
 }
 
 function state(

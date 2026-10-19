@@ -8,9 +8,9 @@ names in `DECISIONS.md`.
 
 | Repo and branch | State |
 |---|---|
-| `hoist-chat-kit` `develop` | Plan 2 (#7), the layered API and the design UI (#8) merged, then pared back: no component helper (D80), no `ChatService` (D81). The AG-UI 1.0 effort's three deliverables squash-merged and pushed on 2026-10-17. |
+| `hoist-chat-kit` `develop` | Plan 2 (#7), the layered API and the design UI (#8) merged, then pared back: no component helper (D80), no `ChatService` (D81). The AG-UI 1.0 effort's three deliverables squash-merged and pushed on 2026-10-17. Review 7 (D89 to D92) squash-merged on 2026-10-19. |
 | `hoist-chat-kit` `archive/helpers` | The removed helper code and its plan, `planning/HELPERS.md`. Not for merge. |
-| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-worktrees/feature-chat-kit-guide-ui`, on the local kit. Guideline Assistant tab and the Chat Kit demos, with the Agent Questions demo. Its last two commits, a Hoist snapshot bump and that demo, are not yet pushed. |
+| `toolbox` `feature/chat-kit-guide-ui` | Worktree `../toolbox-worktrees/feature-chat-kit-guide-ui`, on the local kit. Weather V2, the Chat Kit app with its demos, and the Guideline Assistant. Weather V2's merge work (inline answers, the LLM role gate and limits) goes to a PR to Toolbox `develop`. |
 | `toolbox` `feature/weatherv2-chat-kit` | On the published kit. Pushed. |
 | `toolbox` `archive/chat-kit-grid-helper` | The removed Grid Helper tab. Not for merge. |
 | `hoist-chat-kit` `spike/ag-ui-client` | Local only, with no worktree. The AG-UI spike behind D84, cited in `planning/AG-UI.md`. Not for merge. |
@@ -19,22 +19,38 @@ names in `DECISIONS.md`.
 
 - `ChatMessageListHost` is gone. The list and view take a read-only `ChatTranscript` or a `ChatModel`, and `isChatModel()` gates every action.
 - `ChatComposerHost` is trimmed to `isBusy`, `sendAsync`, `messages` and `sendBlockedReason`. Stop, drafts per thread and the status region need a `ChatModel`.
-- `ChatThreadListHost` and `ChatSidePanelHost` stay as they were. `createChatRunRequest()` and `ChatStreamReducer` stay.
+- `ChatSidePanelHost` stays. `ChatThreadListHost` goes in favor of D89's seam between the threads model and the chat. `createChatRunRequest()` and `ChatStreamReducer` stay.
 - Next structural task: split `ChatModel` into managed sub-models (feedback, undo, run lifecycle, thread binding), bound with `uses()`. It waits until the first integration ships.
 
 ## Next
 
-1. The first app integration starts on the published snapshot: a guideline assistant with
-   server-owned threads, document scope, `[n]` citations, a source viewer, and feedback with a
-   comment required on a thumbs down.
+1. The first app integration starts now, on the snapshot published from `develop` with review 7:
+   a guideline assistant with server-owned threads, document scope, `[n]` citations, a source
+   viewer, and feedback with a comment required on a thumbs down. Toolbox's Guideline Assistant is
+   the recipe: `clearable: false`, `maxCommentLength: 2000`, no edit or regenerate, and a
+   `textTransform` that strips leaked tags.
 2. Known kit gaps: no source line on help answers, no transport reconnect after a reload, no Continue
    after a reply is cut at its length limit.
 
 ## Next session: start here
 
-The review of the kit's three layers - the engine, the chat UI and the generative UI - resumes
-with Anselm. The engine work is done for now. Anselm settles whether any engine work remains, then
-the review moves to the chat UI layer. See [Open review threads](#open-review-threads-with-anselm).
+Review 7 is merged (D89 to D92): the chat UI layer's cuts, trims and showcase calls, reviewed on
+every round and checked in a browser through Toolbox. The first real integration builds on it.
+Start there, and record what it teaches as decisions.
+
+Still open from review 7:
+
+- Weather V2 proposals still to walk: preview before apply, and approval for bulk removes.
+  Weather V2 already shows inline answers with the genui built-ins, card follow-ups as plain
+  prompts, the timeline, approval and feedback.
+- Slim the CSS variables once the first integration sets its theme. Keep every color, type and
+  spacing token.
+- Check every component in a 380 px panel. Known: below 788 px the side panel hides, but a cited
+  document's source row still offers "open in viewer".
+- D89's seams: the threads model with a chat of the app's own, and the workspace slot for the
+  app's conversation view. Build them when an app needs them.
+- Then the generative UI layer review. See
+  [Open review threads](#open-review-threads-with-anselm).
 
 ## AG-UI 1.0 effort: done (2026-10-17)
 
@@ -72,8 +88,8 @@ Engine work still on the table, for Anselm to decide on:
   during a run, and a size cap.
 - **Item 7** - activity patches, history snapshots and a status line from `STEP_*`. Wait for a
   consumer.
-- **Curated libraries** - whether `@ag-ui/client`'s `parseSSEStream` should replace the kit's
-  own SSE parser.
+- **Curated libraries** - settled for the SSE parser: keep ours (review 7). The kit took the
+  official parser's 10 MB cap on one event.
 
 The official client's checks warn through the console, not Hoist's logging (D84). Toolbox's Agent
 Questions demo shows each interrupt shape. The spike behind D84 is on the local branch
@@ -144,6 +160,9 @@ topics to discuss with Anselm, not work to start.
 - The local kit is the main checkout, so Toolbox shows whichever kit branch is checked out.
 
 ## Running Toolbox
+
+- With Toolbox linked to a local kit, plain `vitest` loads a second `@xh/hoist` from the kit's
+  `node_modules`. A config with `resolve.dedupe` for `@xh/hoist`, `react` and `mobx` fixes it.
 
 - Start a throwaway server on :8080, with an H2 database and the agent login, by the `bootRun`
   command in Toolbox's `docs/running-locally.md` ("Agent-driven sessions"). Start the client with

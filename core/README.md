@@ -5,7 +5,7 @@
 | [Overview](#overview) | What the core models do, and the key features |
 | [Architecture](#architecture) | `ChatModel`, `ChatMessage`, parts, tools, and the turn loop |
 | [Configuration Pattern](#configuration-pattern) | Creating a `ChatModel` with a transport, tools, and a composer |
-| [Common Usage Patterns](#common-usage-patterns) | Sending, tools, approvals, an agent's questions, live context, undo, server-owned conversations, feedback, persistence, errors |
+| [Common Usage Patterns](#common-usage-patterns) | Sending, tools, approvals, an agent's questions, live context, server-owned conversations, feedback, persistence, errors |
 | [Properties/API Reference](#propertiesapi-reference) | Config, state, methods, statuses, parts, and metadata |
 | [Extension Points](#extension-points) | Tools, data renderers, transports, the stream reducer, and app metadata |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -30,8 +30,7 @@ Key features:
   chat runs it in the browser, sends the result back, and continues, up to `maxSteps`.
 - **Human in the loop** - tool calls can wait for the user to approve them, or for the user to
   answer them. The turn pauses and resumes when the user responds.
-- **Live context and undo** - context providers describe the app's state to the model at every
-  step, and tools return undo functions, so the user can undo a reply's changes.
+- **Live context** - context providers describe the app's state to the model at every step.
 - **Two conversation shapes** - the browser owns the history, or an agent service owns it and
   the chat sends only each new message. See [Run a server-owned
   conversation](#run-a-server-owned-conversation).
@@ -55,7 +54,6 @@ ChatModel (HoistModel)
 ├── historyMode: ChatHistoryMode      # 'client' | 'server' - who owns the history
 ├── runOptions: PlainObject           # Options for the next turn (bindable)
 ├── allowEdit, allowRegenerate        # Show Edit and Regenerate (bindable)
-├── hasOlderMessages: boolean         # More history to page in (bindable)
 ├── Computed:
 │   ├── isBusy                        # True while a turn runs - false while paused
 │   ├── isAwaitingUser                # True while a turn waits on the user
@@ -74,7 +72,6 @@ ChatModel (HoistModel)
     ├── addToolOutputAsync()          # Answer a call to an interactive tool
     ├── submitFeedbackAsync()         # Rate a reply, or clear its rating
     ├── loadMessages() / clear()      # Replace the conversation, as a new thread
-    ├── prependMessages()             # Add a page of older history
     └── getMessageSpecs()             # The conversation as JSON, for storage
 
 ChatMessage (immutable)
@@ -429,37 +426,39 @@ new ChatModel({
     transport,
     feedback: {
         submitAsync: spec => XH.postJson({url: 'chat/feedback', body: spec}),
-        commentOn: 'negative',
         requireComment: true,
-        reasons: ['Wrong data', 'Incomplete', 'Not helpful'],
-        clearable: false
+        clearable: false,
+        maxCommentLength: 2000
     }
 });
 
-await chatModel.submitFeedbackAsync(message.id, 'negative', 'The rate is out of date.', [
-    'Wrong data'
-]);
+await chatModel.submitFeedbackAsync(message.id, 'negative', 'The rate is out of date.');
 await chatModel.submitFeedbackAsync(message.id, null);  // Clear the rating
 ```
 
 The submitter gets a `ChatFeedbackSpec`: the `threadId`, the kit `messageId`, the `serverId` and
-`runId` from the message's metadata, the `rating`, the `comment` and the `reasons`. With no
+`runId` from the message's metadata, the `rating` and the `comment`. With no
 `submitAsync`, the chat uses the submitter that a thread layer passes to `setFeedbackSubmitter()`.
 `canSubmitFeedback` is false when there is neither, and `submitFeedbackAsync()` then throws.
 
 | `ChatFeedbackConfig` | Default | Description |
 |---|---|---|
 | `submitAsync` | The thread layer's | Sends a `ChatFeedbackSpec` to the backend. |
-| `commentOn` | `'negative'` | Ratings that open the comment form at once. Other ratings offer "Add a comment" after they save, unless this is `'none'`. |
-| `requireComment` | false | True if a rating in `commentOn` saves only with a non-blank comment. Reasons never count as one. |
-| `reasons` | none | Toggles above the comment on a negative rating. Optional for the user. |
+| `allowComment` | true | True if the user can comment on a rating. A thumbs down opens the comment form at once. A thumbs up offers "Add a comment" after it saves. |
+| `requireComment` | false | True if a thumbs down saves only with a non-blank comment. Applies only with `allowComment`. |
 | `clearable` | true | True if a click on the chosen thumb clears the rating. Set false for a backend that cannot remove a rating. |
 | `maxCommentLength` | 1,000 | Most characters the comment takes. A counter shows from 90%. |
 
-With `requireComment`, `submitFeedbackAsync()` throws for a rating in `commentOn` that has no
-comment. With `clearable` false, it throws for a null rating. A backend that rejects a down vote
+With `requireComment`, `submitFeedbackAsync()` throws for a thumbs down with no comment. With
+`clearable` false, it throws for a null rating. A backend that rejects a down vote
 without a comment suits `{requireComment: true}`. See
 [Collect feedback](../desktop/cmp/chat/README.md#collect-feedback) for the form.
+
+`feedbackDrafts` holds the comment typed in an open form, by message id, until it is sent. The form
+writes it with `setFeedbackDraft()`, with `isSending` and the last `error`. A half-typed comment and
+a send in progress then survive a redraw of the message list. A draft goes when its comment is sent,
+when its message goes, and when the chat clears or loads a thread. `ChatThreadsModel` keeps the
+unsent drafts of a thread the user leaves, and gives them back when the thread loads again.
 
 ### Clean up model text
 
@@ -483,20 +482,6 @@ Hoist activity tracking. Each turn tracks once, in category `Chat` by default, a
 complete`, `Turn failed` or `Turn stopped`. Its data holds `elapsedMs`, `steps`, `toolCalls`,
 `toolErrors`, `finishReason`, `errorCode`, `threadId`, `runId` and `historyMode`. It never holds
 message text. A submitted rating tracks as `Feedback submitted`, without its comment.
-
-### Page in older history
-
-A thread layer that loads history a page at a time calls `prependMessages()` with each older
-page, and sets `hasOlderMessages` to show whether more remain. The chat skips messages already
-present, by id.
-
-```typescript
-const page = await store.loadMessagesAsync({threadId, cursor});
-chatModel.prependMessages(page.messages);
-chatModel.hasOlderMessages = !!page.nextCursor;
-```
-
-`ChatThreadsModel` does this for you. See [`/threads/`](../threads/README.md).
 
 ### Ask for approval before a tool runs
 
@@ -562,36 +547,11 @@ format: an AG-UI `context` entry, or tagged text after the history. See
 Context leaves the browser on every step and counts toward the token budget. Describe structure,
 such as columns, sorts and widgets, rather than row values, unless the app chooses to send data.
 
-### Undo a reply's changes
+### Return result sets from a tool
 
-A client tool that changes the app can return its result with an undo function:
-
-```typescript
-execute: ({colIds}) => {
-    const prior = gridModel.columnState;
-    colIds.forEach(it => gridModel.hideColumn(it));
-    return chatToolResult(`Hid ${colIds.length} columns.`, {
-        undo: () => gridModel.setColumnState(prior)
-    });
-}
-```
-
-The model gets the plain result. The chat keeps the undo functions of each reply in memory.
-`undoTurnAsync(messageId)` runs them, newest first, and marks the reply `metadata.undone`. The
-desktop message view shows an Undo action while `canUndoTurn(messageId)` is true.
-
-Only the latest reply with undo functions can be undone, and only while no turn runs or waits for
-the user. An undo usually restores a snapshot, so undoing an older reply would also revert the
-replies after it. Once the user undoes the latest one, the reply before it can be undone. A reply
-that a retry, regenerate, edit, clear or load discards takes its undo functions with it. Undo
-functions are not stored, so a reply loaded from history cannot be undone.
-
-If an undo function throws, the undo stops, and `undoErrors` records the error, with no toast. The
-changes not yet undone stay, so the user can try again. The desktop message view shows the
-failure under the reply, with Retry. With `track` on, an undo tracks as `Turn undone`.
-
-`chatToolResult()` also takes `artifacts`, the result sets a tool produced for generative UI
-components to show by reference. See
+A client tool can wrap its result with `chatToolResult()`, to pass the chat options with it. Its
+`artifacts` option holds the result sets the tool produced, for generative UI components to show
+by reference. The model gets the plain result. See
 [Show data by reference](../genui/README.md#show-data-by-reference).
 
 ### Let the user answer a tool call
@@ -756,7 +716,7 @@ this.addReaction({
 | `ChatRunError` with code `empty-response` | The run finished with nothing in the reply |
 | `ChatRunError` with code `stalled` | The server sent nothing for longer than the transport's `idleTimeout` |
 | `ChatRunError` with code `unsupported-interrupt` | The run ended with interrupts, on a transport that cannot answer them |
-| `ChatRunError` with code `invalid-stream` | An AG-UI stream broke the spec's rules, for example it did not open with `RUN_STARTED`. Hoist reports it too, as a backend bug. |
+| `ChatRunError` with code `invalid-stream` | An AG-UI stream broke the spec's rules, for example it did not open with `RUN_STARTED`, or an SSE stream sent an event longer than 10 MB. Hoist reports it too, as a backend bug. |
 | `ChatRunError` with code `invalid-request` | An AG-UI request failed the spec's check before it went, for example a `context` value that is not a string |
 | `ChatRunError` with a null code | The run reported an error with no code |
 | `ChatRunError` with `retryAfterSeconds` | The run asked for a wait before a retry, through `metadata.retryAfterSeconds` on `RUN_ERROR` |
@@ -944,15 +904,23 @@ draft in memory.
 - Attachments stay in memory only.
 
 Set `composer: {drafts: 'memory'}` for a short-lived chat, such as a component helper. The
-composer then keeps each thread's draft in memory, and saves nothing. Hoist has no logout hook,
-so call `ChatKit.clearLocalData()` from your logout, before `XH.logoutAsync()`. It removes every
-key the kit wrote. Pass thread ids to remove the drafts of those threads only.
+composer then keeps each thread's draft in memory, and saves nothing.
+
+### Clear the kit's local data
+
+`ChatKit.clearLocalData()` removes all of the kit's local data for the current user, such as
+every composer draft. `ChatKit.clearLocalData(threadIds)` removes the drafts of those threads
+only. `XH.localStorageService` keys each draft by app and user, so another user never sees it.
+An app therefore need not call this on logout.
+
+Call it when the app itself should forget drafts:
+
+- A "Forget my drafts" action in the app's settings.
+- Threads the app deletes outside `ChatThreadsModel`, which clears the drafts of its own deletes.
 
 ```typescript
-async logoutAsync() {
-    ChatKit.clearLocalData();
-    await XH.logoutAsync();
-}
+// The app deleted these threads through its own service.
+ChatKit.clearLocalData(deletedThreadIds);
 ```
 
 ### Announce to screen readers
@@ -1004,8 +972,7 @@ See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatCom
 | `allowEdit` | `boolean` | Initial value of `allowEdit`. Default true. |
 | `allowRegenerate` | `boolean` | Initial value of `allowRegenerate`. Default true. |
 | `textTransform` | `(text, context) => string` | Rewrites reply text before it is stored. `context` holds the `message` and `isStreaming`. |
-| `feedback` | `ChatFeedbackConfig` | `submitAsync`, `commentOn`, `requireComment`, `reasons`, `clearable` and `maxCommentLength`. See [Rate a reply](#rate-a-reply). |
-| `dataRefreshedAt` | `() => number` | Returns the epoch millis of the app's last data refresh, or null. Read as a computed value. A reply that finished before it shows that the data changed. Default none. |
+| `feedback` | `ChatFeedbackConfig` | `submitAsync`, `allowComment`, `requireComment`, `clearable` and `maxCommentLength`. See [Rate a reply](#rate-a-reply). |
 | `stallAfterMs` | `number` | Milliseconds with no data from the server, heartbeats included, before a reply shows as stalled. Default `ChatKit.defaults.stallAfterMs`. |
 | `track` | `boolean \| ChatTrackOptions` | True, or `{category, severity, logData}`, to track each finished turn. Default false. |
 | `composer` | `ChatComposerConfig` | Config for the managed `composerModel`, without `host`. The chat is the host. |
@@ -1030,14 +997,12 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `runOptions` | `PlainObject` | Options for the next turn. `@bindableRef` - replace the value to change it. |
 | `allowEdit` | `boolean` | True to show Edit, Edit Prompt and Edit Question. While false, `editMessageAsync()` does nothing. `@bindable`. |
 | `allowRegenerate` | `boolean` | True to show Regenerate. While false, `regenerateAsync()` does nothing. `@bindable`. |
-| `hasOlderMessages` | `boolean` | True if older history remains to page in. `@bindable`. Default false. |
 | `canSubmitFeedback` | `boolean` | True if `feedback.submitAsync` or a thread layer submitter is set. |
 | `feedbackErrors` | `Record<string, Error>` | Why the last feedback on a message failed to save, by message id, for the form to show. Cleared on the next submit. Observable. |
-| `undoErrors` | `Record<string, Error>` | Why the last undo of a reply failed, by message id. Cleared on the next try. Observable. |
+| `feedbackDrafts` | `Record<string, ChatFeedbackDraft>` | Comments typed in feedback forms and not yet sent, by message id, with their send state and last error. Observable. |
 | `canRefreshStatus` | `boolean` | True once a refresher is set with `setStatusRefresher()`. |
-| `dataRefreshedAt` | `number` | The app's last data refresh, from the config, or null. |
 | `isBusy` | `boolean` | True for `submitted` or `streaming`. False while a turn is paused. |
-| `sendBlockedReason` | `string` | Why sending must wait - while an undo runs, or from the `sendBlocker` or an added blocker - or null. |
+| `sendBlockedReason` | `string` | Why sending must wait, from the `sendBlocker` or an added blocker, or null. |
 | `isEmpty` | `boolean` | True if there are no messages. |
 | `lastMessage` | `ChatMessage` | The newest message, or null. |
 | `waitingToolCalls` | `ChatToolCallPart[]` | Calls the paused turn waits on. Empty unless paused. |
@@ -1045,7 +1010,6 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `pendingInterrupts` | `ChatInterrupt[]` | The interrupts the paused reply waits on, answered or not, until the user submits them. Empty unless paused on them. |
 | `openInterrupts` | `ChatInterrupt[]` | The pending interrupts with no response and not expired. |
 | `pendingApprovals` | `ChatToolCallPart[]` | The calls in `waitingToolCalls` that wait for approval. |
-| `undoableMessageId` | `string` | The reply whose changes the user can undo now, or null. |
 | `composerModel` | `ChatComposerModel` | Draft of the next message. |
 | `artifacts` | `ChatArtifactRegistry` | Result sets that generative UI components show by reference. Fed by each reply and by loaded history. `clear()` and `loadMessages()` empty it. |
 | `transport`, `tools`, `catalog`, `maxSteps`, `historyMode`, `feedback`, `stallAfterMs`, `dataRenderers` | - | The config values, read-only. `tools` includes the catalog's tools, and `feedback` has its defaults applied. |
@@ -1066,17 +1030,14 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `declineInterrupt(interruptId)` | Decline a pending interrupt, which abandons it. |
 | `submitInterruptsAsync()` | Send the responses and resume the run, once every pending interrupt has one or has expired, and no client call waits. |
 | `addToolOutputAsync(toolCallId, output)` | Give the result of a call to an interactive tool. |
-| `canUndoTurn(messageId)` | True if the user can undo the reply's changes now. Reads observable state. |
-| `undoTurnAsync(messageId)` | Run the reply's undo functions, newest first, and mark it `metadata.undone`. A failure stops the undo and goes in `undoErrors`. |
 | `clear()` | Remove all messages and start a new thread. |
 | `loadMessages(specs, threadId?)` | Replace the conversation. Default a new thread id. |
-| `prependMessages(specs)` | Add older messages ahead of the conversation, skipping ids already present. |
-| `submitFeedbackAsync(messageId, rating, comment?, reasons?)` | Rate a reply, or clear its rating with null. Shows at once. If the submit fails, it reverts and records the error in `feedbackErrors`, with no toast. |
+| `submitFeedbackAsync(messageId, rating, comment?)` | Rate a reply, or clear its rating with null. Shows at once. If the submit fails, it reverts and records the error in `feedbackErrors`, with no toast. |
+| `setFeedbackDraft(messageId, draft)` | Keep the comment typed in a message's feedback form, or remove it with null. For the feedback form. |
 | `setStatusRefresher(refreshAsync)` | Set the function that reloads the thread, for Refresh Status. For a thread layer. |
 | `refreshStatusAsync()` | Reload the thread to learn how a run ended. Does nothing without a refresher. |
 | `setFeedbackSubmitter(submitAsync)` | Set the submitter to use when `feedback.submitAsync` is not configured. For a thread layer. |
 | `addSendBlocker(blocker)` | Add a reason for sends to wait, checked after the `sendBlocker`. For a thread layer. |
-| `setThreadCreator(createAsync)` | Set a function that creates a new thread on the backend. The chat awaits it before the first request of a new thread, and adopts the id it returns. For a thread layer. |
 | `getMessageSpecs()` | The conversation as `ChatMessageSpec[]`, for storage. |
 | `getMessage(id)` | A message by id, as it is now, or null. |
 | `getToolSpec(name)` | The spec for a tool, or null. |
@@ -1127,8 +1088,7 @@ The kit records these keys in the `metadata` of an assistant message:
 | `runId` | Id of the latest run, from `RUN_STARTED`. |
 | `serverId` | The server's id for the message, from `xh.chat.message` or `RUN_FINISHED`. Also set on a user message. |
 | `detached` | True on a reply left running on the server by `detach()`, `clear()` or `loadMessages()`, in server mode. |
-| `undone` | True on a reply whose changes the user undid with `undoTurnAsync()`. |
-| `feedback` | The user's rating, as `{rating, comment?, reasons?}`. History usually restores the rating alone. |
+| `feedback` | The user's rating, as `{rating, comment?}`. History usually restores the rating alone. |
 | `artifacts` | `ChatArtifact[]` that the reply's tools produced, for generative UI. Restored to `artifacts` with the history. |
 | `catalogVersion` | Version of the chat's catalog, on a reply that shows its UI. |
 
@@ -1153,7 +1113,7 @@ merges its history by id finds its own messages.
 | `reasoning` | `text`, `state`, `startedAt`, `endedAt`, `encryptedValue?`, `providerData?`, `serverId?` | The model's thinking. `encryptedValue` holds a signature that goes back with the history. `serverId` is the server's id for the reasoning message. |
 | `toolCall` | `toolName`, `state`, `inputText`, `input`, `output`, `errorText`, `providerExecuted?`, `startedAt?`, `endedAt?`, `subagentRunId?`, `cancelled?`, `awaitsResume?`, `parentServerId?`, `resultServerId?` | The `id` is the provider's tool call id. `subagentRunId` names the sub-agent that made the call. `cancelled` marks a call that was open when the user stopped the turn. `awaitsResume` marks a server call that an interrupted run left open, which gets its result from the server. `parentServerId` and `resultServerId` are the server's ids for the messages that hold the call and its result. |
 | `file` | `name`, `mediaType`, `size?`, `url?`, `data?` | `data` is base64. |
-| `source` | `sourceType?`, `url?`, `title?`, `snippet?`, `marker?`, `metadata?` | A source the model consulted. `marker` is the number that cites it in the text, as in `[1]`. `sourceType` is `url` or `document`, by default `url` for a source with a `url`. The kit reads `metadata.excerpt`, `fileName`, `page` and `favicon`. |
+| `source` | `sourceType?`, `url?`, `title?`, `snippet?`, `marker?`, `metadata?` | A source the model consulted. `marker` is the number that cites it in the text, as in `[1]`. `sourceType` is `url` or `document`, by default `url` for a source with a `url`. The kit reads `metadata.excerpt`, `fileName` and `page`. |
 | `data` | `dataType`, `data` | App or protocol content, drawn by `dataRenderers`. |
 
 A sub-agent is a data part of type `xh.chat.subagent` (`CHAT_SUBAGENT_DATA_TYPE`), with the
@@ -1193,7 +1153,7 @@ views show it as cancelled, not failed. `isToolCallCancelled(part)` tests for it
 | `name` | `string` | Name the model calls the tool by. Required. |
 | `description` | `string` | What the tool does and when to use it. Sent to the model. |
 | `parameters` | `PlainObject` | JSON Schema for the input object. Sent to the model. Default an empty object schema. |
-| `execute` | `(input, context) => Awaitable<any>` | Runs a client tool. Strings go to the model as is, anything else as JSON. A thrown error becomes an error result. Return `chatToolResult(output, {undo})` to make the change undoable. |
+| `execute` | `(input, context) => Awaitable<any>` | Runs a client tool. Strings go to the model as is, anything else as JSON. A thrown error becomes an error result. Return `chatToolResult(output, {artifacts})` to pass result sets for generative UI. |
 | `interactive` | `boolean` | True for a tool the user answers. Ignored if `execute` is set. Default false. |
 | `needsApproval` | `boolean \| (input) => boolean` | True, or a function, to ask the user before each call runs. Client tools only. Default false. |
 | `approvalPrompt` | `string \| (input) => ReactNode` | The question that asks for approval, in place of the generic one. |
@@ -1207,24 +1167,20 @@ views show it as cancelled, not failed. `isToolCallCancelled(part)` tests for it
 
 #### Tool display
 
-`display` takes one of six values. Each tool sets its own, and a reply can mix them.
+`display` takes one of four values. Each tool sets its own, and a reply can mix them.
 
 | Value | Shows each call as | Use it for |
 |-------|--------------------|------------|
 | `card` | A quiet row with title, summary and status, that opens to the input and output, or to the `renderer` output. Two or more calls of one step fold into one "Used 3 tools" row. | Replies with a few calls. The default. |
-| `inline` | The `renderer` output alone, in the reply. A status shows only while the input streams, while the call waits for approval, or once it fails or is denied. A denied call renders no output. | Tools that show UI, such as the tools of a `ChatUiCatalog`. |
-| `timeline` | A row in the reply's activity timeline, one compact block for the whole run. Text between two timeline calls folds into the block as narration. | Agents that make many calls per reply. See [Activity timeline](../desktop/cmp/chat/README.md#activity-timeline). |
-| `answer` | Part of the answer, with no row: the `renderer` output, or else the output itself, as markdown if it is text. Status shows as for `inline`. | A tool whose result is the answer, such as a final answer tool. |
-| `pinned` | The plan pinned to the top of the reply's timeline, from the latest call only. With no timeline in the reply, a `card`. | A plan or checklist tool. |
+| `inline` | The `renderer` output alone, in the reply. With no `renderer`, the output itself once the call has one, as markdown if it is text. A status shows only while the input streams, while the call waits for approval, or once it fails or is denied. A denied call renders no output. | Tools that show UI, such as the tools of a `ChatUiCatalog`. A tool whose result is the answer. |
+| `timeline` | A row in the reply's activity timeline, one compact block for the whole run. Text between two timeline calls folds into the block as narration. A call that waits for an answer shows as its card under the block's line. | Agents that make many calls per reply. See [Activity timeline](../desktop/cmp/chat/README.md#activity-timeline). |
 | `hidden` | Nothing, unless the call waits for the user to approve or answer it. Hidden calls count in no summary. | Bookkeeping calls the user has no use for. |
 
 A call that a sub-agent makes defaults to `timeline`, where it nests under the sub-agent.
 
-A pinned plan is a list of items, read from the call's output, or else its input. The list is a
-plain array, or the `items`, `steps`, `todos` or `plan` of an object. Each item gives its text as
-`title`, `content`, `text` or `name`, and its `status` as `pending`, `active`, `done` or
-`skipped`. The kit also reads `in_progress`, `completed` and `cancelled`. A value of any other
-shape renders with the tool's `renderer`, or as JSON.
+To show an agent's plan, give a plan tool `display: 'inline'` and a `renderer`, or render an
+AG-UI activity with a data renderer. See
+[Show an agent's plan](../desktop/cmp/chat/README.md#show-an-agents-plan).
 
 The `context` of `execute` is a `ChatToolContext`: `chatModel`, `toolCallId`, and a `signal`
 that aborts when the user stops the turn.
@@ -1336,14 +1292,15 @@ Fields of `ChatKit.defaults`. See `ChatKit.ts`.
 | `reducedMotionSpinner` | `'static' \| 'spin'` | Under reduced motion, `static` swaps the chat's spinners for a static icon, and `spin` keeps Hoist's spinner. Default `static`. |
 | `stallAfterMs` | `number` | Milliseconds with no data from the server before a reply shows as stalled. `ChatModelConfig.stallAfterMs` overrides it. Default 30,000. |
 | `drafts` | `'local' \| 'memory'` | Where the composer keeps its unsent draft text: local storage, per thread, or memory only. Default `local`. See [Keep drafts](#keep-drafts). |
-| `shortcuts` | `ChatShortcuts` | Key combos in the format of Hoist's `useHotkeys`, by action: `newChat`, `toggleDock`, `focusComposer`, `cycleRegions` and `toggleSidebar`. Null drops a shortcut. See [Keyboard](../desktop/cmp/chat/README.md#keyboard). |
+| `shortcuts` | `ChatShortcuts` | Key combos in the format of Hoist's `useHotkeys`, by action: `newChat`, `focusComposer`, `cycleRegions` and `toggleSidebar`. Null drops a shortcut. See [Keyboard](../desktop/cmp/chat/README.md#keyboard). |
+| `markdownTableMaxRows` | `number` | Most body rows a markdown table shows in full, in a reply, its reasoning or a tool's output. A longer table shows that many in a card, with Show All. Default 100. |
 
 The kit reads `drafts` and `shortcuts` from the components that use them. Set `shortcuts` before
 the chat components render.
 
-`ChatKit.clearLocalData()` removes everything the kit keeps in local storage for the current
-user, such as drafts. Call it from your logout. `ChatKit.clearLocalData(threadIds)` removes the
-drafts of those threads only, for example threads the user deleted.
+`ChatKit.clearLocalData()` removes all of the kit's local data for the current user.
+`ChatKit.clearLocalData(threadIds)` removes the drafts of those threads only. See
+[Clear the kit's local data](#clear-the-kits-local-data).
 
 ### chatAnnouncer
 

@@ -1,6 +1,9 @@
 import {act, fireEvent, render, screen, within} from '@testing-library/react';
 import {runInAction} from '@xh/hoist/mobx';
+import {button} from '@xh/hoist/desktop/cmp/button';
+import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
+import {useState} from 'react';
 import {afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     chatAnnouncer,
@@ -21,6 +24,7 @@ import {
 } from '../../../transport';
 import {AGENT_RUN_TOOLS, agentRunScript} from '../../../test/fixtures/agentRunScript';
 import {chatMessageList} from './ChatMessageList';
+import {TIMELINE_MAX_DEPTH} from './impl/ChatTimelineRows';
 
 /**
  * The activity timeline of an agent's reply (P2). Users rely on twenty calls reading as one quiet
@@ -66,13 +70,12 @@ describe('ChatTimeline', () => {
             expect(container.querySelector('.xh-chat-tool-call')).toBeNull();
         });
 
-        it('opens to the pinned plan and a tree of rows: calls, narration, a batch and a sub-agent', async () => {
+        it('opens to a tree of rows: calls, narration, a batch and a sub-agent', async () => {
             const {container} = await runAgent();
             fireEvent.click(lineButton(container));
 
             const block = timeline(container);
             expect(lineButton(container).getAttribute('aria-expanded')).toBe('true');
-            expect(within(block).getByRole('list', {name: 'Plan, 3 of 3'})).toBeTruthy();
 
             const tree = within(block).getByRole('tree'),
                 topRows = Array.from(tree.children);
@@ -155,7 +158,7 @@ describe('ChatTimeline', () => {
             await runAgent({assistantName: 'Analyst'});
 
             const texts = announce.mock.calls.map(it => it[0]);
-            // The plan's calls are not tools, and narration is not the answer.
+            // Narration is not the answer.
             expect(texts).toContainEqual(
                 expect.stringMatching(
                     /^Analyst replied after 7 tools and 1 agent, (.*, )?1 failed\. Two desks are over/
@@ -546,7 +549,7 @@ describe('ChatTimeline', () => {
             expect(chatModel.approveToolCallAsync).toHaveBeenCalledWith('c2', undefined);
         });
 
-        it('offers up to three choices as buttons, and answers with the one chosen', () => {
+        it('shows a call that waits for an answer as its card, open to its renderer', () => {
             const chatModel = createChat(
                 [
                     reply(
@@ -555,33 +558,125 @@ describe('ChatTimeline', () => {
                             call('q1', {
                                 state: 'input-available',
                                 toolName: 'ask',
-                                input: {
-                                    question: 'Which marks should I use?',
-                                    choices: ['Intraday', 'Prior Close', 'Official EOD']
-                                }
+                                input: {question: 'Which marks should I use?'}
                             })
                         ],
                         {status: 'paused'}
                     )
                 ],
-                [{name: 'ask', display: 'timeline', interactive: true}]
+                [
+                    {
+                        name: 'ask',
+                        display: 'timeline',
+                        interactive: true,
+                        displayName: 'Choose marks',
+                        renderer: (part, {chatModel}) =>
+                            button({
+                                text: 'Intraday',
+                                onClick: () => chatModel.addToolOutputAsync(part.id, 'Intraday')
+                            })
+                    }
+                ]
             );
             const {container} = renderChat(chatModel),
-                question = within(timeline(container)).getByRole('group', {name: 'Question'});
+                block = timeline(container);
 
+            expect(lineButton(container).getAttribute('aria-expanded')).toBe('false');
             expect(lineButton(container).textContent).toContain('Waiting for your answer');
-            expect(question.textContent).toContain('Which marks should I use?');
-            expect(
-                within(question)
-                    .getAllByRole('button')
-                    .map(it => it.textContent)
-            ).toEqual(['Intraday', 'Prior Close', 'Official EOD']);
+            expect(block.classList).toContain('xh-chat-timeline--attention');
+            const card = block.querySelector<HTMLElement>('.xh-chat-tool-call');
+            expect(card.textContent).toContain('Choose marks');
 
-            fireEvent.click(within(question).getByRole('button', {name: 'Intraday'}));
+            fireEvent.click(within(card).getByRole('button', {name: 'Intraday'}));
             expect(chatModel.addToolOutputAsync).toHaveBeenCalledWith('q1', 'Intraday');
+
+            // The row in the tree defers to the card, so the renderer mounts once.
+            fireEvent.click(lineButton(container));
+            const row = screen.getAllByRole('treeitem')[1];
+            expect(row.getAttribute('aria-label')).toBe('Choose marks, waiting for your answer');
+            expect(row.getAttribute('aria-expanded')).toBeNull();
+            expect(within(block).getAllByRole('button', {name: 'Intraday'})).toHaveLength(1);
         });
 
-        it('shows an answered question as one row with the answer as a token', () => {
+        it('shows the card of a waiting call that a sub-agent made', () => {
+            const {container} = renderReply(
+                [agentPart('agent1', 'Checker'), {...waiting('q1'), subagentRunId: 'agent1'}],
+                {},
+                {status: 'paused'},
+                [counterTool]
+            );
+            expect(lineButton(container).textContent).toContain('Waiting for your answer');
+            expect(within(timeline(container)).getByRole('button', {name: 'q1: 0'})).toBeTruthy();
+        });
+
+        it('gives each waiting call its own card, whose state never passes to the next', () => {
+            const chatModel = createChat(
+                    [reply([waiting('q1'), waiting('q2')], {status: 'paused'})],
+                    [counterTool]
+                ),
+                {container} = renderChat(chatModel),
+                block = timeline(container);
+
+            expect(block.querySelectorAll('.xh-chat-tool-call')).toHaveLength(2);
+            fireEvent.click(within(block).getByRole('button', {name: 'q1: 0'}));
+            expect(within(block).getByRole('button', {name: 'q1: 1'})).toBeTruthy();
+            expect(within(block).getByRole('button', {name: 'q2: 0'})).toBeTruthy();
+
+            act(() =>
+                setMessages(chatModel, [
+                    reply([call('q1', {toolName: 'ask', output: 'ok'}), waiting('q2')], {
+                        status: 'paused'
+                    })
+                ])
+            );
+            expect(block.querySelectorAll('.xh-chat-tool-call')).toHaveLength(1);
+            expect(within(block).getByRole('button', {name: 'q2: 0'})).toBeTruthy();
+        });
+
+        it('moves focus to the reply once the answered card goes', () => {
+            const chatModel = createChat(
+                    [reply([waiting('q1')], {status: 'paused'})],
+                    [counterTool]
+                ),
+                {container} = renderChat(chatModel),
+                answer = within(timeline(container)).getByRole('button', {name: 'q1: 0'});
+            act(() => answer.focus());
+
+            act(() =>
+                setMessages(chatModel, [
+                    reply([call('q1', {toolName: 'ask', output: 'ok'})], {status: 'paused'})
+                ])
+            );
+            expect(timeline(container).querySelector('.xh-chat-tool-call')).toBeNull();
+            expect(document.activeElement).toBe(container.querySelector('.xh-chat-message'));
+        });
+
+        it('holds a question card until a pending approval is decided', () => {
+            const parts = (approval: ChatToolCallState) => [
+                    call('c1', {state: approval, toolName: 'insert_rows'}),
+                    waiting('q1')
+                ],
+                tools = [counterTool, {name: 'insert_rows', display: 'timeline' as const}],
+                chatModel = createChat(
+                    [reply(parts('approval-requested'), {status: 'paused'})],
+                    tools
+                ),
+                {container} = renderChat(chatModel),
+                block = timeline(container);
+
+            expect(lineButton(container).textContent).toContain('Waiting for approval');
+            expect(within(block).getByRole('button', {name: 'Allow'})).toBeTruthy();
+            expect(within(block).queryByRole('button', {name: 'q1: 0'})).toBeNull();
+
+            act(() =>
+                setMessages(chatModel, [reply(parts('output-available'), {status: 'paused'})])
+            );
+            expect(lineButton(container).textContent).toContain('Waiting for your answer');
+            expect(within(block).queryByRole('button', {name: 'Allow'})).toBeNull();
+            expect(within(block).getByRole('button', {name: 'q1: 0'})).toBeTruthy();
+        });
+
+        it('shows an answered call as a done row that opens to its renderer', () => {
             const {container} = renderReply(
                 [call('q1', {toolName: 'ask', output: 'Intraday'})],
                 {},
@@ -591,16 +686,40 @@ describe('ChatTimeline', () => {
                         name: 'ask',
                         display: 'timeline',
                         interactive: true,
-                        displayName: 'Asked which marks'
+                        displayName: 'Choose marks',
+                        renderer: part => `Chose ${part.output}`
                     }
                 ]
             );
             fireEvent.click(lineButton(container));
 
             const row = screen.getByRole('treeitem');
-            expect(row.getAttribute('aria-label')).toBe('Asked which marks, you chose Intraday');
-            expect(row.querySelector('.xh-chat-timeline__chosen').textContent).toBe('Intraday');
-            expect(row.getAttribute('aria-expanded')).toBeNull();
+            expect(row.getAttribute('aria-label')).toBe('Choose marks, Rates, done');
+            fireEvent.keyDown(row, {key: 'Enter'});
+            expect(row.textContent).toContain('Chose Intraday');
+        });
+    });
+
+    describe('nested sub-agents', () => {
+        it('names the parent of a row nested past the deepest indent', () => {
+            const {container} = renderReply([
+                agentPart('a0', 'Planner'),
+                agentPart('a1', 'Researcher', 'a0'),
+                agentPart('a2', 'Reader', 'a1'),
+                agentPart('a3', 'Limits Checker', 'a2'),
+                {...call('c1', {state: 'running', toolName: 'fetch_marks'}), subagentRunId: 'a3'}
+            ]);
+            fireEvent.click(lineButton(container));
+
+            const row = screen
+                .getAllByRole('treeitem')
+                .find(it => it.getAttribute('data-id') === 'c1');
+            expect(row.getAttribute('aria-level')).toBe(String(TIMELINE_MAX_DEPTH + 2));
+            expect(row.querySelector('.xh-chat-timeline__parent').textContent).toBe(
+                '› Limits Checker '
+            );
+            // Rows within the indent name no parent.
+            expect(container.querySelectorAll('.xh-chat-timeline__parent')).toHaveLength(1);
         });
     });
 
@@ -757,6 +876,37 @@ function call(
         errorText: state === 'output-error' ? '504 Timeout' : null
     };
 }
+
+/** A call to {@link counterTool} that waits for an answer. */
+function waiting(id: string): ChatToolCallPart {
+    return call(id, {state: 'input-available', toolName: 'ask'});
+}
+
+function agentPart(id: string, name: string, parentSubagentRunId: string = null): ChatPart {
+    return {
+        type: 'data',
+        id,
+        dataType: 'xh.chat.subagent',
+        data: {name, status: 'running', startedAt: 1000, parentSubagentRunId}
+    };
+}
+
+/** A button that counts its clicks in hook state, labeled with its call's id. */
+const counter = hoistCmp.factory<HoistProps & {id: string}>({
+    model: false,
+    render({id}) {
+        const [count, setCount] = useState(0);
+        return button({text: `${id}: ${count}`, onClick: () => setCount(count + 1)});
+    }
+});
+
+/** An interactive timeline tool whose renderer keeps state of its own. */
+const counterTool: ChatToolSpec = {
+    name: 'ask',
+    display: 'timeline',
+    interactive: true,
+    renderer: part => counter({id: part.id})
+};
 
 function timeline(container: HTMLElement): HTMLElement {
     return container.querySelector('.xh-chat-timeline');

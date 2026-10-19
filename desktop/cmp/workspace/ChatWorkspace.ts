@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react';
+import type {CSSProperties, ReactNode} from 'react';
 import {isFunction, isString} from 'lodash';
 import {clipboardMenuItem} from '@xh/hoist/cmp/clipboard';
 import {errorMessage} from '@xh/hoist/cmp/error';
@@ -75,7 +75,8 @@ export interface ChatWorkspaceProps extends HoistProps<ChatWorkspaceModel>, BoxP
  * The sidebar is a Hoist `Panel`, resizable and collapsible to a rail with New Chat and search.
  * Under 788 px it hides, and the header offers the list in a popover. The conversation is a
  * `ChatPanel` for the selected thread's chat. It clears the moment the selection changes, and
- * shows a failed load in its place with Retry.
+ * shows a failed load in its place with Retry. A thread the store reports missing, as from a deep
+ * link, shows "Thread not found" with New Chat.
  *
  * The side panel shows the request open in the model's `sidePanel` - such as a document that a
  * citation opened, rendered by the model's `documentRenderer` - else the app's own `sidePanel`
@@ -112,6 +113,7 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
                 div({
                     ref: impl.bodyRef,
                     className: 'xh-chat-workspace__body',
+                    style: shownWidths(model),
                     items: [
                         sidebar(model, impl, threadListProps, testId),
                         div({
@@ -122,7 +124,7 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
                                     ? defaultHeader(model, impl, headerItems, threadListProps)
                                     : header,
                                 noticeLine(notice),
-                                conversation(model, chatPanelProps, testId)
+                                conversation(model, impl, chatPanelProps, testId)
                             ]
                         }),
                         sidePanelView(model, impl, sidePanel, sidePanelProps, testId)
@@ -150,35 +152,44 @@ function sidebar(
             return rail(model, impl);
     }
 
-    // The box sets the width that shows, which the layout may cut below the user's saved width.
-    return div({
+    // A sibling of the conversation, as Hoist's dragger resizes a panel against its sibling.
+    return panel({
         key: 'sidebar',
-        className: 'xh-chat-workspace__sidebar-box',
-        style: {width: model.sidebarWidth + SPLITTER_WIDTH},
-        item: panel({
-            model: model.sidebarModel,
-            className: 'xh-chat-workspace__sidebar',
-            testId: getTestId(testId, 'sidebar'),
-            item: nav({
-                className: 'xh-chat-workspace__nav',
-                'aria-label': 'Threads',
-                item: chatThreadList({
-                    model: model.threadsModel,
-                    searchInputRef: impl.searchInputRef,
-                    topItems: [
-                        button({
-                            key: 'collapse',
-                            icon: Icon.chevronLeft(),
-                            tooltip: 'Collapse sidebar',
-                            'aria-label': 'Collapse sidebar',
-                            onClick: () => model.collapseSidebar()
-                        })
-                    ],
-                    ...threadListProps
-                })
+        model: model.sidebarModel,
+        className: 'xh-chat-workspace__sidebar',
+        testId: getTestId(testId, 'sidebar'),
+        item: nav({
+            className: 'xh-chat-workspace__nav',
+            'aria-label': 'Threads',
+            item: chatThreadList({
+                model: model.threadsModel,
+                searchInputRef: impl.searchInputRef,
+                topItems: [
+                    button({
+                        key: 'collapse',
+                        icon: Icon.chevronLeft(),
+                        tooltip: 'Collapse sidebar',
+                        'aria-label': 'Collapse sidebar',
+                        onClick: () => model.collapseSidebar()
+                    })
+                ],
+                ...threadListProps
             })
         })
     });
+}
+
+/**
+ * The widths that show, as CSS variables for the panels' content. The layout may cut a panel
+ * below its saved size, to leave the conversation its minimum.
+ */
+function shownWidths(model: ChatWorkspaceModel): CSSProperties {
+    const {sidebarWidth, sidePanelWidth} = model;
+    return {
+        '--xh-chat-workspace-sidebar-width': sidebarWidth == null ? null : `${sidebarWidth}px`,
+        '--xh-chat-workspace-side-panel-width':
+            sidePanelWidth == null ? null : `${sidePanelWidth}px`
+    } as CSSProperties;
 }
 
 function rail(model: ChatWorkspaceModel, impl: ChatWorkspaceLocalModel): ReactNode {
@@ -236,7 +247,9 @@ function defaultHeader(
                 className: 'xh-chat-workspace__title',
                 role: 'heading',
                 'aria-level': 2,
-                item: summary?.title ?? 'New chat'
+                item: threadsModel.isThreadNotFound
+                    ? 'Thread not found'
+                    : (summary?.title ?? 'New chat')
             }),
             filler(),
             ...headerItems,
@@ -292,12 +305,6 @@ function threadMenuItems(model: ChatWorkspaceModel): MenuItemLike[] {
     if (!summary) return [];
 
     return [
-        {
-            text: summary.pinned ? 'Unpin' : 'Pin',
-            icon: Icon.pin(),
-            omit: !threadsModel.canPin,
-            actionFn: () => threadsModel.pinThreadAsync(summary.id, !summary.pinned).catchDefault()
-        },
         clipboardMenuItem({
             text: 'Copy Thread ID',
             icon: Icon.copy(),
@@ -330,6 +337,7 @@ function noticeLine(notice: ReactNode): ReactNode {
 
 function conversation(
     model: ChatWorkspaceModel,
+    impl: ChatWorkspaceLocalModel,
     chatPanelProps: ChatWorkspaceProps['chatPanelProps'],
     testId: string
 ): ReactNode {
@@ -337,7 +345,20 @@ function conversation(
         {chatModel, loadError} = threadsModel;
     if (!chatModel) return null;
 
-    // TODO(R14, D74): show "Thread not found" for a deep-linked thread the store reports missing.
+    // A thread the store reports missing, as from a deep link, offers a new chat in its place.
+    if (threadsModel.isThreadNotFound) {
+        return errorMessage({
+            key: chatModel.xhId,
+            className: 'xh-chat-workspace__not-found',
+            testId: getTestId(testId, 'notFound'),
+            error: true,
+            title: 'Thread not found',
+            message: 'This conversation does not exist, or it was deleted.',
+            actionFn: () => impl.newChat(),
+            actionButtonProps: {text: 'New Chat', icon: Icon.add()}
+        });
+    }
+
     // TODO(D65): announce "Opened [title]" once a selected thread's messages load.
     return chatPanel({
         // A new chat per thread, so that the pane never shows the last thread's messages.
@@ -368,49 +389,43 @@ function sidePanelView(
 ): ReactNode {
     if (!model.isSidePanelShown) return null;
 
-    // The box sets the width that shows, which the layout may cut below the user's saved width.
-    const style = {width: model.sidePanelWidth + SPLITTER_WIDTH};
-
     // A request opened by the conversation - a document, a table or a chart - comes first.
+    let item: ReactNode;
     if (model.sidePanel.request) {
-        return div({
-            key: 'sidePanel',
-            className: 'xh-chat-workspace__side-panel',
-            style,
-            item: chatSidePanel({
-                model: model.sidePanel,
-                panelProps: {model: model.sidePanelModel, testId: getTestId(testId, 'sidePanel')}
+        item = chatSidePanel({model: model.sidePanel});
+    } else if (sidePanel != null) {
+        const {headerItems = [], ...rest} = sidePanelProps ?? {};
+        item = div({
+            className: 'xh-chat-workspace__side-panel-content',
+            role: 'complementary',
+            onKeyDown: impl.onSidePanelKeyDown,
+            'aria-label': isString(rest.title) ? rest.title : 'Side panel',
+            item: panel({
+                ...rest,
+                headerItems: [
+                    ...headerItems,
+                    button({
+                        key: 'close',
+                        icon: Icon.close(),
+                        tooltip: 'Close',
+                        'aria-label': 'Close side panel',
+                        onClick: () => model.closeSidePanel()
+                    })
+                ],
+                item: isFunction(sidePanel) ? sidePanel() : sidePanel
             })
         });
+    } else {
+        return null;
     }
-    if (sidePanel == null) return null;
 
-    const {headerItems = [], ...rest} = sidePanelProps ?? {};
-    return div({
+    // A sibling of the conversation, as Hoist's dragger resizes a panel against its sibling. The
+    // content inside sets its own frame.
+    return panel({
         key: 'sidePanel',
+        model: model.sidePanelModel,
         className: 'xh-chat-workspace__side-panel',
-        style,
-        role: 'complementary',
-        onKeyDown: impl.onSidePanelKeyDown,
-        'aria-label': isString(rest.title) ? rest.title : 'Side panel',
-        item: panel({
-            model: model.sidePanelModel,
-            testId: getTestId(testId, 'sidePanel'),
-            ...rest,
-            headerItems: [
-                ...headerItems,
-                button({
-                    key: 'close',
-                    icon: Icon.close(),
-                    tooltip: 'Close',
-                    'aria-label': 'Close side panel',
-                    onClick: () => model.closeSidePanel()
-                })
-            ],
-            item: isFunction(sidePanel) ? sidePanel() : sidePanel
-        })
+        testId: getTestId(testId, 'sidePanel'),
+        item
     });
 }
-
-// Hoist's splitter, beside each resizable panel.
-const SPLITTER_WIDTH = 8;

@@ -49,20 +49,20 @@ describe('groupThreadsByRecency', () => {
         ]);
     });
 
-    it('puts pinned threads first, and sorts each group most recent first', () => {
+    it('sorts each group most recent first', () => {
         const groups = groupThreadsByRecency(
             [
                 thread('early', local(2026, 3, 11, 7)),
-                thread('pinnedOld', local(2025, 1, 1, 12), true),
+                thread('yesterdayEarly', local(2026, 3, 10, 9)),
                 thread('late', local(2026, 3, 11, 8)),
-                thread('pinnedNew', local(2026, 3, 10, 12), true)
+                thread('yesterdayLate', local(2026, 3, 10, 12))
             ],
             now
         );
 
         expect(groups.map(it => [it.key, it.threads.map(t => t.id)])).toEqual([
-            ['pinned', ['pinnedNew', 'pinnedOld']],
-            ['today', ['late', 'early']]
+            ['today', ['late', 'early']],
+            ['yesterday', ['yesterdayLate', 'yesterdayEarly']]
         ]);
     });
 
@@ -79,6 +79,6 @@ function local(year: number, month: number, day: number, hour: number, minute = 
     return new Date(year, month - 1, day, hour, minute).getTime();
 }
 
-function thread(id: string, lastActivityAt: number, pinned = false): ChatThreadSummary {
-    return {id, title: id, lastActivityAt, pinned};
+function thread(id: string, lastActivityAt: number): ChatThreadSummary {
+    return {id, title: id, lastActivityAt};
 }

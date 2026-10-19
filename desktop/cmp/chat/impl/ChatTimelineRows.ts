@@ -20,10 +20,7 @@ import {
     type ChatTimelineBatchItem,
     type ChatTimelineCallItem,
     type ChatTimelineItem,
-    type ChatTimelinePlan,
-    formatAnswer,
     formatStepDuration,
-    getPlanPosition,
     getSpanMs,
     getTimelineCalls,
     summarizeInput
@@ -99,70 +96,17 @@ export function timelineRows(
     });
 }
 
-/**
- * The pinned plan: a labeled list of items, each done, active, pending or skipped. A plan that is
- * not a list renders with its tool's renderer, or as JSON.
- * @internal
- */
-export function timelinePlan(plan: ChatTimelinePlan, ctx: ChatTimelineRowContext): ReactNode {
-    const {items, call, spec} = plan;
-    if (!items) {
-        return div({
-            className: 'xh-chat-timeline__plan',
-            items: [
-                div({className: 'xh-chat-timeline__plan-head', item: 'Plan'}),
-                spec?.renderer
-                    ? timelineRenderer({part: call, spec, context: ctx.context})
-                    : paneBody(call.output ?? call.input)
-            ]
-        });
-    }
-
-    const position = getPlanPosition(items);
-    return div({
-        className: 'xh-chat-timeline__plan',
-        items: [
-            div({
-                className: 'xh-chat-timeline__plan-head',
-                'aria-hidden': true,
-                item: `Plan · ${position} of ${items.length}`
-            }),
-            ul({
-                className: 'xh-chat-timeline__plan-list',
-                'aria-label': `Plan, ${position} of ${items.length}`,
-                items: items.map((it, idx) =>
-                    li({
-                        key: idx,
-                        className: `xh-chat-timeline__plan-item xh-chat-timeline__plan-item--${it.status}`,
-                        items: [
-                            span({
-                                className: 'xh-chat-timeline__icon',
-                                item: PLAN_ICONS[it.status]()
-                            }),
-                            span({
-                                className: 'xh-chat-timeline__plan-title',
-                                item: it.status === 'skipped' ? `${it.title} · skipped` : it.title
-                            })
-                        ]
-                    })
-                )
-            })
-        ]
-    });
-}
-
 //------------------
 // Rows
 //------------------
 /** The state a call's row shows. */
-type RowState =
-    'running' | 'approval' | 'question' | 'done' | 'answered' | 'failed' | 'denied' | 'cancelled';
+type RowState = 'running' | 'approval' | 'question' | 'done' | 'failed' | 'denied' | 'cancelled';
 
 function getRowState(part: ChatToolCallPart, spec: ChatToolSpec, isStopped: boolean): RowState {
     if (part.cancelled) return 'cancelled';
     switch (part.state) {
         case 'output-available':
-            return spec?.interactive && !spec.execute ? 'answered' : 'done';
+            return 'done';
         case 'output-error':
             return 'failed';
         case 'output-denied':
@@ -187,13 +131,13 @@ function callRow(
         state = getRowState(part, spec, isStopped),
         title = getToolTitle(part, spec),
         input = summarizeInput(part, spec),
-        hasDetails = state !== 'answered' && hasCallDetails(part, spec),
+        // A call that waits for an answer shows its card under the line, not in its row.
+        hasDetails = state !== 'question' && hasCallDetails(part, spec),
         isOpen = hasDetails && impl.isRowOpen(part.id),
         isApproved = state === 'done' && needsApproval(spec, part),
         deniedReason = state === 'denied' ? getDeniedReason(part) : null,
         took = getCallMs(part),
-        status = getStatusWords(part, state, spec),
-        answer = state === 'answered' ? formatAnswer(part.output) : null;
+        status = getStatusWords(part, state);
 
     return treeItem({
         id: part.id,
@@ -203,8 +147,8 @@ function callRow(
         className: classNames(`xh-chat-timeline__item--${state}`),
         label: compact([
             title,
-            state === 'answered' || state === 'question' ? null : input.text,
-            rowStateLabel(state, {status, retry, took, deniedReason, answer, isApproved})
+            state === 'question' ? null : input.text,
+            rowStateLabel(state, {status, retry, took, deniedReason, isApproved})
         ]).join(', '),
         items: [
             rowLine({
@@ -215,17 +159,11 @@ function callRow(
                 hasDetails,
                 icon: callIcon(state, spec),
                 title: depthTitle(title, depth, parentName),
-                input:
-                    state === 'answered'
-                        ? [
-                              'You chose ',
-                              span({key: 'a', className: 'xh-chat-timeline__chosen', item: answer})
-                          ]
-                        : status
-                          ? null
-                          : compact([retry ? `retry ${retry} · ` : null, input.text]).join('') ||
-                            (state === 'running' ? 'running' : null),
-                isCode: input.isCode && !status && state !== 'answered',
+                input: status
+                    ? null
+                    : compact([retry ? `retry ${retry} · ` : null, input.text]).join('') ||
+                      (state === 'running' ? 'running' : null),
+                isCode: input.isCode && !status,
                 status,
                 tag: isApproved ? 'Approved' : null,
                 time: callTime(part, state)
@@ -592,22 +530,20 @@ function callIcon(state: RowState, spec: ChatToolSpec): ReactNode {
             return Icon.slashedCircle();
         case 'cancelled':
             return Icon.stopCircle();
-        case 'answered':
-            return Icon.comment();
         default:
             return spec?.icon ?? Icon.wrench();
     }
 }
 
 // Words that replace the input when a row fails, waits or ends without running.
-function getStatusWords(part: ChatToolCallPart, state: RowState, spec: ChatToolSpec): string {
+function getStatusWords(part: ChatToolCallPart, state: RowState): string {
     switch (state) {
         case 'failed':
             return getErrorLine(part) ?? 'Failed';
         case 'approval':
             return 'Needs approval';
         case 'question':
-            return getQuestionText(part, spec);
+            return 'Waiting for your answer';
         case 'denied':
             return 'Denied';
         case 'cancelled':
@@ -617,12 +553,6 @@ function getStatusWords(part: ChatToolCallPart, state: RowState, spec: ChatToolS
     }
 }
 
-function getQuestionText(part: ChatToolCallPart, spec: ChatToolSpec): string {
-    const input = part.input ?? {},
-        question = [input.question, input.prompt, input.text].find(isString);
-    return question?.trim() || getToolTitle(part, spec);
-}
-
 function rowStateLabel(
     state: RowState,
     {
@@ -630,14 +560,12 @@ function rowStateLabel(
         retry,
         took,
         deniedReason,
-        answer,
         isApproved
     }: {
         status: string;
         retry: number;
         took: number;
         deniedReason: string;
-        answer: string;
         isApproved: boolean;
     }
 ): string {
@@ -648,15 +576,13 @@ function rowStateLabel(
         case 'approval':
             return 'needs approval';
         case 'question':
-            return `question: ${status}`;
+            return 'waiting for your answer';
         case 'failed':
             return `failed: ${status}`;
         case 'denied':
             return deniedReason ? `denied by you: ${deniedReason}` : 'denied by you';
         case 'cancelled':
             return 'cancelled';
-        case 'answered':
-            return `you chose ${answer}`;
         default:
             return compact([
                 retry ? `retry ${retry}` : null,
@@ -710,8 +636,7 @@ function getDeniedReason(part: ChatToolCallPart): string {
 
 function formatResult(result: unknown): string {
     if (result == null) return null;
-    if (isString(result)) return result.trim() || null;
-    return formatAnswer(result);
+    return isString(result) ? result.trim() || null : JSON.stringify(result);
 }
 
 function hasCallDetails(part: ChatToolCallPart, spec: ChatToolSpec): boolean {
@@ -833,10 +758,3 @@ function toPaneText(value: unknown): string {
 // Implementation
 //------------------
 const DEFAULT_DENIAL = 'The user denied this tool call.';
-
-const PLAN_ICONS = {
-    done: () => Icon.check(),
-    active: () => span({className: 'xh-chat-timeline__icon--busy', item: chatSpinner()}),
-    pending: () => Icon.circle(),
-    skipped: () => Icon.slashedCircle()
-};

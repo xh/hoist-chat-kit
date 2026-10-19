@@ -1,9 +1,7 @@
 import type {ReactNode} from 'react';
-import {img, span} from '@xh/hoist/cmp/layout';
 import {HoistModel} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
 import {action, observable, untracked} from '@xh/hoist/mobx';
-import {type ChatImagePolicy, isChatImageAllowed} from '../../../../cmp/markdown';
 import {type ChatSidePanelHost, type ChatSourcePart, isChatSidePanelHost} from '../../../../core';
 import {
     getSourceFileName,
@@ -12,7 +10,6 @@ import {
     openChatSource,
     toDocumentRequest
 } from '../../../../impl/sources';
-import {formatHost} from './ChatFormat';
 
 /**
  * How the citations and sources list of one message open their sources, and what they share: the
@@ -34,9 +31,6 @@ export class ChatSourceLinks extends HoistModel {
 
     /** The app's handler for a source click, or null for the default. */
     onSourceClick: (source: ChatSourcePart) => void = null;
-
-    /** The chat's image policy, for favicons. */
-    allowImages: ChatImagePolicy = false;
 
     /** Set the links' inputs - called as the component that owns them renders. */
     configure(opts: Partial<Pick<ChatSourceLinks, LinkInputs>>) {
@@ -86,40 +80,17 @@ export class ChatSourceLinks extends HoistModel {
     }
 }
 
-type LinkInputs = 'messageId' | 'sidePanel' | 'onSourceClick' | 'allowImages';
+type LinkInputs = 'messageId' | 'sidePanel' | 'onSourceClick';
 
 /**
- * The icon of a source. A document shows its file-type icon. A web page shows its favicon, from
- * `metadata.favicon`: a `data:` image always shows, and an image URL only if the image policy
- * permits it, as loading it sends a request. Otherwise a letter tile shows, else a globe.
+ * The icon of a source: a document's file-type icon, or a globe for a web page. The kit loads no
+ * image for a source, so a source list sends no request of its own.
  * @internal
  */
-export function sourceIcon(source: ChatSourcePart, allowImages: ChatImagePolicy): ReactNode {
-    if (getSourceType(source) === 'document') {
-        const fileName = getSourceFileName(source);
-        return fileName ? Icon.fileIcon({filename: fileName}) : Icon.file();
-    }
-
-    const favicon = source.metadata?.favicon;
-    if (isFaviconAllowed(favicon, allowImages)) {
-        return img({className: 'xh-chat-favicon', src: favicon, alt: ''});
-    }
-
-    const letter = (formatHost(source.url) ?? source.title ?? '').trim().charAt(0).toUpperCase();
-    return letter
-        ? span({
-              className: 'xh-chat-favicon xh-chat-favicon--letter',
-              'aria-hidden': true,
-              item: letter
-          })
-        : Icon.globe();
-}
-
-/** True if a favicon may load - see {@link sourceIcon}. @internal */
-export function isFaviconAllowed(favicon: unknown, allowImages: ChatImagePolicy): boolean {
-    if (typeof favicon !== 'string' || !favicon) return false;
-    if (favicon.startsWith('data:')) return favicon.startsWith('data:image/');
-    return isWebUrl(favicon) && isChatImageAllowed(allowImages, favicon);
+export function sourceIcon(source: ChatSourcePart): ReactNode {
+    if (getSourceType(source) === 'url') return Icon.globe();
+    const fileName = getSourceFileName(source);
+    return fileName ? Icon.fileIcon({filename: fileName}) : Icon.file();
 }
 
 /**

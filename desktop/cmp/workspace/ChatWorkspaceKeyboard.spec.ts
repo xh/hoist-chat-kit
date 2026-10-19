@@ -4,7 +4,11 @@ import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatKit, ChatModel, type ChatShortcuts} from '../../../core';
-import {ChatThreadsModel, type LocalChatThread, LocalChatThreadStore} from '../../../threads';
+import {
+    type LocalChatThread,
+    LocalChatThreadStore
+} from '../../../test/support/LocalChatThreadStore';
+import {ChatThreadsModel} from '../../../threads';
 import {ScriptedChatTransport, textEvents} from '../../../transport';
 import {chatWorkspace} from './ChatWorkspace';
 import {ChatWorkspaceModel} from './ChatWorkspaceModel';

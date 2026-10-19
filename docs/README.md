@@ -33,6 +33,7 @@ its tools.
 | Ask the user to approve a tool call, with a question of your own | [`/core/`](../core/README.md#ask-for-approval-before-a-tool-runs) |
 | Answer a server agent's questions and approvals (AG-UI interrupts) | [`/core/`](../core/README.md#answer-an-agents-questions) |
 | Let the user answer a tool call | [`/core/`](../core/README.md#let-the-user-answer-a-tool-call) |
+| Show an agent's plan or to-do list | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#show-an-agents-plan) |
 | Save and restore a conversation | [`/core/`](../core/README.md#persist-and-restore-a-conversation) |
 | Handle errors, retries and finish reasons | [`/core/`](../core/README.md#handle-errors-and-finish-reasons) |
 | Connect to an agent service that owns the history and threads | [`/core/`](../core/README.md#run-a-server-owned-conversation) |
@@ -40,25 +41,25 @@ its tools.
 | Let the user scope a question to some documents | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#scope-questions-to-documents) |
 | Add an agent, tools or other pill to the composer | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#add-a-pill-to-the-composer) |
 | Offer Try Again or Refresh Status after a failed reply | [`/core/`](../core/README.md#recover-from-a-failed-reply) |
-| Keep the user's unsent draft across reloads, and clear it on logout | [`/core/`](../core/README.md#keep-drafts) |
+| Keep the user's unsent draft across reloads | [`/core/`](../core/README.md#keep-drafts) |
+| Clear the kit's local data, such as drafts | [`/core/`](../core/README.md#clear-the-kits-local-data) |
 | Stop a run, or leave it running on the server | [`/core/`](../core/README.md#stop-or-detach-a-turn) |
 | Send ratings and comments on replies | [`/core/`](../core/README.md#rate-a-reply) |
 | Describe the app's live state to the model at every step | [`/core/`](../core/README.md#send-live-context-with-every-step) |
 | Hide Edit and Regenerate for a backend that cannot rewrite its history | [`/core/`](../core/README.md#hide-edit-and-regenerate) |
-| Let the user undo the changes a reply made | [`/core/`](../core/README.md#undo-a-replys-changes) |
 | Connect to an OpenAI-compatible model gateway | [`/transport/`](../transport/README.md#bring-your-own-llm) |
 | List a user's stored threads, and switch between them | [`/threads/`](../threads/README.md) |
 | Implement a thread store for your backend | [`/threads/`](../threads/README.md#configuration-pattern) |
 | Run turns in the background while the user reads another thread | [`/threads/`](../threads/README.md#let-turns-run-in-the-background) |
-| Link to a thread with a route parameter | [`/threads/`](../threads/README.md#link-to-a-thread) |
+| Link to a thread with a route parameter, and show a missing one as not found | [`/threads/`](../threads/README.md#link-to-a-thread) |
 | Group a thread list into Today, Yesterday and older | [`/threads/`](../threads/README.md#group-the-list-by-recency) |
-| Show a user's threads in a sidebar, with rename, pin and delete | [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) |
-| Show the thread list over threads the app holds | [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md#back-the-list-with-your-own-model) |
+| Show a user's threads in a sidebar, with rename and delete | [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) |
 | Put a full-page chat on screen, with a thread sidebar and a side panel | [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md) |
 | Fill the workspace's side panel, header or notice line | [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md#common-usage-patterns) |
 | Open cited documents beside the chat, in the app's own viewer | [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md#open-cited-documents-in-the-side-panel) |
 | Show a fixed "not found" reply when a search matched nothing | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#fixed-not-found-replies) |
 | Encode a request for a server-owned conversation | [`/transport/`](../transport/README.md#server-owned-conversations) |
+| Choose between a direct call and a Hoist server relay | [`/transport/`](../transport/README.md#choose-where-requests-go) |
 | Connect to a hoist-core server | [`/transport/`](../transport/README.md#relay-claude-through-a-hoist-server) |
 | Write a Grails controller that streams a model reply | [`/transport/`](../transport/README.md#hoist-server-example) |
 | Call Claude, with a system prompt and prompt caching | [`/transport/`](../transport/README.md#relay-claude-through-a-hoist-server) |
@@ -91,8 +92,8 @@ its tools.
 
 | Package | Description | Key Topics |
 |---------|-------------|------------|
-| [`/core/`](../core/README.md) | Platform-neutral chat models: conversation state, the turn loop, messages, parts, tools and the composer | ChatModel, ChatSidePanelModel, ChatSidePanelHost, xh.chat.noAnswer, ChatMessage, ChatPart, ChatToolSpec, ChatComposerModel, ChatComposerHost, ChatTranscript, isChatModel, ChatRunError, ChatContextProvider, contextProviders, chatToolResult, undoTurnAsync, preview, turns, steps, approvals, interactive tools, persistence, finish reasons, historyMode, runOptions, stop and detach, feedback, textTransform, activity tracking, allowEdit, allowRegenerate, interrupts, ChatInterrupt, answerInterrupt, submitInterruptsAsync, onTurnPause |
-| [`/threads/`](../threads/README.md) | Platform-neutral thread layer: a store adapter, one chat per open thread, background turns, paging, search, edits with rollback and deep links | ChatThreadsModel, ChatThreadStore, ChatThreadSummary, ChatThreadListHost, LocalChatThreadStore, groupThreadsByRecency, background turns, runningThreadIds, createThreadAsync, re-keying, optimistic rename and delete, paged history, search, route binding, concurrency rules |
+| [`/core/`](../core/README.md) | Platform-neutral chat models: conversation state, the turn loop, messages, parts, tools and the composer | ChatModel, ChatSidePanelModel, ChatSidePanelHost, xh.chat.noAnswer, ChatMessage, ChatPart, ChatToolSpec, ChatComposerModel, ChatComposerHost, ChatTranscript, isChatModel, ChatRunError, ChatContextProvider, contextProviders, chatToolResult, preview, turns, steps, approvals, interactive tools, persistence, finish reasons, historyMode, runOptions, stop and detach, feedback, textTransform, activity tracking, allowEdit, allowRegenerate, interrupts, ChatInterrupt, answerInterrupt, submitInterruptsAsync, onTurnPause |
+| [`/threads/`](../threads/README.md) | Platform-neutral thread layer: a store adapter, one chat per open thread, background turns, search, edits with rollback and deep links | ChatThreadsModel, ChatThreadStore, ChatThreadSummary, groupThreadsByRecency, background turns, runningThreadIds, server thread id, re-keying, optimistic rename and delete, search, route binding, concurrency rules |
 | [`/transport/`](../transport/README.md) | Transports and codecs that turn a backend's stream into AG-UI events, with server contracts | ChatTransport, HoistChatTransport, SseChatTransport, ScriptedChatTransport, HttpChatTransport, AgUiCodec, AnthropicCodec, ChatCompletionsCodec, bring your own LLM, OpenAI chat completions, ChatRunContext, ChatEvent, xh.chat events, NDJSON, Grails controller, prompt caching, citationEvents, interruptEvents, resume, supportsInterrupts, AG-UI checks, malformed stream, server-owned conversations, whole history, turnId, newMessages, cancelUrl, createChatRunRequest, ChatStreamReducer |
 | [`/genui/`](../genui/README.md) | Generative UI: a catalog of app components the model can show inline, as tools, tags or nested documents, with data by reference, typed actions and a server export | ChatUiCatalog, ChatUiComponentSpec, ChatUiDocument, ChatUiRenderContext, ChatArtifactRegistry, ChatDataView, ChatUiAction, ChatUiAdapter, parseTags, show_ui, JSON Schema subset, partial props, inline display |
 
@@ -101,7 +102,7 @@ its tools.
 | Package | Description | Key Topics |
 |---------|-------------|------------|
 | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) | Desktop chat components: panel, message list, message view, composer, tool cards and more | ChatPanel, ChatMessageList, ChatMessageView, ChatComposer, ChatToolCall, ChatClearButton, ChatReasoning, ChatSources, ChatSidePanel, ChatNoAnswer, ChatEmptyState, ChatSuggestions, ChatTranscript, read-only transcripts, render context, message actions, tool call groups, inline tool calls, citations, approvalPrompt, allowImages, theming |
-| [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) | Desktop thread list: recency groups, search, inline rename, pin, delete with confirm, and row states | ChatThreadList, ChatThreadListHost, ChatThreadsModel, recency groups, inline rename, pin, delete confirm, running, awaiting, finishedAwayThreadIds, lastRunEnd, tree grid, keyboard |
+| [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) | Desktop thread list: recency groups, search, inline rename, delete with confirm, and row states | ChatThreadList, ChatThreadsModel, recency groups, inline rename, delete confirm, running, awaiting, finishedAwayThreadIds, endedEarlyThreads, lastRunEnd, tree grid, keyboard |
 | [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md) | Desktop full-page chat: a thread sidebar and rail, the conversation, header and notice slots, and a side panel, laid out by its own width | ChatWorkspace, ChatWorkspaceModel, sidebar, rail, side panel, header, notice, PanelModel, persistWith, ResizeObserver, breakpoints, compact density |
 | [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) | Built-in generative UI components for a ChatUiCatalog: a result table in two tiers, a Hoist chart, KPI tiles and a detail card | chatUiGridSpec, chatUiChartSpec, chatUiMetricsSpec, chatUiCardSpec, ChatUiGrid, ChatUiChart, ChatUiMetrics, ChatUiCard, ChatUiTableView, ChatUiChartView, ChatUiFrame, fmtChatUiNumber, preview table, byReference, number formats, compact numbers, streaming |
 | [`/cmp/markdown/`](../cmp/markdown/README.md) | Platform-neutral markdown renderer for streaming model output | ChatMarkdown, streaming, block memoization, markdown components, useChatMarkdownStreaming, image policy, links, trailingContent |

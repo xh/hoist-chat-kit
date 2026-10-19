@@ -12,6 +12,7 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {fmtNumber} from '@xh/hoist/format';
 import {action, observable} from '@xh/hoist/mobx';
 import {type ChatMarkdownComponents, useChatMarkdownStreaming} from '../../../../cmp/markdown';
+import {ChatKit} from '../../../../core';
 import {chatUiFrame} from '../../genui/ChatUiFrame';
 import {chatCodeBlock} from '../ChatCodeBlock';
 
@@ -45,10 +46,10 @@ interface HastElement {
     children?: HastElement[];
 }
 
-// A markdown table of up to 12 body rows renders plain, in a frame that fits its content, on
-// Hoist's compact grid tokens. A longer one renders as a card: its first 12 rows, and a footer
-// that says how many rows it holds, with Show All. A markdown table carries no artifact, so it has
-// no side panel view.
+// A markdown table of up to `ChatKit.defaults.markdownTableMaxRows` body rows renders plain, in a
+// frame that fits its content, on Hoist's compact grid tokens. A longer one renders as a card: its
+// first rows up to that limit, and a footer that says how many rows it holds, with Show All. A
+// markdown table carries no artifact, so it has no side panel view.
 // TODO(design-open B1) - the long table's card follows P4's preview, without View Full Table.
 const MarkdownTable = hoistCmp<HoistProps & {node?: HastElement}>({
     displayName: 'ChatMarkdownTable',
@@ -56,28 +57,29 @@ const MarkdownTable = hoistCmp<HoistProps & {node?: HastElement}>({
     observer: false,
 
     render({node, children}) {
-        const rowCount = countBodyRows(node);
-        return rowCount > MAX_PLAIN_TABLE_ROWS
-            ? markdownTableCard({rowCount, item: children})
+        const rowCount = countBodyRows(node),
+            maxRows = ChatKit.defaults.markdownTableMaxRows;
+        return rowCount > maxRows
+            ? markdownTableCard({rowCount, maxRows, item: children})
             : table({items: children});
     }
 });
 
-const markdownTableCard = hoistCmp.factory<HoistProps & {rowCount: number}>({
+const markdownTableCard = hoistCmp.factory<HoistProps & {rowCount: number; maxRows: number}>({
     displayName: 'ChatMarkdownTableCard',
 
-    render({rowCount, children}) {
+    render({rowCount, maxRows, children}) {
         const impl = useLocalModel(MarkdownTableLocalModel),
             {isExpanded} = impl,
             rows = `${fmtNumber(rowCount, {precision: 0, asHtml: true})} rows`;
 
         return chatUiFrame({
             className: 'xh-chat-markdown__table-card',
-            item: table({items: isExpanded ? children : capBodyRows(children)}),
+            item: table({items: isExpanded ? children : capBodyRows(children, maxRows)}),
             footer: [
                 span({
                     key: 'counts',
-                    item: isExpanded ? rows : `Showing ${MAX_PLAIN_TABLE_ROWS} of ${rows}`
+                    item: isExpanded ? rows : `Showing ${maxRows} of ${rows}`
                 }),
                 div({key: 'fill', className: 'xh-chat-ui-frame__fill'}),
                 button({
@@ -90,9 +92,6 @@ const markdownTableCard = hoistCmp.factory<HoistProps & {rowCount: number}>({
         });
     }
 });
-
-// Markdown tables of up to this many body rows show in full.
-const MAX_PLAIN_TABLE_ROWS = 12;
 
 class MarkdownTableLocalModel extends HoistModel {
     override xhImpl = true;
@@ -111,11 +110,11 @@ function countBodyRows(node: HastElement): number {
 }
 
 // The table's head, and the first rows of its body.
-function capBodyRows(children: ReactNode): ReactNode {
+function capBodyRows(children: ReactNode, maxRows: number): ReactNode {
     return Children.map(children, child => {
         if (!isValidElement<{children?: ReactNode}>(child) || child.type !== 'tbody') return child;
         const rows = Children.toArray(child.props.children).filter(isValidElement);
-        return cloneElement(child, null, rows.slice(0, MAX_PLAIN_TABLE_ROWS));
+        return cloneElement(child, null, rows.slice(0, maxRows));
     });
 }
 

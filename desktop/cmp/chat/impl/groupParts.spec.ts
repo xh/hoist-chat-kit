@@ -154,9 +154,8 @@ describe('groupParts by display mode', () => {
 
     const tools: ChatToolSpec[] = [
         {name: 'step', display: 'timeline'},
-        {name: 'plan', display: 'pinned'},
         {name: 'secret', display: 'hidden'},
-        {name: 'final', display: 'answer'},
+        {name: 'final', display: 'inline'},
         {name: 'ask', interactive: true, display: 'hidden', renderer: () => null}
     ];
 
@@ -222,19 +221,6 @@ describe('groupParts by display mode', () => {
         expect(groups.map(it => it.id)).toEqual(['timeline-c1', 'c2', 'timeline-c3']);
     });
 
-    it('pins plan calls to the first block, or shows them as cards with no block', () => {
-        const host = chatModel(tools),
-            withBlock = groupParts(
-                [call('p1', {toolName: 'plan'}), call('c1', {toolName: 'step'}), text('t1')],
-                host
-            ),
-            withoutBlock = groupParts([call('p1', {toolName: 'plan'}), text('t1')], host);
-
-        expect(withBlock.map(it => it.id)).toEqual(['timeline-c1', 't1']);
-        expect((withBlock[0] as ChatTimelineGroup).pinned.map(it => it.id)).toEqual(['p1']);
-        expect(withoutBlock.map(it => it.id)).toEqual(['p1', 't1']);
-    });
-
     it('leaves out hidden calls, unless one waits for the user', () => {
         const groups = groupParts(
             [
@@ -247,7 +233,7 @@ describe('groupParts by display mode', () => {
         expect(groups.map(it => it.id)).toEqual(['c2', 't1']);
     });
 
-    it('treats answer calls as output, not process', () => {
+    it('treats inline calls as output, not process', () => {
         const host = chatModel(tools),
             runs = groupProcessRuns(
                 groupParts([call('c1'), call('c2', {toolName: 'final', step: 1})], host),

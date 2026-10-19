@@ -574,7 +574,7 @@ export class ChatUiCatalog {
      *  - `callTool` - runs a client tool of the chat, once its input passes the tool's schema. A
      *    tool that needs approval asks the user first. Resolves to the tool's result. Refused
      *    while the chat is busy, and for a tool whose schema uses keywords the catalog cannot
-     *    check. The call is not part of the history, so an undo the tool returns is not kept.
+     *    check. The call is not part of the history.
      *  - `app` - runs the handler in `actionHandlers` for its name. Resolves to its result.
      *
      * `send` and `callTool` need the context's `chatModel`, and are refused without one - where

@@ -94,11 +94,36 @@ describe('ChatMarkdown', () => {
                     marker: n
                 })),
                 renderGroup = vi.fn((marker, cited) => marker);
-            renderMarkdown({content: 'All agree [2–5].', citations: {sources, renderGroup}});
+            renderMarkdown({content: 'All agree [2, 3, 4, 5].', citations: {sources, renderGroup}});
 
             const marker = screen.getByRole('button', {name: 'Sources 2 to 5'});
             expect(marker.textContent).toBe('2–5');
             expect(renderGroup.mock.calls[0][1].map(it => it.number)).toEqual([2, 3, 4, 5]);
+        });
+
+        it('labels a group with its count when the numbers are not consecutive', () => {
+            const sources: ChatSourcePart[] = [1, 2, 3, 4, 5].map(n => ({
+                type: 'source',
+                id: `s${n}`,
+                title: `Doc ${n}`
+            }));
+            renderMarkdown({content: 'All agree [1, 2, 4, 5].', citations: {sources}});
+
+            const marker = screen.getByRole('button', {name: 'Sources 1, 2, 4, 5'});
+            expect(marker.textContent).toBe('4 sources');
+        });
+
+        it('leaves a range as written', () => {
+            const sources: ChatSourcePart[] = [1, 2, 3].map(n => ({
+                type: 'source',
+                id: `s${n}`,
+                title: `Doc ${n}`
+            }));
+            const content = 'All agree [1–3].',
+                {container} = renderMarkdown({content, citations: {sources}});
+
+            expect(container.textContent).toBe(content);
+            expect(screen.queryByRole('button')).toBeNull();
         });
 
         it('lists every source of a group in its tooltip, and opens the first on click', () => {
@@ -108,7 +133,7 @@ describe('ChatMarkdown', () => {
                     title: `Doc ${n}`
                 })),
                 onClick = vi.fn();
-            renderMarkdown({content: 'All agree [1–4].', citations: {sources, onClick}});
+            renderMarkdown({content: 'All agree [1, 2, 3, 4].', citations: {sources, onClick}});
 
             const marker = screen.getByRole('button', {name: 'Sources 1 to 4'});
             expect(marker.getAttribute('title')).toBe('1. Doc 1\n2. Doc 2\n3. Doc 3\n4. Doc 4');

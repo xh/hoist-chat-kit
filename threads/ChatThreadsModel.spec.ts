@@ -13,7 +13,7 @@ import {
     toolCallEvents
 } from '../transport';
 import {type ChatThreadsConfig, ChatThreadsModel} from './ChatThreadsModel';
-import {type LocalChatThread, LocalChatThreadStore} from './LocalChatThreadStore';
+import {type LocalChatThread, LocalChatThreadStore} from '../test/support/LocalChatThreadStore';
 
 /**
  * The thread layer's contract. Apps rely on it to keep each conversation's state in its own chat,
@@ -34,33 +34,16 @@ describe('ChatThreadsModel', () => {
             await model.loadAsync();
 
             expect(ids(model.threads)).toEqual(['t1', 't2', 't3']);
-            expect(model).toMatchObject({canRename: true, canDelete: true, canPin: true});
-            expect(model.hasMoreThreads).toBe(false);
+            expect(model).toMatchObject({canRename: true, canDelete: true});
         });
 
         it('hides the actions the store lacks', async () => {
             const {model} = setup({
-                store: new LocalChatThreadStore({omit: ['renameThreadAsync', 'pinThreadAsync']})
+                store: new LocalChatThreadStore({omit: ['renameThreadAsync']})
             });
 
-            expect(model).toMatchObject({canRename: false, canDelete: true, canPin: false});
+            expect(model).toMatchObject({canRename: false, canDelete: true});
             await expect(model.renameThreadAsync('t1', 'New')).rejects.toThrow('cannot rename');
-        });
-
-        it('loads further pages, and keeps them when the list refreshes', async () => {
-            const {model, store} = setup({pageSize: 2});
-
-            await model.loadAsync();
-            expect(ids(model.threads)).toEqual(['t1', 't2']);
-            expect(model.hasMoreThreads).toBe(true);
-
-            await model.loadMoreThreadsAsync();
-            expect(ids(model.threads)).toEqual(['t1', 't2', 't3']);
-            expect(model.hasMoreThreads).toBe(false);
-
-            await model.refreshAsync();
-            expect(ids(model.threads)).toEqual(['t1', 't2', 't3']);
-            expect(listCalls(store).at(-1)).toMatchObject({limit: 3});
         });
 
         it('searches on the server, debounced, and drops results for an older search', async () => {
@@ -199,128 +182,63 @@ describe('ChatThreadsModel', () => {
             ]);
         });
 
-        it('5. creates a thread in the store before its first run, and runs it under its id', async () => {
-            const store = new LocalChatThreadStore({mintIds: true}),
-                {model, transport} = setup({store});
-            store.hold('createThreadAsync');
-
-            const chatModel = model.newThread(),
-                localId = chatModel.threadId,
-                done = chatModel.sendAsync('Hello');
-            await Promise.resolve();
-            expect(transport.requests).toEqual([]);
-            expect(chatModel.status).toBe('submitted');
-
-            const [create] = store.heldCalls('createThreadAsync');
-            expect(create.args[0]).toEqual({localId, title: 'Hello'});
-            create.release();
-            await done;
-
-            const serverId = chatModel.threadId;
-            expect(serverId).not.toBe(localId);
-            expect(transport.requests[0].threadId).toBe(serverId);
-            expect(model.selectedThreadId).toBe(serverId);
-            expect(model.chatModel).toBe(chatModel);
-            expect(ids(model.threads)).toEqual([serverId]);
-        });
-
-        it('5. creates each thread once, even when its first turn is retried', async () => {
-            const store = new LocalChatThreadStore({mintIds: true}),
-                {model} = setup({
-                    store,
-                    respond: (request, {attempt}) =>
-                        attempt === 0 ? errorEvents('Overloaded') : textEvents('Recovered.')
-                }),
-                chatModel = model.newThread();
-
-            await chatModel.sendAsync('Hello');
-            expect(chatModel.status).toBe('error');
-            await chatModel.retryAsync();
-
-            expect(chatModel.lastMessage.text).toBe('Recovered.');
-            expect(createCalls(store)).toHaveLength(1);
-        });
-
-        it('5. creates each thread once, even when its first turn is stopped mid-create', async () => {
-            const store = new LocalChatThreadStore({mintIds: true}),
-                {model, transport} = setup({store}),
-                chatModel = model.newThread();
-            store.hold('createThreadAsync');
-
-            const stopped = chatModel.sendAsync('Hello');
-            chatModel.stop();
-            await stopped;
-            store.heldCalls()[0].release();
-            await chatModel.sendAsync('Hello again');
-
-            expect(createCalls(store)).toHaveLength(1);
-            expect(transport.requests.map(it => it.threadId)).toEqual([chatModel.threadId]);
-            expect(store.getThread(chatModel.threadId)).not.toBeNull();
-        });
-
-        it('5. tries a failed create again, with the same local id', async () => {
-            spyHandleException();
-            const store = new LocalChatThreadStore({mintIds: true}),
-                {model} = setup({store}),
-                chatModel = model.newThread(),
-                localId = chatModel.threadId;
-            store.failNext('createThreadAsync');
-
-            await chatModel.sendAsync('Hello');
-            expect(chatModel.lastError.message).toBe('createThreadAsync failed.');
-            await chatModel.retryAsync();
-
-            expect(chatModel.status).toBe('ready');
-            expect(createCalls(store).map(it => it.args[0].localId)).toEqual([localId, localId]);
-            expect(store.getThread(chatModel.threadId)).not.toBeNull();
-        });
-
-        it('6. keeps drafts and run options in their own thread', async () => {
-            const {model} = setup(),
-                first = model.newThread(),
-                firstId = first.threadId;
+        it('5. keeps drafts and run options in their own thread', async () => {
+            const {model} = setup();
+            await model.selectThreadAsync('t1');
+            const first = model.chatModel;
             first.composerModel.text = 'Draft for the first';
             first.runOptions = {scope: ['doc-1']};
 
-            const second = model.newThread({runOptions: {scope: ['doc-2']}});
+            await model.selectThreadAsync('t2');
+            const second = model.chatModel;
             expect(second.composerModel.text).toBe('');
-            expect(second.runOptions).toEqual({scope: ['doc-2']});
+            expect(second.runOptions).not.toEqual({scope: ['doc-1']});
             expect(first.isDestroyed).toBe(true);
 
-            await model.selectThreadAsync(firstId);
+            await model.selectThreadAsync('t1');
             expect(model.chatModel.composerModel.text).toBe('Draft for the first');
             expect(model.chatModel.runOptions).toEqual({scope: ['doc-1']});
         });
 
-        it('7. blocks sends in every other thread while one runs, if turns may not overlap', async () => {
-            const turns = new TurnGates(),
-                {model, transport} = setup({respond: turns.respond, allowConcurrentTurns: false}),
-                first = model.newThread(),
-                firstDone = first.sendAsync('First');
-
-            const second = model.newThread();
-            expect(second.sendBlockedReason).toBe(
-                'Wait for the reply in another conversation to finish.'
-            );
-            await second.sendAsync('Second');
-            expect(transport.requests).toHaveLength(1);
-
-            turns.open(first.threadId);
-            await firstDone;
-            expect(second.sendBlockedReason).toBeNull();
-        });
-
-        it('8. opens a thread the store does not have as an empty thread', async () => {
+        it('6. marks a thread the store reports missing as not found, with no error', async () => {
             const {model} = setup();
 
             await model.selectThreadAsync('missing');
 
+            expect(model.isThreadNotFound).toBe(true);
             expect(model.chatModel.isEmpty).toBe(true);
             expect(model.loadError).toBeNull();
-            expect(model.chatModel.sendBlockedReason).toBeNull();
+
+            model.newThread();
+            expect(model.isThreadNotFound).toBe(false);
         });
 
-        it('8. blocks sends only in a thread that failed to load, until it reloads', async () => {
+        it('6. blocks sends in a thread the store reports missing, even one with a greeting', async () => {
+            const {model, transport} = setup({
+                chat: {initialMessages: [{role: 'assistant', content: 'Ask me anything.'}]}
+            });
+            await model.selectThreadAsync('missing');
+
+            expect(model.chatModel.sendBlockedReason).toBe(
+                'This conversation does not exist. Start a new chat.'
+            );
+            await model.chatModel.sendAsync('Hello');
+            expect(transport.requests).toEqual([]);
+        });
+
+        it('6. opens a thread whose history is an empty page as an empty thread', async () => {
+            const {model} = setup({
+                store: new LocalChatThreadStore({threads: [{id: 'blank', title: 'Blank'}]})
+            });
+
+            await model.selectThreadAsync('blank');
+
+            expect(model.isThreadNotFound).toBe(false);
+            expect(model.chatModel.isEmpty).toBe(true);
+            expect(model.loadError).toBeNull();
+        });
+
+        it('6. blocks sends only in a thread that failed to load, until it reloads', async () => {
             spyHandleException();
             const turns = new TurnGates(),
                 {model, store} = setup({respond: turns.respond}),
@@ -343,7 +261,7 @@ describe('ChatThreadsModel', () => {
             await done;
         });
 
-        it('9. fails a turn that ends with no content', async () => {
+        it('7. fails a turn that ends with no content', async () => {
             const {model} = setup({respond: () => []}),
                 chatModel = model.newThread();
 
@@ -413,6 +331,175 @@ describe('ChatThreadsModel', () => {
             expect(model.finishedAwayThreadIds).toEqual([]);
         });
 
+        it('marks a thread whose background turn failed as ended early, until it is selected', async () => {
+            spyHandleException();
+            const turns = new TurnGates(() => errorEvents('The model is overloaded.')),
+                {model} = setup({respond: turns.respond}),
+                chatModel = model.newThread(),
+                {threadId} = chatModel,
+                done = chatModel.sendAsync('Long question');
+
+            await model.selectThreadAsync('t1');
+            turns.open(threadId);
+            await done;
+            expect(model.endedEarlyThreads[threadId]).toEqual({
+                runEnd: 'failed',
+                reason: 'The model is overloaded.'
+            });
+            expect(model.finishedAwayThreadIds).toEqual([]);
+
+            await model.selectThreadAsync(threadId);
+            expect(model.endedEarlyThreads[threadId]).toBeUndefined();
+        });
+
+        it('keeps the chat of a background turn that ended early until the user has seen it', async () => {
+            spyHandleException();
+            const turns = new TurnGates(() => errorEvents('The model is overloaded.')),
+                {model} = setup({respond: turns.respond}),
+                chatModel = model.newThread(),
+                {threadId} = chatModel,
+                done = chatModel.sendAsync('Long question');
+
+            await model.selectThreadAsync('t1');
+            turns.open(threadId);
+            await done;
+            expect(chatModel.isDestroyed).toBe(false);
+
+            // Opening it shows the failed turn, with no reload that a backend might answer
+            // without it.
+            await model.selectThreadAsync(threadId);
+            expect(model.chatModel).toBe(chatModel);
+            expect(chatModel.lastMessage.status).toBe('error');
+
+            await model.selectThreadAsync('t1');
+            expect(chatModel.isDestroyed).toBe(true);
+        });
+
+        it('marks a background turn that the server interrupted or cancelled as interrupted', async () => {
+            spyHandleException();
+            const codes: Record<string, string> = {},
+                turns = new TurnGates(id => errorEvents('Stopped by the server.', codes[id])),
+                {model} = setup({respond: turns.respond}),
+                interrupted = model.newThread(),
+                interruptedDone = interrupted.sendAsync('One'),
+                cancelled = model.newThread(),
+                cancelledDone = cancelled.sendAsync('Two');
+            codes[interrupted.threadId] = 'interrupted';
+            codes[cancelled.threadId] = 'cancelled';
+
+            await model.selectThreadAsync('t1');
+            turns.open(interrupted.threadId);
+            turns.open(cancelled.threadId);
+            await Promise.all([interruptedDone, cancelledDone]);
+
+            expect(model.endedEarlyThreads[interrupted.threadId].runEnd).toBe('interrupted');
+            expect(model.endedEarlyThreads[cancelled.threadId].runEnd).toBe('interrupted');
+        });
+
+        it('does not mark a thread whose turn failed while it was selected', async () => {
+            spyHandleException();
+            const {model} = setup({respond: () => errorEvents('The model is overloaded.')}),
+                chatModel = model.newThread();
+
+            await chatModel.sendAsync('Hello');
+
+            expect(chatModel.status).toBe('error');
+            expect(model.endedEarlyThreads).toEqual({});
+        });
+
+        it("falls back to the store's lastRunEnd for a thread with no open chat", async () => {
+            const {model} = setup({
+                store: new LocalChatThreadStore({
+                    threads: [
+                        {id: 'cut', lastRunEnd: 'interrupted', lastRunReason: 'Server restarted.'},
+                        {id: 'done', lastRunEnd: 'complete'}
+                    ]
+                })
+            });
+            await model.loadAsync();
+            expect(model.endedEarlyThreads).toEqual({
+                cut: {runEnd: 'interrupted', reason: 'Server restarted.'}
+            });
+
+            await model.selectThreadAsync('cut');
+            expect(model.endedEarlyThreads).toEqual({});
+        });
+
+        it('does not mark a thread again after the user leaves it', async () => {
+            spyHandleException();
+            const store = new LocalChatThreadStore({
+                    threads: [
+                        {id: 'cut', lastRunEnd: 'interrupted', lastActivityAt: Date.now() - 1000},
+                        {id: 'other', lastActivityAt: Date.now() - 2000}
+                    ]
+                }),
+                {model} = setup({store, respond: () => errorEvents('The model is overloaded.')});
+            await model.loadAsync();
+
+            // A store-marked thread the user opens and leaves.
+            await model.selectThreadAsync('cut');
+            await model.selectThreadAsync('other');
+            expect(model.endedEarlyThreads).toEqual({});
+
+            // A turn that fails while the user watches, which the store then reports.
+            const chatModel = model.newThread(),
+                {threadId} = chatModel;
+            await chatModel.sendAsync('Hello');
+            store.saveThread({id: threadId, lastRunEnd: 'failed'});
+            await model.refreshAsync();
+            await model.selectThreadAsync('other');
+            expect(model.endedEarlyThreads).toEqual({});
+
+            // A later run on the server, after the user left, marks the thread again.
+            store.saveThread({id: 'cut', lastRunEnd: 'failed', lastActivityAt: Date.now() + 1000});
+            await model.refreshAsync();
+            expect(model.endedEarlyThreads.cut?.runEnd).toBe('failed');
+        });
+
+        it('does not mark a watched turn again when the server clock runs ahead', async () => {
+            spyHandleException();
+            const {model, store} = setup({respond: () => errorEvents('The model is overloaded.')}),
+                chatModel = model.newThread(),
+                {threadId} = chatModel;
+            await chatModel.sendAsync('Hello');
+            store.saveThread({
+                id: threadId,
+                lastRunEnd: 'failed',
+                lastActivityAt: Date.now() + 60_000
+            });
+
+            // The user leaves before the list refreshes.
+            await model.selectThreadAsync('t1');
+            await model.refreshAsync();
+
+            expect(model.endedEarlyThreads[threadId]).toBeUndefined();
+        });
+
+        it('takes the seen activity only from a list requested after the turn ended', async () => {
+            spyHandleException();
+            const {model, store} = setup({respond: () => errorEvents('The model is overloaded.')}),
+                chatModel = model.newThread(),
+                {threadId} = chatModel;
+            store.saveThread({id: threadId, lastActivityAt: Date.now()});
+            store.hold('listThreadsAsync');
+            const stale = model.refreshAsync();
+            store.hold('listThreadsAsync', false);
+
+            await chatModel.sendAsync('Hello');
+            store.saveThread({
+                id: threadId,
+                lastRunEnd: 'failed',
+                lastActivityAt: Date.now() + 60_000
+            });
+            store.heldCalls('listThreadsAsync')[0].release();
+            await stale;
+
+            await model.selectThreadAsync('t1');
+            await model.refreshAsync();
+
+            expect(model.endedEarlyThreads[threadId]).toBeUndefined();
+        });
+
         it('keeps a chat whose turn waits for the user, and lists it as awaiting', async () => {
             const {model} = setup({
                     respond: () => toolCallEvents('delete_rows', {count: 3}),
@@ -468,39 +555,42 @@ describe('ChatThreadsModel', () => {
             expect(savedDraft('t2')).toBeNull();
         });
 
-        it('creates a new thread on the backend even when its chat starts with a greeting', async () => {
-            const {model, store} = setup({
-                    store: new LocalChatThreadStore({mintIds: true}),
+        it('discards the drafts of a new thread the backend never saw, when it closes', async () => {
+            const {model} = setup({chat: {composer: {drafts: 'local'}}}),
+                chatModel = model.newThread(),
+                {threadId} = chatModel;
+            chatModel.composerModel.text = 'A question I never sent';
+            chatModel.runOptions = {scope: ['doc-1']};
+
+            model.newThread();
+
+            expect(chatModel.isDestroyed).toBe(true);
+            expect(savedDraft(threadId)).toBeNull();
+            await model.selectThreadAsync(threadId);
+            expect(model.chatModel.composerModel.text).toBe('');
+        });
+
+        it('removes the saved draft of a deleted thread not opened this session', async () => {
+            const {model} = setup();
+            XH.localStorageService.set('xhChat.draft.t3', {text: 'Draft from yesterday'});
+            await model.loadAsync();
+
+            await model.deleteThreadsAsync(['t3']);
+
+            expect(savedDraft('t3')).toBeNull();
+        });
+
+        it("adopts the server's id even when its chat starts with a greeting", async () => {
+            const {model} = setup({
+                    respond: () => [runStarted('srv-9'), textEvents('Hi there.')],
                     chat: {initialMessages: [{role: 'assistant', content: 'Ask me anything.'}]}
                 }),
-                chatModel = model.newThread(),
-                localId = chatModel.threadId;
+                chatModel = model.newThread();
 
             await chatModel.sendAsync('Hello');
 
-            expect(createCalls(store)).toHaveLength(1);
-            expect(chatModel.threadId).not.toBe(localId);
-            expect(store.getThread(chatModel.threadId)).not.toBeNull();
-        });
-
-        it("deletes a thread's backend thread when the delete comes during its create", async () => {
-            const {model, store} = setup({store: new LocalChatThreadStore({mintIds: true})}),
-                chatModel = model.newThread(),
-                localId = chatModel.threadId;
-            store.hold('createThreadAsync');
-            const sent = chatModel.sendAsync('Hello');
-            await vi.waitFor(() => expect(store.heldCalls('createThreadAsync')).toHaveLength(1));
-
-            const deleted = model.deleteThreadsAsync([localId]);
-            store.heldCalls('createThreadAsync')[0].release();
-            await Promise.all([sent, deleted]);
-            await model.refreshAsync();
-
-            const [deletedIds] = store.calls.find(it => it.method === 'deleteThreadsAsync').args;
-            expect(deletedIds).toHaveLength(2);
-            expect(deletedIds[0]).toBe(localId);
-            expect(store.getThread(deletedIds[1])).toBeNull();
-            expect(model.threads).toEqual([]);
+            expect(chatModel.threadId).toBe('srv-9');
+            expect(model.selectedThreadId).toBe('srv-9');
         });
 
         it('stops and cancels a background turn when its thread is deleted', async () => {
@@ -641,19 +731,6 @@ describe('ChatThreadsModel', () => {
             expect(model.threads[0].title).toBe('Newer');
         });
 
-        it('pins at once, and rolls back if the store fails', async () => {
-            spyHandleException();
-            const {model, store} = setup();
-            await model.loadAsync();
-
-            await model.pinThreadAsync('t3', true);
-            expect(model.threads[2].pinned).toBe(true);
-
-            store.failNext('pinThreadAsync');
-            await model.pinThreadAsync('t3', false);
-            expect(model.threads[2].pinned).toBe(true);
-        });
-
         it('deletes at once, and restores the threads with a toast if the store fails', async () => {
             const handleException = spyHandleException(),
                 {model, store} = setup();
@@ -677,30 +754,7 @@ describe('ChatThreadsModel', () => {
         });
     });
 
-    describe('history paging', () => {
-        it('loads history a page at a time, newest first', async () => {
-            const messages = ['m1', 'm2', 'm3', 'm4', 'm5'].map(id => ({
-                    id,
-                    role: 'user' as const,
-                    content: id
-                })),
-                {model} = setup({
-                    store: new LocalChatThreadStore({threads: [{id: 'long', messages}]}),
-                    historyPageSize: 2
-                });
-
-            await model.selectThreadAsync('long');
-            expect(texts(model.chatModel)).toEqual(['m4', 'm5']);
-            expect(model.chatModel.hasOlderMessages).toBe(true);
-
-            await model.loadOlderMessagesAsync();
-            expect(texts(model.chatModel)).toEqual(['m2', 'm3', 'm4', 'm5']);
-
-            await model.loadOlderMessagesAsync();
-            expect(texts(model.chatModel)).toEqual(['m1', 'm2', 'm3', 'm4', 'm5']);
-            expect(model.chatModel.hasOlderMessages).toBe(false);
-        });
-
+    describe('history', () => {
         it("applies only the newest load of a thread's history", async () => {
             const {model, store} = setup();
             store.hold('loadMessagesAsync');
@@ -791,12 +845,124 @@ describe('ChatThreadsModel', () => {
                 serverId: null,
                 runId: null,
                 rating: 'positive',
-                comment: null,
-                reasons: null
+                comment: null
             });
             expect(store.getThread('t1').messages[1].metadata.feedback).toEqual({
                 rating: 'positive'
             });
+        });
+
+        it('keeps a feedback comment the user typed across a thread switch', async () => {
+            const {model} = setup(),
+                draft = {
+                    rating: 'negative' as const,
+                    comment: 'The figures are stale.',
+                    isPending: true,
+                    isSending: false,
+                    error: null
+                };
+            await model.selectThreadAsync('t1');
+            model.chatModel.setFeedbackDraft('t1-a1', draft);
+            model.chatModel.setFeedbackDraft('t1-u1', {...draft, isSending: true});
+
+            await model.selectThreadAsync('t2');
+            await model.selectThreadAsync('t1');
+
+            // A comment that was sending has left the form, and does not come back.
+            expect(model.chatModel.feedbackDrafts).toEqual({'t1-a1': draft});
+        });
+
+        it('keeps a feedback comment on a new thread whose history comes back under server ids', async () => {
+            const {model, store} = setup({
+                    respond: () => [
+                        {
+                            type: 'CUSTOM',
+                            name: 'xh.chat.message',
+                            value: {role: 'assistant', serverId: 'srv-a1'}
+                        },
+                        ...textEvents('The answer.')
+                    ]
+                }),
+                chatModel = model.newThread(),
+                {threadId} = chatModel;
+            await chatModel.sendAsync('A question');
+            // The backend keeps the turn under its own ids.
+            store.saveThread({
+                id: threadId,
+                messages: [
+                    {id: 'srv-u1', role: 'user', content: 'A question'},
+                    {id: 'srv-a1', role: 'assistant', content: 'The answer.'}
+                ]
+            });
+            const draft = {
+                rating: 'negative' as const,
+                comment: 'Missing the 2025 update.',
+                isPending: true,
+                isSending: false,
+                error: null
+            };
+            chatModel.setFeedbackDraft(chatModel.lastMessage.id, draft);
+
+            await model.selectThreadAsync('t1');
+            await model.selectThreadAsync(threadId);
+
+            expect(model.chatModel.feedbackDrafts).toEqual({'srv-a1': draft});
+        });
+
+        it("matches a reply's own server id before a part id that another reply shares", async () => {
+            const {model, store} = setup({
+                    respond: () => [
+                        {
+                            type: 'CUSTOM',
+                            name: 'xh.chat.message',
+                            value: {role: 'assistant', serverId: 'srv-a2'}
+                        },
+                        ...textEvents('The answer.', {messageId: 'msg-1'})
+                    ]
+                }),
+                chatModel = model.newThread(),
+                {threadId} = chatModel;
+            await chatModel.sendAsync('A question');
+            // An earlier reply comes back under the id that the streamed part carried.
+            store.saveThread({
+                id: threadId,
+                messages: [
+                    {id: 'srv-u1', role: 'user', content: 'Earlier'},
+                    {id: 'msg-1', role: 'assistant', content: 'Earlier answer.'},
+                    {id: 'srv-u2', role: 'user', content: 'A question'},
+                    {id: 'srv-a2', role: 'assistant', content: 'The answer.'}
+                ]
+            });
+            const draft = {
+                rating: 'negative' as const,
+                comment: 'Wrong year.',
+                isPending: true,
+                isSending: false,
+                error: null
+            };
+            chatModel.setFeedbackDraft(chatModel.lastMessage.id, draft);
+
+            await model.selectThreadAsync('t1');
+            await model.selectThreadAsync(threadId);
+
+            expect(model.chatModel.feedbackDrafts).toEqual({'srv-a2': draft});
+        });
+
+        it('keeps an open feedback comment when the thread reloads', async () => {
+            const {model} = setup(),
+                draft = {
+                    rating: 'negative' as const,
+                    comment: 'Too vague.',
+                    isPending: true,
+                    isSending: false,
+                    error: null
+                };
+            await model.selectThreadAsync('t1');
+            model.chatModel.setFeedbackDraft('t1-a1', draft);
+
+            await model.reloadThreadAsync();
+
+            expect(model.chatModel.feedbackDrafts).toEqual({'t1-a1': draft});
         });
 
         it("leaves a chat's own feedback submitter in place", async () => {
@@ -871,6 +1037,11 @@ function setup({
 class TurnGates {
     private gates = new Map<string, {promise: Promise<void>; open: () => void}>();
 
+    constructor(
+        private readonly events: (threadId: string) => ChatEvent[] = threadId =>
+            textEvents(`Reply in ${threadId}`)
+    ) {}
+
     respond: Respond = request => this.gated(request.threadId);
 
     open(threadId: string) {
@@ -888,7 +1059,7 @@ class TurnGates {
 
     private async *gated(threadId: string): AsyncGenerator<ChatEvent> {
         await this.gate(threadId).promise;
-        yield* textEvents(`Reply in ${threadId}`);
+        yield* this.events(threadId);
     }
 }
 
@@ -910,10 +1081,6 @@ function texts(chatModel: ChatModel): string[] {
 
 function listCalls(store: LocalChatThreadStore) {
     return store.calls.filter(it => it.method === 'listThreadsAsync').map(it => it.args[0]);
-}
-
-function createCalls(store: LocalChatThreadStore) {
-    return store.calls.filter(it => it.method === 'createThreadAsync');
 }
 
 function spyHandleException() {

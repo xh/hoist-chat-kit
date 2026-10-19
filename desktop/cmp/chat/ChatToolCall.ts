@@ -55,11 +55,11 @@ export interface ChatToolCallProps extends HoistProps {
  *
  * Display is configured per tool by its {@link ChatToolSpec}: `displayName`, `icon`, `summary`,
  * `renderer` and `approvalPrompt`. A tool with `display: 'inline'` shows its renderer's output with
- * no row. The output is the call's progress, so a quiet status line shows below it only while
- * its input streams, and if the call waits for approval, fails or is denied. A tool with
- * `display: 'answer'` shows the same way, and with no renderer shows its output itself. A tool
- * with `display: 'hidden'` shows nothing, except while a call waits for the user. A `timeline`
- * call shows here as a row - in a reply, the message view puts it in a `ChatTimeline` instead.
+ * no row, or with no renderer its output itself. The output is the call's progress, so a quiet
+ * status line shows below it only while its input streams, and if the call waits for approval,
+ * fails or is denied. A tool with `display: 'hidden'` shows nothing, except while a call waits for
+ * the user. A `timeline` call shows here as a row - in a reply, the message view puts it in a
+ * `ChatTimeline` instead.
  *
  * The body mounts only while the row is open, and a custom renderer renders as a component of its
  * own, so it may use hooks. The row re-renders only when its part changes.
@@ -78,7 +78,6 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
             case 'hidden':
                 return null;
             case 'inline':
-            case 'answer':
                 return inlineToolCall({ref, className, part, context, chatModel, spec, impl});
         }
 
@@ -191,10 +190,10 @@ interface InlineToolCallArgs extends ChatToolCallProps {
 }
 
 /**
- * A call with `display: 'inline'` or `'answer'` - the renderer's output, then a quiet caption. An
- * answer tool with no renderer shows its output: text as markdown, anything else as JSON. The caption shows
- * a status only while the input streams, or if the call fails or is denied - the rendered output
- * is the progress otherwise. A toggle to view the input, and the details of any error, shows on
+ * A call with `display: 'inline'` - the renderer's output, then a quiet caption. A tool with no
+ * renderer shows its output: text as markdown, anything else as JSON. The caption shows a status
+ * only while the input streams, or if the call fails or is denied - the rendered output is the
+ * progress otherwise. A toggle to view the input, and the details of any error, shows on
  * hover or focus.
  *
  * A denied call renders no output, as the user refused what it would show. A call waiting for
@@ -216,9 +215,8 @@ function inlineToolCall({
         inputValue = getInputValue(part),
         hasDetails = !isEmpty(inputValue) || (state === 'output-error' && !!errorText),
         isInputShown = hasDetails && !!impl.expanded,
-        // An answer tool with no renderer shows its output itself, once it has one.
-        hasOutputView =
-            !!spec.renderer || (spec.display === 'answer' && state === 'output-available'),
+        // A tool with no renderer shows its output itself, once it has one.
+        hasOutputView = !!spec.renderer || state === 'output-available',
         showsOutput =
             hasOutputView &&
             state !== 'output-denied' &&
@@ -235,7 +233,7 @@ function inlineToolCall({
             showsOutput
                 ? spec.renderer
                     ? toolCallBody({part, spec, context})
-                    : answerOutput(part.output)
+                    : outputView(part.output)
                 : null,
             state === 'approval-requested' && chatModel
                 ? chatToolApproval({part, spec, chatModel})
@@ -277,9 +275,9 @@ function inlineToolCall({
     });
 }
 
-function answerOutput(output: unknown): ReactNode {
+function outputView(output: unknown): ReactNode {
     return div({
-        className: 'xh-chat-tool-call__answer',
+        className: 'xh-chat-tool-call__output',
         item: isString(output)
             ? chatMarkdown({content: output, components: CHAT_MARKDOWN_COMPONENTS})
             : jsonView({value: output})

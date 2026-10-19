@@ -213,7 +213,6 @@ its render, renderer included.
 | Transports | `ChatModelConfig.transport` | Connect to any backend, or implement `ChatTransport` |
 | Codecs | `HttpChatTransportConfig.codec` | Speak a new wire format, or implement `ChatCodec` |
 | Live context | `ChatModelConfig.contextProviders`, as `ChatContextProvider[]` | Describe the app's current state to the model before each step. Each codec sends it in its own format |
-| Undo | `chatToolResult(output, {undo})` from a tool's `execute` | Let the user undo the changes a reply made, with `undoTurnAsync()` |
 | Send blocker | `ChatModelConfig.sendBlocker`, or `addSendBlocker()` | Hold sends while the app is not ready, and show the reason in the composer |
 | Lifecycle | `onTurnComplete`, observable `status` and `lastError` | Save history, show toasts, react to errors |
 | History mode | `ChatModelConfig.historyMode` | Let an agent service own the history and the threads |
@@ -223,7 +222,7 @@ its render, renderer included.
 | Text transform | `ChatModelConfig.textTransform` | Strip markup a model leaks, before the text is stored |
 | Feedback | `ChatModelConfig.feedback` | Send ratings and comments on replies to the backend |
 | Telemetry | `ChatModelConfig.track` | Record each finished turn with Hoist activity tracking |
-| Host interfaces | `ChatComposerHost`, `ChatTranscript`, `ChatThreadListHost`, `ChatSidePanelHost` | Use the composer, the message list, the thread list or the side panel over the app's own state. Each exists because a second implementer does - see D82 |
+| Host interfaces | `ChatComposerHost`, `ChatTranscript`, `ChatSidePanelHost` | Use the composer, the message list or the side panel over the app's own state. Each exists because a second implementer does - see D82 |
 | Component slots | `ChatPanel` and `ChatComposer` props | Add header buttons, composer toolbars, an empty state and suggestions |
 | Markdown | `markdownComponents` on the message list | Replace how markdown elements render, such as code blocks |
 | Markdown plugins | `markdownPlugins` on the message list | Add remark and rehype plugins, such as math with KaTeX |

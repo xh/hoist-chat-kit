@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest';
+import {ChatRunError} from '../../core';
 import {type SseEvent, SseParser} from './SseParser';
 
 /**
@@ -70,6 +71,25 @@ describe('SseParser', () => {
         expect(parser.feed('data: partial')).toEqual([]);
         expect(parser.feed(' value\n')).toEqual([]);
         expect(parser.feed('\n')).toEqual([{event: 'message', data: 'partial value', id: null}]);
+    });
+
+    it('fails a line that grows past the size cap without ending', () => {
+        const parser = new SseParser(10);
+        expect(parser.feed('data: 12')).toEqual([]);
+        expect(() => parser.feed('3456789')).toThrow(
+            expect.objectContaining({name: 'ChatRunError', code: 'invalid-stream'})
+        );
+    });
+
+    it('fails an event whose data lines grow past the size cap without a blank line', () => {
+        const parser = new SseParser(10);
+        expect(parser.feed('data: 1234\ndata: 5678\n')).toEqual([]);
+        expect(() => parser.feed('data: 9\n')).toThrow(ChatRunError);
+    });
+
+    it('applies the size cap to each event, not the whole stream', () => {
+        const parser = new SseParser(10);
+        expect(parser.feed('data: 12345678\n\n'.repeat(3))).toHaveLength(3);
     });
 });
 

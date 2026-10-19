@@ -10,9 +10,9 @@ import type {ChatToolCallPart} from './ChatPart';
  *  - A client tool, with `execute`. The {@link ChatModel} runs it in the browser when the model
  *    calls it, sends the result back, and continues the turn. Client tools are how a model acts on
  *    the app - changing a dashboard, opening a view, filtering a grid.
- *  - An interactive tool, with `interactive: true`. The user answers each call - through the tool
- *    call card or a custom `renderer` - and the app passes the answer to
- *    {@link ChatModel.addToolOutputAsync}. The turn pauses until every such call is answered.
+ *  - An interactive tool, with `interactive: true`. The user answers each call through its
+ *    `renderer`, which passes the answer to {@link ChatModel.addToolOutputAsync}. The turn
+ *    pauses until every such call is answered.
  *  - A backend tool, with neither. The backend runs it and streams its result, and the spec only
  *    configures how its calls display. A call that ends its step with no result fails with an
  *    error result, as a call to an unknown tool does, so the turn never waits on it.
@@ -30,8 +30,8 @@ export interface ChatToolSpec {
     /**
      * Run the tool. The return value is the result sent to the model: strings as is, anything
      * else as JSON. A thrown error becomes an error result, which the model sees and can recover
-     * from. Return {@link chatToolResult} to pass the chat options with the result, such as how
-     * to undo the change the call made.
+     * from. Return {@link chatToolResult} to pass the chat options with the result, such as the
+     * result sets the call produced.
      */
     execute?: (input: PlainObject, context: ChatToolContext) => Awaitable<any>;
 
@@ -100,30 +100,21 @@ export interface ChatToolSpec {
  *  - `card` - a quiet row with the call's title, summary and status, that opens to show the
  *    call's input and output, or the output of `renderer`. Consecutive calls of one step fold into
  *    one "Used 3 tools" row. The default.
- *  - `inline` - the output of `renderer` alone, as part of the reply. The rendered output is the
- *    call's progress, so a status line shows only while the input streams, while the call waits
- *    for approval, and if it fails or is denied. A quiet toggle to view the input shows on hover.
- *    A denied call renders nothing, and so does a call waiting for approval, unless `preview` is
- *    true. For tools that show UI to the user, such as those of a `ChatUiCatalog`.
+ *  - `inline` - the output of `renderer` alone, as part of the reply. A tool with no `renderer`
+ *    shows the call's output itself once it has one, as markdown if it is text. The rendered
+ *    output is the call's progress, so a status line shows only while the input streams, while
+ *    the call waits for approval, and if it fails or is denied. A quiet toggle to view the input
+ *    shows on hover. A denied call renders nothing, and so does a call waiting for approval,
+ *    unless `preview` is true. For tools that show UI to the user, such as those of a
+ *    `ChatUiCatalog`, and for a tool whose result is the answer.
  *  - `timeline` - a row in the reply's activity timeline: one compact block that sums up an
  *    agent's run in a single line, and opens to list every call, with the text between calls as
- *    narration. For agents that make many calls per reply.
- *  - `answer` - the call's output is part of the answer, shown in place with no row: the output
- *    of `renderer`, or else the output itself, as markdown if it is text. Status shows as for
- *    `inline`. For a tool whose result is what the user asked for, such as a final answer tool.
- *  - `pinned` - the latest call shows as the plan pinned to the top of the reply's activity
- *    timeline, and no call shows as a row. The plan is read from the call's output, or else its
- *    input, as a list of items with a title and a status (below), or rendered by `renderer`. In
- *    a reply with no timeline, each call shows as a `card`.
+ *    narration. For agents that make many calls per reply. A call that waits for approval or for
+ *    an answer shows its panel or its tool call card under the line, open or not.
  *  - `hidden` - nothing, unless a call waits for the user to approve or answer it. Hidden calls
  *    count in no summary.
- *
- * A pinned plan reads its items from `items`, `steps`, `todos` or `plan`, or from a plain array.
- * Each item gives its text as `title`, `content`, `text` or `name`, and its `status` as
- * `pending`, `active` (or `in_progress`, `running`), `done` (or `completed`, `complete`) or
- * `skipped` (or `cancelled`).
  */
-export type ChatToolDisplay = 'card' | 'inline' | 'timeline' | 'answer' | 'pinned' | 'hidden';
+export type ChatToolDisplay = 'card' | 'inline' | 'timeline' | 'hidden';
 
 /** Passed to {@link ChatToolSpec.execute}. */
 export interface ChatToolContext {

@@ -43,9 +43,6 @@ export interface ChatTimelineGroup {
 
     /** Timeline calls, sub-agents, and the narration and reasoning between them, in order. */
     parts: ChatPart[];
-
-    /** Calls to `pinned` tools anywhere in the reply, in order - the latest is the plan. */
-    pinned: ChatToolCallPart[];
 }
 
 /** @internal */
@@ -93,8 +90,7 @@ export function getToolCallDisplay(call: ChatToolCallPart, host: ChatTranscript)
  *
  *  - Calls to `timeline` tools, with sub-agents, form one activity timeline block. Text and
  *    reasoning between two such calls fold into the block as narration. Text after the last call
- *    stays below the block, as the answer, until another timeline call starts. Calls to `pinned`
- *    tools join the reply's first block, as its plan, or show as cards in a reply with none.
+ *    stays below the block, as the answer, until another timeline call starts.
  *  - Consecutive files form one group.
  *  - Two or more consecutive `card` calls of the same step, each shown as a row, form one group.
  *    A call that waits for the user - for approval or for an answer - is never grouped, so that
@@ -105,19 +101,14 @@ export function getToolCallDisplay(call: ChatToolCallPart, host: ChatTranscript)
 export function groupParts(parts: ChatPart[], host: ChatTranscript): ChatPartGroup[] {
     const shown = parts.filter(part => isShown(part, host)),
         roles = shown.map(part => getRole(part, host)),
-        hasTimeline = roles.includes('timeline'),
         ret: ChatPartGroup[] = [];
 
-    let timeline: ChatTimelineGroup = null,
-        firstTimeline: ChatTimelineGroup = null;
+    let timeline: ChatTimelineGroup = null;
     shown.forEach((part, idx) => {
         const role = roles[idx];
-        if (role === 'pinned' && hasTimeline) return;
-
         if (role === 'timeline' || (role === 'fold' && foldsIntoTimeline(roles, idx))) {
             if (!timeline) {
-                timeline = {type: 'timeline', id: null, parts: [], pinned: []};
-                firstTimeline ??= timeline;
+                timeline = {type: 'timeline', id: null, parts: []};
                 ret.push(timeline);
             }
             timeline.parts.push(part);
@@ -125,23 +116,16 @@ export function groupParts(parts: ChatPart[], host: ChatTranscript): ChatPartGro
             return;
         }
 
-        // A pinned call is transparent to a block - only output ends one.
-        if (role !== 'pinned') timeline = null;
+        timeline = null;
         addPart(ret, part, host);
     });
-
-    if (firstTimeline) {
-        firstTimeline.pinned = shown.filter(
-            (part, idx) => roles[idx] === 'pinned'
-        ) as ChatToolCallPart[];
-    }
     return ret;
 }
 
 /**
  * Gather consecutive process groups - reasoning, tool calls shown as rows, and groups of them -
  * into runs. A run ends at any output part, such as text, so text between two steps starts a new
- * run. A call with `display: 'inline'` or `'answer'` is output, not process, and a timeline block
+ * run. A call with `display: 'inline'` is output, not process, and a timeline block
  * stands on its own.
  * @internal
  */
@@ -168,16 +152,13 @@ export function groupProcessRuns(
 //------------------
 // Implementation
 //------------------
-/** What a part is to the timeline: a member, text that may fold in, a plan, or other content. */
-type PartRole = 'timeline' | 'fold' | 'pinned' | 'other';
+/** What a part is to the timeline: a member, text that may fold in, or other content. */
+type PartRole = 'timeline' | 'fold' | 'other';
 
 function getRole(part: ChatPart, host: ChatTranscript): PartRole {
     switch (part.type) {
-        case 'toolCall': {
-            const display = getToolCallDisplay(part, host);
-            if (display === 'timeline') return 'timeline';
-            return display === 'pinned' ? 'pinned' : 'other';
-        }
+        case 'toolCall':
+            return getToolCallDisplay(part, host) === 'timeline' ? 'timeline' : 'other';
         case 'data':
             return isChatSubagentPart(part) ? 'timeline' : 'other';
         case 'text':
@@ -188,10 +169,10 @@ function getRole(part: ChatPart, host: ChatTranscript): PartRole {
     }
 }
 
-/** True if the next part that is not text, reasoning or a plan is a timeline member. */
+/** True if the next part that is not text or reasoning is a timeline member. */
 function foldsIntoTimeline(roles: PartRole[], idx: number): boolean {
     for (let i = idx + 1; i < roles.length; i++) {
-        if (roles[i] === 'fold' || roles[i] === 'pinned') continue;
+        if (roles[i] === 'fold') continue;
         return roles[i] === 'timeline';
     }
     return false;
@@ -246,10 +227,9 @@ function isWaitingForUser(call: ChatToolCallPart, host: ChatTranscript): boolean
     );
 }
 
-/** True for a call shown as a card row - a pinned call outside a timeline shows as one. */
+/** True for a call shown as a card row. */
 function isCardRow(call: ChatToolCallPart, host: ChatTranscript): boolean {
-    const display = getToolCallDisplay(call, host);
-    return display === 'card' || display === 'pinned';
+    return getToolCallDisplay(call, host) === 'card';
 }
 
 function isGroupable(call: ChatToolCallPart, host: ChatTranscript): boolean {

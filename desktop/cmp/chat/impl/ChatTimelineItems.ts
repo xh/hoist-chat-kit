@@ -1,14 +1,4 @@
-import {
-    compact,
-    isArray,
-    isEqual,
-    isNil,
-    isPlainObject,
-    isString,
-    last,
-    maxBy,
-    minBy
-} from 'lodash';
+import {isEqual, isNil, isPlainObject, isString, last, maxBy, minBy} from 'lodash';
 import {
     type ChatDataPart,
     type ChatMessage,
@@ -196,25 +186,25 @@ export interface ChatTimelineSummary {
     /** The first call waiting for the user's answer, or null. */
     question: ChatToolCallPart;
 
+    /** Every call waiting for the user's answer, in order. */
+    questions: ChatToolCallPart[];
+
     /** The latest finished sentence of narration, if narration is the newest row, or null. */
     narration: string;
 
     /** True if reasoning is the newest row and still streams. */
     isThinking: boolean;
-
-    /** The plan from the latest pinned call, or null. */
-    plan: ChatTimelinePlan;
 }
 
 /** @internal */
 export function summarizeTimeline(
     items: ChatTimelineItem[],
-    pinned: ChatToolCallPart[],
     host: ChatTranscript
 ): ChatTimelineSummary {
     const calls = getTimelineCalls(items),
         specOf = (call: ChatToolCallPart) => getHostToolSpec(host, call.toolName),
         failed = calls.filter(isToolCallFailed),
+        questions = calls.filter(it => isAwaitingAnswer(it, specOf(it))),
         newest = last(items);
 
     return {
@@ -234,10 +224,10 @@ export function summarizeTimeline(
             .filter(it => it?.status === 'running'),
         approval: calls.find(it => it.state === 'approval-requested') ?? null,
         approvals: calls.filter(it => it.state === 'approval-requested'),
-        question: calls.find(it => isAwaitingAnswer(it, specOf(it))) ?? null,
+        question: questions[0] ?? null,
+        questions,
         narration: newest?.type === 'narration' ? lastSentence(newest.part) : null,
-        isThinking: newest?.type === 'reasoning' && newest.part.state === 'streaming',
-        plan: parsePlan(last(pinned), specOf)
+        isThinking: newest?.type === 'reasoning' && newest.part.state === 'streaming'
     };
 }
 
@@ -287,55 +277,6 @@ export function getTimelineState({
     const isWorking = summary.running.length > 0 || summary.runningAgents.length > 0;
     if (!isWorking && isFollowed) return 'done';
     return isQuiet ? 'quiet' : 'running';
-}
-
-//------------------
-// Plan
-//------------------
-/** @internal */
-export type ChatTimelinePlanStatus = 'pending' | 'active' | 'done' | 'skipped';
-
-/** @internal */
-export interface ChatTimelinePlanItem {
-    title: string;
-    status: ChatTimelinePlanStatus;
-}
-
-/**
- * A plan from a pinned call: its parsed items, or the call to render as is when its value is not
- * a plan.
- * @internal
- */
-export interface ChatTimelinePlan {
-    call: ChatToolCallPart;
-    spec: ChatToolSpec;
-
-    /** The plan's items, or null if the call's value is not a list of items. */
-    items: ChatTimelinePlanItem[];
-}
-
-/**
- * The plan in a pinned call's output, or else its input - see `ChatToolDisplay`. Null with no
- * call.
- * @internal
- */
-export function parsePlan(
-    call: ChatToolCallPart,
-    specOf: (call: ChatToolCallPart) => ChatToolSpec
-): ChatTimelinePlan {
-    if (!call) return null;
-    const items = toPlanItems(call.output) ?? toPlanItems(call.input);
-    return {call, spec: specOf(call), items};
-}
-
-/**
- * The position the line shows for a plan: the active item's, counting from 1, or else the number
- * of items done.
- * @internal
- */
-export function getPlanPosition(items: ChatTimelinePlanItem[]): number {
-    const activeIdx = items.findIndex(it => it.status === 'active');
-    return activeIdx >= 0 ? activeIdx + 1 : items.filter(it => it.status === 'done').length;
 }
 
 //------------------
@@ -389,46 +330,6 @@ export function getSpanMs(calls: ChatToolCallPart[]): number {
     return end - start;
 }
 
-/** The answer given to a question, as short text. @internal */
-export function formatAnswer(output: unknown): string {
-    if (isNil(output)) return null;
-    if (isString(output)) return output;
-    if (isPlainObject(output)) {
-        const value = ANSWER_KEYS.map(it => (output as any)[it]).find(it => !isNil(it));
-        if (!isNil(value)) return isString(value) ? value : JSON.stringify(value);
-    }
-    return JSON.stringify(output);
-}
-
-/** A question's choices - strings, or objects with a label and a value. @internal */
-export interface ChatTimelineChoice {
-    label: string;
-    value: any;
-}
-
-/** The choices a question's input offers, or an empty list. @internal */
-export function getChoices(input: unknown): ChatTimelineChoice[] {
-    if (!isPlainObject(input)) return [];
-    const list = CHOICE_KEYS.map(it => (input as any)[it]).find(isArray) ?? [];
-    return compact(
-        list.map(it => {
-            if (isString(it)) return {label: it, value: it};
-            if (isPlainObject(it)) {
-                const label = it.label ?? it.title ?? it.text ?? it.value;
-                return isNil(label) ? null : {label: String(label), value: it.value ?? label};
-            }
-            return null;
-        })
-    );
-}
-
-/** The question a call asks, from its input, or null. @internal */
-export function getQuestion(input: unknown): string {
-    if (!isPlainObject(input)) return null;
-    const value = QUESTION_KEYS.map(it => (input as any)[it]).find(isString);
-    return value?.trim() || null;
-}
-
 //------------------
 // Implementation
 //------------------
@@ -447,44 +348,6 @@ const SUMMARY_KEYS = [
     'title'
 ];
 const CODE_KEYS = ['query', 'sql', 'path', 'file', 'filePath', 'url', 'command', 'code'];
-const ANSWER_KEYS = ['answer', 'choice', 'value', 'label', 'text'];
-const CHOICE_KEYS = ['choices', 'options'];
-const QUESTION_KEYS = ['question', 'prompt', 'text', 'message'];
-const PLAN_LIST_KEYS = ['items', 'steps', 'todos', 'plan', 'tasks'];
-const PLAN_TITLE_KEYS = ['title', 'content', 'text', 'name', 'step', 'task'];
-
-const PLAN_STATUSES: Record<string, ChatTimelinePlanStatus> = {
-    pending: 'pending',
-    todo: 'pending',
-    active: 'active',
-    in_progress: 'active',
-    inprogress: 'active',
-    running: 'active',
-    done: 'done',
-    complete: 'done',
-    completed: 'done',
-    skipped: 'skipped',
-    cancelled: 'skipped',
-    canceled: 'skipped'
-};
-
-function toPlanItems(value: unknown): ChatTimelinePlanItem[] {
-    const list = isArray(value)
-        ? value
-        : isPlainObject(value)
-          ? PLAN_LIST_KEYS.map(it => (value as any)[it]).find(isArray)
-          : null;
-    if (!list?.length) return null;
-
-    const items = list.map(it => {
-        if (isString(it)) return {title: it, status: 'pending' as const};
-        if (!isPlainObject(it)) return null;
-        const title = PLAN_TITLE_KEYS.map(key => it[key]).find(isString),
-            status = PLAN_STATUSES[String(it.status ?? '').toLowerCase()] ?? 'pending';
-        return title ? {title, status} : null;
-    });
-    return items.every(it => it) ? items : null;
-}
 
 // Retries: a later call with the same tool, input and sub-agent as an earlier failed one.
 function getRetries(parts: ChatPart[]): Map<string, number> {

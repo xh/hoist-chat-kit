@@ -384,7 +384,7 @@
   // A Button in a meta-size strip takes the strip's size, so its label and the text read as one.
   @include hoist-button(
     null,
-    ':is(.xh-chat-message__failed, .xh-chat-message__not-sent, .xh-chat-message__undo-failed, .xh-chat-message__feedback-status)'
+    ':is(.xh-chat-message__failed, .xh-chat-message__not-sent, .xh-chat-message__feedback-status)'
   ) {
     font-size: inherit;
     min-height: 24px;
@@ -426,26 +426,12 @@
   //------------------------
   // Under the reply
   //------------------------
-  // Below the action bar, which keeps its gap above: a failed undo, then the feedback form.
+  // Below the action bar, which keeps its gap above: the feedback form.
   &__after {
     display: flex;
     flex-direction: column;
     gap: var(--xh-pad-half-px);
     margin-top: var(--xh-chat-turn-gap);
-  }
-
-  &__undo-failed {
-    align-items: center;
-    color: var(--xh-chat-error-color);
-    display: flex;
-    flex-wrap: wrap;
-    font-size: var(--xh-chat-meta-font-size);
-    gap: var(--xh-chat-status-cue-gap);
-    min-height: 24px;
-  }
-
-  &__undo-failed-cause {
-    color: var(--xh-chat-meta-text-color);
   }
 
   //------------------------
@@ -483,18 +469,6 @@
     color: var(--xh-chat-meta-text-color);
     font-size: var(--xh-chat-meta-font-size);
     font-weight: 400;
-  }
-
-  // Reasons wrap at narrow widths.
-  &__feedback-reasons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--xh-pad-half-px);
-  }
-
-  @include hoist-button('.xh-chat-message__feedback-reason') {
-    min-height: 24px;
-    padding: 0 6px;
   }
 
   &__feedback-error {

@@ -9,7 +9,6 @@ import {runInAction} from '@xh/hoist/mobx';
 import {
     ChatMessage,
     type ChatMessageSpec,
-    chatToolResult,
     ChatModel,
     type ChatModelConfig,
     type ChatPart,
@@ -19,7 +18,7 @@ import {
     type ChatTranscript
 } from '../../../core';
 import {ChatUiCatalog} from '../../../genui';
-import {ScriptedChatTransport, textEvents, toolCallEvents} from '../../../transport';
+import {ScriptedChatTransport} from '../../../transport';
 import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
 
 /**
@@ -346,28 +345,6 @@ describe('ChatMessageList', () => {
         expect(screen.getByText('Will hide the Tokyo column.')).toBeTruthy();
     });
 
-    it('offers Undo on a reply whose tool calls made undoable changes', async () => {
-        const undo = vi.fn(),
-            chatModel = createModel(
-                {
-                    transport: new ScriptedChatTransport({
-                        responses: [toolCallEvents('hide', {}), textEvents('Done.')],
-                        delayMs: 0
-                    }),
-                    tools: [{name: 'hide', execute: () => chatToolResult('Hidden.', {undo})}]
-                },
-                []
-            );
-        await chatModel.sendAsync('Hide it');
-        renderList(chatModel);
-
-        await act(() => fireEvent.click(screen.getByRole('button', {name: 'Undo changes'})));
-
-        expect(undo).toHaveBeenCalledOnce();
-        expect(chatModel.lastMessage.metadata.undone).toBe(true);
-        expect(screen.queryByRole('button', {name: 'Undo changes'})).toBeNull();
-    });
-
     it('asks for approval with the tool approvalPrompt, in place of the generic question', () => {
         const approval = {...call('c1', 'submit_order'), state: 'approval-requested' as const},
             chatModel = createModel(
@@ -460,9 +437,8 @@ describe('ChatMessageList', () => {
             fireEvent.click(screen.getByRole('button', {name: /Source 2/}));
             expect(onSourceClick).toHaveBeenLastCalledWith(SOURCES[1], context);
 
-            // A web page's marker pins its card, whose Open Link opens it.
+            // A web page's marker opens it, as any other source's does.
             fireEvent.click(container.querySelector('.xh-chat-citations .xh-chat-citation-marker'));
-            fireEvent.click(screen.getByRole('button', {name: 'Open Link'}));
             expect(onSourceClick).toHaveBeenLastCalledWith(SOURCES[0], context);
 
             fireEvent.click(screen.getByRole('button', {name: 'Guideline 4.2'}));
@@ -640,7 +616,6 @@ describe('ChatMessageList', () => {
             'Edit',
             'Edit Prompt',
             'Regenerate',
-            'Undo changes',
             'Good response',
             'Bad response'
         ]) {

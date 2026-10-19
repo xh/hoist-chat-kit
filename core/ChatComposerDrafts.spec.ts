@@ -178,16 +178,21 @@ describe('ChatComposerModel drafts', () => {
     it('moves the draft to the id the backend gives a new thread', async () => {
         vi.useFakeTimers();
         const chatModel = createChatModel({
+                historyMode: 'server',
                 transport: new ScriptedChatTransport({
-                    responses: [[scriptedDelay(2000), ...textEvents('Hi.')]],
+                    responses: [
+                        [
+                            scriptedDelay(1000),
+                            {type: 'RUN_STARTED', threadId: 'server-1', runId: 'r1'},
+                            scriptedDelay(2000),
+                            ...textEvents('Hi.')
+                        ]
+                    ],
                     delayMs: 0
                 })
             }),
             composer = chatModel.composerModel,
             localId = chatModel.threadId;
-        chatModel.setThreadCreator(
-            () => new Promise(resolve => setTimeout(() => resolve('server-1'), 1000))
-        );
 
         const done = chatModel.sendAsync('First question');
         composer.text = 'Next question';

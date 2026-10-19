@@ -31,20 +31,9 @@ describe('remarkCitations', () => {
         );
     });
 
-    it('expands a range of numbers, written with a dash', () => {
-        const S4 = source('s4');
-        expect(transform(paragraph(text('All [1–4] and [1-2, 4]')), [S1, S2, S3, S4])).toEqual(
-            paragraph(
-                run(text('All '), citation('[1–4]', [1, 2, 3, 4])),
-                text(' '),
-                run(text('and '), citation('[1-2, 4]', [1, 2, 4]))
-            )
-        );
-    });
-
-    it('leaves a backward range as written', () => {
-        expect(transform(paragraph(text('See [3–1].')), [S1, S2, S3])).toEqual(
-            paragraph(text('See [3–1].'))
+    it('leaves a range as written, with either dash', () => {
+        expect(transform(paragraph(text('All [1–3] and [1-2, 3].')), [S1, S2, S3])).toEqual(
+            paragraph(text('All [1–3] and [1-2, 3].'))
         );
     });
 

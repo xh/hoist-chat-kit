@@ -1,9 +1,10 @@
 /**
  * Builds the package and checks what it ships. The kit is published as source, so the build is
  * the packed tarball. Fails if a source package (a top-level directory with an `index.ts` barrel,
- * at any depth) is missing from the tarball, if specs or internal files would ship, or if a
- * shipped file imports a relative stylesheet that does not ship. Unit tests drop stylesheets, so
- * only this check catches a missing one before an app build does.
+ * at any depth) is missing from the tarball, if specs or internal files would ship, if a shipped
+ * file imports the kit's test support, or if a shipped file imports a relative stylesheet that
+ * does not ship. Unit tests drop stylesheets, so only this check catches a missing one before an
+ * app build does.
  *
  * Run with `pnpm build`.
  */
@@ -34,6 +35,13 @@ for (const file of files) {
 for (const file of files) {
     if (!file.endsWith('.ts')) continue;
     const source = readFileSync(path.join(root, file), 'utf8');
+    // Static, side-effect and dynamic imports, and re-exports.
+    for (const [, spec] of source.matchAll(/(?:from|import)\s*\(?\s*'(\.{1,2}\/[^']+)'/g)) {
+        const target = path.posix.normalize(path.posix.join(path.posix.dirname(file), spec));
+        if (target.startsWith('test/')) {
+            errors.push(`Imports test support: ${file} imports ${spec}`);
+        }
+    }
     for (const [, spec] of source.matchAll(/^import '(\.{1,2}\/[^']+\.scss)';/gm)) {
         const target = path.posix.normalize(path.posix.join(path.posix.dirname(file), spec));
         if (!files.has(target)) errors.push(`Missing stylesheet: ${file} imports ${spec}`);

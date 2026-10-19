@@ -13,6 +13,7 @@ import {classNames} from '../../../../impl/ClassNames';
 import {htmlButton, htmlMark} from '../../../../impl/HtmlTags';
 import {genChatId} from '../../../../impl/ids';
 import {
+    getCitationGroupLabels,
     getExcerpt,
     getSourceFileName,
     getSourcePage,
@@ -44,10 +45,11 @@ interface ChatCitationMarkerProps extends HoistProps {
  * after 300 ms or at once on focus, and shows the source's title, meta and excerpt, with Open and
  * Copy Excerpt.
  *
- * A click on a document's marker opens it, in the side panel when one is in reach. A click on a
- * web page's marker pins its card - its Open Link opens a new tab - and a Ctrl or Cmd click opens
- * the page at once. Esc closes the card and keeps focus on the marker. The card renders next to
- * the marker in the DOM, so Tab moves into its buttons and then on to the next marker.
+ * A click on the marker opens the source, as a click on its row in the sources list does: a
+ * document in the side panel when one is in reach, a web page in a new tab. A source that nothing
+ * can open pins its card instead. Esc closes the card and keeps focus on the marker. The card
+ * renders next to the marker in the DOM, so Tab moves into its buttons and then on to the next
+ * marker.
  * @internal
  */
 export const chatCitationMarker = hoistCmp.factory<ChatCitationMarkerProps>({
@@ -56,8 +58,7 @@ export const chatCitationMarker = hoistCmp.factory<ChatCitationMarkerProps>({
     render({number, source, passage, links}) {
         const impl = useLocalModel(CardLocalModel),
             label = getAccessibleLabel(source, number),
-            isDocument = getSourceType(source) === 'document',
-            canPress = isDocument && links.opensInPanel(source),
+            canPress = links.opensInPanel(source),
             isActive = links.isActive(number);
         usePlacement(impl);
 
@@ -77,11 +78,9 @@ export const chatCitationMarker = hoistCmp.factory<ChatCitationMarkerProps>({
                 'aria-describedby': impl.isOpen ? impl.cardId : undefined,
                 onFocus: () => impl.openNow(),
                 onClick: (e: MouseEvent<HTMLButtonElement>) => {
-                    const newTab = e.ctrlKey || e.metaKey;
-                    if (newTab || (isDocument && links.canOpen(source))) {
-                        if (newTab) e.preventDefault();
+                    if (links.canOpen(source)) {
                         impl.close();
-                        links.open(source, {citation: number, opener: e.currentTarget, newTab});
+                        links.open(source, {citation: number, opener: e.currentTarget});
                     } else {
                         impl.togglePin();
                     }
@@ -102,8 +101,9 @@ interface ChatCitationGroupMarkerProps extends HoistProps {
 }
 
 /**
- * The one marker that stands for four or more sources, labeled "2–5". Its card lists them all,
- * each one a button that opens it. A click pins the card.
+ * The one marker that stands for four or more sources - labeled "2–5" when the numbers are
+ * consecutive, else "4 sources". Its card lists them all, each one a button that opens it. A
+ * click pins the card.
  * @internal
  */
 export const chatCitationGroupMarker = hoistCmp.factory<ChatCitationGroupMarkerProps>({
@@ -111,8 +111,7 @@ export const chatCitationGroupMarker = hoistCmp.factory<ChatCitationGroupMarkerP
 
     render({cited, links}) {
         const impl = useLocalModel(CardLocalModel),
-            first = cited[0].number,
-            last = cited[cited.length - 1].number;
+            {text, label} = getCitationGroupLabels(cited.map(it => it.number));
         usePlacement(impl);
 
         return markerWrap(impl, links, null, [
@@ -124,16 +123,16 @@ export const chatCitationGroupMarker = hoistCmp.factory<ChatCitationGroupMarkerP
                     'xh-chat-citation-marker--open': impl.isOpen,
                     'xh-chat-citation-marker--active': cited.some(it => links.isActive(it.number))
                 }),
-                'aria-label': `Sources ${first} to ${last}`,
+                'aria-label': label,
                 'aria-describedby': impl.isOpen ? impl.cardId : undefined,
                 onFocus: () => impl.openNow(),
                 onClick: () => impl.togglePin(),
-                item: `${first}–${last}`
+                item: text
             }),
             impl.isOpen
                 ? span({
                       key: 'card',
-                      ...cardProps(impl, `Sources ${first} to ${last}`),
+                      ...cardProps(impl, label),
                       items: cited.map(({number, source}) =>
                           span({
                               key: number,
@@ -142,7 +141,7 @@ export const chatCitationGroupMarker = hoistCmp.factory<ChatCitationGroupMarkerP
                                   numberPill(number),
                                   span({
                                       className: 'xh-chat-source-card__icon',
-                                      item: sourceIcon(source, links.allowImages)
+                                      item: sourceIcon(source)
                                   }),
                                   links.canOpen(source)
                                       ? htmlButton({
@@ -385,7 +384,7 @@ const sourceCard = hoistCmp.factory<SourceCardProps>({
                         numberPill(number),
                         span({
                             className: 'xh-chat-source-card__icon',
-                            item: sourceIcon(source, links.allowImages)
+                            item: sourceIcon(source)
                         }),
                         span({className: 'xh-chat-source-card__title', item: getTitle(source)})
                     ]

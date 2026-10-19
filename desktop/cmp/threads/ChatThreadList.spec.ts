@@ -1,23 +1,20 @@
 import {act, fireEvent, render, screen, within} from '@testing-library/react';
-import {HoistModel, XH} from '@xh/hoist/core';
-import {observable, observableRef} from '@xh/hoist/mobx';
+import {XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatModel} from '../../../core';
 import {
-    type ChatThreadListHost,
-    ChatThreadsModel,
-    type ChatThreadSummary,
     type LocalChatThread,
     LocalChatThreadStore
-} from '../../../threads';
+} from '../../../test/support/LocalChatThreadStore';
+import {ChatThreadsModel} from '../../../threads';
 import {ScriptedChatTransport, textEvents} from '../../../transport';
 import {chatThreadList} from './ChatThreadList';
 
 /**
  * The thread list's contract. Apps rely on it to show a user's threads grouped by recency, open
- * the one clicked, rename, pin and delete in place - always confirming a delete - and show the
+ * the one clicked, rename and delete in place - always confirming a delete - and show the
  * actions only where the store supports them. It also marks threads that run, wait for the user,
  * or finished while the user was away.
  */
@@ -27,11 +24,16 @@ describe('ChatThreadList', () => {
     // jsdom has no layout, and so no ResizeObserver. The setup unstubs globals after each test.
     beforeEach(() => vi.stubGlobal('ResizeObserver', NoopResizeObserver));
 
-    it('groups the threads by recency, with Pinned first', async () => {
+    it('groups the threads by recency', async () => {
         await renderList();
 
-        expect(groupLabels()).toEqual(['Pinned', 'Today', 'Yesterday', 'Previous 7 days']);
-        expect(rowTitles()).toEqual(['Pinned plan', 'Budget review', 'Travel', 'Old notes']);
+        expect(groupLabels()).toEqual([
+            'Today',
+            'Yesterday',
+            'Previous 7 days',
+            'Previous 30 days'
+        ]);
+        expect(rowTitles()).toEqual(['Budget review', 'Travel', 'Old notes', 'Old plan']);
     });
 
     it('opens a thread on click, and marks it selected', async () => {
@@ -63,13 +65,13 @@ describe('ChatThreadList', () => {
     it('moves between rows with the arrow keys, and opens one with Enter', async () => {
         const {model} = await renderList();
 
-        row('Pinned plan').focus();
-        fireEvent.keyDown(row('Pinned plan'), {key: 'ArrowDown'});
-        expect(document.activeElement).toBe(row('Budget review'));
+        row('Budget review').focus();
+        fireEvent.keyDown(row('Budget review'), {key: 'ArrowDown'});
+        expect(document.activeElement).toBe(row('Travel'));
 
-        fireEvent.keyDown(row('Budget review'), {key: 'Enter'});
+        fireEvent.keyDown(row('Travel'), {key: 'Enter'});
         await act(() => wait());
-        expect(model.selectedThreadId).toBe('t1');
+        expect(model.selectedThreadId).toBe('t2');
     });
 
     it('renames a thread in place, saving on Enter', async () => {
@@ -152,35 +154,21 @@ describe('ChatThreadList', () => {
         expect(model.selectedThreadId).toBe('t2');
     });
 
-    it('shows Pin and Rename only if the store supports them', async () => {
+    it('shows Rename only if the store supports it', async () => {
         const {model} = await renderList({
             store: new LocalChatThreadStore({
                 threads: THREADS,
-                omit: ['renameThreadAsync', 'pinThreadAsync', 'deleteThreadsAsync']
+                omit: ['renameThreadAsync', 'deleteThreadsAsync']
             })
         });
         const travel = within(row('Travel'));
 
         expect(travel.queryByRole('button', {name: 'Rename'})).toBeNull();
-        expect(travel.queryByRole('button', {name: 'Pin'})).toBeNull();
         expect(travel.getByRole('button', {name: 'More'})).toBeTruthy();
 
         fireEvent.keyDown(row('Travel'), {key: 'F2'});
         expect(screen.queryByLabelText('Rename thread')).toBeNull();
         expect(model.canDelete).toBe(false);
-    });
-
-    it('pins a thread from its row', async () => {
-        const {model} = await renderList();
-
-        fireEvent.click(within(row('Travel')).getByRole('button', {name: 'Pin'}));
-        await act(() => wait());
-
-        expect(model.threads.find(it => it.id === 't2').pinned).toBe(true);
-        expect(groupLabels()[0]).toBe('Pinned');
-        expect(
-            within(screen.getByRole('rowgroup', {name: 'Pinned'})).getByText('Travel')
-        ).toBeTruthy();
     });
 
     it('binds the search input to the model, and clears it on Escape', async () => {
@@ -227,86 +215,48 @@ describe('ChatThreadList', () => {
         expect(rowTitles()).toHaveLength(4);
     });
 
-    it('loads more threads from the Load More button', async () => {
-        const {model} = await renderList({pageSize: 2});
-        expect(rowTitles()).toHaveLength(2);
+    it('starts a new thread from New Chat', async () => {
+        const {model} = await renderList();
+        await act(() => model.selectThreadAsync('t1'));
 
-        fireEvent.click(screen.getByRole('button', {name: 'Load More'}));
-        await act(() => wait());
+        fireEvent.click(screen.getByRole('button', {name: 'New Chat'}));
 
-        expect(rowTitles()).toHaveLength(4);
-        expect(model.hasMoreThreads).toBe(false);
+        expect(model.selectedThreadId).not.toBe('t1');
+        expect(model.chatModel.isEmpty).toBe(true);
     });
 
-    describe('with a host of its own', () => {
-        it('marks threads that run, wait for the user, have a new reply or were interrupted', () => {
-            const host = new TestHost({
+    it('marks threads that run, wait for the user, have a new reply or were interrupted', async () => {
+        const store = new LocalChatThreadStore({
                 threads: [
-                    summary('a', 'Running'),
-                    summary('b', 'Awaiting'),
-                    summary('c', 'Finished away'),
-                    summary('d', 'Cut short', {lastRunEnd: 'interrupted'}),
-                    summary('e', 'Plain')
-                ],
-                runningThreadIds: ['a'],
-                awaitingThreadIds: ['b'],
-                finishedAwayThreadIds: ['c']
-            });
-            renderHostList(host);
+                    thread('a', 'Running', {isRunning: true}),
+                    thread('b', 'Awaiting'),
+                    thread('c', 'Finished away'),
+                    thread('d', 'Cut short', {lastRunEnd: 'interrupted'}),
+                    thread('e', 'Plain')
+                ]
+            }),
+            model = createModel(store);
+        vi.spyOn(model, 'awaitingThreadIds', 'get').mockReturnValue(['b']);
+        vi.spyOn(model, 'finishedAwayThreadIds', 'get').mockReturnValue(['c']);
+        await model.loadAsync();
+        render(chatThreadList({model}));
 
-            expect(row('Running').getAttribute('aria-label')).toBe('Running, working');
-            expect(within(row('Running')).getByText('Working')).toBeTruthy();
-            expect(row('Awaiting').getAttribute('aria-label')).toBe('Awaiting, waiting for you');
-            expect(row('Finished away').getAttribute('aria-label')).toBe(
-                'Finished away, new reply'
-            );
-            expect(row('Cut short').getAttribute('aria-label')).toBe(
-                'Cut short, last reply interrupted'
-            );
-            expect(row('Plain').getAttribute('aria-label')).toMatch(/^Plain, \d\d:\d\d$/);
-        });
+        expect(row('Running').getAttribute('aria-label')).toBe('Running, working');
+        expect(within(row('Running')).getByText('Working')).toBeTruthy();
+        expect(row('Awaiting').getAttribute('aria-label')).toBe('Awaiting, waiting for you');
+        expect(row('Finished away').getAttribute('aria-label')).toBe('Finished away, new reply');
+        expect(row('Cut short').getAttribute('aria-label')).toBe(
+            'Cut short, last reply interrupted'
+        );
+        expect(row('Plain').getAttribute('aria-label')).toMatch(/^Plain, \d\d:\d\d$/);
+    });
 
-        it('says it searches titles only, for a host whose search skips message text', () => {
-            renderHostList(
-                new TestHost({threads: [summary('a', 'Budget review')], search: 'budget'})
-            );
-            expect(screen.getByText('Searching titles')).toBeTruthy();
-        });
+    it('hides the search input with enableSearch false', async () => {
+        const model = createModel(new LocalChatThreadStore({threads: THREADS}));
+        await model.loadAsync();
+        render(chatThreadList({model, enableSearch: false}));
 
-        it('shows the matching snippet under a result, for a host that searches messages', () => {
-            renderHostList(
-                new TestHost({
-                    threads: [summary('a', 'Budget review', {snippet: 'the Q3 budget is final'})],
-                    search: 'budget',
-                    searchesMessages: true
-                })
-            );
-            expect(screen.queryByText('Searching titles')).toBeNull();
-            const result = row('Budget review');
-            expect(within(result).getByText('the Q3 budget is final')).toBeTruthy();
-            expect(result.getAttribute('aria-label')).toMatch(
-                /^Budget review, the Q3 budget is final/
-            );
-        });
-
-        it('hides the actions and the search the host leaves out', () => {
-            renderHostList(new TestHost({threads: [summary('a', 'Only')]}));
-
-            expect(within(row('Only')).queryByRole('button', {name: 'Rename'})).toBeNull();
-            expect(within(row('Only')).queryByRole('button', {name: 'Pin'})).toBeNull();
-            expect(screen.queryByLabelText('Search threads')).toBeNull();
-        });
-
-        it('calls the host to start a thread and to open one', () => {
-            const host = new TestHost({threads: [summary('a', 'Only')]});
-            renderHostList(host);
-
-            fireEvent.click(screen.getByRole('button', {name: 'New Chat'}));
-            fireEvent.click(row('Only'));
-
-            expect(host.newThread).toHaveBeenCalledTimes(1);
-            expect(host.selectThreadAsync).toHaveBeenCalledWith('a');
-        });
+        expect(screen.queryByLabelText('Search threads')).toBeNull();
     });
 });
 
@@ -320,7 +270,7 @@ const THREADS: LocalChatThread[] = [
     {id: 't1', title: 'Budget review', lastActivityAt: NOW, messages: textMessages('Hi')},
     {id: 't2', title: 'Travel', lastActivityAt: NOW - DAY, messages: textMessages('Hello')},
     {id: 't3', title: 'Old notes', lastActivityAt: NOW - 3 * DAY},
-    {id: 't4', title: 'Pinned plan', lastActivityAt: NOW - 10 * DAY, pinned: true}
+    {id: 't4', title: 'Old plan', lastActivityAt: NOW - 10 * DAY}
 ];
 
 class NoopResizeObserver {
@@ -330,53 +280,26 @@ class NoopResizeObserver {
 }
 
 async function renderList({
-    store = new LocalChatThreadStore({threads: THREADS}),
-    pageSize = 50
-}: {store?: LocalChatThreadStore; pageSize?: number} = {}) {
-    const transport = new ScriptedChatTransport({responses: [textEvents('Hi.')], delayMs: 0}),
-        model = new ChatThreadsModel({
-            store,
-            pageSize,
-            createChatModel: ({threadId}) =>
-                new ChatModel({transport, threadId, historyMode: 'server'})
-        });
-    onTestFinished(() => model.destroy());
-
+    store = new LocalChatThreadStore({threads: THREADS})
+}: {store?: LocalChatThreadStore} = {}) {
+    const model = createModel(store);
     await model.loadAsync();
     render(chatThreadList({model}));
     return {model, store};
 }
 
-/** A host of an app's own - a plain HoistModel with only the members it needs. */
-class TestHost extends HoistModel implements ChatThreadListHost {
-    @observableRef accessor threads: ChatThreadSummary[];
-    @observable accessor selectedThreadId: string = null;
-    readonly runningThreadIds: string[];
-    readonly awaitingThreadIds: string[];
-    readonly finishedAwayThreadIds: string[];
-    readonly searchesMessages: boolean;
-    search: string;
-
-    newThread = vi.fn();
-    selectThreadAsync = vi.fn(async () => {});
-
-    constructor(config: Partial<ChatThreadListHost>) {
-        super();
-        this.threads = config.threads ?? [];
-        this.runningThreadIds = config.runningThreadIds ?? [];
-        this.awaitingThreadIds = config.awaitingThreadIds ?? [];
-        this.finishedAwayThreadIds = config.finishedAwayThreadIds ?? [];
-        this.search = config.search;
-        this.searchesMessages = config.searchesMessages;
-    }
+function createModel(store: LocalChatThreadStore): ChatThreadsModel {
+    const transport = new ScriptedChatTransport({responses: [textEvents('Hi.')], delayMs: 0}),
+        model = new ChatThreadsModel({
+            store,
+            createChatModel: ({threadId}) =>
+                new ChatModel({transport, threadId, historyMode: 'server'})
+        });
+    onTestFinished(() => model.destroy());
+    return model;
 }
 
-function renderHostList(host: TestHost) {
-    onTestFinished(() => host.destroy());
-    render(chatThreadList({model: host}));
-}
-
-function summary(id: string, title: string, rest: Partial<ChatThreadSummary> = {}) {
+function thread(id: string, title: string, rest: Partial<LocalChatThread> = {}) {
     return {id, title, lastActivityAt: NOW, ...rest};
 }
 
