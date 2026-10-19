@@ -114,8 +114,9 @@ Consequences:
 
 - `@xh/hoist`, `react`, and `react-dom` are `peerDependencies`. The host app supplies them.
 - `@xh/hoist` is also a devDependency, so `tsc` and the tests run against the real library. It
-  tracks the `next` dist-tag, the latest v89 snapshot. v89 is the first release with the unit test
-  kit. Run `pnpm update @xh/hoist` to take a newer snapshot.
+  tracks the latest Hoist release, and the peer range starts at the release the kit is tested on.
+  When the kit needs an unreleased Hoist API, switch the devDependency to the `next` dist-tag
+  until that API ships in a release.
 - `tsc` compiles Hoist's own `.ts` source. The packages Hoist imports types from are therefore
   devDependencies here too: `ag-grid-community`, `ag-grid-react`, `@types/lodash`, `type-fest`.
 - The `files` field in `package.json` lists what gets published. Add each new top-level source
