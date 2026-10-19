@@ -7,8 +7,8 @@ import {type ChatDataRenderer, ChatModel} from './ChatModel';
  * log, say, or a saved conversation. `ChatModel` implements it.
  *
  * The list and its message views render the parts of any transcript. Actions such as Edit,
- * Regenerate, Undo, feedback and approvals need the turn loop, so they show only when the host is
- * a `ChatModel` - see {@link isChatModel}.
+ * Regenerate, feedback and approvals need the turn loop, so they show only when the host is a
+ * `ChatModel` - see {@link isChatModel}.
  *
  * The views read these members in render, so make them observable for the views to update as they
  * change.

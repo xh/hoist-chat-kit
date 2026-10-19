@@ -5,7 +5,7 @@
 | [Overview](#overview) | What the core models do, and the key features |
 | [Architecture](#architecture) | `ChatModel`, `ChatMessage`, parts, tools, and the turn loop |
 | [Configuration Pattern](#configuration-pattern) | Creating a `ChatModel` with a transport, tools, and a composer |
-| [Common Usage Patterns](#common-usage-patterns) | Sending, tools, approvals, an agent's questions, live context, undo, server-owned conversations, feedback, persistence, errors |
+| [Common Usage Patterns](#common-usage-patterns) | Sending, tools, approvals, an agent's questions, live context, server-owned conversations, feedback, persistence, errors |
 | [Properties/API Reference](#propertiesapi-reference) | Config, state, methods, statuses, parts, and metadata |
 | [Extension Points](#extension-points) | Tools, data renderers, transports, the stream reducer, and app metadata |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -30,8 +30,7 @@ Key features:
   chat runs it in the browser, sends the result back, and continues, up to `maxSteps`.
 - **Human in the loop** - tool calls can wait for the user to approve them, or for the user to
   answer them. The turn pauses and resumes when the user responds.
-- **Live context and undo** - context providers describe the app's state to the model at every
-  step, and tools return undo functions, so the user can undo a reply's changes.
+- **Live context** - context providers describe the app's state to the model at every step.
 - **Two conversation shapes** - the browser owns the history, or an agent service owns it and
   the chat sends only each new message. See [Run a server-owned
   conversation](#run-a-server-owned-conversation).
@@ -548,36 +547,11 @@ format: an AG-UI `context` entry, or tagged text after the history. See
 Context leaves the browser on every step and counts toward the token budget. Describe structure,
 such as columns, sorts and widgets, rather than row values, unless the app chooses to send data.
 
-### Undo a reply's changes
+### Return result sets from a tool
 
-A client tool that changes the app can return its result with an undo function:
-
-```typescript
-execute: ({colIds}) => {
-    const prior = gridModel.columnState;
-    colIds.forEach(it => gridModel.hideColumn(it));
-    return chatToolResult(`Hid ${colIds.length} columns.`, {
-        undo: () => gridModel.setColumnState(prior)
-    });
-}
-```
-
-The model gets the plain result. The chat keeps the undo functions of each reply in memory.
-`undoTurnAsync(messageId)` runs them, newest first, and marks the reply `metadata.undone`. The
-desktop message view shows an Undo action while `canUndoTurn(messageId)` is true.
-
-Only the latest reply with undo functions can be undone, and only while no turn runs or waits for
-the user. An undo usually restores a snapshot, so undoing an older reply would also revert the
-replies after it. Once the user undoes the latest one, the reply before it can be undone. A reply
-that a retry, regenerate, edit, clear or load discards takes its undo functions with it. Undo
-functions are not stored, so a reply loaded from history cannot be undone.
-
-If an undo function throws, the undo stops, and `undoErrors` records the error, with no toast. The
-changes not yet undone stay, so the user can try again. The desktop message view shows the
-failure under the reply, with Retry. With `track` on, an undo tracks as `Turn undone`.
-
-`chatToolResult()` also takes `artifacts`, the result sets a tool produced for generative UI
-components to show by reference. See
+A client tool can wrap its result with `chatToolResult()`, to pass the chat options with it. Its
+`artifacts` option holds the result sets the tool produced, for generative UI components to show
+by reference. The model gets the plain result. See
 [Show data by reference](../genui/README.md#show-data-by-reference).
 
 ### Let the user answer a tool call
@@ -1026,10 +1000,9 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `canSubmitFeedback` | `boolean` | True if `feedback.submitAsync` or a thread layer submitter is set. |
 | `feedbackErrors` | `Record<string, Error>` | Why the last feedback on a message failed to save, by message id, for the form to show. Cleared on the next submit. Observable. |
 | `feedbackDrafts` | `Record<string, ChatFeedbackDraft>` | Comments typed in feedback forms and not yet sent, by message id, with their send state and last error. Observable. |
-| `undoErrors` | `Record<string, Error>` | Why the last undo of a reply failed, by message id. Cleared on the next try. Observable. |
 | `canRefreshStatus` | `boolean` | True once a refresher is set with `setStatusRefresher()`. |
 | `isBusy` | `boolean` | True for `submitted` or `streaming`. False while a turn is paused. |
-| `sendBlockedReason` | `string` | Why sending must wait - while an undo runs, or from the `sendBlocker` or an added blocker - or null. |
+| `sendBlockedReason` | `string` | Why sending must wait, from the `sendBlocker` or an added blocker, or null. |
 | `isEmpty` | `boolean` | True if there are no messages. |
 | `lastMessage` | `ChatMessage` | The newest message, or null. |
 | `waitingToolCalls` | `ChatToolCallPart[]` | Calls the paused turn waits on. Empty unless paused. |
@@ -1037,7 +1010,6 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `pendingInterrupts` | `ChatInterrupt[]` | The interrupts the paused reply waits on, answered or not, until the user submits them. Empty unless paused on them. |
 | `openInterrupts` | `ChatInterrupt[]` | The pending interrupts with no response and not expired. |
 | `pendingApprovals` | `ChatToolCallPart[]` | The calls in `waitingToolCalls` that wait for approval. |
-| `undoableMessageId` | `string` | The reply whose changes the user can undo now, or null. |
 | `composerModel` | `ChatComposerModel` | Draft of the next message. |
 | `artifacts` | `ChatArtifactRegistry` | Result sets that generative UI components show by reference. Fed by each reply and by loaded history. `clear()` and `loadMessages()` empty it. |
 | `transport`, `tools`, `catalog`, `maxSteps`, `historyMode`, `feedback`, `stallAfterMs`, `dataRenderers` | - | The config values, read-only. `tools` includes the catalog's tools, and `feedback` has its defaults applied. |
@@ -1058,8 +1030,6 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `declineInterrupt(interruptId)` | Decline a pending interrupt, which abandons it. |
 | `submitInterruptsAsync()` | Send the responses and resume the run, once every pending interrupt has one or has expired, and no client call waits. |
 | `addToolOutputAsync(toolCallId, output)` | Give the result of a call to an interactive tool. |
-| `canUndoTurn(messageId)` | True if the user can undo the reply's changes now. Reads observable state. |
-| `undoTurnAsync(messageId)` | Run the reply's undo functions, newest first, and mark it `metadata.undone`. A failure stops the undo and goes in `undoErrors`. |
 | `clear()` | Remove all messages and start a new thread. |
 | `loadMessages(specs, threadId?)` | Replace the conversation. Default a new thread id. |
 | `submitFeedbackAsync(messageId, rating, comment?)` | Rate a reply, or clear its rating with null. Shows at once. If the submit fails, it reverts and records the error in `feedbackErrors`, with no toast. |
@@ -1118,7 +1088,6 @@ The kit records these keys in the `metadata` of an assistant message:
 | `runId` | Id of the latest run, from `RUN_STARTED`. |
 | `serverId` | The server's id for the message, from `xh.chat.message` or `RUN_FINISHED`. Also set on a user message. |
 | `detached` | True on a reply left running on the server by `detach()`, `clear()` or `loadMessages()`, in server mode. |
-| `undone` | True on a reply whose changes the user undid with `undoTurnAsync()`. |
 | `feedback` | The user's rating, as `{rating, comment?}`. History usually restores the rating alone. |
 | `artifacts` | `ChatArtifact[]` that the reply's tools produced, for generative UI. Restored to `artifacts` with the history. |
 | `catalogVersion` | Version of the chat's catalog, on a reply that shows its UI. |
@@ -1184,7 +1153,7 @@ views show it as cancelled, not failed. `isToolCallCancelled(part)` tests for it
 | `name` | `string` | Name the model calls the tool by. Required. |
 | `description` | `string` | What the tool does and when to use it. Sent to the model. |
 | `parameters` | `PlainObject` | JSON Schema for the input object. Sent to the model. Default an empty object schema. |
-| `execute` | `(input, context) => Awaitable<any>` | Runs a client tool. Strings go to the model as is, anything else as JSON. A thrown error becomes an error result. Return `chatToolResult(output, {undo})` to make the change undoable. |
+| `execute` | `(input, context) => Awaitable<any>` | Runs a client tool. Strings go to the model as is, anything else as JSON. A thrown error becomes an error result. Return `chatToolResult(output, {artifacts})` to pass result sets for generative UI. |
 | `interactive` | `boolean` | True for a tool the user answers. Ignored if `execute` is set. Default false. |
 | `needsApproval` | `boolean \| (input) => boolean` | True, or a function, to ask the user before each call runs. Client tools only. Default false. |
 | `approvalPrompt` | `string \| (input) => ReactNode` | The question that asks for approval, in place of the generic one. |

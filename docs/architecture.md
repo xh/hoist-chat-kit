@@ -213,7 +213,6 @@ its render, renderer included.
 | Transports | `ChatModelConfig.transport` | Connect to any backend, or implement `ChatTransport` |
 | Codecs | `HttpChatTransportConfig.codec` | Speak a new wire format, or implement `ChatCodec` |
 | Live context | `ChatModelConfig.contextProviders`, as `ChatContextProvider[]` | Describe the app's current state to the model before each step. Each codec sends it in its own format |
-| Undo | `chatToolResult(output, {undo})` from a tool's `execute` | Let the user undo the changes a reply made, with `undoTurnAsync()` |
 | Send blocker | `ChatModelConfig.sendBlocker`, or `addSendBlocker()` | Hold sends while the app is not ready, and show the reason in the composer |
 | Lifecycle | `onTurnComplete`, observable `status` and `lastError` | Save history, show toasts, react to errors |
 | History mode | `ChatModelConfig.historyMode` | Let an agent service own the history and the threads |

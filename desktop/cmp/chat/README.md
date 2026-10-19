@@ -86,7 +86,7 @@ ChatPanel (Panel)                       # uses(ChatModel)
 │   │   │   └── data                    # dataRenderers, or ChatNoAnswer
 │   │   ├── how it ended                # Failed row, "Stopped", or the length cut
 │   │   ├── ChatSources                 # Sources list, in marker order
-│   │   ├── action bar                  # Copy, Regenerate, Undo, thumbs, messageActions
+│   │   ├── action bar                  # Copy, Regenerate, thumbs, messageActions
 │   │   └── feedback form               # Under the action bar, for a comment
 │   └── announcer regions               # Hidden live regions that read finished replies
 ├── ChatStatusRegion                    # One line: the thread's next action, such as Try Again
@@ -522,7 +522,7 @@ chatComposer({model: notesModel.composerModel, placeholder: 'Add a note...'});
 To show a conversation read-only, such as an admin's chat log or a saved conversation, pass a
 `ChatTranscript` as `host`: `messages`, plus optional `dataRenderers` and `catalog`. `ChatModel`
 implements it. The list renders every part, with Copy and any `messageActions`. Calls to the
-catalog's tools show as their components, as in the live chat. Edit, Regenerate, Undo, feedback,
+catalog's tools show as their components, as in the live chat. Edit, Regenerate, feedback,
 approvals and Stop need the turn loop, so they show only for a `ChatModel`. Part renderers
 receive a context whose `chatModel` is null.
 
@@ -649,19 +649,10 @@ the agent's words. See
 [Answer an agent's questions](../../../core/README.md#answer-an-agents-questions) for the model
 API.
 
-### Undo a reply's changes
-
-Undo shows in the action bar of the reply whose changes the user can undo - see
-`ChatModel.canUndoTurn()`. While the undo runs, the button shows a spinner. A failed undo shows
-under the reply with its cause and Retry, never as a toast, while the reply can still be undone.
-Once undone, the reply notes "Changes undone." and focus on Undo moves to the reply. There is no
-Redo: the user can ask again.
-
 ### Add message actions, such as feedback
 
 `messageActions` adds buttons to each message's action bar, after the built-in ones: Copy,
-Edit, Regenerate, Undo and the thumbs. Undo shows on a reply whose changes the user can undo -
-see `ChatModel.canUndoTurn()`. The function receives the message and its render context, and
+Edit, Regenerate and the thumbs. The function receives the message and its render context, and
 returns elements. For feedback buttons of your own, leave `ChatModelConfig.feedback` unset, so
 the built-in thumbs stay hidden. Keep the feedback state in your own model, so it survives a
 re-render and can go to your server.
@@ -947,7 +938,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
 | `onSourceClick` | `(source, context) => void` | Called when the user clicks a source or a marker. Default opens a document in the side panel when one is in reach, and a web page in a new tab. Pass a stable function. |
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
-| `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit, Regenerate, Undo and the thumbs. Edit and Regenerate show only while the chat's `allowEdit` and `allowRegenerate` are true. Pass a stable function. |
+| `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit, Regenerate and the thumbs. Edit and Regenerate show only while the chat's `allowEdit` and `allowRegenerate` are true. Pass a stable function. |
 | `messageHeaderItems` | `(message, context) => ReactNode[]` | Items in an assistant message's header. Pass a stable function. |
 
 Each message is a focusable `article`, named for its author and time. With a message focused, Up

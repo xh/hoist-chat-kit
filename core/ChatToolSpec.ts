@@ -30,8 +30,8 @@ export interface ChatToolSpec {
     /**
      * Run the tool. The return value is the result sent to the model: strings as is, anything
      * else as JSON. A thrown error becomes an error result, which the model sees and can recover
-     * from. Return {@link chatToolResult} to pass the chat options with the result, such as how
-     * to undo the change the call made.
+     * from. Return {@link chatToolResult} to pass the chat options with the result, such as the
+     * result sets the call produced.
      */
     execute?: (input: PlainObject, context: ChatToolContext) => Awaitable<any>;
 

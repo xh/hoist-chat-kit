@@ -127,7 +127,7 @@ describe('ChatAnnouncer', () => {
                 helper = host();
             announcer.attachRegions(page);
             announcer.attachRegions(helper);
-            announcer.announce('Change undone.');
+            announcer.announce('Copied.');
 
             announcer.detachRegions(helper);
 

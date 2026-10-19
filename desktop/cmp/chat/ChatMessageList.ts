@@ -79,7 +79,7 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
 
     /**
      * Buttons to add to each message's action bar, after the built-in ones - Copy, Edit,
-     * Regenerate, Undo and the feedback thumbs. Called for user and assistant messages, once a
+     * Regenerate and the feedback thumbs. Called for user and assistant messages, once a
      * reply's turn ends. Pass a stable function.
      */
     messageActions?: ChatMessageRenderFn;

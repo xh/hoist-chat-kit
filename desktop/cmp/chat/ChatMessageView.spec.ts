@@ -396,7 +396,7 @@ describe('ChatMessageView', () => {
             expect(screen.getByText('Question')).toBeTruthy();
             expect(screen.getByText('Answer')).toBeTruthy();
             expect(screen.getAllByRole('button', {name: 'Copy'})).toHaveLength(2);
-            for (const name of ['Edit', 'Regenerate', 'Good response', 'Undo changes']) {
+            for (const name of ['Edit', 'Regenerate', 'Good response']) {
                 expect(screen.queryByRole('button', {name})).toBeNull();
             }
         });
