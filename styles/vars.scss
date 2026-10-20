@@ -34,6 +34,7 @@ body {
   --xh-chat-process-gap: var(--xh-pad-half-px);
   --xh-chat-part-header-height: 28px;
   --xh-chat-user-max-width: 75%;
+  --xh-chat-user-padding: 8px 12px;
   // One radius for the whole kit: bubbles, cards, tool rows and chips.
   --xh-chat-border-radius: var(--xh-border-radius-px);
 
@@ -44,7 +45,8 @@ body {
   --xh-chat-text-color: var(--xh-text-color);
   // All meta-size text. Hoist's muted gray is too faint at this size in the light theme.
   --xh-chat-meta-text-color: var(--xh-blue-gray);
-  --xh-chat-user-bg: var(--xh-bg-alt);
+  // A light tint of the app's primary color, so a question stands out as the turn's marker.
+  --xh-chat-user-bg: var(--xh-intent-primary-trans1);
   --xh-chat-user-text-color: var(--xh-text-color);
   --xh-chat-part-border-color: var(--xh-border-color);
   // Card header strips only. Card bodies use `--xh-chat-bg`.

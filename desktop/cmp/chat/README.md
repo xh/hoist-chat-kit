@@ -1028,7 +1028,7 @@ carries its unit.
 // ✅ Do: Override the --xh-chat-* variable on body.xh-app, with its unit
 body.xh-app {
   --xh-chat-turn-gap: 32px;
-  --xh-chat-user-bg: var(--xh-intent-primary-trans1);
+  --xh-chat-user-bg: var(--xh-bg-alt);
 }
 
 // ❌ Don't: Leave off the unit, or set a variable that other variables derive from on a descendant
@@ -1055,10 +1055,11 @@ that others derive from on `body.xh-app`.
 | | `--xh-chat-part-gap`, `--xh-chat-process-gap` | `--xh-pad`, `--xh-pad-half` |
 | | `--xh-chat-part-header-height` | `28px`, for card header strips |
 | | `--xh-chat-user-max-width` | `75%`, for the user bubble |
+| | `--xh-chat-user-padding` | `8px 12px`, inside the user bubble |
 | | `--xh-chat-border-radius` | `--xh-border-radius` (4px), for every frame |
 | Color | `--xh-chat-bg`, `--xh-chat-text-color` | `--xh-bg`, `--xh-text-color` |
 | | `--xh-chat-meta-text-color` | `--xh-blue-gray`, `--xh-text-color-muted` in dark |
-| | `--xh-chat-user-bg`, `--xh-chat-user-text-color` | `--xh-bg-alt`, `--xh-text-color` |
+| | `--xh-chat-user-bg`, `--xh-chat-user-text-color` | `--xh-intent-primary-trans1`, a light tint of the primary color, and `--xh-text-color` |
 | | `--xh-chat-part-border-color` | `--xh-border-color` |
 | | `--xh-chat-part-header-bg` | `--xh-bg-alt` |
 | | `--xh-chat-code-bg` | `--xh-grid-bg-odd` |
