@@ -202,7 +202,8 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
         const excerpt = getExcerpt(source),
             isExcerptOpen = !!excerpt && impl.openExcerpts.includes(source.id),
             isActive = links.isActive(number),
-            meta = [...getSourceMeta(source), isActive ? 'open in viewer' : null].filter(it => it);
+            // States that the side panel shows the source - not an action.
+            meta = [...getSourceMeta(source), isActive ? 'shown in viewer' : null].filter(it => it);
 
         return li({
             className: 'xh-chat-sources__item',
@@ -231,7 +232,7 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
                             item: number
                         }),
                         span({className: 'xh-chat-sources__icon', item: sourceIcon(source)}),
-                        sourceTitle(source, number, links),
+                        sourceTitle(source, number, links, isActive),
                         span({className: 'xh-chat-sources__meta', item: meta.join(' · ')}),
                         excerpt
                             ? button({
@@ -266,7 +267,12 @@ function isRowToggleClick(e: MouseEvent<HTMLElement>): boolean {
 }
 
 // A title is a button that opens the source, if anything can.
-function sourceTitle(source: ChatSourcePart, number: number, links: ChatSourceLinks): ReactNode {
+function sourceTitle(
+    source: ChatSourcePart,
+    number: number,
+    links: ChatSourceLinks,
+    isActive: boolean
+): ReactNode {
     const title = source.title || formatHost(source.url) || 'Untitled',
         className = 'xh-chat-sources__title';
 
@@ -274,6 +280,7 @@ function sourceTitle(source: ChatSourcePart, number: number, links: ChatSourceLi
         return htmlButton({
             className,
             type: 'button',
+            'aria-current': isActive || undefined,
             onClick: (e: MouseEvent<HTMLButtonElement>) =>
                 links.open(source, {
                     citation: number,

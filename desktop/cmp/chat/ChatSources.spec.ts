@@ -186,6 +186,12 @@ describe('sources and citations', () => {
             fireEvent.click(screen.getByRole('button', {name: DOC1.title}));
             expect(sidePanel.request).toMatchObject({citation: 1, messageId: 'a1', page: 41});
             expect(container.querySelector('.xh-chat-sources__row--active')).toBeTruthy();
+            expect(container.querySelector('.xh-chat-sources__meta').textContent).toContain(
+                'shown in viewer'
+            );
+            expect(
+                screen.getByRole('button', {name: DOC1.title}).getAttribute('aria-current')
+            ).toBe('true');
             expect(marker(1).getAttribute('aria-pressed')).toBe('true');
         });
     });
