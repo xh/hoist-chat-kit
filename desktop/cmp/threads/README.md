@@ -25,7 +25,8 @@ Key features:
 - **Recency groups** - Today, Yesterday, Previous 7 days, Previous 30 days and Older,
   from `groupThreadsByRecency()`. A search shows one group of results instead.
 - **Two row sizes** - by default, each row shows its title over the date and time of its last
-  activity, such as "Oct 10, 8:09am". With `compact`, the title and a short time share one line:
+  activity, such as "Oct 10, 8:09am" - or the time alone under Today and Yesterday, whose
+  headings name the day. Search results, under no day heading, show the date. With `compact`, the title and a short time share one line:
   the time of day for today and yesterday, the weekday within a week, else the date. Both use
   Hoist's date formats.
 - **Row actions** - Rename and a More menu show on hover or focus. In a compact row they take the

@@ -261,9 +261,7 @@ describe('ChatThreadList', () => {
         expect(row('Cut short').getAttribute('aria-label')).toBe(
             'Cut short, last reply interrupted'
         );
-        expect(row('Plain').getAttribute('aria-label')).toMatch(
-            /^Plain, [A-Z][a-z]{2} \d{1,2}, \d{1,2}:\d\d[ap]m$/
-        );
+        expect(row('Plain').getAttribute('aria-label')).toMatch(/^Plain, \d{1,2}:\d\d[ap]m$/);
     });
 
     it('shows each thread on two lines, or on one line with compact, in Hoist date formats', async () => {
@@ -276,11 +274,19 @@ describe('ChatThreadList', () => {
             time = (title: string) =>
                 row(title).querySelector('.xh-chat-thread-list__time').textContent;
 
-        await renderList({store: new LocalChatThreadStore({threads})});
-        expect(time('Today')).toBe(fmtDate(NOW, 'MMM D, h:mma'));
+        // Under the Today heading, the time alone. Elsewhere, the date as well.
+        const {model} = await renderList({store: new LocalChatThreadStore({threads})});
+        expect(time('Today')).toBe(fmtDate(NOW, 'h:mma'));
         expect(time('Earlier')).toBe(fmtDate(NOW - 3 * DAY, 'MMM D, h:mma'));
         expect(time('Last year')).toBe(fmtDate(lastYear, 'MMM D, YYYY, h:mma'));
         expect(document.querySelector('.xh-chat-thread-list--compact')).toBeNull();
+
+        // Search results have no day heading, so even today's show the date.
+        await act(async () => {
+            model.search = 'Today';
+            await wait(350);
+        });
+        expect(time('Today')).toBe(fmtDate(NOW, 'MMM D, h:mma'));
         cleanup();
 
         await renderList({store: new LocalChatThreadStore({threads}), props: {compact: true}});

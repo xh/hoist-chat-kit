@@ -21,7 +21,12 @@ import {getTestId} from '@xh/hoist/utils/js';
 import {classNames} from '../../../impl/ClassNames';
 import {chatSpinner} from '../chat';
 import '../../../styles/vars.scss';
-import {type ChatThreadGroup, ChatThreadsModel, type ChatThreadSummary} from '../../../threads';
+import {
+    type ChatThreadGroup,
+    type ChatThreadGroupKey,
+    ChatThreadsModel,
+    type ChatThreadSummary
+} from '../../../threads';
 import './ChatThreadList.scss';
 import {ChatThreadListLocalModel} from './impl/ChatThreadListLocalModel';
 
@@ -33,7 +38,8 @@ export interface ChatThreadListProps extends HoistProps<ChatThreadsModel>, BoxPr
     /**
      * True for one line per thread: its title, then a short time - the time of day for today and
      * yesterday, the weekday within a week, else the date. Default false: two lines per thread,
-     * its title over the date and time of its last activity.
+     * its title over the date and time of its last activity - or the time alone, under a Today or
+     * Yesterday heading.
      */
     compact?: boolean;
 
@@ -213,7 +219,7 @@ function threadGroup(
                 'aria-hidden': true,
                 item: group.label
             }),
-            ...group.threads.map(thread => threadRow(impl, thread, compact))
+            ...group.threads.map(thread => threadRow(impl, thread, compact, group.key))
         ]
     });
 }
@@ -221,14 +227,15 @@ function threadGroup(
 function threadRow(
     impl: ChatThreadListLocalModel,
     thread: ChatThreadSummary,
-    compact: boolean
+    compact: boolean,
+    groupKey: ChatThreadGroupKey
 ): ReactNode {
     const {model} = impl,
         {id, title} = thread,
         isSelected = id === model.selectedThreadId,
         status = getRowStatus(model, thread, isSelected),
         isRenaming = impl.renamingThreadId === id,
-        time = fmtRowTime(thread.lastActivityAt, compact);
+        time = fmtRowTime(thread.lastActivityAt, compact, groupKey);
 
     return div({
         key: id,
@@ -431,14 +438,17 @@ const STATUS_TIPS: Partial<Record<RowStatus, string>> = {
 /**
  * The time of a thread's last activity, in Hoist's formats. A compact row has room only for the
  * time of day for today and yesterday, the weekday within a week, else the date. A full row shows
- * the date and time, with the year for a date in another year.
+ * the date and time, with the year for a date in another year - or, under a Today or Yesterday
+ * heading, which already names the day, the time alone.
  */
-function fmtRowTime(timestamp: number, compact: boolean): string {
+function fmtRowTime(timestamp: number, compact: boolean, groupKey: ChatThreadGroupKey): string {
     if (timestamp == null) return null;
     const day = LocalDate.from(timestamp),
         today = LocalDate.today();
     let fmt: string;
-    if (compact) {
+    if (!compact && (groupKey === 'today' || groupKey === 'yesterday')) {
+        fmt = TIME_FMT;
+    } else if (compact) {
         fmt =
             day >= today.subtract(1, 'day')
                 ? TIME_FMT
