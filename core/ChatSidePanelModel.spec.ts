@@ -34,25 +34,14 @@ describe('ChatSidePanelModel', () => {
         expect(document.activeElement).toBe(opener);
     });
 
-    it('returns focus to the opener on Back, keeping the request open', () => {
-        const model = panel(),
-            opener = button();
-        model.open(doc('d1', 1), opener);
-        expect(model.canGoBack).toBe(true);
-
-        model.back();
-        expect(document.activeElement).toBe(opener);
-        expect(model.request).not.toBeNull();
-    });
-
-    it('cannot go Back once the opener has left the page', () => {
+    it('closes quietly once the opener has left the page', () => {
         const model = panel(),
             opener = button();
         model.open(doc('d1', 1), opener);
 
         opener.remove();
-        expect(model.canGoBack).toBe(false);
-        expect(() => model.back()).not.toThrow();
+        expect(() => model.close()).not.toThrow();
+        expect(model.request).toBeNull();
     });
 
     it('opens a document only with a viewer, and only with room', () => {

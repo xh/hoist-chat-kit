@@ -1549,3 +1549,19 @@ Copilot's widths.
 **Alternatives.** Keep two caps, and align the rules and rows to the prose cap. That leaves a
 second, narrower edge inside the column for tables and cards.
 
+## D95. The side panel has no Back
+
+**Decision.** The side panel drops its Back button, its Alt+Left shortcut, and
+`ChatSidePanelModel.back()` and `canGoBack`. Close, or Esc in the panel, closes it and returns focus
+to the citation or card that opened it. A document frame shows a toolbar only for the page, once
+the viewer reports one. This amends D68.
+
+**Why.** Back came from the original client's source viewer, a modal over the chat, where "Back to
+reference" dismissed the modal. Our viewer is a side panel beside the chat, which holds one request
+and no history. Back only focused the citation and left the panel open. The citation was nearly
+always in view already, and a pointer click shows no focus ring, so Back seemed to do nothing. The
+side panels in our prior-art notes, Claude's artifacts and ChatGPT's canvas, have no such control.
+
+**Alternatives.** Flash the citation when Back lands on it, hide Back while the citation is in
+view, or relabel it. Each keeps a control that promises navigation the panel does not have.
+

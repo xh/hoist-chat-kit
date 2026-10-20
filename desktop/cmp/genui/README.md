@@ -89,7 +89,7 @@ only a download.
 
 Expand, or View Full Table, opens the full tier as a request in the chat's side panel - see
 `ChatSidePanelHost`. `ChatWorkspace` publishes one. Where no side panel is in model context, or
-it has no room, the full tier opens in a dialog. Back in the side panel returns focus to the
+it has no room, the full tier opens in a dialog. Closing the side panel returns focus to the
 button that opened it.
 
 ## Configuration Pattern

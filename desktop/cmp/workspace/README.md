@@ -172,7 +172,7 @@ content renders only while the panel shows.
 
 Give the model a `documentRenderer`, the app's document viewer. A click on a document's citation
 or source row then opens it in the side panel, at the cited passage. The kit draws the panel's
-title, Back to the citation, Close and the viewer's status. The viewer reports its progress with
+title, Close and the viewer's status. Close returns focus to the citation. The viewer reports its progress with
 `setDocumentStatus()`. See [the side panel](../../../core/README.md#side-panel).
 
 ```typescript

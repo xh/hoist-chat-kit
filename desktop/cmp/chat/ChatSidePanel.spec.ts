@@ -15,8 +15,8 @@ import {ChatArtifactRegistry} from '../../../genui';
 import {chatSidePanel} from './ChatSidePanel';
 
 /**
- * The side panel's frame around the app's document viewer (P3). Users rely on Back and Close
- * working in every state, on status that sits in a strip and never covers the document, and on a
+ * The side panel's frame around the app's document viewer (P3). Users rely on Close working in
+ * every state, returning focus to the citation, on status that sits in a strip and never covers the document, and on a
  * failure offering only the actions that can work. Apps rely on the kit drawing no document.
  */
 describe('ChatSidePanel', () => {
@@ -28,7 +28,7 @@ describe('ChatSidePanel', () => {
         expect(container.querySelector('.xh-chat-side-panel')).toBeNull();
     });
 
-    it("frames the app's viewer with the title, Back to the citation and Close", () => {
+    it("frames the app's viewer with the title and Close, and no Back", () => {
         const renderer = vi.fn(() => div({className: 'app-viewer', item: 'PDF'})),
             model = panel(renderer);
         model.open(request(), opener());
@@ -37,7 +37,7 @@ describe('ChatSidePanel', () => {
         expect(screen.getByText('Reserves Policy')).toBeTruthy();
         expect(document.querySelector('.app-viewer')).toBeTruthy();
         expect(renderer).toHaveBeenCalledWith(model.request, model);
-        expect(screen.getByRole('button', {name: 'Back to 2'})).toBeTruthy();
+        expect(screen.queryByRole('button', {name: /^Back/})).toBeNull();
         expect(screen.getByRole('button', {name: 'Close'})).toBeTruthy();
     });
 
@@ -59,15 +59,11 @@ describe('ChatSidePanel', () => {
         expect(pageLabel().textContent).toBe('Page 3 of 12');
     });
 
-    it('returns focus to the citation on Back, and closes on Close or Esc', () => {
+    it('closes on Close or Esc, returning focus to the citation', () => {
         const model = panel(),
             citation = opener();
         model.open(request(), citation);
         render(chatSidePanel({model}));
-
-        fireEvent.click(screen.getByRole('button', {name: 'Back to 2'}));
-        expect(document.activeElement).toBe(citation);
-        expect(model.request).not.toBeNull();
 
         fireEvent.keyDown(screen.getByRole('button', {name: 'Close'}), {key: 'Escape'});
         expect(model.request).toBeNull();
@@ -150,8 +146,8 @@ describe('ChatSidePanel', () => {
         setStatus(model, {state: 'error', error: {httpStatus: 403, retry}});
         expect(screen.getByText("You don't have access to this document.")).toBeTruthy();
         expect(screen.queryByRole('button', {name: 'Retry'})).toBeNull();
-        // Back to the citation works in every state.
-        expect(screen.getByRole('button', {name: 'Back to 2'})).toBeTruthy();
+        // Close works in every state.
+        expect(screen.getByRole('button', {name: 'Close'})).toBeTruthy();
     });
 
     it('offers Download in place of Retry for a file that arrived but cannot show', () => {
@@ -179,7 +175,7 @@ describe('ChatSidePanel', () => {
     describe('tables and charts', () => {
         beforeEach(() => vi.stubGlobal('ResizeObserver', NoopResizeObserver));
 
-        it('renders a table request as the full grid, with Back to the card and Close', async () => {
+        it('renders a table request as the full grid, with Close returning to the card', async () => {
             const model = panel(null),
                 card = opener();
             model.open(tableRequest(), card);
@@ -189,11 +185,9 @@ describe('ChatSidePanel', () => {
             expect(container.querySelector('.xh-chat-ui-table-view')).toBeTruthy();
             await screen.findByText('2 rows');
 
-            fireEvent.click(screen.getByRole('button', {name: 'Back'}));
-            expect(document.activeElement).toBe(card);
-
             fireEvent.keyDown(screen.getByRole('button', {name: 'Close'}), {key: 'Escape'});
             expect(model.request).toBeNull();
+            expect(document.activeElement).toBe(card);
         });
 
         it('renders a chart request as the expanded chart, with its switchers', () => {

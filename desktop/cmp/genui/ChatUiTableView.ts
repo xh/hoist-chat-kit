@@ -39,7 +39,7 @@ export interface ChatUiTableViewProps extends HoistProps {
     /** The table to show: the artifact, its registry and the card's view. */
     request: ChatTableRequest;
 
-    /** Toolbar items before the find field, such as Back. */
+    /** Toolbar items before the find field. */
     tbarItems?: ReactNode[];
 
     /** Props for the view's Hoist `Panel`, such as its title, icon and header items. */

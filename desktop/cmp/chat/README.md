@@ -1004,7 +1004,7 @@ Use it directly only for a list of your own.
 | `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |
 | `ChatSources` | `sources`, `defaultExpanded`, `visibleRows`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
 | `ChatNoAnswer` | `part`, `onEditQuestion` | Show a fixed "not found" reply, for example inside an app's own renderer for `xh.chat.noAnswer`. |
-| `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Back, Close, and the content - the app's viewer with its status, or the full table or chart of a result card. |
+| `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Close, and the content - the app's viewer with its status, or the full table or chart of a result card. |
 | `ChatCodeBlock` | `content`, `language`, `isStreaming` | Show code in a card with a copy button. A finished block over 20 lines shows its first 20, with a button for the rest. |
 | `ChatFileChip` | `file`, `onRemove`, `allowImages` | Show a file, with a remove button when `onRemove` is set. An image at a URL shows a thumbnail only if `allowImages` permits it. |
 | `ChatEmptyState` | `header`, `icon`, `title`, `text`, `suggestions`, `composerModel` | Welcome the user to an empty chat. |

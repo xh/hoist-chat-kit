@@ -6,7 +6,6 @@ import {mask} from '@xh/hoist/cmp/mask';
 import {hoistCmp, HoistModel, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {panel, type PanelProps} from '@xh/hoist/desktop/cmp/panel';
-import {toolbarSep} from '@xh/hoist/desktop/cmp/toolbar';
 import {Icon} from '@xh/hoist/icon';
 import {action, observable} from '@xh/hoist/mobx';
 import {
@@ -36,9 +35,8 @@ export interface ChatSidePanelProps extends HoistProps<ChatSidePanelModel> {
 }
 
 /**
- * The frame of the side panel's open request: a Hoist `Panel` with the request's title, Close, a
- * toolbar with Back, and the content. Renders nothing with no request open, or one it cannot
- * render.
+ * The frame of the side panel's open request: a Hoist `Panel` with the request's title, Close and
+ * the content. Renders nothing with no request open, or one it cannot render.
  *
  * A table renders as the full Hoist grid of a result card, which pages through the artifact - see
  * `ChatUiTableView`. A chart renders as the expanded chart, with switchers for its type and axes -
@@ -50,8 +48,8 @@ export interface ChatSidePanelProps extends HoistProps<ChatSidePanelModel> {
  * viewer reports one, and a failure with only the actions that can work. The kit draws no
  * document itself.
  *
- * Back returns focus to the citation that opened the request, and leaves the panel open. Close -
- * or Esc with focus in the panel - closes it and returns focus to the citation. Alt+Left is Back.
+ * Close - or Esc with focus in the panel - closes it and returns focus to the citation that opened
+ * it.
  */
 export const [ChatSidePanel, chatSidePanel] = hoistCmp.withFactory<ChatSidePanelProps>({
     displayName: 'ChatSidePanel',
@@ -74,7 +72,6 @@ export const [ChatSidePanel, chatSidePanel] = hoistCmp.withFactory<ChatSidePanel
                     // A new request starts a new grid.
                     key: getRequestKey(request),
                     request,
-                    tbarItems: [backButton(model)],
                     panelProps: {
                         ...panelProps,
                         title: label,
@@ -88,7 +85,6 @@ export const [ChatSidePanel, chatSidePanel] = hoistCmp.withFactory<ChatSidePanel
                 item = chatUiChartView({
                     key: getRequestKey(request),
                     request,
-                    tbarItems: [backButton(model)],
                     panelProps: {
                         ...panelProps,
                         title: label,
@@ -160,7 +156,7 @@ const documentFrame = hoistCmp.factory<DocumentFrameProps>({
 
     render({model, request, panelProps}) {
         const impl = useLocalModel(DocumentFrameLocalModel),
-            {source, citation, passage} = request,
+            {source, passage} = request,
             status = model.documentStatus,
             state = status?.state,
             title = getTitle(request),
@@ -188,7 +184,7 @@ const documentFrame = hoistCmp.factory<DocumentFrameProps>({
                     : null,
                 closeButton(model)
             ],
-            tbar: [backButton(model, citation), ...pageItems(status)],
+            tbar: pageItem(status),
             mask:
                 state === 'opening'
                     ? mask({
@@ -235,16 +231,6 @@ function getRequestKey(request: object): number {
     return requestKeys.get(request);
 }
 
-function backButton(model: ChatSidePanelModel, citation: number = null): ReactNode {
-    return button({
-        key: 'back',
-        icon: Icon.arrowLeft(),
-        text: citation != null ? `Back to ${citation}` : 'Back',
-        disabled: !model.canGoBack,
-        onClick: () => model.back()
-    });
-}
-
 function closeButton(model: ChatSidePanelModel): ReactNode {
     return button({
         key: 'close',
@@ -265,9 +251,6 @@ function onFrameKeyDown(e: KeyboardEvent, model: ChatSidePanelModel) {
         e.preventDefault();
         e.stopPropagation();
         model.close();
-    } else if (e.key === 'ArrowLeft' && e.altKey) {
-        e.preventDefault();
-        model.back();
     }
 }
 
@@ -375,18 +358,15 @@ function getAnnouncement(
 }
 
 // The page, only once the viewer reports one - a document without pages shows none.
-function pageItems(status: ChatDocumentStatus): ReactNode[] {
+/** The page that shows, for the toolbar - or null, for no toolbar, until the viewer reports one. */
+function pageItem(status: ChatDocumentStatus): ReactNode {
     const {page, pageCount} = status ?? {};
-    if (!isFinite(page)) return [];
+    if (!isFinite(page)) return null;
 
-    return [
-        toolbarSep({key: 'pageSep'}),
-        span({
-            key: 'page',
-            className: 'xh-chat-side-panel__page',
-            item: isFinite(pageCount) ? `Page ${page} of ${pageCount}` : `Page ${page}`
-        })
-    ];
+    return span({
+        className: 'xh-chat-side-panel__page',
+        item: isFinite(pageCount) ? `Page ${page} of ${pageCount}` : `Page ${page}`
+    });
 }
 
 function formatSize(bytes: number): string {

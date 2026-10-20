@@ -90,8 +90,8 @@ export interface ChatSidePanelConfig {
 
 /**
  * The side panel's request seam (D68): one open request at a time - a document, a table or a
- * chart - shown beside the chat. Opening a request replaces the last. Back and close return
- * focus to the element that opened it.
+ * chart - shown beside the chat. Opening a request replaces the last. Close returns focus to the
+ * element that opened it.
  *
  * The kit draws the panel's frame and status. It renders tables and charts itself, as a Hoist grid
  * and chart over the request's artifact. A document renders with the app's `documentRenderer`, as
@@ -120,17 +120,12 @@ export class ChatSidePanelModel extends HoistModel implements ChatSidePanelHost 
      */
     @observableRef accessor documentStatus: ChatDocumentStatus = null;
 
-    /** The element that opened the request, given focus by Back and close. */
+    /** The element that opened the request, given focus by close. */
     @observableRef accessor opener: HTMLElement = null;
 
     /** True if the panel has room beside the chat. */
     get hasRoom(): boolean {
         return this.hasRoomFn?.() ?? true;
-    }
-
-    /** True if Back can return to the element that opened the request - still on the page. */
-    get canGoBack(): boolean {
-        return !!this.opener?.isConnected;
     }
 
     constructor(config: ChatSidePanelConfig = {}) {
@@ -170,17 +165,6 @@ export class ChatSidePanelModel extends HoistModel implements ChatSidePanelHost 
         this.request = null;
         this.documentStatus = null;
         this.opener = null;
-        focusElement(opener);
-    }
-
-    /**
-     * Return to the element that opened the request - scrolled into view and focused - and leave
-     * the panel open.
-     */
-    back() {
-        const {opener} = this;
-        if (!opener?.isConnected) return;
-        opener.scrollIntoView?.({block: 'nearest'});
         focusElement(opener);
     }
 

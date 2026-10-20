@@ -432,7 +432,6 @@ describe('ChatWorkspace', () => {
             expect(model.sidePanel.request).toMatchObject({citation: 1, page: 7});
             expect(model.isSidePanelShown).toBe(true);
             expect(screen.getByText('App document viewer')).toBeTruthy();
-            expect(screen.getByRole('button', {name: 'Back to 1'})).toBeTruthy();
 
             fireEvent.click(screen.getByRole('button', {name: 'Close'}));
             expect(model.sidePanel.request).toBeNull();

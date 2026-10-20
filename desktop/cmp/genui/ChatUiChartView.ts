@@ -39,7 +39,7 @@ export interface ChatUiChartViewProps extends HoistProps {
     /** The chart to show: the artifact, its registry and the card's view. */
     request: ChatChartRequest;
 
-    /** Toolbar items before the switchers, such as Back. */
+    /** Toolbar items before the switchers. */
     tbarItems?: ReactNode[];
 
     /** Props for the view's Hoist `Panel`, such as its title, icon and header items. */

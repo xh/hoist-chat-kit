@@ -18,7 +18,7 @@ export interface ChatDocumentRequest {
     /** The cited passage to find and highlight - the source's excerpt, if it has one. */
     passage?: string;
 
-    /** The number of the citation that opened it, shown on Back as "Back to 2". */
+    /** The number of the citation that opened it, so that its marker and row show as active. */
     citation?: number;
 
     /** Id of the message whose citation opened it, so that its marker shows as active. */
@@ -101,7 +101,7 @@ export interface ChatSidePanelHost {
 
     /**
      * Show a request, in place of the one open. `opener` is the element that opened it, such as a
-     * citation marker. Back and close return focus to it.
+     * citation marker. Close returns focus to it.
      */
     open(request: ChatSidePanelRequest, opener?: HTMLElement): void;
 
