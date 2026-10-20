@@ -272,7 +272,8 @@ function onFrameKeyDown(e: KeyboardEvent, model: ChatSidePanelModel) {
 }
 
 // Under the toolbar, never over the page, so the document stays readable while the viewer is
-// unsure. None while opening, once located, or with no status.
+// unsure. None while opening, once located, or with no status - the documented choice of a viewer
+// that never looks for the passage.
 function statusStrip(status: ChatDocumentStatus, passage: string): ReactNode {
     const copy = passage
         ? chatCopyButton({showText: true, label: 'Copy Excerpt', getCopyText: () => passage})

@@ -812,7 +812,11 @@ its toolbar, never over the document:
 | `likelyPage` | "Opened the most likely page." with Copy Excerpt |
 | `notLocated` | "Couldn't locate the passage. Showing from the start." with Copy Excerpt |
 | `error` | Why, with only the actions that can work: Download if given, else Retry unless the status is a 4xx |
+| `null` | The document as it is: no strip, no mask and nothing announced |
 
+A viewer that never looks for the passage, such as the browser's own PDF viewer in an iframe,
+reports `opening` while the file loads, then `null` once it shows. `notLocated` would read as a
+failed search that never ran. Each new request starts with no status.
 A table request renders as the full grid of a result table, and a chart request as the expanded
 chart. The generative UI cards open both. See
 [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md).

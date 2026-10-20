@@ -27,6 +27,11 @@ export type ChatDocumentRenderer = (
  *  - `likelyPage` - the passage was not found exactly, and the viewer shows its best page.
  *  - `notLocated` - the passage was not found, and the document shows from the start.
  *  - `error` - the document could not open. The panel shows why, in place of the body.
+ *
+ * A null status means the document shows, with nothing to report: no strip, no mask and nothing
+ * announced. Each new request starts with none. A viewer that never looks for the passage - such
+ * as the browser's PDF viewer in an iframe - sets null once the document shows, rather than
+ * `notLocated`, which reads as a failed search.
  */
 export type ChatDocumentState =
     'opening' | 'locating' | 'located' | 'likelyPage' | 'notLocated' | 'error';
@@ -179,7 +184,13 @@ export class ChatSidePanelModel extends HoistModel implements ChatSidePanelHost 
         focusElement(opener);
     }
 
-    /** Record the viewer's progress with the open document, for the panel's status strip. */
+    /**
+     * Record the viewer's progress with the open document, for the panel's status strip.
+     *
+     * @param status - the viewer's progress, or null for a document that shows with nothing to
+     *      report, such as from a viewer that never looks for the passage. See
+     *      {@link ChatDocumentState}.
+     */
     @action
     setDocumentStatus(status: ChatDocumentStatus) {
         this.documentStatus = status;

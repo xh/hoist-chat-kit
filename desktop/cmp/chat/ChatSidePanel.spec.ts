@@ -108,6 +108,21 @@ describe('ChatSidePanel', () => {
         expect(announce).toHaveBeenCalledExactlyOnceWith('Passage on page 7', 'polite');
     });
 
+    it('shows the document plainly, with nothing announced, for a viewer that reports no status once it shows', () => {
+        const model = panel();
+        model.open(request());
+        const {container} = render(chatSidePanel({model}));
+        setStatus(model, {state: 'opening'});
+
+        const announce = vi.spyOn(chatAnnouncer, 'announce');
+        onTestFinished(() => announce.mockRestore());
+        setStatus(model, null);
+
+        expect(container.textContent).not.toContain('Opening document…');
+        expect(strip(container)).toBeNull();
+        expect(announce).not.toHaveBeenCalled();
+    });
+
     it('speaks through the announcer, with no live region of its own', () => {
         const model = panel();
         model.open(request());
