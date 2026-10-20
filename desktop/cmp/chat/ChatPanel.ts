@@ -28,9 +28,10 @@ export interface ChatPanelProps
 
     /**
      * Heading, supporting text and icon of the default empty state - for example
-     * `{title: 'What do you want to know?', text: 'Analyst answers from 38 policy documents.'}`.
+     * `{title: 'What do you want to know?', text: 'Analyst answers from 38 policy documents.'}` -
+     * and any content of the app's own above the heading, such as a logo, as `header`.
      */
-    emptyStateProps?: Pick<ChatEmptyStateProps, 'title' | 'text' | 'icon'>;
+    emptyStateProps?: Pick<ChatEmptyStateProps, 'header' | 'title' | 'text' | 'icon'>;
 
     /**
      * Suggested prompts for the default empty state, as cards under the composer. A click fills

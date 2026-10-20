@@ -1,4 +1,5 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
+import {span} from '@xh/hoist/cmp/layout';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {chatAnnouncer, ChatModel} from '../../../core';
@@ -32,6 +33,20 @@ describe('ChatPanel', () => {
         expect(order[0].textContent).toBe('What do you want to know?');
         expect(order[1].querySelector('textarea')).toBeTruthy();
         expect(order[2].querySelectorAll('.xh-chat-suggestions__card')).toHaveLength(2);
+    });
+
+    it("shows the app's own header content above the heading of the empty state", () => {
+        renderPanel(createModel(), {
+            emptyStateProps: {
+                header: span({className: 'app-logo', item: 'Acme'}),
+                title: 'What do you want to know?'
+            }
+        });
+
+        const head = document.querySelector('.xh-chat-panel__empty-head'),
+            header = head.querySelector('.xh-chat-empty-state__header');
+        expect(header.querySelector('.app-logo').textContent).toBe('Acme');
+        expect(header.nextElementSibling.textContent).toBe('What do you want to know?');
     });
 
     it('fills the composer from a suggestion, and never sends it', () => {

@@ -21,16 +21,18 @@
     align-items: flex-start;
     color: var(--xh-chat-meta-text-color);
     display: flex;
-    font-size: var(--xh-chat-meta-font-size);
+    font-size: var(--xh-chat-empty-state-text-font-size);
     gap: 8px;
     line-height: var(--xh-chat-line-height);
   }
 
+  // One line of the text tall, with the icon centered in it, so it sits on the first line.
   &__icon {
+    align-items: center;
     color: var(--xh-chat-text-color);
     display: inline-flex;
     flex: none;
-    line-height: inherit;
+    height: calc(1em * var(--xh-chat-line-height));
   }
 
   // At 380, the supporting text keeps to one line.

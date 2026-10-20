@@ -543,8 +543,10 @@ chatMessageList({host: notesModel});
 
 ### Replace the empty state
 
-`emptyStateProps` sets the heading, supporting text and icon of the default empty state.
-`suggestions` adds prompt cards under the centered composer, each with an optional icon and
+`emptyStateProps` sets the heading, supporting text and icon of the default empty state. Its
+`header` takes any content of the app's own, such as a product logo, to show above the heading,
+with no kit styles. The supporting text is at the body font size, set by
+`--xh-chat-empty-state-text-font-size`. `suggestions` adds prompt cards under the centered composer, each with an optional icon and
 `description`. A click on a suggestion fills the composer and focuses it, and never sends. The
 cards hide while the composer has text. Pass `onSelect` to `chatSuggestions` to act on a click
 yourself.
@@ -921,7 +923,7 @@ Accepts all `PanelProps` except `model`, `modelConfig` and `modelRef`.
 |----------|------|-------------|
 | `model` | `ChatModel` | The chat to render. Found in context if not given. |
 | `emptyState` | `ReactNode` | Content for a conversation with no messages, in the list, in place of the default. The composer stays at the bottom. |
-| `emptyStateProps` | `{title, text, icon}` | Heading, supporting text and icon of the default empty state. |
+| `emptyStateProps` | `{header, title, text, icon}` | Heading, supporting text and icon of the default empty state, and the app's own content above the heading. |
 | `suggestions` | `Array<ChatSuggestion \| string>` | Prompt cards under the centered composer of the default empty state. |
 | `allowImages` | `boolean \| (src) => boolean` | Model-written images, and file images at a URL, to load. Default false. |
 | `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
@@ -1003,7 +1005,7 @@ Use it directly only for a list of your own.
 | `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Back, Close, and the content - the app's viewer with its status, or the full table or chart of a result card. |
 | `ChatCodeBlock` | `content`, `language`, `isStreaming` | Show code in a card with a copy button. A finished block over 20 lines shows its first 20, with a button for the rest. |
 | `ChatFileChip` | `file`, `onRemove`, `allowImages` | Show a file, with a remove button when `onRemove` is set. An image at a URL shows a thumbnail only if `allowImages` permits it. |
-| `ChatEmptyState` | `icon`, `title`, `text`, `suggestions`, `composerModel` | Welcome the user to an empty chat. |
+| `ChatEmptyState` | `header`, `icon`, `title`, `text`, `suggestions`, `composerModel` | Welcome the user to an empty chat. |
 | `ChatSuggestions` | `suggestions`, `onSelect`, `composerModel` | Show prompt cards that fill the composer: `composerModel`, else the `ChatModel`'s. `onSelect` replaces the fill. With neither, it renders nothing. |
 | `ChatStatusRegion` | `model`, `assistantName` | Show the thread's next action above a composer, in a custom layout. |
 | `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip` | Add a pill to the composer's left slot. |

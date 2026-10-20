@@ -15,6 +15,12 @@ export interface ChatEmptyStateProps extends HoistProps {
      */
     icon?: ReactElement;
 
+    /**
+     * The app's own content above the heading, such as a product logo. The kit adds no styles to
+     * it. Default none.
+     */
+    header?: ReactNode;
+
     /** Heading. Default 'How can I help?'. */
     title?: ReactNode;
 
@@ -36,8 +42,9 @@ export interface ChatEmptyStateProps extends HoistProps {
 
 /**
  * Welcome content for a conversation with no messages: a heading, a line on what the assistant
- * can do, and suggested prompts. Any children render below the suggestions. It shows no
- * illustration - the supporting text carries the assistant's identity.
+ * can do, and suggested prompts. It shows no illustration by default - the supporting text
+ * carries the assistant's identity. An app adds its own content, such as a logo, above the heading
+ * with `header`. Any children render below the suggestions.
  *
  * `ChatPanel` renders its own empty state, with the composer centered between the heading and the
  * suggestions. Render this one where the message list shows it, or in a custom layout. Its
@@ -49,7 +56,7 @@ export const [ChatEmptyState, chatEmptyState] = hoistCmp.withFactory<ChatEmptySt
     model: false,
     className: 'xh-chat-empty-state',
 
-    render({className, icon, title, text, suggestions, composerModel, children}, ref) {
+    render({className, header, icon, title, text, suggestions, composerModel, children}, ref) {
         icon = withDefault(icon, ChatKit.defaults.assistantIcon());
         title = withDefault(title, 'How can I help?');
 
@@ -57,6 +64,9 @@ export const [ChatEmptyState, chatEmptyState] = hoistCmp.withFactory<ChatEmptySt
             ref,
             className,
             items: [
+                header != null
+                    ? div({className: 'xh-chat-empty-state__header', item: header})
+                    : null,
                 title ? div({className: 'xh-chat-empty-state__title', item: title}) : null,
                 text
                     ? div({
