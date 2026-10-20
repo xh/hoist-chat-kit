@@ -45,7 +45,8 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
     autoFocus?: boolean;
 
     /**
-     * How the Send button looks - for example `{icon: Icon.paperPlane()}`, or a `text` label.
+     * How the Send button looks - for example `{icon: Icon.arrowRight()}`, or a `text` label. For
+     * an icon Hoist does not name, register it with `Icon.register()` and pass what it returns.
      * The composer keeps what it does: when it is enabled, its tooltip with the reason it is not,
      * and the swap to Stop. Default a primary button with an up arrow.
      */
