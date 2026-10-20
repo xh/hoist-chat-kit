@@ -477,6 +477,9 @@
       "viewerCategory": "desktop",
       "description": "Desktop chat components: panel, message list, message view, composer, tool cards and more.",
       "keywords": [
+        "sendButtonProps",
+        "stopButtonProps",
+        "send button icon",
         "visibleRows",
         "ChatSources.defaults",
         "ChatPanel",

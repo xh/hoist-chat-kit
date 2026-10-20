@@ -971,6 +971,8 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `leftItems` | `ReactNode` | The left slot of the bar, for pills such as `chatComposerPill` and `chatScopeChip`. |
 | `rightItems` | `ReactNode` | The right slot of the bar, before the attach and Send buttons. |
 | `autoFocus` | `boolean` | True to focus the input on mount. |
+| `sendButtonProps` | `ChatComposerButtonProps` | How Send looks: `icon`, `text`, `intent`, `minimal`, `outlined`, and a `className` added to the kit's. The composer keeps what it does. A `text` label also names it for screen readers. Default a primary button with an up arrow. |
+| `stopButtonProps` | `ChatComposerButtonProps` | How Stop looks, as `sendButtonProps` for Send. Default outlined, with "Stop". |
 
 Enter sends, and Shift+Enter starts a new line. An Enter that confirms an IME candidate does not
 send. Up arrow in an empty input recalls the last user message. While a reply streams, Send

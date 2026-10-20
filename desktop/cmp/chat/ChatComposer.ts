@@ -1,8 +1,8 @@
-import {castArray} from 'lodash';
+import {castArray, isString} from 'lodash';
 import {type ReactNode, useLayoutEffect} from 'react';
 import {div, input, span, vbox} from '@xh/hoist/cmp/layout';
 import {type BoxProps, hoistCmp, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
-import {button} from '@xh/hoist/desktop/cmp/button';
+import {button, type ButtonProps} from '@xh/hoist/desktop/cmp/button';
 import {textArea} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {throwIf, withDefault} from '@xh/hoist/utils/js';
@@ -43,7 +43,26 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
 
     /** True to focus the input when the composer mounts. */
     autoFocus?: boolean;
+
+    /**
+     * How the Send button looks - for example `{icon: Icon.paperPlane()}`, or a `text` label.
+     * The composer keeps what it does: when it is enabled, its tooltip with the reason it is not,
+     * and the swap to Stop. Default a primary button with an up arrow.
+     */
+    sendButtonProps?: ChatComposerButtonProps;
+
+    /** How the Stop button looks, as `sendButtonProps` for Send. Default outlined, with "Stop". */
+    stopButtonProps?: ChatComposerButtonProps;
 }
+
+/**
+ * The look of a composer button - the props of a Hoist `Button` that change only how it looks. A
+ * `className` adds to the kit's own. A `text` label also names the button for screen readers.
+ */
+export type ChatComposerButtonProps = Pick<
+    ButtonProps,
+    'icon' | 'text' | 'intent' | 'minimal' | 'outlined' | 'className'
+>;
 
 /**
  * The input for writing a message: one box, with an optional tray of attachments, an
@@ -84,6 +103,8 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
             placeholder,
             maxRows,
             autoFocus,
+            sendButtonProps,
+            stopButtonProps,
             ...rest
         },
         ref
@@ -167,7 +188,12 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                                         ...(enableAttachments
                                             ? attachButton(composerModel, impl)
                                             : []),
-                                        ...sendButton(composerModel, impl)
+                                        ...sendButton(
+                                            composerModel,
+                                            impl,
+                                            sendButtonProps,
+                                            stopButtonProps
+                                        )
                                     ]
                                 })
                             ]
@@ -236,20 +262,27 @@ function attachmentErrorRow(composerModel: ChatComposerModel): ReactNode {
 // Stop takes Send's place while busy, named with its word at every width. A reason Send is
 // disabled shows as its tooltip, and in an element that describes it for assistive technology.
 // A disabled button cannot take focus, so a focusable wrapper carries both to keyboard users.
-function sendButton(composerModel: ChatComposerModel, impl: ChatComposerLocalModel): ReactNode[] {
+function sendButton(
+    composerModel: ChatComposerModel,
+    impl: ChatComposerLocalModel,
+    sendProps: ChatComposerButtonProps = {},
+    stopProps: ChatComposerButtonProps = {}
+): ReactNode[] {
     const {chatModel, canSend} = composerModel,
         reason = composerModel.sendDisabledReason,
         reasonId = `${impl.xhId}-send-reason`;
 
     if (chatModel?.isBusy) {
+        const stopName = labelOf(stopProps.text, 'Stop');
         return [
             button({
                 key: 'stop',
-                className: 'xh-chat-composer__stop',
                 icon: Icon.stop({prefix: 'fas'}),
                 text: 'Stop',
-                'aria-label': 'Stop',
                 outlined: true,
+                ...stopProps,
+                className: classNames('xh-chat-composer__stop', stopProps.className),
+                'aria-label': stopName,
                 onClick: () => {
                     chatModel.stop();
                     composerModel.focus();
@@ -258,20 +291,22 @@ function sendButton(composerModel: ChatComposerModel, impl: ChatComposerLocalMod
         ];
     }
 
-    const send = button({
-        className: 'xh-chat-composer__send',
-        icon: Icon.arrowUp(),
-        tooltip: reason ?? 'Send',
-        'aria-label': 'Send',
-        'aria-describedby': reason ? reasonId : undefined,
-        intent: 'primary',
-        minimal: false,
-        disabled: !canSend,
-        onClick: () => {
-            composerModel.focus();
-            composerModel.submitAsync().catchDefault();
-        }
-    });
+    const sendName = labelOf(sendProps.text, 'Send'),
+        send = button({
+            icon: Icon.arrowUp(),
+            intent: 'primary',
+            minimal: false,
+            ...sendProps,
+            className: classNames('xh-chat-composer__send', sendProps.className),
+            tooltip: reason ?? sendName,
+            'aria-label': sendName,
+            'aria-describedby': reason ? reasonId : undefined,
+            disabled: !canSend,
+            onClick: () => {
+                composerModel.focus();
+                composerModel.submitAsync().catchDefault();
+            }
+        });
     return [
         div({
             key: 'reason',
@@ -290,4 +325,9 @@ function sendButton(composerModel: ChatComposerModel, impl: ChatComposerLocalMod
               })
             : span({key: 'send', className: 'xh-chat-composer__send-wrap', item: send})
     ];
+}
+
+/** A button's accessible name: its text label, if it is a string, else the default. */
+function labelOf(text: ReactNode, defaultName: string): string {
+    return isString(text) && text ? text : defaultName;
 }

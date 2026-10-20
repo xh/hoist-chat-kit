@@ -1,12 +1,13 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, uses} from '@xh/hoist/core';
+import {Icon} from '@xh/hoist/icon';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {chatAnnouncer, ChatComposerModel, ChatModel, type ChatModelConfig} from '../../../core';
 import type {ChatComposerHost} from '../../../core/ChatComposerHost';
 import {ScriptedChatTransport, textEvents} from '../../../transport';
-import {chatComposer} from './ChatComposer';
+import {chatComposer, type ChatComposerProps} from './ChatComposer';
 import {chatStatusRegion} from './ChatStatusRegion';
 
 /**
@@ -145,6 +146,47 @@ describe('ChatComposer', () => {
         expect(document.activeElement).toBe(input());
     });
 
+    it('restyles Send with sendButtonProps, keeping what it does', () => {
+        const chatModel = createModel(),
+            send = vi.spyOn(chatModel, 'sendAsync');
+        renderComposer(chatModel, {
+            sendButtonProps: {
+                icon: Icon.add(),
+                text: 'Ask',
+                intent: 'success',
+                className: 'app-send'
+            }
+        });
+
+        const button = screen.getByRole('button', {name: 'Ask'});
+        expect(button.classList).toContain('xh-chat-composer__send');
+        expect(button.classList).toContain('app-send');
+        expect(button.classList).toContain('xh-button--intent-success');
+        expect(button.querySelector('.fa-plus')).toBeTruthy();
+        expect(button.hasAttribute('disabled')).toBe(true);
+
+        act(() => typeDraft(chatModel, 'Hello'));
+        fireEvent.click(screen.getByRole('button', {name: 'Ask'}));
+        expect(send).toHaveBeenCalledTimes(1);
+    });
+
+    it('restyles Stop with stopButtonProps, keeping its name', async () => {
+        vi.useFakeTimers();
+        const chatModel = createModel({}, 50);
+        renderComposer(chatModel, {stopButtonProps: {intent: 'danger', className: 'app-stop'}});
+
+        const done = chatModel.sendAsync('Hello');
+        await act(() => vi.advanceTimersByTimeAsync(10));
+        const stop = screen.getByRole('button', {name: 'Stop'});
+        expect(stop.classList).toContain('xh-chat-composer__stop');
+        expect(stop.classList).toContain('app-stop');
+        expect(stop.classList).toContain('xh-button--intent-danger');
+
+        fireEvent.click(stop);
+        await act(() => vi.advanceTimersByTimeAsync(10));
+        await done;
+    });
+
     it('uses the composer of the ChatModel in context', () => {
         const chatModel = createModel(),
             send = vi.spyOn(chatModel, 'sendAsync');
@@ -252,8 +294,8 @@ function createModel(config: Partial<ChatModelConfig> = {}, delayMs = 0): ChatMo
     return model;
 }
 
-function renderComposer(chatModel: ChatModel) {
-    return render(chatComposer({model: chatModel.composerModel}));
+function renderComposer(chatModel: ChatModel, props: Partial<ChatComposerProps> = {}) {
+    return render(chatComposer({model: chatModel.composerModel, ...props}));
 }
 
 function createHost(config: Partial<ChatComposerHost> = {}): ChatComposerHost {
