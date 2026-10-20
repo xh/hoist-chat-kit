@@ -44,15 +44,16 @@
     text-transform: uppercase;
   }
 
+  // Two lines by default: the title over the time. A compact list puts both on one line.
   &__row {
     align-items: center;
     border-radius: var(--xh-chat-border-radius);
     cursor: pointer;
     display: flex;
     gap: 6px;
-    height: var(--xh-chat-sidebar-row-height);
+    min-height: var(--xh-chat-sidebar-row-height);
     min-width: 0;
-    padding: 0 2px 0 8px;
+    padding: 5px 2px 5px 8px;
     position: relative;
 
     &:hover,
@@ -96,14 +97,10 @@
       color: var(--xh-chat-error-color);
     }
 
-    // Hover, focus or an open menu swap the time for the row's buttons.
+    // Hover, focus or an open menu show the row's buttons - in a compact row, in the time's place.
     &:hover,
     &:focus-within,
     &--menu-open {
-      .xh-chat-thread-list__time {
-        display: none;
-      }
-
       .xh-chat-thread-list__actions {
         display: flex;
       }
@@ -113,6 +110,36 @@
       cursor: default;
       padding: 0 2px;
     }
+  }
+
+  &--compact &__row {
+    height: var(--xh-chat-sidebar-row-height);
+    padding: 0 2px 0 8px;
+
+    &:hover,
+    &:focus-within,
+    &--menu-open {
+      .xh-chat-thread-list__time {
+        display: none;
+      }
+    }
+
+    &--renaming {
+      padding: 0 2px;
+    }
+  }
+
+  // The title and the time, stacked - or in line, in a compact row.
+  &__text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  &--compact &__text {
+    display: contents;
   }
 
   &__icon {
@@ -144,9 +171,15 @@
 
   &__time {
     color: var(--xh-chat-meta-text-color);
-    flex: none;
     font-size: var(--xh-chat-meta-font-size);
     font-weight: 400;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &--compact &__time {
+    flex: none;
     padding-right: 6px;
   }
 

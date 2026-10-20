@@ -1,5 +1,6 @@
 import {act, cleanup, fireEvent, render, screen, within} from '@testing-library/react';
 import {XH} from '@xh/hoist/core';
+import {fmtDate} from '@xh/hoist/format';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -260,7 +261,33 @@ describe('ChatThreadList', () => {
         expect(row('Cut short').getAttribute('aria-label')).toBe(
             'Cut short, last reply interrupted'
         );
-        expect(row('Plain').getAttribute('aria-label')).toMatch(/^Plain, \d\d:\d\d$/);
+        expect(row('Plain').getAttribute('aria-label')).toMatch(
+            /^Plain, [A-Z][a-z]{2} \d{1,2}, \d{1,2}:\d\d[ap]m$/
+        );
+    });
+
+    it('shows each thread on two lines, or on one line with compact, in Hoist date formats', async () => {
+        const lastYear = new Date(new Date(NOW).getFullYear() - 1, 5, 3, 14, 5).getTime(),
+            threads = [
+                thread('a', 'Today', {lastActivityAt: NOW}),
+                thread('b', 'Earlier', {lastActivityAt: NOW - 3 * DAY}),
+                thread('c', 'Last year', {lastActivityAt: lastYear})
+            ],
+            time = (title: string) =>
+                row(title).querySelector('.xh-chat-thread-list__time').textContent;
+
+        await renderList({store: new LocalChatThreadStore({threads})});
+        expect(time('Today')).toBe(fmtDate(NOW, 'MMM D, h:mma'));
+        expect(time('Earlier')).toBe(fmtDate(NOW - 3 * DAY, 'MMM D, h:mma'));
+        expect(time('Last year')).toBe(fmtDate(lastYear, 'MMM D, YYYY, h:mma'));
+        expect(document.querySelector('.xh-chat-thread-list--compact')).toBeNull();
+        cleanup();
+
+        await renderList({store: new LocalChatThreadStore({threads}), props: {compact: true}});
+        expect(time('Today')).toBe(fmtDate(NOW, 'h:mma'));
+        expect(time('Earlier')).toBe(fmtDate(NOW - 3 * DAY, 'ddd'));
+        expect(time('Last year')).toBe(fmtDate(lastYear, 'YYYY-MM-DD'));
+        expect(document.querySelector('.xh-chat-thread-list--compact')).toBeTruthy();
     });
 
     it('hides the search input with enableSearch false', async () => {

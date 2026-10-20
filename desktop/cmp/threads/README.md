@@ -24,8 +24,13 @@ Key features:
 
 - **Recency groups** - Today, Yesterday, Previous 7 days, Previous 30 days and Older,
   from `groupThreadsByRecency()`. A search shows one group of results instead.
-- **Row actions** - Rename and a More menu replace the time on hover or focus. More holds
-  Copy Thread ID and Delete. The list hides each action the store cannot take.
+- **Two row sizes** - by default, each row shows its title over the date and time of its last
+  activity, such as "Oct 10, 8:09am". With `compact`, the title and a short time share one line:
+  the time of day for today and yesterday, the weekday within a week, else the date. Both use
+  Hoist's date formats.
+- **Row actions** - Rename and a More menu show on hover or focus. In a compact row they take the
+  time's place. More holds Copy Thread ID and Delete. The list hides each action the store cannot
+  take.
 - **Inline rename** - Enter or a blur saves, and Escape keeps the old title.
 - **Delete with confirm** - the list always asks first, with focus on Cancel. If the open thread
   goes, the next thread down opens. The workspace's Thread actions menu deletes the same way.
@@ -46,7 +51,7 @@ ChatThreadList (hoistCmp)
 ├── Search input                     # Bound to model.search
 └── Tree grid "Threads"
     └── Group per recency bucket
-        └── Row per thread            # Icon, title, time or actions
+        └── Row per thread            # Icon, title over time - or in line, if compact - and actions
 ```
 
 The list takes a `ChatThreadsModel` from the platform-neutral
@@ -122,6 +127,7 @@ Pass `searchInputRef`, as the workspace does from its rail's search button.
 |----------|------|-------------|
 | `model` | `ChatThreadsModel` | The threads to list. Default a `ChatThreadsModel` in context. |
 | `topItems` | `ReactNode[]` | Items after New Chat. |
+| `compact` | `boolean` | True for one line per thread: the title, then a short time. Default false: the title over the date and time. In a workspace, pass it in `threadListProps`. |
 | `newChatButtonProps` | `ButtonProps` | Props for the New Chat button, such as `intent`. Default outlined, with `intent: 'primary'`. `ChatWorkspace` applies them, less `text`, to its rail and header New Chat buttons too. |
 | `enableSearch` | `boolean` | False to hide the search input. Default true. |
 | `searchPlaceholder` | `string` | Placeholder for the search input. Default 'Search threads'. |

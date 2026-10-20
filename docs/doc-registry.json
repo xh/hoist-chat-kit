@@ -375,6 +375,8 @@
       "viewerCategory": "desktop",
       "description": "Desktop thread list: recency groups, search, inline rename, delete with confirm, and row states.",
       "keywords": [
+        "compact",
+        "two-line rows",
         "newChatButtonProps",
         "ChatThreadList",
         "chatThreadList",
