@@ -1,5 +1,8 @@
 @use '../../../styles/mixins' as *;
 
+// Height of the fade at the foot of the scroll area.
+$fade-height: 12px;
+
 .xh-chat-message-list {
   background-color: var(--xh-chat-bg);
   display: flex;
@@ -21,8 +24,8 @@
       bottom: 0;
       content: '';
       display: block;
-      height: 12px;
-      margin-top: -12px;
+      height: $fade-height;
+      margin-top: -$fade-height;
       pointer-events: none;
       position: sticky;
     }
@@ -37,8 +40,9 @@
     max-width: var(--xh-chat-column-max-width);
     min-height: 100%;
     padding: var(--xh-chat-side-pad);
-    // Room for the last reply's action bar, which sits in the turn gap below it.
-    padding-bottom: max(var(--xh-chat-side-pad), var(--xh-chat-turn-gap));
+    // Room for the last reply's action bar, which sits in the turn gap below it, and below that
+    // for the fade, so that at the end of the thread the fade covers nothing.
+    padding-bottom: calc(max(var(--xh-chat-side-pad), var(--xh-chat-turn-gap)) + #{$fade-height});
     width: 100%;
   }
 
