@@ -1,3 +1,5 @@
+import type {PlainObject} from '@xh/hoist/core';
+import {mergeMetadata} from '@ag-ui/core';
 import {
     type ChatDataPart,
     type ChatPart,
@@ -21,6 +23,9 @@ export interface AgUiAssistantGroup {
     id: string;
     texts: ChatTextPart[];
     calls: ChatToolCallPart[];
+
+    /** The metadata of its texts, merged in order. A call keeps its own. */
+    metadata: PlainObject;
 }
 
 /**
@@ -29,7 +34,8 @@ export interface AgUiAssistantGroup {
  * its history by id finds its own messages:
  *
  *  - a reasoning part is a `reasoning` message, with its `serverId`.
- *  - text joins the `assistant` message of its `serverId`.
+ *  - text joins the `assistant` message of its `serverId`, and merges its metadata into the
+ *    message's.
  *  - a tool call joins the `assistant` message its `parentServerId` names. A call with none joins
  *    the step's last `assistant` message.
  *  - each finished call's result is a `tool` message, with its `resultServerId`, right after the
@@ -60,7 +66,13 @@ export function groupAgUiMessages(
     const getAssistant = (key: string): AgUiAssistantGroup => {
         let ret = assistants.get(key);
         if (!ret) {
-            ret = {role: 'assistant', id: takeId(key, defaultId), texts: [], calls: []};
+            ret = {
+                role: 'assistant',
+                id: takeId(key, defaultId),
+                texts: [],
+                calls: [],
+                metadata: null
+            };
             assistants.set(key, ret);
             groups.push(ret);
         }
@@ -72,9 +84,12 @@ export function groupAgUiMessages(
             case 'reasoning':
                 groups.push({role: 'reasoning', id: takeId(part.serverId, part.id), part});
                 break;
-            case 'text':
-                getAssistant(part.serverId ?? defaultId).texts.push(part);
+            case 'text': {
+                const group = getAssistant(part.serverId ?? defaultId);
+                group.texts.push(part);
+                group.metadata = mergeMetadata(group.metadata, part.metadata) ?? null;
                 break;
+            }
             case 'toolCall': {
                 const group =
                     part.parentServerId != null

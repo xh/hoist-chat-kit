@@ -25,7 +25,11 @@ import type {
 import {CHAT_SUBAGENT_DATA_TYPE, type ChatSubagentData} from './ChatSubagent';
 import {mergeArtifacts} from '../impl/artifacts';
 import {getRunOutcome} from '@ag-ui/client';
-import type {RunFinishedEvent as AgUiRunFinishedEvent, RunFinishedOutcome} from '@ag-ui/core';
+import {
+    mergeMetadata,
+    type RunFinishedEvent as AgUiRunFinishedEvent,
+    type RunFinishedOutcome
+} from '@ag-ui/core';
 import {genChatId} from '../impl/ids';
 import type {ChatInterrupt} from './ChatInterrupt';
 import {isRunningSubagent, SUBAGENT_UNFINISHED} from './impl/messageUtils';
@@ -103,6 +107,8 @@ export class ChatStreamReducer {
     private rawTexts = new Map<string, string>();
     /** Length of the text a revising part replaced, by part id - see `ChatTextPart.revising`. */
     private revisingLengths = new Map<string, number>();
+    /** Metadata for text parts not yet opened, by part id - see `mergeTextMetadata()`. */
+    private pendingTextMetadata = new Map<string, PlainObject>();
     private openTextId: string = null;
     private lastTextId: string = null;
     private openReasoningId: string = null;
@@ -205,15 +211,16 @@ export class ChatStreamReducer {
         switch (event.type) {
             case 'TEXT_MESSAGE_START':
                 this.openText(event.messageId);
+                this.mergeTextMetadata(draft, event.messageId, event.metadata);
                 break;
             case 'TEXT_MESSAGE_CONTENT':
-                this.appendText(draft, event.messageId, event.delta);
-                break;
-            case 'TEXT_MESSAGE_END':
-                this.endText(draft, event.messageId);
-                break;
             case 'TEXT_MESSAGE_CHUNK':
                 this.appendText(draft, event.messageId, event.delta);
+                this.mergeTextMetadata(draft, event.messageId, event.metadata);
+                break;
+            case 'TEXT_MESSAGE_END':
+                this.mergeTextMetadata(draft, event.messageId, event.metadata);
+                this.endText(draft, event.messageId);
                 break;
 
             case 'REASONING_START':
@@ -221,18 +228,26 @@ export class ChatStreamReducer {
                 break;
             case 'REASONING_MESSAGE_START': {
                 // The message id, not the span's, names the reasoning message in AG-UI's history.
-                const part = getPart<ChatReasoningPart>(
-                    draft,
-                    this.openReasoning(draft, event.messageId)
-                );
+                const id = this.openReasoning(draft, event.messageId),
+                    part = getPart<ChatReasoningPart>(draft, id);
                 if (part) putPart(draft, {...part, serverId: event.messageId});
+                this.mergePartMetadata(draft, id, event.metadata);
                 break;
             }
             case 'REASONING_MESSAGE_CONTENT':
             case 'REASONING_MESSAGE_CHUNK':
-                this.appendReasoning(draft, event.messageId, event.delta);
+                this.mergePartMetadata(
+                    draft,
+                    this.appendReasoning(draft, event.messageId, event.delta),
+                    event.metadata
+                );
                 break;
             case 'REASONING_MESSAGE_END':
+                this.mergePartMetadata(
+                    draft,
+                    this.partIds.get(reasoningKey(event.messageId)),
+                    event.metadata
+                );
                 this.endReasoning(draft, event.messageId);
                 break;
             case 'REASONING_END':
@@ -258,14 +273,18 @@ export class ChatStreamReducer {
                 break;
             case 'TOOL_CALL_ARGS':
                 this.appendToolArgs(draft, event.toolCallId, event.delta);
+                this.mergePartMetadata(draft, event.toolCallId, event.metadata);
                 break;
             case 'TOOL_CALL_END':
+                this.mergePartMetadata(draft, event.toolCallId, event.metadata);
                 this.endToolCall(draft, event.toolCallId);
                 break;
             case 'TOOL_CALL_CHUNK': {
                 const id = event.toolCallId ?? this.lastToolCallId;
                 if (!getPart(draft, id) && event.toolCallName) {
                     this.startToolCall(draft, {...event, toolCallId: id});
+                } else {
+                    this.mergePartMetadata(draft, id, event.metadata);
                 }
                 this.appendToolArgs(draft, id, event.delta);
                 break;
@@ -433,11 +452,30 @@ export class ChatStreamReducer {
                 step: this.step,
                 text: '',
                 state: 'streaming',
-                ...(messageId != null ? {serverId: messageId} : {})
+                ...(messageId != null ? {serverId: messageId} : {}),
+                ...(this.pendingTextMetadata.has(id)
+                    ? {metadata: this.pendingTextMetadata.get(id)}
+                    : {})
             },
             this.getRawText(part) + delta
         );
+        this.pendingTextMetadata.delete(id);
         this.openTextId = this.lastTextId = id;
+    }
+
+    /**
+     * Merge a text event's metadata into its part. A part opens on its first content, so metadata
+     * that comes before is held for it until then.
+     */
+    private mergeTextMetadata(draft: Draft, messageId: string, metadata: PlainObject) {
+        const id = messageId != null ? this.partIds.get(textKey(messageId)) : this.openTextId;
+        if (id == null || metadata == null) return;
+        if (getPart(draft, id)) {
+            this.mergePartMetadata(draft, id, metadata);
+        } else {
+            const pending = this.pendingTextMetadata.get(id);
+            this.pendingTextMetadata.set(id, mergeMetadata(pending, metadata));
+        }
     }
 
     // Replaces the text of the open text part, or else of the turn's last text part. An open part
@@ -501,6 +539,7 @@ export class ChatStreamReducer {
         const id = this.partIds.get(textKey(messageId));
         if (id == null) return;
         this.endStreamingPart(draft, id);
+        this.pendingTextMetadata.delete(id);
         if (this.openTextId === id) this.openTextId = null;
     }
 
@@ -535,15 +574,17 @@ export class ChatStreamReducer {
         return id;
     }
 
-    private appendReasoning(draft: Draft, messageId: string, delta: string) {
+    /** Append to the reasoning part for a message id, opening it if needed. Returns its id. */
+    private appendReasoning(draft: Draft, messageId: string, delta: string): string {
         const id =
             messageId != null
                 ? this.openReasoning(draft, messageId)
                 : (this.openReasoningId ?? this.openReasoning(draft, genChatId()));
-        if (!delta) return;
+        if (!delta) return id;
 
         const part = getPart<ChatReasoningPart>(draft, id);
         putPart(draft, {...part, text: part.text + delta});
+        return id;
     }
 
     private endReasoning(draft: Draft, messageId: string) {
@@ -605,12 +646,14 @@ export class ChatStreamReducer {
             toolCallId,
             toolCallName,
             parentMessageId,
-            subagentRunId
+            subagentRunId,
+            metadata
         }: {
             toolCallId: string;
             toolCallName?: string;
             parentMessageId?: string;
             subagentRunId?: string;
+            metadata?: PlainObject;
         }
     ) {
         if (toolCallId == null) return;
@@ -629,7 +672,7 @@ export class ChatStreamReducer {
             output: null,
             errorText: null,
             startedAt: Date.now(),
-            ...omitBy({subagentRunId, parentServerId: parentMessageId}, isNil)
+            ...omitBy({subagentRunId, parentServerId: parentMessageId, metadata}, isNil)
         });
         this.lastToolCallId = toolCallId;
     }
@@ -817,6 +860,16 @@ export class ChatStreamReducer {
     //------------------
     // Shared
     //------------------
+    /**
+     * Merge an event's metadata into a part's, key by key, with the last write winning, as AG-UI
+     * assembles a message or call.
+     */
+    private mergePartMetadata(draft: Draft, id: string, metadata: PlainObject) {
+        if (metadata == null) return;
+        const part = getPart<ChatTextPart | ChatReasoningPart | ChatToolCallPart>(draft, id);
+        if (part) putPart(draft, {...part, metadata: mergeMetadata(part.metadata, metadata)});
+    }
+
     private endStreamingPart(draft: Draft, id: string) {
         const part = getPart<ChatTextPart | ChatReasoningPart>(draft, id);
         if (part?.state !== 'streaming') return;

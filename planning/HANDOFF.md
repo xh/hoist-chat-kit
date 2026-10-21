@@ -73,11 +73,11 @@ to D88. Three squash commits on `develop`:
    - Answer panels in Claude Code's style, Hoist forms of simple fields, and a review step.
    - `ChatTransport.resume()` is now `reconnect()`.
 
-Conformance stands at 44 of the 61 fixtures that apply. The 17 gaps are listed with reasons in
+Conformance stands at 47 of the 61 fixtures that apply. The 14 gaps are listed with reasons in
 `test/conformance/agUiKnownGaps.ts`:
 
 - 8 shared state (plan item 6)
-- 3 metadata on parts and calls, and 2 sub-agent attribution of text (plan item 5)
+- 2 sub-agent attribution of text (plan item 8)
 - 2 history snapshots and 1 activity patch (plan item 7)
 - 1 by design: an encrypted value with no message keeps a part of its own
 

@@ -850,6 +850,56 @@ describe('ChatStreamReducer', () => {
         });
     });
 
+    describe('metadata', () => {
+        it("merges each event's metadata into its text part, key by key, the last write winning", () => {
+            const [part] = reduce([
+                {type: 'TEXT_MESSAGE_START', messageId: 'm1', metadata: {a: 1, b: 1, list: [1, 2]}},
+                {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'Hi', metadata: {b: 2}},
+                {type: 'TEXT_MESSAGE_END', messageId: 'm1', metadata: {list: [3], c: null}}
+            ]).parts;
+            expect((part as ChatTextPart).metadata).toEqual({a: 1, b: 2, list: [3], c: null});
+        });
+
+        it('merges metadata into a reasoning message, but not from its span', () => {
+            const [part] = reduce([
+                {type: 'REASONING_START', messageId: 'span1', metadata: {span: true}},
+                {type: 'REASONING_MESSAGE_START', messageId: 'r1', role: 'reasoning'},
+                {type: 'REASONING_MESSAGE_CONTENT', messageId: 'r1', delta: 'Hmm.'},
+                {type: 'REASONING_MESSAGE_END', messageId: 'r1', metadata: {model: 'x'}}
+            ]).parts;
+            expect((part as ChatReasoningPart).metadata).toEqual({model: 'x'});
+        });
+
+        it("merges a call's metadata onto the call, and keeps its result's off it", () => {
+            const [part] = reduce([
+                {type: 'TOOL_CALL_START', toolCallId: 'c1', toolCallName: 'a', metadata: {n: 1}},
+                {type: 'TOOL_CALL_ARGS', toolCallId: 'c1', delta: '{}', metadata: {bytes: 2}},
+                {type: 'TOOL_CALL_END', toolCallId: 'c1', metadata: {n: 2}},
+                {
+                    type: 'TOOL_CALL_RESULT',
+                    toolCallId: 'c1',
+                    messageId: 't1',
+                    content: 'ok',
+                    metadata: {cached: true}
+                }
+            ]).parts;
+            expect((part as ChatToolCallPart).metadata).toEqual({n: 2, bytes: 2});
+        });
+
+        it('keeps the metadata of a second start for an id already used off the first call', () => {
+            const [part] = reduce([
+                {type: 'TOOL_CALL_START', toolCallId: 'c1', toolCallName: 'a', metadata: {n: 1}},
+                {type: 'TOOL_CALL_START', toolCallId: 'c1', toolCallName: 'b', metadata: {n: 2}}
+            ]).parts;
+            expect((part as ChatToolCallPart).metadata).toEqual({n: 1});
+        });
+
+        it('adds no metadata to a part whose events carry none', () => {
+            const [part] = reduce(text('m1', 'Hi')).parts;
+            expect(part).not.toHaveProperty('metadata');
+        });
+    });
+
     describe('unknown and ignored events', () => {
         it('ignores unsupported events and unknown event types without throwing', () => {
             const message = pendingMessage(),

@@ -73,9 +73,10 @@ export interface AgUiContext {
  * text, image, audio, video and document parts when they have attachments. Each step of an
  * assistant turn becomes a `reasoning` message per reasoning part (with its `encryptedValue`), an
  * `assistant` message with its text as `content` and its finished tool calls as `toolCalls`, and a
- * `tool` message per call with its result - and `error`, for a failed or denied call. Tools are
- * sent as `{name, description, parameters}`, with an empty object schema for a tool that has no
- * `parameters`. The chat's live context - see `ChatModelConfig.contextProviders` - follows the
+ * `tool` message per call with its result - and `error`, for a failed or denied call. Each
+ * reasoning and `assistant` message, and each call, goes with the metadata the server streamed it
+ * with. Tools are sent as `{name, description, parameters}`, with an empty object schema for a
+ * tool that has no `parameters`. The chat's live context - see `ChatModelConfig.contextProviders` - follows the
  * codec's own `context` entries, one per provider: its description (or else its name), and its
  * value as text, or as JSON for an object. The structured context of the turn's user message,
  * from its `metadata.context`, goes last, as JSON.
@@ -295,8 +296,8 @@ function encodeGroup(group: AgUiMessageGroup): PlainObject {
     const {id} = group;
     switch (group.role) {
         case 'reasoning': {
-            const {text, encryptedValue} = group.part;
-            return omitBy({id, role: 'reasoning', content: text, encryptedValue}, isNil);
+            const {text, encryptedValue, metadata} = group.part;
+            return omitBy({id, role: 'reasoning', content: text, encryptedValue, metadata}, isNil);
         }
         case 'assistant': {
             const content = getAgUiAssistantText(group),
@@ -307,7 +308,8 @@ function encodeGroup(group: AgUiMessageGroup): PlainObject {
                     id,
                     role: 'assistant',
                     content: content || null,
-                    toolCalls: isEmpty(calls) ? null : calls.map(encodeToolCall)
+                    toolCalls: isEmpty(calls) ? null : calls.map(encodeToolCall),
+                    metadata: group.metadata
                 },
                 isNil
             );
@@ -324,13 +326,14 @@ function encodeGroup(group: AgUiMessageGroup): PlainObject {
 }
 
 function encodeToolCall(call: ChatToolCallPart): PlainObject {
-    const {id, toolName, inputText, input, encryptedValue} = call;
+    const {id, toolName, inputText, input, encryptedValue, metadata} = call;
     return omitBy(
         {
             id,
             type: 'function',
             function: {name: toolName, arguments: inputText || JSON.stringify(input ?? {})},
-            encryptedValue
+            encryptedValue,
+            metadata
         },
         isNil
     );

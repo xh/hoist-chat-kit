@@ -1092,6 +1092,10 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 | `SUBAGENT_FINISHED`, `SUBAGENT_ERROR` | `subagentRunId`, `result?` or `message`, `outcome?` | Ends the sub-agent's data part, with its result or error. A `suspended` outcome sets it `waiting` for the user, until a later run starts it again. |
 | `CUSTOM` | `name`, `value` | The `xh.chat.*` events below. Others are ignored. |
 
+A text, reasoning or tool call part keeps the `metadata` of its events, merged key by key, with
+the last write winning, and `AgUiCodec` sends it back with the history. A reasoning span's
+`REASONING_START` adds none. A result's metadata stays off its call.
+
 Ignored: `STEP_STARTED`, `STEP_FINISHED`, `RAW`, `STATE_SNAPSHOT`, `STATE_DELTA`,
 `MESSAGES_SNAPSHOT` and `ACTIVITY_DELTA`. `AgUiCodec` drops events of an unknown type, and expands
 chunk events before the chat sees them.

@@ -135,7 +135,7 @@ async function runFixture(fixture: PlainObject): Promise<KitRun> {
  * The kit's reply as the AG-UI messages a client would hold, so that the corpus's message checks
  * apply. It groups the parts into messages, with the server's ids, as `AgUiCodec` does for the
  * history it sends - see `groupAgUiMessages()`. Each message then takes the content the corpus
- * checks:
+ * checks, with the metadata that `AgUiCodec` sends:
  *
  *  - reasoning - the reasoning text.
  *  - assistant - the text, if any, and each tool call, whether or not it has a result.
@@ -147,7 +147,10 @@ function toAgUiMessages(reply: ChatMessage): PlainObject[] {
         const {id, role} = group;
         switch (group.role) {
             case 'reasoning':
-                return {id, role, content: group.part.text};
+                return omitBy(
+                    {id, role, content: group.part.text, metadata: group.part.metadata},
+                    isNil
+                );
             case 'assistant':
                 return omitBy(
                     {
@@ -156,11 +159,21 @@ function toAgUiMessages(reply: ChatMessage): PlainObject[] {
                         content: isEmpty(group.texts) ? null : getAgUiAssistantText(group),
                         toolCalls: isEmpty(group.calls)
                             ? null
-                            : group.calls.map(call => ({
-                                  id: call.id,
-                                  type: 'function',
-                                  function: {name: call.toolName, arguments: call.inputText}
-                              }))
+                            : group.calls.map(call =>
+                                  omitBy(
+                                      {
+                                          id: call.id,
+                                          type: 'function',
+                                          function: {
+                                              name: call.toolName,
+                                              arguments: call.inputText
+                                          },
+                                          metadata: call.metadata
+                                      },
+                                      isNil
+                                  )
+                              ),
+                        metadata: group.metadata
                     },
                     isNil
                 );

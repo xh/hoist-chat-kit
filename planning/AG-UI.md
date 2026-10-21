@@ -232,8 +232,9 @@ Close only what the suite reports:
 
 - keep the server's message ids on parts - done with item 3, as the whole history needs them
   (D87). It also closed the reopened-message fixture.
-- merge per-item metadata onto parts
-- attribute text and reasoning to their sub-agent
+- merge per-item metadata onto parts - done for text, reasoning and tool calls, and sent back with
+  the history. A tool result's and an activity's metadata are not kept.
+- attribute text and reasoning to their sub-agent - moved to item 8. It is not a simple gap.
 
 Leave activity patches and history snapshots for item 7.
 
@@ -262,6 +263,27 @@ Wait for a consumer before building these:
   rules as they stand. LangGraph's carries the whole thread, so the pages not yet loaded would
   land at the bottom. Strands' carries only the current turn, so every older message would drop.
 - **A status line from `STEP_*` events.**
+
+### 8. Sub-agent attribution of text and reasoning
+
+Wait for a backend that streams a sub-agent's text or reasoning. Then design it before building.
+Two conformance fixtures cover only the simple case. A first build, with three rounds of code
+review, found these:
+
+- **Ownership.** AG-UI sets a message's sub-agent at its start, and a reopened message keeps it.
+  A call with no `subagentRunId` belongs to the sub-agent of its parent message. A tool message
+  takes its sub-agent from the result, which the kit does not keep.
+- **History.** A call with no parent message must not join another agent's assistant message.
+  The official client opens a new message, with the call's id. The kit joins the step's last
+  one. Text with no server id can merge two agents' text into one message.
+- **Interleaved reasoning.** The reducer shares one part between a span and its first message,
+  and `REASONING_END` closes every reasoning part of the step. With a parent and a sub-agent
+  thinking at once, one can end or take over the other's part.
+- **The timeline.** Nesting a sub-agent's text under its row raises UI questions: what Copy
+  copies, the row's step count, the parent label past three levels, text that lands in a block
+  apart from its row, and the line's newest narration.
+
+The first build is a patch outside the repo, from 2026-10-21. Use it as a reference only.
 
 ## Working rules for this effort
 

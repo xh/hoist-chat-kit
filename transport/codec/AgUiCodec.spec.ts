@@ -313,6 +313,45 @@ describe('AgUiCodec', () => {
         });
     });
 
+    describe('metadata in the history', () => {
+        it('sends back the metadata of each message and call, not of a result', () => {
+            const reply = new ChatMessage({
+                    id: 'a1',
+                    role: 'assistant',
+                    status: 'complete',
+                    parts: [
+                        {
+                            ...reasoningPart('k1', 'Weighing it.'),
+                            serverId: 'r1',
+                            metadata: {model: 'x'}
+                        },
+                        textPart('k2', 'Found ', {serverId: 'm1', metadata: {a: 1, b: 1}}),
+                        textPart('k3', 'two.', {serverId: 'm1', metadata: {b: 2}}),
+                        toolCall('c1', 0, {
+                            parentServerId: 'm1',
+                            resultServerId: 't1',
+                            metadata: {attempt: 2}
+                        }),
+                        textPart('k4', 'Done.', {serverId: 'm2'})
+                    ]
+                }),
+                {messages} = new AgUiCodec().encodeRequest(request([user('Hi'), reply]));
+
+            expect(messages.slice(1)).toEqual([
+                {id: 'r1', role: 'reasoning', content: 'Weighing it.', metadata: {model: 'x'}},
+                {
+                    id: 'm1',
+                    role: 'assistant',
+                    content: 'Found two.',
+                    metadata: {a: 1, b: 2},
+                    toolCalls: [expect.objectContaining({id: 'c1', metadata: {attempt: 2}})]
+                },
+                {id: 't1', role: 'tool', toolCallId: 'c1', content: 'null'},
+                {id: 'm2', role: 'assistant', content: 'Done.'}
+            ]);
+        });
+    });
+
     describe('interrupts', () => {
         it('sends the resume list, and leaves it out when there is none', () => {
             const codec = new AgUiCodec(),

@@ -49,22 +49,22 @@ model and reducer, and does not use the client's agent classes.
 |-----------|-----------|---------|
 | Run lifecycle | `RUN_STARTED`, `RUN_FINISHED` and `RUN_ERROR`. `RUN_FINISHED` sets the finish reason, usage and metadata. A new run after `RUN_ERROR` clears the error. The kit checks the sequence rules. | - |
 | Validation | The kit drops events of an unknown type and strips unknown fields, each with a console warning. A malformed known field fails the turn. | - |
-| Text | `TEXT_MESSAGE_*`, chunks included, as text parts that keep the server's message ids. | - |
-| Tool calls | `TOOL_CALL_*` and `TOOL_CALL_RESULT`, as tool call parts, run in the browser or by the backend. A call keeps the server's ids for its message and its result. A result with `metadata.error` fails its call. | Metadata on a call. |
-| Reasoning | `REASONING_*` and `REASONING_ENCRYPTED_VALUE`, as reasoning parts, with signatures and the server's message ids kept for the history. | - |
+| Text | `TEXT_MESSAGE_*`, chunks included, as text parts that keep the server's message ids and metadata. | - |
+| Tool calls | `TOOL_CALL_*` and `TOOL_CALL_RESULT`, as tool call parts, run in the browser or by the backend. A call keeps the server's ids for its message and its result, and its metadata. A result with `metadata.error` fails its call. | Metadata on a result. |
+| Reasoning | `REASONING_*` and `REASONING_ENCRYPTED_VALUE`, as reasoning parts, with signatures, metadata and the server's message ids kept for the history. | - |
 | Activity | `ACTIVITY_SNAPSHOT`, as data parts keyed by `activityType`. | `ACTIVITY_DELTA`. |
 | Sub-agents | `SUBAGENT_*`, as data parts of type `xh.chat.subagent`. The timeline nests their calls. | Attribution of text and reasoning to a sub-agent. |
-| Metadata | `metadata` on events the kit reads, such as `RUN_ERROR` and `TOOL_CALL_RESULT`. | Metadata on messages and tool calls. |
+| Metadata | Metadata on text, reasoning and tool calls, merged from their events and sent back with the history. `metadata` on events the kit reads, such as `RUN_ERROR` and `TOOL_CALL_RESULT`. | Metadata on a tool result or an activity. |
 | Shared state | The `state` a codec sends with each run. | `STATE_SNAPSHOT` and `STATE_DELTA`. |
 | History snapshots | - | `MESSAGES_SNAPSHOT`. |
 | Pass-through | `CUSTOM` events named `xh.chat.*`. Others are ignored, as is `RAW`. | - |
-| Requests | A `RunAgentInput` with `protocolVersion: '1.0'`, the whole history with the server's ids, tools, context, `state`, `forwardedProps` and `resume`, checked before it goes. | - |
+| Requests | A `RunAgentInput` with `protocolVersion: '1.0'`, the whole history with the server's ids and metadata, tools, context, `state`, `forwardedProps` and `resume`, checked before it goes. | - |
 | Interrupts | The `interrupt` outcome on `RUN_FINISHED`, answered in the next run's `resume`: questions, forms of simple fields, and approvals of server tool calls. A sub-agent's `suspended` outcome. | A form beyond a flat object of simple fields. Approval with edited arguments. |
 
 The official AG-UI 1.0 conformance corpus runs in the kit's CI, from `test/conformance/` in the
-repo. Of the 61 fixtures that apply to a client other than the official ones, 44 pass. 8 more
-fail only because the kit keeps no shared state. A committed list names each gap and its reason, and a gap that closes fails the run until
-it leaves the list.
+repo. Of the 61 fixtures that apply to a client other than the official ones, 47 pass. 8 more
+fail only because the kit keeps no shared state. A committed list names each gap and its reason,
+and a gap that closes fails the run until it leaves the list.
 
 An AG-UI `RUN_FINISHED` with an `outcome` of `success` maps to the finish reason `stop`. Any
 other outcome maps to `other`. An `interrupt` outcome pauses the reply for the user, who answers

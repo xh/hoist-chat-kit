@@ -76,6 +76,14 @@ export interface ChatTextPart extends ChatPartBase {
     serverId?: string;
 
     /**
+     * Metadata the server attached to the message this text streamed as - AG-UI's `metadata`,
+     * merged from each of the message's events, key by key, with the last write winning.
+     * `AgUiCodec` sends it back with the message in the history. A message with no content keeps
+     * none, as it makes no part.
+     */
+    metadata?: PlainObject;
+
+    /**
      * True while the part streams after the server replaced its text with shorter text, with
      * `xh.chat.textReplace`, until the new text is as long as the text it replaced. A view can
      * keep the replaced text on screen meanwhile. Gone once the part is done.
@@ -113,6 +121,12 @@ export interface ChatReasoningPart extends ChatPartBase {
      * `REASONING_MESSAGE_START`, if the backend gave one. Sent back as the message's id.
      */
     serverId?: string;
+
+    /**
+     * Metadata the server attached to the reasoning message, merged from its events - see
+     * {@link ChatTextPart.metadata}.
+     */
+    metadata?: PlainObject;
 }
 
 /** A call by the model to a tool, with its input and - once run - its output. */
@@ -183,6 +197,13 @@ export interface ChatToolCallPart extends ChatPartBase {
      * AG-UI's `TOOL_CALL_RESULT`, if the backend gave one. Sent back as that message's id.
      */
     resultServerId?: string;
+
+    /**
+     * Metadata the server attached to the call - AG-UI's `metadata` on its `TOOL_CALL_*` events,
+     * merged key by key, with the last write winning. `AgUiCodec` sends it back with the call in
+     * the history. The metadata of its result is not kept here.
+     */
+    metadata?: PlainObject;
 
     /** Opaque provider data - see {@link ChatProviderData}. */
     providerData?: ChatProviderData;

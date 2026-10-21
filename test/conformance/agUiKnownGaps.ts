@@ -1,7 +1,6 @@
 // The reasons shared by several gaps.
 const STATE = 'The kit keeps no AG-UI state. Plan item 6.',
-    METADATA = "The kit drops a message's or tool call's metadata. Plan item 5.",
-    SUBAGENT_TEXT = 'The kit does not attribute text to its sub-agent. Plan item 5.',
+    SUBAGENT_TEXT = 'The kit does not attribute text to its sub-agent. Plan item 8.',
     SNAPSHOT = 'The kit ignores MESSAGES_SNAPSHOT. Plan item 7.',
     ERA = 'An era shim for an older peer, which the spec permits but does not require.';
 
@@ -25,12 +24,6 @@ export const KNOWN_GAPS: Record<string, {checks: string[]; reason: string}> = {
     'state-snapshot-replaces': {checks: ['state'], reason: STATE},
 
     // Message assembly.
-    'metadata-merges-last-write-wins': {checks: ['messages', 'messageIds'], reason: METADATA},
-    'open-metadata-preserved': {checks: ['messages'], reason: METADATA},
-    'tool-call-metadata-lands-on-the-call': {
-        checks: ['messages', 'messageIds'],
-        reason: METADATA
-    },
     'subagent-unannounced-attribution-accepted': {checks: ['messages'], reason: SUBAGENT_TEXT},
     'subagent-terminal-closes-open-chunk-stream': {
         checks: ['messages', 'messageIds'],
