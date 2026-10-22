@@ -22,8 +22,11 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     # @xh/hoist tracks the `next` dist-tag, moved by `pnpm update`, not by Dependabot.
+    # rxjs matches the exact version @ag-ui/client pins. A second copy breaks the RxJS types the
+    # AG-UI checks share, so bump it only alongside @ag-ui/client.
     ignore:
       - dependency-name: "@xh/hoist"
+      - dependency-name: "rxjs"
     # Group routine version bumps to keep the PR volume manageable. Major
     # bumps are excluded so they always surface as their own PR for review.
     groups:
