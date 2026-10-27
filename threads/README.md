@@ -5,8 +5,8 @@
 | [Overview](#overview) | What the thread layer does, and the key features |
 | [Architecture](#architecture) | `ChatThreadsModel`, `ChatThreadStore`, open chats, and the concurrency rules |
 | [Configuration Pattern](#configuration-pattern) | Implementing a store and creating a `ChatThreadsModel` |
-| [Common Usage Patterns](#common-usage-patterns) | Selecting, background turns, search, edits, deep links, grouping |
-| [Properties/API Reference](#propertiesapi-reference) | Config, state, methods, and the store contract |
+| [Common Usage Patterns](#common-usage-patterns) | Selecting, background turns, search, edits, deep links, grouping, a conversation of the app's own |
+| [Properties/API Reference](#propertiesapi-reference) | Config, state, methods, the store contract and the conversation contract |
 | [Extension Points](#extension-points) | Stores, chat creation, and the chat seams the layer uses |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
 | [Related Packages](#related-packages) | Core models, transports, and Hoist packages |
@@ -18,15 +18,18 @@ that a backend stores. An app implements a `ChatThreadStore` against its backend
 `ChatThreadsModel` does the rest. It lists the threads, opens a `ChatModel` for the selected
 one, and keeps every async result where it belongs. The package is platform-neutral and has no
 UI. The desktop [thread list](../desktop/cmp/threads/README.md) and
-[workspace](../desktop/cmp/workspace/README.md) build on it.
+[workspace](../desktop/cmp/workspace/README.md) build on it. An app whose conversation runs on
+another library can keep the list and its model. It gives each thread a conversation of its own -
+see [Use a conversation of the app's own](#use-a-conversation-of-the-apps-own).
 
 Import from `@xh/hoist-chat-kit/threads`.
 
 Key features:
 
-- **A store adapter** - two required methods, to list threads and to load a thread's history.
-  Rename, delete and feedback are optional. The model hides each action the store
+- **A store adapter** - methods to list threads and to load a thread's history. The load is
+  needed only for a `ChatModel`. Rename, delete and feedback are optional. The model hides each action the store
   lacks.
+- **Any conversation** - a `ChatModel`, or an adapter to a chat on another library.
 - **One chat per open thread** - the selected thread's chat, and any other chat with a turn
   running. A turn runs on in the background when the user switches threads, and the list shows
   its thread as running.
@@ -51,6 +54,7 @@ ChatThreadsModel (HoistModel)
 ├── listTask, loadTask: TaskObserver
 ├── Computed:
 │   ├── chatModel                     # The selected thread's ChatModel
+│   ├── conversation                  # The selected thread's conversation
 │   ├── selectedSummary               # The selected thread's summary
 │   ├── runningThreadIds              # Threads with a turn running, here or on the server
 │   ├── awaitingThreadIds             # Threads whose turn waits for the user
@@ -70,8 +74,13 @@ ChatThreadsModel (HoistModel)
 
 ChatThreadStore (implemented by the app)
 ├── listThreadsAsync(query)           # Required
-├── loadMessagesAsync(query)          # Required
+├── loadMessagesAsync(query)          # Required with createChatModel
 └── renameThreadAsync?, deleteThreadsAsync?, submitFeedbackAsync?
+
+ChatConversation (a ChatModel, or the app's own through createConversation)
+├── threadId, isBusy                  # Observable
+├── isAwaitingUser?, isSaved?, endedEarly?, title?
+└── loadAsync(), stop(), destroy()
 ```
 
 ### Open chats
@@ -86,6 +95,11 @@ message in the reloaded history by the id the chat streamed it under, or by the 
 the reply recorded. A comment that was sending as the chat closed does not come back. A reload of
 an open thread keeps its comments too. A new thread that the backend never saw drops its drafts
 when its chat closes, in memory and in local storage, as no list can bring it back.
+
+The model sees each open thread through the `ChatConversation` contract. With `createChatModel`,
+the kit wraps each `ChatModel` in a conversation of its own, and everything in this section
+applies. A conversation from `createConversation` gets the same open and close rules, but no
+drafts, feedback or send blockers, as the model has no `ChatModel` to wire.
 
 The app builds each chat with `createChatModel`. The threads model then wires three seams on
 it:
@@ -292,6 +306,22 @@ A deep link selects its thread. A selection replaces the parameter, with no new 
 On the route with no parameter, the model writes the current selection into it. The model
 ignores other routes.
 
+A thread can instead have its own path, as a child route with the id in its path. Set
+`threadRoute` to that route. The model navigates to it when a thread is selected, and back to
+`name` when none is.
+
+```typescript
+// AppModel.getRoutes()
+{
+    name: 'default',
+    path: '/app',
+    children: [{name: 'chat', path: '/chat', children: [{name: 'thread', path: '/:threadId'}]}]
+}
+
+// ChatThreadsConfig
+route: {name: 'default.chat', param: 'threadId', threadRoute: 'default.chat.thread'}
+```
+
 A new thread stays out of the route until the backend has it: until its first reply starts to
 stream, a turn ends whose run started, or the store lists it. A turn that fails before any
 response, or that the user stops before its run starts, leaves the thread out. The route stays on
@@ -316,6 +346,93 @@ Threads group by the calendar day of `lastActivityAt` in the browser's time zone
 Yesterday, Previous 7 days, Previous 30 days and Older. Each group is sorted most recent first,
 and empty groups are left out.
 
+### Use a conversation of the app's own
+
+An app whose conversation runs on another library can still show the kit's thread list, or the
+whole [workspace](../desktop/cmp/workspace/README.md#show-the-apps-own-conversation). Implement
+`ChatConversation` as a small adapter to that library's state for one thread, and pass
+`createConversation` in place of `createChatModel`. The store then needs no `loadMessagesAsync`,
+because each conversation loads its own history.
+
+```typescript
+import {HoistBase} from '@xh/hoist/core';
+import type {ChatConversation, ChatConversationSpec} from '@xh/hoist-chat-kit/threads';
+
+/** One thread of the app's chat model, which runs on another library. */
+export class AppConversation extends HoistBase implements ChatConversation {
+    readonly threadId: string;
+    private readonly isNew: boolean;
+
+    constructor(
+        private readonly chat: AppChatModel,
+        {threadId, isNew}: ChatConversationSpec
+    ) {
+        super();
+        this.threadId = threadId;
+        this.isNew = isNew;
+        if (isNew) chat.startThread(threadId);
+    }
+
+    get isBusy(): boolean {
+        return this.chat.runningThreadIds.includes(this.threadId);
+    }
+
+    get isSaved(): boolean {
+        return !this.isNew || this.chat.savedThreadIds.includes(this.threadId);
+    }
+
+    async loadAsync() {
+        await this.chat.openThreadAsync(this.threadId);
+    }
+
+    stop() {
+        this.chat.stopThread(this.threadId);
+    }
+}
+
+// In the app's model
+@managed threadsModel = new ChatThreadsModel({
+    store: new AssistantThreadStore(),
+    createConversation: spec => new AppConversation(this.chatModel, spec)
+});
+```
+
+The threads model then drives the app's chat:
+
+- **Select** - a click on a thread opens a conversation for it and calls `loadAsync()`. Open the
+  thread in the other library there. `isThreadLoading`, `loadError` and `isThreadNotFound` follow
+  the load, as for a `ChatModel`.
+- **New Chat** - opens a conversation with `isNew` true and a thread id the browser minted. Start a
+  new thread in the other library under that id. A library that takes its ids from the backend
+  instead changes `threadId` once, during the first turn, and the model re-keys the thread.
+- **Turns** - the list shows a thread as running while its conversation is `isBusy`. The
+  conversation stays open while its turn runs, so give each one the state of its own thread.
+  When a turn ends, the list reloads, for a title the backend set. A turn that ends in the
+  background shows as a new reply, unless `endedEarly` says it failed, was interrupted, or was
+  cancelled.
+- **Delete** - calls `stop()`, then destroys the conversation. A delete of the selected thread
+  opens a new one.
+- **Show** - a library that shows one thread at a time must follow `selectedThreadId`, not
+  `loadAsync()`. A user who returns to a thread whose turn still runs finds its conversation open,
+  and the model does not load it again.
+
+```typescript
+// In the app's model
+this.addReaction({
+    track: () => this.threadsModel.selectedThreadId,
+    run: threadId => this.chatModel.showThread(threadId),
+    fireImmediately: true
+});
+```
+
+Call `selectThreadAsync()` when the user opens a thread from inside the other library, and
+`refreshAsync()` when that library creates or changes a thread on its own. The model ignores a
+selection of the thread already selected, so the two sides cannot loop.
+
+`chatModel` and the return of `newThread()` are null with `createConversation`. Read
+`conversation` instead. The row states are only as good as the conversation's members: a
+conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those marks.
+
 ## Properties/API Reference
 
 ### ChatThreadsConfig
@@ -323,8 +440,9 @@ and empty groups are left out.
 | Property | Type | Description |
 |----------|------|-------------|
 | `store` | `ChatThreadStore` | Adapter to the backend. Required. |
-| `createChatModel` | `({threadId, isNew}) => ChatModel` | Builds the chat for a thread. Must pass `threadId` to the `ChatModel`. `isNew` is false for a thread whose history is about to load. A new thread may start with a greeting in `initialMessages`. Required. |
-| `route` | `{name, param}` | Route whose parameter holds the selected thread id. Default none. |
+| `createChatModel` | `({threadId, isNew, seed}) => ChatModel` | Builds the chat for a thread. Must pass `threadId` to the `ChatModel`. `isNew` is false for a thread whose history is about to load. A new thread may start with a greeting in `initialMessages`. The model applies `seed` itself. Requires the store's `loadMessagesAsync`. Give this or `createConversation`. |
+| `createConversation` | `({threadId, isNew, seed}) => ChatConversation` | Builds a conversation of the app's own for a thread, over a chat that runs on another library. Must take `threadId`. Give this or `createChatModel`. |
+| `route` | `{name, param, threadRoute?}` | Route whose parameter holds the selected thread id. `threadRoute` names a child route that holds the thread in its path. Default none. |
 
 ### ChatThreadsModel state
 
@@ -332,7 +450,8 @@ and empty groups are left out.
 |----------|------|-------------|
 | `threads` | `ChatThreadSummary[]` | The list, in the store's order. Threads started here that the store has not listed come first, unless a search is active. Pending edits show at once. |
 | `selectedThreadId` | `string` | The selected thread, or null. Observable. Change it with `selectThreadAsync()` or `newThread()`. |
-| `chatModel` | `ChatModel` | The selected thread's chat, or null. |
+| `chatModel` | `ChatModel` | The selected thread's chat, or null. Always null with `createConversation`. |
+| `conversation` | `ChatConversation` | The selected thread's conversation, or null. |
 | `selectedSummary` | `ChatThreadSummary` | The selected thread's summary, or null if it is not in the list. |
 | `search` | `string` | Text to search for. Bindable. |
 | `runningThreadIds` | `string[]` | Threads with a turn running here, or reported running by the store. |
@@ -352,7 +471,7 @@ and empty groups are left out.
 | Method | Description |
 |--------|-------------|
 | `loadAsync()`, `refreshAsync()` | Load the threads for the current search. |
-| `newThread(seed?)` | Open a new thread and select it. `seed` holds a `draft` and `runOptions`. Returns its chat. |
+| `newThread(seed?)` | Open a new thread and select it. `seed` holds a `draft` and `runOptions`. Returns its chat, or null with `createConversation`. |
 | `selectThreadAsync(threadId)` | Select a thread, opening its chat and loading its history if needed. |
 | `reloadThreadAsync()` | Load the selected thread's history again. Ignored while its turn runs. |
 | `renameThreadAsync(threadId, title)` | Rename at once. Rolls back with a toast on failure. |
@@ -363,10 +482,26 @@ and empty groups are left out.
 | Method | Description |
 |--------|-------------|
 | `listThreadsAsync({search})` | Required. A `ChatThreadPage`: threads most recently active first. The store decides how many. |
-| `loadMessagesAsync({threadId})` | Required. A `ChatMessagePage`: the thread's messages, oldest first. The kit ignores its optional `nextCursor`. |
+| `loadMessagesAsync({threadId})` | Required with `createChatModel`, and never called with `createConversation`. A `ChatMessagePage`: the thread's messages, oldest first. The kit ignores its optional `nextCursor`. |
 | `renameThreadAsync(threadId, title)` | Rename a thread. |
 | `deleteThreadsAsync(threadIds)` | Delete threads. Deleting a missing thread succeeds. |
 | `submitFeedbackAsync(spec)` | Save a rating. See `ChatFeedbackSpec` in [`/core/`](../core/README.md#rate-a-reply). |
+
+### ChatConversation
+
+Mark each member that changes as observable, or compute it from observables.
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `threadId` | `string` | The thread's id. May change once while busy, to adopt the backend's id. A change while idle means the conversation holds another thread. |
+| `isBusy` | `boolean` | True while a turn runs. |
+| `isAwaitingUser` | `boolean` | True while a turn waits for the user. Optional, default false. |
+| `isSaved` | `boolean` | True once the backend has a new thread. Puts the thread in the route, and keeps it on close. Optional, and null counts as left out: a new thread then counts as saved once a turn ends. Change `threadId` before, or in the same action as, this turns true. |
+| `endedEarly` | `ChatConversationEndedEarly` | How the last turn ended, if not with a reply to see, else null: `failed`, `interrupted`, or `cancelled` by the user's own action. The list marks the first two. A cancelled turn does not count a new thread as saved. Optional. |
+| `title` | `string` | Title for a new thread until the store lists it. Optional, default 'New conversation'. |
+| `loadAsync()` | `Promise<void>` | Load and show the thread's history. A later call supersedes an earlier one. Reject with `httpStatus` 404 for a missing thread. |
+| `stop()` | `void` | Stop the running turn, as for a delete. |
+| `destroy()` | `void` | Release resources, as the thread closes. A `HoistBase` has it. |
 
 ### ChatThreadSummary
 
@@ -387,6 +522,8 @@ and empty groups are left out.
   load methods.
 - **Chat creation** - `createChatModel` configures each chat as usual: transport, tools,
   renderers, `feedback`, `track` and a `sendBlocker` of the app's own.
+- **Conversations** - `createConversation` puts a chat that runs on another library behind the
+  same thread layer. See [Use a conversation of the app's own](#use-a-conversation-of-the-apps-own).
 - **Chat seams** - `ChatModel.addSendBlocker()`, `setFeedbackSubmitter()` and
   `setStatusRefresher()` are public. A custom thread layer can use them too. See
   [`/core/`](../core/README.md).
@@ -408,7 +545,48 @@ createChatModel: () => new ChatModel({transport})
 ### Holding on to a chat
 
 A chat closes when it is neither selected nor busy, and a closed chat is destroyed. Read
-`threadsModel.chatModel` when you need it, rather than keep a reference.
+`threadsModel.chatModel` when you need it, rather than keep a reference. The same holds for
+`threadsModel.conversation`.
+
+### Ending a turn before its work is done
+
+When a conversation's `isBusy` turns false while the user reads another thread, the threads model
+destroys it at once. Save the turn's messages, and anything else the turn needs, before `isBusy`
+turns false. Otherwise a `destroy()` that drops the conversation's state can lose them.
+
+```typescript
+// ✅ Do: Save, then end the turn
+await backend.saveMessagesAsync(threadId, messages);
+setRunning(threadId, false);
+
+// ❌ Don't: The conversation may be gone before the save reads its messages
+setRunning(threadId, false);
+await backend.saveMessagesAsync(threadId, messages);
+```
+
+### Ending a turn with isBusy alone when the user switches threads
+
+The threads model keeps a busy conversation open, and lists its thread as running. A library that
+cancels the reply when the user opens another thread must say so. A conversation whose `isBusy`
+turns false with `endedEarly` null counts as a finished turn, and its row shows a new reply that
+does not exist. Set `endedEarly` first, or in the same action. `cancelled` leaves the row as it
+was. `interrupted` marks it, with the reason as a tooltip, for a reply the user should know was
+cut short.
+
+```typescript
+// ✅ Do: Report the cancel, then end the turn
+@action
+onThreadCancelled(threadId: string) {
+    this.endedEarly = {runEnd: 'cancelled', reason: null};
+    this.isBusy = false;
+}
+
+// ❌ Don't: The row shows a new reply
+this.isBusy = false;
+```
+
+A library that stops following a turn that goes on running on the server does the same. Have the
+store report `isRunning` for that thread, so that the list still shows it running.
 
 ### Reporting a missing thread as an error
 

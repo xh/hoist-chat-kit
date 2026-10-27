@@ -167,6 +167,111 @@ describe('ChatThreadList', () => {
         expect(model.selectedThreadId).toBe('t2');
     });
 
+    it('hides New Chat with enableNewChat false, for an app that offers it elsewhere', async () => {
+        await renderList({props: {enableNewChat: false}});
+        expect(screen.queryByRole('button', {name: 'New Chat'})).toBeNull();
+    });
+
+    it('calls onThreadClick on a click, also for the thread already selected', async () => {
+        const onThreadClick = vi.fn(),
+            {model} = await renderList({props: {onThreadClick}});
+        await act(() => model.selectThreadAsync('t2'));
+
+        fireEvent.click(row('Travel'));
+        fireEvent.keyDown(row('Travel'), {key: 'Enter'});
+        await act(() => wait());
+
+        expect(onThreadClick.mock.calls.map(([it]) => it.id)).toEqual(['t2', 't2']);
+        expect(model.selectedThreadId).toBe('t2');
+    });
+
+    it('links each row with getThreadHref, and leaves a modifier click to the browser', async () => {
+        const {model} = await renderList({props: {getThreadHref: it => `#/chat/${it.id}`}}),
+            link = (title: string) => row(title).querySelector('a');
+        expect(link('Travel').getAttribute('href')).toBe('#/chat/t2');
+
+        fireEvent.click(link('Travel'));
+        await act(() => wait());
+        expect(model.selectedThreadId).toBe('t2');
+
+        fireEvent.click(link('Budget review'), {ctrlKey: true});
+        await act(() => wait());
+        expect(model.selectedThreadId).toBe('t2');
+    });
+
+    it("says 'chat' throughout with threadNoun 'chat'", async () => {
+        await renderList({props: {threadNoun: 'chat'}});
+
+        expect(screen.getByRole('treegrid', {name: 'Chats'})).toBeTruthy();
+        expect(screen.getByLabelText('Search chats').getAttribute('placeholder')).toBe(
+            'Search chats'
+        );
+        fireEvent.keyDown(row('Travel'), {key: 'F2'});
+        expect(screen.getByLabelText('Rename chat')).toBeTruthy();
+    });
+
+    it('hides the time with showTime false', async () => {
+        await renderList({props: {showTime: false}});
+        expect(row('Travel').querySelector('.xh-chat-thread-list__time')).toBeNull();
+        expect(row('Travel').getAttribute('aria-label')).toBe('Travel');
+    });
+
+    it('leaves Copy Thread ID out of the More menu with enableCopyId false', async () => {
+        await renderList({props: {enableCopyId: false}});
+
+        fireEvent.click(within(row('Travel')).getByRole('button', {name: 'More'}));
+        await screen.findByText('Delete...');
+
+        expect(screen.queryByText('Copy Thread ID')).toBeNull();
+    });
+
+    it('disables Delete for a thread whose turn runs, with enableDeleteRunning false', async () => {
+        const confirm = vi.spyOn(XH, 'confirm').mockResolvedValue(true);
+        onTestFinished(() => confirm.mockRestore());
+        await renderList({
+            store: new LocalChatThreadStore({
+                threads: [thread('t1', 'Budget review', {isRunning: true}), ...THREADS.slice(1)]
+            }),
+            props: {enableDeleteRunning: false}
+        });
+
+        fireEvent.keyDown(row('Budget review'), {key: 'Delete'});
+        await act(() => wait());
+        expect(confirm).not.toHaveBeenCalled();
+
+        fireEvent.click(within(row('Budget review')).getByRole('button', {name: 'More'}));
+        const item = (await screen.findByText('Delete...')).closest('[role="menuitem"]');
+        expect(item.getAttribute('aria-disabled')).toBe('true');
+    });
+
+    it('lands once on the next thread when the open thread is deleted', async () => {
+        const {model} = await renderList(),
+            confirm = vi.spyOn(XH, 'confirm').mockResolvedValue(true),
+            selections: string[] = [];
+        onTestFinished(() => confirm.mockRestore());
+        await act(() => model.selectThreadAsync('t1'));
+        model.addReaction({track: () => model.selectedThreadId, run: id => selections.push(id)});
+
+        fireEvent.keyDown(row('Budget review'), {key: 'Delete'});
+        await act(() => wait());
+
+        expect(selections).toEqual(['t2']);
+    });
+
+    it('opens a new chat when the open thread is deleted, with selectNextOnDelete false', async () => {
+        const {model} = await renderList({props: {selectNextOnDelete: false}}),
+            confirm = vi.spyOn(XH, 'confirm').mockResolvedValue(true);
+        onTestFinished(() => confirm.mockRestore());
+        await act(() => model.selectThreadAsync('t1'));
+
+        fireEvent.keyDown(row('Budget review'), {key: 'Delete'});
+        await act(() => wait());
+
+        expect(model.selectedThreadId).not.toBe('t2');
+        expect(model.selectedSummary).toBeNull();
+        expect(model.chatModel.isEmpty).toBe(true);
+    });
+
     it('shows Rename only if the store supports it', async () => {
         const {model} = await renderList({
             store: new LocalChatThreadStore({

@@ -3,6 +3,10 @@
 # Snapshots are mutable development builds (version from package.json, e.g. 1.0.0-SNAPSHOT).
 # They are published with the `next` dist-tag so they don't affect `latest`. For numbered
 # releases, see Deploy Release.
+#
+# Run by hand from a feature branch, with a version of its own and a dist-tag such as `beta`, to
+# let an app try the branch without moving `next`:
+#   gh workflow run deploySnapshot.yml --ref my-branch -f version=1.0.0-my-branch -f dist-tag=beta
 
 name: Deploy Snapshot
 
@@ -15,6 +19,11 @@ on:
                 description: '(Optional) Snapshot version to override default in package.json. Note that the suffix "-SNAPSHOT" will be automatically appended if not present.'
                 required: false
                 default: ''
+                type: string
+            dist-tag:
+                description: 'npm dist-tag for the snapshot. Default next. Use another, such as beta, for a snapshot of a feature branch.'
+                required: false
+                default: 'next'
                 type: string
 
 # Debounce builds by branch. Newer runs from a branch will cancel the current run and start over.
@@ -110,7 +119,7 @@ jobs:
         - name: Publish snapshot to npm
           env:
               NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          run: pnpm publish --no-git-checks --tag next
+          run: pnpm publish --no-git-checks --tag "${{ inputs.dist-tag || 'next' }}"
 
         - name: Write job summary
           # Best-effort only - a summary glitch must never fail an otherwise-good publish.
@@ -121,7 +130,7 @@ jobs:
               {
                 echo "### 📦 Snapshot published to npm"
                 echo ""
-                echo "Version: [\`$SNAPSHOT_VERSION\`](https://www.npmjs.com/package/@xh/hoist-chat-kit/v/$SNAPSHOT_VERSION)"
+                echo "Version: [\`$SNAPSHOT_VERSION\`](https://www.npmjs.com/package/@xh/hoist-chat-kit/v/$SNAPSHOT_VERSION), tag \`${{ inputs.dist-tag || 'next' }}\`"
 
                 # Pack stats are a nice-to-have - skip the table silently if anything throws.
                 # Deliberately `npm pack`, not `pnpm pack`: pnpm's --json output is a different

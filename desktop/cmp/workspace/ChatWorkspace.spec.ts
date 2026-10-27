@@ -360,6 +360,20 @@ describe('ChatWorkspace', () => {
             );
         });
 
+        it("applies the thread list's enableNewChat and threadNoun to its own chrome", async () => {
+            const {threadsModel} = renderWorkspace({
+                threadListProps: {enableNewChat: false, threadNoun: 'chat'}
+            });
+            await act(() => threadsModel.loadAsync());
+            await act(() => threadsModel.selectThreadAsync('t1'));
+            await resizeTo(1300);
+
+            expect(screen.queryByRole('button', {name: 'New Chat'})).toBeNull();
+            expect(screen.getByRole('navigation', {name: 'Chats'})).toBeTruthy();
+            expect(screen.getByRole('treegrid', {name: 'Chats'})).toBeTruthy();
+            expect(screen.getByRole('button', {name: 'Chat actions'})).toBeTruthy();
+        });
+
         it("gives every New Chat button the thread list's newChatButtonProps, less text", async () => {
             const {unmount} = renderWorkspace();
             await resizeTo(900);

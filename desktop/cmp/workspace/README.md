@@ -27,7 +27,8 @@ Key features:
 - **A rail** - expand, New Chat, search, and a spinner while any thread works.
 - **The conversation** - a `ChatPanel` for the selected thread's chat. It clears the moment the
   selection changes, masks while history loads, and shows a failed load with Retry. A thread the
-  store reports missing shows "Thread not found" with New Chat.
+  store reports missing shows "Thread not found" with New Chat. An app can show its own
+  conversation view in its place.
 - **Slots** - a header with the thread's title and actions by default, a notice line, and a side
   panel that the app fills.
 - **Documents beside the chat** - with a `documentRenderer`, a cited document opens in the side
@@ -194,7 +195,28 @@ document opens at its URL in a new tab, with a toast.
 ### Configure the chat and the list
 
 `chatPanelProps` go to the conversation's `ChatPanel`, for example `suggestions` or
-`composerProps`. `threadListProps` go to the sidebar's `ChatThreadList`.
+`composerProps`. `threadListProps` go to the sidebar's `ChatThreadList`. Its `enableNewChat`,
+`threadNoun`, `enableCopyId`, `enableDeleteRunning` and `selectNextOnDelete` apply to the
+workspace's own New Chat buttons, header and messages too.
+
+### Show the app's own conversation
+
+An app whose conversation runs on another library gives the threads model a `createConversation`
+function - see [Use a conversation of the app's own](../../../threads/README.md#use-a-conversation-of-the-apps-own).
+Pass the app's view of that conversation as `conversationView`, in place of the `ChatPanel`.
+
+```typescript
+chatWorkspace({
+    model: model.workspaceModel,
+    conversationView: appChatView({model: model.chatModel})
+});
+```
+
+The workspace keeps its sidebar, rail, header, notice and side panel. It masks the view while a
+thread loads. For a missing thread or a failed load, it shows "Thread not found" or the error
+with Retry, and hides the view. The view stays mounted through all of this and as the selection
+changes. It must follow the selected thread itself, from the threads model's `conversation` or
+from the app's own state.
 
 ## Properties/API Reference
 
@@ -235,7 +257,8 @@ document opens at its URL in a new tab, with a toast.
 | `sidePanelProps` | `PanelProps` | Props for the side panel's `Panel` around the app's own content, such as `title`. Its header is compact by default. |
 | `requestPanelProps` | `PanelProps` | Props for the `Panel` of a request open in the side panel - a document, a table or a chart - as `ChatSidePanel`'s `panelProps`. Its header is compact by default. Pass `compactHeader: false` for a full one. |
 | `chatPanelProps` | `ChatPanelProps` | Props for the conversation's `ChatPanel`. |
-| `threadListProps` | `ChatThreadListProps` | Props for the sidebar's `ChatThreadList`. |
+| `conversationView` | `ReactNode \| () => ReactNode` | The app's own view of the conversation, in place of the `ChatPanel`. `chatPanelProps` does not apply. |
+| `threadListProps` | `ChatThreadListProps` | Props for the sidebar's `ChatThreadList`. `enableNewChat`, `threadNoun`, `enableCopyId`, `enableDeleteRunning` and `selectNextOnDelete` apply to the workspace's own chrome too. |
 
 ### Landmarks
 
@@ -261,6 +284,11 @@ with none. Give it a `Panel`, a `frame` or another box that flexes.
 
 `threadsModel.chatModel` changes with the selection, and the threads model destroys chats it
 closes. Read it when you need it, rather than keep a reference.
+
+### Expecting composer shortcuts over the app's own view
+
+`/` and F6 look for the kit's composer and message list. Over a `conversationView`, they find
+neither, and skip the conversation. New Chat starts the thread, but focuses nothing.
 
 ## Related Packages
 

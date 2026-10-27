@@ -5,9 +5,10 @@ import type {ChatFeedbackSpec, ChatMessageSpec} from '../core';
  * Adapter between a {@link ChatThreadsModel} and the backend that stores an app's threads. The app
  * implements it against its own API, mapping the backend's records to and from the kit's shapes.
  *
- * Only `listThreadsAsync` and `loadMessagesAsync` are required. The threads model hides each
- * action whose method the store leaves out - for example, it cannot rename a thread without
- * `renameThreadAsync`.
+ * Only `listThreadsAsync` is always required. `loadMessagesAsync` is required for chats from
+ * `createChatModel`, and unused for conversations from `createConversation`, which load their own
+ * history. The threads model hides each action whose method the store leaves out - for example, it
+ * cannot rename a thread without `renameThreadAsync`.
  *
  * A store reports a thread that does not exist by throwing an error with `httpStatus` 404, as
  * Hoist's `FetchService` does. The threads model then marks the thread not found. A thread with
@@ -20,8 +21,11 @@ export interface ChatThreadStore {
      */
     listThreadsAsync(query: ChatThreadQuery): Promise<ChatThreadPage>;
 
-    /** A thread's messages, oldest first. */
-    loadMessagesAsync(query: ChatMessageQuery): Promise<ChatMessagePage>;
+    /**
+     * A thread's messages, oldest first. Required for chats from `createChatModel`. Conversations
+     * from `createConversation` load their own history, and the threads model never calls it.
+     */
+    loadMessagesAsync?(query: ChatMessageQuery): Promise<ChatMessagePage>;
 
     /** Rename a thread. */
     renameThreadAsync?(threadId: string, title: string): Promise<void>;

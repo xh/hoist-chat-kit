@@ -1565,3 +1565,30 @@ side panels in our prior-art notes, Claude's artifacts and ChatGPT's canvas, hav
 **Alternatives.** Flash the citation when Back lands on it, hide Back while the citation is in
 view, or relabel it. Each keeps a control that promises navigation the panel does not have.
 
+
+## D96. The thread layer reaches its conversation through `ChatConversation`
+
+**Decision.** This builds the two seams of D89. `ChatThreadsModel` sees each open thread through
+`ChatConversation`: `threadId`, `isBusy` and `loadAsync()`, `stop()` and `destroy()`, with
+optional `isAwaitingUser`, `isSaved`, `endedEarly` and `title`. An app passes
+`createConversation` in place of `createChatModel` to supply its own. The store's
+`loadMessagesAsync` is then unused, and optional. `ChatWorkspace` takes a `conversationView` in
+place of its `ChatPanel`, and keeps its sidebar, header, side panel and its states for a missing
+or failed thread. The app's view stays mounted across threads, unlike the keyed `ChatPanel`.
+
+A `ChatModel` does not implement the contract itself. An internal adapter wraps it. The adapter
+holds the wiring that D89 meant to move into `ChatModel`: the store load, drafts, feedback
+comments, the send blocker and Refresh Status. The rules for a saved thread stay with the threads
+model, so a `ChatModel` thread behaves as before. A conversation without `isSaved` counts as saved
+once a turn ends.
+
+**Why.** The OpenUI app now wants the kit's thread list, and later its workspace, while its
+conversation stays on OpenUI for now. That is the case D89 kept the seam for. The adapter puts the
+seam in place without the `ChatModel` split that D82 deferred, and leaves `ChatModel`'s API alone.
+`newThread()` and `chatModel` keep their types, and return null for an app's conversation, so
+existing callers do not change.
+
+**Alternatives.** Restore `ChatThreadListHost`, which D89 rejected: the app would rebuild the
+list's loading, edits and routing. Or keep `createChatModel` and have the app pass a stub
+`ChatModel` with a transport it never calls. That works today, but shows no running or ended-early
+marks for the other library's turns, and ties the app to `ChatModel` internals.

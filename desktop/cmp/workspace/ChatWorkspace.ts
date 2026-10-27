@@ -1,7 +1,7 @@
 import type {CSSProperties, ReactNode} from 'react';
 import {isFunction, isString, omit} from 'lodash';
 import {clipboardMenuItem} from '@xh/hoist/cmp/clipboard';
-import {errorMessage} from '@xh/hoist/cmp/error';
+import {errorMessage, type ErrorMessageProps} from '@xh/hoist/cmp/error';
 import {div, filler, nav, placeholder, span, vframe} from '@xh/hoist/cmp/layout';
 import {mask} from '@xh/hoist/cmp/mask';
 import {
@@ -19,7 +19,7 @@ import {panel, type PanelProps} from '@xh/hoist/desktop/cmp/panel';
 import {Icon} from '@xh/hoist/icon';
 import {popover} from '@xh/hoist/kit/blueprint';
 import {wait} from '@xh/hoist/promise';
-import {getTestId} from '@xh/hoist/utils/js';
+import {getTestId, throwIf} from '@xh/hoist/utils/js';
 import {useComposedRefs} from '@xh/hoist/utils/react';
 import {classNames} from '../../../impl/ClassNames';
 import '../../../styles/vars.scss';
@@ -31,14 +31,19 @@ import {
     chatSpinner
 } from '../chat';
 import {chatThreadList, type ChatThreadListProps} from '../threads';
+import type {ChatThreadsModel} from '../../../threads';
 import {deleteThreadAsync} from '../../impl/ChatThreadDelete';
 import {ChatWorkspaceModel} from './ChatWorkspaceModel';
 import './ChatWorkspace.scss';
 import {ChatWorkspaceLocalModel} from './impl/ChatWorkspaceLocalModel';
+import {getThreadLabels, type ThreadLabels} from '../../impl/ThreadLabels';
 import {useWorkspaceWidth} from './impl/useWorkspaceWidth';
 
 /** Content for the workspace's side panel: an element, or a function that renders one. */
 export type ChatWorkspaceSidePanel = ReactNode | (() => ReactNode);
+
+/** The app's own view of a conversation: an element, or a function that renders one. */
+export type ChatWorkspaceConversationView = ReactNode | (() => ReactNode);
 
 /** Props for {@link ChatWorkspace}. */
 export interface ChatWorkspaceProps extends HoistProps<ChatWorkspaceModel>, BoxProps {
@@ -81,6 +86,16 @@ export interface ChatWorkspaceProps extends HoistProps<ChatWorkspaceModel>, BoxP
     /** Props for the conversation's `ChatPanel`, such as `suggestions` and `composerProps`. */
     chatPanelProps?: Omit<ChatPanelProps, 'model' | 'modelConfig' | 'modelRef'>;
 
+    /**
+     * The app's own view of the selected thread's conversation, in place of the kit's
+     * `ChatPanel` - as for conversations from `ChatThreadsConfig.createConversation`, which run
+     * on another library. The view reads the threads model's `conversation` for the thread it
+     * shows. The workspace keeps its sidebar, header, notice and side panel, and masks the view
+     * while a thread loads. A missing thread or a failed load shows a message and hides the view,
+     * which stays mounted. `chatPanelProps` does not apply.
+     */
+    conversationView?: ChatWorkspaceConversationView;
+
     /** Props for the sidebar's `ChatThreadList`. */
     threadListProps?: Omit<ChatThreadListProps, 'model' | 'modelConfig' | 'modelRef'>;
 }
@@ -116,12 +131,17 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
                 sidePanelProps,
                 requestPanelProps,
                 chatPanelProps,
+                conversationView,
                 threadListProps,
                 testId,
                 ...rest
             } = props,
             impl = useLocalModel(ChatWorkspaceLocalModel),
-            rootRef = useComposedRefs(ref, useWorkspaceWidth(model));
+            rootRef = useComposedRefs(ref, useWorkspaceWidth(model)),
+            list: ListOptions = {
+                props: threadListProps,
+                labels: getThreadLabels(threadListProps?.threadNoun)
+            };
 
         return vframe({
             ref: rootRef,
@@ -134,16 +154,18 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
                     className: 'xh-chat-workspace__body',
                     style: shownWidths(model),
                     items: [
-                        sidebar(model, impl, threadListProps, testId),
+                        sidebar(model, impl, list, testId),
                         div({
                             className: 'xh-chat-workspace__main',
                             role: 'main',
                             items: [
                                 header === undefined
-                                    ? defaultHeader(model, impl, headerItems, threadListProps)
+                                    ? defaultHeader(model, impl, headerItems, list)
                                     : header,
                                 noticeLine(notice),
-                                conversation(model, impl, chatPanelProps, testId)
+                                conversationView === undefined
+                                    ? conversation(model, impl, list, chatPanelProps, testId)
+                                    : appConversation(model, impl, list, conversationView, testId)
                             ]
                         }),
                         sidePanelView(
@@ -165,17 +187,23 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
 //------------------
 // Implementation
 //------------------
+/** The thread list's props, with the word for a thread in the forms the workspace's text needs. */
+interface ListOptions {
+    props: ChatWorkspaceProps['threadListProps'];
+    labels: ThreadLabels;
+}
+
 function sidebar(
     model: ChatWorkspaceModel,
     impl: ChatWorkspaceLocalModel,
-    threadListProps: ChatWorkspaceProps['threadListProps'],
+    list: ListOptions,
     testId: string
 ): ReactNode {
     switch (model.sidebarMode) {
         case 'hidden':
             return null;
         case 'rail':
-            return rail(model, impl, threadListProps);
+            return rail(model, impl, list);
     }
 
     // A sibling of the conversation, as Hoist's dragger resizes a panel against its sibling.
@@ -186,7 +214,7 @@ function sidebar(
         testId: getTestId(testId, 'sidebar'),
         item: nav({
             className: 'xh-chat-workspace__nav',
-            'aria-label': 'Threads',
+            'aria-label': list.labels.titlePlural,
             item: chatThreadList({
                 model: model.threadsModel,
                 searchInputRef: impl.searchInputRef,
@@ -199,7 +227,7 @@ function sidebar(
                         onClick: () => model.collapseSidebar()
                     })
                 ],
-                ...threadListProps
+                ...list.props
             })
         })
     });
@@ -221,13 +249,14 @@ function shownWidths(model: ChatWorkspaceModel): CSSProperties {
 function rail(
     model: ChatWorkspaceModel,
     impl: ChatWorkspaceLocalModel,
-    threadListProps: ChatWorkspaceProps['threadListProps']
+    list: ListOptions
 ): ReactNode {
-    const isAnyRunning = !!model.threadsModel.runningThreadIds.length;
+    const isAnyRunning = !!model.threadsModel.runningThreadIds.length,
+        {labels} = list;
     return nav({
         key: 'rail',
         className: 'xh-chat-workspace__rail',
-        'aria-label': 'Threads',
+        'aria-label': labels.titlePlural,
         items: [
             button({
                 icon: Icon.chevronRight(),
@@ -235,19 +264,19 @@ function rail(
                 'aria-label': 'Expand sidebar',
                 onClick: () => model.expandSidebar()
             }),
-            newChatIconButton(impl, threadListProps),
+            newChatIconButton(impl, list),
             button({
                 icon: Icon.search(),
-                tooltip: 'Search threads',
-                'aria-label': 'Search threads',
+                tooltip: `Search ${labels.plural}`,
+                'aria-label': `Search ${labels.plural}`,
                 onClick: () => impl.openSearch()
             }),
             isAnyRunning
                 ? span({
                       className: 'xh-chat-workspace__rail-busy',
                       role: 'img',
-                      title: 'A thread is working',
-                      'aria-label': 'A thread is working',
+                      title: `A ${labels.singular} is working`,
+                      'aria-label': `A ${labels.singular} is working`,
                       item: chatSpinner()
                   })
                 : null
@@ -257,18 +286,17 @@ function rail(
 
 /**
  * New Chat as an icon, for the rail and the header. It takes the thread list's
- * `newChatButtonProps`, less `text`, so that every New Chat button matches.
+ * `newChatButtonProps`, less `text`, so that every New Chat button matches - and goes with the
+ * list's button, for an app that offers New Chat elsewhere.
  */
-function newChatIconButton(
-    impl: ChatWorkspaceLocalModel,
-    threadListProps: ChatWorkspaceProps['threadListProps']
-): ReactNode {
+function newChatIconButton(impl: ChatWorkspaceLocalModel, list: ListOptions): ReactNode {
+    if (list.props?.enableNewChat === false) return null;
     return button({
         icon: Icon.add(),
         tooltip: 'New Chat',
         'aria-label': 'New Chat',
         intent: 'primary',
-        ...omit(threadListProps?.newChatButtonProps, 'text', 'testId'),
+        ...omit(list.props?.newChatButtonProps, 'text', 'testId'),
         onClick: () => impl.newChat()
     });
 }
@@ -277,33 +305,34 @@ function defaultHeader(
     model: ChatWorkspaceModel,
     impl: ChatWorkspaceLocalModel,
     headerItems: ReactNode[] = [],
-    threadListProps: ChatWorkspaceProps['threadListProps']
+    list: ListOptions
 ): ReactNode {
     const {threadsModel, sidebarMode} = model,
+        {labels} = list,
         summary = threadsModel.selectedSummary;
 
     return div({
         className: 'xh-chat-workspace__header',
         items: [
-            sidebarMode === 'hidden' ? historyButton(model, impl, threadListProps) : null,
+            sidebarMode === 'hidden' ? historyButton(model, impl, list) : null,
             div({
                 className: 'xh-chat-workspace__title',
                 role: 'heading',
                 'aria-level': 2,
                 item: threadsModel.isThreadNotFound
-                    ? 'Thread not found'
+                    ? `${labels.title} not found`
                     : (summary?.title ?? 'New chat')
             }),
             filler(),
             ...headerItems,
-            sidebarMode !== 'open' ? newChatIconButton(impl, threadListProps) : null,
+            sidebarMode !== 'open' ? newChatIconButton(impl, list) : null,
             summary
                 ? menuButton({
                       icon: Icon.ellipsisHorizontal(),
-                      tooltip: 'Thread actions',
-                      'aria-label': 'Thread actions',
+                      tooltip: `${labels.title} actions`,
+                      'aria-label': `${labels.title} actions`,
                       menuPosition: 'bottom-right',
-                      menuItems: () => threadMenuItems(model)
+                      menuItems: () => threadMenuItems(model, list)
                   })
                 : null
         ]
@@ -314,8 +343,9 @@ function defaultHeader(
 function historyButton(
     model: ChatWorkspaceModel,
     impl: ChatWorkspaceLocalModel,
-    threadListProps: ChatWorkspaceProps['threadListProps']
+    list: ListOptions
 ): ReactNode {
+    const {labels} = list;
     return popover({
         isOpen: impl.isHistoryOpen,
         onInteraction: open => impl.setHistoryOpen(open),
@@ -323,41 +353,52 @@ function historyButton(
         minimal: true,
         item: button({
             icon: Icon.history(),
-            tooltip: 'Threads',
-            'aria-label': 'Threads',
+            tooltip: labels.titlePlural,
+            'aria-label': labels.titlePlural,
             active: impl.isHistoryOpen
         }),
         content: nav({
             className: 'xh-chat-workspace__history',
-            'aria-label': 'Threads',
-            item: chatThreadList({model: model.threadsModel, ...threadListProps})
+            'aria-label': labels.titlePlural,
+            item: chatThreadList({model: model.threadsModel, ...list.props})
         })
     });
 }
 
-function threadMenuItems(model: ChatWorkspaceModel): MenuItemLike[] {
+function threadMenuItems(model: ChatWorkspaceModel, list: ListOptions): MenuItemLike[] {
     const {threadsModel} = model,
+        {labels, props: threadListProps} = list,
         summary = threadsModel.selectedSummary;
     if (!summary) return [];
 
+    // The list's row options apply here too - see `ChatThreadListProps`.
+    const isRunning = threadsModel.runningThreadIds.includes(summary.id),
+        canDeleteNow = threadListProps?.enableDeleteRunning !== false || !isRunning;
     return [
-        clipboardMenuItem({
-            text: 'Copy Thread ID',
-            icon: Icon.copy(),
-            getCopyText: () => summary.id,
-            successMessage: 'Thread ID copied.'
-        }),
+        {
+            ...clipboardMenuItem({
+                text: `Copy ${labels.title} ID`,
+                icon: Icon.copy(),
+                getCopyText: () => summary.id,
+                successMessage: `${labels.title} ID copied.`
+            }),
+            omit: threadListProps?.enableCopyId === false
+        },
         '-',
         {
             text: 'Delete...',
             icon: Icon.delete(),
             intent: 'danger',
             omit: !threadsModel.canDelete,
+            disabled: !canDeleteNow,
             // As from the list: the next thread opens, and focus moves to its composer.
             actionFn: () =>
-                deleteThreadAsync(threadsModel, summary, () =>
-                    wait().then(() => threadsModel.chatModel?.composerModel?.focus())
-                ).catchDefault()
+                deleteThreadAsync(threadsModel, summary, {
+                    labels,
+                    selectNext: threadListProps?.selectNextOnDelete !== false,
+                    onDeleting: () =>
+                        wait().then(() => threadsModel.chatModel?.composerModel?.focus())
+                }).catchDefault()
         }
     ];
 }
@@ -374,26 +415,20 @@ function noticeLine(notice: ReactNode): ReactNode {
 function conversation(
     model: ChatWorkspaceModel,
     impl: ChatWorkspaceLocalModel,
+    list: ListOptions,
     chatPanelProps: ChatWorkspaceProps['chatPanelProps'],
     testId: string
 ): ReactNode {
     const {threadsModel} = model,
         {chatModel, loadError} = threadsModel;
+    throwIf(
+        !chatModel && threadsModel.conversation,
+        'ChatWorkspace needs a conversationView to show a conversation from createConversation.'
+    );
     if (!chatModel) return null;
 
     // A thread the store reports missing, as from a deep link, offers a new chat in its place.
-    if (threadsModel.isThreadNotFound) {
-        return errorMessage({
-            key: chatModel.xhId,
-            className: 'xh-chat-workspace__not-found',
-            testId: getTestId(testId, 'notFound'),
-            error: true,
-            title: 'Thread not found',
-            message: 'This conversation does not exist, or it was deleted.',
-            actionFn: () => impl.newChat(),
-            actionButtonProps: {text: 'New Chat', icon: Icon.add()}
-        });
-    }
+    if (threadsModel.isThreadNotFound) return notFound(impl, list, chatModel.xhId, testId);
 
     // A thread that has not loaded yet shows a plain pane under the mask, not a new chat's empty
     // state - centered composer and suggestions - which its empty chat would otherwise show.
@@ -416,13 +451,81 @@ function conversation(
         ...chatPanelProps,
         emptyState:
             loadError && chatModel.isEmpty
-                ? errorMessage({
-                      error: loadError,
-                      title: "Couldn't load this thread",
-                      actionFn: () => threadsModel.reloadThreadAsync(),
-                      actionButtonProps: {text: 'Retry', icon: Icon.refresh()}
-                  })
+                ? loadFailed(threadsModel, list)
                 : chatPanelProps?.emptyState
+    });
+}
+
+/** The app's own conversation view, with the workspace's states for a missing or failed thread. */
+function appConversation(
+    model: ChatWorkspaceModel,
+    impl: ChatWorkspaceLocalModel,
+    list: ListOptions,
+    conversationView: ChatWorkspaceConversationView,
+    testId: string
+): ReactNode {
+    const {threadsModel} = model,
+        {conversation, loadError, isThreadNotFound} = threadsModel;
+    if (!conversation) return null;
+
+    let message: ReactNode = null;
+    if (isThreadNotFound) {
+        message = notFound(impl, list, 'notFound', testId);
+    } else if (loadError) {
+        message = loadFailed(threadsModel, list, {
+            key: 'loadError',
+            className: 'xh-chat-workspace__load-error',
+            testId: getTestId(testId, 'loadError')
+        });
+    }
+
+    // One view for every thread, not one per thread as for a ChatPanel: the app's view follows
+    // the selection itself, and may hold state that a remount would lose. A message hides it,
+    // and leaves it mounted.
+    return [
+        message,
+        panel({
+            key: 'conversation',
+            className: 'xh-chat-workspace__conversation',
+            testId: getTestId(testId, 'conversation'),
+            display: message ? 'none' : undefined,
+            mask: threadsModel.loadTask,
+            item: isFunction(conversationView) ? conversationView() : conversationView
+        })
+    ];
+}
+
+/** The selected thread's failed load, with Retry. */
+function loadFailed(
+    threadsModel: ChatThreadsModel,
+    list: ListOptions,
+    props: ErrorMessageProps & {key?: string} = {}
+): ReactNode {
+    return errorMessage({
+        error: threadsModel.loadError,
+        title: `Couldn't load this ${list.labels.singular}`,
+        actionFn: () => threadsModel.reloadThreadAsync(),
+        actionButtonProps: {text: 'Retry', icon: Icon.refresh()},
+        ...props
+    });
+}
+
+/** "Thread not found", with New Chat, for a thread the store reports missing. */
+function notFound(
+    impl: ChatWorkspaceLocalModel,
+    list: ListOptions,
+    key: string,
+    testId: string
+): ReactNode {
+    return errorMessage({
+        key,
+        className: 'xh-chat-workspace__not-found',
+        testId: getTestId(testId, 'notFound'),
+        error: true,
+        title: `${list.labels.title} not found`,
+        message: 'This conversation does not exist, or it was deleted.',
+        actionFn: () => impl.newChat(),
+        actionButtonProps: {text: 'New Chat', icon: Icon.add()}
     });
 }
 

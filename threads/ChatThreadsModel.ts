@@ -1,40 +1,33 @@
 import {
-    cloneDeep,
     compact,
     difference,
     differenceBy,
     find,
-    findLast,
     isEmpty,
-    isEqual,
     keys,
     omit,
     pickBy,
     some,
     union,
-    uniq,
     without
 } from 'lodash';
-import type {LoadSpec, PlainObject} from '@xh/hoist/core';
+import type {LoadSpec} from '@xh/hoist/core';
 import {HoistModel, managed, TaskObserver, XH} from '@xh/hoist/core';
 import {action, bindable, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {debounced, throwIf} from '@xh/hoist/utils/js';
-import {
-    type ChatFeedbackDraft,
-    ChatKit,
-    type ChatMessage,
-    type ChatModel,
-    getChatReplyStatus
-} from '../core';
+import {ChatKit, type ChatModel} from '../core';
 import {genChatId} from '../impl/ids';
 import type {
-    ChatMessagePage,
-    ChatThreadPage,
-    ChatThreadStore,
-    ChatThreadSummary
-} from './ChatThreadStore';
+    ChatConversation,
+    ChatConversationEndedEarly,
+    ChatConversationSpec,
+    ChatSeedSpec
+} from './ChatConversation';
+import type {ChatThreadPage, ChatThreadStore, ChatThreadSummary} from './ChatThreadStore';
+import {ChatModelConversation} from './impl/ChatModelConversation';
+import {ChatModelDrafts} from './impl/ChatModelDrafts';
 import {OpenThread} from './impl/OpenThread';
-import {isNotFound, titleFromText} from './impl/threadUtils';
+import {isNotFound, UNTITLED_THREAD} from './impl/threadUtils';
 
 /** Configuration for a {@link ChatThreadsModel}. */
 export interface ChatThreadsConfig {
@@ -44,9 +37,21 @@ export interface ChatThreadsConfig {
     /**
      * Create the chat for a thread. Pass `threadId` to the `ChatModel` config, and wire the
      * transport, tools and other config as for any chat. Called each time a thread opens: when
-     * it is selected, or created with `newThread`.
+     * it is selected, or created with `newThread`. The threads model loads each thread's history
+     * through the store's `loadMessagesAsync`, which this option requires.
+     *
+     * Give this or `createConversation`, not both.
      */
-    createChatModel: (spec: ChatThreadChatSpec) => ChatModel;
+    createChatModel?: (spec: ChatConversationSpec) => ChatModel;
+
+    /**
+     * Create the conversation for a thread, for an app whose conversation runs on another
+     * library rather than on a `ChatModel`. The conversation loads the thread's history itself -
+     * see {@link ChatConversation}. Called each time a thread opens, as for `createChatModel`.
+     *
+     * Give this or `createChatModel`, not both.
+     */
+    createConversation?: (spec: ChatConversationSpec) => ChatConversation;
 
     /**
      * A route whose parameter holds the selected thread's id, for deep links. The selection and
@@ -55,14 +60,8 @@ export interface ChatThreadsConfig {
     route?: ChatThreadsRoute;
 }
 
-/** Passed to {@link ChatThreadsConfig.createChatModel}. */
-export interface ChatThreadChatSpec {
-    /** Id of the thread. The chat must take it as its `threadId`. */
-    threadId: string;
-
-    /** True for a new thread, false for one whose history the threads model is about to load. */
-    isNew: boolean;
-}
+/** @deprecated - use {@link ChatConversationSpec}. */
+export type ChatThreadChatSpec = ChatConversationSpec;
 
 /** A route that holds the selected thread - see {@link ChatThreadsConfig.route}. */
 export interface ChatThreadsRoute {
@@ -71,6 +70,14 @@ export interface ChatThreadsRoute {
 
     /** Name of the route parameter that holds the thread id, such as 'threadId'. */
     param: string;
+
+    /**
+     * Fully qualified name of the route that holds a thread, when it is a child of `name` with
+     * the parameter in its path, such as 'default.chat.thread' with path '/:threadId'. The model
+     * then navigates to it when a thread is selected, and back to `name` when none is. Default
+     * none: the model stays on the current route and only sets or clears the parameter.
+     */
+    threadRoute?: string;
 }
 
 /** How a thread's last run ended early - see {@link ChatThreadsModel.endedEarlyThreads}. */
@@ -82,26 +89,18 @@ export interface ChatThreadEndedEarly {
     reason: string;
 }
 
-/** How to start a new thread - see {@link ChatThreadsModel.newThread}. */
-export interface ChatSeedSpec {
-    /** Draft text to put in the composer. */
-    draft?: string;
-
-    /** Run options for the new chat, in place of those `createChatModel` gives it. */
-    runOptions?: PlainObject;
-}
-
 /**
  * Model for a user's threads - conversations stored by a backend - and the chats open on them.
  * The app implements a {@link ChatThreadStore} against its backend, and supplies a
- * `createChatModel` function that builds the chat for a thread.
+ * `createChatModel` function that builds the chat for a thread. An app whose conversation runs on
+ * another library supplies `createConversation` instead - see {@link ChatConversation}.
  *
  * The model lists the threads, with server-side search, and renames and deletes them at once,
- * rolling back with a toast if the store fails. It holds a `ChatModel` for each open thread: the
+ * rolling back with a toast if the store fails. It holds a conversation for each open thread: the
  * selected one, and any other with a turn running. A turn therefore runs on in the background
- * when the user switches threads, and the list shows its thread as running. A chat that is
- * neither selected nor busy is destroyed. The thread's draft, run options and unsent feedback
- * comments are kept for when it opens again.
+ * when the user switches threads, and the list shows its thread as running. A conversation that is
+ * neither selected nor busy is destroyed. For a `ChatModel`, the thread's draft, run options and
+ * unsent feedback comments are kept for when it opens again.
  *
  * Every async result is checked before it is applied. A thread list applies only if no newer list
  * has, with pending renames and deletes laid over it. A thread's history applies only to the
@@ -153,10 +152,22 @@ export class ChatThreadsModel extends HoistModel {
         return compact(all.map(thread => applyChanges(thread, pendingChanges)));
     }
 
-    /** The selected thread's chat, or null. */
+    /**
+     * The selected thread's chat, or null. Always null for conversations of the app's own, from
+     * `createConversation` - read {@link conversation} for those.
+     */
     @computed
     get chatModel(): ChatModel {
         return this.selectedThread?.chatModel ?? null;
+    }
+
+    /**
+     * The selected thread's conversation, or null: the conversation `createConversation` made, or
+     * the kit's own conversation around the `ChatModel` that `createChatModel` made.
+     */
+    @computed
+    get conversation(): ChatConversation {
+        return this.selectedThread?.conversation ?? null;
     }
 
     /** The selected thread's summary, or null if it is not in the list. */
@@ -172,8 +183,8 @@ export class ChatThreadsModel extends HoistModel {
     @computed
     get runningThreadIds(): string[] {
         const local = Object.values(this.openThreads)
-                .filter(it => it.chatModel.isBusy)
-                .map(it => it.chatModel.threadId),
+                .filter(it => it.conversation.isBusy)
+                .map(it => it.conversation.threadId),
             remote = this.threads.filter(it => it.isRunning).map(it => it.id);
         return union(local, remote);
     }
@@ -185,8 +196,8 @@ export class ChatThreadsModel extends HoistModel {
     @computed
     get awaitingThreadIds(): string[] {
         return Object.values(this.openThreads)
-            .filter(it => it.chatModel.isAwaitingUser)
-            .map(it => it.chatModel.threadId);
+            .filter(it => it.conversation.isAwaitingUser)
+            .map(it => it.conversation.threadId);
     }
 
     /**
@@ -196,8 +207,8 @@ export class ChatThreadsModel extends HoistModel {
     @observableRef accessor finishedAwayThreadIds: string[] = [];
 
     /**
-     * Threads whose last run ended early, by thread id: failed, or interrupted or cancelled by the
-     * server. A thread list marks each row. Two sources feed it:
+     * Threads whose last run ended early, by thread id: failed, or cut short by the server. A
+     * thread list marks each row. Two sources feed it:
      *
      *  - A turn that ended early in the background, in this session. The mark holds until the user
      *    opens the thread, or a new turn starts in it.
@@ -257,12 +268,20 @@ export class ChatThreadsModel extends HoistModel {
 
     constructor(config: ChatThreadsConfig) {
         super();
-        const {store, createChatModel, route = null} = config;
+        const {store, createChatModel, createConversation, route = null} = config;
         throwIf(!store, 'ChatThreadsModel requires a store.');
-        throwIf(!createChatModel, 'ChatThreadsModel requires a createChatModel function.');
+        throwIf(
+            !createChatModel === !createConversation,
+            'ChatThreadsModel requires a createChatModel or a createConversation function, not both.'
+        );
+        throwIf(
+            createChatModel && !store.loadMessagesAsync,
+            'ChatThreadsModel with createChatModel requires a store with loadMessagesAsync.'
+        );
 
         this.store = store;
-        this.createChatModel = createChatModel;
+        this.createChatModel = createChatModel ?? null;
+        this.createConversation = createConversation ?? null;
         this.route = route;
 
         this.addReaction({
@@ -314,13 +333,17 @@ export class ChatThreadsModel extends HoistModel {
      * Start a new thread, and select it. The thread exists only here until its first turn, when
      * the backend creates it. A backend that mints its own id reports it on `RUN_STARTED`.
      *
-     * @returns the new thread's chat.
+     * @returns the new thread's chat, or null for a conversation of the app's own - see
+     *      {@link conversation}.
      */
     newThread(seed: ChatSeedSpec = {}): ChatModel {
-        const {chatModel} = this.openThread(genChatId(), true);
-        if (seed.draft != null) chatModel.composerModel.text = seed.draft;
-        if (seed.runOptions !== undefined) chatModel.runOptions = seed.runOptions;
-        this.setSelectedThreadId(chatModel.threadId);
+        const thread = this.openThread(genChatId(), true, seed),
+            {chatModel} = thread;
+        if (chatModel) {
+            if (seed.draft != null) chatModel.composerModel.text = seed.draft;
+            if (seed.runOptions !== undefined) chatModel.runOptions = seed.runOptions;
+        }
+        this.setSelectedThreadId(thread.conversation.threadId);
         return chatModel;
     }
 
@@ -347,7 +370,7 @@ export class ChatThreadsModel extends HoistModel {
      */
     async reloadThreadAsync(): Promise<void> {
         const thread = this.selectedThread;
-        if (!thread || thread.chatModel.isBusy) return;
+        if (!thread || thread.conversation.isBusy) return;
         await this.loadHistoryAsync(thread);
     }
 
@@ -394,7 +417,8 @@ export class ChatThreadsModel extends HoistModel {
     //------------------
     // Implementation
     //------------------
-    private readonly createChatModel: (spec: ChatThreadChatSpec) => ChatModel;
+    private readonly createChatModel: (spec: ChatConversationSpec) => ChatModel;
+    private readonly createConversation: (spec: ChatConversationSpec) => ChatConversation;
 
     // Threads with an open chat, by thread id.
     @observableRef private accessor openThreads: Record<string, OpenThread> = {};
@@ -425,14 +449,8 @@ export class ChatThreadsModel extends HoistModel {
     private listCount = 0;
     private appliedListNumber = -1;
 
-    // Drafts and run options of closed threads, for when they open again.
-    private readonly drafts = new Map<string, ThreadDraft>();
-
-    // Feedback comments of closed threads, by thread id, for when their history loads again.
-    private readonly feedbackDrafts = new Map<string, SavedFeedbackDraft[]>();
-
-    // The run options each chat was built with, so that a draft keeps only the user's changes.
-    private readonly defaultRunOptions = new WeakMap<ChatModel, PlainObject>();
+    // Drafts, run options and feedback comments of closed chats, for when they open again.
+    private readonly drafts = new ChatModelDrafts();
 
     @computed
     private get selectedThread(): OpenThread {
@@ -454,31 +472,51 @@ export class ChatThreadsModel extends HoistModel {
     //------------------------
     // Open threads
     //------------------------
-    /** Create the chat for a thread, and wire it to this model. */
-    private openThread(threadId: string, isNew: boolean): OpenThread {
-        const {store} = this,
-            chatModel = this.createChatModel({threadId, isNew});
-        throwIf(
-            chatModel?.threadId !== threadId,
-            'ChatThreadsConfig.createChatModel must pass the given threadId to the ChatModel.'
-        );
-
-        if (store.submitFeedbackAsync && !chatModel.feedback.submitAsync) {
-            chatModel.setFeedbackSubmitter(spec => store.submitFeedbackAsync(spec));
+    /** Create the conversation for a thread, and wire it to this model. */
+    private openThread(threadId: string, isNew: boolean, seed: ChatSeedSpec = null): OpenThread {
+        const spec = {threadId, isNew, seed};
+        let conversation: ChatConversation;
+        if (this.createChatModel) {
+            conversation = this.createChatModelConversation(spec, () => thread);
+        } else {
+            conversation = this.createConversation(spec);
+            throwIf(
+                conversation?.threadId !== threadId,
+                'ChatThreadsConfig.createConversation must give the conversation the given threadId.'
+            );
         }
 
         const thread = new OpenThread({
-            chatModel,
+            conversation,
             isLoaded: isNew,
             onThreadIdChange: (it, prevThreadId) => this.onThreadIdChange(it, prevThreadId),
             onBusyChange: it => this.onBusyChange(it)
         });
-        chatModel.addSendBlocker(() => this.getSendBlockedReason(thread));
-        chatModel.setStatusRefresher(() => this.refreshStatusAsync(thread));
-        this.defaultRunOptions.set(chatModel, chatModel.runOptions ?? null);
-        this.restoreDraft(threadId, chatModel);
         this.putOpenThread(threadId, thread);
         return thread;
+    }
+
+    /**
+     * Create the chat for a thread with `createChatModel`, as the kit's own conversation.
+     * @param getThread - the open thread the conversation will belong to, once it exists.
+     */
+    private createChatModelConversation(
+        spec: ChatConversationSpec,
+        getThread: () => OpenThread
+    ): ChatModelConversation {
+        const chatModel = this.createChatModel(spec);
+        throwIf(
+            chatModel?.threadId !== spec.threadId,
+            'ChatThreadsConfig.createChatModel must pass the given threadId to the ChatModel.'
+        );
+
+        return new ChatModelConversation({
+            chatModel,
+            store: this.store,
+            drafts: this.drafts,
+            getSendBlockedReason: () => this.getSendBlockedReason(getThread()),
+            refreshStatusAsync: () => this.refreshStatusAsync(getThread())
+        });
     }
 
     /**
@@ -487,7 +525,8 @@ export class ChatThreadsModel extends HoistModel {
      */
     private async refreshStatusAsync(thread: OpenThread): Promise<void> {
         if (thread.loadState === 'loading') return;
-        if (thread.chatModel.isBusy) thread.chatModel.detach();
+        const conversation = thread.conversation as ChatModelConversation;
+        if (conversation.isBusy) conversation.detach();
         await this.loadHistoryAsync(thread);
     }
 
@@ -505,38 +544,49 @@ export class ChatThreadsModel extends HoistModel {
 
     @action
     private onThreadIdChange(thread: OpenThread, prevThreadId: string) {
-        const {threadId, isBusy} = thread.chatModel;
+        const {conversation, chatModel} = thread,
+            {threadId, isBusy} = conversation;
         if (this.openThreads[prevThreadId] !== thread) return;
 
-        // A chat changes its thread id mid-turn only to adopt the backend's id for the same
-        // thread. Otherwise the app cleared it, or loaded other messages into it, and it holds a
-        // new thread.
+        // A conversation changes its thread id mid-turn only to adopt the backend's id for the
+        // same thread. Otherwise the app cleared it, or loaded other messages into it, and it
+        // holds a new thread.
         if (isBusy) {
             this.rekeyThread(prevThreadId, threadId);
         } else {
             thread.resetLoad();
             // A cleared chat holds a thread the backend has not seen. Loaded history with a user
-            // message is saved - a greeting alone is not.
-            thread.setSaved(some(thread.chatModel.messages, 'isUser'));
+            // message is saved - a greeting alone is not. A conversation of the app's own says
+            // through its `isSaved`, or holds a loaded thread if it leaves that out.
+            thread.setSaved(
+                chatModel ? some(chatModel.messages, 'isUser') : (conversation.isSaved ?? true)
+            );
         }
         this.openThreads = {...omit(this.openThreads, prevThreadId), [threadId]: thread};
         if (this.selectedThreadId === prevThreadId) this.selectedThreadId = threadId;
     }
 
     private onBusyChange(thread: OpenThread) {
-        const {chatModel} = thread,
-            {threadId} = chatModel;
-        this.noteActivity(chatModel);
-        if (chatModel.isBusy) {
+        const {conversation} = thread,
+            {threadId} = conversation;
+        this.noteActivity(conversation);
+        if (conversation.isBusy) {
             this.clearEndedEarly(threadId);
             return;
         }
 
         // The backend has seen the thread once a run of it started. A turn that failed before
-        // any response, or stopped before the run started, leaves it unsaved.
-        if (hasRunStarted(chatModel)) thread.setSaved(true);
+        // any response, or stopped before the run started, leaves it unsaved. A conversation of
+        // the app's own that does not report `isSaved` counts as saved once a turn ends, unless
+        // the turn was cancelled - the store's list decides then.
+        const endedEarly = conversation.endedEarly ?? null;
+        if (conversation instanceof ChatModelConversation) {
+            if (conversation.hasRunStarted) thread.setSaved(true);
+        } else if (conversation.isSaved == null && endedEarly?.runEnd !== 'cancelled') {
+            thread.setSaved(true);
+        }
         // A turn that pauses for the user has not finished - the thread lists as awaiting.
-        if (!chatModel.isAwaitingUser) this.noteTurnEnd(threadId, getEndedEarly(chatModel));
+        if (!conversation.isAwaitingUser) this.noteTurnEnd(threadId, endedEarly);
         // The backend may have set a title, or the thread's place in the list may change.
         this.refreshThreadsSoon();
         this.closeIdleThreads();
@@ -550,17 +600,19 @@ export class ChatThreadsModel extends HoistModel {
 
     /**
      * Mark a thread whose turn ended while another thread was selected: as ended early if it did,
-     * else as finished away.
+     * else as finished away. A turn the user cancelled leaves no mark, as there is no reply to
+     * see.
      */
     @action
-    private noteTurnEnd(threadId: string, endedEarly: ChatThreadEndedEarly) {
+    private noteTurnEnd(threadId: string, endedEarly: ChatConversationEndedEarly) {
         if (threadId === this.selectedThreadId) {
             this.noteSeen(threadId);
             // The next list may report the turn's activity by a server clock that runs ahead.
             this.seenOnNextList.set(threadId, this.listCount);
             return;
         }
-        if (endedEarly) {
+        if (endedEarly?.runEnd === 'cancelled') return;
+        if (endedEarly?.runEnd) {
             this.endedEarlyHere = {...this.endedEarlyHere, [threadId]: endedEarly};
         } else {
             this.finishedAwayThreadIds = union(this.finishedAwayThreadIds, [threadId]);
@@ -630,8 +682,8 @@ export class ChatThreadsModel extends HoistModel {
             this.openThreads,
             (thread, id) =>
                 id !== this.selectedThreadId &&
-                !thread.chatModel.isBusy &&
-                !thread.chatModel.isAwaitingUser &&
+                !thread.conversation.isBusy &&
+                !thread.conversation.isAwaitingUser &&
                 !this.endedEarlyHere[id]
         );
         if (isEmpty(idle)) return;
@@ -640,7 +692,8 @@ export class ChatThreadsModel extends HoistModel {
         const unsavedIds: string[] = [];
         Object.entries(idle).forEach(([id, thread]) => {
             if (this.isThreadSaved(thread)) {
-                this.saveDraft(id, thread.chatModel);
+                const {conversation} = thread;
+                if (conversation instanceof ChatModelConversation) conversation.saveDraft(id);
             } else {
                 unsavedIds.push(id);
             }
@@ -653,7 +706,7 @@ export class ChatThreadsModel extends HoistModel {
 
     /** True if the backend may have a thread: saved by its chat, or listed by the store. */
     private isThreadSaved(thread: OpenThread): boolean {
-        const {threadId} = thread.chatModel;
+        const {threadId} = thread.conversation;
         return thread.isSaved || some(this.listedThreads, {id: threadId});
     }
 
@@ -665,10 +718,9 @@ export class ChatThreadsModel extends HoistModel {
     private closeThreads(threadIds: string[]) {
         threadIds.forEach(id => {
             const thread = this.openThreads[id];
-            thread?.chatModel.stop();
+            thread?.conversation.stop();
             thread?.destroy();
-            this.drafts.delete(id);
-            this.feedbackDrafts.delete(id);
+            this.drafts.remove(id);
             this.seenOnNextList.delete(id);
         });
         // After the chats close, as a composer saves its draft when destroyed.
@@ -678,41 +730,16 @@ export class ChatThreadsModel extends HoistModel {
         this.endedEarlyHere = omit(this.endedEarlyHere, threadIds);
     }
 
-    /**
-     * Keep the draft of a closed chat, if the user changed its text or run options, and its
-     * unsent feedback comments.
-     */
-    private saveDraft(threadId: string, chatModel: ChatModel) {
-        const {composerModel, runOptions} = chatModel,
-            isChanged =
-                composerModel.text || !isEqual(runOptions, this.defaultRunOptions.get(chatModel));
-        if (isChanged) {
-            this.drafts.set(threadId, {text: composerModel.text, runOptions});
-        }
-
-        const feedbackDrafts = getFeedbackDrafts(chatModel);
-        if (!isEmpty(feedbackDrafts)) this.feedbackDrafts.set(threadId, feedbackDrafts);
-    }
-
-    private restoreDraft(threadId: string, chatModel: ChatModel) {
-        const draft = this.drafts.get(threadId);
-        if (!draft) return;
-        this.drafts.delete(threadId);
-        chatModel.composerModel.text = draft.text;
-        chatModel.runOptions = draft.runOptions;
-    }
-
     //------------------------
     // History
     //------------------------
     private async loadHistoryAsync(thread: OpenThread) {
-        const {chatModel} = thread,
-            {threadId} = chatModel,
+        const {threadId} = thread.conversation,
             loadKey = thread.beginLoad();
 
         try {
-            const page = await this.store.loadMessagesAsync({threadId}).linkTo(this.loadTask);
-            if (thread.isLoadCurrent(loadKey)) this.applyHistory(thread, threadId, page);
+            await thread.conversation.loadAsync().linkTo(this.loadTask);
+            if (thread.isLoadCurrent(loadKey)) thread.endLoad();
         } catch (e) {
             if (!thread.isLoadCurrent(loadKey)) {
                 this.logWarn(`Discarded a failed load of thread ${threadId}, no longer open`, e);
@@ -723,30 +750,6 @@ export class ChatThreadsModel extends HoistModel {
                 XH.handleException(e, {showAlert: false});
             }
         }
-    }
-
-    @action
-    private applyHistory(thread: OpenThread, threadId: string, page: ChatMessagePage) {
-        const {chatModel} = thread,
-            // The comments of a closed thread, and those open in a chat that reloads, which the
-            // load clears.
-            feedbackDrafts = [
-                ...(this.feedbackDrafts.get(threadId) ?? []),
-                ...getFeedbackDrafts(chatModel)
-            ];
-        this.feedbackDrafts.delete(threadId);
-        chatModel.loadMessages(page.messages ?? [], threadId);
-        restoreFeedbackDrafts(chatModel, feedbackDrafts);
-        // TODO(design-open B4) - run options, such as a document scope, belong to the thread.
-        // The thread opens with those of its last question, unless the user changed them here.
-        const lastRunOptions = findLast(chatModel.messages, it => it.isUser)?.metadata.runOptions;
-        if (
-            lastRunOptions != null &&
-            isEqual(chatModel.runOptions, this.defaultRunOptions.get(chatModel))
-        ) {
-            chatModel.runOptions = cloneDeep(lastRunOptions);
-        }
-        thread.endLoad();
     }
 
     //------------------------
@@ -813,18 +816,17 @@ export class ChatThreadsModel extends HoistModel {
         this.pendingChanges = difference(this.pendingChanges, changes);
     }
 
-    /** Record activity in a chat's thread, adding a summary for a thread not listed yet. */
+    /** Record activity in a conversation's thread, adding a summary for a thread not listed yet. */
     @action
-    private noteActivity(chatModel: ChatModel) {
-        const {threadId} = chatModel,
+    private noteActivity(conversation: ChatConversation) {
+        const {threadId} = conversation,
             lastActivityAt = Date.now();
         if (this.hasThread(threadId)) {
             this.updateThread(threadId, {lastActivityAt});
             return;
         }
 
-        const userMessage = findLast(chatModel.messages, it => it.isUser),
-            title = titleFromText(userMessage?.text);
+        const title = conversation.title || UNTITLED_THREAD;
         this.localThreads = [
             {id: threadId, title, lastActivityAt, createdAt: lastActivityAt},
             ...this.localThreads
@@ -899,16 +901,15 @@ export class ChatThreadsModel extends HoistModel {
         if (!this.isOnRoute()) return;
 
         const {name, params} = XH.routerState,
-            {param} = this.route,
+            {param, threadRoute} = this.route,
             threadId = this.routeThreadId;
         if ((params[param] ?? null) === threadId) return;
 
+        const target = threadRoute ? (threadId ? threadRoute : this.route.name) : name;
         XH.navigate(
-            name,
+            target,
             {...omit(params, param), ...(threadId ? {[param]: threadId} : {})},
-            {
-                replace: true
-            }
+            {replace: true}
         );
     }
 }
@@ -930,26 +931,6 @@ interface PendingChange {
     doneBefore: number;
 }
 
-/** A feedback comment kept for a thread, with the ids its message may come back under. */
-interface SavedFeedbackDraft {
-    /** The message's id when the comment was typed. */
-    messageId: string;
-
-    /** The server's id of the message, from its `metadata.serverId`, or null. */
-    serverId: string;
-
-    /** The server's ids of the message's parts. */
-    partServerIds: string[];
-
-    draft: ChatFeedbackDraft;
-}
-
-/** Draft and run options of a closed thread. */
-interface ThreadDraft {
-    text: string;
-    runOptions: PlainObject;
-}
-
 /** A thread with a change applied, or null if the change deletes it. */
 function applyChange(thread: ChatThreadSummary, change: PendingChange): ChatThreadSummary {
     if (thread.id !== change.threadId) return thread;
@@ -958,74 +939,4 @@ function applyChange(thread: ChatThreadSummary, change: PendingChange): ChatThre
 
 function applyChanges(thread: ChatThreadSummary, changes: PendingChange[]): ChatThreadSummary {
     return changes.reduce((ret, change) => ret && applyChange(ret, change), thread);
-}
-
-/** How a chat's last turn ended early - failed, or cut short by the server - or null. */
-function getEndedEarly(chatModel: ChatModel): ChatThreadEndedEarly {
-    if (chatModel.status !== 'error') return null;
-    const replyStatus = getChatReplyStatus({message: chatModel.lastMessage}),
-        isCutShort = replyStatus === 'interrupted' || replyStatus === 'cancelledByServer';
-    return {
-        runEnd: isCutShort ? 'interrupted' : 'failed',
-        reason: chatModel.lastError?.message ?? null
-    };
-}
-
-/**
- * A chat's unsent feedback comments, with the server's ids of their messages. A comment that is
- * sending has left the form, and its send ends without the chat, so it is left out.
- */
-function getFeedbackDrafts(chatModel: ChatModel): SavedFeedbackDraft[] {
-    return compact(
-        Object.entries(chatModel.feedbackDrafts).map(([messageId, draft]) => {
-            if (draft.isSending) return null;
-            const message = chatModel.getMessage(messageId);
-            return {
-                messageId,
-                serverId: message?.metadata.serverId ?? null,
-                partServerIds: message ? getPartServerIds(message) : [],
-                draft
-            };
-        })
-    );
-}
-
-/**
- * Give loaded replies back their feedback comments. A reply from history may carry the id the chat
- * streamed it under, or the server's id for it or one of its parts. The match tries each, in that
- * order, and skips a comment that more than one reply matches at the first tier that finds any.
- */
-function restoreFeedbackDrafts(chatModel: ChatModel, saved: SavedFeedbackDraft[]) {
-    const replies = chatModel.messages.filter(it => it.isAssistant);
-    saved.forEach(({messageId, serverId, partServerIds, draft}) => {
-        const isServerId = (ids: string[], message: ChatMessage) =>
-                ids.includes(message.id) ||
-                ids.includes(message.metadata.serverId) ||
-                getPartServerIds(message).some(it => ids.includes(it)),
-            tiers: Array<(message: ChatMessage) => boolean> = [
-                it => it.id === messageId,
-                it => serverId != null && isServerId([serverId], it),
-                it => isServerId(partServerIds, it)
-            ];
-        for (const tier of tiers) {
-            const matches = replies.filter(tier);
-            if (matches.length === 1) chatModel.setFeedbackDraft(matches[0].id, draft);
-            if (matches.length) return;
-        }
-    });
-}
-
-/** The server's ids of a message's parts. */
-function getPartServerIds(message: ChatMessage): string[] {
-    return uniq(compact(message.parts.map(it => ('serverId' in it ? it.serverId : null))));
-}
-
-/**
- * True if a chat's last turn reached the backend's run: its reply has content, is paused for the
- * user, or recorded the run's id from `RUN_STARTED`.
- */
-function hasRunStarted(chatModel: ChatModel): boolean {
-    const reply = chatModel.lastMessage;
-    if (!reply?.isAssistant) return false;
-    return reply.status === 'paused' || !isEmpty(reply.parts) || reply.metadata.runId != null;
 }
