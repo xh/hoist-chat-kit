@@ -113,8 +113,9 @@ export class ChatThreadListLocalModel extends HoistModel {
 
     /**
      * A click on a row, or Enter on it: tell the app, then select the thread. Focus lands on the
-     * row, so that the row's keys work after a click on its link. One action, so that an app
-     * that shows its chat in `onThreadClick` sees the new selection, not the one being left.
+     * row, so that the row's keys work after a click on its link. One action, so that reactions
+     * on what the app does in `onThreadClick`, such as show its chat, run after the selection
+     * has changed. The callback itself runs before: it gets the thread as its argument.
      */
     @action
     clickThread(thread: ChatThreadSummary) {

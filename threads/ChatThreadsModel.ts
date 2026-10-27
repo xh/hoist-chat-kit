@@ -494,8 +494,7 @@ export class ChatThreadsModel extends HoistModel {
     // Threads whose turn ended here, to take the turn's activity as seen once the user has seen
     // the turn end, as a server clock that runs ahead may date the activity after the seen time.
     // By thread id: the number of the first list request that can report the turn, and the
-    // activity a list reported before the user saw the turn end. A new turn in the thread ends
-    // the wait.
+    // activity a list reported before the user saw the turn end.
     private readonly seenOnNextList = new Map<string, TurnEndWait>();
 
     // Threads whose turn ended early in the background, in this session - see `endedEarlyThreads`.
@@ -641,7 +640,6 @@ export class ChatThreadsModel extends HoistModel {
         if (conversation.isBusy) {
             // A new turn: its reply is the one to see now.
             this.clearMarks(threadId);
-            this.seenOnNextList.delete(threadId);
             return;
         }
 
@@ -753,12 +751,10 @@ export class ChatThreadsModel extends HoistModel {
     @action
     private markSeen(threadId: string) {
         if (threadId == null) return;
-        this.noteSeen(threadId);
-        const wait = this.seenOnNextList.get(threadId);
-        if (wait?.reportedActivityAt != null) {
-            this.raiseSeen(threadId, wait.reportedActivityAt);
-            this.seenOnNextList.delete(threadId);
-        }
+        const listed = find(this.threads, {id: threadId})?.lastActivityAt ?? 0,
+            wait = this.seenOnNextList.get(threadId);
+        this.raiseSeen(threadId, Math.max(Date.now(), listed, wait?.reportedActivityAt ?? 0));
+        if (wait?.reportedActivityAt != null) this.seenOnNextList.delete(threadId);
         this.clearMarks(threadId);
     }
 
@@ -965,10 +961,22 @@ export class ChatThreadsModel extends HoistModel {
     /** Give a thread the id its chat adopted, merging it into any summary listed under that id. */
     @action
     private rekeyThread(prevThreadId: string, threadId: string) {
+        // What this model holds by thread id. A conversation may adopt its id and start its
+        // turn in one action, so a mark may still sit under the old id.
         if (this.lastShownId === prevThreadId) this.lastShownId = threadId;
-        if (prevThreadId in this.seenActivityAt) {
-            const {[prevThreadId]: seen, ...rest} = this.seenActivityAt;
-            this.seenActivityAt = {...rest, [threadId]: seen};
+        const seen = this.seenActivityAt[prevThreadId];
+        if (seen != null) {
+            this.seenActivityAt = {...omit(this.seenActivityAt, prevThreadId), [threadId]: seen};
+        }
+        this.finishedAwayHere = this.finishedAwayHere.map(it =>
+            it === prevThreadId ? threadId : it
+        );
+        const endedEarly = this.endedEarlyHere[prevThreadId];
+        if (endedEarly) {
+            this.endedEarlyHere = {
+                ...omit(this.endedEarlyHere, prevThreadId),
+                [threadId]: endedEarly
+            };
         }
         const isListed = this.hasThread(threadId),
             rekey = (thread: ChatThreadSummary) =>
