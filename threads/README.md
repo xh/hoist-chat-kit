@@ -247,9 +247,10 @@ this.addReaction({
 ```
 
 An app that always shows its chat leaves `isChatShown` alone. `isSelectionShown` combines it with
-the route, and is what the model and the list read. When it turns true, the selected thread
-counts as seen, as when the user opens a thread - unless the route names another thread, which
-the route binding selects and marks seen instead. The thread left while hidden keeps its marks.
+the route, and is what the model and the list read. When it turns true, the thread then shown
+counts as seen a moment later, as when the user opens a thread. A selection made as the chat
+shows, by the app or by the route binding, is the one that counts, and a thread left while hidden
+keeps its marks.
 
 ### Let turns run in the background
 

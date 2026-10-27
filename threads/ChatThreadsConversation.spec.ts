@@ -196,6 +196,7 @@ describe('ChatThreadsModel with an app conversation', () => {
             expect(first.isDestroyed).toBe(false);
 
             model.isChatShown = true;
+            await wait();
             expect(model.finishedAwayThreadIds).toEqual([]);
         });
 

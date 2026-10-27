@@ -205,8 +205,7 @@ describe('ChatThreadsModel route binding', () => {
         expect(model.finishedAwayThreadIds).toEqual(['t1']);
 
         await navigateAsync('default.chat', {threadId: 't1'});
-        await vi.waitFor(() => expect(model.isSelectionShown).toBe(true));
-        expect(model.finishedAwayThreadIds).toEqual([]);
+        await vi.waitFor(() => expect(model.finishedAwayThreadIds).toEqual([]));
         expect(model.selectedThreadId).toBe('t1');
     });
 
@@ -222,6 +221,7 @@ describe('ChatThreadsModel route binding', () => {
 
         await navigateAsync('default.chat', {threadId: 't2'});
         await vi.waitFor(() => expect(model.selectedThreadId).toBe('t2'));
+        await wait(20);
 
         expect(model.isSelectionShown).toBe(true);
         expect(model.finishedAwayThreadIds).toEqual(['t1']);
@@ -242,7 +242,7 @@ describe('ChatThreadsModel route binding', () => {
         expect(model.shownThreadId).toBe('t2');
     });
 
-    it('marks a thread selected while hidden seen once shown, though the route lagged', async () => {
+    it('counts a selection made as the chat shows as the one seen', async () => {
         await navigateAsync('default.chat', {threadId: 't1'});
         const model = createModel(() => [textEvents('Still here.')]);
         await vi.waitFor(() => expect(model.selectedThreadId).toBe('t1'));
@@ -256,16 +256,13 @@ describe('ChatThreadsModel route binding', () => {
         await model.selectThreadAsync('t1');
         await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('t1'));
 
-        // Select t2 and show the chat at once. This router moves in the same tick, so the show
-        // reaction marks t2 seen. One that lags leaves it to the route sync, which cannot be
-        // forced here.
-        const selecting = model.selectThreadAsync('t2');
+        // Show the chat, then select t2 in the next statement: the selection counts as seen.
         model.isChatShown = true;
-        await selecting;
+        await model.selectThreadAsync('t2');
 
-        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('t2'));
+        await vi.waitFor(() => expect(model.finishedAwayThreadIds).toEqual([]));
+        expect(XH.routerState.params.threadId).toBe('t2');
         expect(model.shownThreadId).toBe('t2');
-        expect(model.finishedAwayThreadIds).toEqual([]);
     });
 
     it('hides the selection while the app says its chat is hidden, even on the route', async () => {

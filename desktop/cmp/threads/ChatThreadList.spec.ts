@@ -181,9 +181,8 @@ describe('ChatThreadList', () => {
         expect(selected.classList).toContain('xh-chat-thread-list__row--new');
         expect(model.selectedThreadId).toBe('t1');
 
-        await act(() => {
-            model.isChatShown = true;
-        });
+        model.isChatShown = true;
+        await act(() => wait());
         expect(row('Budget review').getAttribute('aria-selected')).toBe('true');
         expect(row('Budget review').classList).not.toContain('xh-chat-thread-list__row--new');
     });

@@ -154,9 +154,9 @@ export class ChatThreadsModel extends HoistModel {
      *
      * While false, a turn that ends in the selected thread counts as away - the list marks a new
      * reply, or a turn that ended early - and the list shows no selection. When it turns true,
-     * the selected thread counts as seen, and its marks clear - unless the route names another
-     * thread, which the route binding selects and marks seen instead. The thread left while
-     * hidden keeps its marks.
+     * the thread then shown counts as seen a moment later, and its marks clear. A selection made
+     * as the chat shows, by the app or by the route binding, is the one that counts, and a thread
+     * left while hidden keeps its marks.
      */
     @computed
     get isSelectionShown(): boolean {
@@ -321,17 +321,16 @@ export class ChatThreadsModel extends HoistModel {
             run: () => this.loadAsync(),
             debounce: SEARCH_DEBOUNCE_MS
         });
+        // Seen follows shown by a tick, so that a selection made as the chat shows - by the app
+        // in its next statement, or by the route binding - is the one that counts as seen, and a
+        // thread left while hidden keeps its marks.
         this.addReaction({
-            track: () => this.isSelectionShown,
-            run: isShown => {
-                if (!isShown) return;
-                // A route that names another thread is about to select it, and marks that one
-                // seen. The thread the user left while hidden keeps its marks.
-                const routeId = this.routeThreadIdParam;
-                if (routeId == null || routeId === this.selectedThreadId) {
-                    this.markSeen(this.selectedThreadId);
-                }
-            }
+            track: () => this.shownThreadId,
+            run: () => {
+                const threadId = this.shownThreadId;
+                if (threadId != null) this.markSeen(threadId);
+            },
+            debounce: SEEN_ON_SHOW_MS
         });
         if (route) {
             this.addReaction(
@@ -617,7 +616,8 @@ export class ChatThreadsModel extends HoistModel {
             {threadId} = conversation;
         this.noteActivity(conversation);
         if (conversation.isBusy) {
-            this.clearEndedEarly(threadId);
+            // A new turn: its reply is the one to see now.
+            this.clearMarks(threadId);
             this.seenOnNextList.delete(threadId);
             return;
         }
@@ -652,12 +652,12 @@ export class ChatThreadsModel extends HoistModel {
      */
     @action
     private noteTurnEnd(threadId: string, endedEarly: ChatConversationEndedEarly) {
-        if (endedEarly?.runEnd === 'cancelled') return;
         this.seenOnNextList.set(threadId, this.listCount);
         if (threadId === this.shownThreadId) {
-            this.noteSeen(threadId);
+            this.markSeen(threadId);
             return;
         }
+        if (endedEarly?.runEnd === 'cancelled') return;
         if (endedEarly?.runEnd) {
             this.endedEarlyHere = {...this.endedEarlyHere, [threadId]: endedEarly};
         } else {
@@ -724,6 +724,12 @@ export class ChatThreadsModel extends HoistModel {
     private markSeen(threadId: string) {
         if (threadId == null) return;
         this.noteSeen(threadId);
+        this.clearMarks(threadId);
+    }
+
+    /** Clear a thread's new-reply and ended-early marks. */
+    @action
+    private clearMarks(threadId: string) {
         this.finishedAwayThreadIds = without(this.finishedAwayThreadIds, threadId);
         this.clearEndedEarly(threadId);
     }
@@ -959,9 +965,6 @@ export class ChatThreadsModel extends HoistModel {
             this.syncToRoute();
         } else if (threadId !== this.selectedThreadId) {
             this.selectThreadAsync(threadId);
-        } else if (this.isSelectionShown && this.hasUnseenMark(threadId)) {
-            // Shown before the router named it, by a router that lags, so not yet seen.
-            this.markSeen(threadId);
         }
     }
 
@@ -982,7 +985,7 @@ export class ChatThreadsModel extends HoistModel {
         const {name, params} = XH.routerState,
             {param, threadRoute} = this.route,
             threadId = this.routeThreadId;
-        if ((params[param] ?? null) === threadId) return;
+        if (this.routeThreadIdParam === threadId) return;
 
         const target = threadRoute ? (threadId ? threadRoute : this.route.name) : name;
         XH.navigate(
@@ -998,6 +1001,9 @@ export class ChatThreadsModel extends HoistModel {
 //------------------
 /** Wait after the search changes before the list reloads. */
 const SEARCH_DEBOUNCE_MS = 300;
+
+/** Wait after the selection shows before it counts as seen - the next tick. */
+const SEEN_ON_SHOW_MS = 0;
 
 /** A rename or delete, laid over the threads - see `changeThreadsAsync`. */
 interface PendingChange {
