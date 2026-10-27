@@ -306,6 +306,22 @@ A deep link selects its thread. A selection replaces the parameter, with no new 
 On the route with no parameter, the model writes the current selection into it. The model
 ignores other routes.
 
+A thread can instead have its own path, as a child route with the id in its path. Set
+`threadRoute` to that route. The model navigates to it when a thread is selected, and back to
+`name` when none is.
+
+```typescript
+// AppModel.getRoutes()
+{
+    name: 'default',
+    path: '/app',
+    children: [{name: 'chat', path: '/chat', children: [{name: 'thread', path: '/:threadId'}]}]
+}
+
+// ChatThreadsConfig
+route: {name: 'default.chat', param: 'threadId', threadRoute: 'default.chat.thread'}
+```
+
 A new thread stays out of the route until the backend has it: until its first reply starts to
 stream, a turn ends whose run started, or the store lists it. A turn that fails before any
 response, or that the user stops before its run starts, leaves the thread out. The route stays on
@@ -426,7 +442,7 @@ conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those
 | `store` | `ChatThreadStore` | Adapter to the backend. Required. |
 | `createChatModel` | `({threadId, isNew, seed}) => ChatModel` | Builds the chat for a thread. Must pass `threadId` to the `ChatModel`. `isNew` is false for a thread whose history is about to load. A new thread may start with a greeting in `initialMessages`. The model applies `seed` itself. Requires the store's `loadMessagesAsync`. Give this or `createConversation`. |
 | `createConversation` | `({threadId, isNew, seed}) => ChatConversation` | Builds a conversation of the app's own for a thread, over a chat that runs on another library. Must take `threadId`. Give this or `createChatModel`. |
-| `route` | `{name, param}` | Route whose parameter holds the selected thread id. Default none. |
+| `route` | `{name, param, threadRoute?}` | Route whose parameter holds the selected thread id. `threadRoute` names a child route that holds the thread in its path. Default none. |
 
 ### ChatThreadsModel state
 

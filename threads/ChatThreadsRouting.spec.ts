@@ -12,7 +12,7 @@ import {
     textEvents
 } from '../transport';
 import type {ChatConversation} from './ChatConversation';
-import {ChatThreadsModel} from './ChatThreadsModel';
+import {ChatThreadsModel, type ChatThreadsRoute} from './ChatThreadsModel';
 import {LocalChatThreadStore} from '../test/support/LocalChatThreadStore';
 
 /**
@@ -200,6 +200,56 @@ describe('ChatThreadsModel route binding', () => {
         expect(XH.routerState.name).toBe('default.other');
         expect(XH.routerState.params).toEqual({});
     });
+
+    describe('with a child route for the thread', () => {
+        it('selects the thread in a deep link to the child route', async () => {
+            await navigateAsync('default.linked.thread', {threadId: 't1'});
+
+            const model = createLinkedModel();
+
+            await vi.waitFor(() => expect(model.chatModel?.lastMessage?.text).toBe('Hello.'));
+            expect(model.selectedThreadId).toBe('t1');
+        });
+
+        it('navigates to the child route on selection, with no new history entry', async () => {
+            await navigateAsync('default.linked.thread', {threadId: 't1'});
+            const model = createLinkedModel(),
+                navigate = vi.spyOn(XH, 'navigate');
+            onTestFinished(() => navigate.mockRestore());
+            await vi.waitFor(() => expect(model.selectedThreadId).toBe('t1'));
+
+            await model.selectThreadAsync('t2');
+
+            await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('t2'));
+            expect(XH.routerState.name).toBe('default.linked.thread');
+            expect(navigate).toHaveBeenCalledWith(
+                'default.linked.thread',
+                {threadId: 't2'},
+                {replace: true}
+            );
+        });
+
+        it('lands a selection made on the base route on the child route', async () => {
+            await navigateAsync('default.linked');
+            const model = createLinkedModel();
+
+            await model.selectThreadAsync('t1');
+
+            await vi.waitFor(() => expect(XH.routerState.name).toBe('default.linked.thread'));
+            expect(XH.routerState.params.threadId).toBe('t1');
+        });
+
+        it('returns to the base route for a new thread', async () => {
+            await navigateAsync('default.linked.thread', {threadId: 't1'});
+            const model = createLinkedModel();
+            await vi.waitFor(() => expect(model.selectedThreadId).toBe('t1'));
+
+            model.newThread();
+
+            await vi.waitFor(() => expect(XH.routerState.name).toBe('default.linked'));
+            expect(XH.routerState.params.threadId).toBeUndefined();
+        });
+    });
 });
 
 //------------------
@@ -234,6 +284,11 @@ class RoutedTestModel extends TestAppModel {
                 path: '/app',
                 children: [
                     {name: 'chat', path: '/chat?threadId'},
+                    {
+                        name: 'linked',
+                        path: '/linked',
+                        children: [{name: 'thread', path: '/:threadId'}]
+                    },
                     {name: 'other', path: '/other'}
                 ]
             }
@@ -241,11 +296,19 @@ class RoutedTestModel extends TestAppModel {
     }
 }
 
+const CHAT_ROUTE: ChatThreadsRoute = {name: 'default.chat', param: 'threadId'},
+    LINKED_ROUTE: ChatThreadsRoute = {
+        name: 'default.linked',
+        param: 'threadId',
+        threadRoute: 'default.linked.thread'
+    };
+
 function createModel(
     respond: ScriptedChatTransportConfig['respond'] = () => [
         runStarted('srv-1'),
         textEvents('Hi there.')
-    ]
+    ],
+    route: ChatThreadsRoute = CHAT_ROUTE
 ): ChatThreadsModel {
     const transport = new ScriptedChatTransport({respond, delayMs: 0}),
         model = new ChatThreadsModel({
@@ -257,10 +320,15 @@ function createModel(
             }),
             createChatModel: ({threadId}) =>
                 new ChatModel({transport, threadId, historyMode: 'server'}),
-            route: {name: 'default.chat', param: 'threadId'}
+            route
         });
     onTestFinished(() => model.destroy());
     return model;
+}
+
+/** A model bound to a base route with a child route for the thread. */
+function createLinkedModel(): ChatThreadsModel {
+    return createModel(undefined, LINKED_ROUTE);
 }
 
 async function navigateAsync(name: string, params: Record<string, string> = {}) {

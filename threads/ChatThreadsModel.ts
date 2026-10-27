@@ -70,6 +70,14 @@ export interface ChatThreadsRoute {
 
     /** Name of the route parameter that holds the thread id, such as 'threadId'. */
     param: string;
+
+    /**
+     * Fully qualified name of the route that holds a thread, when it is a child of `name` with
+     * the parameter in its path, such as 'default.chat.thread' with path '/:threadId'. The model
+     * then navigates to it when a thread is selected, and back to `name` when none is. Default
+     * none: the model stays on the current route and only sets or clears the parameter.
+     */
+    threadRoute?: string;
 }
 
 /** How a thread's last run ended early - see {@link ChatThreadsModel.endedEarlyThreads}. */
@@ -893,16 +901,15 @@ export class ChatThreadsModel extends HoistModel {
         if (!this.isOnRoute()) return;
 
         const {name, params} = XH.routerState,
-            {param} = this.route,
+            {param, threadRoute} = this.route,
             threadId = this.routeThreadId;
         if ((params[param] ?? null) === threadId) return;
 
+        const target = threadRoute ? (threadId ? threadRoute : this.route.name) : name;
         XH.navigate(
-            name,
+            target,
             {...omit(params, param), ...(threadId ? {[param]: threadId} : {})},
-            {
-                replace: true
-            }
+            {replace: true}
         );
     }
 }

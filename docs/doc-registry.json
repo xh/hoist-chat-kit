@@ -243,6 +243,7 @@
         "delete",
         "search",
         "route binding",
+        "threadRoute",
         "deep links",
         "isThreadNotFound",
         "thread not found",
