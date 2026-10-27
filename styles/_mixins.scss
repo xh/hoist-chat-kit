@@ -1,11 +1,15 @@
 // Shared mixins for Hoist Chat Kit styles. Load with `@use '<path>/styles/mixins' as *;`.
 
 // Style a Hoist button within the current component. Hoist scopes its button rules under `.xh-app`
-// and targets `.xh-button.bp6-button`, so a component's override must match that specificity to
-// win. Pass the button's own class, an ancestor class within the component, or both.
+// and targets `.xh-button.bp6-button`, and restates them under `.xh-app.xh-dark.bp6-dark` for the
+// dark theme, so a component's override must match both to win in both. Pass the button's own
+// class, an ancestor class within the component, or both.
 @mixin hoist-button($button, $ancestor: null) {
-  .xh-app & #{$ancestor} #{$button}.xh-button.bp6-button {
-    @content;
+  .xh-app &,
+  .xh-app.xh-dark.bp6-dark & {
+    #{$ancestor} #{$button}.xh-button.bp6-button {
+      @content;
+    }
   }
 }
 

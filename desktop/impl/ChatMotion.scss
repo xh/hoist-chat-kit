@@ -89,8 +89,8 @@
 //------------------------
 // Reduced motion
 //------------------------
-@mixin static-twins {
-  .xh-chat-spinner--static-twin {
+@mixin static-twins($not: '') {
+  .xh-chat-spinner--static-twin#{$not} {
     .xh-chat-spinner__spin {
       display: none;
     }
@@ -101,23 +101,21 @@
   }
 
   // Solid while text arrives, then the same rest.
-  .xh-chat-caret {
+  .xh-chat-caret#{$not} {
     animation: xh-chat-caret-rest 0s linear calc(var(--xh-chat-caret-blink) * 2) forwards;
   }
 
-  .xh-chat-skeleton--shimmer {
+  .xh-chat-skeleton--shimmer#{$not} {
     animation: none;
     background-image: none;
   }
 }
 
-// An app whose users always report reduced motion, as over Citrix, puts `xh-chat--motion` on
-// `body` to keep every cue moving. `xh-chat--reduced-motion` on a container still forces the
-// twins there.
+// An app whose users always report reduced motion, as over Citrix, puts `xh-chat--motion` on an
+// ancestor of the chat, `body` say, to keep every cue moving. `xh-chat--reduced-motion` on a
+// container still forces the twins there.
 @media (prefers-reduced-motion: reduce) {
-  body:not(.xh-chat--motion) {
-    @include static-twins;
-  }
+  @include static-twins(':not(.xh-chat--motion *)');
 }
 
 .xh-chat--reduced-motion {

@@ -158,6 +158,39 @@ describe('ChatToolCall display modes', () => {
 
         renderRow(createChat({tools: [{name: 'lookup_rows', execute: () => 'rows'}]}, []));
         expect(text()).toContain('Pending');
+        cleanup();
+
+        // A call a paused run left open waits with the run.
+        pending.awaitsResume = true;
+        renderRow(createChat({}, []));
+        expect(text()).toContain('Pending');
+    });
+
+    it('says a group the user stopped was cancelled, not done', () => {
+        const stopped = (id: string) =>
+            toolCall('lookup_rows', {
+                id,
+                state: 'output-error',
+                output: null,
+                errorText: 'Stopped by the user.',
+                cancelled: true
+            });
+        renderList(
+            createChat({}, [
+                {
+                    id: 'a1',
+                    role: 'assistant',
+                    status: 'complete',
+                    parts: [stopped('c1'), stopped('c2')]
+                }
+            ])
+        );
+
+        const header = document.querySelector('.xh-chat-tool-call-group__header');
+        expect(header.textContent).toContain('2 cancelled');
+        expect(header.textContent).not.toContain('denied');
+        expect(header.querySelector('.xh-chat-tool-call__glyph--success')).toBeNull();
+        expect(header.querySelector('.xh-chat-tool-call__glyph--denied')).toBeTruthy();
     });
 
     it('shows the output of an inline tool with no renderer, as markdown, with no row', () => {

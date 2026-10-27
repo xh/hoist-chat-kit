@@ -119,30 +119,42 @@ class ChatToolCallGroupLocalModel extends HoistModel {
 interface GroupProblems {
     failed: number;
     denied: number;
+    cancelled: number;
+
+    /** True if the user stopped every call in the group. */
+    allCancelled: boolean;
 }
 
 function getProblems(parts: ChatToolCallPart[]): GroupProblems {
+    const cancelled = parts.filter(it => it.cancelled).length;
     return {
         failed: parts.filter(isToolCallFailed).length,
-        denied: parts.filter(it => it.state === 'output-denied' && !it.cancelled).length
+        denied: parts.filter(it => it.state === 'output-denied' && !it.cancelled).length,
+        cancelled,
+        allCancelled: cancelled > 0 && cancelled === parts.length
     };
 }
 
-function formatProblems({failed, denied}: GroupProblems): string {
-    return compact([failed ? `${failed} failed` : null, denied ? `${denied} denied` : null]).join(
-        ' · '
-    );
+function formatProblems({failed, denied, cancelled}: GroupProblems): string {
+    return compact([
+        failed ? `${failed} failed` : null,
+        denied ? `${denied} denied` : null,
+        cancelled ? `${cancelled} cancelled` : null
+    ]).join(' · ');
 }
 
-// A spinner while any call runs, then a check - or a mark when any call failed.
-function groupGlyph(isRunning: boolean, {failed}: GroupProblems): ReactNode {
-    const kind = isRunning ? 'busy' : failed ? 'error' : 'success';
+// A spinner while any call runs, then a check - or a mark when any call failed, or a stop when
+// the user stopped them all.
+function groupGlyph(isRunning: boolean, {failed, allCancelled}: GroupProblems): ReactNode {
+    const kind = isRunning ? 'busy' : failed ? 'error' : allCancelled ? 'denied' : 'success';
     return span({
         className: `xh-chat-tool-call__glyph xh-chat-tool-call__glyph--${kind}`,
         item: isRunning
             ? chatSpinner()
             : failed
               ? Icon.error({title: 'Failed'})
-              : Icon.check({title: 'All done'})
+              : allCancelled
+                ? Icon.stopCircle({title: 'Cancelled'})
+                : Icon.check({title: 'All done'})
     });
 }

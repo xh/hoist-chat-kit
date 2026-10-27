@@ -1114,9 +1114,9 @@ Add that class to a parent of the chat to show the twins whatever the browser re
 | Skeleton shimmer | No band. |
 
 Citrix sessions often report reduced motion whether or not the user wants it. An app whose users
-run over Citrix adds `xh-chat--motion` to `body` to keep every cue moving whatever the browser
-reports. The `xh-chat--reduced-motion` class on a container still forces the twins there, so the
-app decides for itself. Hoist's own `Spinner` keeps spinning under reduced motion for the same
+run over Citrix adds `xh-chat--motion` to an ancestor of the chat, `body` say, to keep every cue
+moving whatever the browser reports. The `xh-chat--reduced-motion` class on a container still
+forces the twins there, so the app decides for itself. Hoist's own `Spinner` keeps spinning under reduced motion for the same
 reason. To keep only the chat spinner spinning, set `ChatKit.defaults.reducedMotionSpinner` to
 `'spin'`.
 
