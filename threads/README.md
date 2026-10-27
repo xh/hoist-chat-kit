@@ -262,16 +262,18 @@ A background turn that pauses for an approval, or for the answer to an interacti
 for the user. Its chat stays open, and its id is in `awaitingThreadIds`. Show it in the list, so
 the user knows the thread needs them.
 
-A turn that ends while another thread is selected puts its thread in `finishedAwayThreadIds`.
-The thread leaves it when the user selects it, so a list can mark the reply as new until then.
+A turn that ends while the user is not looking at its thread - another thread is selected, or
+the selection is hidden - puts the thread in `finishedAwayThreadIds`. The thread leaves it once
+the user looks at it, so a list can mark the reply as new until then.
 
-A background turn that fails, or that the server interrupts or cancels, goes in
-`endedEarlyThreads` instead, with its error as the reason. The mark holds until the user opens
-the thread, or a new turn starts in it. The thread's chat stays open until then, so the user
-sees the failed turn with its error and Retry, even from a backend that does not store failed
-turns. For a thread the user is not looking at, the store's `lastRunEnd`
-and `lastRunReason` fill the same map. The model skips them if the user has seen the thread, in
-this session, since its last activity. A list marks each such row as ended early.
+A background turn that fails, or that the server interrupts, goes in `endedEarlyThreads` instead,
+with its error as the reason. The mark holds until the user looks at the thread, or a new turn
+starts in it. The thread's chat stays open until then, so the user sees the failed turn with its
+error and Retry, even from a backend that does not store failed turns. For a thread the user is
+not looking at, and whose turn neither runs nor waits here, the store's `lastRunEnd` and
+`lastRunReason` fill the same map. The model skips them if the user has seen the thread, in this
+session, since its last activity. A list marks each such row as ended early. Neither map holds
+the thread the user is looking at.
 
 ### Cap the list and the history
 

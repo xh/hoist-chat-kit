@@ -457,8 +457,9 @@ describe('ChatThreadsModel', () => {
                 {model} = setup({store, respond: () => errorEvents('The model is overloaded.')});
             await model.loadAsync();
 
-            // A store-marked thread the user opens and leaves.
+            // A store-marked thread the user opens, looks at, and leaves.
             await model.selectThreadAsync('cut');
+            await wait();
             await model.selectThreadAsync('other');
             await wait();
             expect(model.endedEarlyThreads).toEqual({});
