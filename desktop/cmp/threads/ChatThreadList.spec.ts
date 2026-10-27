@@ -201,7 +201,6 @@ describe('ChatThreadList', () => {
         await act(() => model.chatModel.sendAsync({text: 'Hi'}));
         expect(model.finishedAwayThreadIds).toEqual(['t1']);
 
-        const navigate = vi.spyOn(model, 'navigateToSelection');
         fireEvent.click(row('Travel'));
         await act(() => wait());
 
@@ -209,7 +208,6 @@ describe('ChatThreadList', () => {
         expect(model.isSelectionShown).toBe(true);
         expect(model.finishedAwayThreadIds).toEqual(['t1']);
         expect(row('Budget review').classList).toContain('xh-chat-thread-list__row--new');
-        expect(navigate).toHaveBeenCalledTimes(1);
     });
 
     it('hides New Chat with enableNewChat false, for an app that offers it elsewhere', async () => {

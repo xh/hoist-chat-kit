@@ -409,22 +409,6 @@ export class ChatThreadsModel extends HoistModel {
     }
 
     /**
-     * Bring the router to the selected thread, from another route - as a click on its row in a
-     * list shown on every page asks. Does nothing without a `route`, or on it. The current
-     * route's other parameters carry over, for a chat route under a parameterized parent.
-     */
-    navigateToSelection() {
-        const {route} = this;
-        if (!route || this.isOnRoute) return;
-        const threadId = this.routeThreadId,
-            params = omit(XH.routerState?.params ?? {}, route.param);
-        XH.navigate(
-            threadId && route.threadRoute ? route.threadRoute : route.name,
-            threadId ? {...params, [route.param]: threadId} : params
-        );
-    }
-
-    /**
      * Reload the selected thread's history - after a failed load, or to catch up on a turn the
      * backend finished on its own. Ignored while the thread's turn runs.
      */
@@ -695,16 +679,17 @@ export class ChatThreadsModel extends HoistModel {
     /**
      * Raise the seen activity of threads whose turn ended here, once the user has seen it end, to
      * the activity the store lists for them - see `seenOnNextList`. Only a list requested after
-     * the turn ended counts. An unfiltered one that leaves a thread out ends its wait.
+     * the turn ended counts, and a thread the user has not seen keeps waiting. An unfiltered list
+     * that leaves a thread out ends its wait.
      */
     @action
     private noteSeenFromList(threads: ChatThreadSummary[], listNumber: number, search: string) {
         this.seenOnNextList.forEach((firstListNumber, id) => {
             if (listNumber < firstListNumber) return;
-            // Not until the user has seen the turn end: the mark holds the wait.
-            if (this.hasUnseenMark(id)) return;
             const listed = find(threads, {id});
             if (!listed && search != null) return;
+            // Not until the user has seen the turn end: the mark holds the wait.
+            if (listed && this.hasUnseenMark(id)) return;
             this.seenOnNextList.delete(id);
             if (!listed) return;
             const seen = Math.max(this.seenActivityAt[id] ?? 0, listed.lastActivityAt ?? 0);
@@ -945,10 +930,6 @@ export class ChatThreadsModel extends HoistModel {
         this.finishedAwayThreadIds = this.finishedAwayThreadIds.map(it =>
             it === prevThreadId ? threadId : it
         );
-        if (this.seenOnNextList.has(prevThreadId)) {
-            this.seenOnNextList.set(threadId, this.seenOnNextList.get(prevThreadId));
-            this.seenOnNextList.delete(prevThreadId);
-        }
     }
 
     //------------------------
@@ -978,8 +959,8 @@ export class ChatThreadsModel extends HoistModel {
             this.syncToRoute();
         } else if (threadId !== this.selectedThreadId) {
             this.selectThreadAsync(threadId);
-        } else if (this.isSelectionShown) {
-            // The user is looking at it - and may have been since before the router named it.
+        } else if (this.isSelectionShown && this.hasUnseenMark(threadId)) {
+            // Shown before the router named it, by a router that lags, so not yet seen.
             this.markSeen(threadId);
         }
     }

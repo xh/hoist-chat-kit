@@ -227,7 +227,7 @@ describe('ChatThreadsModel route binding', () => {
         expect(model.finishedAwayThreadIds).toEqual(['t1']);
     });
 
-    it('brings the router to the selection from another route, on request', async () => {
+    it('selects a thread off the route without navigating, and shows it on return', async () => {
         await navigateAsync('default.chat', {threadId: 't1'});
         const model = createModel();
         await vi.waitFor(() => expect(model.selectedThreadId).toBe('t1'));
@@ -235,11 +235,11 @@ describe('ChatThreadsModel route binding', () => {
 
         await model.selectThreadAsync('t2');
         expect(XH.routerState.name).toBe('default.other');
-        model.navigateToSelection();
+        expect(model.shownThreadId).toBeNull();
 
-        await vi.waitFor(() => expect(XH.routerState.name).toBe('default.chat'));
-        expect(XH.routerState.params.threadId).toBe('t2');
-        expect(model.isSelectionShown).toBe(true);
+        await navigateAsync('default.chat');
+        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('t2'));
+        expect(model.shownThreadId).toBe('t2');
     });
 
     it('marks a thread selected while hidden seen once shown, though the route lagged', async () => {

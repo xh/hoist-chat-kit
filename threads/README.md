@@ -357,9 +357,9 @@ own layout reads the flag the same way.
 
 Off the route, the selection stays, so that a return restores it, and `isSelectionShown` is
 false. A list shown on every page then marks a reply that finishes in the selected thread as
-new, and shows the thread as not selected. A click on a row there selects the thread and brings
-the router to it, through `navigateToSelection()`. On return the thread counts as seen - see
-[Say when the chat is hidden](#say-when-the-chat-is-hidden).
+new, and shows the thread as not selected. A click on a row there selects the thread, and does
+not navigate: the app brings the router to the chat in the list's `onThreadClick`. On return the
+thread counts as seen - see [Say when the chat is hidden](#say-when-the-chat-is-hidden).
 
 ### Group the list by recency
 
@@ -479,8 +479,8 @@ conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those
 | `threads` | `ChatThreadSummary[]` | The list, in the store's order. Threads started here that the store has not listed come first, unless a search is active. Pending edits show at once. |
 | `selectedThreadId` | `string` | The selected thread, or null. Observable. Change it with `selectThreadAsync()` or `newThread()`. |
 | `isChatShown` | `boolean` | True while the app shows its chat. An app that hides its chat behind a tab or in a collapsed panel sets it. Else leave it true. Bindable. |
-| `isSelectionShown` | `boolean` | True while the user can see the selected thread: `isChatShown`, and with a `route`, the router on it. The list reads it. |
-| `shownThreadId` | `string` | The selected thread while shown, else null. |
+| `isSelectionShown` | `boolean` | True while the user can see the selected thread: `isChatShown`, and with a `route`, the router on it. |
+| `shownThreadId` | `string` | The selected thread while shown, else null. The list shows this row as selected. |
 | `chatModel` | `ChatModel` | The selected thread's chat, or null. Always null with `createConversation`. |
 | `conversation` | `ChatConversation` | The selected thread's conversation, or null. |
 | `selectedSummary` | `ChatThreadSummary` | The selected thread's summary, or null if it is not in the list. |
@@ -504,7 +504,6 @@ conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those
 | `loadAsync()`, `refreshAsync()` | Load the threads for the current search. |
 | `newThread(seed?)` | Open a new thread and select it. `seed` holds a `draft` and `runOptions`. Returns its chat, or null with `createConversation`. |
 | `selectThreadAsync(threadId)` | Select a thread, opening its chat and loading its history if needed. |
-| `navigateToSelection()` | Bring the router to the selected thread from another route. The list calls it on a click. Does nothing without a `route`, or on it. |
 | `reloadThreadAsync()` | Load the selected thread's history again. Ignored while its turn runs. |
 | `renameThreadAsync(threadId, title)` | Rename at once. Rolls back with a toast on failure. |
 | `deleteThreadsAsync(threadIds)` | Delete at once, closing the chats. Rolls back with a toast on failure. |
