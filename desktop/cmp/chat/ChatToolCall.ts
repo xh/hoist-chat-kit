@@ -213,7 +213,8 @@ function inlineToolCall({
         inlineStatus = getInlineStatus(part, spec),
         status = inlineStatus?.type === 'approval' ? null : inlineStatus,
         inputValue = getInputValue(part),
-        hasDetails = !isEmpty(inputValue) || (state === 'output-error' && !!errorText),
+        hasDetails =
+            !isEmpty(inputValue) || ((state === 'output-error' || part.cancelled) && !!errorText),
         isInputShown = hasDetails && !!impl.expanded,
         // A tool with no renderer shows its output itself, once it has one.
         hasOutputView = !!spec.renderer || state === 'output-available',
@@ -264,7 +265,7 @@ function inlineToolCall({
                 ? div({
                       className: 'xh-chat-tool-call__details',
                       items: [
-                          state === 'output-error' && errorText
+                          (state === 'output-error' || part.cancelled) && errorText
                               ? div({
                                     className: part.cancelled
                                         ? 'xh-chat-tool-call__denied'
@@ -297,6 +298,8 @@ function inlineStatusIcon(type: InlineCallStatus['type']): ReactNode {
             return Icon.hand();
         case 'error':
             return Icon.warningCircle();
+        case 'cancelled':
+            return Icon.stopCircle();
         case 'denied':
             return Icon.slashedCircle();
     }

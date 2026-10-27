@@ -1,7 +1,5 @@
 @use '../../../styles/mixins' as *;
 
-// A tool call as a process row: outline only, 28px tall, with no header strip - the strip marks
-// output cards, and its absence is the hierarchy.
 // A row that is a Hoist button: the row's inset, the chat's type size, and a focus ring inside
 // the row, which clips its overflow and so would hide Blueprint's ring outside it.
 @mixin row-button {
@@ -11,11 +9,12 @@
   width: 100%;
 
   &:focus-visible {
-    outline: var(--xh-chat-focus-ring-width) solid var(--xh-chat-focus-ring-color);
-    outline-offset: calc(var(--xh-chat-focus-ring-width) * -1);
+    @include focus-ring-inset;
   }
 }
 
+// A tool call as a process row: outline only, 28px tall, with no header strip - the strip marks
+// output cards, and its absence is the hierarchy.
 .xh-chat-tool-call {
   background-color: var(--xh-chat-bg);
   border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
@@ -366,10 +365,14 @@
   }
 
   &__meta {
-    color: var(--xh-chat-error-color);
+    color: var(--xh-chat-meta-text-color);
     flex: none;
     font-size: var(--xh-chat-meta-font-size);
     margin-left: auto;
+  }
+
+  &--failed &__meta {
+    color: var(--xh-chat-error-color);
   }
 
   &__chevron {

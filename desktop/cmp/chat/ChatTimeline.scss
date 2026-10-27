@@ -158,8 +158,7 @@
     &:focus-visible > .xh-chat-timeline__row,
     &:focus-visible > .xh-chat-timeline__narration,
     &:focus-visible > .xh-chat-timeline__result {
-      outline: var(--xh-chat-focus-ring-width) solid var(--xh-chat-focus-ring-color);
-      outline-offset: calc(var(--xh-chat-focus-ring-width) * -1);
+      @include focus-ring-inset;
     }
   }
 
@@ -374,8 +373,7 @@
     }
 
     &:focus-visible {
-      outline: var(--xh-chat-focus-ring-width) solid var(--xh-chat-focus-ring-color);
-      outline-offset: calc(var(--xh-chat-focus-ring-width) * -1);
+      @include focus-ring-inset;
     }
   }
 

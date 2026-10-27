@@ -110,7 +110,7 @@ export function getErrorLine(part: ChatToolCallPart): string {
  * @internal
  */
 export interface InlineCallStatus {
-    type: 'rendering' | 'approval' | 'error' | 'denied';
+    type: 'rendering' | 'approval' | 'error' | 'denied' | 'cancelled';
     label: string;
 }
 
@@ -123,7 +123,7 @@ export interface InlineCallStatus {
  * @internal
  */
 export function getInlineStatus(part: ChatToolCallPart, spec: ChatToolSpec): InlineCallStatus {
-    if (part.cancelled) return {type: 'denied', label: 'Stopped - not shown.'};
+    if (part.cancelled) return {type: 'cancelled', label: 'Stopped - not shown.'};
     switch (part.state) {
         case 'input-streaming':
             return {type: 'rendering', label: 'Rendering…'};

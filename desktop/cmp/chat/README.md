@@ -1113,12 +1113,12 @@ Add that class to a parent of the chat to show the twins whatever the browser re
 | Caret | Solid while text arrives, then the same dimmed rest. |
 | Skeleton shimmer | No band. |
 
-Citrix sessions often report reduced motion whether or not the user wants it. An app whose users
-run over Citrix adds `xh-chat--motion` to an ancestor of the chat, `body` say, to keep every cue
-moving whatever the browser reports. The `xh-chat--reduced-motion` class on a container still
-forces the twins there, so the app decides for itself. Hoist's own `Spinner` keeps spinning under reduced motion for the same
-reason. To keep only the chat spinner spinning, set `ChatKit.defaults.reducedMotionSpinner` to
-`'spin'`.
+Citrix sessions often report reduced motion whether or not the user wants it. An app whose users run
+over Citrix adds `xh-chat--motion` to an ancestor of the chat, `body` say, to keep every cue moving
+whatever the browser reports. The `xh-chat--reduced-motion` class on a container still forces the
+twins there, so the app decides for itself. Hoist's own `Spinner` keeps spinning under reduced
+motion for the same reason. To keep only the chat spinner spinning, set
+`ChatKit.defaults.reducedMotionSpinner` to `'spin'`.
 
 Spacing inside the components scales with Hoist's `--xh-pad`, so a denser app gets a denser
 chat. Class names follow BEM under `xh-chat-`, for example `xh-chat-message__bubble`.
@@ -1137,7 +1137,7 @@ chat. Class names follow BEM under `xh-chat-`, for example `xh-chat-message__bub
 - **Markdown** - `markdownComponents` for element overrides, `markdownPlugins` for remark and
   rehype plugins, and `allowImages` for the image policy.
 - **Theme** - the `--xh-chat-*` variables above, `xh-chat--compact`, `xh-chat--reduced-motion`,
-  and the BEM class names.
+  `xh-chat--motion`, and the BEM class names.
 
 ## Common Pitfalls
 
