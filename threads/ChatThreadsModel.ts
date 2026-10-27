@@ -146,6 +146,9 @@ export class ChatThreadsModel extends HoistModel {
      * in a collapsed panel sets this false while the chat is out of view, and true as it shows
      * again. An app that always shows its chat leaves it alone. A route binding adds a condition
      * of its own - see {@link isSelectionShown}, which the model and the list read.
+     *
+     * The thread shown a tick after this turns true counts as seen. An app that shows its chat
+     * and then selects a thread does both in one tick, with no await between, or selects first.
      */
     @bindable accessor isChatShown: boolean = true;
 
@@ -257,7 +260,7 @@ export class ChatThreadsModel extends HoistModel {
         const ret: Record<string, ChatThreadEndedEarly> = {},
             {shownThreadId, openThreads, seenActivityAt} = this;
         this.threads.forEach(({id, lastRunEnd, lastRunReason, lastActivityAt}) => {
-            if (lastRunEnd !== 'interrupted' && lastRunEnd !== 'failed') return;
+            if (!isEndedEarlyRunEnd(lastRunEnd)) return;
             // Not for a thread whose turn runs or waits here: the store's mark is of an earlier
             // run. A hidden selection, idle, keeps it.
             const conversation = openThreads[id]?.conversation;
@@ -694,10 +697,10 @@ export class ChatThreadsModel extends HoistModel {
      * later - a server's clock may run ahead.
      */
     @action
-    private noteSeen(threadId: string) {
+    private noteSeen(threadId: string, atLeast: number = 0) {
         if (threadId == null) return;
         const listed = find(this.threads, {id: threadId})?.lastActivityAt ?? 0;
-        this.raiseSeen(threadId, Math.max(Date.now(), listed));
+        this.raiseSeen(threadId, Math.max(Date.now(), listed, atLeast));
     }
 
     /**
@@ -731,8 +734,8 @@ export class ChatThreadsModel extends HoistModel {
     /** Raise a thread's seen activity to a time, if later. */
     @action
     private raiseSeen(threadId: string, activityAt: number) {
-        const seen = Math.max(this.seenActivityAt[threadId] ?? 0, activityAt);
-        this.seenActivityAt = {...this.seenActivityAt, [threadId]: seen};
+        if (activityAt <= (this.seenActivityAt[threadId] ?? -Infinity)) return;
+        this.seenActivityAt = {...this.seenActivityAt, [threadId]: activityAt};
     }
 
     @action
@@ -751,9 +754,8 @@ export class ChatThreadsModel extends HoistModel {
     @action
     private markSeen(threadId: string) {
         if (threadId == null) return;
-        const listed = find(this.threads, {id: threadId})?.lastActivityAt ?? 0,
-            wait = this.seenOnNextList.get(threadId);
-        this.raiseSeen(threadId, Math.max(Date.now(), listed, wait?.reportedActivityAt ?? 0));
+        const wait = this.seenOnNextList.get(threadId);
+        this.noteSeen(threadId, wait?.reportedActivityAt ?? 0);
         if (wait?.reportedActivityAt != null) this.seenOnNextList.delete(threadId);
         this.clearMarks(threadId);
     }
@@ -761,7 +763,9 @@ export class ChatThreadsModel extends HoistModel {
     /** Clear a thread's new-reply and ended-early marks. */
     @action
     private clearMarks(threadId: string) {
-        this.finishedAwayHere = without(this.finishedAwayHere, threadId);
+        if (this.finishedAwayHere.includes(threadId)) {
+            this.finishedAwayHere = without(this.finishedAwayHere, threadId);
+        }
         if (this.endedEarlyHere[threadId]) {
             this.endedEarlyHere = omit(this.endedEarlyHere, threadId);
         }
@@ -962,21 +966,21 @@ export class ChatThreadsModel extends HoistModel {
     @action
     private rekeyThread(prevThreadId: string, threadId: string) {
         // What this model holds by thread id. A conversation may adopt its id and start its
-        // turn in one action, so a mark may still sit under the old id.
+        // turn in one action, so a mark may still sit under the old id. A seen time under the
+        // new id, for a thread the store already listed, stays if later.
         if (this.lastShownId === prevThreadId) this.lastShownId = threadId;
         const seen = this.seenActivityAt[prevThreadId];
         if (seen != null) {
-            this.seenActivityAt = {...omit(this.seenActivityAt, prevThreadId), [threadId]: seen};
+            this.seenActivityAt = omit(this.seenActivityAt, prevThreadId);
+            this.raiseSeen(threadId, seen);
         }
         this.finishedAwayHere = this.finishedAwayHere.map(it =>
             it === prevThreadId ? threadId : it
         );
-        const endedEarly = this.endedEarlyHere[prevThreadId];
-        if (endedEarly) {
-            this.endedEarlyHere = {
-                ...omit(this.endedEarlyHere, prevThreadId),
-                [threadId]: endedEarly
-            };
+        this.endedEarlyHere = rekeyRecord(this.endedEarlyHere, prevThreadId, threadId);
+        if (this.seenOnNextList.has(prevThreadId)) {
+            this.seenOnNextList.set(threadId, this.seenOnNextList.get(prevThreadId));
+            this.seenOnNextList.delete(prevThreadId);
         }
         const isListed = this.hasThread(threadId),
             rekey = (thread: ChatThreadSummary) =>
@@ -1059,11 +1063,26 @@ const SEARCH_DEBOUNCE_MS = 300;
 /** Wait after the selection shows before it counts as seen - the next tick. */
 const SEEN_ON_SHOW_MS = 0;
 
+/** A record with one key moved to another, or the same record if it has no such key. */
+function rekeyRecord<T>(
+    record: Record<string, T>,
+    prevKey: string,
+    key: string
+): Record<string, T> {
+    if (!(prevKey in record)) return record;
+    return {...omit(record, prevKey), [key]: record[prevKey]};
+}
+
 /** True for a turn that failed or was interrupted - the ends a thread list marks. */
 function isThreadEndedEarly(
     endedEarly: ChatConversationEndedEarly
 ): endedEarly is ChatThreadEndedEarly {
-    return endedEarly?.runEnd === 'failed' || endedEarly?.runEnd === 'interrupted';
+    return isEndedEarlyRunEnd(endedEarly?.runEnd);
+}
+
+/** True for a run end a thread list marks. */
+function isEndedEarlyRunEnd(runEnd: string): runEnd is ChatThreadEndedEarly['runEnd'] {
+    return runEnd === 'failed' || runEnd === 'interrupted';
 }
 
 /** A turn that ended here, waiting to count as seen at the activity a list gives it. */

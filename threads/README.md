@@ -250,7 +250,8 @@ An app that always shows its chat leaves `isChatShown` alone. `isSelectionShown`
 the route, and is what the model and the list read. When it turns true, the thread then shown
 counts as seen a moment later, as when the user opens a thread. A selection made as the chat
 shows, by the app or by the route binding, is the one that counts, and a thread left while hidden
-keeps its marks.
+keeps its marks. An app that shows its chat and then selects a thread does both in one tick, with
+no await between, or selects first.
 
 ### Let turns run in the background
 
