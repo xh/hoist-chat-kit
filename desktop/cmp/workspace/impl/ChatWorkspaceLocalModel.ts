@@ -58,7 +58,7 @@ export class ChatWorkspaceLocalModel extends HoistModel {
     /** Start a new thread, and focus its composer - the New Chat button keeps no focus. */
     newChat() {
         const chatModel = this.model.threadsModel.newThread();
-        wait().then(() => chatModel.composerModel.focus());
+        wait().then(() => chatModel?.composerModel.focus());
     }
 
     focusComposer() {

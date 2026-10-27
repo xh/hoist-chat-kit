@@ -1,4 +1,5 @@
-import {type HoistRoute, XH} from '@xh/hoist/core';
+import {HoistBase, type HoistRoute, XH} from '@xh/hoist/core';
+import {action, observable} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync, TestAppModel} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -10,6 +11,7 @@ import {
     type ScriptedChatTransportConfig,
     textEvents
 } from '../transport';
+import type {ChatConversation} from './ChatConversation';
 import {ChatThreadsModel} from './ChatThreadsModel';
 import {LocalChatThreadStore} from '../test/support/LocalChatThreadStore';
 
@@ -159,6 +161,37 @@ describe('ChatThreadsModel route binding', () => {
         await vi.waitFor(() => expect(XH.routerState.params.threadId).toBeUndefined());
     });
 
+    it("puts an app conversation's new thread in the route under the id it adopts", async () => {
+        await navigateAsync('default.chat');
+        const opened: AppConversation[] = [],
+            model = new ChatThreadsModel({
+                store: new LocalChatThreadStore(),
+                createConversation: ({threadId}) => {
+                    const ret = new AppConversation(threadId);
+                    opened.push(ret);
+                    return ret;
+                },
+                route: {name: 'default.chat', param: 'threadId'}
+            }),
+            navigate = vi.spyOn(XH, 'navigate');
+        onTestFinished(() => {
+            navigate.mockRestore();
+            model.destroy();
+        });
+        model.newThread();
+        const [conversation] = opened,
+            localId = conversation.threadId;
+        conversation.set({isBusy: true});
+
+        // Saved before the new id, in one action - the route must wait for the re-key.
+        conversation.set({isSaved: true, threadId: 'srv-1'});
+
+        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('srv-1'));
+        expect(model.selectedThreadId).toBe('srv-1');
+        expect(navigate.mock.calls.map(it => it[1]?.threadId)).not.toContain(localId);
+        expect(opened).toHaveLength(1);
+    });
+
     it('leaves other routes alone', async () => {
         const model = createModel();
 
@@ -172,6 +205,27 @@ describe('ChatThreadsModel route binding', () => {
 //------------------
 // Helpers
 //------------------
+/** A conversation of an app's own, whose state the test sets. */
+class AppConversation extends HoistBase implements ChatConversation {
+    @observable accessor threadId: string;
+    @observable accessor isBusy = false;
+    @observable accessor isSaved = false;
+
+    constructor(threadId: string) {
+        super();
+        this.threadId = threadId;
+    }
+
+    async loadAsync() {}
+
+    stop() {}
+
+    @action
+    set(changes: Partial<Pick<AppConversation, 'threadId' | 'isBusy' | 'isSaved'>>) {
+        Object.assign(this, changes);
+    }
+}
+
 class RoutedTestModel extends TestAppModel {
     override getRoutes(): HoistRoute[] {
         return [

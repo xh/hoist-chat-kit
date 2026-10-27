@@ -1,31 +1,34 @@
 import {HoistBase, managed} from '@xh/hoist/core';
 import {action, observable, observableRef} from '@xh/hoist/mobx';
 import type {ChatModel} from '../../core';
+import type {ChatConversation} from '../ChatConversation';
+import {ChatModelConversation} from './ChatModelConversation';
 
 /** State of an open thread's history. `notFound` if the store reported the thread missing. */
 export type OpenThreadLoadState = 'loading' | 'loaded' | 'notFound' | 'failed';
 
 /** Configuration for an {@link OpenThread}. */
 export interface OpenThreadConfig {
-    chatModel: ChatModel;
+    conversation: ChatConversation;
 
     /** True for a thread with no history to load - a new one. */
     isLoaded: boolean;
 
-    /** Called when the chat's thread id changes, with the id it had before. */
+    /** Called when the conversation's thread id changes, with the id it had before. */
     onThreadIdChange: (thread: OpenThread, prevThreadId: string) => void;
 
-    /** Called when the chat starts or ends a turn. */
+    /** Called when the conversation starts or ends a turn. */
     onBusyChange: (thread: OpenThread) => void;
 }
 
 /**
- * A thread with an open chat in a `ChatThreadsModel`: the chat, which this object owns, the state
- * of its history, and the reactions that report the chat's changes back to the threads model.
+ * A thread with an open conversation in a `ChatThreadsModel`: the conversation, which this object
+ * owns, the state of its history, and the reactions that report the conversation's changes back
+ * to the threads model.
  * @internal
  */
 export class OpenThread extends HoistBase {
-    @managed readonly chatModel: ChatModel;
+    @managed readonly conversation: ChatConversation;
 
     /** State of the thread's history. (observable) */
     @observable accessor loadState: OpenThreadLoadState;
@@ -35,35 +38,55 @@ export class OpenThread extends HoistBase {
 
     /**
      * True if the thread may exist on the backend: one opened to load its history, or a new one
-     * whose reply has started to stream, or whose turn ended after its run started. False for a
+     * whose first turn reached the backend - see {@link ChatConversation.isSaved}. False for a
      * new thread until then, so that a route never holds an id the backend has not seen.
      * (observable)
      */
     @observable accessor isSaved: boolean;
 
-    constructor({chatModel, isLoaded, onThreadIdChange, onBusyChange}: OpenThreadConfig) {
+    /** The conversation's `ChatModel`, or null for a conversation of the app's own. */
+    get chatModel(): ChatModel {
+        const {conversation} = this;
+        return conversation instanceof ChatModelConversation ? conversation.chatModel : null;
+    }
+
+    constructor({conversation, isLoaded, onThreadIdChange, onBusyChange}: OpenThreadConfig) {
         super();
-        this.chatModel = chatModel;
+        this.conversation = conversation;
         this.loadState = isLoaded ? 'loaded' : 'loading';
         this.isSaved = !isLoaded;
-        // A chat adopts the backend's id before its reply moves to streaming, in the same flush,
-        // so the thread is re-keyed before it counts as saved.
         this.addReaction(
             {
-                track: () => chatModel.threadId,
+                track: () => conversation.threadId,
                 run: (_, prevThreadId) => onThreadIdChange(this, prevThreadId)
             },
             {
-                track: () => chatModel.isBusy,
+                track: () => conversation.isBusy,
                 run: () => onBusyChange(this)
-            },
-            {
+            }
+        );
+
+        // A chat adopts the backend's id before its reply moves to streaming, in the same flush,
+        // so the thread is re-keyed before it counts as saved.
+        // A conversation of the app's own reports it through `isSaved`, which this copies after
+        // the reactions above, so that an id it adopts in the same action is re-keyed first.
+        const {chatModel} = this;
+        if (chatModel) {
+            this.addReaction({
                 track: () => chatModel.status === 'streaming',
                 run: isStreaming => {
                     if (isStreaming) this.setSaved(true);
                 }
-            }
-        );
+            });
+        } else {
+            this.addReaction({
+                track: () => conversation.isSaved,
+                run: isSaved => {
+                    if (isSaved) this.setSaved(true);
+                },
+                fireImmediately: true
+            });
+        }
     }
 
     @action
@@ -97,8 +120,8 @@ export class OpenThread extends HoistBase {
     }
 
     /**
-     * Mark the history as loaded and drop any load in flight - for a chat that now holds another
-     * thread, after the app cleared it or loaded messages into it.
+     * Mark the history as loaded and drop any load in flight - for a conversation that now holds
+     * another thread, after the app cleared it or loaded messages into it.
      */
     @action
     resetLoad() {

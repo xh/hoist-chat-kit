@@ -668,6 +668,22 @@ describe('ChatThreadsModel', () => {
             expect(ids(model.threads)).toEqual(['t1', 't2', 't3']);
         });
 
+        it('drops a history load that ends after the app cleared the chat', async () => {
+            const {model, store} = setup();
+            store.hold('loadMessagesAsync');
+            const selecting = model.selectThreadAsync('t1'),
+                {chatModel} = model,
+                [load] = store.heldCalls('loadMessagesAsync');
+
+            chatModel.clear();
+            load.release();
+            await selecting;
+
+            expect(chatModel.threadId).not.toBe('t1');
+            expect(chatModel.messages).toEqual([]);
+            expect(model.isThreadLoading).toBe(false);
+        });
+
         it('refreshes the list after a turn ends in the background', async () => {
             vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']});
             const turns = new TurnGates(),

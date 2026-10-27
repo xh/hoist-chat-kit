@@ -98,8 +98,9 @@ Questions demo shows each interrupt shape. The spike behind D84 is on the local 
 ## Open review threads with Anselm
 
 A layer-by-layer review of the kit is in progress, to find what the OpenUI-based enterprise app's
-feedback drove too far. That app has committed to OpenUI and will not adopt the kit. These are
-topics to discuss with Anselm, not work to start.
+feedback drove too far. That app keeps its conversation on OpenUI for now, but is moving its outer
+chrome to the kit from the outside in, starting with the thread list (D96). These are topics to
+discuss with Anselm, not work to start.
 
 - **Done:** the engine layer. It led to the AG-UI effort above, now merged.
 - **Next:** the chat UI layer. Check its depth feature by feature. Much of it came from a design

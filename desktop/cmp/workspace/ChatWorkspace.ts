@@ -40,6 +40,9 @@ import {useWorkspaceWidth} from './impl/useWorkspaceWidth';
 /** Content for the workspace's side panel: an element, or a function that renders one. */
 export type ChatWorkspaceSidePanel = ReactNode | (() => ReactNode);
 
+/** The app's own view of a conversation: an element, or a function that renders one. */
+export type ChatWorkspaceConversationView = ReactNode | (() => ReactNode);
+
 /** Props for {@link ChatWorkspace}. */
 export interface ChatWorkspaceProps extends HoistProps<ChatWorkspaceModel>, BoxProps {
     /**
@@ -81,6 +84,16 @@ export interface ChatWorkspaceProps extends HoistProps<ChatWorkspaceModel>, BoxP
     /** Props for the conversation's `ChatPanel`, such as `suggestions` and `composerProps`. */
     chatPanelProps?: Omit<ChatPanelProps, 'model' | 'modelConfig' | 'modelRef'>;
 
+    /**
+     * The app's own view of the selected thread's conversation, in place of the kit's
+     * `ChatPanel` - as for conversations from `ChatThreadsConfig.createConversation`, which run
+     * on another library. The view reads the threads model's `conversation` for the thread it
+     * shows. The workspace keeps its sidebar, header, notice and side panel, and masks the view
+     * while a thread loads. A missing thread or a failed load shows a message and hides the view,
+     * which stays mounted. `chatPanelProps` does not apply.
+     */
+    conversationView?: ChatWorkspaceConversationView;
+
     /** Props for the sidebar's `ChatThreadList`. */
     threadListProps?: Omit<ChatThreadListProps, 'model' | 'modelConfig' | 'modelRef'>;
 }
@@ -116,6 +129,7 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
                 sidePanelProps,
                 requestPanelProps,
                 chatPanelProps,
+                conversationView,
                 threadListProps,
                 testId,
                 ...rest
@@ -143,7 +157,9 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
                                     ? defaultHeader(model, impl, headerItems, threadListProps)
                                     : header,
                                 noticeLine(notice),
-                                conversation(model, impl, chatPanelProps, testId)
+                                conversationView === undefined
+                                    ? conversation(model, impl, chatPanelProps, testId)
+                                    : appConversation(model, impl, conversationView, testId)
                             ]
                         }),
                         sidePanelView(
@@ -382,18 +398,7 @@ function conversation(
     if (!chatModel) return null;
 
     // A thread the store reports missing, as from a deep link, offers a new chat in its place.
-    if (threadsModel.isThreadNotFound) {
-        return errorMessage({
-            key: chatModel.xhId,
-            className: 'xh-chat-workspace__not-found',
-            testId: getTestId(testId, 'notFound'),
-            error: true,
-            title: 'Thread not found',
-            message: 'This conversation does not exist, or it was deleted.',
-            actionFn: () => impl.newChat(),
-            actionButtonProps: {text: 'New Chat', icon: Icon.add()}
-        });
-    }
+    if (threadsModel.isThreadNotFound) return notFound(impl, chatModel.xhId, testId);
 
     // A thread that has not loaded yet shows a plain pane under the mask, not a new chat's empty
     // state - centered composer and suggestions - which its empty chat would otherwise show.
@@ -423,6 +428,62 @@ function conversation(
                       actionButtonProps: {text: 'Retry', icon: Icon.refresh()}
                   })
                 : chatPanelProps?.emptyState
+    });
+}
+
+/** The app's own conversation view, with the workspace's states for a missing or failed thread. */
+function appConversation(
+    model: ChatWorkspaceModel,
+    impl: ChatWorkspaceLocalModel,
+    conversationView: ChatWorkspaceConversationView,
+    testId: string
+): ReactNode {
+    const {threadsModel} = model,
+        {conversation, loadError, isThreadNotFound} = threadsModel;
+    if (!conversation) return null;
+
+    let message: ReactNode = null;
+    if (isThreadNotFound) {
+        message = notFound(impl, 'notFound', testId);
+    } else if (loadError) {
+        message = errorMessage({
+            key: 'loadError',
+            className: 'xh-chat-workspace__load-error',
+            testId: getTestId(testId, 'loadError'),
+            error: loadError,
+            title: "Couldn't load this thread",
+            actionFn: () => threadsModel.reloadThreadAsync(),
+            actionButtonProps: {text: 'Retry', icon: Icon.refresh()}
+        });
+    }
+
+    // One view for every thread, not one per thread as for a ChatPanel: the app's view follows
+    // the selection itself, and may hold state that a remount would lose. A message hides it,
+    // and leaves it mounted.
+    return [
+        message,
+        panel({
+            key: 'conversation',
+            className: 'xh-chat-workspace__conversation',
+            testId: getTestId(testId, 'conversation'),
+            display: message ? 'none' : undefined,
+            mask: threadsModel.loadTask,
+            item: isFunction(conversationView) ? conversationView() : conversationView
+        })
+    ];
+}
+
+/** "Thread not found", with New Chat, for a thread the store reports missing. */
+function notFound(impl: ChatWorkspaceLocalModel, key: string, testId: string): ReactNode {
+    return errorMessage({
+        key,
+        className: 'xh-chat-workspace__not-found',
+        testId: getTestId(testId, 'notFound'),
+        error: true,
+        title: 'Thread not found',
+        message: 'This conversation does not exist, or it was deleted.',
+        actionFn: () => impl.newChat(),
+        actionButtonProps: {text: 'New Chat', icon: Icon.add()}
     });
 }
 

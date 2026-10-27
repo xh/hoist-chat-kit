@@ -105,6 +105,10 @@ export const assistantPage = hoistCmp.factory<AssistantModel>(({model}) => {
 Key the chat panel by the chat, so that the pane never shows the last thread's messages. For a
 complete page with these parts, use [`chatWorkspace`](../workspace/README.md) instead.
 
+The list works the same over a chat that runs on another library. Give the threads model a
+`createConversation` function, and show the app's own view where the chat panel would be - see
+[Use a conversation of the app's own](../../../threads/README.md#use-a-conversation-of-the-apps-own).
+
 ## Common Usage Patterns
 
 ### Add a button beside New Chat
