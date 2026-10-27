@@ -142,6 +142,18 @@
     display: contents;
   }
 
+  // A row's text as a link looks no different: the row is the control.
+  &__link {
+    color: inherit;
+    text-decoration: none;
+
+    &:hover,
+    &:focus {
+      color: inherit;
+      text-decoration: none;
+    }
+  }
+
   &__icon {
     display: inline-flex;
     flex: none;

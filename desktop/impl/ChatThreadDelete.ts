@@ -7,15 +7,38 @@ import {
     type ChatThreadSummary,
     groupThreadsByRecency
 } from '../../threads';
+import {getThreadLabels, type ThreadLabels} from './ThreadLabels';
+
+/** Options for {@link deleteThreadAsync}. */
+export interface DeleteThreadOptions {
+    /** The word for a thread, in the confirm. Default 'thread'. */
+    labels?: ThreadLabels;
+
+    /**
+     * True to open the next thread in the list's order when the open thread is deleted - the one
+     * below it, else the one above. False to leave the threads model to open a new chat. Default
+     * true.
+     */
+    selectNext?: boolean;
+
+    /**
+     * Called once the user confirms, as the delete starts, with the id of the thread next to the
+     * deleted one, or null. Moves focus.
+     */
+    onDeleting?: (nextId: string) => void;
+}
 
 /**
  * Ask the user to confirm the delete of a thread, with focus on Cancel.
  * @returns true if the user confirmed.
  * @internal
  */
-export function confirmDeleteThreadAsync(thread: ChatThreadSummary): Promise<boolean> {
+export function confirmDeleteThreadAsync(
+    thread: ChatThreadSummary,
+    labels: ThreadLabels = getThreadLabels()
+): Promise<boolean> {
     return XH.confirm({
-        title: 'Delete thread?',
+        title: `Delete ${labels.singular}?`,
         message: `"${thread.title}" is removed for you. This can't be undone.`,
         confirmProps: {text: 'Delete', icon: Icon.delete(), intent: 'danger'},
         cancelProps: {autoFocus: true}
@@ -24,27 +47,28 @@ export function confirmDeleteThreadAsync(thread: ChatThreadSummary): Promise<boo
 
 /**
  * Confirm with the user, then delete a thread. If the thread was open, the next one in the list's
- * order opens - the one below it, else the one above - or a new chat if none is left. The thread
- * list and the workspace's Thread actions menu both delete through here.
+ * order opens - the one below it, else the one above - or a new chat if none is left, or if
+ * `selectNext` is false. The thread list and the workspace's Thread actions menu both delete
+ * through here.
  *
- * @param onDeleting - called once the user confirms, as the delete starts, with the id of the
- *      thread next to the deleted one, or null. Moves focus.
  * @returns true if the user confirmed.
  * @internal
  */
 export async function deleteThreadAsync(
     threadsModel: ChatThreadsModel,
     thread: ChatThreadSummary,
-    onDeleting?: (nextId: string) => void
+    {labels, selectNext = true, onDeleting}: DeleteThreadOptions = {}
 ): Promise<boolean> {
     const ids = getListedThreadIds(threadsModel),
         index = ids.indexOf(thread.id),
         nextId = index >= 0 ? (ids[index + 1] ?? ids[index - 1] ?? null) : null;
-    if (!(await confirmDeleteThreadAsync(thread))) return false;
+    if (!(await confirmDeleteThreadAsync(thread, labels))) return false;
 
-    const wasSelected = threadsModel.selectedThreadId === thread.id,
-        deletion = threadsModel.deleteThreadsAsync([thread.id]);
-    if (wasSelected && nextId) threadsModel.selectThreadAsync(nextId).catchDefault();
+    // The next thread opens before the delete, so that the model does not open a new thread
+    // first - the user lands once, not twice.
+    const wasSelected = threadsModel.selectedThreadId === thread.id;
+    if (wasSelected && selectNext && nextId) threadsModel.selectThreadAsync(nextId).catchDefault();
+    const deletion = threadsModel.deleteThreadsAsync([thread.id]);
     onDeleting?.(nextId);
     await deletion;
     return true;

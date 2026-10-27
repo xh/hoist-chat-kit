@@ -2,7 +2,7 @@ import type {ReactNode, Ref} from 'react';
 import {includes, isEmpty, times} from 'lodash';
 import {clipboardMenuItem} from '@xh/hoist/cmp/clipboard';
 import {errorMessage} from '@xh/hoist/cmp/error';
-import {div, span, vframe} from '@xh/hoist/cmp/layout';
+import {a, div, span, vframe} from '@xh/hoist/cmp/layout';
 import {
     type BoxProps,
     hoistCmp,
@@ -19,6 +19,7 @@ import {Icon} from '@xh/hoist/icon';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {getTestId} from '@xh/hoist/utils/js';
 import {classNames} from '../../../impl/ClassNames';
+import {getThreadLabels, type ThreadLabels} from '../../impl/ThreadLabels';
 import {chatSpinner} from '../chat';
 import '../../../styles/vars.scss';
 import {
@@ -34,6 +35,48 @@ import {ChatThreadListLocalModel} from './impl/ChatThreadListLocalModel';
 export interface ChatThreadListProps extends HoistProps<ChatThreadsModel>, BoxProps {
     /** Items to show after New Chat, such as a button that collapses a sidebar. */
     topItems?: ReactNode[];
+
+    /**
+     * False to hide the New Chat button, for an app that offers New Chat elsewhere. Default
+     * true. `ChatWorkspace` hides its rail and header New Chat buttons too.
+     */
+    enableNewChat?: boolean;
+
+    /**
+     * Called when the user clicks a row, or presses Enter on it, before the thread is selected.
+     * Also called for the thread already selected, which a click does not reopen.
+     */
+    onThreadClick?: (thread: ChatThreadSummary) => void;
+
+    /**
+     * A link for a thread, such as its deep link. A row's title is then a link, so that a middle
+     * or modifier click opens the thread in a new tab. A plain click selects it, as without.
+     */
+    getThreadHref?: (thread: ChatThreadSummary) => string;
+
+    /**
+     * The word for a thread in the list's own text, such as 'chat'. Default 'thread'. The plural
+     * adds an s. `ChatWorkspace` uses it in its header and messages too.
+     */
+    threadNoun?: string;
+
+    /** False to hide each row's time. A row still says when its thread works. Default true. */
+    showTime?: boolean;
+
+    /** False to leave Copy Thread ID out of the More menu. Default true. */
+    enableCopyId?: boolean;
+
+    /**
+     * False to disable Delete for a thread whose turn runs, for a backend that refuses it.
+     * Default true: the turn is stopped, then the thread deleted.
+     */
+    enableDeleteRunning?: boolean;
+
+    /**
+     * False to open a new chat when the open thread is deleted. Default true: the next thread in
+     * the list opens - the one below it, else the one above - or a new chat if none is left.
+     */
+    selectNextOnDelete?: boolean;
 
     /**
      * True for one line per thread: its title, then a short time - the time of day for today and
@@ -53,7 +96,7 @@ export interface ChatThreadListProps extends HoistProps<ChatThreadsModel>, BoxPr
     /** False to hide the search input. Default true. */
     enableSearch?: boolean;
 
-    /** Placeholder for the search input. Default 'Search threads'. */
+    /** Placeholder for the search input. Default 'Search threads', with `threadNoun`. */
     searchPlaceholder?: string;
 
     /** Ref to the search input's element, so that a container can focus it. */
@@ -85,15 +128,25 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
                 model,
                 className,
                 topItems = [],
+                enableNewChat = true,
                 compact = false,
                 newChatButtonProps,
                 enableSearch = true,
-                searchPlaceholder = 'Search threads',
+                searchPlaceholder,
                 searchInputRef,
+                onThreadClick,
+                getThreadHref,
+                threadNoun,
+                showTime,
+                enableCopyId,
+                enableDeleteRunning,
+                selectNextOnDelete,
                 testId,
                 ...rest
             } = props,
-            impl = useLocalModel(ChatThreadListLocalModel);
+            impl = useLocalModel(ChatThreadListLocalModel),
+            labels = getThreadLabels(threadNoun),
+            view: ListView = {compact, labels, showTime: showTime !== false, getThreadHref};
 
         return vframe({
             ref,
@@ -103,17 +156,20 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
             items: [
                 div({
                     className: 'xh-chat-thread-list__top',
+                    omit: !enableNewChat && isEmpty(topItems),
                     items: [
-                        button({
-                            className: 'xh-chat-thread-list__new',
-                            icon: Icon.add(),
-                            text: 'New Chat',
-                            outlined: true,
-                            intent: 'primary',
-                            testId: getTestId(testId, 'new'),
-                            ...newChatButtonProps,
-                            onClick: () => impl.newThread()
-                        }),
+                        enableNewChat
+                            ? button({
+                                  className: 'xh-chat-thread-list__new',
+                                  icon: Icon.add(),
+                                  text: 'New Chat',
+                                  outlined: true,
+                                  intent: 'primary',
+                                  testId: getTestId(testId, 'new'),
+                                  ...newChatButtonProps,
+                                  onClick: () => impl.newThread()
+                              })
+                            : null,
                         ...topItems
                     ]
                 }),
@@ -126,16 +182,16 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
                               commitOnChange: true,
                               leftIcon: Icon.search(),
                               enableClear: true,
-                              placeholder: searchPlaceholder,
+                              placeholder: searchPlaceholder ?? `Search ${labels.plural}`,
                               inputRef: searchInputRef,
                               width: null,
-                              domAttrs: {'aria-label': 'Search threads'},
+                              domAttrs: {'aria-label': `Search ${labels.plural}`},
                               testId: getTestId(testId, 'search'),
                               onKeyDown: impl.onSearchKeyDown
                           })
                       })
                     : null,
-                div({className: 'xh-chat-thread-list__body', item: body(impl, compact)})
+                div({className: 'xh-chat-thread-list__body', item: body(impl, view)})
             ]
         });
     }
@@ -144,8 +200,17 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
 //------------------
 // Implementation
 //------------------
-function body(impl: ChatThreadListLocalModel, compact: boolean): ReactNode {
+/** What the list renders with, from its props - read at render, not from the local model. */
+interface ListView {
+    compact: boolean;
+    labels: ThreadLabels;
+    showTime: boolean;
+    getThreadHref: ChatThreadListProps['getThreadHref'];
+}
+
+function body(impl: ChatThreadListLocalModel, view: ListView): ReactNode {
     const {model, groups} = impl,
+        {labels} = view,
         {listError} = model;
 
     if (listError && isEmpty(model.threads)) {
@@ -154,7 +219,7 @@ function body(impl: ChatThreadListLocalModel, compact: boolean): ReactNode {
             role: 'alert',
             item: errorMessage({
                 error: listError,
-                title: "Couldn't load threads",
+                title: `Couldn't load ${labels.plural}`,
                 actionFn: () => impl.retryList(),
                 actionButtonProps: {text: 'Retry', icon: Icon.refresh()}
             })
@@ -165,7 +230,7 @@ function body(impl: ChatThreadListLocalModel, compact: boolean): ReactNode {
         return div({
             className: 'xh-chat-thread-list__skeleton',
             role: 'treegrid',
-            'aria-label': 'Threads',
+            'aria-label': labels.titlePlural,
             'aria-busy': true,
             items: times(SKELETON_ROWS, i =>
                 div({key: i, className: 'xh-chat-thread-list__skeleton-row'})
@@ -174,7 +239,7 @@ function body(impl: ChatThreadListLocalModel, compact: boolean): ReactNode {
     }
 
     if (isEmpty(groups)) {
-        return impl.searchQuery != null ? noResults(impl) : emptyList();
+        return impl.searchQuery != null ? noResults(impl, view) : emptyList(view);
     }
 
     return [
@@ -185,7 +250,7 @@ function body(impl: ChatThreadListLocalModel, compact: boolean): ReactNode {
                   role: 'alert',
                   items: [
                       Icon.warningCircle(),
-                      span("Couldn't refresh threads."),
+                      span(`Couldn't refresh ${labels.plural}.`),
                       button({text: 'Retry', minimal: true, onClick: () => impl.retryList()})
                   ]
               })
@@ -194,10 +259,10 @@ function body(impl: ChatThreadListLocalModel, compact: boolean): ReactNode {
             key: 'list',
             className: 'xh-chat-thread-list__list',
             role: 'treegrid',
-            'aria-label': 'Threads',
+            'aria-label': labels.titlePlural,
             'aria-busy': model.listTask.isPending,
             onKeyDown: impl.onListKeyDown,
-            items: groups.map(group => threadGroup(impl, group, compact))
+            items: groups.map(group => threadGroup(impl, group, view))
         })
     ];
 }
@@ -205,7 +270,7 @@ function body(impl: ChatThreadListLocalModel, compact: boolean): ReactNode {
 function threadGroup(
     impl: ChatThreadListLocalModel,
     group: ChatThreadGroup,
-    compact: boolean
+    view: ListView
 ): ReactNode {
     // A row group owns only rows, so its label is its name, and the visible label is hidden.
     return div({
@@ -219,7 +284,7 @@ function threadGroup(
                 'aria-hidden': true,
                 item: group.label
             }),
-            ...group.threads.map(thread => threadRow(impl, thread, compact, group.key))
+            ...group.threads.map(thread => threadRow(impl, thread, view, group.key))
         ]
     });
 }
@@ -227,15 +292,18 @@ function threadGroup(
 function threadRow(
     impl: ChatThreadListLocalModel,
     thread: ChatThreadSummary,
-    compact: boolean,
+    view: ListView,
     groupKey: ChatThreadGroupKey
 ): ReactNode {
     const {model} = impl,
+        {compact, showTime, getThreadHref} = view,
         {id, title} = thread,
         isSelected = id === model.selectedThreadId,
         status = getRowStatus(model, thread, isSelected),
         isRenaming = impl.renamingThreadId === id,
-        time = fmtRowTime(thread.lastActivityAt, compact, groupKey);
+        time = showTime ? fmtRowTime(thread.lastActivityAt, compact, groupKey) : null,
+        timeText = status === 'running' ? 'Working' : time,
+        href = getThreadHref?.(thread) ?? null;
 
     return div({
         key: id,
@@ -252,35 +320,47 @@ function threadRow(
             impl.menuThreadId === id && 'xh-chat-thread-list__row--menu-open',
             isRenaming && 'xh-chat-thread-list__row--renaming'
         ),
-        onClick: () => impl.selectThread(id),
+        onClick: () => impl.clickThread(thread),
         onFocus: e => {
             if (e.target === e.currentTarget) impl.setFocusThreadId(id);
         },
         items: isRenaming
-            ? [renameInput(impl)]
+            ? [renameInput(impl, view)]
             : [
                   // Laid out by the row: the cell only names the row's content for the grid.
                   div({
                       key: 'main',
                       className: 'xh-chat-thread-list__cell',
                       role: 'gridcell',
-                      items: [
-                          rowIcon(model, thread, status),
-                          span({
-                              className: 'xh-chat-thread-list__text',
-                              items: [
-                                  span({className: 'xh-chat-thread-list__title', item: title}),
-                                  span({
-                                      className: 'xh-chat-thread-list__time',
-                                      item: status === 'running' ? 'Working' : time
-                                  })
-                              ]
-                          })
-                      ]
+                      items: [rowIcon(model, thread, status), rowText(impl, title, timeText, href)]
                   }),
                   rowActions(impl, thread)
               ]
     });
+}
+
+/** The title over the time - as a link, with an href, so that a modifier click opens a tab. */
+function rowText(
+    impl: ChatThreadListLocalModel,
+    title: string,
+    timeText: string,
+    href: string
+): ReactNode {
+    const items = [
+        span({className: 'xh-chat-thread-list__title', item: title}),
+        timeText != null ? span({className: 'xh-chat-thread-list__time', item: timeText}) : null
+    ];
+    return href != null
+        ? a({
+              className: 'xh-chat-thread-list__text xh-chat-thread-list__link',
+              href,
+              tabIndex: -1,
+              draggable: false,
+              onMouseDown: e => e.preventDefault(),
+              onClick: impl.onLinkClick,
+              items
+          })
+        : span({className: 'xh-chat-thread-list__text', items});
 }
 
 function rowIcon(model: ChatThreadsModel, thread: ChatThreadSummary, status: RowStatus): ReactNode {
@@ -339,6 +419,7 @@ function rowActions(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): 
 }
 
 function moreMenuItems(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): MenuItemLike[] {
+    const {labels, props} = impl;
     return [
         {
             text: 'Rename',
@@ -346,24 +427,28 @@ function moreMenuItems(impl: ChatThreadListLocalModel, thread: ChatThreadSummary
             omit: !impl.canRename,
             actionFn: () => impl.startRename(thread)
         },
-        clipboardMenuItem({
-            text: 'Copy Thread ID',
-            icon: Icon.copy(),
-            getCopyText: () => thread.id,
-            successMessage: 'Thread ID copied.'
-        }),
+        {
+            ...clipboardMenuItem({
+                text: `Copy ${labels.title} ID`,
+                icon: Icon.copy(),
+                getCopyText: () => thread.id,
+                successMessage: `${labels.title} ID copied.`
+            }),
+            omit: props.enableCopyId === false
+        },
         '-',
         {
             text: 'Delete...',
             icon: Icon.delete(),
             intent: 'danger',
             omit: !impl.canDelete,
+            disabled: !impl.canDeleteThread(thread),
             actionFn: () => impl.deleteThreadAsync(thread).catchDefault()
         }
     ];
 }
 
-function renameInput(impl: ChatThreadListLocalModel): ReactNode {
+function renameInput(impl: ChatThreadListLocalModel, view: ListView): ReactNode {
     // Blur saves, as Enter does. Esc ends the rename before the input blurs.
     return div({
         className: 'xh-chat-thread-list__rename',
@@ -377,28 +462,31 @@ function renameInput(impl: ChatThreadListLocalModel): ReactNode {
             autoFocus: true,
             selectOnFocus: true,
             width: null,
-            domAttrs: {'aria-label': 'Rename thread'},
+            domAttrs: {'aria-label': `Rename ${view.labels.singular}`},
             onKeyDown: impl.onRenameKeyDown
         })
     });
 }
 
-function emptyList(): ReactNode {
+function emptyList(view: ListView): ReactNode {
     return div({
         className: 'xh-chat-thread-list__empty',
         items: [
-            div({className: 'xh-chat-thread-list__empty-title', item: 'No threads yet'}),
+            div({
+                className: 'xh-chat-thread-list__empty-title',
+                item: `No ${view.labels.plural} yet`
+            }),
             div('Your conversations will be listed here, newest first.')
         ]
     });
 }
 
-function noResults(impl: ChatThreadListLocalModel): ReactNode {
+function noResults(impl: ChatThreadListLocalModel, view: ListView): ReactNode {
     return div({
         className: 'xh-chat-thread-list__empty',
         role: 'status',
         items: [
-            div(`No threads match '${impl.searchQuery}'`),
+            div(`No ${view.labels.plural} match '${impl.searchQuery}'`),
             button({text: 'Clear', minimal: true, onClick: () => impl.setSearch(null)})
         ]
     });

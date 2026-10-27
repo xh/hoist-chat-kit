@@ -195,7 +195,9 @@ document opens at its URL in a new tab, with a toast.
 ### Configure the chat and the list
 
 `chatPanelProps` go to the conversation's `ChatPanel`, for example `suggestions` or
-`composerProps`. `threadListProps` go to the sidebar's `ChatThreadList`.
+`composerProps`. `threadListProps` go to the sidebar's `ChatThreadList`. Its `enableNewChat`,
+`threadNoun`, `enableCopyId`, `enableDeleteRunning` and `selectNextOnDelete` apply to the
+workspace's own New Chat buttons, header and messages too.
 
 ### Show the app's own conversation
 
@@ -256,7 +258,7 @@ from the app's own state.
 | `requestPanelProps` | `PanelProps` | Props for the `Panel` of a request open in the side panel - a document, a table or a chart - as `ChatSidePanel`'s `panelProps`. Its header is compact by default. Pass `compactHeader: false` for a full one. |
 | `chatPanelProps` | `ChatPanelProps` | Props for the conversation's `ChatPanel`. |
 | `conversationView` | `ReactNode \| () => ReactNode` | The app's own view of the conversation, in place of the `ChatPanel`. `chatPanelProps` does not apply. |
-| `threadListProps` | `ChatThreadListProps` | Props for the sidebar's `ChatThreadList`. |
+| `threadListProps` | `ChatThreadListProps` | Props for the sidebar's `ChatThreadList`. `enableNewChat`, `threadNoun`, `enableCopyId`, `enableDeleteRunning` and `selectNextOnDelete` apply to the workspace's own chrome too. |
 
 ### Landmarks
 

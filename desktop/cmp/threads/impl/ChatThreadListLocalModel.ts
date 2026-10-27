@@ -1,5 +1,5 @@
-import type {KeyboardEvent as ReactKeyboardEvent} from 'react';
-import {find, findIndex} from 'lodash';
+import type {KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent} from 'react';
+import {find, findIndex, includes} from 'lodash';
 import {HoistModel, lookup} from '@xh/hoist/core';
 import {action, bindable, computed, observable} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
@@ -9,6 +9,8 @@ import {
     getListedThreadIds,
     getThreadGroups
 } from '../../../impl/ChatThreadDelete';
+import {getThreadLabels, type ThreadLabels} from '../../../impl/ThreadLabels';
+import type {ChatThreadListProps} from '../ChatThreadList';
 
 /**
  * Local model for a ChatThreadList: the groups to show, the row being renamed, keyboard focus,
@@ -21,6 +23,16 @@ export class ChatThreadListLocalModel extends HoistModel {
 
     /** The threads the list shows. */
     @lookup(ChatThreadsModel) model: ChatThreadsModel;
+
+    /** The list's props. */
+    get props(): ChatThreadListProps {
+        return this.componentProps as ChatThreadListProps;
+    }
+
+    /** The word for a thread, in the list's text - see `ChatThreadListProps.threadNoun`. */
+    get labels(): ThreadLabels {
+        return getThreadLabels(this.props.threadNoun);
+    }
 
     /** Id of the thread whose title is being edited, or null. (observable) */
     @observable accessor renamingThreadId: string = null;
@@ -93,6 +105,29 @@ export class ChatThreadListLocalModel extends HoistModel {
         this.model.selectThreadAsync(threadId).catchDefault();
     }
 
+    /**
+     * A click on a row, or Enter on it: tell the app, then select the thread. Focus lands on the
+     * row, so that the row's keys work after a click on its link.
+     */
+    clickThread(thread: ChatThreadSummary) {
+        if (this.renamingThreadId === thread.id) return;
+        this.props.onThreadClick?.(thread);
+        this.focusRow(thread.id, false);
+        this.selectThread(thread.id);
+    }
+
+    /**
+     * A click with Meta, Ctrl or Shift on a row's link opens the thread in a new tab or window,
+     * and leaves the row. A plain click goes to the row. A middle click never reaches here.
+     */
+    onLinkClick = (e: ReactMouseEvent) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey) {
+            e.stopPropagation();
+            return;
+        }
+        e.preventDefault();
+    };
+
     setSearch(value: string) {
         this.model.search = value;
     }
@@ -136,10 +171,17 @@ export class ChatThreadListLocalModel extends HoistModel {
      * thread was open, that row's thread opens.
      */
     async deleteThreadAsync(thread: ChatThreadSummary) {
-        if (!this.canDelete) return;
-        const confirmed = await deleteThreadAsync(this.model, thread, nextId => {
-            if (nextId) this.focusRow(nextId);
-        });
+        if (!this.canDeleteThread(thread)) return;
+        const selectNext = this.props.selectNextOnDelete !== false,
+            wasSelected = this.model.selectedThreadId === thread.id,
+            confirmed = await deleteThreadAsync(this.model, thread, {
+                labels: this.labels,
+                selectNext,
+                // The next row takes focus, unless a new chat opens in the deleted thread's place.
+                onDeleting: nextId => {
+                    if (nextId && (selectNext || !wasSelected)) this.focusRow(nextId);
+                }
+            });
         if (!confirmed) this.focusRow(thread.id);
     }
 
@@ -159,6 +201,13 @@ export class ChatThreadListLocalModel extends HoistModel {
 
     get canDelete(): boolean {
         return this.model.canDelete;
+    }
+
+    /** True if the user may delete a thread now - see `ChatThreadListProps.enableDeleteRunning`. */
+    canDeleteThread(thread: ChatThreadSummary): boolean {
+        if (!this.canDelete) return false;
+        if (this.props.enableDeleteRunning !== false) return true;
+        return !includes(this.model.runningThreadIds, thread.id);
     }
 
     //------------------
@@ -187,7 +236,7 @@ export class ChatThreadListLocalModel extends HoistModel {
             case ' ':
                 if (!isOnRow) return;
                 e.preventDefault();
-                this.selectThread(threadId);
+                if (thread) this.clickThread(thread);
                 break;
             case 'F2':
                 e.preventDefault();

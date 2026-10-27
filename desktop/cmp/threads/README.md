@@ -120,6 +120,18 @@ chatThreadList({
 });
 ```
 
+### Link rows to a route
+
+Give `getThreadHref` the thread's deep link. Each row's title is then a link, so that a middle or
+modifier click opens the thread in a new tab. A plain click still selects it in place.
+
+```typescript
+chatThreadList({
+    model: threadsModel,
+    getThreadHref: thread => XH.router.buildUrl('default.chat.thread', {threadId: thread.id})
+});
+```
+
 ### Focus the search input from elsewhere
 
 Pass `searchInputRef`, as the workspace does from its rail's search button.
@@ -132,10 +144,18 @@ Pass `searchInputRef`, as the workspace does from its rail's search button.
 |----------|------|-------------|
 | `model` | `ChatThreadsModel` | The threads to list. Default a `ChatThreadsModel` in context. |
 | `topItems` | `ReactNode[]` | Items after New Chat. |
+| `enableNewChat` | `boolean` | False to hide New Chat, for an app that offers it elsewhere. `ChatWorkspace` hides its rail and header New Chat buttons too, but keeps New Chat on its "Thread not found" message and its keyboard shortcut. Default true. |
+| `onThreadClick` | `(thread) => void` | Called on a click or Enter on a row, before the thread is selected. Also for the thread already selected. |
+| `getThreadHref` | `(thread) => string` | A link for each row, such as its deep link. A middle or modifier click then opens the thread in a new tab. A plain click selects it. |
+| `threadNoun` | `string` | The word for a thread in the list's text, such as 'chat'. The plural adds an s. `ChatWorkspace` uses it too. Default 'thread'. |
+| `showTime` | `boolean` | False to hide each row's time. Default true. |
+| `enableCopyId` | `boolean` | False to leave Copy Thread ID out of the More menu. Default true. |
+| `enableDeleteRunning` | `boolean` | False to disable Delete for a thread whose turn runs, for a backend that refuses it. Default true. |
+| `selectNextOnDelete` | `boolean` | False to open a new chat when the open thread is deleted. Default true: the next thread in the list opens. |
 | `compact` | `boolean` | True for one line per thread: the title, then a short time. Default false: the title over the date and time. In a workspace, pass it in `threadListProps`. |
 | `newChatButtonProps` | `ButtonProps` | Props for the New Chat button, such as `intent`. Default outlined, with `intent: 'primary'`. `ChatWorkspace` applies them, less `text`, to its rail and header New Chat buttons too. |
 | `enableSearch` | `boolean` | False to hide the search input. Default true. |
-| `searchPlaceholder` | `string` | Placeholder for the search input. Default 'Search threads'. |
+| `searchPlaceholder` | `string` | Placeholder for the search input. Default 'Search threads', with `threadNoun`. |
 | `searchInputRef` | `Ref<HTMLInputElement>` | Ref to the search input's element. |
 
 It also takes Hoist's `BoxProps` for layout.
