@@ -66,8 +66,9 @@ export interface ChatThreadListProps extends HoistProps<ChatThreadsModel>, BoxPr
 
     /**
      * False for one plain list in the store's order, with no Today, Yesterday and older groups -
-     * for a sidebar with a heading of its own. Each row then shows its full date and time, as no
-     * heading names the day. Default true.
+     * for a sidebar with a heading of its own. As no heading names the day, a row then shows its
+     * full date and time, or in a compact list the weekday or date for a thread before today.
+     * Default true.
      */
     groupByRecency?: boolean;
 
@@ -440,9 +441,12 @@ function rowActions(
                 ...rowMenuProps,
                 menuItems: () => moreMenuItems(impl, thread),
                 popoverProps: {
-                    // Clear of the button, so that the menu does not cover the next row.
-                    modifiers: {offset: {enabled: true, options: {offset: [0, 4]}}},
                     ...rowMenuProps?.popoverProps,
+                    // Clear of the button, so that the menu does not cover the next row.
+                    modifiers: {
+                        offset: {enabled: true, options: {offset: [0, 4]}},
+                        ...rowMenuProps?.popoverProps?.modifiers
+                    },
                     onOpening: node => {
                         rowMenuProps?.popoverProps?.onOpening?.(node);
                         impl.setMenuThreadId(thread.id);
@@ -559,20 +563,22 @@ const STATUS_TIPS: Partial<Record<RowStatus, string>> = {
 /** A row's time: the time of day for today and yesterday, the weekday this week, else the date. */
 /**
  * The time of a thread's last activity, in Hoist's formats. A compact row has room only for the
- * time of day for today and yesterday, the weekday within a week, else the date. A full row shows
- * the date and time, with the year for a date in another year - or, under a Today or Yesterday
- * heading, which already names the day, the time alone.
+ * time of day for today, and for yesterday under a Yesterday heading, the weekday within a week,
+ * else the date. A full row shows the date and time, with the year for a date in another year -
+ * or, under a Today or Yesterday heading, which already names the day, the time alone. A row in
+ * no recency group, as in search results or a plain list, has no heading to name its day.
  */
 function fmtRowTime(timestamp: number, compact: boolean, groupKey: ChatThreadGroupKey): string {
     if (timestamp == null) return null;
     const day = LocalDate.from(timestamp),
-        today = LocalDate.today();
+        today = LocalDate.today(),
+        isUnderDayHeading = groupKey === 'today' || groupKey === 'yesterday';
     let fmt: string;
-    if (!compact && (groupKey === 'today' || groupKey === 'yesterday')) {
+    if (!compact && isUnderDayHeading) {
         fmt = TIME_FMT;
     } else if (compact) {
         fmt =
-            day >= today.subtract(1, 'day')
+            day >= today || (isUnderDayHeading && day >= today.subtract(1, 'day'))
                 ? TIME_FMT
                 : day > today.subtract(7, 'days')
                   ? 'ddd'

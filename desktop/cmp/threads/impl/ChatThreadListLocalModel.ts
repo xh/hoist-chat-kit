@@ -1,10 +1,11 @@
 import type {KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent} from 'react';
-import {find, findIndex, includes} from 'lodash';
+import {find, findIndex} from 'lodash';
 import {HoistModel, lookup} from '@xh/hoist/core';
 import {action, bindable, computed, observable} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {type ChatThreadGroup, ChatThreadsModel, type ChatThreadSummary} from '../../../../threads';
 import {
+    canDeleteThreadNow,
     deleteThreadAsync,
     getListedThreadIds,
     getThreadGroups
@@ -211,9 +212,7 @@ export class ChatThreadListLocalModel extends HoistModel {
 
     /** True if the user may delete a thread now - see `ChatThreadListProps.enableDeleteRunning`. */
     canDeleteThread(thread: ChatThreadSummary): boolean {
-        if (!this.canDelete) return false;
-        if (this.props.enableDeleteRunning !== false) return true;
-        return !includes(this.model.runningThreadIds, thread.id);
+        return canDeleteThreadNow(this.model, thread, this.props.enableDeleteRunning);
     }
 
     //------------------

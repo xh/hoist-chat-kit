@@ -6,7 +6,7 @@ import {Icon} from '@xh/hoist/icon';
 import '../../../styles/vars.scss';
 import './ChatErrorBoundary.scss';
 
-/** Props for {@link chatErrorBoundary}. */
+/** Props for {@link ChatErrorBoundary}. */
 export interface ChatErrorBoundaryProps extends HoistProps<ErrorBoundaryModel> {
     /** What could not be displayed, named in the fallback. Default 'part'. */
     subject?: 'message' | 'part';
@@ -25,7 +25,7 @@ export interface ChatErrorBoundaryProps extends HoistProps<ErrorBoundaryModel> {
  * each message and part in one. An app can wrap a kit component it hosts outside the message
  * list the same way.
  */
-export const chatErrorBoundary = hoistCmp.factory<ChatErrorBoundaryProps>({
+export const [ChatErrorBoundary, chatErrorBoundary] = hoistCmp.withFactory<ChatErrorBoundaryProps>({
     displayName: 'ChatErrorBoundary',
     model: creates(ErrorBoundaryModel, {publishMode: 'none'}),
 

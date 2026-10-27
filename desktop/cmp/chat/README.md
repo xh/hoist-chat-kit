@@ -120,7 +120,7 @@ Details disclosure. Hoist's exception handler logs the error, with no alert. A s
 failed renders again when its state changes, for example when its input completes. A data part
 renders again when it is replaced.
 
-The boundary is `chatErrorBoundary`, with a `subject` of `message` or `part` and a `resetKey`.
+The boundary is `ChatErrorBoundary`, with a `subject` of `message` or `part` and a `resetKey`.
 An app that hosts a kit component outside the message list can wrap it the same way.
 
 ### Scroll behavior
@@ -1021,8 +1021,8 @@ Use it directly only for a list of your own.
 | `ChatScopeChip` | `documents`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip` | Scope the next question to some documents. Default binds `runOptions.documentIds`. |
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |
 | `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |
-| `chatCopyButton` | `getCopyText`, `showText`, `label` | Copy text, confirming in place with a check for a moment. No `ChatModel` needed. |
-| `chatErrorBoundary` | `subject`, `resetKey` | Catch a render error in a kit component you host yourself, as the message list does for each part. |
+| `ChatCopyButton` | `getCopyText`, `showText`, `label` | Copy text, confirming in place with a check for a moment. No `ChatModel` needed. |
+| `ChatErrorBoundary` | `subject`, `resetKey` | Catch a render error in a kit component you host yourself, as the message list does for each part. |
 
 ## Theming
 

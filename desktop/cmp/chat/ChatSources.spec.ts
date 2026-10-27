@@ -21,6 +21,17 @@ import {ChatSources, chatSources} from './ChatSources';
  * Apps rely on a source list that loads no image.
  */
 describe('sources and citations', () => {
+    beforeAll(() => initTestAppAsync());
+
+    let open: ReturnType<typeof vi.fn>;
+    beforeEach(() => {
+        vi.stubGlobal('ResizeObserver', NoopResizeObserver);
+        Element.prototype.scrollTo ??= () => {};
+        Element.prototype.scrollIntoView ??= () => {};
+        open = vi.fn();
+        vi.stubGlobal('open', open);
+    });
+
     it("shows a source's own meta line, and the list's own title", () => {
         const appModel = new PlainAppModel();
         onTestFinished(() => appModel.destroy());
@@ -48,17 +59,6 @@ describe('sources and citations', () => {
         expect(screen.getByText('Policy')).toBeTruthy();
         expect(screen.queryByText(/x\.pdf/)).toBeNull();
         expect(screen.getByText('fallback.pdf · p. 7')).toBeTruthy();
-    });
-
-    beforeAll(() => initTestAppAsync());
-
-    let open: ReturnType<typeof vi.fn>;
-    beforeEach(() => {
-        vi.stubGlobal('ResizeObserver', NoopResizeObserver);
-        Element.prototype.scrollTo ??= () => {};
-        Element.prototype.scrollIntoView ??= () => {};
-        open = vi.fn();
-        vi.stubGlobal('open', open);
     });
     afterEach(() => {
         vi.unstubAllGlobals();

@@ -282,11 +282,6 @@
   }
 
   &--compact &__skeleton-row {
-    box-sizing: border-box;
-    height: var(--xh-chat-sidebar-row-height);
-    border: 8px solid transparent;
-    border-left: 0;
-    border-right: 0;
-    background-clip: padding-box;
+    margin: calc((var(--xh-chat-sidebar-row-height) - 12px) / 2) 0;
   }
 }

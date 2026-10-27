@@ -79,6 +79,22 @@ export async function deleteThreadAsync(
 }
 
 /**
+ * True if the user may delete a thread now: the store can delete, and either the list allows a
+ * delete while the thread's turn runs, or no turn runs - see
+ * `ChatThreadListProps.enableDeleteRunning`.
+ * @internal
+ */
+export function canDeleteThreadNow(
+    threadsModel: ChatThreadsModel,
+    thread: ChatThreadSummary,
+    enableDeleteRunning: boolean
+): boolean {
+    if (!threadsModel.canDelete) return false;
+    if (enableDeleteRunning !== false) return true;
+    return !threadsModel.runningThreadIds.includes(thread.id);
+}
+
+/**
  * The Delete item of a thread's menu, for the list's row menu and the workspace's header menu.
  * Disabled, it says why on hover: Hoist menu items take no tooltip, but the label is a node.
  * @internal

@@ -32,7 +32,7 @@ import {
 } from '../chat';
 import {chatThreadList, type ChatThreadListProps} from '../threads';
 import type {ChatThreadsModel} from '../../../threads';
-import {deleteMenuItem, deleteThreadAsync} from '../../impl/ChatThreadDelete';
+import {canDeleteThreadNow, deleteMenuItem, deleteThreadAsync} from '../../impl/ChatThreadDelete';
 import {ChatWorkspaceModel} from './ChatWorkspaceModel';
 import './ChatWorkspace.scss';
 import {ChatWorkspaceLocalModel} from './impl/ChatWorkspaceLocalModel';
@@ -372,8 +372,11 @@ function threadMenuItems(model: ChatWorkspaceModel, list: ListOptions): MenuItem
     if (!summary) return [];
 
     // The list's row options apply here too - see `ChatThreadListProps`.
-    const isRunning = threadsModel.runningThreadIds.includes(summary.id),
-        canDeleteNow = threadListProps?.enableDeleteRunning !== false || !isRunning;
+    const canDeleteNow = canDeleteThreadNow(
+        threadsModel,
+        summary,
+        threadListProps?.enableDeleteRunning
+    );
     return [
         {
             ...clipboardMenuItem({

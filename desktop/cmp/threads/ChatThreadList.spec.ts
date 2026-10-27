@@ -218,6 +218,15 @@ describe('ChatThreadList', () => {
         expect(rowTitles()).toEqual(['Budget review', 'Travel', 'Old notes', 'Old plan']);
     });
 
+    it('names the day of a row before today in a compact plain list, as no heading does', async () => {
+        await renderList({props: {compact: true, groupByRecency: false}});
+
+        const timeOf = (title: string) =>
+            row(title).querySelector('.xh-chat-thread-list__time').textContent;
+        expect(timeOf('Budget review')).toBe(fmtDate(NOW, 'h:mma'));
+        expect(timeOf('Travel')).toBe(fmtDate(NOW - DAY, 'ddd'));
+    });
+
     it("gives each row's More menu the rowMenuProps, and still tracks the open menu", async () => {
         const onOpening = vi.fn();
         await renderList({

@@ -4,7 +4,7 @@ import {Icon} from '@xh/hoist/icon';
 import {action, observable} from '@xh/hoist/mobx';
 import {copyToClipboard} from '@xh/hoist/utils/js';
 
-/** Props for {@link chatCopyButton}. */
+/** Props for {@link ChatCopyButton}. */
 export interface ChatCopyButtonProps extends HoistProps {
     /** Function returning the text to copy. */
     getCopyText: () => string;
@@ -22,7 +22,7 @@ export interface ChatCopyButtonProps extends HoistProps {
  * message actions, code blocks and side panel use it. It needs no `ChatModel`, so an app can put
  * it in a message footer of its own.
  */
-export const chatCopyButton = hoistCmp.factory<ChatCopyButtonProps>({
+export const [ChatCopyButton, chatCopyButton] = hoistCmp.withFactory<ChatCopyButtonProps>({
     displayName: 'ChatCopyButton',
     className: 'xh-chat-copy-button',
 
