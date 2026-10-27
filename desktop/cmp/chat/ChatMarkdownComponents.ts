@@ -11,10 +11,10 @@ import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/co
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {fmtNumber} from '@xh/hoist/format';
 import {action, observable} from '@xh/hoist/mobx';
-import {type ChatMarkdownComponents, useChatMarkdownStreaming} from '../../../../cmp/markdown';
-import {ChatKit} from '../../../../core';
-import {chatUiFrame} from '../../genui/ChatUiFrame';
-import {chatCodeBlock} from '../ChatCodeBlock';
+import {type ChatMarkdownComponents, useChatMarkdownStreaming} from '../../../cmp/markdown';
+import {ChatKit} from '../../../core';
+import {chatUiFrame} from '../genui/ChatUiFrame';
+import {chatCodeBlock} from './ChatCodeBlock';
 
 // Markdown renders a fenced code block as `pre > code.language-xyz`. Swap the `pre` for a
 // ChatCodeBlock, reading the code and its language from the inner `code` element. A block that

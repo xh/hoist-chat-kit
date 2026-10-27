@@ -61,7 +61,8 @@ import {
     createPrompt,
     formatTag
 } from './impl/catalogPrompt';
-import {chatUiElementBoundary, chatUiFallback, chatUiPlaceholder} from './impl/ChatUiFallback';
+import {chatUiFallback, chatUiPlaceholder} from './ChatUiFallback';
+import {chatUiElementBoundary} from './impl/ChatUiElementBoundary';
 import {
     elementPath,
     findDanglingRefs,

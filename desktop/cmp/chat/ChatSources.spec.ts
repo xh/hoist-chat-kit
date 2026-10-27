@@ -34,8 +34,10 @@ describe('sources and citations', () => {
                             ...doc(1),
                             metadata: {meta: ['Section 4', 'June 2026'], fileName: 'x.pdf'}
                         },
-                        {...doc(2), metadata: {meta: 'Policy'}}
-                    ]
+                        {...doc(2), metadata: {meta: 'Policy'}},
+                        {...doc(3), metadata: {meta: [], fileName: 'fallback.pdf', page: 7}}
+                    ],
+                    visibleRows: null
                 })
             })
         );
@@ -45,6 +47,7 @@ describe('sources and citations', () => {
         expect(screen.getByText('Section 4 · June 2026')).toBeTruthy();
         expect(screen.getByText('Policy')).toBeTruthy();
         expect(screen.queryByText(/x\.pdf/)).toBeNull();
+        expect(screen.getByText('fallback.pdf · p. 7')).toBeTruthy();
     });
 
     beforeAll(() => initTestAppAsync());

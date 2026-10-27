@@ -30,9 +30,9 @@ import {
     type ChatSidePanelProps,
     chatSpinner
 } from '../chat';
-import {chatThreadList, type ChatThreadListProps, deleteMenuItem} from '../threads';
+import {chatThreadList, type ChatThreadListProps} from '../threads';
 import type {ChatThreadsModel} from '../../../threads';
-import {deleteThreadAsync} from '../../impl/ChatThreadDelete';
+import {deleteMenuItem, deleteThreadAsync} from '../../impl/ChatThreadDelete';
 import {ChatWorkspaceModel} from './ChatWorkspaceModel';
 import './ChatWorkspace.scss';
 import {ChatWorkspaceLocalModel} from './impl/ChatWorkspaceLocalModel';
@@ -389,7 +389,7 @@ function threadMenuItems(model: ChatWorkspaceModel, list: ListOptions): MenuItem
         deleteMenuItem(threadsModel.canDelete, canDeleteNow, () =>
             deleteThreadAsync(threadsModel, summary, {
                 labels,
-                groupByRecency: threadListProps?.groupByRecency !== false,
+                groupByRecency: threadListProps?.groupByRecency,
                 selectNext: threadListProps?.selectNextOnDelete !== false,
                 onDeleting: () => wait().then(() => threadsModel.chatModel?.composerModel?.focus())
             }).catchDefault()

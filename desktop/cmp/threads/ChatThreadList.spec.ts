@@ -218,13 +218,18 @@ describe('ChatThreadList', () => {
         expect(rowTitles()).toEqual(['Budget review', 'Travel', 'Old notes', 'Old plan']);
     });
 
-    it("gives each row's More menu the rowMenuProps", async () => {
-        await renderList({props: {rowMenuProps: {menuClassName: 'my-menu'}}});
+    it("gives each row's More menu the rowMenuProps, and still tracks the open menu", async () => {
+        const onOpening = vi.fn();
+        await renderList({
+            props: {rowMenuProps: {menuClassName: 'my-menu', popoverProps: {onOpening}}}
+        });
 
         fireEvent.click(within(row('Travel')).getByRole('button', {name: 'More'}));
         await screen.findByText('Delete...');
 
         expect(document.querySelector('.my-menu')).toBeTruthy();
+        expect(onOpening).toHaveBeenCalledTimes(1);
+        expect(row('Travel').classList).toContain('xh-chat-thread-list__row--menu-open');
     });
 
     it('hides the time with showTime false', async () => {

@@ -1,5 +1,6 @@
 import {flatMap} from 'lodash';
-import {XH} from '@xh/hoist/core';
+import {span} from '@xh/hoist/cmp/layout';
+import {type MenuItem, XH} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
 import {
     type ChatThreadGroup,
@@ -78,13 +79,36 @@ export async function deleteThreadAsync(
 }
 
 /**
+ * The Delete item of a thread's menu, for the list's row menu and the workspace's header menu.
+ * Disabled, it says why on hover: Hoist menu items take no tooltip, but the label is a node.
+ * @internal
+ */
+export function deleteMenuItem(
+    canDelete: boolean,
+    canDeleteNow: boolean,
+    actionFn: () => void
+): MenuItem {
+    return {
+        text: canDeleteNow ? 'Delete...' : span({title: DELETE_RUNNING_TIP, item: 'Delete...'}),
+        icon: Icon.delete(),
+        intent: 'danger',
+        omit: !canDelete,
+        disabled: !canDeleteNow,
+        actionFn
+    };
+}
+
+/** Why Delete is disabled while a thread's turn runs - see `enableDeleteRunning`. */
+const DELETE_RUNNING_TIP = 'A reply is in progress. Wait for it to end, then delete.';
+
+/**
  * The groups a thread list shows: one group of results while searching, else groups by recency -
  * or one plain group, with no label, when `groupByRecency` is false.
  * @internal
  */
 export function getThreadGroups(
     threadsModel: ChatThreadsModel,
-    groupByRecency: boolean = true
+    groupByRecency: boolean
 ): ChatThreadGroup[] {
     const {threads} = threadsModel;
     if (!threads.length) return [];
@@ -101,7 +125,7 @@ export function getThreadGroups(
  */
 export function getListedThreadIds(
     threadsModel: ChatThreadsModel,
-    groupByRecency: boolean = true
+    groupByRecency: boolean
 ): string[] {
     return flatMap(getThreadGroups(threadsModel, groupByRecency), it =>
         it.threads.map(thread => thread.id)

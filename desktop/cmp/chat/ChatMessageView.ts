@@ -82,7 +82,7 @@ import {
 } from './impl/groupParts';
 import {ChatSourceLinks, findSidePanel} from './impl/ChatSourceLinks';
 import {jsonView} from './impl/JsonView';
-import {useChatMarkdownComponents} from './impl/MarkdownComponents';
+import {useChatMarkdownComponents} from './ChatMarkdownComponents';
 import {formatFailureDetails, getFailureCause, isReplyNotSent} from './impl/ReplyFailure';
 
 /**

@@ -8,7 +8,7 @@ export * from './ChatEmptyState';
 export * from './ChatErrorBoundary';
 export * from './ChatFileChip';
 export * from './ChatMessageList';
-export {CHAT_MARKDOWN_COMPONENTS} from './impl/MarkdownComponents';
+export {CHAT_MARKDOWN_COMPONENTS} from './ChatMarkdownComponents';
 export * from './ChatMessageView';
 export * from './ChatNoAnswer';
 export * from './ChatPanel';

@@ -19,6 +19,7 @@ import {Icon} from '@xh/hoist/icon';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {getTestId} from '@xh/hoist/utils/js';
 import {classNames} from '../../../impl/ClassNames';
+import {deleteMenuItem} from '../../impl/ChatThreadDelete';
 import {getThreadLabels, type ThreadLabels} from '../../impl/ThreadLabels';
 import {chatSpinner} from '../chat';
 import '../../../styles/vars.scss';
@@ -65,7 +66,8 @@ export interface ChatThreadListProps extends HoistProps<ChatThreadsModel>, BoxPr
 
     /**
      * False for one plain list in the store's order, with no Today, Yesterday and older groups -
-     * for a sidebar with a heading of its own. Default true.
+     * for a sidebar with a heading of its own. Each row then shows its full date and time, as no
+     * heading names the day. Default true.
      */
     groupByRecency?: boolean;
 
@@ -441,8 +443,14 @@ function rowActions(
                     // Clear of the button, so that the menu does not cover the next row.
                     modifiers: {offset: {enabled: true, options: {offset: [0, 4]}}},
                     ...rowMenuProps?.popoverProps,
-                    onOpening: () => impl.setMenuThreadId(thread.id),
-                    onClosed: () => impl.setMenuThreadId(null)
+                    onOpening: node => {
+                        rowMenuProps?.popoverProps?.onOpening?.(node);
+                        impl.setMenuThreadId(thread.id);
+                    },
+                    onClosed: node => {
+                        rowMenuProps?.popoverProps?.onClosed?.(node);
+                        impl.setMenuThreadId(null);
+                    }
                 }
             })
         ]
@@ -473,25 +481,6 @@ function moreMenuItems(impl: ChatThreadListLocalModel, thread: ChatThreadSummary
         )
     ];
 }
-
-/**
- * The Delete item of a thread's menu. Disabled, it says why on hover: Hoist menu items take no
- * tooltip, but the label is a node.
- * @internal
- */
-export function deleteMenuItem(canDelete: boolean, canDeleteNow: boolean, actionFn: () => void) {
-    return {
-        text: canDeleteNow ? 'Delete...' : span({title: DELETE_RUNNING_TIP, item: 'Delete...'}),
-        icon: Icon.delete(),
-        intent: 'danger' as const,
-        omit: !canDelete,
-        disabled: !canDeleteNow,
-        actionFn
-    };
-}
-
-/** Why Delete is disabled while a thread's turn runs - see `enableDeleteRunning`. */
-const DELETE_RUNNING_TIP = 'A reply is in progress. Wait for it to end, then delete.';
 
 function renameInput(impl: ChatThreadListLocalModel, view: ListView): ReactNode {
     // Blur saves, as Enter does. Esc ends the rename before the input blurs.

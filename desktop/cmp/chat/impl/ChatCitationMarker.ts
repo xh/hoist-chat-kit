@@ -1,4 +1,4 @@
-import {compact, isArray} from 'lodash';
+import {castArray, compact} from 'lodash';
 import type {FocusEvent, KeyboardEvent, MouseEvent, ReactNode} from 'react';
 import {useLayoutEffect} from 'react';
 import {span} from '@xh/hoist/cmp/layout';
@@ -445,8 +445,8 @@ export function excerptText(excerpt: string, passage: string, className: string)
  * @internal
  */
 export function getSourceMeta(source: ChatSourcePart): string[] {
-    const {meta} = source.metadata ?? {};
-    if (meta != null) return compact(isArray(meta) ? meta : [meta]).map(String);
+    const own = compact(castArray(source.metadata?.meta)).map(String);
+    if (own.length) return own;
     if (getSourceType(source) === 'url') return compact([formatHost(source.url)]);
     const page = getSourcePage(source);
     return compact([getSourceFileName(source), page != null ? `p. ${page}` : null]);

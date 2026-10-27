@@ -6,7 +6,7 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it} from 'vitest';
 import {chatMarkdown} from '../../../cmp/markdown';
 import {chatCodeBlock} from './ChatCodeBlock';
-import {CHAT_MARKDOWN_COMPONENTS} from './impl/MarkdownComponents';
+import {CHAT_MARKDOWN_COMPONENTS} from './ChatMarkdownComponents';
 
 /**
  * A long code block collapses to its first 20 lines. Users rely on the count in "Show N more

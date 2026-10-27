@@ -7,4 +7,4 @@ export * from './ChatUiCatalog';
 export * from './ChatUiComponentSpec';
 export * from './ChatUiDocument';
 export * from './ChatUiTextSegment';
-export {chatUiFallback, chatUiPlaceholder} from './impl/ChatUiFallback';
+export * from './ChatUiFallback';
