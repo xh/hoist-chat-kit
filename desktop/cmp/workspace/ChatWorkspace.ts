@@ -1,7 +1,7 @@
 import type {CSSProperties, ReactNode} from 'react';
 import {isFunction, isString, omit} from 'lodash';
 import {clipboardMenuItem} from '@xh/hoist/cmp/clipboard';
-import {errorMessage} from '@xh/hoist/cmp/error';
+import {errorMessage, type ErrorMessageProps} from '@xh/hoist/cmp/error';
 import {div, filler, nav, placeholder, span, vframe} from '@xh/hoist/cmp/layout';
 import {mask} from '@xh/hoist/cmp/mask';
 import {
@@ -19,7 +19,7 @@ import {panel, type PanelProps} from '@xh/hoist/desktop/cmp/panel';
 import {Icon} from '@xh/hoist/icon';
 import {popover} from '@xh/hoist/kit/blueprint';
 import {wait} from '@xh/hoist/promise';
-import {getTestId} from '@xh/hoist/utils/js';
+import {getTestId, throwIf} from '@xh/hoist/utils/js';
 import {useComposedRefs} from '@xh/hoist/utils/react';
 import {classNames} from '../../../impl/ClassNames';
 import '../../../styles/vars.scss';
@@ -31,6 +31,7 @@ import {
     chatSpinner
 } from '../chat';
 import {chatThreadList, type ChatThreadListProps} from '../threads';
+import type {ChatThreadsModel} from '../../../threads';
 import {deleteThreadAsync} from '../../impl/ChatThreadDelete';
 import {ChatWorkspaceModel} from './ChatWorkspaceModel';
 import './ChatWorkspace.scss';
@@ -395,6 +396,10 @@ function conversation(
 ): ReactNode {
     const {threadsModel} = model,
         {chatModel, loadError} = threadsModel;
+    throwIf(
+        !chatModel && threadsModel.conversation,
+        'ChatWorkspace needs a conversationView to show a conversation from createConversation.'
+    );
     if (!chatModel) return null;
 
     // A thread the store reports missing, as from a deep link, offers a new chat in its place.
@@ -420,14 +425,7 @@ function conversation(
         testId: getTestId(testId, 'chat'),
         ...chatPanelProps,
         emptyState:
-            loadError && chatModel.isEmpty
-                ? errorMessage({
-                      error: loadError,
-                      title: "Couldn't load this thread",
-                      actionFn: () => threadsModel.reloadThreadAsync(),
-                      actionButtonProps: {text: 'Retry', icon: Icon.refresh()}
-                  })
-                : chatPanelProps?.emptyState
+            loadError && chatModel.isEmpty ? loadFailed(threadsModel) : chatPanelProps?.emptyState
     });
 }
 
@@ -446,14 +444,10 @@ function appConversation(
     if (isThreadNotFound) {
         message = notFound(impl, 'notFound', testId);
     } else if (loadError) {
-        message = errorMessage({
+        message = loadFailed(threadsModel, {
             key: 'loadError',
             className: 'xh-chat-workspace__load-error',
-            testId: getTestId(testId, 'loadError'),
-            error: loadError,
-            title: "Couldn't load this thread",
-            actionFn: () => threadsModel.reloadThreadAsync(),
-            actionButtonProps: {text: 'Retry', icon: Icon.refresh()}
+            testId: getTestId(testId, 'loadError')
         });
     }
 
@@ -471,6 +465,20 @@ function appConversation(
             item: isFunction(conversationView) ? conversationView() : conversationView
         })
     ];
+}
+
+/** The selected thread's failed load, with Retry. */
+function loadFailed(
+    threadsModel: ChatThreadsModel,
+    props: ErrorMessageProps & {key?: string} = {}
+): ReactNode {
+    return errorMessage({
+        error: threadsModel.loadError,
+        title: "Couldn't load this thread",
+        actionFn: () => threadsModel.reloadThreadAsync(),
+        actionButtonProps: {text: 'Retry', icon: Icon.refresh()},
+        ...props
+    });
 }
 
 /** "Thread not found", with New Chat, for a thread the store reports missing. */

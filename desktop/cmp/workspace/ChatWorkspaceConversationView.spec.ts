@@ -33,6 +33,22 @@ describe('ChatWorkspace with a conversation view', () => {
         );
     });
 
+    it("throws without a view for a conversation of the app's own", async () => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+        onTestFinished(() => consoleError.mockRestore());
+        const threadsModel = new ChatThreadsModel({
+                store: new LocalChatThreadStore({threads: THREADS}),
+                createConversation: ({threadId}) => new TestConversation(threadId)
+            }),
+            model = new ChatWorkspaceModel({threadsModel});
+        onTestFinished(() => {
+            model.destroy();
+            threadsModel.destroy();
+        });
+
+        expect(() => render(chatWorkspace({model}))).toThrow('conversationView');
+    });
+
     it("shows the app's view in place of a chat panel, beside the thread list", async () => {
         const {threadsModel} = await renderWorkspaceAsync();
         await act(() => threadsModel.selectThreadAsync('t1'));

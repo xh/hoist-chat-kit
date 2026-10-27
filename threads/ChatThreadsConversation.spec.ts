@@ -5,12 +5,12 @@ import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatKit} from '../core';
-import type {ChatConversation, ChatConversationSpec} from './ChatConversation';
-import {
-    type ChatThreadEndedEarly,
-    type ChatThreadsConfig,
-    ChatThreadsModel
-} from './ChatThreadsModel';
+import type {
+    ChatConversation,
+    ChatConversationEndedEarly,
+    ChatConversationSpec
+} from './ChatConversation';
+import {type ChatThreadsConfig, ChatThreadsModel} from './ChatThreadsModel';
 import {LocalChatThreadStore} from '../test/support/LocalChatThreadStore';
 
 /**
@@ -196,6 +196,20 @@ describe('ChatThreadsModel with an app conversation', () => {
             expect(model.finishedAwayThreadIds).toEqual([]);
         });
 
+        it('marks nothing for a turn the user cancelled away, and closes its conversation', async () => {
+            const {model, conversations} = setup();
+            await selectAsync(model, conversations, 't1');
+            const [first] = conversations;
+            first.set({isBusy: true});
+            await selectAsync(model, conversations, 't2');
+
+            first.set({isBusy: false, endedEarly: {runEnd: 'cancelled', reason: null}});
+
+            expect(model.finishedAwayThreadIds).toEqual([]);
+            expect(model.endedEarlyThreads).toEqual({});
+            expect(first.isDestroyed).toBe(true);
+        });
+
         it('keeps a conversation that waits for the user open, and lists it as awaiting', async () => {
             const {model, conversations} = setup();
             await selectAsync(model, conversations, 't1');
@@ -305,6 +319,33 @@ describe('ChatThreadsModel with an app conversation', () => {
 
             expect(clearLocalData).not.toHaveBeenCalled();
         });
+
+        it('leaves a new thread unsaved after a cancelled turn, for a conversation with no isSaved', () => {
+            const clearLocalData = spyClearLocalData(),
+                {model, conversations} = setup();
+            model.newThread();
+            const [first] = conversations;
+            first.set({isBusy: true});
+            first.set({isBusy: false, endedEarly: {runEnd: 'cancelled'}});
+
+            model.newThread();
+
+            expect(clearLocalData).toHaveBeenCalledWith([first.threadId]);
+        });
+
+        it('takes a null isSaved as left out', () => {
+            const clearLocalData = spyClearLocalData(),
+                {model, conversations} = setup();
+            model.newThread();
+            const [first] = conversations;
+            first.set({isSaved: null});
+            first.set({isBusy: true});
+            first.set({isBusy: false});
+
+            model.newThread();
+
+            expect(clearLocalData).not.toHaveBeenCalled();
+        });
     });
 
     describe('deletes', () => {
@@ -340,7 +381,7 @@ class TestConversation extends HoistBase implements ChatConversation {
     @observable accessor isBusy = false;
     @observable accessor isAwaitingUser = false;
     @observable accessor isSaved: boolean = undefined;
-    @observableRef accessor endedEarly: ChatThreadEndedEarly = null;
+    @observableRef accessor endedEarly: ChatConversationEndedEarly = null;
     title: string = null;
 
     loadCalls = 0;

@@ -68,8 +68,8 @@ export class OpenThread extends HoistBase {
 
         // A chat adopts the backend's id before its reply moves to streaming, in the same flush,
         // so the thread is re-keyed before it counts as saved.
-        // A conversation of the app's own reports it through `isSaved`, which this copies after
-        // the reactions above, so that an id it adopts in the same action is re-keyed first.
+        // A conversation of the app's own reports it through `isSaved`. An id it adopts before,
+        // or in the same action as, it turns saved is re-keyed before the route reacts to either.
         const {chatModel} = this;
         if (chatModel) {
             this.addReaction({

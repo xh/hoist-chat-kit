@@ -42,17 +42,23 @@ export interface ChatConversation {
     /**
      * True once the backend has the thread - for a new thread, once its first turn reached the
      * backend. The threads model then puts the thread in the route. Once true, a thread stays
-     * saved until its id changes while idle. Leave it out to count a new thread saved when its
-     * first turn ends. A thread opened to load its history counts as saved from the start.
-     * (observable)
+     * saved until its id changes while idle. Leave it out, or null, to count a new thread saved
+     * when its first turn ends. A thread opened to load its history counts as saved from the
+     * start. (observable)
+     *
+     * A conversation that adopts the backend's id must change `threadId` before, or in the same
+     * action as, it turns this true. Otherwise the route holds the browser's id for a moment.
      */
     readonly isSaved?: boolean;
 
     /**
-     * How the last turn ended, if it failed or the server cut it short, else null. A thread list
-     * marks a thread whose turn ended so in the background. Default null. (observable)
+     * How the last turn ended, if not with a reply to see, else null. A thread list marks a
+     * thread whose turn `failed` or was `interrupted` in the background. A turn the user's own
+     * action stopped, such as a switch to another thread in a library that cancels the reply, is
+     * `cancelled`, and gets no mark. Without this, a turn that ends in the background counts as
+     * a new reply. Default null. (observable)
      */
-    readonly endedEarly?: ChatThreadEndedEarly;
+    readonly endedEarly?: ChatConversationEndedEarly;
 
     /**
      * Title for a new thread until the store lists it, such as the start of its first question.
@@ -77,6 +83,19 @@ export interface ChatConversation {
     destroy(): void;
 }
 
+/**
+ * How a conversation's last turn ended, if not with a reply to see - see
+ * {@link ChatConversation.endedEarly}. A thread list marks a `failed` or `interrupted` turn, as
+ * {@link ChatThreadEndedEarly}. A `cancelled` turn gets no mark.
+ */
+export type ChatConversationEndedEarly =
+    | ChatThreadEndedEarly
+    | {
+          /** The user's own action stopped the turn, such as a switch to another thread. */
+          runEnd: 'cancelled';
+          reason?: string;
+      };
+
 /** Passed to `ChatThreadsConfig.createChatModel` and `ChatThreadsConfig.createConversation`. */
 export interface ChatConversationSpec {
     /** Id of the thread. The chat or conversation must take it as its `threadId`. */
@@ -90,7 +109,7 @@ export interface ChatConversationSpec {
      * model applies it to a `ChatModel` itself. A conversation of an app's own applies what it
      * can.
      */
-    seed: ChatSeedSpec;
+    seed?: ChatSeedSpec;
 }
 
 /** How to start a new thread - see {@link ChatThreadsModel.newThread}. */

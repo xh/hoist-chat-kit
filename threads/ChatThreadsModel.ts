@@ -17,7 +17,12 @@ import {action, bindable, computed, observable, observableRef} from '@xh/hoist/m
 import {debounced, throwIf} from '@xh/hoist/utils/js';
 import {ChatKit, type ChatModel} from '../core';
 import {genChatId} from '../impl/ids';
-import type {ChatConversation, ChatConversationSpec, ChatSeedSpec} from './ChatConversation';
+import type {
+    ChatConversation,
+    ChatConversationEndedEarly,
+    ChatConversationSpec,
+    ChatSeedSpec
+} from './ChatConversation';
 import type {ChatThreadPage, ChatThreadStore, ChatThreadSummary} from './ChatThreadStore';
 import {ChatModelConversation} from './impl/ChatModelConversation';
 import {ChatModelDrafts} from './impl/ChatModelDrafts';
@@ -194,8 +199,8 @@ export class ChatThreadsModel extends HoistModel {
     @observableRef accessor finishedAwayThreadIds: string[] = [];
 
     /**
-     * Threads whose last run ended early, by thread id: failed, or interrupted or cancelled by the
-     * server. A thread list marks each row. Two sources feed it:
+     * Threads whose last run ended early, by thread id: failed, or cut short by the server. A
+     * thread list marks each row. Two sources feed it:
      *
      *  - A turn that ended early in the background, in this session. The mark holds until the user
      *    opens the thread, or a new turn starts in it.
@@ -544,9 +549,9 @@ export class ChatThreadsModel extends HoistModel {
             thread.resetLoad();
             // A cleared chat holds a thread the backend has not seen. Loaded history with a user
             // message is saved - a greeting alone is not. A conversation of the app's own says
-            // through its `isSaved`.
+            // through its `isSaved`, or holds a loaded thread if it leaves that out.
             thread.setSaved(
-                chatModel ? some(chatModel.messages, 'isUser') : !!conversation.isSaved
+                chatModel ? some(chatModel.messages, 'isUser') : (conversation.isSaved ?? true)
             );
         }
         this.openThreads = {...omit(this.openThreads, prevThreadId), [threadId]: thread};
@@ -564,16 +569,16 @@ export class ChatThreadsModel extends HoistModel {
 
         // The backend has seen the thread once a run of it started. A turn that failed before
         // any response, or stopped before the run started, leaves it unsaved. A conversation of
-        // the app's own that does not report `isSaved` counts as saved once a turn ends.
+        // the app's own that does not report `isSaved` counts as saved once a turn ends, unless
+        // the turn was cancelled - the store's list decides then.
+        const endedEarly = conversation.endedEarly ?? null;
         if (conversation instanceof ChatModelConversation) {
             if (conversation.hasRunStarted) thread.setSaved(true);
-        } else if (conversation.isSaved === undefined) {
+        } else if (conversation.isSaved == null && endedEarly?.runEnd !== 'cancelled') {
             thread.setSaved(true);
         }
         // A turn that pauses for the user has not finished - the thread lists as awaiting.
-        if (!conversation.isAwaitingUser) {
-            this.noteTurnEnd(threadId, conversation.endedEarly ?? null);
-        }
+        if (!conversation.isAwaitingUser) this.noteTurnEnd(threadId, endedEarly);
         // The backend may have set a title, or the thread's place in the list may change.
         this.refreshThreadsSoon();
         this.closeIdleThreads();
@@ -587,17 +592,19 @@ export class ChatThreadsModel extends HoistModel {
 
     /**
      * Mark a thread whose turn ended while another thread was selected: as ended early if it did,
-     * else as finished away.
+     * else as finished away. A turn the user cancelled leaves no mark, as there is no reply to
+     * see.
      */
     @action
-    private noteTurnEnd(threadId: string, endedEarly: ChatThreadEndedEarly) {
+    private noteTurnEnd(threadId: string, endedEarly: ChatConversationEndedEarly) {
         if (threadId === this.selectedThreadId) {
             this.noteSeen(threadId);
             // The next list may report the turn's activity by a server clock that runs ahead.
             this.seenOnNextList.set(threadId, this.listCount);
             return;
         }
-        if (endedEarly) {
+        if (endedEarly?.runEnd === 'cancelled') return;
+        if (endedEarly?.runEnd) {
             this.endedEarlyHere = {...this.endedEarlyHere, [threadId]: endedEarly};
         } else {
             this.finishedAwayThreadIds = union(this.finishedAwayThreadIds, [threadId]);

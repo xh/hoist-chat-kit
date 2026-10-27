@@ -391,7 +391,9 @@ The threads model then drives the app's chat:
   instead changes `threadId` once, during the first turn, and the model re-keys the thread.
 - **Turns** - the list shows a thread as running while its conversation is `isBusy`. The
   conversation stays open while its turn runs, so give each one the state of its own thread.
-  When a turn ends, the list reloads, for a title the backend set.
+  When a turn ends, the list reloads, for a title the backend set. A turn that ends in the
+  background shows as a new reply, unless `endedEarly` says it failed, was interrupted, or was
+  cancelled.
 - **Delete** - calls `stop()`, then destroys the conversation. A delete of the selected thread
   opens a new one.
 - **Show** - a library that shows one thread at a time must follow `selectedThreadId`, not
@@ -478,8 +480,8 @@ Mark each member that changes as observable, or compute it from observables.
 | `threadId` | `string` | The thread's id. May change once while busy, to adopt the backend's id. A change while idle means the conversation holds another thread. |
 | `isBusy` | `boolean` | True while a turn runs. |
 | `isAwaitingUser` | `boolean` | True while a turn waits for the user. Optional, default false. |
-| `isSaved` | `boolean` | True once the backend has a new thread. Puts the thread in the route, and keeps it on close. Optional: without it, a new thread counts as saved once a turn ends. |
-| `endedEarly` | `ChatThreadEndedEarly` | How the last turn ended, if it failed or was cut short, else null. Optional. |
+| `isSaved` | `boolean` | True once the backend has a new thread. Puts the thread in the route, and keeps it on close. Optional, and null counts as left out: a new thread then counts as saved once a turn ends. Change `threadId` before, or in the same action as, this turns true. |
+| `endedEarly` | `ChatConversationEndedEarly` | How the last turn ended, if not with a reply to see, else null: `failed`, `interrupted`, or `cancelled` by the user's own action. The list marks the first two. A cancelled turn does not count a new thread as saved. Optional. |
 | `title` | `string` | Title for a new thread until the store lists it. Optional, default 'New conversation'. |
 | `loadAsync()` | `Promise<void>` | Load and show the thread's history. A later call supersedes an earlier one. Reject with `httpStatus` 404 for a missing thread. |
 | `stop()` | `void` | Stop the running turn, as for a delete. |
@@ -546,12 +548,29 @@ setRunning(threadId, false);
 await backend.saveMessagesAsync(threadId, messages);
 ```
 
-### Reporting a turn the conversation cannot see as busy
+### Ending a turn with isBusy alone when the user switches threads
 
 The threads model keeps a busy conversation open, and lists its thread as running. A library that
-stops following a turn when the user opens another thread leaves that turn's conversation with
-nothing to report. Set its `isBusy` to false at that point. Have the store report `isRunning` for
-a turn that goes on running on the server, so that the list still shows it.
+cancels the reply when the user opens another thread must say so. A conversation whose `isBusy`
+turns false with `endedEarly` null counts as a finished turn, and its row shows a new reply that
+does not exist. Set `endedEarly` first, or in the same action. `cancelled` leaves the row as it
+was. `interrupted` marks it, with the reason as a tooltip, for a reply the user should know was
+cut short.
+
+```typescript
+// ✅ Do: Report the cancel, then end the turn
+@action
+onThreadCancelled(threadId: string) {
+    this.endedEarly = {runEnd: 'cancelled', reason: null};
+    this.isBusy = false;
+}
+
+// ❌ Don't: The row shows a new reply
+this.isBusy = false;
+```
+
+A library that stops following a turn that goes on running on the server does the same. Have the
+store report `isRunning` for that thread, so that the list still shows it running.
 
 ### Reporting a missing thread as an error
 
