@@ -570,6 +570,26 @@ describe('ChatMessageList', () => {
         });
     });
 
+    it("shows a call's title from a transcript's getToolSpec", () => {
+        const host: ChatTranscript = {
+                messages: [
+                    new ChatMessage({
+                        id: 'a1',
+                        role: 'assistant',
+                        status: 'complete',
+                        parts: [call('c1', 'search_docs')]
+                    })
+                ],
+                getToolSpec: name =>
+                    name === 'search_docs' ? {name, displayName: 'Searched documents'} : null
+            },
+            {container} = render(appContext({item: chatMessageList({host})}));
+
+        expect(container.querySelector('.xh-chat-tool-call__title').textContent).toBe(
+            'Searched documents'
+        );
+    });
+
     it('renders the parts of a transcript with no ChatModel, and no interactive controls', () => {
         const pending: ChatToolCallPart = {
                 ...call('c1', 'insert_rows'),

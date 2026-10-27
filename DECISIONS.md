@@ -1624,3 +1624,18 @@ and a return would open a new chat. Or derive the signal from the route alone, w
 covers one case of a chat out of view, and leaves the next app to patch the list. Or one bindable
 that the route binding writes and the app may write too. The two would fight on any app with a
 route and a tab.
+
+
+## D98. A transcript names its tools through `getToolSpec`
+
+**Decision.** `ChatTranscript` takes an optional `getToolSpec(name)`, as `ChatModel` has. The
+desktop views read it first for how a call displays, then the catalog's display-only tools. A
+transcript without it shows each call under its tool's name.
+
+**Why.** The first app on the thread seam hosts the kit's tool rows and timeline over a
+conversation it runs itself, and its calls showed as raw tool names, with no icon or summary. The
+member exists on `ChatModel` and the app is a second implementer, which is the rule for a host
+interface (D82).
+
+**Alternatives.** Build a `ChatUiCatalog` for display alone. That carries a catalog's weight for
+three fields a spec already has.

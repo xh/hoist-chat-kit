@@ -1272,6 +1272,7 @@ A read-only conversation, for the desktop message list to show without a `ChatMo
 | `messages` | `ChatMessage[]` | The conversation, oldest first. |
 | `dataRenderers` | `Record<string, ChatDataRenderer>` | Optional. Renderers for data parts, by `dataType`. |
 | `catalog` | `ChatUiCatalog` | Optional. The catalog whose components render in replies, for its tags and for calls to its tools. |
+| `getToolSpec(name)` | `ChatToolSpec` | Optional. The spec of a tool, for how its calls display: title, icon, summary and display mode. Without it, a call shows under its tool's name. |
 
 ### ChatSidePanelHost
 

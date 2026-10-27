@@ -6,7 +6,6 @@ import {
     type ChatToolDisplay,
     type ChatToolSpec,
     type ChatTranscript,
-    isChatModel,
     isChatSubagentPart
 } from '../../../../core';
 import {isAwaitingAnswer} from './ToolCallStatus';
@@ -60,14 +59,17 @@ export interface ChatProcessRun {
 }
 
 /**
- * The spec of a tool, for how its calls display: the chat's own, or for a plain transcript the
- * display-only tools of its catalog, so that its generative UI calls render as their components.
- * Null if the host has none, or if there is no host.
+ * The spec of a tool, for how its calls display: the host's own, through `getToolSpec`, else for
+ * a plain transcript the display-only tools of its catalog, so that its generative UI calls
+ * render as their components. Null if the host has none, or if there is no host.
  * @internal
  */
 export function getHostToolSpec(host: ChatTranscript, name: string): ChatToolSpec {
-    if (isChatModel(host)) return host.getToolSpec(name);
-    return host?.catalog?.displayTools.find(it => it.name === name) ?? null;
+    return (
+        host?.getToolSpec?.(name) ??
+        host?.catalog?.displayTools.find(it => it.name === name) ??
+        null
+    );
 }
 
 /**

@@ -1,6 +1,7 @@
 import type {ChatUiCatalog} from '../genui/ChatUiCatalog';
 import type {ChatMessage} from './ChatMessage';
 import {type ChatDataRenderer, ChatModel} from './ChatModel';
+import type {ChatToolSpec} from './ChatToolSpec';
 
 /**
  * A read-only conversation, for the message list to show without a `ChatModel` - an admin's chat
@@ -25,6 +26,13 @@ export interface ChatTranscript {
      * its tools, which show as their components.
      */
     readonly catalog?: ChatUiCatalog;
+
+    /**
+     * The spec of a tool, by name, or null - for how its calls display: the title, the icon, the
+     * summary and the display mode, as `ChatModel.getToolSpec` gives them. A transcript without
+     * it shows each call under its tool's name, and the catalog's tools as their components.
+     */
+    getToolSpec?(name: string): ChatToolSpec;
 }
 
 /** True if a host is a `ChatModel`, which offers the actions a plain transcript lacks. */
