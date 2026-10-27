@@ -394,6 +394,18 @@ The threads model then drives the app's chat:
   When a turn ends, the list reloads, for a title the backend set.
 - **Delete** - calls `stop()`, then destroys the conversation. A delete of the selected thread
   opens a new one.
+- **Show** - a library that shows one thread at a time must follow `selectedThreadId`, not
+  `loadAsync()`. A user who returns to a thread whose turn still runs finds its conversation open,
+  and the model does not load it again.
+
+```typescript
+// In the app's model
+this.addReaction({
+    track: () => this.threadsModel.selectedThreadId,
+    run: threadId => this.chatModel.showThread(threadId),
+    fireImmediately: true
+});
+```
 
 Call `selectThreadAsync()` when the user opens a thread from inside the other library, and
 `refreshAsync()` when that library creates or changes a thread on its own. The model ignores a
@@ -517,6 +529,22 @@ createChatModel: () => new ChatModel({transport})
 A chat closes when it is neither selected nor busy, and a closed chat is destroyed. Read
 `threadsModel.chatModel` when you need it, rather than keep a reference. The same holds for
 `threadsModel.conversation`.
+
+### Ending a turn before its work is done
+
+When a conversation's `isBusy` turns false while the user reads another thread, the threads model
+destroys it at once. Save the turn's messages, and anything else the turn needs, before `isBusy`
+turns false. Otherwise a `destroy()` that drops the conversation's state can lose them.
+
+```typescript
+// ✅ Do: Save, then end the turn
+await backend.saveMessagesAsync(threadId, messages);
+setRunning(threadId, false);
+
+// ❌ Don't: The conversation may be gone before the save reads its messages
+setRunning(threadId, false);
+await backend.saveMessagesAsync(threadId, messages);
+```
 
 ### Reporting a turn the conversation cannot see as busy
 

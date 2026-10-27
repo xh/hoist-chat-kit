@@ -24,7 +24,13 @@ export interface ChatConversation {
      */
     readonly threadId: string;
 
-    /** True while a turn runs. (observable) */
+    /**
+     * True while a turn runs. (observable)
+     *
+     * When it turns false on a thread the user is not reading, the threads model destroys the
+     * conversation in the same reaction. Finish the turn's own work, such as saving its messages,
+     * before it turns false.
+     */
     readonly isBusy: boolean;
 
     /**
