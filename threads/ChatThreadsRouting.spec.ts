@@ -227,16 +227,18 @@ describe('ChatThreadsModel route binding', () => {
         expect(model.finishedAwayThreadIds).toEqual(['t1']);
     });
 
-    it('navigates to the hidden selection when it is selected again', async () => {
+    it('brings the router to the selection from another route, on request', async () => {
         await navigateAsync('default.chat', {threadId: 't1'});
         const model = createModel();
         await vi.waitFor(() => expect(model.selectedThreadId).toBe('t1'));
         await navigateAsync('default.other');
 
-        await model.selectThreadAsync('t1');
+        await model.selectThreadAsync('t2');
+        expect(XH.routerState.name).toBe('default.other');
+        model.navigateToSelection();
 
         await vi.waitFor(() => expect(XH.routerState.name).toBe('default.chat'));
-        expect(XH.routerState.params.threadId).toBe('t1');
+        expect(XH.routerState.params.threadId).toBe('t2');
         expect(model.isSelectionShown).toBe(true);
     });
 
@@ -254,9 +256,12 @@ describe('ChatThreadsModel route binding', () => {
         await model.selectThreadAsync('t1');
         await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('t1'));
 
-        // Select t2 and show the chat before the router has moved.
-        await model.selectThreadAsync('t2');
+        // Select t2 and show the chat at once. This router moves in the same tick, so the show
+        // reaction marks t2 seen. One that lags leaves it to the route sync, which cannot be
+        // forced here.
+        const selecting = model.selectThreadAsync('t2');
         model.isChatShown = true;
+        await selecting;
 
         await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('t2'));
         expect(model.shownThreadId).toBe('t2');

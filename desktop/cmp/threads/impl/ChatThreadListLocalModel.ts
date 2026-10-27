@@ -122,6 +122,8 @@ export class ChatThreadListLocalModel extends HoistModel {
         this.props.onThreadClick?.(thread);
         this.focusRow(thread.id, false);
         this.selectThread(thread.id);
+        // A list shown on every page: a click off the thread route asks to go there.
+        this.model.navigateToSelection();
     }
 
     /**
