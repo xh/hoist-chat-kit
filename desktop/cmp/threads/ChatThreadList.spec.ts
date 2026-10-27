@@ -172,11 +172,8 @@ describe('ChatThreadList', () => {
         await act(() => model.selectThreadAsync('t1'));
         expect(row('Budget review').getAttribute('aria-selected')).toBe('true');
 
-        await act(() => {
-            model.isChatShown = false;
-            model.chatModel.sendAsync({text: 'Hi'});
-        });
-        await act(() => wait(50));
+        model.isChatShown = false;
+        await act(() => model.chatModel.sendAsync({text: 'Hi'}));
 
         const selected = row('Budget review');
         expect(selected.getAttribute('aria-selected')).toBe('false');

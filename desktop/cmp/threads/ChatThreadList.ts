@@ -324,7 +324,7 @@ function threadRow(
         {compact, showTime, getThreadHref} = view,
         {id, title} = thread,
         // A hidden selection shows as none: the row may show a new reply, like any other.
-        isSelected = id === model.selectedThreadId && model.isSelectionShown,
+        isSelected = id === model.shownThreadId,
         status = getRowStatus(model, thread, isSelected),
         isRenaming = impl.renamingThreadId === id,
         time = showTime ? fmtRowTime(thread.lastActivityAt, compact, groupKey) : null,

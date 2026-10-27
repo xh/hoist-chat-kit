@@ -248,7 +248,8 @@ this.addReaction({
 
 An app that always shows its chat leaves `isChatShown` alone. `isSelectionShown` combines it with
 the route, and is what the model and the list read. When it turns true, the selected thread
-counts as seen, as when the user opens a thread.
+counts as seen, as when the user opens a thread - unless the route names another thread, which
+the route binding selects and marks seen instead. The thread left while hidden keeps its marks.
 
 ### Let turns run in the background
 
@@ -478,6 +479,7 @@ conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those
 | `selectedThreadId` | `string` | The selected thread, or null. Observable. Change it with `selectThreadAsync()` or `newThread()`. |
 | `isChatShown` | `boolean` | True while the app shows its chat. An app that hides its chat behind a tab or in a collapsed panel sets it. Else leave it true. Bindable. |
 | `isSelectionShown` | `boolean` | True while the user can see the selected thread: `isChatShown`, and with a `route`, the router on it. The list reads it. |
+| `shownThreadId` | `string` | The selected thread while shown, else null. |
 | `chatModel` | `ChatModel` | The selected thread's chat, or null. Always null with `createConversation`. |
 | `conversation` | `ChatConversation` | The selected thread's conversation, or null. |
 | `selectedSummary` | `ChatThreadSummary` | The selected thread's summary, or null if it is not in the list. |

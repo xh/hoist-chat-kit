@@ -246,6 +246,7 @@
         "threadRoute",
         "isSelectionShown",
         "isChatShown",
+        "shownThreadId",
         "hidden chat",
         "deep links",
         "isThreadNotFound",

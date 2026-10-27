@@ -1599,7 +1599,8 @@ marks for the other library's turns, and ties the app to `ChatModel` internals.
 **Decision.** `ChatThreadsModel.isSelectionShown` says whether the user can see the selected
 thread. While it is false, a turn that ends in the selected thread counts as away, so the list
 marks a new reply or an ended-early turn, and the list shows no selection. When it turns true, the
-selected thread counts as seen, and its marks clear. It combines two facts: `isChatShown`, which
+selected thread counts as seen, and its marks clear, unless the route names another thread, which
+the route binding selects and marks seen instead. It combines two facts: `isChatShown`, which
 the app sets when it hides its chat behind a tab or in a collapsed panel, and the router being on
 the bound route or a child of it, when there is a `route`. An app that always shows its chat on
 its route leaves `isChatShown` true.
