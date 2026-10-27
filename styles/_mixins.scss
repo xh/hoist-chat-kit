@@ -1,12 +1,21 @@
 // Shared mixins for Hoist Chat Kit styles. Load with `@use '<path>/styles/mixins' as *;`.
 
-// Style a Hoist button within the current component. Hoist scopes its button rules under `.xh-app`
-// and targets `.xh-button.bp6-button`, so a component's override must match that specificity to
-// win. Pass the button's own class, an ancestor class within the component, or both.
+// Style a Hoist button within the current component. Hoist scopes its layout rules for a button
+// under `.xh-app`, and restates them under `.xh-app.xh-dark.bp6-dark` for the dark theme, so a
+// component's override takes the dark selector's specificity to win in both themes. Hoist's
+// color rules for hover and active states outrank any component rule: set the `--xh-button-*`
+// variables for those, not the colors. Pass the button's own class, an ancestor class within
+// the component, or both.
 @mixin hoist-button($button, $ancestor: null) {
-  .xh-app & #{$ancestor} #{$button}.xh-button.bp6-button {
+  :is(.xh-app, .xh-app.xh-dark.bp6-dark) & #{$ancestor} #{$button}.xh-button.bp6-button {
     @content;
   }
+}
+
+// A focus ring drawn inside an element that clips its overflow, which would hide a ring outside.
+@mixin focus-ring-inset {
+  outline: var(--xh-chat-focus-ring-width) solid var(--xh-chat-focus-ring-color);
+  outline-offset: calc(var(--xh-chat-focus-ring-width) * -1);
 }
 
 // A citation marker: a 14 px numbered pill that sits on the text's baseline without growing its

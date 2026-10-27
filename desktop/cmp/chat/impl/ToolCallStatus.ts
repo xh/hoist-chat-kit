@@ -83,6 +83,15 @@ export function getToolCallStatusLabel(part: ChatToolCallPart, spec: ChatToolSpe
         case 'attention':
             return part.state === 'approval-requested' ? 'Needs approval' : 'Waiting for you';
         default:
+            // A call the backend runs - one it marked so, or one with no `execute` here - runs
+            // from the moment it is made. One a paused run left open waits with the run.
+            if (
+                part.state === 'input-available' &&
+                !part.awaitsResume &&
+                (part.providerExecuted || !spec?.execute)
+            ) {
+                return 'Running';
+            }
             return PROGRESS_LABELS[part.state] ?? 'Running';
     }
 }
@@ -101,7 +110,7 @@ export function getErrorLine(part: ChatToolCallPart): string {
  * @internal
  */
 export interface InlineCallStatus {
-    type: 'rendering' | 'approval' | 'error' | 'denied';
+    type: 'rendering' | 'approval' | 'error' | 'denied' | 'cancelled';
     label: string;
 }
 
@@ -114,7 +123,7 @@ export interface InlineCallStatus {
  * @internal
  */
 export function getInlineStatus(part: ChatToolCallPart, spec: ChatToolSpec): InlineCallStatus {
-    if (part.cancelled) return {type: 'denied', label: 'Stopped - not shown.'};
+    if (part.cancelled) return {type: 'cancelled', label: 'Stopped - not shown.'};
     switch (part.state) {
         case 'input-streaming':
             return {type: 'rendering', label: 'Rendering…'};

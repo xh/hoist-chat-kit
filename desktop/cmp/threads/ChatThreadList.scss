@@ -1,3 +1,5 @@
+@use '../../../styles/mixins' as *;
+
 .xh-chat-thread-list {
   background-color: var(--xh-chat-sidebar-bg);
   color: var(--xh-chat-text-color);
@@ -62,8 +64,7 @@
     }
 
     &:focus-visible {
-      outline: 2px solid var(--xh-chat-focus-ring-color);
-      outline-offset: -2px;
+      @include focus-ring-inset;
     }
 
     &--selected,

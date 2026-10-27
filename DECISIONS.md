@@ -884,6 +884,10 @@ default `'static'`. Static swaps Hoist's `Spinner` for a static hourglass icon i
 **Why.** Anselm chose the static spinner (A1). Hoist's spinner ignores reduced motion on purpose,
 because Citrix sessions often report it. The flag lets an app on Citrix keep Hoist's behavior.
 
+**Later.** `reducedMotionSpinner: 'spin'` keeps only the spinner moving. An app whose users always
+report reduced motion, as over Citrix, now adds `xh-chat--motion` to an ancestor of the chat to
+keep every cue moving, while `xh-chat--reduced-motion` on a container still forces the twins.
+
 ## D61. The assistant icon and assistant profiles
 
 

@@ -22,7 +22,8 @@ export interface ChatKitDefaults {
      *  - `static` - a static icon replaces the spinner, inside chat only. The words and the
      *    ticking elapsed time still say the reply is busy.
      *  - `spin` - the spinner keeps spinning, as Hoist's own spinner always does. Suits apps used
-     *    over Citrix, where sessions often report reduced motion.
+     *    over Citrix, where sessions often report reduced motion. To keep every cue moving, the
+     *    caret and the shimmer too, add `xh-chat--motion` to an ancestor of the chat instead.
      *
      * Default 'static'.
      */

@@ -119,30 +119,45 @@ class ChatToolCallGroupLocalModel extends HoistModel {
 interface GroupProblems {
     failed: number;
     denied: number;
+    cancelled: number;
+
+    /** True if no call in the group ran to a result: every one was denied or stopped. */
+    noneRan: boolean;
 }
 
 function getProblems(parts: ChatToolCallPart[]): GroupProblems {
+    const cancelled = parts.filter(it => it.cancelled).length,
+        denied = parts.filter(it => it.state === 'output-denied' && !it.cancelled).length;
     return {
         failed: parts.filter(isToolCallFailed).length,
-        denied: parts.filter(it => it.state === 'output-denied').length
+        denied,
+        cancelled,
+        noneRan: parts.length > 0 && cancelled + denied === parts.length
     };
 }
 
-function formatProblems({failed, denied}: GroupProblems): string {
-    return compact([failed ? `${failed} failed` : null, denied ? `${denied} denied` : null]).join(
-        ' · '
-    );
+function formatProblems({failed, denied, cancelled}: GroupProblems): string {
+    return compact([
+        failed ? `${failed} failed` : null,
+        denied ? `${denied} denied` : null,
+        cancelled ? `${cancelled} cancelled` : null
+    ]).join(' · ');
 }
 
-// A spinner while any call runs, then a check - or a mark when any call failed.
-function groupGlyph(isRunning: boolean, {failed}: GroupProblems): ReactNode {
-    const kind = isRunning ? 'busy' : failed ? 'error' : 'success';
+// A spinner while any call runs, then a check - or a mark when any call failed, or, when no call
+// ran to a result, a stop if the user stopped any, else the denied glyph.
+function groupGlyph(isRunning: boolean, {failed, cancelled, noneRan}: GroupProblems): ReactNode {
+    const kind = isRunning ? 'busy' : failed ? 'error' : noneRan ? 'denied' : 'success';
     return span({
         className: `xh-chat-tool-call__glyph xh-chat-tool-call__glyph--${kind}`,
         item: isRunning
             ? chatSpinner()
             : failed
               ? Icon.error({title: 'Failed'})
-              : Icon.check({title: 'All done'})
+              : noneRan
+                ? cancelled
+                    ? Icon.stopCircle({title: 'Cancelled'})
+                    : Icon.slashedCircle({title: 'Denied'})
+                : Icon.check({title: 'All done'})
     });
 }
