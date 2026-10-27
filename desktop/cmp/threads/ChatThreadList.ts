@@ -325,7 +325,7 @@ function threadRow(
         {id, title} = thread,
         // A hidden selection shows as none: the row may show a new reply, like any other.
         isSelected = id === model.shownThreadId,
-        status = getRowStatus(model, thread, isSelected),
+        status = getRowStatus(model, thread),
         isRenaming = impl.renamingThreadId === id,
         time = showTime ? fmtRowTime(thread.lastActivityAt, compact, groupKey) : null,
         timeText = status === 'running' ? 'Working' : time,
@@ -534,11 +534,7 @@ function noResults(impl: ChatThreadListLocalModel, view: ListView): ReactNode {
 type RowStatus = 'running' | 'awaiting' | 'new' | 'interrupted' | 'failed';
 
 /** The one unusual state a row shows, in order of priority, or null. */
-function getRowStatus(
-    model: ChatThreadsModel,
-    thread: ChatThreadSummary,
-    isSelected: boolean
-): RowStatus {
+function getRowStatus(model: ChatThreadsModel, thread: ChatThreadSummary): RowStatus {
     const {id} = thread;
     if (includes(model.runningThreadIds, id)) return 'running';
     if (includes(model.awaitingThreadIds, id)) return 'awaiting';

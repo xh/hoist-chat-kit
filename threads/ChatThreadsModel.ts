@@ -248,7 +248,8 @@ export class ChatThreadsModel extends HoistModel {
      *  - A turn that ended early while the user was not looking, in this session. The mark holds
      *    until the user sees the thread, or a new turn starts in it.
      *  - The store's `lastRunEnd` and `lastRunReason`, for a thread the user is not looking at,
-     *    unless the user has seen the thread since its last activity in this session.
+     *    and whose turn neither runs nor waits here, unless the user has seen the thread since
+     *    its last activity in this session.
      */
     @computed
     get endedEarlyThreads(): Record<string, ChatThreadEndedEarly> {
@@ -343,8 +344,6 @@ export class ChatThreadsModel extends HoistModel {
                 if (!this.hasUnseenMark(lastShownId)) this.noteSeen(lastShownId);
                 this.markSeen(shownThreadId);
                 this.lastShownId = shownThreadId;
-                // A thread kept open for a mark the user has now seen can close.
-                this.closeIdleThreads();
             },
             debounce: SEEN_ON_SHOW_MS
         });
@@ -493,8 +492,9 @@ export class ChatThreadsModel extends HoistModel {
 
     // Threads whose turn ended here, to take the turn's activity as seen once the user has seen
     // the turn end, as a server clock that runs ahead may date the activity after the seen time.
-    // By thread id: the number of the first list request that can report the turn, and whether a
-    // list reported it before the user saw the turn end. A new turn in the thread ends the wait.
+    // By thread id: the number of the first list request that can report the turn, and the
+    // activity a list reported before the user saw the turn end. A new turn in the thread ends
+    // the wait.
     private readonly seenOnNextList = new Map<string, TurnEndWait>();
 
     // Threads whose turn ended early in the background, in this session - see `endedEarlyThreads`.
@@ -682,6 +682,7 @@ export class ChatThreadsModel extends HoistModel {
             this.markSeen(threadId);
             return;
         }
+        // A cancelled turn returned above. The check narrows the type.
         if (endedEarly?.runEnd && endedEarly.runEnd !== 'cancelled') {
             this.endedEarlyHere = {...this.endedEarlyHere, [threadId]: endedEarly};
         } else {
@@ -716,10 +717,10 @@ export class ChatThreadsModel extends HoistModel {
                 this.seenOnNextList.delete(id);
                 return;
             }
-            // Not until the user has seen the turn end. The seeing then takes the listed activity
-            // itself, as the user sees the thread as the list has it.
+            // Not until the user has seen the turn end. The first report is the turn's own
+            // activity, which the seeing takes then - even if a search hides the thread by then.
             if (this.hasUnseenMark(id)) {
-                wait.reported = true;
+                wait.reportedActivityAt ??= listed.lastActivityAt ?? 0;
                 return;
             }
             this.seenOnNextList.delete(id);
@@ -750,14 +751,18 @@ export class ChatThreadsModel extends HoistModel {
 
     /**
      * Record that the user has seen a thread as of now, and clear its marks. A turn that ended
-     * here and that a list has reported meanwhile needs no more: the seen time takes the listed
-     * activity. One not yet reported keeps its wait - see `seenOnNextList`.
+     * here and that a list has reported meanwhile counts as seen at the activity it reported.
+     * One not yet reported keeps its wait - see `seenOnNextList`.
      */
     @action
     private markSeen(threadId: string) {
         if (threadId == null) return;
         this.noteSeen(threadId);
-        if (this.seenOnNextList.get(threadId)?.reported) this.seenOnNextList.delete(threadId);
+        const wait = this.seenOnNextList.get(threadId);
+        if (wait?.reportedActivityAt != null) {
+            this.raiseSeen(threadId, wait.reportedActivityAt);
+            this.seenOnNextList.delete(threadId);
+        }
         this.clearMarks(threadId);
     }
 
@@ -829,6 +834,7 @@ export class ChatThreadsModel extends HoistModel {
             thread?.destroy();
             this.drafts.remove(id);
             this.seenOnNextList.delete(id);
+            if (this.lastShownId === id) this.lastShownId = null;
         });
         // After the chats close, as a composer saves its draft when destroyed.
         ChatKit.clearLocalData(threadIds);
@@ -1041,8 +1047,8 @@ interface TurnEndWait {
     /** Number of the first list request that can report the turn. */
     listNumber: number;
 
-    /** True once a list reported the turn before the user saw it end. */
-    reported?: boolean;
+    /** The activity a list reported for the turn before the user saw it end, if one did. */
+    reportedActivityAt?: number;
 }
 
 /** A rename or delete, laid over the threads - see `changeThreadsAsync`. */
