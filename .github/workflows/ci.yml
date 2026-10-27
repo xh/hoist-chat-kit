@@ -77,6 +77,9 @@ jobs:
         # Gates merges on a clean production-dependency audit for high and critical advisories.
         # The first, un-gated run prints lower-severity findings in the step log for visibility
         # without failing the build.
+        #
+        # Advisories the kit accepts for now are listed under `auditConfig` in
+        # pnpm-workspace.yaml, each with a note on when to drop it.
         - name: Audit production dependencies
           run: |
               pnpm audit --prod || true
