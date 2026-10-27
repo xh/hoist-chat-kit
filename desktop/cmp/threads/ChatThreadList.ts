@@ -542,7 +542,9 @@ function getRowStatus(
     const {id} = thread;
     if (includes(model.runningThreadIds, id)) return 'running';
     if (includes(model.awaitingThreadIds, id)) return 'awaiting';
-    if (!isSelected && includes(model.finishedAwayThreadIds, id)) return 'new';
+    // The shown thread carries no mark the user has not seen, past the tick that clears it.
+    if (isSelected) return null;
+    if (includes(model.finishedAwayThreadIds, id)) return 'new';
     return model.endedEarlyThreads[id]?.runEnd ?? null;
 }
 

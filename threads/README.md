@@ -269,7 +269,7 @@ A background turn that fails, or that the server interrupts or cancels, goes in
 `endedEarlyThreads` instead, with its error as the reason. The mark holds until the user opens
 the thread, or a new turn starts in it. The thread's chat stays open until then, so the user
 sees the failed turn with its error and Retry, even from a backend that does not store failed
-turns. For a thread with no open chat, the store's `lastRunEnd`
+turns. For a thread the user is not looking at, the store's `lastRunEnd`
 and `lastRunReason` fill the same map. The model skips them if the user has seen the thread, in
 this session, since its last activity. A list marks each such row as ended early.
 
@@ -489,7 +489,7 @@ conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those
 | `runningThreadIds` | `string[]` | Threads with a turn running here, or reported running by the store. |
 | `awaitingThreadIds` | `string[]` | Threads whose turn is paused for the user. Their chats stay open. |
 | `finishedAwayThreadIds` | `string[]` | Threads whose turn ended while the user was not looking at them: another thread was selected, or the selection was hidden. A thread leaves it when the user sees it. Held for the session only. |
-| `endedEarlyThreads` | `Record<string, ChatThreadEndedEarly>` | Threads whose last run ended early, by id, each with `runEnd` (`'interrupted'` or `'failed'`) and a `reason`. From background turns in this session, and the store's `lastRunEnd` for threads with no open chat that the user has not seen since their last activity. |
+| `endedEarlyThreads` | `Record<string, ChatThreadEndedEarly>` | Threads whose last run ended early, by id, each with `runEnd` (`'interrupted'` or `'failed'`) and a `reason`. From background turns in this session, and the store's `lastRunEnd` for threads the user is not looking at and has not seen since their last activity. |
 | `loadError` | `Error` | Why the selected thread's history failed to load, or null. |
 | `isThreadNotFound` | `boolean` | True if the store reported the selected thread missing, with a 404. |
 | `isThreadLoading` | `boolean` | True while the selected thread's history loads. Its chat is empty until then, so a layout shows a plain placeholder rather than a new chat's empty state. `ChatWorkspace` does. |
@@ -544,7 +544,7 @@ Mark each member that changes as observable, or compute it from observables.
 | `lastActivityAt` | `number` | Epoch millis of the last change. Drives sorting and recency groups. |
 | `createdAt` | `number` | Epoch millis of creation. Optional. |
 | `isRunning` | `boolean` | True if the backend reports a run in progress. Optional. |
-| `lastRunEnd` | `'complete' \| 'interrupted' \| 'failed'` | How the last run ended, if the backend reports it. Feeds `endedEarlyThreads` for a thread with no open chat. Optional. |
+| `lastRunEnd` | `'complete' \| 'interrupted' \| 'failed'` | How the last run ended, if the backend reports it. Feeds `endedEarlyThreads` for a thread the user is not looking at. Optional. |
 | `lastRunReason` | `string` | Why the last run ended so, for a tooltip. Optional. |
 | `metadata` | `PlainObject` | App data. Optional. |
 

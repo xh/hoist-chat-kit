@@ -320,6 +320,7 @@ describe('ChatThreadsModel', () => {
             expect(model.finishedAwayThreadIds).toEqual([threadId]);
 
             await model.selectThreadAsync(threadId);
+            await wait();
             expect(model.finishedAwayThreadIds).toEqual([]);
         });
 
@@ -350,6 +351,7 @@ describe('ChatThreadsModel', () => {
             expect(model.finishedAwayThreadIds).toEqual([]);
 
             await model.selectThreadAsync(threadId);
+            await wait();
             expect(model.endedEarlyThreads[threadId]).toBeUndefined();
         });
 
@@ -367,10 +369,11 @@ describe('ChatThreadsModel', () => {
             expect(chatModel.isDestroyed).toBe(false);
 
             // Opening it shows the failed turn, with no reload that a backend might answer
-            // without it.
+            // without it. A moment's look counts as seen.
             await model.selectThreadAsync(threadId);
             expect(model.chatModel).toBe(chatModel);
             expect(chatModel.lastMessage.status).toBe('error');
+            await wait();
 
             await model.selectThreadAsync('t1');
             expect(chatModel.isDestroyed).toBe(true);
@@ -457,6 +460,7 @@ describe('ChatThreadsModel', () => {
             // A store-marked thread the user opens and leaves.
             await model.selectThreadAsync('cut');
             await model.selectThreadAsync('other');
+            await wait();
             expect(model.endedEarlyThreads).toEqual({});
 
             // A turn that fails while the user watches, which the store then reports.
@@ -466,6 +470,7 @@ describe('ChatThreadsModel', () => {
             store.saveThread({id: threadId, lastRunEnd: 'failed'});
             await model.refreshAsync();
             await model.selectThreadAsync('other');
+            await wait();
             expect(model.endedEarlyThreads).toEqual({});
 
             // A later run on the server, after the user left, marks the thread again.

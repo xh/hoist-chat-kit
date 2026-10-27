@@ -244,8 +244,8 @@ export class ChatThreadsModel extends HoistModel {
      *
      *  - A turn that ended early while the user was not looking, in this session. The mark holds
      *    until the user sees the thread, or a new turn starts in it.
-     *  - The store's `lastRunEnd` and `lastRunReason`, for a thread the user is not looking at, unless the
-     *    user has seen the thread since its last activity in this session.
+     *  - The store's `lastRunEnd` and `lastRunReason`, for a thread the user is not looking at,
+     *    unless the user has seen the thread since its last activity in this session.
      */
     @computed
     get endedEarlyThreads(): Record<string, ChatThreadEndedEarly> {
@@ -321,14 +321,19 @@ export class ChatThreadsModel extends HoistModel {
             run: () => this.loadAsync(),
             debounce: SEARCH_DEBOUNCE_MS
         });
-        // Seen follows shown by a tick, so that a selection made as the chat shows - by the app
-        // in its next statement, or by the route binding - is the one that counts as seen, and a
-        // thread left while hidden keeps its marks.
+        // The one place a thread counts as seen: the thread the user looks at, as it changes. It
+        // follows by a tick, so that a selection made as the chat shows - by the app in its next
+        // statement, or by the route binding - is the one that counts, and a thread selected
+        // while hidden keeps its marks until it shows.
         this.addReaction({
             track: () => this.shownThreadId,
-            run: () => {
-                const threadId = this.shownThreadId;
-                if (threadId != null) this.markSeen(threadId);
+            run: (_, prevShownId) => {
+                // The thread looked at until now keeps any mark that came since - a turn may end
+                // in the tick after the chat hides. The one looked at now has none.
+                this.noteSeen(prevShownId);
+                this.markSeen(this.shownThreadId);
+                // A thread kept open for a mark the user has now seen can close.
+                this.closeIdleThreads();
             },
             debounce: SEEN_ON_SHOW_MS
         });
@@ -477,9 +482,8 @@ export class ChatThreadsModel extends HoistModel {
 
     // Threads whose turn ended here, to take the turn's activity as seen once the user has seen
     // the turn end, as a server clock that runs ahead may date the activity after the seen time.
-    // By thread id: the number of the first list request that can report the turn, and the
-    // activity that list reported, if it came before the user saw the turn end. A new turn in the
-    // thread ends the wait.
+    // By thread id: the number of the first list request that can report the turn, and whether a
+    // list reported it before the user saw the turn end. A new turn in the thread ends the wait.
     private readonly seenOnNextList = new Map<string, TurnEndWait>();
 
     // Threads whose turn ended early in the background, in this session - see `endedEarlyThreads`.
@@ -695,10 +699,10 @@ export class ChatThreadsModel extends HoistModel {
                 this.seenOnNextList.delete(id);
                 return;
             }
-            // Not until the user has seen the turn end: the wait keeps what the list reported,
-            // and nothing a later list reports.
+            // Not until the user has seen the turn end. The seeing then takes the listed activity
+            // itself, as the user sees the thread as the list has it.
             if (this.hasUnseenMark(id)) {
-                wait.activityAt = listed.lastActivityAt ?? 0;
+                wait.reported = true;
                 return;
             }
             this.seenOnNextList.delete(id);
@@ -721,15 +725,7 @@ export class ChatThreadsModel extends HoistModel {
 
     @action
     private setSelectedThreadId(threadId: string) {
-        // The user has seen the thread they open, and the one they leave, as of now - if they
-        // can see the selection at all, and unless the one they leave still carries a mark they
-        // have not seen, as one selected while hidden does. A hidden selection counts as seen
-        // once it shows.
-        const prevId = this.selectedThreadId;
-        if (this.isSelectionShown) {
-            if (!this.hasUnseenMark(prevId)) this.noteSeen(prevId);
-            this.markSeen(threadId);
-        }
+        // Seen follows the shown thread, in its reaction.
         this.selectedThreadId = threadId;
         this.loadTask.clear();
         this.closeIdleThreads();
@@ -737,18 +733,14 @@ export class ChatThreadsModel extends HoistModel {
 
     /**
      * Record that the user has seen a thread as of now, and clear its marks. A turn that ended
-     * here and that a list has reported meanwhile counts as seen at the activity the list gave
-     * it - see `seenOnNextList`.
+     * here and that a list has reported meanwhile needs no more: the seen time takes the listed
+     * activity. One not yet reported keeps its wait - see `seenOnNextList`.
      */
     @action
     private markSeen(threadId: string) {
         if (threadId == null) return;
         this.noteSeen(threadId);
-        const wait = this.seenOnNextList.get(threadId);
-        if (wait?.activityAt != null) {
-            this.raiseSeen(threadId, wait.activityAt);
-            this.seenOnNextList.delete(threadId);
-        }
+        if (this.seenOnNextList.get(threadId)?.reported) this.seenOnNextList.delete(threadId);
         this.clearMarks(threadId);
     }
 
@@ -1032,8 +1024,8 @@ interface TurnEndWait {
     /** Number of the first list request that can report the turn. */
     listNumber: number;
 
-    /** The activity a list reported for it before the user saw the turn end, if any. */
-    activityAt?: number;
+    /** True once a list reported the turn before the user saw it end. */
+    reported?: boolean;
 }
 
 /** A rename or delete, laid over the threads - see `changeThreadsAsync`. */

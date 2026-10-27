@@ -89,7 +89,7 @@ export class ChatThreadListLocalModel extends HoistModel {
         // thread first appears in the list, as after a deep link.
         this.addReaction({
             track: () => {
-                const id = this.model.selectedThreadId;
+                const id = this.model.shownThreadId;
                 return [id, this.orderedThreadIds.includes(id)];
             },
             run: ([id]) => this.scrollRowIntoView(id as string),

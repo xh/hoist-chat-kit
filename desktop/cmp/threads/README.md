@@ -68,12 +68,13 @@ A row shows at most one unusual state, in this order:
 | Running | `runningThreadIds` | Spinner, and "Working" in place of the time | "working" |
 | Awaiting | `awaitingThreadIds` | Pause | "waiting for you" |
 | New reply | `finishedAwayThreadIds`, unless selected and shown | Dot, and a bold title | "new reply" |
-| Interrupted | `endedEarlyThreads`, with `runEnd: 'interrupted'` | Warning, with the reason as tooltip | "last reply interrupted" |
-| Failed | `endedEarlyThreads`, with `runEnd: 'failed'` | Warning, in the error color | "last reply failed" |
+| Interrupted | `endedEarlyThreads`, with `runEnd: 'interrupted'`, unless selected and shown | Warning, with the reason as tooltip | "last reply interrupted" |
+| Failed | `endedEarlyThreads`, with `runEnd: 'failed'`, unless selected and shown | Warning, in the error color | "last reply failed" |
 
 Interrupted and Failed are the two looks of "ended early". The threads model sets them from a
 background turn that failed or that the server cut short, and from the store's `lastRunEnd` for a
-thread with no open chat. A thread the user has seen since its last activity shows no mark.
+thread the user is not looking at. A thread the user has seen since its last activity shows no
+mark, and nor does the selected row while the user can see it.
 
 A row in no unusual state shows no icon.
 
