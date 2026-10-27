@@ -192,6 +192,57 @@ describe('ChatThreadsModel route binding', () => {
         expect(opened).toHaveLength(1);
     });
 
+    it('marks a reply that finishes while the user is on another route as new', async () => {
+        await navigateAsync('default.chat', {threadId: 't1'});
+        // A reply with no server id, so that the thread keeps its id through the turn.
+        const model = createModel(() => [textEvents('Still here.')]);
+        await vi.waitFor(() => expect(model.selectedThreadId).toBe('t1'));
+
+        await navigateAsync('default.other');
+        await vi.waitFor(() => expect(model.isSelectionShown).toBe(false));
+        await model.chatModel.sendAsync({text: 'Still here?'});
+
+        expect(model.finishedAwayThreadIds).toEqual(['t1']);
+
+        await navigateAsync('default.chat', {threadId: 't1'});
+        await vi.waitFor(() => expect(model.isSelectionShown).toBe(true));
+        expect(model.finishedAwayThreadIds).toEqual([]);
+        expect(model.selectedThreadId).toBe('t1');
+    });
+
+    it('keeps the mark on a hidden thread when a deep link returns to another', async () => {
+        await navigateAsync('default.chat', {threadId: 't1'});
+        const model = createModel(() => [textEvents('Still here.')]);
+        await vi.waitFor(() => expect(model.selectedThreadId).toBe('t1'));
+
+        await navigateAsync('default.other');
+        await vi.waitFor(() => expect(model.isSelectionShown).toBe(false));
+        await model.chatModel.sendAsync({text: 'Still here?'});
+        expect(model.finishedAwayThreadIds).toEqual(['t1']);
+
+        await navigateAsync('default.chat', {threadId: 't2'});
+        await vi.waitFor(() => expect(model.selectedThreadId).toBe('t2'));
+
+        expect(model.isSelectionShown).toBe(true);
+        expect(model.finishedAwayThreadIds).toEqual(['t1']);
+    });
+
+    it('hides the selection while the app says its chat is hidden, even on the route', async () => {
+        await navigateAsync('default.chat', {threadId: 't1'});
+        const model = createModel();
+        await vi.waitFor(() => expect(model.selectedThreadId).toBe('t1'));
+
+        model.isChatShown = false;
+        expect(model.isSelectionShown).toBe(false);
+
+        await navigateAsync('default.chat', {threadId: 't2'});
+        await vi.waitFor(() => expect(model.selectedThreadId).toBe('t2'));
+        expect(model.isSelectionShown).toBe(false);
+
+        model.isChatShown = true;
+        expect(model.isSelectionShown).toBe(true);
+    });
+
     it('leaves other routes alone', async () => {
         const model = createModel();
 

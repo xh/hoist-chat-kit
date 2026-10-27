@@ -52,6 +52,7 @@ its tools.
 | Implement a thread store for your backend | [`/threads/`](../threads/README.md#configuration-pattern) |
 | Run turns in the background while the user reads another thread | [`/threads/`](../threads/README.md#let-turns-run-in-the-background) |
 | Link to a thread with a route parameter, and show a missing one as not found | [`/threads/`](../threads/README.md#link-to-a-thread) |
+| Mark a reply that finishes while the chat is behind a tab or off its route | [`/threads/`](../threads/README.md#say-when-the-chat-is-hidden) |
 | Group a thread list into Today, Yesterday and older | [`/threads/`](../threads/README.md#group-the-list-by-recency) |
 | Show a user's threads in a sidebar, with rename and delete | [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) |
 | Keep the thread list or the workspace over a chat that runs on another library | [`/threads/`](../threads/README.md#use-a-conversation-of-the-apps-own) |

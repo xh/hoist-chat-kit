@@ -229,6 +229,27 @@ threadsModel.newThread({draft: 'Summarize the guidelines', runOptions: {document
 Render `threadsModel.chatModel` with a chat panel. It changes with the selection, so bind the
 panel to it in a component that observes the threads model.
 
+### Say when the chat is hidden
+
+The selection outlives the view that shows it. A route binding keeps it while the user is on
+another page, and an app may keep its chat behind a tab or in a collapsed panel. The model needs
+to know, so that a reply that finishes meanwhile gets the new-reply mark, and the list shows no
+selection. With a `route`, the model knows from the router. A chat the app hides some other way
+is the app's to say:
+
+```typescript
+// In the app's model, as the chat tab opens and closes
+this.addReaction({
+    track: () => this.tabModel.activeTabId === 'chat',
+    run: isShown => (this.threadsModel.isChatShown = isShown),
+    fireImmediately: true
+});
+```
+
+An app that always shows its chat leaves `isChatShown` alone. `isSelectionShown` combines it with
+the route, and is what the model and the list read. When it turns true, the selected thread
+counts as seen, as when the user opens a thread.
+
 ### Let turns run in the background
 
 Turns run in the background, in as many threads at once as the user starts. The list shows a
@@ -332,6 +353,11 @@ A deep link to a thread that the store reports missing, with a 404, sets `isThre
 the thread blocks sends, so that a send never recreates a deleted id. The workspace then shows
 "Thread not found" with New Chat, in place of the chat. An app with its
 own layout reads the flag the same way.
+
+Off the route, the selection stays, so that a return restores it, and `isSelectionShown` is
+false. A list shown on every page then marks a reply that finishes in the selected thread as
+new, and shows the thread as not selected. On return the thread counts as seen - see
+[Say when the chat is hidden](#say-when-the-chat-is-hidden).
 
 ### Group the list by recency
 
@@ -450,13 +476,15 @@ conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those
 |----------|------|-------------|
 | `threads` | `ChatThreadSummary[]` | The list, in the store's order. Threads started here that the store has not listed come first, unless a search is active. Pending edits show at once. |
 | `selectedThreadId` | `string` | The selected thread, or null. Observable. Change it with `selectThreadAsync()` or `newThread()`. |
+| `isChatShown` | `boolean` | True while the app shows its chat. An app that hides its chat behind a tab or in a collapsed panel sets it. Else leave it true. Bindable. |
+| `isSelectionShown` | `boolean` | True while the user can see the selected thread: `isChatShown`, and with a `route`, the router on it. The list reads it. |
 | `chatModel` | `ChatModel` | The selected thread's chat, or null. Always null with `createConversation`. |
 | `conversation` | `ChatConversation` | The selected thread's conversation, or null. |
 | `selectedSummary` | `ChatThreadSummary` | The selected thread's summary, or null if it is not in the list. |
 | `search` | `string` | Text to search for. Bindable. |
 | `runningThreadIds` | `string[]` | Threads with a turn running here, or reported running by the store. |
 | `awaitingThreadIds` | `string[]` | Threads whose turn is paused for the user. Their chats stay open. |
-| `finishedAwayThreadIds` | `string[]` | Threads whose turn ended while another thread was selected. A thread leaves it when selected. Held for the session only. |
+| `finishedAwayThreadIds` | `string[]` | Threads whose turn ended while the user was not looking at them: another thread was selected, or the selection was hidden. A thread leaves it when the user sees it. Held for the session only. |
 | `endedEarlyThreads` | `Record<string, ChatThreadEndedEarly>` | Threads whose last run ended early, by id, each with `runEnd` (`'interrupted'` or `'failed'`) and a `reason`. From background turns in this session, and the store's `lastRunEnd` for threads with no open chat that the user has not seen since their last activity. |
 | `loadError` | `Error` | Why the selected thread's history failed to load, or null. |
 | `isThreadNotFound` | `boolean` | True if the store reported the selected thread missing, with a 404. |

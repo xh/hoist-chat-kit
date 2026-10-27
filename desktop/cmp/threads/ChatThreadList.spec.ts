@@ -167,6 +167,30 @@ describe('ChatThreadList', () => {
         expect(model.selectedThreadId).toBe('t2');
     });
 
+    it('shows a hidden selection as none, and lets its row show a new reply', async () => {
+        const {model} = await renderList();
+        await act(() => model.selectThreadAsync('t1'));
+        expect(row('Budget review').getAttribute('aria-selected')).toBe('true');
+
+        await act(() => {
+            model.isChatShown = false;
+            model.chatModel.sendAsync({text: 'Hi'});
+        });
+        await act(() => wait(50));
+
+        const selected = row('Budget review');
+        expect(selected.getAttribute('aria-selected')).toBe('false');
+        expect(selected.classList).not.toContain('xh-chat-thread-list__row--selected');
+        expect(selected.classList).toContain('xh-chat-thread-list__row--new');
+        expect(model.selectedThreadId).toBe('t1');
+
+        await act(() => {
+            model.isChatShown = true;
+        });
+        expect(row('Budget review').getAttribute('aria-selected')).toBe('true');
+        expect(row('Budget review').classList).not.toContain('xh-chat-thread-list__row--new');
+    });
+
     it('hides New Chat with enableNewChat false, for an app that offers it elsewhere', async () => {
         await renderList({props: {enableNewChat: false}});
         expect(screen.queryByRole('button', {name: 'New Chat'})).toBeNull();
