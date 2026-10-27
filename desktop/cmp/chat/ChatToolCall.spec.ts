@@ -1,4 +1,4 @@
-import {act, fireEvent, render, screen} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, screen} from '@testing-library/react';
 import {fragment} from '@xh/hoist/cmp/layout';
 import {creates, hoistCmp, HoistModel} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
@@ -14,6 +14,7 @@ import {
 } from '../../../core';
 import {ScriptedChatTransport} from '../../../transport';
 import {chatMessageList} from './ChatMessageList';
+import {chatToolCall} from './ChatToolCall';
 
 /**
  * The approval a tool call waits for. Users rely on Allow and Deny saying what happens, on a
@@ -108,6 +109,55 @@ describe('ChatToolCall display modes', () => {
     beforeEach(() => {
         vi.stubGlobal('ResizeObserver', NoopResizeObserver);
         Element.prototype.scrollTo ??= () => {};
+    });
+
+    it('opens a cancelled call to a muted Cancelled section, not a red Error', () => {
+        const chatModel = createChat({}, [
+            reply(
+                toolCall('lookup_rows', {
+                    state: 'output-error',
+                    output: null,
+                    errorText: 'Stopped by the user.',
+                    cancelled: true
+                })
+            )
+        ]);
+        renderList(chatModel);
+
+        fireEvent.click(document.querySelector('.xh-chat-tool-call__header'));
+
+        const labels = Array.from(
+            document.querySelectorAll('.xh-chat-tool-call__section-label')
+        ).map(it => it.textContent);
+        expect(labels).toContain('Cancelled');
+        expect(labels).not.toContain('Error');
+        expect(document.querySelector('.xh-chat-tool-call__error')).toBeNull();
+        expect(document.querySelector('.xh-chat-tool-call__denied').textContent).toBe(
+            'Stopped by the user.'
+        );
+    });
+
+    it("says Running for a call the backend runs, and Pending for a browser tool's", () => {
+        // The row alone: a loaded message settles an open call, so the model cannot hold one.
+        const pending = toolCall('lookup_rows', {state: 'input-available', output: null}),
+            renderRow = (chatModel: ChatModel) =>
+                render(
+                    appContext({
+                        item: chatToolCall({
+                            part: pending,
+                            context: {chatModel, host: chatModel, messageId: 'a1'}
+                        })
+                    })
+                ),
+            text = () => document.querySelector('.xh-chat-tool-call').textContent;
+
+        renderRow(createChat({}, []));
+        expect(text()).toContain('Running');
+        expect(text()).not.toContain('Pending');
+        cleanup();
+
+        renderRow(createChat({tools: [{name: 'lookup_rows', execute: () => 'rows'}]}, []));
+        expect(text()).toContain('Pending');
     });
 
     it('shows the output of an inline tool with no renderer, as markdown, with no row', () => {

@@ -265,7 +265,12 @@ function inlineToolCall({
                       className: 'xh-chat-tool-call__details',
                       items: [
                           state === 'output-error' && errorText
-                              ? div({className: 'xh-chat-tool-call__error', item: errorText})
+                              ? div({
+                                    className: part.cancelled
+                                        ? 'xh-chat-tool-call__denied'
+                                        : 'xh-chat-tool-call__error',
+                                    item: errorText
+                                })
                               : null,
                           !isEmpty(inputValue) ? jsonView({value: inputValue}) : null
                       ]
@@ -309,19 +314,26 @@ function hasDefaultBody(part: ChatToolCallPart): boolean {
 }
 
 function defaultBody(part: ChatToolCallPart): ReactNode[] {
-    const {state, output, errorText} = part,
+    const {state, output, errorText, cancelled} = part,
         inputValue = getInputValue(part);
 
+    // A cancelled call settled as an error or a denial, but the user stopped it: not a failure.
     return compact([
         !isEmpty(inputValue) ? section('Input', jsonView({value: inputValue})) : null,
         state === 'output-available' ? section('Output', jsonView({value: output})) : null,
-        state === 'output-error'
+        cancelled
+            ? section(
+                  'Cancelled',
+                  div({className: 'xh-chat-tool-call__denied', item: errorText || 'Stopped.'})
+              )
+            : null,
+        !cancelled && state === 'output-error'
             ? section(
                   'Error',
                   div({className: 'xh-chat-tool-call__error', item: errorText || 'Tool failed.'})
               )
             : null,
-        state === 'output-denied'
+        !cancelled && state === 'output-denied'
             ? section(
                   'Denied',
                   div({className: 'xh-chat-tool-call__denied', item: errorText || 'Not run.'})

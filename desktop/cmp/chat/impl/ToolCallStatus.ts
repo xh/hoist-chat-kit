@@ -83,6 +83,8 @@ export function getToolCallStatusLabel(part: ChatToolCallPart, spec: ChatToolSpe
         case 'attention':
             return part.state === 'approval-requested' ? 'Needs approval' : 'Waiting for you';
         default:
+            // A call with no `execute` here is the backend's to run, from the moment it is made.
+            if (part.state === 'input-available' && !spec?.execute) return 'Running';
             return PROGRESS_LABELS[part.state] ?? 'Running';
     }
 }

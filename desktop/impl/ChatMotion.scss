@@ -111,8 +111,13 @@
   }
 }
 
+// An app whose users always report reduced motion, as over Citrix, puts `xh-chat--motion` on
+// `body` to keep every cue moving. `xh-chat--reduced-motion` on a container still forces the
+// twins there.
 @media (prefers-reduced-motion: reduce) {
-  @include static-twins;
+  body:not(.xh-chat--motion) {
+    @include static-twins;
+  }
 }
 
 .xh-chat--reduced-motion {

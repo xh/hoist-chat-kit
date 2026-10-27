@@ -40,10 +40,23 @@
     --xh-button-bg-darker: var(--xh-intent-neutral-trans1);
 
     border-radius: 0;
+    font-size: var(--xh-chat-font-size);
     justify-content: flex-start;
     min-height: 26px;
     padding: 0 2px 0 var(--xh-pad-px);
     width: 100%;
+
+    // Hoist's dark theme pads a minimal button with a rule one class more specific than this
+    // one, so the padding is restated one class higher still.
+    &.xh-button.xh-button--minimal {
+      padding: 0 2px 0 var(--xh-pad-px);
+    }
+
+    // Inside the row, which clips its overflow and so hides Blueprint's ring outside it.
+    &:focus-visible {
+      outline: 2px solid var(--xh-chat-focus-ring-color);
+      outline-offset: -2px;
+    }
 
     .bp6-button-text {
       flex: 1;
@@ -312,10 +325,21 @@
 
     border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
     border-radius: var(--xh-chat-border-radius);
+    font-size: var(--xh-chat-font-size);
     justify-content: flex-start;
     min-height: 28px;
     padding: 0 2px 0 var(--xh-pad-px);
     width: 100%;
+
+    // As for a call's header: Hoist's dark theme outranks the padding, and the ring goes inside.
+    &.xh-button.xh-button--minimal {
+      padding: 0 2px 0 var(--xh-pad-px);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--xh-chat-focus-ring-color);
+      outline-offset: -2px;
+    }
 
     .bp6-button-text {
       flex: 1;

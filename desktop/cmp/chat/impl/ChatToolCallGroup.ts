@@ -124,7 +124,7 @@ interface GroupProblems {
 function getProblems(parts: ChatToolCallPart[]): GroupProblems {
     return {
         failed: parts.filter(isToolCallFailed).length,
-        denied: parts.filter(it => it.state === 'output-denied').length
+        denied: parts.filter(it => it.state === 'output-denied' && !it.cancelled).length
     };
 }
 
