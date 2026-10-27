@@ -1,4 +1,5 @@
 import {XH} from '@xh/hoist/core';
+import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatModel, type ChatModelConfig, ChatRunError} from '../core';
@@ -404,6 +405,23 @@ describe('ChatThreadsModel', () => {
             await chatModel.sendAsync('Hello');
 
             expect(chatModel.status).toBe('error');
+            expect(model.endedEarlyThreads).toEqual({});
+        });
+
+        it("keeps the store's mark while a hidden selection holds the thread", async () => {
+            const {model} = setup({
+                store: new LocalChatThreadStore({
+                    threads: [{id: 'cut', lastRunEnd: 'failed', lastRunReason: 'Timed out.'}]
+                })
+            });
+            await model.loadAsync();
+            model.isChatShown = false;
+
+            await model.selectThreadAsync('cut');
+            expect(model.endedEarlyThreads.cut).toEqual({runEnd: 'failed', reason: 'Timed out.'});
+
+            model.isChatShown = true;
+            await wait();
             expect(model.endedEarlyThreads).toEqual({});
         });
 
