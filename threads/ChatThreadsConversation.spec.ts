@@ -183,6 +183,23 @@ describe('ChatThreadsModel with an app conversation', () => {
             expect(first.isDestroyed).toBe(true);
         });
 
+        it('marks a turn that ends in the selected thread while the chat is hidden, until it shows', async () => {
+            const {model, conversations} = setup();
+            await selectAsync(model, conversations, 't1');
+            const [first] = conversations;
+            model.isChatShown = false;
+            first.set({isBusy: true});
+
+            first.set({isBusy: false});
+            expect(model.isSelectionShown).toBe(false);
+            expect(model.finishedAwayThreadIds).toEqual(['t1']);
+            expect(first.isDestroyed).toBe(false);
+
+            model.isChatShown = true;
+            await wait();
+            expect(model.finishedAwayThreadIds).toEqual([]);
+        });
+
         it('marks a turn that ends early away, with its reason', async () => {
             const {model, conversations} = setup();
             await selectAsync(model, conversations, 't1');

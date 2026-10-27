@@ -1,4 +1,5 @@
 import {XH} from '@xh/hoist/core';
+import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatModel, type ChatModelConfig, ChatRunError} from '../core';
@@ -319,6 +320,7 @@ describe('ChatThreadsModel', () => {
             expect(model.finishedAwayThreadIds).toEqual([threadId]);
 
             await model.selectThreadAsync(threadId);
+            await wait();
             expect(model.finishedAwayThreadIds).toEqual([]);
         });
 
@@ -349,6 +351,7 @@ describe('ChatThreadsModel', () => {
             expect(model.finishedAwayThreadIds).toEqual([]);
 
             await model.selectThreadAsync(threadId);
+            await wait();
             expect(model.endedEarlyThreads[threadId]).toBeUndefined();
         });
 
@@ -366,10 +369,11 @@ describe('ChatThreadsModel', () => {
             expect(chatModel.isDestroyed).toBe(false);
 
             // Opening it shows the failed turn, with no reload that a backend might answer
-            // without it.
+            // without it. A moment's look counts as seen.
             await model.selectThreadAsync(threadId);
             expect(model.chatModel).toBe(chatModel);
             expect(chatModel.lastMessage.status).toBe('error');
+            await wait();
 
             await model.selectThreadAsync('t1');
             expect(chatModel.isDestroyed).toBe(true);
@@ -407,6 +411,23 @@ describe('ChatThreadsModel', () => {
             expect(model.endedEarlyThreads).toEqual({});
         });
 
+        it("keeps the store's mark while a hidden selection holds the thread", async () => {
+            const {model} = setup({
+                store: new LocalChatThreadStore({
+                    threads: [{id: 'cut', lastRunEnd: 'failed', lastRunReason: 'Timed out.'}]
+                })
+            });
+            await model.loadAsync();
+            model.isChatShown = false;
+
+            await model.selectThreadAsync('cut');
+            expect(model.endedEarlyThreads.cut).toEqual({runEnd: 'failed', reason: 'Timed out.'});
+
+            model.isChatShown = true;
+            await wait();
+            expect(model.endedEarlyThreads).toEqual({});
+        });
+
         it("falls back to the store's lastRunEnd for a thread with no open chat", async () => {
             const {model} = setup({
                 store: new LocalChatThreadStore({
@@ -436,9 +457,11 @@ describe('ChatThreadsModel', () => {
                 {model} = setup({store, respond: () => errorEvents('The model is overloaded.')});
             await model.loadAsync();
 
-            // A store-marked thread the user opens and leaves.
+            // A store-marked thread the user opens, looks at, and leaves.
             await model.selectThreadAsync('cut');
+            await wait();
             await model.selectThreadAsync('other');
+            await wait();
             expect(model.endedEarlyThreads).toEqual({});
 
             // A turn that fails while the user watches, which the store then reports.
@@ -448,6 +471,7 @@ describe('ChatThreadsModel', () => {
             store.saveThread({id: threadId, lastRunEnd: 'failed'});
             await model.refreshAsync();
             await model.selectThreadAsync('other');
+            await wait();
             expect(model.endedEarlyThreads).toEqual({});
 
             // A later run on the server, after the user left, marks the thread again.

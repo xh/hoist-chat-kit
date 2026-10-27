@@ -167,6 +167,48 @@ describe('ChatThreadList', () => {
         expect(model.selectedThreadId).toBe('t2');
     });
 
+    it('shows a hidden selection as none, and lets its row show a new reply', async () => {
+        const {model} = await renderList();
+        await act(() => model.selectThreadAsync('t1'));
+        expect(row('Budget review').getAttribute('aria-selected')).toBe('true');
+
+        model.isChatShown = false;
+        await act(() => model.chatModel.sendAsync({text: 'Hi'}));
+
+        const selected = row('Budget review');
+        expect(selected.getAttribute('aria-selected')).toBe('false');
+        expect(selected.classList).not.toContain('xh-chat-thread-list__row--selected');
+        expect(selected.classList).toContain('xh-chat-thread-list__row--new');
+        expect(model.selectedThreadId).toBe('t1');
+
+        model.isChatShown = true;
+        await act(() => wait());
+        expect(row('Budget review').getAttribute('aria-selected')).toBe('true');
+        expect(row('Budget review').classList).not.toContain('xh-chat-thread-list__row--new');
+    });
+
+    it('keeps the mark on a hidden thread when a click shows the chat and selects another', async () => {
+        const {model} = await renderList({
+            props: {
+                onThreadClick: () => {
+                    model.isChatShown = true;
+                }
+            }
+        });
+        await act(() => model.selectThreadAsync('t1'));
+        model.isChatShown = false;
+        await act(() => model.chatModel.sendAsync({text: 'Hi'}));
+        expect(model.finishedAwayThreadIds).toEqual(['t1']);
+
+        fireEvent.click(row('Travel'));
+        await act(() => wait());
+
+        expect(model.selectedThreadId).toBe('t2');
+        expect(model.isSelectionShown).toBe(true);
+        expect(model.finishedAwayThreadIds).toEqual(['t1']);
+        expect(row('Budget review').classList).toContain('xh-chat-thread-list__row--new');
+    });
+
     it('hides New Chat with enableNewChat false, for an app that offers it elsewhere', async () => {
         await renderList({props: {enableNewChat: false}});
         expect(screen.queryByRole('button', {name: 'New Chat'})).toBeNull();

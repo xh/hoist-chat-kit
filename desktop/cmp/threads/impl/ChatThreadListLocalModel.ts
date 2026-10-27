@@ -112,9 +112,11 @@ export class ChatThreadListLocalModel extends HoistModel {
     }
 
     /**
-     * A click on a row, or Enter on it: tell the app, then select the thread. Focus lands on the
-     * row, so that the row's keys work after a click on its link.
+     * A click on a row, or Enter on it: tell the app, with the thread, then select it. Focus
+     * lands on the row, so that the row's keys work after a click on its link. One action, so
+     * that the focus and the selection render together.
      */
+    @action
     clickThread(thread: ChatThreadSummary) {
         if (this.renamingThreadId === thread.id) return;
         this.props.onThreadClick?.(thread);

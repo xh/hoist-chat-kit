@@ -229,6 +229,30 @@ threadsModel.newThread({draft: 'Summarize the guidelines', runOptions: {document
 Render `threadsModel.chatModel` with a chat panel. It changes with the selection, so bind the
 panel to it in a component that observes the threads model.
 
+### Say when the chat is hidden
+
+The selection outlives the view that shows it. A route binding keeps it while the user is on
+another page, and an app may keep its chat behind a tab or in a collapsed panel. The model needs
+to know, so that a reply that finishes meanwhile gets the new-reply mark, and the list shows no
+selection. With a `route`, the model knows from the router. A chat the app hides some other way
+is the app's to say:
+
+```typescript
+// In the app's model, as the chat tab opens and closes
+this.addReaction({
+    track: () => this.tabModel.activeTabId === 'chat',
+    run: isShown => (this.threadsModel.isChatShown = isShown),
+    fireImmediately: true
+});
+```
+
+An app that always shows its chat leaves `isChatShown` alone. `isSelectionShown` combines it with
+the route, and is what the model and the list read. When it turns true, the thread then shown
+counts as seen a moment later, as when the user opens a thread. A selection made as the chat
+shows, by the app or by the route binding, is the one that counts, and a thread left while hidden
+keeps its marks. An app that shows its chat and then selects a thread does both in one tick, with
+no await between, or selects first.
+
 ### Let turns run in the background
 
 Turns run in the background, in as many threads at once as the user starts. The list shows a
@@ -239,16 +263,18 @@ A background turn that pauses for an approval, or for the answer to an interacti
 for the user. Its chat stays open, and its id is in `awaitingThreadIds`. Show it in the list, so
 the user knows the thread needs them.
 
-A turn that ends while another thread is selected puts its thread in `finishedAwayThreadIds`.
-The thread leaves it when the user selects it, so a list can mark the reply as new until then.
+A turn that ends while the user is not looking at its thread - another thread is selected, or
+the selection is hidden - puts the thread in `finishedAwayThreadIds`. The thread leaves it once
+the user looks at it, so a list can mark the reply as new until then.
 
-A background turn that fails, or that the server interrupts or cancels, goes in
-`endedEarlyThreads` instead, with its error as the reason. The mark holds until the user opens
-the thread, or a new turn starts in it. The thread's chat stays open until then, so the user
-sees the failed turn with its error and Retry, even from a backend that does not store failed
-turns. For a thread with no open chat, the store's `lastRunEnd`
-and `lastRunReason` fill the same map. The model skips them if the user has seen the thread, in
-this session, since its last activity. A list marks each such row as ended early.
+A background turn that fails, or that the server interrupts, goes in `endedEarlyThreads` instead,
+with its error as the reason. The mark holds until the user looks at the thread, or a new turn
+starts in it. The thread's chat stays open until then, so the user sees the failed turn with its
+error and Retry, even from a backend that does not store failed turns. For a thread the user is
+not looking at, and whose turn neither runs nor waits here, the store's `lastRunEnd` and
+`lastRunReason` fill the same map. The model skips them if the user has seen the thread, in this
+session, since its last activity. A list marks each such row as ended early. Neither map holds
+the thread the user is looking at.
 
 ### Cap the list and the history
 
@@ -332,6 +358,12 @@ A deep link to a thread that the store reports missing, with a 404, sets `isThre
 the thread blocks sends, so that a send never recreates a deleted id. The workspace then shows
 "Thread not found" with New Chat, in place of the chat. An app with its
 own layout reads the flag the same way.
+
+Off the route, the selection stays, so that a return restores it, and `isSelectionShown` is
+false. A list shown on every page then marks a reply that finishes in the selected thread as
+new, and shows the thread as not selected. A click on a row there selects the thread, and does
+not navigate: the app brings the router to the chat in the list's `onThreadClick`. On return the
+thread counts as seen - see [Say when the chat is hidden](#say-when-the-chat-is-hidden).
 
 ### Group the list by recency
 
@@ -450,14 +482,17 @@ conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those
 |----------|------|-------------|
 | `threads` | `ChatThreadSummary[]` | The list, in the store's order. Threads started here that the store has not listed come first, unless a search is active. Pending edits show at once. |
 | `selectedThreadId` | `string` | The selected thread, or null. Observable. Change it with `selectThreadAsync()` or `newThread()`. |
+| `isChatShown` | `boolean` | True while the app shows its chat. An app that hides its chat behind a tab or in a collapsed panel sets it. Else leave it true. Bindable. |
+| `isSelectionShown` | `boolean` | True while the user can see the selected thread: `isChatShown`, and with a `route`, the router on it. |
+| `shownThreadId` | `string` | The selected thread while shown, else null. The list shows this row as selected. |
 | `chatModel` | `ChatModel` | The selected thread's chat, or null. Always null with `createConversation`. |
 | `conversation` | `ChatConversation` | The selected thread's conversation, or null. |
 | `selectedSummary` | `ChatThreadSummary` | The selected thread's summary, or null if it is not in the list. |
 | `search` | `string` | Text to search for. Bindable. |
 | `runningThreadIds` | `string[]` | Threads with a turn running here, or reported running by the store. |
 | `awaitingThreadIds` | `string[]` | Threads whose turn is paused for the user. Their chats stay open. |
-| `finishedAwayThreadIds` | `string[]` | Threads whose turn ended while another thread was selected. A thread leaves it when selected. Held for the session only. |
-| `endedEarlyThreads` | `Record<string, ChatThreadEndedEarly>` | Threads whose last run ended early, by id, each with `runEnd` (`'interrupted'` or `'failed'`) and a `reason`. From background turns in this session, and the store's `lastRunEnd` for threads with no open chat that the user has not seen since their last activity. |
+| `finishedAwayThreadIds` | `string[]` | Threads whose turn ended while the user was not looking at them: another thread was selected, or the selection was hidden. A thread leaves it when the user sees it. Held for the session only. |
+| `endedEarlyThreads` | `Record<string, ChatThreadEndedEarly>` | Threads whose last run ended early, by id, each with `runEnd` (`'interrupted'` or `'failed'`) and a `reason`. From background turns in this session, and the store's `lastRunEnd` for threads the user is not looking at and has not seen since their last activity. |
 | `loadError` | `Error` | Why the selected thread's history failed to load, or null. |
 | `isThreadNotFound` | `boolean` | True if the store reported the selected thread missing, with a 404. |
 | `isThreadLoading` | `boolean` | True while the selected thread's history loads. Its chat is empty until then, so a layout shows a plain placeholder rather than a new chat's empty state. `ChatWorkspace` does. |
@@ -512,7 +547,7 @@ Mark each member that changes as observable, or compute it from observables.
 | `lastActivityAt` | `number` | Epoch millis of the last change. Drives sorting and recency groups. |
 | `createdAt` | `number` | Epoch millis of creation. Optional. |
 | `isRunning` | `boolean` | True if the backend reports a run in progress. Optional. |
-| `lastRunEnd` | `'complete' \| 'interrupted' \| 'failed'` | How the last run ended, if the backend reports it. Feeds `endedEarlyThreads` for a thread with no open chat. Optional. |
+| `lastRunEnd` | `'complete' \| 'interrupted' \| 'failed'` | How the last run ended, if the backend reports it. Feeds `endedEarlyThreads` for a thread the user is not looking at. Optional. |
 | `lastRunReason` | `string` | Why the last run ended so, for a tooltip. Optional. |
 | `metadata` | `PlainObject` | App data. Optional. |
 

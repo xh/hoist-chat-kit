@@ -1592,3 +1592,31 @@ existing callers do not change.
 list's loading, edits and routing. Or keep `createChatModel` and have the app pass a stub
 `ChatModel` with a transport it never calls. That works today, but shows no running or ended-early
 marks for the other library's turns, and ties the app to `ChatModel` internals.
+
+
+## D97. The threads model is told when its selection is hidden
+
+**Decision.** `ChatThreadsModel.isSelectionShown` says whether the user can see the selected
+thread. While it is false, a turn that ends in the selected thread counts as away, so the list
+marks a new reply or an ended-early turn, and the list shows no selection. When it turns true, the
+thread then shown counts as seen a moment later, so that a selection made as the chat shows, by
+the app or by the route binding, is the one that counts. It combines two facts: `isChatShown`, which
+the app sets when it hides its chat behind a tab or in a collapsed panel, and the router being on
+the bound route or a child of it, when there is a `route`. An app that always shows its chat on
+its route leaves `isChatShown` true.
+
+**Why.** The selection outlives the view that shows it. A route binding keeps it while the user
+is on another page, so that a return restores it, and that is right. But the model treated a
+selected thread as seen whenever a turn ended in it, so a reply that finished while the user was
+on another page left no mark, and a list shown on every page announced a row as selected there.
+The first app on the thread seam shows the list in a sidebar on every page, and hit both.
+
+The app's statement is a field of its own rather than a write to the derived state, so that the
+router and the app never overwrite each other. A route is one way a chat goes out of view. A tab
+or a collapsed panel is another, and only the app knows about those. An app may have both.
+
+**Alternatives.** Clear the selection off the route. That loses the thread the user was reading,
+and a return would open a new chat. Or derive the signal from the route alone, with no field. That
+covers one case of a chat out of view, and leaves the next app to patch the list. Or one bindable
+that the route binding writes and the app may write too. The two would fight on any app with a
+route and a tab.

@@ -67,15 +67,20 @@ A row shows at most one unusual state, in this order:
 |---|---|---|---|
 | Running | `runningThreadIds` | Spinner, and "Working" in place of the time | "working" |
 | Awaiting | `awaitingThreadIds` | Pause | "waiting for you" |
-| New reply | `finishedAwayThreadIds`, unless selected | Dot, and a bold title | "new reply" |
-| Interrupted | `endedEarlyThreads`, with `runEnd: 'interrupted'` | Warning, with the reason as tooltip | "last reply interrupted" |
-| Failed | `endedEarlyThreads`, with `runEnd: 'failed'` | Warning, in the error color | "last reply failed" |
+| New reply | `finishedAwayThreadIds`, unless selected and shown | Dot, and a bold title | "new reply" |
+| Interrupted | `endedEarlyThreads`, with `runEnd: 'interrupted'`, unless selected and shown | Warning, with the reason as tooltip | "last reply interrupted" |
+| Failed | `endedEarlyThreads`, with `runEnd: 'failed'`, unless selected and shown | Warning, in the error color | "last reply failed" |
 
 Interrupted and Failed are the two looks of "ended early". The threads model sets them from a
 background turn that failed or that the server cut short, and from the store's `lastRunEnd` for a
-thread with no open chat. A thread the user has seen since its last activity shows no mark.
+thread the user is not looking at. A thread the user has seen since its last activity shows no
+mark, and nor does the selected row while the user can see it.
 
 A row in no unusual state shows no icon.
+
+The selected row is highlighted, and announced as selected, only while the threads model's
+`isSelectionShown` is true: off the thread route, or while the app says its chat is hidden with
+`isChatShown`, the row looks like any other, and can show a new reply.
 
 ## Configuration Pattern
 
@@ -167,7 +172,8 @@ It also takes Hoist's `BoxProps` for layout.
 | Member | Type | Description |
 |--------|------|-------------|
 | `threads` | `ChatThreadSummary[]` | Threads to list. |
-| `selectedThreadId` | `string` | The open thread. |
+| `shownThreadId` | `string` | The row to show as selected: the selected thread while the user can see it. |
+| `selectedThreadId` | `string` | The fallback Tab stop, after a focused row, shown or not. |
 | `newThread()`, `selectThreadAsync()` | methods | New Chat, and a click on a row. |
 | `search` | `string` | Text to search for. The search input reads and writes it. |
 | `runningThreadIds`, `awaitingThreadIds`, `finishedAwayThreadIds`, `endedEarlyThreads` | | Row states. |
@@ -199,6 +205,15 @@ bind them.
   [Theming](../chat/README.md#theming).
 
 ## Common Pitfalls
+
+### Expecting a click off the thread route to open the chat
+
+A click selects the thread. With a route binding, the selection goes into the route only while
+the router is on that route. A list shown on other pages opens the chat in `onThreadClick`:
+
+```typescript
+chatThreadList({model, onThreadClick: thread => XH.navigate('default.chat', {threadId: thread.id})});
+```
 
 ### Hiding the list with a class
 
