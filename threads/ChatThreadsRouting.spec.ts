@@ -227,6 +227,42 @@ describe('ChatThreadsModel route binding', () => {
         expect(model.finishedAwayThreadIds).toEqual(['t1']);
     });
 
+    it('navigates to the hidden selection when it is selected again', async () => {
+        await navigateAsync('default.chat', {threadId: 't1'});
+        const model = createModel();
+        await vi.waitFor(() => expect(model.selectedThreadId).toBe('t1'));
+        await navigateAsync('default.other');
+
+        await model.selectThreadAsync('t1');
+
+        await vi.waitFor(() => expect(XH.routerState.name).toBe('default.chat'));
+        expect(XH.routerState.params.threadId).toBe('t1');
+        expect(model.isSelectionShown).toBe(true);
+    });
+
+    it('marks a thread selected while hidden seen once shown, though the route lagged', async () => {
+        await navigateAsync('default.chat', {threadId: 't1'});
+        const model = createModel(() => [textEvents('Still here.')]);
+        await vi.waitFor(() => expect(model.selectedThreadId).toBe('t1'));
+
+        // t2 ends a turn away, then t1 is selected again, all while the chat is hidden.
+        await model.selectThreadAsync('t2');
+        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('t2'));
+        model.isChatShown = false;
+        await model.chatModel.sendAsync({text: 'Hi'});
+        expect(model.finishedAwayThreadIds).toEqual(['t2']);
+        await model.selectThreadAsync('t1');
+        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('t1'));
+
+        // Select t2 and show the chat before the router has moved.
+        await model.selectThreadAsync('t2');
+        model.isChatShown = true;
+
+        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('t2'));
+        expect(model.shownThreadId).toBe('t2');
+        expect(model.finishedAwayThreadIds).toEqual([]);
+    });
+
     it('hides the selection while the app says its chat is hidden, even on the route', async () => {
         await navigateAsync('default.chat', {threadId: 't1'});
         const model = createModel();

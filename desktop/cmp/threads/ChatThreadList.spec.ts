@@ -188,6 +188,28 @@ describe('ChatThreadList', () => {
         expect(row('Budget review').classList).not.toContain('xh-chat-thread-list__row--new');
     });
 
+    it('keeps the mark on a hidden thread when a click shows the chat and selects another', async () => {
+        const {model} = await renderList({
+            props: {
+                onThreadClick: () => {
+                    model.isChatShown = true;
+                }
+            }
+        });
+        await act(() => model.selectThreadAsync('t1'));
+        model.isChatShown = false;
+        await act(() => model.chatModel.sendAsync({text: 'Hi'}));
+        expect(model.finishedAwayThreadIds).toEqual(['t1']);
+
+        fireEvent.click(row('Travel'));
+        await act(() => wait());
+
+        expect(model.selectedThreadId).toBe('t2');
+        expect(model.isSelectionShown).toBe(true);
+        expect(model.finishedAwayThreadIds).toEqual(['t1']);
+        expect(row('Budget review').classList).toContain('xh-chat-thread-list__row--new');
+    });
+
     it('hides New Chat with enableNewChat false, for an app that offers it elsewhere', async () => {
         await renderList({props: {enableNewChat: false}});
         expect(screen.queryByRole('button', {name: 'New Chat'})).toBeNull();

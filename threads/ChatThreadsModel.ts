@@ -400,7 +400,11 @@ export class ChatThreadsModel extends HoistModel {
      */
     async selectThreadAsync(threadId: string): Promise<void> {
         throwIf(threadId == null, 'selectThreadAsync requires a thread id.');
-        if (threadId === this.selectedThreadId) return;
+        if (threadId === this.selectedThreadId) {
+            // A click on the hidden selection asks to see it. Off the route, that is a navigation.
+            this.navigateToSelection();
+            return;
+        }
 
         const isOpen = !!this.openThreads[threadId],
             thread = this.openThreads[threadId] ?? this.openThread(threadId, false);
@@ -480,6 +484,10 @@ export class ChatThreadsModel extends HoistModel {
     // next list, which may report it by a server clock that runs ahead: the number of the first
     // list request that can report the turn, by thread id. A new turn in the thread ends the wait.
     private readonly seenOnNextList = new Map<string, number>();
+
+    // The same number for a turn that ended away, held until the user sees its mark - the list
+    // that reports the turn may be in flight by then.
+    private readonly awayTurnListNumbers = new Map<string, number>();
 
     // Threads whose turn ended early in the background, in this session - see `endedEarlyThreads`.
     @observableRef private accessor endedEarlyHere: Record<string, ChatThreadEndedEarly> = {};
@@ -618,6 +626,7 @@ export class ChatThreadsModel extends HoistModel {
         if (conversation.isBusy) {
             this.clearEndedEarly(threadId);
             this.seenOnNextList.delete(threadId);
+            this.awayTurnListNumbers.delete(threadId);
             return;
         }
 
@@ -658,6 +667,7 @@ export class ChatThreadsModel extends HoistModel {
             return;
         }
         if (endedEarly?.runEnd === 'cancelled') return;
+        this.awayTurnListNumbers.set(threadId, this.listCount);
         if (endedEarly?.runEnd) {
             this.endedEarlyHere = {...this.endedEarlyHere, [threadId]: endedEarly};
         } else {
@@ -725,7 +735,11 @@ export class ChatThreadsModel extends HoistModel {
     private markSeen(threadId: string) {
         if (threadId == null) return;
         this.noteSeen(threadId);
-        if (this.hasUnseenMark(threadId)) this.seenOnNextList.set(threadId, this.listCount);
+        if (this.hasUnseenMark(threadId)) {
+            const listNumber = this.awayTurnListNumbers.get(threadId) ?? this.listCount;
+            this.seenOnNextList.set(threadId, listNumber);
+        }
+        this.awayTurnListNumbers.delete(threadId);
         this.finishedAwayThreadIds = without(this.finishedAwayThreadIds, threadId);
         this.clearEndedEarly(threadId);
     }
@@ -791,6 +805,7 @@ export class ChatThreadsModel extends HoistModel {
             thread?.destroy();
             this.drafts.remove(id);
             this.seenOnNextList.delete(id);
+            this.awayTurnListNumbers.delete(id);
         });
         // After the chats close, as a composer saves its draft when destroyed.
         ChatKit.clearLocalData(threadIds);
@@ -932,10 +947,11 @@ export class ChatThreadsModel extends HoistModel {
         this.finishedAwayThreadIds = this.finishedAwayThreadIds.map(it =>
             it === prevThreadId ? threadId : it
         );
-        if (this.seenOnNextList.has(prevThreadId)) {
-            this.seenOnNextList.set(threadId, this.seenOnNextList.get(prevThreadId));
-            this.seenOnNextList.delete(prevThreadId);
-        }
+        [this.seenOnNextList, this.awayTurnListNumbers].forEach(map => {
+            if (!map.has(prevThreadId)) return;
+            map.set(threadId, map.get(prevThreadId));
+            map.delete(prevThreadId);
+        });
     }
 
     //------------------------
@@ -965,7 +981,21 @@ export class ChatThreadsModel extends HoistModel {
             this.syncToRoute();
         } else if (threadId !== this.selectedThreadId) {
             this.selectThreadAsync(threadId);
+        } else if (this.isSelectionShown && this.hasUnseenMark(threadId)) {
+            // Shown while the router still named the thread left behind, so not yet seen.
+            this.markSeen(threadId);
         }
+    }
+
+    /** Bring the router to the selected thread from another route, as a click on its row asks. */
+    private navigateToSelection() {
+        const {route} = this;
+        if (!route || this.isOnRoute) return;
+        const threadId = this.routeThreadId;
+        XH.navigate(
+            threadId && route.threadRoute ? route.threadRoute : route.name,
+            threadId ? {[route.param]: threadId} : {}
+        );
     }
 
     /**
