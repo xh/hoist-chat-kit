@@ -6,6 +6,7 @@ import {
     isEmpty,
     keyBy,
     keys,
+    mapKeys,
     omit,
     pickBy,
     some,
@@ -494,8 +495,9 @@ export class ChatThreadsModel extends HoistModel {
     // When the user last saw each thread, in this session, by id - see `endedEarlyThreads`.
     @observableRef private accessor seenActivityAt: Record<string, number> = {};
 
-    // Threads whose turn ended here, to take the turn's activity as seen once the user has seen
-    // the turn end, as a server clock that runs ahead may date the activity after the seen time.
+    // Threads whose turn ended here, or that the user saw before a list had them, to take the
+    // listed activity as seen once the user has seen the turn end, as a server clock that runs
+    // ahead may date the activity after the seen time.
     // By thread id: the number of the first list request that can report the turn, and the
     // activity a list reported before the user saw the turn end.
     private readonly seenOnNextList = new Map<string, TurnEndWait>();
@@ -756,7 +758,16 @@ export class ChatThreadsModel extends HoistModel {
         if (threadId == null) return;
         const wait = this.seenOnNextList.get(threadId);
         this.noteSeen(threadId, wait?.reportedActivityAt ?? 0);
-        if (wait?.reportedActivityAt != null) this.seenOnNextList.delete(threadId);
+        if (wait?.reportedActivityAt != null) {
+            this.seenOnNextList.delete(threadId);
+        } else if (!wait && !this.hasThread(threadId)) {
+            // Seen before its first list, as from a deep link: that list may date its activity
+            // after now, by a server clock that runs ahead.
+            this.seenOnNextList.set(threadId, {
+                listNumber: this.listCount,
+                reportedActivityAt: null
+            });
+        }
         this.clearMarks(threadId);
     }
 
@@ -974,9 +985,9 @@ export class ChatThreadsModel extends HoistModel {
             this.seenActivityAt = omit(this.seenActivityAt, prevThreadId);
             this.raiseSeen(threadId, seen);
         }
-        this.finishedAwayHere = this.finishedAwayHere.map(it =>
-            it === prevThreadId ? threadId : it
-        );
+        if (this.finishedAwayHere.includes(prevThreadId)) {
+            this.finishedAwayHere = union(without(this.finishedAwayHere, prevThreadId), [threadId]);
+        }
         this.endedEarlyHere = rekeyRecord(this.endedEarlyHere, prevThreadId, threadId);
         if (this.seenOnNextList.has(prevThreadId)) {
             this.seenOnNextList.set(threadId, this.seenOnNextList.get(prevThreadId));
@@ -1069,8 +1080,7 @@ function rekeyRecord<T>(
     prevKey: string,
     key: string
 ): Record<string, T> {
-    if (!(prevKey in record)) return record;
-    return {...omit(record, prevKey), [key]: record[prevKey]};
+    return prevKey in record ? mapKeys(record, (_, k) => (k === prevKey ? key : k)) : record;
 }
 
 /** True for a turn that failed or was interrupted - the ends a thread list marks. */

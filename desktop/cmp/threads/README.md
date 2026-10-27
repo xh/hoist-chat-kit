@@ -173,7 +173,7 @@ It also takes Hoist's `BoxProps` for layout.
 |--------|------|-------------|
 | `threads` | `ChatThreadSummary[]` | Threads to list. |
 | `shownThreadId` | `string` | The row to show as selected: the selected thread while the user can see it. |
-| `selectedThreadId` | `string` | The row that takes keyboard focus on Tab, shown or not. |
+| `selectedThreadId` | `string` | The fallback Tab stop, after a focused row, shown or not. |
 | `newThread()`, `selectThreadAsync()` | methods | New Chat, and a click on a row. |
 | `search` | `string` | Text to search for. The search input reads and writes it. |
 | `runningThreadIds`, `awaitingThreadIds`, `finishedAwayThreadIds`, `endedEarlyThreads` | | Row states. |
