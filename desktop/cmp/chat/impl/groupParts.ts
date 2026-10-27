@@ -6,6 +6,7 @@ import {
     type ChatToolDisplay,
     type ChatToolSpec,
     type ChatTranscript,
+    isChatModel,
     isChatSubagentPart
 } from '../../../../core';
 import {isAwaitingAnswer} from './ToolCallStatus';
@@ -65,11 +66,10 @@ export interface ChatProcessRun {
  * @internal
  */
 export function getHostToolSpec(host: ChatTranscript, name: string): ChatToolSpec {
-    return (
-        host?.getToolSpec?.(name) ??
-        host?.catalog?.displayTools.find(it => it.name === name) ??
-        null
-    );
+    const own = host?.getToolSpec?.(name) ?? null;
+    // A ChatModel's tools already hold its catalog's, in the modes that make them tools.
+    if (own || isChatModel(host)) return own;
+    return host?.catalog?.displayTools.find(it => it.name === name) ?? null;
 }
 
 /**

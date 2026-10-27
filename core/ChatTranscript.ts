@@ -32,7 +32,7 @@ export interface ChatTranscript {
      * summary and the display mode, as `ChatModel.getToolSpec` gives them. A transcript without
      * it shows each call under its tool's name, and the catalog's tools as their components.
      */
-    getToolSpec?(name: string): ChatToolSpec;
+    readonly getToolSpec?: (name: string) => ChatToolSpec;
 }
 
 /** True if a host is a `ChatModel`, which offers the actions a plain transcript lacks. */

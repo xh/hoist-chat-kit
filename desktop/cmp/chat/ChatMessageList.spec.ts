@@ -590,6 +590,34 @@ describe('ChatMessageList', () => {
         );
     });
 
+    it("falls through to a transcript's catalog when its getToolSpec has no spec", () => {
+        const host: ChatTranscript = {
+                // One call per reply: consecutive calls fold into a group.
+                messages: [
+                    new ChatMessage({
+                        id: 'a1',
+                        role: 'assistant',
+                        status: 'complete',
+                        parts: [call('c1', 'search_docs')]
+                    }),
+                    new ChatMessage({
+                        id: 'a2',
+                        role: 'assistant',
+                        status: 'complete',
+                        parts: [call('c2', 'unknown_tool')]
+                    })
+                ],
+                getToolSpec: name =>
+                    name === 'search_docs' ? {name, displayName: 'Searched documents'} : null
+            },
+            {container} = render(appContext({item: chatMessageList({host})})),
+            titles = Array.from(container.querySelectorAll('.xh-chat-tool-call__title')).map(
+                it => it.textContent
+            );
+
+        expect(titles).toEqual(['Searched documents', 'Unknown tool']);
+    });
+
     it('renders the parts of a transcript with no ChatModel, and no interactive controls', () => {
         const pending: ChatToolCallPart = {
                 ...call('c1', 'insert_rows'),
