@@ -273,6 +273,8 @@ export interface ChatSourcePart extends ChatPartBase {
      *    of `snippet`.
      *  - `fileName` - the document's file name, shown after its title and used for its file icon.
      *  - `page` - the page the passage is on, shown as "p. 41" and sent with a document request.
+     *  - `meta` - the source's own meta line, as a string or an array of strings, in place of the
+     *    file name and page, or the host. Such as a section name, or a date.
      */
     metadata?: PlainObject;
 }

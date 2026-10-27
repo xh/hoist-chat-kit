@@ -61,7 +61,7 @@ import {
     createPrompt,
     formatTag
 } from './impl/catalogPrompt';
-import {chatUiElementBoundary, defaultFallback, defaultPlaceholder} from './impl/ChatUiFallback';
+import {chatUiElementBoundary, chatUiFallback, chatUiPlaceholder} from './impl/ChatUiFallback';
 import {
     elementPath,
     findDanglingRefs,
@@ -266,8 +266,8 @@ export class ChatUiCatalog {
             actionHandlers = {},
             urlAllowList = null,
             migrations = {},
-            fallback = defaultFallback,
-            placeholder = defaultPlaceholder
+            fallback = chatUiFallback,
+            placeholder = chatUiPlaceholder
         } = config;
 
         throwIf(isEmpty(components), 'ChatUiCatalog requires at least one component.');

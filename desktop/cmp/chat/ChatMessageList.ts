@@ -17,7 +17,7 @@ import './ChatMessageList.scss';
 import {type ChatMessageRenderFn, type ChatSourceClickFn, chatMessageView} from './ChatMessageView';
 import type {ChatSuggestion} from './ChatSuggestions';
 import {chatAnnouncerRegions} from './impl/ChatAnnouncerRegions';
-import {chatErrorBoundary} from './impl/ChatErrorBoundary';
+import {chatErrorBoundary} from './ChatErrorBoundary';
 import {ChatMessageListLocalModel} from './impl/ChatMessageListLocalModel';
 import {refuseFileDrop} from './impl/FileDrop';
 import {getFailureCause, isReplyNotSent} from './impl/ReplyFailure';

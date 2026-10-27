@@ -8,10 +8,10 @@ import './ChatUiFallback.scss';
 
 /**
  * The default fallback element: a caption, with what went wrong and the input the model wrote
- * behind a "View input" disclosure.
- * @internal
+ * behind a "View input" disclosure. A catalog's own `fallback` can render this for the cases it
+ * does not handle itself.
  */
-export function defaultFallback({caption, errors, input}: ChatUiFallbackSpec): ReactNode {
+export function chatUiFallback({caption, errors, input}: ChatUiFallbackSpec): ReactNode {
     return div({
         className: 'xh-chat-ui-fallback',
         role: 'note',
@@ -29,11 +29,8 @@ export function defaultFallback({caption, errors, input}: ChatUiFallbackSpec): R
     });
 }
 
-/**
- * The default placeholder, for a component still streaming in - "Building chart…".
- * @internal
- */
-export function defaultPlaceholder({displayName}: ChatUiPlaceholderSpec): ReactNode {
+/** The default placeholder, for a component still streaming in - "Building chart…". */
+export function chatUiPlaceholder({displayName}: ChatUiPlaceholderSpec): ReactNode {
     return div({
         className: 'xh-chat-ui-placeholder',
         role: 'status',

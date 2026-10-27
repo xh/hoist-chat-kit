@@ -119,9 +119,10 @@ function capBodyRows(children: ReactNode, maxRows: number): ReactNode {
 }
 
 /**
- * Markdown element overrides used by the desktop chat components. A module-level constant, so
- * that memoized markdown blocks see the same object on every render.
- * @internal
+ * The markdown element overrides of the desktop chat components: fenced code as a
+ * {@link ChatCodeBlock}, and a long table as a card. Pass them to a `chatMarkdown` of your own,
+ * outside the kit's message list, to render as the kit does. A module-level constant, so that
+ * memoized markdown blocks see the same object on every render.
  */
 export const CHAT_MARKDOWN_COMPONENTS: ChatMarkdownComponents = {
     pre: MarkdownPre,

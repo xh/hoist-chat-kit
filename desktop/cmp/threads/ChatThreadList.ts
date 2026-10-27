@@ -13,7 +13,7 @@ import {
 } from '@xh/hoist/core';
 import {button, type ButtonProps} from '@xh/hoist/desktop/cmp/button';
 import {textInput} from '@xh/hoist/desktop/cmp/input';
-import {menuButton} from '@xh/hoist/desktop/cmp/menu';
+import {menuButton, type MenuButtonProps} from '@xh/hoist/desktop/cmp/menu';
 import {DATE_FMT, fmtDate, MONTH_DAY_FMT, TIME_FMT} from '@xh/hoist/format';
 import {Icon} from '@xh/hoist/icon';
 import {LocalDate} from '@xh/hoist/utils/datetime';
@@ -62,6 +62,18 @@ export interface ChatThreadListProps extends HoistProps<ChatThreadsModel>, BoxPr
 
     /** False to hide each row's time. A row still says when its thread works. Default true. */
     showTime?: boolean;
+
+    /**
+     * False for one plain list in the store's order, with no Today, Yesterday and older groups -
+     * for a sidebar with a heading of its own. Default true.
+     */
+    groupByRecency?: boolean;
+
+    /**
+     * Props for each row's More menu button, such as `menuClassName` or `popoverProps`, to match
+     * the app's other menus. The list's own `popoverProps` merge over them.
+     */
+    rowMenuProps?: Omit<MenuButtonProps, 'menuItems' | 'onClick'>;
 
     /** False to leave Copy Thread ID out of the More menu. Default true. */
     enableCopyId?: boolean;
@@ -138,6 +150,8 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
                 getThreadHref,
                 threadNoun,
                 showTime,
+                groupByRecency,
+                rowMenuProps,
                 enableCopyId,
                 enableDeleteRunning,
                 selectNextOnDelete,
@@ -146,7 +160,13 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
             } = props,
             impl = useLocalModel(ChatThreadListLocalModel),
             labels = getThreadLabels(threadNoun),
-            view: ListView = {compact, labels, showTime: showTime !== false, getThreadHref};
+            view: ListView = {
+                compact,
+                labels,
+                showTime: showTime !== false,
+                getThreadHref,
+                rowMenuProps
+            };
 
         return vframe({
             ref,
@@ -206,6 +226,7 @@ interface ListView {
     labels: ThreadLabels;
     showTime: boolean;
     getThreadHref: ChatThreadListProps['getThreadHref'];
+    rowMenuProps: ChatThreadListProps['rowMenuProps'];
 }
 
 function body(impl: ChatThreadListLocalModel, view: ListView): ReactNode {
@@ -274,12 +295,13 @@ function threadGroup(
 ): ReactNode {
     // A row group owns only rows, so its label is its name, and the visible label is hidden.
     return div({
-        key: group.key ?? 'results',
+        key: group.key ?? 'all',
         className: 'xh-chat-thread-list__group',
         role: 'rowgroup',
-        'aria-label': group.label,
+        'aria-label': group.label ?? undefined,
         items: [
             div({
+                omit: group.label == null,
                 className: 'xh-chat-thread-list__group-label',
                 'aria-hidden': true,
                 item: group.label
@@ -334,7 +356,7 @@ function threadRow(
                       role: 'gridcell',
                       items: [rowIcon(model, thread, status), rowText(impl, title, timeText, href)]
                   }),
-                  rowActions(impl, thread)
+                  rowActions(impl, thread, view)
               ]
     });
 }
@@ -383,8 +405,13 @@ function rowIcon(model: ChatThreadsModel, thread: ChatThreadSummary, status: Row
     return span({className});
 }
 
-function rowActions(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): ReactNode {
-    const {canRename} = impl;
+function rowActions(
+    impl: ChatThreadListLocalModel,
+    thread: ChatThreadSummary,
+    view: ListView
+): ReactNode {
+    const {canRename} = impl,
+        {rowMenuProps} = view;
 
     // Clicks on the buttons stay off the row, which would open the thread.
     return div({
@@ -408,8 +435,12 @@ function rowActions(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): 
                 'aria-label': 'More',
                 tabIndex: -1,
                 menuPosition: 'bottom-right',
+                ...rowMenuProps,
                 menuItems: () => moreMenuItems(impl, thread),
                 popoverProps: {
+                    // Clear of the button, so that the menu does not cover the next row.
+                    modifiers: {offset: {enabled: true, options: {offset: [0, 4]}}},
+                    ...rowMenuProps?.popoverProps,
                     onOpening: () => impl.setMenuThreadId(thread.id),
                     onClosed: () => impl.setMenuThreadId(null)
                 }
@@ -437,16 +468,30 @@ function moreMenuItems(impl: ChatThreadListLocalModel, thread: ChatThreadSummary
             omit: props.enableCopyId === false
         },
         '-',
-        {
-            text: 'Delete...',
-            icon: Icon.delete(),
-            intent: 'danger',
-            omit: !impl.canDelete,
-            disabled: !impl.canDeleteThread(thread),
-            actionFn: () => impl.deleteThreadAsync(thread).catchDefault()
-        }
+        deleteMenuItem(impl.canDelete, impl.canDeleteThread(thread), () =>
+            impl.deleteThreadAsync(thread).catchDefault()
+        )
     ];
 }
+
+/**
+ * The Delete item of a thread's menu. Disabled, it says why on hover: Hoist menu items take no
+ * tooltip, but the label is a node.
+ * @internal
+ */
+export function deleteMenuItem(canDelete: boolean, canDeleteNow: boolean, actionFn: () => void) {
+    return {
+        text: canDeleteNow ? 'Delete...' : span({title: DELETE_RUNNING_TIP, item: 'Delete...'}),
+        icon: Icon.delete(),
+        intent: 'danger' as const,
+        omit: !canDelete,
+        disabled: !canDeleteNow,
+        actionFn
+    };
+}
+
+/** Why Delete is disabled while a thread's turn runs - see `enableDeleteRunning`. */
+const DELETE_RUNNING_TIP = 'A reply is in progress. Wait for it to end, then delete.';
 
 function renameInput(impl: ChatThreadListLocalModel, view: ListView): ReactNode {
     // Blur saves, as Enter does. Esc ends the rename before the input blurs.

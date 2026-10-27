@@ -142,8 +142,9 @@
     display: contents;
   }
 
-  // A row's text as a link looks no different: the row is the control.
-  &__link {
+  // A row's text as a link looks no different: the row is the control. Two classes, to beat
+  // Blueprint's dark-theme anchor rule, `.bp6-dark a`.
+  & &__link {
     color: inherit;
     text-decoration: none;
 
@@ -232,6 +233,17 @@
     flex-direction: column;
   }
 
+  // A compact list keeps its first-load error at the top, as its refresh error, not centered in
+  // the sidebar's height.
+  &--compact &__error {
+    flex: none;
+
+    .xh-error-message {
+      flex: none;
+      justify-content: flex-start;
+    }
+  }
+
   &__refresh-error {
     align-items: center;
     color: var(--xh-chat-error-color);
@@ -261,5 +273,20 @@
     &:nth-child(3n) {
       width: 85%;
     }
+  }
+
+  // The compact skeleton keeps the rows' pitch, so the list does not jump as it loads.
+  &--compact &__skeleton {
+    gap: 0;
+    padding: 0 8px;
+  }
+
+  &--compact &__skeleton-row {
+    box-sizing: border-box;
+    height: var(--xh-chat-sidebar-row-height);
+    border: 8px solid transparent;
+    border-left: 0;
+    border-right: 0;
+    background-clip: padding-box;
   }
 }

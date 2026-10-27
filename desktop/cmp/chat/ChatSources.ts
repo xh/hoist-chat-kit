@@ -23,6 +23,9 @@ export interface ChatSourcesProps extends HoistProps {
      */
     sources: ChatSourcePart[];
 
+    /** Heading above the rows. Default 'Sources'. */
+    title?: string;
+
     /**
      * True to show every row at the start. Default false: `visibleRows` show, the rest behind a
      * toggle.
@@ -85,6 +88,7 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
         const {
                 className,
                 sources,
+                title = 'Sources',
                 defaultExpanded = false,
                 visibleRows = ChatSources.defaults.visibleRows
             } = props,
@@ -108,9 +112,9 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
             ref,
             className,
             role: 'region',
-            'aria-label': 'Sources',
+            'aria-label': title,
             items: [
-                listHead(sources),
+                listHead(sources, title),
                 ol({
                     className: 'xh-chat-sources__list',
                     items: shown.map((source, idx) =>
@@ -173,12 +177,12 @@ class ChatSourcesLocalModel extends HoistModel {
     }
 }
 
-function listHead(sources: ChatSourcePart[]): ReactNode {
+function listHead(sources: ChatSourcePart[], title: string): ReactNode {
     const isWeb = sources.every(it => getSourceType(it) === 'url');
     return div({
         className: 'xh-chat-sources__head',
         items: [
-            span({className: 'xh-chat-sources__heading', item: 'Sources'}),
+            span({className: 'xh-chat-sources__heading', item: title}),
             span({
                 className: 'xh-chat-sources__count',
                 item: `· ${isWeb ? pluralize('web page', sources.length, true) : sources.length}`

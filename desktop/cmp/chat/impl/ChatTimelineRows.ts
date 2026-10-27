@@ -13,7 +13,7 @@ import {
 } from '../../../../core';
 import {classNames} from '../../../../impl/ClassNames';
 import {chatElapsed} from '../ChatElapsed';
-import {chatCopyButton} from './ChatCopyButton';
+import {chatCopyButton} from '../ChatCopyButton';
 import {chatSpinner} from '../../../impl/ChatLiveCues';
 import {
     type ChatTimelineAgentItem,

@@ -29,6 +29,11 @@ export class ChatThreadListLocalModel extends HoistModel {
         return this.componentProps as ChatThreadListProps;
     }
 
+    /** True if the list groups its threads by recency - see `ChatThreadListProps.groupByRecency`. */
+    get groupByRecency(): boolean {
+        return this.props.groupByRecency !== false;
+    }
+
     /** The word for a thread, in the list's text - see `ChatThreadListProps.threadNoun`. */
     get labels(): ThreadLabels {
         return getThreadLabels(this.props.threadNoun);
@@ -55,13 +60,13 @@ export class ChatThreadListLocalModel extends HoistModel {
     /** Groups to show: one group of results while searching, else groups by recency. */
     @computed
     get groups(): ChatThreadGroup[] {
-        return getThreadGroups(this.model);
+        return getThreadGroups(this.model, this.groupByRecency);
     }
 
     /** Ids of the threads in the order the list shows them. */
     @computed
     get orderedThreadIds(): string[] {
-        return getListedThreadIds(this.model);
+        return getListedThreadIds(this.model, this.groupByRecency);
     }
 
     /** Id of the row that takes focus on Tab: the focused row, else the selected, else the first. */
@@ -176,6 +181,7 @@ export class ChatThreadListLocalModel extends HoistModel {
             wasSelected = this.model.selectedThreadId === thread.id,
             confirmed = await deleteThreadAsync(this.model, thread, {
                 labels: this.labels,
+                groupByRecency: this.groupByRecency,
                 selectNext,
                 // The next row takes focus, unless a new chat opens in the deleted thread's place.
                 onDeleting: nextId => {

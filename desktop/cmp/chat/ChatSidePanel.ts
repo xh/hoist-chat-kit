@@ -21,7 +21,7 @@ import {chatUiChartView} from '../genui/ChatUiChartView';
 import {chatUiTableView} from '../genui/ChatUiTableView';
 import '../../../styles/vars.scss';
 import './ChatSidePanel.scss';
-import {chatCopyButton} from './impl/ChatCopyButton';
+import {chatCopyButton} from './ChatCopyButton';
 import {formatHost} from './impl/ChatFormat';
 import {chatSpinner} from '../../impl/ChatLiveCues';
 

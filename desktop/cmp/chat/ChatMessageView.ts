@@ -56,7 +56,7 @@ import {
     createMarkerRenderers,
     toSourceList
 } from './impl/ChatCitations';
-import {chatCopyButton} from './impl/ChatCopyButton';
+import {chatCopyButton} from './ChatCopyButton';
 import {
     chatFeedbackForm,
     ChatMessageFeedbackModel,
@@ -65,7 +65,7 @@ import {
 import {chatCaret} from '../../impl/ChatLiveCues';
 import {chatReplyLiveStatus} from './impl/ChatReplyLiveStatus';
 import {ChatStepAnnouncer} from './impl/ChatStepAnnouncer';
-import {chatErrorBoundary} from './impl/ChatErrorBoundary';
+import {chatErrorBoundary} from './ChatErrorBoundary';
 import {formatElapsed} from './impl/ChatFormat';
 import {chatInterrupts} from './impl/ChatInterrupts';
 import {chatToolCallGroup} from './impl/ChatToolCallGroup';

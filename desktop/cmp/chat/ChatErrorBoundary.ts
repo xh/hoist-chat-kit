@@ -3,10 +3,11 @@ import {errorBoundary, ErrorBoundaryModel} from '@xh/hoist/cmp/error';
 import {details, div, pre, span, summary} from '@xh/hoist/cmp/layout';
 import {creates, hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
-import '../../../../styles/vars.scss';
+import '../../../styles/vars.scss';
 import './ChatErrorBoundary.scss';
 
-interface ChatErrorBoundaryProps extends HoistProps<ErrorBoundaryModel> {
+/** Props for {@link chatErrorBoundary}. */
+export interface ChatErrorBoundaryProps extends HoistProps<ErrorBoundaryModel> {
     /** What could not be displayed, named in the fallback. Default 'part'. */
     subject?: 'message' | 'part';
 
@@ -20,8 +21,9 @@ interface ChatErrorBoundaryProps extends HoistProps<ErrorBoundaryModel> {
 /**
  * Catches an error thrown while rendering one message or part, so that the rest of the
  * conversation still renders. Hoist's exception handler logs the error, with no alert, and a
- * compact note takes the content's place, with the error message in a disclosure.
- * @internal
+ * compact note takes the content's place, with the error message in a disclosure. The kit wraps
+ * each message and part in one. An app can wrap a kit component it hosts outside the message
+ * list the same way.
  */
 export const chatErrorBoundary = hoistCmp.factory<ChatErrorBoundaryProps>({
     displayName: 'ChatErrorBoundary',

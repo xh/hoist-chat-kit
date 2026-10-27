@@ -12,7 +12,7 @@ import {
 } from '../../../core';
 import {ScriptedChatTransport} from '../../../transport';
 import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
-import {ChatSources} from './ChatSources';
+import {ChatSources, chatSources} from './ChatSources';
 
 /**
  * The sources under a reply and the citation markers in its text (P3). Users rely on numbers that
@@ -21,6 +21,32 @@ import {ChatSources} from './ChatSources';
  * Apps rely on a source list that loads no image.
  */
 describe('sources and citations', () => {
+    it("shows a source's own meta line, and the list's own title", () => {
+        const appModel = new PlainAppModel();
+        onTestFinished(() => appModel.destroy());
+        render(
+            appContext({
+                model: appModel,
+                item: chatSources({
+                    title: 'References',
+                    sources: [
+                        {
+                            ...doc(1),
+                            metadata: {meta: ['Section 4', 'June 2026'], fileName: 'x.pdf'}
+                        },
+                        {...doc(2), metadata: {meta: 'Policy'}}
+                    ]
+                })
+            })
+        );
+
+        expect(screen.getByRole('region', {name: 'References'})).toBeTruthy();
+        expect(screen.getByText('References')).toBeTruthy();
+        expect(screen.getByText('Section 4 · June 2026')).toBeTruthy();
+        expect(screen.getByText('Policy')).toBeTruthy();
+        expect(screen.queryByText(/x\.pdf/)).toBeNull();
+    });
+
     beforeAll(() => initTestAppAsync());
 
     let open: ReturnType<typeof vi.fn>;
