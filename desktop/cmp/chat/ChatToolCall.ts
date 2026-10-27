@@ -29,7 +29,7 @@ import {
 import {chatSpinner} from '../../impl/ChatLiveCues';
 import {chatToolApproval} from './impl/ChatToolApproval';
 import {getHostToolSpec, getToolCallDisplay} from './impl/groupParts';
-import {CHAT_MARKDOWN_COMPONENTS} from './impl/MarkdownComponents';
+import {CHAT_MARKDOWN_COMPONENTS} from './ChatMarkdownComponents';
 
 /** Props for {@link ChatToolCall}. */
 export interface ChatToolCallProps extends HoistProps {

@@ -13,12 +13,13 @@ import {
 } from '@xh/hoist/core';
 import {button, type ButtonProps} from '@xh/hoist/desktop/cmp/button';
 import {textInput} from '@xh/hoist/desktop/cmp/input';
-import {menuButton} from '@xh/hoist/desktop/cmp/menu';
+import {menuButton, type MenuButtonProps} from '@xh/hoist/desktop/cmp/menu';
 import {DATE_FMT, fmtDate, MONTH_DAY_FMT, TIME_FMT} from '@xh/hoist/format';
 import {Icon} from '@xh/hoist/icon';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {getTestId} from '@xh/hoist/utils/js';
 import {classNames} from '../../../impl/ClassNames';
+import {deleteMenuItem} from '../../impl/ChatThreadDelete';
 import {getThreadLabels, type ThreadLabels} from '../../impl/ThreadLabels';
 import {chatSpinner} from '../chat';
 import '../../../styles/vars.scss';
@@ -62,6 +63,20 @@ export interface ChatThreadListProps extends HoistProps<ChatThreadsModel>, BoxPr
 
     /** False to hide each row's time. A row still says when its thread works. Default true. */
     showTime?: boolean;
+
+    /**
+     * False for one plain list in the store's order, with no Today, Yesterday and older groups -
+     * for a sidebar with a heading of its own. As no heading names the day, a row then shows its
+     * full date and time, or in a compact list the weekday or date for a thread before today.
+     * Default true.
+     */
+    groupByRecency?: boolean;
+
+    /**
+     * Props for each row's More menu button, such as `menuClassName` or `popoverProps`, to match
+     * the app's other menus. The list's own `popoverProps` merge over them.
+     */
+    rowMenuProps?: Omit<MenuButtonProps, 'menuItems' | 'onClick'>;
 
     /** False to leave Copy Thread ID out of the More menu. Default true. */
     enableCopyId?: boolean;
@@ -138,6 +153,8 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
                 getThreadHref,
                 threadNoun,
                 showTime,
+                groupByRecency,
+                rowMenuProps,
                 enableCopyId,
                 enableDeleteRunning,
                 selectNextOnDelete,
@@ -146,7 +163,13 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
             } = props,
             impl = useLocalModel(ChatThreadListLocalModel),
             labels = getThreadLabels(threadNoun),
-            view: ListView = {compact, labels, showTime: showTime !== false, getThreadHref};
+            view: ListView = {
+                compact,
+                labels,
+                showTime: showTime !== false,
+                getThreadHref,
+                rowMenuProps
+            };
 
         return vframe({
             ref,
@@ -206,6 +229,7 @@ interface ListView {
     labels: ThreadLabels;
     showTime: boolean;
     getThreadHref: ChatThreadListProps['getThreadHref'];
+    rowMenuProps: ChatThreadListProps['rowMenuProps'];
 }
 
 function body(impl: ChatThreadListLocalModel, view: ListView): ReactNode {
@@ -274,12 +298,13 @@ function threadGroup(
 ): ReactNode {
     // A row group owns only rows, so its label is its name, and the visible label is hidden.
     return div({
-        key: group.key ?? 'results',
+        key: group.key ?? 'all',
         className: 'xh-chat-thread-list__group',
         role: 'rowgroup',
-        'aria-label': group.label,
+        'aria-label': group.label ?? undefined,
         items: [
             div({
+                omit: group.label == null,
                 className: 'xh-chat-thread-list__group-label',
                 'aria-hidden': true,
                 item: group.label
@@ -334,7 +359,7 @@ function threadRow(
                       role: 'gridcell',
                       items: [rowIcon(model, thread, status), rowText(impl, title, timeText, href)]
                   }),
-                  rowActions(impl, thread)
+                  rowActions(impl, thread, view)
               ]
     });
 }
@@ -383,8 +408,13 @@ function rowIcon(model: ChatThreadsModel, thread: ChatThreadSummary, status: Row
     return span({className});
 }
 
-function rowActions(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): ReactNode {
-    const {canRename} = impl;
+function rowActions(
+    impl: ChatThreadListLocalModel,
+    thread: ChatThreadSummary,
+    view: ListView
+): ReactNode {
+    const {canRename} = impl,
+        {rowMenuProps} = view;
 
     // Clicks on the buttons stay off the row, which would open the thread.
     return div({
@@ -408,10 +438,23 @@ function rowActions(impl: ChatThreadListLocalModel, thread: ChatThreadSummary): 
                 'aria-label': 'More',
                 tabIndex: -1,
                 menuPosition: 'bottom-right',
+                ...rowMenuProps,
                 menuItems: () => moreMenuItems(impl, thread),
                 popoverProps: {
-                    onOpening: () => impl.setMenuThreadId(thread.id),
-                    onClosed: () => impl.setMenuThreadId(null)
+                    ...rowMenuProps?.popoverProps,
+                    // Clear of the button, so that the menu does not cover the next row.
+                    modifiers: {
+                        offset: {enabled: true, options: {offset: [0, 4]}},
+                        ...rowMenuProps?.popoverProps?.modifiers
+                    },
+                    onOpening: node => {
+                        rowMenuProps?.popoverProps?.onOpening?.(node);
+                        impl.setMenuThreadId(thread.id);
+                    },
+                    onClosed: node => {
+                        rowMenuProps?.popoverProps?.onClosed?.(node);
+                        impl.setMenuThreadId(null);
+                    }
                 }
             })
         ]
@@ -437,14 +480,9 @@ function moreMenuItems(impl: ChatThreadListLocalModel, thread: ChatThreadSummary
             omit: props.enableCopyId === false
         },
         '-',
-        {
-            text: 'Delete...',
-            icon: Icon.delete(),
-            intent: 'danger',
-            omit: !impl.canDelete,
-            disabled: !impl.canDeleteThread(thread),
-            actionFn: () => impl.deleteThreadAsync(thread).catchDefault()
-        }
+        deleteMenuItem(impl.canDelete, impl.canDeleteThread(thread), () =>
+            impl.deleteThreadAsync(thread).catchDefault()
+        )
     ];
 }
 
@@ -525,20 +563,22 @@ const STATUS_TIPS: Partial<Record<RowStatus, string>> = {
 /** A row's time: the time of day for today and yesterday, the weekday this week, else the date. */
 /**
  * The time of a thread's last activity, in Hoist's formats. A compact row has room only for the
- * time of day for today and yesterday, the weekday within a week, else the date. A full row shows
- * the date and time, with the year for a date in another year - or, under a Today or Yesterday
- * heading, which already names the day, the time alone.
+ * time of day for today, and for yesterday under a Yesterday heading, the weekday within a week,
+ * else the date. A full row shows the date and time, with the year for a date in another year -
+ * or, under a Today or Yesterday heading, which already names the day, the time alone. A row in
+ * no recency group, as in search results or a plain list, has no heading to name its day.
  */
 function fmtRowTime(timestamp: number, compact: boolean, groupKey: ChatThreadGroupKey): string {
     if (timestamp == null) return null;
     const day = LocalDate.from(timestamp),
-        today = LocalDate.today();
+        today = LocalDate.today(),
+        isUnderDayHeading = groupKey === 'today' || groupKey === 'yesterday';
     let fmt: string;
-    if (!compact && (groupKey === 'today' || groupKey === 'yesterday')) {
+    if (!compact && isUnderDayHeading) {
         fmt = TIME_FMT;
     } else if (compact) {
         fmt =
-            day >= today.subtract(1, 'day')
+            day >= today || (isUnderDayHeading && day >= today.subtract(1, 'day'))
                 ? TIME_FMT
                 : day > today.subtract(7, 'days')
                   ? 'ddd'

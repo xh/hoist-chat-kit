@@ -4,7 +4,8 @@ import {Icon} from '@xh/hoist/icon';
 import {action, observable} from '@xh/hoist/mobx';
 import {copyToClipboard} from '@xh/hoist/utils/js';
 
-interface ChatCopyButtonProps extends HoistProps {
+/** Props for {@link ChatCopyButton}. */
+export interface ChatCopyButtonProps extends HoistProps {
     /** Function returning the text to copy. */
     getCopyText: () => string;
 
@@ -17,10 +18,11 @@ interface ChatCopyButtonProps extends HoistProps {
 
 /**
  * Copy button that confirms in place - its icon turns to a check for a moment once the copy
- * succeeds - rather than with a toast, which would draw the eye away from the message.
- * @internal
+ * succeeds - rather than with a toast, which would draw the eye away from the message. The kit's
+ * message actions, code blocks and side panel use it. It needs no `ChatModel`, so an app can put
+ * it in a message footer of its own.
  */
-export const chatCopyButton = hoistCmp.factory<ChatCopyButtonProps>({
+export const [ChatCopyButton, chatCopyButton] = hoistCmp.withFactory<ChatCopyButtonProps>({
     displayName: 'ChatCopyButton',
     className: 'xh-chat-copy-button',
 

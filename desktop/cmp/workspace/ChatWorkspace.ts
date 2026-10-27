@@ -32,7 +32,7 @@ import {
 } from '../chat';
 import {chatThreadList, type ChatThreadListProps} from '../threads';
 import type {ChatThreadsModel} from '../../../threads';
-import {deleteThreadAsync} from '../../impl/ChatThreadDelete';
+import {canDeleteThreadNow, deleteMenuItem, deleteThreadAsync} from '../../impl/ChatThreadDelete';
 import {ChatWorkspaceModel} from './ChatWorkspaceModel';
 import './ChatWorkspace.scss';
 import {ChatWorkspaceLocalModel} from './impl/ChatWorkspaceLocalModel';
@@ -372,8 +372,11 @@ function threadMenuItems(model: ChatWorkspaceModel, list: ListOptions): MenuItem
     if (!summary) return [];
 
     // The list's row options apply here too - see `ChatThreadListProps`.
-    const isRunning = threadsModel.runningThreadIds.includes(summary.id),
-        canDeleteNow = threadListProps?.enableDeleteRunning !== false || !isRunning;
+    const canDeleteNow = canDeleteThreadNow(
+        threadsModel,
+        summary,
+        threadListProps?.enableDeleteRunning
+    );
     return [
         {
             ...clipboardMenuItem({
@@ -385,21 +388,15 @@ function threadMenuItems(model: ChatWorkspaceModel, list: ListOptions): MenuItem
             omit: threadListProps?.enableCopyId === false
         },
         '-',
-        {
-            text: 'Delete...',
-            icon: Icon.delete(),
-            intent: 'danger',
-            omit: !threadsModel.canDelete,
-            disabled: !canDeleteNow,
-            // As from the list: the next thread opens, and focus moves to its composer.
-            actionFn: () =>
-                deleteThreadAsync(threadsModel, summary, {
-                    labels,
-                    selectNext: threadListProps?.selectNextOnDelete !== false,
-                    onDeleting: () =>
-                        wait().then(() => threadsModel.chatModel?.composerModel?.focus())
-                }).catchDefault()
-        }
+        // As from the list: the next thread opens, and focus moves to its composer.
+        deleteMenuItem(threadsModel.canDelete, canDeleteNow, () =>
+            deleteThreadAsync(threadsModel, summary, {
+                labels,
+                groupByRecency: threadListProps?.groupByRecency,
+                selectNext: threadListProps?.selectNextOnDelete !== false,
+                onDeleting: () => wait().then(() => threadsModel.chatModel?.composerModel?.focus())
+            }).catchDefault()
+        )
     ];
 }
 

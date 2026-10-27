@@ -576,7 +576,7 @@ checks each document before it renders.
 | `actionHandlers` | `Record<string, ChatUiActionHandler>` | Handlers for `app` actions, by name. |
 | `urlAllowList` | `string[] \| (url: URL) => boolean` | Origins, or a check, for URLs that actions and components may open. Default none. |
 | `migrations` | `Record<string, (doc) => ChatUiDocument>` | Upgrades for stored documents, keyed by the version they upgrade from. |
-| `fallback` | `(spec: ChatUiFallbackSpec) => ReactNode` | Renders an element that cannot render. Default a caption with a "View input" disclosure. |
+| `fallback` | `(spec: ChatUiFallbackSpec) => ReactNode` | Renders an element that cannot render. Default `chatUiFallback`, a caption with a "View input" disclosure, which a custom fallback can call for the cases it does not handle. |
 | `placeholder` | `(spec: ChatUiPlaceholderSpec) => ReactNode` | Renders an element still streaming in. Default "Building chart…". |
 
 ### ChatUiComponentSpec

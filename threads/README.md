@@ -499,7 +499,7 @@ Mark each member that changes as observable, or compute it from observables.
 | `isSaved` | `boolean` | True once the backend has a new thread. Puts the thread in the route, and keeps it on close. Optional, and null counts as left out: a new thread then counts as saved once a turn ends. Change `threadId` before, or in the same action as, this turns true. |
 | `endedEarly` | `ChatConversationEndedEarly` | How the last turn ended, if not with a reply to see, else null: `failed`, `interrupted`, or `cancelled` by the user's own action. The list marks the first two. A cancelled turn does not count a new thread as saved. Optional. |
 | `title` | `string` | Title for a new thread until the store lists it. Optional, default 'New conversation'. |
-| `loadAsync()` | `Promise<void>` | Load and show the thread's history. A later call supersedes an earlier one. Reject with `httpStatus` 404 for a missing thread. |
+| `loadAsync()` | `Promise<void>` | Load and show the thread's history. A later call supersedes an earlier one. Reject with `httpStatus` 404 for a missing thread, or resolve to open it empty - see the pitfalls. |
 | `stop()` | `void` | Stop the running turn, as for a delete. |
 | `destroy()` | `void` | Release resources, as the thread closes. A `HoistBase` has it. |
 
@@ -541,6 +541,12 @@ createChatModel: ({threadId}) => new ChatModel({threadId, transport})
 // ❌ Don't: The chat mints its own id, which the threads model cannot track
 createChatModel: () => new ChatModel({transport})
 ```
+
+### Expecting a failed list to stay quiet
+
+A failed list goes to `XH.handleException` with no alert, which logs a console error of the form
+`[ExceptionHandler] | <message>`. A test that fails on console errors should expect it, or mock
+`XH.handleException`.
 
 ### Holding on to a chat
 
@@ -593,6 +599,11 @@ store report `isRunning` for that thread, so that the list still shows it runnin
 The model marks a thread not found only for a 404, and shows an empty page as an empty thread.
 Any other error blocks sends on the thread. A store whose backend reports a missing thread some
 other way should map it to an error with `httpStatus` 404.
+
+A conversation of the app's own may choose the empty thread on purpose, for a deep link to a
+thread the backend has not saved yet. Resolve `loadAsync()` and the thread opens empty: it counts
+as saved, so its id stays in the route, the workspace's header says "New chat", and the first turn
+creates it. Reject with a 404 to show "Thread not found" instead.
 
 ```typescript
 // ✅ Do: Report a missing thread as a 404

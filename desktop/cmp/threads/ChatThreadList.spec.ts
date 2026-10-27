@@ -210,6 +210,37 @@ describe('ChatThreadList', () => {
         expect(screen.getByLabelText('Rename chat')).toBeTruthy();
     });
 
+    it('lists the threads in one plain group with groupByRecency false', async () => {
+        await renderList({props: {groupByRecency: false}});
+
+        expect(groupLabels()).toEqual([null]);
+        expect(document.querySelector('.xh-chat-thread-list__group-label')).toBeNull();
+        expect(rowTitles()).toEqual(['Budget review', 'Travel', 'Old notes', 'Old plan']);
+    });
+
+    it('names the day of a row before today in a compact plain list, as no heading does', async () => {
+        await renderList({props: {compact: true, groupByRecency: false}});
+
+        const timeOf = (title: string) =>
+            row(title).querySelector('.xh-chat-thread-list__time').textContent;
+        expect(timeOf('Budget review')).toBe(fmtDate(NOW, 'h:mma'));
+        expect(timeOf('Travel')).toBe(fmtDate(NOW - DAY, 'ddd'));
+    });
+
+    it("gives each row's More menu the rowMenuProps, and still tracks the open menu", async () => {
+        const onOpening = vi.fn();
+        await renderList({
+            props: {rowMenuProps: {menuClassName: 'my-menu', popoverProps: {onOpening}}}
+        });
+
+        fireEvent.click(within(row('Travel')).getByRole('button', {name: 'More'}));
+        await screen.findByText('Delete...');
+
+        expect(document.querySelector('.my-menu')).toBeTruthy();
+        expect(onOpening).toHaveBeenCalledTimes(1);
+        expect(row('Travel').classList).toContain('xh-chat-thread-list__row--menu-open');
+    });
+
     it('hides the time with showTime false', async () => {
         await renderList({props: {showTime: false}});
         expect(row('Travel').querySelector('.xh-chat-thread-list__time')).toBeNull();
@@ -240,8 +271,10 @@ describe('ChatThreadList', () => {
         expect(confirm).not.toHaveBeenCalled();
 
         fireEvent.click(within(row('Budget review')).getByRole('button', {name: 'More'}));
-        const item = (await screen.findByText('Delete...')).closest('[role="menuitem"]');
+        const label = await screen.findByText('Delete...'),
+            item = label.closest('[role="menuitem"]');
         expect(item.getAttribute('aria-disabled')).toBe('true');
+        expect(label.getAttribute('title')).toMatch(/reply is in progress/);
     });
 
     it('lands once on the next thread when the open thread is deleted', async () => {

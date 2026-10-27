@@ -4,11 +4,11 @@ import type {ChatThreadSummary} from './ChatThreadStore';
 
 /** A group of threads in a thread list - see {@link groupThreadsByRecency}. */
 export interface ChatThreadGroup {
-    /** Identifies the group. */
-    key: ChatThreadGroupKey;
+    /** Identifies the group, or null for a group that is not a recency group. */
+    key: ChatThreadGroupKey | null;
 
-    /** Heading to show for the group, such as 'Previous 7 days'. */
-    label: string;
+    /** Heading to show for the group, such as 'Previous 7 days', or null for none. */
+    label: string | null;
 
     /** The group's threads, most recently active first. */
     threads: ChatThreadSummary[];

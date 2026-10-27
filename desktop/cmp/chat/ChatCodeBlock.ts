@@ -5,7 +5,7 @@ import {action, observable} from '@xh/hoist/mobx';
 import {pluralize} from '@xh/hoist/utils/js';
 import '../../../styles/vars.scss';
 import './ChatCodeBlock.scss';
-import {chatCopyButton} from './impl/ChatCopyButton';
+import {chatCopyButton} from './ChatCopyButton';
 
 /** Props for {@link ChatCodeBlock}. */
 export interface ChatCodeBlockProps extends HoistProps {

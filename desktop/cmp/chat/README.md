@@ -120,6 +120,9 @@ Details disclosure. Hoist's exception handler logs the error, with no alert. A s
 failed renders again when its state changes, for example when its input completes. A data part
 renders again when it is replaced.
 
+The boundary is `ChatErrorBoundary`, with a `subject` of `message` or `part` and a `resetKey`.
+An app that hosts a kit component outside the message list can wrap it the same way.
+
 ### Scroll behavior
 
 `ChatMessageList` follows a streaming reply by staying scrolled to the bottom. A wheel or scroll
@@ -233,6 +236,9 @@ Every row has the same layout: the number, an icon, the title and a meta line. A
 |---|---|---|
 | `document` | File-type icon, then `metadata.fileName` and `metadata.page` | Opens the side panel when one is in reach, else `onSourceClick`, else its URL in a new tab |
 | `url` | Globe, then the host | Opens a new tab, or `onSourceClick` in its place |
+
+A source with `metadata.meta`, a string or an array of strings, shows that as its meta line in
+place of the file name and page, or the host. `title` on the list replaces its "Sources" heading.
 
 A row with an excerpt expands to show it on a click on its chevron, or anywhere else on the row
 outside the title. For the keyboard, the title and the chevron are the row's controls.
@@ -851,7 +857,8 @@ Define the object once, at module level, so the markdown blocks stay memoized.
 
 `markdownComponents` swaps how markdown elements render in assistant messages, keyed by tag
 name. The kit renders fenced code with `ChatCodeBlock` by default, and your entries merge over
-that default. Pass a module-level constant, so the markdown blocks stay memoized.
+that default. Pass a module-level constant, so the markdown blocks stay memoized. The kit's own
+map is `CHAT_MARKDOWN_COMPONENTS`, for a `chatMarkdown` of your own outside the message list.
 
 The kit also supplies `table`. A table of up to 100 body rows renders plain. A longer one renders
 as a card with its first 100 rows, the footer "Showing 100 of N rows", and Show All. Set
@@ -1002,7 +1009,7 @@ Use it directly only for a list of your own.
 | `ChatTimeline` | `message`, `host`, `parts`, `context`, `isFollowed`, `isLast` | Show a reply's activity timeline in a layout of your own. `parts` defaults to the reply's first timeline block. `isFollowed` says the answer has started below it. |
 | `ChatClearButton` | `chatModel`, and any `ButtonProps` | Clear the conversation, from a panel header. |
 | `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |
-| `ChatSources` | `sources`, `defaultExpanded`, `visibleRows`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
+| `ChatSources` | `sources`, `title`, `defaultExpanded`, `visibleRows`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
 | `ChatNoAnswer` | `part`, `onEditQuestion` | Show a fixed "not found" reply, for example inside an app's own renderer for `xh.chat.noAnswer`. |
 | `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Close, and the content - the app's viewer with its status, or the full table or chart of a result card. |
 | `ChatCodeBlock` | `content`, `language`, `isStreaming` | Show code in a card with a copy button. A finished block over 20 lines shows its first 20, with a button for the rest. |
@@ -1014,6 +1021,8 @@ Use it directly only for a list of your own.
 | `ChatScopeChip` | `documents`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip` | Scope the next question to some documents. Default binds `runOptions.documentIds`. |
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |
 | `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |
+| `ChatCopyButton` | `getCopyText`, `showText`, `label` | Copy text, confirming in place with a check for a moment. No `ChatModel` needed. |
+| `ChatErrorBoundary` | `subject`, `resetKey` | Catch a render error in a kit component you host yourself, as the message list does for each part. |
 
 ## Theming
 
@@ -1040,6 +1049,12 @@ body.xh-app {
 A variable set on a descendant reaches only the CSS that reads it directly. Variables derived from
 it keep the values computed on `body`. Set leaf variables there, such as colors, and set sizes
 that others derive from on `body.xh-app`.
+
+The same holds for Hoist's own size variables. The kit's font sizes resolve from `--xh-font-size`
+once, on `body`. A container that pins another font size, such as a 14px sidebar beside 13px
+pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
+`--xh-chat-heading-font-size`, `--xh-chat-code-font-size`, `--xh-chat-meta-font-size` and
+`--xh-chat-citation-font-size`. The list and the composer read those directly.
 
 | Group | Main variables | Default |
 |-------|----------------|---------|

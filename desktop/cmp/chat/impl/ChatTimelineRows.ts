@@ -13,7 +13,7 @@ import {
 } from '../../../../core';
 import {classNames} from '../../../../impl/ClassNames';
 import {chatElapsed} from '../ChatElapsed';
-import {chatCopyButton} from './ChatCopyButton';
+import {chatCopyButton} from '../ChatCopyButton';
 import {chatSpinner} from '../../../impl/ChatLiveCues';
 import {
     type ChatTimelineAgentItem,
@@ -27,7 +27,7 @@ import {
 } from './ChatTimelineItems';
 import type {ChatTimelineLocalModel} from './ChatTimelineLocalModel';
 import {getHostToolSpec} from './groupParts';
-import {CHAT_MARKDOWN_COMPONENTS} from './MarkdownComponents';
+import {CHAT_MARKDOWN_COMPONENTS} from '../ChatMarkdownComponents';
 import {getErrorLine, getToolTitle, isAwaitingAnswer} from './ToolCallStatus';
 
 /** Levels of nesting shown as indent. Deeper rows name their parent instead. @internal */

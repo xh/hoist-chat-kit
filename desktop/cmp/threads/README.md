@@ -149,8 +149,10 @@ Pass `searchInputRef`, as the workspace does from its rail's search button.
 | `getThreadHref` | `(thread) => string` | A link for each row, such as its deep link. A middle or modifier click then opens the thread in a new tab. A plain click selects it. |
 | `threadNoun` | `string` | The word for a thread in the list's text, such as 'chat'. The plural adds an s. `ChatWorkspace` uses it too. Default 'thread'. |
 | `showTime` | `boolean` | False to hide each row's time. Default true. |
+| `groupByRecency` | `boolean` | False for one plain list in the store's order, with no recency groups. Default true. |
+| `rowMenuProps` | `MenuButtonProps` | Props for each row's More menu button, such as `menuClassName` or `popoverProps`, to match the app's other menus. |
 | `enableCopyId` | `boolean` | False to leave Copy Thread ID out of the More menu. Default true. |
-| `enableDeleteRunning` | `boolean` | False to disable Delete for a thread whose turn runs, for a backend that refuses it. Default true. |
+| `enableDeleteRunning` | `boolean` | False to disable Delete for a thread whose turn runs, for a backend that refuses it. The disabled item says why on hover. Default true. |
 | `selectNextOnDelete` | `boolean` | False to open a new chat when the open thread is deleted. Default true: the next thread in the list opens. |
 | `compact` | `boolean` | True for one line per thread: the title, then a short time. Default false: the title over the date and time. In a workspace, pass it in `threadListProps`. |
 | `newChatButtonProps` | `ButtonProps` | Props for the New Chat button, such as `intent`. Default outlined, with `intent: 'primary'`. `ChatWorkspace` applies them, less `text`, to its rail and header New Chat buttons too. |
@@ -197,6 +199,15 @@ bind them.
   [Theming](../chat/README.md#theming).
 
 ## Common Pitfalls
+
+### Hiding the list with a class
+
+The list is a Hoist box, which lays itself out with an inline `display: flex`. A class cannot
+hide it without `!important`. Pass `display: 'none'` as a prop instead, as for any Hoist box.
+
+```typescript
+chatThreadList({model, display: isRailCollapsed ? 'none' : undefined});
+```
 
 ### Expecting a failed rename to show under its row
 

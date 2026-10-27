@@ -1,10 +1,11 @@
 import type {KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent} from 'react';
-import {find, findIndex, includes} from 'lodash';
+import {find, findIndex} from 'lodash';
 import {HoistModel, lookup} from '@xh/hoist/core';
 import {action, bindable, computed, observable} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {type ChatThreadGroup, ChatThreadsModel, type ChatThreadSummary} from '../../../../threads';
 import {
+    canDeleteThreadNow,
     deleteThreadAsync,
     getListedThreadIds,
     getThreadGroups
@@ -27,6 +28,11 @@ export class ChatThreadListLocalModel extends HoistModel {
     /** The list's props. */
     get props(): ChatThreadListProps {
         return this.componentProps as ChatThreadListProps;
+    }
+
+    /** True if the list groups its threads by recency - see `ChatThreadListProps.groupByRecency`. */
+    get groupByRecency(): boolean {
+        return this.props.groupByRecency !== false;
     }
 
     /** The word for a thread, in the list's text - see `ChatThreadListProps.threadNoun`. */
@@ -55,13 +61,13 @@ export class ChatThreadListLocalModel extends HoistModel {
     /** Groups to show: one group of results while searching, else groups by recency. */
     @computed
     get groups(): ChatThreadGroup[] {
-        return getThreadGroups(this.model);
+        return getThreadGroups(this.model, this.groupByRecency);
     }
 
     /** Ids of the threads in the order the list shows them. */
     @computed
     get orderedThreadIds(): string[] {
-        return getListedThreadIds(this.model);
+        return getListedThreadIds(this.model, this.groupByRecency);
     }
 
     /** Id of the row that takes focus on Tab: the focused row, else the selected, else the first. */
@@ -176,6 +182,7 @@ export class ChatThreadListLocalModel extends HoistModel {
             wasSelected = this.model.selectedThreadId === thread.id,
             confirmed = await deleteThreadAsync(this.model, thread, {
                 labels: this.labels,
+                groupByRecency: this.groupByRecency,
                 selectNext,
                 // The next row takes focus, unless a new chat opens in the deleted thread's place.
                 onDeleting: nextId => {
@@ -205,9 +212,7 @@ export class ChatThreadListLocalModel extends HoistModel {
 
     /** True if the user may delete a thread now - see `ChatThreadListProps.enableDeleteRunning`. */
     canDeleteThread(thread: ChatThreadSummary): boolean {
-        if (!this.canDelete) return false;
-        if (this.props.enableDeleteRunning !== false) return true;
-        return !includes(this.model.runningThreadIds, thread.id);
+        return canDeleteThreadNow(this.model, thread, this.props.enableDeleteRunning);
     }
 
     //------------------

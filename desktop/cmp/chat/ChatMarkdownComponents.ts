@@ -11,10 +11,10 @@ import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/co
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {fmtNumber} from '@xh/hoist/format';
 import {action, observable} from '@xh/hoist/mobx';
-import {type ChatMarkdownComponents, useChatMarkdownStreaming} from '../../../../cmp/markdown';
-import {ChatKit} from '../../../../core';
-import {chatUiFrame} from '../../genui/ChatUiFrame';
-import {chatCodeBlock} from '../ChatCodeBlock';
+import {type ChatMarkdownComponents, useChatMarkdownStreaming} from '../../../cmp/markdown';
+import {ChatKit} from '../../../core';
+import {chatUiFrame} from '../genui/ChatUiFrame';
+import {chatCodeBlock} from './ChatCodeBlock';
 
 // Markdown renders a fenced code block as `pre > code.language-xyz`. Swap the `pre` for a
 // ChatCodeBlock, reading the code and its language from the inner `code` element. A block that
@@ -119,9 +119,10 @@ function capBodyRows(children: ReactNode, maxRows: number): ReactNode {
 }
 
 /**
- * Markdown element overrides used by the desktop chat components. A module-level constant, so
- * that memoized markdown blocks see the same object on every render.
- * @internal
+ * The markdown element overrides of the desktop chat components: fenced code as a
+ * {@link ChatCodeBlock}, and a long table as a card. Pass them to a `chatMarkdown` of your own,
+ * outside the kit's message list, to render as the kit does. A module-level constant, so that
+ * memoized markdown blocks see the same object on every render.
  */
 export const CHAT_MARKDOWN_COMPONENTS: ChatMarkdownComponents = {
     pre: MarkdownPre,

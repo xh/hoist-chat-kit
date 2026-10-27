@@ -1,4 +1,4 @@
-import {compact} from 'lodash';
+import {castArray, compact} from 'lodash';
 import type {FocusEvent, KeyboardEvent, MouseEvent, ReactNode} from 'react';
 import {useLayoutEffect} from 'react';
 import {span} from '@xh/hoist/cmp/layout';
@@ -22,7 +22,7 @@ import {
 } from '../../../../impl/sources';
 import '../../../../styles/vars.scss';
 import './ChatCitationMarker.scss';
-import {chatCopyButton} from './ChatCopyButton';
+import {chatCopyButton} from '../ChatCopyButton';
 import {formatHost} from './ChatFormat';
 import {type ChatSourceLinks, sourceIcon} from './ChatSourceLinks';
 
@@ -439,8 +439,14 @@ export function excerptText(excerpt: string, passage: string, className: string)
     });
 }
 
-/** The meta line of a source: its file name and page, or its host - only what it has. @internal */
+/**
+ * The meta line of a source: its own `metadata.meta`, else its file name and page, or its host -
+ * only what it has.
+ * @internal
+ */
 export function getSourceMeta(source: ChatSourcePart): string[] {
+    const own = compact(castArray(source.metadata?.meta)).map(String);
+    if (own.length) return own;
     if (getSourceType(source) === 'url') return compact([formatHost(source.url)]);
     const page = getSourcePage(source);
     return compact([getSourceFileName(source), page != null ? `p. ${page}` : null]);

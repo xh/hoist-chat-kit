@@ -14,7 +14,7 @@ import '../../../styles/vars.scss';
 import './ChatReasoning.scss';
 import {formatElapsed} from './impl/ChatFormat';
 import {classNames} from '../../../impl/ClassNames';
-import {useChatMarkdownComponents} from './impl/MarkdownComponents';
+import {useChatMarkdownComponents} from './ChatMarkdownComponents';
 
 /** Props for {@link ChatReasoning}. */
 export interface ChatReasoningProps extends HoistProps {

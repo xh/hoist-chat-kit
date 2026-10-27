@@ -14,7 +14,7 @@ import {
 } from '../../../../core';
 import {chatToolCall} from '../ChatToolCall';
 import {classNames} from '../../../../impl/ClassNames';
-import {chatErrorBoundary} from './ChatErrorBoundary';
+import {chatErrorBoundary} from '../ChatErrorBoundary';
 import {getHostToolSpec} from './groupParts';
 import {getToolTitle} from './ToolCallStatus';
 import {chatSpinner} from '../../../impl/ChatLiveCues';
