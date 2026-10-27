@@ -4,6 +4,7 @@ import {
     differenceBy,
     find,
     isEmpty,
+    keyBy,
     keys,
     omit,
     pickBy,
@@ -674,16 +675,16 @@ export class ChatThreadsModel extends HoistModel {
      */
     @action
     private noteTurnEnd(threadId: string, endedEarly: ChatConversationEndedEarly) {
-        const isShown = threadId === this.shownThreadId;
+        const isShown = threadId === this.shownThreadId,
+            isCancelled = endedEarly?.runEnd === 'cancelled';
         // A cancelled turn the user did not watch leaves no mark, and no wait.
-        if (!isShown && endedEarly?.runEnd === 'cancelled') return;
-        this.seenOnNextList.set(threadId, {listNumber: this.listCount});
+        if (!isShown && isCancelled) return;
+        this.seenOnNextList.set(threadId, {listNumber: this.listCount, reportedActivityAt: null});
         if (isShown) {
             this.markSeen(threadId);
             return;
         }
-        // A cancelled turn returned above. The check narrows the type.
-        if (endedEarly?.runEnd && endedEarly.runEnd !== 'cancelled') {
+        if (isThreadEndedEarly(endedEarly)) {
             this.endedEarlyHere = {...this.endedEarlyHere, [threadId]: endedEarly};
         } else {
             this.finishedAwayHere = union(this.finishedAwayHere, [threadId]);
@@ -709,18 +710,19 @@ export class ChatThreadsModel extends HoistModel {
      */
     @action
     private noteSeenFromList(threads: ChatThreadSummary[], listNumber: number, search: string) {
+        const byId = keyBy(threads, 'id');
         this.seenOnNextList.forEach((wait, id) => {
             if (listNumber < wait.listNumber) return;
-            const listed = find(threads, {id});
+            const listed = byId[id];
             if (!listed && search != null) return;
             if (!listed) {
                 this.seenOnNextList.delete(id);
                 return;
             }
-            // Not until the user has seen the turn end. The first report is the turn's own
-            // activity, which the seeing takes then - even if a search hides the thread by then.
+            // Not until the user has seen the turn end. The seeing then takes the latest
+            // reported activity - even if a search hides the thread by then.
             if (this.hasUnseenMark(id)) {
-                wait.reportedActivityAt ??= listed.lastActivityAt ?? 0;
+                wait.reportedActivityAt = listed.lastActivityAt ?? 0;
                 return;
             }
             this.seenOnNextList.delete(id);
@@ -733,12 +735,6 @@ export class ChatThreadsModel extends HoistModel {
     private raiseSeen(threadId: string, activityAt: number) {
         const seen = Math.max(this.seenActivityAt[threadId] ?? 0, activityAt);
         this.seenActivityAt = {...this.seenActivityAt, [threadId]: seen};
-    }
-
-    @action
-    private clearEndedEarly(threadId: string) {
-        if (this.endedEarlyHere[threadId])
-            this.endedEarlyHere = omit(this.endedEarlyHere, threadId);
     }
 
     @action
@@ -770,7 +766,9 @@ export class ChatThreadsModel extends HoistModel {
     @action
     private clearMarks(threadId: string) {
         this.finishedAwayHere = without(this.finishedAwayHere, threadId);
-        this.clearEndedEarly(threadId);
+        if (this.endedEarlyHere[threadId]) {
+            this.endedEarlyHere = omit(this.endedEarlyHere, threadId);
+        }
     }
 
     /** True if a thread carries a mark for a turn the user has not seen end. */
@@ -929,13 +927,19 @@ export class ChatThreadsModel extends HoistModel {
         this.pendingChanges = difference(this.pendingChanges, changes);
     }
 
-    /** Record activity in a conversation's thread, adding a summary for a thread not listed yet. */
+    /**
+     * Record activity in a conversation's thread, adding a summary for a thread not listed yet.
+     * A turn that starts makes the store's last run end stale, until the next list.
+     */
     @action
     private noteActivity(conversation: ChatConversation) {
-        const {threadId} = conversation,
+        const {threadId, isBusy} = conversation,
             lastActivityAt = Date.now();
         if (this.hasThread(threadId)) {
-            this.updateThread(threadId, {lastActivityAt});
+            this.updateThread(
+                threadId,
+                isBusy ? {lastActivityAt, lastRunEnd: null, lastRunReason: null} : {lastActivityAt}
+            );
             return;
         }
 
@@ -961,6 +965,11 @@ export class ChatThreadsModel extends HoistModel {
     /** Give a thread the id its chat adopted, merging it into any summary listed under that id. */
     @action
     private rekeyThread(prevThreadId: string, threadId: string) {
+        if (this.lastShownId === prevThreadId) this.lastShownId = threadId;
+        if (prevThreadId in this.seenActivityAt) {
+            const {[prevThreadId]: seen, ...rest} = this.seenActivityAt;
+            this.seenActivityAt = {...rest, [threadId]: seen};
+        }
         const isListed = this.hasThread(threadId),
             rekey = (thread: ChatThreadSummary) =>
                 thread.id === prevThreadId ? {...thread, id: threadId} : thread,
@@ -1042,13 +1051,20 @@ const SEARCH_DEBOUNCE_MS = 300;
 /** Wait after the selection shows before it counts as seen - the next tick. */
 const SEEN_ON_SHOW_MS = 0;
 
+/** True for a turn that failed or was interrupted - the ends a thread list marks. */
+function isThreadEndedEarly(
+    endedEarly: ChatConversationEndedEarly
+): endedEarly is ChatThreadEndedEarly {
+    return endedEarly?.runEnd === 'failed' || endedEarly?.runEnd === 'interrupted';
+}
+
 /** A turn that ended here, waiting to count as seen at the activity a list gives it. */
 interface TurnEndWait {
     /** Number of the first list request that can report the turn. */
     listNumber: number;
 
-    /** The activity a list reported for the turn before the user saw it end, if one did. */
-    reportedActivityAt?: number;
+    /** The activity a list reported for the turn before the user saw it end, or null. */
+    reportedActivityAt: number;
 }
 
 /** A rename or delete, laid over the threads - see `changeThreadsAsync`. */
