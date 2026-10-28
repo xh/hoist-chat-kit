@@ -99,6 +99,8 @@ body {
   --xh-chat-hovercard-width: 320px;
   --xh-chat-source-row-height: 24px;
   --xh-chat-source-highlight-bg: var(--xh-grid-bg-hover);
+  // A row's globe or plain file icon, in both layouts. Hoist's colored file types keep theirs.
+  --xh-chat-source-icon-color: var(--xh-chat-text-color);
   // The roomy sources list - `compact: false` on ChatSources.
   --xh-chat-source-list-bg: var(--xh-chat-bg);
   --xh-chat-source-list-border-radius: calc(var(--xh-chat-border-radius) * 2);

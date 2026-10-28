@@ -255,6 +255,8 @@ line under the title. A long title wraps to two lines. To change the layout for 
 `ChatSources.defaults.compact` at startup. Five variables size the roomy list:
 `--xh-chat-source-list-bg`, `--xh-chat-source-list-border-radius`,
 `--xh-chat-source-row-padding`, `--xh-chat-source-icon-size` and `--xh-chat-source-icon-bg`.
+`--xh-chat-source-icon-color` colors a row's globe or plain file icon in both layouts. It defaults
+to the text color. File types that Hoist colors, such as PDF and Word, keep Hoist's colors.
 
 ```typescript
 // ✅ Do: Set the layout once, at startup, for the lists in every reply
