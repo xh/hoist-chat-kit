@@ -69,6 +69,14 @@ export class ChatSourceLinks extends HoistModel {
         );
     }
 
+    /**
+     * True if a click on the source opens its URL in a new tab: a web page, or a document the
+     * side panel cannot show, with no `onSourceClick` to take either.
+     */
+    opensInNewTab(source: ChatSourcePart): boolean {
+        return !this.onSourceClick && isWebUrl(source.url) && !this.opensInPanel(source);
+    }
+
     /** True if the side panel shows the passage that this message cites with `number`. */
     isActive(number: number): boolean {
         const request = this.sidePanel?.request;

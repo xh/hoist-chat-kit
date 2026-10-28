@@ -146,14 +146,40 @@ describe('sources and citations', () => {
             expect(web.querySelector('.xh-chat-sources__icon .fa-globe')).toBeTruthy();
         });
 
-        it('opens a web row in a new tab, and loads no image for it', () => {
+        it('opens a web row in a new tab, says so, and loads no image for it', () => {
             const {container} = renderReply('See [3].', [
                 {...WEB3, metadata: {favicon: 'https://icons.example/n.png'}}
             ]);
 
-            fireEvent.click(screen.getByRole('button', {name: WEB3.title}));
+            const title = screen.getByRole('button', {name: `${WEB3.title} (opens in a new tab)`});
+            expect(container.querySelector('.xh-chat-sources__external')).toBeTruthy();
+            fireEvent.click(title);
             expect(open).toHaveBeenCalledExactlyOnceWith(WEB3.url, '_blank', 'noopener,noreferrer');
             expect(container.querySelector('.xh-chat-sources img')).toBeNull();
+        });
+
+        it('marks only rows that open a new tab, before the host, unless turned off', () => {
+            const external = (container: HTMLElement) =>
+                container.querySelectorAll('.xh-chat-sources__external').length;
+
+            // A document opens in the side panel, and a web row before its host's meta line.
+            const roomy = renderReply('See [1] [3].', [DOC1, WEB3], {}, {withPanel: true});
+            expect(external(roomy.container)).toBe(1);
+            roomy.unmount();
+
+            const own = render(chatSources({sources: [WEB3], compact: false}));
+            const meta = own.container.querySelector('.xh-chat-sources__meta');
+            expect(meta.firstElementChild.classList).toContain('xh-chat-sources__external');
+            own.unmount();
+
+            // An app's own handler decides where a row goes, so no row says it opens a tab.
+            const handled = render(chatSources({sources: [WEB3], onSourceClick: () => {}}));
+            expect(external(handled.container)).toBe(0);
+            expect(handled.getByRole('button', {name: WEB3.title})).toBeTruthy();
+            handled.unmount();
+
+            const off = render(chatSources({sources: [WEB3], showExternalIcon: false}));
+            expect(external(off.container)).toBe(0);
         });
 
         it('shows three rows, then the rest behind Show N More', () => {

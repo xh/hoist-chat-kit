@@ -52,6 +52,12 @@ export interface ChatSourcesProps extends HoistProps {
     showNumbers?: boolean;
 
     /**
+     * True to mark each row that opens a new tab with an external-link icon, before its host.
+     * Default `ChatSources.defaults.showExternalIcon`.
+     */
+    showExternalIcon?: boolean;
+
+    /**
      * Called when the user clicks a source. By default a document opens in the side panel when one
      * is in reach - in a `ChatWorkspace` with a `documentRenderer` - and a web page opens in a new
      * tab. A handler replaces the new tab, and opens a document that the side panel cannot show.
@@ -81,6 +87,12 @@ export interface ChatSourcesDefaults {
 
     /** True to show each row's number. Read as each list renders. Default true. */
     showNumbers: boolean;
+
+    /**
+     * True to mark each row that opens a new tab with an external-link icon. Read as each list
+     * renders. Default true.
+     */
+    showExternalIcon: boolean;
 }
 
 /**
@@ -96,6 +108,7 @@ export interface ChatSourcesDefaults {
  * Rows are compact by default: one line each, with the meta line beside the title. Set `compact`
  * false, or `ChatSources.defaults.compact`, for a roomier list in a frame, with an icon tile and
  * the meta line under the title. Set `showNumbers` false for a reply whose text cites no sources.
+ * A row that opens a new tab shows an external-link icon before its host - see `showExternalIcon`.
  *
  * The title opens the source. A row with an excerpt expands to show it, on a click on its chevron
  * or anywhere else on the row outside the title. For the keyboard, the title and the chevron are
@@ -111,7 +124,7 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
     className: 'xh-chat-sources',
     // Its own model, kept out of context, so that it needs no model above it.
     model: creates(() => new ChatSourcesLocalModel(), {publishMode: 'none'}),
-    defaults: {visibleRows: 3, compact: true, showNumbers: true},
+    defaults: {visibleRows: 3, compact: true, showNumbers: true, showExternalIcon: true},
 
     render(props, ref) {
         const {
@@ -121,7 +134,8 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
                 defaultExpanded = false,
                 visibleRows = ChatSources.defaults.visibleRows,
                 compact = ChatSources.defaults.compact,
-                showNumbers = ChatSources.defaults.showNumbers
+                showNumbers = ChatSources.defaults.showNumbers,
+                showExternalIcon = ChatSources.defaults.showExternalIcon
             } = props,
             impl = props.model as ChatSourcesLocalModel,
             links = props.links ?? impl.links;
@@ -158,6 +172,8 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
                             source,
                             number: source.marker ?? idx + 1,
                             showNumber: showNumbers,
+                            showExternalIcon,
+                            compact,
                             links,
                             impl
                         })
@@ -231,6 +247,8 @@ interface SourceRowProps extends HoistProps {
     source: ChatSourcePart;
     number: number;
     showNumber: boolean;
+    showExternalIcon: boolean;
+    compact: boolean;
     links: ChatSourceLinks;
     impl: ChatSourcesLocalModel;
 }
@@ -239,10 +257,21 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
     displayName: 'ChatSourceRow',
     model: false,
 
-    render({source, number, showNumber, links, impl}) {
+    render({source, number, showNumber, showExternalIcon, compact, links, impl}) {
         const excerpt = getExcerpt(source),
             isExcerptOpen = !!excerpt && impl.openExcerpts.includes(source.id),
             isActive = links.isActive(number),
+            opensInNewTab = links.opensInNewTab(source),
+            // Before the host: beside the title when compact, so that a long title truncates
+            // first, and leading the meta line when roomy, clear of a title that wraps.
+            externalIcon =
+                showExternalIcon && opensInNewTab
+                    ? span({
+                          className: 'xh-chat-sources__external',
+                          'aria-hidden': true,
+                          item: Icon.openExternal()
+                      })
+                    : null,
             // States that the side panel shows the source - not an action.
             meta = [...getSourceMeta(source), isActive ? 'shown in viewer' : null]
                 .filter(it => it)
@@ -280,12 +309,13 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
                         div({
                             className: 'xh-chat-sources__text',
                             items: [
-                                sourceTitle(source, number, links, isActive),
-                                meta
+                                sourceTitle(source, number, links, isActive, opensInNewTab),
+                                compact ? externalIcon : null,
+                                meta || (!compact && externalIcon)
                                     ? span({
                                           className: 'xh-chat-sources__meta',
-                                          title: meta,
-                                          item: meta
+                                          title: meta || null,
+                                          items: [compact ? null : externalIcon, meta]
                                       })
                                     : null
                             ]
@@ -329,7 +359,8 @@ function sourceTitle(
     source: ChatSourcePart,
     number: number,
     links: ChatSourceLinks,
-    isActive: boolean
+    isActive: boolean,
+    opensInNewTab: boolean
 ): ReactNode {
     const title = source.title || formatHost(source.url) || 'Untitled',
         className = 'xh-chat-sources__title';
@@ -339,6 +370,7 @@ function sourceTitle(
             className,
             type: 'button',
             'aria-current': isActive || undefined,
+            'aria-label': opensInNewTab ? `${title} (opens in a new tab)` : undefined,
             title,
             onClick: (e: MouseEvent<HTMLButtonElement>) =>
                 links.open(source, {

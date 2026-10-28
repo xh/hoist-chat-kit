@@ -118,6 +118,16 @@
     white-space: nowrap;
   }
 
+  // Marks a row that opens a new tab, just before its host: beside the title when compact, so
+  // that a long title truncates first, and leading the meta line when roomy.
+  &__external {
+    align-self: center;
+    color: var(--xh-chat-meta-text-color);
+    display: inline-flex;
+    flex: none;
+    font-size: calc(var(--xh-chat-meta-font-size) - 2px);
+  }
+
   @include hoist-button('.xh-chat-sources__expander') {
     --xh-button-text-color: var(--xh-chat-meta-text-color);
 
@@ -191,6 +201,10 @@
     .xh-chat-sources__meta {
       flex: none;
       max-width: 100%;
+    }
+
+    .xh-chat-sources__external {
+      margin-right: 4px;
     }
 
     // A long title wraps to two lines, then ends in an ellipsis.
