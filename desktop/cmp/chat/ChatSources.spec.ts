@@ -164,6 +164,39 @@ describe('sources and citations', () => {
             expect(screen.queryByRole('button', {name: /^Show/})).toBeNull();
         });
 
+        it('lays out compact rows, or roomy ones for compact false or ChatSources.defaults', () => {
+            const {defaults} = ChatSources,
+                compact = defaults.compact,
+                layout = (container: HTMLElement) =>
+                    container.querySelector('.xh-chat-sources').classList;
+            onTestFinished(() => {
+                defaults.compact = compact;
+            });
+
+            const reply = renderReply('Caps [1].', [DOC1]);
+            expect(layout(reply.container)).toContain('xh-chat-sources--compact');
+            reply.unmount();
+
+            defaults.compact = false;
+            const roomy = renderReply('Caps [1].', [DOC1]);
+            expect(layout(roomy.container)).toContain('xh-chat-sources--roomy');
+            roomy.unmount();
+
+            const appModel = new PlainAppModel();
+            onTestFinished(() => appModel.destroy());
+            const own = render(
+                appContext({model: appModel, item: chatSources({sources: [DOC1], compact: true})})
+            );
+            expect(layout(own.container)).toContain('xh-chat-sources--compact');
+            own.unmount();
+
+            defaults.compact = true;
+            const ownRoomy = render(
+                appContext({model: appModel, item: chatSources({sources: [DOC1], compact: false})})
+            );
+            expect(layout(ownRoomy.container)).toContain('xh-chat-sources--roomy');
+        });
+
         it('expands a row to show its excerpt', () => {
             const {container} = renderReply('Caps [1].', [DOC1]);
             fireEvent.click(screen.getByRole('button', {name: 'Show excerpt'}));

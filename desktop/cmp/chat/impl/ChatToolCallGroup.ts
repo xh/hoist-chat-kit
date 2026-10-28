@@ -72,7 +72,9 @@ export const chatToolCallGroup = hoistCmp.factory<ChatToolCallGroupProps>({
                             }),
                             span({
                                 className: 'xh-chat-tool-call-group__chevron',
-                                item: isExpanded ? Icon.chevronUp() : Icon.chevronDown()
+                                item: isExpanded
+                                    ? Icon.groupRowExpanded()
+                                    : Icon.groupRowCollapsed()
                             })
                         ]
                     }),

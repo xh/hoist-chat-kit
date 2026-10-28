@@ -541,7 +541,11 @@ function rowLine(args: RowLineArgs): ReactNode {
             span({className: 'xh-chat-timeline__time', item: time ?? null}),
             span({
                 className: 'xh-chat-timeline__chevron',
-                item: hasDetails ? (isOpen ? Icon.chevronDown() : Icon.chevronRight()) : null
+                item: hasDetails
+                    ? isOpen
+                        ? Icon.groupRowExpanded()
+                        : Icon.groupRowCollapsed()
+                    : null
             })
         ]
     });

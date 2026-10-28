@@ -240,6 +240,21 @@ Every row has the same layout: the number, an icon, the title and a meta line. A
 A source with `metadata.meta`, a string or an array of strings, shows that as its meta line in
 place of the file name and page, or the host. `title` on the list replaces its "Sources" heading.
 
+Rows are compact by default: one line each, with the meta line beside the title. Set `compact`
+false for a roomier list in a frame, with hairlines between rows, a 28px icon tile and the meta
+line under the title. A long title wraps to two lines. To change the layout for every reply, set
+`ChatSources.defaults.compact` at startup. Five variables size the roomy list:
+`--xh-chat-source-list-bg`, `--xh-chat-source-list-border-radius`,
+`--xh-chat-source-row-padding`, `--xh-chat-source-icon-size` and `--xh-chat-source-icon-bg`.
+
+```typescript
+// ✅ Do: Set the layout once, at startup, for the lists in every reply
+ChatSources.defaults.compact = false;
+
+// A list the app renders itself takes the prop
+chatSources({sources: webResults, title: 'Web results', compact: false});
+```
+
 A row with an excerpt expands to show it on a click on its chevron, or anywhere else on the row
 outside the title. For the keyboard, the title and the chevron are the row's controls.
 
@@ -1090,7 +1105,7 @@ Use it directly only for a list of your own.
 | `ChatTimeline` | `message`, `host`, `parts`, `context`, `isFollowed`, `isLast` | Show a reply's activity timeline in a layout of your own. `parts` defaults to the reply's first timeline block. `isFollowed` says the answer has started below it. |
 | `ChatClearButton` | `chatModel`, and any `ButtonProps` | Clear the conversation, from a panel header. |
 | `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |
-| `ChatSources` | `sources`, `title`, `defaultExpanded`, `visibleRows`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
+| `ChatSources` | `sources`, `title`, `compact`, `defaultExpanded`, `visibleRows`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
 | `ChatNoAnswer` | `part`, `onEditQuestion` | Show a fixed "not found" reply, for example inside an app's own renderer for `xh.chat.noAnswer`. |
 | `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Close, and the content - the app's viewer with its status, or the full table or chart of a result card. |
 | `ChatCodeBlock` | `content`, `language`, `isStreaming` | Show code in a card with a copy button. A finished block over 20 lines shows its first 20, with a button for the rest. |
@@ -1168,8 +1183,8 @@ pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
 | | `--xh-chat-composer-focus-border-color` | `--xh-form-field-focused-border-color` |
 
 `styles/vars.scss` also declares the variables of each feature area, with a comment per group:
-`--xh-chat-timeline-*`, `--xh-chat-citation-*`, `--xh-chat-viewer-*`, `--xh-chat-card-*`,
-`--xh-chat-sidebar-*`, `--xh-chat-composer-*` and the motion timings.
+`--xh-chat-timeline-*`, `--xh-chat-citation-*`, `--xh-chat-source-*`, `--xh-chat-viewer-*`,
+`--xh-chat-card-*`, `--xh-chat-sidebar-*`, `--xh-chat-composer-*` and the motion timings.
 `--xh-chat-viewer-page-bg` and `--xh-chat-viewer-page-text-color` are for the app's document
 renderer, which draws the pages in the side panel.
 

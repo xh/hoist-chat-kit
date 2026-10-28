@@ -1,6 +1,6 @@
 @use '../../../styles/mixins' as *;
 
-// Under the reply's text and above its action bar, after a hairline.
+// Under the reply's text and above its action bar. A compact list follows a hairline.
 .xh-chat-sources {
   border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
   display: flex;
@@ -73,6 +73,15 @@
     width: 16px;
   }
 
+  // Title and meta: side by side when compact, stacked when roomy.
+  &__text {
+    align-items: baseline;
+    display: flex;
+    flex: 1 1 0;
+    gap: 6px;
+    min-width: 0;
+  }
+
   &__title {
     color: var(--xh-chat-text-color);
     flex: 0 1 auto;
@@ -127,6 +136,76 @@
     margin: 2px 0 6px 46px;
     max-width: var(--xh-chat-prose-max-width);
     padding: 6px 8px;
+  }
+
+  // A frame of rows split by hairlines, each with an icon tile and its meta under the title.
+  &--roomy {
+    border-top: none;
+    gap: 6px;
+    padding-top: 0;
+
+    .xh-chat-sources__head {
+      height: auto;
+    }
+
+    .xh-chat-sources__list {
+      background-color: var(--xh-chat-source-list-bg);
+      border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+      border-radius: var(--xh-chat-source-list-border-radius);
+      max-width: var(--xh-chat-prose-max-width);
+      overflow: hidden;
+    }
+
+    .xh-chat-sources__item + .xh-chat-sources__item {
+      border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    }
+
+    // The highlight covers the whole item, so an open excerpt stays inside it.
+    .xh-chat-sources__item:hover,
+    .xh-chat-sources__item:has(> .xh-chat-sources__row--highlight),
+    .xh-chat-sources__item:has(> .xh-chat-sources__row--active) {
+      background-color: var(--xh-chat-source-highlight-bg);
+    }
+
+    .xh-chat-sources__row {
+      background-color: transparent;
+      border-radius: 0;
+      gap: 8px;
+      padding: var(--xh-chat-source-row-padding);
+    }
+
+    .xh-chat-sources__icon {
+      background-color: var(--xh-chat-source-icon-bg);
+      border-radius: var(--xh-chat-border-radius);
+      font-size: calc(var(--xh-chat-source-icon-size) / 2);
+      height: var(--xh-chat-source-icon-size);
+      width: var(--xh-chat-source-icon-size);
+    }
+
+    .xh-chat-sources__text {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .xh-chat-sources__meta {
+      flex: none;
+      max-width: 100%;
+    }
+
+    // A long title wraps to two lines, then ends in an ellipsis.
+    .xh-chat-sources__title {
+      -webkit-box-orient: vertical;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      white-space: normal;
+    }
+
+    .xh-chat-sources__excerpt {
+      background-color: var(--xh-chat-source-list-bg);
+      margin: 0 10px 8px calc(var(--xh-chat-source-icon-size) + 40px);
+    }
   }
 
   @include hoist-button('.xh-chat-sources__more') {

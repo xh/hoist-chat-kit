@@ -517,6 +517,7 @@
         "send button icon",
         "visibleRows",
         "ChatSources.defaults",
+        "compact sources",
         "ChatPanel",
         "chatPanel",
         "ChatMessageList",

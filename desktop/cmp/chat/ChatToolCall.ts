@@ -108,7 +108,7 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
                 hasBody
                     ? span({
                           className: 'xh-chat-tool-call__chevron',
-                          item: isExpanded ? Icon.chevronUp() : Icon.chevronDown()
+                          item: isExpanded ? Icon.groupRowExpanded() : Icon.groupRowCollapsed()
                       })
                     : null
             ];
@@ -254,7 +254,9 @@ function inlineToolCall({
                         ? button({
                               className: 'xh-chat-tool-call__input-toggle',
                               text: isInputShown ? 'Hide input' : 'View input',
-                              rightIcon: isInputShown ? Icon.chevronUp() : Icon.chevronDown(),
+                              rightIcon: isInputShown
+                                  ? Icon.groupRowExpanded()
+                                  : Icon.groupRowCollapsed(),
                               'aria-expanded': isInputShown,
                               onClick: () => impl.setExpanded(!isInputShown)
                           })

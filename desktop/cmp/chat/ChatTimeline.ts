@@ -172,7 +172,9 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelinePro
                             lineMeta(state, summary, message, impl, quietMs),
                             span({
                                 className: 'xh-chat-timeline__chevron',
-                                item: isExpanded ? Icon.chevronUp() : Icon.chevronDown()
+                                item: isExpanded
+                                    ? Icon.groupRowExpanded()
+                                    : Icon.groupRowCollapsed()
                             })
                         ]
                     })

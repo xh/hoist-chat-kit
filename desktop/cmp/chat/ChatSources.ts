@@ -39,6 +39,13 @@ export interface ChatSourcesProps extends HoistProps {
     visibleRows?: number;
 
     /**
+     * True for one dense line per row: number, icon, title and meta. False for a roomier list in
+     * a frame, with an icon tile and the meta line under the title. Default
+     * `ChatSources.defaults.compact`.
+     */
+    compact?: boolean;
+
+    /**
      * Called when the user clicks a source. By default a document opens in the side panel when one
      * is in reach - in a `ChatWorkspace` with a `documentRenderer` - and a web page opens in a new
      * tab. A handler replaces the new tab, and opens a document that the side panel cannot show.
@@ -59,16 +66,27 @@ export interface ChatSourcesDefaults {
      * list renders, so it covers the lists in every reply. Default 3.
      */
     visibleRows: number;
+
+    /**
+     * True for the dense one-line rows, false for the roomier list. Read as each list renders, so
+     * it covers the lists in every reply. Default true.
+     */
+    compact: boolean;
 }
 
 /**
- * The sources behind a reply, under its text and above its action bar, after a hairline.
+ * The sources behind a reply, under its text and above its action bar. A compact list follows a
+ * hairline. A roomy one sits in a frame of its own.
  *
  * Rows follow the citation numbers. Each row shows its number, an icon, its title and a meta line.
  * A document shows its file-type icon, file name and page, and opens in the side panel when one is
  * in reach. A web page shows a globe and its host, and opens in a new tab. Three rows show, and
  * the rest sit behind "Show N More" - see `visibleRows`, and `ChatSources.defaults` to set it
  * app-wide.
+ *
+ * Rows are compact by default: one line each, with the meta line beside the title. Set `compact`
+ * false, or `ChatSources.defaults.compact`, for a roomier list in a frame, with an icon tile and
+ * the meta line under the title.
  *
  * The title opens the source. A row with an excerpt expands to show it, on a click on its chevron
  * or anywhere else on the row outside the title. For the keyboard, the title and the chevron are
@@ -82,7 +100,7 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
 >({
     displayName: 'ChatSources',
     className: 'xh-chat-sources',
-    defaults: {visibleRows: 3},
+    defaults: {visibleRows: 3, compact: true},
 
     render(props, ref) {
         const {
@@ -90,7 +108,8 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
                 sources,
                 title = 'Sources',
                 defaultExpanded = false,
-                visibleRows = ChatSources.defaults.visibleRows
+                visibleRows = ChatSources.defaults.visibleRows,
+                compact = ChatSources.defaults.compact
             } = props,
             impl = useLocalModel(ChatSourcesLocalModel),
             links = props.links ?? impl.links;
@@ -110,7 +129,10 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
 
         return div({
             ref,
-            className,
+            className: classNames(
+                className,
+                compact ? 'xh-chat-sources--compact' : 'xh-chat-sources--roomy'
+            ),
             role: 'region',
             'aria-label': title,
             items: [
@@ -236,12 +258,24 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
                             item: number
                         }),
                         span({className: 'xh-chat-sources__icon', item: sourceIcon(source)}),
-                        sourceTitle(source, number, links, isActive),
-                        span({className: 'xh-chat-sources__meta', item: meta.join(' · ')}),
+                        div({
+                            className: 'xh-chat-sources__text',
+                            items: [
+                                sourceTitle(source, number, links, isActive),
+                                meta.length
+                                    ? span({
+                                          className: 'xh-chat-sources__meta',
+                                          item: meta.join(' · ')
+                                      })
+                                    : null
+                            ]
+                        }),
                         excerpt
                             ? button({
                                   className: 'xh-chat-sources__expander',
-                                  icon: isExcerptOpen ? Icon.chevronUp() : Icon.chevronDown(),
+                                  icon: isExcerptOpen
+                                      ? Icon.groupRowExpanded()
+                                      : Icon.groupRowCollapsed(),
                                   tooltip: isExcerptOpen ? 'Hide excerpt' : 'Show excerpt',
                                   'aria-label': isExcerptOpen ? 'Hide excerpt' : 'Show excerpt',
                                   'aria-expanded': isExcerptOpen,

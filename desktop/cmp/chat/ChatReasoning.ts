@@ -61,7 +61,7 @@ export const [ChatReasoning, chatReasoning] = hoistCmp.withFactory<ChatReasoning
             items: [
                 button({
                     className: 'xh-chat-reasoning__toggle',
-                    icon: isExpanded ? Icon.chevronDown() : Icon.chevronRight(),
+                    icon: isExpanded ? Icon.groupRowExpanded() : Icon.groupRowCollapsed(),
                     text: span({
                         className: 'xh-chat-reasoning__label',
                         item: isStreaming ? 'Thinking…' : getDoneLabel(part)
