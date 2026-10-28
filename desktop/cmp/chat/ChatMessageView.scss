@@ -360,26 +360,7 @@
     width: 1px;
   }
 
-  @include hoist-button(null, '.xh-chat-message__actions') {
-    // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
-    // component styles in the dark theme - so set the variables, not the colors.
-    --xh-button-text-color: var(--xh-chat-meta-text-color);
-
-    font-size: var(--xh-chat-meta-font-size);
-    min-height: 24px;
-    min-width: 24px;
-    padding: 0 5px;
-
-    &:hover {
-      --xh-button-text-color: var(--xh-chat-text-color);
-    }
-  }
-
-  @include hoist-button('.xh-chat-message__thumb--chosen', '.xh-chat-message__actions') {
-    --xh-button-text-color: var(--xh-chat-rated-color);
-
-    background-color: var(--xh-chat-mention-bg);
-  }
+  @include chat-action-buttons('.xh-chat-message__actions');
 
   // A Button in a meta-size strip takes the strip's size, so its label and the text read as one.
   @include hoist-button(
@@ -388,39 +369,6 @@
   ) {
     font-size: inherit;
     min-height: 24px;
-  }
-
-  // What follows the thumbs: "Thanks", a failed save with Retry, the comment sent and "Add a
-  // comment". Always shown, as the chosen thumb is.
-  &__feedback-status {
-    align-items: center;
-    color: var(--xh-chat-meta-text-color);
-    display: inline-flex;
-    font-size: var(--xh-chat-meta-font-size);
-    gap: var(--xh-chat-status-cue-gap);
-    margin-left: var(--xh-pad-half-px);
-    white-space: nowrap;
-
-    &--failed {
-      color: var(--xh-chat-error-color);
-    }
-  }
-
-  &__feedback-thanks,
-  &__feedback-note {
-    align-items: center;
-    display: inline-flex;
-    gap: 4px;
-  }
-
-  &__feedback-thanks .xh-icon {
-    color: var(--xh-chat-success-color);
-  }
-
-  @include hoist-button('.xh-chat-message__feedback-link', '.xh-chat-message__actions') {
-    --xh-button-text-color: var(--xh-intent-primary-text-color);
-
-    padding: 0 2px;
   }
 
   //------------------------
@@ -433,78 +381,4 @@
     gap: var(--xh-pad-half-px);
     margin-top: var(--xh-chat-turn-gap);
   }
-
-  //------------------------
-  // Feedback form
-  //------------------------
-  // Inline under the action bar - never a popover, so an outside click cannot lose the comment.
-  // Full width below its max width, as when docked at 380 px.
-  &__feedback {
-    background-color: var(--xh-chat-bg);
-    border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
-    border-radius: var(--xh-chat-border-radius);
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    gap: var(--xh-pad-px);
-    max-width: var(--xh-chat-feedback-max-width);
-    padding: var(--xh-pad-px);
-
-    .xh-text-area.bp6-input {
-      box-sizing: border-box;
-      font-size: var(--xh-chat-font-size);
-      min-height: 56px;
-      width: 100%;
-    }
-  }
-
-  &__feedback-heading {
-    align-items: baseline;
-    display: flex;
-    font-weight: 600;
-    gap: var(--xh-pad-half-px);
-  }
-
-  &__feedback-hint {
-    color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-chat-meta-font-size);
-    font-weight: 400;
-  }
-
-  &__feedback-error {
-    align-items: center;
-    color: var(--xh-chat-error-color);
-    display: flex;
-    font-size: var(--xh-chat-meta-font-size);
-    gap: var(--xh-chat-status-cue-gap);
-  }
-
-  // Affirmative first, left-aligned like a form, with the hint or counter at the right.
-  &__feedback-bar {
-    align-items: center;
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--xh-pad-half-px);
-  }
-
-  // Wraps Send, to hold focus while Send is disabled mid-flight.
-  &__feedback-send {
-    align-items: center;
-    display: inline-flex;
-    gap: var(--xh-pad-half-px);
-    outline: none;
-  }
-
-  &__feedback-tip {
-    color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-chat-meta-font-size);
-    margin-left: auto;
-  }
-}
-
-// What the thumbs down means on a fixed "not found" reply.
-.xh-chat-message__thumb-hint {
-  color: var(--xh-chat-meta-text-color);
-  font-size: var(--xh-chat-meta-font-size);
-  padding: 0 var(--xh-pad-half-px);
 }

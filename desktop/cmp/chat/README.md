@@ -664,6 +664,51 @@ After a reload, the chosen thumb shows alone, from `metadata.feedback`. The comm
 back, so the reply shows no comment mark. The announcer reads "Feedback sent." on a save,
 and reads a failure at once.
 
+#### Collect feedback without a ChatModel
+
+`ChatFeedbackControls` shows the same thumbs and comment form on their own, for a reply that the
+app lays out itself. They behave as above. Pass the `message` and a `host`: a `ChatModel`, or a
+`ChatFeedbackHost` of the app's own, for a conversation that runs elsewhere. The host gives the
+conversation's id, the feedback saved on a message, and a submit that takes a `ChatFeedbackSpec`:
+
+```typescript
+class AnswerFeedbackModel extends HoistModel implements ChatFeedbackHost {
+    @observableRef accessor ratings: Record<string, ChatFeedback> = {};
+
+    constructor(readonly threadId: string) {
+        super();
+    }
+
+    getFeedback(message: ChatMessage): ChatFeedback {
+        return this.ratings[message.id] ?? null;
+    }
+
+    async submitFeedbackAsync(spec: ChatFeedbackSpec) {
+        await XH.postJson({url: 'chat/feedback', body: spec});
+        this.setRating(spec);
+    }
+
+    @action
+    private setRating({messageId, rating, comment}: ChatFeedbackSpec) {
+        this.ratings = {...this.ratings, [messageId]: rating ? {rating, comment} : null};
+    }
+}
+
+chatFeedbackControls({message, host: answerFeedbackModel});
+```
+
+The controls show a new rating while it saves. Resolve the submit once saved, with `getFeedback`
+then returning it, and reject if the save fails. The controls then show the saved rating again,
+with Retry. A rejection with an `httpStatus` of 400, 413 or 422 counts as refused, as above.
+
+Three members are optional. `feedbackSettings` takes `allowComment`, `requireComment`,
+`clearable` and `maxCommentLength`. `feedbackDrafts` with `setFeedbackDraft` keep the drafts in
+the app, so a half-typed comment survives a new mount of its controls. Remove the drafts of
+messages that go, as `ChatModel` does. Without them, the kit keeps a draft while its controls are
+mounted. Either way, one form is open per host.
+`messages` hides "Add a comment" once the user sends again. Without it, the link stays until the
+next rating.
+
 ### Approve a tool call
 
 A call that waits for approval frames its row in the attention color and shows the approval
@@ -1058,6 +1103,7 @@ Use it directly only for a list of your own.
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |
 | `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |
 | `ChatCopyButton` | `getCopyText`, `showText`, `label` | Copy text, confirming in place with a check for a moment. No `ChatModel` needed. |
+| `ChatFeedbackControls` | `message`, `host` | Rate a reply in a layout of your own: thumbs, then the comment form. `host` is a `ChatModel` or a `ChatFeedbackHost`. See [Collect feedback without a ChatModel](#collect-feedback-without-a-chatmodel). |
 | `ChatErrorBoundary` | `subject`, `resetKey` | Catch a render error in a kit component you host yourself, as the message list does for each part. |
 
 ## Theming

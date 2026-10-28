@@ -6,6 +6,7 @@ export * from './ChatCopyButton';
 export * from './ChatElapsed';
 export * from './ChatEmptyState';
 export * from './ChatErrorBoundary';
+export * from './ChatFeedbackControls';
 export * from './ChatFileChip';
 export * from './ChatMessageList';
 export {CHAT_MARKDOWN_COMPONENTS} from './ChatMarkdownComponents';

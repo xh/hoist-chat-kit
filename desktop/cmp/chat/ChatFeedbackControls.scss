@@ -1,0 +1,134 @@
+@use '../../../styles/mixins' as *;
+
+// Feedback on a reply: the thumbs, what follows a rating, and the comment form. The message view
+// shows them in its action bar and under the reply, and ChatFeedbackControls shows them alone.
+// Both keep the message view's class names.
+.xh-chat-message {
+  // What follows the thumbs: "Thanks", a failed save with Retry, the comment sent and "Add a
+  // comment". Always shown, as the chosen thumb is.
+  &__feedback-status {
+    align-items: center;
+    color: var(--xh-chat-meta-text-color);
+    display: inline-flex;
+    font-size: var(--xh-chat-meta-font-size);
+    gap: var(--xh-chat-status-cue-gap);
+    margin-left: var(--xh-pad-half-px);
+    white-space: nowrap;
+
+    &--failed {
+      color: var(--xh-chat-error-color);
+    }
+  }
+
+  &__feedback-thanks,
+  &__feedback-note {
+    align-items: center;
+    display: inline-flex;
+    gap: 4px;
+  }
+
+  &__feedback-thanks .xh-icon {
+    color: var(--xh-chat-success-color);
+  }
+
+  //------------------------
+  // Feedback form
+  //------------------------
+  // Inline under the action bar - never a popover, so an outside click cannot lose the comment.
+  // Full width below its max width, as when docked at 380 px.
+  &__feedback {
+    background-color: var(--xh-chat-bg);
+    border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border-radius: var(--xh-chat-border-radius);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-pad-px);
+    max-width: var(--xh-chat-feedback-max-width);
+    padding: var(--xh-pad-px);
+
+    .xh-text-area.bp6-input {
+      box-sizing: border-box;
+      font-size: var(--xh-chat-font-size);
+      min-height: 56px;
+      width: 100%;
+    }
+  }
+
+  &__feedback-heading {
+    align-items: baseline;
+    display: flex;
+    font-weight: 600;
+    gap: var(--xh-pad-half-px);
+  }
+
+  &__feedback-hint {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+    font-weight: 400;
+  }
+
+  &__feedback-error {
+    align-items: center;
+    color: var(--xh-chat-error-color);
+    display: flex;
+    font-size: var(--xh-chat-meta-font-size);
+    gap: var(--xh-chat-status-cue-gap);
+  }
+
+  // Affirmative first, left-aligned like a form, with the hint or counter at the right.
+  &__feedback-bar {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--xh-pad-half-px);
+  }
+
+  // Wraps Send, to hold focus while Send is disabled mid-flight.
+  &__feedback-send {
+    align-items: center;
+    display: inline-flex;
+    gap: var(--xh-pad-half-px);
+    outline: none;
+  }
+
+  &__feedback-tip {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+    margin-left: auto;
+  }
+}
+
+// What the thumbs down means on a fixed "not found" reply.
+.xh-chat-message__thumb-hint {
+  color: var(--xh-chat-meta-text-color);
+  font-size: var(--xh-chat-meta-font-size);
+  padding: 0 var(--xh-pad-half-px);
+}
+
+//------------------------
+// Standing alone
+//------------------------
+.xh-chat-feedback-controls {
+  color: var(--xh-chat-text-color);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--xh-chat-font-size);
+  gap: var(--xh-pad-half-px);
+  line-height: var(--xh-chat-line-height);
+
+  &__bar {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1px;
+  }
+
+  @include chat-action-buttons('.xh-chat-feedback-controls__bar');
+
+  // A Button in the meta-size status takes its size, as in the message view.
+  @include hoist-button(null, '.xh-chat-message__feedback-status') {
+    font-size: inherit;
+    min-height: 24px;
+  }
+}

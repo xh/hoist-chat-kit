@@ -1669,3 +1669,26 @@ the timeline: users would open two controls for one run of work. Display setting
 **Deferred.** The rest of the app's list waits for a follow-up: folding the call that launched a
 sub-agent into its row, an "outcome unknown" status, hiding a sub-agent's report, and nesting a
 sub-agent's text and reasoning (plan item 8 in `planning/AG-UI.md`).
+
+## D100. The feedback controls stand alone, over `ChatFeedbackHost`
+
+**Decision.** `ChatFeedbackControls` exports the thumbs and the comment form for a reply the app
+lays out itself. Its `host` is a `ChatModel`, or a `ChatFeedbackHost`: `threadId`,
+`getFeedback(message)` and `submitFeedbackAsync(spec)`, with optional `feedbackSettings`,
+`feedbackDrafts` with `setFeedbackDraft`, and `messages`. The feedback model behind the message view
+now works over the host, and an internal adapter makes one of a `ChatModel`, as D96 did for the
+thread seam. The controls show a new rating while it saves and the saved one again if it fails, so a
+host only saves and reports. For a host with no drafts of its own, the kit keeps them, one set per
+host, so one form stays open per host, and drops a draft when its controls unmount. `getFeedback`
+takes the message, so that the `ChatModel` adapter reads the view's own message and tracks no other.
+`ChatFeedbackSettings` splits out of `ChatFeedbackConfig`, which extends it with `submitAsync`. The
+feedback styles move to their own file, with no rule changed.
+
+**Why.** The app on the thread seam runs its conversation elsewhere and wants the kit's feedback
+behavior there. Its store already takes a `ChatFeedbackSpec`. The app is a second implementer of
+the host, which is the rule for a narrow interface (D82). `ChatModel` keeps its own
+`submitFeedbackAsync(messageId, rating, comment)`, so no app code changes.
+
+**Alternatives.** Have `ChatModel` implement the host itself: its `submitFeedbackAsync` takes
+other arguments, and a second submit method on it would confuse. Props for one message, such as
+`rating` and `onSubmit`: drafts and the one-form-per-chat rule need a conversation-wide host.

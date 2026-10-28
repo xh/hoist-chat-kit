@@ -1,4 +1,4 @@
-import {isEmpty, keys, last, pickBy} from 'lodash';
+import {isEmpty, keys, last, omit, pickBy} from 'lodash';
 import type {ReactElement, ReactNode, RefObject} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps} from '@xh/hoist/core';
@@ -10,13 +10,19 @@ import {wait} from '@xh/hoist/promise';
 import {createObservableRef} from '@xh/hoist/utils/react';
 import {
     chatAnnouncer,
+    type ChatFeedback,
     type ChatFeedbackDraft,
+    type ChatFeedbackHost,
     type ChatFeedbackRating,
+    type ChatFeedbackSettings,
+    type ChatFeedbackSpec,
     type ChatMessage,
-    type ChatModel
+    type ChatModel,
+    isChatModel
 } from '../../../../core';
 import {classNames} from '../../../../impl/ClassNames';
 import {chatSpinner} from '../../../impl/ChatLiveCues';
+import '../ChatFeedbackControls.scss';
 
 /**
  * True if the server refused the feedback itself - an empty or over-long comment, say - rather
@@ -37,9 +43,15 @@ export function isFeedbackRejected(error: Error): boolean {
  * toast: a rating's failure in the thanks slot for 8 s, a form's in the form until resent or
  * cancelled.
  *
- * The form's comment lives in the chat's {@link ChatModel.feedbackDrafts}, so it survives a new
- * view of the message, and a thread switch in a `ChatThreadsModel`, which keeps it while the
- * thread is closed. The model keeps at most one draft open per chat.
+ * The model works over a {@link ChatFeedbackHost}: a `ChatModel`, through
+ * {@link getFeedbackHost}, or an app's own conversation. It shows a new rating while it saves, and
+ * the host's saved rating again if the save fails.
+ *
+ * The form's comment lives in the host's drafts, as a `ChatModel` keeps them in
+ * {@link ChatModel.feedbackDrafts}, so it survives a new view of the message, and a thread switch
+ * in a `ChatThreadsModel`, which keeps it while the thread is closed. For a host that keeps none,
+ * the kit keeps them, one set per host, and drops a draft when its controls unmount. Either way,
+ * at most one draft is open per host.
  * @internal
  */
 export class ChatMessageFeedbackModel extends HoistModel {
@@ -51,8 +63,8 @@ export class ChatMessageFeedbackModel extends HoistModel {
     /** The rating whose save failed, shown 8 s with Retry - or null. */
     @observableRef accessor failure: FeedbackPayload = null;
 
-    /** True while a rating saves without a form. */
-    @observable accessor isSaving = false;
+    /** The rating saving without a form - shown as chosen until the save ends - or null. */
+    @observableRef accessor saving: FeedbackPayload = null;
 
     readonly upRef = createObservableRef<HTMLElement>();
     readonly downRef = createObservableRef<HTMLElement>();
@@ -62,8 +74,8 @@ export class ChatMessageFeedbackModel extends HoistModel {
 
     message: ChatMessage = null;
 
-    /** The chat that takes the feedback - null for a transcript, which offers no thumbs. */
-    chatModel: ChatModel = null;
+    /** The conversation that takes the feedback - null for one that takes none. */
+    host: ChatFeedbackHost = null;
 
     constructor() {
         super();
@@ -82,27 +94,32 @@ export class ChatMessageFeedbackModel extends HoistModel {
         });
     }
 
-    /** Set the message and chat - called as the view renders. */
-    configure(message: ChatMessage, chatModel: ChatModel) {
+    /** Set the message and host - called as the view renders. */
+    configure(message: ChatMessage, host: ChatFeedbackHost) {
         this.message = message;
-        this.chatModel = chatModel;
+        this.host = host;
     }
 
-    get settings() {
+    get settings(): Required<ChatFeedbackSettings> {
         const {
             allowComment = true,
             requireComment = false,
             clearable = true,
             maxCommentLength = 1000
-        } = this.chatModel?.feedback ?? {};
+        } = this.host?.feedbackSettings ?? {};
         return {allowComment, requireComment, clearable, maxCommentLength};
+    }
+
+    /** True while a rating saves without a form. */
+    get isSaving(): boolean {
+        return this.saving != null;
     }
 
     /** True if the user can rate the message now. */
     get canRate(): boolean {
-        const {message, chatModel} = this;
+        const {message, host} = this;
         return (
-            !!chatModel?.canSubmitFeedback &&
+            !!host &&
             message.isAssistant &&
             !message.isStreaming &&
             message.status !== 'paused' &&
@@ -112,7 +129,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
 
     /** This message's open form - the draft of its comment - or null. */
     get form(): ChatFeedbackDraft {
-        return this.chatModel?.feedbackDrafts[this.message.id] ?? null;
+        return this.drafts[this.message.id] ?? null;
     }
 
     /** The open form's comment, bound to its text area. */
@@ -125,7 +142,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
         const {form} = this;
         if (!form) return;
         // A change after a failed send makes a new payload, so Send replaces Retry.
-        this.chatModel.setFeedbackDraft(this.message.id, {...form, comment, error: null});
+        this.setDraft(this.message.id, {...form, comment, error: null});
     }
 
     /** True while the form sends. Kept on the draft, so that a new view of the form sees it. */
@@ -145,12 +162,14 @@ export class ChatMessageFeedbackModel extends HoistModel {
 
     /** The rating saved on the message, or null. */
     get savedRating(): ChatFeedbackRating {
-        return this.message.metadata.feedback?.rating ?? null;
+        return this.savedFeedback?.rating ?? null;
     }
 
-    /** The rating shown as chosen - that of an open form, else the saved one. */
+    /** The rating shown as chosen - that of an open form, else one saving, else the saved one. */
     get shownRating(): ChatFeedbackRating {
-        return this.form?.rating ?? this.savedRating;
+        const {form, saving} = this;
+        if (form) return form.rating;
+        return saving ? saving.rating : this.savedRating;
     }
 
     /**
@@ -158,8 +177,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
      * closes instead.
      */
     get blockReason(): string {
-        const drafts = this.chatModel?.feedbackDrafts ?? {},
-            blocking = keys(pickBy(drafts, it => it.comment.trim()));
+        const blocking = keys(pickBy(this.drafts, it => it.comment.trim()));
         if (isEmpty(blocking)) return null;
         return blocking.includes(this.message.id)
             ? 'Send or cancel your comment first.'
@@ -180,13 +198,20 @@ export class ChatMessageFeedbackModel extends HoistModel {
 
     /** The comment sent this session, or null - a reload does not restore it. */
     get sentComment(): string {
-        return this.form ? null : (this.message.metadata.feedback?.comment ?? null);
+        return this.form ? null : (this.savedFeedback?.comment ?? null);
     }
 
     /** True if the open form can send. */
     get canSend(): boolean {
         const {form} = this;
-        return !!form && !this.isSubmitting && !this.isRejected && !!form.comment.trim();
+        // Waits for a rating saving without its comment, so that the two never race.
+        return (
+            !!form &&
+            !this.isSaving &&
+            !this.isSubmitting &&
+            !this.isRejected &&
+            !!form.comment.trim()
+        );
     }
 
     /**
@@ -236,17 +261,17 @@ export class ChatMessageFeedbackModel extends HoistModel {
 
     /** Send the open form's rating and comment. */
     async sendAsync() {
-        const {form, chatModel, message} = this;
+        const {form, message} = this;
         if (!this.canSend) return;
 
         const payload: FeedbackPayload = {rating: form.rating, comment: form.comment};
-        chatModel.setFeedbackDraft(message.id, {...form, isSending: true, error: null});
+        this.setDraft(message.id, {...form, isSending: true, error: null});
         focusSoon(this.sendRef);
         const error = await this.submitAsync(payload);
 
-        // The draft goes once its comment is sent, or if the chat cleared while the send ran.
-        const current = chatModel.feedbackDrafts[message.id];
-        if (current) chatModel.setFeedbackDraft(message.id, {...current, isSending: false, error});
+        // A sent comment's draft goes, as does one the host cleared while the send ran.
+        const current = error ? this.drafts[message.id] : null;
+        this.setDraft(message.id, current ? {...current, isSending: false, error} : null);
 
         if (error) {
             if (!current) return;
@@ -278,7 +303,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
 
     /** Close this message's form, if open - before the reply it describes is replaced. */
     discardForm() {
-        if (this.form) this.chatModel.setFeedbackDraft(this.message.id, null);
+        if (this.form) this.setDraft(this.message.id, null);
     }
 
     // Typed as Hoist's TextArea types its onKeyDown. Enter adds a newline: this is a comment, not
@@ -303,6 +328,10 @@ export class ChatMessageFeedbackModel extends HoistModel {
     }
 
     override destroy() {
+        // A draft the kit keeps goes with its controls, so that no hidden form blocks the thumbs.
+        if (this.message && this.draftStore instanceof KitDraftStore) {
+            this.setDraft(this.message.id, null);
+        }
         clearTimeout(this.thanksTimer);
         clearTimeout(this.failureTimer);
         super.destroy();
@@ -318,8 +347,34 @@ export class ChatMessageFeedbackModel extends HoistModel {
     private thanksTimer: any;
     private failureTimer: any;
 
+    private get savedFeedback(): ChatFeedback {
+        const {host, message} = this;
+        return host?.getFeedback(message) ?? null;
+    }
+
+    // The host's drafts, else those the kit keeps for it.
+    private get draftStore(): FeedbackDraftStore {
+        const {host} = this;
+        if (!host) return EMPTY_DRAFTS;
+        if (host.feedbackDrafts && host.setFeedbackDraft) return host as FeedbackDraftStore;
+        let ret = KIT_DRAFTS.get(host);
+        if (!ret) {
+            ret = new KitDraftStore();
+            KIT_DRAFTS.set(host, ret);
+        }
+        return ret;
+    }
+
+    private get drafts(): Record<string, ChatFeedbackDraft> {
+        return this.draftStore.feedbackDrafts;
+    }
+
+    private setDraft(messageId: string, draft: ChatFeedbackDraft) {
+        this.draftStore.setFeedbackDraft(messageId, draft);
+    }
+
     private get lastUserMessageId(): string {
-        return last(this.chatModel.messages.filter(it => it.isUser))?.id ?? '';
+        return last(this.host?.messages?.filter(it => it.isUser))?.id ?? '';
     }
 
     private requiresComment(rating: ChatFeedbackRating): boolean {
@@ -328,7 +383,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
 
     private openForm(rating: ChatFeedbackRating, isPending: boolean) {
         this.isFocusPending = true;
-        this.chatModel.setFeedbackDraft(this.message.id, {
+        this.setDraft(this.message.id, {
             rating,
             comment: '',
             isPending,
@@ -337,17 +392,16 @@ export class ChatMessageFeedbackModel extends HoistModel {
         });
     }
 
-    // The chat keeps one form open - opening one closes the rest.
+    // The host keeps one form open - opening one closes the rest.
     @action
     private closeForms() {
-        const {chatModel} = this;
-        keys(chatModel.feedbackDrafts).forEach(id => chatModel.setFeedbackDraft(id, null));
+        keys(this.drafts).forEach(id => this.setDraft(id, null));
     }
 
     private async saveAsync(payload: FeedbackPayload, offerComment: boolean = false) {
-        this.setSaving(true);
+        this.setSaving(payload);
         const error = await this.submitAsync(payload);
-        this.setSaving(false);
+        this.setSaving(null);
         if (error) {
             this.showFailure(payload);
             chatAnnouncer.announce('Rating not saved.', 'assertive');
@@ -364,16 +418,23 @@ export class ChatMessageFeedbackModel extends HoistModel {
         chatAnnouncer.announce('Feedback sent.');
     }
 
-    // The chat's error - it records it and resolves - or the promise's.
+    // The error of a failed submit, or null.
     private async submitAsync(payload: FeedbackPayload): Promise<Error> {
-        const {chatModel, message} = this,
-            {rating, comment} = payload;
+        const {host, message} = this,
+            spec: ChatFeedbackSpec = {
+                threadId: host.threadId,
+                messageId: message.id,
+                serverId: message.metadata.serverId ?? null,
+                runId: message.metadata.runId ?? null,
+                rating: payload.rating ?? null,
+                comment: payload.comment?.trim() || null
+            };
         try {
-            await chatModel.submitFeedbackAsync(message.id, rating, comment || undefined);
+            await host.submitFeedbackAsync(spec);
         } catch (e) {
             return e;
         }
-        return chatModel.feedbackErrors[message.id] ?? null;
+        return null;
     }
 
     // A thumb keeps focus through a save. Should the browser drop it, put it back.
@@ -416,14 +477,37 @@ export class ChatMessageFeedbackModel extends HoistModel {
     }
 
     @action
-    private setSaving(isSaving: boolean) {
-        this.isSaving = isSaving;
+    private setSaving(payload: FeedbackPayload) {
+        this.saving = payload;
     }
 
     @action
     private setOfferedUntil(messageId: string) {
         this.offeredUntil = messageId;
     }
+}
+
+/**
+ * The feedback host of a `ChatModel`, or null if it takes no feedback - see
+ * `ChatModel.canSubmitFeedback`. One per chat, so that the controls see a stable host.
+ * @internal
+ */
+export function getFeedbackHost(chatModel: ChatModel): ChatFeedbackHost {
+    if (!chatModel?.canSubmitFeedback) return null;
+    let ret = CHAT_MODEL_HOSTS.get(chatModel);
+    if (!ret) {
+        ret = new ChatModelFeedbackHost(chatModel);
+        CHAT_MODEL_HOSTS.set(chatModel, ret);
+    }
+    return ret;
+}
+
+/**
+ * The feedback host of the controls' `host` prop: a `ChatModel`'s own, else the host itself.
+ * @internal
+ */
+export function resolveFeedbackHost(host: ChatFeedbackHost | ChatModel): ChatFeedbackHost {
+    return isChatModel(host) ? getFeedbackHost(host) : (host ?? null);
 }
 
 /**
@@ -666,6 +750,66 @@ interface FeedbackPayload {
     rating: ChatFeedbackRating;
     comment?: string;
 }
+
+// A ChatModel as a feedback host. The chat shows a rating at once and reverts it itself, and
+// records a failure rather than throwing it, so the host throws the recorded error.
+class ChatModelFeedbackHost implements ChatFeedbackHost {
+    constructor(private readonly chatModel: ChatModel) {}
+
+    get threadId(): string {
+        return this.chatModel.threadId;
+    }
+
+    get feedbackSettings(): ChatFeedbackSettings {
+        return this.chatModel.feedback;
+    }
+
+    get feedbackDrafts(): Record<string, ChatFeedbackDraft> {
+        return this.chatModel.feedbackDrafts;
+    }
+
+    get messages(): ChatMessage[] {
+        return this.chatModel.messages;
+    }
+
+    // The view's own message, so that a rating tracks no other message.
+    getFeedback(message: ChatMessage): ChatFeedback {
+        return message.metadata.feedback ?? null;
+    }
+
+    setFeedbackDraft(messageId: string, draft: ChatFeedbackDraft) {
+        this.chatModel.setFeedbackDraft(messageId, draft);
+    }
+
+    async submitFeedbackAsync({messageId, rating, comment}: ChatFeedbackSpec) {
+        const {chatModel} = this;
+        await chatModel.submitFeedbackAsync(messageId, rating, comment ?? undefined);
+        const error = chatModel.feedbackErrors[messageId];
+        if (error) throw error;
+    }
+}
+
+const CHAT_MODEL_HOSTS = new WeakMap<ChatModel, ChatFeedbackHost>();
+
+// Where a host's drafts live - see `ChatFeedbackHost.feedbackDrafts`.
+type FeedbackDraftStore = Required<Pick<ChatFeedbackHost, 'feedbackDrafts' | 'setFeedbackDraft'>>;
+
+// The drafts the kit keeps for a host that keeps none.
+class KitDraftStore implements FeedbackDraftStore {
+    @observableRef accessor feedbackDrafts: Record<string, ChatFeedbackDraft> = {};
+
+    @action
+    setFeedbackDraft(messageId: string, draft: ChatFeedbackDraft) {
+        if (draft) {
+            this.feedbackDrafts = {...this.feedbackDrafts, [messageId]: draft};
+        } else if (this.feedbackDrafts[messageId]) {
+            this.feedbackDrafts = omit(this.feedbackDrafts, messageId);
+        }
+    }
+}
+
+const KIT_DRAFTS = new WeakMap<ChatFeedbackHost, FeedbackDraftStore>(),
+    EMPTY_DRAFTS: FeedbackDraftStore = {feedbackDrafts: {}, setFeedbackDraft: () => {}};
 
 // HTTP statuses for a request the server understood and refused: bad, too large, unprocessable.
 const REJECTED_STATUSES = [400, 413, 422];

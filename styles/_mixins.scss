@@ -12,6 +12,38 @@
   }
 }
 
+// The quiet buttons of a bar of message actions - a message view's, or the feedback controls'
+// standing alone - with the chosen thumb and the "Add a comment" link. Include it in the block
+// that holds the bar.
+@mixin chat-action-buttons($bar) {
+  @include hoist-button(null, $bar) {
+    // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
+    // component styles in the dark theme - so set the variables, not the colors.
+    --xh-button-text-color: var(--xh-chat-meta-text-color);
+
+    font-size: var(--xh-chat-meta-font-size);
+    min-height: 24px;
+    min-width: 24px;
+    padding: 0 5px;
+
+    &:hover {
+      --xh-button-text-color: var(--xh-chat-text-color);
+    }
+  }
+
+  @include hoist-button('.xh-chat-message__thumb--chosen', $bar) {
+    --xh-button-text-color: var(--xh-chat-rated-color);
+
+    background-color: var(--xh-chat-mention-bg);
+  }
+
+  @include hoist-button('.xh-chat-message__feedback-link', $bar) {
+    --xh-button-text-color: var(--xh-intent-primary-text-color);
+
+    padding: 0 2px;
+  }
+}
+
 // A focus ring drawn inside an element that clips its overflow, which would hide a ring outside.
 @mixin focus-ring-inset {
   outline: var(--xh-chat-focus-ring-width) solid var(--xh-chat-focus-ring-color);

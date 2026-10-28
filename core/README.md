@@ -454,6 +454,12 @@ With `requireComment`, `submitFeedbackAsync()` throws for a thumbs down with no 
 without a comment suits `{requireComment: true}`. See
 [Collect feedback](../desktop/cmp/chat/README.md#collect-feedback) for the form.
 
+A conversation that is not a `ChatModel` takes feedback through a `ChatFeedbackHost`: its
+`threadId`, `getFeedback(message)` and `submitFeedbackAsync(spec)`, with optional
+`feedbackSettings`, `feedbackDrafts`, `setFeedbackDraft` and `messages`. The desktop
+`ChatFeedbackControls` render over one. See
+[Collect feedback without a ChatModel](../desktop/cmp/chat/README.md#collect-feedback-without-a-chatmodel).
+
 `feedbackDrafts` holds the comment typed in an open form, by message id, until it is sent. The form
 writes it with `setFeedbackDraft()`, with `isSending` and the last `error`. A half-typed comment and
 a send in progress then survive a redraw of the message list. A draft goes when its comment is sent,

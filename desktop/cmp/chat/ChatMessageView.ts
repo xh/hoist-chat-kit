@@ -60,7 +60,8 @@ import {chatCopyButton} from './ChatCopyButton';
 import {
     chatFeedbackForm,
     ChatMessageFeedbackModel,
-    feedbackThumbs
+    feedbackThumbs,
+    getFeedbackHost
 } from './impl/ChatFeedbackControls';
 import {chatCaret} from '../../impl/ChatLiveCues';
 import {chatReplyLiveStatus} from './impl/ChatReplyLiveStatus';
@@ -246,7 +247,7 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
             sidePanel: impl.sidePanel,
             onSourceClick: onSourceClick ? source => onSourceClick(source, context) : null
         });
-        impl.feedback.configure(message, context.chatModel);
+        impl.feedback.configure(message, getFeedbackHost(context.chatModel));
 
         // Calls shown outside a timeline announce when they fail. A timeline announces its own.
         useEffect(() => {
