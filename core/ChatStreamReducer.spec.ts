@@ -922,6 +922,126 @@ describe('ChatStreamReducer', () => {
         });
     });
 
+    describe('superseded attempts', () => {
+        // An attempt a retry replaced: its text and call stream live, then end marked, and the
+        // call gets a closing result that says it never ran.
+        const SUPERSEDED = {superseded: true};
+        const abandoned: ChatEvent[] = [
+            {type: 'TEXT_MESSAGE_START', messageId: 'm1'},
+            {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'Let me look'},
+            {type: 'TOOL_CALL_START', toolCallId: 'c1', toolCallName: 'search'},
+            {type: 'TOOL_CALL_ARGS', toolCallId: 'c1', delta: '{"q": "lim'},
+            {type: 'TEXT_MESSAGE_END', messageId: 'm1', metadata: SUPERSEDED},
+            {type: 'TOOL_CALL_END', toolCallId: 'c1', metadata: SUPERSEDED},
+            {
+                type: 'TOOL_CALL_RESULT',
+                toolCallId: 'c1',
+                messageId: 'c1:superseded',
+                content: 'This model attempt was superseded. The tool was not executed.',
+                // The backend sends a boolean `error`, which AG-UI's types do not allow.
+                metadata: {...SUPERSEDED, error: true}
+            } as unknown as ChatEvent
+        ];
+
+        it('drops the marked parts and the result that closes them, and keeps the retry', () => {
+            const message = reduce([
+                ...abandoned,
+                ...toolCall('c2', 'search', '{"q": "limits"}'),
+                ...text('m2', 'Two desks are over.')
+            ]);
+
+            expect(message.parts.map(it => it.id)).toEqual(['c2', expect.any(String)]);
+            expect(message.text).toBe('Two desks are over.');
+            expect(message.toolCalls.map(it => it.id)).toEqual(['c2']);
+            expect(message.metadata.supersededCount).toBe(2);
+        });
+
+        it('shows the parts while they stream, and drops them when their marked end arrives', () => {
+            const reducer = new ChatStreamReducer(0),
+                streaming = reducer.apply(pendingMessage(), abandoned.slice(0, 4));
+            expect(streaming.text).toBe('Let me look');
+            expect(streaming.toolCalls).toHaveLength(1);
+
+            const ended = reducer.apply(streaming, abandoned.slice(4));
+            expect(ended.parts).toEqual([]);
+            expect(ended.metadata.supersededCount).toBe(2);
+        });
+
+        it("keeps another lane's call that arrives between the marks", () => {
+            const [, , start, args, textEnd, callEnd, result] = abandoned,
+                message = reduce([
+                    start,
+                    args,
+                    ...toolCall('s1', 'lookup', '{}'),
+                    textEnd,
+                    callEnd,
+                    result
+                ]);
+
+            expect(message.parts.map(it => it.id)).toEqual(['s1']);
+            expect(message.metadata.supersededCount).toBe(1);
+        });
+
+        it('ignores later events for a dropped text or call, so neither comes back', () => {
+            const message = reduce([
+                ...abandoned,
+                {type: 'TEXT_MESSAGE_START', messageId: 'm1'},
+                {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'Back'},
+                {type: 'TOOL_CALL_START', toolCallId: 'c1', toolCallName: 'search'},
+                {type: 'TOOL_CALL_ARGS', toolCallId: 'c1', delta: '{}'}
+            ]);
+
+            expect(message.parts).toEqual([]);
+            expect(message.metadata.supersededCount).toBe(2);
+        });
+
+        it('drops text with a transform, when its content and marked end share a batch', () => {
+            const message = new ChatStreamReducer(0, {
+                textTransform: text => text.toUpperCase()
+            }).apply(pendingMessage(), [...abandoned, ...text('m2', 'Answer')]);
+
+            expect(message.text).toBe('ANSWER');
+            expect(message.metadata.supersededCount).toBe(2);
+        });
+
+        it('counts nothing for marked text that never had content', () => {
+            const message = reduce([
+                {type: 'TEXT_MESSAGE_START', messageId: 'm1'},
+                {type: 'TEXT_MESSAGE_END', messageId: 'm1', metadata: SUPERSEDED},
+                ...text('m2', 'Answer')
+            ]);
+
+            expect(message.text).toBe('Answer');
+            expect(message.metadata.supersededCount).toBeUndefined();
+        });
+
+        it('drops only on `superseded: true`, not on other marks', () => {
+            const message = reduce([
+                {type: 'TEXT_MESSAGE_START', messageId: 'm1'},
+                {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'Kept'},
+                {
+                    type: 'TEXT_MESSAGE_END',
+                    messageId: 'm1',
+                    metadata: {attemptStatus: 'superseded', superseded: 'yes'}
+                }
+            ]);
+
+            expect(message.text).toBe('Kept');
+            expect((message.parts[0] as ChatTextPart).state).toBe('done');
+        });
+
+        it('keeps the partial text of a failed run that marks nothing', () => {
+            const message = reduce([
+                {type: 'TEXT_MESSAGE_START', messageId: 'm1'},
+                {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'Partial'},
+                {type: 'RUN_ERROR', message: 'Provider error.'}
+            ]);
+
+            expect(message.text).toBe('Partial');
+            expect(message.status).toBe('error');
+        });
+    });
+
     describe('unknown and ignored events', () => {
         it('ignores unsupported events and unknown event types without throwing', () => {
             const message = pendingMessage(),

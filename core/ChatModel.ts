@@ -1668,6 +1668,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
                 steps: turn.step + (turn.isStepSent ? 1 : 0),
                 toolCalls: toolCalls.length,
                 toolErrors: toolCalls.filter(it => it.state === 'output-error').length,
+                supersededParts: metadata.supersededCount ?? 0,
                 finishReason: metadata.finishReason ?? null,
                 errorCode: metadata.errorCode ?? null,
                 threadId: this.threadId,

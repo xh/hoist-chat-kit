@@ -1729,3 +1729,24 @@ language. Copy and screen readers would otherwise get the language's source.
 would re-render every part, so the renderer reads them from the chat when it needs them. A list
 prop in place of a config member: the timeline reads its host, not the list's props, as data
 renderers do.
+
+## D103. A superseded attempt drops, through `metadata.superseded`
+
+**Decision.** A backend that retries a model call marks the abandoned attempt's parts with
+`metadata.superseded: true` on `TEXT_MESSAGE_END` and `TOOL_CALL_END`, the only events whose mark
+the kit reads. The reducer drops each marked part, ignores later events for its id, and counts the
+drops in the reply's `metadata.supersededCount`. The reply's header shows a quiet "Retried", which
+counts in no summary. Only an attempt that a retry replaced is marked. A failed run's last attempt
+stays, as partial text with the error.
+
+**Why.** AG-UI has no mark for an abandoned attempt. Without one, a retried reply shows the
+abandoned text beside the answer, and a call that never ran as one that did. Dropping the part
+in the reducer removes it everywhere at once: the view, Copy, the timeline's counts, the
+announcement, feedback and the history that later requests carry. Stored events replay to the
+same result. The app that asked holds each end event until its attempt's outcome is known, and
+never marks a call that ran.
+
+**Alternatives.** A hook that hides parts in the view: every reader of parts and text would need
+to honor it, and one that missed it would show the abandoned attempt. A part marked hidden and
+kept: the same risk, for no use yet. Drop a failed run's attempt too: the user would lose the
+partial reply that streamed.

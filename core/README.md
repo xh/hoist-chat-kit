@@ -490,7 +490,8 @@ It does not apply to user messages, or to messages loaded as history.
 Set `track: true`, or pass `{category, severity, logData}`, to record each finished turn with
 Hoist activity tracking. Each turn tracks once, in category `Chat` by default, as `Turn
 complete`, `Turn failed` or `Turn stopped`. Its data holds `elapsedMs`, `steps`, `toolCalls`,
-`toolErrors`, `finishReason`, `errorCode`, `threadId`, `runId` and `historyMode`. It never holds
+`toolErrors`, `supersededParts`, `finishReason`, `errorCode`, `threadId`, `runId` and
+`historyMode`. `supersededParts` counts the parts of attempts that a retry replaced. It never holds
 message text. A submitted rating tracks as `Feedback submitted`, without its comment.
 
 ### Ask for approval before a tool runs

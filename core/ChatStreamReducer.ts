@@ -66,6 +66,11 @@ import {parsePartialJson} from './impl/parsePartialJson';
  * text of each part it writes, and transforms the whole of it on each change, so a transform sees
  * the complete text so far rather than its own earlier output.
  *
+ * A backend that retries a model call marks the abandoned attempt's parts on their end events,
+ * with `metadata.superseded: true` on `TEXT_MESSAGE_END` and `TOOL_CALL_END`. The reducer drops
+ * each marked part from the message, and ignores any later event for it, such as a closing
+ * `TOOL_CALL_RESULT`. It counts the parts it drops in the message's `metadata.supersededCount`.
+ *
  * Events the kit does not act on, and unknown event types, are ignored.
  */
 export class ChatStreamReducer {
@@ -111,6 +116,8 @@ export class ChatStreamReducer {
     private pendingTextMetadata = new Map<string, PlainObject>();
     private openTextId: string = null;
     private lastTextId: string = null;
+    /** Ids of the parts dropped as superseded, whose later events are ignored. */
+    private supersededIds = new Set<string>();
     private openReasoningId: string = null;
     private lastToolCallId: string = null;
     private runFinished = false;
@@ -208,6 +215,7 @@ export class ChatStreamReducer {
     // Implementation
     //------------------
     private applyEvent(draft: Draft, event: ChatEvent) {
+        if (this.isForSupersededPart(event)) return;
         switch (event.type) {
             case 'TEXT_MESSAGE_START':
                 this.openText(event.messageId);
@@ -219,6 +227,10 @@ export class ChatStreamReducer {
                 this.mergeTextMetadata(draft, event.messageId, event.metadata);
                 break;
             case 'TEXT_MESSAGE_END':
+                if (isSuperseded(event)) {
+                    this.dropText(draft, event.messageId);
+                    break;
+                }
                 this.mergeTextMetadata(draft, event.messageId, event.metadata);
                 this.endText(draft, event.messageId);
                 break;
@@ -276,6 +288,10 @@ export class ChatStreamReducer {
                 this.mergePartMetadata(draft, event.toolCallId, event.metadata);
                 break;
             case 'TOOL_CALL_END':
+                if (isSuperseded(event)) {
+                    this.dropToolCall(draft, event.toolCallId);
+                    break;
+                }
                 this.mergePartMetadata(draft, event.toolCallId, event.metadata);
                 this.endToolCall(draft, event.toolCallId);
                 break;
@@ -542,6 +558,61 @@ export class ChatStreamReducer {
         this.endStreamingPart(draft, id);
         this.pendingTextMetadata.delete(id);
         if (this.openTextId === id) this.openTextId = null;
+    }
+
+    //------------------
+    // Superseded attempts
+    //------------------
+    /** True for an event about a text part or tool call already dropped as superseded. */
+    private isForSupersededPart(event: ChatEvent): boolean {
+        const {supersededIds} = this;
+        if (!supersededIds.size) return false;
+        switch (event.type) {
+            case 'TEXT_MESSAGE_START':
+            case 'TEXT_MESSAGE_CONTENT':
+            case 'TEXT_MESSAGE_CHUNK':
+            case 'TEXT_MESSAGE_END':
+                return (
+                    event.messageId != null &&
+                    supersededIds.has(this.partIds.get(textKey(event.messageId)))
+                );
+            case 'TOOL_CALL_START':
+            case 'TOOL_CALL_ARGS':
+            case 'TOOL_CALL_END':
+            case 'TOOL_CALL_CHUNK':
+            case 'TOOL_CALL_RESULT':
+                return supersededIds.has(event.toolCallId);
+            default:
+                return false;
+        }
+    }
+
+    private dropText(draft: Draft, messageId: string) {
+        const id = this.partIds.get(textKey(messageId));
+        if (id == null) return;
+        this.dropPart(draft, id);
+        this.rawTexts.delete(id);
+        this.revisingLengths.delete(id);
+        this.pendingTextMetadata.delete(id);
+        draft.dirtyTexts.delete(id);
+        if (this.openTextId === id) this.openTextId = null;
+        if (this.lastTextId === id) this.lastTextId = null;
+    }
+
+    private dropToolCall(draft: Draft, toolCallId: string) {
+        if (toolCallId == null) return;
+        this.dropPart(draft, toolCallId);
+        draft.dirtyToolCalls.delete(toolCallId);
+        if (this.lastToolCallId === toolCallId) this.lastToolCallId = null;
+    }
+
+    // A part that never opened - text with no content - leaves nothing to drop or count.
+    private dropPart(draft: Draft, id: string) {
+        this.supersededIds.add(id);
+        const idx = draft.parts.findIndex(it => it.id === id);
+        if (idx === -1) return;
+        draft.parts.splice(idx, 1);
+        setMetadata(draft, {supersededCount: (draft.metadata.supersededCount ?? 0) + 1});
     }
 
     //------------------
@@ -940,6 +1011,11 @@ function putPart(draft: Draft, part: ChatPart) {
     }
     if (draft.status === 'pending') draft.status = 'streaming';
     draft.changed = true;
+}
+
+/** True for an end event that marks its part superseded - see `ChatStreamReducer`. */
+function isSuperseded(event: {metadata?: PlainObject}): boolean {
+    return event.metadata?.superseded === true;
 }
 
 /** The finish reason for an AG-UI `RUN_FINISHED` outcome, for runs that report no reason. */

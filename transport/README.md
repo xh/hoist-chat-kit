@@ -711,6 +711,32 @@ events. The `AnthropicCodec` produces them from Anthropic's stream.
 - `RUN_FINISHED` can carry `usage` and `metadata`. The chat records both on the message. Set
   `metadata.finishReason` to one of `stop`, `length`, `tool-calls`, `content-filter` or `other`.
 
+### Retry a model call
+
+A backend that retries a failed model call within a run has already streamed part of the
+abandoned attempt. It marks that attempt's parts on their end events, with
+`metadata.superseded: true` on `TEXT_MESSAGE_END` and `TOOL_CALL_END`. The chat drops each
+marked part, so it leaves the view, Copy, the timeline's counts and the history that later
+requests carry.
+
+- **Mark only an attempt that a retry replaced.** A run that fails leaves its last attempt
+  unmarked. The chat then keeps its partial text, with the error, and closes its open calls.
+- **Mark only parts that did not take effect.** Mark a call only if it never ran. A call with a
+  real result stays.
+- **Send each end event once.** Hold a part's end until the attempt's outcome is known, then
+  send it marked or plain. Text and arguments may stream before then, and show until the mark
+  arrives.
+- **Give each attempt new ids.** The chat ignores any event that follows the mark for the same
+  text or tool call id, such as a `TOOL_CALL_RESULT` that closes the call.
+- **Only text and tool calls drop.** The chat reads the mark on `TEXT_MESSAGE_END` and
+  `TOOL_CALL_END` alone. Reasoning, sources, files and data parts of an abandoned attempt stay.
+- **A stream that ends first keeps them.** If the user stops the reply, or the connection drops,
+  before the marked end arrives, the abandoned parts stay. A reload that replays the stored
+  events drops them.
+
+The reply counts the parts it dropped in `metadata.supersededCount`, and its header shows a quiet
+"Retried".
+
 ### HoistChatTransport
 
 - The endpoint receives a POST with a JSON body, the request as encoded by the codec. With the
@@ -1077,7 +1103,7 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 | `RUN_ERROR` | `message`, `code?`, `metadata?` | Fails the message, with `metadata.errorCode`. Records `metadata.retryAfterSeconds` if given. |
 | `TEXT_MESSAGE_START` | `messageId` | Opens a text part on its first content, with the `messageId` as its `serverId`. |
 | `TEXT_MESSAGE_CONTENT` | `messageId`, `delta` | Appends to the text part. |
-| `TEXT_MESSAGE_END` | `messageId` | Marks the text part `done`. |
+| `TEXT_MESSAGE_END` | `messageId`, `metadata?` | Marks the text part `done`. Drops it with `metadata.superseded: true`. |
 | `TEXT_MESSAGE_CHUNK` | `messageId?`, `delta?` | Opens or appends. |
 | `REASONING_START`, `REASONING_MESSAGE_START` | `messageId` | Opens a reasoning part. Both ids map to one part. The `REASONING_MESSAGE_START` id is its `serverId`. |
 | `REASONING_MESSAGE_CONTENT`, `REASONING_MESSAGE_CHUNK` | `messageId`, `delta` | Appends to the reasoning part. |
@@ -1086,7 +1112,7 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 | `REASONING_ENCRYPTED_VALUE` | `subtype`, `entityId`, `encryptedValue` | Stores the signature on the reasoning part or the tool call. |
 | `TOOL_CALL_START` | `toolCallId`, `toolCallName`, `parentMessageId?` | Adds a tool call in `input-streaming`, with the `parentMessageId` as its `parentServerId`. |
 | `TOOL_CALL_ARGS` | `toolCallId`, `delta` | Appends to `inputText`, with a best-effort parse into `input`. |
-| `TOOL_CALL_END` | `toolCallId` | Parses the input. `input-available`, or `output-error` for bad JSON. |
+| `TOOL_CALL_END` | `toolCallId`, `metadata?` | Parses the input. `input-available`, or `output-error` for bad JSON. Drops the call with `metadata.superseded: true`. |
 | `TOOL_CALL_CHUNK` | `toolCallId?`, `toolCallName?`, `delta?` | Starts or appends. |
 | `TOOL_CALL_RESULT` | `toolCallId`, `messageId`, `content`, `metadata?` | `output-available`, with `providerExecuted: true` and the `messageId` as `resultServerId`. JSON content is parsed. `output-error` if `metadata.error` or `metadata.isError` is set. |
 | `ACTIVITY_SNAPSHOT` | `messageId`, `activityType`, `content`, `replace?` | Adds or replaces a data part, with `dataType` set to `activityType`. |

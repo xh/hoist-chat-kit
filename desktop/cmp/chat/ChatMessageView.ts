@@ -197,12 +197,12 @@ export interface ChatMessageViewProps extends HoistProps {
  *
  * Assistant messages span the column with no bubble, under one quiet header line: the assistant's
  * icon and name, then the reply's status while it runs, or its relative time and time taken once
- * done. Their parts render in order. Reasoning and tool calls stack as quiet rows in a process
- * block, text renders as markdown capped at the prose width, and files and app-rendered data
- * follow, then the sources consulted. Calls to tools with `display: 'timeline'` gather, with the
- * narration between them, into one {@link ChatTimeline} block. With `citationMarkers` on, `[1]` in the text renders as a
- * button for the source it cites. In a chat with a generative UI catalog, component tags in the
- * text render as their components.
+ * done, and "Retried" if the backend replaced an attempt. Their parts render in order. Reasoning
+ * and tool calls stack as quiet rows in a process block, text renders as markdown capped at the
+ * prose width, and files and app-rendered data follow, then the sources consulted. Calls to tools
+ * with `display: 'timeline'` gather, with the narration between them, into one {@link ChatTimeline}
+ * block. With `citationMarkers` on, `[1]` in the text renders as a button for the source it cites.
+ * In a chat with a generative UI catalog, component tags in the text render as their components.
  *
  * A reply that ends short says so inline: a failed reply shows what happened, with Edit Prompt, a
  * stopped one shows "Stopped", and one cut off at the length limit says so. The thread's next
@@ -770,7 +770,10 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
             ? message.toolCalls.filter(
                   it => isToolCallFailed(it) && getToolCallDisplay(it, host) !== 'timeline'
               ).length
-            : 0;
+            : 0,
+        // Parts of an attempt that a retry replaced are gone. A quiet note says why, live too, as
+        // the text that vanishes does so while the reply runs.
+        isRetried = metadata?.supersededCount > 0;
 
     return div({
         className: 'xh-chat-message__header',
@@ -827,6 +830,13 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
                 ? span({
                       className: 'xh-chat-message__segment xh-chat-message__warning',
                       items: [Icon.warning(), `${pluralize('tool', failedTools, true)} failed`]
+                  })
+                : null,
+            isRetried
+                ? span({
+                      className: 'xh-chat-message__segment xh-chat-message__retried',
+                      title: 'An attempt was abandoned, and the assistant tried again.',
+                      item: 'Retried'
                   })
                 : null,
             ...(messageHeaderItems?.(message, context) ?? [])

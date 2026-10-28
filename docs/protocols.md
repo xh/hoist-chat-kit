@@ -75,6 +75,10 @@ Content that AG-UI has no event for travels as `CUSTOM` events named `xh.chat.*`
 citations, data parts, files, provider data and tool errors. See
 [Kit events](../transport/README.md#kit-events-xhchat).
 
+AG-UI has no way to say that a model call was abandoned and retried. The kit reads
+`metadata.superseded: true` on `TEXT_MESSAGE_END` and `TOOL_CALL_END` as that mark, and drops
+the part. See [Retry a model call](../transport/README.md#retry-a-model-call).
+
 ## Anthropic Messages API
 
 **Status in the kit: built.** `AnthropicCodec` in `/transport/`.

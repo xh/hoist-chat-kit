@@ -15,7 +15,7 @@ import {
     type ChatPart,
     type ChatTranscript
 } from '../../../core';
-import {type ChatTransport, ScriptedChatTransport} from '../../../transport';
+import {type ChatTransport, ScriptedChatTransport, textEvents} from '../../../transport';
 import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
 
 /**
@@ -265,6 +265,70 @@ describe('ChatMessageView', () => {
             expect(container.querySelector('.xh-chat-tool-call__detail').textContent).toBe(
                 'ModuleNotFoundError: scipy'
             );
+        });
+    });
+
+    describe('a retried attempt', () => {
+        it('shows only the retry, with a quiet "Retried" in the header', async () => {
+            const superseded = {superseded: true},
+                chatModel = createModel(
+                    {
+                        transport: new ScriptedChatTransport({
+                            delayMs: 0,
+                            responses: [
+                                [
+                                    {type: 'TEXT_MESSAGE_START', messageId: 'm1'},
+                                    {
+                                        type: 'TEXT_MESSAGE_CONTENT',
+                                        messageId: 'm1',
+                                        delta: 'Abandoned'
+                                    },
+                                    {
+                                        type: 'TEXT_MESSAGE_END',
+                                        messageId: 'm1',
+                                        metadata: superseded
+                                    },
+                                    ...textEvents('The answer.')
+                                ]
+                            ]
+                        })
+                    },
+                    []
+                );
+            const {container} = renderList(chatModel);
+            await act(() => chatModel.sendAsync('Question'));
+
+            expect(screen.getByText('The answer.')).toBeTruthy();
+            expect(screen.queryByText('Abandoned')).toBeNull();
+            const retried = header(container).querySelector('.xh-chat-message__retried');
+            expect(retried.textContent).toBe('Retried');
+            expect(retried.getAttribute('title')).toMatch(/tried again/);
+            expect(chatModel.getMessageSpecs()[1].parts).toHaveLength(1);
+        });
+
+        it('shows "Retried" while the reply still runs, as text vanishes then', () => {
+            const chatModel = createModel({}, []);
+            runInAction(() => {
+                chatModel.messages = [
+                    new ChatMessage(question()),
+                    new ChatMessage(
+                        reply('a1', [text('t1', 'Answer')], {
+                            status: 'streaming',
+                            metadata: {supersededCount: 1}
+                        })
+                    )
+                ];
+            });
+            const {container} = renderList(chatModel);
+
+            expect(chatModel.messages[1].isStreaming).toBe(true);
+            expect(header(container).querySelector('.xh-chat-message__retried')).toBeTruthy();
+        });
+
+        it('shows no "Retried" for a reply with nothing replaced', () => {
+            const chatModel = createModel({}, [question(), reply('a1', [text('t1', 'Answer')])]);
+            const {container} = renderList(chatModel);
+            expect(header(container).querySelector('.xh-chat-message__retried')).toBeNull();
         });
     });
 

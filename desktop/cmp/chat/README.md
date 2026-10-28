@@ -74,7 +74,7 @@ ChatPanel (Panel)                       # uses(ChatModel)
 │   ├── ChatEmptyState                  # For a list with no messages, outside a ChatPanel
 │   │   └── ChatSuggestions             # Prompt cards that fill the composer
 │   ├── ChatMessageView (per message)   # A user bubble, or an assistant reply
-│   │   ├── header                      # Name, live status, time, time taken, header items
+│   │   ├── header                      # Name, status, time, time taken, Retried, header items
 │   │   ├── parts, in order:
 │   │   │   ├── process block           # Reasoning and tool rows, at the process gap
 │   │   │   │   ├── ChatReasoning       # "Thought for 12s" disclosure
