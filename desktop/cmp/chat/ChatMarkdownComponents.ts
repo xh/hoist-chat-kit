@@ -7,7 +7,7 @@ import {
     useMemo
 } from 'react';
 import {div, span, table} from '@xh/hoist/cmp/layout';
-import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
+import {creates, hoistCmp, HoistModel, type HoistProps} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {fmtNumber} from '@xh/hoist/format';
 import {action, observable} from '@xh/hoist/mobx';
@@ -67,9 +67,11 @@ const MarkdownTable = hoistCmp<HoistProps & {node?: HastElement}>({
 
 const markdownTableCard = hoistCmp.factory<HoistProps & {rowCount: number; maxRows: number}>({
     displayName: 'ChatMarkdownTableCard',
+    // Its own model, kept out of context, so that it needs no model above it.
+    model: creates(() => new MarkdownTableLocalModel(), {publishMode: 'none'}),
 
-    render({rowCount, maxRows, children}) {
-        const impl = useLocalModel(MarkdownTableLocalModel),
+    render({model, rowCount, maxRows, children}) {
+        const impl = model as MarkdownTableLocalModel,
             {isExpanded} = impl,
             rows = `${fmtNumber(rowCount, {precision: 0, asHtml: true})} rows`;
 

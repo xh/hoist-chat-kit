@@ -14,6 +14,13 @@ export interface ChatCopyButtonProps extends HoistProps {
 
     /** What the button copies, as its label or tooltip. Default 'Copy'. */
     label?: string;
+
+    /**
+     * Accessible name, where it should say more than the label - as a code block's "Copy python
+     * code" beside its visible "Copy". "Copied" replaces it for a moment after a copy. Default the
+     * label.
+     */
+    'aria-label'?: string;
 }
 
 /**
@@ -28,16 +35,24 @@ export const [ChatCopyButton, chatCopyButton] = hoistCmp.withFactory<ChatCopyBut
     // Its own model, kept out of context, so that it needs no model above it.
     model: creates(() => new ChatCopyButtonLocalModel(), {publishMode: 'none'}),
 
-    render({model, className, getCopyText, showText = false, label: copyLabel = 'Copy'}) {
+    render({
+        model,
+        className,
+        getCopyText,
+        showText = false,
+        label: copyLabel = 'Copy',
+        'aria-label': ariaLabel
+    }) {
         const impl = model as ChatCopyButtonLocalModel,
-            label = impl.copied ? 'Copied' : copyLabel;
+            label = impl.copied ? 'Copied' : copyLabel,
+            name = (impl.copied ? null : ariaLabel) ?? (showText ? null : label);
 
         return button({
             className,
             icon: impl.copied ? Icon.check() : Icon.copy(),
             text: showText ? label : null,
             tooltip: showText ? null : label,
-            'aria-label': showText ? null : label,
+            'aria-label': name,
             onClick: () => impl.copyAsync(getCopyText())
         });
     }

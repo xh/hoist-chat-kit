@@ -1,4 +1,5 @@
-import {div} from '@xh/hoist/cmp/layout';
+import {Children} from 'react';
+import {div, span} from '@xh/hoist/cmp/layout';
 import {creates, hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {
     type ChatFeedbackHost,
@@ -37,8 +38,10 @@ export interface ChatFeedbackControlsProps extends HoistProps {
  * `ChatFeedbackSpec`. The controls show a new rating while it saves, and the saved one again if
  * the save fails.
  *
- * Nothing renders for a message the user cannot rate: a user message, or a reply that streams,
- * waits on the user or failed.
+ * Pass the app's own actions, such as a copy button, as `items`. They lead the bar, split from the
+ * thumbs as in the message view, and show even while the reply cannot be rated. Nothing else
+ * renders for a message the user cannot rate: a user message, or a reply that streams, waits on
+ * the user or failed.
  */
 export const [ChatFeedbackControls, chatFeedbackControls] =
     hoistCmp.withFactory<ChatFeedbackControlsProps>({
@@ -47,10 +50,15 @@ export const [ChatFeedbackControls, chatFeedbackControls] =
         // Its own model, published to no child, so that the controls need no model in context.
         model: creates(ChatMessageFeedbackModel, {publishMode: 'none'}),
 
-        render({className, model, message, host}) {
-            const impl = model as ChatMessageFeedbackModel;
+        render({className, model, message, host, children}) {
+            const impl = model as ChatMessageFeedbackModel,
+                appItems = Children.toArray(children);
             impl.configure(message, resolveFeedbackHost(host));
-            if (!impl.canRate) return null;
+
+            const thumbs = impl.canRate
+                ? feedbackThumbs(impl, !!getChatNoAnswerPart(message)).filter(it => it)
+                : [];
+            if (!thumbs.length && !appItems.length) return null;
 
             return div({
                 className,
@@ -58,10 +66,20 @@ export const [ChatFeedbackControls, chatFeedbackControls] =
                     div({
                         className: 'xh-chat-feedback-controls__bar',
                         role: 'group',
-                        'aria-label': 'Feedback',
-                        items: feedbackThumbs(impl, !!getChatNoAnswerPart(message)).filter(it => it)
+                        'aria-label': appItems.length ? 'Message actions' : 'Feedback',
+                        items: [
+                            ...appItems,
+                            appItems.length && thumbs.length
+                                ? span({
+                                      key: 'sep',
+                                      className: 'xh-chat-feedback-controls__sep',
+                                      'aria-hidden': true
+                                  })
+                                : null,
+                            ...thumbs
+                        ]
                     }),
-                    chatFeedbackForm({model: impl})
+                    impl.canRate ? chatFeedbackForm({model: impl}) : null
                 ]
             });
         }

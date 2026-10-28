@@ -115,8 +115,8 @@ then re-renders whenever the message changes, so do this only when you need to.
 
 Every message, and every part within it, renders inside Hoist's `ErrorBoundary`. A tool
 renderer, a data renderer, an inline component or the markdown of one part may throw, and only
-that part fails. It shows "This part could not be displayed." with the error message in a
-Details disclosure. Hoist's exception handler logs the error, with no alert. A streaming part that
+that part fails. It shows "This part could not be displayed." with Try Again, which renders the
+part once more, and the error message in a Details disclosure. Hoist's exception handler logs the error, with no alert. A streaming part that
 failed renders again when its state changes, for example when its input completes. A data part
 renders again when it is replaced.
 
@@ -240,6 +240,8 @@ Every row has the same layout: the number, an icon, the title and a meta line. A
 A source with `metadata.meta`, a string or an array of strings, shows that as its meta line in
 place of the file name and page, or the host. `title` on the list replaces its "Sources" heading.
 A row's title and meta line carry their full text as a tooltip, for when either is cut short.
+Set `showNumbers` false, or `ChatSources.defaults.showNumbers`, to leave the numbers out, for
+replies whose text cites no sources.
 
 Rows are compact by default: one line each, with the meta line beside the title. Set `compact`
 false for a roomier list in a frame, with hairlines between rows, a 28px icon tile and the meta
@@ -655,6 +657,10 @@ action bar, with focus in the comment. The form never opens in a popover, so an 
 cannot lose the comment. With `allowComment: false`, both thumbs save on click and offer no
 comment.
 
+With `allowChange: false`, a rating locks once it saves. The chosen thumb stays pressed, the other
+disables, and "Add a comment" or the thumbs down form still sends a comment with the same rating.
+A rating restored from history locks too. Until a save succeeds, the user can switch thumbs.
+
 | Config | A thumbs down |
 |---|---|
 | `requireComment: true` | Saves nothing until the user sends a non-blank comment. The thumb shows pressed meanwhile. Cancel or Escape restores the earlier rating. |
@@ -713,12 +719,25 @@ class AnswerFeedbackModel extends HoistModel implements ChatFeedbackHost {
 chatFeedbackControls({message, host: answerFeedbackModel});
 ```
 
+To put the app's own actions in the same bar, pass them as `items`. They lead the bar, with a
+divider before the thumbs, as the message view sets its built-in actions apart. They take the
+bar's quiet button style, and they show even while the reply cannot be rated, such as while it
+streams.
+
+```typescript
+chatFeedbackControls({
+    message,
+    host: answerFeedbackModel,
+    items: [chatCopyButton({getCopyText: () => message.text})]
+});
+```
+
 The controls show a new rating while it saves. Resolve the submit once saved, with `getFeedback`
 then returning it, and reject if the save fails. The controls then show the saved rating again,
 with Retry. A rejection with an `httpStatus` of 400, 413 or 422 counts as refused, as above.
 
 Three members are optional. `feedbackSettings` takes `allowComment`, `requireComment`,
-`clearable` and `maxCommentLength`. `feedbackDrafts` with `setFeedbackDraft` keep the drafts in
+`clearable`, `allowChange` and `maxCommentLength`. `feedbackDrafts` with `setFeedbackDraft` keep the drafts in
 the app, so a half-typed comment survives a new mount of its controls. Remove the drafts of
 messages that go, as `ChatModel` does. Without them, the kit keeps a draft while its controls are
 mounted. Either way, one form is open per host.
@@ -1100,8 +1119,11 @@ Use it directly only for a list of your own.
 
 ### Part components
 
-`ChatSources`, `ChatCodeBlock`, `ChatCopyButton`, `ChatFeedbackControls` and `ChatErrorBoundary`
-need no model in context, so they render inside another library's components.
+`ChatSources`, `ChatCodeBlock`, `ChatCopyButton`, `ChatReasoning`, `ChatFeedbackControls`,
+`ChatErrorBoundary` and the other building blocks need no model in context, so they render inside
+another library's components. `chatMarkdown` cannot yet, nor can an open `ChatReasoning`, which
+shows its text through it: Hoist's `Markdown`, which renders each block, looks for a model above
+it.
 
 | Component | Props | Use it to |
 |-----------|-------|-----------|
@@ -1109,7 +1131,7 @@ need no model in context, so they render inside another library's components.
 | `ChatTimeline` | `message`, `host`, `parts`, `context`, `isFollowed`, `isLast` | Show a reply's activity timeline in a layout of your own. `parts` defaults to the reply's first timeline block. `isFollowed` says the answer has started below it. |
 | `ChatClearButton` | `chatModel`, and any `ButtonProps` | Clear the conversation, from a panel header. |
 | `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |
-| `ChatSources` | `sources`, `title`, `compact`, `defaultExpanded`, `visibleRows`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
+| `ChatSources` | `sources`, `title`, `compact`, `showNumbers`, `defaultExpanded`, `visibleRows`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
 | `ChatNoAnswer` | `part`, `onEditQuestion` | Show a fixed "not found" reply, for example inside an app's own renderer for `xh.chat.noAnswer`. |
 | `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Close, and the content - the app's viewer with its status, or the full table or chart of a result card. |
 | `ChatCodeBlock` | `content`, `language`, `isStreaming` | Show code in a card with a copy button. A finished block over 20 lines shows its first 20, with a button that shows the rest, then fewer. Sets its own font size and line height. |
@@ -1121,8 +1143,8 @@ need no model in context, so they render inside another library's components.
 | `ChatScopeChip` | `documents`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip` | Scope the next question to some documents. Default binds `runOptions.documentIds`. |
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |
 | `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |
-| `ChatCopyButton` | `getCopyText`, `showText`, `label` | Copy text, confirming in place with a check for a moment. No `ChatModel` needed. |
-| `ChatFeedbackControls` | `message`, `host` | Rate a reply in a layout of your own: thumbs, then the comment form. `host` is a `ChatModel` or a `ChatFeedbackHost`. See [Collect feedback without a ChatModel](#collect-feedback-without-a-chatmodel). |
+| `ChatCopyButton` | `getCopyText`, `showText`, `label`, `aria-label` | Copy text, confirming in place with a check for a moment. No `ChatModel` needed. `aria-label` names it for screen readers where the label alone is not enough, as a code block's "Copy python code". |
+| `ChatFeedbackControls` | `message`, `host`, `items` | Rate a reply in a layout of your own: thumbs, then the comment form. `host` is a `ChatModel` or a `ChatFeedbackHost`. See [Collect feedback without a ChatModel](#collect-feedback-without-a-chatmodel). |
 | `ChatErrorBoundary` | `subject`, `resetKey`, `className` | Catch a render error in a kit component you host yourself, as the message list does for each part. `className` applies to the note that takes its place. |
 
 ## Theming

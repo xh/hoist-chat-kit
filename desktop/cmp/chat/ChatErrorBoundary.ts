@@ -2,6 +2,7 @@ import {type ReactNode, useEffect, useRef} from 'react';
 import {errorBoundary, ErrorBoundaryModel} from '@xh/hoist/cmp/error';
 import {details, div, pre, span, summary} from '@xh/hoist/cmp/layout';
 import {creates, hoistCmp, type HoistProps} from '@xh/hoist/core';
+import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
 import '../../../styles/vars.scss';
 import './ChatErrorBoundary.scss';
@@ -21,7 +22,8 @@ export interface ChatErrorBoundaryProps extends HoistProps<ErrorBoundaryModel> {
 /**
  * Catches an error thrown while rendering one message or part, so that the rest of the
  * conversation still renders. Hoist's exception handler logs the error, with no alert, and a
- * compact note takes the content's place, with the error message in a disclosure. The kit wraps
+ * compact note takes the content's place, with Try Again and the error message in a disclosure.
+ * Try Again renders the content once more, for an error that may not recur. The kit wraps
  * each message and part in one. An app can wrap a kit component it hosts outside the message
  * list the same way. A `className` applies to the note.
  */
@@ -40,7 +42,7 @@ export const [ChatErrorBoundary, chatErrorBoundary] = hoistCmp.withFactory<ChatE
         }, [model, resetKey]);
 
         return model.error
-            ? fallback(model.error, subject, className)
+            ? fallback(model, subject, className)
             : errorBoundary({model, item: children});
     }
 });
@@ -48,14 +50,23 @@ export const [ChatErrorBoundary, chatErrorBoundary] = hoistCmp.withFactory<ChatE
 //------------------
 // Implementation
 //------------------
-function fallback(error: unknown, subject: string, className: string): ReactNode {
+function fallback(model: ErrorBoundaryModel, subject: string, className: string): ReactNode {
+    const {error} = model;
     return div({
         className,
         role: 'note',
         items: [
             div({
                 className: 'xh-chat-error-boundary__title',
-                items: [Icon.warningCircle(), span(`This ${subject} could not be displayed.`)]
+                items: [
+                    Icon.warningCircle(),
+                    span(`This ${subject} could not be displayed.`),
+                    button({
+                        className: 'xh-chat-error-boundary__retry',
+                        text: 'Try Again',
+                        onClick: () => model.clear()
+                    })
+                ]
             }),
             details({
                 className: 'xh-chat-error-boundary__details',

@@ -208,6 +208,17 @@
     }
   }
 
+  // With no numbers, an open excerpt still lines up with the title.
+  &--no-numbers .xh-chat-sources__excerpt {
+    margin-left: calc(46px - var(--xh-chat-citation-height) - 6px);
+  }
+
+  &--roomy.xh-chat-sources--no-numbers .xh-chat-sources__excerpt {
+    margin-left: calc(
+      var(--xh-chat-source-icon-size) + 40px - var(--xh-chat-citation-height) - 8px
+    );
+  }
+
   @include hoist-button('.xh-chat-sources__more') {
     --xh-button-text-color: var(--xh-chat-text-color);
 

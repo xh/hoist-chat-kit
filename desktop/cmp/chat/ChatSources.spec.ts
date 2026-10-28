@@ -221,6 +221,23 @@ describe('sources and citations', () => {
             expect(layout(ownRoomy.container)).toContain('xh-chat-sources--roomy');
         });
 
+        it('leaves the numbers out for showNumbers false or ChatSources.defaults', () => {
+            const {defaults} = ChatSources,
+                showNumbers = defaults.showNumbers;
+            onTestFinished(() => {
+                defaults.showNumbers = showNumbers;
+            });
+
+            const own = render(chatSources({sources: [DOC1], showNumbers: false}));
+            expect(numbers(own.container)).toEqual([]);
+            expect(own.getByText(DOC1.title)).toBeTruthy();
+            own.unmount();
+
+            defaults.showNumbers = false;
+            const reply = renderReply('Caps.', [DOC1]);
+            expect(numbers(reply.container)).toEqual([]);
+        });
+
         it('expands a row to show its excerpt', () => {
             const {container} = renderReply('Caps [1].', [DOC1]);
             fireEvent.click(screen.getByRole('button', {name: 'Show excerpt'}));

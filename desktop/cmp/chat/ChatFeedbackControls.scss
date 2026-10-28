@@ -124,6 +124,14 @@
     gap: 1px;
   }
 
+  // Between the app's items and the thumbs, as between groups in the message view's action bar.
+  &__sep {
+    background-color: var(--xh-chat-part-border-color);
+    height: 14px;
+    margin: 0 3px;
+    width: 1px;
+  }
+
   @include chat-action-buttons('.xh-chat-feedback-controls__bar');
 
   // A Button in the meta-size status takes its size, as in the message view.

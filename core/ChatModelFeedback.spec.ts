@@ -125,6 +125,23 @@ describe('ChatModel feedback', () => {
             expect(model.getMessage('a1').metadata.feedback).toEqual({rating: 'positive'});
         });
 
+        it('refuses to change a saved rating with allowChange false, and takes a comment on it', async () => {
+            const submitAsync = vi.fn(async () => {}),
+                model = createModel({feedback: {submitAsync, allowChange: false}});
+
+            await expect(model.submitFeedbackAsync('a1', 'negative')).rejects.toThrow(
+                'cannot change'
+            );
+            await expect(model.submitFeedbackAsync('a1', null)).rejects.toThrow('cannot change');
+            expect(submitAsync).not.toHaveBeenCalled();
+
+            await model.submitFeedbackAsync('a1', 'positive', 'Clear and correct.');
+            expect(model.getMessage('a1').metadata.feedback).toEqual({
+                rating: 'positive',
+                comment: 'Clear and correct.'
+            });
+        });
+
         it('uses the submitter a thread layer supplies when none is configured', async () => {
             const submitAsync = vi.fn(async () => {}),
                 model = createModel();

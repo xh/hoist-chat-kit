@@ -147,6 +147,10 @@ discuss with Anselm, not work to start.
 - xh/hoist-react#4855 (open): let `FetchService` abort a streamed response. The kit works around it
   with `fetchOpts.signal` (D14).
 - Icons: Hoist registers no hourglass or code-branch icon. The kit uses stand-ins.
+- Hoist's `Markdown` declares no `model`, so it defaults to `uses('*')` and shows "No model found"
+  with no Hoist model above it. `chatMarkdown` renders each block through it, so it cannot render
+  inside another library's components. The fix is `model: false` on `Markdown`. Not filed yet.
+  `ChatStandalone.spec.ts` marks the case `it.fails`. Flip it once the fix ships.
 - xh/hoist-react#4884 (open): symbol lookup for companion libraries. The MCP server serves the
   kit's docs, but its symbol tools cover `@xh/hoist` only. Drop the "symbol tools cover @xh/hoist
   only" line from the kit's MCP guidance once it lands.

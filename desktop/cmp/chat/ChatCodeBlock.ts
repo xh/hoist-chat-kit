@@ -53,7 +53,11 @@ export const [ChatCodeBlock, chatCodeBlock] = hoistCmp.withFactory<ChatCodeBlock
                             className: 'xh-chat-code-block__language',
                             item: language || 'text'
                         }),
-                        chatCopyButton({getCopyText: () => content, showText: true})
+                        chatCopyButton({
+                            getCopyText: () => content,
+                            showText: true,
+                            'aria-label': language ? `Copy ${language} code` : null
+                        })
                     ]
                 }),
                 pre({

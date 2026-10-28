@@ -1,3 +1,5 @@
+@use '../../../styles/mixins' as *;
+
 .xh-chat-error-boundary {
   border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
   border-radius: var(--xh-chat-border-radius);
@@ -13,6 +15,15 @@
     .xh-icon {
       color: var(--xh-chat-error-color);
     }
+  }
+
+  // A text link at the note's size, as Retry is on a failed rating.
+  @include hoist-button('.xh-chat-error-boundary__retry') {
+    --xh-button-text-color: var(--xh-intent-primary-text-color);
+
+    font-size: inherit;
+    min-height: 0;
+    padding: 0 2px;
   }
 
   &__details {

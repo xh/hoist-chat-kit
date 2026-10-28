@@ -1692,3 +1692,20 @@ the host, which is the rule for a narrow interface (D82). `ChatModel` keeps its 
 **Alternatives.** Have `ChatModel` implement the host itself: its `submitFeedbackAsync` takes
 other arguments, and a second submit method on it would confuse. Props for one message, such as
 `rating` and `onSubmit`: drafts and the one-form-per-chat rule need a conversation-wide host.
+
+## D101. A saved rating can lock, through `allowChange`
+
+**Decision.** `ChatFeedbackSettings` gains `allowChange`, default true. With it false, a rating
+locks once it saves: the chosen thumb stays pressed, the other disables, and no click clears it.
+A comment can still follow, sent with the same rating. Nothing locks until a save succeeds, so a
+failed save or a pending thumbs down can still switch. `ChatModel.submitFeedbackAsync()` throws
+for a rating other than the saved one.
+
+**Why.** The app on the feedback seam posts each rating to a backend that sends one email per
+request and stores nothing. A rating and then a comment gives two emails that agree, as its old
+thumbs did. A switch of thumbs gives two that contradict. Its old thumbs locked after the first
+click.
+
+**Alternatives.** Fold it into `clearable`: a backend that cannot remove a rating may still
+change one, so the two differ. Lock the comment too: the old flow sent the comment as a second
+request, and the backend expects that.

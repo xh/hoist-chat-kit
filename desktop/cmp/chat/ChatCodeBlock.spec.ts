@@ -40,10 +40,10 @@ describe('ChatCodeBlock', () => {
         expect(document.activeElement.textContent).toBe('Show 3 more lines');
     });
 
-    it('renders with no model in context, as inside another library', () => {
+    it('renders with no model in context, and names its Copy for the language', () => {
         render(chatCodeBlock({content: 'print(1)', language: 'python'}));
         expect(screen.getByText('print(1)')).toBeTruthy();
-        expect(screen.getByRole('button', {name: 'Copy'})).toBeTruthy();
+        expect(screen.getByRole('button', {name: 'Copy python code'}).textContent).toBe('Copy');
     });
 
     it('shows a block in full while it streams, and collapses it once the reply ends', () => {

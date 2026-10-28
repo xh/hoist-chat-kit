@@ -1,5 +1,5 @@
 import {div, span} from '@xh/hoist/cmp/layout';
-import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
+import {creates, hoistCmp, HoistModel, type HoistProps} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
 import {action, observable} from '@xh/hoist/mobx';
@@ -42,9 +42,11 @@ export interface ChatReasoningProps extends HoistProps {
 export const [ChatReasoning, chatReasoning] = hoistCmp.withFactory<ChatReasoningProps>({
     displayName: 'ChatReasoning',
     className: 'xh-chat-reasoning',
+    // Its own model, kept out of context, so that it needs no model above it.
+    model: creates(() => new ChatReasoningLocalModel(), {publishMode: 'none'}),
 
-    render({className, part, markdownComponents, markdownPlugins, allowImages}, ref) {
-        const impl = useLocalModel(ChatReasoningLocalModel),
+    render({model, className, part, markdownComponents, markdownPlugins, allowImages}, ref) {
+        const impl = model as ChatReasoningLocalModel,
             components = useChatMarkdownComponents(markdownComponents),
             {text, state} = part,
             isStreaming = state === 'streaming';

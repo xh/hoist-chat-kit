@@ -623,6 +623,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             allowComment: true,
             requireComment: false,
             clearable: true,
+            allowChange: true,
             maxCommentLength: 1000,
             ...feedback
         };
@@ -932,7 +933,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         }
 
         const submitAsync = this.feedback.submitAsync ?? this.feedbackSubmitter,
-            {requireComment, allowComment, clearable} = this.feedback;
+            {requireComment, allowComment, clearable, allowChange} = this.feedback,
+            prior: ChatFeedback = message.metadata.feedback ?? null;
         comment = comment?.trim() || null;
         throwIf(
             !submitAsync,
@@ -944,9 +946,12 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             `A comment is required with ${rating} feedback.`
         );
         throwIf(!rating && !clearable, 'This chat cannot clear a rating - see feedback.clearable.');
+        throwIf(
+            !allowChange && prior && rating !== prior.rating,
+            'This chat cannot change a saved rating - see feedback.allowChange.'
+        );
 
-        const prior: ChatFeedback = message.metadata.feedback ?? null,
-            feedback: ChatFeedback = rating ? {rating, ...(comment ? {comment} : {})} : null,
+        const feedback: ChatFeedback = rating ? {rating, ...(comment ? {comment} : {})} : null,
             {threadId} = this,
             spec: ChatFeedbackSpec = {
                 threadId,

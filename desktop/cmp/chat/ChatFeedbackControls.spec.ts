@@ -1,5 +1,6 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {HoistModel, XH} from '@xh/hoist/core';
+import {button} from '@xh/hoist/desktop/cmp/button';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {omit} from 'lodash';
@@ -9,6 +10,7 @@ import {
     type ChatFeedback,
     type ChatFeedbackDraft,
     type ChatFeedbackHost,
+    type ChatFeedbackSettings,
     type ChatFeedbackSpec,
     ChatMessage,
     type ChatMessageStatus,
@@ -155,6 +157,63 @@ describe('ChatFeedbackControls', () => {
         expect(container.innerHTML).toBe('');
     });
 
+    it('locks a saved rating with allowChange false, and still takes a comment on it', async () => {
+        const host = createHost({feedbackSettings: {allowChange: false}});
+        renderControls(host);
+
+        await clickThumb('Good response');
+        expect(thumb('Bad response').hasAttribute('disabled')).toBe(true);
+        await clickThumb('Good response');
+        expect(host.submitFeedbackAsync).toHaveBeenCalledOnce();
+        expect(thumb('Good response').getAttribute('aria-pressed')).toBe('true');
+
+        await act(() => fireEvent.click(screen.getByRole('button', {name: 'Add a comment'})));
+        typeComment('Clear and correct.');
+        await act(() => fireEvent.click(screen.getByRole('button', {name: 'Send Comment'})));
+        expect(host.submitFeedbackAsync).toHaveBeenLastCalledWith(
+            expect.objectContaining({rating: 'positive', comment: 'Clear and correct.'})
+        );
+    });
+
+    it('locks a rating restored from history, and leaves the thumbs free until a save succeeds', async () => {
+        const restored = createHost({feedbackSettings: {allowChange: false}});
+        restored.saved = {a1: {rating: 'negative'}};
+        const view = renderControls(restored);
+        expect(thumb('Good response').hasAttribute('disabled')).toBe(true);
+        view.unmount();
+
+        const host = createHost({feedbackSettings: {allowChange: false}});
+        host.submitFeedbackAsync.mockRejectedValueOnce(new Error('Gateway timeout'));
+        renderControls(host);
+        await clickThumb('Good response');
+        expect(thumb('Bad response').hasAttribute('disabled')).toBe(false);
+
+        await clickThumb('Bad response');
+        expect(host.submitFeedbackAsync).toHaveBeenLastCalledWith(
+            expect.objectContaining({rating: 'negative'})
+        );
+    });
+
+    it("leads the bar with the app's items, and keeps them while the reply cannot be rated", () => {
+        const host = createHost(),
+            copy = () => button({text: 'Copy answer'}),
+            first = render(chatFeedbackControls({message: reply(), host, items: [copy()]}));
+
+        const bar = screen.getByRole('group', {name: 'Message actions'});
+        expect(bar.firstElementChild.textContent).toBe('Copy answer');
+        expect(first.container.querySelector('.xh-chat-feedback-controls__sep')).toBeTruthy();
+        expect(thumb('Good response')).toBeTruthy();
+
+        first.unmount();
+
+        const streaming = render(
+            chatFeedbackControls({message: reply('streaming', 'a2'), host, items: [copy()]})
+        );
+        expect(streaming.getByRole('button', {name: 'Copy answer'})).toBeTruthy();
+        expect(streaming.queryByRole('button', {name: 'Good response'})).toBeNull();
+        expect(streaming.container.querySelector('.xh-chat-feedback-controls__sep')).toBeNull();
+    });
+
     it('caps the comment at maxCommentLength with a counter, or takes any length for null', async () => {
         const submitAsync = vi.fn(async (_spec: ChatFeedbackSpec) => {}),
             capped = createChatModel({submitAsync}),
@@ -186,7 +245,10 @@ class TestFeedbackHost extends HoistModel implements ChatFeedbackHost {
 
     readonly submitFeedbackAsync = vi.fn(async (spec: ChatFeedbackSpec) => this.save(spec));
 
-    constructor(readonly keepsDrafts: boolean) {
+    constructor(
+        readonly keepsDrafts: boolean,
+        readonly feedbackSettings: ChatFeedbackSettings
+    ) {
         super();
     }
 
@@ -211,8 +273,11 @@ class TestFeedbackHost extends HoistModel implements ChatFeedbackHost {
     }
 }
 
-function createHost({keepsDrafts = false}: {keepsDrafts?: boolean} = {}): TestFeedbackHost {
-    const ret = new TestFeedbackHost(keepsDrafts);
+function createHost({
+    keepsDrafts = false,
+    feedbackSettings = null
+}: {keepsDrafts?: boolean; feedbackSettings?: ChatFeedbackSettings} = {}): TestFeedbackHost {
+    const ret = new TestFeedbackHost(keepsDrafts, feedbackSettings);
     onTestFinished(() => ret.destroy());
     return ret;
 }

@@ -35,6 +35,14 @@ export interface ChatFeedbackSettings {
     clearable?: boolean;
 
     /**
+     * True if the user can change a saved rating, to the other thumb or, with `clearable`, to
+     * none. Set false for a backend that treats each rating as an event of its own, such as one
+     * that sends a notification for each. The rating then locks once it saves, and a comment can
+     * still follow it. Until a save succeeds, the user can still switch thumbs. Default true.
+     */
+    allowChange?: boolean;
+
+    /**
      * Most characters the comment field takes, or null for no limit. A counter shows from 90% of
      * it. Default 1,000.
      */

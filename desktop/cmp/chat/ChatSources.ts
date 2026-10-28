@@ -46,6 +46,12 @@ export interface ChatSourcesProps extends HoistProps {
     compact?: boolean;
 
     /**
+     * True to show each row's number. False for a reply whose text cites no sources, where the
+     * numbers would point at nothing. Default `ChatSources.defaults.showNumbers`.
+     */
+    showNumbers?: boolean;
+
+    /**
      * Called when the user clicks a source. By default a document opens in the side panel when one
      * is in reach - in a `ChatWorkspace` with a `documentRenderer` - and a web page opens in a new
      * tab. A handler replaces the new tab, and opens a document that the side panel cannot show.
@@ -72,6 +78,9 @@ export interface ChatSourcesDefaults {
      * it covers the lists in every reply. Default true.
      */
     compact: boolean;
+
+    /** True to show each row's number. Read as each list renders. Default true. */
+    showNumbers: boolean;
 }
 
 /**
@@ -86,7 +95,7 @@ export interface ChatSourcesDefaults {
  *
  * Rows are compact by default: one line each, with the meta line beside the title. Set `compact`
  * false, or `ChatSources.defaults.compact`, for a roomier list in a frame, with an icon tile and
- * the meta line under the title.
+ * the meta line under the title. Set `showNumbers` false for a reply whose text cites no sources.
  *
  * The title opens the source. A row with an excerpt expands to show it, on a click on its chevron
  * or anywhere else on the row outside the title. For the keyboard, the title and the chevron are
@@ -102,7 +111,7 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
     className: 'xh-chat-sources',
     // Its own model, kept out of context, so that it needs no model above it.
     model: creates(() => new ChatSourcesLocalModel(), {publishMode: 'none'}),
-    defaults: {visibleRows: 3, compact: true},
+    defaults: {visibleRows: 3, compact: true, showNumbers: true},
 
     render(props, ref) {
         const {
@@ -111,7 +120,8 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
                 title = 'Sources',
                 defaultExpanded = false,
                 visibleRows = ChatSources.defaults.visibleRows,
-                compact = ChatSources.defaults.compact
+                compact = ChatSources.defaults.compact,
+                showNumbers = ChatSources.defaults.showNumbers
             } = props,
             impl = props.model as ChatSourcesLocalModel,
             links = props.links ?? impl.links;
@@ -133,7 +143,8 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
             ref,
             className: classNames(
                 className,
-                compact ? 'xh-chat-sources--compact' : 'xh-chat-sources--roomy'
+                compact ? 'xh-chat-sources--compact' : 'xh-chat-sources--roomy',
+                {'xh-chat-sources--no-numbers': !showNumbers}
             ),
             role: 'region',
             'aria-label': title,
@@ -146,6 +157,7 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
                             key: source.id,
                             source,
                             number: source.marker ?? idx + 1,
+                            showNumber: showNumbers,
                             links,
                             impl
                         })
@@ -218,6 +230,7 @@ function listHead(sources: ChatSourcePart[], title: string): ReactNode {
 interface SourceRowProps extends HoistProps {
     source: ChatSourcePart;
     number: number;
+    showNumber: boolean;
     links: ChatSourceLinks;
     impl: ChatSourcesLocalModel;
 }
@@ -226,7 +239,7 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
     displayName: 'ChatSourceRow',
     model: false,
 
-    render({source, number, links, impl}) {
+    render({source, number, showNumber, links, impl}) {
         const excerpt = getExcerpt(source),
             isExcerptOpen = !!excerpt && impl.openExcerpts.includes(source.id),
             isActive = links.isActive(number),
@@ -256,11 +269,13 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
                         if (links.hoveredNumber === number) links.setHoveredNumber(null);
                     },
                     items: [
-                        span({
-                            className: 'xh-chat-sources__number',
-                            'aria-label': `Source ${number}`,
-                            item: number
-                        }),
+                        showNumber
+                            ? span({
+                                  className: 'xh-chat-sources__number',
+                                  'aria-label': `Source ${number}`,
+                                  item: number
+                              })
+                            : null,
                         span({className: 'xh-chat-sources__icon', item: sourceIcon(source)}),
                         div({
                             className: 'xh-chat-sources__text',

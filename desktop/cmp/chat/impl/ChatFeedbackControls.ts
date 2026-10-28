@@ -106,9 +106,15 @@ export class ChatMessageFeedbackModel extends HoistModel {
             allowComment = true,
             requireComment = false,
             clearable = true,
+            allowChange = true,
             maxCommentLength = 1000
         } = this.host?.feedbackSettings ?? {};
-        return {allowComment, requireComment, clearable, maxCommentLength};
+        return {allowComment, requireComment, clearable, allowChange, maxCommentLength};
+    }
+
+    /** True if the saved rating cannot change - see `allowChange`. */
+    get isLocked(): boolean {
+        return !this.settings.allowChange && this.savedRating != null;
     }
 
     /** True while a rating saves without a form. */
@@ -221,7 +227,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
      * form too if their rating asks for a comment.
      */
     async rateAsync(rating: ChatFeedbackRating) {
-        if (this.isSaving || this.isSubmitting || this.blockReason) return;
+        if (this.isSaving || this.isSubmitting || this.blockReason || this.isLocked) return;
         const current = this.shownRating,
             wasPending = !!this.form?.isPending;
         this.clearNotes();
@@ -518,7 +524,7 @@ export function resolveFeedbackHost(host: ChatFeedbackHost | ChatModel): ChatFee
  * @internal
  */
 export function feedbackThumbs(model: ChatMessageFeedbackModel, isNoAnswer: boolean): ReactNode[] {
-    const {shownRating, form, blockReason, isSubmitting} = model,
+    const {shownRating, form, blockReason, isSubmitting, isLocked} = model,
         {clearable} = model.settings,
         thumb = (rating: ChatFeedbackRating, label: string, icon: ReactElement) => {
             const isChosen = shownRating === rating,
@@ -526,7 +532,7 @@ export function feedbackThumbs(model: ChatMessageFeedbackModel, isNoAnswer: bool
                 tooltip =
                     blockReason ??
                     (isChosen && !form
-                        ? clearable
+                        ? clearable && !isLocked
                             ? `${ratedText} Click to clear.`
                             : ratedText
                         : label);
@@ -540,7 +546,8 @@ export function feedbackThumbs(model: ChatMessageFeedbackModel, isNoAnswer: bool
                 tooltip,
                 'aria-label': label,
                 'aria-pressed': isChosen,
-                disabled: isSubmitting,
+                // A locked rating keeps its thumb pressed, and the other unavailable.
+                disabled: isSubmitting || (isLocked && !isChosen),
                 onClick: () => model.rateAsync(rating)
             });
         };
