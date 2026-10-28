@@ -437,7 +437,9 @@ await chatModel.submitFeedbackAsync(message.id, null);  // Clear the rating
 ```
 
 The submitter gets a `ChatFeedbackSpec`: the `threadId`, the kit `messageId`, the `serverId` and
-`runId` from the message's metadata, the `rating` and the `comment`. With no
+`runId` from the message's metadata, the `rating` and the `comment`. The rated `ChatMessage` comes
+as a second argument, for a backend that needs the answer's text. Post the spec, not the message,
+as the request body. With no
 `submitAsync`, the chat uses the submitter that a thread layer passes to `setFeedbackSubmitter()`.
 `canSubmitFeedback` is false when there is neither, and `submitFeedbackAsync()` then throws.
 

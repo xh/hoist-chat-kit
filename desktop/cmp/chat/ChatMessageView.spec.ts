@@ -305,13 +305,17 @@ describe('ChatMessageView', () => {
             await act(() => fireEvent.click(up));
 
             expect(submitAsync).toHaveBeenLastCalledWith(
-                expect.objectContaining({messageId: 'a1', rating: 'positive'})
+                expect.objectContaining({messageId: 'a1', rating: 'positive'}),
+                expect.anything()
             );
             expect(up.getAttribute('aria-pressed')).toBe('true');
             expect(up.classList.contains('xh-chat-message__thumb--chosen')).toBe(true);
 
             await act(() => fireEvent.click(up));
-            expect(submitAsync).toHaveBeenLastCalledWith(expect.objectContaining({rating: null}));
+            expect(submitAsync).toHaveBeenLastCalledWith(
+                expect.objectContaining({rating: null}),
+                expect.anything()
+            );
             expect(up.getAttribute('aria-pressed')).toBe('false');
         });
 
@@ -336,7 +340,8 @@ describe('ChatMessageView', () => {
 
             expect(submitAsync).toHaveBeenCalledOnce();
             expect(submitAsync).toHaveBeenCalledWith(
-                expect.objectContaining({rating: 'negative', comment: 'Wrong section.'})
+                expect.objectContaining({rating: 'negative', comment: 'Wrong section.'}),
+                expect.anything()
             );
             expect(screen.queryByRole('group', {name: 'What went wrong?'})).toBeNull();
         });

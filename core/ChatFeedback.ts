@@ -49,8 +49,11 @@ export interface ChatFeedbackSettings {
     maxCommentLength?: number;
 }
 
-/** Sends feedback on a message to the backend. */
-export type ChatFeedbackSubmitter = (spec: ChatFeedbackSpec) => Promise<void>;
+/**
+ * Sends feedback on a message to the backend. The rated message comes with the spec, for a
+ * backend that needs its text - post the spec, not the message, as the body.
+ */
+export type ChatFeedbackSubmitter = (spec: ChatFeedbackSpec, message: ChatMessage) => Promise<void>;
 
 /** Feedback on one assistant message, as sent to the backend. */
 export interface ChatFeedbackSpec {
@@ -117,13 +120,14 @@ export interface ChatFeedbackHost {
     getFeedback(message: ChatMessage): ChatFeedback;
 
     /**
-     * Save feedback on a message, or clear its rating with a null `rating`. Resolve once saved,
+     * Save feedback on a message, or clear its rating with a null `rating`. The rated message
+     * comes with the spec, for a backend that needs its text. Resolve once saved,
      * with `getFeedback` then returning it. Reject if the save fails. A rejection with an
      * `httpStatus` of 400, 413 or 422 counts as refused: the form shows its message, with no Retry.
      *
      * The controls show the new rating while this runs, and the saved one again if it fails.
      */
-    submitFeedbackAsync(spec: ChatFeedbackSpec): Promise<void>;
+    submitFeedbackAsync(spec: ChatFeedbackSpec, message: ChatMessage): Promise<void>;
 
     /** How the controls behave. Default all the defaults of {@link ChatFeedbackSettings}. */
     readonly feedbackSettings?: ChatFeedbackSettings;

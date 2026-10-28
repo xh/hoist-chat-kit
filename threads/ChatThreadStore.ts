@@ -1,5 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
-import type {ChatFeedbackSpec, ChatMessageSpec} from '../core';
+import type {ChatFeedbackSpec, ChatMessage, ChatMessageSpec} from '../core';
 
 /**
  * Adapter between a {@link ChatThreadsModel} and the backend that stores an app's threads. The app
@@ -34,10 +34,10 @@ export interface ChatThreadStore {
     deleteThreadsAsync?(threadIds: string[]): Promise<void>;
 
     /**
-     * Save a user's rating of a message. The threads model gives it to each chat it creates, unless
-     * the chat has a `feedback.submitAsync` of its own.
+     * Save a user's rating of a message, which comes with the spec. The threads model gives it to
+     * each chat it creates, unless the chat has a `feedback.submitAsync` of its own.
      */
-    submitFeedbackAsync?(spec: ChatFeedbackSpec): Promise<void>;
+    submitFeedbackAsync?(spec: ChatFeedbackSpec, message: ChatMessage): Promise<void>;
 }
 
 /** One thread, as shown in a thread list. */

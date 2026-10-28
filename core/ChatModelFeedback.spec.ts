@@ -16,7 +16,7 @@ describe('ChatModel feedback', () => {
     });
 
     describe('submitFeedbackAsync', () => {
-        it('records the rating at once, and submits it with the ids the backend keys on', async () => {
+        it('records the rating at once, and submits it with the ids the backend keys on and the message', async () => {
             let resolve: () => void;
             const submitAsync = vi.fn(() => new Promise<void>(it => (resolve = it))),
                 model = createModel({feedback: {submitAsync}});
@@ -29,14 +29,17 @@ describe('ChatModel feedback', () => {
             resolve();
             await done;
 
-            expect(submitAsync).toHaveBeenCalledExactlyOnceWith({
-                threadId: 'thread-1',
-                messageId: 'a1',
-                serverId: 'srv-a1',
-                runId: 'run-a1',
-                rating: 'negative',
-                comment: 'Out of date.'
-            } satisfies ChatFeedbackSpec);
+            expect(submitAsync).toHaveBeenCalledExactlyOnceWith(
+                {
+                    threadId: 'thread-1',
+                    messageId: 'a1',
+                    serverId: 'srv-a1',
+                    runId: 'run-a1',
+                    rating: 'negative',
+                    comment: 'Out of date.'
+                } satisfies ChatFeedbackSpec,
+                expect.objectContaining({id: 'a1', text: 'Answer'})
+            );
         });
 
         it('rolls the rating back and records the failure, with no toast', async () => {
@@ -105,7 +108,8 @@ describe('ChatModel feedback', () => {
 
             expect(model.getMessage('a1').metadata).not.toHaveProperty('feedback');
             expect(submitAsync).toHaveBeenCalledWith(
-                expect.objectContaining({rating: null, comment: null})
+                expect.objectContaining({rating: null, comment: null}),
+                expect.anything()
             );
         });
 

@@ -177,11 +177,22 @@
       background-color: var(--xh-chat-source-highlight-bg);
     }
 
+    // Top-aligned, so that the icon tile stays with a title that wraps. The number and the
+    // chevron center on the tile.
     .xh-chat-sources__row {
+      align-items: flex-start;
       background-color: transparent;
       border-radius: 0;
       gap: 8px;
       padding: var(--xh-chat-source-row-padding);
+    }
+
+    .xh-chat-sources__number {
+      margin-top: calc((var(--xh-chat-source-icon-size) - var(--xh-chat-citation-height)) / 2);
+    }
+
+    @include hoist-button('.xh-chat-sources__expander') {
+      margin-top: calc((var(--xh-chat-source-icon-size) - 20px) / 2);
     }
 
     .xh-chat-sources__icon {

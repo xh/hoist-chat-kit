@@ -738,7 +738,9 @@ chatFeedbackControls({
 });
 ```
 
-The controls show a new rating while it saves. Resolve the submit once saved, with `getFeedback`
+The submit takes the rated message as a second argument, for a backend that needs the answer's
+text: `submitFeedbackAsync(spec, message)`. The controls show a new rating while it saves.
+Resolve the submit once saved, with `getFeedback`
 then returning it, and reject if the save fails. The controls then show the saved rating again,
 with Retry. A rejection with an `httpStatus` of 400, 413 or 422 counts as refused, as above.
 

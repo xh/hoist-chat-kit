@@ -63,7 +63,9 @@ export class ChatModelConversation extends HoistBase implements ChatConversation
         this.drafts = drafts;
 
         if (store.submitFeedbackAsync && !chatModel.feedback.submitAsync) {
-            chatModel.setFeedbackSubmitter(spec => store.submitFeedbackAsync(spec));
+            chatModel.setFeedbackSubmitter((spec, message) =>
+                store.submitFeedbackAsync(spec, message)
+            );
         }
         chatModel.addSendBlocker(getSendBlockedReason);
         chatModel.setStatusRefresher(refreshStatusAsync);

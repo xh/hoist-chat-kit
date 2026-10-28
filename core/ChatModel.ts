@@ -968,7 +968,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.setFeedback(messageId, feedback);
         this.setFeedbackError(messageId, null);
         try {
-            await submitAsync(spec);
+            await submitAsync(spec, message);
         } catch (e) {
             if (this.feedbackSubmits.get(messageId) === submitNumber) {
                 this.setFeedback(messageId, prior);

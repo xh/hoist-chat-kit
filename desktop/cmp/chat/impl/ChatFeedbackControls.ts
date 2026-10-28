@@ -437,7 +437,7 @@ export class ChatMessageFeedbackModel extends HoistModel {
                 comment: payload.comment?.trim() || null
             };
         try {
-            await host.submitFeedbackAsync(spec);
+            await host.submitFeedbackAsync(spec, message);
         } catch (e) {
             return e;
         }

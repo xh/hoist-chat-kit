@@ -56,7 +56,8 @@ describe('ChatMessageView feedback', () => {
                 expect.objectContaining({
                     rating: 'negative',
                     comment: 'Uses yesterday’s limits.'
-                })
+                }),
+                expect.anything()
             );
             expect(screen.queryByRole('group', {name: 'What went wrong?'})).toBeNull();
             expect(screen.getByText('Thanks, feedback sent')).toBeTruthy();
@@ -152,7 +153,8 @@ describe('ChatMessageView feedback', () => {
 
             await clickThumb('Good response');
             expect(submitAsync).toHaveBeenCalledExactlyOnceWith(
-                expect.objectContaining({rating: 'positive', comment: null})
+                expect.objectContaining({rating: 'positive', comment: null}),
+                expect.anything()
             );
             expect(screen.getByText('Thanks')).toBeTruthy();
             expect(screen.queryByRole('group', {name: 'What worked?'})).toBeNull();
@@ -164,7 +166,8 @@ describe('ChatMessageView feedback', () => {
             typeComment('Clear and quick.');
             await act(() => fireEvent.click(screen.getByRole('button', {name: 'Send Comment'})));
             expect(submitAsync).toHaveBeenLastCalledWith(
-                expect.objectContaining({rating: 'positive', comment: 'Clear and quick.'})
+                expect.objectContaining({rating: 'positive', comment: 'Clear and quick.'}),
+                expect.anything()
             );
 
             // The link goes with the next send.
@@ -202,7 +205,8 @@ describe('ChatMessageView feedback', () => {
 
             await clickThumb('Bad response');
             expect(submitAsync).toHaveBeenCalledExactlyOnceWith(
-                expect.objectContaining({rating: 'negative'})
+                expect.objectContaining({rating: 'negative'}),
+                expect.anything()
             );
             expect(screen.getByText('Optional')).toBeTruthy();
             expect(screen.getByText('Your rating is already saved')).toBeTruthy();
@@ -219,7 +223,8 @@ describe('ChatMessageView feedback', () => {
 
             await clickThumb('Bad response');
             expect(submitAsync).toHaveBeenCalledExactlyOnceWith(
-                expect.objectContaining({rating: 'negative', comment: null})
+                expect.objectContaining({rating: 'negative', comment: null}),
+                expect.anything()
             );
             expect(screen.queryByRole('group', {name: 'What went wrong?'})).toBeNull();
 
@@ -238,7 +243,10 @@ describe('ChatMessageView feedback', () => {
             expect(document.querySelector('.xh-chat-message__feedback-note')).toBeNull();
 
             await clickThumb('Bad response');
-            expect(submitAsync).toHaveBeenCalledWith(expect.objectContaining({rating: null}));
+            expect(submitAsync).toHaveBeenCalledWith(
+                expect.objectContaining({rating: null}),
+                expect.anything()
+            );
             expect(down.getAttribute('aria-pressed')).toBe('false');
         });
 
@@ -274,7 +282,8 @@ describe('ChatMessageView feedback', () => {
             typeComment('');
             await act(() => fireEvent.click(firstUp));
             expect(submitAsync).toHaveBeenCalledExactlyOnceWith(
-                expect.objectContaining({messageId: 'a1', rating: 'positive'})
+                expect.objectContaining({messageId: 'a1', rating: 'positive'}),
+                expect.anything()
             );
             expect(screen.queryByRole('group', {name: 'What went wrong?'})).toBeNull();
         });

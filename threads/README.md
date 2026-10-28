@@ -520,7 +520,7 @@ conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those
 | `loadMessagesAsync({threadId})` | Required with `createChatModel`, and never called with `createConversation`. A `ChatMessagePage`: the thread's messages, oldest first. The kit ignores its optional `nextCursor`. |
 | `renameThreadAsync(threadId, title)` | Rename a thread. |
 | `deleteThreadsAsync(threadIds)` | Delete threads. Deleting a missing thread succeeds. |
-| `submitFeedbackAsync(spec)` | Save a rating. See `ChatFeedbackSpec` in [`/core/`](../core/README.md#rate-a-reply). |
+| `submitFeedbackAsync(spec, message)` | Save a rating. The rated message comes with the spec. See `ChatFeedbackSpec` in [`/core/`](../core/README.md#rate-a-reply). |
 
 ### ChatConversation
 

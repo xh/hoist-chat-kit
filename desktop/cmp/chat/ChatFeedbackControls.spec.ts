@@ -34,19 +34,23 @@ describe('ChatFeedbackControls', () => {
         chatAnnouncer.clear();
     });
 
-    it('rates a reply through the host, with every field of the spec', async () => {
-        const host = createHost();
-        renderControls(host);
+    it('rates a reply through the host, with every field of the spec and the message', async () => {
+        const host = createHost(),
+            message = reply();
+        renderControls(host, message);
 
         await clickThumb('Good response');
-        expect(host.submitFeedbackAsync).toHaveBeenCalledExactlyOnceWith({
-            threadId: 'thread-1',
-            messageId: 'a1',
-            serverId: 'srv-1',
-            runId: 'run-1',
-            rating: 'positive',
-            comment: null
-        });
+        expect(host.submitFeedbackAsync).toHaveBeenCalledExactlyOnceWith(
+            {
+                threadId: 'thread-1',
+                messageId: 'a1',
+                serverId: 'srv-1',
+                runId: 'run-1',
+                rating: 'positive',
+                comment: null
+            },
+            message
+        );
         expect(thumb('Good response').getAttribute('aria-pressed')).toBe('true');
         expect(screen.getByText('Thanks')).toBeTruthy();
     });
@@ -73,13 +77,15 @@ describe('ChatFeedbackControls', () => {
 
         await clickThumb('Bad response');
         expect(host.submitFeedbackAsync).toHaveBeenLastCalledWith(
-            expect.objectContaining({rating: 'negative', comment: null})
+            expect.objectContaining({rating: 'negative', comment: null}),
+            expect.anything()
         );
 
         typeComment('Uses yesterday’s limits.');
         await act(() => fireEvent.click(screen.getByRole('button', {name: 'Send Feedback'})));
         expect(host.submitFeedbackAsync).toHaveBeenLastCalledWith(
-            expect.objectContaining({rating: 'negative', comment: 'Uses yesterday’s limits.'})
+            expect.objectContaining({rating: 'negative', comment: 'Uses yesterday’s limits.'}),
+            expect.anything()
         );
         expect(commentField()).toBeNull();
         expect(screen.getByLabelText('Your comment: Uses yesterday’s limits.')).toBeTruthy();
@@ -148,7 +154,8 @@ describe('ChatFeedbackControls', () => {
 
         await clickThumb('Good response');
         expect(submitAsync).toHaveBeenCalledExactlyOnceWith(
-            expect.objectContaining({threadId: chatModel.threadId, messageId: 'a1'})
+            expect.objectContaining({threadId: chatModel.threadId, messageId: 'a1'}),
+            expect.anything()
         );
         expect(chatModel.messages[1].metadata.feedback).toEqual({rating: 'positive'});
 
@@ -171,7 +178,8 @@ describe('ChatFeedbackControls', () => {
         typeComment('Clear and correct.');
         await act(() => fireEvent.click(screen.getByRole('button', {name: 'Send Comment'})));
         expect(host.submitFeedbackAsync).toHaveBeenLastCalledWith(
-            expect.objectContaining({rating: 'positive', comment: 'Clear and correct.'})
+            expect.objectContaining({rating: 'positive', comment: 'Clear and correct.'}),
+            expect.anything()
         );
     });
 
@@ -190,7 +198,8 @@ describe('ChatFeedbackControls', () => {
 
         await clickThumb('Bad response');
         expect(host.submitFeedbackAsync).toHaveBeenLastCalledWith(
-            expect.objectContaining({rating: 'negative'})
+            expect.objectContaining({rating: 'negative'}),
+            expect.anything()
         );
     });
 
