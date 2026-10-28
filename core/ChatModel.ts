@@ -54,6 +54,7 @@ import {
     type ChatDataPart,
     type ChatFilePart,
     type ChatPart,
+    type ChatTextPart,
     type ChatToolCallPart,
     isToolCallFinal
 } from './ChatPart';
@@ -216,6 +217,23 @@ export interface ChatModelConfig {
     dataRenderers?: Record<string, ChatDataRenderer>;
 
     /**
+     * Renders the text of replies in place of the kit's markdown - for example for text written
+     * in another generative UI language, drawn by that language's own renderer. Called for each
+     * text part of a reply, including narration in the activity timeline. Return null to render
+     * a part as markdown. Screen readers hear a finished reply's copy text in place of its source,
+     * and no text without `getCopyText`, so give it in words there. The timeline's line shows no
+     * narration, as it would show the source. Default none.
+     */
+    textRenderer?: ChatTextRenderer;
+
+    /**
+     * Returns the text that Copy copies from a message, or null to hide Copy on it. Called for
+     * each message that offers Copy, as its action bar renders. Default the message's `text`.
+     * A failed reply's Copy Details is not affected.
+     */
+    getCopyText?: (message: ChatMessage) => string;
+
+    /**
      * How data parts display, by `dataType` - for an agent's activity that is not a tool call,
      * such as a skill it loads, shown as a row in the activity timeline. A type with no spec
      * displays inline, through its data renderer.
@@ -266,8 +284,20 @@ export interface ChatTrackOptions extends Pick<TrackOptions, 'category' | 'sever
 export type ChatDataRenderer = (part: ChatDataPart, context: ChatPartRenderContext) => ReactNode;
 
 /**
- * Passed to the renderers of a message's parts - {@link ChatToolSpec.renderer} and
- * {@link ChatDataRenderer}.
+ * Renders a {@link ChatTextPart} of a reply - see {@link ChatModelConfig.textRenderer}. Return null
+ * to render the part as markdown.
+ *
+ * The chat renders the result as the body of a component of its own, as for a
+ * {@link ChatDataRenderer}, so the renderer may call React hooks. It re-renders when its part
+ * changes - on each streamed change while `part.state` is `streaming` - or when an observable it
+ * reads changes. Its output replaces all the kit draws for the part: markdown, the streaming
+ * caret, citation chips and the catalog's component tags.
+ */
+export type ChatTextRenderer = (part: ChatTextPart, context: ChatPartRenderContext) => ReactNode;
+
+/**
+ * Passed to the renderers of a message's parts - {@link ChatToolSpec.renderer},
+ * {@link ChatDataRenderer} and {@link ChatTextRenderer}.
  *
  * The context is stable for the life of its message, while the message itself is replaced on every
  * streamed change. A renderer that needs the whole message reads it with
@@ -384,6 +414,15 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
 
     /** Renderers for data parts, keyed by `dataType`. */
     readonly dataRenderers: Record<string, ChatDataRenderer>;
+
+    /** Renders the text of replies in place of the kit's markdown, or null. */
+    readonly textRenderer: ChatTextRenderer;
+
+    /**
+     * The config's `getCopyText`, which returns the text Copy copies from a message - or null when
+     * Copy copies each message's `text`.
+     */
+    readonly getCopyText: (message: ChatMessage) => string;
 
     /** Draft text and attachments for the next message. */
     @managed readonly composerModel: ChatComposerModel;
@@ -574,6 +613,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             track = false,
             composer,
             dataRenderers = {},
+            textRenderer = null,
+            getCopyText = null,
             activities = [],
             sendBlocker,
             allowEdit = true,
@@ -635,6 +676,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.textTransform = textTransform;
         this.trackOptions = track === true ? {} : track || null;
         this.dataRenderers = {...catalog?.createDataRenderers(), ...dataRenderers};
+        this.textRenderer = textRenderer;
+        this.getCopyText = getCopyText;
         this.activities = activities;
         this.sendBlockers = sendBlocker ? [sendBlocker] : [];
         this.allowEdit = allowEdit;

@@ -1,7 +1,8 @@
 import {act, fireEvent, render, screen, within} from '@testing-library/react';
 import {runInAction} from '@xh/hoist/mobx';
+import {fragment, span} from '@xh/hoist/cmp/layout';
 import {button} from '@xh/hoist/desktop/cmp/button';
-import {hoistCmp, type HoistProps} from '@xh/hoist/core';
+import {creates, hoistCmp, HoistModel, type HoistProps} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {useState} from 'react';
 import {afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -27,6 +28,7 @@ import {
 } from '../../../transport';
 import {AGENT_RUN_TOOLS, agentRunScript} from '../../../test/fixtures/agentRunScript';
 import {chatMessageList} from './ChatMessageList';
+import {chatTimeline} from './ChatTimeline';
 import {TIMELINE_MAX_DEPTH} from './impl/ChatTimelineRows';
 
 /**
@@ -175,6 +177,32 @@ describe('ChatTimeline', () => {
             ]);
             // Done sub-agents start closed.
             expect(topRows[3].getAttribute('aria-expanded')).toBe('false');
+        });
+
+        it("draws narration through the chat's textRenderer, or as markdown where it returns null", () => {
+            const chatModel = new ChatModel({
+                transport: new ScriptedChatTransport(),
+                tools: TOOLS,
+                textRenderer: part =>
+                    part.id === 'n1' ? span({className: 'app-narration', item: 'Drawn'}) : null
+            });
+            onTestFinished(() => chatModel.destroy());
+            setMessages(chatModel, [
+                reply([
+                    call('c1'),
+                    text('n1', 'root = Note()'),
+                    call('c2'),
+                    text('n2', '**Bold** step'),
+                    call('c3')
+                ])
+            ]);
+            const {container} = renderChat(chatModel);
+            fireEvent.click(lineButton(container));
+
+            const narration = container.querySelectorAll('.xh-chat-timeline__narration');
+            expect(narration).toHaveLength(2);
+            expect(narration[0].querySelector('.app-narration').textContent).toBe('Drawn');
+            expect(narration[1].querySelector('strong').textContent).toBe('Bold');
         });
 
         it('moves between rows with the arrow keys, and opens and closes them', async () => {
@@ -347,6 +375,34 @@ describe('ChatTimeline', () => {
             expect(head.textContent).toContain('2 steps');
             expect(head.querySelector('.xh-chat-spinner')).toBeTruthy();
             expect(timeline(container).classList).toContain('xh-chat-timeline--running');
+        });
+
+        it('shows narration as the step, but never with a textRenderer, which may draw source', () => {
+            const parts = [call('c1'), text('n1', 'Checking the marks. ')],
+                stageOf = (textRenderer = null) => {
+                    const chatModel = new ChatModel({
+                            transport: new ScriptedChatTransport(),
+                            tools: TOOLS,
+                            textRenderer
+                        }),
+                        message = reply(parts, {status: 'streaming'});
+                    onTestFinished(() => chatModel.destroy());
+                    setMessages(chatModel, [message]);
+                    // An app's own block, whose parts may end in narration, in its app's context.
+                    const {container, unmount} = render(
+                            appContext(
+                                chatTimeline({message, host: chatModel, parts, isLast: true})
+                            )
+                        ),
+                        ret = lineButton(container).querySelector(
+                            '.xh-chat-timeline__stage'
+                        ).textContent;
+                    unmount();
+                    return ret;
+                };
+
+            expect(stageOf()).toBe('Checking the marks.');
+            expect(stageOf(() => null)).toBe('Working');
         });
 
         it('says "Running N steps" when calls run at once', () => {
@@ -978,6 +1034,15 @@ function agentPart(id: string, name: string, parentSubagentRunId: string = null)
         data: {name, status: 'running', startedAt: 1000, parentSubagentRunId}
     };
 }
+
+class AppStandInModel extends HoistModel {}
+
+// A Hoist app always renders inside the context of its models.
+const appContext = hoistCmp.factory({
+    displayName: 'TestAppContext',
+    model: creates(AppStandInModel),
+    render: ({children}) => fragment(children)
+});
 
 /** A button that counts its clicks in hook state, labeled with its call's id. */
 const counter = hoistCmp.factory<HoistProps & {id: string}>({

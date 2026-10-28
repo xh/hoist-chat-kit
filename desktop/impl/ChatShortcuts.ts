@@ -1,16 +1,10 @@
 import type {PanelProps} from '@xh/hoist/desktop/cmp/panel';
 import {ChatKit, type ChatShortcuts} from '../../core';
 
-/**
- * A hotkey, in the config format of Hoist's `useHotkeys` and Panel `hotkeys`.
- * @internal
- */
+/** A hotkey, in the config format of Hoist's `useHotkeys` and Panel `hotkeys`. */
 export type ChatHotkeyConfig = NonNullable<PanelProps['hotkeys']>[number];
 
-/**
- * What each shortcut does where it is bound. An action left out has no binding there.
- * @internal
- */
+/** What each shortcut does where it is bound. An action left out has no binding there. */
 export interface ChatShortcutHandlers {
     newChat?: () => void;
     focusComposer?: () => void;
@@ -20,14 +14,14 @@ export interface ChatShortcutHandlers {
 
 /**
  * Hotkeys for the given actions, keyed from `ChatKit.defaults.shortcuts`, for a component to bind
- * with Hoist's `useHotkeys` or a Panel's `hotkeys`. An action set to null there gets none.
+ * with Hoist's `useHotkeys` or a Panel's `hotkeys`. An action set to null there gets none. A
+ * frame of the app's own binds `newChat` and `toggleSidebar` here, as `ChatWorkspace` does, and
+ * `ChatPanel` binds `focusComposer` itself.
  *
  * Each handler runs once per key press: it skips an event that an inner element already handled
  * - as a chat panel handles `/` before the workspace around it - and marks the event handled.
  * `focusComposer` waits while focus is in a text field, where `/` types a slash. The rest work
  * from anywhere in the component. No shortcut ever approves, applies or deletes.
- *
- * @internal
  */
 export function getChatHotkeys(handlers: ChatShortcutHandlers): ChatHotkeyConfig[] {
     const {shortcuts} = ChatKit.defaults,

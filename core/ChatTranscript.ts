@@ -1,6 +1,6 @@
 import type {ChatUiCatalog} from '../genui/ChatUiCatalog';
 import type {ChatMessage} from './ChatMessage';
-import {type ChatDataRenderer, ChatModel} from './ChatModel';
+import {type ChatDataRenderer, ChatModel, type ChatTextRenderer} from './ChatModel';
 import type {ChatActivitySpec} from './ChatActivitySpec';
 import type {ChatToolSpec} from './ChatToolSpec';
 
@@ -21,6 +21,18 @@ export interface ChatTranscript {
 
     /** Renderers for data parts, keyed by `dataType`. A part with none shows as JSON. */
     readonly dataRenderers?: Record<string, ChatDataRenderer>;
+
+    /**
+     * Renders the text of replies in place of the kit's markdown, as
+     * `ChatModelConfig.textRenderer` does. Return null from it to render a part as markdown.
+     */
+    readonly textRenderer?: ChatTextRenderer;
+
+    /**
+     * Returns the text that Copy copies from a message, or null to hide Copy on it, as
+     * `ChatModelConfig.getCopyText` does. A transcript without it copies the message's `text`.
+     */
+    readonly getCopyText?: (message: ChatMessage) => string;
 
     /**
      * Catalog whose components render in replies - for the tags in their text, and for calls to

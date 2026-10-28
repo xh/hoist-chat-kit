@@ -49,6 +49,8 @@ Still open from review 7:
   document's source row still offers "open in viewer".
 - D89's seams: the threads model with a chat of the app's own, and the workspace slot for the
   app's conversation view. Build them when an app needs them.
+- An app with a frame of its own around `ChatThreadsModel` now has `chatThreadStatus` for the
+  thread's loading, missing and failed states, and `getChatHotkeys()` for New Chat.
 - Then the generative UI layer review. See
   [Open review threads](#open-review-threads-with-anselm).
 

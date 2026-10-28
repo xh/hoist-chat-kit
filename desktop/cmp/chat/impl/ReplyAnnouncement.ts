@@ -21,7 +21,9 @@ import {getActivityDisplay, getToolCallDisplay, groupParts} from './groupParts';
  *
  * With a host to say how each tool displays, calls to `hidden` tools do not count, and narration
  * in an activity timeline is not read as the answer. Activities count only with a host, by the
- * `noun` of their type's spec, as in "after 5 tools and 2 skills".
+ * `noun` of their type's spec, as in "after 5 tools and 2 skills". A host that draws reply text
+ * with a `textRenderer` has its text read as the message's copy text, as its source may not be
+ * words - and none of it without `getCopyText`.
  * @internal
  */
 export function formatReplyAnnouncement(
@@ -48,7 +50,7 @@ export function formatReplyAnnouncement(
             failed ? `${failed} failed` : null
         ]),
         head = `${assistantName} replied${after.length ? ` after ${after.join(', ')}` : ''}.`,
-        {text, isPartial} = firstParagraph(host ? getAnswerText(message, host) : message.text);
+        {text, isPartial} = firstParagraph(getSpokenText(message, host));
 
     return compact([head, text, isPartial ? 'Continues in the message.' : null]).join(' ');
 }
@@ -57,6 +59,13 @@ export function formatReplyAnnouncement(
 // Implementation
 //------------------
 const MAX_CHARS = 300;
+
+/** The text to read from a reply - see `formatReplyAnnouncement()`. */
+function getSpokenText(message: ChatMessage, host: ChatTranscript): string {
+    if (!host) return message.text;
+    if (host.textRenderer) return host.getCopyText?.(message) ?? null;
+    return getAnswerText(message, host);
+}
 
 /** The reply's text, less the narration that its activity timelines hold. */
 function getAnswerText(message: ChatMessage, host: ChatTranscript) {

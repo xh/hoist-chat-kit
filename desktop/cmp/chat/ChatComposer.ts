@@ -21,6 +21,13 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
     topItems?: ReactNode;
 
     /**
+     * Items that lead the input row, before the text - such as a brand mark. They sit level with
+     * the first line as the input grows. To animate one while a reply runs, style it under the
+     * composer's `xh-chat-composer--busy` class.
+     */
+    startItems?: ReactNode;
+
+    /**
      * Items for the left slot of the composer's bar - pills such as a {@link ChatComposerPill}
      * for an agent or tools, or a {@link ChatScopeChip} for a document scope.
      */
@@ -67,11 +74,11 @@ export type ChatComposerButtonProps = Pick<
 
 /**
  * The input for writing a message: one box, with an optional tray of attachments, an
- * auto-growing text area, and a bar with pills on the left and the attach and send buttons on
- * the right. Enter sends and Shift+Enter starts a new line. Up arrow in an empty input recalls the
- * last message. While a reply is in progress, Send becomes a Stop button, and Escape stops too -
- * if the composer's host is a `ChatModel`. The input stays editable, and Enter does nothing until
- * the reply ends.
+ * auto-growing text area with any start items before it, and a bar with pills on the left and the
+ * attach and send buttons on the right. Enter sends and Shift+Enter starts a new line. Up arrow
+ * in an empty input recalls the last message. While a reply is in progress, Send becomes a Stop
+ * button, and Escape stops too - if the composer's host is a `ChatModel`. The input stays
+ * editable, and Enter does nothing until the reply ends.
  *
  * Send is disabled while the draft is empty, and for a reason - the host's `sendBlockedReason`,
  * the browser being offline, or a wait before a retry. A reason shows as the button's tooltip and
@@ -99,6 +106,7 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
             className,
             model,
             topItems,
+            startItems,
             leftItems,
             rightItems,
             placeholder,
@@ -156,25 +164,28 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                               })
                             : null,
                         attachmentErrors.length ? attachmentErrorRow(composerModel) : null,
-                        textArea({
-                            className: 'xh-chat-composer__input',
-                            model: composerModel,
-                            bind: 'text',
-                            commitOnChange: true,
-                            spellCheck: true,
-                            autoFocus,
-                            width: null,
-                            height: null,
-                            placeholder: withDefault(
-                                placeholder,
-                                isPaused
-                                    ? 'Or tell the assistant what to do instead...'
-                                    : 'Send a message...'
-                            ),
-                            domAttrs: {'aria-label': 'Message'},
-                            ref: inputRef,
-                            onKeyDown: impl.onKeyDown
-                        }),
+                        inputRow(
+                            startItems,
+                            textArea({
+                                className: 'xh-chat-composer__input',
+                                model: composerModel,
+                                bind: 'text',
+                                commitOnChange: true,
+                                spellCheck: true,
+                                autoFocus,
+                                width: null,
+                                height: null,
+                                placeholder: withDefault(
+                                    placeholder,
+                                    isPaused
+                                        ? 'Or tell the assistant what to do instead...'
+                                        : 'Send a message...'
+                                ),
+                                domAttrs: {'aria-label': 'Message'},
+                                ref: inputRef,
+                                onKeyDown: impl.onKeyDown
+                            })
+                        ),
                         div({
                             className: 'xh-chat-composer__toolbar',
                             items: [
@@ -216,6 +227,16 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
 //------------------
 // Implementation
 //------------------
+/** The input, led by any start items in a row of their own. */
+function inputRow(startItems: ReactNode, input: ReactNode): ReactNode {
+    const items = castArray(startItems).filter(it => it != null && it !== false);
+    if (!items.length) return input;
+    return div({
+        className: 'xh-chat-composer__input-row',
+        items: [div({className: 'xh-chat-composer__start', items}), input]
+    });
+}
+
 function attachButton(composerModel: ChatComposerModel, impl: ChatComposerLocalModel): ReactNode[] {
     const {accept, maxFiles} = composerModel;
     return [

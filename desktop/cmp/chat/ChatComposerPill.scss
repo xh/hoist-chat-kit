@@ -32,6 +32,26 @@
   &.xh-chat-composer-pill--open {
     background-color: var(--xh-chat-citation-active-bg);
   }
+
+  // A setting that is on takes the look of a chosen thumb.
+  &.xh-chat-composer-pill--active {
+    --xh-button-text-color: var(--xh-chat-rated-color);
+
+    background-color: var(--xh-chat-rated-bg);
+
+    > .svg-inline--fa {
+      color: var(--xh-chat-rated-color);
+    }
+  }
+
+  &.xh-chat-composer-pill--disabled {
+    cursor: not-allowed;
+    opacity: var(--xh-button-disabled-opacity);
+
+    &:not(.xh-chat-composer-pill--active):hover {
+      background-color: var(--xh-chat-bg);
+    }
+  }
 }
 
 .xh-chat-composer-pill {

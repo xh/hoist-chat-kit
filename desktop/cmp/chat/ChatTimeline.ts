@@ -264,7 +264,10 @@ function lineStage(
 
     switch (state) {
         case 'running':
-            if (summary.narration) return stage(impl.holdStage(summary.narration, now), true);
+            // Narration that the app draws itself may not be words, so its source never shows.
+            if (summary.narration && !host?.textRenderer) {
+                return stage(impl.holdStage(summary.narration, now), true);
+            }
             return stage(impl.holdStage(runningStage(summary, host), now));
         case 'quiet': {
             const title = runningTitle(summary, host);

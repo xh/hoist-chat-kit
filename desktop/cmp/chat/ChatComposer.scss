@@ -105,6 +105,26 @@
     width: 100%;
   }
 
+  // Start items lead the input, centered on its first line. The input keeps its own padding.
+  &__input-row {
+    display: flex;
+    min-width: 0;
+
+    > textarea.xh-chat-composer__input {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  &__start {
+    align-items: center;
+    display: flex;
+    flex: none;
+    gap: 6px;
+    height: 38px;
+    padding-left: 10px;
+  }
+
   // The 34px bar: pills on the left, then the right slot, attach and Send.
   &__toolbar {
     align-items: center;

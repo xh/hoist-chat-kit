@@ -859,7 +859,7 @@ function renderPartGroup(
         case 'toolCallGroup':
             return chatToolCallGroup({parts: group.parts, context});
         case 'text':
-            return textPart({
+            return (host.textRenderer ? appTextPart : textPart)({
                 part: group,
                 text: group.text,
                 isStreaming: group.state === 'streaming',
@@ -1005,6 +1005,26 @@ const textPart = hoistCmp.factory<TextPartProps>({
                           item: catalog.renderSegment(segment, {...context, part})
                       })
             )
+        });
+    }
+});
+
+/**
+ * A text part drawn by the host's `textRenderer`, or as markdown if it returns null. The renderer
+ * runs as this component's render, so hooks it calls belong to the part. Takes any model in
+ * context, as `useLocalModel()` needs a component with a model spec.
+ */
+const appTextPart = hoistCmp.factory<TextPartProps>({
+    displayName: 'ChatAppTextPart',
+    model: uses('*', {optional: true}),
+
+    render({model: _model, ...props}) {
+        const {part, context, host} = props,
+            content = host.textRenderer(part, context);
+        if (content == null) return textPart(props);
+        return div({
+            className: classNames('xh-chat-message__text', 'xh-chat-message__text--app'),
+            item: content
         });
     }
 });
@@ -1159,9 +1179,10 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
     render({message, context, isLast, isNoAnswer, impl, extraActions}) {
         const {chatModel} = context,
             isBusy = !!chatModel?.isBusy,
+            {host} = context,
             {isAssistant, isUser, status} = message,
             isFailed = isAssistant && status === 'error',
-            hasText = !!message.text.trim(),
+            copyText = isFailed ? null : getCopyText(message, host),
             // A failed reply has nothing to regenerate: Try Again, above the composer, covers it.
             // TODO(design-open B2) - Regenerate replaces the reply, with no branch switcher.
             canRegenerate =
@@ -1180,8 +1201,8 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
                           label: 'Copy Details',
                           getCopyText: () => formatFailureDetails(message)
                       })
-                    : hasText
-                      ? chatCopyButton({key: 'copy', getCopyText: () => message.text})
+                    : copyText?.trim()
+                      ? chatCopyButton({key: 'copy', getCopyText: () => copyText})
                       : null,
                 canEdit
                     ? button({
@@ -1237,6 +1258,11 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
         });
     }
 });
+
+/** The text Copy copies from a message - the host's choice, else its text - or null for none. */
+function getCopyText(message: ChatMessage, host: ChatTranscript): string {
+    return host?.getCopyText ? host.getCopyText(message) : message.text;
+}
 
 /** What shows under a reply, below its action bar: the open feedback form. */
 function afterReply(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNode {

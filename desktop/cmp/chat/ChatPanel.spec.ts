@@ -49,6 +49,24 @@ describe('ChatPanel', () => {
         expect(header.nextElementSibling.textContent).toBe('What do you want to know?');
     });
 
+    it("shows the app's own footer content under the suggestions, below the composer", () => {
+        renderPanel(createModel(), {
+            emptyStateProps: {
+                title: 'What do you want to know?',
+                footer: span({className: 'app-note', item: 'Answers come from policy documents.'})
+            }
+        });
+
+        const head = document.querySelector('.xh-chat-panel__empty-head'),
+            tail = document.querySelector('.xh-chat-panel__empty-tail'),
+            footer = tail.querySelector('.xh-chat-empty-state__footer');
+        expect(head.querySelector('.app-note')).toBeNull();
+        expect(footer.querySelector('.app-note').textContent).toBe(
+            'Answers come from policy documents.'
+        );
+        expect(footer.previousElementSibling.classList).toContain('xh-chat-suggestions');
+    });
+
     it('fills the composer from a suggestion, and never sends it', () => {
         const chatModel = createModel(),
             send = vi.spyOn(chatModel, 'sendAsync');

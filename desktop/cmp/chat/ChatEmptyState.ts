@@ -34,6 +34,12 @@ export interface ChatEmptyStateProps extends HoistProps {
     suggestions?: Array<ChatSuggestion | string>;
 
     /**
+     * The app's own content below the suggestions, such as a short note on what the assistant can
+     * see. The kit adds no styles to it. Default none.
+     */
+    footer?: ReactNode;
+
+    /**
      * The composer that the suggestions fill, for a layout with no `ChatModel`. Default the
      * composer of the `ChatModel` in context.
      */
@@ -44,7 +50,7 @@ export interface ChatEmptyStateProps extends HoistProps {
  * Welcome content for a conversation with no messages: a heading, a line on what the assistant
  * can do, and suggested prompts. It shows no illustration by default - the supporting text
  * carries the assistant's identity. An app adds its own content, such as a logo, above the heading
- * with `header`. Any children render below the suggestions.
+ * with `header`, and below the suggestions with `footer`. Any children render last.
  *
  * `ChatPanel` renders its own empty state, with the composer centered between the heading and the
  * suggestions. Render this one where the message list shows it, or in a custom layout. Its
@@ -56,7 +62,10 @@ export const [ChatEmptyState, chatEmptyState] = hoistCmp.withFactory<ChatEmptySt
     model: false,
     className: 'xh-chat-empty-state',
 
-    render({className, header, icon, title, text, suggestions, composerModel, children}, ref) {
+    render(
+        {className, header, icon, title, text, suggestions, footer, composerModel, children},
+        ref
+    ) {
         icon = withDefault(icon, ChatKit.defaults.assistantIcon());
         title = withDefault(title, 'How can I help?');
 
@@ -80,6 +89,9 @@ export const [ChatEmptyState, chatEmptyState] = hoistCmp.withFactory<ChatEmptySt
                       })
                     : null,
                 suggestions?.length ? chatSuggestions({suggestions, composerModel}) : null,
+                footer != null
+                    ? div({className: 'xh-chat-empty-state__footer', item: footer})
+                    : null,
                 children
             ]
         });

@@ -14,7 +14,7 @@ change. Check each project's own docs for its current state.
 | [Anthropic Messages API](#anthropic-messages-api) | Claude's request format and SSE stream | Provider format | **Built.** `AnthropicCodec`. |
 | [OpenAI](#openai) | The Responses and Chat Completions streams | Provider format | **Chat Completions built.** `ChatCompletionsCodec`. A codec can add Responses. |
 | [A2UI](#a2ui) | Declarative JSON UI, drawn from a client catalog | UI payload | **Adapter seam built.** An app adapter maps it to catalog components. |
-| [OpenUI (Thesys)](#openui-thesys) | Generative UI framework and streaming UI language | UI payload | **Adapter seam built.** An app adapter maps it to catalog components. |
+| [OpenUI (Thesys)](#openui-thesys) | Generative UI framework and streaming UI language | UI payload or reply text | **Adapter seam built.** An app adapter maps it to catalog components, or the app draws reply text with OpenUI's own renderer. |
 | [MCP Apps](#mcp-apps) | MCP tools that return sandboxed HTML views | UI payload | **Seam built.** Host not planned for now. |
 | [Vercel AI SDK](#vercel-ai-sdk-vocabulary) | `UIMessage` parts and tool states | Message model | **Built.** The kit's part and state names. |
 
@@ -275,6 +275,11 @@ controls and does not relate to agents.
 **In the kit:** an OpenUI payload arrives as a data part, and a `ChatUiAdapter` maps it to catalog
 components. The kit ships no OpenUI adapter. The catalog follows the same idea as OpenUI, a
 registered component library with typed props and a generated prompt, on Hoist components.
+
+A model that writes OpenUI Lang as its reply text needs no adapter. The app draws each text part
+with OpenUI's own renderer, through `ChatModelConfig.textRenderer`, and gives Copy and screen
+readers words through `getCopyText`. See
+[Render reply text yourself](../desktop/cmp/chat/README.md#render-reply-text-yourself).
 
 ### MCP Apps
 

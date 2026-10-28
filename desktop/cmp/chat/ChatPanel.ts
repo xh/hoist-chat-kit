@@ -29,9 +29,10 @@ export interface ChatPanelProps
     /**
      * Heading, supporting text and icon of the default empty state - for example
      * `{title: 'What do you want to know?', text: 'Analyst answers from 38 policy documents.'}` -
-     * and any content of the app's own above the heading, such as a logo, as `header`.
+     * and any content of the app's own above the heading, such as a logo, as `header`, or below
+     * the suggestions, under the centered composer, as `footer`.
      */
-    emptyStateProps?: Pick<ChatEmptyStateProps, 'header' | 'title' | 'text' | 'icon'>;
+    emptyStateProps?: Pick<ChatEmptyStateProps, 'header' | 'title' | 'text' | 'icon' | 'footer'>;
 
     /**
      * Suggested prompts for the default empty state, as cards under the composer. A click fills
@@ -116,7 +117,8 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
         } = props;
 
         // The composer keeps its place in the tree across the move, so that it keeps focus.
-        const isCentered = model.isEmpty && emptyState == null && !messageListProps?.emptyState;
+        const isCentered = model.isEmpty && emptyState == null && !messageListProps?.emptyState,
+            {footer, ...headProps} = emptyStateProps ?? {};
         return panel({
             ref,
             testId,
@@ -131,7 +133,7 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                     ? div({
                           key: 'emptyHead',
                           className: 'xh-chat-panel__empty-head',
-                          item: chatEmptyState({...emptyStateProps})
+                          item: chatEmptyState(headProps)
                       })
                     : chatMessageList({
                           key: 'list',
@@ -166,7 +168,16 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                     ? div({
                           key: 'emptyTail',
                           className: 'xh-chat-panel__empty-tail',
-                          item: chatSuggestions({model, suggestions})
+                          items: [
+                              chatSuggestions({key: 'suggestions', model, suggestions}),
+                              footer != null
+                                  ? div({
+                                        key: 'footer',
+                                        className: 'xh-chat-empty-state__footer',
+                                        item: footer
+                                    })
+                                  : null
+                          ]
                       })
                     : null
             ]

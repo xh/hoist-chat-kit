@@ -7,6 +7,7 @@ import {pluralize} from '@xh/hoist/utils/js';
 import {chatMarkdown} from '../../../../cmp/markdown';
 import {
     type ChatDataPart,
+    type ChatTextPart,
     type ChatTranscript,
     type ChatPartRenderContext,
     type ChatToolCallPart,
@@ -16,6 +17,7 @@ import {getOwn} from '../../../../impl/objects';
 import {classNames} from '../../../../impl/ClassNames';
 import {chatElapsed} from '../ChatElapsed';
 import {chatCopyButton} from '../ChatCopyButton';
+import {chatErrorBoundary} from '../ChatErrorBoundary';
 import {chatSpinner} from '../../../impl/ChatLiveCues';
 import {
     type ChatTimelineActivityItem,
@@ -88,10 +90,14 @@ export function timelineRows(
                         div({
                             key: 'text',
                             className: 'xh-chat-timeline__narration',
-                            item: chatMarkdown({
-                                content: item.part.text,
-                                isStreaming: item.part.state === 'streaming',
-                                components: CHAT_MARKDOWN_COMPONENTS
+                            // An app's renderer that fails takes down its row, not the block.
+                            item: chatErrorBoundary({
+                                resetKey: item.part.state,
+                                item: narrationText({
+                                    part: item.part,
+                                    host: ctx.host,
+                                    context: ctx.context
+                                })
                             })
                         })
                     ]
@@ -459,6 +465,33 @@ function reasoningRow(
         ]
     });
 }
+
+interface NarrationTextProps extends HoistProps {
+    part: ChatTextPart;
+    host: ChatTranscript;
+    context: ChatPartRenderContext;
+}
+
+/**
+ * Narration between calls, drawn by the host's `textRenderer`, or as markdown if it has none or
+ * returns null. The renderer runs as this component's render, so hooks it calls belong to the row.
+ * Takes any model in context, as `useLocalModel()` needs a component with a model spec.
+ */
+const narrationText = hoistCmp.factory<NarrationTextProps>({
+    displayName: 'ChatTimelineNarration',
+    model: uses('*', {optional: true}),
+
+    render({part, host, context}) {
+        return (
+            host?.textRenderer?.(part, context) ??
+            chatMarkdown({
+                content: part.text,
+                isStreaming: part.state === 'streaming',
+                components: CHAT_MARKDOWN_COMPONENTS
+            })
+        );
+    }
+});
 
 interface TreeItemArgs {
     key?: string;

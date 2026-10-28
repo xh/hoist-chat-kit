@@ -18,6 +18,11 @@ export * from './ChatScopeChip';
 export * from './ChatSidePanel';
 export * from './ChatSources';
 export {chatSpinner} from '../../impl/ChatLiveCues';
+export {
+    type ChatHotkeyConfig,
+    type ChatShortcutHandlers,
+    getChatHotkeys
+} from '../../impl/ChatShortcuts';
 export * from './ChatStatusCue';
 export * from './ChatStatusRegion';
 export * from './ChatSuggestions';

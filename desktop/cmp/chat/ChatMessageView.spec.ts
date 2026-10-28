@@ -1,6 +1,9 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {fragment} from '@xh/hoist/cmp/layout';
-import {creates, hoistCmp, HoistModel} from '@xh/hoist/core';
+import {span} from '@xh/hoist/cmp/layout';
+import {creates, hoistCmp, HoistModel, XH} from '@xh/hoist/core';
+import {runInAction} from '@xh/hoist/mobx';
+import {useState} from 'react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
@@ -448,6 +451,111 @@ describe('ChatMessageView', () => {
             const chatModel = createModel({}, []),
                 host: ChatTranscript = chatModel;
             expect(host.messages).toBe(chatModel.messages);
+        });
+    });
+
+    describe("an app's own text", () => {
+        it('renders reply text through textRenderer, and as markdown where it returns null', () => {
+            const textRenderer = vi.fn((part, _context) => {
+                    // A renderer may call hooks: it runs as the part's own component.
+                    const [label] = useState('App');
+                    return part.text.startsWith('root =')
+                        ? span({className: 'app-ui', item: `${label}: ${part.text}`})
+                        : null;
+                }),
+                chatModel = createModel({textRenderer}, [
+                    question(),
+                    reply('a1', [text('t1', 'root = Card()'), text('t2', '**Plain** markdown')])
+                ]);
+            const {container} = renderList(chatModel);
+
+            const appUi = container.querySelector('.app-ui');
+            expect(appUi.textContent).toBe('App: root = Card()');
+            expect(appUi.closest('.xh-chat-message__text--app')).toBeTruthy();
+            expect(container.querySelector('.xh-chat-markdown strong').textContent).toBe('Plain');
+            expect(textRenderer).toHaveBeenCalledWith(expect.objectContaining({id: 't1'}), {
+                chatModel,
+                host: chatModel,
+                messageId: 'a1'
+            });
+            // User messages stay plain text.
+            expect(textRenderer).not.toHaveBeenCalledWith(
+                expect.objectContaining({id: 'u1-t'}),
+                expect.anything()
+            );
+        });
+
+        it('re-renders only the part that changes as a reply streams', () => {
+            const textRenderer = vi.fn(part => span({item: part.text})),
+                chatModel = createModel({textRenderer}, [
+                    question(),
+                    reply('a1', [text('t1', 'First'), text('t2', 'Sec')], {status: 'streaming'})
+                ]);
+            renderList(chatModel);
+            textRenderer.mockClear();
+            // The reducer keeps an unchanged part's object.
+            const [first] = chatModel.messages[1].parts;
+
+            act(() =>
+                runInAction(() => {
+                    chatModel.messages = [
+                        chatModel.messages[0],
+                        new ChatMessage(
+                            reply('a1', [first, text('t2', 'Second')], {
+                                status: 'streaming'
+                            })
+                        )
+                    ];
+                })
+            );
+            expect(screen.getByText('Second')).toBeTruthy();
+            expect(textRenderer.mock.calls.map(([part]) => part.id)).toEqual(['t2']);
+        });
+
+        it('contains a renderer that throws to its own part', () => {
+            vi.spyOn(XH, 'handleException').mockImplementation(() => {});
+            vi.spyOn(console, 'error').mockImplementation(() => {});
+            const chatModel = createModel(
+                {
+                    textRenderer: part => {
+                        if (part.id === 't1') throw new Error('Bad source');
+                        return null;
+                    }
+                },
+                [question(), reply('a1', [text('t1', 'root = ?'), text('t2', 'Still shown')])]
+            );
+            renderList(chatModel);
+
+            expect(screen.getByText('Still shown')).toBeTruthy();
+            expect(document.querySelectorAll('.xh-chat-error-boundary')).toHaveLength(1);
+        });
+
+        it('copies the text getCopyText returns, and hides Copy where it returns null', async () => {
+            const writeText = vi.fn(() => Promise.resolve());
+            vi.stubGlobal('navigator', {...navigator, clipboard: {writeText}});
+            const chatModel = createModel(
+                {getCopyText: message => (message.isUser ? null : `Readable ${message.id}`)},
+                [question(), reply('a1', [text('t1', 'root = Card()')])]
+            );
+            renderList(chatModel);
+
+            const copies = screen.getAllByRole('button', {name: 'Copy'});
+            expect(copies).toHaveLength(1);
+            await act(async () => fireEvent.click(copies[0]));
+            expect(writeText).toHaveBeenCalledWith('Readable a1');
+        });
+
+        it("reads a transcript's own getCopyText", () => {
+            const host: ChatTranscript = {
+                messages: [
+                    new ChatMessage({id: 'a1', role: 'assistant', parts: [text('t1', 'Answer')]})
+                ],
+                getCopyText: () => null
+            };
+            renderList(null, {host});
+
+            expect(screen.getByText('Answer')).toBeTruthy();
+            expect(screen.queryByRole('button', {name: 'Copy'})).toBeNull();
         });
     });
 

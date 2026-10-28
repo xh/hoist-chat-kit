@@ -4,7 +4,7 @@
 |---------|-------------|
 | [Overview](#overview) | What the thread list does, and the key features |
 | [Architecture](#architecture) | `ChatThreadList`, its model, and the row states |
-| [Configuration Pattern](#configuration-pattern) | Putting a `ChatThreadsModel` in a sidebar |
+| [Configuration Pattern](#configuration-pattern) | Putting a `ChatThreadsModel` in a sidebar, with the thread's status |
 | [Common Usage Patterns](#common-usage-patterns) | A collapse button, search focus |
 | [Properties/API Reference](#propertiesapi-reference) | Props, model members, and the keyboard |
 | [Extension Points](#extension-points) | The theme variables |
@@ -18,7 +18,9 @@ threads. It renders the threads of a [`ChatThreadsModel`](../../../threads/READM
 are a pair. The [workspace](../workspace/README.md) shows the list in its sidebar. An app can also
 place it on its own.
 
-Import from `@xh/hoist-chat-kit/desktop/cmp/threads`.
+Import from `@xh/hoist-chat-kit/desktop/cmp/threads`. The package also holds
+`ChatThreadStatus`, which shows the selected thread's loading, "not found" and failed states in a
+frame of the app's own.
 
 Key features:
 
@@ -90,25 +92,43 @@ Pass a `ChatThreadsModel` as the list's model, in a container of a set width.
 import {hoistCmp} from '@xh/hoist/core';
 import {hframe} from '@xh/hoist/cmp/layout';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
-import {chatPanel} from '@xh/hoist-chat-kit/desktop/cmp/chat';
-import {chatThreadList} from '@xh/hoist-chat-kit/desktop/cmp/threads';
+import {chatPanel, getChatHotkeys} from '@xh/hoist-chat-kit/desktop/cmp/chat';
+import {chatThreadList, chatThreadStatus} from '@xh/hoist-chat-kit/desktop/cmp/threads';
 
 export const assistantPage = hoistCmp.factory<AssistantModel>(({model}) => {
-    const {threadsModel} = model;
-    return hframe(
-        panel({
-            modelConfig: {side: 'left', defaultSize: 260, minSize: 200, maxSize: 400},
-            item: chatThreadList({model: threadsModel})
-        }),
-        threadsModel.chatModel
-            ? chatPanel({key: threadsModel.chatModel.xhId, model: threadsModel.chatModel})
-            : null
-    );
+    const {threadsModel} = model,
+        {chatModel} = threadsModel;
+    return panel({
+        hotkeys: getChatHotkeys({newChat: () => model.newChat()}),
+        item: hframe(
+            panel({
+                modelConfig: {side: 'left', defaultSize: 260, minSize: 200, maxSize: 400},
+                item: chatThreadList({model: threadsModel})
+            }),
+            chatThreadStatus({
+                model: threadsModel,
+                item: chatModel
+                    ? chatPanel({
+                          key: chatModel.xhId,
+                          model: chatModel,
+                          mask: threadsModel.loadTask
+                      })
+                    : null
+            })
+        )
+    });
 });
 ```
 
-Key the chat panel by the chat, so that the pane never shows the last thread's messages. For a
-complete page with these parts, use [`chatWorkspace`](../workspace/README.md) instead.
+Key the chat panel by the chat, so that the pane never shows the last thread's messages.
+`chatThreadStatus` shows the selected thread's state in the chat's place: a plain pane while its
+history loads, "Thread not found" with New Chat, or a failed load with Retry. Otherwise it shows the
+chat. A state unmounts the chat, which a chat keyed by its model never minds. Pass the threads
+model's `loadTask` as the chat's `mask`, for a thread that reloads with messages on screen.
+`getChatHotkeys()` binds the kit's New Chat shortcut - see [Keyboard](../chat/README.md#keyboard).
+Here `model.newChat()` calls `threadsModel.newThread()`, then focuses the new chat's composer once
+it renders, as the kit's own New Chat does. For a complete page with these parts, use
+[`chatWorkspace`](../workspace/README.md) instead.
 
 The list works the same over a chat that runs on another library. Give the threads model a
 `createConversation` function, and show the app's own view where the chat panel would be - see
@@ -166,6 +186,17 @@ Pass `searchInputRef`, as the workspace does from its rail's search button.
 | `searchInputRef` | `Ref<HTMLInputElement>` | Ref to the search input's element. |
 
 It also takes Hoist's `BoxProps` for layout.
+
+### ChatThreadStatus props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `model` | `ChatThreadsModel` | The threads model. Default the one in context. |
+| `threadNoun` | `string` | The word for a thread in the status text, as on the list. Default 'thread'. |
+| `item` | `ReactNode` | The conversation to show when the thread has no status to show. |
+
+It reads the model's `isThreadLoading`, `isThreadNotFound`, `loadError` and `loadTask`. New Chat
+calls `newThread()`, and Retry calls `reloadThreadAsync()`.
 
 ### ChatThreadsModel members the list reads
 

@@ -1709,3 +1709,23 @@ click.
 **Alternatives.** Fold it into `clearable`: a backend that cannot remove a rating may still
 change one, so the two differ. Lock the comment too: the old flow sent the comment as a second
 request, and the backend expects that.
+
+## D102. An app can draw reply text, through `textRenderer`
+
+**Decision.** `ChatModelConfig.textRenderer` and `ChatTranscript.textRenderer` take
+`(part, context) => ReactNode`, with the context that data and tool renderers get. It draws each
+text part of a reply, and each narration row of the activity timeline. Null renders the part as
+markdown. The renderer runs as the part's own component, so it may call hooks, and stays inside
+the part's error boundary. `getCopyText(message)` sets what Copy copies, and null hides Copy.
+With a `textRenderer`, the finished-reply announcement reads that copy text, or no text without
+it, and the timeline's line never shows narration.
+
+**Why.** An app whose model writes OpenUI Lang as its reply text draws it with OpenUI's own
+renderer. Nothing else in the kit could replace the markdown. The adapter seam (`ChatUiAdapter`)
+covers a UI payload in a data part, drawn with catalog components, not text in another
+language. Copy and screen readers would otherwise get the language's source.
+
+**Alternatives.** Pass the message and `isLast` in the context: a new message on each token
+would re-render every part, so the renderer reads them from the chat when it needs them. A list
+prop in place of a config member: the timeline reads its host, not the list's props, as data
+renderers do.

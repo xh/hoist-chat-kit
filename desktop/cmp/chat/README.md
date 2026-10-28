@@ -80,7 +80,7 @@ ChatPanel (Panel)                       # uses(ChatModel)
 │   │   │   │   ├── ChatReasoning       # "Thought for 12s" disclosure
 │   │   │   │   ├── ChatToolCall        # A 28px row that opens
 │   │   │   │   └── tool call group     # "Used 3 tools", opens to show each call
-│   │   │   ├── text                    # ChatMarkdown, with inline citation chips
+│   │   │   ├── text                    # Markdown with citation chips, or textRenderer
 │   │   │   ├── ChatToolCall (inline)   # Renderer output, as part of the reply
 │   │   │   ├── files                   # ChatFileChip row
 │   │   │   └── data                    # dataRenderers, or ChatNoAnswer
@@ -92,7 +92,7 @@ ChatPanel (Panel)                       # uses(ChatModel)
 ├── ChatStatusRegion                    # One line: the thread's next action, such as Try Again
 └── ChatComposer                        # uses(ChatComposerModel), or the chat's composerModel
     ├── attachment tray                 # File chips, then any files left out
-    ├── input                           # Grows from 1 to 8 lines, then scrolls
+    ├── input                           # startItems, then text that grows to 8 lines
     └── bar                             # leftItems pills | rightItems, attach, Send or Stop
 ```
 
@@ -188,6 +188,20 @@ ChatKit.defaults.shortcuts.toggleSidebar = 'mod+b';
 | `toggleSidebar` | null | Focus in a workspace | Collapses or expands the thread sidebar. |
 
 `mod` is Cmd on a Mac and Ctrl elsewhere. No shortcut ever approves, applies or deletes.
+
+A frame of the app's own binds the workspace's shortcuts with `getChatHotkeys()`. It returns
+hotkeys for the actions given, keyed from `ChatKit.defaults.shortcuts`, for a Panel's `hotkeys`
+or Hoist's `useHotkeys`. A `ChatPanel` inside the frame still binds `focusComposer` itself.
+
+```typescript
+panel({
+    hotkeys: getChatHotkeys({
+        newChat: () => threadsModel.newThread(),
+        toggleSidebar: () => sidebarModel.toggleCollapsed()
+    }),
+    items: [sidebar(), conversation()]
+});
+```
 
 Escape does one thing per press, in the region with focus:
 
@@ -467,6 +481,8 @@ example shows each feature in a demo of its own.
 Pass `composerProps` to `ChatPanel`, or props to `chatComposer` directly. `leftItems` fills the
 left slot of the composer's bar, for pills. `rightItems` goes before the attach and Send
 buttons, for a context meter. `topItems` adds content above the input, such as context chips.
+`startItems` leads the input row, before the text, such as a brand mark. To animate it while a
+reply runs, style it under the composer's `xh-chat-composer--busy` class.
 
 ```typescript
 chatPanel({
@@ -517,6 +533,10 @@ chatComposerPill({
 
 Pass `menuItems` for a single choice, or `content` for a list of checkboxes. A pill with neither
 opens nothing. In a compact host, a pill shows only its icon and count.
+
+Set `active` to show a setting that is on, such as a tool the user turned on. Set `disabled` for a
+setting that cannot change now, with a `tooltip` that says why. A disabled pill keeps its tab stop,
+so keyboard users reach the tooltip, and it opens nothing.
 
 ### Scope questions to documents
 
@@ -613,7 +633,9 @@ chatMessageList({host: notesModel});
 
 `emptyStateProps` sets the heading, supporting text and icon of the default empty state. Its
 `header` takes any content of the app's own, such as a product logo, to show above the heading,
-with no kit styles. The supporting text is at the body font size, set by
+with no kit styles, and its `footer` content to show under the suggestions, below the centered
+composer, such as a note on what the assistant can see. The supporting text is at the body font
+size, set by
 `--xh-chat-empty-state-text-font-size`. `suggestions` adds prompt cards under the centered composer, each with an optional icon and
 `description`. A click on a suggestion fills the composer and focuses it, and never sends. The
 cards hide while the composer has text. Pass `onSelect` to `chatSuggestions` to act on a click
@@ -900,6 +922,33 @@ new ChatModel({
 });
 ```
 
+### Render reply text yourself
+
+A model may write its reply in another language, such as OpenUI Lang, that the app draws with
+that language's own renderer. Set `ChatModelConfig.textRenderer`. It renders each text part of a
+reply, and narration in the activity timeline, in place of the kit's markdown. Return null to
+render a part as markdown. Its output replaces the caret, citation chips and catalog tags too.
+
+A text renderer runs as its part's own component, as a data renderer does, so it may call hooks.
+Read `part.state` to tell streaming text from final text. Give Copy words with `getCopyText`, or
+it copies the language's source. Return null from it to hide Copy. Screen readers hear a finished
+reply's copy text, and no text without `getCopyText`. The activity timeline's line shows the
+running step in place of the latest narration, as narration would show as source there.
+
+```typescript
+new ChatModel({
+    transport,
+    textRenderer: part =>
+        isAppUi(part.text)
+            ? appUiRenderer({source: part.text, isStreaming: part.state === 'streaming'})
+            : null,
+    getCopyText: message => (message.isAssistant ? toReadableText(message) : message.text)
+});
+```
+
+A `ChatTranscript` takes the same `textRenderer` and `getCopyText`, so a read-only list draws
+its text the same way.
+
 ### Allow images
 
 Markdown images in a reply do not load by default. Each shows as a link with its alt text, and
@@ -1056,7 +1105,7 @@ Accepts all `PanelProps` except `model`, `modelConfig` and `modelRef`.
 |----------|------|-------------|
 | `model` | `ChatModel` | The chat to render. Found in context if not given. |
 | `emptyState` | `ReactNode` | Content for a conversation with no messages, in the list, in place of the default. The composer stays at the bottom. |
-| `emptyStateProps` | `{header, title, text, icon}` | Heading, supporting text and icon of the default empty state, and the app's own content above the heading. |
+| `emptyStateProps` | `{header, title, text, icon, footer}` | Heading, supporting text and icon of the default empty state, and the app's own content above the heading and under the suggestions. |
 | `suggestions` | `Array<ChatSuggestion \| string>` | Prompt cards under the centered composer of the default empty state. |
 | `allowImages` | `boolean \| (src) => boolean` | Model-written images, and file images at a URL, to load. Default false. |
 | `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
@@ -1101,6 +1150,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `placeholder` | `string` | Prompt in the empty input. Default `'Send a message...'`, or `'Or tell the assistant what to do instead...'` while a reply waits for the user. |
 | `maxRows` | `number` | Rows the input grows to before it scrolls. Default 8. |
 | `topItems` | `ReactNode` | Content above the input, inside the composer. |
+| `startItems` | `ReactNode` | Content that leads the input row, level with the first line, such as a brand mark. |
 | `leftItems` | `ReactNode` | The left slot of the bar, for pills such as `chatComposerPill` and `chatScopeChip`. |
 | `rightItems` | `ReactNode` | The right slot of the bar, before the attach and Send buttons. |
 | `autoFocus` | `boolean` | True to focus the input on mount. |
@@ -1146,10 +1196,10 @@ it.
 | `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Close, and the content - the app's viewer with its status, or the full table or chart of a result card. |
 | `ChatCodeBlock` | `content`, `language`, `isStreaming` | Show code in a card with a copy button. A finished block over 20 lines shows its first 20, with a button that shows the rest, then fewer. Sets its own font size and line height. |
 | `ChatFileChip` | `file`, `onRemove`, `allowImages` | Show a file, with a remove button when `onRemove` is set. An image at a URL shows a thumbnail only if `allowImages` permits it. |
-| `ChatEmptyState` | `header`, `icon`, `title`, `text`, `suggestions`, `composerModel` | Welcome the user to an empty chat. |
+| `ChatEmptyState` | `header`, `icon`, `title`, `text`, `suggestions`, `footer`, `composerModel` | Welcome the user to an empty chat. |
 | `ChatSuggestions` | `suggestions`, `onSelect`, `composerModel` | Show prompt cards that fill the composer: `composerModel`, else the `ChatModel`'s. `onSelect` replaces the fill. With neither, it renders nothing. |
 | `ChatStatusRegion` | `model`, `assistantName` | Show the thread's next action above a composer, in a custom layout. |
-| `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip` | Add a pill to the composer's left slot. |
+| `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip`, `active`, `disabled` | Add a pill to the composer's left slot. |
 | `ChatScopeChip` | `documents`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip` | Scope the next question to some documents. Default binds `runOptions.documentIds`. |
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |
 | `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |
@@ -1260,13 +1310,15 @@ chat. Class names follow BEM under `xh-chat-`, for example `xh-chat-message__bub
 
 ## Extension Points
 
-- **Composer slots** - `topItems`, `leftItems` and `rightItems` on `ChatComposer`.
+- **Composer slots** - `topItems`, `startItems`, `leftItems` and `rightItems` on `ChatComposer`.
 - **Empty state** - `emptyState` and `suggestions` on `ChatPanel` and `ChatMessageList`.
 - **Message actions and header items** - `messageActions` and `messageHeaderItems` on
   `ChatMessageList`, passed through `ChatPanel.messageListProps`.
 - **Tool display** - `displayName`, `icon`, `summary`, `renderer` and `display` on
   `ChatToolSpec`. See [`/core/`](../../../core/README.md#chattoolspec).
 - **Data renderers** - `ChatModelConfig.dataRenderers`, for app content and generative UI.
+- **Text renderer** - `ChatModelConfig.textRenderer`, for reply text in another language, with
+  `getCopyText` for what Copy copies.
 - **Sources** - `citationMarkers` for inline `[n]` markers, `onSourceClick` to open a source in
   the app, and a `ChatSidePanelHost` in model context to open documents beside the chat.
 - **Markdown** - `markdownComponents` for element overrides, `markdownPlugins` for remark and

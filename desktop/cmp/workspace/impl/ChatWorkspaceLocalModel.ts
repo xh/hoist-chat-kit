@@ -10,6 +10,7 @@ import {
     getChatHotkeys
 } from '../../../impl/ChatShortcuts';
 import {ChatWorkspaceModel} from '../ChatWorkspaceModel';
+import {startNewThread} from '../../../impl/ThreadStatus';
 
 /**
  * Local model for a ChatWorkspace: the history popover of a narrow workspace, focus moves between
@@ -57,8 +58,7 @@ export class ChatWorkspaceLocalModel extends HoistModel {
 
     /** Start a new thread, and focus its composer - the New Chat button keeps no focus. */
     newChat() {
-        const chatModel = this.model.threadsModel.newThread();
-        wait().then(() => chatModel?.composerModel.focus());
+        startNewThread(this.model.threadsModel);
     }
 
     focusComposer() {

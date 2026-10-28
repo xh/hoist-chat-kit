@@ -262,6 +262,22 @@ describe('ChatComposer', () => {
             expect(container.querySelector('.xh-chat-status-region')).toBeNull();
         });
 
+        it('leads the input row with start items, marked busy while a reply runs', () => {
+            const {container} = renderHostComposerView(createHost({isBusy: true}), {
+                startItems: Icon.ai({className: 'app-mark'})
+            });
+
+            const row = container.querySelector('.xh-chat-composer__input-row');
+            expect(row.firstElementChild.querySelector('.app-mark')).toBeTruthy();
+            expect(row.lastElementChild).toBe(input());
+            expect(container.querySelector('.xh-chat-composer--busy .app-mark')).toBeTruthy();
+        });
+
+        it('leaves the input alone for start items that hold nothing', () => {
+            const {container} = renderHostComposerView(createHost(), {startItems: [null]});
+            expect(container.querySelector('.xh-chat-composer__input-row')).toBeNull();
+        });
+
         it('keeps a disabled Send while busy, with no Stop', () => {
             renderHostComposer(createHost({isBusy: true}));
 
@@ -302,10 +318,10 @@ function createHost(config: Partial<ChatComposerHost> = {}): ChatComposerHost {
     return {isBusy: false, sendAsync: vi.fn(async () => {}), ...config};
 }
 
-function renderHostComposerView(host: ChatComposerHost) {
+function renderHostComposerView(host: ChatComposerHost, props: Partial<ChatComposerProps> = {}) {
     const composer = new ChatComposerModel({host});
     onTestFinished(() => composer.destroy());
-    return render(chatComposer({model: composer}));
+    return render(chatComposer({model: composer, ...props}));
 }
 
 function renderHostComposer(host: ChatComposerHost): ChatComposerModel {

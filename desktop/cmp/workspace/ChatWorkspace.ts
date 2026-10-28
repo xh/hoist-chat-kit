@@ -1,7 +1,7 @@
 import type {CSSProperties, ReactNode} from 'react';
 import {isFunction, isString, omit} from 'lodash';
 import {clipboardMenuItem} from '@xh/hoist/cmp/clipboard';
-import {errorMessage, type ErrorMessageProps} from '@xh/hoist/cmp/error';
+import type {ErrorMessageProps} from '@xh/hoist/cmp/error';
 import {div, filler, nav, placeholder, span, vframe} from '@xh/hoist/cmp/layout';
 import {mask} from '@xh/hoist/cmp/mask';
 import {
@@ -37,6 +37,7 @@ import {ChatWorkspaceModel} from './ChatWorkspaceModel';
 import './ChatWorkspace.scss';
 import {ChatWorkspaceLocalModel} from './impl/ChatWorkspaceLocalModel';
 import {getThreadLabels, type ThreadLabels} from '../../impl/ThreadLabels';
+import {threadLoadFailed, threadNotFound} from '../../impl/ThreadStatus';
 import {useWorkspaceWidth} from './impl/useWorkspaceWidth';
 
 /** Content for the workspace's side panel: an element, or a function that renders one. */
@@ -164,8 +165,8 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
                                     : header,
                                 noticeLine(notice),
                                 conversationView === undefined
-                                    ? conversation(model, impl, list, chatPanelProps, testId)
-                                    : appConversation(model, impl, list, conversationView, testId)
+                                    ? conversation(model, list, chatPanelProps, testId)
+                                    : appConversation(model, list, conversationView, testId)
                             ]
                         }),
                         sidePanelView(
@@ -411,7 +412,6 @@ function noticeLine(notice: ReactNode): ReactNode {
 
 function conversation(
     model: ChatWorkspaceModel,
-    impl: ChatWorkspaceLocalModel,
     list: ListOptions,
     chatPanelProps: ChatWorkspaceProps['chatPanelProps'],
     testId: string
@@ -425,7 +425,9 @@ function conversation(
     if (!chatModel) return null;
 
     // A thread the store reports missing, as from a deep link, offers a new chat in its place.
-    if (threadsModel.isThreadNotFound) return notFound(impl, list, chatModel.xhId, testId);
+    if (threadsModel.isThreadNotFound) {
+        return notFound(threadsModel, list, chatModel.xhId, testId);
+    }
 
     // A thread that has not loaded yet shows a plain pane under the mask, not a new chat's empty
     // state - centered composer and suggestions - which its empty chat would otherwise show.
@@ -456,7 +458,6 @@ function conversation(
 /** The app's own conversation view, with the workspace's states for a missing or failed thread. */
 function appConversation(
     model: ChatWorkspaceModel,
-    impl: ChatWorkspaceLocalModel,
     list: ListOptions,
     conversationView: ChatWorkspaceConversationView,
     testId: string
@@ -467,7 +468,7 @@ function appConversation(
 
     let message: ReactNode = null;
     if (isThreadNotFound) {
-        message = notFound(impl, list, 'notFound', testId);
+        message = notFound(threadsModel, list, 'notFound', testId);
     } else if (loadError) {
         message = loadFailed(threadsModel, list, {
             key: 'loadError',
@@ -498,31 +499,20 @@ function loadFailed(
     list: ListOptions,
     props: ErrorMessageProps & {key?: string} = {}
 ): ReactNode {
-    return errorMessage({
-        error: threadsModel.loadError,
-        title: `Couldn't load this ${list.labels.singular}`,
-        actionFn: () => threadsModel.reloadThreadAsync(),
-        actionButtonProps: {text: 'Retry', icon: Icon.refresh()},
-        ...props
-    });
+    return threadLoadFailed(threadsModel, list.labels, props);
 }
 
 /** "Thread not found", with New Chat, for a thread the store reports missing. */
 function notFound(
-    impl: ChatWorkspaceLocalModel,
+    threadsModel: ChatThreadsModel,
     list: ListOptions,
     key: string,
     testId: string
 ): ReactNode {
-    return errorMessage({
+    return threadNotFound(threadsModel, list.labels, {
         key,
         className: 'xh-chat-workspace__not-found',
-        testId: getTestId(testId, 'notFound'),
-        error: true,
-        title: `${list.labels.title} not found`,
-        message: 'This conversation does not exist, or it was deleted.',
-        actionFn: () => impl.newChat(),
-        actionButtonProps: {text: 'New Chat', icon: Icon.add()}
+        testId: getTestId(testId, 'notFound')
     });
 }
 

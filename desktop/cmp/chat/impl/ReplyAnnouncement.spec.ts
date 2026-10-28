@@ -89,6 +89,28 @@ describe('formatReplyAnnouncement', () => {
         );
     });
 
+    it("reads an app's own text as its copy text, and not as its source", () => {
+        const message = reply('root = Card([Metric("Desks", 6)])'),
+            textRenderer = () => null,
+            withCopy = new ChatModel({
+                transport: new ScriptedChatTransport(),
+                textRenderer,
+                getCopyText: () => 'Six desks are open.'
+            });
+        onTestFinished(() => withCopy.destroy());
+
+        expect(formatReplyAnnouncement(message, 'Bot', withCopy)).toBe(
+            'Bot replied. Six desks are open.'
+        );
+        expect(formatReplyAnnouncement(message, 'Bot', {messages: [], textRenderer})).toBe(
+            'Bot replied.'
+        );
+
+        const withoutCopy = new ChatModel({transport: new ScriptedChatTransport(), textRenderer});
+        onTestFinished(() => withoutCopy.destroy());
+        expect(formatReplyAnnouncement(message, 'Bot', withoutCopy)).toBe('Bot replied.');
+    });
+
     it('counts activities by their noun, between tools and agents', () => {
         const skill = (id: string): ChatPart => ({
                 type: 'data',
