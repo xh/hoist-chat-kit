@@ -85,7 +85,8 @@ export class ChatMessageFeedbackModel extends HoistModel {
             track: () => this.inputRef.current,
             run: el => {
                 if (!el) return;
-                el.maxLength = this.settings.maxCommentLength;
+                const {maxCommentLength} = this.settings;
+                if (maxCommentLength != null) el.maxLength = maxCommentLength;
                 if (this.isFocusPending) {
                     this.isFocusPending = false;
                     el.focus();
@@ -824,7 +825,7 @@ function footHint(
     maxLength: number
 ): string {
     if (isSubmitting) return null;
-    if (comment.length >= maxLength * 0.9) {
+    if (maxLength != null && comment.length >= maxLength * 0.9) {
         return `${comment.length.toLocaleString()} / ${maxLength.toLocaleString()}`;
     }
     if (comment.trim()) return 'Ctrl/Cmd+Enter sends';

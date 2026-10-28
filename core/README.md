@@ -447,7 +447,7 @@ The submitter gets a `ChatFeedbackSpec`: the `threadId`, the kit `messageId`, th
 | `allowComment` | true | True if the user can comment on a rating. A thumbs down opens the comment form at once. A thumbs up offers "Add a comment" after it saves. |
 | `requireComment` | false | True if a thumbs down saves only with a non-blank comment. Applies only with `allowComment`. |
 | `clearable` | true | True if a click on the chosen thumb clears the rating. Set false for a backend that cannot remove a rating. |
-| `maxCommentLength` | 1,000 | Most characters the comment takes. A counter shows from 90%. |
+| `maxCommentLength` | 1,000 | Most characters the comment takes, or null for no limit. A counter shows from 90%. |
 
 With `requireComment`, `submitFeedbackAsync()` throws for a thumbs down with no comment. With
 `clearable` false, it throws for a null rating. A backend that rejects a down vote

@@ -1,4 +1,4 @@
-import {hoistCmp, HoistModel, type HoistProps, useLocalModel, XH} from '@xh/hoist/core';
+import {creates, hoistCmp, HoistModel, type HoistProps, XH} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
 import {action, observable} from '@xh/hoist/mobx';
@@ -19,15 +19,17 @@ export interface ChatCopyButtonProps extends HoistProps {
 /**
  * Copy button that confirms in place - its icon turns to a check for a moment once the copy
  * succeeds - rather than with a toast, which would draw the eye away from the message. The kit's
- * message actions, code blocks and side panel use it. It needs no `ChatModel`, so an app can put
- * it in a message footer of its own.
+ * message actions, code blocks and side panel use it. It needs no `ChatModel` and no model in
+ * context, so an app can put it in a message footer of its own.
  */
 export const [ChatCopyButton, chatCopyButton] = hoistCmp.withFactory<ChatCopyButtonProps>({
     displayName: 'ChatCopyButton',
     className: 'xh-chat-copy-button',
+    // Its own model, kept out of context, so that it needs no model above it.
+    model: creates(() => new ChatCopyButtonLocalModel(), {publishMode: 'none'}),
 
-    render({className, getCopyText, showText = false, label: copyLabel = 'Copy'}) {
-        const impl = useLocalModel(ChatCopyButtonLocalModel),
+    render({model, className, getCopyText, showText = false, label: copyLabel = 'Copy'}) {
+        const impl = model as ChatCopyButtonLocalModel,
             label = impl.copied ? 'Copied' : copyLabel;
 
         return button({

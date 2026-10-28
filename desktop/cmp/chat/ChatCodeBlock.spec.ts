@@ -1,4 +1,4 @@
-import {render, screen} from '@testing-library/react';
+import {act, fireEvent, render, screen} from '@testing-library/react';
 import type {ReactElement} from 'react';
 import {fragment} from '@xh/hoist/cmp/layout';
 import {creates, hoistCmp, HoistModel} from '@xh/hoist/core';
@@ -23,6 +23,27 @@ describe('ChatCodeBlock', () => {
     it('collapses a long block, and says how many lines it hides', () => {
         render(host(chatCodeBlock({content: lines(23)})));
         expect(screen.getByRole('button', {name: 'Show 3 more lines'})).toBeTruthy();
+    });
+
+    it('shows the rest and then fewer from one button, which keeps focus', async () => {
+        render(host(chatCodeBlock({content: lines(23)})));
+        const toggle = screen.getByRole('button', {name: 'Show 3 more lines'});
+        toggle.focus();
+
+        await act(() => fireEvent.click(toggle));
+        expect(screen.getByText(/line 23/)).toBeTruthy();
+        expect(document.activeElement.textContent).toBe('Show fewer lines');
+        expect(document.activeElement.getAttribute('aria-expanded')).toBe('true');
+
+        await act(() => fireEvent.click(document.activeElement));
+        expect(screen.queryByText(/line 23/)).toBeNull();
+        expect(document.activeElement.textContent).toBe('Show 3 more lines');
+    });
+
+    it('renders with no model in context, as inside another library', () => {
+        render(chatCodeBlock({content: 'print(1)', language: 'python'}));
+        expect(screen.getByText('print(1)')).toBeTruthy();
+        expect(screen.getByRole('button', {name: 'Copy'})).toBeTruthy();
     });
 
     it('shows a block in full while it streams, and collapses it once the reply ends', () => {

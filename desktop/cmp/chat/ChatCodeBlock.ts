@@ -1,5 +1,5 @@
 import {code, div, pre, span} from '@xh/hoist/cmp/layout';
-import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
+import {creates, hoistCmp, HoistModel, type HoistProps} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {action, observable} from '@xh/hoist/mobx';
 import {pluralize} from '@xh/hoist/utils/js';
@@ -22,22 +22,25 @@ export interface ChatCodeBlockProps extends HoistProps {
 /**
  * A block of code in a card: a header strip with its language and a Copy button, over the code
  * in a single `pre`. Long lines scroll sideways rather than wrap. A block of more than 20 lines
- * shows its first 20, with a button to show the rest - once it has finished streaming. A final
- * newline counts as no line.
+ * shows its first 20, with a button to show the rest and then to show fewer - once it has
+ * finished streaming. A final newline counts as no line.
  *
- * Renders fenced code blocks in chat messages, and may be used directly to show code or data.
+ * Renders fenced code blocks in chat messages, and may be used directly to show code or data. It
+ * needs no model in context, and sets its own font size and line height.
  */
 export const [ChatCodeBlock, chatCodeBlock] = hoistCmp.withFactory<ChatCodeBlockProps>({
     displayName: 'ChatCodeBlock',
     className: 'xh-chat-code-block',
+    // Its own model, kept out of context, so that it needs no model above it.
+    model: creates(() => new ChatCodeBlockLocalModel(), {publishMode: 'none'}),
 
-    render({className, content, language, isStreaming = false}, ref) {
-        const impl = useLocalModel(ChatCodeBlockLocalModel),
+    render({model, className, content, language, isStreaming = false}, ref) {
+        const impl = model as ChatCodeBlockLocalModel,
             text = (content ?? '').replace(/\n$/, ''),
             lines = text.split('\n'),
-            isCollapsed = !impl.isExpanded && !isStreaming,
-            hiddenCount = isCollapsed ? Math.max(0, lines.length - COLLAPSED_LINES) : 0,
-            shown = hiddenCount ? lines.slice(0, COLLAPSED_LINES).join('\n') : text;
+            extraCount = isStreaming ? 0 : Math.max(0, lines.length - COLLAPSED_LINES),
+            isCollapsed = extraCount > 0 && !impl.isExpanded,
+            shown = isCollapsed ? lines.slice(0, COLLAPSED_LINES).join('\n') : text;
 
         return div({
             ref,
@@ -60,12 +63,16 @@ export const [ChatCodeBlock, chatCodeBlock] = hoistCmp.withFactory<ChatCodeBlock
                         item: shown
                     })
                 }),
-                hiddenCount
+                // One button that stays in place, so that keyboard focus stays on it.
+                extraCount
                     ? div({
                           className: 'xh-chat-code-block__footer',
                           item: button({
-                              text: `Show ${pluralize('more line', hiddenCount, true)}`,
-                              onClick: () => impl.setExpanded(true)
+                              text: isCollapsed
+                                  ? `Show ${pluralize('more line', extraCount, true)}`
+                                  : 'Show fewer lines',
+                              'aria-expanded': !isCollapsed,
+                              onClick: () => impl.setExpanded(isCollapsed)
                           })
                       })
                     : null

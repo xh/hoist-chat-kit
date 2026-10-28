@@ -1,6 +1,6 @@
 import type {MouseEvent, ReactNode} from 'react';
 import {div, li, ol, span} from '@xh/hoist/cmp/layout';
-import {hoistCmp, HoistModel, type HoistProps, managed, useLocalModel} from '@xh/hoist/core';
+import {creates, hoistCmp, HoistModel, type HoistProps, managed} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {Icon} from '@xh/hoist/icon';
 import {action, observable, observableRef} from '@xh/hoist/mobx';
@@ -100,6 +100,8 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
 >({
     displayName: 'ChatSources',
     className: 'xh-chat-sources',
+    // Its own model, kept out of context, so that it needs no model above it.
+    model: creates(() => new ChatSourcesLocalModel(), {publishMode: 'none'}),
     defaults: {visibleRows: 3, compact: true},
 
     render(props, ref) {
@@ -111,7 +113,7 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
                 visibleRows = ChatSources.defaults.visibleRows,
                 compact = ChatSources.defaults.compact
             } = props,
-            impl = useLocalModel(ChatSourcesLocalModel),
+            impl = props.model as ChatSourcesLocalModel,
             links = props.links ?? impl.links;
         if (!props.links) {
             impl.links.configure({
@@ -229,7 +231,9 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
             isExcerptOpen = !!excerpt && impl.openExcerpts.includes(source.id),
             isActive = links.isActive(number),
             // States that the side panel shows the source - not an action.
-            meta = [...getSourceMeta(source), isActive ? 'shown in viewer' : null].filter(it => it);
+            meta = [...getSourceMeta(source), isActive ? 'shown in viewer' : null]
+                .filter(it => it)
+                .join(' · ');
 
         return li({
             className: 'xh-chat-sources__item',
@@ -262,10 +266,11 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
                             className: 'xh-chat-sources__text',
                             items: [
                                 sourceTitle(source, number, links, isActive),
-                                meta.length
+                                meta
                                     ? span({
                                           className: 'xh-chat-sources__meta',
-                                          item: meta.join(' · ')
+                                          title: meta,
+                                          item: meta
                                       })
                                     : null
                             ]
@@ -319,6 +324,7 @@ function sourceTitle(
             className,
             type: 'button',
             'aria-current': isActive || undefined,
+            title,
             onClick: (e: MouseEvent<HTMLButtonElement>) =>
                 links.open(source, {
                     citation: number,
@@ -329,5 +335,5 @@ function sourceTitle(
         });
     }
 
-    return span({className, item: title});
+    return span({className, title, item: title});
 }

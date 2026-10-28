@@ -23,13 +23,14 @@ export interface ChatErrorBoundaryProps extends HoistProps<ErrorBoundaryModel> {
  * conversation still renders. Hoist's exception handler logs the error, with no alert, and a
  * compact note takes the content's place, with the error message in a disclosure. The kit wraps
  * each message and part in one. An app can wrap a kit component it hosts outside the message
- * list the same way.
+ * list the same way. A `className` applies to the note.
  */
 export const [ChatErrorBoundary, chatErrorBoundary] = hoistCmp.withFactory<ChatErrorBoundaryProps>({
     displayName: 'ChatErrorBoundary',
+    className: 'xh-chat-error-boundary',
     model: creates(ErrorBoundaryModel, {publishMode: 'none'}),
 
-    render({model, subject = 'part', resetKey, children}) {
+    render({model, className, subject = 'part', resetKey, children}) {
         // Not on mount - an error caught as the content first mounts must stay shown.
         const resetKeyRef = useRef(resetKey);
         useEffect(() => {
@@ -39,7 +40,7 @@ export const [ChatErrorBoundary, chatErrorBoundary] = hoistCmp.withFactory<ChatE
         }, [model, resetKey]);
 
         return model.error
-            ? fallback(model.error, subject)
+            ? fallback(model.error, subject, className)
             : errorBoundary({model, item: children});
     }
 });
@@ -47,9 +48,9 @@ export const [ChatErrorBoundary, chatErrorBoundary] = hoistCmp.withFactory<ChatE
 //------------------
 // Implementation
 //------------------
-function fallback(error: unknown, subject: string): ReactNode {
+function fallback(error: unknown, subject: string, className: string): ReactNode {
     return div({
-        className: 'xh-chat-error-boundary',
+        className,
         role: 'note',
         items: [
             div({

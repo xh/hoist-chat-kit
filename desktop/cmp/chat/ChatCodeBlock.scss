@@ -2,10 +2,13 @@
 
 // A code block as an output card: the card frame and its 28px header strip, over the code on the
 // grid's stripe tone.
+// The block sets its own type, so that a host's font size or line height cannot spread its lines.
 .xh-chat-code-block {
   background-color: var(--xh-chat-code-bg);
   border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
   border-radius: var(--xh-chat-border-radius);
+  font-size: var(--xh-chat-font-size);
+  line-height: var(--xh-chat-line-height);
   min-width: 0;
   overflow: hidden;
 
@@ -45,6 +48,9 @@
     background: none;
     border: none;
     border-radius: 0;
+    font-family: var(--xh-font-family-mono);
+    font-size: var(--xh-chat-code-font-size);
+    line-height: var(--xh-chat-line-height);
     margin: 0;
     overflow-x: auto;
     padding: calc(var(--xh-pad) * 0.8px) var(--xh-pad-px);
@@ -53,9 +59,7 @@
     code {
       background: none;
       color: var(--xh-chat-text-color);
-      font-family: var(--xh-font-family-mono);
-      font-size: var(--xh-chat-code-font-size);
-      line-height: var(--xh-chat-line-height);
+      font: inherit;
       padding: 0;
       white-space: pre;
     }

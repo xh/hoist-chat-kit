@@ -29,6 +29,9 @@ body {
   --xh-chat-side-pad: var(--xh-pad-double-px);
   // Between messages. Equals the action bar's height, as the bar sits in this gap.
   --xh-chat-turn-gap: 24px;
+  // The least height and width of each button in a bar of message actions, feedback thumbs
+  // included.
+  --xh-chat-action-button-size: 24px;
   // Between the parts of one reply. Process parts (reasoning, tool calls) use the tighter gap.
   --xh-chat-part-gap: var(--xh-pad-px);
   --xh-chat-process-gap: var(--xh-pad-half-px);
@@ -60,6 +63,7 @@ body {
   --xh-chat-success-color: var(--xh-intent-success-text-color);
   --xh-chat-mention-bg: var(--xh-intent-primary-trans1);
   --xh-chat-rated-color: var(--xh-intent-primary-text-color);
+  --xh-chat-rated-bg: var(--xh-chat-mention-bg);
 
   //------------------------
   // Agent activity timeline

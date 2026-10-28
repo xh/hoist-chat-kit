@@ -35,7 +35,8 @@ export interface ChatFeedbackSettings {
     clearable?: boolean;
 
     /**
-     * Most characters the comment field takes. A counter shows from 90% of it. Default 1,000.
+     * Most characters the comment field takes, or null for no limit. A counter shows from 90% of
+     * it. Default 1,000.
      */
     maxCommentLength?: number;
 }

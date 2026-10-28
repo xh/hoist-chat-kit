@@ -239,6 +239,7 @@ Every row has the same layout: the number, an icon, the title and a meta line. A
 
 A source with `metadata.meta`, a string or an array of strings, shows that as its meta line in
 place of the file name and page, or the host. `title` on the list replaces its "Sources" heading.
+A row's title and meta line carry their full text as a tooltip, for when either is cut short.
 
 Rows are compact by default: one line each, with the meta line beside the title. Set `compact`
 false for a roomier list in a frame, with hairlines between rows, a 28px icon tile and the meta
@@ -660,7 +661,7 @@ comment.
 | `requireComment: false` | Saves at once, and opens an optional form. The comment follows as an update. Cancel or Escape keeps the rating. |
 
 Send enables once the comment has text. In the form, Enter adds a new line, and Ctrl/Cmd+Enter
-sends. A counter shows from 90% of `maxCommentLength`. While the form sends, the
+sends. A counter shows from 90% of `maxCommentLength`, which null turns off. While the form sends, the
 thumbs and the form disable, and Cancel goes, as the request is already on its way.
 
 Failures show inline, never as a toast. A rating that fails to save un-presses, and "Couldn't save
@@ -1099,6 +1100,9 @@ Use it directly only for a list of your own.
 
 ### Part components
 
+`ChatSources`, `ChatCodeBlock`, `ChatCopyButton`, `ChatFeedbackControls` and `ChatErrorBoundary`
+need no model in context, so they render inside another library's components.
+
 | Component | Props | Use it to |
 |-----------|-------|-----------|
 | `ChatToolCall` | `part`, `context` | Show a tool call row, for example inside a renderer of your own. Reads tool specs and approvals from `context.chatModel`. |
@@ -1108,7 +1112,7 @@ Use it directly only for a list of your own.
 | `ChatSources` | `sources`, `title`, `compact`, `defaultExpanded`, `visibleRows`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
 | `ChatNoAnswer` | `part`, `onEditQuestion` | Show a fixed "not found" reply, for example inside an app's own renderer for `xh.chat.noAnswer`. |
 | `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Close, and the content - the app's viewer with its status, or the full table or chart of a result card. |
-| `ChatCodeBlock` | `content`, `language`, `isStreaming` | Show code in a card with a copy button. A finished block over 20 lines shows its first 20, with a button for the rest. |
+| `ChatCodeBlock` | `content`, `language`, `isStreaming` | Show code in a card with a copy button. A finished block over 20 lines shows its first 20, with a button that shows the rest, then fewer. Sets its own font size and line height. |
 | `ChatFileChip` | `file`, `onRemove`, `allowImages` | Show a file, with a remove button when `onRemove` is set. An image at a URL shows a thumbnail only if `allowImages` permits it. |
 | `ChatEmptyState` | `header`, `icon`, `title`, `text`, `suggestions`, `composerModel` | Welcome the user to an empty chat. |
 | `ChatSuggestions` | `suggestions`, `onSelect`, `composerModel` | Show prompt cards that fill the composer: `composerModel`, else the `ChatModel`'s. `onSelect` replaces the fill. With neither, it renders nothing. |
@@ -1119,7 +1123,7 @@ Use it directly only for a list of your own.
 | `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |
 | `ChatCopyButton` | `getCopyText`, `showText`, `label` | Copy text, confirming in place with a check for a moment. No `ChatModel` needed. |
 | `ChatFeedbackControls` | `message`, `host` | Rate a reply in a layout of your own: thumbs, then the comment form. `host` is a `ChatModel` or a `ChatFeedbackHost`. See [Collect feedback without a ChatModel](#collect-feedback-without-a-chatmodel). |
-| `ChatErrorBoundary` | `subject`, `resetKey` | Catch a render error in a kit component you host yourself, as the message list does for each part. |
+| `ChatErrorBoundary` | `subject`, `resetKey`, `className` | Catch a render error in a kit component you host yourself, as the message list does for each part. `className` applies to the note that takes its place. |
 
 ## Theming
 
@@ -1164,6 +1168,7 @@ pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
 | | `--xh-chat-prose-max-width` | `none`. Set it for markdown text narrower than the column |
 | | `--xh-chat-side-pad` | `--xh-pad-double` (20px) |
 | | `--xh-chat-turn-gap` | `24px`, between messages |
+| | `--xh-chat-action-button-size` | `24px`, the least height and width of a message action or feedback thumb |
 | | `--xh-chat-part-gap`, `--xh-chat-process-gap` | `--xh-pad`, `--xh-pad-half` |
 | | `--xh-chat-part-header-height` | `28px`, for card header strips |
 | | `--xh-chat-user-max-width` | `75%`, for the user bubble |
@@ -1178,6 +1183,7 @@ pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
 | Status | `--xh-chat-busy-color` | `--xh-intent-primary-text-color` |
 | | `--xh-chat-attention-color` | `--xh-card-primary-color` |
 | | `--xh-chat-success-color`, `--xh-chat-warning-color`, `--xh-chat-error-color` | Hoist's intent text colors |
+| | `--xh-chat-rated-color`, `--xh-chat-rated-bg` | `--xh-intent-primary-text-color` and `--xh-chat-mention-bg`, for the chosen feedback thumb |
 | Composer | `--xh-chat-composer-bg` | `--xh-input-bg` |
 | | `--xh-chat-composer-border-color` | `--xh-border-color` |
 | | `--xh-chat-composer-focus-border-color` | `--xh-form-field-focused-border-color` |

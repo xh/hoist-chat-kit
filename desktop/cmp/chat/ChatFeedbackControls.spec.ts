@@ -154,6 +154,25 @@ describe('ChatFeedbackControls', () => {
             {container} = render(chatFeedbackControls({message: silent.messages[1], host: silent}));
         expect(container.innerHTML).toBe('');
     });
+
+    it('caps the comment at maxCommentLength with a counter, or takes any length for null', async () => {
+        const submitAsync = vi.fn(async (_spec: ChatFeedbackSpec) => {}),
+            capped = createChatModel({submitAsync}),
+            cappedView = render(chatFeedbackControls({message: capped.messages[1], host: capped}));
+        await clickThumb('Bad response');
+        expect(commentField().getAttribute('maxlength')).toBe('1000');
+        typeComment('x'.repeat(950));
+        expect(screen.getByText('950 / 1,000')).toBeTruthy();
+        cappedView.unmount();
+
+        const open = createChatModel({submitAsync, maxCommentLength: null});
+        render(chatFeedbackControls({message: open.messages[1], host: open}));
+        await clickThumb('Bad response');
+        expect(commentField().hasAttribute('maxlength')).toBe(false);
+        typeComment('x'.repeat(5000));
+        expect(screen.queryByText(/ \/ /)).toBeNull();
+        expect(screen.getByText('Ctrl/Cmd+Enter sends')).toBeTruthy();
+    });
 });
 
 //------------------

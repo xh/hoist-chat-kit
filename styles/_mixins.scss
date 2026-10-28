@@ -22,8 +22,8 @@
     --xh-button-text-color: var(--xh-chat-meta-text-color);
 
     font-size: var(--xh-chat-meta-font-size);
-    min-height: 24px;
-    min-width: 24px;
+    min-height: var(--xh-chat-action-button-size);
+    min-width: var(--xh-chat-action-button-size);
     padding: 0 5px;
 
     &:hover {
@@ -34,7 +34,7 @@
   @include hoist-button('.xh-chat-message__thumb--chosen', $bar) {
     --xh-button-text-color: var(--xh-chat-rated-color);
 
-    background-color: var(--xh-chat-mention-bg);
+    background-color: var(--xh-chat-rated-bg);
   }
 
   @include hoist-button('.xh-chat-message__feedback-link', $bar) {

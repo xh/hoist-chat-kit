@@ -32,6 +32,30 @@ describe('sources and citations', () => {
         vi.stubGlobal('open', open);
     });
 
+    it('renders with no model in context, as inside another library', () => {
+        render(chatSources({sources: [doc(1)]}));
+        expect(screen.getByRole('region', {name: 'Sources'})).toBeTruthy();
+        expect(screen.getByText('Doc 1')).toBeTruthy();
+    });
+
+    it('gives the title and meta line their full text as a tooltip', () => {
+        const title = 'A very long news headline that a narrow row cuts short',
+            source: ChatSourcePart = {
+                type: 'source',
+                id: 'w1',
+                sourceType: 'url',
+                url: 'https://news.example.com/a',
+                title,
+                metadata: {meta: ['Example News', 'June 2026']}
+            };
+        render(chatSources({sources: [source]}));
+
+        expect(screen.getByText(title).getAttribute('title')).toBe(title);
+        expect(screen.getByText('Example News · June 2026').getAttribute('title')).toBe(
+            'Example News · June 2026'
+        );
+    });
+
     it("shows a source's own meta line, and the list's own title", () => {
         const appModel = new PlainAppModel();
         onTestFinished(() => appModel.destroy());
