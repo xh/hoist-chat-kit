@@ -119,6 +119,147 @@ describe('ChatTimeline', () => {
             ]);
         });
 
+        it('shows a call that starts a sub-agent as the sub-agent row alone', async () => {
+            const model = new ChatModel({
+                transport: new ScriptedChatTransport({
+                    delayMs: 0,
+                    responses: [
+                        [
+                            toolCallEvents(
+                                'task',
+                                {prompt: 'Check the limits'},
+                                {toolCallId: 'task1', result: 'done'}
+                            ),
+                            subagentEvents(
+                                'Researcher',
+                                [toolCallEvents('lookup', {desk: 'Rates'}, {result: 'ok'})],
+                                {parentToolCallId: 'task1', description: 'Check the limits'}
+                            ),
+                            textEvents('All clear.')
+                        ]
+                    ]
+                }),
+                tools: TOOLS
+            });
+            onTestFinished(() => model.destroy());
+            const {container} = render(chatMessageList({model}));
+            await act(() => model.sendAsync('Check.'));
+
+            expect(container.querySelector('.xh-chat-tool-call')).toBeNull();
+            expect(lineButton(container).textContent).toContain('Used 1 tool and 1 agent');
+            fireEvent.click(lineButton(container));
+            const tree = within(timeline(container)).getByRole('tree');
+            expect(Array.from(tree.children).map(it => it.getAttribute('aria-label'))).toEqual([
+                expect.stringMatching(/^Researcher, Check the limits, agent, 1 step/)
+            ]);
+        });
+
+        it('shows a spawning call that fails, or waits for the user, as its own card', () => {
+            const spawning = (id: string, state: ChatToolCallState): ChatPart => ({
+                    ...call(id, {state, toolName: 'task'}),
+                    spawnedSubagentRunId: `sa-${id}`
+                }),
+                agent = (id: string): ChatPart => ({
+                    type: 'data',
+                    id: `sa-${id}`,
+                    dataType: 'xh.chat.subagent',
+                    // A sub-agent left open ends complete, so its row says nothing of the failure.
+                    data: {name: 'Researcher', status: 'complete', parentToolCallId: id}
+                }),
+                chatModel = createChat([
+                    reply(
+                        [
+                            spawning('t1', 'output-error'),
+                            agent('t1'),
+                            spawning('t2', 'output-available'),
+                            agent('t2'),
+                            text('a', 'Done.')
+                        ],
+                        {status: 'complete'}
+                    )
+                ]);
+            const {container} = renderChat(chatModel);
+
+            expect(container.querySelectorAll('.xh-chat-tool-call')).toHaveLength(1);
+            expect(container.querySelector('.xh-chat-message__warning').textContent).toContain(
+                '1 tool failed'
+            );
+
+            setMessages(chatModel, [
+                reply([spawning('t3', 'approval-requested'), agent('t3')], {status: 'paused'})
+            ]);
+            expect(container.querySelectorAll('.xh-chat-tool-call')).toHaveLength(1);
+        });
+
+        it("shows calls to tools the app does not list as the chat's getToolSpec says", () => {
+            const chatModel = new ChatModel({
+                transport: new ScriptedChatTransport(),
+                getToolSpec: name => ({
+                    name,
+                    displayName: name.replace(/^acme__/, ''),
+                    display: 'timeline'
+                })
+            });
+            onTestFinished(() => chatModel.destroy());
+            setMessages(chatModel, [
+                reply(
+                    [call('c1', {toolName: 'acme__search'}), call('c2', {toolName: 'acme__fetch'})],
+                    {
+                        status: 'complete'
+                    }
+                )
+            ]);
+            const {container} = renderChat(chatModel);
+
+            expect(container.querySelector('.xh-chat-tool-call')).toBeNull();
+            expect(lineButton(container).textContent).toContain('Used 2 tools');
+            fireEvent.click(lineButton(container));
+            const labels = within(timeline(container))
+                .getAllByRole('treeitem')
+                .map(it => it.getAttribute('aria-label'));
+            expect(labels).toEqual([
+                expect.stringMatching(/^search/),
+                expect.stringMatching(/^fetch/)
+            ]);
+        });
+
+        it('gives each activity row the icon its spec picks for the part, else the default', () => {
+            const chatModel = new ChatModel({
+                transport: new ScriptedChatTransport(),
+                tools: TOOLS,
+                activities: [
+                    {
+                        dataType: 'skill',
+                        display: 'timeline',
+                        icon: part =>
+                            part.data.skillName === 'Charts'
+                                ? span({className: 'app-chart-icon'})
+                                : null
+                    }
+                ]
+            });
+            onTestFinished(() => chatModel.destroy());
+            const skill = (id: string, skillName: string): ChatPart => ({
+                type: 'data',
+                id,
+                dataType: 'skill',
+                data: {skillName}
+            });
+            setMessages(chatModel, [
+                reply([skill('s1', 'Charts'), call('c1'), skill('s2', 'Limits')], {
+                    status: 'complete'
+                })
+            ]);
+            const {container} = renderChat(chatModel);
+            fireEvent.click(lineButton(container));
+
+            const rows = container.querySelectorAll('.xh-chat-timeline__item--activity');
+            expect(rows).toHaveLength(2);
+            expect(rows[0].querySelector('.app-chart-icon')).toBeTruthy();
+            expect(rows[1].querySelector('.app-chart-icon')).toBeNull();
+            expect(rows[1].querySelector('.xh-chat-timeline__icon svg')).toBeTruthy();
+        });
+
         it('opens a skill row to its data renderer, else to its data', async () => {
             const plain = await runSkills(),
                 row = () => within(timeline(plain.container)).getAllByRole('treeitem')[0];

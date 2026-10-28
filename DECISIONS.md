@@ -1750,3 +1750,39 @@ never marks a call that ran.
 to honor it, and one that missed it would show the abandoned attempt. A part marked hidden and
 kept: the same risk, for no use yet. Drop a failed run's attempt too: the user would lose the
 partial reply that streamed.
+
+## D104. An unlisted tool's display comes from `getToolSpec`, and never runs
+
+**Decision.** `ChatModelConfig.getToolSpec(name)` returns a spec for a tool that `tools` does not
+list, and `ChatModel.getToolSpec()` falls back to it. The chat keeps only the spec's display
+members, and calls it once per name. Running a call, answering it, approving it, and telling a
+client call from a server call all read `tools` alone.
+
+**Why.** A backend whose tools come from providers that the app does not know ahead of time has
+calls with no spec, which show as cards. One function covers both a pattern, such as a provider
+prefix, and a chat-wide default, as `name => ({name, display: 'timeline'})`. A spec that only
+displays a call cannot make the browser run it, or take a server's call for a client one.
+
+**Alternatives.** A chat-wide `defaultToolDisplay` too: the function covers it. Let the resolved
+spec run calls: a call the model was never offered could then run in the browser.
+
+## D105. A call that starts a sub-agent hides behind the sub-agent's row
+
+**Decision.** When a sub-agent's `parentToolCallId` names a call in the same reply, the reducer
+records the sub-agent on the call, as `spawnedSubagentRunId`, in whichever order they arrive. The
+call then displays as `hidden`, whatever its spec says, unless it fails. It counts in no
+summary. A failed call displays as its tool's spec says, and a call that waits for the user
+shows. The first sub-agent to name a call
+keeps it. The header's count of failed tools leaves out hidden calls, as hidden
+calls count in no summary.
+
+**Why.** AG-UI's `parentToolCallId` ties a sub-agent to the call that spawned it. Showing both
+showed one piece of work twice, as a card above the timeline and a row in it. The link sits on
+the call, so every reader of how a call displays agrees, with no reply in hand.
+
+A failed call shows, as its sub-agent's row may not say so: a sub-agent left open ends
+complete with its run.
+
+**Alternatives.** Hide the call in the timeline alone: the header and the announcement would
+still count it. Show the call's input in the sub-agent's row: the sub-agent's `description`
+already says what it was asked to do. Add it if a backend sends no description.

@@ -98,6 +98,18 @@ export interface ChatModelConfig {
     tools?: ChatToolSpec[];
 
     /**
+     * Returns how calls to a tool that `tools` does not list display, or null - for a backend
+     * whose tools the app does not know ahead of time, such as tools from providers whose names
+     * carry a prefix. Called once per name, and must be pure. Only the spec's display members
+     * count: `displayName`, `icon`, `summary`, `renderer`, `display`, `approvalPrompt` and
+     * `preview`. The chat never sends, runs or answers a call through it. For example,
+     * `name => ({name, display: 'timeline'})` shows each unlisted tool in the timeline. Default
+     * none: such calls show as a call with no spec does - a card, or a row under the sub-agent
+     * that made it.
+     */
+    getToolSpec?: (name: string) => ChatToolSpec;
+
+    /**
      * Generative UI components the model can show - see `ChatUiCatalog`. The chat adds the
      * catalog's tools to its own, so the app lists only its own `tools`:
      *
@@ -599,6 +611,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         const {
             transport,
             tools: appTools = [],
+            getToolSpec = null,
             catalog = null,
             dataSource = null,
             contextProviders = [],
@@ -655,6 +668,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
 
         this.transport = transport;
         this.tools = tools;
+        this.toolSpecFn = getToolSpec;
         this.catalog = catalog;
         this.artifacts = new ChatArtifactRegistry({dataSource});
         this.contextProviders = contextProviders;
@@ -1117,9 +1131,12 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         return findLast(this.messages, it => it.id === id) ?? null;
     }
 
-    /** The spec for a tool, by name, or null. */
+    /**
+     * The spec for a tool, by name, or null: the one in `tools`, else the display spec that the
+     * config's `getToolSpec` returns for it. Only a spec in `tools` runs or answers a call.
+     */
     getToolSpec(name: string): ChatToolSpec {
-        return this.tools.find(it => it.name === name) ?? null;
+        return this.getOwnToolSpec(name) ?? this.resolveToolSpec(name);
     }
 
     /** The spec for a type of data part, by `dataType`, or null. */
@@ -1137,6 +1154,9 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     @observableRef private accessor interruptSet: InterruptSet = null;
     private readonly modelTools: ChatToolSpec[];
     private readonly textTransform: ChatTextTransform;
+    private readonly toolSpecFn: (name: string) => ChatToolSpec;
+    /** Display specs from `toolSpecFn`, by tool name, null for none. */
+    private readonly resolvedToolSpecs = new Map<string, ChatToolSpec>();
     private readonly trackOptions: ChatTrackOptions;
 
     @observable private accessor _threadId: string;
@@ -1275,7 +1295,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
                 if (call.step !== turn.step || call.providerExecuted || isToolCallFinal(call)) {
                     return;
                 }
-                if (this.getToolSpec(call.toolName)) return;
+                if (this.getOwnToolSpec(call.toolName)) return;
 
                 const approval = interrupts.find(
                     it => it.toolCallId === call.id && isApprovalSchema(it.responseSchema)
@@ -1291,7 +1311,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     }
 
     private isInteractive(call: ChatToolCallPart): boolean {
-        const spec = this.getToolSpec(call.toolName);
+        const spec = this.getOwnToolSpec(call.toolName);
         return !!spec?.interactive && !spec.execute;
     }
 
@@ -1490,7 +1510,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
 
         calls.forEach(call => {
             if (call.state !== 'input-available') return;
-            const spec = this.getToolSpec(call.toolName);
+            const spec = this.getOwnToolSpec(call.toolName);
             if (!spec) {
                 this.updateToolCall(turn, call.id, {
                     state: 'output-error',
@@ -1517,7 +1537,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     }
 
     private async executeToolAsync(turn: ChatTurn, call: ChatToolCallPart) {
-        const {execute} = this.getToolSpec(call.toolName),
+        const {execute} = this.getOwnToolSpec(call.toolName),
             {signal} = turn.abortController,
             context = {chatModel: this, toolCallId: call.id, signal};
 
@@ -1657,6 +1677,22 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         } catch (e) {
             this.logError('Error in onTurnComplete', e);
         }
+    }
+
+    /** The spec for a tool in `tools`, or null - the only kind that runs or answers a call. */
+    private getOwnToolSpec(name: string): ChatToolSpec {
+        return this.tools.find(it => it.name === name) ?? null;
+    }
+
+    /** The display spec the config's `getToolSpec` returns for an unlisted tool, or null. */
+    private resolveToolSpec(name: string): ChatToolSpec {
+        const {toolSpecFn, resolvedToolSpecs} = this;
+        if (!toolSpecFn || name == null) return null;
+        if (!resolvedToolSpecs.has(name)) {
+            const spec = toolSpecFn(name);
+            resolvedToolSpecs.set(name, spec ? {...pick(spec, TOOL_DISPLAY_KEYS), name} : null);
+        }
+        return resolvedToolSpecs.get(name);
     }
 
     private trackTurn(turn: ChatTurn, message: ChatMessage) {
@@ -1976,6 +2012,17 @@ const STREAM_FLUSH_MS = 32;
 
 /** Resolution of `lastActivityAt`, which changes at most this often. */
 const ACTIVITY_RESOLUTION_MS = 1000;
+
+/** The members of a tool spec that only shape how its calls display. */
+const TOOL_DISPLAY_KEYS: Array<keyof ChatToolSpec> = [
+    'displayName',
+    'icon',
+    'summary',
+    'renderer',
+    'display',
+    'approvalPrompt',
+    'preview'
+];
 
 /** Activity tracking message for a finished turn, by how it ended. */
 const TURN_TRACK_MESSAGES = {

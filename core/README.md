@@ -800,8 +800,9 @@ new ChatModel({
 });
 ```
 
-The row shows the icon, the `displayName` and the `summary`. It has no status or time, as an
-activity happens at one moment. It opens to the data renderer registered for the type, else to
+The row shows the icon, the `displayName` and the `summary`. Like `summary`, `icon` can be a
+function of the part, for an icon per part, such as one for each skill. It has no status or time,
+as an activity happens at one moment. It opens to the data renderer registered for the type, else to
 the part's data as JSON. The `noun` counts the type in the timeline's done line and the reply's
 announcement, as in "Used 5 tools, 2 skills and 1 agent". A type with no `noun` shows rows but
 counts in no summary.
@@ -1028,6 +1029,7 @@ See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatCom
 |----------|------|-------------|
 | `transport` | `ChatTransport` | Connection to the backend. Required. See [`/transport/`](../transport/README.md). |
 | `tools` | `ChatToolSpec[]` | Tools the model can call, and display config for backend tools. Names must be unique. Default none. |
+| `getToolSpec` | `(name) => ChatToolSpec` | How calls to a tool that `tools` does not list display, or null. Only the display members count, and the chat never runs or answers a call through it. Called once per name. For a backend whose tools the app does not know ahead of time. Default none. |
 | `catalog` | `ChatUiCatalog` | Generative UI components the model can show. The chat adds the catalog's tools for its history mode, renders its tags and documents, and sends its version. See [`/genui/`](../genui/README.md#configuration-pattern). Default none. |
 | `dataSource` | `ChatDataSource` | Loads the rows of artifacts not yet in the browser, for the `artifacts` registry. Default none. |
 | `contextProviders` | `ChatContextProvider[]` | Live context to send with every step. See [Send live context with every step](#send-live-context-with-every-step). Default none. |
@@ -1110,7 +1112,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `addSendBlocker(blocker)` | Add a reason for sends to wait, checked after the `sendBlocker`. For a thread layer. |
 | `getMessageSpecs()` | The conversation as `ChatMessageSpec[]`, for storage. |
 | `getMessage(id)` | A message by id, as it is now, or null. |
-| `getToolSpec(name)` | The spec for a tool, or null. |
+| `getToolSpec(name)` | The spec for a tool, or null: the one in `tools`, else the display spec from the config's `getToolSpec`. |
 | `getActivitySpec(dataType)` | The spec for a type of data part, or null. |
 
 The tool call methods log a warning and do nothing if the call does not wait on the user.
@@ -1182,7 +1184,7 @@ merges its history by id finds its own messages.
 |------|------------|-------|
 | `text` | `text`, `state`, `citations?`, `serverId?`, `metadata?` | Markdown. `state` is `streaming`, then `done`. `serverId` is the server's id for the message the text streamed as. `metadata` is the server's metadata for that message. |
 | `reasoning` | `text`, `state`, `startedAt`, `endedAt`, `encryptedValue?`, `providerData?`, `serverId?`, `metadata?` | The model's thinking. `encryptedValue` holds a signature that goes back with the history. `serverId` is the server's id for the reasoning message, and `metadata` its metadata. |
-| `toolCall` | `toolName`, `state`, `inputText`, `input`, `output`, `errorText`, `providerExecuted?`, `startedAt?`, `endedAt?`, `subagentRunId?`, `cancelled?`, `awaitsResume?`, `parentServerId?`, `resultServerId?`, `metadata?` | The `id` is the provider's tool call id. `subagentRunId` names the sub-agent that made the call. `metadata` is the server's metadata for the call, not its result. `cancelled` marks a call that was open when the user stopped the turn. `awaitsResume` marks a server call that an interrupted run left open, which gets its result from the server. `parentServerId` and `resultServerId` are the server's ids for the messages that hold the call and its result. |
+| `toolCall` | `toolName`, `state`, `inputText`, `input`, `output`, `errorText`, `providerExecuted?`, `startedAt?`, `endedAt?`, `subagentRunId?`, `spawnedSubagentRunId?`, `cancelled?`, `awaitsResume?`, `parentServerId?`, `resultServerId?`, `metadata?`, `resultMetadata?` | The `id` is the provider's tool call id. `subagentRunId` names the sub-agent that made the call, and `spawnedSubagentRunId` the one it started. `metadata` is the server's metadata for the call, and `resultMetadata` for its result, less `error`, `isError` and `artifacts`. `cancelled` marks a call that was open when the user stopped the turn. `awaitsResume` marks a server call that an interrupted run left open, which gets its result from the server. `parentServerId` and `resultServerId` are the server's ids for the messages that hold the call and its result. |
 | `file` | `name`, `mediaType`, `size?`, `url?`, `data?` | `data` is base64. |
 | `source` | `sourceType?`, `url?`, `title?`, `snippet?`, `marker?`, `metadata?` | A source the model consulted. `marker` is the number that cites it in the text, as in `[1]`. `sourceType` is `url` or `document`, by default `url` for a source with a `url`. The kit reads `metadata.excerpt`, `fileName` and `page`. |
 | `data` | `dataType`, `data`, `subagentRunId?` | App or protocol content, drawn by `dataRenderers`. `subagentRunId` names the sub-agent it came from. |
@@ -1190,8 +1192,15 @@ merges its history by id finds its own messages.
 A sub-agent is a data part of type `xh.chat.subagent` (`CHAT_SUBAGENT_DATA_TYPE`), with the
 sub-agent's run id as its `id`. The stream reducer adds one for each AG-UI `SUBAGENT_STARTED`
 event and ends it on `SUBAGENT_FINISHED` or `SUBAGENT_ERROR`. Its `data` is a `ChatSubagentData`:
-`name`, `description?`, `parentSubagentRunId?`, `status`, `result?`, `error?`, `startedAt` and
-`endedAt`. Outside an activity timeline, the part renders nothing.
+`name`, `description?`, `parentSubagentRunId?`, `parentToolCallId?`, `status`, `result?`,
+`error?`, `startedAt` and `endedAt`. Outside an activity timeline, the part renders nothing.
+
+A sub-agent's `parentToolCallId` names the call that started it, such as a `task` call. The
+reducer records the sub-agent on that call, as `spawnedSubagentRunId`, and the call then hides:
+the sub-agent's row stands for it, with the sub-agent's `description` as its line. If it fails, it
+displays as its tool's spec says. It also shows while it waits for the user, and else counts in
+no summary. It shows on its own until the
+sub-agent starts, so give the tool `display: 'timeline'` to keep it out of a card meanwhile.
 
 A sub-agent's `status` is `running`, `complete`, `error` or `cancelled`. A sub-agent still
 running when its run ends, with no end event, ends with the run. It completes if the run
@@ -1247,7 +1256,11 @@ views show it as cancelled, not failed. `isToolCallCancelled(part)` tests for it
 | `timeline` | A row in the reply's activity timeline, one compact block for the whole run. Text between two timeline calls folds into the block as narration. A call that waits for an answer shows as its card under the block's line. | Agents that make many calls per reply. See [Activity timeline](../desktop/cmp/chat/README.md#activity-timeline). |
 | `hidden` | Nothing, unless the call waits for the user to approve or answer it. Hidden calls count in no summary. | Bookkeeping calls the user has no use for. |
 
-A call that a sub-agent makes defaults to `timeline`, where it nests under the sub-agent.
+A call that a sub-agent makes defaults to `timeline`, where it nests under the sub-agent. A call
+that started a sub-agent is hidden, whatever its spec says, as the sub-agent's row stands for it,
+unless it fails.
+Calls to tools that `tools` does not list show as cards, unless the config's `getToolSpec` gives
+them a display.
 
 To show an agent's plan, give a plan tool `display: 'inline'` and a `renderer`, or render an
 AG-UI activity with a data renderer. See

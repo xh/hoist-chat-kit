@@ -341,6 +341,27 @@ describe('ChatModel interrupts', () => {
     });
 
     describe('server approvals', () => {
+        it("treats an unlisted tool as the server's even when a display spec resolves for it", async () => {
+            const transport = scripted([
+                    [
+                        toolCallEvents('transfer_funds', {amount: 50}, {toolCallId: 's1'}),
+                        ...interruptEvents([{id: 'a1', reason: 'tool_call', toolCallId: 's1'}])
+                    ],
+                    textEvents('Sent.')
+                ]),
+                model = createModel({
+                    transport,
+                    getToolSpec: name => ({name, display: 'timeline'})
+                });
+            await model.sendAsync('Pay Bob');
+
+            expect(model.lastMessage.toolCalls[0]).toMatchObject({
+                state: 'approval-requested',
+                providerExecuted: true,
+                awaitsResume: true
+            });
+        });
+
         it('asks to approve a server call an interrupt names, and answers with {approved}', async () => {
             const transport = scripted([
                     [

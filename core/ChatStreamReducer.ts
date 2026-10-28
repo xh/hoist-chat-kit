@@ -22,7 +22,7 @@ import type {
     ChatTextPart,
     ChatToolCallPart
 } from './ChatPart';
-import {CHAT_SUBAGENT_DATA_TYPE, type ChatSubagentData} from './ChatSubagent';
+import {CHAT_SUBAGENT_DATA_TYPE, type ChatSubagentData, isChatSubagentPart} from './ChatSubagent';
 import {mergeArtifacts} from '../impl/artifacts';
 import {getRunOutcome} from '@ag-ui/client';
 import {
@@ -316,6 +316,7 @@ export class ChatStreamReducer {
                     this.setToolResult(draft, toolCallId, content, messageId);
                 }
                 if (metadata?.artifacts != null) addArtifacts(draft, metadata.artifacts);
+                this.mergeResultMetadata(draft, toolCallId, metadata);
                 break;
             }
 
@@ -359,6 +360,7 @@ export class ChatStreamReducer {
                     dataType: CHAT_SUBAGENT_DATA_TYPE,
                     data
                 });
+                this.linkSpawningCall(draft, parentToolCallId, subagentRunId);
                 break;
             }
             case 'SUBAGENT_FINISHED':
@@ -747,6 +749,24 @@ export class ChatStreamReducer {
             ...omitBy({subagentRunId, parentServerId: parentMessageId, metadata}, isNil)
         });
         this.lastToolCallId = toolCallId;
+
+        // A sub-agent that named this call as its parent before the call arrived.
+        const spawned = draft.parts.find(
+            it =>
+                isChatSubagentPart(it) &&
+                (it.data as ChatSubagentData)?.parentToolCallId === toolCallId
+        );
+        if (spawned) this.linkSpawningCall(draft, toolCallId, spawned.id);
+    }
+
+    /**
+     * Record on a call the sub-agent it started - see `ChatToolCallPart.spawnedSubagentRunId`. The
+     * first sub-agent to name the call keeps it.
+     */
+    private linkSpawningCall(draft: Draft, toolCallId: string, subagentRunId: string) {
+        const call = toolCallId != null ? getPart<ChatToolCallPart>(draft, toolCallId) : null;
+        if (call?.type !== 'toolCall' || call.spawnedSubagentRunId != null) return;
+        putPart(draft, {...call, spawnedSubagentRunId: subagentRunId});
     }
 
     private appendToolArgs(draft: Draft, toolCallId: string, delta: string) {
@@ -801,6 +821,18 @@ export class ChatStreamReducer {
             errorText: errorText || 'The tool failed.',
             ...omitBy({resultServerId}, isNil)
         });
+    }
+
+    /**
+     * Merge a result's metadata into its call's `resultMetadata`, key by key, less the keys the
+     * kit reads: the error, which the call's state and `errorText` hold, and the artifacts, which
+     * move to the reply's own metadata.
+     */
+    private mergeResultMetadata(draft: Draft, toolCallId: string, metadata: PlainObject) {
+        const part = getPart<ChatToolCallPart>(draft, toolCallId),
+            rest = omit(metadata, RESULT_KEYS_READ);
+        if (!part || isEmpty(rest)) return;
+        putPart(draft, {...part, resultMetadata: mergeMetadata(part.resultMetadata, rest)});
     }
 
     // Results come from the backend, so the call is marked as run there.
@@ -1012,6 +1044,9 @@ function putPart(draft: Draft, part: ChatPart) {
     if (draft.status === 'pending') draft.status = 'streaming';
     draft.changed = true;
 }
+
+/** Keys of a result's metadata that the kit reads, and so leaves out of `resultMetadata`. */
+const RESULT_KEYS_READ = ['error', 'isError', 'artifacts'];
 
 /** True for an end event that marks its part superseded - see `ChatStreamReducer`. */
 function isSuperseded(event: {metadata?: PlainObject}): boolean {

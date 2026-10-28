@@ -765,10 +765,12 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
         isDone = !isLive && !isPaused,
         elapsed = !isLive ? formatElapsed(metadata?.elapsedMs) : null,
         thought = isDone ? formatElapsed(getHiddenThoughtMs(message)) : null,
-        // A timeline counts its own failures.
+        // A timeline counts its own failures, and hidden calls count in no summary.
         failedTools = isDone
             ? message.toolCalls.filter(
-                  it => isToolCallFailed(it) && getToolCallDisplay(it, host) !== 'timeline'
+                  it =>
+                      isToolCallFailed(it) &&
+                      !['timeline', 'hidden'].includes(getToolCallDisplay(it, host))
               ).length
             : 0,
         // Parts of an attempt that a retry replaced are gone. A quiet note says why, live too, as

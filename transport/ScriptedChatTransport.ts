@@ -348,6 +348,9 @@ export interface ScriptedSubagentOptions {
     /** What the sub-agent was asked to do. */
     description?: string;
 
+    /** Id of the tool call that started the sub-agent, whose row then stands for the call. */
+    parentToolCallId?: string;
+
     /** What the sub-agent found, shown as its result line. */
     result?: any;
 
@@ -373,7 +376,7 @@ export function subagentEvents(
     items: ScriptedItem[],
     opts: ScriptedSubagentOptions = {}
 ): ScriptedItem[] {
-    const {subagentRunId = genChatId(), description, result, error} = opts,
+    const {subagentRunId = genChatId(), description, parentToolCallId, result, error} = opts,
         inner = (flattenDeep(items) as Array<ChatEvent | ScriptedDelay>).map(item =>
             claimForSubagent(item, subagentRunId)
         );
@@ -382,7 +385,8 @@ export function subagentEvents(
             type: 'SUBAGENT_STARTED',
             subagentRunId,
             name,
-            ...(description != null ? {description} : {})
+            ...(description != null ? {description} : {}),
+            ...(parentToolCallId != null ? {parentToolCallId} : {})
         },
         ...inner,
         error != null

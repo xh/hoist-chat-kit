@@ -318,7 +318,17 @@ function encodeGroup(group: AgUiMessageGroup): PlainObject {
             const {call} = group,
                 content = toolResultText(call),
                 error = call.state === 'output-available' ? null : content;
-            return omitBy({id, role: 'tool', toolCallId: call.id, content, error}, isNil);
+            return omitBy(
+                {
+                    id,
+                    role: 'tool',
+                    toolCallId: call.id,
+                    content,
+                    error,
+                    metadata: call.resultMetadata
+                },
+                isNil
+            );
         }
         default:
             return null;

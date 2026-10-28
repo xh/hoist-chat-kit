@@ -31,8 +31,12 @@ export interface ChatActivitySpec {
     /** Title for the part's timeline row. Defaults to the `dataType`, humanized. */
     displayName?: string;
 
-    /** Icon for the part's timeline row. */
-    icon?: ReactElement;
+    /**
+     * Icon for the part's timeline row - one for every part of the type, or a function that
+     * returns one for each part, such as an icon for the skill it names. A function that returns
+     * null gets the default icon.
+     */
+    icon?: ReactElement | ((part: ChatDataPart) => ReactElement);
 
     /** One-line summary of a part, shown next to its title - e.g. the name of the skill. */
     summary?: (part: ChatDataPart) => string;

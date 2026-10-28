@@ -274,6 +274,34 @@ describe('AgUiCodec', () => {
             ]);
         });
 
+        it("sends a result's metadata with its tool message, and the call's with the call", () => {
+            const reply = new ChatMessage({
+                    id: 'a1',
+                    role: 'assistant',
+                    status: 'complete',
+                    parts: [
+                        toolCall('c1', 0, {
+                            resultServerId: 't1',
+                            spawnedSubagentRunId: 'sa1',
+                            metadata: {source: 'warehouse'},
+                            resultMetadata: {rowCount: 3}
+                        })
+                    ]
+                }),
+                {messages} = new AgUiCodec().encodeRequest(request([user('Hi'), reply]));
+
+            expect(messages[1].toolCalls[0].metadata).toEqual({source: 'warehouse'});
+            // The kit's own link to a sub-agent stays in the browser.
+            expect(JSON.stringify(messages)).not.toContain('spawned');
+            expect(messages[2]).toEqual({
+                id: 't1',
+                role: 'tool',
+                toolCallId: 'c1',
+                content: 'null',
+                metadata: {rowCount: 3}
+            });
+        });
+
         it("sends the server's id for a message the server reported one for", () => {
             const question = new ChatMessage({
                     id: 'u1',

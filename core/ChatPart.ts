@@ -201,9 +201,26 @@ export interface ChatToolCallPart extends ChatPartBase {
     /**
      * Metadata the server attached to the call - AG-UI's `metadata` on its `TOOL_CALL_*` events,
      * merged key by key, with the last write winning. `AgUiCodec` sends it back with the call in
-     * the history. The metadata of its result is not kept here.
+     * the history. The metadata of its result is in `resultMetadata`.
      */
     metadata?: PlainObject;
+
+    /**
+     * The sub-agent this call started, when an AG-UI `SUBAGENT_STARTED` names the call as its
+     * `parentToolCallId` - the first, if more than one does. The sub-agent's timeline row stands
+     * for the call. It displays as its tool's spec says only if it fails, shows while it waits for
+     * the user, and else counts in no summary.
+     */
+    spawnedSubagentRunId?: string;
+
+    /**
+     * Metadata the server attached to the call's result - AG-UI's `metadata` on its
+     * `TOOL_CALL_RESULT`, such as data for the app to show beside the output. The keys the kit
+     * reads are left out: `error` and `isError`, which the call's state holds, and `artifacts`,
+     * which the reply's own metadata holds. `AgUiCodec` sends it back with the result's tool
+     * message in the history.
+     */
+    resultMetadata?: PlainObject;
 
     /** Opaque provider data - see {@link ChatProviderData}. */
     providerData?: ChatProviderData;

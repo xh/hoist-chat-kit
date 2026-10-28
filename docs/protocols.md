@@ -50,11 +50,11 @@ model and reducer, and does not use the client's agent classes.
 | Run lifecycle | `RUN_STARTED`, `RUN_FINISHED` and `RUN_ERROR`. `RUN_FINISHED` sets the finish reason, usage and metadata. A new run after `RUN_ERROR` clears the error. The kit checks the sequence rules. | - |
 | Validation | The kit drops events of an unknown type and strips unknown fields, each with a console warning. A malformed known field fails the turn. | - |
 | Text | `TEXT_MESSAGE_*`, chunks included, as text parts that keep the server's message ids and metadata. | - |
-| Tool calls | `TOOL_CALL_*` and `TOOL_CALL_RESULT`, as tool call parts, run in the browser or by the backend. A call keeps the server's ids for its message and its result, and its metadata. A result with `metadata.error` fails its call. | Metadata on a result. |
+| Tool calls | `TOOL_CALL_*` and `TOOL_CALL_RESULT`, as tool call parts, run in the browser or by the backend. A call keeps the server's ids for its message and its result, and the metadata of both. A result with `metadata.error` fails its call. | - |
 | Reasoning | `REASONING_*` and `REASONING_ENCRYPTED_VALUE`, as reasoning parts, with signatures, metadata and the server's message ids kept for the history. | - |
 | Activity | `ACTIVITY_SNAPSHOT`, as data parts keyed by `activityType`, with their `subagentRunId`. A `ChatActivitySpec` shows a type as a row in the activity timeline. | `ACTIVITY_DELTA`. |
 | Sub-agents | `SUBAGENT_*`, as data parts of type `xh.chat.subagent`. The timeline nests their calls and activities. | Attribution of text and reasoning to a sub-agent. |
-| Metadata | Metadata on text, reasoning and tool calls, merged from their events and sent back with the history. `metadata` on events the kit reads, such as `RUN_ERROR` and `TOOL_CALL_RESULT`. | Metadata on a tool result or an activity. |
+| Metadata | Metadata on text, reasoning, tool calls and tool results, merged from their events and sent back with the history. `metadata` on events the kit reads, such as `RUN_ERROR` and `TOOL_CALL_RESULT`. | Metadata on an activity. |
 | Shared state | The `state` a codec sends with each run. | `STATE_SNAPSHOT` and `STATE_DELTA`. |
 | History snapshots | - | `MESSAGES_SNAPSHOT`. |
 | Pass-through | `CUSTOM` events named `xh.chat.*`. Others are ignored, as is `RAW`. | - |

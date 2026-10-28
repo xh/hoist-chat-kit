@@ -597,6 +597,53 @@ describe('ChatModel', () => {
             expect(transport.requests).toHaveLength(2);
         });
 
+        it("resolves an unlisted tool's display spec once, and never runs a call through it", async () => {
+            const execute = vi.fn(),
+                getToolSpec = vi.fn((name: string) => ({
+                    name,
+                    displayName: `Provider ${name}`,
+                    display: 'timeline' as const,
+                    execute,
+                    interactive: true
+                })),
+                transport = scripted([
+                    toolCallEvents('acme__search', {}, {toolCallId: 'c1'}),
+                    textEvents('Nothing found.')
+                ]),
+                model = createModel({
+                    transport,
+                    tools: [{name: 'listed', display: 'card'}],
+                    getToolSpec
+                });
+
+            await model.sendAsync('Search');
+
+            // The call ran nowhere: the browser has no handler for it, and the backend sent none.
+            expect(execute).not.toHaveBeenCalled();
+            expect(toolCall(model, 'c1')).toMatchObject({
+                state: 'output-error',
+                errorText: "No handler for tool 'acme__search'."
+            });
+            const spec = model.getToolSpec('acme__search');
+            expect(spec).toEqual({
+                name: 'acme__search',
+                displayName: 'Provider acme__search',
+                display: 'timeline'
+            });
+            expect(model.getToolSpec('acme__search')).toBe(spec);
+            expect(model.getToolSpec('listed').display).toBe('card');
+            expect(getToolSpec).toHaveBeenCalledExactlyOnceWith('acme__search');
+        });
+
+        it('asks the resolver once for a name it has no spec for', () => {
+            const getToolSpec = vi.fn(() => null),
+                model = createModel({transport: scripted([]), getToolSpec});
+
+            expect(model.getToolSpec('unknown')).toBeNull();
+            expect(model.getToolSpec('unknown')).toBeNull();
+            expect(getToolSpec).toHaveBeenCalledOnce();
+        });
+
         it('ends the turn without another call when only backend tools ran', async () => {
             const transport = scripted([
                     [

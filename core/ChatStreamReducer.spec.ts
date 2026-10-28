@@ -533,6 +533,60 @@ describe('ChatStreamReducer', () => {
             });
         });
 
+        it("keeps a result's metadata apart from the call's, less the artifacts it records", () => {
+            const message = reduce([
+                {
+                    type: 'TOOL_CALL_START',
+                    toolCallId: 'c1',
+                    toolCallName: 'runSql',
+                    metadata: {source: 'warehouse'}
+                },
+                {type: 'TOOL_CALL_END', toolCallId: 'c1'},
+                {
+                    type: 'TOOL_CALL_RESULT',
+                    messageId: 'res1',
+                    toolCallId: 'c1',
+                    content: 'ok',
+                    metadata: {
+                        table: {columns: ['desk'], rows: [['Rates']]},
+                        artifacts: [
+                            {id: 'a1', columns: [{name: 'n', type: 'number'}], totalRows: 3}
+                        ]
+                    }
+                }
+            ]);
+            const call = message.parts[0] as ChatToolCallPart;
+
+            expect(call.metadata).toEqual({source: 'warehouse'});
+            expect(call.resultMetadata).toEqual({table: {columns: ['desk'], rows: [['Rates']]}});
+            expect(message.metadata.artifacts).toHaveLength(1);
+        });
+
+        it('leaves out of the result metadata the error that the call itself holds', () => {
+            const message = reduce([
+                ...toolCall('c1', 'runSql', '{}'),
+                {
+                    type: 'TOOL_CALL_RESULT',
+                    messageId: 'res1',
+                    toolCallId: 'c1',
+                    content: 'Timed out.',
+                    metadata: {isError: true, query: 'q1'}
+                }
+            ]);
+            const call = message.parts[0] as ChatToolCallPart;
+
+            expect(call.state).toBe('output-error');
+            expect(call.resultMetadata).toEqual({query: 'q1'});
+        });
+
+        it('keeps no result metadata for a result that sends none', () => {
+            const message = reduce([
+                ...toolCall('c1', 'webSearch', '{}'),
+                {type: 'TOOL_CALL_RESULT', messageId: 'res1', toolCallId: 'c1', content: 'Done.'}
+            ]);
+            expect((message.parts[0] as ChatToolCallPart).resultMetadata).toBeUndefined();
+        });
+
         it('keeps a non-JSON result as text', () => {
             const message = reduce([
                 ...toolCall('c1', 'webSearch', '{}'),
@@ -919,6 +973,39 @@ describe('ChatStreamReducer', () => {
         it('adds no metadata to a part whose events carry none', () => {
             const [part] = reduce(text('m1', 'Hi')).parts;
             expect(part).not.toHaveProperty('metadata');
+        });
+    });
+
+    describe('a call that starts a sub-agent', () => {
+        const started = (parentToolCallId: string): ChatEvent => ({
+            type: 'SUBAGENT_STARTED',
+            subagentRunId: 'sa1',
+            name: 'Researcher',
+            parentToolCallId
+        });
+
+        it('records the sub-agent on the call that its parentToolCallId names', () => {
+            const message = reduce([...toolCall('task1', 'task', '{}'), started('task1')]);
+            expect(message.toolCalls[0].spawnedSubagentRunId).toBe('sa1');
+        });
+
+        it('links the call when it arrives after the sub-agent names it', () => {
+            const message = reduce([started('task1'), ...toolCall('task1', 'task', '{}')]);
+            expect(message.toolCalls[0].spawnedSubagentRunId).toBe('sa1');
+        });
+
+        it('keeps the first sub-agent to name the call, in either order', () => {
+            const second = {...started('task1'), subagentRunId: 'sa2'} as ChatEvent,
+                callFirst = reduce([...toolCall('task1', 'task', '{}'), started('task1'), second]),
+                callLast = reduce([started('task1'), second, ...toolCall('task1', 'task', '{}')]);
+
+            expect(callFirst.toolCalls[0].spawnedSubagentRunId).toBe('sa1');
+            expect(callLast.toolCalls[0].spawnedSubagentRunId).toBe('sa1');
+        });
+
+        it('links nothing for a parent call not in the reply', () => {
+            const message = reduce([...toolCall('c1', 'lookup', '{}'), started('elsewhere')]);
+            expect(message.toolCalls[0].spawnedSubagentRunId).toBeUndefined();
         });
     });
 

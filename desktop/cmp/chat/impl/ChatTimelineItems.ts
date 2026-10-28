@@ -2,6 +2,7 @@ import {
     compact,
     countBy,
     isEqual,
+    isFunction,
     isNil,
     isPlainObject,
     isString,
@@ -10,6 +11,7 @@ import {
     minBy,
     uniq
 } from 'lodash';
+import type {ReactElement} from 'react';
 import {pluralize} from '@xh/hoist/utils/js';
 import {
     type ChatActivitySpec,
@@ -364,6 +366,15 @@ export function describeActivity(
         title: spec?.displayName ?? humanizeToolName(part.dataType),
         summary: spec?.summary?.(part) || null
     };
+}
+
+/**
+ * The icon of an activity's row, from its type's `icon`, or null for the default.
+ * @internal
+ */
+export function getActivityIcon(part: ChatDataPart, spec: ChatActivitySpec): ReactElement {
+    const icon = spec?.icon;
+    return (isFunction(icon) ? icon(part) : icon) ?? null;
 }
 
 /**

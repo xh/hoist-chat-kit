@@ -232,8 +232,8 @@ Close only what the suite reports:
 
 - keep the server's message ids on parts - done with item 3, as the whole history needs them
   (D87). It also closed the reopened-message fixture.
-- merge per-item metadata onto parts - done for text, reasoning and tool calls, and sent back with
-  the history. A tool result's and an activity's metadata are not kept.
+- merge per-item metadata onto parts - done for text, reasoning, tool calls and tool results
+  (`resultMetadata`), and sent back with the history. An activity's metadata is not kept.
 - attribute text and reasoning to their sub-agent - moved to item 8. It is not a simple gap.
 
 Leave activity patches and history snapshots for item 7.

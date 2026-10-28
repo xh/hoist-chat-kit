@@ -595,8 +595,9 @@ runs, or an `error` for one that fails. `interruptEvents()` ends the run with in
 user questions. A script reads the answers from the next request's `resume`. `subagentEvents()`
 wraps events in a sub-agent's start and end, and marks its tool calls and activities as the
 sub-agent's. The activity timeline nests its calls, and its activities whose spec has `display:
-'timeline'`. `activityEvents()` writes an AG-UI `ACTIVITY_SNAPSHOT`, such as a skill the agent
-loads. A response can also be an async iterable of events, which sets its own pace.
+'timeline'`. Its `parentToolCallId` option names the call that started it. `activityEvents()` writes
+an AG-UI `ACTIVITY_SNAPSHOT`, such as a skill the agent loads. A response can also be an async
+iterable of events, which sets its own pace.
 
 In a unit test, set `delayMs: 0` and read `transport.requests` to check what the chat sent:
 
@@ -1114,15 +1115,17 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 | `TOOL_CALL_ARGS` | `toolCallId`, `delta` | Appends to `inputText`, with a best-effort parse into `input`. |
 | `TOOL_CALL_END` | `toolCallId`, `metadata?` | Parses the input. `input-available`, or `output-error` for bad JSON. Drops the call with `metadata.superseded: true`. |
 | `TOOL_CALL_CHUNK` | `toolCallId?`, `toolCallName?`, `delta?` | Starts or appends. |
-| `TOOL_CALL_RESULT` | `toolCallId`, `messageId`, `content`, `metadata?` | `output-available`, with `providerExecuted: true` and the `messageId` as `resultServerId`. JSON content is parsed. `output-error` if `metadata.error` or `metadata.isError` is set. |
+| `TOOL_CALL_RESULT` | `toolCallId`, `messageId`, `content`, `metadata?` | `output-available`, with `providerExecuted: true` and the `messageId` as `resultServerId`. JSON content is parsed. `output-error` if `metadata.error` or `metadata.isError` is set. Keeps the `metadata` as the call's `resultMetadata`, less `error`, `isError` and `artifacts`. |
 | `ACTIVITY_SNAPSHOT` | `messageId`, `activityType`, `content`, `replace?` | Adds or replaces a data part, with `dataType` set to `activityType`. |
-| `SUBAGENT_STARTED` | `subagentRunId`, `name`, `description?`, `parentSubagentRunId?` | Adds a data part of type `xh.chat.subagent`, with the run id as its id. Tool calls with the same `subagentRunId` nest under it in the activity timeline. |
+| `SUBAGENT_STARTED` | `subagentRunId`, `name`, `description?`, `parentSubagentRunId?`, `parentToolCallId?` | Adds a data part of type `xh.chat.subagent`, with the run id as its id. Tool calls with the same `subagentRunId` nest under it in the activity timeline. A call that `parentToolCallId` names hides, as the sub-agent's row stands for it, unless it fails. |
 | `SUBAGENT_FINISHED`, `SUBAGENT_ERROR` | `subagentRunId`, `result?` or `message`, `outcome?` | Ends the sub-agent's data part, with its result or error. A `suspended` outcome sets it `waiting` for the user, until a later run starts it again. |
 | `CUSTOM` | `name`, `value` | The `xh.chat.*` events below. Others are ignored. |
 
 A text, reasoning or tool call part keeps the `metadata` of its events, merged key by key, with
 the last write winning, and `AgUiCodec` sends it back with the history. A reasoning span's
-`REASONING_START` adds none. A result's metadata stays off its call.
+`REASONING_START` adds none. A result's metadata goes to its call's `resultMetadata`, apart from
+the call's own, less the `error`, `isError` and `artifacts` that the kit reads. `AgUiCodec` sends
+it back on the result's `role: 'tool'` message.
 
 Ignored: `STEP_STARTED`, `STEP_FINISHED`, `RAW`, `STATE_SNAPSHOT`, `STATE_DELTA`,
 `MESSAGES_SNAPSHOT` and `ACTIVITY_DELTA`. `AgUiCodec` drops events of an unknown type, and expands

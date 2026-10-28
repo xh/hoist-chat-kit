@@ -26,6 +26,7 @@ import {
     type ChatTimelineCallItem,
     type ChatTimelineItem,
     describeActivity,
+    getActivityIcon,
     formatStepDuration,
     getSpanMs,
     getTimelineCalls,
@@ -398,7 +399,7 @@ function activityRow(
                 depth,
                 isOpen,
                 hasDetails,
-                icon: spec?.icon ?? Icon.bolt(),
+                icon: getActivityIcon(part, spec) ?? Icon.bolt(),
                 title: depthTitle(title, depth, parentName),
                 input: summary
             }),

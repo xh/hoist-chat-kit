@@ -10,7 +10,8 @@ import {
     type ChatToolSpec,
     type ChatTranscript,
     CHAT_SUBAGENT_DATA_TYPE,
-    isChatModel
+    isChatModel,
+    isToolCallFailed
 } from '../../../../core';
 import {isAwaitingAnswer} from './ToolCallStatus';
 
@@ -97,13 +98,18 @@ export function getActivityDisplay(part: ChatDataPart, host: ChatTranscript): Ch
 
 /**
  * How a call displays, from its tool's spec - see `ChatToolDisplay`. A call a sub-agent made
- * defaults to `timeline`, where it nests under the sub-agent. A hidden call shows as a card while
- * it waits for the user, so that a turn never waits on a call no one can see.
+ * defaults to `timeline`, where it nests under the sub-agent. A call that started a sub-agent is
+ * hidden, as the sub-agent's row stands for it - unless it failed, as the row may not say so. A
+ * hidden call shows as a card while it waits for the user, so that a turn never waits on a call
+ * no one can see.
  * @internal
  */
 export function getToolCallDisplay(call: ChatToolCallPart, host: ChatTranscript): ChatToolDisplay {
     const spec = getHostToolSpec(host, call.toolName),
-        display = spec?.display ?? (call.subagentRunId != null ? 'timeline' : 'card');
+        display =
+            call.spawnedSubagentRunId != null && !isToolCallFailed(call)
+                ? 'hidden'
+                : (spec?.display ?? (call.subagentRunId != null ? 'timeline' : 'card'));
     if (display === 'hidden' && isWaitingForUser(call, host)) return 'card';
     return display;
 }
