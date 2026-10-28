@@ -1,22 +1,27 @@
 import {compact} from 'lodash';
 import {
+    type ChatDataPart,
     type ChatMessage,
     type ChatTextPart,
     type ChatTranscript,
     isChatSubagentPart,
     isToolCallFailed
 } from '../../../../core';
-import {getToolCallDisplay, groupParts} from './groupParts';
+import {joinWithAnd} from './ChatFormat';
+import {countTimelineWork} from './ChatTimelineItems';
+import {getActivityDisplay, getToolCallDisplay, groupParts} from './groupParts';
 
 /**
- * What the announcer reads when a reply finishes: who replied, after how many tools and agents,
- * how long, and how many tools failed, then the reply's first paragraph as plain text, cut at 300
- * characters. "Continues in the message." follows when more is left to read. For example "Analyst
- * replied after 7 tools and 1 agent, 42 seconds, 1 failed. HY Credit is the only desk over its
- * limit." This is also the activity timeline's done summary, which is never announced alone.
+ * What the announcer reads when a reply finishes: who replied, after how many tools, counted
+ * activities and agents, how long, and how many tools failed, then the reply's first paragraph as
+ * plain text, cut at 300 characters. "Continues in the message." follows when more is left to
+ * read. For example "Analyst replied after 7 tools and 1 agent, 42 seconds, 1 failed. HY Credit
+ * is the only desk over its limit." This is also the activity timeline's done summary, which is
+ * never announced alone.
  *
  * With a host to say how each tool displays, calls to `hidden` tools do not count, and narration
- * in an activity timeline is not read as the answer.
+ * in an activity timeline is not read as the answer. Activities count only with a host, by the
+ * `noun` of their type's spec, as in "after 5 tools and 2 skills".
  * @internal
  */
 export function formatReplyAnnouncement(
@@ -27,16 +32,18 @@ export function formatReplyAnnouncement(
     const calls = message.toolCalls.filter(
             it => !host || getToolCallDisplay(it, host) !== 'hidden'
         ),
-        tools = calls.length,
-        agents = message.parts.filter(isChatSubagentPart).length,
+        activities = message.parts.filter(
+            (it): it is ChatDataPart =>
+                it.type === 'data' &&
+                !isChatSubagentPart(it) &&
+                getActivityDisplay(it, host) !== 'hidden'
+        ),
+        agentCount = message.parts.filter(isChatSubagentPart).length,
         failed = calls.filter(isToolCallFailed).length,
         secs = Math.round((message.metadata.elapsedMs ?? 0) / 1000),
-        work = compact([
-            tools ? plural(tools, 'tool') : null,
-            agents ? plural(agents, 'agent') : null
-        ]),
+        work = countTimelineWork({calls, activities, agentCount}, host),
         after = compact([
-            work.length ? work.join(' and ') : null,
+            joinWithAnd(work),
             secs ? plural(secs, 'second') : null,
             failed ? `${failed} failed` : null
         ]),

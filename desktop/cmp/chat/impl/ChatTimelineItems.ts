@@ -1,5 +1,18 @@
-import {isEqual, isNil, isPlainObject, isString, last, maxBy, minBy} from 'lodash';
 import {
+    compact,
+    countBy,
+    isEqual,
+    isNil,
+    isPlainObject,
+    isString,
+    last,
+    maxBy,
+    minBy,
+    uniq
+} from 'lodash';
+import {pluralize} from '@xh/hoist/utils/js';
+import {
+    type ChatActivitySpec,
     type ChatDataPart,
     type ChatMessage,
     type ChatPart,
@@ -9,12 +22,14 @@ import {
     type ChatToolCallPart,
     type ChatToolSpec,
     type ChatTranscript,
+    CHAT_SUBAGENT_DATA_TYPE,
     isChatSubagentPart,
     isToolCallCancelled,
     isToolCallFailed,
     isToolCallFinal
 } from '../../../../core';
-import {getHostToolSpec} from './groupParts';
+import {getHostActivitySpec, getHostToolSpec} from './groupParts';
+import {humanizeToolName} from './ChatFormat';
 import {isAwaitingAnswer} from './ToolCallStatus';
 
 /**
@@ -26,7 +41,8 @@ export type ChatTimelineItem =
     | ChatTimelineBatchItem
     | ChatTimelineNarrationItem
     | ChatTimelineReasoningItem
-    | ChatTimelineAgentItem;
+    | ChatTimelineAgentItem
+    | ChatTimelineActivityItem;
 
 /** @internal */
 export interface ChatTimelineCallItem {
@@ -68,27 +84,32 @@ export interface ChatTimelineAgentItem {
     items: ChatTimelineItem[];
 }
 
+/** A data part shown as a row - an agent's activity that is not a tool call. @internal */
+export interface ChatTimelineActivityItem {
+    type: 'activity';
+    id: string;
+    part: ChatDataPart;
+}
+
 /** Calls of one tool in a row that merge into a batch. @internal */
 export const TIMELINE_BATCH_MIN = 3;
 
 /**
- * The rows of a timeline, from the parts of its block. Calls and sub-agents nest under the
- * sub-agent that made them. Three or more consecutive calls of one tool, with no narration
- * between, merge into a batch. A call that waits for the user never joins a batch.
+ * The rows of a timeline, from the parts of its block. Calls, activities and sub-agents nest
+ * under the sub-agent that made them. Three or more consecutive calls of one tool, with no
+ * narration between, merge into a batch. A call that waits for the user never joins a batch.
  * @internal
  */
 export function buildTimelineItems(parts: ChatPart[], host: ChatTranscript): ChatTimelineItem[] {
     const agentIds = new Set(parts.filter(isChatSubagentPart).map(it => it.id)),
         retries = getRetries(parts),
         scopeOf = (part: ChatPart): string => {
-            if (part.type === 'toolCall') {
-                return agentIds.has(part.subagentRunId) ? part.subagentRunId : null;
-            }
-            if (isChatSubagentPart(part)) {
+            if (part.type !== 'toolCall' && part.type !== 'data') return null;
+            if (part.type === 'data' && part.dataType === CHAT_SUBAGENT_DATA_TYPE) {
                 const parentId = (part.data as ChatSubagentData)?.parentSubagentRunId;
                 return agentIds.has(parentId) && parentId !== part.id ? parentId : null;
             }
-            return null;
+            return agentIds.has(part.subagentRunId) ? part.subagentRunId : null;
         },
         build = (scope: string, seen: Set<string>): ChatTimelineItem[] => {
             const items: ChatTimelineItem[] = [];
@@ -112,8 +133,12 @@ export function buildTimelineItems(parts: ChatPart[], host: ChatTranscript): Cha
                         items.push({type: 'reasoning', id: part.id, part});
                         return;
                     case 'data': {
+                        if (part.dataType !== CHAT_SUBAGENT_DATA_TYPE) {
+                            items.push({type: 'activity', id: part.id, part});
+                            return;
+                        }
                         // Guard a cycle of parents, which would nest forever.
-                        if (!isChatSubagentPart(part) || seen.has(part.id)) return;
+                        if (seen.has(part.id)) return;
                         const nextSeen = new Set(seen).add(part.id);
                         items.push({
                             type: 'agent',
@@ -146,6 +171,20 @@ export function getTimelineCalls(items: ChatTimelineItem[]): ChatToolCallPart[] 
     });
 }
 
+/** Every activity in a list of rows, at any depth, in order. @internal */
+export function getTimelineActivities(items: ChatTimelineItem[]): ChatDataPart[] {
+    return items.flatMap(item => {
+        switch (item.type) {
+            case 'activity':
+                return [item.part];
+            case 'agent':
+                return getTimelineActivities(item.items);
+            default:
+                return [];
+        }
+    });
+}
+
 /** Every sub-agent in a list of rows, at any depth. @internal */
 export function getTimelineAgents(items: ChatTimelineItem[]): ChatTimelineAgentItem[] {
     return items.flatMap(item =>
@@ -160,6 +199,9 @@ export function getTimelineAgents(items: ChatTimelineItem[]): ChatTimelineAgentI
 export interface ChatTimelineSummary {
     /** Every call, at any depth, in order. */
     calls: ChatToolCallPart[];
+
+    /** Every activity, at any depth, in order. */
+    activities: ChatDataPart[];
     agentCount: number;
 
     /** Calls that failed - not those cancelled by a stop. */
@@ -192,6 +234,9 @@ export interface ChatTimelineSummary {
     /** The latest finished sentence of narration, if narration is the newest row, or null. */
     narration: string;
 
+    /** The newest row, if it is an activity, or null. */
+    activity: ChatDataPart;
+
     /** True if reasoning is the newest row and still streams. */
     isThinking: boolean;
 }
@@ -209,6 +254,7 @@ export function summarizeTimeline(
 
     return {
         calls,
+        activities: getTimelineActivities(items),
         agentCount: getTimelineAgents(items).length,
         failedCount: failed.length,
         cancelledCount: calls.filter(isToolCallCancelled).length,
@@ -227,6 +273,7 @@ export function summarizeTimeline(
         question: questions[0] ?? null,
         questions,
         narration: newest?.type === 'narration' ? lastSentence(newest.part) : null,
+        activity: newest?.type === 'activity' ? newest.part : null,
         isThinking: newest?.type === 'reasoning' && newest.part.state === 'streaming'
     };
 }
@@ -282,6 +329,43 @@ export function getTimelineState({
 //------------------
 // Text
 //------------------
+/**
+ * What a timeline's work counts as, in order: "5 tools", "2 skills", "1 agent". Activities count
+ * by the `noun` of their type's spec, in order of first use. Those with no noun do not count.
+ * @internal
+ */
+export function countTimelineWork(
+    {
+        calls,
+        activities,
+        agentCount
+    }: Pick<ChatTimelineSummary, 'calls' | 'activities' | 'agentCount'>,
+    host: ChatTranscript
+): string[] {
+    const nouns = compact(activities.map(it => getHostActivitySpec(host, it.dataType)?.noun)),
+        counts = countBy(nouns);
+    return compact([
+        calls.length ? pluralize('tool', calls.length, true) : null,
+        ...uniq(nouns).map(noun => pluralize(noun, counts[noun], true)),
+        agentCount ? pluralize('agent', agentCount, true) : null
+    ]);
+}
+
+/**
+ * The title and one-line summary of an activity, for its row: its type's `displayName`, else the
+ * `dataType` humanized, and its type's `summary`.
+ * @internal
+ */
+export function describeActivity(
+    part: ChatDataPart,
+    spec: ChatActivitySpec
+): {title: string; summary: string} {
+    return {
+        title: spec?.displayName ?? humanizeToolName(part.dataType),
+        summary: spec?.summary?.(part) || null
+    };
+}
+
 /**
  * The input of a call as one line, for its row: the tool's own `summary`, else the first text
  * value of its input - a query's first line, a path, a search phrase - with runs of whitespace

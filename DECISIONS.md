@@ -1639,3 +1639,33 @@ interface (D82).
 
 **Alternatives.** Build a `ChatUiCatalog` for display alone. That carries a catalog's weight for
 three fields a spec already has.
+
+## D99. An agent's activities show in the timeline, through `ChatActivitySpec`
+
+**Decision.** An app shows an agent's activity that is not a tool call, such as a skill it loads,
+as a row in the activity timeline. `ChatModelConfig.activities` takes a `ChatActivitySpec` per
+`dataType`: `display`, `displayName`, `icon`, `summary` and `noun`. `display` is `inline`, the
+default and the behavior before, `timeline` or `hidden`. A `timeline` part joins the block as a
+peer of the calls, in order, and nests under the sub-agent its `subagentRunId` names. The stream
+reducer now keeps that id from `ACTIVITY_SNAPSHOT` and `xh.chat.data`. A part with no spec stays
+inline even with the id, unlike a sub-agent's call, as AG-UI activities also carry forms and
+cards that must not move into a closed row. The row has no status or time, and opens
+to the type's data renderer, else the data as JSON. The `noun` counts the type in the done line
+and the announcement, as in "Used 5 tools, 2 skills and 1 agent". `ChatTranscript` takes an
+optional `getActivitySpec`, as it takes `getToolSpec` (D98). `activityEvents()` scripts one.
+
+**Why.** The app on the thread seam has an auto router that picks skills, and its users see
+skill selection and tool calls as the same kind of work. AG-UI defines no skill, but its
+`ACTIVITY_SNAPSHOT` carries an app-defined `activityType` and a `subagentRunId`. That covers a
+skill load with no extension to the protocol, and leaves the kit naming no skill itself. The
+spec mirrors `ChatToolSpec`, so a skill row reads like a call row. The app hosts the timeline
+over its own conversation, which makes it a second implementer of the lookup (D82).
+
+**Alternatives.** A kit-defined `xh.chat.skill` type: it names one app's concept in the kit, and
+the next app's routes or plans would each need their own. A second block for activities beside
+the timeline: users would open two controls for one run of work. Display settings on
+`dataRenderers`: it is a map of functions, and a renderer is not where display mode belongs.
+
+**Deferred.** The rest of the app's list waits for a follow-up: folding the call that launched a
+sub-agent into its row, an "outcome unknown" status, hiding a sub-agent's report, and nesting a
+sub-agent's text and reasoning (plan item 8 in `planning/AG-UI.md`).

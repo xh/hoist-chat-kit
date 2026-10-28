@@ -52,8 +52,8 @@ model and reducer, and does not use the client's agent classes.
 | Text | `TEXT_MESSAGE_*`, chunks included, as text parts that keep the server's message ids and metadata. | - |
 | Tool calls | `TOOL_CALL_*` and `TOOL_CALL_RESULT`, as tool call parts, run in the browser or by the backend. A call keeps the server's ids for its message and its result, and its metadata. A result with `metadata.error` fails its call. | Metadata on a result. |
 | Reasoning | `REASONING_*` and `REASONING_ENCRYPTED_VALUE`, as reasoning parts, with signatures, metadata and the server's message ids kept for the history. | - |
-| Activity | `ACTIVITY_SNAPSHOT`, as data parts keyed by `activityType`. | `ACTIVITY_DELTA`. |
-| Sub-agents | `SUBAGENT_*`, as data parts of type `xh.chat.subagent`. The timeline nests their calls. | Attribution of text and reasoning to a sub-agent. |
+| Activity | `ACTIVITY_SNAPSHOT`, as data parts keyed by `activityType`, with their `subagentRunId`. A `ChatActivitySpec` shows a type as a row in the activity timeline. | `ACTIVITY_DELTA`. |
+| Sub-agents | `SUBAGENT_*`, as data parts of type `xh.chat.subagent`. The timeline nests their calls and activities. | Attribution of text and reasoning to a sub-agent. |
 | Metadata | Metadata on text, reasoning and tool calls, merged from their events and sent back with the history. `metadata` on events the kit reads, such as `RUN_ERROR` and `TOOL_CALL_RESULT`. | Metadata on a tool result or an activity. |
 | Shared state | The `state` a codec sends with each run. | `STATE_SNAPSHOT` and `STATE_DELTA`. |
 | History snapshots | - | `MESSAGES_SNAPSHOT`. |
@@ -232,7 +232,10 @@ adapter.
 A `ChatDataPart` carries content that the app or a protocol defines, keyed by `dataType`. A
 backend sends one as an `xh.chat.data` event or an AG-UI `ACTIVITY_SNAPSHOT`. The app registers
 a renderer per `dataType` in `ChatModelConfig.dataRenderers`. A part with no renderer shows as
-JSON, so new content never breaks the chat.
+JSON, so new content never breaks the chat. A `ChatActivitySpec` in `ChatModelConfig.activities`
+shows a type as a row in the activity timeline instead, for an agent's activity that is not a
+tool call, such as a skill it loads. See
+[Show an agent's activities](../core/README.md#show-an-agents-activities).
 
 ```typescript
 new ChatModel({

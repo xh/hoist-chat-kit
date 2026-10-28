@@ -766,6 +766,51 @@ new ChatModel({
 
 See [Protocols](../docs/protocols.md) for how data parts carry generative UI.
 
+### Show an agent's activities
+
+An agent does more than call tools. It may load a skill, or pick a route. A backend sends such an
+activity as an AG-UI `ACTIVITY_SNAPSHOT`, whose `activityType` becomes a data part's `dataType`.
+Give the chat a `ChatActivitySpec` for the type to show each one as a row in the activity
+timeline, as a peer of the tool calls there:
+
+```typescript
+new ChatModel({
+    transport,
+    activities: [
+        {
+            dataType: 'skill',
+            display: 'timeline',
+            displayName: 'Loaded skill',
+            icon: Icon.book(),
+            summary: part => part.data.skillName,
+            noun: 'skill'
+        }
+    ]
+});
+```
+
+The row shows the icon, the `displayName` and the `summary`. It has no status or time, as an
+activity happens at one moment. It opens to the data renderer registered for the type, else to
+the part's data as JSON. The `noun` counts the type in the timeline's done line and the reply's
+announcement, as in "Used 5 tools, 2 skills and 1 agent". A type with no `noun` shows rows but
+counts in no summary.
+
+`display` takes one of three values:
+
+| Value | Shows each part as |
+|-------|--------------------|
+| `inline` | The output of its data renderer, in the reply, else its data as JSON. The default, and how every data part shows with no spec. |
+| `timeline` | A row in the reply's activity timeline, among its tool calls. |
+| `hidden` | Nothing. Hidden parts count in no summary. |
+
+A `timeline` activity with a `subagentRunId` nests under that sub-agent's row. AG-UI carries the
+field on `ACTIVITY_SNAPSHOT`, and `xh.chat.data` takes it too. A data part with no spec stays
+inline, whichever agent sent it, so a sub-agent's form or card never moves into a closed row. A
+transcript that is not a `ChatModel` gives its specs through `getActivitySpec`.
+
+The kit defines no activity types of its own. Skills and routes are the app's to name, so a
+backend with its own event, such as a `skill_loaded`, translates it in its codec.
+
 The `dataType` `xh.chat.noAnswer` is reserved for a fixed "not found" reply, sent when a search
 matched nothing. Its `data` is a `ChatNoAnswerData`: the `documents` searched, by name, and a
 `documentCount`. The desktop message view renders it from a fixed template, with no sources list
@@ -989,6 +1034,7 @@ See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatCom
 | `composer` | `ChatComposerConfig` | Config for the managed `composerModel`, without `host`. The chat is the host. |
 | `sendBlocker` | `() => string` | Returns why sending must wait, or null to allow it. Read as a computed value. While blocked, the composer disables Send and shows the reason, and `sendAsync`, `editMessageAsync`, `retryAsync` and `regenerateAsync` do nothing. Blockers added with `addSendBlocker()` work the same way. |
 | `dataRenderers` | `Record<string, ChatDataRenderer>` | Renderers for data parts, keyed by `dataType`. A renderer is `(part, context) => ReactNode`, with a `ChatPartRenderContext`. |
+| `activities` | `ChatActivitySpec[]` | How data parts display, by `dataType`, such as a skill the agent loads shown in the activity timeline. See [Show an agent's activities](#show-an-agents-activities). |
 | `onTurnComplete` | `(message) => void` | Called when a turn ends - complete, failed or stopped - with its final message. Not called when a turn pauses. |
 | `onTurnPause` | `(message) => void` | Called when a turn pauses for the user, with the paused message. Save here to keep a paused reply across a reload. |
 
@@ -1023,7 +1069,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `pendingApprovals` | `ChatToolCallPart[]` | The calls in `waitingToolCalls` that wait for approval. |
 | `composerModel` | `ChatComposerModel` | Draft of the next message. |
 | `artifacts` | `ChatArtifactRegistry` | Result sets that generative UI components show by reference. Fed by each reply and by loaded history. `clear()` and `loadMessages()` empty it. |
-| `transport`, `tools`, `catalog`, `maxSteps`, `historyMode`, `feedback`, `stallAfterMs`, `dataRenderers` | - | The config values, read-only. `tools` includes the catalog's tools, and `feedback` has its defaults applied. |
+| `transport`, `tools`, `catalog`, `maxSteps`, `historyMode`, `feedback`, `stallAfterMs`, `dataRenderers`, `activities` | - | The config values, read-only. `tools` includes the catalog's tools, and `feedback` has its defaults applied. |
 
 ### ChatModel methods
 
@@ -1052,6 +1098,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `getMessageSpecs()` | The conversation as `ChatMessageSpec[]`, for storage. |
 | `getMessage(id)` | A message by id, as it is now, or null. |
 | `getToolSpec(name)` | The spec for a tool, or null. |
+| `getActivitySpec(dataType)` | The spec for a type of data part, or null. |
 
 The tool call methods log a warning and do nothing if the call does not wait on the user.
 
@@ -1125,7 +1172,7 @@ merges its history by id finds its own messages.
 | `toolCall` | `toolName`, `state`, `inputText`, `input`, `output`, `errorText`, `providerExecuted?`, `startedAt?`, `endedAt?`, `subagentRunId?`, `cancelled?`, `awaitsResume?`, `parentServerId?`, `resultServerId?`, `metadata?` | The `id` is the provider's tool call id. `subagentRunId` names the sub-agent that made the call. `metadata` is the server's metadata for the call, not its result. `cancelled` marks a call that was open when the user stopped the turn. `awaitsResume` marks a server call that an interrupted run left open, which gets its result from the server. `parentServerId` and `resultServerId` are the server's ids for the messages that hold the call and its result. |
 | `file` | `name`, `mediaType`, `size?`, `url?`, `data?` | `data` is base64. |
 | `source` | `sourceType?`, `url?`, `title?`, `snippet?`, `marker?`, `metadata?` | A source the model consulted. `marker` is the number that cites it in the text, as in `[1]`. `sourceType` is `url` or `document`, by default `url` for a source with a `url`. The kit reads `metadata.excerpt`, `fileName` and `page`. |
-| `data` | `dataType`, `data` | App or protocol content, drawn by `dataRenderers`. |
+| `data` | `dataType`, `data`, `subagentRunId?` | App or protocol content, drawn by `dataRenderers`. `subagentRunId` names the sub-agent it came from. |
 
 A sub-agent is a data part of type `xh.chat.subagent` (`CHAT_SUBAGENT_DATA_TYPE`), with the
 sub-agent's run id as its `id`. The stream reducer adds one for each AG-UI `SUBAGENT_STARTED`
@@ -1273,6 +1320,7 @@ A read-only conversation, for the desktop message list to show without a `ChatMo
 | `dataRenderers` | `Record<string, ChatDataRenderer>` | Optional. Renderers for data parts, by `dataType`. |
 | `catalog` | `ChatUiCatalog` | Optional. The catalog whose components render in replies, for its tags and for calls to its tools. |
 | `getToolSpec(name)` | `ChatToolSpec` | Optional. The spec of a tool, for how its calls display: title, icon, summary and display mode. Without it, a call shows under its tool's name. |
+| `getActivitySpec(dataType)` | `ChatActivitySpec` | Optional. The spec of a type of data part, for how its parts display. Without it, every data part shows inline. |
 
 ### ChatSidePanelHost
 

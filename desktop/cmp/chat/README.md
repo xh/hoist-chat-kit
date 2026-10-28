@@ -265,7 +265,8 @@ has a viewer but no room, a toast says so. A document that nothing can open show
 ### Activity timeline
 
 `ChatTimeline` sums up an agent's run in one block. The message view renders one for calls to
-tools with `display: 'timeline'`, in place of their rows. Calls to `card` tools, and reasoning
+tools with `display: 'timeline'`, and for activities with `display: 'timeline'`, such as skills
+the agent loads, in place of their rows. Calls to `card` tools, and reasoning
 alone, keep the process rows. See [Tool display](../../../core/README.md#tool-display).
 
 The block is one 28px line. Its height never changes, and it changes only its words and its icon:
@@ -315,6 +316,10 @@ Open, the block shows a tree of rows:
   levels, a row names its parent in place of more indent. A sub-agent runs only while its reply
   streams. One left running when its run ends, as on an error or a dropped stream, shows as
   failed, and one open at a stop shows as cancelled.
+- **Activities** - an activity that is not a tool call, such as a skill the agent loads, shows
+  as a row with its icon, title and summary, and no time. It opens to the type's data renderer,
+  or to its data. While it is the newest row, the line names it. See
+  [Show an agent's skills](#show-an-agents-skills).
 - **Narration and reasoning** - text between two timeline calls renders at 12px, aligned with
   the titles. Text after the last call stays below the block, as the answer, until another
   timeline call starts. Then it moves into the block.
@@ -335,6 +340,34 @@ first, shows failures as a count beside the warning icon, and shortens its words
 A backend shows sub-agents with AG-UI's `SUBAGENT_STARTED`, `SUBAGENT_FINISHED` and
 `SUBAGENT_ERROR` events, and marks a sub-agent's calls with `subagentRunId` on `TOOL_CALL_START`.
 `subagentEvents()` scripts the same events for `ScriptedChatTransport`.
+
+#### Show an agent's skills
+
+A skill the agent loads, or any other activity that is not a tool call, shows in the same block
+as the calls, as their peer. The backend sends it as an AG-UI `ACTIVITY_SNAPSHOT`, with an
+`activityType` of the app's own, and a `subagentRunId` when a sub-agent loaded it. The app gives
+the chat a `ChatActivitySpec` for the type, with `display: 'timeline'`:
+
+```typescript
+new ChatModel({
+    transport,
+    activities: [
+        {
+            dataType: 'skill',
+            display: 'timeline',
+            displayName: 'Loaded skill',
+            summary: part => part.data.skillName,
+            noun: 'skill'
+        }
+    ]
+});
+```
+
+The done line then reads "Used 5 tools, 2 skills and 1 agent". A skill with a `subagentRunId`
+nests under its sub-agent's row. One whose sub-agent is unknown stays at the top level. A
+transcript gives its specs through `getActivitySpec`. `activityEvents()` scripts an activity for
+`ScriptedChatTransport`. See
+[Show an agent's activities](../../../core/README.md#show-an-agents-activities).
 
 #### Show an agent's plan
 
@@ -533,12 +566,14 @@ chatComposer({model: notesModel.composerModel, placeholder: 'Add a note...'});
 ### Show messages without a ChatModel
 
 To show a conversation read-only, such as an admin's chat log or a saved conversation, pass a
-`ChatTranscript` as `host`: `messages`, plus optional `dataRenderers`, `catalog` and `getToolSpec`.
-`ChatModel` implements it. The list renders every part, with Copy and any `messageActions`. Calls to
-the catalog's tools show as their components, as in the live chat. With `getToolSpec`, a call shows
-its tool's title, icon and summary, as in the live chat; without it, the tool's name. Edit,
-Regenerate, feedback, approvals and Stop need the turn loop, so they show only for a `ChatModel`.
-Part renderers receive a context whose `chatModel` is null.
+`ChatTranscript` as `host`: `messages`, plus optional `dataRenderers`, `catalog`, `getToolSpec`
+and `getActivitySpec`. `ChatModel` implements it. The list renders every part, with Copy and any
+`messageActions`. Calls to the catalog's tools show as their components, as in the live chat.
+With `getToolSpec`, a call shows its tool's title, icon and summary, as in the live chat; without
+it, the tool's name. With `getActivitySpec`, an activity such as a skill shows as a timeline row.
+Without it, every data part shows inline. Edit, Regenerate, feedback, approvals and Stop need the
+turn loop, so they show only for a `ChatModel`. Part renderers receive a context whose
+`chatModel` is null.
 
 ```typescript
 export class NotesModel extends HoistModel implements ChatTranscript {

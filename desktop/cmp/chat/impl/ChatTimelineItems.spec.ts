@@ -3,6 +3,8 @@ import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {ScriptedChatTransport} from '../../../../transport';
 import {
     CHAT_SUBAGENT_DATA_TYPE,
+    type ChatActivitySpec,
+    type ChatDataPart,
     ChatMessage,
     ChatModel,
     type ChatPart,
@@ -15,6 +17,7 @@ import {
     type ChatTimelineAgentItem,
     type ChatTimelineBatchItem,
     type ChatTimelineCallItem,
+    countTimelineWork,
     formatStepDuration,
     getTimelineState,
     summarizeInput,
@@ -86,6 +89,66 @@ describe('ChatTimelineItems', () => {
         const outer = items[1] as ChatTimelineAgentItem;
         expect(outer.items.map(it => it.id)).toEqual(['c2', 'inner']);
         expect((outer.items[1] as ChatTimelineAgentItem).items.map(it => it.id)).toEqual(['c3']);
+    });
+
+    it('shows activities as rows among the calls, nested under the sub-agent they came from', () => {
+        const items = buildTimelineItems(
+            [
+                skill('s1'),
+                call('c1', 'plan'),
+                agent('outer'),
+                skill('s2', 'outer'),
+                call('c2', 'read', {subagentRunId: 'outer'}),
+                skill('s3', 'gone')
+            ],
+            host()
+        );
+
+        expect(items.map(it => [it.type, it.id])).toEqual([
+            ['activity', 's1'],
+            ['call', 'c1'],
+            ['agent', 'outer'],
+            ['activity', 's3']
+        ]);
+        expect((items[2] as ChatTimelineAgentItem).items.map(it => [it.type, it.id])).toEqual([
+            ['activity', 's2'],
+            ['call', 'c2']
+        ]);
+    });
+
+    it('never batches across an activity', () => {
+        const items = buildTimelineItems(
+            [call('a1', 'query'), call('a2', 'query'), skill('s1'), call('a3', 'query')],
+            host()
+        );
+        expect(items.map(it => it.type)).toEqual(['call', 'call', 'activity', 'call']);
+    });
+
+    it('counts tools, then activities by their noun, then agents', () => {
+        const h = host([], [SKILL_SPEC, {dataType: 'note', display: 'timeline'}]),
+            summary = summarizeTimeline(
+                buildTimelineItems(
+                    [
+                        skill('s1'),
+                        call('c1', 'read'),
+                        agent('a1'),
+                        skill('s2', 'a1'),
+                        note('n1'),
+                        call('c2', 'read', {subagentRunId: 'a1'})
+                    ],
+                    h
+                ),
+                h
+            );
+
+        expect(summary.activities.map(it => it.id)).toEqual(['s1', 's2', 'n1']);
+        // A note has no noun, so it shows as a row but counts in no summary.
+        expect(countTimelineWork(summary, h)).toEqual(['2 tools', '2 skills', '1 agent']);
+    });
+
+    it('names the newest row when it is an activity', () => {
+        expect(summarize([call('c1', 'read'), skill('s1')]).activity?.id).toBe('s1');
+        expect(summarize([skill('s1'), call('c1', 'read')]).activity).toBeNull();
     });
 
     it('marks a later call with the same tool and input as a retry', () => {
@@ -193,8 +256,13 @@ describe('ChatTimelineItems', () => {
 //------------------
 // Helpers
 //------------------
-function host(tools: ChatToolSpec[] = []): ChatModel {
-    const ret = new ChatModel({transport: new ScriptedChatTransport(), tools});
+const SKILL_SPEC: ChatActivitySpec = {dataType: 'skill', display: 'timeline', noun: 'skill'};
+
+function host(
+    tools: ChatToolSpec[] = [],
+    activities: ChatActivitySpec[] = [SKILL_SPEC]
+): ChatModel {
+    const ret = new ChatModel({transport: new ScriptedChatTransport(), tools, activities});
     onTestFinished(() => ret.destroy());
     return ret;
 }
@@ -238,6 +306,20 @@ function call(
 
 function text(id: string, content: string = id, state: 'done' | 'streaming' = 'done'): ChatPart {
     return {type: 'text', id, text: content, state};
+}
+
+function skill(id: string, subagentRunId: string = null): ChatDataPart {
+    return {
+        type: 'data',
+        id,
+        dataType: 'skill',
+        data: {skillId: id},
+        ...(subagentRunId ? {subagentRunId} : {})
+    };
+}
+
+function note(id: string): ChatDataPart {
+    return {type: 'data', id, dataType: 'note', data: {text: id}};
 }
 
 function agent(id: string, parentSubagentRunId: string = null): ChatPart {

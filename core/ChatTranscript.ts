@@ -1,6 +1,7 @@
 import type {ChatUiCatalog} from '../genui/ChatUiCatalog';
 import type {ChatMessage} from './ChatMessage';
 import {type ChatDataRenderer, ChatModel} from './ChatModel';
+import type {ChatActivitySpec} from './ChatActivitySpec';
 import type {ChatToolSpec} from './ChatToolSpec';
 
 /**
@@ -33,6 +34,13 @@ export interface ChatTranscript {
      * it shows each call under its tool's name, and the catalog's tools as their components.
      */
     readonly getToolSpec?: (name: string) => ChatToolSpec;
+
+    /**
+     * The spec of a type of data part, by `dataType`, or null - for how its parts display, such
+     * as a skill the agent loads shown as a row in the activity timeline. As
+     * `ChatModel.getActivitySpec` gives them. A transcript without it shows every data part inline.
+     */
+    readonly getActivitySpec?: (dataType: string) => ChatActivitySpec;
 }
 
 /** True if a host is a `ChatModel`, which offers the actions a plain transcript lacks. */

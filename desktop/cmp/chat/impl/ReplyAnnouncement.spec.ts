@@ -88,6 +88,37 @@ describe('formatReplyAnnouncement', () => {
             'Bot replied after 2 tools and 1 agent, 1 failed. Two desks are over.'
         );
     });
+
+    it('counts activities by their noun, between tools and agents', () => {
+        const skill = (id: string): ChatPart => ({
+                type: 'data',
+                id,
+                dataType: 'skill',
+                data: {}
+            }),
+            message = new ChatMessage({
+                role: 'assistant',
+                parts: [
+                    skill('s1'),
+                    {type: 'data', id: 'sa1', dataType: 'xh.chat.subagent', data: {name: 'A'}},
+                    skill('s2'),
+                    {type: 'data', id: 'x1', dataType: 'trace', data: {}},
+                    ...reply('Done.', {tools: 3}).parts
+                ]
+            }),
+            host = new ChatModel({
+                transport: new ScriptedChatTransport(),
+                activities: [
+                    {dataType: 'skill', display: 'timeline', noun: 'skill'},
+                    {dataType: 'trace', display: 'hidden', noun: 'trace'}
+                ]
+            });
+        onTestFinished(() => host.destroy());
+
+        expect(formatReplyAnnouncement(message, 'Bot', host)).toBe(
+            'Bot replied after 3 tools, 2 skills and 1 agent. Done.'
+        );
+    });
 });
 
 //------------------

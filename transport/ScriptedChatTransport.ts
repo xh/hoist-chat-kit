@@ -357,8 +357,9 @@ export interface ScriptedSubagentOptions {
 
 /**
  * Events for a sub-agent that does part of the work: its start, the events in `items` - which
- * may include pauses and nested sub-agents - and its end. Tool calls in `items` are marked as the
- * sub-agent's, and nest under it in the activity timeline:
+ * may include pauses and nested sub-agents - and its end. Tool calls and activities in `items` are
+ * marked as the sub-agent's. Its calls nest under it in the activity timeline, and so do its
+ * activities whose type's spec has `display: 'timeline'`:
  *
  * ```ts
  * subagentEvents('Limits Checker', [
@@ -464,6 +465,41 @@ export function citationEvents(citations: ScriptedCitation[]): ChatEvent[] {
     }));
 }
 
+/** Options for {@link activityEvents}. */
+export interface ScriptedActivityOptions {
+    /** Id of the activity, and of its data part. Default generated. */
+    messageId?: string;
+
+    /** The sub-agent the activity came from. Set for you by {@link subagentEvents}. */
+    subagentRunId?: string;
+}
+
+/**
+ * An event for an agent's activity that is not a tool call, such as a skill it loads: an AG-UI
+ * `ACTIVITY_SNAPSHOT`, which becomes a data part of type `activityType`. Give the chat a
+ * `ChatActivitySpec` for the type to show it as a row in the activity timeline.
+ *
+ * ```ts
+ * activityEvents('skill', {skillId: 'equity-research', skillName: 'Equity research'})
+ * ```
+ */
+export function activityEvents(
+    activityType: string,
+    content: PlainObject,
+    opts: ScriptedActivityOptions = {}
+): ChatEvent[] {
+    const {messageId = genChatId(), subagentRunId} = opts;
+    return [
+        {
+            type: 'ACTIVITY_SNAPSHOT',
+            messageId,
+            activityType,
+            content,
+            ...(subagentRunId != null ? {subagentRunId} : {})
+        }
+    ];
+}
+
 /**
  * An event for a fixed "not found" reply - a data part of type `xh.chat.noAnswer`, which the
  * message view renders from its built-in template, with no sources list and no Regenerate.
@@ -528,6 +564,7 @@ function claimForSubagent(
     switch (item.type) {
         case 'TOOL_CALL_START':
         case 'TOOL_CALL_CHUNK':
+        case 'ACTIVITY_SNAPSHOT':
             return item.subagentRunId != null ? item : {...item, subagentRunId};
         case 'SUBAGENT_STARTED':
             return item.parentSubagentRunId != null

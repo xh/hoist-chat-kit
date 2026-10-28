@@ -21,19 +21,21 @@ import {classNames} from '../../../impl/ClassNames';
 import {chatElapsed} from './ChatElapsed';
 import './ChatTimeline.scss';
 import {chatToolCall} from './ChatToolCall';
-import {formatStallDuration} from './impl/ChatFormat';
+import {formatStallDuration, joinWithAnd} from './impl/ChatFormat';
 import {chatSpinner} from '../../impl/ChatLiveCues';
 import {
     buildTimelineItems,
     type ChatTimelineState,
     type ChatTimelineSummary,
+    countTimelineWork,
+    describeActivity,
     getTimelineState,
     summarizeTimeline
 } from './impl/ChatTimelineItems';
 import {ChatTimelineLocalModel} from './impl/ChatTimelineLocalModel';
 import {timelineRows} from './impl/ChatTimelineRows';
 import {chatToolApproval, focusReplyOf} from './impl/ChatToolApproval';
-import {getHostToolSpec, groupParts} from './impl/groupParts';
+import {getHostActivitySpec, getHostToolSpec, groupParts} from './impl/groupParts';
 import {useChatClock} from './impl/useChatClock';
 import {getToolTitle} from './impl/ToolCallStatus';
 
@@ -49,8 +51,8 @@ export interface ChatTimelineProps extends HoistProps {
     host: ChatTranscript;
 
     /**
-     * The parts the block holds: calls to `timeline` tools, sub-agents, and the narration and
-     * reasoning between them. Default those of the reply's first timeline block.
+     * The parts the block holds: calls to `timeline` tools, `timeline` activities, sub-agents, and
+     * the narration and reasoning between them. Default those of the reply's first timeline block.
      */
     parts?: ChatPart[];
 
@@ -75,7 +77,8 @@ export interface ChatTimelineProps extends HoistProps {
 
 /**
  * The activity timeline of an agent's reply: one compact block that sums up its run, for calls to
- * tools with `display: 'timeline'`. The message view renders one in place of those calls.
+ * tools with `display: 'timeline'` and for activities with `display: 'timeline'`, such as the
+ * skills an agent loads. The message view renders one in place of those parts.
  *
  * The block is one 28 px line that keeps its height in every state. While the agent works, it
  * shows the current step - the latest sentence of narration, or the running call - with the step
@@ -87,10 +90,10 @@ export interface ChatTimelineProps extends HoistProps {
  * frames the block in the attention color.
  *
  * The line is a button that opens the block. Open, it shows a tree of rows: each call with its
- * status, title, input, and time; batches of repeated calls; sub-agents with their calls nested
- * under them; reasoning; and narration. A row opens to its input and output, mounted only while
- * open. The tree is one tab stop, with arrow keys between
- * rows. The block never opens or closes by itself. Below 480 px it drops the step count first.
+ * status, title, input, and time; batches of repeated calls; activities; sub-agents with their
+ * calls and activities nested under them; reasoning; and narration. A row opens to its input and
+ * output, mounted only while open. The tree is one tab stop, with arrow keys between rows. The
+ * block never opens or closes by itself. Below 480 px it drops the step count first.
  *
  * A step that fails is announced as it happens. The done summary is not: it rides in the reply's
  * own announcement.
@@ -278,15 +281,22 @@ function lineStage(
         case 'failed':
             return stage(`Ended at step ${calls.length}`);
         default:
-            return stage(usedLabel(summary, impl.isNarrow));
+            return stage(usedLabel(summary, host, impl.isNarrow));
     }
 }
 
 function runningStage(summary: ChatTimelineSummary, host: ChatTranscript): string {
-    const {running, runningAgents, isThinking} = summary;
+    const {running, runningAgents, activity, isThinking} = summary;
     if (running.length > 1) return `Running ${running.length} steps`;
     if (running.length === 1) return runningTitle(summary, host);
     if (runningAgents.length) return runningAgents[runningAgents.length - 1].name;
+    if (activity) {
+        const {title, summary: text} = describeActivity(
+            activity,
+            getHostActivitySpec(host, activity.dataType)
+        );
+        return compact([title, text]).join(': ');
+    }
     return isThinking ? 'Thinking' : 'Working';
 }
 
@@ -298,12 +308,14 @@ function runningTitle(summary: ChatTimelineSummary, host: ChatTranscript): strin
     return agent?.name ?? null;
 }
 
-/** "Used 13 tools and 1 agent" - or "Used 13 tools, 1 agent" when narrow. */
-function usedLabel({calls, agentCount}: ChatTimelineSummary, isNarrow: boolean): string {
-    const tools = calls.length ? pluralize('tool', calls.length, true) : null,
-        agents = agentCount ? pluralize('agent', agentCount, true) : null;
-    if (tools && agents) return `Used ${tools}${isNarrow ? ', ' : ' and '}${agents}`;
-    return `Used ${tools ?? agents ?? '0 tools'}`;
+/**
+ * "Used 13 tools, 2 skills and 1 agent" - or "Used 13 tools, 2 skills, 1 agent" when narrow.
+ * Activities count by their type's noun. "Done" for a block with nothing that counts.
+ */
+function usedLabel(summary: ChatTimelineSummary, host: ChatTranscript, isNarrow: boolean): string {
+    const work = countTimelineWork(summary, host);
+    if (!work.length) return 'Done';
+    return `Used ${isNarrow ? work.join(', ') : joinWithAnd(work)}`;
 }
 
 function lineMeta(

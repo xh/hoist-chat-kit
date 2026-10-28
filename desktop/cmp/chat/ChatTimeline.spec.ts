@@ -16,10 +16,13 @@ import {
     type ChatToolSpec
 } from '../../../core';
 import {
+    activityEvents,
     errorEvents,
     ScriptedChatTransport,
     scriptedDelay,
     type ScriptedItem,
+    subagentEvents,
+    textEvents,
     toolCallEvents
 } from '../../../transport';
 import {AGENT_RUN_TOOLS, agentRunScript} from '../../../test/fixtures/agentRunScript';
@@ -44,6 +47,91 @@ describe('ChatTimeline', () => {
     afterEach(() => {
         vi.useRealTimers();
         vi.restoreAllMocks();
+    });
+
+    describe('activities', () => {
+        async function runSkills(dataRenderers = {}) {
+            const model = new ChatModel({
+                transport: new ScriptedChatTransport({
+                    responses: [
+                        [
+                            activityEvents('skill', {skillName: 'Equity research'}),
+                            toolCallEvents('lookup', {desk: 'Rates'}, {result: 'ok'}),
+                            subagentEvents(
+                                'Checker',
+                                [
+                                    activityEvents('skill', {skillName: 'Limits'}),
+                                    toolCallEvents('load', {desk: 'Rates'}, {result: 'ok'})
+                                ],
+                                {result: 'All clear.'}
+                            ),
+                            textEvents('No desk is over its limit.')
+                        ]
+                    ],
+                    delayMs: 0
+                }),
+                tools: TOOLS,
+                activities: [
+                    {
+                        dataType: 'skill',
+                        display: 'timeline',
+                        displayName: 'Loaded skill',
+                        summary: part => part.data.skillName,
+                        noun: 'skill'
+                    }
+                ],
+                dataRenderers
+            });
+            onTestFinished(() => model.destroy());
+            const result = render(chatMessageList({model}));
+            await act(() => model.sendAsync('Check the desks.'));
+            return result;
+        }
+
+        it('counts skills in the line, and shows each as a row among the calls', async () => {
+            const {container} = await runSkills();
+            expect(container.querySelectorAll('.xh-chat-timeline')).toHaveLength(1);
+            expect(lineButton(container).textContent).toContain(
+                'Used 2 tools, 2 skills and 1 agent'
+            );
+
+            fireEvent.click(lineButton(container));
+            const tree = within(timeline(container)).getByRole('tree');
+            expect(Array.from(tree.children).map(it => it.getAttribute('aria-label'))).toEqual([
+                'Loaded skill, Equity research',
+                expect.stringMatching(/^Lookup, Rates/),
+                expect.stringMatching(/^Checker, agent, 1 step/)
+            ]);
+
+            const agentRow = tree.children[2] as HTMLElement;
+            fireEvent.keyDown(agentRow, {key: 'ArrowRight'});
+            expect(
+                within(agentRow)
+                    .getAllByRole('treeitem')
+                    .map(it => it.getAttribute('aria-label'))
+            ).toEqual([
+                'Loaded skill, Limits',
+                expect.stringMatching(/^Load, Rates/),
+                // The sub-agent's result.
+                null
+            ]);
+        });
+
+        it('opens a skill row to its data renderer, else to its data', async () => {
+            const plain = await runSkills(),
+                row = () => within(timeline(plain.container)).getAllByRole('treeitem')[0];
+            fireEvent.click(lineButton(plain.container));
+            fireEvent.click(row().querySelector('.xh-chat-timeline__row'));
+            expect(row().textContent).toContain('Equity research');
+            expect(row().querySelector('.xh-chat-timeline__pane')).toBeTruthy();
+            plain.unmount();
+
+            const rendered = await runSkills({skill: part => `Skill card: ${part.data.skillName}`});
+            fireEvent.click(lineButton(rendered.container));
+            const first = within(timeline(rendered.container)).getAllByRole('treeitem')[0];
+            fireEvent.click(first.querySelector('.xh-chat-timeline__row'));
+            expect(first.textContent).toContain('Skill card: Equity research');
+        });
     });
 
     describe('a scripted agent run', () => {

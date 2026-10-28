@@ -1,3 +1,5 @@
+import {initial, last} from 'lodash';
+
 /**
  * A duration as a short label - `0.8s`, `4.2s`, `12s`, `1m 5s`.
  * @internal
@@ -67,6 +69,15 @@ export function humanizeToolName(name: string): string {
     if (!words.length) return name;
     words[0] = words[0][0].toUpperCase() + words[0].slice(1);
     return words.join(' ');
+}
+
+/**
+ * A list as words - "a", "a and b", "a, b and c". Null for an empty list.
+ * @internal
+ */
+export function joinWithAnd(items: string[]): string {
+    if (items.length < 2) return items[0] ?? null;
+    return `${initial(items).join(', ')} and ${last(items)}`;
 }
 
 /**

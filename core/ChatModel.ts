@@ -59,6 +59,7 @@ import {
 } from './ChatPart';
 import {ChatRunError} from './ChatRunError';
 import {ChatToolResult} from './ChatToolResult';
+import type {ChatActivitySpec} from './ChatActivitySpec';
 import type {ChatToolSpec} from './ChatToolSpec';
 import type {ChatTranscript} from './ChatTranscript';
 import {isAbortError, raceAbort} from '../impl/abort';
@@ -215,6 +216,13 @@ export interface ChatModelConfig {
     dataRenderers?: Record<string, ChatDataRenderer>;
 
     /**
+     * How data parts display, by `dataType` - for an agent's activity that is not a tool call,
+     * such as a skill it loads, shown as a row in the activity timeline. A type with no spec
+     * displays inline, through its data renderer.
+     */
+    activities?: ChatActivitySpec[];
+
+    /**
      * Called when an assistant turn ends - complete, failed, or stopped - with its final message.
      * Not called when a turn pauses for the user, but called when a paused turn is later closed.
      * Also called for a turn that `clear`, `loadMessages`, `retryAsync`, `regenerateAsync` or
@@ -343,6 +351,9 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      * of the `catalog`.
      */
     readonly tools: ChatToolSpec[];
+
+    /** How data parts display, by `dataType` - see {@link ChatModelConfig.activities}. */
+    readonly activities: ChatActivitySpec[];
 
     /** Generative UI components the model can show, or null. */
     readonly catalog: ChatUiCatalog;
@@ -563,6 +574,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             track = false,
             composer,
             dataRenderers = {},
+            activities = [],
             sendBlocker,
             allowEdit = true,
             allowRegenerate = true,
@@ -594,6 +606,11 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             !isEmpty(dupeNames),
             `ChatModel tool names must be unique - found ${dupeNames.join(', ')} more than once.`
         );
+        const dupeTypes = keys(pickBy(countBy(activities, 'dataType'), count => count > 1));
+        throwIf(
+            !isEmpty(dupeTypes),
+            `ChatModel activity types must be unique - found ${dupeTypes.join(', ')} more than once.`
+        );
 
         this.transport = transport;
         this.tools = tools;
@@ -617,6 +634,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.textTransform = textTransform;
         this.trackOptions = track === true ? {} : track || null;
         this.dataRenderers = {...catalog?.createDataRenderers(), ...dataRenderers};
+        this.activities = activities;
         this.sendBlockers = sendBlocker ? [sendBlocker] : [];
         this.allowEdit = allowEdit;
         this.allowRegenerate = allowRegenerate;
@@ -1054,6 +1072,11 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     /** The spec for a tool, by name, or null. */
     getToolSpec(name: string): ChatToolSpec {
         return this.tools.find(it => it.name === name) ?? null;
+    }
+
+    /** The spec for a type of data part, by `dataType`, or null. */
+    getActivitySpec(dataType: string): ChatActivitySpec {
+        return this.activities.find(it => it.dataType === dataType) ?? null;
     }
 
     //------------------

@@ -1,13 +1,16 @@
 import {last} from 'lodash';
 import {
+    type ChatActivityDisplay,
+    type ChatActivitySpec,
+    type ChatDataPart,
     type ChatFilePart,
     type ChatPart,
     type ChatToolCallPart,
     type ChatToolDisplay,
     type ChatToolSpec,
     type ChatTranscript,
-    isChatModel,
-    isChatSubagentPart
+    CHAT_SUBAGENT_DATA_TYPE,
+    isChatModel
 } from '../../../../core';
 import {isAwaitingAnswer} from './ToolCallStatus';
 
@@ -38,10 +41,10 @@ export interface ChatToolCallGroupSpec {
 export interface ChatTimelineGroup {
     type: 'timeline';
 
-    /** From the first timeline call or sub-agent, so it holds as narration folds in ahead of it. */
+    /** From the first timeline member, so it holds as narration folds in ahead of it. */
     id: string;
 
-    /** Timeline calls, sub-agents, and the narration and reasoning between them, in order. */
+    /** Timeline calls and data parts, sub-agents, and the narration and reasoning between them. */
     parts: ChatPart[];
 }
 
@@ -73,6 +76,26 @@ export function getHostToolSpec(host: ChatTranscript, name: string): ChatToolSpe
 }
 
 /**
+ * The spec of a type of data part, through the host's `getActivitySpec`. Null if the host has
+ * none, or if there is no host.
+ * @internal
+ */
+export function getHostActivitySpec(host: ChatTranscript, dataType: string): ChatActivitySpec {
+    return host?.getActivitySpec?.(dataType) ?? null;
+}
+
+/**
+ * How a data part displays, from its type's spec - see `ChatActivityDisplay`. Default `inline`,
+ * whichever agent sent it, so that a form or a card never moves into a closed row. A sub-agent's
+ * own part is always `timeline`.
+ * @internal
+ */
+export function getActivityDisplay(part: ChatDataPart, host: ChatTranscript): ChatActivityDisplay {
+    if (part.dataType === CHAT_SUBAGENT_DATA_TYPE) return 'timeline';
+    return getHostActivitySpec(host, part.dataType)?.display ?? 'inline';
+}
+
+/**
  * How a call displays, from its tool's spec - see `ChatToolDisplay`. A call a sub-agent made
  * defaults to `timeline`, where it nests under the sub-agent. A hidden call shows as a card while
  * it waits for the user, so that a turn never waits on a call no one can see.
@@ -88,11 +111,11 @@ export function getToolCallDisplay(call: ChatToolCallPart, host: ChatTranscript)
 /**
  * Group the parts of an assistant message for display, in order. Sources are left out, as they
  * show after the body. So is reasoning with no text to show, which the header reports instead,
- * and so are calls to `hidden` tools.
+ * and so are calls to `hidden` tools and `hidden` data parts.
  *
- *  - Calls to `timeline` tools, with sub-agents, form one activity timeline block. Text and
- *    reasoning between two such calls fold into the block as narration. Text after the last call
- *    stays below the block, as the answer, until another timeline call starts.
+ *  - Calls to `timeline` tools, `timeline` data parts and sub-agents form one activity timeline
+ *    block. Text and reasoning between two of them fold into the block as narration. Text after
+ *    the last stays below the block, as the answer, until another timeline member starts.
  *  - Consecutive files form one group.
  *  - Two or more consecutive `card` calls of the same step, each shown as a row, form one group.
  *    A call that waits for the user - for approval or for an answer - is never grouped, so that
@@ -162,7 +185,7 @@ function getRole(part: ChatPart, host: ChatTranscript): PartRole {
         case 'toolCall':
             return getToolCallDisplay(part, host) === 'timeline' ? 'timeline' : 'other';
         case 'data':
-            return isChatSubagentPart(part) ? 'timeline' : 'other';
+            return getActivityDisplay(part, host) === 'timeline' ? 'timeline' : 'other';
         case 'text':
         case 'reasoning':
             return 'fold';
@@ -188,6 +211,8 @@ function isShown(part: ChatPart, host: ChatTranscript): boolean {
             return !!part.text?.trim();
         case 'toolCall':
             return getToolCallDisplay(part, host) !== 'hidden';
+        case 'data':
+            return getActivityDisplay(part, host) !== 'hidden';
         default:
             return true;
     }

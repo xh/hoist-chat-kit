@@ -585,16 +585,18 @@ new ScriptedChatTransport({
 ```
 
 The helpers are `textEvents()`, `reasoningEvents()`, `toolCallEvents()`, `subagentEvents()`,
-`sourceEvents()`, `citationEvents()`, `dataEvents()`, `noAnswerEvents()`, `errorEvents()`,
-`interruptEvents()` and `scriptedDelay()`. A citation attaches to the text part before it, and refers to a source by
-`sourceId` or by `url`. A source can carry a `sourceType`, a `marker`, the number that cites it as
-`[n]` in the text, and `metadata`. `noAnswerEvents()` writes a fixed "not found" reply. Pass
-`{retryAfterSeconds}` as the third argument of `errorEvents()` to ask for a wait before a retry.
-Pass a `result` to `toolCallEvents()` to simulate a tool that the backend runs, or an `error` for
-one that fails. `interruptEvents()` ends the run with interrupts, to ask the user questions. A
-script reads the answers from the next request's `resume`. `subagentEvents()` wraps events in a sub-agent's start and end, and marks its tool
-calls as the sub-agent's, so the activity timeline nests them. A response can also be an async
-iterable of events, which sets its own pace.
+`activityEvents()`, `sourceEvents()`, `citationEvents()`, `dataEvents()`, `noAnswerEvents()`,
+`errorEvents()`, `interruptEvents()` and `scriptedDelay()`. A citation attaches to the text part
+before it, and refers to a source by `sourceId` or by `url`. A source can carry a `sourceType`, a
+`marker`, the number that cites it as `[n]` in the text, and `metadata`. `noAnswerEvents()` writes a
+fixed "not found" reply. Pass `{retryAfterSeconds}` as the third argument of `errorEvents()` to ask
+for a wait before a retry. Pass a `result` to `toolCallEvents()` to simulate a tool that the backend
+runs, or an `error` for one that fails. `interruptEvents()` ends the run with interrupts, to ask the
+user questions. A script reads the answers from the next request's `resume`. `subagentEvents()`
+wraps events in a sub-agent's start and end, and marks its tool calls and activities as the
+sub-agent's. The activity timeline nests its calls, and its activities whose spec has `display:
+'timeline'`. `activityEvents()` writes an AG-UI `ACTIVITY_SNAPSHOT`, such as a skill the agent
+loads. A response can also be an async iterable of events, which sets its own pace.
 
 In a unit test, set `delayMs: 0` and read `transport.requests` to check what the chat sent:
 

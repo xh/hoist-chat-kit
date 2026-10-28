@@ -655,6 +655,28 @@ describe('ChatStreamReducer', () => {
             expect((message.parts[0] as ChatDataPart).data).toEqual({pct: 50});
         });
 
+        it('keeps the sub-agent an activity came from', () => {
+            const message = reduce([
+                {
+                    type: 'ACTIVITY_SNAPSHOT',
+                    messageId: 'a1',
+                    activityType: 'skill',
+                    content: {skillId: 'equity-research'},
+                    subagentRunId: 'run-1'
+                },
+                custom('xh.chat.data', {
+                    id: 'd1',
+                    dataType: 'skill',
+                    data: {},
+                    subagentRunId: 'run-1'
+                })
+            ]);
+            expect(message.parts).toMatchObject([
+                {type: 'data', id: 'a1', dataType: 'skill', subagentRunId: 'run-1'},
+                {type: 'data', id: 'd1', dataType: 'skill', subagentRunId: 'run-1'}
+            ]);
+        });
+
         it('adds source, data and file parts from xh.chat events', () => {
             const message = reduce([
                 custom('xh.chat.source', {

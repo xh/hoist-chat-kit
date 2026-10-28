@@ -311,7 +311,8 @@ export class ChatStreamReducer {
                     id: event.messageId,
                     step: this.step,
                     dataType: event.activityType,
-                    data: event.content
+                    data: event.content,
+                    ...(event.subagentRunId != null ? {subagentRunId: event.subagentRunId} : {})
                 });
                 break;
 
@@ -809,7 +810,8 @@ export class ChatStreamReducer {
                     id,
                     step,
                     dataType: value.dataType,
-                    data: value.data
+                    data: value.data,
+                    ...(value.subagentRunId != null ? {subagentRunId: value.subagentRunId} : {})
                 });
                 break;
             case 'xh.chat.file':

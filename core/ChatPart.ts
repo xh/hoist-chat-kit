@@ -293,6 +293,12 @@ export interface ChatDataPart extends ChatPartBase {
 
     /** The content, in the form its renderer expects. */
     data: any;
+
+    /**
+     * The sub-agent the content came from, if any - the id of a data part of type
+     * `xh.chat.subagent`. Set from the `subagentRunId` of an AG-UI `ACTIVITY_SNAPSHOT`.
+     */
+    subagentRunId?: string;
 }
 
 /** A citation attached to a span of model text. */

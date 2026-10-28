@@ -3,6 +3,8 @@ import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {ScriptedChatTransport} from '../../../../transport';
 import {
     CHAT_SUBAGENT_DATA_TYPE,
+    type ChatActivitySpec,
+    type ChatDataPart,
     ChatModel,
     type ChatPart,
     type ChatToolCallPart,
@@ -12,6 +14,7 @@ import {
 import {
     type ChatProcessRun,
     type ChatTimelineGroup,
+    getActivityDisplay,
     getToolCallDisplay,
     groupParts,
     groupProcessRuns
@@ -261,19 +264,70 @@ describe('groupParts by display mode', () => {
             'timeline'
         );
     });
+
+    const activities: ChatActivitySpec[] = [
+        {dataType: 'skill', display: 'timeline'},
+        {dataType: 'trace', display: 'hidden'}
+    ];
+
+    it('gathers timeline activities into the block, as peers of the calls', () => {
+        const groups = groupParts(
+            [
+                data('s1', 'skill'),
+                text('t1'),
+                call('c1', {toolName: 'step'}),
+                data('s2', 'skill'),
+                text('answer')
+            ],
+            chatModel(tools, activities)
+        );
+        expect(groups.map(it => it.id)).toEqual(['timeline-s1', 'answer']);
+        expect((groups[0] as ChatTimelineGroup).parts.map(it => it.id)).toEqual([
+            's1',
+            't1',
+            'c1',
+            's2'
+        ]);
+    });
+
+    it('shows a data part inline with no spec, even from a sub-agent, and hides hidden ones', () => {
+        const host = chatModel(tools, activities);
+        expect(getActivityDisplay(data('d1', 'chart'), host)).toBe('inline');
+        // A sub-agent's form or card stays in the reply, never in a closed row.
+        expect(getActivityDisplay({...data('d2', 'chart'), subagentRunId: 'a1'}, host)).toBe(
+            'inline'
+        );
+        expect(groupParts([data('d3', 'trace'), text('t1')], host).map(it => it.id)).toEqual([
+            't1'
+        ]);
+    });
+
+    it('reads activity specs from a plain transcript', () => {
+        const transcript = {
+                messages: [],
+                getActivitySpec: (dataType: string) =>
+                    activities.find(it => it.dataType === dataType) ?? null
+            },
+            groups = groupParts([data('s1', 'skill'), data('d1', 'chart')], transcript);
+        expect(groups.map(it => it.id)).toEqual(['timeline-s1', 'd1']);
+    });
 });
 
 //------------------
 // Helpers
 //------------------
-function chatModel(tools: ChatToolSpec[] = []): ChatModel {
-    const ret = new ChatModel({transport: new ScriptedChatTransport(), tools});
+function chatModel(tools: ChatToolSpec[] = [], activities: ChatActivitySpec[] = []): ChatModel {
+    const ret = new ChatModel({transport: new ScriptedChatTransport(), tools, activities});
     onTestFinished(() => ret.destroy());
     return ret;
 }
 
 function reasoning(id: string, content: string = 'Thinking it over.'): ChatPart {
     return {type: 'reasoning', id, text: content, state: 'done', startedAt: 0, endedAt: 10};
+}
+
+function data(id: string, dataType: string): ChatDataPart {
+    return {type: 'data', id, dataType, data: {id}};
 }
 
 function text(id: string): ChatPart {

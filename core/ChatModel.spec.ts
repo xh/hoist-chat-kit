@@ -493,6 +493,22 @@ describe('ChatModel', () => {
             ).toThrow('found lookup more than once');
         });
 
+        it('requires unique activity types, and finds a spec by its type', () => {
+            expect(() =>
+                createModel({
+                    transport: scripted([]),
+                    activities: [{dataType: 'skill'}, {dataType: 'skill'}]
+                })
+            ).toThrow('found skill more than once');
+
+            const model = createModel({
+                transport: scripted([]),
+                activities: [{dataType: 'skill', display: 'timeline'}]
+            });
+            expect(model.getActivitySpec('skill')?.display).toBe('timeline');
+            expect(model.getActivitySpec('chart')).toBeNull();
+        });
+
         it('runs client tools and sends their results back in another step', async () => {
             const execute = vi.fn(({city}) => ({city, tempC: 18})),
                 transport = scripted([

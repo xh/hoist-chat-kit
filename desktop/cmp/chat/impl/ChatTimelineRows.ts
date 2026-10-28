@@ -6,27 +6,31 @@ import {Icon} from '@xh/hoist/icon';
 import {pluralize} from '@xh/hoist/utils/js';
 import {chatMarkdown} from '../../../../cmp/markdown';
 import {
+    type ChatDataPart,
     type ChatTranscript,
     type ChatPartRenderContext,
     type ChatToolCallPart,
     type ChatToolSpec
 } from '../../../../core';
+import {getOwn} from '../../../../impl/objects';
 import {classNames} from '../../../../impl/ClassNames';
 import {chatElapsed} from '../ChatElapsed';
 import {chatCopyButton} from '../ChatCopyButton';
 import {chatSpinner} from '../../../impl/ChatLiveCues';
 import {
+    type ChatTimelineActivityItem,
     type ChatTimelineAgentItem,
     type ChatTimelineBatchItem,
     type ChatTimelineCallItem,
     type ChatTimelineItem,
+    describeActivity,
     formatStepDuration,
     getSpanMs,
     getTimelineCalls,
     summarizeInput
 } from './ChatTimelineItems';
 import type {ChatTimelineLocalModel} from './ChatTimelineLocalModel';
-import {getHostToolSpec} from './groupParts';
+import {getHostActivitySpec, getHostToolSpec} from './groupParts';
 import {CHAT_MARKDOWN_COMPONENTS} from '../ChatMarkdownComponents';
 import {getErrorLine, getToolTitle, isAwaitingAnswer} from './ToolCallStatus';
 
@@ -72,6 +76,8 @@ export function timelineRows(
                 return batchRow(item, ctx, depth, parentName);
             case 'agent':
                 return agentRow(item, ctx, depth, parentName);
+            case 'activity':
+                return activityRow(item, ctx, depth, parentName);
             case 'narration':
                 return treeItem({
                     id: item.id,
@@ -354,6 +360,43 @@ function agentRow(
                           : null
                   ])
                 : null
+        ]
+    });
+}
+
+// An activity happens at one moment, so its row has no status and no time.
+function activityRow(
+    item: ChatTimelineActivityItem,
+    ctx: ChatTimelineRowContext,
+    depth: number,
+    parentName: string
+): ReactNode {
+    const {part} = item,
+        {impl, host} = ctx,
+        spec = getHostActivitySpec(host, part.dataType),
+        {title, summary} = describeActivity(part, spec),
+        hasDetails = !!getDataRenderer(host, part) || !isEmpty(part.data),
+        isOpen = hasDetails && impl.isRowOpen(part.id);
+
+    return treeItem({
+        id: part.id,
+        depth,
+        ctx,
+        isOpen: hasDetails ? isOpen : null,
+        className: 'xh-chat-timeline__item--activity',
+        label: compact([title, summary]).join(', '),
+        items: [
+            rowLine({
+                ctx,
+                id: part.id,
+                depth,
+                isOpen,
+                hasDetails,
+                icon: spec?.icon ?? Icon.bolt(),
+                title: depthTitle(title, depth, parentName),
+                input: summary
+            }),
+            isOpen ? activityDetails({key: 'details', part, context: ctx.context, host}) : null
         ]
     });
 }
@@ -698,6 +741,36 @@ const timelineRenderer = hoistCmp.factory<TimelineDetailsProps>({
         return spec.renderer(part, context) ?? null;
     }
 });
+
+interface ActivityDetailsProps extends HoistProps {
+    part: ChatDataPart;
+    context: ChatPartRenderContext;
+    host: ChatTranscript;
+}
+
+/**
+ * The details of an open activity: its type's data renderer, as a component of its own so that
+ * it may call hooks, or else its data in a pane. Mounted only while the row is open.
+ */
+const activityDetails = hoistCmp.factory<ActivityDetailsProps>({
+    displayName: 'ChatTimelineActivityDetails',
+    model: uses('*', {optional: true}),
+    className: 'xh-chat-timeline__detail',
+
+    render({className, part, context, host}) {
+        const renderer = getDataRenderer(host, part);
+        return div({
+            className,
+            item: renderer
+                ? (renderer(part, context) ?? null)
+                : pane('Data', part.dataType, part.data)
+        });
+    }
+});
+
+function getDataRenderer(host: ChatTranscript, part: ChatDataPart) {
+    return getOwn(host?.dataRenderers ?? {}, part.dataType) ?? null;
+}
 
 function pane(label: string, sublabel: string, value: unknown): ReactNode {
     const text = toPaneText(value);

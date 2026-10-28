@@ -195,8 +195,8 @@ export interface ToolCallResultEvent extends Wire<AgUi.ToolCallResultEvent> {
 //------------------
 /**
  * A typed activity payload to render in the message, such as a progress card or a form. Its
- * `activityType` becomes the `dataType` of its data part. A `replace: false` keeps the existing
- * content of a part with the same id.
+ * `activityType` becomes the `dataType` of its data part, and its `subagentRunId` the part's. A
+ * `replace: false` keeps the existing content of a part with the same id.
  */
 export interface ActivitySnapshotEvent extends Wire<AgUi.ActivitySnapshotEvent> {}
 
@@ -245,9 +245,9 @@ export type IgnoredEvent =
  *    defaults to `url` when the source has a `url`, else `document`.
  *  - `xh.chat.citation` - value `{id?, title?, url?, citedText?, sourceId?}`, cites a source
  *    from the current text part.
- *  - `xh.chat.data` - value `{id?, dataType, data}`, adds or replaces a data part. The `dataType`
- *    `xh.chat.noAnswer` is reserved for a fixed "not found" reply, with `data` a
- *    `ChatNoAnswerData` - the kit renders it from a built-in template.
+ *  - `xh.chat.data` - value `{id?, dataType, data, subagentRunId?}`, adds or replaces a data
+ *    part. The `dataType` `xh.chat.noAnswer` is reserved for a fixed "not found" reply, with
+ *    `data` a `ChatNoAnswerData` - the kit renders it from a built-in template.
  *  - `xh.chat.file` - value `{id?, name, mediaType, size?, url?, data?}`, appends a file part.
  *  - `xh.chat.providerData` - value `{subtype: 'message' | 'tool-call', entityId, data}`, merges
  *    `data` into the `providerData` of a reasoning part or tool call, by provider key. Ids follow

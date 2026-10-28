@@ -1,4 +1,5 @@
 export * from './ChatAbortError';
+export * from './ChatActivitySpec';
 export * from './ChatAnnouncer';
 export * from './ChatComposerHost';
 export * from './ChatComposerModel';
