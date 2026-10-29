@@ -135,11 +135,12 @@ so that it opens into view.
 ### Live cues
 
 While a turn runs, the reply's header shows its status and the time taken so far, as "Thinking 1s",
-"Writing 6s" or "Running tools 12s". A list with `showMessageHeader: false` shows no such line, so
-the reply has no cue until its first content arrives, and no "Retried" or failed tools. Each status
-has one icon, one label and one color, drawn by `ChatStatusCue` from one table. The status comes
-from `getChatReplyStatus()` in [`/core/`](../../../core/README.md#display-status), read again each
-second.
+"Writing 6s" or "Running tools 12s". A list with `showMessageHeader: false` has no such line, and
+shows no "Retried" or failed tools. Until its first content arrives, the reply shows the same live
+status in its body instead. Set `ChatKit.defaults.workingCue` to show a cue of your own there, such
+as a brand loader. Each status has one icon, one label and one color, drawn by `ChatStatusCue` from
+one table. The status comes from `getChatReplyStatus()` in
+[`/core/`](../../../core/README.md#display-status), read again each second.
 
 - **Spinner** - Hoist's `Spinner`, at 1em of its line. A reply shows one spinner at most: while
   a tool call runs, the call's row shows it and the header drops its own.
@@ -1142,7 +1143,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
 | `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit, Regenerate and the thumbs. Edit and Regenerate show only while the chat's `allowEdit` and `allowRegenerate` are true. Pass a stable function. |
 | `messageHeaderItems` | `(message, context) => ReactNode[]` | Items in an assistant message's header. Pass a stable function. |
-| `showMessageHeader` | `boolean` | False to leave out each reply's header line, and all it holds: the name, live status, time, time taken, "Thought for", failed tools, "Retried" and header items. Default true. |
+| `showMessageHeader` | `boolean` | False to leave out each reply's header line, and all it holds: the name, live status, time, time taken, "Thought for", failed tools, "Retried" and header items. Until its first content arrives, a reply then shows its live status in its body, or `ChatKit.defaults.workingCue`. Default true. |
 
 Each message is a focusable `article`, named for its author and time. With a message focused, Up
 and Down move to the one before or after. Escape stops a reply in progress while focus is in the

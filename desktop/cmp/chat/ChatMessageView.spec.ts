@@ -13,6 +13,7 @@ import {
     ChatModel,
     type ChatModelConfig,
     type ChatPart,
+    type ChatToolCallPart,
     type ChatTranscript
 } from '../../../core';
 import {type ChatTransport, ScriptedChatTransport, textEvents} from '../../../transport';
@@ -251,6 +252,86 @@ describe('ChatMessageView', () => {
             expect(screen.getAllByRole('article')[1].getAttribute('aria-label')).toMatch(
                 /^Assistant, /
             );
+        });
+
+        it('shows a working cue in place of the header until the first content arrives', () => {
+            const chatModel = createModel({}, []),
+                waiting = new ChatMessage(reply('a1', [], {status: 'streaming'})),
+                {container} = renderList(chatModel, {showMessageHeader: false}),
+                cue = () => container.querySelector('.xh-chat-message__working');
+
+            act(() =>
+                runInAction(() => (chatModel.messages = [new ChatMessage(question()), waiting]))
+            );
+            expect(cue().querySelector('.xh-chat-status-cue')).toBeTruthy();
+
+            act(() =>
+                runInAction(() => {
+                    chatModel.messages = [
+                        new ChatMessage(question()),
+                        new ChatMessage(reply('a1', [text('t1', 'First')], {status: 'streaming'}))
+                    ];
+                })
+            );
+            expect(cue()).toBeNull();
+        });
+
+        it('keeps the cue while only hidden parts have arrived, with a spinner for a hidden tool', () => {
+            const chatModel = createModel({tools: [{name: 'log_usage', display: 'hidden'}]}, []);
+            const {container} = renderList(chatModel, {showMessageHeader: false});
+            act(() =>
+                runInAction(() => {
+                    chatModel.messages = [
+                        new ChatMessage(question()),
+                        new ChatMessage(
+                            reply(
+                                'a1',
+                                [
+                                    {type: 'source', id: 's1', url: 'https://x.io', title: 'X'},
+                                    {
+                                        ...(toolCall('c1', 0) as ChatToolCallPart),
+                                        toolName: 'log_usage',
+                                        state: 'running'
+                                    }
+                                ],
+                                {status: 'streaming'}
+                            )
+                        )
+                    ];
+                })
+            );
+
+            const cue = container.querySelector('.xh-chat-message__working');
+            expect(cue.textContent).toContain('Running');
+            expect(cue.querySelector('.xh-chat-spinner')).toBeTruthy();
+        });
+
+        it('shows no cue on a finished reply with nothing to show', () => {
+            const chatModel = createModel({}, [question(), reply('a1', [], {status: 'complete'})]);
+            const {container} = renderList(chatModel, {showMessageHeader: false});
+            expect(container.querySelector('.xh-chat-message__working')).toBeNull();
+        });
+
+        it("shows the app's working cue from ChatKit.defaults, and none with a header", () => {
+            const workingCue = ChatKit.defaults.workingCue;
+            ChatKit.defaults.workingCue = ({message}) =>
+                span({className: 'app-ring', item: message.id});
+            onTestFinished(() => {
+                ChatKit.defaults.workingCue = workingCue;
+            });
+            const chatModel = createModel({}, []),
+                waiting = () => [
+                    new ChatMessage(question()),
+                    new ChatMessage(reply('a1', [], {status: 'streaming'}))
+                ];
+
+            const hidden = renderList(chatModel, {showMessageHeader: false});
+            act(() => runInAction(() => (chatModel.messages = waiting())));
+            expect(hidden.container.querySelector('.app-ring').textContent).toBe('a1');
+            hidden.unmount();
+
+            const shown = renderList(chatModel);
+            expect(shown.container.querySelector('.xh-chat-message__working')).toBeNull();
         });
 
         it('counts failed tools of a finished reply', () => {

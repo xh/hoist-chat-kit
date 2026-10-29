@@ -34,6 +34,13 @@ names in `DECISIONS.md`.
 
 ## Next session: start here
 
+**The OpenUI app's cutover asks (K1 to K20), October 2026.** Built, reviewed and published:
+K1, K2, K3 (D103), K6, K7, K9 to K19 (D104, D105), K8, and K20 as motion (D106). Still open:
+K4 (history from stored AG-UI events - ask the app what its log holds first), K5 (the timeline
+head's label - on hold), and the motion spec's send handoff (a spike). Each round ran an
+independent review and a verification pass before it shipped. The motion has not been watched in
+a real browser yet; the app agent runs the spec's acceptance checks.
+
 Review 7 is merged (D89 to D92): the chat UI layer's cuts, trims and showcase calls, reviewed on
 every round and checked in a browser through Toolbox. The first real integration builds on it.
 Start there, and record what it teaches as decisions.

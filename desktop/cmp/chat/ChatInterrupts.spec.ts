@@ -8,6 +8,7 @@ import {
     type ChatEvent,
     interruptEvents,
     ScriptedChatTransport,
+    scriptedDelay,
     textEvents,
     toolCallEvents
 } from '../../../transport';
@@ -59,6 +60,35 @@ describe('ChatInterrupts', () => {
         expect(document.querySelector('.xh-chat-interrupts__record').textContent).toContain(
             'How often?Weekly'
         );
+    });
+
+    it('shows the working cue of a reply with no header below its answered question', async () => {
+        const transport = new ScriptedChatTransport({
+                responses: [
+                    interruptEvents([{id: 'q1', reason: 'input_required', message: 'Why?'}]),
+                    [scriptedDelay(60_000), ...textEvents('Thanks.')]
+                ],
+                delayMs: 0
+            }),
+            chatModel = new ChatModel({transport});
+        onTestFinished(() => chatModel.destroy());
+        await chatModel.sendAsync('Help me');
+        const {container} = render(
+            appContext({item: chatMessageList({model: chatModel, showMessageHeader: false})})
+        );
+
+        fireEvent.change(screen.getByRole('textbox', {name: 'Your answer'}), {
+            target: {value: 'Budget'}
+        });
+        fireEvent.click(screen.getByRole('button', {name: 'Send'}));
+        await waitFor(() =>
+            expect(container.querySelector('.xh-chat-message__working')).toBeTruthy()
+        );
+
+        const record = container.querySelector('.xh-chat-interrupts__record'),
+            cue = container.querySelector('.xh-chat-message__working');
+        expect(record.compareDocumentPosition(cue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        act(() => chatModel.stop());
     });
 
     it('sends a text answer, and declines with Decline', async () => {

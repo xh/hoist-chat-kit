@@ -199,6 +199,26 @@
     }
   }
 
+  // A reply with no header shows a working cue in its body, until its first content arrives. The
+  // kit's own is the header's live status, styled as the header is. An app's own is unstyled.
+  &__working {
+    align-items: center;
+    display: flex;
+
+    &--kit {
+      color: var(--xh-chat-meta-text-color);
+      font-size: var(--xh-chat-meta-font-size);
+      line-height: 16px;
+      min-height: 16px;
+
+      .xh-chat-message__live-status {
+        align-items: center;
+        display: inline-flex;
+        gap: calc(var(--xh-pad) * 0.6px);
+      }
+    }
+  }
+
   // The busy status and its ticking time, as two segments.
   &__live-status .xh-chat-elapsed::before {
     content: '·';

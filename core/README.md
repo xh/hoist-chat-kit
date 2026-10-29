@@ -1381,6 +1381,7 @@ Fields of `ChatKit.defaults`. See `ChatKit.ts`.
 | `drafts` | `'local' \| 'memory'` | Where the composer keeps its unsent draft text: local storage, per thread, or memory only. Default `local`. See [Keep drafts](#keep-drafts). |
 | `shortcuts` | `ChatShortcuts` | Key combos in the format of Hoist's `useHotkeys`, by action: `newChat`, `focusComposer`, `cycleRegions` and `toggleSidebar`. Null drops a shortcut. See [Keyboard](../desktop/cmp/chat/README.md#keyboard). |
 | `markdownTableMaxRows` | `number` | Most body rows a markdown table shows in full, in a reply, its reasoning or a tool's output. A longer table shows that many in a card, with Show All. Default 100. |
+| `workingCue` | `({message, chatModel}) => ReactNode` | The cue a reply shows while it waits for its first content, in a list with `showMessageHeader: false`. May call hooks. Null for the kit's own, the reply's live status. Default null. |
 
 The kit reads `drafts` and `shortcuts` from the components that use them. Set `shortcuts` before
 the chat components render.

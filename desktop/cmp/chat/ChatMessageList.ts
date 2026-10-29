@@ -93,7 +93,8 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
     /**
      * False to leave out each reply's header line, and all it holds: the assistant's icon and
      * name, its live status, time and time taken, "Thought for", failed tools, "Retried", and any
-     * `messageHeaderItems`. Default true.
+     * `messageHeaderItems`. Until its first content arrives, a reply then shows its live status in
+     * its body, or `ChatKit.defaults.workingCue`. Default true.
      */
     showMessageHeader?: boolean;
 }

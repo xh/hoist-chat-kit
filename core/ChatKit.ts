@@ -1,4 +1,6 @@
-import type {ReactElement} from 'react';
+import type {ReactElement, ReactNode} from 'react';
+import type {ChatMessage} from './ChatMessage';
+import type {ChatModel} from './ChatModel';
 import {XH} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
 import {CHAT_STORAGE_PREFIX, chatDraftKey} from './impl/localData';
@@ -59,6 +61,25 @@ export interface ChatKitDefaults {
      * as each table renders. Default 100.
      */
     markdownTableMaxRows: number;
+
+    /**
+     * Renders the cue that a reply shows while it waits for its first content, when its list
+     * leaves out reply headers - `ChatMessageListProps.showMessageHeader`. Null for the kit's
+     * own: the reply's live status, as "Thinking 3s" with a spinner. Called as the body of a
+     * component of its own, so it may call React hooks. Its output sits in the reply's body, in
+     * `.xh-chat-message__working`, with no kit styles. Add no live region to it: the chat's
+     * announcer already reads a reply's progress. Default null.
+     */
+    workingCue: (context: ChatWorkingCueContext) => ReactNode;
+}
+
+/** Passed to `ChatKit.defaults.workingCue`. */
+export interface ChatWorkingCueContext {
+    /** The reply that waits for its first content. */
+    message: ChatMessage;
+
+    /** The chat that runs it. */
+    chatModel: ChatModel;
 }
 
 /**
@@ -103,7 +124,8 @@ export class ChatKit {
             cycleRegions: 'f6',
             toggleSidebar: null
         },
-        markdownTableMaxRows: 100
+        markdownTableMaxRows: 100,
+        workingCue: null
     };
 
     /**

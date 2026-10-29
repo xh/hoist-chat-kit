@@ -637,6 +637,19 @@ function assistantContent(
                                         )
                             )
                         ),
+                        // With no header to show its status, a reply that waits for its first
+                        // content shows a working cue in its body - after any answered questions.
+                        props.showHeader === false &&
+                        message.isStreaming &&
+                        isEmpty(runs) &&
+                        chatModel
+                            ? workingCue({
+                                  key: 'working',
+                                  message,
+                                  chatModel,
+                                  isLast: props.isLast
+                              })
+                            : null,
                         replyNotice(props, chatModel)
                     ]
                 }),
@@ -1044,6 +1057,41 @@ const appTextPart = hoistCmp.factory<TextPartProps>({
             className: classNames('xh-chat-message__text', 'xh-chat-message__text--app'),
             item: content
         });
+    }
+});
+
+interface WorkingCueProps extends HoistProps {
+    message: ChatMessage;
+    chatModel: ChatModel;
+    isLast: boolean;
+}
+
+const workingCue = hoistCmp.factory<WorkingCueProps>({
+    displayName: 'ChatWorkingCue',
+    model: false,
+    className: 'xh-chat-message__working',
+
+    render({className, message, chatModel, isLast}) {
+        if (ChatKit.defaults.workingCue) {
+            return div({className, item: appWorkingCue({message, chatModel, isLast})});
+        }
+        // The reply has no rows yet, so no row shows a running tool's spinner.
+        return div({
+            className: classNames(className, 'xh-chat-message__working--kit'),
+            item: chatReplyLiveStatus({message, chatModel, isLast, alwaysSpin: true})
+        });
+    }
+});
+
+// The app's cue runs as this component's render, so hooks it calls belong to the cue, and a
+// switch between the app's cue and the kit's never mixes their hooks. Takes any model in context,
+// as `useLocalModel()` needs a component with a model spec.
+const appWorkingCue = hoistCmp.factory<WorkingCueProps>({
+    displayName: 'ChatAppWorkingCue',
+    model: uses('*', {optional: true}),
+
+    render({message, chatModel}) {
+        return ChatKit.defaults.workingCue?.({message, chatModel}) ?? null;
     }
 });
 

@@ -11,6 +11,12 @@ interface ChatReplyLiveStatusProps extends HoistProps {
 
     /** True if the message is the last of the conversation, whose turn the activity belongs to. */
     isLast: boolean;
+
+    /**
+     * True to show the spinner for a running tool too, where no row of the reply shows one.
+     * Default false: a running call shows its own.
+     */
+    alwaysSpin?: boolean;
 }
 
 /**
@@ -24,7 +30,7 @@ export const chatReplyLiveStatus = hoistCmp.factory<ChatReplyLiveStatusProps>({
     model: false,
     className: 'xh-chat-message__live-status',
 
-    render({className, message, chatModel, isLast}) {
+    render({className, message, chatModel, isLast, alwaysSpin = false}) {
         const isLive = message.isStreaming,
             now = useChatClock(isLive);
         if (!isLive) return null;
@@ -45,7 +51,7 @@ export const chatReplyLiveStatus = hoistCmp.factory<ChatReplyLiveStatusProps>({
                     status,
                     stalledMs: lastActivityAt != null ? now - lastActivityAt : null,
                     // A running tool call shows its own spinner, and a reply shows one at most.
-                    showSpinner: status !== 'runningTool'
+                    showSpinner: alwaysSpin || status !== 'runningTool'
                 }),
                 chatElapsed({startedAt: message.createdAt})
             ]
