@@ -193,10 +193,14 @@
     gap: 6px;
     padding-top: 0;
 
-    // Flush with the frame's edge.
+    // Flush with the frame's edge, as is the text of "Show N More".
     @include hoist-button('.xh-chat-sources__head') {
       height: auto;
       padding: 0;
+    }
+
+    @include hoist-button('.xh-chat-sources__more') {
+      margin-left: -4px;
     }
 
     .xh-chat-sources__list {
@@ -285,6 +289,8 @@
     );
   }
 
+  // Its padding keeps room for the hover fill. Each layout pulls it left so that its text lines up
+  // with the heading's.
   @include hoist-button('.xh-chat-sources__more') {
     --xh-button-text-color: var(--xh-chat-text-color);
 
@@ -292,5 +298,11 @@
     font-size: var(--xh-chat-font-size);
     min-height: 24px;
     padding: 0 4px;
+  }
+
+  &--compact {
+    @include hoist-button('.xh-chat-sources__more') {
+      margin-left: -2px;
+    }
   }
 }

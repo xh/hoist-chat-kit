@@ -182,12 +182,14 @@ describe('sources and citations', () => {
             expect(external(off.container)).toBe(0);
         });
 
-        it('shows three rows, then the rest behind Show N More', () => {
+        it('shows three rows, then the rest behind a plain Show N More', () => {
             const sources = [1, 2, 3, 4, 5].map(n => doc(n)),
                 {container} = renderReply('All [1] [2] [3] [4] [5].', sources);
             expect(numbers(container)).toEqual(['1', '2', '3']);
 
-            fireEvent.click(screen.getByRole('button', {name: 'Show 2 More'}));
+            const more = screen.getByRole('button', {name: 'Show 2 More'});
+            expect(more.querySelector('svg')).toBeNull();
+            fireEvent.click(more);
             expect(numbers(container)).toEqual(['1', '2', '3', '4', '5']);
 
             fireEvent.click(screen.getByRole('button', {name: 'Show Fewer'}));

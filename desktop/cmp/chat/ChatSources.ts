@@ -205,8 +205,8 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
                       }),
                 !isCollapsed && hidden > 0
                     ? button({
+                          // No icon - the heading's chevron is the list's only one.
                           className: 'xh-chat-sources__more',
-                          icon: showAll ? Icon.chevronUp() : Icon.chevronDown(),
                           text: showAll ? 'Show Fewer' : `Show ${hidden} More`,
                           'aria-expanded': showAll,
                           onClick: () => impl.setShowAll(!showAll)
