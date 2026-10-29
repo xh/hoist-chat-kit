@@ -4,6 +4,7 @@ import {
     findLast,
     isBoolean,
     isEmpty,
+    isFinite,
     isNil,
     isPlainObject,
     isString,
@@ -108,6 +109,9 @@ export class ChatStreamReducer {
     }
 
     private readonly textTransform: ChatTextTransform;
+    private readonly useEventTimestamps: boolean;
+    /** The `timestamp` of the latest event that had one, for `useEventTimestamps`. */
+    private eventTime: number = null;
     private partIds = new Map<string, string>();
     private rawTexts = new Map<string, string>();
     /** Length of the text a revising part replaced, by part id - see `ChatTextPart.revising`. */
@@ -131,10 +135,19 @@ export class ChatStreamReducer {
      * @param step - zero-based index of the step within its turn - the request's `stepIndex`.
      * @param opts.textTransform - rewrites model text before it is stored - see
      *      `ChatModelConfig.textTransform`.
+     * @param opts.useEventTimestamps - true to time parts by the `timestamp` of the events that
+     *      start and end them, rather than by the local clock as the events arrive. For events
+     *      replayed from storage - see {@link replayChatEvents}. A live stream keeps the local
+     *      clock, so that the server's clock cannot skew the timers that run beside it. An event
+     *      with no `timestamp` takes the latest one before it. Default false.
      */
-    constructor(step: number, opts: {textTransform?: ChatTextTransform} = {}) {
+    constructor(
+        step: number,
+        opts: {textTransform?: ChatTextTransform; useEventTimestamps?: boolean} = {}
+    ) {
         this.step = step;
         this.textTransform = opts.textTransform ?? null;
+        this.useEventTimestamps = opts.useEventTimestamps ?? false;
     }
 
     /** Apply a batch of events, returning the updated message. */
@@ -215,6 +228,10 @@ export class ChatStreamReducer {
     // Implementation
     //------------------
     private applyEvent(draft: Draft, event: ChatEvent) {
+        // Never back: a part must not end before it starts.
+        if (this.useEventTimestamps && isFinite(event.timestamp)) {
+            this.eventTime = Math.max(this.eventTime ?? event.timestamp, event.timestamp);
+        }
         if (this.isForSupersededPart(event)) return;
         switch (event.type) {
             case 'TEXT_MESSAGE_START':
@@ -350,7 +367,7 @@ export class ChatStreamReducer {
                     name: name ?? 'Agent',
                     ...omitBy({description, parentSubagentRunId, parentToolCallId}, isNil),
                     status: 'running',
-                    startedAt: Date.now(),
+                    startedAt: this.now(),
                     endedAt: null
                 };
                 putPart(draft, {
@@ -442,6 +459,11 @@ export class ChatStreamReducer {
             default:
                 logDebug(['Ignored event', event.type], this);
         }
+    }
+
+    /** The time to record on a part: by the events with `useEventTimestamps`, else now. */
+    private now(): number {
+        return this.eventTime ?? Date.now();
     }
 
     //------------------
@@ -640,7 +662,7 @@ export class ChatStreamReducer {
             step: this.step,
             text: '',
             state: 'streaming',
-            startedAt: Date.now(),
+            startedAt: this.now(),
             endedAt: null
         });
         this.partIds.set(key, id);
@@ -675,7 +697,7 @@ export class ChatStreamReducer {
         if (part) {
             putPart(draft, {...part, ...changes});
         } else {
-            const now = Date.now();
+            const now = this.now();
             putPart(draft, {
                 type: 'reasoning',
                 id: genChatId(),
@@ -745,7 +767,7 @@ export class ChatStreamReducer {
             input: null,
             output: null,
             errorText: null,
-            startedAt: Date.now(),
+            startedAt: this.now(),
             ...omitBy({subagentRunId, parentServerId: parentMessageId, metadata}, isNil)
         });
         this.lastToolCallId = toolCallId;
@@ -791,7 +813,7 @@ export class ChatStreamReducer {
                 input: null,
                 state: 'output-error',
                 errorText: `Invalid tool input: ${e.message}`,
-                endedAt: Date.now()
+                endedAt: this.now()
             });
         }
     }
@@ -846,7 +868,7 @@ export class ChatStreamReducer {
             ...getPart<ChatToolCallPart>(draft, toolCallId),
             ...changes,
             providerExecuted: true,
-            endedAt: Date.now()
+            endedAt: this.now()
         });
     }
 
@@ -859,7 +881,7 @@ export class ChatStreamReducer {
             logDebug(['Ignored end of unknown sub-agent', subagentRunId], this);
             return;
         }
-        const endedAt = changes.status === 'waiting' ? null : Date.now();
+        const endedAt = changes.status === 'waiting' ? null : this.now();
         putPart(draft, {...part, data: {...part.data, ...changes, endedAt}});
     }
 
@@ -979,7 +1001,7 @@ export class ChatStreamReducer {
         const part = getPart<ChatTextPart | ChatReasoningPart>(draft, id);
         if (part?.state !== 'streaming') return;
         if (part.type === 'reasoning') {
-            putPart(draft, {...part, state: 'done', endedAt: Date.now()});
+            putPart(draft, {...part, state: 'done', endedAt: this.now()});
         } else {
             const {revising: _revising, ...rest} = part;
             this.revisingLengths.delete(id);

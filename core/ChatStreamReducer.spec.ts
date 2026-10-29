@@ -1307,6 +1307,31 @@ describe('ChatStreamReducer', () => {
             expect(call.startedAt).toEqual(expect.any(Number));
             expect(call.endedAt).toBeGreaterThanOrEqual(call.startedAt);
         });
+
+        it('times parts by event timestamps only when asked, so a server clock cannot skew a live reply', () => {
+            const events: ChatEvent[] = [
+                    {
+                        type: 'TOOL_CALL_START',
+                        toolCallId: 'c1',
+                        toolCallName: 'lookup',
+                        timestamp: 1000
+                    },
+                    {type: 'TOOL_CALL_END', toolCallId: 'c1'},
+                    {
+                        type: 'TOOL_CALL_RESULT',
+                        messageId: 'm',
+                        toolCallId: 'c1',
+                        content: 'ok',
+                        timestamp: 4000
+                    }
+                ],
+                callOf = (reducer: ChatStreamReducer) =>
+                    reducer.apply(pendingMessage(), events).parts[0] as ChatToolCallPart;
+
+            expect(callOf(new ChatStreamReducer(0)).startedAt).toBeGreaterThan(4000);
+            const replayed = callOf(new ChatStreamReducer(0, {useEventTimestamps: true}));
+            expect([replayed.startedAt, replayed.endedAt]).toEqual([1000, 4000]);
+        });
     });
 });
 

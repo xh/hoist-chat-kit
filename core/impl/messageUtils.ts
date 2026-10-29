@@ -33,10 +33,12 @@ export function updatePart<T extends ChatPart>(
 /**
  * A copy of a message with its streaming text and reasoning parts marked done. Tool calls are
  * left as they are. Returns the same message if nothing was streaming.
+ *
+ * @param endedAt - the time to record on the parts it ends. Default now.
  * @internal
  */
-export function settleStreamingParts(message: ChatMessage): ChatMessage {
-    return settleParts(message, null);
+export function settleStreamingParts(message: ChatMessage, endedAt: number = null): ChatMessage {
+    return settleParts(message, null, false, endedAt);
 }
 
 /**
@@ -47,15 +49,28 @@ export function settleStreamingParts(message: ChatMessage): ChatMessage {
  *
  * @param isCancelled - true if the user stopped the turn. Closed tool calls are then marked
  *      `cancelled`, and running sub-agents end as `cancelled` rather than failed.
+ * @param endedAt - the time to record on the parts it ends. Default now.
  * @internal
  */
 export function settleOpenParts(
     message: ChatMessage,
     reason: string,
-    isCancelled: boolean = false
+    isCancelled: boolean = false,
+    endedAt: number = null
 ): ChatMessage {
-    return settleParts(message, reason, isCancelled);
+    return settleParts(message, reason, isCancelled, endedAt);
 }
+
+/**
+ * Why `settleOpenParts` closed a tool call, by how its turn ended.
+ * @internal
+ */
+export const SETTLE_REASONS = {
+    complete: 'No result - the conversation moved on.',
+    aborted: 'Stopped by the user.',
+    error: 'Not completed - the turn failed.',
+    interrupted: 'Not completed - the response was interrupted.'
+};
 
 /**
  * Why a sub-agent failed when its run ended before the sub-agent did.
@@ -99,10 +114,11 @@ export function getClientToolCalls(message: ChatMessage, step: number): ChatTool
 function settleParts(
     message: ChatMessage,
     toolCallReason: string,
-    isCancelled: boolean = false
+    isCancelled: boolean,
+    endedAt: number
 ): ChatMessage {
     let changed = false;
-    const now = Date.now(),
+    const now = endedAt ?? Date.now(),
         parts = message.parts.map((part): ChatPart => {
             switch (part.type) {
                 case 'text':

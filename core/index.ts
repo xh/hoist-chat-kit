@@ -21,3 +21,4 @@ export * from './ChatToolResult';
 export * from './ChatToolSpec';
 export * from './ChatTranscript';
 export * from './ChatStreamReducer';
+export * from './replayChatEvents';

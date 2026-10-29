@@ -1810,3 +1810,23 @@ change of layout must commit within the transition's callback, and the snapshot 
 it runs, so it waits for a spike. Settle new messages, fade streamed chunks or stagger table rows:
 not asked for yet. Transition the input's own height: mid-way it scrolls to keep the caret in
 view, and the text wobbles.
+
+## D107. Stored AG-UI events replay through the live reducer, by their own clock
+
+**Decision.** `replayChatEvents` rebuilds a reply from the events a backend stored for its turn.
+It runs them through an app's decoder, for the same checks as a live stream, and through
+`ChatStreamReducer`. The reducer then times parts by each event's `timestamp`, an option that a
+live stream leaves off. The reply's status follows from how the events end: complete, failed, or
+detached with no end. The app may pass the status its backend recorded. Anything left open
+closes as the live chat would close it, at the turn's last event.
+
+**Why.** A backend that stores events keeps what a message snapshot loses: sub-agents, activity,
+superseded attempts, tool result metadata and timings. Without a helper, each app drives a
+decoder and reducer by hand, and its replies read as taking no time, ending at the load. The
+event clock stays off live, so a server clock out of step with the browser cannot skew the timers
+that run beside a reply. The helper adds no protocol convention: `timestamp` is AG-UI's own field.
+
+**Alternatives.** `MESSAGES_SNAPSHOT` on load: AG-UI's message types cannot carry the parts
+above, though the kit may still take snapshots for backends that keep only messages. Trust event
+timestamps live too: clock skew would distort the running timers. Read a backend's status words
+in the kit: they differ by backend, so the app maps them through `status`.

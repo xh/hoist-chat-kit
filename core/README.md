@@ -86,6 +86,8 @@ ChatStreamReducer                     # Folds the events of one step into the re
 ├── apply(message, events)            # A new message for each batch of events
 ├── finish(message)                   # Close out the step when its stream ends
 └── runId, runThreadId, userServerId  # Ids the step's events reported, or null
+
+replayChatEvents(records, opts)       # Rebuilds a reply from its turn's stored events
 ```
 
 ### Turns and steps
@@ -1418,6 +1420,9 @@ the chat components render.
 - **Stream reducer** - run a transport without `ChatModel`, and fold its events into your own
   `ChatMessage` with `ChatStreamReducer`. `ChatModel` uses the same reducer for every step. See
   [Use a transport without ChatModel](../transport/README.md#use-a-transport-without-chatmodel).
+- **Stored events** - rebuild a thread's replies from the AG-UI events a backend stored, with
+  `replayChatEvents`. See
+  [Load history from stored events](../threads/README.md#load-history-from-stored-events).
 
 ## Common Pitfalls
 

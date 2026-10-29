@@ -84,6 +84,7 @@ import {genChatId} from '../impl/ids';
 import {
     createTextPart,
     getClientToolCalls,
+    SETTLE_REASONS,
     settleOpenParts,
     settleStreamingParts,
     updatePart
@@ -1280,34 +1281,39 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         // A run that failed after its interrupts shows no answer panels. Its set still goes out
         // declined, on the next request.
         const message = this.getTurnMessage(turn);
-        if (message.status !== 'error') this.markServerCalls(turn, outcome.interrupts);
+        if (message.status !== 'error') {
+            this.updateTurnMessage(turn, it =>
+                this.withServerCalls(it, turn.step, outcome.interrupts)
+            );
+        }
         this.interruptSet = createInterruptSet(this.getTurnMessage(turn), reducer.finishedRunId);
     }
 
     /**
-     * Mark the calls an interrupted run left open that the chat cannot run - those that name no
-     * tool of the chat - as the server's. One that an interrupt asks to approve waits for the user.
+     * A reply with the calls an interrupted step left open that the chat cannot run - those that
+     * name no tool of the chat - marked as the server's. One that an interrupt asks to approve
+     * waits for the user. Calls already marked are left as they are.
      */
-    private markServerCalls(turn: ChatTurn, interrupts: Interrupt[]) {
-        this.updateTurnMessage(turn, message => {
-            let ret = message;
-            message.toolCalls.forEach(call => {
-                if (call.step !== turn.step || call.providerExecuted || isToolCallFinal(call)) {
-                    return;
-                }
-                if (this.getOwnToolSpec(call.toolName)) return;
+    private withServerCalls(
+        message: ChatMessage,
+        step: number,
+        interrupts: Interrupt[]
+    ): ChatMessage {
+        let ret = message;
+        message.toolCalls.forEach(call => {
+            if (call.step !== step || call.providerExecuted || isToolCallFinal(call)) return;
+            if (this.getOwnToolSpec(call.toolName)) return;
 
-                const approval = interrupts.find(
-                    it => it.toolCallId === call.id && isApprovalSchema(it.responseSchema)
-                );
-                ret = updatePart<ChatToolCallPart>(ret, call.id, {
-                    providerExecuted: true,
-                    awaitsResume: true,
-                    ...(approval ? {state: 'approval-requested'} : {})
-                });
+            const approval = interrupts.find(
+                it => it.toolCallId === call.id && isApprovalSchema(it.responseSchema)
+            );
+            ret = updatePart<ChatToolCallPart>(ret, call.id, {
+                providerExecuted: true,
+                awaitsResume: true,
+                ...(approval ? {state: 'approval-requested'} : {})
             });
-            return ret;
         });
+        return ret;
     }
 
     private isInteractive(call: ChatToolCallPart): boolean {
@@ -1731,6 +1737,15 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.isThreadIdProvisional = threadId == null || !hasHistory(specs);
         this.messages = restoreMessages(specs);
         this.interruptSet = restoreInterruptSet(this.messages);
+        // A history rebuilt from events, rather than saved by the chat, has no marks on the
+        // server calls that a paused reply's interrupts wait on.
+        const set = this.interruptSet,
+            paused = set ? this.getMessage(set.messageId) : null;
+        if (paused?.status === 'paused') {
+            this.replaceMessage(
+                this.withServerCalls(paused, set.interrupts[0].step, set.interrupts)
+            );
+        }
         this.artifacts.clear();
         this.addArtifactsOf(this.messages);
         this.feedbackDrafts = {};
@@ -2029,14 +2044,6 @@ const TURN_TRACK_MESSAGES = {
     complete: 'Turn complete',
     error: 'Turn failed',
     aborted: 'Turn stopped'
-};
-
-/** Error text for tool calls left unfinished when a turn ends, by how it ended. */
-const SETTLE_REASONS = {
-    complete: 'No result - the conversation moved on.',
-    aborted: 'Stopped by the user.',
-    error: 'Not completed - the turn failed.',
-    interrupted: 'Not completed - the response was interrupted.'
 };
 
 /** State of one assistant turn, from its first step to its last. */

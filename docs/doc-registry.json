@@ -259,7 +259,10 @@
         "isThreadNotFound",
         "thread not found",
         "concurrency rules",
-        "recency groups"
+        "recency groups",
+        "replayChatEvents",
+        "stored AG-UI events",
+        "history replay"
       ]
     },
     {

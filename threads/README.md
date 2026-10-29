@@ -285,6 +285,62 @@ example above caps the list at the 100 most recent threads.
 A store whose backend returns history a page at a time can set `nextCursor` on the page. The
 kit ignores it, and shows the messages the page holds.
 
+### Load history from stored events
+
+A backend that stores each turn's AG-UI events can return them for the store to replay.
+`replayChatEvents` from `/core/` runs a turn's events through the same reducer as a live
+stream, so the reply loads with its tool calls, sub-agents and activity. Pass a new decoder for
+each turn, so that stored events pass the same AG-UI checks as a live stream. Pass the chat's
+`textTransform` too, if it has one.
+
+```typescript
+import {XH} from '@xh/hoist/core';
+import {type ChatMessageSpec, replayChatEvents} from '@xh/hoist-chat-kit/core';
+import type {ChatThreadStore} from '@xh/hoist-chat-kit/threads';
+import {AgUiCodec} from '@xh/hoist-chat-kit/transport';
+
+export class AssistantThreadStore implements ChatThreadStore {
+    private codec = new AgUiCodec();
+
+    async loadMessagesAsync({threadId}) {
+        const turns = await XH.fetchJson({url: `assistant/chats/${threadId}/turns`});
+        return {
+            messages: turns.flatMap(turn => {
+                const reply = replayChatEvents(turn.events, {
+                        decoder: this.codec.createDecoder(),
+                        id: turn.answerId,
+                        status: turn.status === 'cancelled' ? 'aborted' : null,
+                        metadata: {serverId: turn.answerId}
+                    }),
+                    user: ChatMessageSpec = {
+                        id: turn.requestId,
+                        role: 'user',
+                        content: turn.userMessage,
+                        createdAt: turn.createdAt ?? reply.createdAt
+                    };
+                return [user, reply];
+            })
+        };
+    }
+
+    // ...listThreadsAsync and the rest, as above
+}
+```
+
+- **Times** come from the events' `timestamp`s, not from the load. The reply starts at its first
+  event, and each part ends at the event that ends it. Stamp every event as you store it.
+- **Status** follows from how the events end: `RUN_FINISHED` completes the reply, and `RUN_ERROR`
+  fails it. With neither, the turn is still running on the server, and the reply loads detached.
+  Pass `status` when the backend records the outcome its own way, such as a turn the user stopped
+  that it stores as a `RUN_ERROR`.
+- **A cut stream** should end with a `RUN_ERROR` as it is stored. AG-UI's checks reject a
+  `RUN_FINISHED` while a message or tool call is still open, and a second `RUN_STARTED` or
+  `RUN_FINISHED` for one run. A reply whose events fail the checks loads failed, with what came
+  before the bad event. The rest of the thread loads as normal.
+- **The user's message** is not among AG-UI events. Build it from the backend's own record. If
+  that record has no time, give it the reply's, so that it does not read as sent just now.
+- **Superseded attempts** drop, as they do live.
+
 ### Search
 
 Bind a text input to `search`. The list reloads 300ms after the text stops changing, with the
