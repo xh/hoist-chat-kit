@@ -156,8 +156,7 @@
     outline: none;
 
     &:focus-visible > .xh-chat-timeline__row,
-    &:focus-visible > .xh-chat-timeline__narration,
-    &:focus-visible > .xh-chat-timeline__result {
+    &:focus-visible > .xh-chat-timeline__narration {
       @include focus-ring-inset;
     }
   }
@@ -165,7 +164,6 @@
   // Indent per level, clamped at three - deeper rows name their parent.
   &__row,
   &__narration,
-  &__result,
   &__reason,
   &__detail {
     --xh-chat-timeline-pad: calc(
@@ -283,9 +281,8 @@
     text-align: right;
   }
 
-  // Narration and results align with the row titles: pad, icon and gap.
+  // Narration and reasons align with the row titles: pad, icon and gap.
   &__narration,
-  &__result,
   &__reason {
     font-size: var(--xh-chat-timeline-narration-font-size);
     line-height: 1.5;
@@ -300,14 +297,6 @@
     p {
       margin: 0;
     }
-  }
-
-  &__result {
-    color: var(--xh-chat-text-color);
-  }
-
-  &__result-label {
-    font-weight: 600;
   }
 
   &__reason {
@@ -370,6 +359,16 @@
 
     > * {
       white-space: pre;
+    }
+
+    // A sub-agent's report reads as prose, in the reply's font.
+    &--prose {
+      font-family: var(--xh-font-family);
+      font-size: var(--xh-chat-timeline-narration-font-size);
+
+      > * {
+        white-space: normal;
+      }
     }
 
     &:focus-visible {

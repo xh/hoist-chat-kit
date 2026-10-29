@@ -114,9 +114,17 @@ describe('ChatTimeline', () => {
             ).toEqual([
                 'Loaded skill, Limits',
                 expect.stringMatching(/^Load, Rates/),
-                // The sub-agent's result.
-                null
+                // The sub-agent's result, as a leaf the user opens.
+                'Result, All clear.'
             ]);
+
+            const resultRow = within(agentRow).getAllByRole('treeitem')[2];
+            expect(resultRow.querySelector('.xh-chat-timeline__pane')).toBeNull();
+            fireEvent.click(resultRow.querySelector('.xh-chat-timeline__row'));
+            const pane = resultRow.querySelector('.xh-chat-timeline__pane-body--prose');
+            expect(pane.textContent).toBe('All clear.');
+            expect(pane.getAttribute('tabindex')).toBe('0');
+            expect(resultRow.getAttribute('aria-label')).toBe('Result');
         });
 
         it('shows a call that starts a sub-agent as the sub-agent row alone', async () => {

@@ -234,6 +234,24 @@ describe('ChatMessageView feedback', () => {
         });
     });
 
+    describe('a reply stopped before any content', () => {
+        it('offers no thumbs, as there is nothing to rate', () => {
+            renderChat({}, {}, [
+                question('u1'),
+                {id: 'a1', role: 'assistant', parts: [], status: 'aborted'}
+            ]);
+
+            expect(screen.queryByRole('button', {name: 'Good response'})).toBeNull();
+            expect(screen.queryByRole('button', {name: 'Bad response'})).toBeNull();
+        });
+
+        it('still offers thumbs on a reply stopped after some content', () => {
+            renderChat({}, {}, [question('u1'), {...reply('a1', 'Partial'), status: 'aborted'}]);
+
+            expect(thumb('Good response')).toBeTruthy();
+        });
+    });
+
     describe('a rating restored from history', () => {
         it('shows the chosen thumb with no comment mark, and clears on a click', async () => {
             const {submitAsync} = renderChat({}, {feedback: {rating: 'negative'}});

@@ -10,7 +10,8 @@
   min-width: 0;
   position: relative;
 
-  &__top {
+  &__top,
+  &__bottom {
     align-items: center;
     display: flex;
     flex-wrap: wrap;
@@ -150,6 +151,7 @@
   // last line as the input grows. Pills give way before the input does.
   &--inline &__input-row {
     align-items: flex-end;
+    padding: var(--xh-chat-composer-inline-padding);
 
     > .xh-chat-composer__field {
       min-width: 6em;
@@ -175,7 +177,7 @@
   &__toolbar {
     align-items: center;
     display: flex;
-    gap: 6px;
+    gap: var(--xh-chat-composer-bar-gap);
     min-height: 34px;
     min-width: 0;
     padding: var(--xh-chat-composer-toolbar-padding);
@@ -185,7 +187,7 @@
     align-items: center;
     display: flex;
     flex: 1 1 auto;
-    gap: 6px;
+    gap: var(--xh-chat-composer-bar-gap);
     min-width: 0;
     overflow: hidden;
   }
@@ -194,7 +196,7 @@
     align-items: center;
     display: flex;
     flex: none;
-    gap: 6px;
+    gap: var(--xh-chat-composer-bar-gap);
   }
 
   &__send-wrap {

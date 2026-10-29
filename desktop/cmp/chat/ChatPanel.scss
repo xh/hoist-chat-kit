@@ -37,14 +37,22 @@
     }
   }
 
+  // A column, so that the empty state's footer sits at its foot, below the suggestions.
   &__empty-tail {
     box-sizing: border-box;
+    display: flex;
     flex: 6 1 0;
+    flex-direction: column;
     margin: 0 auto;
     max-width: var(--xh-chat-composer-centered-max-width);
     min-height: 0;
     overflow-y: auto;
     padding: 14px var(--xh-chat-side-pad);
     width: 100%;
+
+    > .xh-chat-empty-state__footer {
+      margin-top: auto;
+      padding-top: 14px;
+    }
   }
 }

@@ -1,4 +1,5 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
+import {span} from '@xh/hoist/cmp/layout';
 import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {afterEach, beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -204,6 +205,46 @@ describe('ChatStatusRegion', () => {
         expect(regionText()).toBeNull();
     });
 
+    it('splits the busy line into a lead and a hint, with the kit spinner as its icon', async () => {
+        vi.useFakeTimers();
+        const chatModel = createModel({responses: [textEvents('A long answer.')], delayMs: 50});
+        const done = chatModel.sendAsync('Hi');
+        renderRegion(chatModel, {assistantName: 'Analyst'});
+
+        expect(regionPart('lead')).toBe('Analyst is working');
+        expect(regionPart('hint')).toBe(' · Esc to stop');
+        expect(
+            document.querySelector('.xh-chat-status-region__icon .xh-chat-spinner')
+        ).toBeTruthy();
+        await act(() => vi.advanceTimersByTimeAsync(5000));
+        await done;
+    });
+
+    it('shows the busy icon from ChatKit.defaults.busyIcon, and none when it returns null', async () => {
+        vi.useFakeTimers();
+        const prior = ChatKit.defaults.busyIcon;
+        onTestFinished(() => {
+            ChatKit.defaults.busyIcon = prior;
+        });
+        ChatKit.defaults.busyIcon = () => span({className: 'app-orbit'});
+        let chatModel = createModel({responses: [textEvents('A long answer.')], delayMs: 50});
+        let done = chatModel.sendAsync('Hi');
+        const {unmount} = renderRegion(chatModel);
+        expect(document.querySelector('.xh-chat-status-region__icon .app-orbit')).toBeTruthy();
+        await act(() => vi.advanceTimersByTimeAsync(5000));
+        await done;
+        unmount();
+
+        ChatKit.defaults.busyIcon = () => null;
+        chatModel = createModel({responses: [textEvents('A long answer.')], delayMs: 50});
+        done = chatModel.sendAsync('Hi');
+        renderRegion(chatModel);
+        expect(regionText()).toBe('Assistant is working · Esc to stop');
+        expect(document.querySelector('.xh-chat-status-region__icon')).toBeNull();
+        await act(() => vi.advanceTimersByTimeAsync(5000));
+        await done;
+    });
+
     it('offers Discard for a restored draft', () => {
         XH.localStorageService.set('xhChat.draft.t1', {text: 'Compare', savedAt: Date.now()});
         const chatModel = createModel({threadId: 't1'});
@@ -240,6 +281,10 @@ function renderRegion(chatModel: ChatModel, props: {assistantName?: string} = {}
 
 function regionText(): string {
     return document.querySelector('.xh-chat-status-region__text')?.textContent ?? null;
+}
+
+function regionPart(part: 'lead' | 'hint'): string {
+    return document.querySelector(`.xh-chat-status-region__${part}`)?.textContent ?? null;
 }
 
 async function settleAsync(promise: Promise<void>) {

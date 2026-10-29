@@ -93,7 +93,8 @@ ChatPanel (Panel)                       # uses(ChatModel)
 └── ChatComposer                        # uses(ChatComposerModel), or the chat's composerModel
     ├── attachment tray                 # File chips, then any files left out
     ├── input                           # startItems, then text that grows to 8 lines
-    └── bar                             # leftItems pills | rightItems, attach, Send or Stop
+    ├── bar                             # leftItems pills | rightItems, attach, Send or Stop
+    └── bottomItems                     # A row of its own under the input, in both layouts
 ```
 
 An empty conversation renders no message list. `ChatPanel` shows the `ChatEmptyState` heading,
@@ -1161,6 +1162,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `placeholder` | `string` | Prompt in the empty input. Default `'Send a message...'`, or `'Or tell the assistant what to do instead...'` while a reply waits for the user. |
 | `maxRows` | `number` | Rows the input grows to before it scrolls. Default 8. |
 | `topItems` | `ReactNode` | Content above the input, inside the composer. |
+| `bottomItems` | `ReactNode` | Content below the input, inside the composer, in a row of its own in both layouts. |
 | `startItems` | `ReactNode` | Content that leads the input row, level with the first line, such as a brand mark. |
 | `leftItems` | `ReactNode` | The left slot of the bar, for pills such as `chatComposerPill` and `chatScopeChip`. |
 | `rightItems` | `ReactNode` | The right slot of the bar, before the attach and Send buttons. |
@@ -1284,6 +1286,8 @@ pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
 | Composer | `--xh-chat-composer-bg` | `--xh-input-bg` |
 | | `--xh-chat-composer-border-color` | `--xh-border-color` |
 | | `--xh-chat-composer-focus-border-color` | `--xh-form-field-focused-border-color` |
+| | `--xh-chat-composer-bar-gap` | `6px` |
+| | `--xh-chat-composer-inline-padding` | `0` |
 
 `styles/vars.scss` also declares the variables of each feature area, with a comment per group:
 `--xh-chat-timeline-*`, `--xh-chat-citation-*`, `--xh-chat-source-*`, `--xh-chat-viewer-*`,

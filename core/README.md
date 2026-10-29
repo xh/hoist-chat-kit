@@ -1376,6 +1376,7 @@ Fields of `ChatKit.defaults`. See `ChatKit.ts`.
 | Field | Type | Description |
 |-------|------|-------------|
 | `assistantIcon` | `() => ReactElement` | Returns the icon that marks the assistant. A component's `assistantIcon` prop overrides it. Default `() => Icon.ai()`. |
+| `busyIcon` | `() => ReactElement` | Returns the icon beside "Assistant is working" in the status region. Return null from it for no icon. Null for the kit's spinner. Default null. |
 | `reducedMotionSpinner` | `'static' \| 'spin'` | Under reduced motion, `static` swaps the chat's spinners for a static icon, and `spin` keeps Hoist's spinner. Default `static`. |
 | `stallAfterMs` | `number` | Milliseconds with no data from the server before a reply shows as stalled. `ChatModelConfig.stallAfterMs` overrides it. Default 30,000. |
 | `drafts` | `'local' \| 'memory'` | Where the composer keeps its unsent draft text: local storage, per thread, or memory only. Default `local`. See [Keep drafts](#keep-drafts). |

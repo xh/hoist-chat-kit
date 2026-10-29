@@ -272,7 +272,7 @@ function agentRow(
         // Open while it runs, closed once done - until the user opens or closes it.
         isOpen = impl.isRowOpen(item.id, isRunning),
         steps = getTimelineCalls(item.items).length,
-        result = data?.status === 'complete' ? formatResult(data.result) : null,
+        resultText = data?.status === 'complete' ? formatResult(data.result) : null,
         took =
             data?.startedAt != null && data?.endedAt != null ? data.endedAt - data.startedAt : null;
 
@@ -343,31 +343,62 @@ function agentRow(
             isOpen
                 ? group([
                       ...timelineRows(item.items, ctx, depth + 1, name),
-                      result
-                          ? treeItem({
-                                key: `${item.id}-result`,
-                                id: `${item.id}-result`,
-                                depth: depth + 1,
-                                ctx,
-                                className: 'xh-chat-timeline__leaf',
-                                items: [
-                                    div({
-                                        key: 'result',
-                                        className: 'xh-chat-timeline__result',
-                                        items: [
-                                            span({
-                                                key: 'label',
-                                                className: 'xh-chat-timeline__result-label',
-                                                item: 'Result:'
-                                            }),
-                                            ' ',
-                                            result
-                                        ]
-                                    })
-                                ]
-                            })
+                      resultText
+                          ? resultRow(item.id, data.result, resultText, ctx, depth + 1, name)
                           : null
                   ])
+                : null
+        ]
+    });
+}
+
+/**
+ * A sub-agent's result, as a leaf the user opens. A report that runs to a page stays out of the
+ * way until then, and opens in a pane that scrolls past a capped height - as markdown for text,
+ * else as JSON.
+ */
+function resultRow(
+    agentId: string,
+    result: unknown,
+    text: string,
+    ctx: ChatTimelineRowContext,
+    depth: number,
+    parentName: string
+): ReactNode {
+    const id = `${agentId}-result`,
+        isOpen = ctx.impl.isRowOpen(id),
+        summary =
+            text
+                .split('\n')
+                .find(it => it.trim())
+                ?.trim() ?? '';
+    return treeItem({
+        key: id,
+        id,
+        depth,
+        ctx,
+        isOpen,
+        className: 'xh-chat-timeline__item--result',
+        label: compact(['Result', isOpen ? null : summary]).join(', '),
+        items: [
+            rowLine({
+                ctx,
+                id,
+                depth,
+                isOpen,
+                hasDetails: true,
+                icon: Icon.fileText(),
+                title: depthTitle('Result', depth, parentName),
+                input: isOpen ? null : summary
+            }),
+            isOpen
+                ? div({
+                      key: 'details',
+                      className: 'xh-chat-timeline__detail',
+                      item: isString(result)
+                          ? prosePane('Result', text)
+                          : pane('Result', null, result)
+                  })
                 : null
         ]
     });
@@ -834,19 +865,36 @@ function pane(label: string, sublabel: string, value: unknown): ReactNode {
         className: 'xh-chat-timeline__pane',
         role: 'group',
         'aria-label': label,
+        items: [paneHead(label, sublabel, text), paneBody(value)]
+    });
+}
+
+/** A pane of prose, rendered as markdown. Its body scrolls past the pane's capped height. */
+function prosePane(label: string, text: string): ReactNode {
+    return div({
+        key: label,
+        className: 'xh-chat-timeline__pane',
+        role: 'group',
+        'aria-label': label,
         items: [
+            paneHead(label, null, text),
             div({
-                className: 'xh-chat-timeline__pane-head',
-                items: [
-                    span({className: 'xh-chat-timeline__pane-label', item: label}),
-                    sublabel
-                        ? span({className: 'xh-chat-timeline__pane-sub', item: sublabel})
-                        : null,
-                    span({className: 'xh-chat-timeline__pane-spacer'}),
-                    chatCopyButton({getCopyText: () => text, label: `Copy ${label.toLowerCase()}`})
-                ]
-            }),
-            paneBody(value)
+                className: 'xh-chat-timeline__pane-body xh-chat-timeline__pane-body--prose',
+                tabIndex: 0,
+                item: chatMarkdown({content: text, components: CHAT_MARKDOWN_COMPONENTS})
+            })
+        ]
+    });
+}
+
+function paneHead(label: string, sublabel: string, text: string): ReactNode {
+    return div({
+        className: 'xh-chat-timeline__pane-head',
+        items: [
+            span({className: 'xh-chat-timeline__pane-label', item: label}),
+            sublabel ? span({className: 'xh-chat-timeline__pane-sub', item: sublabel}) : null,
+            span({className: 'xh-chat-timeline__pane-spacer'}),
+            chatCopyButton({getCopyText: () => text, label: `Copy ${label.toLowerCase()}`})
         ]
     });
 }

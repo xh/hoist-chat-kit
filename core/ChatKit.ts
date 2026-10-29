@@ -18,6 +18,13 @@ export interface ChatKitDefaults {
     assistantIcon: () => ReactElement;
 
     /**
+     * Returns the icon beside "Assistant is working" in the composer's status region, for an
+     * app with a busy glyph of its own. Called for each use. Return null from it for no icon.
+     * Null for the kit's own spinner. Default null.
+     */
+    busyIcon: () => ReactElement;
+
+    /**
      * What a chat spinner does under reduced motion - when the browser reports
      * `prefers-reduced-motion: reduce`, or inside an element with class `xh-chat--reduced-motion`.
      *
@@ -115,6 +122,7 @@ export class ChatKit {
     /** Kit-wide settings - see {@link ChatKitDefaults}. */
     static defaults: ChatKitDefaults = {
         assistantIcon: () => Icon.ai(),
+        busyIcon: null,
         reducedMotionSpinner: 'static',
         stallAfterMs: 30_000,
         drafts: 'local',

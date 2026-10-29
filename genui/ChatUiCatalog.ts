@@ -1044,13 +1044,12 @@ interface ChatUiComponentProps extends HoistProps {
 
 // Renders a catalog component as a component of its own, so that hooks in its `render` belong to
 // it, and props that fail validation unmount it rather than skip its hooks. Takes any model in
-// context, as `useLocalModel()` needs a component with a model spec. Not memoized, as its host -
-// the part's own component - renders only when the part changes. Observes the artifact registry,
-// so that a component re-renders as its data arrives.
+// context, as `useLocalModel()` needs a component with a model spec. Observes the artifact
+// registry, so that a component re-renders as its data arrives. Memoized, as every observer is -
+// its host, the part's own component, renders only when the part changes in any case.
 const chatUiComponent = hoistCmp.factory<ChatUiComponentProps>({
     displayName: 'ChatUiComponent',
     model: uses('*', {optional: true}),
-    memo: false,
 
     render({spec, node, context, catalog, registry, children, slots}) {
         const {props} = node,

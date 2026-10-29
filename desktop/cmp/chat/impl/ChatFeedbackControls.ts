@@ -130,7 +130,9 @@ export class ChatMessageFeedbackModel extends HoistModel {
             message.isAssistant &&
             !message.isStreaming &&
             message.status !== 'paused' &&
-            message.status !== 'error'
+            message.status !== 'error' &&
+            // A reply stopped before any content has nothing to rate.
+            !(message.status === 'aborted' && message.isEmpty)
         );
     }
 

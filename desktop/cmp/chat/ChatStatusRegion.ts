@@ -6,7 +6,7 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {fmtTime} from '@xh/hoist/format';
 import {Icon} from '@xh/hoist/icon';
 import {throwIf} from '@xh/hoist/utils/js';
-import {type ChatComposerStatus, ChatComposerModel} from '../../../core';
+import {type ChatComposerStatus, ChatComposerModel, ChatKit} from '../../../core';
 import {classNames} from '../../../impl/ClassNames';
 import '../../../styles/vars.scss';
 import './ChatStatusRegion.scss';
@@ -78,7 +78,16 @@ export const [ChatStatusRegion, chatStatusRegion] = hoistCmp.withFactory<ChatSta
                 span({
                     className: 'xh-chat-status-region__text',
                     title: display.text,
-                    item: display.text
+                    // The lead and the hint in spans of their own, for an app to style apart.
+                    items: display.hint
+                        ? [
+                              span({className: 'xh-chat-status-region__lead', item: display.lead}),
+                              span({
+                                  className: 'xh-chat-status-region__hint',
+                                  item: ` · ${display.hint}`
+                              })
+                          ]
+                        : display.text
                 }),
                 actionButton(status, impl)
             ]
@@ -91,8 +100,16 @@ export const [ChatStatusRegion, chatStatusRegion] = hoistCmp.withFactory<ChatSta
 //------------------
 interface StatusDisplay {
     icon: ReactElement;
+
+    /** The whole line, for the title and the announcer. */
     text: string;
     intent: ReplyStatusIntent;
+
+    /** The line's first part, when a hint follows it - "Assistant is working". */
+    lead?: string;
+
+    /** A hint after the lead - "Esc to stop". */
+    hint?: string;
 }
 
 function getDisplay(status: ChatComposerStatus, assistantName: string): StatusDisplay {
@@ -129,12 +146,18 @@ function getDisplay(status: ChatComposerStatus, assistantName: string): StatusDi
         }
         case 'paused':
             return {icon: replyIcon(), text: 'Waiting for your answer above.', intent: 'attention'};
-        case 'busy':
+        case 'busy': {
+            const lead = `${assistantName} is working`,
+                hint = 'Esc to stop',
+                {busyIcon} = ChatKit.defaults;
             return {
-                icon: chatSpinner(),
-                text: `${assistantName} is working · Esc to stop`,
+                icon: busyIcon ? busyIcon() : chatSpinner(),
+                text: `${lead} · ${hint}`,
+                lead,
+                hint,
                 intent: 'busy'
             };
+        }
         case 'draftRestored':
             return {
                 icon: Icon.edit(),

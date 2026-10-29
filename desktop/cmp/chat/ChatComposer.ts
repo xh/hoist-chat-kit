@@ -22,6 +22,12 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
     topItems?: ReactNode;
 
     /**
+     * Content below the input, inside the composer, in a row of its own in both layouts - such as
+     * a row of settings pills that the inline layout would otherwise fit beside the text.
+     */
+    bottomItems?: ReactNode;
+
+    /**
      * Items that lead the input row, before the text - such as a brand mark. They sit level with
      * the first line as the input grows, or the last with `layout: 'inline'`. They breathe while
      * a reply runs - see `breatheStartItems`.
@@ -122,6 +128,7 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
             className,
             model,
             topItems,
+            bottomItems,
             startItems,
             leftItems,
             rightItems,
@@ -240,6 +247,9 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                         isInline ? null : toolbar
                     ]
                 }),
+                bottomItems
+                    ? div({className: 'xh-chat-composer__bottom', items: bottomItems})
+                    : null,
                 impl.isDragging
                     ? div({
                           className: 'xh-chat-composer__drop-hint',

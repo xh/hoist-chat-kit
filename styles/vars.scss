@@ -166,6 +166,9 @@ body {
   // Room around the typed text, and around the bar of pills and buttons under it.
   --xh-chat-composer-input-padding: 10px 12px 8px;
   --xh-chat-composer-toolbar-padding: 4px 6px 6px 8px;
+  // The gap between the bar's pills and buttons, and the room around the inline layout's row.
+  --xh-chat-composer-bar-gap: 6px;
+  --xh-chat-composer-inline-padding: 0;
   --xh-chat-composer-pill-height: 22px;
   --xh-chat-composer-status-height: 24px;
   --xh-chat-scope-popover-width: 320px;

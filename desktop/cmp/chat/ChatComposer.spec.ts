@@ -24,6 +24,20 @@ describe('ChatComposer', () => {
         chatAnnouncer.clear();
     });
 
+    it('renders bottomItems in a row of their own under the input, in both layouts', () => {
+        for (const layout of ['stacked', 'inline'] as const) {
+            const {container, unmount} = renderComposer(createModel(), {
+                    layout,
+                    bottomItems: 'Below the input'
+                }),
+                bottom = container.querySelector('.xh-chat-composer__bottom');
+            expect(bottom.textContent).toBe('Below the input');
+            expect(input().compareDocumentPosition(bottom)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+            expect(bottom.closest('.xh-chat-composer__input-row')).toBeNull();
+            unmount();
+        }
+    });
+
     it('sends the draft on Enter', () => {
         const chatModel = createModel(),
             send = vi.spyOn(chatModel, 'sendAsync');
