@@ -1845,3 +1845,28 @@ request, reads as retry-safe to the kit. The chat then offered a Try Again that 
 
 **Alternatives.** Count every failure as not retry-safe in such a chat: the status region would
 then say that a refused request may still be running.
+
+## D109. The kit checks AG-UI progress steps but does not show them, and drops activity deltas
+
+**Decision.** The kit runs AG-UI's checks on `STEP_STARTED` and `STEP_FINISHED`, and then ignores
+them: no part, no timeline row and no live label. It drops `ACTIVITY_DELTA`, so a backend sends a
+full `ACTIVITY_SNAPSHOT` for each change. The docs say both. They also name the clash between two
+meanings of "step". A kit step is one model call. An AG-UI step is a progress label over part of
+a run.
+
+**Why.** AG-UI's step rules bind the producer. Nothing in them requires a client to show a step,
+and the kit runs the official checks on them, so it conforms. The 1.0 schema scopes steps to "producers whose frameworks have a step concept worth
+surfacing". The one integration we checked names its steps after the framework's node ids. Shown
+by default, steps would put technical names in front of users. Shown on request, they would add
+API that no backend asks for.
+
+At the time of this decision, no backend the kit serves sends either event. The progress lines
+that prompted the review came from a vendor's client, on a timer. `ACTIVITY_SNAPSHOT` with a
+`ChatActivitySpec` already shows real progress.
+
+**Revisit when** a backend the kit serves sends step names written for users, or activity deltas.
+Both changes would add to the API without breaking it. Steps on request would become parts of a
+kit data type, with a live label. Deltas would apply with JSON Patch.
+
+**Alternatives.** Show steps as timeline rows and as the live label before 1.0, by default or on
+request. Apply `ACTIVITY_DELTA` now, to complete the activity events.

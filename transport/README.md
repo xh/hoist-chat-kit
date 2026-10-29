@@ -686,8 +686,11 @@ reply, with a new reducer.
 These rules apply to any backend, whatever the transport and codec. They are stated as AG-UI
 events. The `AnthropicCodec` produces them from Anthropic's stream.
 
-- A step is one AG-UI run, from `RUN_STARTED` to `RUN_FINISHED` or `RUN_ERROR`. AG-UI's own
-  `STEP_STARTED` and `STEP_FINISHED` mark stages within a run. The kit ignores them.
+- A kit step is one AG-UI run, from `RUN_STARTED` to `RUN_FINISHED` or `RUN_ERROR`. AG-UI's own
+  `STEP_STARTED` and `STEP_FINISHED` mean something else: a progress label over part of a run.
+  The kit checks their rules but does not show them, so the user never sees their names. To
+  show progress, send an `ACTIVITY_SNAPSHOT` with a `ChatActivitySpec` for its type.
+- The kit drops `ACTIVITY_DELTA`. Send a full `ACTIVITY_SNAPSHOT` for each change to an activity.
 - A stream that ends with neither `RUN_FINISHED` nor `RUN_ERROR` fails the turn, with error code
   `incomplete-stream`.
 - With `AgUiCodec`, a stream must also follow AG-UI's rules. It opens with `RUN_STARTED`, closes
@@ -1127,9 +1130,9 @@ the last write winning, and `AgUiCodec` sends it back with the history. A reason
 the call's own, less the `error`, `isError` and `artifacts` that the kit reads. `AgUiCodec` sends
 it back on the result's `role: 'tool'` message.
 
-Ignored: `STEP_STARTED`, `STEP_FINISHED`, `RAW`, `STATE_SNAPSHOT`, `STATE_DELTA`,
-`MESSAGES_SNAPSHOT` and `ACTIVITY_DELTA`. `AgUiCodec` drops events of an unknown type, and expands
-chunk events before the chat sees them.
+Ignored: `STEP_STARTED` and `STEP_FINISHED`, after the checks, as well as `RAW`, `STATE_SNAPSHOT`,
+`STATE_DELTA`, `MESSAGES_SNAPSHOT` and `ACTIVITY_DELTA`. `AgUiCodec` drops events of an unknown
+type, and expands chunk events before the chat sees them.
 
 When a stream ends, the chat closes the step. Open text and reasoning parts become `done`, and
 tool calls that never saw `TOOL_CALL_END` get their input parsed.

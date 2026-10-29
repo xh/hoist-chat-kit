@@ -11,9 +11,9 @@ import type {PlainObject} from '@xh/hoist/core';
  * ignored.
  *
  * One AG-UI run is one step of a kit turn: a single model call, from `RUN_STARTED` to
- * `RUN_FINISHED` or `RUN_ERROR`. AG-UI's own `STEP_STARTED` and `STEP_FINISHED` events mark
- * stages within a run, such as the nodes of an agent graph. They are not kit steps, and the kit
- * ignores them.
+ * `RUN_FINISHED` or `RUN_ERROR`. AG-UI's own `STEP_STARTED` and `STEP_FINISHED` events put a
+ * progress label over part of a run, such as a node of an agent graph. They are not kit steps.
+ * `AgUiCodec` checks their rules, and the kit does not show them - see D109.
  *
  * Kit-specific content (sources, citations, data parts, files, provider data) travels as AG-UI
  * `CUSTOM` events named with the `xh.chat.` prefix - see {@link ChatCustomEventName}.
@@ -102,10 +102,10 @@ export interface RunErrorEvent extends Wire<AgUi.RunErrorEvent> {
     code?: string;
 }
 
-/** A stage within the run has started - not a kit step. Ignored. */
+/** A progress label over part of the run has started - not a kit step. Checked, not shown. */
 export interface StepStartedEvent extends Wire<AgUi.StepStartedEvent> {}
 
-/** A stage within the run has finished - not a kit step. Ignored. */
+/** A progress label over part of the run has finished - not a kit step. Checked, not shown. */
 export interface StepFinishedEvent extends Wire<AgUi.StepFinishedEvent> {}
 
 //------------------
