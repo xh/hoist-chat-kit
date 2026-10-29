@@ -28,6 +28,7 @@ describe('ChatWorkspace', () => {
 
     beforeEach(() => {
         resizeCallbacks.length = 0;
+        workspaceResizeCallbacks.length = 0;
         vi.stubGlobal('ResizeObserver', CapturingResizeObserver);
     });
 
@@ -654,14 +655,21 @@ const DOCUMENT_REQUEST = {
         view: {type: 'line' as const, x: 'date', y: ['nav']}
     };
 
-/** Callbacks of the workspace's ResizeObserver, to resize it by hand. */
+/** Callbacks of every ResizeObserver, to resize their elements by hand. */
 const resizeCallbacks: ResizeObserverCallback[] = [];
 
+/** Callbacks of the ResizeObservers that watch the workspace's own element. */
+const workspaceResizeCallbacks: ResizeObserverCallback[] = [];
+
 class CapturingResizeObserver {
-    constructor(callback: ResizeObserverCallback) {
+    constructor(private callback: ResizeObserverCallback) {
         resizeCallbacks.push(callback);
     }
-    observe() {}
+    observe(el: Element) {
+        if (el.classList?.contains('xh-chat-workspace')) {
+            workspaceResizeCallbacks.push(this.callback);
+        }
+    }
     unobserve() {}
     disconnect() {}
 }
@@ -718,7 +726,7 @@ function stubRootWidth(width: number) {
 /** Report a new size from the latest ResizeObserver, without waiting. */
 function reportWidth(width: number) {
     const entry = {contentRect: {width, height: 600}} as ResizeObserverEntry;
-    act(() => resizeCallbacks.at(-1)([entry], null));
+    act(() => workspaceResizeCallbacks.at(-1)([entry], null));
 }
 
 /** A panel's width that shows, from the CSS variable the workspace sets for its content. */

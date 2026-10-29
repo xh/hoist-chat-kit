@@ -182,8 +182,15 @@ body {
   //------------------------
   --xh-chat-motion-reveal: 120ms;
   --xh-chat-motion-hide-delay: 150ms;
-  // The kit's only easing curve.
+  // State changes: a reveal, a size.
   --xh-chat-motion-ease: cubic-bezier(0.2, 0, 0, 1);
+  // Things arriving, such as a new chat's empty state: a fast start and a long, soft settle.
+  --xh-chat-motion-ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --xh-chat-motion-enter: 360ms;
+  --xh-chat-motion-rise: 8px;
+  --xh-chat-motion-stagger: 60ms;
+  // The composer easing to its height as lines come and go. 0ms turns it off.
+  --xh-chat-motion-grow: 160ms;
   --xh-chat-status-cue-gap: 5px;
   --xh-chat-status-cue-icon-width: 14px;
   --xh-chat-caret-blink: 1000ms;

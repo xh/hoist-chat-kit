@@ -1,6 +1,7 @@
-// The chat's live cues: the inline spinner, the text caret and the skeleton shimmer. Motion means
-// bytes are arriving, so no loop here outlives its stream. Each moving cue has a static twin,
-// under `prefers-reduced-motion: reduce` or inside an `.xh-chat--reduced-motion` element.
+// The chat's motion: the live cues - the inline spinner, the text caret and the skeleton shimmer -
+// and the settle of arriving content. Live motion means bytes are arriving, so no loop here
+// outlives its stream. Each moving cue has a static twin, under `prefers-reduced-motion: reduce`
+// or inside an `.xh-chat--reduced-motion` element.
 
 //------------------------
 // Spinner
@@ -87,6 +88,38 @@
 }
 
 //------------------------
+// Settle
+//------------------------
+// Content that arrives fades in while it rises a few pixels, in sequence by
+// `--xh-chat-settle-index`. It plays once, as the element mounts or takes the class. `backwards`
+// leaves no transform behind, which would move fixed-position popups inside it. Nothing waits on
+// it: an element that settles takes focus and keys from its first frame.
+.xh-chat-settle {
+  animation: xh-chat-settle var(--xh-chat-motion-enter) var(--xh-chat-motion-ease-enter) backwards;
+  animation-delay: calc(var(--xh-chat-settle-index, 0) * var(--xh-chat-motion-stagger));
+}
+
+// Places in the sequence, for an element that cannot take a style.
+@for $i from 1 through 5 {
+  .xh-chat-settle--#{$i} {
+    --xh-chat-settle-index: #{$i};
+  }
+}
+
+@keyframes xh-chat-settle {
+  from {
+    opacity: 0;
+    transform: translateY(var(--xh-chat-motion-rise));
+  }
+}
+
+@keyframes xh-chat-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+//------------------------
 // Reduced motion
 //------------------------
 @mixin static-twins($not: '') {
@@ -108,6 +141,15 @@
   .xh-chat-skeleton--shimmer#{$not} {
     animation: none;
     background-image: none;
+  }
+
+  // A short fade, with no rise and no sequence - none, if the app turned the settle off.
+  .xh-chat-settle#{$not} {
+    animation: xh-chat-fade min(120ms, var(--xh-chat-motion-enter)) linear backwards;
+  }
+
+  .xh-chat-composer__field--animated#{$not} {
+    transition: none;
   }
 }
 

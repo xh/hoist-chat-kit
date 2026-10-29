@@ -1786,3 +1786,27 @@ complete with its run.
 **Alternatives.** Hide the call in the timeline alone: the header and the announcement would
 still count it. Show the call's input in the sub-agent's row: the sub-agent's `description`
 already says what it was asked to do. Add it if a backend sends no description.
+
+## D106. The chat settles, grows and breathes, calmly
+
+**Decision.** The kit takes three motions from an app's design pass:
+
+- A new chat's empty state settles in, part by part.
+- The composer eases to its height as lines come and go.
+- The composer's start items breathe while a reply runs, and ease back to rest when it ends.
+
+The motions share tokens in `--xh-chat-motion-*`, and use the existing curve for state changes.
+Each gives way to reduced motion through the twins and classes of D60, and script motion checks
+the same rules through one helper. The settle is also a class, `xh-chat-settle`, for content of
+an app's own. The composer still docks in one frame on the first send.
+
+**Why.** The empty state appeared all at once, and the composer jumped a line at a time. The
+motions animate only opacity, transform and one field's height, run 360ms at most per step,
+apart from the breathing loop, and never make input wait, so they stay calm in both themes and cheap over a remote desktop. The breathing
+replaces no cue: it marks the app's own start item, such as a brand mark, as live.
+
+**Alternatives.** Animate the composer's move from centered to docked with view transitions: the
+change of layout must commit within the transition's callback, and the snapshot takes clicks while
+it runs, so it waits for a spike. Settle new messages, fade streamed chunks or stagger table rows:
+not asked for yet. Transition the input's own height: mid-way it scrolls to keep the caret in
+view, and the text wobbles.

@@ -110,9 +110,28 @@
     display: flex;
     min-width: 0;
 
-    > textarea.xh-chat-composer__input {
+    > .xh-chat-composer__field {
       flex: 1;
-      min-width: 0;
+    }
+  }
+
+  // The input's field eases to the input's height, which changes at once as lines come and go.
+  // The input sits at its bottom, so the line being typed never moves, and the field clips the
+  // rest. The input's own height never transitions: mid-way it would scroll to keep the caret in
+  // view, and the text would wobble.
+  &__field {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    min-width: 0;
+    overflow: hidden;
+
+    > textarea {
+      flex: none;
+    }
+
+    &--animated {
+      transition: height var(--xh-chat-motion-grow) var(--xh-chat-motion-ease);
     }
   }
 
@@ -123,6 +142,8 @@
     gap: 6px;
     height: 38px;
     padding-left: 10px;
+    // Start items breathe around their center while a reply runs.
+    transform-origin: 50% 50%;
   }
 
   // Inline, the bar follows the input in its row. Start items and the bar stay level with the
@@ -130,7 +151,7 @@
   &--inline &__input-row {
     align-items: flex-end;
 
-    > textarea.xh-chat-composer__input {
+    > .xh-chat-composer__field {
       min-width: 6em;
     }
   }

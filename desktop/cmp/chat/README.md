@@ -483,8 +483,9 @@ example shows each feature in a demo of its own.
 Pass `composerProps` to `ChatPanel`, or props to `chatComposer` directly. `leftItems` fills the
 left slot of the composer's bar, for pills. `rightItems` goes before the attach and Send
 buttons, for a context meter. `topItems` adds content above the input, such as context chips.
-`startItems` leads the input row, before the text, such as a brand mark. To animate it while a
-reply runs, style it under the composer's `xh-chat-composer--busy` class. `layout: 'inline'` puts
+`startItems` leads the input row, before the text, such as a brand mark. It breathes while a reply
+runs - see [Motion](#motion). To animate it yourself, pass `breatheStartItems: false`, and style it
+under the composer's `xh-chat-composer--busy` class. `layout: 'inline'` puts
 the bar after the text, in the same row, for a one-row composer. As the text grows, start items
 and the bar stay level with its last line. In a narrow composer, pills give way before the text.
 
@@ -1165,6 +1166,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `autoFocus` | `boolean` | True to focus the input on mount. |
 | `sendButtonProps` | `ChatComposerButtonProps` | How Send looks: `icon`, `text`, `intent`, `minimal`, `outlined`, and a `className` added to the kit's. The composer keeps what it does. A `text` label also names it for screen readers. Default a primary button with an up arrow. |
 | `stopButtonProps` | `ChatComposerButtonProps` | How Stop looks, as `sendButtonProps` for Send. Default outlined, with "Stop". |
+| `breatheStartItems` | `boolean` | False to keep `startItems` still while a reply runs. Default true. See [Motion](#motion). |
 | `layout` | `'stacked' \| 'inline'` | `stacked` puts the bar of pills, attach and Send under the input. `inline` puts it after the input, in its row, for a one-row composer. Default `stacked`. |
 
 Enter sends, and Shift+Enter starts a new line. An Enter that confirms an IME candidate does not
@@ -1309,6 +1311,9 @@ Add that class to a parent of the chat to show the twins whatever the browser re
 | Spinner | A static stopwatch icon. The words and the ticking time still say the reply is busy. |
 | Caret | Solid while text arrives, then the same dimmed rest. |
 | Skeleton shimmer | No band. |
+| Settle | A 120ms fade, with no rise and no sequence. |
+| Composer growth | The field takes its new height at once. |
+| Start items breathing | No breathing. |
 
 Citrix sessions often report reduced motion whether or not the user wants it. An app whose users run
 over Citrix adds `xh-chat--motion` to an ancestor of the chat, `body` say, to keep every cue moving
@@ -1319,6 +1324,38 @@ motion for the same reason. To keep only the chat spinner spinning, set
 
 Spacing inside the components scales with Hoist's `--xh-pad`, so a denser app gets a denser
 chat. Class names follow BEM under `xh-chat-`, for example `xh-chat-message__bubble`.
+
+### Motion
+
+Beyond its live cues, the chat moves little, and calmly. Its motion animates only opacity and
+transform, apart from the composer's height. No single animation runs longer than 360ms, and none
+makes input wait. Its one loop runs only while a reply runs.
+
+- **Settle.** A new chat's empty state arrives in sequence: the heading, the supporting text, the
+  composer, then the suggestions and footer below it. Each fades in while it rises 8px, over 360ms, 60ms
+  after the one before. It plays once as the layout mounts, on New Chat too, and never as it
+  re-renders. The composer settles only while centered, never as it docks. To settle content of
+  your own, such as an intro in a layout of your own, add the class `xh-chat-settle`, and
+  `xh-chat-settle--1` to `--5` for its place in the sequence.
+- **Composer growth.** As lines come and go, the composer eases to its new height over 160ms. The
+  input keeps resizing at once inside a field that clips it and holds it to its bottom, so the
+  line being typed never moves.
+- **Start items breathe.** While a reply runs, the composer's `startItems` slowly fade and shrink
+  a little, in a 2.4s loop that starts after 150ms, so a quick reply never blinks. When the reply
+  ends, however it ends, they ease back to rest over 200ms rather than snap. This suits a mark,
+  not a control. Pass `breatheStartItems: false` to keep them still.
+
+| Variable | Default | For |
+|----------|---------|-----|
+| `--xh-chat-motion-ease` | `cubic-bezier(0.2, 0, 0, 1)` | State changes, such as a reveal or a size |
+| `--xh-chat-motion-ease-enter` | `cubic-bezier(0.16, 1, 0.3, 1)` | Things arriving: a fast start and a long, soft settle |
+| `--xh-chat-motion-enter`, `--xh-chat-motion-rise`, `--xh-chat-motion-stagger` | `360ms`, `8px`, `60ms` | The settle |
+| `--xh-chat-motion-grow` | `160ms` | Composer growth. `0ms` turns it off. |
+
+To turn the settle off, set `--xh-chat-motion-enter` and `--xh-chat-motion-stagger` to `0ms`.
+Every one of these gives way to reduced motion, as above. Script motion checks reduced motion as
+it starts, so a change mid-loop applies from the next reply. Over a remote desktop, the moving
+areas stay small, so they repaint cheaply.
 
 ## Extension Points
 

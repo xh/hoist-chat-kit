@@ -269,7 +269,7 @@ describe('ChatComposer', () => {
 
             const row = container.querySelector('.xh-chat-composer__input-row');
             expect(row.firstElementChild.querySelector('.app-mark')).toBeTruthy();
-            expect(row.lastElementChild).toBe(input());
+            expect(row.lastElementChild).toBe(field());
             expect(container.querySelector('.xh-chat-composer--busy .app-mark')).toBeTruthy();
         });
 
@@ -280,9 +280,9 @@ describe('ChatComposer', () => {
             });
 
             const row = container.querySelector('.xh-chat-composer__input-row'),
-                [start, textarea, bar] = Array.from(row.children);
+                [start, inputField, bar] = Array.from(row.children);
             expect(start.querySelector('.app-mark')).toBeTruthy();
-            expect(textarea).toBe(input());
+            expect(inputField).toBe(field());
             expect(bar.classList).toContain('xh-chat-composer__toolbar');
             expect(bar.contains(screen.getByRole('button', {name: 'Send'}))).toBe(true);
             expect(container.querySelector('.xh-chat-composer--inline')).toBeTruthy();
@@ -296,7 +296,7 @@ describe('ChatComposer', () => {
             });
 
             const row = container.querySelector('.xh-chat-composer__input-row');
-            expect(row.firstElementChild).toBe(input());
+            expect(row.firstElementChild).toBe(field());
             expect(row.contains(screen.getByRole('button', {name: 'Stop'}))).toBe(true);
         });
 
@@ -367,6 +367,13 @@ function renderHostComposer(host: ChatComposerHost): ChatComposerModel {
 
 function input(): HTMLTextAreaElement {
     return screen.getByLabelText('Message') as HTMLTextAreaElement;
+}
+
+/** The field that eases to the input's height, around the input. */
+function field(): HTMLElement {
+    const ret = input().parentElement;
+    expect(ret.classList).toContain('xh-chat-composer__field');
+    return ret;
 }
 
 function typeDraft(chatModel: ChatModel, text: string) {

@@ -12,6 +12,7 @@ import {chatEmptyState, type ChatEmptyStateProps} from './ChatEmptyState';
 import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
 import type {ChatSourceClickFn} from './ChatMessageView';
 import './ChatPanel.scss';
+import '../../impl/ChatMotion.scss';
 import {chatStatusRegion} from './ChatStatusRegion';
 import {type ChatSuggestion, chatSuggestions} from './ChatSuggestions';
 import {refuseFileDrop} from './impl/FileDrop';
@@ -79,8 +80,9 @@ export interface ChatPanelProps
  * {@link Panel}. The status region and composer share the message column's width.
  *
  * An empty conversation shows the default empty state, with the composer centered at about 40%
- * of the height: the heading and supporting text above it, and the suggestions below. The first
- * send moves the composer to the bottom in one frame, with no animation, and focus stays in it.
+ * of the height: the heading and supporting text above it, and the suggestions below. Each
+ * settles in, in that order - see the README's Motion section. The first send moves the composer
+ * to the bottom in one frame, with no animation, and focus stays in it.
  * Pass `emptyState` to show other content in the list instead, with the composer at the bottom.
  *
  * With focus in the panel, outside a text field, `/` focuses the composer - see
@@ -149,7 +151,10 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                       }),
                 div({
                     key: 'footer',
-                    className: 'xh-chat-panel__footer',
+                    // Centered, the composer settles in after the heading. Docked, it holds still.
+                    className: classNames('xh-chat-panel__footer', {
+                        'xh-chat-settle xh-chat-settle--2': isCentered
+                    }),
                     onDragOver: refuseFileDrop,
                     onDrop: refuseFileDrop,
                     items: [
@@ -167,7 +172,9 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                 isCentered
                     ? div({
                           key: 'emptyTail',
-                          className: 'xh-chat-panel__empty-tail',
+                          // The tail settles as one: the suggestions within it come and go as the
+                          // composer fills and empties, and must not settle again.
+                          className: 'xh-chat-panel__empty-tail xh-chat-settle xh-chat-settle--3',
                           items: [
                               chatSuggestions({key: 'suggestions', model, suggestions}),
                               footer != null

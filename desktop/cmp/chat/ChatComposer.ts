@@ -1,5 +1,5 @@
 import {castArray, isString} from 'lodash';
-import {type ReactNode, useLayoutEffect} from 'react';
+import {type ReactNode, type Ref, useLayoutEffect} from 'react';
 import {div, input, span, vbox} from '@xh/hoist/cmp/layout';
 import {type BoxProps, hoistCmp, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {button, type ButtonProps} from '@xh/hoist/desktop/cmp/button';
@@ -14,6 +14,7 @@ import {chatFileChip} from './ChatFileChip';
 import {chatAnnouncerRegions} from './impl/ChatAnnouncerRegions';
 import {ChatComposerLocalModel} from './impl/ChatComposerLocalModel';
 import {classNames} from '../../../impl/ClassNames';
+import {useBreathing, useSmoothFieldHeight} from '../../impl/ChatMotion';
 
 /** Props for {@link ChatComposer}. */
 export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxProps {
@@ -22,8 +23,8 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
 
     /**
      * Items that lead the input row, before the text - such as a brand mark. They sit level with
-     * the first line as the input grows. To animate one while a reply runs, style it under the
-     * composer's `xh-chat-composer--busy` class.
+     * the first line as the input grows, or the last with `layout: 'inline'`. They breathe while
+     * a reply runs - see `breatheStartItems`.
      */
     startItems?: ReactNode;
 
@@ -61,6 +62,14 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
 
     /** How the Stop button looks, as `sendButtonProps` for Send. Default outlined, with "Stop". */
     stopButtonProps?: ChatComposerButtonProps;
+
+    /**
+     * False to keep start items still while a reply runs. By default they breathe - a slow fade
+     * and scale - and ease back to rest when it ends, which suits a mark, not a control. Still
+     * under reduced motion. To animate them yourself, set this false and style them under the
+     * composer's `xh-chat-composer--busy` class.
+     */
+    breatheStartItems?: boolean;
 
     /**
      * Where the bar of pills, attach and Send goes. `stacked` puts it in a row under the input.
@@ -122,6 +131,7 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
             sendButtonProps,
             stopButtonProps,
             layout = 'stacked',
+            breatheStartItems = true,
             ...rest
         },
         ref
@@ -136,8 +146,11 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
         const {text, attachments, attachmentErrors, enableAttachments, inputRef, host, chatModel} =
                 composerModel,
             isPaused = chatModel?.lastMessage?.status === 'paused',
-            isInline = layout === 'inline';
+            isInline = layout === 'inline',
+            startRef = useBreathing<HTMLDivElement>(breatheStartItems && host.isBusy);
         useLayoutEffect(() => impl.fitInput(), [impl, text, maxRows]);
+        // After the fit, so that the field first takes the input's fitted height.
+        const fieldRef = useSmoothFieldHeight<HTMLDivElement>();
 
         const toolbar = div({
             // Inline, the bar's width sets the input's, as when Stop takes Send's place.
@@ -197,25 +210,31 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                         attachmentErrors.length ? attachmentErrorRow(composerModel) : null,
                         inputRow(
                             startItems,
+                            startRef,
                             isInline ? toolbar : null,
-                            textArea({
-                                className: 'xh-chat-composer__input',
-                                model: composerModel,
-                                bind: 'text',
-                                commitOnChange: true,
-                                spellCheck: true,
-                                autoFocus,
-                                width: null,
-                                height: null,
-                                placeholder: withDefault(
-                                    placeholder,
-                                    isPaused
-                                        ? 'Or tell the assistant what to do instead...'
-                                        : 'Send a message...'
-                                ),
-                                domAttrs: {'aria-label': 'Message'},
-                                ref: inputRef,
-                                onKeyDown: impl.onKeyDown
+                            // The field eases to the input's height, which changes at once.
+                            div({
+                                ref: fieldRef,
+                                className: 'xh-chat-composer__field',
+                                item: textArea({
+                                    className: 'xh-chat-composer__input',
+                                    model: composerModel,
+                                    bind: 'text',
+                                    commitOnChange: true,
+                                    spellCheck: true,
+                                    autoFocus,
+                                    width: null,
+                                    height: null,
+                                    placeholder: withDefault(
+                                        placeholder,
+                                        isPaused
+                                            ? 'Or tell the assistant what to do instead...'
+                                            : 'Send a message...'
+                                    ),
+                                    domAttrs: {'aria-label': 'Message'},
+                                    ref: inputRef,
+                                    onKeyDown: impl.onKeyDown
+                                })
                             })
                         ),
                         isInline ? null : toolbar
@@ -237,13 +256,18 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
 // Implementation
 //------------------
 /** The input, in a row with any start items before it and an inline bar after it. */
-function inputRow(startItems: ReactNode, inlineBar: ReactNode, input: ReactNode): ReactNode {
+function inputRow(
+    startItems: ReactNode,
+    startRef: Ref<HTMLDivElement>,
+    inlineBar: ReactNode,
+    input: ReactNode
+): ReactNode {
     const items = castArray(startItems).filter(it => it != null && it !== false);
     if (!items.length && !inlineBar) return input;
     return div({
         className: 'xh-chat-composer__input-row',
         items: [
-            items.length ? div({className: 'xh-chat-composer__start', items}) : null,
+            items.length ? div({ref: startRef, className: 'xh-chat-composer__start', items}) : null,
             input,
             inlineBar
         ]

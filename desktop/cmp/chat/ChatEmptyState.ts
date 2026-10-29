@@ -5,6 +5,7 @@ import {withDefault} from '@xh/hoist/utils/js';
 import {type ChatComposerModel, ChatKit} from '../../../core';
 import '../../../styles/vars.scss';
 import './ChatEmptyState.scss';
+import '../../impl/ChatMotion.scss';
 import {type ChatSuggestion, chatSuggestions} from './ChatSuggestions';
 
 /** Props for {@link ChatEmptyState}. */
@@ -52,6 +53,9 @@ export interface ChatEmptyStateProps extends HoistProps {
  * carries the assistant's identity. An app adds its own content, such as a logo, above the heading
  * with `header`, and below the suggestions with `footer`. Any children render last.
  *
+ * Its parts settle in as it mounts: each fades in while it rises a few pixels, in sequence - see
+ * `xh-chat-settle` in the README's Motion section. Nothing waits on it.
+ *
  * `ChatPanel` renders its own empty state, with the composer centered between the heading and the
  * suggestions. Render this one where the message list shows it, or in a custom layout. Its
  * suggestions fill `composerModel`, or the composer of the {@link ChatModel} in context, and show
@@ -74,12 +78,14 @@ export const [ChatEmptyState, chatEmptyState] = hoistCmp.withFactory<ChatEmptySt
             className,
             items: [
                 header != null
-                    ? div({className: 'xh-chat-empty-state__header', item: header})
+                    ? div({className: 'xh-chat-empty-state__header xh-chat-settle', item: header})
                     : null,
-                title ? div({className: 'xh-chat-empty-state__title', item: title}) : null,
+                title
+                    ? div({className: 'xh-chat-empty-state__title xh-chat-settle', item: title})
+                    : null,
                 text
                     ? div({
-                          className: 'xh-chat-empty-state__text',
+                          className: 'xh-chat-empty-state__text xh-chat-settle xh-chat-settle--1',
                           items: [
                               icon
                                   ? span({className: 'xh-chat-empty-state__icon', item: icon})
@@ -88,9 +94,14 @@ export const [ChatEmptyState, chatEmptyState] = hoistCmp.withFactory<ChatEmptySt
                           ]
                       })
                     : null,
+                // The suggestions come and go as the composer fills and empties, so they do not
+                // settle - they would settle again each time.
                 suggestions?.length ? chatSuggestions({suggestions, composerModel}) : null,
                 footer != null
-                    ? div({className: 'xh-chat-empty-state__footer', item: footer})
+                    ? div({
+                          className: 'xh-chat-empty-state__footer xh-chat-settle xh-chat-settle--2',
+                          item: footer
+                      })
                     : null,
                 children
             ]
