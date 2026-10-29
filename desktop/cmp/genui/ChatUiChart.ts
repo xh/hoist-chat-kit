@@ -284,7 +284,7 @@ function createRefSpec(opts: ChatUiChartSpecOptions): ChatUiComponentSpec<ChatUi
                 dataHandle: data.data ?? null,
                 registry: artifacts,
                 view:
-                    props.type && props.x && props.y
+                    props.type && props.x && !isEmpty(props.y)
                         ? (pick(props, VIEW_PROPS) as ChatChartView)
                         : null,
                 isPartial,
@@ -421,6 +421,8 @@ class ChatUiChartLocalModel extends ChatUiExpandModel {
 
         const problems = findDataViewProblems(view, frame.columns);
         if (problems.length) {
+            // A column name still streaming in is not yet a problem.
+            if (isPartial) return {state: 'building', props: null, error: null};
             const isEmptyChart = problems.every(it => it.includes('is not numeric'));
             return {state: isEmptyChart ? 'empty' : 'invalid', props: null, error: problems};
         }

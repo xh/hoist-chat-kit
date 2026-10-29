@@ -193,9 +193,13 @@ function closeInlineSyntax(text: string): string {
                     prev = text[i - 1],
                     next = text[i + run],
                     isUnderscore = char === '_',
+                    // A `*` between word characters is nearly always arithmetic, as in `2*3`,
+                    // so it opens nothing while the text streams. Once the text is complete,
+                    // the markdown parser decides for itself.
                     canOpen =
                         (next == null || !WHITESPACE.test(next)) &&
-                        !(isUnderscore && isWordChar(prev)),
+                        !(isUnderscore && isWordChar(prev)) &&
+                        !(!isUnderscore && isWordChar(prev) && isWordChar(next)),
                     canClose =
                         prev != null &&
                         !WHITESPACE.test(prev) &&

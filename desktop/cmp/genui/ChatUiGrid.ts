@@ -496,12 +496,14 @@ const INLINE_ID = 'xh-inline-grid';
 function cardFrame(impl: ChatUiGridLocalModel, title: string): ReactNode {
     const {state, frame, error} = impl.source,
         {preview, error: viewError} = impl.preview,
-        icon = Icon.grid();
+        icon = Icon.grid(),
+        // A column name still streaming in does not fit the result yet - keep building.
+        isBuilding = state === 'building' || (!!viewError && !!impl.props.isPartial);
 
-    if (state === 'building' && !title) {
+    if (isBuilding && !title) {
         return chatUiFrame({status: 'Building table…', item: reservedBody(null)});
     }
-    if (state === 'building' || state === 'waiting' || state === 'loading') {
+    if (isBuilding || state === 'waiting' || state === 'loading') {
         return chatUiFrame({
             title,
             icon,

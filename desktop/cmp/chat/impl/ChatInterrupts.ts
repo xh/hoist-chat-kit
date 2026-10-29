@@ -23,7 +23,7 @@ import {
 import {Icon} from '@xh/hoist/icon';
 import {action, bindable, observable} from '@xh/hoist/mobx';
 import {LocalDate} from '@xh/hoist/utils/datetime';
-import {isArray, isEmpty, isNil, isString} from 'lodash';
+import {isArray, isEmpty, isNil, isPlainObject, isString} from 'lodash';
 import {
     type ChatInterrupt,
     type ChatMessage,
@@ -540,8 +540,13 @@ class InterruptsLocalModel extends HoistModel {
         this.currentId = interrupt.id;
         this.isReviewing = false;
         this.problem = null;
-        const answered =
-            interrupt.response?.status === 'resolved' ? interrupt.response.payload : null;
+        const spec = getInterruptAnswerSpec(interrupt.responseSchema),
+            payload = interrupt.response?.status === 'resolved' ? interrupt.response.payload : null,
+            // A choice that names a field holds its answer in it.
+            answered =
+                spec.kind === 'choice' && spec.field && isPlainObject(payload)
+                    ? payload[spec.field]
+                    : payload;
         this.text = isString(answered) ? answered : '';
         this.choice = isString(answered) ? answered : null;
     }

@@ -716,6 +716,14 @@ describe('ChatMessageView', () => {
         });
     });
 
+    it('renders a user message with no text and no files, as stored history may hold one', () => {
+        const model = createModel({}, [{id: 'u1', role: 'user', parts: [text('u1-t', '')]}]),
+            {container} = renderList(model);
+
+        expect(container.textContent).not.toContain('could not be displayed');
+        expect(container.querySelector('.xh-chat-message--user')).toBeTruthy();
+    });
+
     it('stops a busy reply on Escape, and focuses the composer', async () => {
         const chatModel = createModel({transport: hangingTransport()}, []);
         await act(async () => {

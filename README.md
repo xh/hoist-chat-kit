@@ -102,7 +102,8 @@ export default ({envMode}) =>
     });
 ```
 
-Toolbox compiles the kit this way on its `feature/weatherv2-chat-kit` branch, where the Weather V2 Dashboard Agent and a Chat Kit demo app run on the kit.
+Toolbox compiles the kit this way on its chat kit feature branch, where the Weather V2 Dashboard
+Agent and a Chat Kit demo app run on the kit.
 
 ## Documentation
 

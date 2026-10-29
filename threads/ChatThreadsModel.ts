@@ -820,8 +820,13 @@ export class ChatThreadsModel extends HoistModel {
             }
             thread.destroy();
         });
-        // After the chats close, as a composer saves its draft when destroyed.
-        if (!isEmpty(unsavedIds)) ChatKit.clearLocalData(unsavedIds);
+        // After the chats close, as a composer saves its draft when destroyed. The row of an
+        // unsaved thread goes too: no list can bring the thread back, and no store can open it.
+        if (!isEmpty(unsavedIds)) {
+            ChatKit.clearLocalData(unsavedIds);
+            this.localThreads = this.localThreads.filter(it => !unsavedIds.includes(it.id));
+            unsavedIds.forEach(id => this.seenOnNextList.delete(id));
+        }
         this.openThreads = omit(this.openThreads, keys(idle));
     }
 

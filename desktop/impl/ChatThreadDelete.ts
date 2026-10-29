@@ -63,11 +63,12 @@ export async function deleteThreadAsync(
     thread: ChatThreadSummary,
     {labels, groupByRecency = true, selectNext = true, onDeleting}: DeleteThreadOptions = {}
 ): Promise<boolean> {
+    if (!(await confirmDeleteThreadAsync(thread, labels))) return false;
+
+    // The neighbour is read after the confirm, as the list may have changed while it was open.
     const ids = getListedThreadIds(threadsModel, groupByRecency),
         index = ids.indexOf(thread.id),
         nextId = index >= 0 ? (ids[index + 1] ?? ids[index - 1] ?? null) : null;
-    if (!(await confirmDeleteThreadAsync(thread, labels))) return false;
-
     // The next thread opens before the delete, so that the model does not open a new thread
     // first - the user lands once, not twice.
     const wasSelected = threadsModel.selectedThreadId === thread.id;

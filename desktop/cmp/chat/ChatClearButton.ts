@@ -26,7 +26,7 @@ export const [ChatClearButton, chatClearButton] = hoistCmp.withFactory<ChatClear
     model: false,
     className: 'xh-chat-clear-button',
 
-    render({chatModel, ...props}, ref) {
+    render({chatModel, onClick, ...props}, ref) {
         const contextModel = useContextModel(ChatModel),
             model = chatModel ?? contextModel;
         throwIf(!model, 'ChatClearButton requires a ChatModel - in props or in context.');
@@ -37,8 +37,14 @@ export const [ChatClearButton, chatClearButton] = hoistCmp.withFactory<ChatClear
             tooltip: 'Clear conversation',
             'aria-label': 'Clear conversation',
             disabled: model.isEmpty,
-            onClick: () => clearAsync(model).catchDefault(),
-            ...props
+            ...props,
+            // The app's handler runs after the clear, and not when a confirm cancels it.
+            onClick: e =>
+                clearAsync(model)
+                    .then(cleared => {
+                        if (cleared) onClick?.(e);
+                    })
+                    .catchDefault()
         });
     }
 });
@@ -46,14 +52,16 @@ export const [ChatClearButton, chatClearButton] = hoistCmp.withFactory<ChatClear
 //------------------
 // Implementation
 //------------------
-async function clearAsync(chatModel: ChatModel) {
+/** @returns true if the conversation was cleared, false if the user cancelled the confirm. */
+async function clearAsync(chatModel: ChatModel): Promise<boolean> {
     if (chatModel.isBusy) {
         const confirmed = await XH.confirm({
             title: 'Clear conversation',
             message: 'Stop the reply in progress and clear the conversation?',
             confirmProps: {text: 'Clear', intent: 'danger'}
         });
-        if (!confirmed) return;
+        if (!confirmed) return false;
     }
     chatModel.clear();
+    return true;
 }

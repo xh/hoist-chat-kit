@@ -292,7 +292,9 @@ function agentRow(
             isRunning
                 ? 'running'
                 : isFailed
-                  ? `failed: ${data.error}`
+                  ? data.error
+                      ? `failed: ${data.error}`
+                      : 'failed'
                   : isCancelled
                     ? 'cancelled'
                     : isWaiting
@@ -326,7 +328,7 @@ function agentRow(
                           steps ? pluralize('step', steps, true) : null
                       ]).join(' · '),
                 status: isFailed
-                    ? data.error
+                    ? (data.error ?? 'Failed')
                     : isCancelled
                       ? 'Cancelled'
                       : isWaiting
@@ -403,7 +405,14 @@ function activityRow(
                 title: depthTitle(title, depth, parentName),
                 input: summary
             }),
-            isOpen ? activityDetails({key: 'details', part, context: ctx.context, host}) : null
+            // An app's renderer that fails takes down its details, not the block.
+            isOpen
+                ? chatErrorBoundary({
+                      key: 'details',
+                      resetKey: part,
+                      item: activityDetails({part, context: ctx.context, host})
+                  })
+                : null
         ]
     });
 }
@@ -749,7 +758,15 @@ const timelineDetails = hoistCmp.factory<TimelineDetailsProps>({
 
     render({className, part, spec, context}) {
         if (spec?.renderer) {
-            return div({className, item: timelineRenderer({part, spec, context})});
+            // An app's renderer that fails takes down its details, not the block. It tries again
+            // as the call moves on, such as once its input is complete.
+            return div({
+                className,
+                item: chatErrorBoundary({
+                    resetKey: part.state,
+                    item: timelineRenderer({part, spec, context})
+                })
+            });
         }
 
         const {state, output, errorText, toolName} = part,

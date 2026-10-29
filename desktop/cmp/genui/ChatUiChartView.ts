@@ -295,7 +295,7 @@ class ChatUiChartViewLocalModel extends HoistModel {
             own = this.request.view.type;
         if (!props) return null;
         return {
-            type: type === 'pie' || type === 'bar' || own === 'pie' ? type : own,
+            type: type === 'pie' || type === 'bar' || own === 'pie' || own === 'bar' ? type : own,
             xAxis: props.xAxis,
             yAxis: props.yAxis,
             stacking: props.stacking,

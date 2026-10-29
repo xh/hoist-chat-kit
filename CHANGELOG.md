@@ -7,4 +7,4 @@ It holds a conversation engine, transports and codecs for common backends, gener
 Hoist components, a thread layer, and the desktop chat components. See the
 [docs index](docs/README.md) for each package.
 
-Requires `@xh/hoist` v89 or later.
+Requires `@xh/hoist` v89.1 or later.

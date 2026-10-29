@@ -76,7 +76,7 @@ export const chatCitationMarker = hoistCmp.factory<ChatCitationMarkerProps>({
                 'aria-label': label,
                 'aria-pressed': canPress ? isActive : undefined,
                 'aria-describedby': impl.isOpen ? impl.cardId : undefined,
-                onFocus: () => impl.openNow(),
+                onFocus: impl.onFocus,
                 onClick: (e: MouseEvent<HTMLButtonElement>) => {
                     if (links.canOpen(source)) {
                         impl.close();
@@ -125,7 +125,7 @@ export const chatCitationGroupMarker = hoistCmp.factory<ChatCitationGroupMarkerP
                 }),
                 'aria-label': label,
                 'aria-describedby': impl.isOpen ? impl.cardId : undefined,
-                onFocus: () => impl.openNow(),
+                onFocus: impl.onFocus,
                 onClick: () => impl.togglePin(),
                 item: text
             }),
@@ -251,7 +251,18 @@ class CardLocalModel extends HoistModel {
         e.preventDefault();
         e.stopPropagation();
         this.close();
-        this.markerRef.current?.focus();
+        // Focus returns to the marker without reopening the card, as its focus would.
+        this.isReturningFocus = true;
+        try {
+            this.markerRef.current?.focus();
+        } finally {
+            this.isReturningFocus = false;
+        }
+    };
+
+    /** Open on focus - unless the focus is Esc returning it from the card just closed. */
+    onFocus = () => {
+        if (!this.isReturningFocus) this.openNow();
     };
 
     onBlur = (e: FocusEvent) => {
@@ -264,6 +275,7 @@ class CardLocalModel extends HoistModel {
         super.destroy();
     }
 
+    private isReturningFocus = false;
     private openTimer: ReturnType<typeof setTimeout>;
     private closeTimer: ReturnType<typeof setTimeout>;
     private outsideListener: (e: Event) => void = null;

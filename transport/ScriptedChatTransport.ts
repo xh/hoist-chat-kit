@@ -5,10 +5,11 @@ import {findLast, flattenDeep, isArray, isEmpty, isNil, isString, omitBy, pick} 
 import type {ChatMessage, ChatSourceType} from '../core';
 // Past the core barrel, which imports this package - a runtime import through it would be a cycle.
 import {CHAT_NO_ANSWER_DATA_TYPE, type ChatNoAnswerData} from '../core/ChatNoAnswer';
-import {sleepAsync} from '../impl/abort';
+import {raceAbort, sleepAsync} from '../impl/abort';
 import {genChatId} from '../impl/ids';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRequest, ChatTransport} from './ChatTransport';
+import {abortable} from './impl/streams';
 
 /** Configuration for a {@link ScriptedChatTransport}. */
 export interface ScriptedChatTransportConfig {
@@ -123,7 +124,7 @@ export class ScriptedChatTransport implements ChatTransport {
             context = this.createContext(request);
         this.requests.push(request);
 
-        const response = await this.getResponseAsync(request, context);
+        const response = await raceAbort(this.getResponseAsync(request, context), signal);
         let isStarted = false,
             started = {threadId, runId};
         for await (const event of this.playAsync(response, signal)) {
@@ -196,10 +197,8 @@ export class ScriptedChatTransport implements ChatTransport {
         signal: AbortSignal
     ): AsyncGenerator<ChatEvent> {
         if (!isArray(response)) {
-            for await (const event of response) {
-                signal.throwIfAborted();
-                yield event;
-            }
+            // Through `abortable`, so that a stop ends a wait on the next event at once.
+            yield* abortable(response[Symbol.asyncIterator](), signal);
             return;
         }
 

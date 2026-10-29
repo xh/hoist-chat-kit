@@ -154,14 +154,14 @@ The model declares typed columns, then sends rows keyed by column field:
 }
 ```
 
-Column types map to Hoist columns and store fields:
+Column types decide how the preview and the full grid show each cell:
 
-| Type | Values | Hoist column |
-|------|--------|--------------|
-| `string` | Any value, shown as text | Flexible width |
-| `number` | Numbers, rendered in the column's `format` | `number`, right-aligned |
-| `date` | `YYYY-MM-DD` strings, stored as `LocalDate` | `localDate` |
-| `boolean` | `true` or `false` | `boolCheck` |
+| Type | Values | Shown as |
+|------|--------|----------|
+| `string` | Any value | Text |
+| `number`, `integer` | Numbers | The column's `format` and `decimals`, right-aligned, negatives in parentheses |
+| `date`, `datetime` | `YYYY-MM-DD` strings, or ISO date-times | A formatted date, or date and time |
+| `boolean` | `true` or `false` | A check mark for `true`, blank otherwise |
 
 A value that does not fit its column's type fails the call, so the model can correct it.
 

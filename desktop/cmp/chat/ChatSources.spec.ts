@@ -376,6 +376,18 @@ describe('sources and citations', () => {
             expect(document.activeElement).toBe(marker(1));
         });
 
+        it('closes its card on Esc from a button inside it, without reopening it', () => {
+            renderReply('Caps [1].', [DOC1]);
+            act(() => marker(1).focus());
+            const copy = screen.getByRole('button', {name: 'Copy Excerpt'});
+            act(() => copy.focus());
+
+            fireEvent.keyDown(copy, {key: 'Escape'});
+
+            expect(screen.queryByRole('group', {name: 'Source 1'})).toBeNull();
+            expect(document.activeElement).toBe(marker(1));
+        });
+
         it('shows one card at a time', () => {
             renderReply('Caps [1] and [2].', [DOC1, DOC2]);
             act(() => marker(1).focus());

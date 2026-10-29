@@ -232,11 +232,6 @@
     overflow: visible;
   }
 
-  // An answer tool's own output reads as reply prose.
-  &__answer {
-    max-width: var(--xh-chat-prose-max-width);
-  }
-
   // A quiet meta row under an inline call - plain muted text, with no button chrome.
   &__caption {
     align-items: center;

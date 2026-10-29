@@ -20,6 +20,7 @@ import '../../../styles/vars.scss';
 import {classNames} from '../../../impl/ClassNames';
 import {chatElapsed} from './ChatElapsed';
 import './ChatTimeline.scss';
+import {chatErrorBoundary} from './ChatErrorBoundary';
 import {chatToolCall} from './ChatToolCall';
 import {formatStallDuration, joinWithAnd} from './impl/ChatFormat';
 import {chatSpinner} from '../../impl/ChatLiveCues';
@@ -433,6 +434,11 @@ const timelineQuestion = hoistCmp.factory<TimelineQuestionProps>({
             };
         }, []);
 
-        return div({ref, className: 'xh-chat-timeline__ask', item: chatToolCall({part, context})});
+        // An app's renderer that fails takes down its card, not the block.
+        return div({
+            ref,
+            className: 'xh-chat-timeline__ask',
+            item: chatErrorBoundary({resetKey: part.state, item: chatToolCall({part, context})})
+        });
     }
 });

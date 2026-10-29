@@ -595,6 +595,7 @@ function feedbackStatus(model: ChatMessageFeedbackModel): ReactNode {
             ? span({
                   key: 'note',
                   className: 'xh-chat-message__feedback-note',
+                  role: 'img',
                   title: sentComment,
                   'aria-label': `Your comment: ${sentComment}`,
                   item: Icon.comment()

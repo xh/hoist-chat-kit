@@ -86,14 +86,4 @@
     display: inline-flex;
     gap: 6px;
   }
-
-  // Read by screen readers only.
-  &__live {
-    clip-path: inset(50%);
-    height: 1px;
-    overflow: hidden;
-    position: absolute;
-    white-space: nowrap;
-    width: 1px;
-  }
 }

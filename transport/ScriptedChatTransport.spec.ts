@@ -239,6 +239,35 @@ describe('ScriptedChatTransport', () => {
         });
     });
 
+    describe('stopping while a response is pending', () => {
+        it('stops at once while an async respond is still pending', async () => {
+            const controller = new AbortController(),
+                transport = new ScriptedChatTransport({respond: () => new Promise(() => {})}),
+                done = drain(transport.run(request('r1', controller.signal)), []),
+                assertion = expect(done).rejects.toMatchObject({name: 'AbortError'});
+
+            controller.abort();
+            await assertion;
+        });
+
+        it('stops at once while an async iterable response waits on its next event', async () => {
+            const controller = new AbortController(),
+                received: ChatEvent[] = [],
+                transport = new ScriptedChatTransport({
+                    respond: async function* () {
+                        yield* textEvents('Hello');
+                        await new Promise(() => {});
+                    }
+                }),
+                done = drain(transport.run(request('r1', controller.signal)), received),
+                assertion = expect(done).rejects.toMatchObject({name: 'AbortError'});
+
+            await vi.waitFor(() => expect(received.length).toBeGreaterThan(0));
+            controller.abort();
+            await assertion;
+        });
+    });
+
     describe('event builders', () => {
         it('builds source events with their citation marker and metadata', async () => {
             const reducer = new ChatStreamReducer(0),

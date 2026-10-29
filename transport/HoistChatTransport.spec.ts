@@ -283,6 +283,33 @@ describe('HoistChatTransport', () => {
             expect(signals[0].aborted).toBe(true);
         });
 
+        it('ends quietly when the server holds a finished response open past the timeout', async () => {
+            const stream = ndjsonStream(),
+                signals = spyFetchSignals('chat');
+            hoistCore.route('POST', 'chat', () => stream.response);
+            stream.push(STARTED, FINISHED);
+
+            const events = await collect(
+                new HoistChatTransport({url: 'chat', idleTimeout: 50}).run(request())
+            );
+
+            expect(events).toEqual([STARTED, FINISHED]);
+            expect(signals[0].aborted).toBe(true);
+        });
+
+        it('settles at once when the turn stops while a header function is still pending', async () => {
+            const controller = new AbortController(),
+                transport = new HoistChatTransport({
+                    url: 'chat',
+                    headers: () => new Promise<never>(() => {})
+                }),
+                done = collect(transport.run(request(controller.signal)));
+
+            controller.abort();
+
+            await expect(done).rejects.toMatchObject({name: 'AbortError'});
+        });
+
         it('resets on each heartbeat record, which is never decoded', async () => {
             const stream = ndjsonStream();
             hoistCore.route('POST', 'chat', () => stream.response);

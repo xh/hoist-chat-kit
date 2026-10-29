@@ -101,6 +101,22 @@ describe('ChatThreadList', () => {
         expect(screen.queryByLabelText('Rename thread')).toBeNull();
     });
 
+    it('saves a rename on blur, and leaves focus where the user moved it', async () => {
+        const {model, store} = await renderList();
+
+        fireEvent.click(within(row('Travel')).getByRole('button', {name: 'Rename'}));
+        const input = screen.getByLabelText('Rename thread');
+        fireEvent.change(input, {target: {value: 'Trip to Lisbon'}});
+        const newChat = screen.getByRole('button', {name: 'New Chat'});
+        newChat.focus();
+        await act(() => wait());
+
+        expect(titleOf(model, 't2')).toBe('Trip to Lisbon');
+        expect(store.getThread('t2').title).toBe('Trip to Lisbon');
+        expect(screen.queryByLabelText('Rename thread')).toBeNull();
+        expect(document.activeElement).toBe(newChat);
+    });
+
     it('starts a rename with F2, and keeps the old title on Escape', async () => {
         const {model, store} = await renderList();
 

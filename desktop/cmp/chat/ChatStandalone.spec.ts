@@ -69,7 +69,8 @@ describe('building blocks with no model in context', () => {
     }
 
     // BUG: Hoist's `Markdown`, which renders each block, declares no model spec, so it looks up
-    // any model and finds none. Passes once hoist-react gives it `model: false`.
+    // any model and finds none. Fixed in hoist-react v90 (commit b3fa1cb8). Once the devDependency
+    // moves to v90, this test passes, so change `it.fails` to `it`.
     it.fails('renders ChatMarkdown, with a long table and a code fence', () => {
         const rows = Array.from({length: 120}, (_, idx) => `| ${idx} | x |`).join('\n'),
             {container} = render(

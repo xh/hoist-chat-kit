@@ -324,6 +324,21 @@ describe('ChatThreadsModel with an app conversation', () => {
             expect(clearLocalData).toHaveBeenCalledWith([first.threadId]);
         });
 
+        it('drops the row of an unsaved thread once its chat closes', () => {
+            spyClearLocalData();
+            const {model, conversations} = setup();
+            model.newThread();
+            const [first] = conversations;
+            first.set({isSaved: false});
+            first.set({isBusy: true});
+            expect(model.threads.map(it => it.id)).toContain(first.threadId);
+            first.set({isBusy: false});
+
+            model.newThread();
+
+            expect(model.threads.map(it => it.id)).not.toContain(first.threadId);
+        });
+
         it('counts a new thread saved once a turn ends, for a conversation with no isSaved', () => {
             const clearLocalData = spyClearLocalData(),
                 {model, conversations} = setup();

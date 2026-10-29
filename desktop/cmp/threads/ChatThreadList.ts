@@ -488,11 +488,12 @@ function moreMenuItems(impl: ChatThreadListLocalModel, thread: ChatThreadSummary
 }
 
 function renameInput(impl: ChatThreadListLocalModel, view: ListView): ReactNode {
-    // Blur saves, as Enter does. Esc ends the rename before the input blurs.
+    // Blur saves, as Enter does, but leaves focus where the user put it. Esc ends the rename
+    // before the input blurs.
     return div({
         className: 'xh-chat-thread-list__rename',
         role: 'gridcell',
-        onBlur: () => impl.saveRename(),
+        onBlur: () => impl.saveRename(false),
         onClick: e => e.stopPropagation(),
         item: textInput({
             model: impl,

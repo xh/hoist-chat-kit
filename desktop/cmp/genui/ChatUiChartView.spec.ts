@@ -140,6 +140,19 @@ describe('ChatUiChart tiers', () => {
             expect(new Set(setSeries.mock.contexts).size).toBe(1);
         });
 
+        it('switches a bar chart to an upright line chart', async () => {
+            const setConfig = vi.spyOn(ChartModel.prototype, 'setHighchartsConfig');
+            onTestFinished(() => setConfig.mockRestore());
+            const request = chartRequest();
+            renderInHost(
+                chatUiChartView({request: {...request, view: {...request.view, type: 'bar'}}})
+            );
+            await vi.waitFor(() => expect(setConfig.mock.lastCall?.[0].chart.inverted).toBe(true));
+
+            fireEvent.click(screen.getByRole('radio', {name: 'Line'}));
+            expect(setConfig.mock.lastCall[0].chart.inverted).toBeFalsy();
+        });
+
         it('inverts the axes for a bar chart', async () => {
             const setConfig = vi.spyOn(ChartModel.prototype, 'setHighchartsConfig');
             onTestFinished(() => setConfig.mockRestore());

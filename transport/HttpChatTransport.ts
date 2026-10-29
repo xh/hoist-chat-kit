@@ -4,6 +4,7 @@ import type {PromiseTimeoutSpec} from '@xh/hoist/promise';
 import type {FetchOptions} from '@xh/hoist/svc';
 import {throwIf} from '@xh/hoist/utils/js';
 import {isFunction} from 'lodash';
+import {raceAbort} from '../impl/abort';
 import type {ChatCodec} from './ChatCodec';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRef, ChatRunRequest, ChatTransport} from './ChatTransport';
@@ -184,13 +185,19 @@ export abstract class HttpChatTransport implements ChatTransport {
             {signal} = request;
         signal.throwIfAborted();
 
-        const [body, url, headers, params] = await Promise.all([
-            codec.encodeRequest(request),
-            resolveValue(this.url, request),
-            resolveValue(this.headers, request),
-            resolveValue(this.params, request)
-        ]);
+        // Raced against the signal, so that a stop during a slow token fetch settles at once.
+        const [body, url, headers, params] = await raceAbort(
+            Promise.all([
+                codec.encodeRequest(request),
+                resolveValue(this.url, request),
+                resolveValue(this.headers, request),
+                resolveValue(this.params, request)
+            ]),
+            signal
+        );
         signal.throwIfAborted();
+        // Serialized before the request counts as sent, as a body that cannot be never goes.
+        const json = JSON.stringify(body);
 
         // Hoist releases a request's `autoAbortKey` once its response starts, so a key could not
         // cancel the stream. A signal of our own covers the whole response, and also closes the
@@ -208,13 +215,16 @@ export abstract class HttpChatTransport implements ChatTransport {
             if (idleTimeout != null) idleTimer = setTimeout(() => stall.abort(), idleTimeout);
         };
 
+        // True once the decoder has yielded RUN_FINISHED with no RUN_STARTED after it. A stall
+        // then means a server that holds a finished response open, not a failed reply.
+        let isRunFinished = false;
         try {
             startIdleTimer();
             request.onRequestSent?.();
             const records = this.fetchRecords({
                 url,
                 method: 'POST',
-                body: JSON.stringify(body),
+                body: json,
                 headers: {'Content-Type': 'application/json', ...headers},
                 params,
                 track,
@@ -228,12 +238,19 @@ export abstract class HttpChatTransport implements ChatTransport {
             )) {
                 clearTimeout(idleTimer);
                 request.onActivity?.();
-                if (data != null && data.type !== HEARTBEAT_TYPE) yield* decode(data, eventName);
+                if (data != null && data.type !== HEARTBEAT_TYPE) {
+                    for (const event of decode(data, eventName)) {
+                        if (event.type === 'RUN_STARTED') isRunFinished = false;
+                        if (event.type === 'RUN_FINISHED') isRunFinished = true;
+                        yield event;
+                    }
+                }
                 startIdleTimer();
             }
             if (decode.flush) yield* decode.flush();
         } catch (e) {
             if (!stall.signal.aborted || signal.aborted) throw e;
+            if (isRunFinished) return;
             yield {
                 type: 'RUN_ERROR',
                 message: 'The server stopped responding.',

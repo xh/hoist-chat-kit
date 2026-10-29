@@ -86,6 +86,11 @@ describe('closeMarkdownSyntax', () => {
         expect(closeMarkdownSyntax('Run `npm i')).toBe('Run `npm i`');
     });
 
+    it('leaves an asterisk between word characters alone, as in arithmetic', () => {
+        expect(closeMarkdownSyntax('Area is 2*3 = 6 square')).toBe('Area is 2*3 = 6 square');
+        expect(closeMarkdownSyntax('Area is 2*3, so *six')).toBe('Area is 2*3, so *six*');
+    });
+
     it('closes underscore emphasis at word boundaries only', () => {
         expect(closeMarkdownSyntax('This is _italic')).toBe('This is _italic_');
         expect(closeMarkdownSyntax('This is __bold')).toBe('This is __bold__');

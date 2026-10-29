@@ -446,7 +446,10 @@ function userContent(
         under = underBubble(props, impl);
     if (!message.text) {
         return [
-            div({className: 'xh-chat-message__row', items: [fileRow(files, allowImages), actions]}),
+            div({
+                className: 'xh-chat-message__row',
+                items: [files.length ? fileRow(files, allowImages) : null, actions]
+            }),
             under
         ];
     }
@@ -743,6 +746,7 @@ function timelineBlock(
     const {message, host, isLast} = props;
     return chatErrorBoundary({
         key: group.id,
+        resetKey: message.status,
         item: chatTimeline({
             message,
             host,

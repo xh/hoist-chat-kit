@@ -152,8 +152,11 @@ export class ChatThreadListLocalModel extends HoistModel {
         this.focusThreadId = thread.id;
     }
 
-    /** Save the rename in progress, if the title changed, and return focus to its row. */
-    saveRename() {
+    /**
+     * Save the rename in progress, if the title changed, and return focus to its row - unless
+     * `returnFocus` is false, for a rename that ends because the user moved focus elsewhere.
+     */
+    saveRename(returnFocus: boolean = true) {
         const threadId = this.renamingThreadId,
             title = this.renameText?.trim(),
             thread = this.findThread(threadId);
@@ -163,7 +166,7 @@ export class ChatThreadListLocalModel extends HoistModel {
         if (title && thread && title !== thread.title) {
             this.model.renameThreadAsync(threadId, title).catchDefault();
         }
-        this.focusRow(threadId);
+        if (returnFocus) this.focusRow(threadId);
     }
 
     /** Leave the rename in progress, keeping the old title, and return focus to its row. */

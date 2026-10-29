@@ -54,10 +54,12 @@ export class ChatMessageListLocalModel extends HoistModel {
     }
 
     override onLinked() {
-        // Return to the bottom whenever the user sends a message, even if scrolled up.
+        // Return to the bottom whenever the user sends a message, even if scrolled up. After the
+        // list has drawn the new messages, so that a history load lands at its end too.
         this.addReaction({
             track: () => findLast(this.host?.messages, 'isUser')?.id,
-            run: () => this.scrollToBottom()
+            run: () => this.scrollToBottom(),
+            debounce: 0
         });
 
         // Show the end of a finished reply - its action bar appears as the turn ends.
