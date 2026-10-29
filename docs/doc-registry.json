@@ -520,6 +520,7 @@
         "stopButtonProps",
         "send button icon",
         "visibleRows",
+        "startCollapsed",
         "ChatSources.defaults",
         "compact sources",
         "ChatPanel",

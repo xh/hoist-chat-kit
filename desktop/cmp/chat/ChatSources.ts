@@ -1,4 +1,4 @@
-import type {MouseEvent, ReactNode} from 'react';
+import {type MouseEvent, type ReactNode, useEffect, useId} from 'react';
 import {div, li, ol, span} from '@xh/hoist/cmp/layout';
 import {creates, hoistCmp, HoistModel, type HoistProps, managed} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
@@ -27,10 +27,10 @@ export interface ChatSourcesProps extends HoistProps {
     title?: string;
 
     /**
-     * True to show every row at the start. Default false: `visibleRows` show, the rest behind a
-     * toggle.
+     * True to start with the list closed at its heading, until the user opens it. Default
+     * `ChatSources.defaults.startCollapsed`.
      */
-    defaultExpanded?: boolean;
+    startCollapsed?: boolean;
 
     /**
      * Rows to show before "Show N More", or null to show every row. Default
@@ -74,6 +74,12 @@ export interface ChatSourcesProps extends HoistProps {
 /** App-wide settings for {@link ChatSources} - see `ChatSources.defaults`. */
 export interface ChatSourcesDefaults {
     /**
+     * True to start each list closed at its heading. Read as each list renders, so it covers the
+     * lists in every reply. Default false.
+     */
+    startCollapsed: boolean;
+
+    /**
      * Rows a sources list shows before "Show N More", or null to show every row. Read as each
      * list renders, so it covers the lists in every reply. Default 3.
      */
@@ -98,6 +104,10 @@ export interface ChatSourcesDefaults {
 /**
  * The sources behind a reply, under its text and above its action bar. A compact list follows a
  * hairline. A roomy one sits in a frame of its own.
+ *
+ * The heading opens and closes the list, as a tool call's row does. The list starts open - see
+ * `startCollapsed`, and `ChatSources.defaults` to set it app-wide. Closed, the heading still gives
+ * the count.
  *
  * Rows follow the citation numbers. Each row shows its number, an icon, its title and a meta line.
  * A document shows its file-type icon, file name and page, and opens in the side panel when one is
@@ -124,21 +134,28 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
     className: 'xh-chat-sources',
     // Its own model, kept out of context, so that it needs no model above it.
     model: creates(() => new ChatSourcesLocalModel(), {publishMode: 'none'}),
-    defaults: {visibleRows: 3, compact: true, showNumbers: true, showExternalIcon: true},
+    defaults: {
+        startCollapsed: false,
+        visibleRows: 3,
+        compact: true,
+        showNumbers: true,
+        showExternalIcon: true
+    },
 
     render(props, ref) {
         const {
                 className,
                 sources,
                 title = 'Sources',
-                defaultExpanded = false,
+                startCollapsed = ChatSources.defaults.startCollapsed,
                 visibleRows = ChatSources.defaults.visibleRows,
                 compact = ChatSources.defaults.compact,
                 showNumbers = ChatSources.defaults.showNumbers,
                 showExternalIcon = ChatSources.defaults.showExternalIcon
             } = props,
             impl = props.model as ChatSourcesLocalModel,
-            links = props.links ?? impl.links;
+            links = props.links ?? impl.links,
+            listId = useId();
         if (!props.links) {
             impl.links.configure({
                 sidePanel: impl.sidePanel,
@@ -148,9 +165,10 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
         if (!sources?.length) return null;
 
         // TODO(design-open B5) - documents and web pages share one numbered sequence.
-        const isExpanded = impl.expanded ?? defaultExpanded,
+        const isCollapsed = impl.collapsed ?? startCollapsed,
+            {showAll} = impl,
             limit = visibleRows ?? sources.length,
-            shown = isExpanded ? sources : sources.slice(0, limit),
+            shown = showAll ? sources : sources.slice(0, limit),
             hidden = sources.length - limit;
 
         return div({
@@ -158,34 +176,40 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
             className: classNames(
                 className,
                 compact ? 'xh-chat-sources--compact' : 'xh-chat-sources--roomy',
-                {'xh-chat-sources--no-numbers': !showNumbers}
+                {
+                    'xh-chat-sources--collapsed': isCollapsed,
+                    'xh-chat-sources--no-numbers': !showNumbers
+                }
             ),
             role: 'region',
             'aria-label': title,
             items: [
-                listHead(sources, title),
-                ol({
-                    className: 'xh-chat-sources__list',
-                    items: shown.map((source, idx) =>
-                        sourceRow({
-                            key: source.id,
-                            source,
-                            number: source.marker ?? idx + 1,
-                            showNumber: showNumbers,
-                            showExternalIcon,
-                            compact,
-                            links,
-                            impl
-                        })
-                    )
-                }),
-                hidden > 0
+                listHead(sources, title, isCollapsed, listId, impl),
+                isCollapsed
+                    ? null
+                    : ol({
+                          id: listId,
+                          className: 'xh-chat-sources__list',
+                          items: shown.map((source, idx) =>
+                              sourceRow({
+                                  key: source.id,
+                                  source,
+                                  number: source.marker ?? idx + 1,
+                                  showNumber: showNumbers,
+                                  showExternalIcon,
+                                  compact,
+                                  links,
+                                  impl
+                              })
+                          )
+                      }),
+                !isCollapsed && hidden > 0
                     ? button({
                           className: 'xh-chat-sources__more',
-                          icon: isExpanded ? Icon.chevronUp() : Icon.chevronDown(),
-                          text: isExpanded ? 'Show Fewer' : `Show ${hidden} More`,
-                          'aria-expanded': isExpanded,
-                          onClick: () => impl.setExpanded(!isExpanded)
+                          icon: showAll ? Icon.chevronUp() : Icon.chevronDown(),
+                          text: showAll ? 'Show Fewer' : `Show ${hidden} More`,
+                          'aria-expanded': showAll,
+                          onClick: () => impl.setShowAll(!showAll)
                       })
                     : null
             ]
@@ -209,15 +233,23 @@ class ChatSourcesLocalModel extends HoistModel {
     /** Links of a list shown on its own - a message view passes its own. */
     @managed readonly links = new ChatSourceLinks();
 
-    /** True to show every row, or null for the `defaultExpanded` prop. */
-    @observable accessor expanded: boolean = null;
+    /** True once the user closes the list, false once they open it, or null for `startCollapsed`. */
+    @observable accessor collapsed: boolean = null;
+
+    /** True to show every row, past `visibleRows`. */
+    @observable accessor showAll = false;
 
     /** Ids of the rows whose excerpt shows. */
     @observableRef accessor openExcerpts: string[] = [];
 
     @action
-    setExpanded(expanded: boolean) {
-        this.expanded = expanded;
+    setCollapsed(collapsed: boolean) {
+        this.collapsed = collapsed;
+    }
+
+    @action
+    setShowAll(showAll: boolean) {
+        this.showAll = showAll;
     }
 
     @action
@@ -229,17 +261,33 @@ class ChatSourcesLocalModel extends HoistModel {
     }
 }
 
-function listHead(sources: ChatSourcePart[], title: string): ReactNode {
-    const isWeb = sources.every(it => getSourceType(it) === 'url');
-    return div({
+// The heading is the list's toggle, with its chevron at the end, as on a tool call's row.
+function listHead(
+    sources: ChatSourcePart[],
+    title: string,
+    isCollapsed: boolean,
+    listId: string,
+    impl: ChatSourcesLocalModel
+): ReactNode {
+    const isWeb = sources.every(it => getSourceType(it) === 'url'),
+        count = isWeb ? pluralize('web page', sources.length, true) : String(sources.length);
+    return button({
         className: 'xh-chat-sources__head',
-        items: [
-            span({className: 'xh-chat-sources__heading', item: title}),
-            span({
-                className: 'xh-chat-sources__count',
-                item: `· ${isWeb ? pluralize('web page', sources.length, true) : sources.length}`
-            })
-        ]
+        text: span({
+            className: 'xh-chat-sources__head-line',
+            items: [
+                span({className: 'xh-chat-sources__heading', item: title}),
+                span({className: 'xh-chat-sources__count', item: `· ${count}`}),
+                span({
+                    className: 'xh-chat-sources__chevron',
+                    item: isCollapsed ? Icon.groupRowCollapsed() : Icon.groupRowExpanded()
+                })
+            ]
+        }),
+        'aria-label': `${title}, ${count}`,
+        'aria-expanded': !isCollapsed,
+        'aria-controls': isCollapsed ? undefined : listId,
+        onClick: () => impl.setCollapsed(!isCollapsed)
     });
 }
 
@@ -258,6 +306,14 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
     model: false,
 
     render({source, number, showNumber, showExternalIcon, compact, links, impl}) {
+        // A row that closes under the pointer gets no mouseleave, so let go of its highlight here.
+        useEffect(
+            () => () => {
+                if (links.hoveredNumber === number) links.setHoveredNumber(null);
+            },
+            [links, number]
+        );
+
         const excerpt = getExcerpt(source),
             isExcerptOpen = !!excerpt && impl.openExcerpts.includes(source.id),
             isActive = links.isActive(number),

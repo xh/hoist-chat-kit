@@ -247,6 +247,17 @@ Three rows show, and the rest sit behind "Show N More". To change that for every
 `ChatSources.defaults.visibleRows` at startup, or null to show every row. A source that a citing
 reply never cites takes no number and no row.
 
+The heading opens and closes the list, as a tool call's row does. Closed, it still gives the
+count, such as "Sources · 4". The list starts open. Set `startCollapsed`, or
+`ChatSources.defaults.startCollapsed` at startup, to start every list closed. A citation marker
+still opens its source while the list is closed.
+
+```typescript
+// ✅ Do: Start the lists in every reply closed, and show every row once one opens
+ChatSources.defaults.startCollapsed = true;
+ChatSources.defaults.visibleRows = null;
+```
+
 Every row has the same layout: the number, an icon, the title and a meta line. A source's
 `sourceType` sets the icon, the meta line and what a click on the title does:
 
@@ -1210,7 +1221,7 @@ it.
 | `ChatTimeline` | `message`, `host`, `parts`, `context`, `isFollowed`, `isLast` | Show a reply's activity timeline in a layout of your own. `parts` defaults to the reply's first timeline block. `isFollowed` says the answer has started below it. |
 | `ChatClearButton` | `chatModel`, and any `ButtonProps` | Clear the conversation, from a panel header. |
 | `ChatReasoning` | `part`, `markdownComponents`, `markdownPlugins`, `allowImages` | Show a reasoning part. |
-| `ChatSources` | `sources`, `title`, `compact`, `showNumbers`, `showExternalIcon`, `defaultExpanded`, `visibleRows`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
+| `ChatSources` | `sources`, `title`, `compact`, `showNumbers`, `showExternalIcon`, `startCollapsed`, `visibleRows`, `onSourceClick` | Show a list of sources. Each shows its `marker`, else its position. |
 | `ChatNoAnswer` | `part`, `onEditQuestion` | Show a fixed "not found" reply, for example inside an app's own renderer for `xh.chat.noAnswer`. |
 | `ChatSidePanel` | `model`, `panelProps` | Frame the open request of a `ChatSidePanelModel`: title, Close, and the content - the app's viewer with its status, or the full table or chart of a result card. |
 | `ChatCodeBlock` | `content`, `language`, `isStreaming` | Show code in a card with a copy button. A finished block over 20 lines shows its first 20, with a button that shows the rest, then fewer. Sets its own font size and line height. |

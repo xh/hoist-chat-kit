@@ -194,6 +194,84 @@ describe('sources and citations', () => {
             expect(numbers(container)).toEqual(['1', '2', '3']);
         });
 
+        it('closes and opens the list from its heading, keeping its count', () => {
+            const sources = [1, 2, 3, 4].map(n => doc(n)),
+                {container} = renderReply('All [1] [2] [3] [4].', sources),
+                head = screen.getByRole('button', {name: 'Sources, 4'});
+            expect(head.getAttribute('aria-expanded')).toBe('true');
+            expect(head.getAttribute('aria-controls')).toBe(
+                container.querySelector('.xh-chat-sources__list').id
+            );
+
+            fireEvent.click(head);
+            expect(head.getAttribute('aria-expanded')).toBe('false');
+            expect(numbers(container)).toEqual([]);
+            expect(screen.queryByRole('button', {name: /^Show/})).toBeNull();
+            expect(container.querySelector('.xh-chat-sources').classList).toContain(
+                'xh-chat-sources--collapsed'
+            );
+
+            fireEvent.click(head);
+            expect(numbers(container)).toEqual(['1', '2', '3']);
+            expect(screen.getByRole('button', {name: 'Show 1 More'})).toBeTruthy();
+        });
+
+        it('starts closed for startCollapsed or ChatSources.defaults, and opens on a click', () => {
+            const {defaults} = ChatSources,
+                startCollapsed = defaults.startCollapsed;
+            onTestFinished(() => {
+                defaults.startCollapsed = startCollapsed;
+            });
+
+            const own = render(chatSources({sources: [DOC1], startCollapsed: true}));
+            expect(numbers(own.container)).toEqual([]);
+            own.unmount();
+
+            defaults.startCollapsed = true;
+            const ownOpen = render(chatSources({sources: [DOC1], startCollapsed: false}));
+            expect(numbers(ownOpen.container)).toEqual(['1']);
+            ownOpen.unmount();
+
+            const {container} = renderReply('Caps [1].', [DOC1]),
+                head = screen.getByRole('button', {name: 'Sources, 1'});
+            expect(head.getAttribute('aria-expanded')).toBe('false');
+            expect(numbers(container)).toEqual([]);
+
+            fireEvent.click(head);
+            expect(numbers(container)).toEqual(['1']);
+        });
+
+        it('keeps its shown rows and open excerpts when closed and opened again', () => {
+            const sources = [DOC1, ...[2, 3, 4].map(n => doc(n))],
+                {container} = renderReply('All [1] [2] [3] [4].', sources),
+                head = screen.getByRole('button', {name: 'Sources, 4'});
+            fireEvent.click(screen.getByRole('button', {name: 'Show 1 More'}));
+            fireEvent.click(screen.getByRole('button', {name: 'Show excerpt'}));
+
+            fireEvent.click(head);
+            fireEvent.click(head);
+            expect(numbers(container)).toEqual(['1', '2', '3', '4']);
+            expect(screen.getByRole('button', {name: 'Show Fewer'})).toBeTruthy();
+            expect(container.querySelector('.xh-chat-sources__excerpt')).toBeTruthy();
+        });
+
+        it("drops a row's highlight on its markers when the list closes under the pointer", () => {
+            const {container} = renderReply('Caps [1].', [DOC1]);
+            fireEvent.mouseEnter(container.querySelector('.xh-chat-sources__row'));
+            expect(marker(1).classList).toContain('xh-chat-citation-marker--highlight');
+
+            fireEvent.click(screen.getByRole('button', {name: 'Sources, 1'}));
+            expect(marker(1).classList).not.toContain('xh-chat-citation-marker--highlight');
+        });
+
+        it('opens a source from its marker while the list is closed', () => {
+            const {sidePanel} = renderReply('Caps [1].', [DOC1]);
+            fireEvent.click(screen.getByRole('button', {name: 'Sources, 1'}));
+
+            fireEvent.click(marker(1));
+            expect(sidePanel.request).toMatchObject({citation: 1, messageId: 'a1'});
+        });
+
         it('shows as many rows as ChatSources.defaults says, or every row for null', () => {
             const {defaults} = ChatSources,
                 visibleRows = defaults.visibleRows;
