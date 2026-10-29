@@ -34,6 +34,7 @@ export interface ChatStatusRegionProps extends HoistProps<ChatComposerModel> {
  *  - Offline. The draft is kept, and nothing sends by itself.
  *  - A failed reply, with Try Again when a resend is retry-safe. Otherwise it says the run may
  *    still be running, and offers Refresh Status when the chat can refresh, or else Try Again.
+ *    A chat with `allowRetry` false never offers Try Again.
  *    A reply the server interrupted or cancelled, or one left running, ranks with a failure.
  *  - A stalled reply, with Refresh Status when the chat can refresh. Stop stays on the composer.
  *  - A retry-safe failure for which the server asked for a wait, counting down to a retry, with
@@ -114,7 +115,9 @@ interface StatusDisplay {
 
 function getDisplay(status: ChatComposerStatus, assistantName: string): StatusDisplay {
     const {type, replyStatus, reason} = status,
-        reply = REPLY_STATUS_DISPLAY[replyStatus],
+        // A failure that no longer waits to retry reads as the failure it is.
+        isFailure = type === 'failed' && replyStatus === 'waitingToRetry',
+        reply = REPLY_STATUS_DISPLAY[isFailure ? 'error' : replyStatus],
         replyIcon = () => (typeof reply.icon === 'function' ? reply.icon() : null);
 
     switch (type) {

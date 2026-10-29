@@ -457,13 +457,19 @@ describe('ChatModel', () => {
             ]);
         });
 
-        it('ignores edit and regenerate while the chat does not allow them', async () => {
+        it('ignores edit, regenerate and retry while the chat does not allow them', async () => {
             const transport = scripted([textEvents('Paris is sunny.')]),
-                model = createModel({transport, allowEdit: false, allowRegenerate: false});
+                model = createModel({
+                    transport,
+                    allowEdit: false,
+                    allowRegenerate: false,
+                    allowRetry: false
+                });
             await model.sendAsync('Paris?');
 
             await model.editMessageAsync(model.messages[0].id, 'Rome?');
             await model.regenerateAsync();
+            await model.retryAsync();
 
             expect(transport.requests).toHaveLength(1);
             expect(model.messages.map(it => it.text)).toEqual(['Paris?', 'Paris is sunny.']);

@@ -49,13 +49,17 @@ describe('ChatPanel', () => {
         expect(header.nextElementSibling.textContent).toBe('What do you want to know?');
     });
 
-    it("shows the app's own footer content under the suggestions, below the composer", () => {
+    it("shows the app's own content right under the composer, and its footer below the suggestions", () => {
         renderPanel(createModel(), {
             emptyStateProps: {
                 title: 'What do you want to know?',
+                belowComposer: span({className: 'app-help', item: 'Shift+Enter for a new line.'}),
                 footer: span({className: 'app-note', item: 'Answers come from policy documents.'})
             }
         });
+        const below = document.querySelector('.xh-chat-panel__empty-tail').firstElementChild;
+        expect(below.querySelector('.app-help')).not.toBeNull();
+        expect(below.nextElementSibling.classList).toContain('xh-chat-suggestions');
 
         const head = document.querySelector('.xh-chat-panel__empty-head'),
             tail = document.querySelector('.xh-chat-panel__empty-tail'),

@@ -167,6 +167,26 @@ describe('ChatStatusRegion', () => {
         expect(retry).not.toHaveBeenCalled();
         expect(regionText()).toBe('The reply failed. Already being handled.');
         expect(screen.getByRole('button', {name: 'Try Again'})).toBeTruthy();
+        // The user's own Cancel is not met with an interruption.
+        expect(chatAnnouncer.assertive).toBeNull();
+    });
+
+    it('shows a failure with a wait as a plain failure, with no action, in a chat that cannot retry', async () => {
+        vi.useFakeTimers();
+        const chatModel = createModel({
+            responses: [
+                errorEvents('Already being handled.', 'duplicate', {retryAfterSeconds: 30})
+            ],
+            allowRetry: false
+        });
+        renderRegion(chatModel);
+        await settleAsync(chatModel.sendAsync('Hi'));
+
+        expect(regionText()).toBe('The reply failed. Already being handled.');
+        expect(chatAnnouncer.assertive?.text).toBe('The reply failed. Already being handled.');
+        const region = document.querySelector('.xh-chat-status-region');
+        expect(region.querySelector('[data-icon="clock"]')).toBeNull();
+        expect(region.querySelector('button')).toBeNull();
     });
 
     it('says the draft is kept while offline, ahead of a failure', async () => {

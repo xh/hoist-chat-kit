@@ -30,10 +30,16 @@ export interface ChatPanelProps
     /**
      * Heading, supporting text and icon of the default empty state - for example
      * `{title: 'What do you want to know?', text: 'Analyst answers from 38 policy documents.'}` -
-     * and any content of the app's own above the heading, such as a logo, as `header`, or below
-     * the suggestions, under the centered composer, as `footer`.
+     * and content of the app's own around it:
+     *
+     *  - `header` - above the heading, such as a logo.
+     *  - `belowComposer` - right under the centered composer, above the suggestions, such as a
+     *    line of help.
+     *  - `footer` - at the foot of the space under the composer, such as a tagline.
      */
-    emptyStateProps?: Pick<ChatEmptyStateProps, 'header' | 'title' | 'text' | 'icon' | 'footer'>;
+    emptyStateProps?: Pick<ChatEmptyStateProps, 'header' | 'title' | 'text' | 'icon' | 'footer'> & {
+        belowComposer?: ReactNode;
+    };
 
     /**
      * Suggested prompts for the default empty state, as cards under the composer. A click fills
@@ -120,7 +126,7 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
 
         // The composer keeps its place in the tree across the move, so that it keeps focus.
         const isCentered = model.isEmpty && emptyState == null && !messageListProps?.emptyState,
-            {footer, ...headProps} = emptyStateProps ?? {};
+            {footer, belowComposer, ...headProps} = emptyStateProps ?? {};
         return panel({
             ref,
             testId,
@@ -176,6 +182,13 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                           // composer fills and empties, and must not settle again.
                           className: 'xh-chat-panel__empty-tail xh-chat-settle xh-chat-settle--3',
                           items: [
+                              belowComposer != null
+                                  ? div({
+                                        key: 'belowComposer',
+                                        className: 'xh-chat-panel__below-composer',
+                                        item: belowComposer
+                                    })
+                                  : null,
                               chatSuggestions({key: 'suggestions', model, suggestions}),
                               footer != null
                                   ? div({

@@ -50,6 +50,10 @@
     padding: 14px var(--xh-chat-side-pad);
     width: 100%;
 
+    > .xh-chat-panel__below-composer {
+      padding-bottom: 14px;
+    }
+
     > .xh-chat-empty-state__footer {
       margin-top: auto;
       padding-top: 14px;

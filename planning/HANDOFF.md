@@ -36,7 +36,7 @@ names in `DECISIONS.md`.
 
 **The OpenUI app's cutover asks (K1 to K28), October 2026.** Built, reviewed and published:
 K1, K2, K3 (D103), K4 as `replayChatEvents` (D107), K6, K7, K9 to K19 (D104, D105), K8, K20 as
-motion (D106), and K21 to K28. Still open: the motion spec's send handoff (a spike). K5 (an app
+motion (D106), and K21 to K28. Still open: the motion spec's send handoff, a spike filed as issue #32. K5 (an app
 label for the timeline's collapsed head) is dropped: the kit keeps its own wording unless the app
 escalates. Syntax highlighting (issue #31) waits for 1.x. Each round ran an
 independent review and a verification pass before it shipped. The motion has not been watched in

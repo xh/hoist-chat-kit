@@ -53,7 +53,8 @@ ChatModel (HoistModel)
 ├── threadId: string                  # Identifies the conversation to the backend
 ├── historyMode: ChatHistoryMode      # 'client' | 'server' - who owns the history
 ├── runOptions: PlainObject           # Options for the next turn (bindable)
-├── allowEdit, allowRegenerate        # Show Edit and Regenerate (bindable)
+├── allowEdit, allowRegenerate,       # Show Edit, Regenerate and Try Again (bindable)
+│   allowRetry
 ├── Computed:
 │   ├── isBusy                        # True while a turn runs - false while paused
 │   ├── isAwaitingUser                # True while a turn waits on the user
@@ -339,7 +340,7 @@ await chatModel.editMessageAsync(message.id, text);  // New text, same files, re
 Both discard the messages after the point they re-run from. The desktop components wire these
 actions to the error banner and the message hover bar.
 
-### Hide Edit and Regenerate
+### Hide Edit, Regenerate and Try Again
 
 Some agent services keep a history that only grows. They cannot re-run a thread from an edited
 message, or replace a reply. For such a backend, set `allowEdit` or `allowRegenerate` to false.
@@ -350,9 +351,14 @@ The message views then hide Edit, Edit Prompt and Edit Question, or Regenerate, 
 new ChatModel({transport, historyMode: 'server', allowEdit: false, allowRegenerate: false});
 ```
 
-Both are `@bindable`, so an app can change them at run time, for example when the user picks an
-agent that supports neither. With a thread layer, set them in `createChatModel`. Try Again still
-re-runs a failed turn.
+For a backend that cannot run a turn a second time, such as one that keys each run to its
+request, set `allowRetry` to false. The composer then never offers Try Again, and
+never retries on its own after a wait the server asked for. A failure the server may still be
+running offers Refresh Status, where the chat can refresh, and any other failure offers no
+action. `retryAsync()` does nothing.
+
+All three are `@bindable`, so an app can change them at run time, for example when the user
+picks an agent that supports none of them. With a thread layer, set them in `createChatModel`.
 
 ### Run a server-owned conversation
 
@@ -953,7 +959,9 @@ out retries then. Two regions on one composer retry once. `cancelRetry()` stops 
 region then offers Try Again. A chat with no status region never retries by itself.
 
 The composer retries on its own at most 3 times in a row. After that, a failure offers Try Again
-only. A send or a reply that completes starts the count again.
+only. A send or a reply that completes starts the count again. A chat with `allowRetry` false
+offers no Try Again and never retries on its own - see
+[Hide Edit, Regenerate and Try Again](#hide-edit-regenerate-and-try-again).
 
 ### Keep drafts
 
@@ -1042,6 +1050,7 @@ See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatCom
 | `runOptions` | `PlainObject` | Initial value of `runOptions`. Default null. |
 | `allowEdit` | `boolean` | Initial value of `allowEdit`. Default true. |
 | `allowRegenerate` | `boolean` | Initial value of `allowRegenerate`. Default true. |
+| `allowRetry` | `boolean` | Initial value of `allowRetry`. Default true. |
 | `textTransform` | `(text, context) => string` | Rewrites reply text before it is stored. `context` holds the `message` and `isStreaming`. |
 | `feedback` | `ChatFeedbackConfig` | `submitAsync`, `allowComment`, `requireComment`, `clearable`, `allowChange` and `maxCommentLength`. See [Rate a reply](#rate-a-reply). |
 | `stallAfterMs` | `number` | Milliseconds with no data from the server, heartbeats included, before a reply shows as stalled. Default `ChatKit.defaults.stallAfterMs`. |
@@ -1071,6 +1080,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `runOptions` | `PlainObject` | Options for the next turn. `@bindableRef` - replace the value to change it. |
 | `allowEdit` | `boolean` | True to show Edit, Edit Prompt and Edit Question. While false, `editMessageAsync()` does nothing. `@bindable`. |
 | `allowRegenerate` | `boolean` | True to show Regenerate. While false, `regenerateAsync()` does nothing. `@bindable`. |
+| `allowRetry` | `boolean` | True to offer Try Again for a failed turn, and to retry after a wait the server asked for. While false, `retryAsync()` does nothing. `@bindable`. |
 | `canSubmitFeedback` | `boolean` | True if `feedback.submitAsync` or a thread layer submitter is set. |
 | `feedbackErrors` | `Record<string, Error>` | Why the last feedback on a message failed to save, by message id, for the form to show. Cleared on the next submit. Observable. |
 | `feedbackDrafts` | `Record<string, ChatFeedbackDraft>` | Comments typed in feedback forms and not yet sent, by message id, with their send state and last error. Observable. |

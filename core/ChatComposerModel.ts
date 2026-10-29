@@ -198,9 +198,9 @@ export class ChatComposerModel extends HoistModel {
         return isChatModel(host) ? host : null;
     }
 
-    /** True if the host can resend the last turn - a `ChatModel`. */
+    /** True if the host can resend the last turn - a `ChatModel` that allows it. */
     get canRetry(): boolean {
-        return !!this.chatModel;
+        return !!this.chatModel?.allowRetry;
     }
 
     /** True if the host can reload the thread to learn how a run ended. */
@@ -249,7 +249,8 @@ export class ChatComposerModel extends HoistModel {
                 }
             },
             {
-                track: () => this.chatModel?.lastMessage,
+                // A wait also ends when the chat stops allowing retries.
+                track: () => [this.chatModel?.lastMessage, this.canRetry],
                 run: () => this.syncRetryWait(),
                 fireImmediately: true
             }

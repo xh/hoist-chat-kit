@@ -210,9 +210,10 @@ export class AssistantModel extends HoistModel {
 A `ChatThreadsModel` that a component creates, with `creates()` or `useLocalModel()`, loads its
 list when the component mounts, as any Hoist model with `doLoadAsync()` does.
 
-For a backend that cannot re-run a thread from an edited message, or replace a reply, pass
-`allowEdit: false` or `allowRegenerate: false` to each `ChatModel` in `createChatModel` - see
-[`/core/`](../core/README.md#hide-edit-and-regenerate).
+For a backend that cannot re-run a thread from an edited message, replace a reply or resend a
+failed turn, pass `allowEdit`, `allowRegenerate` or `allowRetry` as false to each `ChatModel` in
+`createChatModel` - see
+[`/core/`](../core/README.md#hide-edit-regenerate-and-try-again).
 
 ## Common Usage Patterns
 

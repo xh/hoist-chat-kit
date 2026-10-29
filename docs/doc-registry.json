@@ -208,6 +208,7 @@
         "preview",
         "allowEdit",
         "allowRegenerate",
+        "allowRetry",
         "AG-UI interrupts",
         "ChatInterrupt",
         "answerInterrupt",

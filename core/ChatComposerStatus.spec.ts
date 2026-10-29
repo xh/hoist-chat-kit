@@ -326,6 +326,38 @@ describe('ChatComposerModel status', () => {
 
             expect(composer.retryWait).toBeNull();
         });
+
+        it('never offers or waits to retry in a chat that does not allow it', async () => {
+            const chatModel = createChatModel(
+                    [errorEvents('Refused.', 'refused', {retryAfterSeconds: 30})],
+                    {allowRetry: false}
+                ),
+                composer = chatModel.composerModel;
+            await chatModel.sendAsync('Hi');
+
+            expect(composer.retryWait).toBeNull();
+            expect(composer.getStatus()).toMatchObject({type: 'failed', action: null});
+        });
+
+        it('ends a wait when the chat stops allowing retries', async () => {
+            vi.useFakeTimers();
+            const chatModel = createChatModel([
+                    errorEvents('Already being handled.', 'duplicate_in_progress', {
+                        retryAfterSeconds: 30
+                    })
+                ]),
+                composer = chatModel.composerModel;
+            await sendAndSettleAsync(chatModel, 'Hi');
+            expect(composer.retryWait).not.toBeNull();
+
+            composer.text = 'Next question';
+            chatModel.allowRetry = false;
+            await vi.advanceTimersByTimeAsync(30_000);
+
+            expect(composer.retryWait).toBeNull();
+            expect(composer.retryDueId).toBeNull();
+            expect(composer.canSend).toBe(true);
+        });
     });
 
     describe('offline', () => {

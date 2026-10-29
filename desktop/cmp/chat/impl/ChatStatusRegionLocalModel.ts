@@ -100,12 +100,23 @@ function announceKey(status: ChatComposerStatus): string {
     if (type === 'waitingToRetry') {
         return `${type}:${reason}:${Math.ceil(retryInMs / COUNTDOWN_ANNOUNCE_MS)}`;
     }
-    return `${type}:${replyStatus}:${reason}:${action}`;
+    const shownStatus = type === 'failed' && isPlainFailure(status) ? 'error' : replyStatus;
+    return `${type}:${shownStatus}:${reason}:${action}`;
+}
+
+/**
+ * True for a failed reply that reads as a plain failure: an error, or a failure with a wait that
+ * the chat will not retry. A wait the user cancelled, which still offers Try Again, stays as it
+ * was, so that the user's own Cancel is not met with an interruption.
+ */
+function isPlainFailure(status: ChatComposerStatus): boolean {
+    const {replyStatus, action} = status;
+    return replyStatus === 'error' || (replyStatus === 'waitingToRetry' && action == null);
 }
 
 // Errors interrupt. Warnings and notices wait their turn.
 function politenessOf(status: ChatComposerStatus): ChatAnnouncePoliteness {
-    return status.type === 'failed' && status.replyStatus === 'error' && status.isRetrySafe
+    return status.type === 'failed' && isPlainFailure(status) && status.isRetrySafe
         ? 'assertive'
         : 'polite';
 }

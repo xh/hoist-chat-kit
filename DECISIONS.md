@@ -1253,7 +1253,7 @@ guards, and the optional members no app implements.
 **Decision.** `ChatModel` gains `@bindable` `allowEdit` and `allowRegenerate`, default true from
 config. While false, the message views hide Edit, Edit Prompt and Edit Question, or Regenerate,
 and `editMessageAsync()` or `regenerateAsync()` logs a warning and does nothing. Try Again and
-`retryAsync()` are unchanged.
+`retryAsync()` are unchanged - until D108.
 
 **Why.** An agent service whose history only grows cannot re-run from an edited message or replace
 a reply. The first integration's backend is one: it only appends to a session. The settings are
@@ -1830,3 +1830,18 @@ that run beside a reply. The helper adds no protocol convention: `timestamp` is 
 above, though the kit may still take snapshots for backends that keep only messages. Trust event
 timestamps live too: clock skew would distort the running timers. Read a backend's status words
 in the kit: they differ by backend, so the app maps them through `status`.
+
+## D108. Try Again can be turned off too
+
+**Decision.** `ChatModel` gains a `@bindable` `allowRetry`, default true from config, beside
+`allowEdit` and `allowRegenerate`. While false, the composer never offers Try Again and never
+retries on its own after a wait the server asked for, and `retryAsync()` logs a warning and does
+nothing. A failure the server may still be running still offers Refresh Status, where the chat
+can refresh. This supersedes D83's note that Try Again is unchanged.
+
+**Why.** A backend that keys each run to its request cannot run a turn a second time. Its own
+failures can say so with `retrySafe: false`, but a failure outside the stream, such as a refused
+request, reads as retry-safe to the kit. The chat then offered a Try Again that could only fail.
+
+**Alternatives.** Count every failure as not retry-safe in such a chat: the status region would
+then say that a refused request may still be running.

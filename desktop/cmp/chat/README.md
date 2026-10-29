@@ -591,6 +591,9 @@ thread already has when the region mounts, or when the thread opens, is not anno
 | Reply in progress | "Assistant is working · Esc to stop" | None |
 | Draft restored | "Draft from 10:31am restored." | Discard |
 
+A chat with `allowRetry` false never offers Try Again, and never retries on its own. See
+[Hide Edit, Regenerate and Try Again](../../../core/README.md#hide-edit-regenerate-and-try-again).
+
 A failure is retry-safe unless the server's `RUN_ERROR` sets `metadata.retrySafe: false`. In
 server mode, the kit's own `stalled`, `incomplete-stream` and `connection-lost` errors are not
 retry-safe either, because the server may still be running the turn. Refresh Status shows only
@@ -644,11 +647,11 @@ chatMessageList({host: notesModel});
 
 `emptyStateProps` sets the heading, supporting text and icon of the default empty state. Its
 `header` takes any content of the app's own, such as a product logo, to show above the heading,
-with no kit styles, and its `footer` content to show under the suggestions, below the centered
-composer, such as a note on what the assistant can see. The supporting text is at the body font
-size, set by
-`--xh-chat-empty-state-text-font-size`. `suggestions` adds prompt cards under the centered composer, each with an optional icon and
-`description`. A click on a suggestion fills the composer and focuses it, and never sends. The
+with no kit styles. Its `belowComposer` content shows right under the centered composer, above
+the suggestions, such as a line of help. Its `footer` content shows at the foot of the space
+under the composer, such as a tagline or a note on what the assistant can see. The supporting
+text is at the body font size, set by `--xh-chat-empty-state-text-font-size`. `suggestions` adds
+prompt cards under the centered composer, each with an optional icon and `description`. A click on a suggestion fills the composer and focuses it, and never sends. The
 cards hide while the composer has text. Pass `onSelect` to `chatSuggestions` to act on a click
 yourself.
 
@@ -1116,7 +1119,7 @@ Accepts all `PanelProps` except `model`, `modelConfig` and `modelRef`.
 |----------|------|-------------|
 | `model` | `ChatModel` | The chat to render. Found in context if not given. |
 | `emptyState` | `ReactNode` | Content for a conversation with no messages, in the list, in place of the default. The composer stays at the bottom. |
-| `emptyStateProps` | `{header, title, text, icon, footer}` | Heading, supporting text and icon of the default empty state, and the app's own content above the heading and under the suggestions. |
+| `emptyStateProps` | `{header, title, text, icon, belowComposer, footer}` | Heading, supporting text and icon of the default empty state, and the app's own content above the heading, right under the centered composer, and at the foot of the space under it. |
 | `suggestions` | `Array<ChatSuggestion \| string>` | Prompt cards under the centered composer of the default empty state. |
 | `allowImages` | `boolean \| (src) => boolean` | Model-written images, and file images at a URL, to load. Default false. |
 | `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
@@ -1288,6 +1291,7 @@ pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
 | | `--xh-chat-composer-focus-border-color` | `--xh-form-field-focused-border-color` |
 | | `--xh-chat-composer-bar-gap` | `6px` |
 | | `--xh-chat-composer-inline-padding` | `0` |
+| | `--xh-chat-composer-status-inset` | `4px`, the room before the status region's line |
 
 `styles/vars.scss` also declares the variables of each feature area, with a comment per group:
 `--xh-chat-timeline-*`, `--xh-chat-citation-*`, `--xh-chat-source-*`, `--xh-chat-viewer-*`,
@@ -1337,8 +1341,8 @@ transform, apart from the composer's height. No single animation runs longer tha
 makes input wait. Its one loop runs only while a reply runs.
 
 - **Settle.** A new chat's empty state arrives in sequence: the heading, the supporting text, the
-  composer, then the suggestions and footer below it. Each fades in while it rises 8px, over 360ms, 60ms
-  after the one before. It plays once as the layout mounts, on New Chat too, and never as it
+  composer, then everything below it, as one: the `belowComposer` content, the suggestions and
+  the footer. Each fades in while it rises 8px, over 360ms, 60ms after the one before. It plays once as the layout mounts, on New Chat too, and never as it
   re-renders. The composer settles only while centered, never as it docks. To settle content of
   your own, such as an intro in a layout of your own, add the class `xh-chat-settle`, and
   `xh-chat-settle--1` to `--5` for its place in the sequence.

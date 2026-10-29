@@ -9,7 +9,7 @@
   gap: 6px;
   min-height: var(--xh-chat-composer-status-height);
   min-width: 0;
-  padding: 0 2px 0 4px;
+  padding: 0 2px 0 var(--xh-chat-composer-status-inset);
 
   &--busy {
     color: var(--xh-chat-busy-color);

@@ -171,6 +171,8 @@ body {
   --xh-chat-composer-inline-padding: 0;
   --xh-chat-composer-pill-height: 22px;
   --xh-chat-composer-status-height: 24px;
+  // The room before the status region's line, to set its text level with the input's.
+  --xh-chat-composer-status-inset: 4px;
   --xh-chat-scope-popover-width: 320px;
   --xh-chat-scope-popover-max-height: 280px;
   --xh-chat-suggestion-bg: var(--xh-chat-part-header-bg);

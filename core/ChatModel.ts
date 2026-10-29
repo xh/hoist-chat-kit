@@ -224,6 +224,12 @@ export interface ChatModelConfig {
     allowRegenerate?: boolean;
 
     /**
+     * True to let the user resend a failed turn, with Try Again. Default true. Set false for a
+     * backend that cannot run a turn again - see {@link ChatModel.allowRetry}.
+     */
+    allowRetry?: boolean;
+
+    /**
      * Renderers for data parts, keyed by `dataType`. Data parts carry app- and protocol-defined
      * content, such as generative UI. Parts without a renderer display as JSON.
      */
@@ -477,6 +483,13 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      */
     @bindable accessor allowRegenerate: boolean = true;
 
+    /**
+     * True if the user may resend a failed turn. While false, the composer offers no Try Again and
+     * never retries on its own, and `retryAsync` does nothing. A failure that the server may still
+     * be running offers Refresh Status, where the chat can refresh. (bindable)
+     */
+    @bindable accessor allowRetry: boolean = true;
+
     /** State of the conversation. (observable) */
     @observable accessor status: ChatStatus = 'ready';
 
@@ -633,6 +646,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             sendBlocker,
             allowEdit = true,
             allowRegenerate = true,
+            allowRetry = true,
             onTurnComplete,
             onTurnPause
         } = config;
@@ -697,6 +711,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.sendBlockers = sendBlocker ? [sendBlocker] : [];
         this.allowEdit = allowEdit;
         this.allowRegenerate = allowRegenerate;
+        this.allowRetry = allowRetry;
         this.onTurnComplete = onTurnComplete;
         this.onTurnPause = onTurnPause;
         this.modelTools = tools.filter(
@@ -791,11 +806,15 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
 
     /**
      * Re-run the last user message, replacing everything after it - typically the reply that
-     * failed. Does nothing while busy or while a send blocker gives a reason to wait. See
-     * `onTurnComplete` for a turn this closes.
+     * failed. Does nothing while busy, while a send blocker gives a reason to wait, or while
+     * {@link allowRetry} is false. See `onTurnComplete` for a turn this closes.
      */
     async retryAsync(): Promise<void> {
         if (this.isTurnRunning || this.sendBlockedReason) return;
+        if (!this.allowRetry) {
+            this.logWarn('Retry ignored - this chat does not allow it.');
+            return;
+        }
 
         const {messages} = this,
             idx = findLastIndex(messages, it => it.isUser);
