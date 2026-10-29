@@ -61,6 +61,13 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
 
     /** How the Stop button looks, as `sendButtonProps` for Send. Default outlined, with "Stop". */
     stopButtonProps?: ChatComposerButtonProps;
+
+    /**
+     * Where the bar of pills, attach and Send goes. `stacked` puts it in a row under the input.
+     * `inline` puts it after the input, in the input's row, for a one-row composer. Default
+     * 'stacked'.
+     */
+    layout?: 'stacked' | 'inline';
 }
 
 /**
@@ -114,24 +121,48 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
             autoFocus,
             sendButtonProps,
             stopButtonProps,
+            layout = 'stacked',
             ...rest
         },
         ref
     ) {
         const impl = useLocalModel(ChatComposerLocalModel),
             {composerModel} = impl,
-            boxRef = useOnResize(impl.fitInput);
+            boxRef = useOnResize(impl.fitInput),
+            toolbarRef = useOnResize(impl.fitInput);
 
         throwIf(!composerModel, 'ChatComposer requires a ChatComposerModel or a ChatModel.');
 
         const {text, attachments, attachmentErrors, enableAttachments, inputRef, host, chatModel} =
                 composerModel,
-            isPaused = chatModel?.lastMessage?.status === 'paused';
+            isPaused = chatModel?.lastMessage?.status === 'paused',
+            isInline = layout === 'inline';
         useLayoutEffect(() => impl.fitInput(), [impl, text, maxRows]);
+
+        const toolbar = div({
+            // Inline, the bar's width sets the input's, as when Stop takes Send's place.
+            ref: toolbarRef,
+            className: 'xh-chat-composer__toolbar',
+            items: [
+                div({
+                    className: 'xh-chat-composer__left',
+                    items: castArray(leftItems)
+                }),
+                div({
+                    className: 'xh-chat-composer__right',
+                    items: [
+                        ...castArray(rightItems),
+                        ...(enableAttachments ? attachButton(composerModel, impl) : []),
+                        ...sendButton(composerModel, impl, sendButtonProps, stopButtonProps)
+                    ]
+                })
+            ]
+        });
 
         return vbox({
             ref,
             className: classNames(className, {
+                'xh-chat-composer--inline': isInline,
                 'xh-chat-composer--dragging': impl.isDragging,
                 'xh-chat-composer--busy': host.isBusy,
                 'xh-chat-composer--attention': isPaused,
@@ -166,6 +197,7 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                         attachmentErrors.length ? attachmentErrorRow(composerModel) : null,
                         inputRow(
                             startItems,
+                            isInline ? toolbar : null,
                             textArea({
                                 className: 'xh-chat-composer__input',
                                 model: composerModel,
@@ -186,30 +218,7 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                                 onKeyDown: impl.onKeyDown
                             })
                         ),
-                        div({
-                            className: 'xh-chat-composer__toolbar',
-                            items: [
-                                div({
-                                    className: 'xh-chat-composer__left',
-                                    items: castArray(leftItems)
-                                }),
-                                div({
-                                    className: 'xh-chat-composer__right',
-                                    items: [
-                                        ...castArray(rightItems),
-                                        ...(enableAttachments
-                                            ? attachButton(composerModel, impl)
-                                            : []),
-                                        ...sendButton(
-                                            composerModel,
-                                            impl,
-                                            sendButtonProps,
-                                            stopButtonProps
-                                        )
-                                    ]
-                                })
-                            ]
-                        })
+                        isInline ? null : toolbar
                     ]
                 }),
                 impl.isDragging
@@ -227,13 +236,17 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
 //------------------
 // Implementation
 //------------------
-/** The input, led by any start items in a row of their own. */
-function inputRow(startItems: ReactNode, input: ReactNode): ReactNode {
+/** The input, in a row with any start items before it and an inline bar after it. */
+function inputRow(startItems: ReactNode, inlineBar: ReactNode, input: ReactNode): ReactNode {
     const items = castArray(startItems).filter(it => it != null && it !== false);
-    if (!items.length) return input;
+    if (!items.length && !inlineBar) return input;
     return div({
         className: 'xh-chat-composer__input-row',
-        items: [div({className: 'xh-chat-composer__start', items}), input]
+        items: [
+            items.length ? div({className: 'xh-chat-composer__start', items}) : null,
+            input,
+            inlineBar
+        ]
     });
 }
 

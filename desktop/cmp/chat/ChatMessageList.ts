@@ -89,6 +89,13 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
      * example a model name or a cost. Pass a stable function.
      */
     messageHeaderItems?: ChatMessageRenderFn;
+
+    /**
+     * False to leave out each reply's header line, and all it holds: the assistant's icon and
+     * name, its live status, time and time taken, "Thought for", failed tools, "Retried", and any
+     * `messageHeaderItems`. Default true.
+     */
+    showMessageHeader?: boolean;
 }
 
 /**
@@ -134,6 +141,7 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
             markdownPlugins,
             messageActions,
             messageHeaderItems,
+            showMessageHeader,
             ...rest
         },
         ref
@@ -204,6 +212,7 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                                           markdownPlugins,
                                           messageActions,
                                           messageHeaderItems,
+                                          showHeader: showMessageHeader,
                                           isEditing: impl.editingId === message.id,
                                           onEditingChange: impl.onEditingChange,
                                           onEditPrompt: impl.onEditPrompt

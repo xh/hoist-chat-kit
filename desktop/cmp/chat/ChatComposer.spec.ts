@@ -273,6 +273,40 @@ describe('ChatComposer', () => {
             expect(container.querySelector('.xh-chat-composer--busy .app-mark')).toBeTruthy();
         });
 
+        it('puts the bar after the input, in its row, with layout inline', () => {
+            const {container} = renderHostComposerView(createHost(), {
+                layout: 'inline',
+                startItems: Icon.ai({className: 'app-mark'})
+            });
+
+            const row = container.querySelector('.xh-chat-composer__input-row'),
+                [start, textarea, bar] = Array.from(row.children);
+            expect(start.querySelector('.app-mark')).toBeTruthy();
+            expect(textarea).toBe(input());
+            expect(bar.classList).toContain('xh-chat-composer__toolbar');
+            expect(bar.contains(screen.getByRole('button', {name: 'Send'}))).toBe(true);
+            expect(container.querySelector('.xh-chat-composer--inline')).toBeTruthy();
+        });
+
+        it('shows Stop inline while busy, with no start items', () => {
+            const chatModel = createModel({}, 50),
+                {container} = renderComposer(chatModel, {layout: 'inline'});
+            act(() => {
+                chatModel.sendAsync('Hi').catchDefault();
+            });
+
+            const row = container.querySelector('.xh-chat-composer__input-row');
+            expect(row.firstElementChild).toBe(input());
+            expect(row.contains(screen.getByRole('button', {name: 'Stop'}))).toBe(true);
+        });
+
+        it('keeps the bar in a row of its own by default', () => {
+            const {container} = renderHostComposerView(createHost());
+            const bar = container.querySelector('.xh-chat-composer__toolbar');
+            expect(bar.parentElement.classList).toContain('xh-chat-composer__box');
+            expect(container.querySelector('.xh-chat-composer__input-row')).toBeNull();
+        });
+
         it('leaves the input alone for start items that hold nothing', () => {
             const {container} = renderHostComposerView(createHost(), {startItems: [null]});
             expect(container.querySelector('.xh-chat-composer__input-row')).toBeNull();

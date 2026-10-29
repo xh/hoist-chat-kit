@@ -134,10 +134,12 @@ so that it opens into view.
 
 ### Live cues
 
-While a turn runs, the reply's header shows its status and the time taken so far, as
-"Thinking 1s", "Writing 6s" or "Running tools 12s". Each status has one icon, one label and one
-color, drawn by `ChatStatusCue` from one table. The status comes from `getChatReplyStatus()` in
-[`/core/`](../../../core/README.md#display-status), read again each second.
+While a turn runs, the reply's header shows its status and the time taken so far, as "Thinking 1s",
+"Writing 6s" or "Running tools 12s". A list with `showMessageHeader: false` shows no such line, so
+the reply has no cue until its first content arrives, and no "Retried" or failed tools. Each status
+has one icon, one label and one color, drawn by `ChatStatusCue` from one table. The status comes
+from `getChatReplyStatus()` in [`/core/`](../../../core/README.md#display-status), read again each
+second.
 
 - **Spinner** - Hoist's `Spinner`, at 1em of its line. A reply shows one spinner at most: while
   a tool call runs, the call's row shows it and the header drops its own.
@@ -482,7 +484,9 @@ Pass `composerProps` to `ChatPanel`, or props to `chatComposer` directly. `leftI
 left slot of the composer's bar, for pills. `rightItems` goes before the attach and Send
 buttons, for a context meter. `topItems` adds content above the input, such as context chips.
 `startItems` leads the input row, before the text, such as a brand mark. To animate it while a
-reply runs, style it under the composer's `xh-chat-composer--busy` class.
+reply runs, style it under the composer's `xh-chat-composer--busy` class. `layout: 'inline'` puts
+the bar after the text, in the same row, for a one-row composer. As the text grows, start items
+and the bar stay level with its last line. In a narrow composer, pills give way before the text.
 
 ```typescript
 chatPanel({
@@ -537,6 +541,10 @@ opens nothing. In a compact host, a pill shows only its icon and count.
 Set `active` to show a setting that is on, such as a tool the user turned on. Set `disabled` for a
 setting that cannot change now, with a `tooltip` that says why. A disabled pill keeps its tab stop,
 so keyboard users reach the tooltip, and it opens nothing.
+
+`onOpenChange` is called as the menu or popover opens and closes, the place to load fresh choices.
+`content` as a function runs on each render, so it is no place for a fetch. `popoverClassName`
+adds to the popover's own class, for example for a type scale.
 
 ### Scope questions to documents
 
@@ -1133,6 +1141,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
 | `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit, Regenerate and the thumbs. Edit and Regenerate show only while the chat's `allowEdit` and `allowRegenerate` are true. Pass a stable function. |
 | `messageHeaderItems` | `(message, context) => ReactNode[]` | Items in an assistant message's header. Pass a stable function. |
+| `showMessageHeader` | `boolean` | False to leave out each reply's header line, and all it holds: the name, live status, time, time taken, "Thought for", failed tools, "Retried" and header items. Default true. |
 
 Each message is a focusable `article`, named for its author and time. With a message focused, Up
 and Down move to the one before or after. Escape stops a reply in progress while focus is in the
@@ -1156,6 +1165,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `autoFocus` | `boolean` | True to focus the input on mount. |
 | `sendButtonProps` | `ChatComposerButtonProps` | How Send looks: `icon`, `text`, `intent`, `minimal`, `outlined`, and a `className` added to the kit's. The composer keeps what it does. A `text` label also names it for screen readers. Default a primary button with an up arrow. |
 | `stopButtonProps` | `ChatComposerButtonProps` | How Stop looks, as `sendButtonProps` for Send. Default outlined, with "Stop". |
+| `layout` | `'stacked' \| 'inline'` | `stacked` puts the bar of pills, attach and Send under the input. `inline` puts it after the input, in its row, for a one-row composer. Default `stacked`. |
 
 Enter sends, and Shift+Enter starts a new line. An Enter that confirms an IME candidate does not
 send. Up arrow in an empty input recalls the last user message. While a reply streams, Send
@@ -1176,6 +1186,7 @@ Use it directly only for a list of your own.
 | `message` | `ChatMessage` | The message to show. |
 | `host` | `ChatTranscript \| ChatModel` | The conversation that holds the message. A transcript shows it read-only. |
 | `assistantName`, `assistantIcon`, `markdownComponents`, `allowImages`, `citationMarkers`, `onSourceClick`, `markdownPlugins`, `messageActions`, `messageHeaderItems` | - | As on `ChatMessageList`. |
+| `showHeader` | `boolean` | As `showMessageHeader` on `ChatMessageList`. Default true. |
 
 ### Part components
 
@@ -1199,7 +1210,7 @@ it.
 | `ChatEmptyState` | `header`, `icon`, `title`, `text`, `suggestions`, `footer`, `composerModel` | Welcome the user to an empty chat. |
 | `ChatSuggestions` | `suggestions`, `onSelect`, `composerModel` | Show prompt cards that fill the composer: `composerModel`, else the `ChatModel`'s. `onSelect` replaces the fill. With neither, it renders nothing. |
 | `ChatStatusRegion` | `model`, `assistantName` | Show the thread's next action above a composer, in a custom layout. |
-| `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip`, `active`, `disabled` | Add a pill to the composer's left slot. |
+| `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip`, `active`, `disabled`, `onOpenChange`, `popoverClassName` | Add a pill to the composer's left slot. |
 | `ChatScopeChip` | `documents`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip` | Scope the next question to some documents. Default binds `runOptions.documentIds`. |
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |
 | `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |
@@ -1255,6 +1266,7 @@ pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
 | | `--xh-chat-part-header-height` | `28px`, for card header strips |
 | | `--xh-chat-user-max-width` | `75%`, for the user bubble |
 | | `--xh-chat-user-padding` | `8px 12px`, inside the user bubble |
+| | `--xh-chat-user-border-radius` | `--xh-chat-border-radius`, for the user bubble. Takes four corners, such as `16px 16px 4px 16px` for a squared tail. |
 | | `--xh-chat-border-radius` | `--xh-border-radius` (4px), for every frame |
 | Color | `--xh-chat-bg`, `--xh-chat-text-color` | `--xh-bg`, `--xh-text-color` |
 | | `--xh-chat-meta-text-color` | `--xh-blue-gray`, `--xh-text-color-muted` in dark |

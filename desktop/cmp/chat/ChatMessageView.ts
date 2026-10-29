@@ -154,6 +154,12 @@ export interface ChatMessageViewProps extends HoistProps {
     messageHeaderItems?: ChatMessageRenderFn;
 
     /**
+     * False to leave out an assistant message's header line - as `showMessageHeader` on
+     * `ChatMessageList`. Default true.
+     */
+    showHeader?: boolean;
+
+    /**
      * True if this is the last message in the conversation. Its action bar stays shown, and an
      * assistant message offers Regenerate.
      * @internal
@@ -601,7 +607,7 @@ function assistantContent(
             key: 'main',
             className: 'xh-chat-message__main',
             items: [
-                messageHeader(props, context),
+                props.showHeader === false ? null : messageHeader(props, context),
                 div({
                     className: 'xh-chat-message__body',
                     items: [

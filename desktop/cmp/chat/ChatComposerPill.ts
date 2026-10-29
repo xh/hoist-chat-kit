@@ -1,5 +1,5 @@
 import type {ReactElement, ReactNode} from 'react';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type MenuItemLike} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
@@ -40,6 +40,16 @@ export interface ChatComposerPillProps extends HoistProps {
     active?: boolean;
 
     /**
+     * Called when the pill's menu or popover opens or closes, with whether it is now open - for
+     * example to load fresh choices as it opens. `content` as a function runs on each render, so
+     * load data here, not there. Not called when the pill unmounts.
+     */
+    onOpenChange?: (isOpen: boolean) => void;
+
+    /** Class names for the pill's popover, added to the kit's own - for example a type scale. */
+    popoverClassName?: string;
+
+    /**
      * True to disable the pill. It keeps its tab stop and tooltip, so set the tooltip to say why,
      * and opens nothing. Default false.
      */
@@ -75,6 +85,8 @@ export const [ChatComposerPill, chatComposerPill] = hoistCmp.withFactory<ChatCom
                 tooltip,
                 active = false,
                 disabled = false,
+                onOpenChange,
+                popoverClassName,
                 'aria-label': ariaLabel
             } = props,
             [isOpen, setIsOpen] = useState(false),
@@ -82,7 +94,8 @@ export const [ChatComposerPill, chatComposerPill] = hoistCmp.withFactory<ChatCom
             canOpen = hasPopup && !disabled,
             // A pill disabled while open shows closed, and stays closed once enabled.
             isShownOpen = isOpen && canOpen,
-            name = ariaLabel ?? defaultName(text, count);
+            name = ariaLabel ?? defaultName(text, count),
+            wasShownOpen = useRef(false);
 
         const pill = button({
             className: classNames(className, {
@@ -114,9 +127,18 @@ export const [ChatComposerPill, chatComposerPill] = hoistCmp.withFactory<ChatCom
             'aria-haspopup': hasPopup ? (menuItems ? 'menu' : 'dialog') : undefined,
             'aria-expanded': hasPopup ? isShownOpen : undefined
         });
+        // A pill that can no longer open - disabled, or with nothing to show - closes, and stays
+        // closed once it can open again.
         useEffect(() => {
-            if (disabled) setIsOpen(false);
-        }, [disabled]);
+            if (!canOpen && isOpen) setIsOpen(false);
+        }, [canOpen, isOpen]);
+
+        // Reported from what shows, once per change, however many calls asked for it.
+        useEffect(() => {
+            if (isShownOpen === wasShownOpen.current) return;
+            wasShownOpen.current = isShownOpen;
+            onOpenChange?.(isShownOpen);
+        });
         if (!canOpen) return pill;
 
         const close = () => setIsOpen(false);
@@ -125,7 +147,7 @@ export const [ChatComposerPill, chatComposerPill] = hoistCmp.withFactory<ChatCom
             onInteraction: open => setIsOpen(open),
             position: 'top-left',
             minimal: true,
-            popoverClassName: 'xh-chat-composer-pill__popover',
+            popoverClassName: classNames('xh-chat-composer-pill__popover', popoverClassName),
             item: pill,
             content: (menuItems
                 ? menu({menuItems})

@@ -241,6 +241,18 @@ describe('ChatMessageView', () => {
     });
 
     describe('the header', () => {
+        it('leaves the header out with showMessageHeader false, and keeps the reply', () => {
+            const chatModel = createModel({}, [question(), reply('a1', [text('t1', 'Answer')])]);
+            const {container} = renderList(chatModel, {showMessageHeader: false});
+
+            expect(header(container)).toBeNull();
+            expect(screen.getByText('Answer')).toBeTruthy();
+            // Screen readers still hear who replied, from the article's name.
+            expect(screen.getAllByRole('article')[1].getAttribute('aria-label')).toMatch(
+                /^Assistant, /
+            );
+        });
+
         it('counts failed tools of a finished reply', () => {
             const chatModel = createModel({}, [
                 question(),

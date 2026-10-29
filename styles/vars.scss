@@ -40,6 +40,8 @@ body {
   --xh-chat-user-padding: 8px 12px;
   // One radius for the whole kit: bubbles, cards, tool rows and chips.
   --xh-chat-border-radius: var(--xh-border-radius-px);
+  // The user bubble's corners - one value, or four for a squared tail, as `16px 16px 4px 16px`.
+  --xh-chat-user-border-radius: var(--xh-chat-border-radius);
 
   //------------------------
   // Color

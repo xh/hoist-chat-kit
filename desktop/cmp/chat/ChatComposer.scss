@@ -125,6 +125,31 @@
     padding-left: 10px;
   }
 
+  // Inline, the bar follows the input in its row. Start items and the bar stay level with the
+  // last line as the input grows. Pills give way before the input does.
+  &--inline &__input-row {
+    align-items: flex-end;
+
+    > textarea.xh-chat-composer__input {
+      min-width: 6em;
+    }
+  }
+
+  &--inline &__toolbar {
+    flex: 0 1 auto;
+    min-height: 38px;
+    min-width: 0;
+    padding: 0 6px 0 0;
+  }
+
+  &--inline &__left {
+    flex: 0 1 auto;
+
+    &:empty {
+      display: none;
+    }
+  }
+
   // The 34px bar: pills on the left, then the right slot, attach and Send.
   &__toolbar {
     align-items: center;
