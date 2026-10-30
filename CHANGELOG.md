@@ -52,6 +52,8 @@ Requires `@xh/hoist` 89.3.1 or later, with React 19.
 
 * Added a documentation registry, `docs/doc-registry.json`, that the `hoist-react` MCP server and
   the `hoist-docs` CLI serve to agents in any app that installs the kit.
+* Added `docs/requesting-changes.md`, which shows an app's agent how to ask the kit's maintainers
+  for a feature, an API change or a bug fix, and what to check first.
 
 ### 📚 Libraries
 

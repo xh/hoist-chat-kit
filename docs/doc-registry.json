@@ -7,7 +7,8 @@
     "Render model output with chatMarkdown, not Hoist's markdown. It renders half-written syntax cleanly as text streams, and it blocks raw HTML and images by default.",
     "Show app components in a reply through a ChatUiCatalog. Do not parse model text for UI.",
     "Import from the package barrels, such as @xh/hoist-chat-kit/core and @xh/hoist-chat-kit/desktop/cmp/chat. Never import from impl folders.",
-    "The kit has desktop components only."
+    "The kit has desktop components only.",
+    "Before you ask the kit's maintainers for a change, read @xh/hoist-chat-kit/docs/requesting-changes.md and write the request in its shape."
   ],
   "mcpCategories": [
     {"id": "package", "title": "Package Documentation"},
@@ -159,6 +160,23 @@
         "conformance",
         "@ag-ui/core",
         "@ag-ui/client"
+      ]
+    },
+    {
+      "id": "docs/requesting-changes.md",
+      "title": "Request a Change to the Kit",
+      "mcpCategory": "concept",
+      "viewerCategory": "concepts",
+      "description": "How an app asks the kit's maintainers for a feature, an API change or a bug fix, and what the answer holds.",
+      "keywords": [
+        "feature request",
+        "bug report",
+        "request a change",
+        "API change",
+        "ask the maintainers",
+        "request template",
+        "workaround",
+        "theme contract"
       ]
     },
     {

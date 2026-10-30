@@ -151,6 +151,13 @@ Code here follows the conventions of the Hoist version it targets. Read them wit
 - Style with Hoist CSS variables (`var(--xh-pad-px)`), scoped under the component's `className`.
 - Components in `desktop/` and `mobile/` are platform-specific. Shared code lives elsewhere.
 
+## Asks from App Integrations
+
+Apps that build on the kit send feature requests, API asks and bug reports, often written by the
+app's own coding agent. Handle them with the `triage-integration-asks` skill in
+`.claude/skills/`. `DECISIONS.md` records what the kit has already settled. Apps learn how to
+write an ask from [`docs/requesting-changes.md`](docs/requesting-changes.md).
+
 ## Unit Tests
 
 Before you write or change a unit test, read hoist-react's unit testing doc
