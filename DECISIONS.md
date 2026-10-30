@@ -1918,3 +1918,25 @@ when the composer is centered, so the kit can apply the rule for every app.
 
 **Alternatives.** A placement prop on the pill. Each app with the centered empty state would then
 have to bind it to `chatModel.isEmpty`.
+
+**Horizontal alignment** is the app's call, through `popoverAlign: 'start' | 'end'`. The kit cannot
+tell that a pill sits at the end of its row without measuring the layout, and the app placed it
+there. Blueprint keeps a popover inside the viewport, not inside the composer.
+
+## D113. The scope chip chooses any kind of option, and its selection is literal
+
+**Decision.** `ChatScopeChip` takes `options: ChatScopeOption[]` and a `noun`, in place of
+`documents`. An option can carry `secondaryText`, an `info` tooltip, and `disabled` to lock it as
+it is. The selection is the checked ids, and empty means none. The chip reads "All tools" with
+every option checked and "No tools" with none. `runOption` has no default. The popover's rows
+follow Hoist's menus, and its footer has Select All and Clear.
+
+**Why.** The chip was built for the first integration's document scope, and its names and words
+said "documents" though nothing else in it did. An app that wanted the same control for tools
+and skills rebuilt it under a pill's `content`. Empty meaning "all" suits documents, but a user
+who unchecks every tool means none, and the chip would have said "All tools". A literal
+selection is what every multi-select input does, so it surprises no one. An app that wants every
+option on passes every id.
+
+**Alternatives.** A setting for what empty means. It adds a mode to learn, where passing every
+id already covers the case.

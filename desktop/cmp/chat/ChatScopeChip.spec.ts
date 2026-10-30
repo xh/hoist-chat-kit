@@ -4,79 +4,114 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatModel} from '../../../core';
 import {ScriptedChatTransport, textEvents} from '../../../transport';
-import {chatScopeChip, type ChatScopeDocument} from './ChatScopeChip';
+import {chatScopeChip, type ChatScopeOption} from './ChatScopeChip';
 
 /**
- * The document scope chip (B4). Each question must record the scope the user saw on the chip, so
- * the chip's label and the chat's run options must agree, and Clear must mean all documents.
+ * The scope chip (B4). Each question must record the selection the user saw on the chip, so the
+ * chip's words and the chat's run options must agree. The selection is literal: empty means none,
+ * and a locked item never changes.
  */
 describe('ChatScopeChip', () => {
     beforeAll(() => initTestAppAsync());
 
-    const DOCS: ChatScopeDocument[] = [
+    const DOCS: ChatScopeOption[] = [
         {id: 'd1', name: 'Policy manual'},
         {id: 'd2', name: 'Servicing guide'},
         {id: 'd3', name: 'Credit memo'}
     ];
 
-    it('reads "All documents" with nothing chosen', () => {
-        render(chatScopeChip({model: createModel(), documents: DOCS}));
+    it('reads "No documents" with none checked, and "All documents" with every one', () => {
+        const {unmount} = render(chatScopeChip({...docChip(), model: createModel()}));
+        expect(chip('No documents').textContent).toBe('No documents');
+        unmount();
 
-        const chip = screen.getByRole('button', {name: 'Document scope: All documents'});
-        expect(chip.textContent).toBe('All documents');
+        render(
+            chatScopeChip({...docChip(), model: createModel({documentIds: ['d1', 'd2', 'd3']})})
+        );
+        expect(chip('All documents').textContent).toBe('All documents');
     });
 
-    it('records the chosen documents in the run options, with the count on the chip', () => {
+    it('records the checked items in the run options, with the count on the chip', () => {
         const chatModel = createModel();
-        render(chatScopeChip({model: chatModel, documents: DOCS}));
+        render(chatScopeChip({...docChip(), model: chatModel}));
 
         openChip();
         fireEvent.click(screen.getByRole('checkbox', {name: 'Policy manual'}));
         fireEvent.click(screen.getByRole('checkbox', {name: 'Credit memo'}));
 
         expect(chatModel.runOptions).toEqual({documentIds: ['d1', 'd3']});
-        const chip = screen.getByRole('button', {name: 'Document scope: 2 documents'});
-        expect(chip.textContent).toBe('Documents2');
-        expect(chip.getAttribute('title')).toBe('Policy manual, Credit memo');
+        expect(chip('2 of 3').textContent).toBe('Documents2');
+        expect(chip('2 of 3').getAttribute('title')).toBe('Policy manual, Credit memo');
     });
 
-    it('gives each document its full name as a tooltip, as a long one truncates', () => {
+    it('gives each item its full name as a tooltip, as a long one truncates', () => {
         const name = 'Mortgage Underwriting Guidelines: Credit, Capacity, Collateral and Reserves';
-        render(chatScopeChip({model: createModel(), documents: [{id: 'd1', name}, ...DOCS]}));
+        render(
+            chatScopeChip({
+                ...docChip(),
+                model: createModel(),
+                options: [{id: 'd0', name}, ...DOCS]
+            })
+        );
 
         openChip();
         const option = screen.getByRole('checkbox', {name}).closest('label');
         expect(option.querySelector('[title]').getAttribute('title')).toBe(name);
     });
 
-    it('counts only chosen documents that are still in the list', () => {
+    it('counts only checked items that are still in the list', () => {
         render(
-            chatScopeChip({
-                model: createModel({documentIds: ['d1', 'gone', 'd3']}),
-                documents: DOCS
-            })
+            chatScopeChip({...docChip(), model: createModel({documentIds: ['d1', 'gone', 'd3']})})
         );
 
-        const chip = screen.getByRole('button', {name: 'Document scope: 2 documents'});
-        expect(chip.textContent).toBe('Documents2');
+        expect(chip('2 of 3').textContent).toBe('Documents2');
         openChip();
         expect(screen.getByText('2 of 3')).toBeTruthy();
     });
 
-    it('clears the scope to all documents, keeping other run options', () => {
+    it('clears to none and selects all, keeping other run options', () => {
         const chatModel = createModel({documentIds: ['d2'], profile: 'thorough'});
-        render(chatScopeChip({model: chatModel, documents: DOCS}));
+        render(chatScopeChip({...docChip(), model: chatModel}));
 
         openChip();
         fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
+        expect(chatModel.runOptions).toEqual({documentIds: [], profile: 'thorough'});
+        expect(chip('No documents')).toBeTruthy();
 
-        expect(chatModel.runOptions).toEqual({profile: 'thorough'});
-        expect(screen.getByRole('button', {name: 'Document scope: All documents'})).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', {name: 'Select All'}));
+        expect(chatModel.runOptions).toEqual({
+            documentIds: ['d1', 'd2', 'd3'],
+            profile: 'thorough'
+        });
+        expect(chip('All documents')).toBeTruthy();
     });
 
-    it('sends each question with the scope chosen when it was asked', async () => {
+    it('leaves a disabled item as it is, and shows its secondary text and info', async () => {
+        const onChange = vi.fn(),
+            tools: ChatScopeOption[] = [
+                {id: 't1', name: 'Prices', disabled: true, secondaryText: 'Required for skill'},
+                {id: 't2', name: 'Curves', info: 'Provider: Commodities'},
+                {id: 't3', name: 'Archive', disabled: true}
+            ];
+        render(
+            appHost({item: chatScopeChip({options: tools, noun: 'tool', value: ['t1'], onChange})})
+        );
+
+        fireEvent.click(screen.getByRole('button', {name: /^Tools:/}));
+        expect(screen.getByRole('checkbox', {name: 'Prices'})).toHaveProperty('disabled', true);
+        expect(screen.getByText('Required for skill')).toBeTruthy();
+
+        fireEvent.click(screen.getByRole('button', {name: 'Select All'}));
+        expect(onChange).toHaveBeenLastCalledWith(['t1', 't2']);
+        expect(screen.getByRole('button', {name: 'Clear'})).toHaveProperty('disabled', true);
+
+        fireEvent.mouseEnter(screen.getByRole('img', {name: 'About Curves'}));
+        expect(await screen.findByText('Provider: Commodities')).toBeTruthy();
+    });
+
+    it('sends each question with the selection checked when it was asked', async () => {
         const chatModel = createModel();
-        render(chatScopeChip({model: chatModel, documents: DOCS}));
+        render(chatScopeChip({...docChip(), model: chatModel}));
 
         openChip();
         fireEvent.click(screen.getByRole('checkbox', {name: 'Servicing guide'}));
@@ -88,7 +123,11 @@ describe('ChatScopeChip', () => {
     it('binds to the app state given as value and onChange, with no chat', () => {
         const onChange = vi.fn();
         // Under an app's own model, as in any app - Hoist inputs look one up in context.
-        render(appHost({item: chatScopeChip({documents: DOCS, value: ['d1'], onChange})}));
+        render(
+            appHost({
+                item: chatScopeChip({options: DOCS, noun: 'document', value: ['d1'], onChange})
+            })
+        );
 
         openChip();
         fireEvent.click(screen.getByRole('checkbox', {name: 'Servicing guide'}));
@@ -97,8 +136,8 @@ describe('ChatScopeChip', () => {
     });
 
     it('searches a long list by name', () => {
-        const docs = Array.from({length: 12}, (_, idx) => ({id: `d${idx}`, name: `Guide ${idx}`}));
-        render(chatScopeChip({model: createModel(), documents: [...docs, ...DOCS]}));
+        const docs = Array.from({length: 12}, (_, idx) => ({id: `g${idx}`, name: `Guide ${idx}`}));
+        render(chatScopeChip({...docChip(), model: createModel(), options: [...docs, ...DOCS]}));
 
         openChip();
         changeSearch('memo');
@@ -107,6 +146,17 @@ describe('ChatScopeChip', () => {
         changeSearch('escrow');
         expect(screen.getByText("No documents match 'escrow'")).toBeTruthy();
     });
+
+    it('requires runOption to bind to a chat', () => {
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        expect(() => render(chatScopeChip({options: DOCS, model: createModel()}))).toThrow(
+            'requires a ChatModel with runOption'
+        );
+    });
+
+    function docChip() {
+        return {options: DOCS, noun: 'document', runOption: 'documentIds'};
+    }
 });
 
 //------------------
@@ -129,8 +179,12 @@ function createModel(runOptions: Record<string, any> = null): ChatModel {
     return model;
 }
 
+function chip(spoken: string): HTMLElement {
+    return screen.getByRole('button', {name: `Documents: ${spoken}`});
+}
+
 function openChip() {
-    fireEvent.click(screen.getByRole('button', {name: /^Document scope/}));
+    fireEvent.click(screen.getByRole('button', {name: /^Documents:/}));
 }
 
 function changeSearch(text: string) {

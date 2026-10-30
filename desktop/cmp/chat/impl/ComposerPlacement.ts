@@ -10,3 +10,15 @@ export const ComposerCenteredContext = createContext(false);
 
 /** @internal */
 export const composerCenteredProvider = elementFactory(ComposerCenteredContext.Provider);
+
+/**
+ * Where a composer pill's popover opens: down while the composer is centered, else up, along the
+ * pill's start or end edge.
+ * @internal
+ */
+export function getPillPopoverPosition(
+    isCentered: boolean,
+    align: 'start' | 'end'
+): 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right' {
+    return `${isCentered ? 'bottom' : 'top'}-${align === 'end' ? 'right' : 'left'}`;
+}

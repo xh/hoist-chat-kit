@@ -9,7 +9,7 @@ import {popover} from '@xh/hoist/kit/blueprint';
 import {classNames} from '../../../impl/ClassNames';
 import '../../../styles/vars.scss';
 import './ChatComposerPill.scss';
-import {ComposerCenteredContext} from './impl/ComposerPlacement';
+import {ComposerCenteredContext, getPillPopoverPosition} from './impl/ComposerPlacement';
 
 /** Props for {@link ChatComposerPill}. */
 export interface ChatComposerPillProps extends HoistProps {
@@ -51,6 +51,13 @@ export interface ChatComposerPillProps extends HoistProps {
     popoverClassName?: string;
 
     /**
+     * Which edge of the pill the popover lines up with: `start` for a pill at the start of its
+     * row, `end` for one at the end. The kit still chooses whether it opens up or down. Default
+     * `start`.
+     */
+    popoverAlign?: 'start' | 'end';
+
+    /**
      * True to disable the pill. It keeps its tab stop and tooltip, so set the tooltip to say why,
      * and opens nothing. Default false.
      */
@@ -67,7 +74,8 @@ export interface ChatComposerPillProps extends HoistProps {
  *
  * The menu opens upward, over the thread. While `ChatPanel` shows the composer centered, it opens
  * downward instead, so that it does not cover the composer. Either way, a menu with no room on its
- * side opens on the other.
+ * side opens on the other. It lines up with the pill's start edge - see `popoverAlign` for a pill
+ * at the end of its row.
  *
  * Changes made through a pill apply to the next turn - bind them to `ChatModel.runOptions` - and
  * never restart a reply in progress. Leave out a pill the app does not configure, rather than show
@@ -92,6 +100,7 @@ export const [ChatComposerPill, chatComposerPill] = hoistCmp.withFactory<ChatCom
                 disabled = false,
                 onOpenChange,
                 popoverClassName,
+                popoverAlign = 'start',
                 'aria-label': ariaLabel
             } = props,
             [isOpen, setIsOpen] = useState(false),
@@ -151,7 +160,7 @@ export const [ChatComposerPill, chatComposerPill] = hoistCmp.withFactory<ChatCom
         return popover({
             isOpen,
             onInteraction: open => setIsOpen(open),
-            position: isCentered ? 'bottom-left' : 'top-left',
+            position: getPillPopoverPosition(isCentered, popoverAlign),
             minimal: true,
             popoverClassName: classNames('xh-chat-composer-pill__popover', popoverClassName),
             item: pill,

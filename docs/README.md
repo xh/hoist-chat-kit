@@ -40,7 +40,7 @@ its tools.
 | Handle errors, retries and finish reasons | [`/core/`](../core/README.md#handle-errors-and-finish-reasons) |
 | Connect to an agent service that owns the history and threads | [`/core/`](../core/README.md#run-a-server-owned-conversation) |
 | Send per-turn options, such as a document scope | [`/core/`](../core/README.md#pick-options-per-turn) |
-| Let the user scope a question to some documents | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#scope-questions-to-documents) |
+| Let the user choose documents, agents, skills or tools for a question | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#choose-what-a-question-uses) |
 | Add an agent, tools or other pill to the composer | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#add-a-pill-to-the-composer) |
 | Offer Try Again or Refresh Status after a failed reply | [`/core/`](../core/README.md#recover-from-a-failed-reply) |
 | Keep the user's unsent draft across reloads | [`/core/`](../core/README.md#keep-drafts) |

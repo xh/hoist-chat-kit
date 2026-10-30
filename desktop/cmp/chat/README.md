@@ -518,7 +518,7 @@ chatPanel({
     composerProps: {
         placeholder: 'Ask about this dashboard...',
         maxRows: 6,
-        leftItems: [agentPill(), chatScopeChip({documents})],
+        leftItems: [agentPill(), chatScopeChip({options, noun: 'document', runOption: 'documentIds'})],
         topItems: contextChips()
     }
 });
@@ -552,7 +552,8 @@ progress.
 
 The menu opens upward, over the thread. While `ChatPanel` shows the composer centered in an empty
 chat, the menu opens downward, so that it does not cover the composer. A menu with no room on its
-side opens on the other.
+side opens on the other. The menu lines up with the pill's start edge. For a pill at the end of
+its row, such as a model picker on the right of `bottomItems`, set `popoverAlign: 'end'`.
 
 ```typescript
 chatComposerPill({
@@ -574,26 +575,46 @@ so keyboard users reach the tooltip, and it opens nothing.
 `content` as a function runs on each render, so it is no place for a fetch. `popoverClassName`
 adds to the popover's own class, for example for a type scale.
 
-### Scope questions to documents
+### Choose what a question uses
 
-`chatScopeChip` scopes the next question to some of the app's documents. The app supplies the
-documents, each with an `id`, a `name` and an optional `icon`. The chip reads "All documents"
-with none chosen, else "Documents" with the count. Its popover lists the documents as
-checkboxes, with a search box for a long list, and Clear. A name too long for the popover ends
-in an ellipsis, with the full name in a tooltip. To widen the popover, set the CSS variable
-`--xh-chat-scope-popover-width`, which defaults to 320px.
+`chatScopeChip` lets the user choose some of a set of options for the next question, such as the
+documents to search, or the agents, skills or tools to use. The app supplies the `options`, each
+with an `id`, a `name` and an optional `icon`, and names their kind with `noun`. The popover lists
+the options as checkboxes, with a search box for a long list, Select All and Clear. Its rows
+follow Hoist's menus. A name too long for the popover ends in an ellipsis, with the full name in a
+tooltip. To widen the popover, set the CSS variable `--xh-chat-scope-popover-width`, which
+defaults to 320px.
+
+The selection is the checked options, and an empty selection means none. To start with every
+option on, pass every id. The chip reads "All tools" with every option checked, "No tools" with
+none, and else "Tools" with the count.
 
 ```typescript
 chatPanel({
     model: chatModel,
-    composerProps: {leftItems: chatScopeChip({documents: this.documents})}
+    composerProps: {
+        leftItems: chatScopeChip({
+            options: this.tools,
+            noun: 'tool',
+            icon: Icon.tools(),
+            runOption: 'toolIds'
+        })
+    }
 });
 ```
 
-The chip writes the chosen ids to `chatModel.runOptions.documentIds`. Each question records a
-copy as `metadata.runOptions`, and a retry, regenerate or edit re-runs with that copy. Under
-`ChatThreadsModel`, the scope belongs to the thread, and a thread opens with the scope of its
-last question. To keep the scope in your own state, pass `value` and `onChange` instead.
+An option can carry more on its row:
+
+- `secondaryText` - short text at the end of the row, such as "Required for skill".
+- `info` - content of a tooltip on an info icon at the end of the row.
+- `disabled` - true to lock the option as it is, checked or not. Select All and Clear leave it
+  alone. Put a required option's id in the selection to show it checked.
+
+The chip writes the checked ids to `chatModel.runOptions` under `runOption`. Each question records
+a copy as `metadata.runOptions`, and a retry, regenerate or edit re-runs with that copy. Under
+`ChatThreadsModel`, the selection belongs to the thread, and a thread opens with the selection of
+its last question. To keep the selection in your own state, pass `value` and `onChange` instead
+of `runOption`.
 
 ### Recover from a failed reply
 
@@ -1263,8 +1284,8 @@ it.
 | `ChatEmptyState` | `header`, `icon`, `title`, `text`, `suggestions`, `footer`, `composerModel` | Welcome the user to an empty chat. |
 | `ChatSuggestions` | `suggestions`, `onSelect`, `composerModel` | Show prompt cards that fill the composer: `composerModel`, else the `ChatModel`'s. `onSelect` replaces the fill. With neither, it renders nothing. |
 | `ChatStatusRegion` | `model`, `assistantName`, `showStopHint` | Show the thread's next action above a composer, in a custom layout. |
-| `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip`, `active`, `disabled`, `onOpenChange`, `popoverClassName` | Add a pill to the composer's left slot or its `bottomItems`. |
-| `ChatScopeChip` | `documents`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip` | Scope the next question to some documents. Default binds `runOptions.documentIds`. |
+| `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip`, `active`, `disabled`, `onOpenChange`, `popoverClassName`, `popoverAlign` | Add a pill to the composer's left slot or its `bottomItems`. |
+| `ChatScopeChip` | `options`, `noun`, `icon`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip`, `popoverAlign` | Choose some options for the next question, such as documents, agents or tools. Binds `runOptions[runOption]`, or `value` and `onChange`. |
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |
 | `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |
 | `ChatCopyButton` | `getCopyText`, `showText`, `label`, `aria-label` | Copy text, confirming in place with a check for a moment. No `ChatModel` needed. `aria-label` names it for screen readers where the label alone is not enough, as a code block's "Copy python code". |

@@ -36,7 +36,7 @@ describe('ChatPanel', () => {
         expect(order[2].querySelectorAll('.xh-chat-suggestions__card')).toHaveLength(2);
     });
 
-    it('opens a pill menu down while the composer is centered, and up once it docks', async () => {
+    it('tells a pill to open down while the composer is centered, and up once it docks', async () => {
         const chatModel = createModel(),
             pill = chatComposerPill({text: 'Model', menuItems: [{text: 'Fast'}]}),
             placement = () => document.querySelector('.xh-chat-composer-pill__popover').classList;

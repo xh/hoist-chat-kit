@@ -1,11 +1,16 @@
-// The document scope's popover: search, a list of checkboxes, and a footer with Clear.
+// The scope chip's popover: search, a list of checkboxes, and a footer with Select All and Clear.
+// Its rows follow Hoist's menus - their font size, text color, padding and hover.
 .xh-chat-scope-chip {
+  // Framed as a Hoist menu is, over Blueprint's lighter popover background.
   &__popover {
+    background-color: var(--xh-menu-bg);
+    border: var(--xh-menu-border);
+    border-radius: inherit;
     box-sizing: border-box;
-    color: var(--xh-chat-text-color);
+    color: var(--xh-menu-item-text-color);
     display: flex;
     flex-direction: column;
-    font-size: var(--xh-chat-font-size);
+    font-size: var(--xh-menu-item-font-size-px);
     max-width: 90vw;
     width: var(--xh-chat-scope-popover-width, 320px);
   }
@@ -24,18 +29,28 @@
     padding: 4px 0;
   }
 
-  // One row per document: the checkbox, then the icon and the name, which truncates. Scoped under
-  // the list to outrank Blueprint's `bp6-inline` and `bp6-align-left` rules, whatever the order.
-  &__list &__option.bp6-control {
+  // One row per item: the checkbox with the icon and the name, which truncates, then the
+  // secondary text and the info icon.
+  &__option {
     align-items: center;
     display: flex;
-    margin: 0;
-    min-height: 28px;
-    padding: 4px 10px;
+    gap: 8px;
+    padding: 0 10px 0 0;
 
     &:hover {
       background-color: var(--xh-menu-item-highlight-bg);
     }
+  }
+
+  // Scoped under the row to outrank Blueprint's `bp6-inline` and `bp6-align-left` rules, whatever
+  // the order.
+  &__option &__check.bp6-control {
+    align-items: center;
+    display: flex;
+    flex: 1 1 auto;
+    margin: 0;
+    min-width: 0;
+    padding: 5px 0 5px 10px;
 
     .bp6-control-indicator {
       flex: none;
@@ -63,15 +78,27 @@
     white-space: nowrap;
   }
 
+  &__option-secondary {
+    color: var(--xh-chat-meta-text-color);
+    flex: none;
+    font-size: var(--xh-chat-meta-font-size);
+    white-space: nowrap;
+  }
+
+  &__option-info {
+    color: var(--xh-chat-meta-text-color);
+    cursor: help;
+    flex: none;
+  }
+
   &__empty {
     color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-chat-meta-font-size);
-    padding: 6px 10px;
+    padding: 5px 10px;
   }
 
   &__footer {
     align-items: center;
-    border-top: var(--xh-border-width-px) solid var(--xh-popup-border-color);
+    border-top: var(--xh-menu-border);
     color: var(--xh-chat-meta-text-color);
     display: flex;
     font-size: var(--xh-chat-meta-font-size);
@@ -83,6 +110,10 @@
       font-size: var(--xh-chat-meta-font-size);
       min-height: 24px;
     }
+  }
+
+  &__actions {
+    display: flex;
   }
 }
 
