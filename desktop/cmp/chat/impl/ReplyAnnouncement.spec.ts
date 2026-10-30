@@ -2,6 +2,7 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {ChatMessage, ChatModel, type ChatPart} from '../../../../core';
 import {ScriptedChatTransport} from '../../../../transport';
+import {ChatTimeline} from '../ChatTimeline';
 import {formatReplyAnnouncement} from './ReplyAnnouncement';
 
 /**
@@ -140,6 +141,49 @@ describe('formatReplyAnnouncement', () => {
         expect(formatReplyAnnouncement(message, 'Bot', host)).toBe(
             'Bot replied after 3 tools, 2 skills and 1 agent. Done.'
         );
+    });
+
+    it('counts only failures outside a timeline for ChatTimeline.defaults.showSummaryFailureCount false', () => {
+        const {defaults} = ChatTimeline;
+        defaults.showSummaryFailureCount = false;
+        onTestFinished(() => {
+            defaults.showSummaryFailureCount = true;
+        });
+        const failed = (id: string, toolName: string): ChatPart => ({
+                type: 'toolCall',
+                id,
+                toolName,
+                state: 'output-error',
+                step: 0,
+                inputText: '{}',
+                input: {},
+                output: null,
+                errorText: '504 Timeout'
+            }),
+            host = new ChatModel({
+                transport: new ScriptedChatTransport(),
+                tools: [
+                    {name: 'probe', display: 'timeline'},
+                    {name: 'show', display: 'card'}
+                ]
+            });
+        onTestFinished(() => host.destroy());
+
+        const inTimeline = reply('Done.', {tools: 1});
+        expect(
+            formatReplyAnnouncement(
+                inTimeline.withChanges({parts: [failed('f1', 'probe'), ...inTimeline.parts]}),
+                'Bot',
+                host
+            )
+        ).toBe('Bot replied after 2 tools. Done.');
+        expect(
+            formatReplyAnnouncement(
+                inTimeline.withChanges({parts: [failed('f1', 'probe'), failed('f2', 'show')]}),
+                'Bot',
+                host
+            )
+        ).toBe('Bot replied after 2 tools, 1 failed.');
     });
 });
 

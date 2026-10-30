@@ -76,6 +76,17 @@ export interface ChatTimelineProps extends HoistProps {
     isLast?: boolean;
 }
 
+/** App-wide settings for {@link ChatTimeline} - see `ChatTimeline.defaults`. */
+export interface ChatTimelineDefaults {
+    /**
+     * False to leave the failure count, as "1 failed", out of the done summary line, open or
+     * closed, and out of the reply's announcement. Failed steps still show as failed in the open
+     * block, and a running line still counts them. For an agent that recovers from failed calls
+     * on its way to an answer. Read as each timeline renders. Default true.
+     */
+    showSummaryFailureCount: boolean;
+}
+
 /**
  * The activity timeline of an agent's reply: one compact block that sums up its run, for calls to
  * tools with `display: 'timeline'` and for activities with `display: 'timeline'`, such as the
@@ -85,7 +96,7 @@ export interface ChatTimelineProps extends HoistProps {
  * shows the current step - the latest sentence of narration, or the running call - with the step
  * count and the time so far. With no data for the chat's stall time, it names what it waits on.
  * Once done, it reads "Used 7 tools and 1 agent", with the time taken and any failures in the
- * warning color. A call that waits for approval shows its approval panel under the line, open or
+ * warning color - see `ChatTimeline.defaults` to leave the failure count out. A call that waits for approval shows its approval panel under the line, open or
  * not. A call that waits for an answer shows its tool call card there, with the tool's `renderer`
  * open, as the user answers through it. Each waiting call has its own panel or card, and either
  * frames the block in the attention color.
@@ -99,9 +110,15 @@ export interface ChatTimelineProps extends HoistProps {
  * A step that fails is announced as it happens. The done summary is not: it rides in the reply's
  * own announcement.
  */
-export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<ChatTimelineProps>({
+export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<
+    ChatTimelineProps,
+    ChatTimelineDefaults
+>({
     displayName: 'ChatTimeline',
     className: 'xh-chat-timeline',
+    defaults: {
+        showSummaryFailureCount: true
+    },
 
     render(props, ref) {
         const {className, message, host, isFollowed = false, isLast = false} = props,
@@ -350,7 +367,7 @@ function lineMeta(
             elapsed(message, summary, state)
         ]);
 
-    if (failedCount) {
+    if (failedCount && (state !== 'done' || ChatTimeline.defaults.showSummaryFailureCount)) {
         segments.push(
             span({
                 key: 'fails',

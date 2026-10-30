@@ -28,7 +28,7 @@ import {
 } from '../../../transport';
 import {AGENT_RUN_TOOLS, agentRunScript} from '../../../test/fixtures/agentRunScript';
 import {chatMessageList} from './ChatMessageList';
-import {chatTimeline} from './ChatTimeline';
+import {ChatTimeline, chatTimeline} from './ChatTimeline';
 import {TIMELINE_MAX_DEPTH} from './impl/ChatTimelineRows';
 
 /**
@@ -512,6 +512,17 @@ describe('ChatTimeline', () => {
     });
 
     describe('while running', () => {
+        it('counts failures for ChatTimeline.defaults.showSummaryFailureCount false', () => {
+            showSummaryFailureCount(false);
+            const {container} = renderReply([
+                call('c1', {state: 'output-error'}),
+                call('c2', {state: 'running'})
+            ]);
+            expect(timeline(container).querySelector('.xh-chat-timeline__fails').textContent).toBe(
+                '1 failed'
+            );
+        });
+
         it('shows the running step, the step count and a spinner, and stays collapsed', () => {
             const {container} = renderReply([
                 call('c1', {state: 'output-available', toolName: 'load'}),
@@ -632,6 +643,25 @@ describe('ChatTimeline', () => {
             expect(container.querySelector('.xh-chat-message__header').textContent).not.toContain(
                 'failed'
             );
+        });
+
+        it('leaves the failure count out of the line, open or closed, for ChatTimeline.defaults.showSummaryFailureCount false', () => {
+            showSummaryFailureCount(false);
+            const {container} = renderReply(
+                [call('c1'), call('c2', {state: 'output-error', toolName: 'fetch_marks'})],
+                {},
+                {status: 'complete', metadata: {elapsedMs: 20_000}}
+            );
+
+            const meta = () => timeline(container).querySelector('.xh-chat-timeline__meta');
+            expect(meta().textContent).toBe('20s');
+            expect(meta().querySelector('.xh-chat-timeline__sep')).toBeNull();
+            fireEvent.click(lineButton(container));
+            expect(meta().textContent).toBe('20s');
+            // The failed step still shows as failed, with its error.
+            const failedRow = screen.getAllByRole('treeitem')[1];
+            expect(failedRow.classList).toContain('xh-chat-timeline__item--failed');
+            expect(failedRow.textContent).toContain('504 Timeout');
         });
 
         it('says how many tools ran before a stop, and marks running steps cancelled', () => {
@@ -1129,6 +1159,14 @@ function setMessages(chatModel: ChatModel, messages: ChatMessage[]) {
 
 function renderChat(chatModel: ChatModel) {
     return render(chatMessageList({model: chatModel}));
+}
+
+function showSummaryFailureCount(value: boolean) {
+    const {defaults} = ChatTimeline;
+    defaults.showSummaryFailureCount = value;
+    onTestFinished(() => {
+        defaults.showSummaryFailureCount = true;
+    });
 }
 
 function renderReply(

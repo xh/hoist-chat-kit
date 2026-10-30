@@ -341,6 +341,16 @@ show in the warning color, as "1 failed", and as "1 failed, retried" once every 
 retried with success. A retry is a later call with the same tool, input and sub-agent. A spaced
 dot separates the meta's parts, as in "20s · 1 failed, retried".
 
+An agent that recovers from failed calls on its way to an answer can leave the count out of the
+done summary. Set `ChatTimeline.defaults.showSummaryFailureCount` false at startup. The done
+summary then shows no failure count, open or closed, and the reply's announcement leaves it out
+too. In the open block, each failed step still shows as failed, with its error. A running line
+still counts failures.
+
+```ts
+ChatTimeline.defaults.showSummaryFailureCount = false;
+```
+
 The block starts collapsed, and never opens or closes by itself. The one exception is a call that
 waits for the user. It shows under the line whether or not the block is open, and the block frames
 itself in the attention color:
@@ -601,6 +611,14 @@ thread already has when the region mounts, or when the thread opens, is not anno
 | Waiting for the user | "Waiting for your answer above." | None |
 | Reply in progress | "Assistant is working · Esc to stop" | None |
 | Draft restored | "Draft from 10:31am restored." | Discard |
+
+Set `showStopHint` false, or `ChatStatusRegion.defaults.showStopHint` at startup, to leave "Esc to
+stop" out of the busy line and its tooltip. Esc still stops the reply. The default reaches the
+region that `ChatPanel` renders:
+
+```ts
+ChatStatusRegion.defaults.showStopHint = false;
+```
 
 A chat with `allowRetry` false never offers Try Again, and never retries on its own. See
 [Hide Edit, Regenerate and Try Again](../../../core/README.md#hide-edit-regenerate-and-try-again).
@@ -1228,7 +1246,7 @@ it.
 | `ChatFileChip` | `file`, `onRemove`, `allowImages` | Show a file, with a remove button when `onRemove` is set. An image at a URL shows a thumbnail only if `allowImages` permits it. |
 | `ChatEmptyState` | `header`, `icon`, `title`, `text`, `suggestions`, `footer`, `composerModel` | Welcome the user to an empty chat. |
 | `ChatSuggestions` | `suggestions`, `onSelect`, `composerModel` | Show prompt cards that fill the composer: `composerModel`, else the `ChatModel`'s. `onSelect` replaces the fill. With neither, it renders nothing. |
-| `ChatStatusRegion` | `model`, `assistantName` | Show the thread's next action above a composer, in a custom layout. |
+| `ChatStatusRegion` | `model`, `assistantName`, `showStopHint` | Show the thread's next action above a composer, in a custom layout. |
 | `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip`, `active`, `disabled`, `onOpenChange`, `popoverClassName` | Add a pill to the composer's left slot. |
 | `ChatScopeChip` | `documents`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip` | Scope the next question to some documents. Default binds `runOptions.documentIds`. |
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |

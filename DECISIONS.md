@@ -1870,3 +1870,22 @@ kit data type, with a live label. Deltas would apply with JSON Patch.
 
 **Alternatives.** Show steps as timeline rows and as the live label before 1.0, by default or on
 request. Apply `ACTIVITY_DELTA` now, to complete the activity events.
+
+## D110. A timeline's done summary can leave out its failure count
+
+**Decision.** `ChatTimeline.defaults.showSummaryFailureCount`, default true. False drops "1
+failed" from the done summary line, open or closed, and from the reply's announcement. Failed
+steps still show as failed in the open block, with their errors. A running line still counts
+them, as do stopped and failed runs.
+
+**Why.** Some agents make calls they expect to fail, learn from the error, and change approach.
+On a run that ends with an answer, those failures are how it got there, not news for the user.
+The app monitors them on its server. The "retried" mark does not cover them, because the agent
+changes its approach rather than repeating the call. The setting is app-wide, on the component's
+`defaults` (D59), because the announcement comes from the message list, and a prop on one
+timeline could not keep the two in step.
+
+**Alternatives.** Show the count only while the block is open, as first asked. The open block
+already marks each failed step, so the count would show only where it adds least, and the line
+would change its words when it opens. Hide failures from the done summary for every app: it would
+hide failures that an app wants its users to see.

@@ -5,7 +5,7 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import {afterEach, beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {chatAnnouncer, ChatKit, ChatModel, type ChatModelConfig} from '../../../core';
 import {type ChatEvent, errorEvents, ScriptedChatTransport, textEvents} from '../../../transport';
-import {chatStatusRegion} from './ChatStatusRegion';
+import {ChatStatusRegion, chatStatusRegion, type ChatStatusRegionProps} from './ChatStatusRegion';
 
 /**
  * The status region holds the thread's one next action (D64). These specs pin what it offers for
@@ -240,6 +240,29 @@ describe('ChatStatusRegion', () => {
         await done;
     });
 
+    it('leaves the stop hint out of the busy line and its tooltip for showStopHint false or ChatStatusRegion.defaults', async () => {
+        vi.useFakeTimers();
+        const {defaults} = ChatStatusRegion;
+        onTestFinished(() => {
+            defaults.showStopHint = true;
+        });
+        let chatModel = createModel({responses: [textEvents('A long answer.')], delayMs: 50});
+        let done = chatModel.sendAsync('Hi');
+        const {unmount} = renderRegion(chatModel, {showStopHint: false});
+        expectBusyLineWithoutHint();
+        await act(() => vi.advanceTimersByTimeAsync(5000));
+        await done;
+        unmount();
+
+        defaults.showStopHint = false;
+        chatModel = createModel({responses: [textEvents('A long answer.')], delayMs: 50});
+        done = chatModel.sendAsync('Hi');
+        renderRegion(chatModel);
+        expectBusyLineWithoutHint();
+        await act(() => vi.advanceTimersByTimeAsync(5000));
+        await done;
+    });
+
     it('shows the busy icon from ChatKit.defaults.busyIcon, and none when it returns null', async () => {
         vi.useFakeTimers();
         const prior = ChatKit.defaults.busyIcon;
@@ -295,8 +318,15 @@ function createModel({responses = [textEvents('Hi.')], delayMs = 0, ...config}: 
     return model;
 }
 
-function renderRegion(chatModel: ChatModel, props: {assistantName?: string} = {}) {
+function renderRegion(chatModel: ChatModel, props: Omit<ChatStatusRegionProps, 'model'> = {}) {
     return render(chatStatusRegion({model: chatModel.composerModel, ...props}));
+}
+
+function expectBusyLineWithoutHint() {
+    const text = document.querySelector('.xh-chat-status-region__text');
+    expect(text.textContent).toBe('Assistant is working');
+    expect(text.getAttribute('title')).toBe('Assistant is working');
+    expect(regionPart('hint')).toBeNull();
 }
 
 function regionText(): string {

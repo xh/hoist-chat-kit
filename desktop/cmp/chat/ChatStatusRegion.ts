@@ -23,6 +23,21 @@ import {useChatClock} from './impl/useChatClock';
 export interface ChatStatusRegionProps extends HoistProps<ChatComposerModel> {
     /** Name of the assistant, for "Assistant is working". Default 'Assistant'. */
     assistantName?: string;
+
+    /**
+     * False to leave "Esc to stop" out of the busy line and its tooltip. Esc still stops the
+     * reply. Default true - see `ChatStatusRegion.defaults` to set it app-wide.
+     */
+    showStopHint?: boolean;
+}
+
+/** App-wide settings for {@link ChatStatusRegion} - see `ChatStatusRegion.defaults`. */
+export interface ChatStatusRegionDefaults {
+    /**
+     * False to leave "Esc to stop" out of the busy line and its tooltip. Read as the region
+     * renders, so it covers the region that `ChatPanel` renders. Default true.
+     */
+    showStopHint: boolean;
 }
 
 /**
@@ -51,12 +66,25 @@ export interface ChatStatusRegionProps extends HoistProps<ChatComposerModel> {
  * context. Its states come from the turn loop, so it renders only when the composer's host is a
  * `ChatModel`. `ChatPanel` renders one above its composer.
  */
-export const [ChatStatusRegion, chatStatusRegion] = hoistCmp.withFactory<ChatStatusRegionProps>({
+export const [ChatStatusRegion, chatStatusRegion] = hoistCmp.withFactory<
+    ChatStatusRegionProps,
+    ChatStatusRegionDefaults
+>({
     displayName: 'ChatStatusRegion',
     model: uses(ChatComposerModel, {optional: true}),
     className: 'xh-chat-status-region',
+    defaults: {
+        showStopHint: true
+    },
 
-    render({className, assistantName = 'Assistant'}, ref) {
+    render(
+        {
+            className,
+            assistantName = 'Assistant',
+            showStopHint = ChatStatusRegion.defaults.showStopHint
+        },
+        ref
+    ) {
         const impl = useLocalModel(ChatStatusRegionLocalModel),
             {composerModel} = impl;
         throwIf(!composerModel, 'ChatStatusRegion requires a ChatComposerModel or a ChatModel.');
@@ -64,7 +92,7 @@ export const [ChatStatusRegion, chatStatusRegion] = hoistCmp.withFactory<ChatSta
         const {chatModel} = composerModel,
             now = useChatClock(!!chatModel?.isBusy || !!composerModel.retryWait),
             status = chatModel ? composerModel.getStatus(now) : null,
-            display = status ? getDisplay(status, assistantName) : null;
+            display = status ? getDisplay(status, assistantName, showStopHint) : null;
 
         useEffect(() => impl.noteStatus(status, display?.text), [impl, status, display?.text]);
         if (!display) return null;
@@ -113,7 +141,11 @@ interface StatusDisplay {
     hint?: string;
 }
 
-function getDisplay(status: ChatComposerStatus, assistantName: string): StatusDisplay {
+function getDisplay(
+    status: ChatComposerStatus,
+    assistantName: string,
+    showStopHint: boolean
+): StatusDisplay {
     const {type, replyStatus, reason} = status,
         // A failure that no longer waits to retry reads as the failure it is.
         isFailure = type === 'failed' && replyStatus === 'waitingToRetry',
@@ -151,11 +183,11 @@ function getDisplay(status: ChatComposerStatus, assistantName: string): StatusDi
             return {icon: replyIcon(), text: 'Waiting for your answer above.', intent: 'attention'};
         case 'busy': {
             const lead = `${assistantName} is working`,
-                hint = 'Esc to stop',
+                hint = showStopHint ? 'Esc to stop' : null,
                 {busyIcon} = ChatKit.defaults;
             return {
                 icon: busyIcon ? busyIcon() : chatSpinner(),
-                text: `${lead} · ${hint}`,
+                text: hint ? `${lead} · ${hint}` : lead,
                 lead,
                 hint,
                 intent: 'busy'

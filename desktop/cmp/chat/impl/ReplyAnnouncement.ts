@@ -7,6 +7,7 @@ import {
     isChatSubagentPart,
     isToolCallFailed
 } from '../../../../core';
+import {ChatTimeline} from '../ChatTimeline';
 import {joinWithAnd} from './ChatFormat';
 import {countTimelineWork} from './ChatTimelineItems';
 import {getActivityDisplay, getToolCallDisplay, groupParts} from './groupParts';
@@ -20,10 +21,11 @@ import {getActivityDisplay, getToolCallDisplay, groupParts} from './groupParts';
  * never announced alone.
  *
  * With a host to say how each tool displays, calls to `hidden` tools do not count, and narration
- * in an activity timeline is not read as the answer. Activities count only with a host, by the
- * `noun` of their type's spec, as in "after 5 tools and 2 skills". A host that draws reply text
- * with a `textRenderer` has its text read as the message's copy text, as its source may not be
- * words - and none of it without `getCopyText`.
+ * in an activity timeline is not read as the answer. Failed calls in a timeline count only while
+ * `ChatTimeline.defaults.showSummaryFailureCount` is true, as the done summary shows them.
+ * Activities count only with a host, by the `noun` of their type's spec, as in "after 5 tools and
+ * 2 skills". A host that draws reply text with a `textRenderer` has its text read as the message's
+ * copy text, as its source may not be words - and none of it without `getCopyText`.
  * @internal
  */
 export function formatReplyAnnouncement(
@@ -41,7 +43,13 @@ export function formatReplyAnnouncement(
                 getActivityDisplay(it, host) !== 'hidden'
         ),
         agentCount = message.parts.filter(isChatSubagentPart).length,
-        failed = calls.filter(isToolCallFailed).length,
+        // A timeline's failures count only while its done summary shows them.
+        failed = calls.filter(
+            it =>
+                isToolCallFailed(it) &&
+                (ChatTimeline.defaults.showSummaryFailureCount ||
+                    getToolCallDisplay(it, host) !== 'timeline')
+        ).length,
         secs = Math.round((message.metadata.elapsedMs ?? 0) / 1000),
         work = countTimelineWork({calls, activities, agentCount}, host),
         after = compact([
