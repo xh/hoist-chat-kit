@@ -54,7 +54,7 @@
     ]
   },
   "peerDependencies": {
-    "@xh/hoist": ">=89.1.0",
+    "@xh/hoist": ">=89.3.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

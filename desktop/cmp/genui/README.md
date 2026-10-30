@@ -1,5 +1,9 @@
 # Desktop Generative UI Components
 
+> **Experimental.** These components and their specs are the newest layer of the kit, and their
+> APIs can change in a minor release while the first integrations settle. See the
+> [`/genui/`](../../../genui/README.md) README for the catalog they plug into.
+
 | Section | Description |
 |---------|-------------|
 | [Overview](#overview) | What the built-in components are, and the key features |

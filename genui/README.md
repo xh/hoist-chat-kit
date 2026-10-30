@@ -1,5 +1,9 @@
 # Generative UI
 
+> **Experimental.** Generative UI is the newest layer of the kit, and the first app integrations
+> have not yet exercised it. Its APIs can change in a minor release while they settle. The rest
+> of the kit does not depend on it.
+
 | Section | Description |
 |---------|-------------|
 | [Overview](#overview) | What the catalog does, and the key features |

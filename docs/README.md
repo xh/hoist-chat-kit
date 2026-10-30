@@ -16,7 +16,9 @@ table to map a goal to the right doc.
 connect it to your server.
 
 **Library developers:** See `CLAUDE.md` at the root of the repository for the development guide,
-and [Documentation Conventions](./doc-conventions.md) before you write or change a doc.
+[Documentation Conventions](./doc-conventions.md) before you write or change a doc,
+[CHANGELOG Entry Format](./changelog-format.md) before you add a changelog entry, and
+[Build and Publish](./build-and-publish.md) before you cut a release.
 
 The kit builds on Hoist React. For Hoist's own APIs, use the hoist-react documentation index and
 its tools.

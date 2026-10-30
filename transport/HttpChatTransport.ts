@@ -200,10 +200,9 @@ export abstract class HttpChatTransport implements ChatTransport {
         const json = JSON.stringify(body);
 
         // Hoist releases a request's `autoAbortKey` once its response starts, so a key could not
-        // cancel the stream. A signal of our own covers the whole response, and also closes the
-        // connection when the caller stops reading early. FetchService spreads `fetchOpts` last,
-        // so this signal replaces its own: its `timeout` then rejects the request but cannot
-        // abort the fetch. The `finally` below closes the connection in that case too.
+        // cancel the stream. A signal of our own covers the whole response, and the `finally`
+        // below fires it when the caller stops reading early, so the connection closes.
+        // FetchService joins it with its own signal, so its `timeout` still aborts the fetch.
         const aborter = new AbortController(),
             stall = new AbortController(),
             decode = codec.createDecoder(request);

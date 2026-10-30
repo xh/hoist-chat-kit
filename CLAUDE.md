@@ -258,25 +258,36 @@ this repo's `CLAUDE.md`, so read the sibling's before you write to it.
 
 ## Changelog
 
-Until 1.0.0 ships, `CHANGELOG.md` holds only a short intro to the first release. Do not add
-entries for changes, as there is no earlier release to change from.
+**Before you add or edit an entry in `CHANGELOG.md`, read and follow
+[`docs/changelog-format.md`](docs/changelog-format.md).** It is the reference for section headers,
+voice, the issue and PR link policy, and the breaking change requirements. Do not rely on the
+summary below alone.
 
-After 1.0.0, `CHANGELOG.md` follows hoist-react's format. Read it with
-`hoist-docs read docs/changelog-format.md` before you add an entry. New entries go under the
-topmost `-SNAPSHOT` heading, in emoji-prefixed sections such as `### 🎁 New Features` and
-`### 🐞 Bug Fixes`. Write one past-tense bullet per change, one to three lines, hard-wrapped at
-100 characters.
+The essentials: new entries go under the topmost `-SNAPSHOT` heading, in emoji-prefixed sections
+such as `### 🎁 New Features` and `### 🐞 Bug Fixes`. Use past-tense, action-driven language, and
+name specific classes, methods and config keys in backticks. Write one bullet per change, one to
+three lines. Upgrade notes hold the detail when a change needs it. Do not add GitHub issue or PR
+links by default. They belong in the commit message and the PR description. Hard-wrap entries at
+100 characters, unlike commit bodies and PR descriptions.
+
+**Declaring a new `@xh/hoist` minimum:** a `Requires @xh/hoist X or later` line in the changelog is
+not self-enforcing. Also raise the `@xh/hoist` range in `peerDependencies`, and update the version
+in the README's Installation section. Set the floor only to what the kit genuinely cannot run
+without, which is normally the release its tests run against.
 
 ## Publishing
 
-`package.json` always holds a `-SNAPSHOT` version. Never set it to an exact release version.
+[`docs/build-and-publish.md`](docs/build-and-publish.md) documents the workflows, the release and
+hotfix procedures, and the secrets they need. Read it before you touch a workflow or cut a release.
+The essentials:
 
+- `package.json` always holds a `-SNAPSHOT` version. Never set it to an exact release version.
 - **Deploy Snapshot** (`.github/workflows/deploySnapshot.yml`) publishes to npm with the `next` tag
   on every push to `develop`.
 - **Deploy Release** (`.github/workflows/deployRelease.yml`) runs by hand, from `master` or from a
   hotfix branch. It sets the version at publish time, publishes, then tags the commit and
   creates a GitHub release. It does not commit the version back.
+- After a release, bump `package.json` on `develop` to the next minor `-SNAPSHOT` version, and add
+  a matching `## X.Y.0-SNAPSHOT - unreleased` heading at the top of `CHANGELOG.md`.
 
-Both use shared actions from `xh/hoist-dev-utils`, pinned by SHA. They need the
-`FONTAWESOME_PACKAGE_TOKEN` and `NPM_TOKEN` secrets. Dependabot needs the same Font Awesome token
-in its own secrets.
+Both workflows use shared actions from `xh/hoist-dev-utils`, pinned by SHA.

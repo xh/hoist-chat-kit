@@ -72,6 +72,42 @@
       ]
     },
     {
+      "id": "docs/changelog-format.md",
+      "title": "CHANGELOG Entry Format",
+      "mcpAudience": "maintainers",
+      "mcpCategory": "conventions",
+      "viewerCategory": "overview",
+      "description": "How to write CHANGELOG entries: sections, voice, breaking changes and the Hoist minimum.",
+      "keywords": [
+        "changelog",
+        "release notes",
+        "breaking changes",
+        "upgrade difficulty",
+        "sections",
+        "peer dependency"
+      ]
+    },
+    {
+      "id": "docs/build-and-publish.md",
+      "title": "Build and Publish",
+      "mcpAudience": "maintainers",
+      "mcpCategory": "conventions",
+      "viewerCategory": "overview",
+      "description": "The CI, snapshot and release workflows, how to cut a release or a hotfix, and the secrets they need.",
+      "keywords": [
+        "build",
+        "publish",
+        "release",
+        "snapshot",
+        "hotfix",
+        "GitHub Actions",
+        "npm",
+        "dist-tag",
+        "Dependabot",
+        "secrets"
+      ]
+    },
+    {
       "id": "docs/architecture.md",
       "title": "Architecture",
       "mcpCategory": "concept",
