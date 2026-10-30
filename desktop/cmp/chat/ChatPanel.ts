@@ -14,6 +14,7 @@ import type {ChatSourceClickFn} from './ChatMessageView';
 import './ChatPanel.scss';
 import '../../impl/ChatMotion.scss';
 import {chatStatusRegion} from './ChatStatusRegion';
+import {composerCenteredProvider} from './impl/ComposerPlacement';
 import {type ChatSuggestion, chatSuggestions} from './ChatSuggestions';
 import {refuseFileDrop} from './impl/FileDrop';
 import {getChatHotkeys} from '../../impl/ChatShortcuts';
@@ -163,17 +164,20 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                     }),
                     onDragOver: refuseFileDrop,
                     onDrop: refuseFileDrop,
-                    items: [
-                        chatStatusRegion({
-                            model: model.composerModel,
-                            assistantName: messageListProps?.assistantName
-                        }),
-                        chatComposer({
-                            model: model.composerModel,
-                            testId: getTestId(testId, 'composer'),
-                            ...composerProps
-                        })
-                    ]
+                    item: composerCenteredProvider({
+                        value: isCentered,
+                        items: [
+                            chatStatusRegion({
+                                model: model.composerModel,
+                                assistantName: messageListProps?.assistantName
+                            }),
+                            chatComposer({
+                                model: model.composerModel,
+                                testId: getTestId(testId, 'composer'),
+                                ...composerProps
+                            })
+                        ]
+                    })
                 }),
                 isCentered
                     ? div({

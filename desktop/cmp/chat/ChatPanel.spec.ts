@@ -4,6 +4,7 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {chatAnnouncer, ChatModel} from '../../../core';
 import {errorEvents, ScriptedChatTransport, textEvents} from '../../../transport';
+import {chatComposerPill} from './ChatComposerPill';
 import {chatPanel} from './ChatPanel';
 import {chatSuggestions} from './ChatSuggestions';
 
@@ -33,6 +34,22 @@ describe('ChatPanel', () => {
         expect(order[0].textContent).toBe('What do you want to know?');
         expect(order[1].querySelector('textarea')).toBeTruthy();
         expect(order[2].querySelectorAll('.xh-chat-suggestions__card')).toHaveLength(2);
+    });
+
+    it('opens a pill menu down while the composer is centered, and up once it docks', async () => {
+        const chatModel = createModel(),
+            pill = chatComposerPill({text: 'Model', menuItems: [{text: 'Fast'}]}),
+            placement = () => document.querySelector('.xh-chat-composer-pill__popover').classList;
+        renderPanel(chatModel, {composerProps: {bottomItems: pill}});
+
+        const button = () => screen.getByRole('button', {name: 'Model'});
+        fireEvent.click(button());
+        expect(placement()).toContain('bp6-popover-placement-bottom');
+        fireEvent.click(button());
+
+        await act(() => chatModel.sendAsync('Hi'));
+        fireEvent.click(button());
+        expect(placement()).toContain('bp6-popover-placement-top');
     });
 
     it("shows the app's own header content above the heading of the empty state", () => {

@@ -454,6 +454,7 @@ as the request body. With no
 | `ChatFeedbackConfig` | Default | Description |
 |---|---|---|
 | `submitAsync` | The thread layer's | Sends a `ChatFeedbackSpec` to the backend. |
+| `canRate` | Every reply | Called with a reply. Return false for one that takes no feedback. That reply shows no thumbs, and no rating restored from history. |
 | `allowComment` | true | True if the user can comment on a rating. A thumbs down opens the comment form at once. A thumbs up offers "Add a comment" after it saves. |
 | `requireComment` | false | True if a thumbs down saves only with a non-blank comment. Applies only with `allowComment`. |
 | `clearable` | true | True if a click on the chosen thumb clears the rating. Set false for a backend that cannot remove a rating. |
@@ -462,7 +463,8 @@ as the request body. With no
 
 With `requireComment`, `submitFeedbackAsync()` throws for a thumbs down with no comment. With
 `clearable` false, it throws for a null rating. With `allowChange` false, it throws for any
-rating other than the saved one, and takes the saved rating again with a comment. A backend that rejects a down vote
+rating other than the saved one, and takes the saved rating again with a comment. With
+`canRate`, it throws for a reply that `canRate` turns down. A backend that rejects a down vote
 without a comment suits `{requireComment: true}`. See
 [Collect feedback](../desktop/cmp/chat/README.md#collect-feedback) for the form.
 
@@ -1052,7 +1054,7 @@ See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatCom
 | `allowRegenerate` | `boolean` | Initial value of `allowRegenerate`. Default true. |
 | `allowRetry` | `boolean` | Initial value of `allowRetry`. Default true. |
 | `textTransform` | `(text, context) => string` | Rewrites reply text before it is stored. `context` holds the `message` and `isStreaming`. |
-| `feedback` | `ChatFeedbackConfig` | `submitAsync`, `allowComment`, `requireComment`, `clearable`, `allowChange` and `maxCommentLength`. See [Rate a reply](#rate-a-reply). |
+| `feedback` | `ChatFeedbackConfig` | `submitAsync`, `canRate`, `allowComment`, `requireComment`, `clearable`, `allowChange` and `maxCommentLength`. See [Rate a reply](#rate-a-reply). |
 | `stallAfterMs` | `number` | Milliseconds with no data from the server, heartbeats included, before a reply shows as stalled. Default `ChatKit.defaults.stallAfterMs`. |
 | `track` | `boolean \| ChatTrackOptions` | True, or `{category, severity, logData}`, to track each finished turn. Default false. |
 | `composer` | `ChatComposerConfig` | Config for the managed `composerModel`, without `host`. The chat is the host. |

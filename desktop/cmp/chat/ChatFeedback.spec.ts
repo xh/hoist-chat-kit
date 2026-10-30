@@ -252,6 +252,25 @@ describe('ChatMessageView feedback', () => {
         });
     });
 
+    describe('a reply that canRate turns down', () => {
+        it('offers no thumbs, and hides a rating restored from history', () => {
+            renderChat(
+                {canRate: message => message.metadata.serverId != null},
+                {feedback: {rating: 'negative'}},
+                [
+                    question('u1'),
+                    {...reply('a1', 'Canned'), metadata: {feedback: {rating: 'negative'}}},
+                    question('u2'),
+                    {...reply('a2', 'Answer'), metadata: {serverId: 'srv-a2'}}
+                ]
+            );
+
+            expect(screen.getAllByRole('button', {name: 'Good response'})).toHaveLength(1);
+            expect(screen.getAllByRole('button', {name: 'Bad response'})).toHaveLength(1);
+            expect(document.querySelector('[aria-pressed="true"]')).toBeNull();
+        });
+    });
+
     describe('a rating restored from history', () => {
         it('shows the chosen thumb with no comment mark, and clears on a click', async () => {
             const {submitAsync} = renderChat({}, {feedback: {rating: 'negative'}});

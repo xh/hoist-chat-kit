@@ -16,6 +16,15 @@ export interface ChatFeedbackConfig extends ChatFeedbackSettings {
 /** How the feedback controls behave - part of {@link ChatFeedbackConfig}. */
 export interface ChatFeedbackSettings {
     /**
+     * Decides whether a reply takes feedback. Return false for one that cannot, such as a reply
+     * with no server id to attach a rating to. That reply shows no thumbs, and no rating it
+     * already has, and `ChatModel.submitFeedbackAsync` refuses it. Read in render, so the thumbs
+     * update as the observables it reads change. It cannot add thumbs to a reply that the kit
+     * leaves without them, such as a failed one. Default every reply takes feedback.
+     */
+    canRate?: (message: ChatMessage) => boolean;
+
+    /**
      * True if the user can add a comment to a rating. A thumbs down then opens the comment form
      * at once. A thumbs up saves at once and offers "Add a comment" after. Default true.
      */

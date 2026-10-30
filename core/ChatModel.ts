@@ -991,7 +991,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      * `metadata.feedback`, and is then sent through `feedback.submitAsync`, or else the thread
      * layer's submitter. If the submit fails, the rating reverts - unless the user has rated the
      * message again since - and {@link feedbackErrors} records the error for the feedback form to
-     * show. History restores a rating from the same key.
+     * show. History restores a rating from the same key. Throws for a message that
+     * `feedback.canRate` turns down.
      *
      * @param rating - the rating, or null to clear it.
      * @param comment - the user's comment. Required for a thumbs down if
@@ -1010,13 +1011,17 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         }
 
         const submitAsync = this.feedback.submitAsync ?? this.feedbackSubmitter,
-            {requireComment, allowComment, clearable, allowChange} = this.feedback,
+            {canRate, requireComment, allowComment, clearable, allowChange} = this.feedback,
             prior: ChatFeedback = message.metadata.feedback ?? null;
         comment = comment?.trim() || null;
         throwIf(
             !submitAsync,
             'ChatModel cannot submit feedback - configure feedback.submitAsync, or use the chat ' +
                 'in a thread layer that supplies a submitter.'
+        );
+        throwIf(
+            canRate && !canRate(message),
+            'This message takes no feedback - see feedback.canRate.'
         );
         throwIf(
             rating === 'negative' && allowComment && requireComment && !comment,

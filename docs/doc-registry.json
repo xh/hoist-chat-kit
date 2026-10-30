@@ -625,6 +625,7 @@
         "placeholder",
         "maxRows",
         "feedback",
+        "canRate",
         "ChatClearButton",
         "chatClearButton",
         "approvalPrompt",

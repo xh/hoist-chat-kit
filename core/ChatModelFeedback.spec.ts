@@ -146,6 +146,17 @@ describe('ChatModel feedback', () => {
             });
         });
 
+        it('refuses feedback on a message that canRate turns down', async () => {
+            const submitAsync = vi.fn(async () => {}),
+                model = createModel({feedback: {submitAsync, canRate: it => it.id !== 'a1'}});
+
+            await expect(model.submitFeedbackAsync('a1', 'negative')).rejects.toThrow(
+                'takes no feedback'
+            );
+            expect(submitAsync).not.toHaveBeenCalled();
+            expect(model.getMessage('a1').metadata.feedback).toEqual({rating: 'positive'});
+        });
+
         it('uses the submitter a thread layer supplies when none is configured', async () => {
             const submitAsync = vi.fn(async () => {}),
                 model = createModel();

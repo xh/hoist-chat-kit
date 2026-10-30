@@ -545,10 +545,14 @@ While a reply is in progress, Send becomes a Stop button with the word "Stop", i
 
 ### Add a pill to the composer
 
-`chatComposerPill` is a small chip for the left slot. It shows an icon, its words, a count and a
-chevron, and opens a menu or a popover upward. Bind its choices to
+`chatComposerPill` is a small chip for the left slot or the composer's `bottomItems`. It shows an
+icon, its words, a count and a chevron, and opens a menu or a popover. Bind its choices to
 `chatModel.runOptions`, so that each turn records them and a change never reaches a reply in
 progress.
+
+The menu opens upward, over the thread. While `ChatPanel` shows the composer centered in an empty
+chat, the menu opens downward, so that it does not cover the composer. A menu with no room on its
+side opens on the other.
 
 ```typescript
 chatComposerPill({
@@ -711,6 +715,18 @@ Each reply shows thumbs up and down once its turn ends, if the chat can submit f
 rules in `ChatModelConfig.feedback` - see
 [Rate a reply](../../../core/README.md#rate-a-reply). A failed reply shows no thumbs.
 
+Some replies cannot take feedback, such as a reply with no server id to attach a rating to. Pass
+`canRate` to decide for each reply. A reply for which it returns false shows no thumbs, and hides
+any rating it already has. The function cannot add thumbs to a reply that the kit leaves without
+them.
+
+```typescript
+feedback: {
+    submitAsync,
+    canRate: message => message.metadata.serverId != null
+}
+```
+
 ```typescript
 // A backend that rejects a down vote without a comment, and cannot clear a rating.
 new ChatModel({
@@ -811,7 +827,7 @@ Resolve the submit once saved, with `getFeedback`
 then returning it, and reject if the save fails. The controls then show the saved rating again,
 with Retry. A rejection with an `httpStatus` of 400, 413 or 422 counts as refused, as above.
 
-Three members are optional. `feedbackSettings` takes `allowComment`, `requireComment`,
+Three members are optional. `feedbackSettings` takes `canRate`, `allowComment`, `requireComment`,
 `clearable`, `allowChange` and `maxCommentLength`. `feedbackDrafts` with `setFeedbackDraft` keep the drafts in
 the app, so a half-typed comment survives a new mount of its controls. Remove the drafts of
 messages that go, as `ChatModel` does. Without them, the kit keeps a draft while its controls are
@@ -1247,7 +1263,7 @@ it.
 | `ChatEmptyState` | `header`, `icon`, `title`, `text`, `suggestions`, `footer`, `composerModel` | Welcome the user to an empty chat. |
 | `ChatSuggestions` | `suggestions`, `onSelect`, `composerModel` | Show prompt cards that fill the composer: `composerModel`, else the `ChatModel`'s. `onSelect` replaces the fill. With neither, it renders nothing. |
 | `ChatStatusRegion` | `model`, `assistantName`, `showStopHint` | Show the thread's next action above a composer, in a custom layout. |
-| `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip`, `active`, `disabled`, `onOpenChange`, `popoverClassName` | Add a pill to the composer's left slot. |
+| `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip`, `active`, `disabled`, `onOpenChange`, `popoverClassName` | Add a pill to the composer's left slot or its `bottomItems`. |
 | `ChatScopeChip` | `documents`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip` | Scope the next question to some documents. Default binds `runOptions.documentIds`. |
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |
 | `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |

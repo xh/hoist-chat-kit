@@ -1,5 +1,5 @@
 import type {ReactElement, ReactNode} from 'react';
-import {useEffect, useRef, useState} from 'react';
+import {useContext, useEffect, useRef, useState} from 'react';
 import {span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, type MenuItemLike} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
@@ -9,6 +9,7 @@ import {popover} from '@xh/hoist/kit/blueprint';
 import {classNames} from '../../../impl/ClassNames';
 import '../../../styles/vars.scss';
 import './ChatComposerPill.scss';
+import {ComposerCenteredContext} from './impl/ComposerPlacement';
 
 /** Props for {@link ChatComposerPill}. */
 export interface ChatComposerPillProps extends HoistProps {
@@ -60,9 +61,13 @@ export interface ChatComposerPillProps extends HoistProps {
 }
 
 /**
- * A small chip for the composer's left slot, which opens a menu or a popover upward: an icon, the
- * words, a count and a chevron. Use it for an agent, tool or skill
- * picker, or build on it, as {@link ChatScopeChip} does for a document scope.
+ * A small chip for the composer's left slot or its `bottomItems`, which opens a menu or a popover:
+ * an icon, the words, a count and a chevron. Use it for an agent, tool or skill picker, or build on
+ * it, as {@link ChatScopeChip} does for a document scope.
+ *
+ * The menu opens upward, over the thread. While `ChatPanel` shows the composer centered, it opens
+ * downward instead, so that it does not cover the composer. Either way, a menu with no room on its
+ * side opens on the other.
  *
  * Changes made through a pill apply to the next turn - bind them to `ChatModel.runOptions` - and
  * never restart a reply in progress. Leave out a pill the app does not configure, rather than show
@@ -95,6 +100,7 @@ export const [ChatComposerPill, chatComposerPill] = hoistCmp.withFactory<ChatCom
             // A pill disabled while open shows closed, and stays closed once enabled.
             isShownOpen = isOpen && canOpen,
             name = ariaLabel ?? defaultName(text, count),
+            isCentered = useContext(ComposerCenteredContext),
             wasShownOpen = useRef(false);
 
         const pill = button({
@@ -145,7 +151,7 @@ export const [ChatComposerPill, chatComposerPill] = hoistCmp.withFactory<ChatCom
         return popover({
             isOpen,
             onInteraction: open => setIsOpen(open),
-            position: 'top-left',
+            position: isCentered ? 'bottom-left' : 'top-left',
             minimal: true,
             popoverClassName: classNames('xh-chat-composer-pill__popover', popoverClassName),
             item: pill,

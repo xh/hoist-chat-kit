@@ -55,6 +55,15 @@ describe('ChatFeedbackControls', () => {
         expect(screen.getByText('Thanks')).toBeTruthy();
     });
 
+    it("renders nothing for a reply that the host's canRate turns down", () => {
+        const host = createHost({feedbackSettings: {canRate: it => it.id !== 'a1'}});
+        renderControls(host, reply('complete', 'a1'));
+        expect(screen.queryByRole('button', {name: 'Good response'})).toBeNull();
+
+        renderControls(host, reply('complete', 'a2'));
+        expect(thumb('Good response')).toBeTruthy();
+    });
+
     it('shows the new rating while it saves, and the saved one again if the save fails', async () => {
         let fail: (e: Error) => void;
         const host = createHost();

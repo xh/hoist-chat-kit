@@ -103,13 +103,14 @@ export class ChatMessageFeedbackModel extends HoistModel {
 
     get settings(): Required<ChatFeedbackSettings> {
         const {
+            canRate = null,
             allowComment = true,
             requireComment = false,
             clearable = true,
             allowChange = true,
             maxCommentLength = 1000
         } = this.host?.feedbackSettings ?? {};
-        return {allowComment, requireComment, clearable, allowChange, maxCommentLength};
+        return {canRate, allowComment, requireComment, clearable, allowChange, maxCommentLength};
     }
 
     /** True if the saved rating cannot change - see `allowChange`. */
@@ -125,14 +126,16 @@ export class ChatMessageFeedbackModel extends HoistModel {
     /** True if the user can rate the message now. */
     get canRate(): boolean {
         const {message, host} = this;
+        if (!host) return false;
+        const {canRate} = this.settings;
         return (
-            !!host &&
             message.isAssistant &&
             !message.isStreaming &&
             message.status !== 'paused' &&
             message.status !== 'error' &&
             // A reply stopped before any content has nothing to rate.
-            !(message.status === 'aborted' && message.isEmpty)
+            !(message.status === 'aborted' && message.isEmpty) &&
+            (!canRate || canRate(message))
         );
     }
 

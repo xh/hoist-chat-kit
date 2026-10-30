@@ -1889,3 +1889,32 @@ timeline could not keep the two in step.
 already marks each failed step, so the count would show only where it adds least, and the line
 would change its words when it opens. Hide failures from the done summary for every app: it would
 hide failures that an app wants its users to see.
+
+## D111. A reply can take no feedback, by a callback
+
+**Decision.** `ChatFeedbackSettings.canRate(message)` decides whether a reply takes feedback.
+For a reply it turns down, the controls show no thumbs and hide any rating restored from history,
+and `ChatModel.submitFeedbackAsync` throws. It sits with the other feedback settings, so a
+`ChatModel` config and a `ChatFeedbackHost` both take it. It only narrows the kit's own rule, and
+never adds thumbs to a failed or empty reply.
+
+**Why.** The reason a reply cannot take feedback is the app's, such as a reply with no server id
+or a canned answer. A callback lets the app read its own metadata. The thumbs go, not disable,
+as on a failed reply, since a disabled thumb asks why. A restored rating goes with them, because
+the controls have no read-only state.
+
+**Alternatives.** A kit metadata flag on the message. Each backend or codec would then have to
+set a field for this one purpose.
+
+## D112. A composer pill opens toward the room it has
+
+**Decision.** A `ChatComposerPill` opens its menu upward, and downward while `ChatPanel` shows the
+composer centered. `ChatPanel` tells the pill through a React context inside the kit. The pill has
+no placement prop. Blueprint's popover still flips a menu with no room on its side.
+
+**Why.** Upward suits a composer docked at the foot of the chat. In the centered empty state,
+upward covers the composer itself, for a pill in the bar or in `bottomItems`. `ChatPanel` decides
+when the composer is centered, so the kit can apply the rule for every app.
+
+**Alternatives.** A placement prop on the pill. Each app with the centered empty state would then
+have to bind it to `chatModel.isEmpty`.
