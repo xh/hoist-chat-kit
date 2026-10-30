@@ -15,6 +15,16 @@
     width: var(--xh-chat-scope-popover-width, 320px);
   }
 
+  // The app's own content, above and below the list.
+  &__top {
+    padding: 6px 10px 2px;
+  }
+
+  &__bottom {
+    border-top: var(--xh-menu-border);
+    padding: 4px 10px;
+  }
+
   &__search {
     padding: 6px 8px 2px;
   }

@@ -10,7 +10,7 @@ import {tooltip} from '@xh/hoist/kit/blueprint';
 import {pluralize, throwIf} from '@xh/hoist/utils/js';
 import {ChatModel} from '../../../core';
 import '../../../styles/vars.scss';
-import {chatComposerPill} from './ChatComposerPill';
+import {chatComposerPill, type ChatComposerPillProps} from './ChatComposerPill';
 import './ChatScopeChip.scss';
 
 /**
@@ -40,8 +40,17 @@ export interface ChatScopeOption {
     disabled?: boolean;
 }
 
-/** Props for {@link ChatScopeChip}. */
-export interface ChatScopeChipProps extends HoistProps<ChatModel> {
+/**
+ * Props for {@link ChatScopeChip}. `disabled`, `onOpenChange`, `popoverClassName` and
+ * `popoverAlign` pass through to its {@link ChatComposerPill}.
+ */
+export interface ChatScopeChipProps
+    extends
+        HoistProps<ChatModel>,
+        Pick<
+            ChatComposerPillProps,
+            'disabled' | 'onOpenChange' | 'popoverClassName' | 'popoverAlign'
+        > {
     /** The options to choose from. */
     options: ChatScopeOption[];
 
@@ -72,9 +81,22 @@ export interface ChatScopeChipProps extends HoistProps<ChatModel> {
     /** Tooltip. Default the names of the checked items. */
     tooltip?: string;
 
-    /** Which edge of the chip the popover lines up with - see `ChatComposerPill.popoverAlign`. */
-    popoverAlign?: 'start' | 'end';
+    /**
+     * Content above the list, such as a warning that some options are unavailable. A function is
+     * called with a function that closes the popover.
+     */
+    topItems?: ScopeSlot;
+
+    /**
+     * Content below the list and above Select All and Clear, such as a link to manage the options.
+     * A function is called with a function that closes the popover - for example to close it
+     * before the link navigates.
+     */
+    bottomItems?: ScopeSlot;
 }
+
+/** Content for a slot of {@link ChatScopeChip}, or a function of a function that closes it. */
+export type ScopeSlot = ReactNode | ((close: () => void) => ReactNode);
 
 /**
  * A composer pill for choosing some of a set of items for the next question, such as the
@@ -91,7 +113,8 @@ export interface ChatScopeChipProps extends HoistProps<ChatModel> {
  * own state instead.
  *
  * Each row shows the item's icon and name, and its optional `secondaryText` and `info`. A
- * `disabled` item stays as it is.
+ * `disabled` item stays as it is. `topItems` and `bottomItems` add the app's own content above and
+ * below the list.
  */
 export const [ChatScopeChip, chatScopeChip] = hoistCmp.withFactory<ChatScopeChipProps>({
     displayName: 'ChatScopeChip',
@@ -110,7 +133,12 @@ export const [ChatScopeChip, chatScopeChip] = hoistCmp.withFactory<ChatScopeChip
                 onChange,
                 searchThreshold = 8,
                 tooltip,
-                popoverAlign
+                disabled,
+                onOpenChange,
+                popoverClassName,
+                popoverAlign,
+                topItems,
+                bottomItems
             } = props,
             isBound = value !== undefined || onChange != null;
         throwIf(
@@ -139,15 +167,21 @@ export const [ChatScopeChip, chatScopeChip] = hoistCmp.withFactory<ChatScopeChip
             count: words.count,
             tooltip: tooltip ?? scopeTooltip(selected, count, words),
             'aria-label': `${upperFirst(plural)}: ${words.spoken}`,
+            disabled,
+            onOpenChange,
+            popoverClassName,
             popoverAlign,
-            content: scopeList({
-                options,
-                selectedIds,
-                count,
-                plural,
-                searchThreshold,
-                onChange: setSelectedIds
-            })
+            content: close =>
+                scopeList({
+                    options,
+                    selectedIds,
+                    count,
+                    plural,
+                    searchThreshold,
+                    topContent: renderSlot(topItems, close),
+                    bottomContent: renderSlot(bottomItems, close),
+                    onChange: setSelectedIds
+                })
         });
     }
 });
@@ -161,15 +195,29 @@ interface ScopeListProps {
     count: number;
     plural: string;
     searchThreshold: number;
+    topContent: ReactNode;
+    bottomContent: ReactNode;
     onChange: (ids: string[]) => void;
 }
 
-/** The popover's content: search, the list of checkboxes, and a footer with Select All and Clear. */
+/**
+ * The popover's content: the app's top content, search, the list of checkboxes, the app's bottom
+ * content, and a footer with Select All and Clear.
+ */
 const scopeList = hoistCmp.factory<HoistProps & ScopeListProps>({
     displayName: 'ChatScopeList',
     model: false,
 
-    render({options, selectedIds, count, plural, searchThreshold, onChange}) {
+    render({
+        options,
+        selectedIds,
+        count,
+        plural,
+        searchThreshold,
+        topContent,
+        bottomContent,
+        onChange
+    }) {
         const [search, setSearch] = useState(''),
             query = search.trim().toLowerCase(),
             shown = query ? options.filter(it => it.name.toLowerCase().includes(query)) : options,
@@ -185,6 +233,9 @@ const scopeList = hoistCmp.factory<HoistProps & ScopeListProps>({
             role: 'dialog',
             'aria-label': upperFirst(plural),
             items: [
+                topContent != null
+                    ? div({className: 'xh-chat-scope-chip__top', item: topContent})
+                    : null,
                 options.length > searchThreshold
                     ? div({
                           className: 'xh-chat-scope-chip__search',
@@ -221,6 +272,9 @@ const scopeList = hoistCmp.factory<HoistProps & ScopeListProps>({
                               })
                           )
                 }),
+                bottomContent != null
+                    ? div({className: 'xh-chat-scope-chip__bottom', item: bottomContent})
+                    : null,
                 div({
                     className: 'xh-chat-scope-chip__footer',
                     items: [
@@ -302,6 +356,10 @@ const scopeRow = hoistCmp.factory<HoistProps & ScopeRowProps>({
         });
     }
 });
+
+function renderSlot(slot: ScopeSlot, close: () => void): ReactNode {
+    return typeof slot === 'function' ? slot(close) : slot;
+}
 
 interface ChipWords {
     /** The chip's words. */

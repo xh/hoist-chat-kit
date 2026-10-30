@@ -1940,3 +1940,9 @@ option on passes every id.
 
 **Alternatives.** A setting for what empty means. It adds a mode to learn, where passing every
 id already covers the case.
+
+**App content.** `topItems` and `bottomItems` add the app's own content above and below the list,
+such as a warning and a link to manage the options. Each takes content or a function of `close`,
+as the pill's `content` does, so a link can close the popover first. The chip keeps its own
+Select All and Clear footer, so it works the same in every app. One slot was the other choice. It
+would have put a warning about the list under the list.

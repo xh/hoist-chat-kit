@@ -616,6 +616,33 @@ a copy as `metadata.runOptions`, and a retry, regenerate or edit re-runs with th
 its last question. To keep the selection in your own state, pass `value` and `onChange` instead
 of `runOption`.
 
+The chip takes the pill's `disabled`, `onOpenChange`, `popoverClassName` and `popoverAlign`, and
+they work as they do on `chatComposerPill`. For example, disable the chip while its options load,
+and refresh them in `onOpenChange`.
+
+Add your own content to the panel with `topItems`, above the list, and `bottomItems`, below it and
+above Select All and Clear. Each takes content, or a function that gets a `close` function. Close
+the popover before a link navigates:
+
+```typescript
+chatScopeChip({
+    options: skills,
+    noun: 'skill',
+    value: model.skillIds,
+    onChange: ids => model.setSkillIds(ids),
+    topItems: model.providerSkillsDown ? 'Provider skills unavailable' : null,
+    bottomItems: close =>
+        button({
+            text: 'Manage Skills',
+            minimal: true,
+            onClick: () => {
+                close();
+                model.openSkillSettings();
+            }
+        })
+});
+```
+
 ### Recover from a failed reply
 
 `ChatPanel` renders a `ChatStatusRegion` above the composer. It shows one line, the most urgent
@@ -1285,7 +1312,7 @@ it.
 | `ChatSuggestions` | `suggestions`, `onSelect`, `composerModel` | Show prompt cards that fill the composer: `composerModel`, else the `ChatModel`'s. `onSelect` replaces the fill. With neither, it renders nothing. |
 | `ChatStatusRegion` | `model`, `assistantName`, `showStopHint` | Show the thread's next action above a composer, in a custom layout. |
 | `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip`, `active`, `disabled`, `onOpenChange`, `popoverClassName`, `popoverAlign` | Add a pill to the composer's left slot or its `bottomItems`. |
-| `ChatScopeChip` | `options`, `noun`, `icon`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip`, `popoverAlign` | Choose some options for the next question, such as documents, agents or tools. Binds `runOptions[runOption]`, or `value` and `onChange`. |
+| `ChatScopeChip` | `options`, `noun`, `icon`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip`, `topItems`, `bottomItems`, `disabled`, `onOpenChange`, `popoverClassName`, `popoverAlign` | Choose some options for the next question, such as documents, agents or tools. Binds `runOptions[runOption]`, or `value` and `onChange`. |
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |
 | `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |
 | `ChatCopyButton` | `getCopyText`, `showText`, `label`, `aria-label` | Copy text, confirming in place with a check for a moment. No `ChatModel` needed. `aria-label` names it for screen readers where the label alone is not enough, as a code block's "Copy python code". |

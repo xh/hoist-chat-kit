@@ -1,5 +1,6 @@
 import {fireEvent, render, screen} from '@testing-library/react';
 import {creates, hoistCmp, HoistModel} from '@xh/hoist/core';
+import {button} from '@xh/hoist/desktop/cmp/button';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatModel} from '../../../core';
@@ -145,6 +146,59 @@ describe('ChatScopeChip', () => {
 
         changeSearch('escrow');
         expect(screen.getByText("No documents match 'escrow'")).toBeTruthy();
+    });
+
+    it('passes disabled, onOpenChange and popoverClassName through to its pill', () => {
+        const onOpenChange = vi.fn(),
+            props = {
+                ...docChip(),
+                model: createModel(),
+                onOpenChange,
+                popoverClassName: 'app-menu'
+            },
+            {rerender} = render(chatScopeChip({...props, disabled: true}));
+
+        openChip();
+        expect(document.querySelector('.xh-chat-scope-chip__popover')).toBeNull();
+
+        rerender(chatScopeChip(props));
+        openChip();
+        expect(onOpenChange).toHaveBeenLastCalledWith(true);
+        expect(document.querySelector('.xh-chat-composer-pill__popover').classList).toContain(
+            'app-menu'
+        );
+    });
+
+    it('shows the app content above and below the list, and hands a function a way to close', () => {
+        const manage = vi.fn();
+        render(
+            chatScopeChip({
+                ...docChip(),
+                model: createModel(),
+                topItems: 'Some documents are unavailable',
+                bottomItems: close => [
+                    button({
+                        key: 'manage',
+                        text: 'Manage Documents',
+                        onClick: () => {
+                            close();
+                            manage();
+                        }
+                    })
+                ]
+            })
+        );
+
+        openChip();
+        const panel = document.querySelector('.xh-chat-scope-chip__popover');
+        expect(panel.querySelector('.xh-chat-scope-chip__top').textContent).toBe(
+            'Some documents are unavailable'
+        );
+        fireEvent.click(screen.getByRole('button', {name: 'Manage Documents'}));
+        expect(manage).toHaveBeenCalledOnce();
+        expect(
+            screen.getByRole('button', {name: /^Documents:/}).getAttribute('aria-expanded')
+        ).toBe('false');
     });
 
     it('requires runOption to bind to a chat', () => {
