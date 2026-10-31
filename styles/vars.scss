@@ -117,9 +117,8 @@ body {
   --xh-chat-viewer-page-bg: var(--xh-white);
   --xh-chat-viewer-page-text-color: var(--xh-blue-gray-dark);
 
-  // The "not found" frame, and the document scope chip in the composer.
+  // The "not found" frame.
   --xh-chat-noanswer-border: var(--xh-border-dotted);
-  --xh-chat-scope-height: 22px;
 
   //------------------------
   // Generative UI cards
@@ -165,11 +164,17 @@ body {
   --xh-chat-composer-input-max-height: 168px;
   // Room around the typed text, and around the bar of pills and buttons under it.
   --xh-chat-composer-input-padding: 10px 12px 8px;
-  --xh-chat-composer-toolbar-padding: 4px 6px 6px 8px;
+  --xh-chat-composer-toolbar-padding: 4px var(--xh-pad-px) var(--xh-pad-px);
+  // The room between the composer's box and the rows of items above and below it.
+  --xh-chat-composer-row-gap: var(--xh-pad-px);
   // The gap between the bar's pills and buttons, and the room around the inline layout's row.
   --xh-chat-composer-bar-gap: 6px;
   --xh-chat-composer-inline-padding: 0;
-  --xh-chat-composer-pill-height: 22px;
+  // A composer pill's height, the room between its icon, words and chevron, and its padding.
+  --xh-chat-composer-pill-height: 24px;
+  --xh-chat-composer-pill-gap: 6px;
+  --xh-chat-composer-pill-chevron-gap: 4px;
+  --xh-chat-composer-pill-padding: 0 6px 0 8px;
   --xh-chat-composer-status-height: 24px;
   // The room before the status region's line, to set its text level with the input's.
   --xh-chat-composer-status-inset: 4px;

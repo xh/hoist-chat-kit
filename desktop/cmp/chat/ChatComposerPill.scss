@@ -1,6 +1,9 @@
-// A small chip in the composer's left slot: icon, words, count and chevron, at meta size.
-// The pill is a Hoist button, so its rules match the specificity of Hoist's button rules.
-.xh-app .xh-chat-composer-pill.xh-button.bp6-button {
+// A small chip in the composer: icon, words, count and chevron, at meta size. The pill is a minimal
+// Hoist button. Hoist sets a minimal button's padding and font size under `.xh-app`, and again
+// under `.xh-app.xh-dark.bp6-dark`, so the pill's rule takes the dark selector and the minimal
+// class to win in both themes - as the `hoist-button` mixin does for a component's buttons.
+:is(.xh-app, .xh-app.xh-dark.bp6-dark)
+  .xh-chat-composer-pill.xh-button.bp6-button.xh-button--minimal {
   // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
   // component styles in the dark theme - so set the variables, not the colors.
   --xh-button-text-color: var(--xh-chat-text-color);
@@ -10,15 +13,21 @@
   border-radius: var(--xh-chat-border-radius);
   flex: none;
   font-size: var(--xh-chat-meta-font-size);
-  gap: 5px;
+  gap: var(--xh-chat-composer-pill-gap);
   height: var(--xh-chat-composer-pill-height);
   max-width: 220px;
   min-height: var(--xh-chat-composer-pill-height);
   min-width: 0;
-  padding: 0 4px 0 6px;
+  padding: var(--xh-chat-composer-pill-padding);
 
   &:hover {
     background-color: var(--xh-chat-sidebar-row-hover-bg);
+  }
+
+  // Blueprint spaces a button's children with an 8px right margin. The pill spaces them with its
+  // own `gap`, so that margin would double the room between icon, words and chevron.
+  > * {
+    margin-right: 0;
   }
 
   > .svg-inline--fa {
@@ -83,8 +92,10 @@
     text-align: center;
   }
 
+  // The chevron sits closer to the words than the icon does.
   &__chevron {
     font-size: 0.8em;
+    margin-left: calc(var(--xh-chat-composer-pill-chevron-gap) - var(--xh-chat-composer-pill-gap));
   }
 
   // Compact - icon and count only. The words stay in the accessible name and the tooltip.

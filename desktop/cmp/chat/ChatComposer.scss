@@ -6,7 +6,7 @@
 .xh-chat-composer {
   display: flex;
   flex-direction: column;
-  gap: var(--xh-pad-half-px);
+  gap: var(--xh-chat-composer-row-gap);
   min-width: 0;
   position: relative;
 

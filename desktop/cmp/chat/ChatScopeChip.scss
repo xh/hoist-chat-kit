@@ -126,9 +126,3 @@
     display: flex;
   }
 }
-
-// The chip is a composer pill, at the scope chip's own height.
-.xh-app .xh-chat-scope-chip.xh-button.bp6-button {
-  height: var(--xh-chat-scope-height);
-  min-height: var(--xh-chat-scope-height);
-}

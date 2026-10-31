@@ -1383,6 +1383,12 @@ pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
 | | `--xh-chat-composer-border-color` | `--xh-border-color` |
 | | `--xh-chat-composer-focus-border-color` | `--xh-form-field-focused-border-color` |
 | | `--xh-chat-composer-bar-gap` | `6px` |
+| | `--xh-chat-composer-toolbar-padding` | `4px`, then `--xh-pad-px` at the sides and bottom, around the bar of pills and Send |
+| | `--xh-chat-composer-row-gap` | `--xh-pad-px`, between the box and the `topItems` and `bottomItems` rows |
+| | `--xh-chat-composer-pill-height` | `24px` |
+| | `--xh-chat-composer-pill-padding` | `0 6px 0 8px` |
+| | `--xh-chat-composer-pill-gap` | `6px`, between a pill's icon, words and count |
+| | `--xh-chat-composer-pill-chevron-gap` | `4px`, before a pill's chevron |
 | | `--xh-chat-composer-inline-padding` | `0` |
 | | `--xh-chat-composer-status-inset` | `4px`, the room before the status region's line |
 
