@@ -618,6 +618,7 @@
         "emptyStateProps",
         "composerProps",
         "messageListProps",
+        "statusRegionProps",
         "theming",
         "markdownTableMaxRows",
         "--xh-chat",

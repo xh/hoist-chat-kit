@@ -664,11 +664,12 @@ thread already has when the region mounts, or when the thread opens, is not anno
 | Reply in progress | "Assistant is working · Esc to stop" | None |
 | Draft restored | "Draft from 10:31am restored." | Discard |
 
-Set `showStopHint` false, or `ChatStatusRegion.defaults.showStopHint` at startup, to leave "Esc to
-stop" out of the busy line and its tooltip. Esc still stops the reply. The default reaches the
-region that `ChatPanel` renders:
+Set `showStopHint` false to leave "Esc to stop" out of the busy line and its tooltip. Esc still
+stops the reply. Pass it to `ChatPanel` in `statusRegionProps`, or set it app-wide at startup:
 
 ```ts
+chatPanel({model: chatModel, statusRegionProps: {showStopHint: false}});
+
 ChatStatusRegion.defaults.showStopHint = false;
 ```
 
@@ -1220,6 +1221,7 @@ Accepts all `PanelProps` except `model`, `modelConfig` and `modelRef`.
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
 | `composerProps` | `ChatComposerProps` | Props for the composer. |
 | `messageListProps` | `ChatMessageListProps` | Props for the message list. |
+| `statusRegionProps` | `ChatStatusRegionProps` | Props for the status region. Its `assistantName` defaults to the message list's. |
 
 ### ChatMessageList
 

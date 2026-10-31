@@ -19,6 +19,7 @@ describe('ChatPanel', () => {
     // jsdom has no layout, and so no ResizeObserver. The setup unstubs globals after each test.
     beforeEach(() => {
         vi.stubGlobal('ResizeObserver', NoopResizeObserver);
+        Element.prototype.scrollTo ??= () => {};
         chatAnnouncer.clear();
     });
 
@@ -192,6 +193,30 @@ describe('ChatPanel', () => {
         expect(footer.firstElementChild.classList.contains('xh-chat-status-region')).toBe(true);
         expect(footer.lastElementChild.classList.contains('xh-chat-composer')).toBe(true);
     });
+
+    it("passes statusRegionProps to the status region, which takes the message list's assistantName by default", async () => {
+        vi.useFakeTimers();
+        let chatModel = createModel([textEvents('A long answer.')], 50),
+            done = chatModel.sendAsync('Hi');
+        const {unmount} = renderPanel(chatModel, {
+            messageListProps: {assistantName: 'Analyst'},
+            statusRegionProps: {showStopHint: false}
+        });
+        expect(statusText()).toBe('Analyst is working');
+        await act(() => vi.advanceTimersByTimeAsync(5000));
+        await done;
+        unmount();
+
+        chatModel = createModel([textEvents('A long answer.')], 50);
+        done = chatModel.sendAsync('Hi');
+        renderPanel(chatModel, {
+            messageListProps: {assistantName: 'Analyst'},
+            statusRegionProps: {assistantName: 'Scout'}
+        });
+        expect(statusText()).toBe('Scout is working · Esc to stop');
+        await act(() => vi.advanceTimersByTimeAsync(5000));
+        await done;
+    });
 });
 
 //------------------
@@ -203,9 +228,9 @@ class NoopResizeObserver {
     disconnect() {}
 }
 
-function createModel(responses = [textEvents('Hi.')]): ChatModel {
+function createModel(responses = [textEvents('Hi.')], delayMs = 0): ChatModel {
     const model = new ChatModel({
-        transport: new ScriptedChatTransport({responses, delayMs: 0}),
+        transport: new ScriptedChatTransport({responses, delayMs}),
         composer: {drafts: 'memory'}
     });
     onTestFinished(() => model.destroy());
@@ -220,6 +245,10 @@ const SUGGESTIONS = [
     {text: 'Concentration by region', description: 'Office against the 40% cap'},
     {text: 'Loans short on reserves', prompt: 'Which loans are short on reserves?'}
 ];
+
+function statusText(): string {
+    return document.querySelector('.xh-chat-status-region__text')?.textContent ?? null;
+}
 
 function input(): HTMLTextAreaElement {
     return screen.getByLabelText('Message') as HTMLTextAreaElement;

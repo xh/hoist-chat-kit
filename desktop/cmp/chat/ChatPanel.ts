@@ -13,7 +13,7 @@ import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
 import type {ChatSourceClickFn} from './ChatMessageView';
 import './ChatPanel.scss';
 import '../../impl/ChatMotion.scss';
-import {chatStatusRegion} from './ChatStatusRegion';
+import {chatStatusRegion, type ChatStatusRegionProps} from './ChatStatusRegion';
 import {composerCenteredProvider} from './impl/ComposerPlacement';
 import {type ChatSuggestion, chatSuggestions} from './ChatSuggestions';
 import {refuseFileDrop} from './impl/FileDrop';
@@ -80,6 +80,12 @@ export interface ChatPanelProps
      * feedback buttons to each message.
      */
     messageListProps?: Omit<ChatMessageListProps, 'model' | 'modelConfig' | 'modelRef'>;
+
+    /**
+     * Props for the status region above the composer - for example `showStopHint`. Its
+     * `assistantName` defaults to the message list's.
+     */
+    statusRegionProps?: Omit<ChatStatusRegionProps, 'model' | 'modelConfig' | 'modelRef'>;
 }
 
 /**
@@ -120,6 +126,7 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
             markdownPlugins,
             composerProps,
             messageListProps,
+            statusRegionProps,
             testId,
             hotkeys,
             ...rest
@@ -169,7 +176,8 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                         items: [
                             chatStatusRegion({
                                 model: model.composerModel,
-                                assistantName: messageListProps?.assistantName
+                                assistantName: messageListProps?.assistantName,
+                                ...statusRegionProps
                             }),
                             chatComposer({
                                 model: model.composerModel,
