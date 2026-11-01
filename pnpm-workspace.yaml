@@ -40,14 +40,12 @@ peerDependencyRules:
     react-dom: '19'
     '@vitest/mocker>msw': '3'
 
-# Advisories the kit accepts for now. CI's audit step fails on any other high finding. Each entry
-# says when to drop it.
-#
-# GHSA-mrhx-c7xc-m3w5: zod < 4.6.6, memory exhaustion while validating oversized collections. It
-# reaches the kit through @ag-ui/client, which pins zod ^3.25.76. No zod 3.x carries the fix, and
-# no @ag-ui release depends on zod 4 yet. The kit validates only its own backend's AG-UI stream
-# with it. Drop the entry when @ag-ui moves to zod 4 - a Dependabot bump of @ag-ui/client will
-# show it.
-auditConfig:
-  ignoreGhsas:
-    - GHSA-mrhx-c7xc-m3w5
+# zod reaches the kit only through @ag-ui/client and @ag-ui/proto, which declare ^3.25.76. Every
+# zod 3.x carries GHSA-mrhx-c7xc-m3w5 (memory exhaustion while validating oversized collections),
+# fixed in 4.6.6. The @ag-ui packages import the `zod/v4` entry point, which zod 4 serves
+# unchanged, and the kit's suite, including the AG-UI conformance specs, passes on zod 4. So the
+# kit resolves zod 4 itself. The kit imports no zod of its own. Drop the override once an @ag-ui
+# release accepts zod 4 - a Dependabot bump of @ag-ui/client will show it. Apps that install the
+# kit resolve their own zod, and can apply the same override.
+overrides:
+  zod: ^4.6.6
