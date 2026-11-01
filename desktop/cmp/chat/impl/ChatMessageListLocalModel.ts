@@ -123,6 +123,10 @@ export class ChatMessageListLocalModel extends HoistModel {
     };
     onViewportResize = () => this.followContent(true);
 
+    // An image that loads after its message drew grows the content with no user action behind
+    // it. Follow it, so that an image at the end of a finished reply does not land out of view.
+    onLoadCapture = () => this.followContent(true);
+
     onEditingChange = (message: ChatMessage, isEditing: boolean) => {
         this.setEditingId(isEditing ? message.id : null);
     };

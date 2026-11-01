@@ -202,6 +202,24 @@ describe('ChatMessageList', () => {
         );
     });
 
+    it('returns to the bottom when an image in a finished reply loads', () => {
+        const remote: ChatPart = {
+                type: 'file',
+                id: 'f1',
+                name: 'chart.png',
+                mediaType: 'image/png',
+                url: 'https://img.example/c.png'
+            },
+            chatModel = createModel({}, [reply([remote])]),
+            {container} = renderList(chatModel, {allowImages: true}),
+            viewport = container.querySelector<HTMLElement>('.xh-chat-message-list__viewport'),
+            scrollTo = vi.spyOn(viewport, 'scrollTo').mockImplementation(() => {});
+
+        expect(chatModel.isBusy).toBe(false);
+        fireEvent.load(container.querySelector('img'));
+        expect(scrollTo).toHaveBeenCalledTimes(1);
+    });
+
     it('always shows an inline image attachment, which loads nothing', () => {
         const attached: ChatPart = {
                 type: 'file',

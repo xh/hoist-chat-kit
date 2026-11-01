@@ -179,6 +179,7 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                     onScroll: impl.onScroll,
                     onWheel: impl.onWheel,
                     onClickCapture: impl.onClickCapture,
+                    onLoadCapture: impl.onLoadCapture,
                     onKeyDown: impl.onKeyDown,
                     item: div({
                         ref: contentRef,
