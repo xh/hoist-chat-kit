@@ -12,7 +12,10 @@ export interface ChatCodeBlockProps extends HoistProps {
     /** Source code to display. */
     content: string;
 
-    /** Language of the code, as given on a markdown fence - shown as the block's label. */
+    /**
+     * Language of the code, as given on a markdown fence - shown as the block's label, and in
+     * the name of its Copy button. A block with no language is labeled `text`.
+     */
     language?: string;
 
     /** True while the code still streams. The block shows in full until it ends. */
@@ -56,7 +59,7 @@ export const [ChatCodeBlock, chatCodeBlock] = hoistCmp.withFactory<ChatCodeBlock
                         chatCopyButton({
                             getCopyText: () => content,
                             showText: true,
-                            'aria-label': language ? `Copy ${language} code` : null
+                            'aria-label': language ? `Copy ${language} code` : 'Copy code'
                         })
                     ]
                 }),

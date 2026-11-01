@@ -46,6 +46,12 @@ describe('ChatCodeBlock', () => {
         expect(screen.getByRole('button', {name: 'Copy python code'}).textContent).toBe('Copy');
     });
 
+    it("labels a block with no language 'text', and names its Copy for code", () => {
+        render(chatCodeBlock({content: 'x = 1'}));
+        expect(screen.getByText('text', {selector: '.xh-chat-code-block__language'})).toBeTruthy();
+        expect(screen.getByRole('button', {name: 'Copy code'}).textContent).toBe('Copy');
+    });
+
     it('shows a block in full while it streams, and collapses it once the reply ends', () => {
         const content = '```ts\n' + lines(25) + '\n```',
             props = {content, components: CHAT_MARKDOWN_COMPONENTS},
