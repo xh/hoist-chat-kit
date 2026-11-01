@@ -38,12 +38,11 @@
     min-width: 0;
   }
 
-  // The sidebar shares the conversation's surface. Its border does the separating.
+  // The sidebar shares the conversation's surface. Its splitter does the separating, so it draws
+  // no border of its own. The rail has no splitter, so it keeps one.
   &__sidebar {
     background-color: var(--xh-chat-sidebar-bg);
     min-height: 0;
-    border-right: var(--xh-border-width-px) solid var(--xh-chat-sidebar-border-color);
-    box-sizing: border-box;
   }
 
   &__nav {
