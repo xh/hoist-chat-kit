@@ -506,7 +506,9 @@ example shows each feature in a demo of its own.
 Pass `composerProps` to `ChatPanel`, or props to `chatComposer` directly. `leftItems` fills the
 left slot of the composer's bar, for pills. `rightItems` goes before the attach and Send
 buttons, for a context meter. `topItems` adds content above the input, such as context chips.
-`startItems` leads the input row, before the text, such as a brand mark. It breathes while a reply
+`bottomItems` adds a row under it. Both sit outside the input's bordered box, spaced by
+`--xh-chat-composer-row-gap`. `startItems` leads the input row, before the text, such as a brand
+mark. It breathes while a reply
 runs - see [Motion](#motion). To animate it yourself, pass `breatheStartItems: false`, and style it
 under the composer's `xh-chat-composer--busy` class. `layout: 'inline'` puts
 the bar after the text, in the same row, for a one-row composer. As the text grows, start items
@@ -1201,6 +1203,9 @@ vframe({
 });
 ```
 
+The inline layout fits a standard toolbar. Its input row is 38px tall, so a `compact` toolbar,
+at 24px, clips it.
+
 ## Properties/API Reference
 
 See each component's source for the full doc comments.
@@ -1259,8 +1264,8 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `model` | `ChatComposerModel` | The draft to edit. Default the `composerModel` of the `ChatModel` in context. A composer model over another `ChatComposerHost` needs no `ChatModel`. |
 | `placeholder` | `string` | Prompt in the empty input. Default `'Send a message...'`, or `'Or tell the assistant what to do instead...'` while a reply waits for the user. |
 | `maxRows` | `number` | Rows the input grows to before it scrolls. Default 8. |
-| `topItems` | `ReactNode` | Content above the input, inside the composer. |
-| `bottomItems` | `ReactNode` | Content below the input, inside the composer, in a row of its own in both layouts. |
+| `topItems` | `ReactNode` | Content in a row of its own above the input's box, spaced by `--xh-chat-composer-row-gap`. |
+| `bottomItems` | `ReactNode` | Content in a row of its own below the input's box, in both layouts, spaced by `--xh-chat-composer-row-gap`. |
 | `startItems` | `ReactNode` | Content that leads the input row, level with the first line, such as a brand mark. |
 | `leftItems` | `ReactNode` | The left slot of the bar, for pills such as `chatComposerPill` and `chatScopeChip`. |
 | `rightItems` | `ReactNode` | The right slot of the bar, before the attach and Send buttons. |
