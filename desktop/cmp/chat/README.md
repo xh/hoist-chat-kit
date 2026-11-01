@@ -968,7 +968,8 @@ chatPanel({model: chatModel, messageListProps: {messageActions: model.renderActi
 ```
 
 `messageHeaderItems` works the same way. Its items show in an assistant message's header, after
-the name and the time taken, for example the model that answered.
+the name and the time taken, for example the model that answered. The header is one 16px line
+that clips what runs past it, so size an item, such as a badge, to fit that line.
 
 ### Render a tool call as UI
 
@@ -1257,7 +1258,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `onSourceClick` | `(source, context) => void`, or one per source type | Called when the user clicks a source or a marker. Default opens a document in the side panel when one is in reach, and a web page in a new tab. `{document: fn}` takes documents alone. Pass a stable function or object. |
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
 | `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit, Regenerate and the thumbs. Edit and Regenerate show only while the chat's `allowEdit` and `allowRegenerate` are true. Pass a stable function. |
-| `messageHeaderItems` | `(message, context) => ReactNode[]` | Items in an assistant message's header. Pass a stable function. |
+| `messageHeaderItems` | `(message, context) => ReactNode[]` | Items in an assistant message's header, which is one 16px line. Pass a stable function. |
 | `showMessageHeader` | `boolean` | False to leave out each reply's header line, and all it holds: the name, live status, time, time taken, "Thought for", failed tools, "Retried" and header items. Until its first content arrives, a reply then shows its live status in its body, or `ChatKit.defaults.workingCue`. Default true. |
 
 Each message is a focusable `article`, named for its author and time. With a message focused, Up
