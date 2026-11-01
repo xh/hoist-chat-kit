@@ -179,6 +179,16 @@ describe('sources and citations', () => {
             expect(handled.getByRole('button', {name: WEB3.title})).toBeTruthy();
             handled.unmount();
 
+            // A handler for documents alone leaves a web page its tab, and its icon.
+            const partial = render(
+                chatSources({sources: [WEB3], onSourceClick: {document: () => {}}})
+            );
+            expect(external(partial.container)).toBe(1);
+            expect(
+                partial.getByRole('button', {name: `${WEB3.title} (opens in a new tab)`})
+            ).toBeTruthy();
+            partial.unmount();
+
             const off = render(chatSources({sources: [WEB3], showExternalIcon: false}));
             expect(external(off.container)).toBe(0);
         });
@@ -521,6 +531,25 @@ describe('sources and citations', () => {
 
             expect(screen.queryByRole('button', {name: 'Open Passage'})).toBeNull();
             expect(screen.getByRole('button', {name: 'Copy Excerpt'})).toBeTruthy();
+        });
+
+        it('takes a handler for one source type, and leaves the other to the default', () => {
+            const openDocument = vi.fn();
+            renderReply(
+                'Caps [1] and [3].',
+                [DOC1, WEB3],
+                {onSourceClick: {document: openDocument}},
+                {withPanel: false}
+            );
+
+            fireEvent.click(screen.getByRole('button', {name: DOC1.title}));
+            expect(openDocument).toHaveBeenCalledExactlyOnceWith(DOC1, expect.anything());
+
+            fireEvent.click(
+                screen.getByRole('button', {name: `${WEB3.title} (opens in a new tab)`})
+            );
+            expect(open).toHaveBeenCalledExactlyOnceWith(WEB3.url, '_blank', 'noopener,noreferrer');
+            expect(openDocument).toHaveBeenCalledTimes(1);
         });
 
         it("falls back to the app's onSourceClick for a document with no side panel", () => {

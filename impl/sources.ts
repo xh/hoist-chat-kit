@@ -1,4 +1,4 @@
-import {find, isFinite} from 'lodash';
+import {find, isFinite, isFunction} from 'lodash';
 import {XH} from '@xh/hoist/core';
 import type {ChatDocumentRequest, ChatSidePanelHost, ChatSourcePart, ChatSourceType} from '../core';
 
@@ -67,6 +67,23 @@ export function toDocumentRequest(
         citation: opts.citation ?? null,
         messageId: opts.messageId ?? null
     };
+}
+
+/**
+ * An app's `onSourceClick`: a handler for every source, or a handler for each source type the
+ * app takes. A source of a type with no handler keeps the kit's default.
+ */
+export type ChatSourceClickHandler<T> = T | Partial<Record<ChatSourceType, T>>;
+
+/**
+ * The handler that takes a source: the one for every source, else the one for its type, else null
+ * for the kit's default.
+ * @internal
+ */
+export function getSourceClickFn<T>(handler: ChatSourceClickHandler<T>, source: ChatSourcePart): T {
+    if (handler == null) return null;
+    if (isFunction(handler)) return handler;
+    return (handler as Partial<Record<ChatSourceType, T>>)[getSourceType(source)] ?? null;
 }
 
 /** How to open a source - see {@link openChatSource}. @internal */

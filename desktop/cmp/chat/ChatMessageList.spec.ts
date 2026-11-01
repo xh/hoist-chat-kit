@@ -463,6 +463,28 @@ describe('ChatMessageList', () => {
             expect(onSourceClick).toHaveBeenLastCalledWith(SOURCES[1], context);
         });
 
+        it('calls a per-type onSourceClick with the context, for the types it names', () => {
+            const openDocument = vi.fn(),
+                chatModel = createModel({}, [
+                    reply([text('t1', 'Rates rose [1] and [2].'), ...SOURCES])
+                ]),
+                context = {chatModel, host: chatModel, messageId: 'a1'},
+                open = vi.fn();
+            vi.stubGlobal('open', open);
+            renderList(chatModel, {citationMarkers: true, onSourceClick: {document: openDocument}});
+
+            fireEvent.click(screen.getByRole('button', {name: /Source 2/}));
+            expect(openDocument).toHaveBeenLastCalledWith(SOURCES[1], context);
+
+            fireEvent.click(screen.getByRole('button', {name: /Source 1/}));
+            expect(open).toHaveBeenCalledExactlyOnceWith(
+                SOURCES[0].url,
+                '_blank',
+                'noopener,noreferrer'
+            );
+            expect(openDocument).toHaveBeenCalledTimes(1);
+        });
+
         it('turns markers into buttons once sources arrive after the text', () => {
             const chatModel = createModel({}, []);
             renderList(chatModel, {citationMarkers: true});

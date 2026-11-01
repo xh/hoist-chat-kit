@@ -14,7 +14,11 @@ import {type ChatMessage, ChatModel, type ChatTranscript, isChatModel} from '../
 import '../../../styles/vars.scss';
 import {chatEmptyState} from './ChatEmptyState';
 import './ChatMessageList.scss';
-import {type ChatMessageRenderFn, type ChatSourceClickFn, chatMessageView} from './ChatMessageView';
+import {
+    type ChatMessageRenderFn,
+    type ChatSourceClickHandler,
+    chatMessageView
+} from './ChatMessageView';
 import type {ChatSuggestion} from './ChatSuggestions';
 import {chatAnnouncerRegions} from './impl/ChatAnnouncerRegions';
 import {chatErrorBoundary} from './ChatErrorBoundary';
@@ -67,9 +71,10 @@ export interface ChatMessageListProps extends HoistProps<ChatModel>, BoxProps {
     /**
      * Called when the user clicks a source in a reply's source list, a citation chip or a citation
      * marker - for example to open a document in the app's own viewer. Default opens the source's
-     * `url` in a new tab. Pass a stable function.
+     * `url` in a new tab. To take one source type alone, pass a handler per type, as
+     * `{document: fn}`. Pass a stable function or object.
      */
-    onSourceClick?: ChatSourceClickFn;
+    onSourceClick?: ChatSourceClickHandler;
 
     /**
      * Plugins to add to the markdown pipeline of assistant messages, after the kit's own - for

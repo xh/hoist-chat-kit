@@ -1,4 +1,4 @@
-import {findLastIndex, isEmpty, isEqual, minBy, sumBy, uniq} from 'lodash';
+import {findLastIndex, isEmpty, isEqual, isFunction, mapValues, minBy, sumBy, uniq} from 'lodash';
 import {type ReactElement, type ReactNode, useEffect, useLayoutEffect, useMemo} from 'react';
 import {getRelativeTimestamp, relativeTimestamp} from '@xh/hoist/cmp/relativetimestamp';
 import {div, span} from '@xh/hoist/cmp/layout';
@@ -31,6 +31,7 @@ import {
     type ChatReasoningPart,
     type ChatSidePanelHost,
     type ChatSourcePart,
+    type ChatSourceType,
     type ChatTextPart,
     type ChatToolCallPart,
     type ChatTranscript,
@@ -101,6 +102,14 @@ export type ChatMessageRenderFn = (
  */
 export type ChatSourceClickFn = (source: ChatSourcePart, context: ChatPartRenderContext) => void;
 
+/**
+ * An app's `onSourceClick`: a {@link ChatSourceClickFn} for every source, or one for each source
+ * type the app takes, as `{document: fn}`. A source of a type with no handler keeps the kit's
+ * default - a web page its new tab and external-link icon, a document the side panel.
+ */
+export type ChatSourceClickHandler =
+    ChatSourceClickFn | Partial<Record<ChatSourceType, ChatSourceClickFn>>;
+
 /** Props for {@link ChatMessageView}. */
 export interface ChatMessageViewProps extends HoistProps {
     /** The message to show. */
@@ -137,9 +146,10 @@ export interface ChatMessageViewProps extends HoistProps {
      * Called when the user clicks a source, a citation chip or a citation marker. By default a
      * document source opens in the side panel when one is in reach - see `ChatSidePanelHost` - and
      * a web page opens in a new tab. A handler replaces the new tab, and opens a document that the
-     * side panel cannot show. Pass a stable function.
+     * side panel cannot show. To take one source type alone, pass a handler per type, as
+     * `{document: fn}`. Pass a stable function or object.
      */
-    onSourceClick?: ChatSourceClickFn;
+    onSourceClick?: ChatSourceClickHandler;
 
     /**
      * Plugins to add to the markdown pipeline of assistant text and reasoning - see
@@ -251,7 +261,7 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
         impl.sourceLinks.configure({
             messageId: message.id,
             sidePanel: impl.sidePanel,
-            onSourceClick: onSourceClick ? source => onSourceClick(source, context) : null
+            onSourceClick: withContext(onSourceClick, context)
         });
         impl.feedback.configure(message, getFeedbackHost(context.chatModel));
 
@@ -1343,4 +1353,14 @@ function afterReply(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNod
         className: 'xh-chat-message__after',
         item: chatFeedbackForm({key: 'feedback', model: feedback})
     });
+}
+
+/** The app's handler, with the message's render context bound - for every source, or per type. */
+function withContext(
+    handler: ChatSourceClickHandler,
+    context: ChatPartRenderContext
+): ChatSourceLinks['onSourceClick'] {
+    if (!handler) return null;
+    if (isFunction(handler)) return source => handler(source, context);
+    return mapValues(handler, fn => (fn ? source => fn(source, context) : null));
 }

@@ -1120,6 +1120,17 @@ openSource = (source: ChatSourcePart) => {
 };
 ```
 
+A handler takes every source. To take documents alone, and leave web pages their new tab and
+external-link icon, pass a handler per source type. A type with no handler keeps the default.
+
+```typescript
+chatPanel({
+    model: chatModel,
+    citationMarkers: true,
+    onSourceClick: {document: this.openSource}
+});
+```
+
 ### Render math and other markdown extensions
 
 `markdownPlugins` adds remark and rehype plugins to the markdown of assistant text and
@@ -1222,7 +1233,7 @@ Accepts all `PanelProps` except `model`, `modelConfig` and `modelRef`.
 | `suggestions` | `Array<ChatSuggestion \| string>` | Prompt cards under the centered composer of the default empty state. |
 | `allowImages` | `boolean \| (src) => boolean` | Model-written images, and file images at a URL, to load. Default false. |
 | `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
-| `onSourceClick` | `(source, context) => void` | Called when the user clicks a source or a marker. Default opens a document in the side panel when one is in reach, and a web page in a new tab. Pass a stable function. |
+| `onSourceClick` | `(source, context) => void`, or one per source type | Called when the user clicks a source or a marker. Default opens a document in the side panel when one is in reach, and a web page in a new tab. `{document: fn}` takes documents alone. Pass a stable function or object. |
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
 | `composerProps` | `ChatComposerProps` | Props for the composer. |
 | `messageListProps` | `ChatMessageListProps` | Props for the message list. |
@@ -1243,7 +1254,7 @@ Accepts layout props, `testId`, `ref` and other box props.
 | `markdownComponents` | `ChatMarkdownComponents` | Markdown element overrides. Pass a stable object. |
 | `allowImages` | `boolean \| (src) => boolean` | Model-written images, and file images at a URL, to load. Default false. |
 | `citationMarkers` | `boolean` | True to render `[n]` markers in assistant text as buttons for their sources. Default false. |
-| `onSourceClick` | `(source, context) => void` | Called when the user clicks a source or a marker. Default opens a document in the side panel when one is in reach, and a web page in a new tab. Pass a stable function. |
+| `onSourceClick` | `(source, context) => void`, or one per source type | Called when the user clicks a source or a marker. Default opens a document in the side panel when one is in reach, and a web page in a new tab. `{document: fn}` takes documents alone. Pass a stable function or object. |
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
 | `messageActions` | `(message, context) => ReactNode[]` | Buttons after Copy, Edit, Regenerate and the thumbs. Edit and Regenerate show only while the chat's `allowEdit` and `allowRegenerate` are true. Pass a stable function. |
 | `messageHeaderItems` | `(message, context) => ReactNode[]` | Items in an assistant message's header. Pass a stable function. |

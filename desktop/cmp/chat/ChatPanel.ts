@@ -10,7 +10,7 @@ import '../../../styles/vars.scss';
 import {chatComposer, type ChatComposerProps} from './ChatComposer';
 import {chatEmptyState, type ChatEmptyStateProps} from './ChatEmptyState';
 import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
-import type {ChatSourceClickFn} from './ChatMessageView';
+import type {ChatSourceClickHandler} from './ChatMessageView';
 import './ChatPanel.scss';
 import '../../impl/ChatMotion.scss';
 import {chatStatusRegion, type ChatStatusRegionProps} from './ChatStatusRegion';
@@ -62,9 +62,10 @@ export interface ChatPanelProps
 
     /**
      * Called when the user clicks a source, a citation chip or a citation marker. Default opens the
-     * source's `url` in a new tab. Pass a stable function.
+     * source's `url` in a new tab. To take one source type alone, pass a handler per type, as
+     * `{document: fn}`. Pass a stable function or object.
      */
-    onSourceClick?: ChatSourceClickFn;
+    onSourceClick?: ChatSourceClickHandler;
 
     /**
      * Plugins to add to the markdown pipeline of assistant messages, such as those for math. See

@@ -4,6 +4,8 @@ import {Icon} from '@xh/hoist/icon';
 import {action, observable, untracked} from '@xh/hoist/mobx';
 import {type ChatSidePanelHost, type ChatSourcePart, isChatSidePanelHost} from '../../../../core';
 import {
+    type ChatSourceClickHandler,
+    getSourceClickFn,
     getSourceFileName,
     getSourceType,
     isWebUrl,
@@ -29,8 +31,11 @@ export class ChatSourceLinks extends HoistModel {
     /** The side panel in reach, or null. */
     sidePanel: ChatSidePanelHost = null;
 
-    /** The app's handler for a source click, or null for the default. */
-    onSourceClick: (source: ChatSourcePart) => void = null;
+    /**
+     * The app's handler for a source click - one for every source, or one per source type - or
+     * null for the default.
+     */
+    onSourceClick: ChatSourceClickHandler<(source: ChatSourcePart) => void> = null;
 
     /** Set the links' inputs - called as the component that owns them renders. */
     configure(opts: Partial<Pick<ChatSourceLinks, LinkInputs>>) {
@@ -51,13 +56,18 @@ export class ChatSourceLinks extends HoistModel {
             ...opts,
             messageId: this.messageId,
             sidePanel: this.sidePanel,
-            onSourceClick: this.onSourceClick
+            onSourceClick: this.clickFnFor(source)
         });
+    }
+
+    /** The app's handler for a source, or null for the kit's default. */
+    clickFnFor(source: ChatSourcePart): (source: ChatSourcePart) => void {
+        return getSourceClickFn(this.onSourceClick, source);
     }
 
     /** True if a click can open the source somewhere - so that the kit offers only what works. */
     canOpen(source: ChatSourcePart): boolean {
-        if (this.onSourceClick || isWebUrl(source.url)) return true;
+        if (this.clickFnFor(source) || isWebUrl(source.url)) return true;
         return getSourceType(source) === 'document' && this.opensInPanel(source);
     }
 
@@ -74,7 +84,7 @@ export class ChatSourceLinks extends HoistModel {
      * side panel cannot show, with no `onSourceClick` to take either.
      */
     opensInNewTab(source: ChatSourcePart): boolean {
-        return !this.onSourceClick && isWebUrl(source.url) && !this.opensInPanel(source);
+        return !this.clickFnFor(source) && isWebUrl(source.url) && !this.opensInPanel(source);
     }
 
     /**

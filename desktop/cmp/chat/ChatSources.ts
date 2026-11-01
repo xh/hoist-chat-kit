@@ -8,7 +8,7 @@ import {pluralize} from '@xh/hoist/utils/js';
 import type {ChatSidePanelHost, ChatSourcePart} from '../../../core';
 import {classNames} from '../../../impl/ClassNames';
 import {htmlButton} from '../../../impl/HtmlTags';
-import {getExcerpt, getSourceType} from '../../../impl/sources';
+import {type ChatSourceClickHandler, getExcerpt, getSourceType} from '../../../impl/sources';
 import '../../../styles/vars.scss';
 import './ChatSources.scss';
 import {excerptText, getSourceMeta} from './impl/ChatCitationMarker';
@@ -61,8 +61,9 @@ export interface ChatSourcesProps extends HoistProps {
      * Called when the user clicks a source. By default a document opens in the side panel when one
      * is in reach - in a `ChatWorkspace` with a `documentRenderer` - and a web page opens in a new
      * tab. A handler replaces the new tab, and opens a document that the side panel cannot show.
+     * To take one source type alone, pass a handler per type, as `{document: fn}`.
      */
-    onSourceClick?: (source: ChatSourcePart) => void;
+    onSourceClick?: ChatSourceClickHandler<(source: ChatSourcePart) => void>;
 
     /**
      * How the message opens its sources, shared with its citation markers.

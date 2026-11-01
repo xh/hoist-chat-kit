@@ -1946,3 +1946,21 @@ such as a warning and a link to manage the options. Each takes content or a func
 as the pill's `content` does, so a link can close the popover first. The chip keeps its own
 Select All and Clear footer, so it works the same in every app. One slot was the other choice. It
 would have put a warning about the list under the list.
+
+## D114. `onSourceClick` takes a handler per source type
+
+**Decision.** `onSourceClick` on `ChatPanel`, `ChatMessageList`, `ChatMessageView` and
+`ChatSources` takes a function, as before, or an object with a function per `ChatSourceType`, as
+`{document: fn}`. A source of a type with no handler keeps the kit's default: a web page its new
+tab and external-link icon, a document the side panel. A function still takes every source.
+
+**Why.** An app with a viewer of its own wants documents, and nothing else. With one function the
+kit cannot tell which sources the app takes, so every row loses its icon and its "(opens in a new
+tab)" name, and the app has to reopen web pages itself. The kit decides the icon and the name as
+it renders, so the app's choice has to be known then, not at the click. An object keyed by the two
+source types says it up front, in the kit's own vocabulary.
+
+**Alternatives.** A return value from the handler, such as `false` for "leave it to the kit".
+It is decided at click time, after the icon and the name have rendered wrong, and `false` means
+"suppress the default" everywhere else in the DOM. A second prop that lists the types the handler
+takes. It is one more thing to name on four components, and it can disagree with the handler.
