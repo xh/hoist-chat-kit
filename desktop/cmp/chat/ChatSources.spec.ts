@@ -1,6 +1,7 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {fragment} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, managed, uses} from '@xh/hoist/core';
+import {observable, runInAction} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
@@ -403,6 +404,25 @@ describe('sources and citations', () => {
             ).toBe('true');
             expect(marker(1).getAttribute('aria-pressed')).toBe('true');
         });
+
+        it('drops the active row and marker while the panel has no room, and keeps the request', () => {
+            const {container, sidePanel, appModel} = renderReply('Caps [1].', [DOC1]);
+
+            fireEvent.click(screen.getByRole('button', {name: DOC1.title}));
+            expect(marker(1).getAttribute('aria-pressed')).toBe('true');
+
+            act(() => runInAction(() => ((appModel as TestAppModel).hasRoom = false)));
+            expect(sidePanel.request).toMatchObject({citation: 1});
+            expect(container.querySelector('.xh-chat-sources__row--active')).toBeNull();
+            expect(container.querySelector('.xh-chat-sources__meta').textContent).not.toContain(
+                'shown in viewer'
+            );
+            expect(marker(1).classList).not.toContain('xh-chat-citation-marker--active');
+            expect(marker(1).getAttribute('aria-pressed')).not.toBe('true');
+
+            act(() => runInAction(() => ((appModel as TestAppModel).hasRoom = true)));
+            expect(marker(1).getAttribute('aria-pressed')).toBe('true');
+        });
     });
 
     describe('citation markers', () => {
@@ -543,7 +563,11 @@ class NoopResizeObserver {
 }
 
 class TestAppModel extends HoistModel {
-    @managed sidePanel = new ChatSidePanelModel({documentRenderer: () => null});
+    @observable accessor hasRoom = true;
+    @managed sidePanel = new ChatSidePanelModel({
+        documentRenderer: () => null,
+        hasRoom: () => this.hasRoom
+    });
 }
 
 class PlainAppModel extends HoistModel {}
@@ -581,7 +605,7 @@ function renderReply(
             item: chatMessageList({model: chatModel, citationMarkers: true, ...props})
         })
     );
-    return {...ret, chatModel, sidePanel: (appModel as TestAppModel).sidePanel ?? null};
+    return {...ret, chatModel, appModel, sidePanel: (appModel as TestAppModel).sidePanel ?? null};
 }
 
 function doc(n: number): ChatSourcePart {

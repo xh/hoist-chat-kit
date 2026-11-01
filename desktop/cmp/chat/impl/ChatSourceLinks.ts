@@ -77,10 +77,15 @@ export class ChatSourceLinks extends HoistModel {
         return !this.onSourceClick && isWebUrl(source.url) && !this.opensInPanel(source);
     }
 
-    /** True if the side panel shows the passage that this message cites with `number`. */
+    /**
+     * True if the side panel shows the passage that this message cites with `number` now. False
+     * while the panel has no room, though its request stays until the panel returns.
+     */
     isActive(number: number): boolean {
-        const request = this.sidePanel?.request;
+        const {sidePanel} = this,
+            request = sidePanel?.request;
         return (
+            !!sidePanel?.hasRoom &&
             request?.type === 'document' &&
             request.messageId === this.messageId &&
             request.citation === number
