@@ -744,6 +744,9 @@ this.addReaction({
 | Hoist `FetchException` | The request failed before or during the stream, for example a 500 from the server |
 | Any other `Error` | A codec or transport threw, for example `AnthropicCodec` with a history that has no user content |
 
+The kit records the backend's `code` as `metadata.errorCode` and shows it, but acts only on
+`metadata.retrySafe` and `metadata.retryAfterSeconds`.
+
 A thrown error that is not an abort also goes to `XH.handleException` with `showAlert: false`, so
 Hoist logs it. A tool that throws does not fail the turn. Its error text becomes the tool result,
 and the model can recover.

@@ -1104,7 +1104,7 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 |-------|-------------|---------------------------------|
 | `RUN_STARTED` | `threadId`, `runId` | Records `metadata.runId`. In server mode, the first run of a new thread may set the chat's `threadId`. |
 | `RUN_FINISHED` | `outcome?`, `usage?`, `metadata?`, `result?` | Records `finishReason`, `usage` and any `metadata`. A `result.messageId` sets `metadata.serverId`, if no event set it. An `interrupt` outcome adds its interrupts to `metadata.interrupts`, and the reply pauses for the user. Marks the step complete. |
-| `RUN_ERROR` | `message`, `code?`, `metadata?` | Fails the message, with `metadata.errorCode`. Records `metadata.retryAfterSeconds` if given. |
+| `RUN_ERROR` | `message`, `code?`, `metadata?` | Fails the message, with `metadata.errorCode`. Records `metadata.retryAfterSeconds` if given. Shows `code`, and does not act on it. |
 | `TEXT_MESSAGE_START` | `messageId` | Opens a text part on its first content, with the `messageId` as its `serverId`. |
 | `TEXT_MESSAGE_CONTENT` | `messageId`, `delta` | Appends to the text part. |
 | `TEXT_MESSAGE_END` | `messageId`, `metadata?` | Marks the text part `done`. Drops it with `metadata.superseded: true`. |
