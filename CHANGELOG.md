@@ -12,7 +12,7 @@
   3. Plain ASCII punctuation only. Use " - " for in-sentence breaks, never an em dash.
 -->
 
-## 1.0.0 - 2026-10-30
+## 1.0.0 - 2026-11-01
 
 The first release of Hoist Chat Kit, a library of chat components for Hoist React applications.
 The kit holds a conversation engine, transports and codecs for common backends, generative UI built
