@@ -13,8 +13,8 @@ import {readdirSync, readFileSync, statSync} from 'node:fs';
 import path from 'node:path';
 
 const root = path.resolve(import.meta.dirname, '..'),
-    skipDirs = new Set(['node_modules', 'build', 'docs', 'scripts', 'test', 'planning']),
-    forbidden = [/\.spec\.tsx?$/, /^planning\//, /^test\//, /^scripts\//, /^\./];
+    skipDirs = new Set(['node_modules', 'build', 'docs', 'scripts', 'test']),
+    forbidden = [/\.spec\.tsx?$/, /^test\//, /^scripts\//, /^\./];
 
 const packed = JSON.parse(
         execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], {
