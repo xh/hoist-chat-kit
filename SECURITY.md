@@ -24,5 +24,5 @@ application and its deployment.
 
 ------------------------------------------
 
-📫☎️🌎 info@xh.io | https://xh.io/contact
+info@xh.io | https://xh.io/
 Copyright © 2026 Extremely Heavy Industries Inc. - all rights reserved

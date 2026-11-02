@@ -140,11 +140,11 @@ pnpm test        # unit tests (Vitest), on the @xh/hoist test kit
 pnpm build       # pack the package and check what it ships
 ```
 
-`CLAUDE.md`, at the root of the repository, holds the full development guide: architecture,
+`AGENTS.md`, at the root of the repository, holds the full development guide: architecture,
 conventions, testing, and the Git and release workflow. It serves human and AI developers alike.
 
 ------------------------------------------
 
-📫☎️🌎 info@xh.io | <https://xh.io>
+info@xh.io | <https://xh.io>
 
 Copyright © 2026 Extremely Heavy Industries Inc.
