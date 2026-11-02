@@ -1,11 +1,145 @@
 # Design Decisions
 
-This log records the significant design choices in Hoist Chat Kit and the reasons for them. Each
-entry states the decision, the context, and the alternatives we rejected. Add new entries at the
-end. When a later decision replaces an earlier one, mark the old entry as superseded and link to
-the new one.
+This log records the significant design choices in Hoist Chat Kit and the reasons for them. It
+follows the Architecture Decision Record (ADR) pattern: numbered entries, each with the decision,
+the reasons, and the alternatives we rejected. Add new entries at the end.
+
+Each entry opens with a status:
+
+- **Accepted** - in force as written.
+- **Amended by Dn** - in force, with the changes that Dn records.
+- **Superseded by Dn** - replaced. Dn holds the rule in force.
+- **Superseded in part by Dn** - in force, except where Dn replaces it.
+- **Withdrawn by Dn** - no longer in force.
+
+When a new entry amends, supersedes or withdraws an older one, update the older entry's status and
+its row in the index below, in the same change.
+
+To find what applies to an area, search this file by topic. Read the matching entries that are
+still in force, with their amendments. Do not read the whole file.
+
+## Index
+
+| # | Decision | Status |
+|---|---|---|
+| [D1](#d1-a-standalone-package-that-follows-hoists-own-conventions) | A standalone package that follows Hoist's own conventions | Accepted |
+| [D2](#d2-the-kit-owns-its-message-model-and-protocols-plug-in-as-adapters) | The kit owns its message model, and protocols plug in as adapters | Accepted |
+| [D3](#d3-messages-are-immutable-records-replaced-on-change) | Messages are immutable records, replaced on change | Accepted |
+| [D4](#d4-ag-ui-10-events-are-the-wire-vocabulary) | AG-UI 1.0 events are the wire vocabulary | Superseded in part by D84 |
+| [D5](#d5-codecs-translate-wire-formats-transports-carry-them) | Codecs translate wire formats, transports carry them | Accepted |
+| [D6](#d6-ndjson-through-xhfetchndjson-is-the-default-transport) | NDJSON through `XH.fetchNdjson` is the default transport | Accepted |
+| [D7](#d7-the-client-runs-the-tool-loop) | The client runs the tool loop | Accepted |
+| [D8](#d8-generative-ui-goes-through-data-parts-and-a-renderer-registry) | Generative UI goes through data parts and a renderer registry | Accepted |
+| [D9](#d9-desktop-components-first-platform-neutral-models) | Desktop components first, platform-neutral models | Accepted |
+| [D10](#d10-css-class-and-variable-names-use-the-xh-chat-prefix) | CSS class and variable names use the `xh-chat` prefix | Accepted |
+| [D11](#d11-codeql-runs-only-when-the-repo-is-public) | CodeQL runs only when the repo is public | Accepted |
+| [D12](#d12-the-build-check-packs-the-package) | The build check packs the package | Accepted |
+| [D13](#d13-finish-reasons-use-the-vercel-ai-sdk-vocabulary) | Finish reasons use the Vercel AI SDK vocabulary | Accepted |
+| [D14](#d14-streams-abort-through-fetchoptssignal-not-autoabortkey) | Streams abort through `fetchOpts.signal`, not `autoAbortKey` | Accepted |
+| [D15](#d15-generative-ui-is-a-hoist-component-catalog-with-protocols-as-translators) | Generative UI is a Hoist component catalog, with protocols as translators | Accepted |
+| [D16](#d16-markdown-images-do-not-load-by-default) | Markdown images do not load by default | Accepted |
+| [D17](#d17-a-card-action-shows-exactly-what-it-sends) | A card action shows exactly what it sends | Amended by D56 |
+| [D18](#d18-generative-ui-names-carry-the-chatui-prefix) | Generative UI names carry the `ChatUi` prefix | Accepted |
+| [D19](#d19-two-conversation-shapes-both-first-class) | Two conversation shapes, both first-class | Amended by D85 |
+| [D20](#d20-a-thread-layer-in-the-kit) | A thread layer in the kit | Accepted |
+| [D21](#d21-a-workspace-shell) | A workspace shell | Accepted |
+| [D22](#d22-generative-ui-binds-data-by-reference-through-four-delivery-modes) | Generative UI binds data by reference, through four delivery modes | Accepted |
+| [D23](#d23-an-activity-timeline-and-one-tool-display-setting) | An activity timeline, and one tool display setting | Amended by D92 |
+| [D24](#d24-bring-your-own-llm) | Bring your own LLM | Accepted |
+| [D25](#d25-the-hoist-core-streaming-companion-belongs-to-hoist-core) | The hoist-core streaming companion belongs to hoist-core | Accepted |
+| [D26](#d26-snapshots-now-a-beta-tag-when-the-v10-api-settles) | Snapshots now, a beta tag when the v1.0 API settles | Accepted |
+| [D27](#d27-the-hoist-floor-is-8900) | The Hoist floor is 89.0.0 | Accepted |
+| [D28](#d28-no-python-reference-agent-in-v10) | No Python reference agent in v1.0 | Accepted |
+| [D29](#d29-ag-ui-interrupts-first-for-server-side-human-in-the-loop) | AG-UI interrupts first for server-side human-in-the-loop | Amended by D86 |
+| [D30](#d30-backend-tool-errors-travel-in-the-results-metadata) | Backend tool errors travel in the result's metadata | Accepted |
+| [D31](#d31-an-error-boundary-around-each-message-and-each-part) | An error boundary around each message and each part | Accepted |
+| [D32](#d32-the-catalog-refuses-schema-keywords-it-cannot-check) | The catalog refuses schema keywords it cannot check | Accepted |
+| [D33](#d33-file-chips-follow-the-markdown-image-policy) | File chips follow the markdown image policy | Accepted |
+| [D34](#d34-a-silent-stream-fails-as-a-turn-error-coded-stalled) | A silent stream fails as a turn error, coded `stalled` | Amended by D64 |
+| [D35](#d35-a-send-blocker-returns-the-reason-to-wait) | A send blocker returns the reason to wait | Accepted |
+| [D36](#d36-inline-calls-show-nothing-until-approved) | Inline calls show nothing until approved | Accepted |
+| [D37](#d37-a-turn-aborts-with-a-chataborterror-that-names-its-reason) | A turn aborts with a `ChatAbortError` that names its reason | Accepted |
+| [D38](#d38-only-a-stop-cancels-and-only-a-step-in-flight) | Only a stop cancels, and only a step in flight | Accepted |
+| [D39](#d39-a-new-threads-id-may-change-once-on-its-first-run) | A new thread's id may change once, on its first run | Amended by D55 |
+| [D40](#d40-anthropiccodec-is-a-client-mode-codec) | `AnthropicCodec` is a client-mode codec | Accepted |
+| [D41](#d41-the-text-transform-sees-the-raw-text) | The text transform sees the raw text | Accepted |
+| [D42](#d42-small-additions-to-the-server-mode-spec) | Small additions to the server-mode spec | Accepted |
+| [D43](#d43-the-thread-layer-reaches-a-chat-through-three-seams) | The thread layer reaches a chat through three seams | Accepted |
+| [D44](#d44-a-run-that-finishes-with-nothing-fails-coded-empty-response) | A run that finishes with nothing fails, coded `empty-response` | Amended by D64 |
+| [D45](#d45-the-thread-list-is-a-computed-overlay) | The thread list is a computed overlay | Accepted |
+| [D46](#d46-small-additions-to-the-thread-layer-spec) | Small additions to the thread layer spec | Accepted |
+| [D47](#d47-choices-in-the-generative-ui-core) | Choices in the generative UI core | Accepted |
+| [D48](#d48-only-the-latest-reply-with-changes-can-be-undone) | Only the latest reply with changes can be undone | Superseded by D92 |
+| [D49](#d49-choices-in-the-helper-agent-core-seams-and-chatcompletionscodec) | Choices in the helper agent core seams and `ChatCompletionsCodec` | Superseded in part by D52 |
+| [D50](#d50-chatservice-reads-chatconfig-and-its-prompt-is-static-text) | `ChatService` reads `chatConfig`, and its prompt is static text | Withdrawn by D81 |
+| [D51](#d51-choices-in-the-tool-groups) | Choices in the tool groups | Withdrawn by D80 |
+| [D52](#d52-a-codec-sends-one-run_finished-per-step) | A codec sends one `RUN_FINISHED` per step | Accepted |
+| [D53](#d53-preview-replaces-approvalpreview) | `preview` replaces `approvalPreview` | Superseded |
+| [D54](#d54-choices-in-the-generative-ui-wiring-of-chatmodel) | Choices in the generative UI wiring of `ChatModel` | Accepted |
+| [D55](#d55-fixes-from-review-5-of-server-mode) | Fixes from review 5 of server mode | Accepted |
+| [D56](#d56-fixes-from-review-5-of-generative-ui) | Fixes from review 5 of generative UI | Accepted |
+| [D57](#d57-the-kit-is-usable-in-layers) | The kit is usable in layers | Accepted |
+| [D58](#d58-design-tokens-replace-the-kits-theme-variables) | Design tokens replace the kit's theme variables | Accepted |
+| [D59](#d59-kit-wide-settings-live-in-chatkitdefaults) | Kit-wide settings live in `ChatKit.defaults` | Accepted |
+| [D60](#d60-reduced-motion-with-reducedmotionspinner) | Reduced motion, with `reducedMotionSpinner` | Accepted |
+| [D61](#d61-the-assistant-icon-and-assistant-profiles) | The assistant icon and assistant profiles | Accepted |
+| [D62](#d62-a-display-status-over-the-existing-statuses) | A display status over the existing statuses | Accepted |
+| [D63](#d63-stalled-is-a-soft-state-before-d34s-hard-timeout) | Stalled is a soft state before D34's hard timeout | Accepted |
+| [D64](#d64-a-failure-shows-inline-and-the-next-action-sits-above-the-composer) | A failure shows inline, and the next action sits above the composer | Accepted |
+| [D65](#d65-one-announcer-for-the-chat) | One announcer for the chat | Amended |
+| [D66](#d66-the-keyboard-map-configurable) | The keyboard map, configurable | Accepted |
+| [D67](#d67-drafts-persist-in-local-storage) | Drafts persist in local storage | Accepted |
+| [D68](#d68-the-side-panel-is-a-request-seam-with-no-viewer-in-the-kit) | The side panel is a request seam, with no viewer in the kit | Amended by D95 |
+| [D69](#d69-a-result-table-renders-a-preview-inline-and-the-grid-in-the-side-panel) | A result table renders a preview inline and the Grid in the side panel | Accepted |
+| [D70](#d70-feedback-reasons-and-the-inline-form) | Feedback reasons and the inline form | Accepted |
+| [D71](#d71-suggestions-fill-the-composer) | Suggestions fill the composer | Accepted |
+| [D72](#d72-source-kinds-favicons-and-fixed-no-answer-replies) | Source kinds, favicons and fixed no-answer replies | Accepted |
+| [D73](#d73-helpers-extend-tool-groups) | Helpers extend tool groups | Withdrawn by D80 |
+| [D74](#d74-thread-list-additions) | Thread list additions | Amended by D91 |
+| [D75](#d75-small-api-additions-the-specs-need) | Small API additions the specs need | Accepted |
+| [D76](#d76-the-design-reconciliation-is-adopted-with-the-owner-to-confirm) | The design reconciliation is adopted, with the owner to confirm | Accepted |
+| [D77](#d77-feedback-settings-for-strict-backends-and-allow-for-approvals) | Feedback settings for strict backends, and Allow for approvals | Accepted |
+| [D78](#d78-choices-in-the-activity-timeline) | Choices in the activity timeline | Amended by D92 |
+| [D79](#d79-choices-in-the-component-helper) | Choices in the component helper | Withdrawn by D80 |
+| [D80](#d80-component-helpers-leave-the-kit-for-v1) | Component helpers leave the kit for v1 | Accepted |
+| [D81](#d81-chatservice-leaves-the-kit) | `ChatService` leaves the kit | Accepted |
+| [D82](#d82-a-narrow-interface-needs-a-second-implementer) | A narrow interface needs a second implementer | Accepted |
+| [D83](#d83-edit-and-regenerate-can-be-turned-off) | Edit and Regenerate can be turned off | Superseded by D108 |
+| [D84](#d84-build-on-the-official-ag-ui-packages-at-the-protocol-layer) | Build on the official AG-UI packages at the protocol layer | Accepted |
+| [D85](#d85-ag-ui-requests-carry-the-whole-history-the-chat-holds) | AG-UI requests carry the whole history the chat holds | Accepted |
+| [D86](#d86-interrupts-use-standard-ag-ui-only) | Interrupts use standard AG-UI only | Accepted |
+| [D87](#d87-choices-in-the-ag-ui-protocol-layer) | Choices in the AG-UI protocol layer | Accepted |
+| [D88](#d88-choices-in-ag-ui-interrupts) | Choices in AG-UI interrupts | Accepted |
+| [D89](#d89-the-kit-is-built-from-swappable-subsystems) | The kit is built from swappable subsystems | Accepted |
+| [D90](#d90-the-chat-ui-layer-is-cut-back-to-its-consumers) | The chat UI layer is cut back to its consumers | Accepted |
+| [D91](#d91-choices-made-in-building-d90) | Choices made in building D90 | Accepted |
+| [D92](#d92-the-showcase-features-what-stays) | The showcase features: what stays | Accepted |
+| [D93](#d93-lessons-from-the-first-real-server-mode-integration) | Lessons from the first real server-mode integration | Accepted |
+| [D94](#d94-one-column-width-with-no-separate-cap-on-prose) | One column width, with no separate cap on prose | Accepted |
+| [D95](#d95-the-side-panel-has-no-back) | The side panel has no Back | Accepted |
+| [D96](#d96-the-thread-layer-reaches-its-conversation-through-chatconversation) | The thread layer reaches its conversation through `ChatConversation` | Accepted |
+| [D97](#d97-the-threads-model-is-told-when-its-selection-is-hidden) | The threads model is told when its selection is hidden | Accepted |
+| [D98](#d98-a-transcript-names-its-tools-through-gettoolspec) | A transcript names its tools through `getToolSpec` | Accepted |
+| [D99](#d99-an-agents-activities-show-in-the-timeline-through-chatactivityspec) | An agent's activities show in the timeline, through `ChatActivitySpec` | Accepted |
+| [D100](#d100-the-feedback-controls-stand-alone-over-chatfeedbackhost) | The feedback controls stand alone, over `ChatFeedbackHost` | Accepted |
+| [D101](#d101-a-saved-rating-can-lock-through-allowchange) | A saved rating can lock, through `allowChange` | Accepted |
+| [D102](#d102-an-app-can-draw-reply-text-through-textrenderer) | An app can draw reply text, through `textRenderer` | Accepted |
+| [D103](#d103-a-superseded-attempt-drops-through-metadatasuperseded) | A superseded attempt drops, through `metadata.superseded` | Accepted |
+| [D104](#d104-an-unlisted-tools-display-comes-from-gettoolspec-and-never-runs) | An unlisted tool's display comes from `getToolSpec`, and never runs | Accepted |
+| [D105](#d105-a-call-that-starts-a-sub-agent-hides-behind-the-sub-agents-row) | A call that starts a sub-agent hides behind the sub-agent's row | Accepted |
+| [D106](#d106-the-chat-settles-grows-and-breathes-calmly) | The chat settles, grows and breathes, calmly | Accepted |
+| [D107](#d107-stored-ag-ui-events-replay-through-the-live-reducer-by-their-own-clock) | Stored AG-UI events replay through the live reducer, by their own clock | Accepted |
+| [D108](#d108-try-again-can-be-turned-off-too) | Try Again can be turned off too | Accepted |
+| [D109](#d109-the-kit-checks-ag-ui-progress-steps-but-does-not-show-them-and-drops-activity-deltas) | The kit checks AG-UI progress steps but does not show them, and drops activity deltas | Accepted |
+| [D110](#d110-a-timelines-done-summary-can-leave-out-its-failure-count) | A timeline's done summary can leave out its failure count | Accepted |
+| [D111](#d111-a-reply-can-take-no-feedback-by-a-callback) | A reply can take no feedback, by a callback | Accepted |
+| [D112](#d112-a-composer-pill-opens-toward-the-room-it-has) | A composer pill opens toward the room it has | Accepted |
+| [D113](#d113-the-scope-chip-chooses-any-kind-of-option-and-its-selection-is-literal) | The scope chip chooses any kind of option, and its selection is literal | Accepted |
+| [D114](#d114-onsourceclick-takes-a-handler-per-source-type) | `onSourceClick` takes a handler per source type | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
+
+**Status.** Accepted.
 
 **Decision.** The kit is its own npm package, `@xh/hoist-chat-kit`, with `@xh/hoist` as a peer
 dependency. It ships TypeScript and SCSS source, as hoist-react does. Its code follows the Hoist
@@ -17,6 +151,8 @@ Apps compile it with their own build, together with Hoist, so the kit adds no bu
 own.
 
 ## D2. The kit owns its message model, and protocols plug in as adapters
+
+**Status.** Accepted.
 
 **Decision.** A message is an immutable `ChatMessage` that holds an ordered list of typed parts:
 text, reasoning, tool call, file, source and data. Components render this model only. No
@@ -32,6 +168,8 @@ protocol and to its release cycle.
 
 ## D3. Messages are immutable records, replaced on change
 
+**Status.** Accepted.
+
 **Decision.** `ChatModel.messages` is an `@observableRef` array of immutable `ChatMessage`
 objects. Each streamed change makes a new message and new objects for the changed parts only.
 
@@ -43,6 +181,8 @@ code.
 it needs class instances for every part and custom serialization.
 
 ## D4. AG-UI 1.0 events are the wire vocabulary
+
+**Status.** Superseded in part by [D84](#d84-build-on-the-official-ag-ui-packages-at-the-protocol-layer).
 
 **Decision.** Transports yield `ChatEvent`s. These are the AG-UI 1.0 events, with the same type
 strings and field names. The kit mirrors the types and does not depend on `@ag-ui/*` at runtime.
@@ -62,6 +202,8 @@ the kit depends on `@ag-ui/core` and `@ag-ui/client`. AG-UI stays the wire vocab
 
 ## D5. Codecs translate wire formats, transports carry them
 
+**Status.** Accepted.
+
 **Decision.** A `ChatTransport` gets events from a backend. A `ChatCodec` encodes the request
 body and decodes the records that come back. `HoistChatTransport` reads NDJSON with
 `XH.fetchNdjson`. `SseChatTransport` reads Server-Sent Events (SSE). `AgUiCodec` speaks AG-UI.
@@ -72,6 +214,8 @@ body and decodes the records that come back. `HoistChatTransport` reads NDJSON w
 The translation then lives once, in tested TypeScript, rather than in each app's server.
 
 ## D6. NDJSON through `XH.fetchNdjson` is the default transport
+
+**Status.** Accepted.
 
 **Decision.** `HoistChatTransport` posts to a hoist-core endpoint and reads the reply with
 `XH.fetchNdjson`. D14 covers how it cancels a stream.
@@ -87,6 +231,8 @@ that code from every app.
 
 ## D7. The client runs the tool loop
 
+**Status.** Accepted.
+
 **Decision.** `ChatModel` runs the agent loop for client tools. When a model call ends with tool
 calls that have a client `execute`, the model runs them, sends the results back, and starts the
 next call, up to `maxSteps`. Tools the backend runs arrive with their results in the stream, and
@@ -97,6 +243,8 @@ browser can run those. The Toolbox weather agent works this way. A server-side a
 works, because the backend then sends both the calls and the results.
 
 ## D8. Generative UI goes through data parts and a renderer registry
+
+**Status.** Accepted.
 
 **Decision.** AG-UI `ACTIVITY_SNAPSHOT` events and `xh.chat.data` events become `data` parts. An
 app renders them through `ChatModelConfig.dataRenderers`, keyed by `dataType`. A data part with no
@@ -111,6 +259,8 @@ The W3C Open UI group standardizes HTML controls and does not relate to agents.
 
 ## D9. Desktop components first, platform-neutral models
 
+**Status.** Accepted.
+
 **Decision.** v1 ships desktop components only, in `desktop/cmp/chat`. `core/`, `transport/` and
 `cmp/` do not import from `@xh/hoist/desktop`.
 
@@ -118,6 +268,8 @@ The W3C Open UI group standardizes HTML controls and does not relate to agents.
 to the models.
 
 ## D10. CSS class and variable names use the `xh-chat` prefix
+
+**Status.** Accepted.
 
 **Decision.** Class names are `xh-chat-*` in BEM form. Theme variables are `--xh-chat-*`, with
 defaults built from Hoist variables.
@@ -127,6 +279,8 @@ segment keeps it clear of names that hoist-react may add.
 
 ## D11. CodeQL runs only when the repo is public
 
+**Status.** Accepted.
+
 **Decision.** The CodeQL job checks the repo visibility and skips its analysis while the repo is
 private.
 
@@ -135,6 +289,8 @@ have. The check turns the scan on by itself when the repo goes public.
 
 ## D12. The build check packs the package
 
+**Status.** Accepted.
+
 **Decision.** `pnpm build` packs the package and checks the contents. Every source package must
 ship, and specs and planning files must not.
 
@@ -142,6 +298,8 @@ ship, and specs and planning files must not.
 is the failure a source package is most likely to ship by mistake.
 
 ## D13. Finish reasons use the Vercel AI SDK vocabulary
+
+**Status.** Accepted.
 
 **Decision.** A codec maps the provider's stop reason to one of `stop`, `length`, `tool-calls`,
 `content-filter` or `other`, and records it as `metadata.finishReason` on the assistant message.
@@ -152,6 +310,8 @@ The raw provider value goes in `metadata.stopReason`.
 across providers. The AI SDK set is the one most chat code already knows.
 
 ## D14. Streams abort through `fetchOpts.signal`, not `autoAbortKey`
+
+**Status.** Accepted.
 
 **Decision.** `HoistChatTransport` and `SseChatTransport` pass their own `AbortSignal` to the
 native fetch through `fetchOpts.signal`. They combine it with the turn's signal through
@@ -168,9 +328,11 @@ fetch. The transport closes the connection itself in that case. A `signal` optio
 `FetchOptions`, with abort support for streamed responses, would let the transports drop the
 workaround.
 
-**Status.** Filed as [xh/hoist-react#4855](https://github.com/xh/hoist-react/issues/4855).
+**Upstream.** Filed as [xh/hoist-react#4855](https://github.com/xh/hoist-react/issues/4855).
 
 ## D15. Generative UI is a Hoist component catalog, with protocols as translators
+
+**Status.** Accepted.
 
 **Decision.** The next deliverable after the chat UI is a generative UI registry. An app
 registers Hoist components, such as a grid, a chart or a card, each with a typed props schema.
@@ -179,11 +341,11 @@ model writes against it, and renders the result inline in the chat. Protocols su
 Lang and A2UI translate into the same catalog specs through an adapter. v1 ships the seam
 (`data` parts and `dataRenderers`) and points in this direction. The full registry follows.
 
-**Why.** A client chose OpenUI because Hoist had no answer for chat and generative UI. The chat
-UI answers the first half. The second half needs generative UI built on Hoist's own grids and
-charts, which are stronger than generic component kits for data-dense apps. A catalog the app
-controls keeps the model to known components and known props. XH has a proof of concept that
-renders Hoist grids and charts inline in a chat in this way, under tight constraints.
+**Why.** Hoist had no answer for chat or generative UI, so apps turned to other libraries for both.
+The chat UI answers the first half. The second half needs generative UI built on Hoist's own grids
+and charts, which are stronger than generic component kits for data-dense apps. A catalog the app
+controls keeps the model to known components and known props. XH has a proof of concept that renders
+Hoist grids and charts inline in a chat in this way, under tight constraints.
 
 **Update.** The catalog shipped in v1, as designed here: `ChatUiCatalog` in `genui/`, with the
 built-in grid, chart, metrics and card in `desktop/cmp/genui/`. Each component is an inline
@@ -191,6 +353,8 @@ client tool, so streaming, validation and errors reuse the tool machinery. `Chat
 the seam for A2UI and OpenUI. The kit ships the interface, and no adapter.
 
 ## D16. Markdown images do not load by default
+
+**Status.** Accepted.
 
 **Decision.** `ChatMarkdown` does not load markdown images unless `allowImages` permits them.
 A blocked image renders as a link, labeled with its alt text, that the user can choose to open.
@@ -212,6 +376,8 @@ function, not all images with `true`.
 and the user cannot tell that the reply had an image.
 
 ## D17. A card action shows exactly what it sends
+
+**Status.** Amended by [D56](#d56-fixes-from-review-5-of-generative-ui).
 
 **Decision.** The built-in card's follow-up actions send their `prompt` as the user's own
 message. The button's tooltip shows the prompt before the click, and the chat shows it as the
@@ -237,6 +403,8 @@ visible `context` of record ids.
 
 ## D18. Generative UI names carry the `ChatUi` prefix
 
+**Status.** Accepted.
+
 **Decision.** Every public generative UI name starts with `ChatUi` or `chatUi`. Types are
 `ChatUiCatalog`, `ChatUiComponentSpec`, `ChatUiGridSpecProps` and `ChatUiGridSpecOptions`.
 Components are `ChatUiGrid` and its factory `chatUiGrid`. The functions that return catalog
@@ -251,6 +419,8 @@ component it renders.
 naming scheme beside `ChatUiGrid` and `ChatUiComponentSpec`, and hides that the result is a spec.
 
 ## D19. Two conversation shapes, both first-class
+
+**Status.** Amended by [D85](#d85-ag-ui-requests-carry-the-whole-history-the-chat-holds).
 
 **Decision.** `ChatModel` gains `historyMode: 'client' | 'server'`, default `client`. Client mode
 is the first slice's behavior: the browser holds the history and runs the tool loop. In server
@@ -267,6 +437,8 @@ carries every message the chat holds, in both modes.
 
 ## D20. A thread layer in the kit
 
+**Status.** Accepted.
+
 **Decision.** `ChatThreadStore` is an adapter the app implements against its backend: list,
 load, rename and delete threads. `ChatThreadsModel` holds one `ChatModel` per open thread, so a
 turn keeps running in the background while the user reads another thread. `chatThreadList`
@@ -277,6 +449,8 @@ store adapter keeps the kit out of each backend's storage format.
 
 ## D21. A workspace shell
 
+**Status.** Accepted.
+
 **Decision.** `chatWorkspace` lays out a thread sidebar, the conversation and an optional side
 panel, on Hoist `PanelModel`, sized to its parent.
 
@@ -284,6 +458,8 @@ panel, on Hoist `PanelModel`, sized to its parent.
 observers and a rebuilt composer. Another built the same layout on Hoist `Panel` by hand.
 
 ## D22. Generative UI binds data by reference, through four delivery modes
+
+**Status.** Accepted.
 
 **Decision.** One catalog, delivered four ways: display tools that the server answers, client
 tools (built), component tags in markdown, and a UI document in the text stream. A `ref` prop
@@ -297,7 +473,7 @@ stream and keeps numbers exact. A server-run loop also cannot take client tools.
 
 ## D23. An activity timeline, and one tool display setting
 
-**Amended** by [D92](#d92-the-showcase-features-what-stays).
+**Status.** Amended by [D92](#d92-the-showcase-features-what-stays).
 
 **Decision.** Agentic replies show their tool calls, reasoning and narration in one collapsible
 timeline, with nested sub-agents. `ChatToolSpec.display` becomes one enum: `card`, `inline`,
@@ -308,6 +484,8 @@ built a timeline by hand.
 
 ## D24. Bring your own LLM
 
+**Status.** Accepted.
+
 **Decision.** A kit `ChatService` resolves a default transport from server config, so a helper
 agent needs no wiring of its own. A `ChatCompletionsCodec` covers OpenAI-compatible gateways.
 `ChatService` is withdrawn by [D81](#d81-chatservice-leaves-the-kit). The codec stays.
@@ -317,25 +495,31 @@ completions format. The codec and transport split (D5) is the seam that makes th
 
 ## D25. The hoist-core streaming companion belongs to hoist-core
 
+**Status.** Accepted.
+
 **Decision.** The kit does not build `renderSSE()`, a streaming `renderNDJSON()` or a streaming
 proxy mode. It keeps the documented relay controller in the transport README and in Toolbox, and
 the report specifies what hoist-core should add.
 
 **Why.** It is hoist-core code, owned by the hoist-core team.
 
-**Status.** Filed as [xh/hoist-core#618](https://github.com/xh/hoist-core/issues/618).
+**Upstream.** Filed as [xh/hoist-core#618](https://github.com/xh/hoist-core/issues/618).
 
 ## D26. Snapshots now, a beta tag when the v1.0 API settles
 
-**Decision.** The kit keeps publishing `-SNAPSHOT` builds under `next`. An app that needs
-stability pins an exact snapshot version, such as `1.0.0-SNAPSHOT.1791997893569`. The first tagged
-pre-release (`1.0.0-beta.1`) follows when the plan 2 API settles.
+**Status.** Accepted.
+
+**Decision.** The kit keeps publishing `-SNAPSHOT` builds under `next`. An app that needs stability
+pins an exact snapshot version, such as `1.0.0-SNAPSHOT.1791997893569`. The first tagged pre-release
+(`1.0.0-beta.1`) follows when the server-mode API settles.
 
 **Why.** Exact snapshot versions are immutable on npm, so apps can pin today with no release
 process. A tag earlier than that would promise a stability that the server-mode work is about to
 break.
 
 ## D27. The Hoist floor is 89.0.0
+
+**Status.** Accepted.
 
 **Decision.** The kit requires `@xh/hoist` 89.0.0 or later. Apps on 88 upgrade first.
 
@@ -344,6 +528,8 @@ released.
 
 ## D28. No Python reference agent in v1.0
 
+**Status.** Accepted.
+
 **Decision.** The kit publishes its event contract (AG-UI plus `xh.chat.*`) and recorded streams
 for conformance tests. It does not ship a Python reference agent.
 
@@ -351,6 +537,8 @@ for conformance tests. It does not ship a Python reference agent.
 and a service team can run them in its own CI.
 
 ## D29. AG-UI interrupts first for server-side human-in-the-loop
+
+**Status.** Amended by [D86](#d86-interrupts-use-standard-ag-ui-only).
 
 **Decision.** A server agent asks the user a question through the AG-UI interrupt outcome, and the
 kit resumes the run with a structured answer. Where an agent cannot emit AG-UI interrupts, it
@@ -364,6 +552,8 @@ dropped.
 
 ## D30. Backend tool errors travel in the result's metadata
 
+**Status.** Accepted.
+
 **Decision.** A `TOOL_CALL_RESULT` with `metadata.error` (the error text), or with
 `metadata.isError: true` (the text as `content`), fails its call as `output-error`. An
 `xh.chat.toolError` custom event does the same, for a backend that cannot set `metadata`.
@@ -375,6 +565,8 @@ on strict AG-UI libraries.
 
 ## D31. An error boundary around each message and each part
 
+**Status.** Accepted.
+
 **Decision.** Each message, and each part within it, renders inside Hoist's `ErrorBoundary`. A
 part that throws shows a compact note with a Details disclosure, and Hoist's exception handler
 logs the error with no alert. A streaming part gets another try when its state changes, and a
@@ -385,6 +577,8 @@ list. Hoist's boundary keeps Hoist's logging. The retry on a state change lets a
 throws on partial input recover, without a re-render on every flush.
 
 ## D32. The catalog refuses schema keywords it cannot check
+
+**Status.** Accepted.
 
 **Decision.** The `ChatUiCatalog` constructor throws on any props schema keyword that affects
 validity and that the checker does not implement, such as `$ref`, `allOf` or
@@ -399,6 +593,8 @@ forbids.
 
 ## D33. File chips follow the markdown image policy
 
+**Status.** Accepted.
+
 **Decision.** `ChatFileChip` loads an image at a URL only if `allowImages` permits it. An image
 with inline `data` always shows.
 
@@ -406,6 +602,8 @@ with inline `data` always shows.
 loads nothing, so the user's own attachments need no policy.
 
 ## D34. A silent stream fails as a turn error, coded `stalled`
+
+**Status.** Amended by [D64](#d64-a-failure-shows-inline-and-the-next-action-sits-above-the-composer).
 
 **Decision.** The HTTP transports take an `idleTimeout`. Any data resets it, including an SSE
 comment or an `{"type": "xh.heartbeat"}` NDJSON record, which is never decoded. When it fires, the
@@ -416,6 +614,8 @@ stall in the conversation, with Retry, rather than an exception report. A heartb
 NDJSON server keep a slow tool call alive without inventing an AG-UI event.
 
 ## D35. A send blocker returns the reason to wait
+
+**Status.** Accepted.
 
 **Decision.** `ChatModelConfig.sendBlocker` returns why the user must wait, or null. The chat
 reads it as a computed value. While it returns a reason, `canSend` is false, `sendAsync`,
@@ -428,6 +628,8 @@ suggestion chips and card actions from getting around the rule.
 
 ## D36. Inline calls show nothing until approved
 
+**Status.** Accepted.
+
 **Decision.** An inline tool call renders no output while it waits for approval, unless its tool
 sets `approvalPreview`. A denied call renders none.
 
@@ -435,6 +637,8 @@ sets `approvalPreview`. A denied call renders none.
 or after a denial, shows what the user has not agreed to.
 
 ## D37. A turn aborts with a `ChatAbortError` that names its reason
+
+**Status.** Accepted.
 
 **Decision.** `ChatModel` aborts a turn's signal with a `ChatAbortError`, whose `reason` is a
 `ChatAbortReason`: `stop`, `detach`, `clear`, `load` or `destroy`. Its `name` is `AbortError`.
@@ -446,6 +650,8 @@ the kit's own abort checks. An error with that name keeps every abort an abort, 
 why.
 
 ## D38. Only a stop cancels, and only a step in flight
+
+**Status.** Accepted.
 
 **Decision.** `stop()` calls `ChatTransport.cancelAsync()` only while a step is in flight. It
 passes a `ChatRunRef`: the thread id, the run id from `RUN_STARTED` (or else the step's own id),
@@ -463,6 +669,8 @@ every app that authenticates with an agent server.
 
 ## D39. A new thread's id may change once, on its first run
 
+**Status.** Amended by [D55](#d55-fixes-from-review-5-of-server-mode).
+
 **Decision.** In server mode, a thread id is provisional until the first `RUN_STARTED` of the
 thread. If that event reports another id, the chat adopts it. A thread starts with the
 constructor, `clear()`, or `loadMessages()` with no thread id. A thread id given with history,
@@ -477,6 +685,8 @@ message. A greeting alone leaves the id provisional.
 
 ## D40. `AnthropicCodec` is a client-mode codec
 
+**Status.** Accepted.
+
 **Decision.** `AnthropicCodec.encodeRequest()` throws for a request with `historyMode: 'server'`.
 
 **Why.** The Messages API keeps no state, so each request must carry the whole history. A
@@ -485,6 +695,8 @@ cannot know the mode when it is built, so it throws on first use, with a message
 mode.
 
 ## D41. The text transform sees the raw text
+
+**Status.** Accepted.
 
 **Decision.** The reducer keeps the raw text of each text part of a step, and passes all of it to
 `textTransform` on each change. It stores the result. A turn that ends before its stream does
@@ -496,7 +708,9 @@ raw text makes any pure transform correct, at the cost of one call per batch per
 
 ## D42. Small additions to the server-mode spec
 
-**Decision.** WP 1 adds these to sections 1, 2 and 4.1 of `planning/SERVER-MODE.md`:
+**Status.** Accepted.
+
+**Decision.** WP 1 adds these to the server-mode spec:
 
 - `ChatModel.detach()`, a public way to abort with `detach`. The thread layer and apps need it to
   leave a turn running on the server.
@@ -516,6 +730,8 @@ raw text makes any pure transform correct, at the cost of one call per batch per
 
 ## D43. The thread layer reaches a chat through three seams
 
+**Status.** Accepted.
+
 **Decision.** `ChatModel` gains `setThreadCreator()` and `addSendBlocker()`, beside
 `setFeedbackSubmitter()` (D42). The chat awaits its thread creator before the first request of a
 new thread, in either history mode, and adopts the id it returns as it would one from
@@ -533,6 +749,8 @@ backend for every New chat click.
 
 ## D44. A run that finishes with nothing fails, coded `empty-response`
 
+**Status.** Amended by [D64](#d64-a-failure-shows-inline-and-the-next-action-sits-above-the-composer).
+
 **Decision.** The stream reducer fails a reply that has no parts when its run finishes. The turn
 ends as an error, with Retry, in both history modes.
 
@@ -540,6 +758,8 @@ ends as an error, with Retry, in both history modes.
 in the thread layer. A blank reply looked like a success and gave the user nothing to retry.
 
 ## D45. The thread list is a computed overlay
+
+**Status.** Accepted.
 
 **Decision.** `ChatThreadsModel.threads` is a computed value, not the `@observableRef` field of
 section 3.2. It joins the threads started here that the store has not listed yet, and the store's
@@ -555,7 +775,9 @@ by one list covers that case, and a newer rename survives an older one that fail
 
 ## D46. Small additions to the thread layer spec
 
-**Decision.** WP 2 adds these to section 3 of `planning/SERVER-MODE.md`:
+**Status.** Accepted.
+
+**Decision.** WP 2 adds these to the thread layer spec:
 
 - `reloadThreadAsync()`, the Retry of rule 8. It also catches up on a turn that the backend
   finished on its own. `loadError` holds the selected thread's failure, and `listError` the last
@@ -580,8 +802,10 @@ by one list covers that case, and a newer rename survives an older one that fail
 
 ## D47. Choices in the generative UI core
 
-**Decision.** WP 7 step 1 builds sections 2.1 to 2.4 and 2.6 to 2.8 of `planning/GENUI.md`, with these
-choices where the spec is open or differs from the kit's conventions:
+**Status.** Accepted.
+
+**Decision.** WP 7 step 1 builds the generative UI core, with these choices where the spec is open
+or differs from the kit's conventions:
 
 - Components run actions with `context.runActionAsync()`, not `runAction()`, as every method
   that returns a promise takes the `Async` suffix.
@@ -612,7 +836,7 @@ open.
 
 ## D48. Only the latest reply with changes can be undone
 
-**Superseded** by [D92](#d92-the-showcase-features-what-stays).
+**Status.** Superseded by [D92](#d92-the-showcase-features-what-stays).
 
 **Decision.** `ChatModel.undoableMessageId` names the latest reply that holds undo functions, once
 its turn ends, and only while no turn runs or waits for the user. `undoTurnAsync()` runs that
@@ -621,16 +845,18 @@ undoable. If an undo function throws, the undo stops, a toast reports it, and th
 another try. A retry, regenerate, edit, clear or load drops the undo functions of the replies it
 discards. An undo of a tool that finishes after a stop is still kept.
 
-**Why.** Section 2.2 of `planning/HELPERS.md` keys undo by reply but does not say which replies
-may undo. The tool groups build each undo from a snapshot of persistable state, so undoing an
-older reply would also revert every later one. One undoable reply at a time keeps undo exact.
+**Why.** The helper plan keys undo by reply but does not say which replies may undo. The tool groups
+build each undo from a snapshot of persistable state, so undoing an older reply would also revert
+every later one. One undoable reply at a time keeps undo exact.
 
 **Alternatives.** An Undo action on every reply with changes. It would silently revert later
 replies.
 
 ## D49. Choices in the helper agent core seams and `ChatCompletionsCodec`
 
-**Decision.** WP 9 steps 1 and 2 add these to sections 2 and 5.2 of `planning/HELPERS.md`:
+**Status.** Superseded in part by [D52](#d52-a-codec-sends-one-run_finished-per-step).
+
+**Decision.** WP 9 steps 1 and 2 add these to the helper plan:
 
 - A context provider's `getContext` may return null, to send nothing for a step. A provider that
   throws fails the turn, with Retry. The chat skips the provider pass entirely when it has none,
@@ -655,7 +881,7 @@ replies.
 
 ## D50. `ChatService` reads `chatConfig`, and its prompt is static text
 
-**Withdrawn** by [D81](#d81-chatservice-leaves-the-kit).
+**Status.** Withdrawn by [D81](#d81-chatservice-leaves-the-kit).
 
 **Decision.** The soft config is `chatConfig`, not `xhChatConfig`. `createTransport({system})`
 takes the prompt as a string. An AG-UI backend gets it as a `context` entry.
@@ -667,9 +893,9 @@ its context synchronously, so it could not await a prompt function.
 
 ## D51. Choices in the tool groups
 
-**Withdrawn** by [D80](#d80-component-helpers-leave-the-kit-for-v1).
+**Status.** Withdrawn by [D80](#d80-component-helpers-leave-the-kit-for-v1).
 
-**Decision.** WP 9 step 3 adds these to section 3 of `planning/HELPERS.md`:
+**Decision.** WP 9 step 3 adds these to the helper plan:
 
 - A group is a `ChatToolGroup` of `{tools, contextProvider, prompt, suggestions}`. Each tool's
   `parameters` is a getter, so its enums follow the model on every step with no change to
@@ -693,6 +919,8 @@ its context synchronously, so it could not await a prompt function.
 
 ## D52. A codec sends one `RUN_FINISHED` per step
 
+**Status.** Accepted.
+
 **Decision.** `ChatCompletionsCodec` holds its `RUN_FINISHED` back until the usage chunk, or the
 end of the stream, and sends one event with the usage. A `ChatDecoder` may add a `flush()`, which
 the HTTP transports call after the last record of a stream that ended normally. The codec holds
@@ -708,7 +936,7 @@ would then never finish, and every turn would fail as `incomplete-stream`.
 
 ## D53. `preview` replaces `approvalPreview`
 
-**Superseded.** The alias is removed. The kit has no release and no callers of it.
+**Status.** Superseded. The alias is removed.
 
 **Decision.** `ChatToolSpec.approvalPreview` is deprecated. It still works, and `ChatModel` logs a
 deprecation warning once for a tool that sets it. The generative UI docs name `preview: true`.
@@ -721,6 +949,8 @@ docs and the specs. D49 kept the alias only because another work package owned t
 its snapshots, so a warning gives them a release to move.
 
 ## D54. Choices in the generative UI wiring of `ChatModel`
+
+**Status.** Accepted.
 
 **Decision.** WP 7 step 1 wires a catalog into `ChatModel`, with these choices:
 
@@ -752,15 +982,17 @@ its snapshots, so a warning gives them a release to move.
   owns the history and the tool loop, and the browser cannot add a call to it. The `callTool`
   action runs a client tool outside the history, as D47 says.
 
-**Why.** Each keeps the contract of part 2 of `planning/GENUI.md`, and closes a gap that the wiring
-leaves open.
+**Why.** Each keeps the contract of the generative UI spec, and closes a gap that the wiring leaves
+open.
 
 **Alternatives.** Always send the document tool. Its schema is a union of every component, which
 costs tokens on every step of a chat that never nests components.
 
 ## D55. Fixes from review 5 of server mode
 
-**Decision.** Review 5 (`planning/reviews/review-5-server-mode.md`) led to these changes:
+**Status.** Accepted.
+
+**Decision.** Review 5 of server mode led to these changes:
 
 - A thread id given with `initialMessages` or `loadMessages()` is the backend's only if the
   messages hold a user message. A greeting alone is not history, so a new thread with a greeting
@@ -784,7 +1016,9 @@ system message after the first.
 
 ## D56. Fixes from review 5 of generative UI
 
-**Decision.** Review 5 (`planning/reviews/review-5-genui-components.md`) led to these changes:
+**Status.** Accepted.
+
+**Decision.** Review 5 of generative UI led to these changes:
 
 - The `context` of a `send` action is a flat object of at most 8 short values, such as record
   ids. The button's tooltip shows it, and the message view shows it under the sent message. The
@@ -812,6 +1046,8 @@ on a record then has to spell the record's id out in its text.
 
 ## D57. The kit is usable in layers
 
+**Status.** Accepted.
+
 **Refined** by [D82](#d82-a-narrow-interface-needs-a-second-implementer) and
 [D89](#d89-the-kit-is-built-from-swappable-subsystems).
 
@@ -829,6 +1065,8 @@ interface costs little when the coupling is small, and keeps the full chat worki
 kits. Both cost more than the reuse we know of today.
 
 ## D58. Design tokens replace the kit's theme variables
+
+**Status.** Accepted.
 
 **Decision.** `styles/vars.scss` takes the design's tokens and drops the old names, with no
 aliases. The kit is pre-1.0 (D26), so the changelog lists the renames as breaking.
@@ -856,6 +1094,7 @@ model.
 
 ## D59. Kit-wide settings live in `ChatKit.defaults`
 
+**Status.** Accepted.
 
 **Decision.** `core/ChatKit.ts` exports `ChatKit`, a class with a `static defaults` object, as
 `GridModel.defaults` and `FetchService.defaults` are in Hoist. An app sets fields at startup, in
@@ -873,6 +1112,7 @@ but icons and key bindings are code.
 
 ## D60. Reduced motion, with `reducedMotionSpinner`
 
+**Status.** Accepted.
 
 **Decision.** Under `prefers-reduced-motion: reduce`, or inside an `.xh-chat--reduced-motion`
 element, each moving cue in chat has a static twin: a solid caret, no shimmer, instant reveals,
@@ -890,6 +1130,7 @@ keep every cue moving, while `xh-chat--reduced-motion` on a container still forc
 
 ## D61. The assistant icon and assistant profiles
 
+**Status.** Accepted.
 
 **Decision.** `ChatKit.defaults.assistantIcon` is a function that returns the icon, default
 `() => Icon.ai()`. A `ChatAssistantProfile` `{id, name, icon?, description?, status?}` overrides it
@@ -904,6 +1145,7 @@ API (R15). A function returns a fresh element for each use.
 
 ## D62. A display status over the existing statuses
 
+**Status.** Accepted.
 
 **Decision.** `ChatReplyStatus` is the display vocabulary: `idle`, `submitted`, `streaming`,
 `recomposing`, `runningTool`, `paused`, `waitingToRetry`, `detached`, `stalled`, `interrupted`,
@@ -925,6 +1167,7 @@ states such as `stalled`.
 
 ## D63. Stalled is a soft state before D34's hard timeout
 
+**Status.** Accepted.
 
 **Decision.** A reply is `stalled` after `ChatKit.defaults.stallAfterMs` (30 s) with no bytes,
 heartbeats included. Its spinner and caret give way to "No response for 30s" in place, the status
@@ -939,6 +1182,7 @@ answer. Today a heartbeat resets the transport's timer but never reaches the mod
 
 ## D64. A failure shows inline, and the next action sits above the composer
 
+**Status.** Accepted.
 
 **Decision.** The inline failed row in the reply records what happened, with Edit Prompt and Copy
 Details. The composer's status region holds the thread's one next action. `ChatErrorBanner`, an
@@ -960,6 +1204,7 @@ write twice needs the server's word that it is safe. A client-mode chat keeps it
 
 ## D65. One announcer for the chat
 
+**Status.** Amended.
 
 **Decision.** The message list is `role="log"` with `aria-live="off"`. A kit announcer renders two
 hidden live regions, one polite and one assertive. The announcer reads a finished reply once: the
@@ -971,11 +1216,12 @@ runs is announced. Steps that succeed are not.
 **Why.** A live region on the list reads every token. One announcer keeps announcements spaced and
 in order across the list, the timeline and the composer.
 
-Amended by item 1 of `planning/AG-UI.md`: the `announceSteps` setting, with its "Step N done"
-mode, is gone.
+Amended: the `announceSteps` setting, with its "Step N done" mode, is
+gone.
 
 ## D66. The keyboard map, configurable
 
+**Status.** Accepted.
 
 **Decision.** `ChatKit.defaults.shortcuts` maps each action to a key combo, in the format of Hoist's
 `useHotkeys`, or to null to drop it:
@@ -997,6 +1243,7 @@ register keys but offer apps no remap, so the kit owns the map (H5).
 
 ## D67. Drafts persist in local storage
 
+**Status.** Accepted.
 
 **Decision.** The composer saves its draft text per thread, after each 500 ms pause, through
 `XH.localStorageService`, which keys by app and user. Attachments stay in memory only. A restored
@@ -1012,33 +1259,36 @@ that no backend offers.
 
 ## D68. The side panel is a request seam, with no viewer in the kit
 
+**Status.** Amended by [D95](#d95-the-side-panel-has-no-back).
 
 **Decision.** `ChatSidePanelModel` holds one open request at a time. A request is a discriminated
-union: `{type: 'document', source, page?, passage?, citation?}`, `{type: 'table', artifactId,
-view}` or `{type: 'chart', artifactId, view}`. Opening one replaces the last, and Back returns
-focus to the element that opened it. Components reach it through `ChatSidePanelHost`, a narrow
-interface. The kit renders tables and charts. An app supplies `documentRenderer` for documents.
-Without one, or without room (788 px, P3), a document opens in a new tab with a toast. With no side
-panel, a table opens in a dialog (`GENUI.md` 2.5).
+union: `{type: 'document', source, page?, passage?, citation?}`, `{type: 'table', artifactId, view}`
+or `{type: 'chart', artifactId, view}`. Opening one replaces the last, and Back returns focus to the
+element that opened it. Components reach it through `ChatSidePanelHost`, a narrow interface. The kit
+renders tables and charts. An app supplies `documentRenderer` for documents. Without one, or without
+room (788 px, P3), a document opens in a new tab with a toast. With no side panel, a table opens in
+a dialog.
 
 **Why.** A document viewer will land in hoist-react (A3). The kit owns only the chat side: the slot,
 the request and Back.
 
 ## D69. A result table renders a preview inline and the Grid in the side panel
 
+**Status.** Accepted.
 
 **Decision.** `chatUiGrid` keeps its name and spec. Inline, it renders a plain HTML table of at most
 8 rows and 6 columns, on Hoist's compact grid tokens. The footer always states what is hidden. View
 Full Table opens one Hoist `Grid` in the side panel (D68), paged from the `ChatDataSource`. A result
 that fits the preview gets no full tier. `ChatUiGrid.defaults` holds `previewRows`,
 `previewColumns`, `pageSize` and `exportConfirmAbove`. `ChatUiChart.defaults` holds
-`maxInlineSeries` and `maxInlinePoints`. This replaces the inline grid of `GENUI.md` 2.5.
+`maxInlineSeries` and `maxInlinePoints`. This replaces the earlier inline grid.
 
 **Why.** A long thread with many ag-Grid instances is heavy, and B1 makes the preview the inline
 tier. Keeping the names keeps app catalogs working.
 
 ## D70. Feedback reasons and the inline form
 
+**Status.** Accepted.
 
 **Decision.** `ChatFeedbackConfig` gains `reasons?: string[]`, the optional toggles of the form, and
 `ChatFeedbackSpec` gains `reasons?: string[]`. The comment form opens inline under the action bar,
@@ -1051,6 +1301,7 @@ keep through an outside click. Comment rules depend on the backend, so they stay
 
 ## D71. Suggestions fill the composer
 
+**Status.** Accepted.
 
 **Decision.** An empty-state suggestion fills the composer and never sends. Suggestions hide once
 the input has text. Follow-up chips on a reply still send, with D17's tooltip.
@@ -1060,6 +1311,7 @@ is a quick action, so it keeps its one click.
 
 ## D72. Source kinds, favicons and fixed no-answer replies
 
+**Status.** Accepted.
 
 **Decision.** `ChatSourcePart` gains `sourceType: 'url' | 'document'`, default `'url'` when the part
 has a URL. A document marker opens the side panel (D68). A URL marker pins its hover card. A
@@ -1072,8 +1324,7 @@ tell sources apart.
 
 ## D73. Helpers extend tool groups
 
-**Withdrawn** by [D80](#d80-component-helpers-leave-the-kit-for-v1).
-
+**Status.** Withdrawn by [D80](#d80-component-helpers-leave-the-kit-for-v1).
 
 **Decision.** `ChatToolGroup` gains optional members for the helper UI: `title`, `boundary()` for
 the data boundary line, `isChangedSince(snapshot)` to retire Undo, `highlight(targets)` for the
@@ -1088,7 +1339,7 @@ add what P7 draws, with no second adapter type.
 
 ## D74. Thread list additions
 
-**Amended** by [D91](#d91-choices-made-in-building-d90).
+**Status.** Amended by [D91](#d91-choices-made-in-building-d90).
 
 **Decision.** `ChatThreadSummary` gains `lastRunEnd?: 'complete' | 'interrupted' | 'failed'` and
 `lastRunReason?`. The thread layer tracks "finished away" per session. A store declares whether its
@@ -1096,22 +1347,23 @@ search covers message text, with `searchesMessages`, and returns `snippet` per m
 the list says "Searching titles". A route-selected thread that the store reports missing is "not
 found" (R14). Sidebar width and its collapsed state persist through `persistWith`.
 
-**Why.** Each row state in P5 needs one field the summary lacks. Search falls back to titles
-(`02-backend-capabilities.md` row 7).
+**Why.** Each row state in P5 needs one field the summary lacks. Search falls back to titles for a
+backend that cannot search messages.
 
 **Update.** The store's `searchesMessages`, the summary's `snippet` and "Searching titles" shipped
 after review 6. The thread list is a one-level tree grid rather than a listbox, as its rows hold
 buttons. "Thread not found" waits on the threads model learning that a store reported a thread
-missing. It is marked `TODO(R14, D74)` in `ChatWorkspace`.
+missing. It is marked with a TODO in `ChatWorkspace`.
 
 ## D75. Small API additions the specs need
 
+**Status.** Accepted.
 
 **Decision.**
 
 - `approveToolCallAsync(id, reason?)`, as `denyToolCallAsync()` already takes one (P2).
 - `ChatModelConfig.dataRefreshedAt`, a function that returns the app's last data refresh, for the
-  stale reply warning (P1, `02-backend-capabilities.md` row 15).
+  stale reply warning (P1).
 - The reducer flags a text part that `xh.chat.textReplace` shortened, so the view can hold the old
   text as "Revising" (P6).
 - `ChatComposerHost` gains optional members for the status region (D64).
@@ -1121,19 +1373,21 @@ contract.
 
 ## D76. The design reconciliation is adopted, with the owner to confirm
 
-**Decision.** The design handoff in `.tmp/design-handoff/` is the authority on visual design and
-interaction, not on implementation, API shape or core behavior. `planning/design-reconciliation.md`
-lists 28 conflicts between the handoff and the repo, or within the handoff, each with a
-recommended resolution. The build follows every recommendation (R1 to R20, H1 to H8), and D58 to
-D75 record the ones that change the API or conventions. Anselm confirms or changes them after the
-fact. A change to one updates the matching decision.
+**Status.** Accepted.
 
-**Why.** The owner asked for progress while away, with the design brief used as guidance and the
-repo in charge of code. Each recommendation keeps a repo contract unless the design is clearly
-better for users.
+**Decision.** The design handoff is the authority on visual design and interaction, not on
+implementation, API shape or core behavior. A reconciliation lists 28 conflicts between the handoff
+and the repo, or within the handoff, each with a recommended resolution. The build follows every
+recommendation (R1 to R20, H1 to H8), and D58 to D75 record the ones that change the API or
+conventions. Anselm confirms or changes them after the fact. A change to one updates the matching
+decision.
 
+**Why.** Work went ahead with the design brief as guidance and the repo in charge of code. Each
+recommendation keeps a repo contract unless the design is clearly better for users.
 
 ## D77. Feedback settings for strict backends, and Allow for approvals
+
+**Status.** Accepted.
 
 **Decision.** `ChatFeedbackConfig` gains `clearable` (default true) and `maxCommentLength` (default
 1,000). With `clearable` false, the kit offers no way to clear a rating, and
@@ -1147,7 +1401,7 @@ design's approval controls (P6).
 
 ## D78. Choices in the activity timeline
 
-**Amended** by [D92](#d92-the-showcase-features-what-stays).
+**Status.** Amended by [D92](#d92-the-showcase-features-what-stays).
 
 **Decision.** `ChatToolSpec.display` takes the full D23 enum: `card` (default), `inline`,
 `timeline`, `answer`, `pinned` and `hidden`. `timeline` calls and sub-agent parts form one
@@ -1167,7 +1421,7 @@ status region announces a paused turn, so the timeline does not announce it agai
 
 ## D79. Choices in the component helper
 
-**Withdrawn** by [D80](#d80-component-helpers-leave-the-kit-for-v1).
+**Status.** Withdrawn by [D80](#d80-component-helpers-leave-the-kit-for-v1).
 
 **Decision.** `ChatAssistantModel` (in `assist/`) owns one in-memory `ChatModel` for a component,
 built from one or more tool groups, with a system prompt that keeps the helper to its component
@@ -1190,6 +1444,8 @@ and the timeline for a second undo path.
 
 ## D80. Component helpers leave the kit for v1
 
+**Status.** Accepted.
+
 **Decision.** The kit ships no component helper. `assist/`, `desktop/assist/` and
 `desktop/cmp/assist/` are removed: `ChatAssistantModel`, `ChatToolGroup`, `gridTools`,
 `dashCanvasTools`, the helper's button, container and data boundary line, and the
@@ -1198,11 +1454,13 @@ too: `targets` on `chatToolResult()`, `ChatUndoGuard` and the `openHelper` short
 withdraws D51, D73 and D79. The general seams stay: client tools, approvals, inline tool display,
 context providers, per-tool undo and `undoTurnAsync()` (D48, D49).
 
-**Why.** The helper was a use case to test the kit's primitives against, not a v1 deliverable.
-The build showed that an app can make one from the primitives that stay. The code is kept on the
-`archive/helpers` branch, with its plan, `planning/HELPERS.md`.
+**Why.** The helper was a use case to test the kit's primitives against, not a v1 deliverable. The
+build showed that an app can make one from the primitives that stay. The code and its plan are kept
+on the `archive/helpers` branch.
 
 ## D81. `ChatService` leaves the kit
+
+**Status.** Accepted.
 
 **Decision.** The kit ships no `ChatService` and reads no `chatConfig` soft config. `svc/` is
 removed. This withdraws D50 and the service half of D24. `ChatCompletionsCodec` stays.
@@ -1211,6 +1469,8 @@ removed. This withdraws D50 and the service half of D24. `ChatCompletionsCodec` 
 in a line or two, with the codec its server relays.
 
 ## D82. A narrow interface needs a second implementer
+
+**Status.** Accepted.
 
 **Refined** by [D89](#d89-the-kit-is-built-from-swappable-subsystems).
 
@@ -1250,19 +1510,23 @@ guards, and the optional members no app implements.
 
 ## D83. Edit and Regenerate can be turned off
 
+**Status.** Superseded by [D108](#d108-try-again-can-be-turned-off-too).
+
 **Decision.** `ChatModel` gains `@bindable` `allowEdit` and `allowRegenerate`, default true from
 config. While false, the message views hide Edit, Edit Prompt and Edit Question, or Regenerate,
 and `editMessageAsync()` or `regenerateAsync()` logs a warning and does nothing. Try Again and
 `retryAsync()` are unchanged - until D108.
 
-**Why.** An agent service whose history only grows cannot re-run from an edited message or replace
-a reply. The first integration's backend is one: it only appends to a session. The settings are
-bindable, so an app can change them per agent.
+**Why.** An agent service whose history only grows cannot re-run from an edited message or replace a
+reply. Some backends work this way: they only append to a session. The settings are bindable, so an
+app can change them per agent.
 
 **Alternatives.** Flags on `ChatThreadStore` that the threads model applies to each chat. An app
 already sets both in `createChatModel`, so the flags would add surface for no new capability.
 
 ## D84. Build on the official AG-UI packages at the protocol layer
+
+**Status.** Accepted.
 
 **Decision.** The kit takes its AG-UI event and request types from `@ag-ui/core`. `AgUiCodec`
 runs `@ag-ui/client`'s enforcement, chunk expansion and sequence verification on every AG-UI
@@ -1275,7 +1539,7 @@ runs in CI. This supersedes D4's choice of no runtime dependency.
 
 **Why.** Hoist builds on curated libraries, and writes its own only with good reason. The checks
 hold about 3,000 lines of spec logic that the official TypeScript client maintains and the
-conformance suite tests. A spike, recorded in `planning/AG-UI.md`, measured them:
+conformance suite tests. A spike on 2026-10-17 measured them:
 
 - They raised the kit from 30 to 51 of the 61 conformance fixtures that apply to it.
 - They cost about 11 ms for a 2,000-token reply, and 63 KB gzipped, a small share of a Hoist app.
@@ -1294,6 +1558,8 @@ check. Take only the types, as TanStack AI does, which leaves the strictness rul
 
 ## D85. AG-UI requests carry the whole history the chat holds
 
+**Status.** Accepted.
+
 **Decision.** `AgUiCodec` sends every message the chat holds as `messages`, in both history
 modes. A request that carries only the new messages becomes an opt-in, which the docs mark as
 outside the spec, for a backend that needs it. A tool result always travels with the assistant
@@ -1310,21 +1576,23 @@ issues ask for a delta mode, with no ruling yet.
 
 ## D86. Interrupts use standard AG-UI only
 
-**Decision.** A server agent asks the user a question, or asks to run a tool, through the AG-UI
-1.0 `interrupt` outcome on `RUN_FINISHED`. The kit answers in the next run's `resume` list. The
+**Status.** Accepted.
+
+**Decision.** A server agent asks the user a question, or asks to run a tool, through the AG-UI 1.0
+`interrupt` outcome on `RUN_FINISHED`. The kit answers in the next run's `resume` list. The
 `xh.chat.interrupt` event of D29 is dropped. A LangGraph agent turns on its adapter's
-`emitInterruptOutcome` setting. The kit renders a `responseSchema` that is a flat object of
-simple fields as a Hoist form, and offers Decline for any other schema. A question with no schema
-gets a text box. A new message declines the open questions. The full design is in
-`planning/AG-UI.md`. This amends D29.
+`emitInterruptOutcome` setting. The kit renders a `responseSchema` that is a flat object of simple
+fields as a Hoist form, and offers Decline for any other schema. A question with no schema gets a
+text box. A new message declines the open questions. This amends D29.
 
 **Why.** The interrupt outcome is standard AG-UI 1.0, and the official client has helpers for it.
 Any backend that can send a custom event can send the standard outcome as easily, so the kit's own
 event bought nothing. LangGraph's legacy channel is undocumented. AG-UI leaves the answer schema
 unbounded, so which schemas render as a form is the kit's call.
 
-
 ## D87. Choices in the AG-UI protocol layer
+
+**Status.** Accepted.
 
 **Decision.** The kit's event types extend the official `@ag-ui/core` types. Each widens `type`
 from the enum member to its string, so app code that writes `{type: 'RUN_STARTED'}` compiles.
@@ -1339,15 +1607,16 @@ assembles them. A tool call with no parent id joins the step's last assistant me
 kit grouped calls before. The opt-in for new messages only is `AgUiCodecConfig.newMessagesOnly`,
 for server mode. The conformance suite runs in `pnpm test`, against a committed list of gaps.
 
-**Why.** Apps tell failures apart by code, and AG-UI separates a client's rejection from a run's
-own error. A rejected stream is a backend bug, so Hoist still reports it. Under D85, an adapter
-that merges by id, such as LangGraph's, would add duplicates if the kit sent its own ids for
-server messages. The message ids, item 5 of `planning/AG-UI.md`, came
-forward for that reason. The official client gives a call with no parent id a message of its
-own. No fixture covers that case, and keeping the call with its text suits the model APIs that
-stateless adapters relay to.
+**Why.** Apps tell failures apart by code, and AG-UI separates a client's rejection from a run's own
+error. A rejected stream is a backend bug, so Hoist still reports it. Under D85, an adapter that
+merges by id, such as LangGraph's, would add duplicates if the kit sent its own ids for server
+messages. The message ids came forward for that reason. The official client gives a call with no
+parent id a message of its own. No fixture covers that case, and keeping the call with its text
+suits the model APIs that stateless adapters relay to.
 
 ## D88. Choices in AG-UI interrupts
+
+**Status.** Accepted.
 
 **Decision.** `ChatModel` holds the thread's open interrupts, as the official client's
 `pendingInterrupts` does. Each interrupt outcome replaces the set, and any other `RUN_FINISHED`
@@ -1356,12 +1625,11 @@ turn or a stop declines what has no response, and a stopped resume declines its 
 user answers with `answerInterrupt()` and `declineInterrupt()`, and sends with
 `submitInterruptsAsync()`. A lone question submits as soon as it is answered. Several end in a
 review step. The request field is `resume`, after AG-UI, and the reserved reattach method is
-`ChatTransport.reconnect()`. A server call an interrupted run leaves open is marked
-`awaitsResume`, never gets a result from the chat, and goes back with no tool message. An
-approval follows the shape its `responseSchema` asks for, or sends `{approved}`. The answer form
-covers a flat object of simple fields, a string enum and a boolean, after reading Pydantic's
-local `$ref`s and nullable fields. The full design is in `planning/INTERRUPTS.md`. This builds on
-D86.
+`ChatTransport.reconnect()`. A server call an interrupted run leaves open is marked `awaitsResume`,
+never gets a result from the chat, and goes back with no tool message. An approval follows the shape
+its `responseSchema` asks for, or sends `{approved}`. The answer form covers a flat object of simple
+fields, a string enum and a boolean, after reading Pydantic's local `$ref`s and nullable fields.
+This builds on D86.
 
 **Why.** AG-UI requires the next run to cover every interrupt of the last interrupted run.
 Retry and regenerate discard the reply that raised them, so the set cannot live only on the reply.
@@ -1370,6 +1638,8 @@ chat would contradict the server's own record. A waiting sub-agent ends as `erro
 closes, so the timeline never shows it waiting forever.
 
 ## D89. The kit is built from swappable subsystems
+
+**Status.** Accepted.
 
 **Decision.** This refines D57 and D82. The kit is a set of subsystems. Each one is a complete
 component and model pair: threads (`ChatThreadsModel` and `chatThreadList`), the conversation
@@ -1393,9 +1663,9 @@ Two seams follow from this:
 the chat behind the model, not the model behind the list. `ChatSidePanelHost` stays, as the side
 panel's seam.
 
-**Why.** An enterprise app that runs its conversation on OpenUI may not move it to the kit. It can
-still show its threads and the chrome around them in Hoist, with the kit's thread list and its
-model whole, and a small chat model that delegates to OpenUI. The thread list is generic UI that
+**Why.** An app that runs its conversation on another library may not move it to the kit. It can
+still show its threads and the chrome around them in Hoist, with the kit's thread list and its model
+whole, and a small chat model that delegates to that library. The thread list is generic UI that
 users know well. Seams between subsystems give that kind of app a real path. Interfaces inside a
 subsystem gave none: `ChatMessageListHost` mirrored `ChatModel` with about 25 optional members and
 no second implementer (D82).
@@ -1409,8 +1679,9 @@ recency groups for each use.
 
 ## D90. The chat UI layer is cut back to its consumers
 
-**Decision.** Anselm walked review 7 (`planning/reviews/review-7-chat-ui-layer.md`) and made a call
-on each feature of the chat UI layer. The review holds the full tables. In short:
+**Status.** Accepted.
+
+**Decision.** Anselm walked review 7 and made a call on each feature of the chat UI layer:
 
 - **Cut:** pins, thread list paging and history paging, `allowConcurrentTurns`, the restore of the
   selected thread after a reload, `dataRefreshedAt`, `shortcuts.toggleDock`, the composer pill's
@@ -1430,11 +1701,13 @@ The design reconciliation changes to match: R5, R9 and H7 change, R14 is built, 
 settle as built.
 
 **Why.** Much of the layer came from a design brief that aimed at every use case at once, and from
-two apps that will not adopt the kit. A feature stays if a consumer in hand needs it or if it
-shows the direction of chat UI. When the conversation model already holds a state, the UI that
-shows it is cheap, so it stays.
+apps the kit does not serve. A feature stays if a consumer in hand needs it or if it shows the
+direction of chat UI. When the conversation model already holds a state, the UI that shows it is
+cheap, so it stays.
 
 ## D91. Choices made in building D90
+
+**Status.** Accepted.
 
 **Decision.** Building the D90 calls settled these points of API and behavior. This amends D74.
 
@@ -1447,10 +1720,9 @@ shows it is cheap, so it stays.
 - **Table cap.** The row limit is `ChatKit.defaults.markdownTableMaxRows`, default 100. The same
   table renders in replies, reasoning, tool output and the timeline, so one kit-wide setting
   covers them all.
-- **A missing thread.** A store's load that fails with a 404 means the thread is not found, and
-  the workspace shows "Thread not found" with New Chat and blocks sends. An empty page means an
-  empty thread. `ChatThreadsModel.isThreadNotFound` reports it. This replaces rule 8 of
-  `planning/SERVER-MODE.md` for the 404 case.
+- **A missing thread.** A store's load that fails with a 404 means the thread is not found, and the
+  workspace shows "Thread not found" with New Chat and blocks sends. An empty page means an empty
+  thread. `ChatThreadsModel.isThreadNotFound` reports it.
 - **The route.** A thread's id goes into the route only once the backend has the thread: once the
   store lists it, or once its first run starts. A run has started when its reply has content, is
   paused for the user, or the server reported the run. A new chat keeps the base route, so a reload
@@ -1472,6 +1744,8 @@ fixes a bug the cuts exposed: the workspace opens a new chat on load, and its id
 before the backend knew it.
 
 ## D92. The showcase features: what stays
+
+**Status.** Accepted.
 
 **Decision.** Anselm walked the "Keep, and give it a showcase" section of review 7.
 
@@ -1501,7 +1775,9 @@ owns.
 
 ## D93. Lessons from the first real server-mode integration
 
-**Decision.** The first app to ship on the kit calls a retrieval backend straight from the browser,
+**Status.** Accepted.
+
+**Decision.** The first app to ship on the kit calls its agent backend straight from the browser,
 with a server-owned conversation. Its first live calls taught the kit the following:
 
 - **No sources is not always "not found".** The backend marks every reply with no sources the same
@@ -1511,10 +1787,10 @@ with a server-owned conversation. Its first live calls taught the kit the follow
   `X-Correlation-ID` and `traceparent`, on every request. A backend's CORS rules may reject each
   one. The HTTP transports now take `fetchOpts` and `correlationId`, and an app drops
   `traceparent` with a null header. A dev server proxy hides all of this, so test the real origin.
-- **Some backends batch their stream.** This one sends headers at once, then nothing for 11 to 16
-  seconds, then every chunk at once. The reply shows its thinking state for the wait, and the
-  stall cue at 30 seconds does not fire. No change. Keep `stallAfterMs` above a backend's
-  longest silence.
+- **Some backends batch their stream.** This one sends headers at once, then goes silent for many
+  seconds, then sends every chunk at once. The reply shows its thinking state for the wait, and the
+  stall cue at 30 seconds does not fire. No change. Keep `stallAfterMs` above a backend's longest
+  silence.
 - **Markers are not sequential.** One answer cites `[1]`, `[2]` and `[15]`. The kit matches a
   marker to its source by `marker`, and never renumbers to close a gap, as its specs require.
 - **The turn id works as an idempotency key.** Resending a finished turn's key replays its answer
@@ -1522,10 +1798,9 @@ with a server-owned conversation. Its first live calls taught the kit the follow
 - **A source's number is not a marker in the text.** The backend numbers each source, but writes
   no `[n]` in its answer. The sources list carries the numbers. `desktop/cmp/chat/README.md` now
   says so.
-- **The document seam fits a plain viewer.** The app's viewer shows a PDF from a short-lived link
-  in an iframe, in about 60 lines, and cannot find a passage. It reports `opening`, then
-  `notLocated`, and the side panel adds the status strip and Copy Excerpt. Back, focus return and
-  deep links needed no app code.
+- **The document seam fits a plain viewer.** A viewer that shows a PDF in an iframe, and cannot find
+  a passage, It reports `opening`, then `notLocated`, and the side panel adds the status strip and
+  Copy Excerpt. Back, focus return and deep links needed no app code.
 - **A reload opens a new chat.** `ChatWorkspaceModel` starts a new thread when none is selected,
   as `desktop/cmp/workspace/README.md` says. This app accepts it. Another app may expect its last
   thread back. Revisit if one asks.
@@ -1537,6 +1812,8 @@ with a server-owned conversation. Its first live calls taught the kit the follow
 server-mode design, and they add two transport options and two doc rules.
 
 ## D94. One column width, with no separate cap on prose
+
+**Status.** Accepted.
 
 **Decision.** The conversation is one centered column, and its cap is the only width limit by
 default. `--xh-chat-column-max-width` drops from 1,100px to 808px: 768px of content plus the side
@@ -1555,22 +1832,25 @@ second, narrower edge inside the column for tables and cards.
 
 ## D95. The side panel has no Back
 
+**Status.** Accepted.
+
 **Decision.** The side panel drops its Back button, its Alt+Left shortcut, and
 `ChatSidePanelModel.back()` and `canGoBack`. Close, or Esc in the panel, closes it and returns focus
 to the citation or card that opened it. A document frame shows a toolbar only for the page, once
 the viewer reports one. This amends D68.
 
-**Why.** Back came from the original client's source viewer, a modal over the chat, where "Back to
-reference" dismissed the modal. Our viewer is a side panel beside the chat, which holds one request
-and no history. Back only focused the citation and left the panel open. The citation was nearly
-always in view already, and a pointer click shows no focus ring, so Back seemed to do nothing. The
-side panels in our prior-art notes, Claude's artifacts and ChatGPT's canvas, have no such control.
+**Why.** Back came from an earlier source viewer, a modal over the chat, where Back dismissed the
+modal. Our viewer is a side panel beside the chat, which holds one request and no history. Back only
+focused the citation and left the panel open. The citation was nearly always in view already, and a
+pointer click shows no focus ring, so Back seemed to do nothing. The side panels in our prior-art
+notes, Claude's artifacts and ChatGPT's canvas, have no such control.
 
 **Alternatives.** Flash the citation when Back lands on it, hide Back while the citation is in
 view, or relabel it. Each keeps a control that promises navigation the panel does not have.
 
-
 ## D96. The thread layer reaches its conversation through `ChatConversation`
+
+**Status.** Accepted.
 
 **Decision.** This builds the two seams of D89. `ChatThreadsModel` sees each open thread through
 `ChatConversation`: `threadId`, `isBusy` and `loadAsync()`, `stop()` and `destroy()`, with
@@ -1586,19 +1866,20 @@ comments, the send blocker and Refresh Status. The rules for a saved thread stay
 model, so a `ChatModel` thread behaves as before. A conversation without `isSaved` counts as saved
 once a turn ends.
 
-**Why.** The OpenUI app now wants the kit's thread list, and later its workspace, while its
-conversation stays on OpenUI for now. That is the case D89 kept the seam for. The adapter puts the
-seam in place without the `ChatModel` split that D82 deferred, and leaves `ChatModel`'s API alone.
-`newThread()` and `chatModel` keep their types, and return null for an app's conversation, so
-existing callers do not change.
+**Why.** An app whose conversation runs on another library wants the kit's thread list, and later
+its workspace. That is the case D89 kept the seam for. The adapter puts the seam in place without
+the `ChatModel` split that D82 deferred, and leaves `ChatModel`'s API alone. `newThread()` and
+`chatModel` keep their types, and return null for an app's conversation, so existing callers do not
+change.
 
 **Alternatives.** Restore `ChatThreadListHost`, which D89 rejected: the app would rebuild the
 list's loading, edits and routing. Or keep `createChatModel` and have the app pass a stub
 `ChatModel` with a transport it never calls. That works today, but shows no running or ended-early
 marks for the other library's turns, and ties the app to `ChatModel` internals.
 
-
 ## D97. The threads model is told when its selection is hidden
+
+**Status.** Accepted.
 
 **Decision.** `ChatThreadsModel.isSelectionShown` says whether the user can see the selected
 thread. While it is false, a turn that ends in the selected thread counts as away, so the list
@@ -1625,8 +1906,9 @@ covers one case of a chat out of view, and leaves the next app to patch the list
 that the route binding writes and the app may write too. The two would fight on any app with a
 route and a tab.
 
-
 ## D98. A transcript names its tools through `getToolSpec`
+
+**Status.** Accepted.
 
 **Decision.** `ChatTranscript` takes an optional `getToolSpec(name)`, as `ChatModel` has. The
 desktop views read it first for how a call displays, then the catalog's display-only tools. A
@@ -1642,6 +1924,8 @@ three fields a spec already has.
 
 ## D99. An agent's activities show in the timeline, through `ChatActivitySpec`
 
+**Status.** Accepted.
+
 **Decision.** An app shows an agent's activity that is not a tool call, such as a skill it loads,
 as a row in the activity timeline. `ChatModelConfig.activities` takes a `ChatActivitySpec` per
 `dataType`: `display`, `displayName`, `icon`, `summary` and `noun`. `display` is `inline`, the
@@ -1654,12 +1938,12 @@ to the type's data renderer, else the data as JSON. The `noun` counts the type i
 and the announcement, as in "Used 5 tools, 2 skills and 1 agent". `ChatTranscript` takes an
 optional `getActivitySpec`, as it takes `getToolSpec` (D98). `activityEvents()` scripts one.
 
-**Why.** The app on the thread seam has an auto router that picks skills, and its users see
-skill selection and tool calls as the same kind of work. AG-UI defines no skill, but its
-`ACTIVITY_SNAPSHOT` carries an app-defined `activityType` and a `subagentRunId`. That covers a
-skill load with no extension to the protocol, and leaves the kit naming no skill itself. The
-spec mirrors `ChatToolSpec`, so a skill row reads like a call row. The app hosts the timeline
-over its own conversation, which makes it a second implementer of the lookup (D82).
+**Why.** An app on the thread seam picks skills automatically, and its users see skill selection and
+tool calls as the same kind of work. AG-UI defines no skill, but its `ACTIVITY_SNAPSHOT` carries an
+app-defined `activityType` and a `subagentRunId`. That covers a skill load with no extension to the
+protocol, and leaves the kit naming no skill itself. The spec mirrors `ChatToolSpec`, so a skill row
+reads like a call row. The app hosts the timeline over its own conversation, which makes it a second
+implementer of the lookup (D82).
 
 **Alternatives.** A kit-defined `xh.chat.skill` type: it names one app's concept in the kit, and
 the next app's routes or plans would each need their own. A second block for activities beside
@@ -1668,9 +1952,11 @@ the timeline: users would open two controls for one run of work. Display setting
 
 **Deferred.** The rest of the app's list waits for a follow-up: folding the call that launched a
 sub-agent into its row, an "outcome unknown" status, hiding a sub-agent's report, and nesting a
-sub-agent's text and reasoning (plan item 8 in `planning/AG-UI.md`).
+sub-agent's text and reasoning.
 
 ## D100. The feedback controls stand alone, over `ChatFeedbackHost`
+
+**Status.** Accepted.
 
 **Decision.** `ChatFeedbackControls` exports the thumbs and the comment form for a reply the app
 lays out itself. Its `host` is a `ChatModel`, or a `ChatFeedbackHost`: `threadId`,
@@ -1695,22 +1981,24 @@ other arguments, and a second submit method on it would confuse. Props for one m
 
 ## D101. A saved rating can lock, through `allowChange`
 
+**Status.** Accepted.
+
 **Decision.** `ChatFeedbackSettings` gains `allowChange`, default true. With it false, a rating
 locks once it saves: the chosen thumb stays pressed, the other disables, and no click clears it.
 A comment can still follow, sent with the same rating. Nothing locks until a save succeeds, so a
 failed save or a pending thumbs down can still switch. `ChatModel.submitFeedbackAsync()` throws
 for a rating other than the saved one.
 
-**Why.** The app on the feedback seam posts each rating to a backend that sends one email per
-request and stores nothing. A rating and then a comment gives two emails that agree, as its old
-thumbs did. A switch of thumbs gives two that contradict. Its old thumbs locked after the first
-click.
+**Why.** A feedback backend may send one notification per rating and store nothing. A rating and
+then a comment gives two notifications that agree. A switch of thumbs gives two that contradict.
 
-**Alternatives.** Fold it into `clearable`: a backend that cannot remove a rating may still
-change one, so the two differ. Lock the comment too: the old flow sent the comment as a second
-request, and the backend expects that.
+**Alternatives.** Fold it into `clearable`: a backend that cannot remove a rating may still change
+one, so the two differ. Lock the comment too: a backend like this expects the comment as a second
+request.
 
 ## D102. An app can draw reply text, through `textRenderer`
+
+**Status.** Accepted.
 
 **Decision.** `ChatModelConfig.textRenderer` and `ChatTranscript.textRenderer` take
 `(part, context) => ReactNode`, with the context that data and tool renderers get. It draws each
@@ -1731,6 +2019,8 @@ prop in place of a config member: the timeline reads its host, not the list's pr
 renderers do.
 
 ## D103. A superseded attempt drops, through `metadata.superseded`
+
+**Status.** Accepted.
 
 **Decision.** A backend that retries a model call marks the abandoned attempt's parts with
 `metadata.superseded: true` on `TEXT_MESSAGE_END` and `TOOL_CALL_END`, the only events whose mark
@@ -1753,6 +2043,8 @@ partial reply that streamed.
 
 ## D104. An unlisted tool's display comes from `getToolSpec`, and never runs
 
+**Status.** Accepted.
+
 **Decision.** `ChatModelConfig.getToolSpec(name)` returns a spec for a tool that `tools` does not
 list, and `ChatModel.getToolSpec()` falls back to it. The chat keeps only the spec's display
 members, and calls it once per name. Running a call, answering it, approving it, and telling a
@@ -1767,6 +2059,8 @@ displays a call cannot make the browser run it, or take a server's call for a cl
 spec run calls: a call the model was never offered could then run in the browser.
 
 ## D105. A call that starts a sub-agent hides behind the sub-agent's row
+
+**Status.** Accepted.
 
 **Decision.** When a sub-agent's `parentToolCallId` names a call in the same reply, the reducer
 records the sub-agent on the call, as `spawnedSubagentRunId`, in whichever order they arrive. The
@@ -1788,6 +2082,8 @@ still count it. Show the call's input in the sub-agent's row: the sub-agent's `d
 already says what it was asked to do. Add it if a backend sends no description.
 
 ## D106. The chat settles, grows and breathes, calmly
+
+**Status.** Accepted.
 
 **Decision.** The kit takes three motions from an app's design pass:
 
@@ -1813,6 +2109,8 @@ view, and the text wobbles.
 
 ## D107. Stored AG-UI events replay through the live reducer, by their own clock
 
+**Status.** Accepted.
+
 **Decision.** `replayChatEvents` rebuilds a reply from the events a backend stored for its turn.
 It runs them through an app's decoder, for the same checks as a live stream, and through
 `ChatStreamReducer`. The reducer then times parts by each event's `timestamp`, an option that a
@@ -1833,6 +2131,8 @@ in the kit: they differ by backend, so the app maps them through `status`.
 
 ## D108. Try Again can be turned off too
 
+**Status.** Accepted.
+
 **Decision.** `ChatModel` gains a `@bindable` `allowRetry`, default true from config, beside
 `allowEdit` and `allowRegenerate`. While false, the composer never offers Try Again and never
 retries on its own after a wait the server asked for, and `retryAsync()` logs a warning and does
@@ -1848,6 +2148,8 @@ then say that a refused request may still be running.
 
 ## D109. The kit checks AG-UI progress steps but does not show them, and drops activity deltas
 
+**Status.** Accepted.
+
 **Decision.** The kit runs AG-UI's checks on `STEP_STARTED` and `STEP_FINISHED`, and then ignores
 them: no part, no timeline row and no live label. It drops `ACTIVITY_DELTA`, so a backend sends a
 full `ACTIVITY_SNAPSHOT` for each change. The docs say both. They also name the clash between two
@@ -1860,8 +2162,8 @@ surfacing". The one integration we checked names its steps after the framework's
 by default, steps would put technical names in front of users. Shown on request, they would add
 API that no backend asks for.
 
-At the time of this decision, no backend the kit serves sends either event. The progress lines
-that prompted the review came from a vendor's client, on a timer. `ACTIVITY_SNAPSHOT` with a
+At the time of this decision, no backend the kit serves sends either event. The progress lines that
+prompted the review came from another chat client, on a timer. `ACTIVITY_SNAPSHOT` with a
 `ChatActivitySpec` already shows real progress.
 
 **Revisit when** a backend the kit serves sends step names written for users, or activity deltas.
@@ -1872,6 +2174,8 @@ kit data type, with a live label. Deltas would apply with JSON Patch.
 request. Apply `ACTIVITY_DELTA` now, to complete the activity events.
 
 ## D110. A timeline's done summary can leave out its failure count
+
+**Status.** Accepted.
 
 **Decision.** `ChatTimeline.defaults.showSummaryFailureCount`, default true. False drops "1
 failed" from the done summary line, open or closed, and from the reply's announcement. Failed
@@ -1892,6 +2196,8 @@ hide failures that an app wants its users to see.
 
 ## D111. A reply can take no feedback, by a callback
 
+**Status.** Accepted.
+
 **Decision.** `ChatFeedbackSettings.canRate(message)` decides whether a reply takes feedback.
 For a reply it turns down, the controls show no thumbs and hide any rating restored from history,
 and `ChatModel.submitFeedbackAsync` throws. It sits with the other feedback settings, so a
@@ -1907,6 +2213,8 @@ the controls have no read-only state.
 set a field for this one purpose.
 
 ## D112. A composer pill opens toward the room it has
+
+**Status.** Accepted.
 
 **Decision.** A `ChatComposerPill` opens its menu upward, and downward while `ChatPanel` shows the
 composer centered. `ChatPanel` tells the pill through a React context inside the kit. The pill has
@@ -1924,6 +2232,8 @@ tell that a pill sits at the end of its row without measuring the layout, and th
 there. Blueprint keeps a popover inside the viewport, not inside the composer.
 
 ## D113. The scope chip chooses any kind of option, and its selection is literal
+
+**Status.** Accepted.
 
 **Decision.** `ChatScopeChip` takes `options: ChatScopeOption[]` and a `noun`, in place of
 `documents`. An option can carry `secondaryText`, an `info` tooltip, and `disabled` to lock it as
@@ -1948,6 +2258,8 @@ Select All and Clear footer, so it works the same in every app. One slot was the
 would have put a warning about the list under the list.
 
 ## D114. `onSourceClick` takes a handler per source type
+
+**Status.** Accepted.
 
 **Decision.** `onSourceClick` on `ChatPanel`, `ChatMessageList`, `ChatMessageView` and
 `ChatSources` takes a function, as before, or an object with a function per `ChatSourceType`, as
