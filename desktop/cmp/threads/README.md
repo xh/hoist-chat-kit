@@ -226,8 +226,8 @@ calls `newThread()`, and Retry calls `reloadThreadAsync()`.
 | Enter, Escape | Rename input | Save, or keep the old title |
 | Escape | Search input | Clear the search |
 
-App-wide shortcuts, such as New Chat, belong to the kit's keyboard map (D66). The list does not
-bind them.
+App-wide shortcuts, such as New Chat, belong to the kit's keyboard map in
+`ChatKit.defaults.shortcuts`. The list does not bind them.
 
 ## Extension Points
 

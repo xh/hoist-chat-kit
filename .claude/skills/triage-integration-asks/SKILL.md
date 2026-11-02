@@ -50,8 +50,8 @@ Look before you judge. Each of these has changed an answer before.
   the status region never announces the busy line at all. Requirements copy such claims, so
   check them too. Say so in the triage, and correct the app in the reply. Check your own
   statements about current behavior the same way before they go into a doc or a reply.
-- **Planned work.** Read `planning/HANDOFF.md` and the open GitHub issues (`gh issue list`). An
-  ask may already be tracked or deferred, with open questions recorded.
+- **Planned work.** Read the open GitHub issues (`gh issue list`). An ask may already be
+  tracked, with a plan recorded.
 - **`DECISIONS.md`.** Find the entries that cover the area. An ask that reverses a decision is a
   question for the maintainer. Do not reverse it quietly.
 - **Earlier answers.** Search the CHANGELOG and `git log` for the component and the feature. A
@@ -181,7 +181,7 @@ reproduce it, ask the app for the steps or the stream that shows it. Do not fix 
 
 ### 8. Build
 
-Follow `CLAUDE.md`. A change is done with its specs, doc comments, README section, index and
+Follow `AGENTS.md`. A change is done with its specs, doc comments, README section, index and
 registry rows, and CHANGELOG entry. Add a `DECISIONS.md` entry when the change makes a design
 choice: a new seam, a new convention, or a declined option that will come up again. Run the
 change in Toolbox when it is visual. If you checked it by unit tests only, the reply says so.
@@ -189,7 +189,7 @@ change in Toolbox when it is visual. If you checked it by unit tests only, the r
 Add CHANGELOG entries under the topmost heading as it stands. Which release a change ships in is
 the maintainer's plan. Do not infer it from the repo's state.
 
-Branching, committing, pushing and publishing each need the maintainer's ask, as `CLAUDE.md`
+Branching, committing, pushing and publishing each need the maintainer's ask, as `AGENTS.md`
 states.
 
 ### 9. Write the reply to the app

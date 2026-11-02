@@ -99,7 +99,7 @@ export interface ChatUiGridSpecOptions extends ChatUiSpecOptions {
 }
 
 /**
- * A result table for a {@link ChatUiCatalog}, in two tiers (D69). Inline, it shows a light
+ * A result table for a {@link ChatUiCatalog}, in two tiers. Inline, it shows a light
  * preview: a plain table of the first rows and columns, with a footer that says what it leaves
  * out. Expand, or View Full Table, opens one Hoist grid over the whole result in the chat's side
  * panel - or in a dialog where the chat has none. A result that fits the preview has no full tier.
@@ -178,9 +178,6 @@ export const [ChatUiGrid, chatUiGrid] = hoistCmp.withFactory<ChatUiGridProps, Ch
 //------------------
 // Implementation
 //------------------
-// TODO(design-open B1): the inline tier is the preview table, and the Grid opens only in the side
-// panel or a dialog - P4's default, open with Anselm.
-
 const DESCRIPTION =
     'A data table - records with typed columns. Use it for lists of records, such as ' +
     'positions, trades or orders, and for any table of more than a few rows. The chat shows the ' +

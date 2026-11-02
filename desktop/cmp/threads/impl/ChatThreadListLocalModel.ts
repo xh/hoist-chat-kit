@@ -223,8 +223,8 @@ export class ChatThreadListLocalModel extends HoistModel {
     //------------------
     // Keyboard
     //------------------
-    // TODO(D66): the global keyboard map - New Chat, F6 between regions, `/` for the composer -
-    // belongs to `ChatKit.defaults.shortcuts`. Only the list's own keys live here.
+    // The global keyboard map - New Chat, F6 between regions, `/` for the composer - lives in
+    // `ChatKit.defaults.shortcuts`. Only the list's own keys live here.
     onListKeyDown = (e: ReactKeyboardEvent<HTMLElement>) => {
         const target = e.target as HTMLElement,
             row = target.closest<HTMLElement>('[role="row"]'),

@@ -39,7 +39,7 @@ export interface ChatReference {
  * citations - numbers all of its sources in the order reported. A source that a citing message
  * never cites takes no number, and the sources list leaves it out.
  *
- * Numbers stay stable while the message streams, and never renumber (R19). Text only grows, so a
+ * Numbers stay stable while the message streams, and never renumber. Text only grows, so a
  * citation keeps the number it first took, and no two references share one. Sources that arrive
  * after the text match the numbers their citations already hold. One case can renumber: with
  * `citationMarkers` on and no source `marker`, sources take their positions first, so a citation

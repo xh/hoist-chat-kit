@@ -80,7 +80,7 @@ times, then holds still.
 
 ### Two tiers
 
-A component that can show more than fits inline has two tiers (D69):
+A component that can show more than fits inline has two tiers:
 
 | Card | Inline tier | Full tier |
 |------|-------------|-----------|

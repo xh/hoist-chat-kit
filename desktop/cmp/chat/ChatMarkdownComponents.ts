@@ -50,7 +50,6 @@ interface HastElement {
 // frame that fits its content, on Hoist's compact grid tokens. A longer one renders as a card: its
 // first rows up to that limit, and a footer that says how many rows it holds, with Show All. A
 // markdown table carries no artifact, so it has no side panel view.
-// TODO(design-open B1) - the long table's card follows P4's preview, without View Full Table.
 const MarkdownTable = hoistCmp<HoistProps & {node?: HastElement}>({
     displayName: 'ChatMarkdownTable',
     model: false,

@@ -12,7 +12,7 @@ interface ChartMenuButtonProps extends HoistProps {
 }
 
 /**
- * The options menu of a chart (P4): Copy Image, Download PNG and Download CSV - the accessible
+ * The options menu of a chart: Copy Image, Download PNG and Download CSV - the accessible
  * fallback for the chart's data - then Expand, on a card. Each item acts on the chart once it has
  * drawn, through Highcharts' exporting module, as Hoist's own chart menu does.
  * @internal

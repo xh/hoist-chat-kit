@@ -42,7 +42,7 @@ model and reducer, and does not use the client's agent classes.
   for `HoistChatTransport`. There is no kit-specific protocol to learn.
 - **One AG-UI run is one kit step**, that is one model call. The two meanings of "step" differ.
   AG-UI's `STEP_STARTED` and `STEP_FINISHED` put a progress label over part of a run, such as a
-  node of an agent graph. The kit checks their rules but does not show them. See D109.
+  node of an agent graph. The kit checks their rules but does not show them.
 
 ### Support by spec area
 

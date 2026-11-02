@@ -165,7 +165,7 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
         }
         if (!sources?.length) return null;
 
-        // TODO(design-open B5) - documents and web pages share one numbered sequence.
+        // Documents and web pages share one numbered sequence.
         const isCollapsed = impl.collapsed ?? startCollapsed,
             {showAll} = impl,
             limit = visibleRows ?? sources.length,

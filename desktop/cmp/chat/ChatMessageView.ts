@@ -1173,7 +1173,7 @@ function replyNotice(props: ViewProps, chatModel: ChatModel): ReactNode {
             return div({
                 key: 'notice',
                 className: 'xh-chat-message__failed',
-                // No live role: the composer's status region announces the failure (D65).
+                // No live role: the composer's status region announces the failure.
                 items: [
                     Icon.error({className: 'xh-chat-message__failed-icon'}),
                     div({
@@ -1264,7 +1264,6 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
             isFailed = isAssistant && status === 'error',
             copyText = isFailed ? null : getCopyText(message, host),
             // A failed reply has nothing to regenerate: Try Again, above the composer, covers it.
-            // TODO(design-open B2) - Regenerate replaces the reply, with no branch switcher.
             canRegenerate =
                 !!chatModel?.allowRegenerate &&
                 isAssistant &&

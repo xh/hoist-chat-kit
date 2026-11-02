@@ -160,12 +160,10 @@ export interface ChatUiCardProps extends HoistProps, Partial<ChatUiCardSpecProps
 /**
  * A detail card of labeled values, with follow-up actions - the component that
  * {@link chatUiCardSpec} renders. The title and subtitle sit in the card's header strip, and the
- * actions follow the card as outlined chips (P4), as they belong to the reply. A long chip is cut
- * to one line. Its tooltip always shows what the click does, as D17 requires. Actions that send a
- * message or run a tool are disabled while the chat is busy, and hidden with no `ChatModel`.
- *
- * TODO(P7): an Apply card - a previewed change with Apply and Cancel - is the component
- * helper's, and lands with it.
+ * actions follow the card as outlined chips, as they belong to the reply. A long chip is cut to
+ * one line. Its tooltip always shows what the click does, as the label may not. Actions that
+ * send a message or run a tool are disabled while the chat is busy, and hidden with no
+ * `ChatModel`.
  */
 export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
     displayName: 'ChatUiCard',
@@ -218,7 +216,7 @@ export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
                                   className: 'xh-chat-ui-card__action',
                                   text: action.label,
                                   // The label may differ from what the click does, so the
-                                  // tooltip always says it - never the label alone (D17, R8).
+                                  // tooltip always says it - never the label alone.
                                   tooltip: blockedReason ?? describeChatUiAction(action),
                                   outlined: true,
                                   disabled: isMessaging && (chatModel.isBusy || !!blockedReason),

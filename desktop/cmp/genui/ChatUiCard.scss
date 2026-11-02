@@ -1,6 +1,6 @@
 @use '../../../styles/mixins' as *;
 
-// A record card (P4): the title in the header strip, labeled values below, and follow-up chips
+// A record card: the title in the header strip, labeled values below, and follow-up chips
 // after the frame, at the reply's part gap.
 .xh-chat-ui-card {
   display: flex;

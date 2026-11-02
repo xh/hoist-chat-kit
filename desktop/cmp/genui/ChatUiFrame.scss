@@ -1,6 +1,6 @@
 @use '../../../styles/mixins' as *;
 
-// The shared frame of a generative UI card (P4): a 28 px header strip in the part header tone, the
+// The shared frame of a generative UI card: a 28 px header strip in the part header tone, the
 // body, and a footer strip for counts and actions.
 .xh-chat-ui-frame {
   background-color: var(--xh-chat-bg);

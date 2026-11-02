@@ -28,10 +28,10 @@ describe('styles', () => {
 // Variables for the app's own components to read, such as its document renderer.
 const APP_HOOKS = ['--xh-chat-viewer-page-bg', '--xh-chat-viewer-page-text-color'];
 
-// TODO(D-m21): variables of design behavior that components do not yet build.
+// Variables of design behavior that components do not build yet. Empty when all are built.
 const PENDING: string[] = [];
 
-const SKIP_DIRS = new Set(['node_modules', 'docs', 'planning', 'scripts', 'test']);
+const SKIP_DIRS = new Set(['node_modules', 'docs', 'scripts', 'test']);
 
 function isRead(source: string, name: string): boolean {
     return new RegExp(`var\\(\\s*${name}[\\s,)]|'${name}'`).test(source);

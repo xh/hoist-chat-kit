@@ -32,7 +32,7 @@ export function needsExportConfirm(rowCount: number, threshold: number): boolean
  */
 export async function confirmExportAsync(rowCount: number, threshold: number): Promise<boolean> {
     if (!needsExportConfirm(rowCount, threshold)) return true;
-    // TODO(H1): P4 runs an export over the threshold on the server, with a toast when done. No
+    // TODO: run an export over the threshold on the server, with a toast when done. No
     // backend capability exports an artifact yet, so the browser loads every row.
     return XH.confirm({
         title: 'Export all rows?',

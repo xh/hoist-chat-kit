@@ -439,7 +439,7 @@ function conversation(
         });
     }
 
-    // TODO(D65): announce "Opened [title]" once a selected thread's messages load.
+    // TODO: announce "Opened [title]" once a selected thread's messages load.
     return chatPanel({
         // A new chat per thread, so that the pane never shows the last thread's messages.
         key: chatModel.xhId,

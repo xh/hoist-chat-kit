@@ -452,10 +452,19 @@ for a `retry`, and starts a new run for a `regenerate` or an `edit`.
 
 `AgUiCodec` encodes a server-mode request as a `RunAgentInput` whose `messages` holds every
 message the chat holds, as in client mode. AG-UI 1.0 has no mode for new messages only: an agent
-"MUST treat it as the complete history it is being shown". Adapters that keep state, such as
-LangGraph's, merge the history by message id. Adapters that keep none, such as Pydantic AI's by
-default, need all of it. A tool result always travels with the assistant message that called the
-tool.
+"MUST treat it as the complete history it is being shown". A tool result always travels with the
+assistant message that called the tool.
+
+How common adapters treat the history, as of October 2026:
+
+- **LangGraph** merges by message id and appends only new messages. It never treats a missing
+  message as a deletion.
+- **ADK** drops messages it has seen.
+- **Mastra** dedupes by id. A tool result must travel with the call, or the model calls the tool
+  again.
+- **Strands**, with a session manager, keeps the history itself.
+- **Pydantic AI** and **Microsoft Agent Framework** keep no state by default, and need all of it.
+- **CopilotKit** sends the whole thread on every run.
 
 Each message goes with the server's id where the chat has one, so that an adapter that merges by
 id finds its own messages. A message takes its `metadata.serverId`. A reply that streamed as
@@ -465,8 +474,8 @@ the order the official client assembles them in. A message with no server id tak
 A backend that cannot take the whole history can set `newMessagesOnly: true` on the codec. This
 is outside the AG-UI spec. In server mode, `messages` then holds only what the server has not
 seen. On the first step of a turn, that is the user message. On a `continue` step, it is the
-client tool calls of the reply's last step, with their results. Each result still travels with the assistant
-message that called the tool. Use it only with a backend that keeps the history itself and needs
+client tool calls of the reply's last step, with their results. Each result still travels with
+the assistant message that called the tool. Use it only with a backend that keeps the history itself and needs
 this. A stateless adapter loses all context with it.
 
 The turn goes in `forwardedProps`, merged under any props the app sets:

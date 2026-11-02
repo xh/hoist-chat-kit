@@ -1,7 +1,8 @@
 // The reasons shared by several gaps.
-const STATE = 'The kit keeps no AG-UI state. Plan item 6.',
-    SUBAGENT_TEXT = 'The kit does not attribute text to its sub-agent. Plan item 8.',
-    SNAPSHOT = 'The kit ignores MESSAGES_SNAPSHOT. Plan item 7.',
+const STATE = 'The kit keeps no AG-UI state. See issue #33.',
+    SUBAGENT_TEXT =
+        'The kit does not attribute text to its sub-agent. See the support table in docs/protocols.md.',
+    SNAPSHOT = 'The kit ignores MESSAGES_SNAPSHOT. See the support table in docs/protocols.md.',
     ERA = 'An era shim for an older peer, which the spec permits but does not require.';
 
 /**
@@ -10,7 +11,7 @@ const STATE = 'The kit keeps no AG-UI state. Plan item 6.',
  * pass, or fails a different set of checks, fails the run until its entry changes.
  *
  * The check names are the corpus's `expect` keys, plus `messageIds` - the messages compared with
- * their ids. The plan items named are those of `planning/AG-UI.md`.
+ * their ids. The support table in `docs/protocols.md` lists what the kit does not support yet.
  */
 export const KNOWN_GAPS: Record<string, {checks: string[]; reason: string}> = {
     // Shared state.
@@ -39,7 +40,7 @@ export const KNOWN_GAPS: Record<string, {checks: string[]; reason: string}> = {
     // Later work.
     'activity-snapshot-then-delta': {
         checks: ['messages', 'messageIds'],
-        reason: 'The kit ignores ACTIVITY_DELTA. Plan item 7.'
+        reason: 'The kit ignores ACTIVITY_DELTA. See the support table in docs/protocols.md.'
     },
     'messages-snapshot-reconciles-by-id': {
         checks: ['messageCount', 'messages', 'messageIds'],

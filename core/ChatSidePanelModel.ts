@@ -89,7 +89,7 @@ export interface ChatSidePanelConfig {
 }
 
 /**
- * The side panel's request seam (D68): one open request at a time - a document, a table or a
+ * The side panel's request seam: one open request at a time - a document, a table or a
  * chart - shown beside the chat. Opening a request replaces the last. Close returns focus to the
  * element that opened it.
  *

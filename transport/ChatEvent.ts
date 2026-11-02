@@ -13,7 +13,7 @@ import type {PlainObject} from '@xh/hoist/core';
  * One AG-UI run is one step of a kit turn: a single model call, from `RUN_STARTED` to
  * `RUN_FINISHED` or `RUN_ERROR`. AG-UI's own `STEP_STARTED` and `STEP_FINISHED` events put a
  * progress label over part of a run, such as a node of an agent graph. They are not kit steps.
- * `AgUiCodec` checks their rules, and the kit does not show them - see D109.
+ * `AgUiCodec` checks their rules, and the kit does not show them.
  *
  * Kit-specific content (sources, citations, data parts, files, provider data) travels as AG-UI
  * `CUSTOM` events named with the `xh.chat.` prefix - see {@link ChatCustomEventName}.

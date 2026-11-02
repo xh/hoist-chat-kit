@@ -281,7 +281,7 @@ export function summarizeTimeline(
 }
 
 /**
- * The state of a timeline's line - see the P2 block state matrix.
+ * The state of a timeline's line.
  *
  *  - `running` - calls or sub-agents run, or the agent works between them.
  *  - `quiet` - running, with no data for longer than the chat's stall time.
