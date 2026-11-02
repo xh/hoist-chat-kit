@@ -47,7 +47,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D23](#d23-an-activity-timeline-and-one-tool-display-setting) | An activity timeline, and one tool display setting | Amended by D92 |
 | [D24](#d24-bring-your-own-llm) | Bring your own LLM | Accepted |
 | [D25](#d25-the-hoist-core-streaming-companion-belongs-to-hoist-core) | The hoist-core streaming companion belongs to hoist-core | Accepted |
-| [D26](#d26-snapshots-now-a-beta-tag-when-the-v10-api-settles) | Snapshots now, a beta tag when the v1.0 API settles | Accepted |
+| [D26](#d26-snapshots-now-a-beta-tag-when-the-v10-api-settles) | Snapshots now, a beta tag when the v1.0 API settles | Superseded |
 | [D27](#d27-the-hoist-floor-is-8900) | The Hoist floor is 89.0.0 | Accepted |
 | [D28](#d28-no-python-reference-agent-in-v10) | No Python reference agent in v1.0 | Accepted |
 | [D29](#d29-ag-ui-interrupts-first-for-server-side-human-in-the-loop) | AG-UI interrupts first for server-side human-in-the-loop | Amended by D86 |
@@ -507,7 +507,8 @@ the report specifies what hoist-core should add.
 
 ## D26. Snapshots now, a beta tag when the v1.0 API settles
 
-**Status.** Accepted.
+**Status.** Superseded. The kit went from snapshots straight to the 1.0.0 release, with no beta.
+`docs/build-and-publish.md` covers releases.
 
 **Decision.** The kit keeps publishing `-SNAPSHOT` builds under `next`. An app that needs stability
 pins an exact snapshot version, such as `1.0.0-SNAPSHOT.1791997893569`. The first tagged pre-release
