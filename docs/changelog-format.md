@@ -50,9 +50,11 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * {Library} `{old} → {new}`
 ```
 
-The topmost heading on `develop` is always the next version with a `-SNAPSHOT` suffix, as in
-`## 1.1.0-SNAPSHOT - unreleased`. New entries go under it. At release time, the heading becomes
-the release version and date.
+The topmost heading on `develop` is always the next major version with a `-SNAPSHOT` suffix, as in
+`## 2.0.0-SNAPSHOT - unreleased`. New entries go under it. At release time, the heading becomes
+the release version and date, which is a minor or patch version when nothing breaks. After the
+release, a snapshot heading goes back on top. See
+[Cut a release](./build-and-publish.md#cut-a-release).
 
 ## Section Headers
 

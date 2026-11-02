@@ -298,7 +298,9 @@ The essentials:
 - **Deploy Release** (`.github/workflows/deployRelease.yml`) runs by hand, from `main` or from a
   hotfix branch. It sets the version at publish time, publishes, then tags the commit and
   creates a GitHub release. It does not commit the version back.
-- After a release, bump `package.json` on `develop` to the next minor `-SNAPSHOT` version, and add
-  a matching `## X.Y.0-SNAPSHOT - unreleased` heading at the top of `CHANGELOG.md`.
+- `develop` always holds the next major version as a snapshot, as in all XH libraries. After a
+  major release, bump `package.json` to the next major `-SNAPSHOT`, such as `3.0.0-SNAPSHOT`, and
+  add a matching `## 3.0.0-SNAPSHOT - unreleased` heading at the top of `CHANGELOG.md`. A minor or
+  patch release leaves `package.json` alone, then restores the snapshot heading.
 
 Both workflows use shared actions from `xh/hoist-dev-utils`, pinned by SHA.

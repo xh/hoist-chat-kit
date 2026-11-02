@@ -76,20 +76,29 @@ be repeated once the configuration is fixed.
 
 ### Cut a release
 
+`develop` always holds the next major version as a snapshot, in the Maven style that all XH
+libraries use. After 1.0.0 ships, `package.json` reads `2.0.0-SNAPSHOT`. A release without
+breaking changes still goes out as the next minor or patch version, and `develop` stays on the
+same snapshot.
+
 1. Make sure `develop` is green in CI and holds everything the release needs.
-2. On `develop`, set the topmost `CHANGELOG.md` heading to the release version and today's date,
+2. Pick the version. A release with breaking changes is the major version that `develop` holds.
+   Any other release is the next minor or patch from the latest `v*` tag, such as `1.1.0`.
+3. On `develop`, set the topmost `CHANGELOG.md` heading to the release version and today's date,
    as in `## 1.1.0 - 2026-11-20`. Commit and push.
-3. Fast-forward `main` to `develop` and push it:
+4. Fast-forward `main` to `develop` and push it:
    ```bash
    git switch main && git merge --ff-only develop && git push
    ```
-4. Run **Deploy Release** from `main` with the version. The Actions page offers the form, or:
+5. Run **Deploy Release** from `main` with the version. The Actions page offers the form, or:
    ```bash
    gh workflow run deployRelease.yml --ref main -f version=1.1.0 -f is-hotfix=false
    ```
-5. Back on `develop`, bump `package.json` to the next minor `-SNAPSHOT` version, add a matching
-   `## 1.2.0-SNAPSHOT - unreleased` heading at the top of `CHANGELOG.md`, and push. The next push
-   publishes the first snapshot of the new line.
+6. Back on `develop`, put a snapshot heading back on top of `CHANGELOG.md`, then push:
+   - After a major release, bump `package.json` to the next major, such as `3.0.0-SNAPSHOT`, and
+     add a matching `## 3.0.0-SNAPSHOT - unreleased` heading.
+   - After a minor or patch release, leave `package.json` as it is, and add back the
+     `## 2.0.0-SNAPSHOT - unreleased` heading above the new release entry.
 
 ### Cut a hotfix
 

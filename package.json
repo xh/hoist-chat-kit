@@ -1,6 +1,6 @@
 {
   "name": "@xh/hoist-chat-kit",
-  "version": "1.0.0-SNAPSHOT",
+  "version": "2.0.0-SNAPSHOT",
   "description": "Chat with LLMs and agents in Hoist React apps: models, streaming transports, desktop components and generative UI.",
   "repository": {
     "type": "git",
