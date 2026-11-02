@@ -15,7 +15,7 @@ import {
     type ChatDataView,
     type ChatUiComponentSpec
 } from '../../../genui';
-import {classNames} from '../../../impl/ClassNames';
+import classNames from 'classnames';
 import {CHAT_UI_DECIMALS_SCHEMA, CHAT_UI_NUMBER_FORMAT_SCHEMA} from './ChatUiFormat';
 import {chatUiExpandButton, chatUiFrame} from './ChatUiFrame';
 import {CHAT_UI_GRID_DEFAULTS} from './impl/ChatUiDefaults';

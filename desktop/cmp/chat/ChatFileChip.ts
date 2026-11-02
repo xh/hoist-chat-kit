@@ -7,7 +7,7 @@ import type {ChatFilePart} from '../../../core';
 import '../../../styles/vars.scss';
 import './ChatFileChip.scss';
 import {formatFileSize} from './impl/ChatFormat';
-import {classNames} from '../../../impl/ClassNames';
+import classNames from 'classnames';
 
 /** Props for {@link ChatFileChip}. */
 export interface ChatFileChipProps extends HoistProps {

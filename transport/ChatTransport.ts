@@ -2,7 +2,7 @@ import type {ResumeEntry} from '@ag-ui/core';
 import type {PlainObject} from '@xh/hoist/core';
 import {findLast, isUndefined, omitBy} from 'lodash';
 import type {ChatHistoryMode, ChatMessage, ChatToolSpec} from '../core';
-import {genChatId} from '../impl/ids';
+import {genChatId} from '../impl/LangUtils';
 import type {ChatEvent} from './ChatEvent';
 
 /**

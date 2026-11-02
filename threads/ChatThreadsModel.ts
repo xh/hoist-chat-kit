@@ -18,7 +18,7 @@ import {HoistModel, managed, TaskObserver, XH} from '@xh/hoist/core';
 import {action, bindable, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {debounced, throwIf} from '@xh/hoist/utils/js';
 import {ChatKit, type ChatModel} from '../core';
-import {genChatId} from '../impl/ids';
+import {genChatId} from '../impl/LangUtils';
 import type {
     ChatConversation,
     ChatConversationEndedEarly,

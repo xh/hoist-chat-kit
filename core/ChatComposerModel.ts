@@ -16,7 +16,7 @@ import type {ChatFilePart} from './ChatPart';
 import {getChatRetryWaitMs} from './ChatReplyStatus';
 import {isChatModel} from './ChatTranscript';
 import {chatDraftKey} from './impl/localData';
-import {genChatId} from '../impl/ids';
+import {genChatId} from '../impl/LangUtils';
 
 /**
  * Configuration for a {@link ChatComposerModel}. Pass it as `ChatModelConfig.composer`, without

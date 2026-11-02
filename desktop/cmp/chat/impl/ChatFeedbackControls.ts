@@ -20,7 +20,7 @@ import {
     type ChatModel,
     isChatModel
 } from '../../../../core';
-import {classNames} from '../../../../impl/ClassNames';
+import classNames from 'classnames';
 import {chatSpinner} from '../../../impl/ChatLiveCues';
 import '../ChatFeedbackControls.scss';
 

@@ -17,7 +17,7 @@ import {
     isToolCallFinal
 } from '../../../core';
 import '../../../styles/vars.scss';
-import {classNames} from '../../../impl/ClassNames';
+import classNames from 'classnames';
 import {chatElapsed} from './ChatElapsed';
 import './ChatTimeline.scss';
 import {chatErrorBoundary} from './ChatErrorBoundary';

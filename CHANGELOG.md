@@ -59,4 +59,5 @@ Requires `@xh/hoist` 89.3.1 or later, with React 19.
 
 * @ag-ui/core `1.0`
 * @ag-ui/client `1.0`
+* classnames `2.5`
 * rxjs `7.8`

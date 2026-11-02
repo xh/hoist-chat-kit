@@ -13,7 +13,7 @@ import type {ChatReasoningPart} from '../../../core';
 import '../../../styles/vars.scss';
 import './ChatReasoning.scss';
 import {formatElapsed} from './impl/ChatFormat';
-import {classNames} from '../../../impl/ClassNames';
+import classNames from 'classnames';
 import {useChatMarkdownComponents} from './ChatMarkdownComponents';
 
 /** Props for {@link ChatReasoning}. */

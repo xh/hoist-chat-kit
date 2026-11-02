@@ -7,7 +7,7 @@ import {fmtTime} from '@xh/hoist/format';
 import {Icon} from '@xh/hoist/icon';
 import {throwIf} from '@xh/hoist/utils/js';
 import {type ChatComposerStatus, ChatComposerModel, ChatKit} from '../../../core';
-import {classNames} from '../../../impl/ClassNames';
+import classNames from 'classnames';
 import '../../../styles/vars.scss';
 import './ChatStatusRegion.scss';
 import {chatSpinner} from '../../impl/ChatLiveCues';

@@ -1,6 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {cloneDeep, isArray, isEmpty, isNil, isPlainObject, isString} from 'lodash';
-import {findSchemaProblems, validateSchema} from './validateSchema';
+import {findSchemaProblems, validateSchema} from './SchemaUtils';
 
 /**
  * How the user answers an interrupt, from its `responseSchema`:

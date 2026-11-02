@@ -4,7 +4,7 @@ import {span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import type {ChatCitedSource, ChatMarkdownCitations} from '../../../../cmp/markdown';
 import type {ChatCitation, ChatPart, ChatSourcePart} from '../../../../core';
-import {getCitationNumber, hasMarkers} from '../../../../impl/sources';
+import {getCitationNumber, hasMarkers} from '../../../../impl/SourceUtils';
 import '../../../../styles/vars.scss';
 import {chatCitationGroupMarker, chatCitationMarker} from './ChatCitationMarker';
 import './ChatCitations.scss';

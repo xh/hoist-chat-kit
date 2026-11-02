@@ -16,7 +16,7 @@ import {
     type ChatDocumentStatus,
     ChatSidePanelModel
 } from '../../../core';
-import {getSourceFileName, isWebUrl, openSourceUrl} from '../../../impl/sources';
+import {getSourceFileName, isWebUrl, openSourceUrl} from '../../../impl/SourceUtils';
 import {chatUiChartView} from '../genui/ChatUiChartView';
 import {chatUiTableView} from '../genui/ChatUiTableView';
 import '../../../styles/vars.scss';

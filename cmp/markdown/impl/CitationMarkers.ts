@@ -1,5 +1,5 @@
 import type {ChatSourcePart} from '../../../core';
-import {findCitedSource} from '../../../impl/sources';
+import {findCitedSource} from '../../../impl/SourceUtils';
 
 /**
  * Tag of the element that a citation marker becomes in the parsed markdown. Its `data-markers`

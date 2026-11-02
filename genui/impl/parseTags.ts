@@ -2,8 +2,8 @@ import type {PlainObject} from '@xh/hoist/core';
 import {castArray, isEmpty} from 'lodash';
 import type {ChatUiComponentSpec} from '../ChatUiComponentSpec';
 import type {ChatUiTextSegment} from '../ChatUiTextSegment';
-import {getOwn} from '../../impl/objects';
-import {formatError} from '../../impl/validateSchema';
+import {getOwn} from '../../impl/LangUtils';
+import {formatError} from '../../impl/SchemaUtils';
 
 /** What {@link parseTags} needs from its catalog. */
 export interface ParseTagsContext {

@@ -13,7 +13,7 @@ import './ChatComposer.scss';
 import {chatFileChip} from './ChatFileChip';
 import {chatAnnouncerRegions} from './impl/ChatAnnouncerRegions';
 import {ChatComposerLocalModel} from './impl/ChatComposerLocalModel';
-import {classNames} from '../../../impl/ClassNames';
+import classNames from 'classnames';
 import {useBreathing, useSmoothFieldHeight} from '../../impl/ChatMotion';
 
 /** Props for {@link ChatComposer}. */

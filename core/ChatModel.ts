@@ -27,7 +27,7 @@ import {
 } from '../genui/ChatArtifactRegistry';
 import type {ChatUiCatalog} from '../genui/ChatUiCatalog';
 import {CHAT_UI_DOCUMENT_DATA_TYPE} from '../genui/ChatUiDocument';
-import {isChatArtifact, mergeArtifacts} from '../impl/artifacts';
+import {isChatArtifact, mergeArtifacts} from '../impl/ArtifactUtils';
 import type {
     ChatEvent,
     ChatRunContext,
@@ -63,10 +63,10 @@ import {ChatToolResult} from './ChatToolResult';
 import type {ChatActivitySpec} from './ChatActivitySpec';
 import type {ChatToolSpec} from './ChatToolSpec';
 import type {ChatTranscript} from './ChatTranscript';
-import {isAbortError, raceAbort} from '../impl/abort';
+import {isAbortError, raceAbort} from '../impl/AbortUtils';
 import {ChatStreamReducer} from './ChatStreamReducer';
 import type {ChatInterrupt, ChatInterruptResponse} from './ChatInterrupt';
-import {getApprovalPayload, isApprovalSchema} from '../impl/interruptSchema';
+import {getApprovalPayload, isApprovalSchema} from '../impl/InterruptUtils';
 import {
     buildResume,
     createInterruptSet,
@@ -80,7 +80,7 @@ import {
     writeInterrupts
 } from './impl/interrupts';
 import type {Interrupt} from '@ag-ui/core';
-import {genChatId} from '../impl/ids';
+import {genChatId} from '../impl/LangUtils';
 import {
     createTextPart,
     getClientToolCalls,

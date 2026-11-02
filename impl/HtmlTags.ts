@@ -1,5 +1,8 @@
 import {elementFactory} from '@xh/hoist/core';
 
+// TODO: remove this file and import these tags from `@xh/hoist/cmp/layout` once hoist-react ships
+// them.
+
 /**
  * Element factory for a native `button`, which Hoist's layout tags do not include. For compact
  * controls inside text, such as citation chips, where a Hoist button would be too heavy.

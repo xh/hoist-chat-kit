@@ -21,7 +21,7 @@ import {popover} from '@xh/hoist/kit/blueprint';
 import {wait} from '@xh/hoist/promise';
 import {getTestId, throwIf} from '@xh/hoist/utils/js';
 import {useComposedRefs} from '@xh/hoist/utils/react';
-import {classNames} from '../../../impl/ClassNames';
+import classNames from 'classnames';
 import '../../../styles/vars.scss';
 import {
     chatPanel,

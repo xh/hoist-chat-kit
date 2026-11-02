@@ -6,7 +6,7 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {menu} from '@xh/hoist/desktop/cmp/menu';
 import {Icon} from '@xh/hoist/icon';
 import {popover} from '@xh/hoist/kit/blueprint';
-import {classNames} from '../../../impl/ClassNames';
+import classNames from 'classnames';
 import '../../../styles/vars.scss';
 import './ChatComposerPill.scss';
 import {ComposerCenteredContext, getPillPopoverPosition} from './impl/ComposerPlacement';

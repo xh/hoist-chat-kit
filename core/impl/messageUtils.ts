@@ -7,7 +7,7 @@ import {
     isToolCallFinal
 } from '../ChatPart';
 import {type ChatSubagentData, isChatSubagentPart} from '../ChatSubagent';
-import {genChatId} from '../../impl/ids';
+import {genChatId} from '../../impl/LangUtils';
 
 /**
  * A finished text part, with a new id.

@@ -13,8 +13,8 @@ import {
     type ChatToolCallPart,
     type ChatToolSpec
 } from '../../../../core';
-import {getOwn} from '../../../../impl/objects';
-import {classNames} from '../../../../impl/ClassNames';
+import {getOwn} from '../../../../impl/LangUtils';
+import classNames from 'classnames';
 import {chatElapsed} from '../ChatElapsed';
 import {chatCopyButton} from '../ChatCopyButton';
 import {chatErrorBoundary} from '../ChatErrorBoundary';

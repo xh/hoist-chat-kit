@@ -69,7 +69,7 @@ import {
     findStructureProblems,
     repairDocument
 } from './impl/documentStructure';
-import {getOwn} from '../impl/objects';
+import {getOwn} from '../impl/LangUtils';
 import {hashJson} from './impl/hash';
 import {parseTags} from './impl/parseTags';
 import {
@@ -78,7 +78,7 @@ import {
     propPath,
     typeOf,
     validateSchema
-} from '../impl/validateSchema';
+} from '../impl/SchemaUtils';
 
 /**
  * How the model delivers generative UI - see the genui README:

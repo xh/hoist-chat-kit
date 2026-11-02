@@ -24,14 +24,14 @@ import type {
     ChatToolCallPart
 } from './ChatPart';
 import {CHAT_SUBAGENT_DATA_TYPE, type ChatSubagentData, isChatSubagentPart} from './ChatSubagent';
-import {mergeArtifacts} from '../impl/artifacts';
+import {mergeArtifacts} from '../impl/ArtifactUtils';
 import {getRunOutcome} from '@ag-ui/client';
 import {
     mergeMetadata,
     type RunFinishedEvent as AgUiRunFinishedEvent,
     type RunFinishedOutcome
 } from '@ag-ui/core';
-import {genChatId} from '../impl/ids';
+import {genChatId} from '../impl/LangUtils';
 import type {ChatInterrupt} from './ChatInterrupt';
 import {isRunningSubagent, SUBAGENT_UNFINISHED} from './impl/messageUtils';
 import {parsePartialJson} from './impl/parsePartialJson';

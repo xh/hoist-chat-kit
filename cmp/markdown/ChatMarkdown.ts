@@ -17,7 +17,7 @@ import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
 import {useCached} from '@xh/hoist/utils/react';
 import type {ChatSourcePart} from '../../core';
-import {classNames} from '../../impl/ClassNames';
+import classNames from 'classnames';
 import {htmlButton} from '../../impl/HtmlTags';
 import '../../styles/vars.scss';
 import './ChatMarkdown.scss';
@@ -26,7 +26,7 @@ import {
     getCitationGroupLabels,
     getExcerpt,
     openSourceUrl
-} from '../../impl/sources';
+} from '../../impl/SourceUtils';
 import {CITATION_TAG, remarkCitations} from './impl/CitationMarkers';
 import {closeMarkdownSyntax, isProseBlock, splitMarkdownBlocks} from './impl/StreamingMarkdown';
 

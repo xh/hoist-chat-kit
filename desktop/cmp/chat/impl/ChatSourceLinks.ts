@@ -11,7 +11,7 @@ import {
     isWebUrl,
     openChatSource,
     toDocumentRequest
-} from '../../../../impl/sources';
+} from '../../../../impl/SourceUtils';
 
 /**
  * How the citations and sources list of one message open their sources, and what they share: the

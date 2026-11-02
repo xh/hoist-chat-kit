@@ -18,7 +18,7 @@ import {DATE_FMT, fmtDate, MONTH_DAY_FMT, TIME_FMT} from '@xh/hoist/format';
 import {Icon} from '@xh/hoist/icon';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {getTestId} from '@xh/hoist/utils/js';
-import {classNames} from '../../../impl/ClassNames';
+import classNames from 'classnames';
 import {deleteMenuItem} from '../../impl/ChatThreadDelete';
 import {getThreadLabels, type ThreadLabels} from '../../impl/ThreadLabels';
 import {chatSpinner} from '../chat';

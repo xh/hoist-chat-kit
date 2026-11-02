@@ -5,8 +5,8 @@ import {findLast, flattenDeep, isArray, isEmpty, isNil, isString, omitBy, pick} 
 import type {ChatMessage, ChatSourceType} from '../core';
 // Past the core barrel, which imports this package - a runtime import through it would be a cycle.
 import {CHAT_NO_ANSWER_DATA_TYPE, type ChatNoAnswerData} from '../core/ChatNoAnswer';
-import {raceAbort, sleepAsync} from '../impl/abort';
-import {genChatId} from '../impl/ids';
+import {raceAbort, sleepAsync} from '../impl/AbortUtils';
+import {genChatId} from '../impl/LangUtils';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRequest, ChatTransport} from './ChatTransport';
 import {abortable} from './impl/streams';

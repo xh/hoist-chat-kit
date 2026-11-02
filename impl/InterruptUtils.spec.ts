@@ -4,7 +4,7 @@ import {
     getApprovalPayload,
     getInterruptAnswerSpec,
     isApprovalSchema
-} from './interruptSchema';
+} from './InterruptUtils';
 
 /**
  * An interrupt's `responseSchema` decides how the user answers it, and the shape of an approval.

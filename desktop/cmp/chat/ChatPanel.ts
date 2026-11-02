@@ -5,7 +5,7 @@ import {panel, type PanelProps} from '@xh/hoist/desktop/cmp/panel';
 import {getTestId} from '@xh/hoist/utils/js';
 import type {ChatImagePolicy, ChatMarkdownPlugins} from '../../../cmp/markdown';
 import {ChatModel} from '../../../core';
-import {classNames} from '../../../impl/ClassNames';
+import classNames from 'classnames';
 import '../../../styles/vars.scss';
 import {chatComposer, type ChatComposerProps} from './ChatComposer';
 import {chatEmptyState, type ChatEmptyStateProps} from './ChatEmptyState';

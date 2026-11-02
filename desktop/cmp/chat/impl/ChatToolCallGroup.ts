@@ -13,7 +13,7 @@ import {
     isToolCallFinal
 } from '../../../../core';
 import {chatToolCall} from '../ChatToolCall';
-import {classNames} from '../../../../impl/ClassNames';
+import classNames from 'classnames';
 import {chatErrorBoundary} from '../ChatErrorBoundary';
 import {getHostToolSpec} from './groupParts';
 import {getToolTitle} from './ToolCallStatus';

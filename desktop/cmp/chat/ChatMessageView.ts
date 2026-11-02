@@ -72,8 +72,8 @@ import {formatElapsed} from './impl/ChatFormat';
 import {chatInterrupts} from './impl/ChatInterrupts';
 import {chatToolCallGroup} from './impl/ChatToolCallGroup';
 import {formatChatUiContext} from '../../../genui/ChatUiAction';
-import {classNames} from '../../../impl/ClassNames';
-import {getOwn} from '../../../impl/objects';
+import classNames from 'classnames';
+import {getOwn} from '../../../impl/LangUtils';
 import {
     type ChatPartGroup,
     type ChatProcessRun,

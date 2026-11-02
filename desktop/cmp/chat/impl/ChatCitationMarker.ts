@@ -9,9 +9,9 @@ import {action, observable} from '@xh/hoist/mobx';
 import {createObservableRef} from '@xh/hoist/utils/react';
 import type {ChatCitedSource} from '../../../../cmp/markdown';
 import type {ChatSourcePart} from '../../../../core';
-import {classNames} from '../../../../impl/ClassNames';
+import classNames from 'classnames';
 import {htmlButton, htmlMark} from '../../../../impl/HtmlTags';
-import {genChatId} from '../../../../impl/ids';
+import {genChatId} from '../../../../impl/LangUtils';
 import {
     getCitationGroupLabels,
     getExcerpt,
@@ -19,7 +19,7 @@ import {
     getSourcePage,
     getSourceType,
     trimExcerpt
-} from '../../../../impl/sources';
+} from '../../../../impl/SourceUtils';
 import '../../../../styles/vars.scss';
 import './ChatCitationMarker.scss';
 import {chatCopyButton} from '../ChatCopyButton';

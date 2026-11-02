@@ -7,7 +7,7 @@ import {Icon} from '@xh/hoist/icon';
 import {bindable} from '@xh/hoist/mobx';
 import {createObservableRef} from '@xh/hoist/utils/react';
 import type {ChatModel, ChatToolCallPart, ChatToolSpec} from '../../../../core';
-import {classNames} from '../../../../impl/ClassNames';
+import classNames from 'classnames';
 import '../ChatToolCall.scss';
 
 /** @internal */

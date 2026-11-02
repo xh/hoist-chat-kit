@@ -10,7 +10,7 @@ import {
     type ChatToolSpec,
     isToolCallFinal
 } from '../../core';
-import {genChatId} from '../../impl/ids';
+import {genChatId} from '../../impl/LangUtils';
 import type {ChatCodec, ChatDecoder} from '../ChatCodec';
 import type {ChatEvent, ChatTokenUsage, RunFinishedEvent} from '../ChatEvent';
 import type {ChatRunRequest} from '../ChatTransport';

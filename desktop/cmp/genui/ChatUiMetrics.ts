@@ -4,7 +4,7 @@ import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
 import type {ChatUiComponentSpec} from '../../../genui';
-import {classNames} from '../../../impl/ClassNames';
+import classNames from 'classnames';
 import {
     CHAT_UI_DECIMALS_SCHEMA,
     fmtChatUiNumber,

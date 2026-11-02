@@ -31,14 +31,14 @@ import {
     type ChatSubagentData,
     isChatSubagentPart
 } from '../../../../core';
-import {classNames} from '../../../../impl/ClassNames';
+import classNames from 'classnames';
 import {
     checkInterruptAnswer,
     getInterruptAnswerSpec,
     type InterruptAnswerSpec,
     type InterruptField,
     isApprovalSchema
-} from '../../../../impl/interruptSchema';
+} from '../../../../impl/InterruptUtils';
 import {useChatClock} from './useChatClock';
 import './ChatInterrupts.scss';
 

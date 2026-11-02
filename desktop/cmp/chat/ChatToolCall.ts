@@ -15,7 +15,7 @@ import {
 } from '../../../core';
 import '../../../styles/vars.scss';
 import './ChatToolCall.scss';
-import {classNames} from '../../../impl/ClassNames';
+import classNames from 'classnames';
 import {jsonView} from './impl/JsonView';
 import {
     getErrorLine,

@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {ChatSourcePart} from '../../../core';
-import {findCitedSource, getCitationNumber} from '../../../impl/sources';
+import {findCitedSource, getCitationNumber} from '../../../impl/SourceUtils';
 import {type MdastNode, remarkCitations} from './CitationMarkers';
 
 /**

@@ -1,7 +1,7 @@
 import {span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import type {ChatReplyStatus} from '../../../core';
-import {classNames} from '../../../impl/ClassNames';
+import classNames from 'classnames';
 import '../../../styles/vars.scss';
 import './ChatStatusCue.scss';
 import {chatSpinner} from '../../impl/ChatLiveCues';

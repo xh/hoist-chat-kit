@@ -2,7 +2,7 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import {XH} from '@xh/hoist/core';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatSidePanelModel, type ChatSourcePart} from '../core';
-import {getSourceType, openChatSource, trimExcerpt} from './sources';
+import {getSourceType, openChatSource, trimExcerpt} from './SourceUtils';
 
 /**
  * Where a click on a citation or source row takes the user. Apps rely on a document opening in the

@@ -1,6 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {describe, expect, it} from 'vitest';
-import {validateSchema} from './validateSchema';
+import {validateSchema} from './SchemaUtils';
 
 /**
  * The JSON Schema subset checker behind generative UI. Its messages go back to the model when a

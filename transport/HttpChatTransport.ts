@@ -4,7 +4,7 @@ import type {PromiseTimeoutSpec} from '@xh/hoist/promise';
 import type {FetchOptions} from '@xh/hoist/svc';
 import {throwIf} from '@xh/hoist/utils/js';
 import {isFunction} from 'lodash';
-import {raceAbort} from '../impl/abort';
+import {raceAbort} from '../impl/AbortUtils';
 import type {ChatCodec} from './ChatCodec';
 import type {ChatEvent} from './ChatEvent';
 import type {ChatRunRef, ChatRunRequest, ChatTransport} from './ChatTransport';

@@ -3,8 +3,8 @@ import {action, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
 import {castArray} from 'lodash';
 import {CHAT_DATA_ROW_ID, type ChatDataColumn, type ChatDataFrame} from './ChatData';
-import {getOwn} from '../impl/objects';
-import {isChatArtifact} from '../impl/artifacts';
+import {getOwn} from '../impl/LangUtils';
+import {isChatArtifact} from '../impl/ArtifactUtils';
 
 /**
  * A result set that a tool produced, for a component to show by reference. The model names the

@@ -3,7 +3,7 @@ import {mask} from '@xh/hoist/cmp/mask';
 import {hoistCmp, type HoistProps, type TestSupportProps, uses} from '@xh/hoist/core';
 import {getTestId} from '@xh/hoist/utils/js';
 import {ChatThreadsModel} from '../../../threads';
-import {classNames} from '../../../impl/ClassNames';
+import classNames from 'classnames';
 import {getThreadLabels} from '../../impl/ThreadLabels';
 import {threadLoadFailed, threadNotFound} from '../../impl/ThreadStatus';
 import '../../../styles/vars.scss';
