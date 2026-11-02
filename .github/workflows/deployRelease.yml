@@ -1,6 +1,6 @@
 # Deploy Release - Publishes a numbered release to npm.
 #
-# Manually triggered. Standard releases run from master; hotfixes run from a dedicated
+# Manually triggered. Standard releases run from main; hotfixes run from a dedicated
 # branch. Validates the version input, publishes to npm, tags the commit, and creates a
 # GitHub release with auto-generated notes. For snapshot builds, see Deploy Snapshot.
 
@@ -26,9 +26,9 @@ concurrency:
 
 jobs:
     build:
-        # Guards against accidental release from develop. Requires master for standard
-        # releases and a branch other than master (or develop) when is-hotfix is set.
-        if: github.ref != 'refs/heads/develop' && ((github.ref == 'refs/heads/master') != inputs.is-hotfix)
+        # Guards against accidental release from develop. Requires main for standard
+        # releases and a branch other than main (or develop) when is-hotfix is set.
+        if: github.ref != 'refs/heads/develop' && ((github.ref == 'refs/heads/main') != inputs.is-hotfix)
 
         runs-on: ubuntu-latest
         permissions:

@@ -49,13 +49,13 @@ npm attaches a provenance attestation to each published tarball.
 
 ## Deploy Release (`deployRelease.yml`)
 
-Publishes a numbered release to npm. **Run by hand** from the `master` branch. It takes two
+Publishes a numbered release to npm. **Run by hand** from the `main` branch. It takes two
 inputs:
 
 - **Release Version** - a semver string, such as `1.1.0`. It must be exactly one increment -
   major, minor or patch - from the latest release tag.
 - **Is Hotfix** - check when releasing a hotfix to a version other than the latest. The workflow
-  must then run from a branch other than `master` or `develop`.
+  must then run from a branch other than `main` or `develop`.
 
 The workflow refuses to run from `develop`, validates the version against the existing `v*` tags,
 and runs lint, type check, tests and the package check. Then it:
@@ -79,13 +79,13 @@ be repeated once the configuration is fixed.
 1. Make sure `develop` is green in CI and holds everything the release needs.
 2. On `develop`, set the topmost `CHANGELOG.md` heading to the release version and today's date,
    as in `## 1.1.0 - 2026-11-20`. Commit and push.
-3. Fast-forward `master` to `develop` and push it:
+3. Fast-forward `main` to `develop` and push it:
    ```bash
-   git switch master && git merge --ff-only develop && git push
+   git switch main && git merge --ff-only develop && git push
    ```
-4. Run **Deploy Release** from `master` with the version. The Actions page offers the form, or:
+4. Run **Deploy Release** from `main` with the version. The Actions page offers the form, or:
    ```bash
-   gh workflow run deployRelease.yml --ref master -f version=1.1.0 -f is-hotfix=false
+   gh workflow run deployRelease.yml --ref main -f version=1.1.0 -f is-hotfix=false
    ```
 5. Back on `develop`, bump `package.json` to the next minor `-SNAPSHOT` version, add a matching
    `## 1.2.0-SNAPSHOT - unreleased` heading at the top of `CHANGELOG.md`, and push. The next push
@@ -102,7 +102,7 @@ A hotfix patches a release that is no longer the latest.
    It publishes under the `hotfix` dist-tag, so `latest` does not move.
 4. Merge the fix forward into `develop`, with a changelog entry under the current line too.
 
-A patch to the latest release is an ordinary release, cut from `master`.
+A patch to the latest release is an ordinary release, cut from `main`.
 
 ## Dependabot (`dependabot.yml`)
 
@@ -127,6 +127,6 @@ on each publish job lets it mint the OIDC token that npm exchanges for a scoped 
 
 ## Branch Protection
 
-A repository ruleset blocks deletion and force-pushes on `develop` and `master`. PRs target
+A repository ruleset blocks deletion and force-pushes on `develop` and `main`. PRs target
 `develop` and are squash-merged. See [Git Workflow](../AGENTS.md#git-workflow) for the branching
 rules.

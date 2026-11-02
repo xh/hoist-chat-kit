@@ -237,7 +237,7 @@ autonomous commits for that workflow.
 
 ### Branches
 
-`develop` is the integration branch. PRs target `develop` and are squash-merged. `master` holds
+`develop` is the integration branch. PRs target `develop` and are squash-merged. `main` holds
 released code.
 
 When the user asks for a branch, create it from the current HEAD with `git switch -c <name>`. If
@@ -295,7 +295,7 @@ The essentials:
 - `package.json` always holds a `-SNAPSHOT` version. Never set it to an exact release version.
 - **Deploy Snapshot** (`.github/workflows/deploySnapshot.yml`) publishes to npm with the `next` tag
   on every push to `develop`.
-- **Deploy Release** (`.github/workflows/deployRelease.yml`) runs by hand, from `master` or from a
+- **Deploy Release** (`.github/workflows/deployRelease.yml`) runs by hand, from `main` or from a
   hotfix branch. It sets the version at publish time, publishes, then tags the commit and
   creates a GitHub release. It does not commit the version back.
 - After a release, bump `package.json` on `develop` to the next minor `-SNAPSHOT` version, and add
