@@ -8,7 +8,7 @@ release version checks, and tagging - come from shared actions in
 by commit SHA. Dependabot bumps the pins.
 
 The kit ships as source, so it has no compile step. Its "build" is the packed tarball, which
-`pnpm build` checks. See [Published as source](../CLAUDE.md#published-as-source) for what that
+`pnpm build` checks. See [Published as source](../AGENTS.md#published-as-source) for what that
 means for the package.
 
 ## CI (`ci.yml`)
@@ -128,5 +128,5 @@ on each publish job lets it mint the OIDC token that npm exchanges for a scoped 
 ## Branch Protection
 
 A repository ruleset blocks deletion and force-pushes on `develop` and `master`. PRs target
-`develop` and are squash-merged. See [Git Workflow](../CLAUDE.md#git-workflow) for the branching
+`develop` and are squash-merged. See [Git Workflow](../AGENTS.md#git-workflow) for the branching
 rules.

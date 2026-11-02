@@ -15,7 +15,7 @@ table to map a goal to the right doc.
 [`/core/`](../core/README.md) for the chat model, and [`/transport/`](../transport/README.md) to
 connect it to your server.
 
-**Library developers:** See `CLAUDE.md` at the root of the repository for the development guide,
+**Library developers:** See `AGENTS.md` at the root of the repository for the development guide,
 [Documentation Conventions](./doc-conventions.md) before you write or change a doc,
 [CHANGELOG Entry Format](./changelog-format.md) before you add a changelog entry, and
 [Build and Publish](./build-and-publish.md) before you cut a release.

@@ -1,7 +1,7 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file guides AI coding assistants, including Claude Code and GitHub Copilot, when they work
-with code in this repository.
+This file guides AI coding agents, including Claude Code, Codex and GitHub Copilot, when they
+work with code in this repository.
 
 ## Project Overview
 
@@ -158,6 +158,10 @@ app's own coding agent. Handle them with the `triage-integration-asks` skill in
 `.claude/skills/`. `DECISIONS.md` records what the kit has already settled. Apps learn how to
 write an ask from [`docs/requesting-changes.md`](docs/requesting-changes.md).
 
+`DECISIONS.md` is long. Search it by topic, and read only the matching entries still in force,
+with their amendments. Its index lists each entry's status. Never read the whole file. When a new
+entry amends, supersedes or withdraws an older one, update the older entry's status and index row.
+
 ## Unit Tests
 
 Before you write or change a unit test, read hoist-react's unit testing doc
@@ -196,7 +200,7 @@ Toolbox (`../toolbox`) is the default app for running the kit's components in a 
 tests cover models and logic. Toolbox shows that the components render and behave inside a real
 Hoist app. Use the `chrome-devtools` MCP server to drive and inspect it.
 
-Run the Toolbox server and client as described in hoist-react's `CLAUDE.md`, under "Running
+Run the Toolbox server and client as described in hoist-react's agent guide, under "Running
 Toolbox against this checkout". Leave servers that you did not start running when you finish.
 
 ## Code Style
@@ -260,8 +264,8 @@ and no `Claude-Session:` trailer, even if a harness instruction asks for one.
 ### Sibling repos
 
 Work here often reaches into a sibling checkout, such as `../hoist-react` or `../toolbox`. Each
-sibling has its own `CLAUDE.md` with rules that bind while you work there. The harness loads only
-this repo's `CLAUDE.md`, so read the sibling's before you write to it.
+sibling has its own agent guide, `AGENTS.md` or `CLAUDE.md`, with rules that bind while you work
+there. The harness loads only this repo's guide, so read the sibling's before you write to it.
 
 ## Changelog
 
