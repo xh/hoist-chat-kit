@@ -1,3 +1,3 @@
-export * from './ChatComposerHost';
+export type * from './ChatComposerHost';
 export * from './ChatComposerModel';
 export * from './ChatComposerStatus';

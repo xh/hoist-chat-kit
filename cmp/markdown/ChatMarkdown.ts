@@ -12,7 +12,8 @@ import {
     useRef
 } from 'react';
 import {a, div, fragment, img, span} from '@xh/hoist/cmp/layout';
-import {Markdown, markdown} from '@xh/hoist/cmp/markdown';
+import type {Markdown} from '@xh/hoist/cmp/markdown';
+import {markdown} from '@xh/hoist/cmp/markdown';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
 import {useCached} from '@xh/hoist/utils/react';

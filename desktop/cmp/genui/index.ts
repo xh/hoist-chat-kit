@@ -6,4 +6,4 @@ export * from './ChatUiFrame';
 export * from './ChatUiGrid';
 export * from './ChatUiMetrics';
 export * from './ChatUiTableView';
-export * from './Types';
+export type * from './Types';

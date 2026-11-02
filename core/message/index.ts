@@ -1,4 +1,4 @@
-export * from './ChatInterrupt';
+export type * from './ChatInterrupt';
 export * from './ChatMessage';
 export * from './ChatNoAnswer';
 export * from './ChatPart';

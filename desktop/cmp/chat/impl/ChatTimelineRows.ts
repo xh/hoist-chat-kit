@@ -5,13 +5,13 @@ import {hoistCmp, type HoistProps, type PlainObject, uses} from '@xh/hoist/core'
 import {Icon} from '@xh/hoist/icon';
 import {pluralize} from '@xh/hoist/utils/js';
 import {chatMarkdown} from '../../../../cmp/markdown';
-import {
-    type ChatDataPart,
-    type ChatTextPart,
-    type ChatTranscript,
-    type ChatPartRenderContext,
-    type ChatToolCallPart,
-    type ChatToolSpec
+import type {
+    ChatDataPart,
+    ChatTextPart,
+    ChatTranscript,
+    ChatPartRenderContext,
+    ChatToolCallPart,
+    ChatToolSpec
 } from '../../../../core';
 import {getOwn} from '../../../../impl/LangUtils';
 import classNames from 'classnames';

@@ -1,4 +1,4 @@
-export * from './ChatConversation';
-export * from './ChatThreadStore';
+export type * from './ChatConversation';
+export type * from './ChatThreadStore';
 export * from './ChatThreadsModel';
 export * from './groupThreadsByRecency';

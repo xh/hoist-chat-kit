@@ -3,7 +3,8 @@ import type {ReactElement} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
-import {ChatComposerModel, ChatModel} from '../../../core';
+import type {ChatComposerModel} from '../../../core';
+import {ChatModel} from '../../../core';
 import '../../../styles/vars.scss';
 import './ChatSuggestions.scss';
 

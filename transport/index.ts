@@ -1,5 +1,5 @@
-export * from './ChatCodec';
-export * from './ChatEvent';
+export type * from './ChatCodec';
+export type * from './ChatEvent';
 export * from './ChatTransport';
 export * from './HoistChatTransport';
 export * from './HttpChatTransport';
