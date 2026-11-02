@@ -87,6 +87,12 @@ The package ships as TypeScript and SCSS source, as `@xh/hoist` does, and your a
 with the rest of its code. It depends on the official AG-UI packages, `@ag-ui/core` and
 `@ag-ui/client`, which bring RxJS and Zod 3 with them.
 
+Every Zod 3 release carries advisory
+[GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5), fixed in Zod 4.6.6. The
+AG-UI packages import Zod's `zod/v4` entry point, which Zod 4 also serves, so they run on Zod 4.
+To clear the advisory, override `zod` to `^4.6.6` with your package manager, as the kit does in its
+own `pnpm-workspace.yaml`. Drop the override once an AG-UI release accepts Zod 4.
+
 1. Add the package: `pnpm add @xh/hoist-chat-kit`.
 2. Add it to `extraIncludePaths` in your app's `rsbuild.config.mjs`, so the build transpiles it:
 
