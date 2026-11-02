@@ -1,6 +1,6 @@
-import type {ChatArtifactRegistry} from '../genui/ChatArtifactRegistry';
-import type {ChatChartView, ChatDataView} from '../genui/ChatDataView';
-import type {ChatSourcePart} from './ChatPart';
+import type {ChatArtifactRegistry} from '../../genui/ChatArtifactRegistry';
+import type {ChatChartView, ChatDataView} from '../../genui/ChatDataView';
+import type {ChatSourcePart} from '../message/ChatPart';
 
 /**
  * A request to show a document in the side panel - the source a citation or source row opened,

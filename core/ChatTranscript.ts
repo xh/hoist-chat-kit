@@ -1,5 +1,5 @@
 import type {ChatUiCatalog} from '../genui/ChatUiCatalog';
-import type {ChatMessage} from './ChatMessage';
+import type {ChatMessage} from './message/ChatMessage';
 import {type ChatDataRenderer, ChatModel, type ChatTextRenderer} from './ChatModel';
 import type {ChatActivitySpec} from './ChatActivitySpec';
 import type {ChatToolSpec} from './ChatToolSpec';

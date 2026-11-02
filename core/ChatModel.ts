@@ -37,8 +37,8 @@ import type {
     ChatTransport
 } from '../transport';
 import {ChatAbortError, type ChatAbortReason} from './ChatAbortError';
-import type {ChatComposerHost} from './ChatComposerHost';
-import {ChatComposerModel, type ChatComposerConfig} from './ChatComposerModel';
+import type {ChatComposerHost} from './composer/ChatComposerHost';
+import {ChatComposerModel, type ChatComposerConfig} from './composer/ChatComposerModel';
 import {ChatKit} from './ChatKit';
 import type {ChatContextProvider} from './ChatContextProvider';
 import type {
@@ -49,7 +49,7 @@ import type {
     ChatFeedbackSpec,
     ChatFeedbackSubmitter
 } from './ChatFeedback';
-import {ChatMessage, type ChatMessageSpec} from './ChatMessage';
+import {ChatMessage, type ChatMessageSpec} from './message/ChatMessage';
 import {
     type ChatDataPart,
     type ChatFilePart,
@@ -57,15 +57,15 @@ import {
     type ChatTextPart,
     type ChatToolCallPart,
     isToolCallFinal
-} from './ChatPart';
+} from './message/ChatPart';
 import {ChatRunError} from './ChatRunError';
-import {ChatToolResult} from './ChatToolResult';
+import {ChatToolResult} from './message/ChatToolResult';
 import type {ChatActivitySpec} from './ChatActivitySpec';
 import type {ChatToolSpec} from './ChatToolSpec';
 import type {ChatTranscript} from './ChatTranscript';
 import {isAbortError, raceAbort} from '../impl/AbortUtils';
 import {ChatStreamReducer} from './ChatStreamReducer';
-import type {ChatInterrupt, ChatInterruptResponse} from './ChatInterrupt';
+import type {ChatInterrupt, ChatInterruptResponse} from './message/ChatInterrupt';
 import {getApprovalPayload, isApprovalSchema} from '../impl/InterruptUtils';
 import {
     buildResume,

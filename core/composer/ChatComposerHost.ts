@@ -1,5 +1,5 @@
-import type {ChatMessage} from './ChatMessage';
-import type {ChatSendSpec} from './ChatModel';
+import type {ChatMessage} from '../message/ChatMessage';
+import type {ChatSendSpec} from '../ChatModel';
 
 /**
  * What a {@link ChatComposerModel} needs from the conversation it sends to. `ChatModel` implements

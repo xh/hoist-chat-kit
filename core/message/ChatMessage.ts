@@ -1,8 +1,8 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {isEmpty} from 'lodash';
 import type {ChatPart, ChatTextPart, ChatToolCallPart} from './ChatPart';
-import {genChatId} from '../impl/LangUtils';
-import {createTextPart} from './impl/messageUtils';
+import {genChatId} from '../../impl/LangUtils';
+import {createTextPart} from '../impl/messageUtils';
 
 /** Author of a message. */
 export type ChatRole = 'user' | 'assistant' | 'system';

@@ -3,7 +3,7 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ScriptedChatTransport, textEvents} from '../transport';
 import type {ChatFeedbackDraft, ChatFeedbackSpec} from './ChatFeedback';
-import type {ChatMessageSpec} from './ChatMessage';
+import type {ChatMessageSpec} from './message/ChatMessage';
 import {ChatModel, type ChatModelConfig} from './ChatModel';
 
 /**

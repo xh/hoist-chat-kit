@@ -5,18 +5,18 @@ import {pluralize, throwIf} from '@xh/hoist/utils/js';
 import {createObservableRef} from '@xh/hoist/utils/react';
 import {findLast, isEmpty, round, take} from 'lodash';
 import type {ChatComposerHost} from './ChatComposerHost';
-import type {ChatModel} from './ChatModel';
+import type {ChatModel} from '../ChatModel';
 import {
     type ChatComposerStatus,
     getChatComposerStatus,
     isChatRetrySafe
 } from './ChatComposerStatus';
-import {ChatKit} from './ChatKit';
-import type {ChatFilePart} from './ChatPart';
-import {getChatRetryWaitMs} from './ChatReplyStatus';
-import {isChatModel} from './ChatTranscript';
-import {chatDraftKey} from './impl/localData';
-import {genChatId} from '../impl/LangUtils';
+import {ChatKit} from '../ChatKit';
+import type {ChatFilePart} from '../message/ChatPart';
+import {getChatRetryWaitMs} from '../ChatReplyStatus';
+import {isChatModel} from '../ChatTranscript';
+import {chatDraftKey} from '../impl/localData';
+import {genChatId} from '../../impl/LangUtils';
 
 /**
  * Configuration for a {@link ChatComposerModel}. Pass it as `ChatModelConfig.composer`, without

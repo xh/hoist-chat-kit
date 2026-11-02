@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
 import type {ChatEvent, RunFinishedEvent} from '../transport';
-import {ChatMessage} from './ChatMessage';
+import {ChatMessage} from './message/ChatMessage';
 import type {
     ChatDataPart,
     ChatFilePart,
@@ -8,9 +8,9 @@ import type {
     ChatSourcePart,
     ChatTextPart,
     ChatToolCallPart
-} from './ChatPart';
+} from './message/ChatPart';
 import {ChatStreamReducer} from './ChatStreamReducer';
-import {CHAT_SUBAGENT_DATA_TYPE} from './ChatSubagent';
+import {CHAT_SUBAGENT_DATA_TYPE} from './message/ChatSubagent';
 
 /**
  * ChatStreamReducer turns the AG-UI events of each model call into the parts of the assistant

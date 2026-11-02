@@ -11,7 +11,7 @@ import {
     toolCallEvents
 } from '../transport';
 import {ChatModel} from './ChatModel';
-import type {ChatDataPart, ChatReasoningPart, ChatToolCallPart} from './ChatPart';
+import type {ChatDataPart, ChatReasoningPart, ChatToolCallPart} from './message/ChatPart';
 import {replayChatEvents} from './replayChatEvents';
 
 /**

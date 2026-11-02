@@ -1,10 +1,10 @@
 import {observable, runInAction} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {ScriptedChatTransport, textEvents} from '../transport';
+import {ScriptedChatTransport, textEvents} from '../../transport';
 import type {ChatComposerHost} from './ChatComposerHost';
 import {type ChatComposerConfig, ChatComposerModel} from './ChatComposerModel';
-import {ChatModel, type ChatSendSpec} from './ChatModel';
+import {ChatModel, type ChatSendSpec} from '../ChatModel';
 
 /**
  * ChatComposerModel holds the draft of the next message. Its send rules decide when the user can

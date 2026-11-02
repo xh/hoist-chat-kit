@@ -1,4 +1,4 @@
-import type {ChatMessage} from './ChatMessage';
+import type {ChatMessage} from './message/ChatMessage';
 
 /** A user's rating of an assistant message. */
 export type ChatFeedbackRating = 'positive' | 'negative';

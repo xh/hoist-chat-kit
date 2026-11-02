@@ -1,8 +1,8 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {isEmpty, isFinite, keyBy, last, max, min, omit, sumBy} from 'lodash';
 import type {ChatDecoder, ChatEvent} from '../transport';
-import {ChatMessage, type ChatMessageSpec} from './ChatMessage';
-import type {ChatInterrupt} from './ChatInterrupt';
+import {ChatMessage, type ChatMessageSpec} from './message/ChatMessage';
+import type {ChatInterrupt} from './message/ChatInterrupt';
 import type {ChatTextTransform} from './ChatModel';
 import {ChatRunError} from './ChatRunError';
 import {ChatStreamReducer} from './ChatStreamReducer';

@@ -1,5 +1,5 @@
 import type {ReactElement, ReactNode} from 'react';
-import type {ChatMessage} from './ChatMessage';
+import type {ChatMessage} from './message/ChatMessage';
 import type {ChatModel} from './ChatModel';
 import {XH} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';

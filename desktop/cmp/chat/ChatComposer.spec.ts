@@ -5,7 +5,7 @@ import {Icon} from '@xh/hoist/icon';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {chatAnnouncer, ChatComposerModel, ChatModel, type ChatModelConfig} from '../../../core';
-import type {ChatComposerHost} from '../../../core/ChatComposerHost';
+import type {ChatComposerHost} from '../../../core/composer/ChatComposerHost';
 import {ScriptedChatTransport, textEvents} from '../../../transport';
 import {chatComposer, type ChatComposerProps} from './ChatComposer';
 import {chatStatusRegion} from './ChatStatusRegion';

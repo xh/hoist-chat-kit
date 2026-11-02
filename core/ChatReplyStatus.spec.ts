@@ -1,8 +1,8 @@
 import {afterEach, describe, expect, it} from 'vitest';
 import type {ChatEvent} from '../transport';
 import {ChatKit} from './ChatKit';
-import {ChatMessage, type ChatMessageSpec} from './ChatMessage';
-import type {ChatPart, ChatToolCallState} from './ChatPart';
+import {ChatMessage, type ChatMessageSpec} from './message/ChatMessage';
+import type {ChatPart, ChatToolCallState} from './message/ChatPart';
 import {
     type ChatReplyStatus,
     type ChatReplyStatusSpec,

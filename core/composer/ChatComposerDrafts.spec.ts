@@ -1,9 +1,9 @@
 import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {afterEach, beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {ScriptedChatTransport, scriptedDelay, textEvents} from '../transport';
-import {ChatKit} from './ChatKit';
-import {ChatModel, type ChatModelConfig} from './ChatModel';
+import {ScriptedChatTransport, scriptedDelay, textEvents} from '../../transport';
+import {ChatKit} from '../ChatKit';
+import {ChatModel, type ChatModelConfig} from '../ChatModel';
 
 /**
  * Composer drafts in local storage (D67). A draft must survive a reload and a thread switch, must

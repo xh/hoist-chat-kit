@@ -11,9 +11,9 @@ import {
     textEvents,
     toolCallEvents
 } from '../transport';
-import type {ChatMessageSpec} from './ChatMessage';
+import type {ChatMessageSpec} from './message/ChatMessage';
 import {ChatModel, type ChatModelConfig} from './ChatModel';
-import type {ChatFilePart, ChatToolCallPart} from './ChatPart';
+import type {ChatFilePart, ChatToolCallPart} from './message/ChatPart';
 import {ChatRunError} from './ChatRunError';
 import type {ChatToolSpec} from './ChatToolSpec';
 

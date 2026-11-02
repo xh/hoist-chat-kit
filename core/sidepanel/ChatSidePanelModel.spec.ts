@@ -1,5 +1,5 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
-import {ChatArtifactRegistry} from '../genui/ChatArtifactRegistry';
+import {ChatArtifactRegistry} from '../../genui/ChatArtifactRegistry';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import type {ChatDocumentRequest} from './ChatSidePanelHost';
 import {isChatSidePanelHost} from './ChatSidePanelHost';

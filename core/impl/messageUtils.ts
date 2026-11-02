@@ -1,12 +1,12 @@
-import type {ChatMessage} from '../ChatMessage';
+import type {ChatMessage} from '../message/ChatMessage';
 import {
     type ChatDataPart,
     type ChatPart,
     type ChatTextPart,
     type ChatToolCallPart,
     isToolCallFinal
-} from '../ChatPart';
-import {type ChatSubagentData, isChatSubagentPart} from '../ChatSubagent';
+} from '../message/ChatPart';
+import {type ChatSubagentData, isChatSubagentPart} from '../message/ChatSubagent';
 import {genChatId} from '../../impl/LangUtils';
 
 /**

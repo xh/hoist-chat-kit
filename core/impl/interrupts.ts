@@ -1,8 +1,8 @@
 import {buildResumeArray, isInterruptExpired} from '@ag-ui/client';
 import type {ResumeEntry} from '@ag-ui/core';
 import {findLast, isEmpty, last, omit} from 'lodash';
-import type {ChatInterrupt, ChatInterruptResponse} from '../ChatInterrupt';
-import type {ChatMessage} from '../ChatMessage';
+import type {ChatInterrupt, ChatInterruptResponse} from '../message/ChatInterrupt';
+import type {ChatMessage} from '../message/ChatMessage';
 
 /**
  * The interrupts of the thread's last interrupted run that no finished run has answered yet - the

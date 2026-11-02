@@ -1,5 +1,5 @@
 import type {ReactElement} from 'react';
-import type {ChatDataPart} from './ChatPart';
+import type {ChatDataPart} from './message/ChatPart';
 
 /**
  * Declares how the data parts of one `dataType` display - for an agent's activity that is not a

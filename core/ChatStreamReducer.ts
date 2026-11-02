@@ -13,7 +13,7 @@ import {
     pick
 } from 'lodash';
 import type {ChatEvent} from '../transport';
-import type {ChatMessage, ChatMessageSpec} from './ChatMessage';
+import type {ChatMessage, ChatMessageSpec} from './message/ChatMessage';
 import type {ChatTextTransform} from './ChatModel';
 import type {
     ChatDataPart,
@@ -22,8 +22,12 @@ import type {
     ChatReasoningPart,
     ChatTextPart,
     ChatToolCallPart
-} from './ChatPart';
-import {CHAT_SUBAGENT_DATA_TYPE, type ChatSubagentData, isChatSubagentPart} from './ChatSubagent';
+} from './message/ChatPart';
+import {
+    CHAT_SUBAGENT_DATA_TYPE,
+    type ChatSubagentData,
+    isChatSubagentPart
+} from './message/ChatSubagent';
 import {mergeArtifacts} from '../impl/ArtifactUtils';
 import {getRunOutcome} from '@ag-ui/client';
 import {
@@ -32,7 +36,7 @@ import {
     type RunFinishedOutcome
 } from '@ag-ui/core';
 import {genChatId} from '../impl/LangUtils';
-import type {ChatInterrupt} from './ChatInterrupt';
+import type {ChatInterrupt} from './message/ChatInterrupt';
 import {isRunningSubagent, SUBAGENT_UNFINISHED} from './impl/messageUtils';
 import {parsePartialJson} from './impl/parsePartialJson';
 

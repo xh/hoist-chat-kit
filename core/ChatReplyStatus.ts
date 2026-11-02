@@ -1,7 +1,7 @@
 import {last} from 'lodash';
 import {ChatKit} from './ChatKit';
-import type {ChatMessage} from './ChatMessage';
-import {isToolCallFinal} from './ChatPart';
+import type {ChatMessage} from './message/ChatMessage';
+import {isToolCallFinal} from './message/ChatPart';
 
 /**
  * What a reply shows as its status - one icon, one label and one color each, in the reply's

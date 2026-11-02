@@ -1,7 +1,7 @@
 import {hoistCore, hoistError, initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {errorEvents, ScriptedChatTransport, SseChatTransport, textEvents} from '../transport';
-import type {ChatEvent, ChatTransport} from '../transport';
+import {errorEvents, ScriptedChatTransport, SseChatTransport, textEvents} from '../../transport';
+import type {ChatEvent, ChatTransport} from '../../transport';
 import type {ChatComposerHost} from './ChatComposerHost';
 import {ChatComposerModel} from './ChatComposerModel';
 import {
@@ -10,8 +10,8 @@ import {
     getChatComposerStatus,
     isChatRetrySafe
 } from './ChatComposerStatus';
-import {ChatMessage, type ChatMessageSpec} from './ChatMessage';
-import {ChatModel, type ChatModelConfig} from './ChatModel';
+import {ChatMessage, type ChatMessageSpec} from '../message/ChatMessage';
+import {ChatModel, type ChatModelConfig} from '../ChatModel';
 
 /**
  * The status region above the composer holds the thread's one next action. Which status shows,

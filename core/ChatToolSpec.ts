@@ -1,7 +1,7 @@
 import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import type {ReactElement, ReactNode} from 'react';
 import type {ChatModel, ChatPartRenderContext} from './ChatModel';
-import type {ChatToolCallPart} from './ChatPart';
+import type {ChatToolCallPart} from './message/ChatPart';
 
 /**
  * Declares a tool the model can call, and how the chat displays its calls. A spec describes one of

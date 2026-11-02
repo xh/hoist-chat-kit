@@ -3,7 +3,7 @@ import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {type ChatArtifact, ChatUiCatalog, type ChatUiComponentSpec} from '../genui';
 import {type ChatEvent, ScriptedChatTransport, textEvents, toolCallEvents} from '../transport';
 import {ChatModel, type ChatModelConfig} from './ChatModel';
-import {chatToolResult} from './ChatToolResult';
+import {chatToolResult} from './message/ChatToolResult';
 
 /**
  * A chat that takes a generative UI catalog adds the catalog's tools for its history mode, keeps

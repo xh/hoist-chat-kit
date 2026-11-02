@@ -1,4 +1,4 @@
-import type {ChatArtifact} from '../genui/ChatArtifactRegistry';
+import type {ChatArtifact} from '../../genui/ChatArtifactRegistry';
 
 /** Options for {@link chatToolResult}. */
 export interface ChatToolResultOptions {

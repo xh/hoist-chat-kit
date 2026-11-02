@@ -1,6 +1,6 @@
-import type {ChatMessage} from './ChatMessage';
-import type {ChatHistoryMode} from './ChatModel';
-import {type ChatReplyStatus, getChatReplyStatus} from './ChatReplyStatus';
+import type {ChatMessage} from '../message/ChatMessage';
+import type {ChatHistoryMode} from '../ChatModel';
+import {type ChatReplyStatus, getChatReplyStatus} from '../ChatReplyStatus';
 
 /**
  * What the composer's status region shows - the one thing about the thread that the user should
