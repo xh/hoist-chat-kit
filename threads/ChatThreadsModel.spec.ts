@@ -15,6 +15,7 @@ import {
 } from '../transport';
 import {type ChatThreadsConfig, ChatThreadsModel} from './ChatThreadsModel';
 import {type LocalChatThread, LocalChatThreadStore} from '../test/support/LocalChatThreadStore';
+import {DUE_RELOADS} from './impl/RunWatch';
 
 /**
  * The thread layer's contract. Apps rely on it to keep each conversation's state in its own chat,
@@ -1193,14 +1194,81 @@ describe('ChatThreadsModel', () => {
                 expect(model.chatModel.isRunningOnServer).toBe(false);
             });
 
-            it('leaves a run that died to Refresh Status, after one reload', async () => {
+            it.each([
+                ['with checks', {}, DUE_RELOADS],
+                ['with no checks', {statusRefreshMs: null}, 1]
+            ])(
+                'unblocks a thread whose run ended with no reply saved, %s',
+                async (_, config, loads) => {
+                    const {model, store} = await openRunning(config);
+                    store.saveThread({
+                        id: 't9',
+                        isRunning: true,
+                        messages: [{role: 'user', content: 'Rates?'}]
+                    });
+                    await model.chatModel.refreshStatusAsync();
+                    const load = vi.spyOn(store, 'loadMessagesAsync');
+
+                    store.saveThread({id: 't9', isRunning: false});
+                    await model.refreshAsync();
+                    await vi.advanceTimersByTimeAsync(60_000);
+
+                    expect(load).toHaveBeenCalledTimes(loads);
+                    expect(model.chatModel.isRunningOnServer).toBe(false);
+                    expect(model.chatModel.sendBlockedReason).toBeNull();
+                }
+            );
+
+            it('makes no checks of its own on a thread a search hides', async () => {
+                const {model, store} = await openRunning();
+                store.saveThread({id: 't9', title: 'Escrow', isRunning: true, messages: []});
+                await model.chatModel.refreshStatusAsync();
+                model.search = 'budget';
+                await vi.advanceTimersByTimeAsync(300);
+                const load = vi.spyOn(store, 'loadMessagesAsync');
+
+                await vi.advanceTimersByTimeAsync(30_000);
+
+                expect(load).not.toHaveBeenCalled();
+                expect(model.chatModel.isStatusRefreshAutomatic).toBe(false);
+                expect(model.chatModel.sendBlockedReason).toBe('Wait for the reply to finish.');
+            });
+
+            it('loads the reply of a thread whose run a list shows done during its first load', async () => {
+                vi.useFakeTimers({
+                    toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date']
+                });
+                onTestFinished(() => {
+                    vi.useRealTimers();
+                });
+                const {model, store} = setup({statusRefreshMs: null});
+                store.saveThread({id: 't9', isRunning: true, messages: DETACHED});
+                await model.loadAsync();
+
+                store.hold('loadMessagesAsync');
+                const select = model.selectThreadAsync('t9');
+                await vi.advanceTimersByTimeAsync(0);
+                store.saveThread({id: 't9', isRunning: false, messages: DONE});
+                await model.refreshAsync();
+                store.heldCalls('loadMessagesAsync').forEach(it => it.release());
+                await select;
+                await vi.advanceTimersByTimeAsync(0);
+                store.heldCalls('loadMessagesAsync').forEach(it => it.release());
+                await vi.advanceTimersByTimeAsync(0);
+
+                expect(model.chatModel.lastMessage.text).toBe('Flat.');
+                expect(model.chatModel.isRunningOnServer).toBe(false);
+            });
+
+            it('leaves a run that died to Refresh Status, after a few reloads', async () => {
                 const {model, store} = await openRunning(),
                     load = vi.spyOn(store, 'loadMessagesAsync');
                 store.saveThread({id: 't9', isRunning: false, messages: DETACHED});
 
-                await vi.advanceTimersByTimeAsync(15_000);
+                await vi.advanceTimersByTimeAsync(30_000);
 
-                expect(load).toHaveBeenCalledTimes(1);
+                // Room for a backend that saves the reply a moment after it marks the run done.
+                expect(load).toHaveBeenCalledTimes(DUE_RELOADS);
                 expect(model.chatModel.sendBlockedReason).toBeNull();
                 expect(model.chatModel.composerModel.getStatus().action).toBe('refreshStatus');
             });

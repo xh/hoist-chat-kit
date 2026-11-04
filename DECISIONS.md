@@ -2357,13 +2357,17 @@ list shows such a turn done, the thread reloads its history at once, and reads a
 the reply lands. A reload that fails, or lands before the reply was saved, leaves the reply due,
 for the next check to reload.
 
-One record per open thread, a `RunWatch`, holds all that the model knows of such a turn: a phase
-(`idle`, `waiting`, `reloading` or `stopped`), when the watch began, and the load that settles a
-due reply. Only `stepRunWatch()`, a pure function of the record, the thread's facts and one event,
-changes it. The facts are what the model reads from the thread each time: busy, loaded, listed
-running, whether the history lacks a reply, and whether its last reply may still change. Every
-answer the model gives - whether sends wait, whether it checks on its own, whether to reload now
-- reads from the record and the facts.
+One record per open thread, a `RunWatch`, holds all that the model knows of such a turn. Its
+phase is `idle`, `waiting` (a list shows the turn running), `due` (a list showed it done),
+`settling` (the last reply may still change, with no run listed) or `stopped`. It also records when the watch
+began, the load that settles its phase, the reloads that found no reply, and the reload in flight.
+Only `stepRunWatch()` changes it: a pure function of the record, the thread's facts and one event,
+which returns the next record and whether to reload the history now. The facts are what the model
+reads from the thread each time: busy, saved, loaded, failed to load, checked by the model, listed
+running, what its history ends with, and its load key. The events are a listing, a turn, a load
+that ended or failed, a reload that started, a check and a reset. The phase alone answers whether
+sends wait. A due reply gets up to three reloads, for a backend that saves the reply a moment
+after it marks the run done, then the run counts as died.
 
 The model stops, and Refresh Status returns, after `statusRefreshTimeoutMs`, 30 minutes by default,
 when a reload leaves the turn unsettled, or when the current list leaves the thread out, as under

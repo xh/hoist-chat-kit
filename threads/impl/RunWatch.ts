@@ -1,43 +1,55 @@
 /**
  * What the threads model knows of a turn that runs on the server while a thread's chat does not
  * follow it, as after a page reload. One record per open thread, changed only by
- * {@link stepRunWatch}, a pure function of the record, the thread's facts and one event. The
- * model reads all its answers - whether sends wait, whether it checks on its own, whether to
- * reload the history now - from the record and the facts, never from flags of its own.
+ * {@link stepRunWatch}: a pure function of the record, the thread's facts and one event, which
+ * returns the next record and whether to reload the thread's history now. The record's phase
+ * alone answers whether sends wait, and with the facts, whether the model checks on its own.
  *
  * Phases:
  *
  *  - `idle` - nothing to check on.
- *  - `waiting` - the list shows the thread running, and its history holds no reply to the turn.
- *    Checks reload the list, and the history too while it is empty.
- *  - `reloading` - the reply is due: a list showed a waited-on turn done, or the last reply may
- *    still change on the server. A history load begun from now on settles it. A thread that was
- *    waiting still reads as waiting until then.
- *  - `stopped` - the model gave up checking, at `timeoutMs` or on a reload that settled nothing.
- *    The user refreshes by hand.
+ *  - `waiting` - a list shows the thread running, and its history holds no reply to the turn.
+ *    Sends wait. Checks reload the list, and the history too while it is empty.
+ *  - `due` - a list showed done the turn the thread waited on, so its reply is due. Sends still
+ *    wait, until a reload brings the reply. If a few reloads find none, the run died.
+ *  - `settling` - the last reply may still change on the server: it was left running, or failed
+ *    in a way that is not retry-safe, and no list shows a turn running. Sends do not wait. A check
+ *    reloads the history once no list shows the run going. If the reload leaves the reply as it
+ *    was, the run died.
+ *  - `stopped` - the run died, or the watch timed out. The user refreshes by hand. A list that
+ *    shows a turn running wakes the watch.
  * @internal
  */
 export interface RunWatch {
-    phase: 'idle' | 'waiting' | 'reloading' | 'stopped';
+    phase: 'idle' | 'waiting' | 'due' | 'settling' | 'stopped';
 
-    /** When the model began to check on the turn, for the timeout. Null while idle. */
+    /** When the phase's watch began, for the timeout. Null while idle. */
     since: number;
 
-    /** In `reloading`: the load key at its start. A load with a higher key settles it. */
-    reloadAfter: number;
+    /** The load key as the phase began. Only a load with a higher key settles it. */
+    afterKey: number;
 
-    /** In `reloading`: true if the thread was waiting, and so reads as waiting until it settles. */
-    isAwaiting: boolean;
+    /** In `due`: the reloads since it began that applied and still found no reply. */
+    misses: number;
 
-    /** True while a reload that the watch asked for runs. */
-    isReloading: boolean;
+    /** In `waiting`: true once it timed out, so that the model no longer checks on its own. */
+    isTimedOut: boolean;
 
-    /**
-     * True if a list showed the turn running since the watch began - so that a later list that
-     * shows it done brings its reply, from any phase.
-     */
-    seenRunning: boolean;
+    /** The key of the reload the watch asked for, while it runs, or null. */
+    reloadKey: number;
 }
+
+/**
+ * What a thread's history ends with, as the run watch reads it:
+ *
+ *  - `replied` - a reply that will not change.
+ *  - `empty` - nothing, as before a backend saves a thread's first turn.
+ *  - `question` - the user's message, with no reply yet.
+ *  - `detached` - a reply left running on the server.
+ *  - `unsafeFailure` - a reply that failed in a way that is not retry-safe.
+ * @internal
+ */
+export type RunHistory = 'replied' | 'empty' | 'question' | 'detached' | 'unsafeFailure';
 
 /**
  * What the threads model reads from a thread at each step.
@@ -47,29 +59,25 @@ export interface RunFacts {
     /** True while the chat runs a turn of its own. */
     isBusy: boolean;
 
+    /** True if the backend may hold the thread: one loaded, or whose first turn reached it. */
+    isSaved: boolean;
+
     /** True once the thread's history has loaded. */
     isLoaded: boolean;
 
     /** True if the thread's history failed to load, or the thread does not exist. */
     isLoadFailed: boolean;
 
+    /**
+     * True if the model checks on threads on its own, and the current list holds this one, so
+     * that a check can see its run end.
+     */
+    isChecked: boolean;
+
     /** The `isRunning` of the last list that held the thread, or null if none has. */
     listedRunning: boolean;
 
-    /** True if the history is empty. */
-    isEmpty: boolean;
-
-    /**
-     * True if the history holds no reply to its latest turn: it is empty, ends with the user's
-     * message, or ends with a reply left running.
-     */
-    lacksReply: boolean;
-
-    /**
-     * True if the last reply may yet change on the server: left running, or failed in a way that
-     * is not retry-safe.
-     */
-    isUnsettled: boolean;
+    history: RunHistory;
 
     /** The thread's latest load key. */
     loadKey: number;
@@ -80,33 +88,54 @@ export interface RunFacts {
 /**
  * An event that a watch steps on.
  *
- *  - `changed` - the facts may have changed: a list applied, or a turn ended.
- *  - `loaded` - a history load with this key applied.
+ *  - `listed` - a list that holds the thread applied, or the thread opened from one.
+ *  - `turn` - the chat's own turn started or ended.
+ *  - `loaded` - the history load with this key ended. `isApplied` is false if it was superseded,
+ *    or did not apply over a change the user made.
+ *  - `loadFailed` - the history load with this key failed.
+ *  - `reloadStarted` - the reload the watch asked for began, with this key.
  *  - `tick` - a check, after its list reload.
- *  - `reloadStarted`, `reloadEnded` - a reload the watch asked for began or ended.
  *  - `reset` - the chat holds another thread, or none.
  * @internal
  */
 export type RunWatchEvent =
-    | {type: 'changed'}
-    | {type: 'loaded'; key: number}
+    | {type: 'listed'}
+    | {type: 'turn'}
+    | {type: 'loaded'; key: number; isApplied: boolean}
+    | {type: 'loadFailed'; key: number; isNotFound: boolean}
+    | {type: 'reloadStarted'; key: number}
     | {type: 'tick'}
-    | {type: 'reloadStarted'}
-    | {type: 'reloadEnded'}
     | {type: 'reset'};
+
+/**
+ * A step's result: the next watch, and whether to reload the history now.
+ * @internal
+ */
+export interface RunWatchStep {
+    watch: RunWatch;
+    reload: boolean;
+}
 
 /** @internal */
 export const IDLE_WATCH: RunWatch = Object.freeze({
     phase: 'idle',
     since: null,
-    reloadAfter: null,
-    isAwaiting: false,
-    isReloading: false,
-    seenRunning: false
+    afterKey: null,
+    misses: 0,
+    isTimedOut: false,
+    reloadKey: null
 });
 
 /**
- * The watch after an event. Returns the same record if nothing changed.
+ * Reloads of a due reply that may find none before the watch decides that the run died - room
+ * for a backend that marks a run done a moment before it saves the reply. Without checks, one.
+ * @internal
+ */
+export const DUE_RELOADS = 3;
+
+/**
+ * Step a watch on an event - the one place a watch changes, and the one place that decides to
+ * reload a history for it.
  *
  * @param timeoutMs - how long the model checks on a turn before it stops.
  * @internal
@@ -116,64 +145,96 @@ export function stepRunWatch(
     facts: RunFacts,
     event: RunWatchEvent,
     timeoutMs: number
-): RunWatch {
-    if (event.type === 'reset' || facts.isBusy) return IDLE_WATCH;
-    if (event.type === 'reloadStarted') return {...watch, isReloading: true};
-    if (event.type === 'reloadEnded') return {...watch, isReloading: false};
-
-    const {listedRunning, lacksReply, isUnsettled, loadKey, now} = facts,
-        isListedRunning = listedRunning === true && lacksReply,
-        start = (w: Partial<RunWatch>): RunWatch => ({
-            ...IDLE_WATCH,
-            since: watch.since ?? now,
-            isReloading: watch.isReloading,
-            seenRunning: watch.seenRunning || listedRunning === true,
-            ...w
-        }),
-        // A list shows done a turn that one before it showed running, and no reply has loaded.
-        isNowDone = watch.seenRunning && listedRunning === false && lacksReply,
-        dueReply = () =>
-            start({
-                phase: 'reloading',
-                since: now,
-                reloadAfter: loadKey,
-                isAwaiting: true,
-                seenRunning: false
-            });
-
-    // A load begun since the reply fell due settles it. What the history then holds decides the
-    // rest: a turn still running waits again, a reply that still may change is not one a later
-    // check would settle, and a reply not yet saved stays due, for the next check to reload.
-    if (event.type === 'loaded' && watch.phase === 'reloading' && event.key > watch.reloadAfter) {
-        if (isListedRunning) return start({phase: 'waiting', seenRunning: true});
-        if (isUnsettled) return start({phase: 'stopped', seenRunning: false});
-        if (lacksReply && watch.isAwaiting) return {...watch, reloadAfter: event.key};
-        return idle(watch);
+): RunWatchStep {
+    const {isLoaded, isChecked, listedRunning, history, loadKey, now} = facts;
+    if (facts.isBusy) return {watch: IDLE_WATCH, reload: false};
+    if (event.type === 'reloadStarted') {
+        return {watch: {...watch, reloadKey: event.key}, reload: false};
     }
 
-    switch (watch.phase) {
+    // The reload the watch asked for ends with its load.
+    const isEnd = event.type === 'loaded' || event.type === 'loadFailed',
+        w = isEnd && event.key === watch.reloadKey ? {...watch, reloadKey: null} : watch,
+        lacksReply = history === 'empty' || history === 'question' || history === 'detached',
+        mayChange = history === 'detached' || history === 'unsafeFailure',
+        isRunning = listedRunning === true && lacksReply,
+        isLater = isEnd && event.key > w.afterKey,
+        isLate = event.type === 'tick' && w.since != null && now - w.since >= timeoutMs,
+        result = (next: RunWatch, reload: boolean): RunWatchStep => ({
+            watch: next,
+            reload: reload && isLoaded && next.reloadKey == null
+        }),
+        stay = (reload: boolean = false, changes: Partial<RunWatch> = {}) =>
+            result(hasChanges(w, changes) ? {...w, ...changes} : w, reload),
+        enter = (phase: RunWatch['phase'], reload: boolean = false) =>
+            result(
+                phase === 'idle'
+                    ? IDLE_WATCH
+                    : {
+                          ...IDLE_WATCH,
+                          phase,
+                          // A due reply belongs to the turn its thread waited on.
+                          since: phase === 'due' ? (w.since ?? now) : now,
+                          afterKey: loadKey,
+                          reloadKey: w.reloadKey
+                      },
+                reload
+            ),
+        // What the facts call for, with no watch running.
+        classify = (): RunWatchStep => {
+            if (!facts.isSaved || facts.isLoadFailed) return enter('idle');
+            if (isRunning) return enter('waiting');
+            return enter(mayChange ? 'settling' : 'idle');
+        };
+
+    if (event.type === 'reset') return classify();
+
+    switch (w.phase) {
         case 'idle':
-            if (isListedRunning) return start({phase: 'waiting', since: now, seenRunning: true});
-            // A reply that may still change reloads once the list no longer shows its run going.
-            if (isUnsettled) return start({phase: 'reloading', since: now, reloadAfter: loadKey});
-            return watch;
+            return classify();
 
         case 'waiting':
-            if (!lacksReply) return idle(watch);
-            if (isNowDone) return dueReply();
-            return isTimedOut(watch, facts, event, timeoutMs) ? start({phase: 'stopped'}) : watch;
+            if (!lacksReply) return classify();
+            // The list shows the run done: its reply is due, at once.
+            if (listedRunning === false) return enter('due', true);
+            if (event.type !== 'tick' || !isChecked) return stay();
+            if (isLate) return stay(false, {isTimedOut: true});
+            return stay(!w.isTimedOut && history === 'empty');
 
-        case 'reloading':
-            if (!lacksReply && !isUnsettled) return idle(watch);
-            return isTimedOut(watch, facts, event, timeoutMs) ? start({phase: 'stopped'}) : watch;
+        case 'due':
+            if (history === 'replied') return enter('idle');
+            if (event.type === 'listed' && isRunning) return enter('waiting');
+            // A full load that began before the reply fell due: reload once it lands.
+            if (isEnd && !isLater) return stay(event.type === 'loaded');
+            if (event.type === 'loaded' && event.isApplied) {
+                const misses = w.misses + 1;
+                return misses >= (isChecked ? DUE_RELOADS : 1)
+                    ? enter('stopped')
+                    : stay(false, {misses});
+            }
+            if (event.type === 'loadFailed' && event.isNotFound) return enter('stopped');
+            if (event.type !== 'tick' || !isChecked) return stay();
+            return isLate ? enter('stopped') : stay(true);
+
+        case 'settling':
+            if (!mayChange) return classify();
+            if (isRunning) return enter('waiting');
+            if (event.type === 'loaded' && event.isApplied && isLater) {
+                // A reload that left the reply as it was, with no run listed: the run died.
+                return listedRunning === true ? stay() : enter('stopped');
+            }
+            if (event.type === 'loadFailed' && event.isNotFound && isLater) {
+                return enter('stopped');
+            }
+            if (event.type !== 'tick' || !isChecked) return stay();
+            if (isLate) return enter('stopped');
+            return stay(listedRunning !== true);
 
         case 'stopped':
-            if (!lacksReply && !isUnsettled) return idle(watch);
-            // Stopped checks still hear a list: a turn it shows done brings its reply.
-            if (isNowDone) return dueReply();
-            return listedRunning === true && !watch.seenRunning
-                ? {...watch, seenRunning: true}
-                : watch;
+            if (history === 'replied' || !facts.isSaved) return enter('idle');
+            // A list that shows a turn running wakes the watch.
+            if (event.type === 'listed' && isRunning) return enter('waiting');
+            return stay();
     }
 }
 
@@ -184,38 +245,21 @@ export function stepRunWatch(
  */
 export function isRunningOnServer(watch: RunWatch, facts: RunFacts): boolean {
     if (facts.isBusy || facts.isLoadFailed) return false;
-    if (watch.phase === 'reloading' && watch.isAwaiting) return true;
-    return facts.listedRunning === true && facts.lacksReply;
+    return watch.phase === 'waiting' || watch.phase === 'due';
 }
 
 /**
- * True while the model checks on the turn on its own, so that the user need not.
+ * True while the model checks on the turn on its own, so that the user need not refresh it.
  * @internal
  */
-export function isWatchActive(watch: RunWatch): boolean {
-    return watch.phase === 'waiting' || watch.phase === 'reloading';
-}
-
-/**
- * True if the model should reload the thread's history quietly now, after this event:
- *
- *  - A reply that fell due as a list showed the turn done - at once, and again at each check
- *    if a load failed.
- *  - A reply that may still change - at a check, once the list no longer shows the run going.
- *  - A waited-on thread with no messages yet - at each check, so that the turn shows once saved.
- *
- * Never while another reload the watch asked for runs, or before the history first loads.
- * @internal
- */
-export function shouldReload(watch: RunWatch, facts: RunFacts, event: RunWatchEvent): boolean {
-    if (watch.isReloading || !facts.isLoaded || facts.isBusy) return false;
-    const isCheck = event.type === 'tick';
+export function isWatchAutomatic(watch: RunWatch, facts: RunFacts): boolean {
+    if (!facts.isChecked || facts.isBusy) return false;
     switch (watch.phase) {
-        case 'reloading':
-            if (watch.isAwaiting) return isCheck || event.type !== 'reloadEnded';
-            return isCheck && facts.listedRunning !== true;
         case 'waiting':
-            return isCheck && facts.isEmpty;
+            return !watch.isTimedOut;
+        case 'due':
+        case 'settling':
+            return true;
         default:
             return false;
     }
@@ -224,15 +268,6 @@ export function shouldReload(watch: RunWatch, facts: RunFacts, event: RunWatchEv
 //------------------
 // Implementation
 //------------------
-function idle(watch: RunWatch): RunWatch {
-    return watch.isReloading ? {...IDLE_WATCH, isReloading: true} : IDLE_WATCH;
-}
-
-function isTimedOut(
-    watch: RunWatch,
-    facts: RunFacts,
-    event: RunWatchEvent,
-    timeoutMs: number
-): boolean {
-    return event.type === 'tick' && watch.since != null && facts.now - watch.since >= timeoutMs;
+function hasChanges(watch: RunWatch, changes: Partial<RunWatch>): boolean {
+    return Object.entries(changes).some(([key, value]) => watch[key] !== value);
 }
