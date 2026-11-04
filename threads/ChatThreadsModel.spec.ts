@@ -871,6 +871,41 @@ describe('ChatThreadsModel', () => {
             expect(model.chatModel.sendBlockedReason).toBeNull();
         });
 
+        it('keeps the block while a search leaves the running thread out of the list', async () => {
+            const {model, store} = setup();
+            store.saveThread({id: 't9', title: 'Escrow', isRunning: true, messages: []});
+            await model.loadAsync();
+            await model.selectThreadAsync('t9');
+            expect(model.chatModel.sendBlockedReason).toBe('Wait for the reply to finish.');
+
+            vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']});
+            onTestFinished(() => {
+                vi.useRealTimers();
+            });
+            model.search = 'budget';
+            await vi.advanceTimersByTimeAsync(300);
+
+            expect(ids(model.threads)).not.toContain('t9');
+            expect(model.chatModel.sendBlockedReason).toBe('Wait for the reply to finish.');
+        });
+
+        it('blocks sends to a running thread whose history ends with the user message', async () => {
+            const {model, store} = setup();
+            store.saveThread({
+                id: 't9',
+                isRunning: true,
+                messages: [
+                    {role: 'user', content: 'Rates?'},
+                    {role: 'assistant', content: 'Flat.'},
+                    {role: 'user', content: 'And next year?'}
+                ]
+            });
+            await model.loadAsync();
+            await model.selectThreadAsync('t9');
+
+            expect(model.chatModel.sendBlockedReason).toBe('Wait for the reply to finish.');
+        });
+
         it('lets the user send after a detached reply whose run the store no longer lists', async () => {
             const {model, store} = setup();
             store.saveThread({

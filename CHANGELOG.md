@@ -30,9 +30,9 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 
 ### 🎁 New Features
 
-* `ChatThreadsModel` now blocks sends while the store lists a thread as running and its last reply
-  was left running, or it has no messages yet. `getChatComposerStatus()` reports the block with
-  Refresh Status, or as `detached` when the last reply is.
+* `ChatThreadsModel` now blocks sends while the store lists a thread as running and its history has
+  no reply to that turn yet. `getChatComposerStatus()` reports the block with Refresh Status, or as
+  `detached` when the last reply is.
 
 ### 🐞 Bug Fixes
 

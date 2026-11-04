@@ -564,6 +564,8 @@ export class ChatThreadsModel extends HoistModel {
             onThreadIdChange: (it, prevThreadId) => this.onThreadIdChange(it, prevThreadId),
             onBusyChange: it => this.onBusyChange(it)
         });
+        const summary = find(this.threads, {id: threadId});
+        if (summary) thread.setListedRunning(!!summary.isRunning);
         this.putOpenThread(threadId, thread);
         return thread;
     }
@@ -616,18 +618,22 @@ export class ChatThreadsModel extends HoistModel {
     }
 
     /**
-     * True if the server runs a turn of the thread that its chat does not follow: the store lists
-     * the thread as running, and its last reply was left running, or it has no messages yet, as
-     * before a backend saves a thread's first turn. A send then would start a second run. A
-     * detached reply in a thread the store does not list as running blocks nothing, as its run may
-     * have died.
+     * True if the server runs a turn of the thread that its chat does not follow: the last list
+     * that held the thread showed it running, and its history has no reply to that turn yet - it
+     * is empty, ends with the user's message, or ends with a reply left running. A send then would
+     * start a second run. A detached reply in a thread listed as not running blocks nothing, as
+     * its run may have died. A local turn always ends with a reply, so a stale listing cannot
+     * block a thread the user just ran here.
      */
     private isRunningElsewhere(thread: OpenThread): boolean {
         const {chatModel} = thread;
-        if (!chatModel || chatModel.isBusy) return false;
-        if (!find(this.threads, {id: chatModel.threadId})?.isRunning) return false;
+        if (!chatModel || chatModel.isBusy || !thread.isListedRunning) return false;
         const {lastMessage} = chatModel;
-        return chatModel.isEmpty || getChatReplyStatus({message: lastMessage}) === 'detached';
+        return (
+            !lastMessage ||
+            lastMessage.isUser ||
+            getChatReplyStatus({message: lastMessage}) === 'detached'
+        );
     }
 
     @action
@@ -909,6 +915,7 @@ export class ChatThreadsModel extends HoistModel {
         this.appliedListNumber = listNumber;
         this.listedSearch = this.searchQuery;
         this.listedThreads = threads;
+        threads.forEach(it => this.openThreads[it.id]?.setListedRunning(!!it.isRunning));
         this.localThreads = differenceBy(this.localThreads, threads, 'id');
         this.noteSeenFromList(threads, listNumber, this.listedSearch);
         this.pendingChanges = this.pendingChanges.filter(it => listNumber < it.doneBefore);

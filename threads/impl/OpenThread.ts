@@ -44,6 +44,13 @@ export class OpenThread extends HoistBase {
      */
     @observable accessor isSaved: boolean;
 
+    /**
+     * The `isRunning` of the thread in the last list that held it, or null if none has. Kept
+     * apart from the list, so that a search or a capped list that leaves the thread out does not
+     * lose it. (observable)
+     */
+    @observable accessor isListedRunning: boolean = null;
+
     /** The conversation's `ChatModel`, or null for a conversation of the app's own. */
     get chatModel(): ChatModel {
         const {conversation} = this;
@@ -87,6 +94,11 @@ export class OpenThread extends HoistBase {
                 fireImmediately: true
             });
         }
+    }
+
+    @action
+    setListedRunning(isRunning: boolean) {
+        this.isListedRunning = isRunning;
     }
 
     @action

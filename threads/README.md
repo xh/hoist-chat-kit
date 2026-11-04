@@ -378,13 +378,20 @@ turn that the backend finished on its own.
 ### A turn running on the server
 
 A thread can hold a turn that runs on the server while its chat does not follow it, as after a
-page reload. Its last reply is then detached - see the `detached` metadata in
-[`/core/`](../core/README.md#stop-or-detach-a-turn). Or the store lists the thread with
-`isRunning` while its history is still empty, before the backend saves the first turn. The thread
-blocks sends with "Wait for the reply to finish." until a reload shows the turn done, so that a
-send never starts a second run. Send shows the reason as its tooltip. With a detached reply, the
-status region shows the reply's own status rather than the block. With no reply yet, it shows the
-block. Either way it offers Refresh Status, which reloads the history and the thread list.
+page reload. The store then lists the thread with `isRunning`, and the history has no reply to the
+turn yet. The history is empty, before the backend saves the turn, or ends with the user's
+message, or ends with a reply left running - see the `detached` metadata in
+[`/core/`](../core/README.md#stop-or-detach-a-turn).
+
+The thread then blocks sends with "Wait for the reply to finish.", so that a send never starts a
+second run. Send shows the reason as its tooltip. With a detached reply, the status region shows
+the reply's own status rather than the block. Otherwise it shows the block. Either way it offers
+Refresh Status, which reloads the history and the thread list. The block ends when a reload shows
+the reply, or a list shows the thread not running.
+
+The model keeps the `isRunning` of the last list that held the thread, so a search that leaves the
+thread out does not lift the block. A store that does not report `isRunning` gets no block. A
+detached reply in a thread listed as not running blocks nothing, as its run may have died.
 
 ### Link to a thread
 

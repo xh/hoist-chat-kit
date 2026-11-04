@@ -2318,8 +2318,9 @@ go: `showStopHint`, the region's `assistantName`, `ChatStatusRegion.defaults` an
 `ChatKit.defaults.busyIcon`. The Stop button names Esc in its tooltip.
 
 `ChatThreadsModel` blocks sends while the server runs a turn that the chat does not follow: the last
-reply is detached, or the store lists the thread as running and its history is empty. The block
-offers Refresh Status. With a detached reply, it shows as the reply's status, not as a block.
+list that held the thread showed it running, and its history has no reply to that turn yet. The
+history is empty, ends with the user's message, or ends with a detached reply. The block offers
+Refresh Status. A store that does not report `isRunning` gets no block. With a detached reply, it shows as the reply's status, not as a block.
 `getChatComposerStatus()` still reports every status, for a layout of an app's own.
 
 **Why.** The reply, its timeline and the region each showed the reply's progress, and they could
