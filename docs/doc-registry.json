@@ -271,7 +271,9 @@
         "submitInterruptsAsync",
         "onTurnPause",
         "detached",
-        "metadata.detached"
+        "metadata.detached",
+        "statusRefreshMs",
+        "isStatusRefreshAutomatic"
       ]
     },
     {
@@ -325,7 +327,10 @@
         "isRunning",
         "send blocked",
         "Wait for the reply to finish",
-        "Refresh Status"
+        "Refresh Status",
+        "statusRefreshMs",
+        "statusRefreshTimeoutMs",
+        "auto-refresh"
       ]
     },
     {

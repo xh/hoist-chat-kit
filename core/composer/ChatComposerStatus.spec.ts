@@ -88,6 +88,36 @@ describe('getChatComposerStatus', () => {
         ).toBeNull();
     });
 
+    it('offers no Refresh Status while the host refreshes on its own, but for a stall', () => {
+        const auto = {
+            canRefreshStatus: true,
+            isStatusRefreshAutomatic: true,
+            canRetry: true,
+            now: NOW
+        };
+        expect(getChatComposerStatus({...auto, lastMessage: detached()}).action).toBeNull();
+        expect(
+            getChatComposerStatus({...auto, sendBlockedReason: 'Wait for the reply to finish.'})
+                .action
+        ).toBeNull();
+        // A failure that is not retry-safe offers no Try Again either: a resend could run twice.
+        expect(
+            getChatComposerStatus({
+                ...auto,
+                historyMode: 'server',
+                lastMessage: failed({errorCode: 'connection-lost'})
+            }).action
+        ).toBeNull();
+        expect(
+            getChatComposerStatus({
+                ...auto,
+                lastMessage: streaming(),
+                lastActivityAt: NOW - 31_000,
+                stallAfterMs: 30_000
+            }).action
+        ).toBe('refreshStatus');
+    });
+
     it('shows nothing for a finished or stopped reply', () => {
         expect(getChatComposerStatus({lastMessage: complete()})).toBeNull();
         expect(getChatComposerStatus({lastMessage: reply({status: 'aborted'})})).toBeNull();

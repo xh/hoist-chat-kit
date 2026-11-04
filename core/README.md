@@ -1102,6 +1102,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `feedbackErrors` | `Record<string, Error>` | Why the last feedback on a message failed to save, by message id, for the form to show. Cleared on the next submit. Observable. |
 | `feedbackDrafts` | `Record<string, ChatFeedbackDraft>` | Comments typed in feedback forms and not yet sent, by message id, with their send state and last error. Observable. |
 | `canRefreshStatus` | `boolean` | True once a refresher is set with `setStatusRefresher()`. |
+| `isStatusRefreshAutomatic` | `boolean` | True while the thread layer refreshes the status on its own. The status region then offers no Refresh Status for a turn the chat does not follow. |
 | `isBusy` | `boolean` | True for `submitted` or `streaming`. False while a turn is paused. |
 | `sendBlockedReason` | `string` | Why sending must wait, from the `sendBlocker` or an added blocker, or null. |
 | `isEmpty` | `boolean` | True if there are no messages. |
@@ -1135,7 +1136,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `loadMessages(specs, threadId?)` | Replace the conversation. Default a new thread id. |
 | `submitFeedbackAsync(messageId, rating, comment?)` | Rate a reply, or clear its rating with null. Shows at once. If the submit fails, it reverts and records the error in `feedbackErrors`, with no toast. |
 | `setFeedbackDraft(messageId, draft)` | Keep the comment typed in a message's feedback form, or remove it with null. For the feedback form. |
-| `setStatusRefresher(refreshAsync)` | Set the function that reloads the thread, for Refresh Status. For a thread layer. |
+| `setStatusRefresher(refreshAsync, isAutomatic?)` | Set the function that reloads the thread, for Refresh Status, and one that says when the thread layer refreshes on its own. For a thread layer. |
 | `refreshStatusAsync()` | Reload the thread to learn how a run ended. Does nothing without a refresher. |
 | `setFeedbackSubmitter(submitAsync)` | Set the submitter to use when `feedback.submitAsync` is not configured. For a thread layer. |
 | `addSendBlocker(blocker)` | Add a reason for sends to wait, checked after the `sendBlocker`. For a thread layer. |
@@ -1407,6 +1408,8 @@ Fields of `ChatKit.defaults`. See `ChatKit.ts`.
 | `assistantIcon` | `() => ReactElement` | Returns the icon that marks the assistant. A component's `assistantIcon` prop overrides it. Default `() => Icon.ai()`. |
 | `reducedMotionSpinner` | `'static' \| 'spin'` | Under reduced motion, `static` swaps the chat's spinners for a static icon, and `spin` keeps Hoist's spinner. Default `static`. |
 | `stallAfterMs` | `number` | Milliseconds with no data from the server before a reply shows as stalled. `ChatModelConfig.stallAfterMs` overrides it. Default 30,000. |
+| `statusRefreshMs` | `number` | Milliseconds between the checks `ChatThreadsModel` makes on a turn that runs on the server while its chat does not follow it. Null to check only on Refresh Status. `ChatThreadsConfig.statusRefreshMs` overrides it. Default 5,000. See [A turn running on the server](../threads/README.md#a-turn-running-on-the-server). |
+| `statusRefreshTimeoutMs` | `number` | Milliseconds after which `ChatThreadsModel` stops those checks and offers Refresh Status. `ChatThreadsConfig.statusRefreshTimeoutMs` overrides it. Default 1,800,000, 30 minutes. |
 | `drafts` | `'local' \| 'memory'` | Where the composer keeps its unsent draft text: local storage, per thread, or memory only. Default `local`. See [Keep drafts](#keep-drafts). |
 | `shortcuts` | `ChatShortcuts` | Key combos in the format of Hoist's `useHotkeys`, by action: `newChat`, `focusComposer`, `cycleRegions` and `toggleSidebar`. Null drops a shortcut. See [Keyboard](../desktop/cmp/chat/README.md#keyboard). |
 | `markdownTableMaxRows` | `number` | Most body rows a markdown table shows in full, in a reply, its reasoning or a tool's output. A longer table shows that many in a card, with Show All. Default 100. |

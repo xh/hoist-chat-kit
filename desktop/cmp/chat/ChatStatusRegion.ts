@@ -34,8 +34,9 @@ export interface ChatStatusRegionProps extends HoistProps<ChatComposerModel> {}
  *    still be running, and offers Refresh Status when the chat can refresh, or else Try Again.
  *    A chat with `allowRetry` false never offers Try Again.
  *    A reply the server interrupted or cancelled ranks with a failure.
- *  - A reply left running on the server, or a stalled reply, only when the chat can refresh -
- *    with Refresh Status. Stop stays on the composer.
+ *  - A reply left running on the server, only when the chat can refresh and the thread layer
+ *    does not refresh on its own - with Refresh Status. A stalled reply, only when the chat can
+ *    refresh - with Refresh Status. Stop stays on the composer.
  *  - A retry-safe failure for which the server asked for a wait, counting down to a retry, with
  *    Cancel. The turn retries at zero.
  *  - A restored draft, with Discard.

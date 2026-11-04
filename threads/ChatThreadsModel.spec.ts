@@ -923,7 +923,7 @@ describe('ChatThreadsModel', () => {
         });
 
         it('blocks sends to a running thread that has no messages saved yet', async () => {
-            const {model, store} = setup();
+            const {model, store} = setup({statusRefreshMs: null});
             store.saveThread({id: 't9', isRunning: true, messages: []});
             await model.loadAsync();
             await model.selectThreadAsync('t9');
@@ -946,6 +946,101 @@ describe('ChatThreadsModel', () => {
             await model.chatModel.refreshStatusAsync();
             expect(model.chatModel.lastMessage.text).toBe('Flat.');
             expect(model.chatModel.sendBlockedReason).toBeNull();
+        });
+
+        describe('automatic status refresh', () => {
+            const DETACHED = [
+                    {role: 'user' as const, content: 'Rates?'},
+                    {
+                        role: 'assistant' as const,
+                        status: 'aborted' as const,
+                        metadata: {detached: true}
+                    }
+                ],
+                DONE = [
+                    {role: 'user' as const, content: 'Rates?'},
+                    {role: 'assistant' as const, content: 'Flat.'}
+                ];
+
+            async function openRunning(config: Partial<SetupConfig> = {}) {
+                vi.useFakeTimers({
+                    toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date']
+                });
+                onTestFinished(() => {
+                    vi.useRealTimers();
+                });
+                const {model, store} = setup(config);
+                store.saveThread({id: 't9', isRunning: true, messages: DETACHED});
+                await model.loadAsync();
+                await model.selectThreadAsync('t9');
+                return {model, store};
+            }
+
+            it('loads the reply once the list shows the run done, with no Refresh Status', async () => {
+                const {model, store} = await openRunning(),
+                    load = vi.spyOn(store, 'loadMessagesAsync');
+                expect(model.chatModel.composerModel.getStatus()).toMatchObject({
+                    type: 'detached',
+                    action: null
+                });
+
+                // Still running: each check reloads the list only.
+                await vi.advanceTimersByTimeAsync(5_000);
+                expect(load).not.toHaveBeenCalled();
+
+                store.saveThread({id: 't9', isRunning: false, messages: DONE});
+                await vi.advanceTimersByTimeAsync(5_000);
+
+                expect(load).toHaveBeenCalledTimes(1);
+                expect(model.chatModel.lastMessage.text).toBe('Flat.');
+                expect(model.chatModel.sendBlockedReason).toBeNull();
+            });
+
+            it('stops checking after statusRefreshTimeoutMs, and offers Refresh Status', async () => {
+                const {model} = await openRunning({statusRefreshTimeoutMs: 12_000});
+
+                await vi.advanceTimersByTimeAsync(20_000);
+
+                expect(model.chatModel.composerModel.getStatus()).toMatchObject({
+                    type: 'detached',
+                    action: 'refreshStatus'
+                });
+            });
+
+            it('reloads an empty running thread on each check, to show the turn once saved', async () => {
+                const {model, store} = await openRunning();
+                store.saveThread({id: 't9', isRunning: true, messages: []});
+                await model.chatModel.refreshStatusAsync();
+                expect(model.chatModel.isEmpty).toBe(true);
+
+                store.saveThread({id: 't9', isRunning: true, messages: DETACHED});
+                await vi.advanceTimersByTimeAsync(5_000);
+
+                expect(model.chatModel.lastMessage.metadata.detached).toBe(true);
+                expect(model.chatModel.sendBlockedReason).toBe('Wait for the reply to finish.');
+            });
+
+            it('leaves a run that died to Refresh Status, after one reload', async () => {
+                const {model, store} = await openRunning(),
+                    load = vi.spyOn(store, 'loadMessagesAsync');
+                store.saveThread({id: 't9', isRunning: false, messages: DETACHED});
+
+                await vi.advanceTimersByTimeAsync(15_000);
+
+                expect(load).toHaveBeenCalledTimes(1);
+                expect(model.chatModel.sendBlockedReason).toBeNull();
+                expect(model.chatModel.composerModel.getStatus().action).toBe('refreshStatus');
+            });
+
+            it('offers Refresh Status, and never checks, with statusRefreshMs null', async () => {
+                const {model, store} = await openRunning({statusRefreshMs: null}),
+                    list = vi.spyOn(store, 'listThreadsAsync');
+
+                await vi.advanceTimersByTimeAsync(15_000);
+
+                expect(list).not.toHaveBeenCalled();
+                expect(model.chatModel.composerModel.getStatus().action).toBe('refreshStatus');
+            });
         });
 
         it('refreshes the thread list along with the status', async () => {

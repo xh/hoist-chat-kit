@@ -138,6 +138,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D114](#d114-onsourceclick-takes-a-handler-per-source-type) | `onSourceClick` takes a handler per source type | Accepted |
 | [D115](#d115-a-detached-reply-keeps-its-open-work-open) | A detached reply keeps its open work open | Accepted |
 | [D116](#d116-the-status-region-holds-only-actions-and-a-turn-running-on-the-server-blocks-sends) | The status region holds only actions, and a turn running on the server blocks sends | Accepted |
+| [D117](#d117-the-thread-layer-checks-on-a-turn-running-on-the-server) | The thread layer checks on a turn running on the server | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2332,3 +2333,26 @@ first.
 duplicates by default, and the views could still disagree. Show the busy line only when the reply
 is out of view. It adds a rule for a case no app asked about. Leave the send to the backend. The
 user then gets an error for a send the kit could have held.
+
+## D117. The thread layer checks on a turn running on the server
+
+**Status.** Accepted.
+
+**Decision.** `ChatThreadsModel` checks on its own on a turn that runs on the server while its
+chat does not follow it: one that blocks sends (D116), a detached reply, or a reply that failed in
+a way that is not retry-safe. Every `ChatKit.defaults.statusRefreshMs`, 5 s by default, it reloads
+the thread list as an auto-refresh, with no busy state. Once the list no longer shows the run, it
+reloads the thread's history once. Meanwhile the status region offers no Refresh Status, through
+the `isAutomatic` argument of `ChatModel.setStatusRefresher()`. The model stops, and Refresh Status
+returns, after `statusRefreshTimeoutMs`, 30 minutes by default, or when a reload leaves the turn
+unsettled. `statusRefreshMs: null` turns the checks off. A stalled reply keeps Refresh Status: its
+stream is still open.
+
+**Why.** Many users never see the small Refresh Status button. A backend reports no event when a
+run ends, so the client has to ask. The thread list is cheap to load, and a thread's history can be
+large, so the model polls the list and loads a history only once its run is done.
+
+**Alternatives.** Poll the history. It costs a full conversation per check. Reconnect to the run's
+stream, with the transport's `reconnect`. It shows progress live, but needs backend support, and
+waits for an app to ask. Refresh a stalled reply on its own too. That would detach a stream that
+may still answer, and a transport has no hard timeout by default to end a stall for good.

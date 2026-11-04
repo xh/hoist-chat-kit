@@ -662,9 +662,9 @@ not announced.
 | Sending blocked | The `sendBlockedReason`. A block while the server runs the turn shows as the detached reply, if there is one. | Refresh Status, for a block while the server runs the turn |
 | Offline | "Offline. Your draft is kept; send it when you're back online." | None |
 | Failed, retry-safe | "The reply failed." and the cause | Try Again |
-| Failed, not retry-safe | The cause, and "It may still be running." | Refresh Status, else Try Again |
+| Failed, not retry-safe | The cause, and "It may still be running." | Refresh Status, else Try Again. None while the thread layer refreshes on its own. |
 | Interrupted or cancelled by the server | The server's reason | Try Again, or Refresh Status |
-| Left running on the server | "Still working on the server.", only when the chat can refresh | Refresh Status |
+| Left running on the server | "Still working on the server.", only when the chat can refresh and the thread layer does not refresh on its own | Refresh Status |
 | Stalled | "No response for 34s.", only when the chat can refresh | Refresh Status |
 | Server asked for a wait | "Waiting to retry, 42 s." | Cancel. The turn retries at zero, at most 3 times in a row |
 | Draft restored | "Draft from 10:31am restored." | Discard |

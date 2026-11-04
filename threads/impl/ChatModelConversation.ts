@@ -19,6 +19,9 @@ export interface ChatModelConversationConfig {
 
     /** Reload the thread's history for Refresh Status - see `ChatModel.setStatusRefresher`. */
     refreshStatusAsync: () => Promise<void>;
+
+    /** True while the threads model refreshes the status on its own. */
+    isStatusRefreshAutomatic: () => boolean;
 }
 
 /**
@@ -55,7 +58,8 @@ export class ChatModelConversation extends HoistBase implements ChatConversation
         store,
         drafts,
         getSendBlockedReason,
-        refreshStatusAsync
+        refreshStatusAsync,
+        isStatusRefreshAutomatic
     }: ChatModelConversationConfig) {
         super();
         this.chatModel = chatModel;
@@ -68,7 +72,7 @@ export class ChatModelConversation extends HoistBase implements ChatConversation
             );
         }
         chatModel.addSendBlocker(getSendBlockedReason);
-        chatModel.setStatusRefresher(refreshStatusAsync);
+        chatModel.setStatusRefresher(refreshStatusAsync, isStatusRefreshAutomatic);
         drafts.open(chatModel.threadId, chatModel);
     }
 

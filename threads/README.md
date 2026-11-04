@@ -385,9 +385,20 @@ message, or ends with a reply left running - see the `detached` metadata in
 
 The thread then blocks sends with "Wait for the reply to finish.", so that a send never starts a
 second run. Send shows the reason as its tooltip. With a detached reply, the status region shows
-the reply's own status rather than the block. Otherwise it shows the block. Either way it offers
-Refresh Status, which reloads the history and the thread list. The block ends when a reload shows
-the reply, or a list shows the thread not running.
+the reply's own status rather than the block. Otherwise it shows the block. The block ends when a
+reload shows the reply, or a list shows the thread not running.
+
+The model checks on such a turn on its own, every `statusRefreshMs`, 5 seconds by default. Each
+check reloads the thread list, quietly, with no busy state. Once the list shows the run done, the
+model reloads the thread's history, and the reply shows in full. A thread with no messages yet
+also reloads its history on each check, so that the turn shows once the backend saves it. It checks the same way on a reply
+that failed in a way that is not retry-safe, such as a dropped connection, as its run may still
+go on. The status region offers no Refresh Status meanwhile.
+
+The model stops checking, and offers Refresh Status, after `statusRefreshTimeoutMs`, 30 minutes
+by default. It also stops when a reload leaves the turn unsettled, as for a run that died. With
+`statusRefreshMs` null, the model never checks, and the region always offers Refresh Status. A
+stalled reply, whose stream is still open, offers Refresh Status either way.
 
 The model keeps the `isRunning` of the last list that held the thread, so a search that leaves the
 thread out does not lift the block. A store that does not report `isRunning` gets no block. A
@@ -553,6 +564,8 @@ conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those
 | `createChatModel` | `({threadId, isNew, seed}) => ChatModel` | Builds the chat for a thread. Must pass `threadId` to the `ChatModel`. `isNew` is false for a thread whose history is about to load. A new thread may start with a greeting in `initialMessages`. The model applies `seed` itself. Requires the store's `loadMessagesAsync`. Give this or `createConversation`. |
 | `createConversation` | `({threadId, isNew, seed}) => ChatConversation` | Builds a conversation of the app's own for a thread, over a chat that runs on another library. Must take `threadId`. Give this or `createChatModel`. |
 | `route` | `{name, param, threadRoute?}` | Route whose parameter holds the selected thread id. `threadRoute` names a child route that holds the thread in its path. Default none. |
+| `statusRefreshMs` | `number` | Milliseconds between checks on a turn that runs on the server, or null to check only on Refresh Status. Default `ChatKit.defaults.statusRefreshMs`, 5,000. See [A turn running on the server](#a-turn-running-on-the-server). |
+| `statusRefreshTimeoutMs` | `number` | Milliseconds after which the model stops those checks and offers Refresh Status. Default `ChatKit.defaults.statusRefreshTimeoutMs`, 30 minutes. |
 
 ### ChatThreadsModel state
 

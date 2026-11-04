@@ -40,6 +40,22 @@ export interface ChatKitDefaults {
     stallAfterMs: number;
 
     /**
+     * Milliseconds between the checks that `ChatThreadsModel` makes on a turn that runs on the
+     * server while its chat does not follow it, as after a page reload. Each check reloads the
+     * thread list, and the thread's history once the list shows the run done. Null to check only
+     * when the user clicks Refresh Status. `ChatThreadsConfig.statusRefreshMs` overrides it for
+     * one model. Default 5,000.
+     */
+    statusRefreshMs: number;
+
+    /**
+     * Milliseconds after which `ChatThreadsModel` stops checking on a turn that runs on the
+     * server, and offers Refresh Status instead. `ChatThreadsConfig.statusRefreshTimeoutMs`
+     * overrides it for one model. Default 1,800,000 - 30 minutes.
+     */
+    statusRefreshTimeoutMs: number;
+
+    /**
      * Where the composer keeps its unsent draft text.
      *
      *  - `local` - in local storage, per thread, through `XH.localStorageService`, which keys it
@@ -117,6 +133,8 @@ export class ChatKit {
         assistantIcon: () => Icon.ai(),
         reducedMotionSpinner: 'static',
         stallAfterMs: 30_000,
+        statusRefreshMs: 5_000,
+        statusRefreshTimeoutMs: 1_800_000,
         drafts: 'local',
         shortcuts: {
             newChat: 'mod+shift+o',

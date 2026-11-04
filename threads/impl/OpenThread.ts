@@ -51,6 +51,18 @@ export class OpenThread extends HoistBase {
      */
     @observable accessor isListedRunning: boolean = null;
 
+    /**
+     * When the threads model began checking on a turn of this thread that runs on the server, in
+     * epoch milliseconds, or null if it is not checking.
+     */
+    statusWatchSince: number = null;
+
+    /**
+     * True once the threads model stopped checking on that turn - it timed out, or a reload did
+     * not settle it - so that the user refreshes by hand. (observable)
+     */
+    @observable accessor isStatusWatchEnded: boolean = false;
+
     /** The conversation's `ChatModel`, or null for a conversation of the app's own. */
     get chatModel(): ChatModel {
         const {conversation} = this;
@@ -101,6 +113,19 @@ export class OpenThread extends HoistBase {
         this.isListedRunning = isRunning;
     }
 
+    /** Reset the check on a turn that runs on the server, once none needs one. */
+    @action
+    resetStatusWatch() {
+        this.statusWatchSince = null;
+        this.isStatusWatchEnded = false;
+    }
+
+    /** Stop checking on a turn that runs on the server, and leave it to the user. */
+    @action
+    endStatusWatch() {
+        this.isStatusWatchEnded = true;
+    }
+
     @action
     setSaved(isSaved: boolean) {
         this.isSaved = isSaved;
@@ -108,12 +133,15 @@ export class OpenThread extends HoistBase {
 
     /**
      * Start a load of the history, superseding any load in flight.
+     * @param isQuiet - true for a background check, which leaves the load state as it is.
      * @returns a key that identifies the load - see {@link isLoadCurrent}.
      */
     @action
-    beginLoad(): number {
-        this.loadState = 'loading';
-        this.loadError = null;
+    beginLoad(isQuiet: boolean = false): number {
+        if (!isQuiet) {
+            this.loadState = 'loading';
+            this.loadError = null;
+        }
         return ++this.loadCount;
     }
 

@@ -98,6 +98,13 @@ export interface ChatComposerStatusSpec {
     /** True if the host can reload the thread to learn how a run ended. */
     canRefreshStatus?: boolean;
 
+    /**
+     * True while the host reloads the thread on its own, for a turn the chat does not follow. A
+     * reply left running, a send blocked while the server runs the turn, and a failure that is not
+     * retry-safe then offer no Refresh Status. A stalled reply still does, as its stream is open.
+     */
+    isStatusRefreshAutomatic?: boolean;
+
     /** When a restored draft was saved, while its notice shows, or null. */
     draftSavedAt?: number;
 
@@ -128,6 +135,7 @@ export function getChatComposerStatus(spec: ChatComposerStatusSpec): ChatCompose
             retryWaitEndsAt = null,
             canRetry = false,
             canRefreshStatus = false,
+            isStatusRefreshAutomatic = false,
             draftSavedAt = null,
             now = Date.now()
         } = spec,
@@ -137,6 +145,12 @@ export function getChatComposerStatus(spec: ChatComposerStatusSpec): ChatCompose
             stallAfterMs: spec.stallAfterMs,
             now
         }),
+        canRefreshByHand = canRefreshStatus && !isStatusRefreshAutomatic,
+        refreshMode = !canRefreshStatus
+            ? 'none'
+            : isStatusRefreshAutomatic
+              ? 'automatic'
+              : 'byHand',
         status = (type: ChatComposerStatusType, changes: Partial<ChatComposerStatus> = {}) => ({
             type,
             replyStatus,
@@ -156,7 +170,7 @@ export function getChatComposerStatus(spec: ChatComposerStatusSpec): ChatCompose
         if (!isRunOnServer || replyStatus !== 'detached') {
             return status('blocked', {
                 reason: sendBlockedReason,
-                action: isRunOnServer && canRefreshStatus ? 'refreshStatus' : null
+                action: isRunOnServer && canRefreshByHand ? 'refreshStatus' : null
             });
         }
     }
@@ -171,13 +185,13 @@ export function getChatComposerStatus(spec: ChatComposerStatusSpec): ChatCompose
                     retryInMs: Math.max(retryWaitEndsAt - now, 0)
                 });
             }
-            return failedStatus(status, lastMessage, historyMode, canRetry, canRefreshStatus);
+            return failedStatus(status, lastMessage, historyMode, canRetry, refreshMode);
         case 'error':
         case 'interrupted':
         case 'cancelledByServer':
-            return failedStatus(status, lastMessage, historyMode, canRetry, canRefreshStatus);
+            return failedStatus(status, lastMessage, historyMode, canRetry, refreshMode);
         case 'detached':
-            return status('detached', {action: canRefreshStatus ? 'refreshStatus' : null});
+            return status('detached', {action: canRefreshByHand ? 'refreshStatus' : null});
         case 'stalled':
             return status('stalled', {
                 action: canRefreshStatus ? 'refreshStatus' : null,
@@ -236,11 +250,14 @@ function failedStatus(
     message: ChatMessage,
     historyMode: ChatHistoryMode,
     canRetry: boolean,
-    canRefreshStatus: boolean
+    refreshMode: 'none' | 'byHand' | 'automatic'
 ): ChatComposerStatus {
     const isRetrySafe = isChatRetrySafe(message, historyMode);
     let action: ChatComposerAction = null;
-    if (!isRetrySafe && canRefreshStatus) {
+    // The host reloads a failure that is not retry-safe on its own, and a resend could run twice.
+    if (!isRetrySafe && refreshMode === 'automatic') {
+        action = null;
+    } else if (!isRetrySafe && refreshMode === 'byHand') {
         action = 'refreshStatus';
     } else if (canRetry) {
         action = 'tryAgain';

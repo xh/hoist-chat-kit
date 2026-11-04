@@ -287,6 +287,7 @@ export class ChatComposerModel extends HoistModel {
             retryWaitEndsAt: this.retryWait?.endsAt,
             canRetry: this.canRetry,
             canRefreshStatus: this.canRefreshStatus,
+            isStatusRefreshAutomatic: !!this.chatModel?.isStatusRefreshAutomatic,
             draftSavedAt: this.restoredDraft?.savedAt,
             now
         });

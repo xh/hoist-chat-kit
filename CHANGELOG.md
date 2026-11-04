@@ -34,6 +34,10 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   no reply to that turn yet. `getChatComposerStatus()` reports the block with Refresh Status, or as
   `detached` when the last reply is.
 
+* `ChatThreadsModel` now checks on a turn that runs on the server while its chat does not follow
+  it, and loads the reply once the thread list shows the run done. Set the interval with
+  `ChatKit.defaults.statusRefreshMs` or `ChatThreadsConfig.statusRefreshMs`, null for none.
+
 ### 🐞 Bug Fixes
 
 * Fixed Refresh Status in a `ChatThreadsModel` chat to reload the thread list too. The list could

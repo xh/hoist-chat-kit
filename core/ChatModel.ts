@@ -611,6 +611,16 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     }
 
     /**
+     * True while the thread layer refreshes the status on its own - see
+     * {@link setStatusRefresher}. The composer's status region then offers no Refresh Status for a
+     * turn the chat does not follow.
+     */
+    @computed
+    get isStatusRefreshAutomatic(): boolean {
+        return !!this.statusRefreshAutomatic?.();
+    }
+
+    /**
      * Why the last feedback on a message failed to save, by message id - for the feedback form to
      * show inline. A message's entry clears when its feedback is submitted again. (observable)
      */
@@ -1111,10 +1121,15 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     /**
      * Supply the function that reloads the thread from the backend, for
      * {@link refreshStatusAsync}. A thread layer calls this when it creates the chat.
+     *
+     * @param isAutomatic - returns true while the thread layer refreshes the status on its own,
+     *      so that the user need not - see {@link isStatusRefreshAutomatic}. Read as observable
+     *      state. Default never.
      */
     @action
-    setStatusRefresher(refreshAsync: () => Promise<void>) {
+    setStatusRefresher(refreshAsync: () => Promise<void>, isAutomatic: () => boolean = null) {
         this.statusRefresher = refreshAsync;
+        this.statusRefreshAutomatic = isAutomatic;
     }
 
     /**
@@ -1194,6 +1209,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     @observableRef private accessor feedbackSubmitter: ChatFeedbackSubmitter = null;
     @observableRef private accessor sendBlockers: Array<() => string>;
     @observableRef private accessor statusRefresher: () => Promise<void> = null;
+    @observableRef private accessor statusRefreshAutomatic: () => boolean = null;
 
     // The latest feedback submit for each message, by count - see `submitFeedbackAsync`.
     private readonly feedbackSubmits = new Map<string, number>();
