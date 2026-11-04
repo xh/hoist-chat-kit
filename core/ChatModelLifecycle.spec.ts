@@ -6,6 +6,7 @@ import {
     type ChatRunRef,
     errorEvents,
     ScriptedChatTransport,
+    type ScriptedItem,
     type ScriptedResponse,
     scriptedDelay,
     textEvents,
@@ -15,6 +16,7 @@ import {ChatAbortError} from './ChatAbortError';
 import {ChatModel, type ChatModelConfig} from './ChatModel';
 import {ChatRunError} from './ChatRunError';
 import type {ChatMessageSpec} from './message/ChatMessage';
+import type {ChatToolCallPart} from './message/ChatPart';
 
 /**
  * The run lifecycle of a ChatModel, in both conversation shapes. A server-owned conversation
@@ -321,6 +323,59 @@ describe('ChatModel run lifecycle', () => {
             expect(agent).toMatchObject({data: {status: 'running'}});
         });
 
+        it("closes the open calls of the chat's own tools in a detached reply", async () => {
+            const transport = new CancellableTransport({
+                    responses: [
+                        [
+                            toolCallEvents('lookup', {}, {toolCallId: 'own'}),
+                            ...(UNFINISHED_WORK as ScriptedItem[])
+                        ]
+                    ],
+                    delayMs: 0
+                }),
+                model = createModel({
+                    transport,
+                    historyMode: 'server',
+                    tools: [{name: 'lookup', execute: () => 'ok'}]
+                });
+
+            const done = model.sendAsync('Hi');
+            await vi.waitFor(() => expect(model.lastMessage.toolCalls).toHaveLength(2));
+            model.detach();
+            await done;
+
+            const [own, server] = model.lastMessage.toolCalls;
+            expect(own).toMatchObject({
+                state: 'output-error',
+                errorText: 'Not completed - the response was interrupted.'
+            });
+            expect(server).toMatchObject({state: 'input-available'});
+
+            model.loadMessages([
+                {role: 'user', content: 'Hi'},
+                {
+                    ...DETACHED_REPLY,
+                    parts: [{...DETACHED_CALL, id: 'own', toolName: 'lookup'}]
+                }
+            ]);
+            expect(model.lastMessage.toolCalls[0]).toMatchObject({state: 'output-error'});
+        });
+
+        it('closes a call approved for a resume, once the conversation moves past it', () => {
+            const model = createModel({transport: scripted([]), historyMode: 'server'});
+
+            model.loadMessages([
+                {role: 'user', content: 'Hi'},
+                {
+                    ...DETACHED_REPLY,
+                    parts: [{...DETACHED_CALL, awaitsResume: true}]
+                },
+                {role: 'user', content: 'And then?'}
+            ]);
+
+            expect(model.messages[1].toolCalls[0]).toMatchObject({state: 'output-error'});
+        });
+
         it('never waits on the user for the open calls of a detached reply', () => {
             const model = createModel({
                 transport: scripted([]),
@@ -601,6 +656,18 @@ const UNFINISHED_WORK: ScriptedResponse = [
 ];
 
 // A reply in the documented detached state, as a store returns it mid-run.
+const DETACHED_CALL: ChatToolCallPart = {
+    type: 'toolCall',
+    id: 'c1',
+    toolName: 'server_search',
+    inputText: '{"q":"rates"}',
+    input: {q: 'rates'},
+    output: null,
+    errorText: null,
+    state: 'input-available',
+    step: 0
+};
+
 const DETACHED_REPLY: ChatMessageSpec = {
     role: 'assistant',
     status: 'aborted',

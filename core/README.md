@@ -418,10 +418,14 @@ chatModel.runOptions = {documentIds: selectedIds, profile: 'thorough'};
 | `clear()`, `loadMessages()` | Discarded | No | As for `detach()` |
 | `destroy()` | Discarded | No | The run goes on |
 
-A detached reply keeps its unfinished tool calls and sub-agents open, as the server may still
-finish them. So does the last reply of a history loaded with `loadMessages()`, if it is detached.
-They close as "No result - the conversation moved on" when the next turn starts, so that the history
-a request sends has a result for every call. A reply that a stop ended closes them as cancelled.
+A detached reply keeps the server's unfinished tool calls and sub-agents open, as the server may
+still finish them. Calls to a tool of the chat with an `execute`, or an interactive one, close as
+interrupted, as the turn that would run them is over. The same holds for the last reply of a
+history loaded with `loadMessages()`, if it is detached.
+
+When the next turn starts, the reply becomes `complete`, without `metadata.detached`. Its open work
+closes as "No result - the conversation moved on", so that the history a request sends has a
+result for every call. A reply that a stop ended closes its open work as cancelled.
 
 The turn's signal aborts with a `ChatAbortError`. Its `name` is `AbortError`, and its `reason` is
 `stop`, `detach`, `clear`, `load` or `destroy`. A client tool can read the reason from

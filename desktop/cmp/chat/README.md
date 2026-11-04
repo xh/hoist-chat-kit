@@ -334,7 +334,7 @@ The block is one 28px line. Its height never changes, and it changes only its wo
 | Paused | "Paused", when the reply waits on the user for something outside the block | As running, with the time held |
 | Done | "Used 7 tools and 1 agent" | Time taken, failures |
 | Stopped | "Stopped after 5 tools". Calls open at the stop show as cancelled, not failed. | Cancelled count |
-| Detached | "So far: 5 tools done", for a reply left running on the server. Its open calls and sub-agents show as "Not finished yet", with no spinner. | Time taken, failures |
+| Detached | "So far: 5 tools done", or "Nothing finished yet", for a reply left running on the server. Its open calls and sub-agents show as "Not finished yet", with no spinner. | Time taken, failures |
 | Failed | "Ended at step 5". The reply's failed row says why. | Tool count |
 
 The line swaps to its done summary in place once the answer starts below the block. Failures
@@ -1234,7 +1234,7 @@ Accepts all `PanelProps` except `model`, `modelConfig` and `modelRef`.
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
 | `composerProps` | `ChatComposerProps` | Props for the composer. |
 | `messageListProps` | `ChatMessageListProps` | Props for the message list. |
-| `statusRegionProps` | `ChatStatusRegionProps` | Props for the status region. Its `assistantName` defaults to the message list's. |
+| `statusRegionProps` | `ChatStatusRegionProps` | Props for the status region. |
 
 ### ChatMessageList
 

@@ -848,11 +848,13 @@ describe('ChatThreadsModel', () => {
             const {model, store} = setup();
             store.saveThread({
                 id: 't9',
+                isRunning: true,
                 messages: [
                     {role: 'user', content: 'Rates?'},
                     {role: 'assistant', status: 'aborted', metadata: {detached: true}}
                 ]
             });
+            await model.loadAsync();
             await model.selectThreadAsync('t9');
 
             expect(model.chatModel.sendBlockedReason).toBe('Wait for the reply to finish.');
@@ -866,6 +868,22 @@ describe('ChatThreadsModel', () => {
                 ]
             });
             await model.reloadThreadAsync();
+            expect(model.chatModel.sendBlockedReason).toBeNull();
+        });
+
+        it('lets the user send after a detached reply whose run the store no longer lists', async () => {
+            const {model, store} = setup();
+            store.saveThread({
+                id: 't9',
+                isRunning: false,
+                messages: [
+                    {role: 'user', content: 'Rates?'},
+                    {role: 'assistant', status: 'aborted', metadata: {detached: true}}
+                ]
+            });
+            await model.loadAsync();
+            await model.selectThreadAsync('t9');
+
             expect(model.chatModel.sendBlockedReason).toBeNull();
         });
 

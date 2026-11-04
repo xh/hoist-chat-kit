@@ -20,33 +20,33 @@ See [`docs/upgrade-notes/v2-upgrade-notes.md`](docs/upgrade-notes/v2-upgrade-not
 detailed, step-by-step upgrade instructions with before/after code examples.
 
 * `ChatStatusRegion` now shows only what stops a send or needs the user's action. A reply in
-  progress, or one waiting for the user's answer, shows no line there - the reply shows its own
-  progress. A reply left running on the server, or a stalled one, shows a line only with Refresh
-  Status. Screen readers still hear a turn that pauses for the user's answer.
-* Removed `ChatStatusRegion`'s `assistantName` and `showStopHint` props,
+  progress, or one waiting for the user's answer, shows no line, as the reply shows its progress.
+* Removed the busy line's settings: `showStopHint` and `assistantName` on `ChatStatusRegion`,
   `ChatStatusRegion.defaults` with its `ChatStatusRegionDefaults` type, and
-  `ChatKit.defaults.busyIcon`, which set the busy line. Remove them from the app. The composer's
-  Stop button now names Esc in its tooltip.
+  `ChatKit.defaults.busyIcon`. The Stop button names Esc in its tooltip.
 * Removed the `xh-chat-status-region__lead`, `xh-chat-status-region__hint`,
   `xh-chat-status-region--busy` and `xh-chat-status-region--attention` classes, which the region no
   longer renders.
 
 ### 🎁 New Features
 
-* `ChatThreadsModel` now blocks sends while the server runs a turn that the chat does not follow:
-  a thread whose last reply was left running, or one the store lists as running with no messages
-  saved yet. Send's tooltip says "Wait for the reply to finish.", and the status region offers
-  Refresh Status.
+* `ChatThreadsModel` now blocks sends while the store lists a thread as running and its last reply
+  was left running, or it has no messages yet. `getChatComposerStatus()` reports the block with
+  Refresh Status, or as `detached` when the last reply is.
 
 ### 🐞 Bug Fixes
 
 * Fixed Refresh Status in a `ChatThreadsModel` chat to reload the thread list too. The list could
   show a thread as running after its run had finished.
-* Fixed a reply left running on the server - detached live, loaded with `loadMessages()`, or
-  replayed with `replayChatEvents()` - to keep its unfinished tool calls and sub-agents open. They
-  showed as failed or cancelled, and the timeline said "Stopped". They now show as "Not finished
-  yet" in cards, inline calls and the timeline, with no approval to answer. Once the conversation
-  moves past the reply, it reads as complete and its open work closes.
+* Fixed a reply left running on the server, live, loaded or replayed, to show its unfinished server
+  calls and sub-agents as "Not finished yet", not as failed, cancelled or "Stopped". Once the
+  conversation moves past the reply, it reads as complete and its open work closes.
+
+### ✨ Styles
+
+* Added the `xh-chat-timeline--detached`, `xh-chat-timeline__item--unfinished`,
+  `xh-chat-tool-call--unfinished` and `xh-chat-tool-call__glyph--unfinished` classes. A detached
+  reply's timeline no longer takes `xh-chat-timeline--stopped`.
 
 ## 1.0.0 - 2026-11-02
 

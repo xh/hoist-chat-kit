@@ -17,7 +17,7 @@ import type {LoadSpec} from '@xh/hoist/core';
 import {HoistModel, managed, TaskObserver, XH} from '@xh/hoist/core';
 import {action, bindable, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {debounced, throwIf} from '@xh/hoist/utils/js';
-import {ChatKit, type ChatModel, RUN_ON_SERVER_REASON} from '../core';
+import {ChatKit, type ChatModel, getChatReplyStatus, RUN_ON_SERVER_REASON} from '../core';
 import {genChatId} from '../impl/LangUtils';
 import type {
     ChatConversation,
@@ -616,16 +616,18 @@ export class ChatThreadsModel extends HoistModel {
     }
 
     /**
-     * True if the server runs a turn of the thread that its chat does not follow: its last reply
-     * was left running, or the store lists the thread as running while it has no messages yet, as
-     * before a backend saves a thread's first turn. A send then would start a second run.
+     * True if the server runs a turn of the thread that its chat does not follow: the store lists
+     * the thread as running, and its last reply was left running, or it has no messages yet, as
+     * before a backend saves a thread's first turn. A send then would start a second run. A
+     * detached reply in a thread the store does not list as running blocks nothing, as its run may
+     * have died.
      */
     private isRunningElsewhere(thread: OpenThread): boolean {
         const {chatModel} = thread;
         if (!chatModel || chatModel.isBusy) return false;
-        if (chatModel.lastMessage?.metadata.detached) return true;
-        const {threadId} = chatModel;
-        return chatModel.isEmpty && !!find(this.threads, {id: threadId})?.isRunning;
+        if (!find(this.threads, {id: chatModel.threadId})?.isRunning) return false;
+        const {lastMessage} = chatModel;
+        return chatModel.isEmpty || getChatReplyStatus({message: lastMessage}) === 'detached';
     }
 
     @action

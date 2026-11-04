@@ -62,6 +62,35 @@ export function settleOpenParts(
 }
 
 /**
+ * A copy of a message with the open tool calls that `isClosed` picks closed with `reason`, as
+ * failed - or denied if they awaited approval. Other parts stay as they are. Returns the same
+ * message if no call was picked.
+ *
+ * @param endedAt - the time to record on the calls it ends. Default now.
+ * @internal
+ */
+export function settleOpenCalls(
+    message: ChatMessage,
+    isClosed: (call: ChatToolCallPart) => boolean,
+    reason: string,
+    endedAt: number = null
+): ChatMessage {
+    const calls = message.toolCalls.filter(it => !isToolCallFinal(it) && isClosed(it));
+    if (!calls.length) return message;
+    const settled = settleOpenParts(message.withChanges({parts: calls}), reason, false, endedAt),
+        byId = new Map(settled.parts.map(it => [it.id, it]));
+    return message.withChanges({parts: message.parts.map(it => byId.get(it.id) ?? it)});
+}
+
+/**
+ * True for a reply left running on the server - `aborted`, with `metadata.detached`.
+ * @internal
+ */
+export function isDetachedReply(message: ChatMessage): boolean {
+    return message?.status === 'aborted' && !!message.metadata.detached;
+}
+
+/**
  * Why `settleOpenParts` closed a tool call, by how its turn ended.
  * @internal
  */

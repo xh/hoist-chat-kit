@@ -29,7 +29,7 @@ compile.
 **Find affected code:**
 
 ```bash
-grep -rnE "showStopHint|busyIcon|ChatStatusRegion\.defaults|ChatStatusRegionDefaults" client-app/src/
+grep -rnE "showStopHint|busyIcon|ChatStatusRegion\.defaults|ChatStatusRegionDefaults|statusRegionProps|chatStatusRegion\(" client-app/src/
 ```
 
 Remove each one:

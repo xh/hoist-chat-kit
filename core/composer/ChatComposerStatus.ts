@@ -40,7 +40,7 @@ export type ChatComposerStatusType =
  */
 export type ChatComposerAction = 'tryAgain' | 'refreshStatus' | 'cancelRetry' | 'discardDraft';
 
-/** The status the composer's status region shows - see {@link getChatComposerStatus}. */
+/** The thread's status for the composer - see {@link getChatComposerStatus}. */
 export interface ChatComposerStatus {
     type: ChatComposerStatusType;
 

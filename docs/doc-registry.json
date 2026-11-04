@@ -269,7 +269,9 @@
         "ChatInterrupt",
         "answerInterrupt",
         "submitInterruptsAsync",
-        "onTurnPause"
+        "onTurnPause",
+        "detached",
+        "metadata.detached"
       ]
     },
     {
@@ -319,7 +321,11 @@
         "recency groups",
         "replayChatEvents",
         "stored AG-UI events",
-        "history replay"
+        "history replay",
+        "isRunning",
+        "send blocked",
+        "Wait for the reply to finish",
+        "Refresh Status"
       ]
     },
     {
@@ -642,7 +648,9 @@
         "onSourceClick",
         "ChatSourceClickFn",
         "markdownPlugins",
-        "KaTeX"
+        "KaTeX",
+        "detached",
+        "Not finished yet"
       ]
     },
     {

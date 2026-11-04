@@ -2285,11 +2285,12 @@ takes. It is one more thing to name on four components, and it can disagree with
 
 **Status.** Accepted. Amends D107.
 
-**Decision.** A reply left running on the server keeps its unfinished tool calls and sub-agents
-open: on a live detach, a clear or a load, in `loadMessages()` for the last reply of the history,
-and in `replayChatEvents()` for a turn with no end. A replayed turn still closes the calls of its
-earlier steps, which ended with their runs. The views show open work as "Not finished yet", with no
-spinner, and the timeline's line reads "So far: 3 tools done". A detached reply never waits on the
+**Decision.** A reply left running on the server keeps the unfinished tool calls and sub-agents of
+the server open: on a live detach, in `loadMessages()` for the last reply of the history, and in
+`replayChatEvents()` for a turn with no end. A replayed turn still closes the calls of its earlier
+steps, which ended with their runs. Calls that the browser would run or answer close as
+interrupted, as the turn that would run them is over. The views show open work as "Not finished
+yet", with no spinner, and the timeline's line reads "So far: 3 tools done". A detached reply never waits on the
 user for a call.
 
 When a later turn starts, or the history holds a later message, the conversation has moved past the

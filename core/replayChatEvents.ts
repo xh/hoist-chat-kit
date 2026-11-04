@@ -207,9 +207,9 @@ function splitRuns(events: ChatEvent[]): ChatEvent[][] {
 }
 
 /**
- * A paused reply with the tool calls of its earlier steps closed. A call the browser ran has its
- * result in the next step's request, not among the events, so it would otherwise wait on the user
- * again. Other parts stay as they are, such as a sub-agent that waits on the reply's interrupts.
+ * A paused or detached reply with the tool calls of its earlier steps closed. A call the browser
+ * ran has its result in the next step's request, not among the events, so it would otherwise stay
+ * open. Other parts stay as they are, such as a sub-agent that waits on the reply's interrupts.
  */
 function settleEarlierCalls(message: ChatMessage, step: number, endedAt: number): ChatMessage {
     const calls = message.toolCalls.filter(it => it.step < step),

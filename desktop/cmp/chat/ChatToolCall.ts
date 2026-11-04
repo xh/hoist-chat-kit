@@ -52,7 +52,8 @@ export interface ChatToolCallProps extends HoistProps {
  * tool's title and name, with the first line of any error, and its summary and status words at
  * the right. The row opens to show the call's input and output as JSON, or the tool's own
  * rendering. A call waiting for approval frames itself in the attention color, and shows Allow
- * and Deny, with an optional reason sent with either.
+ * and Deny, with an optional reason sent with either. A call still open in a reply left running
+ * on the server shows as "Not finished yet", with no spinner and no Allow or Deny.
  *
  * Display is configured per tool by its {@link ChatToolSpec}: `displayName`, `icon`, `summary`,
  * `renderer` and `approvalPrompt`. A tool with `display: 'inline'` shows its renderer's output with
