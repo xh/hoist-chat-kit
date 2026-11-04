@@ -80,7 +80,16 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
             case 'hidden':
                 return null;
             case 'inline':
-                return inlineToolCall({ref, className, part, context, chatModel, spec, impl});
+                return inlineToolCall({
+                    ref,
+                    className,
+                    part,
+                    context,
+                    chatModel,
+                    spec,
+                    impl,
+                    isDetached
+                });
         }
 
         // A call left open in a reply the chat no longer follows waits on no one here.
@@ -189,6 +198,9 @@ interface InlineToolCallArgs extends ChatToolCallProps {
     chatModel: ChatModel;
     spec: ChatToolSpec;
     impl: ChatToolCallLocalModel;
+
+    /** True if the call's reply was left running on the server - see `ReplyDetachedContext`. */
+    isDetached: boolean;
 }
 
 /**
@@ -208,11 +220,12 @@ function inlineToolCall({
     context,
     chatModel,
     spec,
-    impl
+    impl,
+    isDetached
 }: InlineToolCallArgs) {
     const {state, errorText} = part,
         // The approval bar asks for approval itself, so the caption need not say so too.
-        inlineStatus = getInlineStatus(part, spec),
+        inlineStatus = getInlineStatus(part, spec, isDetached),
         status = inlineStatus?.type === 'approval' ? null : inlineStatus,
         inputValue = getInputValue(part),
         hasDetails =
@@ -238,7 +251,8 @@ function inlineToolCall({
                     ? toolCallBody({part, spec, context})
                     : outputView(part.output)
                 : null,
-            state === 'approval-requested' && chatModel
+            // A call left open in a reply the chat no longer follows waits on no one here.
+            state === 'approval-requested' && chatModel && !isDetached
                 ? chatToolApproval({part, spec, chatModel})
                 : null,
             div({
@@ -306,6 +320,8 @@ function inlineStatusIcon(type: InlineCallStatus['type']): ReactNode {
             return Icon.stopCircle();
         case 'denied':
             return Icon.slashedCircle();
+        case 'unfinished':
+            return Icon.circle();
     }
 }
 

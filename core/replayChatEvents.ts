@@ -99,23 +99,17 @@ export function replayChatEvents(
         isStopped = decodeError != null || opts.status === 'aborted' || !isEnded;
     message = isStopped ? reducer.settleText(message) : reducer.finish(message);
 
-    // A turn with no end goes on on the server, so its open calls and sub-agents stay open.
+    // A turn with no end goes on on the server, so its open calls and sub-agents stay open - but
+    // for the calls of its earlier steps, which ended with their runs.
     const status = decodeError ? 'error' : (opts.status ?? endStatus(message, reducer, isEnded)),
         isDetached = !isEnded && opts.status == null && !decodeError,
         times = runs.map(runTimes).filter(it => it != null),
         endedAt = max(times.map(it => it[1])) ?? null,
         settleAt = endedAt ?? Date.now(),
         settled =
-            status === 'paused'
+            status === 'paused' || isDetached
                 ? settleStreamingParts(settleEarlierCalls(message, lastIdx, settleAt), settleAt)
-                : isDetached
-                  ? settleStreamingParts(message, settleAt)
-                  : settleOpenParts(
-                        message,
-                        SETTLE_REASONS[status],
-                        status === 'aborted',
-                        settleAt
-                    );
+                : settleOpenParts(message, SETTLE_REASONS[status], status === 'aborted', settleAt);
 
     // A failure's details go with the failure, as for a stopped turn that a backend stored as one.
     let replyMetadata: PlainObject =

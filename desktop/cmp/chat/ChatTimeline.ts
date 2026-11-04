@@ -306,7 +306,7 @@ function lineStage(
         case 'failed':
             return stage(`Ended at step ${calls.length}`);
         case 'detached':
-            return stage(soFarLabel(summary, host, impl.isNarrow));
+            return stage(soFarLabel(summary));
         default:
             return stage(usedLabel(summary, host, impl.isNarrow));
     }
@@ -345,11 +345,10 @@ function usedLabel(summary: ChatTimelineSummary, host: ChatTranscript, isNarrow:
     return `Used ${isNarrow ? work.join(', ') : joinWithAnd(work)}`;
 }
 
-// The work of a reply left running, as far as the chat saw it.
-function soFarLabel(summary: ChatTimelineSummary, host: ChatTranscript, isNarrow: boolean): string {
-    const work = countTimelineWork(summary, host);
-    if (!work.length) return 'Nothing finished yet';
-    return `So far: ${isNarrow ? work.join(', ') : joinWithAnd(work)}`;
+// The tools a reply left running finished, as far as the chat saw.
+function soFarLabel(summary: ChatTimelineSummary): string {
+    const done = summary.calls.filter(it => isToolCallFinal(it) && !it.cancelled).length;
+    return done ? `So far: ${pluralize('tool', done, true)} done` : 'Nothing finished yet';
 }
 
 function lineMeta(

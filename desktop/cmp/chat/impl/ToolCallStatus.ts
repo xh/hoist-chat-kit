@@ -132,7 +132,7 @@ export function getErrorLine(part: ChatToolCallPart): string {
  * @internal
  */
 export interface InlineCallStatus {
-    type: 'rendering' | 'approval' | 'error' | 'denied' | 'cancelled';
+    type: 'rendering' | 'approval' | 'error' | 'denied' | 'cancelled' | 'unfinished';
     label: string;
 }
 
@@ -141,11 +141,17 @@ export interface InlineCallStatus {
  * the progress of an inline call, so it shows a status only while its input streams, while it
  * waits for approval, and once it fails or is denied - never "Pending" or "Running" under a
  * component that has already rendered. An error shows a short message for the user, as the error
- * text is written for the model.
+ * text is written for the model. A call still open in a reply left running on the server shows as
+ * not finished yet.
  * @internal
  */
-export function getInlineStatus(part: ChatToolCallPart, spec: ChatToolSpec): InlineCallStatus {
+export function getInlineStatus(
+    part: ChatToolCallPart,
+    spec: ChatToolSpec,
+    isDetached: boolean = false
+): InlineCallStatus {
     if (part.cancelled) return {type: 'cancelled', label: 'Stopped - not shown.'};
+    if (isDetached && !isToolCallFinal(part)) return {type: 'unfinished', label: UNFINISHED_LABEL};
     switch (part.state) {
         case 'input-streaming':
             return {type: 'rendering', label: 'Rendering…'};

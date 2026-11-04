@@ -799,7 +799,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     /**
      * Stop following the current turn, without cancelling it. The message is kept as 'aborted',
      * as with `stop`. In server mode, a turn with a step in flight is marked `metadata.detached`,
-     * as the server finishes it on its own, and a reload of the thread later shows its answer.
+     * as the server finishes it on its own, and a reload of the thread later shows its answer. Its
+     * unfinished tool calls and sub-agents stay open, where a stop closes them as cancelled.
      */
     detach() {
         this.abortTurn('detach');
@@ -1136,7 +1137,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      * that was pending or streaming becomes 'aborted', with its unfinished tool calls failed. A
      * paused turn at the end of the history stays paused, so the user can still answer its tool
      * calls - or send a new message, which closes them. A paused turn earlier in the history is
-     * closed.
+     * closed. So is a detached reply - see {@link detach} - except at the end of the history,
+     * where its unfinished tool calls and sub-agents stay open.
      *
      * In server mode, a turn still running on the server is detached rather than cancelled - see
      * {@link detach}.
@@ -1790,9 +1792,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.closePausedTurn();
 
         // A detached reply the conversation moves past gets no more results.
-        const history = getHistory().map(it =>
-                it.metadata.detached ? settleOpenParts(it, SETTLE_REASONS.complete) : it
-            ),
+        const history = getHistory().map(it => (it.metadata.detached ? closeMovedPast(it) : it)),
             userMessage = findLast(history, it => it.isUser),
             message = new ChatMessage({role: 'assistant', status: 'pending'}),
             turn = createTurn(message, 0, true, {
@@ -2187,10 +2187,19 @@ function restoreMessages(specs: ChatMessageSpec[]): ChatMessage[] {
                 if (!message.metadata.detached) {
                     return settleOpenParts(message, SETTLE_REASONS.interrupted);
                 }
-                return idx === lastIdx
-                    ? settleStreamingParts(message)
-                    : settleOpenParts(message, SETTLE_REASONS.complete);
+                return idx === lastIdx ? settleStreamingParts(message) : closeMovedPast(message);
         }
+    });
+}
+
+/**
+ * A detached reply that the conversation moved past, as complete, with its open work closed - as
+ * for a paused reply the user moved past. The chat will not learn how its run ended.
+ */
+function closeMovedPast(message: ChatMessage): ChatMessage {
+    return settleOpenParts(message, SETTLE_REASONS.complete).withChanges({
+        status: 'complete',
+        metadata: omit(message.metadata, 'detached')
     });
 }
 

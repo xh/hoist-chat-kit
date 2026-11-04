@@ -334,7 +334,7 @@ The block is one 28px line. Its height never changes, and it changes only its wo
 | Paused | "Paused", when the reply waits on the user for something outside the block | As running, with the time held |
 | Done | "Used 7 tools and 1 agent" | Time taken, failures |
 | Stopped | "Stopped after 5 tools". Calls open at the stop show as cancelled, not failed. | Cancelled count |
-| Detached | "So far: 5 tools", for a reply left running on the server. Its open calls and sub-agents show as "Not finished yet", with no spinner. | Time taken, failures |
+| Detached | "So far: 5 tools done", for a reply left running on the server. Its open calls and sub-agents show as "Not finished yet", with no spinner. | Time taken, failures |
 | Failed | "Ended at step 5". The reply's failed row says why. | Tool count |
 
 The line swaps to its done summary in place once the answer starts below the block. Failures
@@ -381,7 +381,8 @@ Open, the block shows a tree of rows:
   closes the group. A sub-agent row starts open while it runs and closed once done. Below three
   levels, a row names its parent in place of more indent. A sub-agent runs only while its reply
   streams. One left running when its run ends, as on an error or a dropped stream, shows as
-  failed, and one open at a stop shows as cancelled.
+  failed, and one open at a stop shows as cancelled. One open in a reply left running on the
+  server shows as "Not finished yet".
 - **Activities** - an activity that is not a tool call, such as a skill the agent loads, shows
   as a row with its icon, title and summary, and no time. It opens to the type's data renderer,
   or to its data. While it is the newest row, the line names it. See
@@ -658,7 +659,7 @@ not announced.
 
 | Status | Shows | Action |
 |---|---|---|
-| Sending blocked | The `sendBlockedReason`, unless the last reply was left running on the server | None |
+| Sending blocked | The `sendBlockedReason`. A block while the server runs the turn shows as the detached reply, if there is one. | Refresh Status, for a block while the server runs the turn |
 | Offline | "Offline. Your draft is kept; send it when you're back online." | None |
 | Failed, retry-safe | "The reply failed." and the cause | Try Again |
 | Failed, not retry-safe | The cause, and "It may still be running." | Refresh Status, else Try Again |

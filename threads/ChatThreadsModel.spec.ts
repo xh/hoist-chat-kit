@@ -876,9 +876,22 @@ describe('ChatThreadsModel', () => {
             await model.selectThreadAsync('t9');
 
             expect(model.chatModel.sendBlockedReason).toBe('Wait for the reply to finish.');
+            expect(model.chatModel.composerModel.getStatus()).toMatchObject({
+                type: 'blocked',
+                action: 'refreshStatus'
+            });
 
-            store.saveThread({id: 't9', isRunning: false});
-            await model.refreshAsync();
+            // The backend finished the turn: a refresh shows it, and sends go again.
+            store.saveThread({
+                id: 't9',
+                isRunning: false,
+                messages: [
+                    {role: 'user', content: 'Rates?'},
+                    {role: 'assistant', content: 'Flat.'}
+                ]
+            });
+            await model.chatModel.refreshStatusAsync();
+            expect(model.chatModel.lastMessage.text).toBe('Flat.');
             expect(model.chatModel.sendBlockedReason).toBeNull();
         });
 

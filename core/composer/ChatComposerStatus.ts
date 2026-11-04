@@ -3,8 +3,9 @@ import type {ChatHistoryMode} from '../ChatModel';
 import {type ChatReplyStatus, getChatReplyStatus} from '../ChatReplyStatus';
 
 /**
- * What the composer's status region shows - the one thing about the thread that the user should
- * know before the next send, with at most one action. See {@link getChatComposerStatus}.
+ * The thread's status for the composer - the one thing about the thread that the user should know
+ * before the next send, with at most one action. See {@link getChatComposerStatus}. The desktop
+ * `ChatStatusRegion` shows only those that stop a send or need the user's action.
  *
  *  - `blocked` - the host gives a reason that sending must wait.
  *  - `offline` - the browser is offline. The draft is kept, and nothing sends by itself.
@@ -105,13 +106,14 @@ export interface ChatComposerStatusSpec {
 }
 
 /**
- * The status the composer's status region shows, or null to show nothing. A pure function of its
- * input, so a component re-reads it as the clock ticks.
+ * The thread's status for the composer, or null for none. A pure function of its input, so a
+ * component re-reads it as the clock ticks. It reports every status, for a layout of an app's
+ * own - the desktop `ChatStatusRegion` shows a line for some of them only.
  *
  * One status shows at a time, the first that applies in this order: blocked, offline, failed or
  * detached, stalled, waiting to retry, paused, busy, and a restored draft. A reply the server
- * interrupted or cancelled counts as failed. A send blocked while the last reply is detached reads
- * as detached, not blocked.
+ * interrupted or cancelled counts as failed. A send that a thread layer blocks while the server
+ * runs the thread's turn offers Refresh Status, and reads as detached if the last reply is.
  *
  * A failure that is retry-safe offers Try Again. One that is not offers Refresh Status if the host
  * can refresh, else Try Again, and says the run may still be running. A retry-safe failure for
@@ -147,9 +149,16 @@ export function getChatComposerStatus(spec: ChatComposerStatusSpec): ChatCompose
             ...changes
         });
 
-    // A reply left running says so itself, so a send it blocks shows as the reply's status.
-    if (sendBlockedReason && replyStatus !== 'detached') {
-        return status('blocked', {reason: sendBlockedReason});
+    // A send blocked while the server runs the turn can refresh to learn when it ends. A reply
+    // left running says so itself, so that block shows as the reply's status.
+    if (sendBlockedReason) {
+        const isRunOnServer = sendBlockedReason === RUN_ON_SERVER_REASON;
+        if (!isRunOnServer || replyStatus !== 'detached') {
+            return status('blocked', {
+                reason: sendBlockedReason,
+                action: isRunOnServer && canRefreshStatus ? 'refreshStatus' : null
+            });
+        }
     }
     if (isOffline) return status('offline');
 
@@ -205,6 +214,13 @@ export function isChatRetrySafe(
     if (retrySafe === false) return false;
     return !(historyMode === 'server' && KIT_UNSAFE_CODES.includes(errorCode));
 }
+
+/**
+ * The reason `ChatThreadsModel` gives for a send it blocks while the server runs a turn that the
+ * chat does not follow.
+ * @internal
+ */
+export const RUN_ON_SERVER_REASON = 'Wait for the reply to finish.';
 
 //------------------
 // Implementation

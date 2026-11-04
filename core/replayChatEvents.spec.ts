@@ -96,6 +96,19 @@ describe('replayChatEvents', () => {
         expect(agent.data.status).toBe('running');
     });
 
+    it('closes the calls of the earlier steps of a detached turn, which ended with their runs', () => {
+        const spec = replayChatEvents([
+                ...at(1000, [STARTED, ...toolCallEvents('lookup', {}, {toolCallId: 'c1'})]),
+                ...at(2000, [FINISHED, {type: 'RUN_STARTED', threadId: 't', runId: 'r2'}]),
+                ...at(3000, toolCallEvents('server_search', {}, {toolCallId: 'c2'}))
+            ]),
+            [earlier, open] = spec.parts as ChatToolCallPart[];
+
+        expect(spec.metadata.detached).toBe(true);
+        expect(earlier).toMatchObject({step: 0, state: 'output-error'});
+        expect(open).toMatchObject({step: 1, state: 'input-available'});
+    });
+
     it('shows the results of a detached turn once its events finish', () => {
         const start = [
                 ...at(1000, [STARTED, ...toolCallEvents('server_search', {}, {toolCallId: 'c1'})])

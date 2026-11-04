@@ -128,7 +128,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D104](#d104-an-unlisted-tools-display-comes-from-gettoolspec-and-never-runs) | An unlisted tool's display comes from `getToolSpec`, and never runs | Accepted |
 | [D105](#d105-a-call-that-starts-a-sub-agent-hides-behind-the-sub-agents-row) | A call that starts a sub-agent hides behind the sub-agent's row | Accepted |
 | [D106](#d106-the-chat-settles-grows-and-breathes-calmly) | The chat settles, grows and breathes, calmly | Accepted |
-| [D107](#d107-stored-ag-ui-events-replay-through-the-live-reducer-by-their-own-clock) | Stored AG-UI events replay through the live reducer, by their own clock | Accepted |
+| [D107](#d107-stored-ag-ui-events-replay-through-the-live-reducer-by-their-own-clock) | Stored AG-UI events replay through the live reducer, by their own clock | Amended by D115 |
 | [D108](#d108-try-again-can-be-turned-off-too) | Try Again can be turned off too | Accepted |
 | [D109](#d109-the-kit-checks-ag-ui-progress-steps-but-does-not-show-them-and-drops-activity-deltas) | The kit checks AG-UI progress steps but does not show them, and drops activity deltas | Accepted |
 | [D110](#d110-a-timelines-done-summary-can-leave-out-its-failure-count) | A timeline's done summary can leave out its failure count | Accepted |
@@ -137,6 +137,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D113](#d113-the-scope-chip-chooses-any-kind-of-option-and-its-selection-is-literal) | The scope chip chooses any kind of option, and its selection is literal | Accepted |
 | [D114](#d114-onsourceclick-takes-a-handler-per-source-type) | `onSourceClick` takes a handler per source type | Accepted |
 | [D115](#d115-a-detached-reply-keeps-its-open-work-open) | A detached reply keeps its open work open | Accepted |
+| [D116](#d116-the-status-region-holds-only-actions-and-a-turn-running-on-the-server-blocks-sends) | The status region holds only actions, and a turn running on the server blocks sends | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2111,7 +2112,8 @@ view, and the text wobbles.
 
 ## D107. Stored AG-UI events replay through the live reducer, by their own clock
 
-**Status.** Accepted.
+**Status.** Amended by [D115](#d115-a-detached-reply-keeps-its-open-work-open): a detached turn's
+open calls and sub-agents stay open.
 
 **Decision.** `replayChatEvents` rebuilds a reply from the events a backend stored for its turn.
 It runs them through an app's decoder, for the same checks as a live stream, and through
@@ -2281,14 +2283,18 @@ takes. It is one more thing to name on four components, and it can disagree with
 
 ## D115. A detached reply keeps its open work open
 
-**Status.** Accepted. Amends D107 and D38.
+**Status.** Accepted. Amends D107.
 
 **Decision.** A reply left running on the server keeps its unfinished tool calls and sub-agents
 open: on a live detach, a clear or a load, in `loadMessages()` for the last reply of the history,
-and in `replayChatEvents()` for a turn with no end. The views show them as "Not finished yet", with
-no spinner, and the timeline's line reads "So far: 3 tools". They close as "No result - the
-conversation moved on" when a later turn starts, or when the history holds a later message. A
-detached reply never waits on the user for a call.
+and in `replayChatEvents()` for a turn with no end. A replayed turn still closes the calls of its
+earlier steps, which ended with their runs. The views show open work as "Not finished yet", with no
+spinner, and the timeline's line reads "So far: 3 tools done". A detached reply never waits on the
+user for a call.
+
+When a later turn starts, or the history holds a later message, the conversation has moved past the
+reply. It then becomes `complete`, without `metadata.detached`, and its open work closes as "No
+result - the conversation moved on", as for a paused reply the user moved past.
 
 **Why.** A detached reply is a snapshot of work the server is still doing. Closing its calls as
 failed or cancelled told the user something the server never reported, and the reply's status said
@@ -2298,3 +2304,29 @@ matters: in the history a request sends, since some model APIs reject a call wit
 **Alternatives.** Close the calls as before, and only reword them. The reply still says the work
 ended. Mark the calls with a flag of their own. The reply's `metadata.detached` already says it,
 and a flag would have to be cleared on every path that closes them.
+
+## D116. The status region holds only actions, and a turn running on the server blocks sends
+
+**Status.** Accepted.
+
+**Decision.** `ChatStatusRegion` shows a line only for what stops a send or needs the user's
+action: a blocked send, offline, a failure, a retry countdown and a restored draft. A reply left
+running or stalled shows one only with Refresh Status. A reply in progress, or one waiting for the
+user's answer, shows none. The announcer still reads a paused turn. The settings of the busy line
+go: `showStopHint`, the region's `assistantName`, `ChatStatusRegion.defaults` and
+`ChatKit.defaults.busyIcon`. The Stop button names Esc in its tooltip.
+
+`ChatThreadsModel` blocks sends while the server runs a turn that the chat does not follow: the last
+reply is detached, or the store lists the thread as running and its history is empty. The block
+offers Refresh Status. With a detached reply, it shows as the reply's status, not as a block.
+`getChatComposerStatus()` still reports every status, for a layout of an app's own.
+
+**Why.** The reply, its timeline and the region each showed the reply's progress, and they could
+disagree. The reply is where the work shows, so it alone says how the work goes. A backend that
+runs one turn at a time per thread rejects a send while one runs, and a second run would race the
+first.
+
+**Alternatives.** Props to hide the region's lines or the timeline's. Every app would get the
+duplicates by default, and the views could still disagree. Show the busy line only when the reply
+is out of view. It adds a rule for a case no app asked about. Leave the send to the backend. The
+user then gets an error for a send the kit could have held.

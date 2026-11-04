@@ -61,6 +61,11 @@ describe('getChatComposerStatus', () => {
             {sendBlockedReason: 'Wait for the reply to finish.', lastMessage: detached()}
         ],
         [
+            "an app's own send blocker before a reply left running",
+            'blocked',
+            {sendBlockedReason: 'Sign in again.', lastMessage: detached()}
+        ],
+        [
             'a reply with no data past the stall time as stalled',
             'stalled',
             {lastMessage: streaming(), lastActivityAt: NOW - 31_000, stallAfterMs: 30_000}
@@ -70,6 +75,17 @@ describe('getChatComposerStatus', () => {
         ['a restored draft last', 'draftRestored', {lastMessage: complete(), draftSavedAt: NOW}]
     ])('shows %s', (_, type, spec) => {
         expect(getChatComposerStatus({now: NOW, canRetry: true, ...spec}).type).toBe(type);
+    });
+
+    it('offers Refresh Status for a send blocked while the server runs the turn', () => {
+        const spec = {sendBlockedReason: 'Wait for the reply to finish.', canRefreshStatus: true};
+        expect(getChatComposerStatus(spec)).toMatchObject({
+            type: 'blocked',
+            action: 'refreshStatus'
+        });
+        expect(
+            getChatComposerStatus({...spec, sendBlockedReason: 'Sign in again.'}).action
+        ).toBeNull();
     });
 
     it('shows nothing for a finished or stopped reply', () => {

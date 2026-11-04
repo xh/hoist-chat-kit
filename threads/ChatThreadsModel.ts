@@ -17,7 +17,7 @@ import type {LoadSpec} from '@xh/hoist/core';
 import {HoistModel, managed, TaskObserver, XH} from '@xh/hoist/core';
 import {action, bindable, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {debounced, throwIf} from '@xh/hoist/utils/js';
-import {ChatKit, type ChatModel} from '../core';
+import {ChatKit, type ChatModel, RUN_ON_SERVER_REASON} from '../core';
 import {genChatId} from '../impl/LangUtils';
 import type {
     ChatConversation,
@@ -612,7 +612,7 @@ export class ChatThreadsModel extends HoistModel {
             case 'notFound':
                 return 'This conversation does not exist. Start a new chat.';
         }
-        return this.isRunningElsewhere(thread) ? 'Wait for the reply to finish.' : null;
+        return this.isRunningElsewhere(thread) ? RUN_ON_SERVER_REASON : null;
     }
 
     /**

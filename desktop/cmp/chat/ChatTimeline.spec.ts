@@ -688,7 +688,7 @@ describe('ChatTimeline', () => {
             );
 
             const head = lineButton(container);
-            expect(head.textContent).toContain('So far: 2 tools and 1 agent');
+            expect(head.textContent).toContain('So far: 1 tool done');
             expect(head.textContent).not.toMatch(/Stopped|cancelled/);
             expect(timeline(container).querySelector('.xh-chat-spinner')).toBeNull();
             fireEvent.click(head);

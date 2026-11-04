@@ -16,22 +16,27 @@
 
 ### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - remove the busy-line settings)
 
+See [`docs/upgrade-notes/v2-upgrade-notes.md`](docs/upgrade-notes/v2-upgrade-notes.md) for
+detailed, step-by-step upgrade instructions with before/after code examples.
+
 * `ChatStatusRegion` now shows only what stops a send or needs the user's action. A reply in
   progress, or one waiting for the user's answer, shows no line there - the reply shows its own
   progress. A reply left running on the server, or a stalled one, shows a line only with Refresh
   Status. Screen readers still hear a turn that pauses for the user's answer.
 * Removed `ChatStatusRegion`'s `assistantName` and `showStopHint` props,
-  `ChatStatusRegion.defaults`, and `ChatKit.defaults.busyIcon`, which set the busy line. Remove them
-  from the app. The composer's Stop button now names Esc in its tooltip.
-* Removed the `xh-chat-status-region__lead` and `xh-chat-status-region__hint` classes of the busy
-  line.
+  `ChatStatusRegion.defaults` with its `ChatStatusRegionDefaults` type, and
+  `ChatKit.defaults.busyIcon`, which set the busy line. Remove them from the app. The composer's
+  Stop button now names Esc in its tooltip.
+* Removed the `xh-chat-status-region__lead`, `xh-chat-status-region__hint`,
+  `xh-chat-status-region--busy` and `xh-chat-status-region--attention` classes, which the region no
+  longer renders.
 
 ### 🎁 New Features
 
 * `ChatThreadsModel` now blocks sends while the server runs a turn that the chat does not follow:
   a thread whose last reply was left running, or one the store lists as running with no messages
-  saved yet. Send's tooltip says "Wait for the reply to finish.", and the status region shows the
-  reply's own status.
+  saved yet. Send's tooltip says "Wait for the reply to finish.", and the status region offers
+  Refresh Status.
 
 ### 🐞 Bug Fixes
 
@@ -40,7 +45,8 @@
 * Fixed a reply left running on the server - detached live, loaded with `loadMessages()`, or
   replayed with `replayChatEvents()` - to keep its unfinished tool calls and sub-agents open. They
   showed as failed or cancelled, and the timeline said "Stopped". They now show as "Not finished
-  yet", and close when the next turn starts.
+  yet" in cards, inline calls and the timeline, with no approval to answer. Once the conversation
+  moves past the reply, it reads as complete and its open work closes.
 
 ## 1.0.0 - 2026-11-02
 

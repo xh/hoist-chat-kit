@@ -50,7 +50,7 @@ export const chatToolCallGroup = hoistCmp.factory<ChatToolCallGroupProps>({
             names = uniq(
                 parts.map(it => getToolTitle(it, getHostToolSpec(context.host, it.toolName)))
             ),
-            title = `${isRunning ? 'Using' : 'Used'} ${pluralize('tool', count, true)}`,
+            title = `${isOpen ? 'Using' : 'Used'} ${pluralize('tool', count, true)}`,
             problems = getProblems(parts),
             meta = compact([isUnfinished ? UNFINISHED_LABEL : null, formatProblems(problems)]).join(
                 ' · '

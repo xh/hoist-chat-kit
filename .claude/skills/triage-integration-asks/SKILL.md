@@ -46,8 +46,8 @@ Look before you judge. Each of these has changed an answer before.
   In"). Read the code at the version the ask cites.
 - **The ask's own claims.** Check each statement the ask makes about current behavior against the
   code. App agents get these wrong, and a wrong premise leads to a wrong design. For example, an
-  ask said the busy status line's screen reader announcement included its "Esc to stop" hint, but
-  the status region never announces the busy line at all. Requirements copy such claims, so
+  ask once said the busy status line's screen reader announcement included its "Esc to stop" hint,
+  but the status region never announced the busy line at all. Requirements copy such claims, so
   check them too. Say so in the triage, and correct the app in the reply. Check your own
   statements about current behavior the same way before they go into a doc or a reply.
 - **Planned work.** Read the open GitHub issues (`gh issue list`). An ask may already be
@@ -128,8 +128,8 @@ Prefer these, roughly in this order. Each one exists for a reason the app agent 
 
 A minor choice does not keep an ask out of the clear wins, such as a name, or which of two
 existing homes a setting goes in. If you have a confident answer that follows an existing
-pattern, make the choice and name it in the ask's line: "Ask 1 (stop hint, as
-`ChatStatusRegion.defaults.showStopHint`)". The maintainer can object. If you doubt an ask
+pattern, make the choice and name it in the ask's line: "Ask 1 (failure count, as
+`ChatTimeline.defaults.showSummaryFailureCount`)". The maintainer can object. If you doubt an ask
 otherwise, it is not a clear win.
 
 ### 6. Walk the maintainer through, one step at a time

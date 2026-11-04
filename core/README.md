@@ -935,7 +935,10 @@ The composer's status region holds the thread's next action. `ChatComposerModel.
 reads it as a `ChatComposerStatus`: a `type`, the reply's display status, at most one `action`,
 and the reason. `getChatComposerStatus()` is the same reading as a pure function. One status
 shows at a time, in this order: blocked, offline, failed or detached, stalled, waiting to retry,
-paused, busy, and a restored draft.
+paused, busy, and a restored draft. A send that `ChatThreadsModel` blocks while the server runs the
+turn offers Refresh Status, and reads as detached when the last reply is. The desktop
+`ChatStatusRegion` shows a line only for what stops a send or needs the user's action - see
+[Recover from a failed reply](../desktop/cmp/chat/README.md#recover-from-a-failed-reply).
 
 The action for a failure depends on whether a resend is safe. `isChatRetrySafe(message,
 historyMode)` decides it:

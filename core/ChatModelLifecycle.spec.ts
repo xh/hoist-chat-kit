@@ -302,6 +302,8 @@ describe('ChatModel run lifecycle', () => {
             });
             expect(call).not.toHaveProperty('cancelled');
             expect(agent).toMatchObject({data: {status: 'error'}});
+            expect(detached.status).toBe('complete');
+            expect(detached.metadata).not.toHaveProperty('detached');
             expect(model.messages[1].parts[0]).toMatchObject({state: 'output-error'});
         });
 
@@ -340,6 +342,8 @@ describe('ChatModel run lifecycle', () => {
                 {role: 'user', content: 'And then?'}
             ]);
 
+            expect(model.messages[1]).toMatchObject({status: 'complete', metadata: {}});
+            expect(model.messages[1].metadata).not.toHaveProperty('detached');
             expect(model.messages[1].parts[0]).toMatchObject({
                 state: 'output-error',
                 errorText: 'No result - the conversation moved on.'

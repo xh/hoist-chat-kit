@@ -14,14 +14,16 @@
     {"id": "package", "title": "Package Documentation"},
     {"id": "concept", "title": "Concept Documentation"},
     {"id": "conventions", "title": "Conventions"},
-    {"id": "index", "title": "Index"}
+    {"id": "index", "title": "Index"},
+    {"id": "upgrade", "title": "Upgrade Notes"}
   ],
   "viewerCategories": [
     {"id": "overview", "title": "Overview"},
     {"id": "concepts", "title": "Concepts"},
     {"id": "core", "title": "Core Framework"},
     {"id": "components", "title": "Components"},
-    {"id": "desktop", "title": "Desktop"}
+    {"id": "desktop", "title": "Desktop"},
+    {"id": "upgrade", "title": "Upgrade Notes"}
   ],
   "entries": [
     {
@@ -675,6 +677,25 @@
         "rehype",
         "KaTeX",
         "math"
+      ]
+    },
+    {
+      "id": "docs/upgrade-notes/v2-upgrade-notes.md",
+      "title": "v2 Upgrade Notes",
+      "mcpCategory": "upgrade",
+      "viewerCategory": "upgrade",
+      "description": "Upgrade guide from v1.x to v2.0.0. Low difficulty. Covers the removal of the status region's busy line and its settings, and the region's CSS and tests.",
+      "keywords": [
+        "upgrade",
+        "migration",
+        "breaking changes",
+        "v2",
+        "v1",
+        "showStopHint",
+        "busyIcon",
+        "ChatStatusRegion.defaults",
+        "ChatStatusRegionDefaults",
+        "status region"
       ]
     }
   ]

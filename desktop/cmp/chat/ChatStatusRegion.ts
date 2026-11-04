@@ -26,7 +26,9 @@ export interface ChatStatusRegionProps extends HoistProps<ChatComposerModel> {}
  * what went wrong and what to do about it. It collapses to nothing otherwise. A reply's progress,
  * and a reply left running on the server, show in the reply itself. In order of priority:
  *
- *  - The host's reason that sending must wait.
+ *  - The host's reason that sending must wait - unless the thread layer blocks the send because
+ *    the last reply runs on the server, which shows as that reply's status. A send blocked while
+ *    the server runs the turn offers Refresh Status.
  *  - Offline. The draft is kept, and nothing sends by itself.
  *  - A failed reply, with Try Again when a resend is retry-safe. Otherwise it says the run may
  *    still be running, and offers Refresh Status when the chat can refresh, or else Try Again.
@@ -39,9 +41,10 @@ export interface ChatStatusRegionProps extends HoistProps<ChatComposerModel> {}
  *  - A restored draft, with Discard.
  *
  * Screen readers hear each status once, through the kit's announcer: a failure at once, the rest
- * politely, and a countdown every 10 seconds at most. A turn that pauses for the user's answer is
- * announced, with no line. The status a thread has when the region mounts, or when the thread
- * opens, is not announced.
+ * politely, and a countdown every 10 seconds at most. A status with no line - a turn that pauses
+ * for the user's answer, or a reply left running or stalled with nothing to do - is still
+ * announced. The status a thread has when the region mounts, or when the thread opens, is not
+ * announced.
  *
  * Uses a {@link ChatComposerModel} from props, or else the `composerModel` of the `ChatModel` in
  * context. Its states come from the turn loop, so it renders only when the composer's host is a
