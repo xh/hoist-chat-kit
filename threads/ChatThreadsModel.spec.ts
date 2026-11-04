@@ -67,6 +67,19 @@ describe('ChatThreadsModel', () => {
             expect(ids(model.threads)).toEqual(['t2']);
         });
 
+        it('keeps its threads, and shows and reports no error, when an auto-refresh fails', async () => {
+            const handleException = spyHandleException(),
+                {model, store} = setup({statusRefreshMs: null});
+            await model.loadAsync();
+
+            store.failNext('listThreadsAsync');
+            await model.autoRefreshAsync();
+
+            expect(ids(model.threads)).toEqual(['t1', 't2', 't3']);
+            expect(model.listError).toBeNull();
+            expect(handleException).not.toHaveBeenCalled();
+        });
+
         it('keeps its threads, and reports the error, when a list fails', async () => {
             const handleException = spyHandleException(),
                 {model, store} = setup();
