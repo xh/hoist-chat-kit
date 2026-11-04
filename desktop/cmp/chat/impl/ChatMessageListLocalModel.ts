@@ -71,6 +71,17 @@ export class ChatMessageListLocalModel extends HoistModel {
             debounce: 0
         });
 
+        // Follow a reply the server writes, when a check shows it on its way or loads it in the
+        // placeholder's place - with no turn here, nothing else moves the list.
+        this.addReaction({
+            track: () => [last(this.host?.messages)?.id, !!this.chatModel?.isRunningOnServer],
+            run: () => {
+                if (this._isSticky) this.scrollToBottom();
+            },
+            equals: 'structural',
+            debounce: 0
+        });
+
         // Read a reply once, as it finishes - never a reply loaded as history.
         this.addReaction({
             track: () => last(this.host?.messages),

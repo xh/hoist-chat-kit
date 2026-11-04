@@ -65,10 +65,13 @@ export class OpenThread extends HoistBase {
 
     /**
      * True from the moment a list shows done a turn that the thread waits on with no reply yet,
-     * until a reload of its history ends - so that the thread still reads as waiting meanwhile,
-     * rather than as an empty or unanswered chat. (observable)
+     * until a history load begun since then succeeds - so that the thread still reads as waiting
+     * meanwhile, rather than as an empty or unanswered chat. (observable)
      */
     @observable accessor isReloadPending: boolean = false;
+
+    /** True while the reload that {@link isReloadPending} waits on runs. */
+    isReloadInFlight: boolean = false;
 
     /** The conversation's `ChatModel`, or null for a conversation of the app's own. */
     get chatModel(): ChatModel {
@@ -120,9 +123,19 @@ export class OpenThread extends HoistBase {
         this.isListedRunning = isRunning;
     }
 
+    /** Mark the thread as waiting on a reload of its history, begun from now on. */
     @action
-    setReloadPending(isPending: boolean) {
-        this.isReloadPending = isPending;
+    markReloadPending() {
+        this.isReloadPending = true;
+        this.reloadPendingAfter = this.loadCount;
+    }
+
+    /** Note a load that succeeded. One begun since the reload was marked pending settles it. */
+    @action
+    noteLoadSucceeded(loadKey: number) {
+        if (this.isReloadPending && loadKey > this.reloadPendingAfter) {
+            this.isReloadPending = false;
+        }
     }
 
     /** Reset the check on a turn that runs on the server, once none needs one. */
@@ -178,6 +191,7 @@ export class OpenThread extends HoistBase {
     @action
     resetLoad() {
         this.loadCount++;
+        this.isReloadPending = false;
         this.endLoad();
     }
 
@@ -190,4 +204,5 @@ export class OpenThread extends HoistBase {
     // Implementation
     //------------------
     private loadCount = 0;
+    private reloadPendingAfter = 0;
 }

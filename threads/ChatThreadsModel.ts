@@ -743,8 +743,12 @@ export class ChatThreadsModel extends HoistModel {
         await this.autoRefreshAsync();
         for (const thread of threads) {
             const isOpen = this.openThreads[thread.conversation.threadId] === thread;
-            // A thread whose reply already loads, as the list showed its turn done, waits for it.
-            if (!isOpen || thread.isReloadPending || !this.isStatusWatched(thread)) continue;
+            if (!isOpen || !this.isStatusWatched(thread)) continue;
+            // A thread whose turn the list showed done loads its reply, or retries a failed load.
+            if (thread.isReloadPending) {
+                await this.reloadPendingAsync(thread);
+                continue;
+            }
             // A thread with no messages yet reloads its history on each check, so that the turn
             // shows once the backend saves it. Another waits until the list shows the run done.
             if (thread.isListedRunning && !thread.chatModel.isEmpty) continue;
@@ -760,6 +764,21 @@ export class ChatThreadsModel extends HoistModel {
         await this.loadHistoryAsync(thread, true);
         if (this.needsStatusWatch(thread) && !this.isRunningElsewhere(thread)) {
             thread.endStatusWatch();
+        }
+    }
+
+    /**
+     * Load the reply of a thread whose turn a list showed done - once its history has loaded, and
+     * once at a time. A failed load leaves the thread waiting, and the next check tries again.
+     */
+    private async reloadPendingAsync(thread: OpenThread) {
+        if (!thread.isReloadPending || thread.isReloadInFlight) return;
+        if (thread.loadState !== 'loaded') return;
+        thread.isReloadInFlight = true;
+        try {
+            await this.reloadCheckedAsync(thread);
+        } finally {
+            thread.isReloadInFlight = false;
         }
     }
 
@@ -1020,14 +1039,17 @@ export class ChatThreadsModel extends HoistModel {
             loadKey = thread.beginLoad(isQuiet);
 
         try {
-            const {conversation} = thread;
-            await (isQuiet
-                ? (conversation as ChatModelConversation).loadAsync(true)
-                : conversation.loadAsync().linkTo(this.loadTask));
-            if (thread.isLoadCurrent(loadKey) && !isQuiet) thread.endLoad();
-            if (thread.isLoadCurrent(loadKey)) thread.setReloadPending(false);
+            const {conversation} = thread,
+                isApplied = isQuiet
+                    ? await (conversation as ChatModelConversation).checkAsync()
+                    : await conversation.loadAsync().linkTo(this.loadTask);
+            if (!thread.isLoadCurrent(loadKey)) return;
+            if (!isQuiet) thread.endLoad();
+            // An app's own conversation reports nothing, and applies what it loads.
+            if (isApplied !== false) thread.noteLoadSucceeded(loadKey);
+            // A full load that began before a list showed the turn done is followed by a reload.
+            if (!isQuiet) this.reloadPendingAsync(thread);
         } catch (e) {
-            if (thread.isLoadCurrent(loadKey)) thread.setReloadPending(false);
             if (!thread.isLoadCurrent(loadKey)) {
                 this.logWarn(`Discarded a failed load of thread ${threadId}, no longer open`, e);
             } else if (isQuiet) {
@@ -1062,8 +1084,8 @@ export class ChatThreadsModel extends HoistModel {
             const wasWaiting = this.isRunningElsewhere(thread);
             thread.setListedRunning(!!it.isRunning);
             if (wasWaiting && !it.isRunning && !thread.isReloadPending) {
-                thread.setReloadPending(true);
-                this.reloadCheckedAsync(thread);
+                thread.markReloadPending();
+                this.reloadPendingAsync(thread);
             }
         });
         this.localThreads = differenceBy(this.localThreads, threads, 'id');

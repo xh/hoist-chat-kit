@@ -81,18 +81,32 @@ export class ChatModelConversation extends HoistBase implements ChatConversation
      * load, and the chat still holds the thread - an app may clear the chat, or load other
      * messages into it, while the load runs.
      *
-     * @param isQuiet - true for a check on a turn that runs on the server. Its result applies only
-     *      if the chat's messages did not change meanwhile, so that it never replaces a turn the
-     *      user started.
      */
-    async loadAsync(isQuiet: boolean = false): Promise<void> {
+    async loadAsync(): Promise<void> {
+        await this.loadHistoryAsync(false);
+    }
+
+    /**
+     * Load the thread's history for a check on a turn that runs on the server. As `loadAsync`, but
+     * the result applies only if the chat's messages did not change meanwhile, so that it never
+     * replaces a turn the user started.
+     *
+     * @returns true if the history applied.
+     */
+    checkAsync(): Promise<boolean> {
+        return this.loadHistoryAsync(true);
+    }
+
+    private async loadHistoryAsync(isQuiet: boolean): Promise<boolean> {
         const {chatModel} = this,
             {threadId, messages} = chatModel,
             loadNumber = ++this.loadCount,
             page = await this.store.loadMessagesAsync({threadId});
-        if (this.isDestroyed || loadNumber !== this.loadCount) return;
-        if (isQuiet && (chatModel.isBusy || chatModel.messages !== messages)) return;
-        if (chatModel.threadId === threadId) this.applyHistory(threadId, page);
+        if (this.isDestroyed || loadNumber !== this.loadCount) return false;
+        if (isQuiet && (chatModel.isBusy || chatModel.messages !== messages)) return false;
+        if (chatModel.threadId !== threadId) return false;
+        this.applyHistory(threadId, page);
+        return true;
     }
 
     stop() {

@@ -386,12 +386,15 @@ message, or ends with a reply left running - see the `detached` metadata in
 The thread then blocks sends with "Wait for the reply to finish.", so that a send never starts a
 second run. Send shows the reason as its tooltip. The status region shows the block only once the
 automatic checks below stop, with Refresh Status, and as the reply's status if the reply was left
-running. The block ends when a reload shows the reply, or a list shows the thread not running.
+running. The block ends when a reload shows the reply. Once a list shows the run done, the thread
+reloads at once, and the block ends when that reload lands. A thread with a detached reply that a
+list shows not running from the start blocks nothing, as its run may have died.
 
 While the turn runs, the message list shows "Still working on the server", in place of the empty
 state of a new chat or after the user's question, and the composer's start items breathe - see
 `ChatModel.isRunningOnServer`. When a list shows the turn done, the thread reloads its history at
-once, and still reads as waiting until the reply lands.
+once, and still reads as waiting until the reply lands. A reload that fails leaves it waiting, and
+the next check tries again.
 
 The model checks on such a turn on its own, every `statusRefreshMs`, 5 seconds by default. Each
 check reloads the thread list, quietly, with no busy state. Once the list shows the run done, the

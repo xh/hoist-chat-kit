@@ -1110,6 +1110,62 @@ describe('ChatThreadsModel', () => {
                 }
             );
 
+            it('never leaves a thread loading when a list shows its run done during a full load', async () => {
+                const {model, store} = await openRunning({statusRefreshMs: null});
+                store.saveThread({
+                    id: 't9',
+                    isRunning: true,
+                    messages: [{role: 'user', content: 'Rates?'}]
+                });
+                await model.chatModel.refreshStatusAsync();
+
+                store.saveThread({id: 't9', isRunning: false, messages: DONE});
+                store.hold('loadMessagesAsync');
+                const refresh = model.chatModel.refreshStatusAsync();
+                await vi.advanceTimersByTimeAsync(0);
+                store.heldCalls('loadMessagesAsync')[0].release();
+                await vi.advanceTimersByTimeAsync(0);
+                store.heldCalls('loadMessagesAsync').forEach(it => it.release());
+                await refresh;
+                await vi.advanceTimersByTimeAsync(0);
+
+                expect(model.isThreadLoading).toBe(false);
+                expect(model.chatModel.lastMessage.text).toBe('Flat.');
+                expect(model.chatModel.isRunningOnServer).toBe(false);
+            });
+
+            it('stops waiting on a reload when the app clears the chat meanwhile', async () => {
+                const {model, store} = await openRunning();
+                store.saveThread({id: 't9', isRunning: true, messages: []});
+                await model.chatModel.refreshStatusAsync();
+                store.saveThread({id: 't9', isRunning: false, messages: DONE});
+                store.hold('loadMessagesAsync');
+                await vi.advanceTimersByTimeAsync(5_000);
+                expect(model.chatModel.isRunningOnServer).toBe(true);
+
+                model.chatModel.clear();
+                await vi.advanceTimersByTimeAsync(0);
+
+                expect(model.chatModel.isRunningOnServer).toBe(false);
+                expect(model.chatModel.sendBlockedReason).toBeNull();
+            });
+
+            it('retries a failed reload of a reply on the next check', async () => {
+                const {model, store} = await openRunning();
+                store.saveThread({id: 't9', isRunning: true, messages: []});
+                await model.chatModel.refreshStatusAsync();
+
+                store.saveThread({id: 't9', isRunning: false, messages: DONE});
+                const load = vi.spyOn(store, 'loadMessagesAsync');
+                store.failNext('loadMessagesAsync');
+                await vi.advanceTimersByTimeAsync(5_000);
+
+                // The list showed the run done, the reload failed, and the check retried it.
+                expect(load).toHaveBeenCalledTimes(2);
+                expect(model.chatModel.lastMessage.text).toBe('Flat.');
+                expect(model.chatModel.isRunningOnServer).toBe(false);
+            });
+
             it('leaves a run that died to Refresh Status, after one reload', async () => {
                 const {model, store} = await openRunning(),
                     load = vi.spyOn(store, 'loadMessagesAsync');
