@@ -658,7 +658,7 @@ not announced.
 
 | Status | Shows | Action |
 |---|---|---|
-| Sending blocked | The `sendBlockedReason` | None |
+| Sending blocked | The `sendBlockedReason`, unless the last reply was left running on the server | None |
 | Offline | "Offline. Your draft is kept; send it when you're back online." | None |
 | Failed, retry-safe | "The reply failed." and the cause | Try Again |
 | Failed, not retry-safe | The cause, and "It may still be running." | Refresh Status, else Try Again |

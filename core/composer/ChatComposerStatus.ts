@@ -110,7 +110,8 @@ export interface ChatComposerStatusSpec {
  *
  * One status shows at a time, the first that applies in this order: blocked, offline, failed or
  * detached, stalled, waiting to retry, paused, busy, and a restored draft. A reply the server
- * interrupted or cancelled counts as failed.
+ * interrupted or cancelled counts as failed. A send blocked while the last reply is detached reads
+ * as detached, not blocked.
  *
  * A failure that is retry-safe offers Try Again. One that is not offers Refresh Status if the host
  * can refresh, else Try Again, and says the run may still be running. A retry-safe failure for
@@ -146,7 +147,10 @@ export function getChatComposerStatus(spec: ChatComposerStatusSpec): ChatCompose
             ...changes
         });
 
-    if (sendBlockedReason) return status('blocked', {reason: sendBlockedReason});
+    // A reply left running says so itself, so a send it blocks shows as the reply's status.
+    if (sendBlockedReason && replyStatus !== 'detached') {
+        return status('blocked', {reason: sendBlockedReason});
+    }
     if (isOffline) return status('offline');
 
     switch (replyStatus) {

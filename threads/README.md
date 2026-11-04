@@ -106,7 +106,9 @@ it:
 
 - `setFeedbackSubmitter()`, with the store's `submitFeedbackAsync`, unless the chat has its own
   `feedback.submitAsync`.
-- `addSendBlocker()`, which holds back sends while the history loads or after it fails.
+- `addSendBlocker()`, which holds back sends while the history loads or after it fails, and
+  while the server runs a turn the chat does not follow - see
+  [A turn running on the server](#a-turn-running-on-the-server).
 - `setStatusRefresher()`, which reloads the thread's history and the thread list for Refresh
   Status.
 
@@ -372,6 +374,16 @@ If a thread's history fails to load, `loadError` holds the error, and the thread
 with "The conversation did not load. Reload it to continue." Other threads are not affected.
 Show the error with a button that calls `reloadThreadAsync()`. The same method catches up on a
 turn that the backend finished on its own.
+
+### A turn running on the server
+
+A thread can hold a turn that runs on the server while its chat does not follow it, as after a
+page reload. Its last reply is then detached - see the `detached` metadata in
+[`/core/`](../core/README.md#stop-or-detach-a-turn). Or the store lists the thread with
+`isRunning` while its history is still empty, before the backend saves the first turn. The thread
+blocks sends with "Wait for the reply to finish." until a reload shows the turn done, so that a
+send never starts a second run. Send shows the reason as its tooltip. The status region shows the
+reply's own status rather than the block.
 
 ### Link to a thread
 

@@ -26,6 +26,13 @@
 * Removed the `xh-chat-status-region__lead` and `xh-chat-status-region__hint` classes of the busy
   line.
 
+### 🎁 New Features
+
+* `ChatThreadsModel` now blocks sends while the server runs a turn that the chat does not follow:
+  a thread whose last reply was left running, or one the store lists as running with no messages
+  saved yet. Send's tooltip says "Wait for the reply to finish.", and the status region shows the
+  reply's own status.
+
 ### 🐞 Bug Fixes
 
 * Fixed Refresh Status in a `ChatThreadsModel` chat to reload the thread list too. The list could

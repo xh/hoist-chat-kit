@@ -844,6 +844,44 @@ describe('ChatThreadsModel', () => {
             expect(load.mock.calls[1][0]).toMatchObject({threadId: 't1'});
         });
 
+        it('blocks sends while the last reply runs on the server', async () => {
+            const {model, store} = setup();
+            store.saveThread({
+                id: 't9',
+                messages: [
+                    {role: 'user', content: 'Rates?'},
+                    {role: 'assistant', status: 'aborted', metadata: {detached: true}}
+                ]
+            });
+            await model.selectThreadAsync('t9');
+
+            expect(model.chatModel.sendBlockedReason).toBe('Wait for the reply to finish.');
+            expect(model.chatModel.composerModel.getStatus().type).toBe('detached');
+
+            store.saveThread({
+                id: 't9',
+                messages: [
+                    {role: 'user', content: 'Rates?'},
+                    {role: 'assistant', content: 'Flat.'}
+                ]
+            });
+            await model.reloadThreadAsync();
+            expect(model.chatModel.sendBlockedReason).toBeNull();
+        });
+
+        it('blocks sends to a running thread that has no messages saved yet', async () => {
+            const {model, store} = setup();
+            store.saveThread({id: 't9', isRunning: true, messages: []});
+            await model.loadAsync();
+            await model.selectThreadAsync('t9');
+
+            expect(model.chatModel.sendBlockedReason).toBe('Wait for the reply to finish.');
+
+            store.saveThread({id: 't9', isRunning: false});
+            await model.refreshAsync();
+            expect(model.chatModel.sendBlockedReason).toBeNull();
+        });
+
         it('refreshes the thread list along with the status', async () => {
             const {model, store} = setup();
             store.saveThread({id: 't1', isRunning: true});

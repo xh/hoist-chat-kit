@@ -612,7 +612,20 @@ export class ChatThreadsModel extends HoistModel {
             case 'notFound':
                 return 'This conversation does not exist. Start a new chat.';
         }
-        return null;
+        return this.isRunningElsewhere(thread) ? 'Wait for the reply to finish.' : null;
+    }
+
+    /**
+     * True if the server runs a turn of the thread that its chat does not follow: its last reply
+     * was left running, or the store lists the thread as running while it has no messages yet, as
+     * before a backend saves a thread's first turn. A send then would start a second run.
+     */
+    private isRunningElsewhere(thread: OpenThread): boolean {
+        const {chatModel} = thread;
+        if (!chatModel || chatModel.isBusy) return false;
+        if (chatModel.lastMessage?.metadata.detached) return true;
+        const {threadId} = chatModel;
+        return chatModel.isEmpty && !!find(this.threads, {id: threadId})?.isRunning;
     }
 
     @action

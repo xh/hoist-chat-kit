@@ -56,6 +56,11 @@ describe('getChatComposerStatus', () => {
         ['a server cancel as failed', 'failed', {lastMessage: failed({errorCode: 'cancelled'})}],
         ['a reply left running as detached', 'detached', {lastMessage: detached()}],
         [
+            'a send blocked while the reply runs on as detached, not blocked',
+            'detached',
+            {sendBlockedReason: 'Wait for the reply to finish.', lastMessage: detached()}
+        ],
+        [
             'a reply with no data past the stall time as stalled',
             'stalled',
             {lastMessage: streaming(), lastActivityAt: NOW - 31_000, stallAfterMs: 30_000}
