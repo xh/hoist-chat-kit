@@ -28,7 +28,7 @@ its tools.
 | If you need to... | Start here |
 |---|---|
 | Install the kit in an app | [README](../README.md#installation) |
-| Upgrade an app from v1 to v2 | [v2 Upgrade Notes](./upgrade-notes/v2-upgrade-notes.md) |
+| Upgrade an app to a new major version | The version's Breaking Changes in the [CHANGELOG](../CHANGELOG.md), which link its upgrade notes |
 | Add a chat to an app | [README](../README.md#quick-start-add-a-chat-to-an-app) |
 | Understand how the kit fits together | [Architecture](./architecture.md) |
 | Configure a `ChatModel` and its composer | [`/core/`](../core/README.md) |
