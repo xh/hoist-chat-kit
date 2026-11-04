@@ -1166,6 +1166,33 @@ describe('ChatThreadsModel', () => {
                 expect(model.chatModel.isRunningOnServer).toBe(false);
             });
 
+            it('treats the chat the app clears from a running thread as a new one', async () => {
+                const {model} = await openRunning();
+                expect(model.chatModel.isRunningOnServer).toBe(true);
+
+                model.chatModel.clear();
+
+                expect(model.chatModel.isRunningOnServer).toBe(false);
+                expect(model.chatModel.sendBlockedReason).toBeNull();
+            });
+
+            it('shows a failed load, not a reply on its way, for a running thread', async () => {
+                vi.useFakeTimers({
+                    toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date']
+                });
+                onTestFinished(() => {
+                    vi.useRealTimers();
+                });
+                const {model, store} = setup();
+                store.saveThread({id: 't9', isRunning: true, messages: []});
+                await model.loadAsync();
+                store.failNext('loadMessagesAsync');
+                await model.selectThreadAsync('t9');
+
+                expect(model.loadError).toBeTruthy();
+                expect(model.chatModel.isRunningOnServer).toBe(false);
+            });
+
             it('leaves a run that died to Refresh Status, after one reload', async () => {
                 const {model, store} = await openRunning(),
                     load = vi.spyOn(store, 'loadMessagesAsync');

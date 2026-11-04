@@ -658,8 +658,9 @@ function assistantContent(
                                             )
                                 )
                             ),
-                            // With no header to show its status, a reply that waits for its first
-                            // content shows a working cue in its body - after any answered questions.
+                            // With no header to show its status, a reply that waits for its
+                            // first content shows a working cue in its body - after any answered
+                            // questions.
                             props.showHeader === false &&
                             message.isStreaming &&
                             isEmpty(runs) &&

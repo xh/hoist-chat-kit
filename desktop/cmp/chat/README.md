@@ -510,10 +510,10 @@ left slot of the composer's bar, for pills. `rightItems` goes before the attach 
 buttons, for a context meter. `topItems` adds content above the input, such as context chips.
 `bottomItems` adds a row under it. Both sit outside the input's bordered box, spaced by
 `--xh-chat-composer-row-gap`. `startItems` leads the input row, before the text, such as a brand
-mark. It breathes while a reply
-runs, here or on the server after a page reload - see [Motion](#motion). To animate it yourself, pass `breatheStartItems: false`, and style it
-under the composer's `xh-chat-composer--busy` class. `layout: 'inline'` puts
-the bar after the text, in the same row, for a one-row composer. As the text grows, start items
+mark. It breathes while a reply runs, here or on the server after a page reload - see
+[Motion](#motion). To animate it yourself, pass `breatheStartItems: false`, and style it under the
+composer's `xh-chat-composer--busy` class. `layout: 'inline'` puts the bar after the text, in the
+same row, for a one-row composer. As the text grows, start items
 and the bar stay level with its last line. In a narrow composer, pills give way before the text.
 
 ```typescript

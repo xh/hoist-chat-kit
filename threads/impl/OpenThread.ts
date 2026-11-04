@@ -3,6 +3,7 @@ import {action, observable, observableRef} from '@xh/hoist/mobx';
 import type {ChatModel} from '../../core';
 import type {ChatConversation} from '../ChatConversation';
 import {ChatModelConversation} from './ChatModelConversation';
+import {IDLE_WATCH, type RunWatch} from './RunWatch';
 
 /** State of an open thread's history. `notFound` if the store reported the thread missing. */
 export type OpenThreadLoadState = 'loading' | 'loaded' | 'notFound' | 'failed';
@@ -52,26 +53,10 @@ export class OpenThread extends HoistBase {
     @observable accessor isListedRunning: boolean = null;
 
     /**
-     * When the threads model began checking on a turn of this thread that runs on the server, in
-     * epoch milliseconds, or null if it is not checking.
+     * What the threads model knows of a turn of this thread that runs on the server - see
+     * {@link RunWatch}. (observable)
      */
-    statusWatchSince: number = null;
-
-    /**
-     * True once the threads model stopped checking on that turn - it timed out, or a reload did
-     * not settle it - so that the user refreshes by hand. (observable)
-     */
-    @observable accessor isStatusWatchEnded: boolean = false;
-
-    /**
-     * True from the moment a list shows done a turn that the thread waits on with no reply yet,
-     * until a history load begun since then succeeds - so that the thread still reads as waiting
-     * meanwhile, rather than as an empty or unanswered chat. (observable)
-     */
-    @observable accessor isReloadPending: boolean = false;
-
-    /** True while the reload that {@link isReloadPending} waits on runs. */
-    isReloadInFlight: boolean = false;
+    @observableRef accessor runWatch: RunWatch = IDLE_WATCH;
 
     /** The conversation's `ChatModel`, or null for a conversation of the app's own. */
     get chatModel(): ChatModel {
@@ -123,32 +108,9 @@ export class OpenThread extends HoistBase {
         this.isListedRunning = isRunning;
     }
 
-    /** Mark the thread as waiting on a reload of its history, begun from now on. */
     @action
-    markReloadPending() {
-        this.isReloadPending = true;
-        this.reloadPendingAfter = this.loadCount;
-    }
-
-    /** Note a load that succeeded. One begun since the reload was marked pending settles it. */
-    @action
-    noteLoadSucceeded(loadKey: number) {
-        if (this.isReloadPending && loadKey > this.reloadPendingAfter) {
-            this.isReloadPending = false;
-        }
-    }
-
-    /** Reset the check on a turn that runs on the server, once none needs one. */
-    @action
-    resetStatusWatch() {
-        this.statusWatchSince = null;
-        this.isStatusWatchEnded = false;
-    }
-
-    /** Stop checking on a turn that runs on the server, and leave it to the user. */
-    @action
-    endStatusWatch() {
-        this.isStatusWatchEnded = true;
+    setRunWatch(watch: RunWatch) {
+        if (watch !== this.runWatch) this.runWatch = watch;
     }
 
     @action
@@ -191,8 +153,12 @@ export class OpenThread extends HoistBase {
     @action
     resetLoad() {
         this.loadCount++;
-        this.isReloadPending = false;
         this.endLoad();
+    }
+
+    /** The key of the latest load - see {@link beginLoad}. */
+    get loadKey(): number {
+        return this.loadCount;
     }
 
     /** True if the load with this key is the latest, and the thread is still open. */
@@ -204,5 +170,4 @@ export class OpenThread extends HoistBase {
     // Implementation
     //------------------
     private loadCount = 0;
-    private reloadPendingAfter = 0;
 }

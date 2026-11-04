@@ -379,42 +379,40 @@ turn that the backend finished on its own.
 
 A thread can hold a turn that runs on the server while its chat does not follow it, as after a
 page reload. The store then lists the thread with `isRunning`, and the history has no reply to the
-turn yet. The history is empty, before the backend saves the turn, or ends with the user's
-message, or ends with a reply left running - see the `detached` metadata in
-[`/core/`](../core/README.md#stop-or-detach-a-turn).
+turn yet: it is empty, before the backend saves the turn, ends with the user's message, or ends
+with a reply left running - see the `detached` metadata in
+[`/core/`](../core/README.md#stop-or-detach-a-turn). A store that does not report `isRunning`
+gets none of what follows.
 
-The thread then blocks sends with "Wait for the reply to finish.", so that a send never starts a
-second run. Send shows the reason as its tooltip. The status region shows the block only once the
-automatic checks below stop, with Refresh Status, and as the reply's status if the reply was left
-running. The block ends when a reload shows the reply. Once a list shows the run done, the thread
-reloads at once, and the block ends when that reload lands. A thread with a detached reply that a
-list shows not running from the start blocks nothing, as its run may have died.
+While the turn runs:
 
-While the turn runs, the message list shows "Still working on the server", in place of the empty
-state of a new chat or after the user's question, and the composer's start items breathe - see
-`ChatModel.isRunningOnServer`. When a list shows the turn done, the thread reloads its history at
-once, and still reads as waiting until the reply lands. A reload that fails leaves it waiting, and
-the next check tries again.
+- The thread blocks sends with "Wait for the reply to finish.", so that a send never starts a
+  second run. Send shows the reason as its tooltip.
+- The message list shows "Still working on the server", in place of the empty state of a new chat
+  or after the user's question, and the composer's start items breathe - see
+  `ChatModel.isRunningOnServer`.
+- The status region shows nothing for the block while the model checks on the turn, and the
+  block with Refresh Status once it stops.
 
 The model checks on such a turn on its own, every `statusRefreshMs`, 5 seconds by default. Each
-check reloads the thread list, quietly, with no busy state. Once the list shows the run done, the
-model reloads the thread's history, and the reply shows in full. A thread with no messages yet
-also reloads its history on each check, so that the turn shows once the backend saves it. It checks the same way on a reply
-that failed in a way that is not retry-safe, such as a dropped connection, as its run may still
-go on, but waits as long as the list shows the run going. The status region offers no Refresh
-Status meanwhile, and shows nothing for the block. A history load for a check shows no load state,
-and never applies over a turn the user started meanwhile. A failed check is logged, and the next
-one tries again.
+check reloads the thread list quietly, with no busy state. Once a list shows the run done, the
+thread reloads its history at once, and reads as waiting until the reply lands. A reload that
+fails, or that lands before the backend saved the reply, leaves the reply due, and the next check
+reloads it again. A thread with no messages yet also reloads its history on each check, so that
+the turn shows once the backend saves it. A history load for a check shows no load state, and
+never applies over a turn the user started meanwhile.
 
-The model stops checking, and offers Refresh Status, after `statusRefreshTimeoutMs`, 30 minutes
-by default. It also stops when a reload leaves the turn unsettled, as for a run that died, and
-while a search leaves the thread out of the list. With
-`statusRefreshMs` null, the model never checks, and the region always offers Refresh Status. A
-stalled reply, whose stream is still open, offers Refresh Status either way.
+The model checks the same way on a reply that may still change: a detached reply in a thread the
+list shows not running, or one that failed in a way that is not retry-safe, such as on a dropped
+connection. It reloads the history once the list no longer shows the run going. If that reload
+still leaves the reply as it was, the run has died, and the model stops.
 
-The model keeps the `isRunning` of the last list that held the thread, so a search that leaves the
-thread out does not lift the block. A store that does not report `isRunning` gets no block. A
-detached reply in a thread listed as not running blocks nothing, as its run may have died.
+The model stops checking, and Refresh Status returns, after `statusRefreshTimeoutMs`, 30 minutes
+by default, or on a run that died. It offers Refresh Status too while a search leaves the thread
+out of the list, as its checks cannot see the run end. The model keeps the `isRunning` of the last
+list that held the thread, so such a search does not lift the block. With `statusRefreshMs`
+null, the model never checks, and the region always offers Refresh Status. A stalled reply, whose
+stream is still open, offers Refresh Status either way.
 
 ### Link to a thread
 

@@ -1940,7 +1940,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             this.logError('Could not check the reply for catalog UI', e);
         }
 
-        // A detached reply's work goes on on the server, so its open calls and sub-agents stay open.
+        // A detached reply's work goes on on the server, so its open calls and sub-agents stay
+        // open.
         const settled = (
             detached
                 ? this.closeClientCalls(settleStreamingParts(message))

@@ -2291,8 +2291,8 @@ the server open: on a live detach, in `loadMessages()` for the last reply of the
 `replayChatEvents()` for a turn with no end. A replayed turn still closes the calls of its earlier
 steps, which ended with their runs. Calls that the browser would run or answer close as
 interrupted, as the turn that would run them is over. The views show open work as "Not finished
-yet", with no spinner, and the timeline's line reads "So far: 3 tools done". A detached reply never waits on the
-user for a call.
+yet", with no spinner, and the timeline's line reads "So far: 3 tools done". A detached reply
+never waits on the user for a call.
 
 When a later turn starts, or the history holds a later message, the conversation has moved past the
 reply. It then becomes `complete`, without `metadata.detached`, and its open work closes as "No
@@ -2322,8 +2322,9 @@ go: `showStopHint`, the region's `assistantName`, `ChatStatusRegion.defaults` an
 `ChatThreadsModel` blocks sends while the server runs a turn that the chat does not follow: the last
 list that held the thread showed it running, and its history has no reply to that turn yet. The
 history is empty, ends with the user's message, or ends with a detached reply. The block offers
-Refresh Status. A store that does not report `isRunning` gets no block. With a detached reply, it shows as the reply's status, not as a block.
-`getChatComposerStatus()` still reports every status, for a layout of an app's own.
+Refresh Status. A store that does not report `isRunning` gets no block. With a detached reply, it
+shows as the reply's status, not as a block. `getChatComposerStatus()` still reports every status,
+for a layout of an app's own.
 
 **Why.** The reply, its timeline and the region each showed the reply's progress, and they could
 disagree. The reply is where the work shows, so it alone says how the work goes. A backend that
@@ -2353,7 +2354,16 @@ not follow. While it checks, the status region offers no Refresh Status, and a s
 run shows nothing. The message list shows "Still working on the server" in an empty chat, in place
 of its empty state, or after the user's question, and the composer's start items breathe. When a
 list shows such a turn done, the thread reloads its history at once, and reads as waiting until
-the reply lands. A failed reload leaves it waiting, for the next check to retry.
+the reply lands. A reload that fails, or lands before the reply was saved, leaves the reply due,
+for the next check to reload.
+
+One record per open thread, a `RunWatch`, holds all that the model knows of such a turn: a phase
+(`idle`, `waiting`, `reloading` or `stopped`), when the watch began, and the load that settles a
+due reply. Only `stepRunWatch()`, a pure function of the record, the thread's facts and one event,
+changes it. The facts are what the model reads from the thread each time: busy, loaded, listed
+running, whether the history lacks a reply, and whether its last reply may still change. Every
+answer the model gives - whether sends wait, whether it checks on its own, whether to reload now
+- reads from the record and the facts.
 
 The model stops, and Refresh Status returns, after `statusRefreshTimeoutMs`, 30 minutes by default,
 when a reload leaves the turn unsettled, or when the current list leaves the thread out, as under
@@ -2364,7 +2374,11 @@ stream is still open.
 run ends, so the client has to ask. The thread list is cheap to load, and a thread's history can be
 large, so the model polls the list and loads a history only once its run is done.
 
-**Alternatives.** Poll the history. It costs a full conversation per check. Reconnect to the run's
+**Alternatives.** Flags on the open thread, one per concern - listed running, reload pending,
+reload in flight, watch ended. Their combinations raced each other across list loads, checks,
+user refreshes and resets, and each fix added a flag. A state machine with one transition
+function gives each event one rule, and its own transition-table spec. Poll the history. It costs
+a full conversation per check. Reconnect to the run's
 stream, with the transport's `reconnect`. It shows progress live, but needs backend support, and
 waits for an app to ask. Refresh a stalled reply on its own too. That would detach a stream that
 may still answer, and a transport has no hard timeout by default to end a stall for good.
