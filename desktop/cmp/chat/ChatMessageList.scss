@@ -12,6 +12,13 @@ $fade-height: 12px;
   min-width: 0;
   position: relative;
 
+  // The cue for a reply that the server still writes, after the last message or in place of the
+  // empty state.
+  &__awaiting-reply {
+    display: flex;
+    padding: 12px 0;
+  }
+
   &__viewport {
     flex: 1 1 0;
     overflow-x: hidden;

@@ -941,8 +941,9 @@ and the reason. `getChatComposerStatus()` is the same reading as a pure function
 shows at a time, in this order: blocked, offline, failed or detached, stalled, waiting to retry,
 paused, busy, and a restored draft. A send that `ChatThreadsModel` blocks while the server runs the
 turn - see `isRunningOnServer` - reads as detached when the last reply is. It offers Refresh
-Status, or shows nothing while the thread layer checks on the turn by itself. So does a failure
-that is not retry-safe. The desktop
+Status, or shows nothing while the thread layer checks on the turn by itself. A failure that is
+not retry-safe still shows, but with no Refresh Status while the thread layer checks on it. The
+desktop
 `ChatStatusRegion` shows a line only for what stops a send or needs the user's action - see
 [Recover from a failed reply](../desktop/cmp/chat/README.md#recover-from-a-failed-reply).
 
@@ -1105,7 +1106,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `feedbackDrafts` | `Record<string, ChatFeedbackDraft>` | Comments typed in feedback forms and not yet sent, by message id, with their send state and last error. Observable. |
 | `canRefreshStatus` | `boolean` | True once a refresher is set with `setStatusRefresher()`. |
 | `isStatusRefreshAutomatic` | `boolean` | True while the thread layer refreshes the status on its own. The status region then offers no Refresh Status for a turn the chat does not follow. |
-| `isRunningOnServer` | `boolean` | True while the thread layer reports a turn that runs on the server while the chat does not follow it, as after a page reload. An empty `ChatPanel` then shows "Still working on the server", and the composer's start items breathe. |
+| `isRunningOnServer` | `boolean` | True while the thread layer reports a turn that runs on the server while the chat does not follow it, as after a page reload. The message list then shows "Still working on the server" in an empty chat or after the user's question, and the composer's start items breathe. |
 | `isBusy` | `boolean` | True for `submitted` or `streaming`. False while a turn is paused. |
 | `sendBlockedReason` | `string` | Why sending must wait, from the `sendBlocker` or an added blocker, or null. |
 | `isEmpty` | `boolean` | True if there are no messages. |

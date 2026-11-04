@@ -37,8 +37,9 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * `ChatThreadsModel` now checks on a turn that runs on the server while its chat does not follow
   it, and loads the reply once the thread list shows the run done. Set the interval with
   `ChatKit.defaults.statusRefreshMs` or `ChatThreadsConfig.statusRefreshMs`, null for none.
-* `ChatPanel` now shows "Still working on the server" in place of the empty state for such a turn
-  with nothing saved yet, and the composer's start items breathe while it runs.
+* `ChatMessageList` now shows "Still working on the server" for such a turn with no reply saved
+  yet, in place of the empty state or after the user's question. The composer's start items breathe
+  while it runs.
 
 ### 🐞 Bug Fixes
 
@@ -51,7 +52,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 ### ✨ Styles
 
 * Added the `xh-chat-timeline--detached`, `xh-chat-timeline__item--unfinished`,
-  `xh-chat-tool-call--unfinished` and `xh-chat-tool-call__glyph--unfinished` classes. A detached
+  `xh-chat-tool-call--unfinished`, `xh-chat-tool-call__glyph--unfinished` and
+  `xh-chat-message-list__awaiting-reply` classes. A detached
   reply's timeline no longer takes `xh-chat-timeline--stopped`.
 
 ## 1.0.0 - 2026-11-02

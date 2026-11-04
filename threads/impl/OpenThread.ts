@@ -63,6 +63,13 @@ export class OpenThread extends HoistBase {
      */
     @observable accessor isStatusWatchEnded: boolean = false;
 
+    /**
+     * True from the moment a list shows done a turn that the thread waits on with no reply yet,
+     * until a reload of its history ends - so that the thread still reads as waiting meanwhile,
+     * rather than as an empty or unanswered chat. (observable)
+     */
+    @observable accessor isReloadPending: boolean = false;
+
     /** The conversation's `ChatModel`, or null for a conversation of the app's own. */
     get chatModel(): ChatModel {
         const {conversation} = this;
@@ -111,6 +118,11 @@ export class OpenThread extends HoistBase {
     @action
     setListedRunning(isRunning: boolean) {
         this.isListedRunning = isRunning;
+    }
+
+    @action
+    setReloadPending(isPending: boolean) {
+        this.isReloadPending = isPending;
     }
 
     /** Reset the check on a turn that runs on the server, once none needs one. */

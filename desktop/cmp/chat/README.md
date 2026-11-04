@@ -756,6 +756,11 @@ chatPanel({
 To show other content instead, pass it as `emptyState`. The message list shows it, and the
 composer stays at the bottom.
 
+A thread whose turn runs on the server while the chat does not follow it, as after a page reload,
+shows no empty state. The list shows "Still working on the server" instead, in
+`xh-chat-message-list__awaiting-reply`, and after the user's question when that is all the
+history holds - see `ChatModel.isRunningOnServer`.
+
 ### Collect feedback
 
 Each reply shows thumbs up and down once its turn ends, if the chat can submit feedback. Set the

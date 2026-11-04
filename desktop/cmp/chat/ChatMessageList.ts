@@ -22,6 +22,7 @@ import {
 import type {ChatSuggestion} from './ChatSuggestions';
 import {chatAnnouncerRegions} from './impl/ChatAnnouncerRegions';
 import {chatErrorBoundary} from './ChatErrorBoundary';
+import {chatStatusCue} from './ChatStatusCue';
 import {ChatMessageListLocalModel} from './impl/ChatMessageListLocalModel';
 import {refuseFileDrop} from './impl/FileDrop';
 import {getFailureCause, isReplyNotSent} from './impl/ReplyFailure';
@@ -163,7 +164,36 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
 
         const {messages} = host,
             chatModel = isChatModel(host) ? host : null,
-            lastIdx = messages.length - 1;
+            lastIdx = messages.length - 1,
+            // A reply the server still writes, after a page reload, shows that it is on its way.
+            isAwaiting =
+                !!chatModel?.isRunningOnServer && (!messages.length || messages[lastIdx].isUser);
+
+        const renderMessage = (message: ChatMessage, idx: number) =>
+            chatErrorBoundary({
+                key: message.id,
+                subject: 'message',
+                resetKey: message.status,
+                item: chatMessageView({
+                    message,
+                    host,
+                    isLast: idx === lastIdx,
+                    notSentReason: getNotSentReason(message, messages[idx + 1]),
+                    assistantName,
+                    assistantIcon,
+                    markdownComponents,
+                    allowImages,
+                    citationMarkers,
+                    onSourceClick,
+                    markdownPlugins,
+                    messageActions,
+                    messageHeaderItems,
+                    showHeader: showMessageHeader,
+                    isEditing: impl.editingId === message.id,
+                    onEditingChange: impl.onEditingChange,
+                    onEditPrompt: impl.onEditPrompt
+                })
+            });
 
         return vbox({
             ref,
@@ -189,43 +219,17 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                     item: div({
                         ref: contentRef,
                         className: 'xh-chat-message-list__content',
-                        items: !messages.length
-                            ? [
-                                  emptyState ??
-                                      chatEmptyState({
-                                          suggestions,
-                                          composerModel: chatModel?.composerModel
-                                      })
-                              ]
-                            : messages.map((message, idx) =>
-                                  chatErrorBoundary({
-                                      key: message.id,
-                                      subject: 'message',
-                                      resetKey: message.status,
-                                      item: chatMessageView({
-                                          message,
-                                          host,
-                                          isLast: idx === lastIdx,
-                                          notSentReason: getNotSentReason(
-                                              message,
-                                              messages[idx + 1]
-                                          ),
-                                          assistantName,
-                                          assistantIcon,
-                                          markdownComponents,
-                                          allowImages,
-                                          citationMarkers,
-                                          onSourceClick,
-                                          markdownPlugins,
-                                          messageActions,
-                                          messageHeaderItems,
-                                          showHeader: showMessageHeader,
-                                          isEditing: impl.editingId === message.id,
-                                          onEditingChange: impl.onEditingChange,
-                                          onEditPrompt: impl.onEditPrompt
-                                      })
-                                  })
-                              )
+                        items: isAwaiting
+                            ? [...messages.map(renderMessage), awaitingReply()]
+                            : !messages.length
+                              ? [
+                                    emptyState ??
+                                        chatEmptyState({
+                                            suggestions,
+                                            composerModel: chatModel?.composerModel
+                                        })
+                                ]
+                              : messages.map(renderMessage)
                     })
                 }),
                 chatAnnouncerRegions(),
@@ -251,4 +255,13 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
 // Why a user message was never sent - the cause of the failed reply after it - or null.
 function getNotSentReason(message: ChatMessage, next: ChatMessage): string {
     return message.isUser && isReplyNotSent(next) ? getFailureCause(next) : null;
+}
+
+/** The cue for a reply that the server still writes, in place of one the chat streams. */
+function awaitingReply(): ReactNode {
+    return div({
+        key: 'awaitingReply',
+        className: 'xh-chat-message-list__awaiting-reply',
+        item: chatStatusCue({status: 'detached', label: 'Still working on the server'})
+    });
 }

@@ -202,12 +202,26 @@ describe('ChatPanel', () => {
         });
         renderPanel(chatModel);
 
-        expect(document.querySelector('.xh-chat-panel__awaiting-reply').textContent).toContain(
-            'Still working on the server'
-        );
+        expect(
+            document.querySelector('.xh-chat-message-list__awaiting-reply').textContent
+        ).toContain('Still working on the server');
         expect(document.querySelector('.xh-chat-empty-state')).toBeNull();
         expect(document.querySelector('.xh-chat-panel--empty')).toBeNull();
         expect(document.querySelector('.xh-chat-composer--busy')).toBeTruthy();
+        expect(document.querySelector('.xh-chat-status-region')).toBeNull();
+    });
+
+    it("shows a reply on its way after the user's question, while the server writes it", () => {
+        const chatModel = createModel([]);
+        chatModel.loadMessages([{role: 'user', content: 'Rates?'}]);
+        chatModel.setStatusRefresher(async () => {}, {
+            isAutomatic: () => true,
+            isRunningOnServer: () => true
+        });
+        renderPanel(chatModel);
+
+        const items = document.querySelector('.xh-chat-message-list__content').children;
+        expect(items[items.length - 1].className).toContain('xh-chat-message-list__awaiting-reply');
         expect(document.querySelector('.xh-chat-status-region')).toBeNull();
     });
 

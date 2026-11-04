@@ -2350,8 +2350,10 @@ turn the user started meanwhile.
 The thread layer reports what it knows through the options of `ChatModel.setStatusRefresher()`:
 `isAutomatic` while it checks, and `isRunningOnServer` while the server runs a turn the chat does
 not follow. While it checks, the status region offers no Refresh Status, and a send blocked by the
-run shows nothing. An empty `ChatPanel` shows "Still working on the server" in place of its empty
-state, and the composer's start items breathe. The model stops, and Refresh Status returns, after
+run shows nothing. The message list shows "Still working on the server" in an empty chat, in place
+of its empty state, or after the user's question, and the composer's start items breathe. When a
+list shows such a turn done, the thread reloads its history at once, and reads as waiting until
+the reply lands. The model stops, and Refresh Status returns, after
 `statusRefreshTimeoutMs`, 30 minutes by default, when a reload leaves the turn unsettled, or when
 the current list leaves the thread out, as under a search. `statusRefreshMs: null` turns the
 checks off. A stalled reply keeps Refresh Status: its stream is still open.

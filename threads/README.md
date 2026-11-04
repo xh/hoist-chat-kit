@@ -388,9 +388,10 @@ second run. Send shows the reason as its tooltip. The status region shows the bl
 automatic checks below stop, with Refresh Status, and as the reply's status if the reply was left
 running. The block ends when a reload shows the reply, or a list shows the thread not running.
 
-While the turn runs, an empty `ChatPanel` shows "Still working on the server" in place of the
-empty state of a new chat, and the composer's start items breathe - see
-`ChatModel.isRunningOnServer`.
+While the turn runs, the message list shows "Still working on the server", in place of the empty
+state of a new chat or after the user's question, and the composer's start items breathe - see
+`ChatModel.isRunningOnServer`. When a list shows the turn done, the thread reloads its history at
+once, and still reads as waiting until the reply lands.
 
 The model checks on such a turn on its own, every `statusRefreshMs`, 5 seconds by default. Each
 check reloads the thread list, quietly, with no busy state. Once the list shows the run done, the

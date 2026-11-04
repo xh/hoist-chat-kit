@@ -672,14 +672,16 @@ export class ChatThreadsModel extends HoistModel {
     /**
      * True if the server runs a turn of the thread that its chat does not follow: the last list
      * that held the thread showed it running, and its history has no reply to that turn yet - it
-     * is empty, ends with the user's message, or ends with a reply left running. A send then would
-     * start a second run. A detached reply in a thread listed as not running blocks nothing, as
+     * is empty, ends with the user's message, or ends with a reply left running. It holds until
+     * the reply loads, once a list shows the turn done. A send then would start a second run. A detached reply in a thread listed as not running blocks nothing, as
      * its run may have died. A local turn always ends with a reply, so a stale listing cannot
      * block a thread the user just ran here.
      */
     private isRunningElsewhere(thread: OpenThread): boolean {
         const {chatModel} = thread;
-        if (!chatModel || chatModel.isBusy || !thread.isListedRunning) return false;
+        if (!chatModel || chatModel.isBusy) return false;
+        if (thread.isReloadPending) return true;
+        if (!thread.isListedRunning) return false;
         const {lastMessage} = chatModel;
         return (
             !lastMessage ||
@@ -741,16 +743,23 @@ export class ChatThreadsModel extends HoistModel {
         await this.autoRefreshAsync();
         for (const thread of threads) {
             const isOpen = this.openThreads[thread.conversation.threadId] === thread;
-            if (!isOpen || !this.needsStatusWatch(thread)) continue;
+            // A thread whose reply already loads, as the list showed its turn done, waits for it.
+            if (!isOpen || thread.isReloadPending || !this.isStatusWatched(thread)) continue;
             // A thread with no messages yet reloads its history on each check, so that the turn
             // shows once the backend saves it. Another waits until the list shows the run done.
             if (thread.isListedRunning && !thread.chatModel.isEmpty) continue;
-            await this.loadHistoryAsync(thread, true);
-            // A run the list no longer shows, whose history still does not settle it, is not
-            // one a later check would settle.
-            if (this.needsStatusWatch(thread) && !this.isRunningElsewhere(thread)) {
-                thread.endStatusWatch();
-            }
+            await this.reloadCheckedAsync(thread);
+        }
+    }
+
+    /**
+     * Reload a thread's history quietly, for a check on its turn. A run the list no longer shows,
+     * whose history still does not settle it, is not one a later check would settle.
+     */
+    private async reloadCheckedAsync(thread: OpenThread) {
+        await this.loadHistoryAsync(thread, true);
+        if (this.needsStatusWatch(thread) && !this.isRunningElsewhere(thread)) {
+            thread.endStatusWatch();
         }
     }
 
@@ -1016,7 +1025,9 @@ export class ChatThreadsModel extends HoistModel {
                 ? (conversation as ChatModelConversation).loadAsync(true)
                 : conversation.loadAsync().linkTo(this.loadTask));
             if (thread.isLoadCurrent(loadKey) && !isQuiet) thread.endLoad();
+            if (thread.isLoadCurrent(loadKey)) thread.setReloadPending(false);
         } catch (e) {
+            if (thread.isLoadCurrent(loadKey)) thread.setReloadPending(false);
             if (!thread.isLoadCurrent(loadKey)) {
                 this.logWarn(`Discarded a failed load of thread ${threadId}, no longer open`, e);
             } else if (isQuiet) {
@@ -1044,7 +1055,17 @@ export class ChatThreadsModel extends HoistModel {
         this.appliedListNumber = listNumber;
         this.listedSearch = this.searchQuery;
         this.listedThreads = threads;
-        threads.forEach(it => this.openThreads[it.id]?.setListedRunning(!!it.isRunning));
+        threads.forEach(it => {
+            const thread = this.openThreads[it.id];
+            if (!thread) return;
+            // A turn the thread waited on is done: load its reply now, waiting until it lands.
+            const wasWaiting = this.isRunningElsewhere(thread);
+            thread.setListedRunning(!!it.isRunning);
+            if (wasWaiting && !it.isRunning && !thread.isReloadPending) {
+                thread.setReloadPending(true);
+                this.reloadCheckedAsync(thread);
+            }
+        });
         this.localThreads = differenceBy(this.localThreads, threads, 'id');
         this.noteSeenFromList(threads, listNumber, this.listedSearch);
         this.pendingChanges = this.pendingChanges.filter(it => listNumber < it.doneBefore);

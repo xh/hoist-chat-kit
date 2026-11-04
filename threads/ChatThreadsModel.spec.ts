@@ -1083,6 +1083,33 @@ describe('ChatThreadsModel', () => {
                 expect(load).not.toHaveBeenCalled();
             });
 
+            it.each([
+                ['no messages saved', []],
+                ["the user's question only", [{role: 'user' as const, content: 'Rates?'}]]
+            ])(
+                'loads the reply of a thread with %s once its run ends, waiting till it lands',
+                async (_, saved) => {
+                    const {model, store} = await openRunning();
+                    store.saveThread({id: 't9', isRunning: true, messages: saved});
+                    await model.chatModel.refreshStatusAsync();
+                    expect(model.chatModel.isRunningOnServer).toBe(true);
+
+                    store.saveThread({id: 't9', isRunning: false, messages: DONE});
+                    store.hold('loadMessagesAsync');
+                    await vi.advanceTimersByTimeAsync(5_000);
+
+                    // The list shows the run done, and the reply is on its way.
+                    expect(store.heldCalls('loadMessagesAsync')).toHaveLength(1);
+                    expect(model.chatModel.isRunningOnServer).toBe(true);
+                    store.heldCalls('loadMessagesAsync')[0].release();
+                    await vi.advanceTimersByTimeAsync(0);
+
+                    expect(model.chatModel.lastMessage.text).toBe('Flat.');
+                    expect(model.chatModel.isRunningOnServer).toBe(false);
+                    expect(model.chatModel.sendBlockedReason).toBeNull();
+                }
+            );
+
             it('leaves a run that died to Refresh Status, after one reload', async () => {
                 const {model, store} = await openRunning(),
                     load = vi.spyOn(store, 'loadMessagesAsync');
