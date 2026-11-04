@@ -194,6 +194,23 @@ describe('ChatPanel', () => {
         expect(footer.lastElementChild.classList.contains('xh-chat-composer')).toBe(true);
     });
 
+    it('shows a reply on its way for a turn running on the server, with nothing saved yet', () => {
+        const chatModel = createModel([]);
+        chatModel.setStatusRefresher(async () => {}, {
+            isAutomatic: () => true,
+            isRunningOnServer: () => true
+        });
+        renderPanel(chatModel);
+
+        expect(document.querySelector('.xh-chat-panel__awaiting-reply').textContent).toContain(
+            'Still working on the server'
+        );
+        expect(document.querySelector('.xh-chat-empty-state')).toBeNull();
+        expect(document.querySelector('.xh-chat-panel--empty')).toBeNull();
+        expect(document.querySelector('.xh-chat-composer--busy')).toBeTruthy();
+        expect(document.querySelector('.xh-chat-status-region')).toBeNull();
+    });
+
     it('passes statusRegionProps to the status region', async () => {
         const chatModel = createModel([errorEvents('Model timed out.')], 0);
         await chatModel.sendAsync('Hi');

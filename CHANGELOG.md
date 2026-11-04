@@ -31,12 +31,14 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 ### 🎁 New Features
 
 * `ChatThreadsModel` now blocks sends while the store lists a thread as running and its history has
-  no reply to that turn yet. `getChatComposerStatus()` reports the block with Refresh Status, or as
-  `detached` when the last reply is.
+  no reply to that turn yet. The status region shows the block only with Refresh Status, once the
+  automatic checks below stop.
 
 * `ChatThreadsModel` now checks on a turn that runs on the server while its chat does not follow
   it, and loads the reply once the thread list shows the run done. Set the interval with
   `ChatKit.defaults.statusRefreshMs` or `ChatThreadsConfig.statusRefreshMs`, null for none.
+* `ChatPanel` now shows "Still working on the server" in place of the empty state for such a turn
+  with nothing saved yet, and the composer's start items breathe while it runs.
 
 ### 🐞 Bug Fixes
 

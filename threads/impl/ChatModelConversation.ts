@@ -1,7 +1,7 @@
 import {cloneDeep, findLast} from 'lodash';
 import {HoistBase, managed} from '@xh/hoist/core';
 import {action} from '@xh/hoist/mobx';
-import {type ChatModel, getChatReplyStatus} from '../../core';
+import {type ChatModel, type ChatStatusRefresherOptions, getChatReplyStatus} from '../../core';
 import type {ChatConversation} from '../ChatConversation';
 import type {ChatMessagePage, ChatThreadStore} from '../ChatThreadStore';
 import type {ChatThreadEndedEarly} from '../ChatThreadsModel';
@@ -20,8 +20,8 @@ export interface ChatModelConversationConfig {
     /** Reload the thread's history for Refresh Status - see `ChatModel.setStatusRefresher`. */
     refreshStatusAsync: () => Promise<void>;
 
-    /** True while the threads model refreshes the status on its own. */
-    isStatusRefreshAutomatic: () => boolean;
+    /** What the threads model knows of the thread's runs. */
+    statusRefresherOpts: ChatStatusRefresherOptions;
 }
 
 /**
@@ -59,7 +59,7 @@ export class ChatModelConversation extends HoistBase implements ChatConversation
         drafts,
         getSendBlockedReason,
         refreshStatusAsync,
-        isStatusRefreshAutomatic
+        statusRefresherOpts
     }: ChatModelConversationConfig) {
         super();
         this.chatModel = chatModel;
@@ -72,7 +72,7 @@ export class ChatModelConversation extends HoistBase implements ChatConversation
             );
         }
         chatModel.addSendBlocker(getSendBlockedReason);
-        chatModel.setStatusRefresher(refreshStatusAsync, isStatusRefreshAutomatic);
+        chatModel.setStatusRefresher(refreshStatusAsync, statusRefresherOpts);
         drafts.open(chatModel.threadId, chatModel);
     }
 
@@ -80,13 +80,18 @@ export class ChatModelConversation extends HoistBase implements ChatConversation
      * Load the thread's history from the store. The result applies only if this is the latest
      * load, and the chat still holds the thread - an app may clear the chat, or load other
      * messages into it, while the load runs.
+     *
+     * @param isQuiet - true for a check on a turn that runs on the server. Its result applies only
+     *      if the chat's messages did not change meanwhile, so that it never replaces a turn the
+     *      user started.
      */
-    async loadAsync(): Promise<void> {
+    async loadAsync(isQuiet: boolean = false): Promise<void> {
         const {chatModel} = this,
-            {threadId} = chatModel,
+            {threadId, messages} = chatModel,
             loadNumber = ++this.loadCount,
             page = await this.store.loadMessagesAsync({threadId});
         if (this.isDestroyed || loadNumber !== this.loadCount) return;
+        if (isQuiet && (chatModel.isBusy || chatModel.messages !== messages)) return;
         if (chatModel.threadId === threadId) this.applyHistory(threadId, page);
     }
 

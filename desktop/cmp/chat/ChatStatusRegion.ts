@@ -26,12 +26,13 @@ export interface ChatStatusRegionProps extends HoistProps<ChatComposerModel> {}
  * what went wrong and what to do about it. It collapses to nothing otherwise. A reply's progress,
  * and a reply left running on the server, show in the reply itself. In order of priority:
  *
- *  - The host's reason that sending must wait - unless the thread layer blocks the send because
- *    the last reply runs on the server, which shows as that reply's status. A send blocked while
- *    the server runs the turn offers Refresh Status.
+ *  - The host's reason that sending must wait. A send that the thread layer blocks while the
+ *    server runs the turn shows only with Refresh Status - not while the thread layer checks on
+ *    the turn on its own - and as the reply's status if the reply was left running.
  *  - Offline. The draft is kept, and nothing sends by itself.
  *  - A failed reply, with Try Again when a resend is retry-safe. Otherwise it says the run may
- *    still be running, and offers Refresh Status when the chat can refresh, or else Try Again.
+ *    still be running, and offers Refresh Status when the chat can refresh, or else Try Again -
+ *    or nothing while the thread layer checks on the run on its own.
  *    A chat with `allowRetry` false never offers Try Again.
  *    A reply the server interrupted or cancelled ranks with a failure.
  *  - A reply left running on the server, only when the chat can refresh and the thread layer

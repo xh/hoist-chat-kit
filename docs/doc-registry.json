@@ -273,7 +273,9 @@
         "detached",
         "metadata.detached",
         "statusRefreshMs",
-        "isStatusRefreshAutomatic"
+        "isStatusRefreshAutomatic",
+        "isRunningOnServer",
+        "ChatStatusRefresherOptions"
       ]
     },
     {

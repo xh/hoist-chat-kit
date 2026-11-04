@@ -23,6 +23,13 @@
     padding-bottom: 0;
   }
 
+  // A placeholder for a reply the server is still writing, in a thread with nothing saved yet.
+  &__awaiting-reply {
+    display: flex;
+    justify-content: center;
+    padding: 24px var(--xh-chat-composer-status-inset);
+  }
+
   &__empty-head {
     display: flex;
     flex: 4 1 0;

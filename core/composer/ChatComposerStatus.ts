@@ -105,6 +105,13 @@ export interface ChatComposerStatusSpec {
      */
     isStatusRefreshAutomatic?: boolean;
 
+    /**
+     * True if the host reports a turn that runs on the server while the chat does not follow it.
+     * A send that the thread layer blocks for it then reads as the reply's status, or as nothing
+     * while the host checks on the turn on its own.
+     */
+    isRunningOnServer?: boolean;
+
     /** When a restored draft was saved, while its notice shows, or null. */
     draftSavedAt?: number;
 
@@ -120,7 +127,8 @@ export interface ChatComposerStatusSpec {
  * One status shows at a time, the first that applies in this order: blocked, offline, failed or
  * detached, stalled, waiting to retry, paused, busy, and a restored draft. A reply the server
  * interrupted or cancelled counts as failed. A send that a thread layer blocks while the server
- * runs the thread's turn offers Refresh Status, and reads as detached if the last reply is.
+ * runs the thread's turn - see `isRunningOnServer` - offers Refresh Status, and reads as detached
+ * if the last reply is. While the host checks on the turn on its own, it shows as nothing.
  *
  * A failure that is retry-safe offers Try Again. One that is not offers Refresh Status if the host
  * can refresh, else Try Again, and says the run may still be running. A retry-safe failure for
@@ -136,6 +144,7 @@ export function getChatComposerStatus(spec: ChatComposerStatusSpec): ChatCompose
             canRetry = false,
             canRefreshStatus = false,
             isStatusRefreshAutomatic = false,
+            isRunningOnServer = false,
             draftSavedAt = null,
             now = Date.now()
         } = spec,
@@ -163,16 +172,13 @@ export function getChatComposerStatus(spec: ChatComposerStatusSpec): ChatCompose
             ...changes
         });
 
-    // A send blocked while the server runs the turn can refresh to learn when it ends. A reply
-    // left running says so itself, so that block shows as the reply's status.
-    if (sendBlockedReason) {
-        const isRunOnServer = sendBlockedReason === RUN_ON_SERVER_REASON;
-        if (!isRunOnServer || replyStatus !== 'detached') {
-            return status('blocked', {
-                reason: sendBlockedReason,
-                action: isRunOnServer && canRefreshByHand ? 'refreshStatus' : null
-            });
-        }
+    // A send blocked while the server runs the turn is no news while the host checks on the turn
+    // - the reply, or the chat's placeholder for it, says so. Otherwise it offers Refresh Status,
+    // or shows as the reply's status if the reply was left running.
+    const isRunBlock = isRunningOnServer && sendBlockedReason === RUN_ON_SERVER_REASON;
+    if (sendBlockedReason && !isRunBlock) return status('blocked', {reason: sendBlockedReason});
+    if (isRunBlock && replyStatus !== 'detached' && canRefreshByHand) {
+        return status('blocked', {reason: sendBlockedReason, action: 'refreshStatus'});
     }
     if (isOffline) return status('offline');
 

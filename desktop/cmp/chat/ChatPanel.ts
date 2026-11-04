@@ -13,6 +13,7 @@ import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
 import type {ChatSourceClickHandler} from './ChatMessageView';
 import './ChatPanel.scss';
 import '../../impl/ChatMotion.scss';
+import {chatStatusCue} from './ChatStatusCue';
 import {chatStatusRegion, type ChatStatusRegionProps} from './ChatStatusRegion';
 import {composerCenteredProvider} from './impl/ComposerPlacement';
 import {type ChatSuggestion, chatSuggestions} from './ChatSuggestions';
@@ -130,8 +131,15 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
             ...rest
         } = props;
 
-        // The composer keeps its place in the tree across the move, so that it keeps focus.
-        const isCentered = model.isEmpty && emptyState == null && !messageListProps?.emptyState,
+        // A thread whose turn runs on the server, with nothing saved yet, shows that the reply is
+        // on its way, not the empty state of a new chat.
+        const isAwaitingReply = model.isEmpty && model.isRunningOnServer,
+            // The composer keeps its place in the tree across the move, so that it keeps focus.
+            isCentered =
+                model.isEmpty &&
+                !isAwaitingReply &&
+                emptyState == null &&
+                !messageListProps?.emptyState,
             {footer, belowComposer, ...headProps} = emptyStateProps ?? {};
         return panel({
             ref,
@@ -159,7 +167,8 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                           onSourceClick,
                           markdownPlugins,
                           testId: getTestId(testId, 'messages'),
-                          ...messageListProps
+                          ...messageListProps,
+                          ...(isAwaitingReply ? {emptyState: awaitingReply()} : {})
                       }),
                 div({
                     key: 'footer',
@@ -213,3 +222,13 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
         });
     }
 });
+
+//------------------
+// Implementation
+//------------------
+function awaitingReply(): ReactNode {
+    return div({
+        className: 'xh-chat-panel__awaiting-reply',
+        item: chatStatusCue({status: 'detached', label: 'Still working on the server'})
+    });
+}

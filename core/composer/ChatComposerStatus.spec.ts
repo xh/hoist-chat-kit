@@ -58,7 +58,11 @@ describe('getChatComposerStatus', () => {
         [
             'a send blocked while the reply runs on as detached, not blocked',
             'detached',
-            {sendBlockedReason: 'Wait for the reply to finish.', lastMessage: detached()}
+            {
+                sendBlockedReason: 'Wait for the reply to finish.',
+                isRunningOnServer: true,
+                lastMessage: detached()
+            }
         ],
         [
             "an app's own send blocker before a reply left running",
@@ -78,7 +82,11 @@ describe('getChatComposerStatus', () => {
     });
 
     it('offers Refresh Status for a send blocked while the server runs the turn', () => {
-        const spec = {sendBlockedReason: 'Wait for the reply to finish.', canRefreshStatus: true};
+        const spec = {
+            sendBlockedReason: 'Wait for the reply to finish.',
+            isRunningOnServer: true,
+            canRefreshStatus: true
+        };
         expect(getChatComposerStatus(spec)).toMatchObject({
             type: 'blocked',
             action: 'refreshStatus'
@@ -96,10 +104,19 @@ describe('getChatComposerStatus', () => {
             now: NOW
         };
         expect(getChatComposerStatus({...auto, lastMessage: detached()}).action).toBeNull();
+        // A send blocked while the server runs the turn shows nothing - the chat says so.
+        expect(
+            getChatComposerStatus({
+                ...auto,
+                isRunningOnServer: true,
+                sendBlockedReason: 'Wait for the reply to finish.'
+            })
+        ).toBeNull();
+        // The same words from an app's own blocker, with no run on the server, still show.
         expect(
             getChatComposerStatus({...auto, sendBlockedReason: 'Wait for the reply to finish.'})
-                .action
-        ).toBeNull();
+                .type
+        ).toBe('blocked');
         // A failure that is not retry-safe offers no Try Again either: a resend could run twice.
         expect(
             getChatComposerStatus({

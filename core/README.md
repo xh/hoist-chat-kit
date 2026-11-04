@@ -354,8 +354,8 @@ new ChatModel({transport, historyMode: 'server', allowEdit: false, allowRegenera
 For a backend that cannot run a turn a second time, such as one that keys each run to its
 request, set `allowRetry` to false. The composer then never offers Try Again, and
 never retries on its own after a wait the server asked for. A failure the server may still be
-running offers Refresh Status, where the chat can refresh, and any other failure offers no
-action. `retryAsync()` does nothing.
+running offers Refresh Status, where the chat can refresh and the thread layer does not check on
+it by itself, and any other failure offers no action. `retryAsync()` does nothing.
 
 All three are `@bindable`, so an app can change them at run time, for example when the user
 picks an agent that supports none of them. With a thread layer, set them in `createChatModel`.
@@ -940,7 +940,9 @@ reads it as a `ChatComposerStatus`: a `type`, the reply's display status, at mos
 and the reason. `getChatComposerStatus()` is the same reading as a pure function. One status
 shows at a time, in this order: blocked, offline, failed or detached, stalled, waiting to retry,
 paused, busy, and a restored draft. A send that `ChatThreadsModel` blocks while the server runs the
-turn offers Refresh Status, and reads as detached when the last reply is. The desktop
+turn - see `isRunningOnServer` - reads as detached when the last reply is. It offers Refresh
+Status, or shows nothing while the thread layer checks on the turn by itself. So does a failure
+that is not retry-safe. The desktop
 `ChatStatusRegion` shows a line only for what stops a send or needs the user's action - see
 [Recover from a failed reply](../desktop/cmp/chat/README.md#recover-from-a-failed-reply).
 
@@ -1103,6 +1105,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `feedbackDrafts` | `Record<string, ChatFeedbackDraft>` | Comments typed in feedback forms and not yet sent, by message id, with their send state and last error. Observable. |
 | `canRefreshStatus` | `boolean` | True once a refresher is set with `setStatusRefresher()`. |
 | `isStatusRefreshAutomatic` | `boolean` | True while the thread layer refreshes the status on its own. The status region then offers no Refresh Status for a turn the chat does not follow. |
+| `isRunningOnServer` | `boolean` | True while the thread layer reports a turn that runs on the server while the chat does not follow it, as after a page reload. An empty `ChatPanel` then shows "Still working on the server", and the composer's start items breathe. |
 | `isBusy` | `boolean` | True for `submitted` or `streaming`. False while a turn is paused. |
 | `sendBlockedReason` | `string` | Why sending must wait, from the `sendBlocker` or an added blocker, or null. |
 | `isEmpty` | `boolean` | True if there are no messages. |
@@ -1136,7 +1139,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `loadMessages(specs, threadId?)` | Replace the conversation. Default a new thread id. |
 | `submitFeedbackAsync(messageId, rating, comment?)` | Rate a reply, or clear its rating with null. Shows at once. If the submit fails, it reverts and records the error in `feedbackErrors`, with no toast. |
 | `setFeedbackDraft(messageId, draft)` | Keep the comment typed in a message's feedback form, or remove it with null. For the feedback form. |
-| `setStatusRefresher(refreshAsync, isAutomatic?)` | Set the function that reloads the thread, for Refresh Status, and one that says when the thread layer refreshes on its own. For a thread layer. |
+| `setStatusRefresher(refreshAsync, opts?)` | Set the function that reloads the thread, for Refresh Status. `opts` holds `isAutomatic` and `isRunningOnServer`, functions that report what the thread layer knows of the thread's runs. For a thread layer. |
 | `refreshStatusAsync()` | Reload the thread to learn how a run ended. Does nothing without a refresher. |
 | `setFeedbackSubmitter(submitAsync)` | Set the submitter to use when `feedback.submitAsync` is not configured. For a thread layer. |
 | `addSendBlocker(blocker)` | Add a reason for sends to wait, checked after the `sendBlocker`. For a thread layer. |

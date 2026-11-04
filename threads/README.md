@@ -384,19 +384,27 @@ message, or ends with a reply left running - see the `detached` metadata in
 [`/core/`](../core/README.md#stop-or-detach-a-turn).
 
 The thread then blocks sends with "Wait for the reply to finish.", so that a send never starts a
-second run. Send shows the reason as its tooltip. With a detached reply, the status region shows
-the reply's own status rather than the block. Otherwise it shows the block. The block ends when a
-reload shows the reply, or a list shows the thread not running.
+second run. Send shows the reason as its tooltip. The status region shows the block only once the
+automatic checks below stop, with Refresh Status, and as the reply's status if the reply was left
+running. The block ends when a reload shows the reply, or a list shows the thread not running.
+
+While the turn runs, an empty `ChatPanel` shows "Still working on the server" in place of the
+empty state of a new chat, and the composer's start items breathe - see
+`ChatModel.isRunningOnServer`.
 
 The model checks on such a turn on its own, every `statusRefreshMs`, 5 seconds by default. Each
 check reloads the thread list, quietly, with no busy state. Once the list shows the run done, the
 model reloads the thread's history, and the reply shows in full. A thread with no messages yet
 also reloads its history on each check, so that the turn shows once the backend saves it. It checks the same way on a reply
 that failed in a way that is not retry-safe, such as a dropped connection, as its run may still
-go on. The status region offers no Refresh Status meanwhile.
+go on, but waits as long as the list shows the run going. The status region offers no Refresh
+Status meanwhile, and shows nothing for the block. A history load for a check shows no load state,
+and never applies over a turn the user started meanwhile. A failed check is logged, and the next
+one tries again.
 
 The model stops checking, and offers Refresh Status, after `statusRefreshTimeoutMs`, 30 minutes
-by default. It also stops when a reload leaves the turn unsettled, as for a run that died. With
+by default. It also stops when a reload leaves the turn unsettled, as for a run that died, and
+while a search leaves the thread out of the list. With
 `statusRefreshMs` null, the model never checks, and the region always offers Refresh Status. A
 stalled reply, whose stream is still open, offers Refresh Status either way.
 

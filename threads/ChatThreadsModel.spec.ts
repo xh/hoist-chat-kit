@@ -1020,6 +1020,56 @@ describe('ChatThreadsModel', () => {
                 expect(model.chatModel.sendBlockedReason).toBe('Wait for the reply to finish.');
             });
 
+            it('never lets a check replace a turn the user started while it loaded', async () => {
+                const {model, store} = await openRunning(),
+                    dropped = [
+                        {role: 'user' as const, content: 'Rates?'},
+                        {
+                            role: 'assistant' as const,
+                            status: 'error' as const,
+                            error: 'Connection lost.',
+                            metadata: {errorCode: 'connection-lost'}
+                        }
+                    ];
+                store.saveThread({id: 't9', isRunning: false, messages: dropped});
+                await model.chatModel.refreshStatusAsync();
+                expect(model.chatModel.lastMessage.status).toBe('error');
+
+                store.hold('loadMessagesAsync');
+                await vi.advanceTimersByTimeAsync(5_000);
+                const [check] = store.heldCalls('loadMessagesAsync');
+                const send = model.chatModel.sendAsync('Continue');
+                await vi.advanceTimersByTimeAsync(100);
+                await send;
+                check.release();
+                await vi.advanceTimersByTimeAsync(0);
+
+                expect(model.chatModel.lastMessage).toMatchObject({
+                    status: 'complete',
+                    text: 'Reply in t9'
+                });
+            });
+
+            it('waits for the list to show the run done before it reloads a dropped reply', async () => {
+                const {model, store} = await openRunning(),
+                    load = vi.spyOn(store, 'loadMessagesAsync');
+                model.chatModel.loadMessages(
+                    [
+                        {role: 'user', content: 'Rates?'},
+                        {
+                            role: 'assistant',
+                            status: 'error',
+                            error: 'Connection lost.',
+                            metadata: {errorCode: 'connection-lost'}
+                        }
+                    ],
+                    't9'
+                );
+
+                await vi.advanceTimersByTimeAsync(15_000);
+                expect(load).not.toHaveBeenCalled();
+            });
+
             it('leaves a run that died to Refresh Status, after one reload', async () => {
                 const {model, store} = await openRunning(),
                     load = vi.spyOn(store, 'loadMessagesAsync');

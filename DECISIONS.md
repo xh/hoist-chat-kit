@@ -137,7 +137,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D113](#d113-the-scope-chip-chooses-any-kind-of-option-and-its-selection-is-literal) | The scope chip chooses any kind of option, and its selection is literal | Accepted |
 | [D114](#d114-onsourceclick-takes-a-handler-per-source-type) | `onSourceClick` takes a handler per source type | Accepted |
 | [D115](#d115-a-detached-reply-keeps-its-open-work-open) | A detached reply keeps its open work open | Accepted |
-| [D116](#d116-the-status-region-holds-only-actions-and-a-turn-running-on-the-server-blocks-sends) | The status region holds only actions, and a turn running on the server blocks sends | Accepted |
+| [D116](#d116-the-status-region-holds-only-actions-and-a-turn-running-on-the-server-blocks-sends) | The status region holds only actions, and a turn running on the server blocks sends | Amended by D117 |
 | [D117](#d117-the-thread-layer-checks-on-a-turn-running-on-the-server) | The thread layer checks on a turn running on the server | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
@@ -2309,7 +2309,8 @@ and a flag would have to be cleared on every path that closes them.
 
 ## D116. The status region holds only actions, and a turn running on the server blocks sends
 
-**Status.** Accepted.
+**Status.** Amended by [D117](#d117-the-thread-layer-checks-on-a-turn-running-on-the-server): the
+block shows nothing while the thread layer checks on the turn by itself.
 
 **Decision.** `ChatStatusRegion` shows a line only for what stops a send or needs the user's
 action: a blocked send, offline, a failure, a retry countdown and a restored draft. A reply left
@@ -2342,11 +2343,18 @@ user then gets an error for a send the kit could have held.
 chat does not follow it: one that blocks sends (D116), a detached reply, or a reply that failed in
 a way that is not retry-safe. Every `ChatKit.defaults.statusRefreshMs`, 5 s by default, it reloads
 the thread list as an auto-refresh, with no busy state. Once the list no longer shows the run, it
-reloads the thread's history once. Meanwhile the status region offers no Refresh Status, through
-the `isAutomatic` argument of `ChatModel.setStatusRefresher()`. The model stops, and Refresh Status
-returns, after `statusRefreshTimeoutMs`, 30 minutes by default, or when a reload leaves the turn
-unsettled. `statusRefreshMs: null` turns the checks off. A stalled reply keeps Refresh Status: its
-stream is still open.
+reloads the thread's history, quietly, with no load state. A thread with no messages yet reloads
+its history on each check, so that the turn shows once saved. A quiet load never applies over a
+turn the user started meanwhile.
+
+The thread layer reports what it knows through the options of `ChatModel.setStatusRefresher()`:
+`isAutomatic` while it checks, and `isRunningOnServer` while the server runs a turn the chat does
+not follow. While it checks, the status region offers no Refresh Status, and a send blocked by the
+run shows nothing. An empty `ChatPanel` shows "Still working on the server" in place of its empty
+state, and the composer's start items breathe. The model stops, and Refresh Status returns, after
+`statusRefreshTimeoutMs`, 30 minutes by default, when a reload leaves the turn unsettled, or when
+the current list leaves the thread out, as under a search. `statusRefreshMs: null` turns the
+checks off. A stalled reply keeps Refresh Status: its stream is still open.
 
 **Why.** Many users never see the small Refresh Status button. A backend reports no event when a
 run ends, so the client has to ask. The thread list is cheap to load, and a thread's history can be

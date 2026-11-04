@@ -277,6 +277,21 @@ export interface ChatModelConfig {
     onTurnPause?: (message: ChatMessage) => void;
 }
 
+/** What a thread layer knows of a thread's runs - see {@link ChatModel.setStatusRefresher}. */
+export interface ChatStatusRefresherOptions {
+    /**
+     * Returns true while the thread layer refreshes the status on its own, so that the user need
+     * not - see {@link ChatModel.isStatusRefreshAutomatic}. Default never.
+     */
+    isAutomatic?: () => boolean;
+
+    /**
+     * Returns true while the server runs a turn of the thread that the chat does not follow - see
+     * {@link ChatModel.isRunningOnServer}. Default never.
+     */
+    isRunningOnServer?: () => boolean;
+}
+
 /** Who owns the conversation history - see {@link ChatModelConfig.historyMode}. */
 export type ChatHistoryMode = 'client' | 'server';
 
@@ -617,7 +632,17 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      */
     @computed
     get isStatusRefreshAutomatic(): boolean {
-        return !!this.statusRefreshAutomatic?.();
+        return !!this.statusRefresherOpts?.isAutomatic?.();
+    }
+
+    /**
+     * True if the thread layer reports a turn that runs on the server while the chat does not
+     * follow it, as after a page reload - see {@link setStatusRefresher}. Sends then wait, and an
+     * empty chat shows that the reply is on its way rather than the empty state.
+     */
+    @computed
+    get isRunningOnServer(): boolean {
+        return !this.isBusy && !!this.statusRefresherOpts?.isRunningOnServer?.();
     }
 
     /**
@@ -1122,14 +1147,12 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      * Supply the function that reloads the thread from the backend, for
      * {@link refreshStatusAsync}. A thread layer calls this when it creates the chat.
      *
-     * @param isAutomatic - returns true while the thread layer refreshes the status on its own,
-     *      so that the user need not - see {@link isStatusRefreshAutomatic}. Read as observable
-     *      state. Default never.
+     * @param opts - what the thread layer knows of the thread's runs, read as observable state.
      */
     @action
-    setStatusRefresher(refreshAsync: () => Promise<void>, isAutomatic: () => boolean = null) {
+    setStatusRefresher(refreshAsync: () => Promise<void>, opts: ChatStatusRefresherOptions = {}) {
         this.statusRefresher = refreshAsync;
-        this.statusRefreshAutomatic = isAutomatic;
+        this.statusRefresherOpts = opts;
     }
 
     /**
@@ -1209,7 +1232,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     @observableRef private accessor feedbackSubmitter: ChatFeedbackSubmitter = null;
     @observableRef private accessor sendBlockers: Array<() => string>;
     @observableRef private accessor statusRefresher: () => Promise<void> = null;
-    @observableRef private accessor statusRefreshAutomatic: () => boolean = null;
+    @observableRef private accessor statusRefresherOpts: ChatStatusRefresherOptions = null;
 
     // The latest feedback submit for each message, by count - see `submitFeedbackAsync`.
     private readonly feedbackSubmits = new Map<string, number>();

@@ -511,7 +511,7 @@ buttons, for a context meter. `topItems` adds content above the input, such as c
 `bottomItems` adds a row under it. Both sit outside the input's bordered box, spaced by
 `--xh-chat-composer-row-gap`. `startItems` leads the input row, before the text, such as a brand
 mark. It breathes while a reply
-runs - see [Motion](#motion). To animate it yourself, pass `breatheStartItems: false`, and style it
+runs, here or on the server after a page reload - see [Motion](#motion). To animate it yourself, pass `breatheStartItems: false`, and style it
 under the composer's `xh-chat-composer--busy` class. `layout: 'inline'` puts
 the bar after the text, in the same row, for a one-row composer. As the text grows, start items
 and the bar stay level with its last line. In a narrow composer, pills give way before the text.
@@ -659,7 +659,7 @@ not announced.
 
 | Status | Shows | Action |
 |---|---|---|
-| Sending blocked | The `sendBlockedReason`. A block while the server runs the turn shows as the detached reply, if there is one. | Refresh Status, for a block while the server runs the turn |
+| Sending blocked | The `sendBlockedReason`. A block while the server runs the turn shows as the detached reply, if there is one, and shows nothing while the thread layer checks on the turn by itself. | Refresh Status, for a block while the server runs the turn |
 | Offline | "Offline. Your draft is kept; send it when you're back online." | None |
 | Failed, retry-safe | "The reply failed." and the cause | Try Again |
 | Failed, not retry-safe | The cause, and "It may still be running." | Refresh Status, else Try Again. None while the thread layer refreshes on its own. |
