@@ -6,11 +6,10 @@ import {button} from '@xh/hoist/desktop/cmp/button';
 import {fmtTime} from '@xh/hoist/format';
 import {Icon} from '@xh/hoist/icon';
 import {throwIf} from '@xh/hoist/utils/js';
-import {type ChatComposerStatus, ChatComposerModel, ChatKit} from '../../../core';
+import {type ChatComposerStatus, ChatComposerModel} from '../../../core';
 import classNames from 'classnames';
 import '../../../styles/vars.scss';
 import './ChatStatusRegion.scss';
-import {chatSpinner} from '../../impl/ChatLiveCues';
 import {ChatStatusRegionLocalModel} from './impl/ChatStatusRegionLocalModel';
 import {
     getReplyStatusLabel,
@@ -20,71 +19,40 @@ import {
 import {useChatClock} from './impl/useChatClock';
 
 /** Props for {@link ChatStatusRegion}. */
-export interface ChatStatusRegionProps extends HoistProps<ChatComposerModel> {
-    /** Name of the assistant, for "Assistant is working". Default 'Assistant'. */
-    assistantName?: string;
-
-    /**
-     * False to leave "Esc to stop" out of the busy line and its tooltip. Esc still stops the
-     * reply. Default true - see `ChatStatusRegion.defaults` to set it app-wide.
-     */
-    showStopHint?: boolean;
-}
-
-/** App-wide settings for {@link ChatStatusRegion} - see `ChatStatusRegion.defaults`. */
-export interface ChatStatusRegionDefaults {
-    /**
-     * False to leave "Esc to stop" out of the busy line and its tooltip. Read as the region
-     * renders, so it covers the region that `ChatPanel` renders. Default true.
-     */
-    showStopHint: boolean;
-}
+export interface ChatStatusRegionProps extends HoistProps<ChatComposerModel> {}
 
 /**
- * One line above the composer that holds the thread's next action: the one status the user
- * should know before the next send, with at most one action. It collapses to nothing when there
- * is none. In order of priority:
+ * One line above the composer that holds the thread's next action: why the user cannot send, or
+ * what went wrong and what to do about it. It collapses to nothing otherwise. A reply's progress,
+ * and a reply left running on the server, show in the reply itself. In order of priority:
  *
  *  - The host's reason that sending must wait.
  *  - Offline. The draft is kept, and nothing sends by itself.
  *  - A failed reply, with Try Again when a resend is retry-safe. Otherwise it says the run may
  *    still be running, and offers Refresh Status when the chat can refresh, or else Try Again.
  *    A chat with `allowRetry` false never offers Try Again.
- *    A reply the server interrupted or cancelled, or one left running, ranks with a failure.
- *  - A stalled reply, with Refresh Status when the chat can refresh. Stop stays on the composer.
+ *    A reply the server interrupted or cancelled ranks with a failure.
+ *  - A reply left running on the server, or a stalled reply, only when the chat can refresh -
+ *    with Refresh Status. Stop stays on the composer.
  *  - A retry-safe failure for which the server asked for a wait, counting down to a retry, with
  *    Cancel. The turn retries at zero.
- *  - A reply waiting for the user's answer.
- *  - A reply in progress.
  *  - A restored draft, with Discard.
  *
  * Screen readers hear each status once, through the kit's announcer: a failure at once, the rest
- * politely, and a countdown every 10 seconds at most. The status a thread has when the region
- * mounts, or when the thread opens, is not announced.
+ * politely, and a countdown every 10 seconds at most. A turn that pauses for the user's answer is
+ * announced, with no line. The status a thread has when the region mounts, or when the thread
+ * opens, is not announced.
  *
  * Uses a {@link ChatComposerModel} from props, or else the `composerModel` of the `ChatModel` in
  * context. Its states come from the turn loop, so it renders only when the composer's host is a
  * `ChatModel`. `ChatPanel` renders one above its composer.
  */
-export const [ChatStatusRegion, chatStatusRegion] = hoistCmp.withFactory<
-    ChatStatusRegionProps,
-    ChatStatusRegionDefaults
->({
+export const [ChatStatusRegion, chatStatusRegion] = hoistCmp.withFactory<ChatStatusRegionProps>({
     displayName: 'ChatStatusRegion',
     model: uses(ChatComposerModel, {optional: true}),
     className: 'xh-chat-status-region',
-    defaults: {
-        showStopHint: true
-    },
 
-    render(
-        {
-            className,
-            assistantName = 'Assistant',
-            showStopHint = ChatStatusRegion.defaults.showStopHint
-        },
-        ref
-    ) {
+    render({className}, ref) {
         const impl = useLocalModel(ChatStatusRegionLocalModel),
             {composerModel} = impl;
         throwIf(!composerModel, 'ChatStatusRegion requires a ChatComposerModel or a ChatModel.');
@@ -92,10 +60,10 @@ export const [ChatStatusRegion, chatStatusRegion] = hoistCmp.withFactory<
         const {chatModel} = composerModel,
             now = useChatClock(!!chatModel?.isBusy || !!composerModel.retryWait),
             status = chatModel ? composerModel.getStatus(now) : null,
-            display = status ? getDisplay(status, assistantName, showStopHint) : null;
+            display = status ? getDisplay(status) : null;
 
         useEffect(() => impl.noteStatus(status, display?.text), [impl, status, display?.text]);
-        if (!display) return null;
+        if (!display || !isShown(status)) return null;
 
         return div({
             ref,
@@ -107,16 +75,7 @@ export const [ChatStatusRegion, chatStatusRegion] = hoistCmp.withFactory<
                 span({
                     className: 'xh-chat-status-region__text',
                     title: display.text,
-                    // The lead and the hint in spans of their own, for an app to style apart.
-                    items: display.hint
-                        ? [
-                              span({className: 'xh-chat-status-region__lead', item: display.lead}),
-                              span({
-                                  className: 'xh-chat-status-region__hint',
-                                  item: ` · ${display.hint}`
-                              })
-                          ]
-                        : display.text
+                    item: display.text
                 }),
                 actionButton(status, impl)
             ]
@@ -133,19 +92,27 @@ interface StatusDisplay {
     /** The whole line, for the title and the announcer. */
     text: string;
     intent: ReplyStatusIntent;
-
-    /** The line's first part, when a hint follows it - "Assistant is working". */
-    lead?: string;
-
-    /** A hint after the lead - "Esc to stop". */
-    hint?: string;
 }
 
-function getDisplay(
-    status: ChatComposerStatus,
-    assistantName: string,
-    showStopHint: boolean
-): StatusDisplay {
+/**
+ * True for a status the region shows as a line. A reply's progress shows in the reply, so a busy
+ * or paused turn shows none. Neither does a reply left running or stalled, unless the user can act
+ * on it. The announcer still reads a paused turn.
+ */
+function isShown(status: ChatComposerStatus): boolean {
+    switch (status.type) {
+        case 'busy':
+        case 'paused':
+            return false;
+        case 'detached':
+        case 'stalled':
+            return status.action != null;
+        default:
+            return true;
+    }
+}
+
+function getDisplay(status: ChatComposerStatus): StatusDisplay {
     const {type, replyStatus, reason} = status,
         // A failure that no longer waits to retry reads as the failure it is.
         isFailure = type === 'failed' && replyStatus === 'waitingToRetry',
@@ -181,18 +148,6 @@ function getDisplay(
         }
         case 'paused':
             return {icon: replyIcon(), text: 'Waiting for your answer above.', intent: 'attention'};
-        case 'busy': {
-            const lead = `${assistantName} is working`,
-                hint = showStopHint ? 'Esc to stop' : null,
-                {busyIcon} = ChatKit.defaults;
-            return {
-                icon: busyIcon ? busyIcon() : chatSpinner(),
-                text: hint ? `${lead} · ${hint}` : lead,
-                lead,
-                hint,
-                intent: 'busy'
-            };
-        }
         case 'draftRestored':
             return {
                 icon: Icon.edit(),

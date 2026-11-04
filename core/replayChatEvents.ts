@@ -62,7 +62,8 @@ export interface ChatReplayOptions {
  *    chat then offers to refresh its status, as after the user left a live reply running.
  *
  * Anything a turn leaves open, such as a tool call with no result, is closed as the live chat
- * would close it, at the time of the turn's last event. An interrupt that a later run answered
+ * would close it, at the time of the turn's last event. A detached turn's open tool calls and
+ * sub-agents stay open, as the server may still finish them. An interrupt that a later run answered
  * counts as delivered. The user's answers to it are not among the events.
  *
  * A record that the decoder rejects fails the reply, as it would fail a live stream, with the
@@ -98,14 +99,23 @@ export function replayChatEvents(
         isStopped = decodeError != null || opts.status === 'aborted' || !isEnded;
     message = isStopped ? reducer.settleText(message) : reducer.finish(message);
 
+    // A turn with no end goes on on the server, so its open calls and sub-agents stay open.
     const status = decodeError ? 'error' : (opts.status ?? endStatus(message, reducer, isEnded)),
+        isDetached = !isEnded && opts.status == null && !decodeError,
         times = runs.map(runTimes).filter(it => it != null),
         endedAt = max(times.map(it => it[1])) ?? null,
         settleAt = endedAt ?? Date.now(),
         settled =
             status === 'paused'
                 ? settleStreamingParts(settleEarlierCalls(message, lastIdx, settleAt), settleAt)
-                : settleOpenParts(message, SETTLE_REASONS[status], status === 'aborted', settleAt);
+                : isDetached
+                  ? settleStreamingParts(message, settleAt)
+                  : settleOpenParts(
+                        message,
+                        SETTLE_REASONS[status],
+                        status === 'aborted',
+                        settleAt
+                    );
 
     // A failure's details go with the failure, as for a stopped turn that a backend stored as one.
     let replyMetadata: PlainObject =
@@ -118,9 +128,7 @@ export function replayChatEvents(
         const elapsedMs = sumBy(times, ([start, end]) => end - start);
         replyMetadata = {...replyMetadata, elapsedMs, ...(status === 'paused' ? {} : {endedAt})};
     }
-    if (!isEnded && opts.status == null && !decodeError) {
-        replyMetadata = {...replyMetadata, detached: true};
-    }
+    if (isDetached) replyMetadata = {...replyMetadata, detached: true};
     // The server took each answer that a later run carried.
     if (replyMetadata.interrupts) {
         replyMetadata = {

@@ -348,6 +348,7 @@ function sendButton(
                 key: 'stop',
                 icon: Icon.stop({prefix: 'fas'}),
                 text: 'Stop',
+                tooltip: 'Stop (Esc)',
                 outlined: true,
                 ...stopProps,
                 className: classNames('xh-chat-composer__stop', stopProps.className),

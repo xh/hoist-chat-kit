@@ -601,8 +601,6 @@
         "ChatEmptyState",
         "ChatSuggestions",
         "ChatStatusRegion",
-        "showStopHint",
-        "ChatStatusRegion.defaults",
         "showSummaryFailureCount",
         "ChatTimeline.defaults",
         "ChatComposerPill",

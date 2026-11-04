@@ -592,14 +592,15 @@ export class ChatThreadsModel extends HoistModel {
     }
 
     /**
-     * Reload a thread's history, to learn how a run ended that its chat lost sight of. A turn
-     * still running here - one that stalled - is detached first, as the server may finish it.
+     * Reload a thread's history, to learn how a run ended that its chat lost sight of, and the
+     * thread list, whose row for the thread may still show the run. A turn still running here -
+     * one that stalled - is detached first, as the server may finish it.
      */
     private async refreshStatusAsync(thread: OpenThread): Promise<void> {
         if (thread.loadState === 'loading') return;
         const conversation = thread.conversation as ChatModelConversation;
         if (conversation.isBusy) conversation.detach();
-        await this.loadHistoryAsync(thread);
+        await Promise.all([this.loadHistoryAsync(thread), this.refreshAsync()]);
     }
 
     private getSendBlockedReason(thread: OpenThread): string {

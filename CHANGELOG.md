@@ -14,6 +14,27 @@
 
 ## 2.0.0-SNAPSHOT - unreleased
 
+### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - remove the busy-line settings)
+
+* `ChatStatusRegion` now shows only what stops a send or needs the user's action. A reply in
+  progress, or one waiting for the user's answer, shows no line there - the reply shows its own
+  progress. A reply left running on the server, or a stalled one, shows a line only with Refresh
+  Status. Screen readers still hear a turn that pauses for the user's answer.
+* Removed `ChatStatusRegion`'s `assistantName` and `showStopHint` props,
+  `ChatStatusRegion.defaults`, and `ChatKit.defaults.busyIcon`, which set the busy line. Remove them
+  from the app. The composer's Stop button now names Esc in its tooltip.
+* Removed the `xh-chat-status-region__lead` and `xh-chat-status-region__hint` classes of the busy
+  line.
+
+### 🐞 Bug Fixes
+
+* Fixed Refresh Status in a `ChatThreadsModel` chat to reload the thread list too. The list could
+  show a thread as running after its run had finished.
+* Fixed a reply left running on the server - detached live, loaded with `loadMessages()`, or
+  replayed with `replayChatEvents()` - to keep its unfinished tool calls and sub-agents open. They
+  showed as failed or cancelled, and the timeline said "Stopped". They now show as "Not finished
+  yet", and close when the next turn starts.
+
 ## 1.0.0 - 2026-11-02
 
 The first release of Hoist Chat Kit, a library of chat components for Hoist React applications.

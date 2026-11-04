@@ -83,6 +83,54 @@ describe('replayChatEvents', () => {
         );
     });
 
+    it('leaves the unfinished tools and sub-agents of a detached turn open', () => {
+        const spec = replayChatEvents([
+                ...at(1000, [STARTED, ...toolCallEvents('server_search', {}, {toolCallId: 'c1'})]),
+                ...at(2000, [{type: 'SUBAGENT_STARTED', subagentRunId: 's1', name: 'Researcher'}])
+            ]),
+            [call, agent] = spec.parts as [ChatToolCallPart, ChatDataPart];
+
+        expect(spec).toMatchObject({status: 'aborted', metadata: {detached: true}});
+        expect(call).toMatchObject({state: 'input-available'});
+        expect(call).not.toHaveProperty('cancelled');
+        expect(agent.data.status).toBe('running');
+    });
+
+    it('shows the results of a detached turn once its events finish', () => {
+        const start = [
+                ...at(1000, [STARTED, ...toolCallEvents('server_search', {}, {toolCallId: 'c1'})])
+            ],
+            model = new ChatModel({
+                transport: new ScriptedChatTransport({responses: []}),
+                historyMode: 'server'
+            }),
+            user = {id: 'u1', role: 'user' as const, content: 'Rates?'};
+        onTestFinished(() => model.destroy());
+
+        model.loadMessages([user, replayChatEvents(start, {id: 'a1'})]);
+        model.loadMessages([
+            user,
+            replayChatEvents(
+                [
+                    ...start,
+                    ...at(3000, [
+                        {type: 'TOOL_CALL_RESULT', messageId: 'm', toolCallId: 'c1', content: 'ok'},
+                        ...textEvents('Rates are flat.'),
+                        FINISHED
+                    ])
+                ],
+                {id: 'a1'}
+            )
+        ]);
+
+        expect(model.lastMessage).toMatchObject({status: 'complete', text: 'Rates are flat.'});
+        expect(model.lastMessage.metadata).not.toHaveProperty('detached');
+        expect(model.lastMessage.toolCalls[0]).toMatchObject({
+            state: 'output-available',
+            output: 'ok'
+        });
+    });
+
     it('pauses a turn that ended on interrupts, so the user can still answer and approve', () => {
         const spec = replayChatEvents([
                 STARTED,

@@ -418,6 +418,11 @@ chatModel.runOptions = {documentIds: selectedIds, profile: 'thorough'};
 | `clear()`, `loadMessages()` | Discarded | No | As for `detach()` |
 | `destroy()` | Discarded | No | The run goes on |
 
+A detached reply keeps its unfinished tool calls and sub-agents open, as the server may still
+finish them. So does the last reply of a history loaded with `loadMessages()`, if it is detached.
+They close as "No result - the conversation moved on" when the next turn starts, so that the history
+a request sends has a result for every call. A reply that a stop ended closes them as cancelled.
+
 The turn's signal aborts with a `ChatAbortError`. Its `name` is `AbortError`, and its `reason` is
 `stop`, `detach`, `clear`, `load` or `destroy`. A client tool can read the reason from
 `context.signal.reason`. In client mode, a detach and a clear only abort, as a stop does, with no
@@ -1177,7 +1182,7 @@ The kit records these keys in the `metadata` of an assistant message:
 | `retryAfterSeconds` | Wait the backend asked for before a retry, on a failed run. |
 | `runId` | Id of the latest run, from `RUN_STARTED`. |
 | `serverId` | The server's id for the message, from `xh.chat.message` or `RUN_FINISHED`. Also set on a user message. |
-| `detached` | True on a reply left running on the server by `detach()`, `clear()` or `loadMessages()`, in server mode. |
+| `detached` | True on a reply left running on the server by `detach()`, `clear()` or `loadMessages()`, in server mode. Its unfinished tool calls and sub-agents stay open - see [Stop or detach a turn](#stop-or-detach-a-turn). |
 | `feedback` | The user's rating, as `{rating, comment?}`. History usually restores the rating alone. |
 | `artifacts` | `ChatArtifact[]` that the reply's tools produced, for generative UI. Restored to `artifacts` with the history. |
 | `catalogVersion` | Version of the chat's catalog, on a reply that shows its UI. |
@@ -1393,7 +1398,6 @@ Fields of `ChatKit.defaults`. See `ChatKit.ts`.
 | Field | Type | Description |
 |-------|------|-------------|
 | `assistantIcon` | `() => ReactElement` | Returns the icon that marks the assistant. A component's `assistantIcon` prop overrides it. Default `() => Icon.ai()`. |
-| `busyIcon` | `() => ReactElement` | Returns the icon beside "Assistant is working" in the status region. Return null from it for no icon. Null for the kit's spinner. Default null. |
 | `reducedMotionSpinner` | `'static' \| 'spin'` | Under reduced motion, `static` swaps the chat's spinners for a static icon, and `spin` keeps Hoist's spinner. Default `static`. |
 | `stallAfterMs` | `number` | Milliseconds with no data from the server before a reply shows as stalled. `ChatModelConfig.stallAfterMs` overrides it. Default 30,000. |
 | `drafts` | `'local' \| 'memory'` | Where the composer keeps its unsent draft text: local storage, per thread, or memory only. Default `local`. See [Keep drafts](#keep-drafts). |

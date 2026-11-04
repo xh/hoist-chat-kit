@@ -844,6 +844,20 @@ describe('ChatThreadsModel', () => {
             expect(load.mock.calls[1][0]).toMatchObject({threadId: 't1'});
         });
 
+        it('refreshes the thread list along with the status', async () => {
+            const {model, store} = setup();
+            store.saveThread({id: 't1', isRunning: true});
+            await model.selectThreadAsync('t1');
+            await model.loadAsync();
+            expect(model.runningThreadIds).toEqual(['t1']);
+
+            // The server finished the run while the chat was not following it.
+            store.saveThread({id: 't1', isRunning: false});
+            await model.chatModel.refreshStatusAsync();
+
+            expect(model.runningThreadIds).toEqual([]);
+        });
+
         it('opens a thread with the run options of its last question', async () => {
             const {model} = setup({
                 store: new LocalChatThreadStore({

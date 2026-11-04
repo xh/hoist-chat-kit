@@ -107,7 +107,8 @@ it:
 - `setFeedbackSubmitter()`, with the store's `submitFeedbackAsync`, unless the chat has its own
   `feedback.submitAsync`.
 - `addSendBlocker()`, which holds back sends while the history loads or after it fails.
-- `setStatusRefresher()`, which reloads the thread's history for Refresh Status.
+- `setStatusRefresher()`, which reloads the thread's history and the thread list for Refresh
+  Status.
 
 ### Thread ids
 

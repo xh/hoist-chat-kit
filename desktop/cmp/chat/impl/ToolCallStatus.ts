@@ -1,7 +1,12 @@
 import type {ReactElement, ReactNode} from 'react';
 import {span} from '@xh/hoist/cmp/layout';
 import {Icon} from '@xh/hoist/icon';
-import type {ChatToolCallPart, ChatToolCallState, ChatToolSpec} from '../../../../core';
+import {
+    type ChatToolCallPart,
+    type ChatToolCallState,
+    type ChatToolSpec,
+    isToolCallFinal
+} from '../../../../core';
 import {humanizeToolName} from './ChatFormat';
 import {chatSpinner} from '../../../impl/ChatLiveCues';
 
@@ -24,17 +29,24 @@ export function getToolTitle(part: ChatToolCallPart, spec: ChatToolSpec): string
 /**
  * The kind of status a call shows, which sets its row's color: busy while it runs, attention while
  * it waits for the user, error once it fails, meta once denied or cancelled by a stop, success
- * once done.
+ * once done. A call still open in a reply left running on the server is unfinished.
  * @internal
  */
-export type ToolCallStatusKind = 'busy' | 'attention' | 'error' | 'denied' | 'success';
+export type ToolCallStatusKind =
+    'busy' | 'attention' | 'error' | 'denied' | 'success' | 'unfinished';
 
-/** @internal */
+/**
+ * @param isDetached - true if the call's reply was left running on the server - see
+ *      `ReplyDetachedContext`.
+ * @internal
+ */
 export function getToolCallStatusKind(
     part: ChatToolCallPart,
-    spec: ChatToolSpec
+    spec: ChatToolSpec,
+    isDetached: boolean = false
 ): ToolCallStatusKind {
     if (part.cancelled) return 'denied';
+    if (isDetached && !isToolCallFinal(part)) return 'unfinished';
     switch (part.state) {
         case 'output-available':
             return 'success';
@@ -54,8 +66,12 @@ export function getToolCallStatusKind(
  * state.
  * @internal
  */
-export function statusGlyph(part: ChatToolCallPart, spec: ChatToolSpec): ReactNode {
-    const kind = getToolCallStatusKind(part, spec);
+export function statusGlyph(
+    part: ChatToolCallPart,
+    spec: ChatToolSpec,
+    isDetached: boolean = false
+): ReactNode {
+    const kind = getToolCallStatusKind(part, spec, isDetached);
     return span({
         className: `xh-chat-tool-call__glyph xh-chat-tool-call__glyph--${kind}`,
         item:
@@ -71,11 +87,17 @@ export function statusGlyph(part: ChatToolCallPart, spec: ChatToolSpec): ReactNo
  * Words for a call's status, or null once it succeeds - the check says it.
  * @internal
  */
-export function getToolCallStatusLabel(part: ChatToolCallPart, spec: ChatToolSpec): string {
+export function getToolCallStatusLabel(
+    part: ChatToolCallPart,
+    spec: ChatToolSpec,
+    isDetached: boolean = false
+): string {
     if (part.cancelled) return 'Cancelled';
-    switch (getToolCallStatusKind(part, spec)) {
+    switch (getToolCallStatusKind(part, spec, isDetached)) {
         case 'success':
             return null;
+        case 'unfinished':
+            return UNFINISHED_LABEL;
         case 'error':
             return 'Failed';
         case 'denied':
@@ -144,8 +166,15 @@ export function getInlineStatus(part: ChatToolCallPart, spec: ChatToolSpec): Inl
 //------------------
 // Implementation
 //------------------
+/**
+ * Words for a call still open in a reply left running on the server.
+ * @internal
+ */
+export const UNFINISHED_LABEL = 'Not finished yet';
+
 const GLYPHS: Record<Exclude<ToolCallStatusKind, 'busy'>, () => ReactElement> = {
     success: () => Icon.check({title: 'Done'}),
+    unfinished: () => Icon.circle({title: UNFINISHED_LABEL}),
     error: () => Icon.error({title: 'Failed'}),
     denied: () => Icon.slashedCircle({title: 'Denied'}),
     attention: () => Icon.hand({title: 'Waiting for you'})

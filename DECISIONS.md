@@ -136,6 +136,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D112](#d112-a-composer-pill-opens-toward-the-room-it-has) | A composer pill opens toward the room it has | Accepted |
 | [D113](#d113-the-scope-chip-chooses-any-kind-of-option-and-its-selection-is-literal) | The scope chip chooses any kind of option, and its selection is literal | Accepted |
 | [D114](#d114-onsourceclick-takes-a-handler-per-source-type) | `onSourceClick` takes a handler per source type | Accepted |
+| [D115](#d115-a-detached-reply-keeps-its-open-work-open) | A detached reply keeps its open work open | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2277,3 +2278,23 @@ source types says it up front, in the kit's own vocabulary.
 It is decided at click time, after the icon and the name have rendered wrong, and `false` means
 "suppress the default" everywhere else in the DOM. A second prop that lists the types the handler
 takes. It is one more thing to name on four components, and it can disagree with the handler.
+
+## D115. A detached reply keeps its open work open
+
+**Status.** Accepted. Amends D107 and D38.
+
+**Decision.** A reply left running on the server keeps its unfinished tool calls and sub-agents
+open: on a live detach, a clear or a load, in `loadMessages()` for the last reply of the history,
+and in `replayChatEvents()` for a turn with no end. The views show them as "Not finished yet", with
+no spinner, and the timeline's line reads "So far: 3 tools". They close as "No result - the
+conversation moved on" when a later turn starts, or when the history holds a later message. A
+detached reply never waits on the user for a call.
+
+**Why.** A detached reply is a snapshot of work the server is still doing. Closing its calls as
+failed or cancelled told the user something the server never reported, and the reply's status said
+"Still working" beside them. The rule that every call in the history has a result stays where it
+matters: in the history a request sends, since some model APIs reject a call with none.
+
+**Alternatives.** Close the calls as before, and only reword them. The reply still says the work
+ended. Mark the calls with a flag of their own. The reply's `metadata.detached` already says it,
+and a flag would have to be cleared on every path that closes them.

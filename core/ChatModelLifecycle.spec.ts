@@ -7,12 +7,14 @@ import {
     errorEvents,
     ScriptedChatTransport,
     type ScriptedResponse,
+    scriptedDelay,
     textEvents,
     toolCallEvents
 } from '../transport';
 import {ChatAbortError} from './ChatAbortError';
 import {ChatModel, type ChatModelConfig} from './ChatModel';
 import {ChatRunError} from './ChatRunError';
+import type {ChatMessageSpec} from './message/ChatMessage';
 
 /**
  * The run lifecycle of a ChatModel, in both conversation shapes. A server-owned conversation
@@ -264,6 +266,86 @@ describe('ChatModel run lifecycle', () => {
             });
         });
 
+        it('leaves the server tools and sub-agents of a detached reply unfinished', async () => {
+            const transport = new CancellableTransport({responses: [UNFINISHED_WORK], delayMs: 0}),
+                model = createModel({transport, historyMode: 'server'});
+
+            const done = model.sendAsync('Hi');
+            await vi.waitFor(() => expect(model.lastMessage.toolCalls).toHaveLength(1));
+            model.detach();
+            await done;
+
+            const [call, agent] = model.lastMessage.parts;
+            expect(call).toMatchObject({state: 'input-available'});
+            expect(call).not.toHaveProperty('cancelled');
+            expect(agent).toMatchObject({data: {status: 'running'}});
+        });
+
+        it('closes the unfinished work of a detached reply when the next turn starts', async () => {
+            const transport = new CancellableTransport({
+                    responses: [UNFINISHED_WORK, textEvents('Next answer.')],
+                    delayMs: 0
+                }),
+                model = createModel({transport, historyMode: 'server'});
+            const first = model.sendAsync('Hi');
+            await vi.waitFor(() => expect(model.lastMessage.toolCalls).toHaveLength(1));
+            model.detach();
+            await first;
+
+            await model.sendAsync('And then?');
+
+            const [, detached] = transport.requests[1].messages,
+                [call, agent] = detached.parts;
+            expect(call).toMatchObject({
+                state: 'output-error',
+                errorText: 'No result - the conversation moved on.'
+            });
+            expect(call).not.toHaveProperty('cancelled');
+            expect(agent).toMatchObject({data: {status: 'error'}});
+            expect(model.messages[1].parts[0]).toMatchObject({state: 'output-error'});
+        });
+
+        it('restores a detached reply with its unfinished work still open', () => {
+            const model = createModel({transport: scripted([]), historyMode: 'server'});
+
+            model.loadMessages([{role: 'user', content: 'Hi'}, DETACHED_REPLY]);
+
+            const [call, agent] = model.lastMessage.parts;
+            expect(model.lastMessage).toMatchObject({
+                status: 'aborted',
+                metadata: {detached: true}
+            });
+            expect(call).toMatchObject({state: 'input-available'});
+            expect(agent).toMatchObject({data: {status: 'running'}});
+        });
+
+        it('never waits on the user for the open calls of a detached reply', () => {
+            const model = createModel({
+                transport: scripted([]),
+                historyMode: 'server',
+                tools: [{name: 'server_search', interactive: true}]
+            });
+
+            model.loadMessages([{role: 'user', content: 'Hi'}, DETACHED_REPLY]);
+
+            expect(model.isAwaitingUser).toBe(false);
+        });
+
+        it('closes a detached reply that the conversation has moved past, on restore', () => {
+            const model = createModel({transport: scripted([]), historyMode: 'server'});
+
+            model.loadMessages([
+                {role: 'user', content: 'Hi'},
+                DETACHED_REPLY,
+                {role: 'user', content: 'And then?'}
+            ]);
+
+            expect(model.messages[1].parts[0]).toMatchObject({
+                state: 'output-error',
+                errorText: 'No result - the conversation moved on.'
+            });
+        });
+
         it.each([
             ['server', true],
             ['client', false]
@@ -507,6 +589,39 @@ describe('ChatModel run lifecycle', () => {
 //------------------
 // Helpers
 //------------------
+// A server tool and a sub-agent still at work when the stream goes quiet.
+const UNFINISHED_WORK: ScriptedResponse = [
+    toolCallEvents('server_search', {q: 'rates'}, {toolCallId: 'c1'}),
+    {type: 'SUBAGENT_STARTED', subagentRunId: 's1', name: 'Researcher'},
+    scriptedDelay(60_000)
+];
+
+// A reply in the documented detached state, as a store returns it mid-run.
+const DETACHED_REPLY: ChatMessageSpec = {
+    role: 'assistant',
+    status: 'aborted',
+    metadata: {detached: true},
+    parts: [
+        {
+            type: 'toolCall',
+            id: 'c1',
+            toolName: 'server_search',
+            inputText: '{"q":"rates"}',
+            input: {q: 'rates'},
+            output: null,
+            errorText: null,
+            state: 'input-available',
+            step: 0
+        },
+        {
+            type: 'data',
+            id: 's1',
+            dataType: 'xh.chat.subagent',
+            data: {name: 'Researcher', status: 'running'}
+        }
+    ]
+};
+
 class CancellableTransport extends ScriptedChatTransport {
     readonly cancelAsync = vi.fn<(run: ChatRunRef) => Promise<void>>(async () => {});
 }

@@ -334,6 +334,7 @@ The block is one 28px line. Its height never changes, and it changes only its wo
 | Paused | "Paused", when the reply waits on the user for something outside the block | As running, with the time held |
 | Done | "Used 7 tools and 1 agent" | Time taken, failures |
 | Stopped | "Stopped after 5 tools". Calls open at the stop show as cancelled, not failed. | Cancelled count |
+| Detached | "So far: 5 tools", for a reply left running on the server. Its open calls and sub-agents show as "Not finished yet", with no spinner. | Time taken, failures |
 | Failed | "Ended at step 5". The reply's failed row says why. | Tool count |
 
 The line swaps to its done summary in place once the answer starts below the block. Failures
@@ -648,9 +649,12 @@ chatScopeChip({
 ### Recover from a failed reply
 
 `ChatPanel` renders a `ChatStatusRegion` above the composer. It shows one line, the most urgent
-status of the thread, with at most one action. A custom layout renders it with
-`chatStatusRegion()` above the composer. Screen readers hear each new status once. The status a
-thread already has when the region mounts, or when the thread opens, is not announced.
+status of the thread, with at most one action. It holds only what stops a send or needs the
+user's action. A reply's progress shows in the reply itself, so a reply in progress or waiting for
+the user's answer shows no line. A custom layout renders it with `chatStatusRegion()` above the
+composer. Screen readers hear each new status once, a turn that pauses for the user's answer
+included. The status a thread already has when the region mounts, or when the thread opens, is
+not announced.
 
 | Status | Shows | Action |
 |---|---|---|
@@ -659,21 +663,12 @@ thread already has when the region mounts, or when the thread opens, is not anno
 | Failed, retry-safe | "The reply failed." and the cause | Try Again |
 | Failed, not retry-safe | The cause, and "It may still be running." | Refresh Status, else Try Again |
 | Interrupted or cancelled by the server | The server's reason | Try Again, or Refresh Status |
-| Left running on the server | "Still working on the server." | Refresh Status |
-| Stalled | "No response for 34s." | Refresh Status |
+| Left running on the server | "Still working on the server.", only when the chat can refresh | Refresh Status |
+| Stalled | "No response for 34s.", only when the chat can refresh | Refresh Status |
 | Server asked for a wait | "Waiting to retry, 42 s." | Cancel. The turn retries at zero, at most 3 times in a row |
-| Waiting for the user | "Waiting for your answer above." | None |
-| Reply in progress | "Assistant is working · Esc to stop" | None |
 | Draft restored | "Draft from 10:31am restored." | Discard |
 
-Set `showStopHint` false to leave "Esc to stop" out of the busy line and its tooltip. Esc still
-stops the reply. Pass it to `ChatPanel` in `statusRegionProps`, or set it app-wide at startup:
-
-```ts
-chatPanel({model: chatModel, statusRegionProps: {showStopHint: false}});
-
-ChatStatusRegion.defaults.showStopHint = false;
-```
+Esc stops a reply in progress, as does the composer's Stop button, whose tooltip names the key.
 
 A chat with `allowRetry` false never offers Try Again, and never retries on its own. See
 [Hide Edit, Regenerate and Try Again](../../../core/README.md#hide-edit-regenerate-and-try-again).
@@ -1329,7 +1324,7 @@ it.
 | `ChatFileChip` | `file`, `onRemove`, `allowImages` | Show a file, with a remove button when `onRemove` is set. An image at a URL shows a thumbnail only if `allowImages` permits it. |
 | `ChatEmptyState` | `header`, `icon`, `title`, `text`, `suggestions`, `footer`, `composerModel` | Welcome the user to an empty chat. |
 | `ChatSuggestions` | `suggestions`, `onSelect`, `composerModel` | Show prompt cards that fill the composer: `composerModel`, else the `ChatModel`'s. `onSelect` replaces the fill. With neither, it renders nothing. |
-| `ChatStatusRegion` | `model`, `assistantName`, `showStopHint` | Show the thread's next action above a composer, in a custom layout. |
+| `ChatStatusRegion` | `model` | Show the thread's next action above a composer, in a custom layout. |
 | `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip`, `active`, `disabled`, `onOpenChange`, `popoverClassName`, `popoverAlign` | Add a pill to the composer's left slot or its `bottomItems`. |
 | `ChatScopeChip` | `options`, `noun`, `icon`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip`, `topItems`, `bottomItems`, `disabled`, `onOpenChange`, `popoverClassName`, `popoverAlign` | Choose some options for the next question, such as documents, agents or tools. Binds `runOptions[runOption]`, or `value` and `onChange`. |
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |

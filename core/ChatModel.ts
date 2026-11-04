@@ -548,7 +548,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     @computed
     get waitingToolCalls(): ChatToolCallPart[] {
         const {lastMessage} = this;
-        if (this.isBusy || !lastMessage?.isAssistant) return [];
+        // A detached reply's open calls wait on the server, not the user.
+        if (this.isBusy || !lastMessage?.isAssistant || lastMessage.metadata.detached) return [];
         const isPausedOnInterrupts = !!this.pausedInterruptSet;
         return lastMessage.toolCalls.filter(
             it =>
@@ -1788,7 +1789,10 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         if (this.interruptSet) this.setInterruptSet(declineRest(this.interruptSet));
         this.closePausedTurn();
 
-        const history = getHistory(),
+        // A detached reply the conversation moves past gets no more results.
+        const history = getHistory().map(it =>
+                it.metadata.detached ? settleOpenParts(it, SETTLE_REASONS.complete) : it
+            ),
             userMessage = findLast(history, it => it.isUser),
             message = new ChatMessage({role: 'assistant', status: 'pending'}),
             turn = createTurn(message, 0, true, {
@@ -1871,10 +1875,11 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             this.logError('Could not check the reply for catalog UI', e);
         }
 
-        const settled = settleOpenParts(
-            message,
-            SETTLE_REASONS[status],
-            status === 'aborted'
+        // A detached reply's work goes on on the server, so its open calls and sub-agents stay open.
+        const settled = (
+            detached
+                ? settleStreamingParts(message)
+                : settleOpenParts(message, SETTLE_REASONS[status], status === 'aborted')
         ).withChanges({
             status,
             error: error ? errorText(error) : null,
@@ -2158,7 +2163,8 @@ function stopTurnClock(turn: ChatTurn): number {
 
 /**
  * Messages from stored specs, with anything left in progress closed - see `loadMessages`. A
- * paused turn at the end of the specs stays paused.
+ * paused turn at the end of the specs stays paused. So does the open work of a detached reply at
+ * the end, which the server may still finish.
  */
 function restoreMessages(specs: ChatMessageSpec[]): ChatMessage[] {
     const messages = specs.map(it => new ChatMessage(it)),
@@ -2178,7 +2184,12 @@ function restoreMessages(specs: ChatMessageSpec[]): ChatMessage[] {
                     status: 'aborted'
                 });
             default:
-                return settleOpenParts(message, SETTLE_REASONS.interrupted);
+                if (!message.metadata.detached) {
+                    return settleOpenParts(message, SETTLE_REASONS.interrupted);
+                }
+                return idx === lastIdx
+                    ? settleStreamingParts(message)
+                    : settleOpenParts(message, SETTLE_REASONS.complete);
         }
     });
 }
