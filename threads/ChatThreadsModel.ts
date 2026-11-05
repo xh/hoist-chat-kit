@@ -78,7 +78,8 @@ export interface ChatThreadsConfig {
 
     /**
      * Milliseconds between checks on a turn that runs on the server while its chat does not
-     * follow it, or null to check only when the user clicks Refresh Status. Default
+     * follow it - in an open thread, or in any thread the list shows working - or null to check
+     * only when the user clicks Refresh Status. Default
      * `ChatKit.defaults.statusRefreshMs`, 5,000. See the README's "A turn running on the server".
      */
     statusRefreshMs?: number;
@@ -248,7 +249,8 @@ export class ChatThreadsModel extends HoistModel {
 
     /**
      * Ids of the threads with a turn running: those running here, and those the store reports as
-     * running, such as a turn that runs on after its chat was closed.
+     * running, such as a turn that runs on after its chat was closed. The model checks on the
+     * store's report every `statusRefreshMs`, so that a thread drops out soon after its run ends.
      */
     @computed
     get runningThreadIds(): string[] {
@@ -568,6 +570,10 @@ export class ChatThreadsModel extends HoistModel {
     // Checks on the turns that run on the server - see `statusRefreshMs`.
     @managed private statusTimer: Timer = null;
 
+    // When a list first showed each thread running, by thread id, for the checks on the threads
+    // the list shows working. Holds the threads of the last list that applied.
+    private listedRunningSince: Record<string, number> = {};
+
     // Threads whose turn finished in the background, in this session - see `finishedAwayThreadIds`.
     @observableRef private accessor finishedAwayHere: string[] = [];
 
@@ -759,15 +765,32 @@ export class ChatThreadsModel extends HoistModel {
 
     /**
      * Check on the turns that run on the server: reload the thread list, if the model checks on
-     * any open thread, then step each thread's watch on the check. A hidden page makes no checks,
-     * as Hoist's auto-refresh makes none.
+     * any open thread or on any thread the list shows running, then step each thread's watch on
+     * the check. A hidden page makes no checks, as Hoist's auto-refresh makes none.
      */
     private async checkStatusAsync() {
         if (!XH.pageIsVisible) return;
-        if (Object.values(this.openThreads).some(it => this.isStatusWatched(it))) {
+        if (
+            Object.values(this.openThreads).some(it => this.isStatusWatched(it)) ||
+            this.isListedRunChecked()
+        ) {
             await this.autoRefreshAsync();
         }
         Object.values(this.openThreads).forEach(it => this.stepRun(it, {type: 'tick'}));
+    }
+
+    /**
+     * True if the last list shows a thread running that no chat here streams, and that the list
+     * first showed running less than `statusRefreshTimeoutMs` ago. A check then reloads the list,
+     * so that the thread stops showing as working soon after its run ends, open or not.
+     */
+    private isListedRunChecked(): boolean {
+        const now = Date.now();
+        return Object.entries(this.listedRunningSince).some(
+            ([id, since]) =>
+                !this.openThreads[id]?.conversation.isBusy &&
+                now - since < this.statusRefreshTimeoutMs
+        );
     }
 
     @action
@@ -1076,6 +1099,11 @@ export class ChatThreadsModel extends HoistModel {
         this.appliedListNumber = listNumber;
         this.listedSearch = this.searchQuery;
         this.listedThreads = threads;
+        const now = Date.now(),
+            since = this.listedRunningSince;
+        this.listedRunningSince = Object.fromEntries(
+            threads.filter(it => it.isRunning).map(it => [it.id, since[it.id] ?? now])
+        );
         threads.forEach(it => {
             const thread = this.openThreads[it.id];
             if (!thread) return;

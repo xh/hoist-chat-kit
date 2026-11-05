@@ -45,6 +45,11 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 
 ### 🐞 Bug Fixes
 
+* Fixed the thread list to stop showing a thread as working within one `statusRefreshMs` check
+  of its run's end, whether the thread is open or not. While the list shows a thread as working
+  that no chat on the page streams, `ChatThreadsModel` reloads the list on each check, up to
+  `statusRefreshTimeoutMs` per thread. Before, the row stayed "working" until something else
+  reloaded the list.
 * Fixed Refresh Status in a `ChatThreadsModel` chat to reload the thread list too. The list could
   show a thread as running after its run had finished.
 * Fixed a reply left running on the server, live, loaded or replayed, to show its unfinished server

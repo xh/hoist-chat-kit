@@ -414,6 +414,13 @@ check. If that reload leaves the reply as it was, the run died, and the model st
 backend never saw, as when its first turn fails before reaching it, is not checked. Its Refresh
 Status reloads the list, and the history only once the list holds the thread.
 
+The thread list gets the same checks. While the list shows a thread as working, and no chat on
+the page streams its turn, each check reloads the list. The thread stops showing as working
+within a check of its run's end, whether the user has it open or not. That covers an open thread
+whose history already shows the reply. The checks stop once no thread shows as working, and for
+each thread after `statusRefreshTimeoutMs`, counted from the first list that showed it working.
+The row then keeps the last state the list reported.
+
 The model stops checking, and Refresh Status returns, after `statusRefreshTimeoutMs`, 30 minutes
 by default, and on a run that died. A wait that times out keeps sends waiting, and a list that
 shows the run done still brings the reply. A run that died wakes the checks again once a list

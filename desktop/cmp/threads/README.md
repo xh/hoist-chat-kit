@@ -73,6 +73,10 @@ A row shows at most one unusual state, in this order:
 | Interrupted | `endedEarlyThreads`, with `runEnd: 'interrupted'`, unless selected and shown | Warning, with the reason as tooltip | "last reply interrupted" |
 | Failed | `endedEarlyThreads`, with `runEnd: 'failed'`, unless selected and shown | Warning, in the error color | "last reply failed" |
 
+A Running row from the store's `isRunning` clears soon after the run ends. The threads model
+reloads the list every `statusRefreshMs` while a row shows working - see
+[A turn running on the server](../../../threads/README.md#a-turn-running-on-the-server).
+
 Interrupted and Failed are the two looks of "ended early". The threads model sets them from a
 background turn that failed or that the server cut short, and from the store's `lastRunEnd` for a
 thread the user is not looking at. A thread the user has seen since its last activity shows no

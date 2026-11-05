@@ -138,7 +138,8 @@ still in force, with their amendments. Do not read the whole file.
 | [D114](#d114-onsourceclick-takes-a-handler-per-source-type) | `onSourceClick` takes a handler per source type | Accepted |
 | [D115](#d115-a-detached-reply-keeps-its-open-work-open) | A detached reply keeps its open work open | Accepted |
 | [D116](#d116-the-status-region-holds-only-actions-and-a-turn-running-on-the-server-blocks-sends) | The status region holds only actions, and a turn running on the server blocks sends | Amended by D117 |
-| [D117](#d117-the-thread-layer-checks-on-a-turn-running-on-the-server) | The thread layer checks on a turn running on the server | Accepted |
+| [D117](#d117-the-thread-layer-checks-on-a-turn-running-on-the-server) | The thread layer checks on a turn running on the server | Amended by D118 |
+| [D118](#d118-the-thread-layer-checks-on-every-thread-the-list-shows-working) | The thread layer checks on every thread the list shows working | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2339,7 +2340,8 @@ user then gets an error for a send the kit could have held.
 
 ## D117. The thread layer checks on a turn running on the server
 
-**Status.** Accepted.
+**Status.** Amended by [D118](#d118-the-thread-layer-checks-on-every-thread-the-list-shows-working):
+the checks also run while the list shows any thread working.
 
 **Decision.** `ChatThreadsModel` checks on its own on a turn that runs on the server while its
 chat does not follow it: one that blocks sends (D116), a detached reply, or a reply that failed in
@@ -2392,3 +2394,26 @@ a full conversation per check. Reconnect to the run's
 stream, with the transport's `reconnect`. It shows progress live, but needs backend support, and
 waits for an app to ask. Refresh a stalled reply on its own too. That would detach a stream that
 may still answer, and a transport has no hard timeout by default to end a stall for good.
+
+## D118. The thread layer checks on every thread the list shows working
+
+**Status.** Accepted.
+
+**Decision.** `ChatThreadsModel` reloads the thread list at each `statusRefreshMs` check while the
+last list shows a thread running that no chat on the page streams. The thread need not be open.
+The open thread's run watch (D117) is unchanged. Its history may already show the reply while the
+list still shows the run: the watch then stays idle, and this rule clears the row. The model
+records when a list first showed each thread running. It stops checking on a thread
+`statusRefreshTimeoutMs` after that, and the row keeps the last state the list reported. The
+checks pause on a hidden page, and `statusRefreshMs: null` turns them off, as for the run watch.
+
+**Why.** A row cannot show "working" with no end. A backend reports no event when a run ends,
+and D117 asked only for the open thread's turn. A thread the user left, or one whose history
+already showed the reply, stayed "working" until something else reloaded the list. Each check
+stays one list request, with summaries only and no history.
+
+**Alternatives.** Trust an open thread's history over the list, and clear its row at once. The
+list would no longer be the only source for the row, and a run the history does not show yet,
+such as a new turn from another tab, would read as done. An optional store method that reports
+the runs of a few threads. It costs less per check, but every app's store has to add it, and the
+list reload would remain its fallback. It waits for an app whose list is too costly to reload.

@@ -41,16 +41,18 @@ export interface ChatKitDefaults {
 
     /**
      * Milliseconds between the checks that `ChatThreadsModel` makes on a turn that runs on the
-     * server while its chat does not follow it, as after a page reload. Each check reloads the
-     * thread list, and the thread's history once the list shows the run done. Null to check only
-     * when the user clicks Refresh Status. `ChatThreadsConfig.statusRefreshMs` overrides it for
-     * one model. Default 5,000.
+     * server while its chat does not follow it, as after a page reload. It makes them for an open
+     * thread, and for any thread the list shows working. Each check reloads the thread list, and
+     * an open thread's history once the list shows its run done. Null to check only when the user
+     * clicks Refresh Status. `ChatThreadsConfig.statusRefreshMs` overrides it for one model.
+     * Default 5,000.
      */
     statusRefreshMs: number;
 
     /**
      * Milliseconds after which `ChatThreadsModel` stops checking on a turn that runs on the
-     * server, and offers Refresh Status instead. `ChatThreadsConfig.statusRefreshTimeoutMs`
+     * server, and offers Refresh Status instead. A thread the list shows working counts from the
+     * first list that showed it so. `ChatThreadsConfig.statusRefreshTimeoutMs`
      * overrides it for one model. Default 1,800,000 - 30 minutes.
      */
     statusRefreshTimeoutMs: number;

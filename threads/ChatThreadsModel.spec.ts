@@ -1387,6 +1387,130 @@ describe('ChatThreadsModel', () => {
             });
         });
 
+        describe('a thread the list shows working', () => {
+            const QUESTION = [{role: 'user' as const, content: 'Rates?'}],
+                DONE = [...QUESTION, {role: 'assistant' as const, content: 'Flat.'}];
+
+            function useFakeClock() {
+                vi.useFakeTimers({
+                    toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date']
+                });
+                onTestFinished(() => {
+                    vi.useRealTimers();
+                });
+            }
+
+            it('stops showing a thread that is not open as working, once its run ends', async () => {
+                useFakeClock();
+                const {model, store} = setup();
+                store.saveThread({id: 't9', isRunning: true, messages: QUESTION});
+                await model.loadAsync();
+                await model.selectThreadAsync('t1');
+                expect(model.runningThreadIds).toEqual(['t9']);
+
+                store.saveThread({id: 't9', isRunning: false, messages: DONE});
+                await vi.advanceTimersByTimeAsync(5_000);
+
+                expect(model.runningThreadIds).toEqual([]);
+            });
+
+            it('stops showing an open thread as working, once its history shows the reply and its run ends', async () => {
+                useFakeClock();
+                const {model, store} = setup();
+                store.saveThread({id: 't9', isRunning: true, messages: DONE});
+                await model.loadAsync();
+                await model.selectThreadAsync('t9');
+                // The reply shows done, so the chat does not wait on it.
+                expect(model.chatModel.isRunningOnServer).toBe(false);
+                expect(model.runningThreadIds).toEqual(['t9']);
+
+                store.saveThread({id: 't9', isRunning: false});
+                await vi.advanceTimersByTimeAsync(5_000);
+
+                expect(model.runningThreadIds).toEqual([]);
+            });
+
+            it('keeps a thread working while its run goes on, and stops checking once none is', async () => {
+                useFakeClock();
+                const {model, store} = setup();
+                store.saveThread({id: 't9', isRunning: true, messages: QUESTION});
+                await model.loadAsync();
+                const list = vi.spyOn(store, 'listThreadsAsync');
+
+                await vi.advanceTimersByTimeAsync(10_000);
+                expect(list).toHaveBeenCalled();
+                expect(model.runningThreadIds).toEqual(['t9']);
+
+                store.saveThread({id: 't9', isRunning: false, messages: DONE});
+                await vi.advanceTimersByTimeAsync(5_000);
+                expect(model.runningThreadIds).toEqual([]);
+
+                list.mockClear();
+                await vi.advanceTimersByTimeAsync(30_000);
+                expect(list).not.toHaveBeenCalled();
+            });
+
+            it('stops checking on a thread after statusRefreshTimeoutMs', async () => {
+                useFakeClock();
+                const {model, store} = setup({statusRefreshTimeoutMs: 12_000});
+                store.saveThread({id: 't9', isRunning: true, messages: QUESTION});
+                await model.loadAsync();
+                const list = vi.spyOn(store, 'listThreadsAsync');
+
+                await vi.advanceTimersByTimeAsync(15_000);
+                expect(list).toHaveBeenCalled();
+                list.mockClear();
+
+                await vi.advanceTimersByTimeAsync(30_000);
+                expect(list).not.toHaveBeenCalled();
+                expect(model.runningThreadIds).toEqual(['t9']);
+            });
+
+            it('makes no checks while the page is hidden', async () => {
+                useFakeClock();
+                const isVisible = observable.box(false);
+                vi.spyOn(XH, 'pageIsVisible', 'get').mockImplementation(() => isVisible.get());
+                const {model, store} = setup();
+                store.saveThread({id: 't9', isRunning: true, messages: QUESTION});
+                await model.loadAsync();
+                const list = vi.spyOn(store, 'listThreadsAsync');
+
+                await vi.advanceTimersByTimeAsync(30_000);
+
+                expect(list).not.toHaveBeenCalled();
+            });
+
+            it('makes no checks with statusRefreshMs null', async () => {
+                useFakeClock();
+                const {model, store} = setup({statusRefreshMs: null});
+                store.saveThread({id: 't9', isRunning: true, messages: QUESTION});
+                await model.loadAsync();
+                const list = vi.spyOn(store, 'listThreadsAsync');
+
+                await vi.advanceTimersByTimeAsync(30_000);
+
+                expect(list).not.toHaveBeenCalled();
+            });
+
+            it('makes no checks for a turn that streams here', async () => {
+                useFakeClock();
+                const gates = new TurnGates(),
+                    {model, store} = setup({respond: gates.respond});
+                await model.selectThreadAsync('t1');
+                const send = model.chatModel.sendAsync('Next?');
+                await vi.advanceTimersByTimeAsync(0);
+                store.saveThread({id: 't1', isRunning: true});
+                await model.loadAsync();
+                const list = vi.spyOn(store, 'listThreadsAsync');
+
+                await vi.advanceTimersByTimeAsync(30_000);
+
+                expect(list).not.toHaveBeenCalled();
+                gates.open('t1');
+                await send;
+            });
+        });
+
         it('refreshes the thread list along with the status', async () => {
             const {model, store} = setup();
             store.saveThread({id: 't1', isRunning: true});
