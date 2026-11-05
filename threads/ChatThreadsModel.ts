@@ -368,7 +368,7 @@ export class ChatThreadsModel extends HoistModel {
                 : ChatKit.defaults.statusRefreshMs;
         this.statusRefreshTimeoutMs =
             config.statusRefreshTimeoutMs ?? ChatKit.defaults.statusRefreshTimeoutMs;
-        if (this.statusRefreshMs != null) {
+        if (this.isCheckingOn) {
             this.statusTimer = Timer.create({
                 runFn: () => this.checkStatusAsync(),
                 interval: this.statusRefreshMs
@@ -703,6 +703,11 @@ export class ChatThreadsModel extends HoistModel {
         return !!thread?.chatModel && isWatchAutomatic(thread.runWatch, this.getRunFacts(thread));
     }
 
+    /** True if the model checks on turns running on the server on its own. */
+    private get isCheckingOn(): boolean {
+        return this.statusRefreshMs > 0;
+    }
+
     /** What the run watch reads from a thread - see `RunFacts`. */
     private getRunFacts(thread: OpenThread): RunFacts {
         const {chatModel, loadState} = thread;
@@ -712,7 +717,7 @@ export class ChatThreadsModel extends HoistModel {
             isLoaded: loadState === 'loaded',
             isLoadFailed: loadState === 'failed' || loadState === 'notFound',
             // A thread the current list leaves out, as under a search, has no run a check can see.
-            isChecked: this.statusRefreshMs != null && some(this.threads, {id: chatModel.threadId}),
+            isChecked: this.isCheckingOn && some(this.threads, {id: chatModel.threadId}),
             listedRunning: thread.isListedRunning,
             history: getRunHistory(chatModel),
             loadKey: thread.loadKey,
@@ -738,6 +743,9 @@ export class ChatThreadsModel extends HoistModel {
 
     /** Record what a list says of a thread's run, and step its watch on it. */
     private noteListing(thread: OpenThread, isRunning: boolean) {
+        // A list that holds the thread proves the backend does, as for a first turn that dropped
+        // before any event.
+        thread.setSaved(true);
         thread.setListedRunning(isRunning);
         this.stepRun(thread, {type: 'listed'});
     }
@@ -1041,7 +1049,7 @@ export class ChatThreadsModel extends HoistModel {
                 thread.endLoad(e);
                 XH.handleException(e, {showAlert: false});
             }
-            this.stepRun(thread, {type: 'loadFailed', key: loadKey, isNotFound: isNotFound(e)});
+            this.stepRun(thread, {type: 'loadFailed', key: loadKey});
         }
     }
 

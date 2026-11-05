@@ -144,9 +144,9 @@ describe('RunWatch', () => {
             expect(phaseOf(due, {...DONE, isChecked: false}, loaded(4))).toBe('stopped');
         });
 
-        it('counts no reload that did not apply, and stops on a thread not found', () => {
+        it('counts no reload that did not apply, and goes idle once the thread is gone', () => {
             expect(run(due, DONE, loaded(4, false)).watch.misses).toBe(0);
-            expect(phaseOf(due, DONE, failed(4, true))).toBe('stopped');
+            expect(phaseOf(due, {...DONE, isLoadFailed: true}, failed(4))).toBe('idle');
         });
 
         it('settles on a reload that brings a failure, rather than counting it a miss', () => {
@@ -157,7 +157,7 @@ describe('RunWatch', () => {
             expect(phaseOf(due, RUNNING, {type: 'listed'})).toBe('waiting');
         });
 
-        it('stops at the timeout of the turn it waited on', () => {
+        it('stops at the timeout of its own window', () => {
             expect(phaseOf(due, {...DONE, now: 1000 + TIMEOUT}, {type: 'tick'})).toBe('stopped');
         });
     });
@@ -252,9 +252,7 @@ describe('RunWatch', () => {
 
         it('goes idle once the history fails to load, or the thread is gone', () => {
             const waiting = run(IDLE_WATCH, RUNNING).watch;
-            expect(phaseOf(waiting, {...RUNNING, isLoadFailed: true}, failed(4, true))).toBe(
-                'idle'
-            );
+            expect(phaseOf(waiting, {...RUNNING, isLoadFailed: true}, failed(4))).toBe('idle');
         });
     });
 
@@ -273,8 +271,8 @@ describe('RunWatch', () => {
         return {type: 'loaded', key, isApplied};
     }
 
-    function failed(key: number, isNotFound: boolean = false): RunWatchEvent {
-        return {type: 'loadFailed', key, isNotFound};
+    function failed(key: number): RunWatchEvent {
+        return {type: 'loadFailed', key};
     }
 });
 

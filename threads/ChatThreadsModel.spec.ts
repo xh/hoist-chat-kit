@@ -1319,6 +1319,33 @@ describe('ChatThreadsModel', () => {
                 expect(model.isThreadNotFound).toBe(false);
             });
 
+            it('blocks sends after a first turn that dropped, once the list shows its run', async () => {
+                vi.useFakeTimers({
+                    toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date']
+                });
+                onTestFinished(() => {
+                    vi.useRealTimers();
+                });
+                const {model, store} = setup({
+                        respond: () => {
+                            throw new Error('Connection reset');
+                        }
+                    }),
+                    chat = model.newThread();
+                await chat.sendAsync('Hi');
+                expect(chat.sendBlockedReason).toBeNull();
+
+                // The request reached the backend, which runs the turn.
+                store.saveThread({
+                    id: chat.threadId,
+                    isRunning: true,
+                    messages: [{role: 'user', content: 'Hi'}]
+                });
+                await model.refreshAsync();
+
+                expect(chat.sendBlockedReason).toBe('Wait for the reply to finish.');
+            });
+
             it('leaves a run that died to Refresh Status, after a few reloads', async () => {
                 const {model, store} = await openRunning(),
                     load = vi.spyOn(store, 'loadMessagesAsync');

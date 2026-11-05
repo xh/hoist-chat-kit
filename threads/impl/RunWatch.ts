@@ -91,7 +91,8 @@ export interface RunFacts {
  *  - `turn` - the chat's own turn started or ended.
  *  - `loaded` - the history load with this key ended. `isApplied` is false if it was superseded,
  *    or did not apply over a change the user made.
- *  - `loadFailed` - the history load with this key failed.
+ *  - `loadFailed` - the history load with this key failed. A thread found missing reads as
+ *    `isLoadFailed` too.
  *  - `reloadStarted` - the reload the watch asked for began, with this key.
  *  - `tick` - a check, after its list reload.
  *  - `reset` - the chat holds another thread, or none.
@@ -101,7 +102,7 @@ export type RunWatchEvent =
     | {type: 'listed'}
     | {type: 'turn'}
     | {type: 'loaded'; key: number; isApplied: boolean}
-    | {type: 'loadFailed'; key: number; isNotFound: boolean}
+    | {type: 'loadFailed'; key: number}
     | {type: 'reloadStarted'; key: number}
     | {type: 'tick'}
     | {type: 'reset'};
@@ -214,23 +215,16 @@ export function stepRunWatch(
                     ? enter('stopped')
                     : stay(false, {misses});
             }
-            if (event.type === 'loadFailed' && event.isNotFound) return enter('stopped');
             if (event.type !== 'tick' || !isChecked) return stay();
             return isLate ? enter('stopped') : stay(true);
 
         case 'settling':
             if (!mayChange) return classify();
             if (isRunning) return enter('waiting');
-            if (event.type === 'loaded' && event.isApplied && isLater) {
-                // A reload that left the reply as it was, with no run listed: the run died.
-                return listedRunning === true ? stay() : enter('stopped');
-            }
-            if (event.type === 'loadFailed' && event.isNotFound && isLater) {
-                return enter('stopped');
-            }
+            // A reload that left the reply as it was, with no run listed: the run died.
+            if (event.type === 'loaded' && event.isApplied && isLater) return enter('stopped');
             if (event.type !== 'tick' || !isChecked) return stay();
-            if (isLate) return enter('stopped');
-            return stay(listedRunning !== true);
+            return isLate ? enter('stopped') : stay(true);
 
         case 'stopped':
             if (history === 'replied' || !facts.isSaved) return enter('idle');

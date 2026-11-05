@@ -2374,9 +2374,10 @@ after it marks the run done, then the run counts as died.
 The model stops, and Refresh Status returns, after `statusRefreshTimeoutMs`, 30 minutes by default,
 when a reload leaves the turn unsettled, or when the current list leaves the thread out, as under
 a search. A wait that times out keeps sends waiting, and a list that shows its run done still
-brings the reply, with a fresh window. A thread the backend never saw is not watched, and its
-Refresh Status reloads only the list. `statusRefreshMs: null` turns the checks off. A stalled reply keeps Refresh Status: its
-stream is still open.
+brings the reply, with a fresh window. A thread the backend never saw is not watched. Its Refresh
+Status reloads the list, and the history only once the list holds the thread. A list that holds a
+thread marks it saved. `statusRefreshMs: null`, or 0, turns the checks off. A stalled reply keeps
+Refresh Status: its stream is still open.
 
 **Why.** Many users never see the small Refresh Status button. A backend reports no event when a
 run ends, so the client has to ask. The thread list is cheap to load, and a thread's history can be
