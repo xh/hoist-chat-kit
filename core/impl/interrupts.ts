@@ -3,6 +3,7 @@ import type {ResumeEntry} from '@ag-ui/core';
 import {findLast, isEmpty, last, omit} from 'lodash';
 import type {ChatInterrupt, ChatInterruptResponse} from '../message/ChatInterrupt';
 import type {ChatMessage} from '../message/ChatMessage';
+import {getEndTime} from './messageUtils';
 
 /**
  * The interrupts of the thread's last interrupted run that no finished run has answered yet - the
@@ -151,7 +152,7 @@ export function writeInterrupts(message: ChatMessage, set: InterruptSet): ChatMe
                       ...part,
                       state: 'output-denied' as const,
                       errorText: declined.get(part.id) ? 'Skipped.' : 'Declined.',
-                      endedAt: Date.now()
+                      endedAt: getEndTime(part.startedAt)
                   }
                 : part
         );

@@ -14,7 +14,8 @@ import {
     type ChatModelConfig,
     type ChatPart,
     type ChatToolCallPart,
-    type ChatTranscript
+    type ChatTranscript,
+    replayChatEvents
 } from '../../../core';
 import {type ChatTransport, ScriptedChatTransport, textEvents} from '../../../transport';
 import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
@@ -763,6 +764,26 @@ describe('ChatMessageView', () => {
 
             fireEvent.click(toggle);
             expect(screen.getByText('Check the limits table.')).toBeTruthy();
+        });
+
+        it('names no reasoning time for a reply restored from events with no timestamps', () => {
+            const restored = replayChatEvents(
+                [
+                    {type: 'RUN_STARTED', threadId: 't', runId: 'r'},
+                    {type: 'REASONING_START', messageId: 'r1'},
+                    {type: 'REASONING_MESSAGE_START', messageId: 'r1', role: 'reasoning'},
+                    {type: 'REASONING_MESSAGE_CONTENT', messageId: 'r1', delta: 'Check it.'},
+                    {type: 'REASONING_MESSAGE_END', messageId: 'r1'},
+                    {type: 'REASONING_END', messageId: 'r1'},
+                    ...textEvents('Answer'),
+                    {type: 'RUN_FINISHED', threadId: 't', runId: 'r'}
+                ],
+                {id: 'a1'}
+            );
+            renderList(createModel({}, [question(), restored]));
+
+            expect(screen.getByRole('button', {name: /Thought process/})).toBeTruthy();
+            expect(screen.queryByText(/Thought (briefly|for)/)).toBeNull();
         });
 
         it('stacks reasoning and tool rows in one process block, ended by text', () => {

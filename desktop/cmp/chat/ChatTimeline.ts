@@ -424,7 +424,11 @@ function elapsed(
     if (message.isStreaming && state !== 'done') {
         return chatElapsed({key: 'elapsed', startedAt: createdAt});
     }
-    const lastEnd = Math.max(0, ...summary.calls.map(it => it.endedAt ?? 0)),
+    // Only a call with a start has a real end - see `ChatToolCallPart.startedAt`.
+    const lastEnd = Math.max(
+            0,
+            ...summary.calls.map(it => (it.startedAt != null ? (it.endedAt ?? 0) : 0))
+        ),
         endedAt =
             metadata?.elapsedMs != null
                 ? createdAt + metadata.elapsedMs

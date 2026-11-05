@@ -511,7 +511,7 @@ function reasoningRow(
                 input: firstLine,
                 time: isThinking
                     ? liveTime(part.startedAt)
-                    : part.endedAt != null
+                    : part.endedAt != null && part.startedAt != null
                       ? formatStepDuration(part.endedAt - part.startedAt)
                       : null
             }),

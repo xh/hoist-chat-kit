@@ -84,6 +84,7 @@ import {genChatId} from '../impl/LangUtils';
 import {
     createTextPart,
     getClientToolCalls,
+    getEndTime,
     isDetachedReply,
     SETTLE_REASONS,
     settleOpenCalls,
@@ -1310,7 +1311,9 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
                 : {
                       state: 'output-denied',
                       errorText: note ?? 'The user denied this tool call.',
-                      endedAt: Date.now()
+                      endedAt: getEndTime(
+                          lastMessage.toolCalls.find(it => it.id === toolCallId)?.startedAt
+                      )
                   }
         );
         this.answerInterrupt(interrupt.id, payload);
@@ -2074,10 +2077,15 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     @action
     private updateToolCall(turn: ChatTurn, toolCallId: string, changes: Partial<ChatToolCallPart>) {
         // A call that ends here - run in the browser, denied or answered - records when.
-        if (changes.state && isToolCallFinal(changes as ChatToolCallPart)) {
-            changes = {endedAt: Date.now(), ...changes};
-        }
-        this.updateTurnMessage(turn, message => updatePart(message, toolCallId, changes));
+        const isEnd = changes.state && isToolCallFinal(changes as ChatToolCallPart);
+        this.updateTurnMessage(turn, message => {
+            const startedAt = message.toolCalls.find(it => it.id === toolCallId)?.startedAt;
+            return updatePart(
+                message,
+                toolCallId,
+                isEnd ? {endedAt: getEndTime(startedAt), ...changes} : changes
+            );
+        });
     }
 
     @action

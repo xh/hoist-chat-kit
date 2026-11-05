@@ -38,10 +38,10 @@ export interface ChatSubagentData {
     /** Why the sub-agent failed, once in error. */
     error?: string;
 
-    /** Epoch millis when the sub-agent started. */
+    /** Epoch millis when the sub-agent started - null if unknown, as for history with no times. */
     startedAt?: number;
 
-    /** Epoch millis when the sub-agent ended, or null while it runs. */
+    /** Epoch millis when the sub-agent ended - null while it runs, or if unknown. */
     endedAt?: number;
 }
 

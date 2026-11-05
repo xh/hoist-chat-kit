@@ -52,7 +52,10 @@ export interface ChatReplayOptions {
  * The reply is timed by the events' `timestamp`s, not by the time of the load. It starts at its
  * first event, each part starts and ends at the events that open and close it, and its
  * `elapsedMs` sums the time its runs took. An event with no `timestamp` takes the one before it.
- * A reply whose events have none takes the time of the load and records no `elapsedMs`.
+ * A reply whose events have none records no times, rather than show the time of the load as
+ * when everything happened: its parts have no start or end, it has no `elapsedMs`, and its
+ * `createdAt` is the load's unless the app sets one. So a backend that stores events should stamp
+ * each as the agent emits it - not as it writes them, which may bunch them together.
  *
  * Its status follows from how the events end, unless `opts.status` says otherwise:
  *
@@ -104,12 +107,12 @@ export function replayChatEvents(
     const status = decodeError ? 'error' : (opts.status ?? endStatus(message, reducer, isEnded)),
         isDetached = !isEnded && opts.status == null && !decodeError,
         times = runs.map(runTimes).filter(it => it != null),
+        // With no times, no part has a start, so none gets an end.
         endedAt = max(times.map(it => it[1])) ?? null,
-        settleAt = endedAt ?? Date.now(),
         settled =
             status === 'paused' || isDetached
-                ? settleStreamingParts(settleEarlierCalls(message, lastIdx, settleAt), settleAt)
-                : settleOpenParts(message, SETTLE_REASONS[status], status === 'aborted', settleAt);
+                ? settleStreamingParts(settleEarlierCalls(message, lastIdx, endedAt), endedAt)
+                : settleOpenParts(message, SETTLE_REASONS[status], status === 'aborted', endedAt);
 
     // A failure's details go with the failure, as for a stopped turn that a backend stored as one.
     let replyMetadata: PlainObject =
@@ -177,7 +180,8 @@ function decodeAll(
 
 /**
  * The events with a time on each: an event with no `timestamp` takes the one before it, and
- * those before the first take the first, so that no part is timed by the load.
+ * those before the first take the first, so that no part is timed by the load. Each run gets a
+ * new reducer, which carries no time from the run before, so the stamps must be on the events.
  */
 function stampAll(events: ChatEvent[]): ChatEvent[] {
     let time: number = events.find(it => isFinite(it.timestamp))?.timestamp ?? null;

@@ -11,6 +11,7 @@ import {
     toolCallEvents
 } from '../transport';
 import {ChatModel, type ChatModelConfig} from './ChatModel';
+import {replayChatEvents} from './replayChatEvents';
 
 /**
  * A server agent asks the user a question, or asks to run a tool, by ending its run with AG-UI's
@@ -423,6 +424,30 @@ describe('ChatModel interrupts', () => {
             expect(model.lastMessage.toolCalls[0]).toMatchObject({
                 state: 'output-denied',
                 errorText: 'Too much'
+            });
+        });
+
+        it('records no end time on a denied call that has no start, as in untimed history', async () => {
+            const paused = replayChatEvents([
+                    {type: 'RUN_STARTED', threadId: 't', runId: 'r'},
+                    ...toolCallEvents('transfer_funds', {}, {toolCallId: 's1'}),
+                    {
+                        ...interruptEvents([
+                            {id: 'a1', reason: 'tool_approval', toolCallId: 's1'}
+                        ])[0],
+                        threadId: 't',
+                        runId: 'r'
+                    } as ChatEvent
+                ]),
+                model = createModel({transport: scripted([textEvents('Cancelled.')])});
+            model.loadMessages([{id: 'u1', role: 'user', content: 'Pay Bob'}, paused], 't');
+
+            await model.denyToolCallAsync('s1');
+
+            expect(model.messages[1].toolCalls[0]).toMatchObject({
+                state: 'output-denied',
+                startedAt: null,
+                endedAt: null
             });
         });
 

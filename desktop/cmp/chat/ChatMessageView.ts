@@ -894,7 +894,11 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
  */
 function getHiddenThoughtMs(message: ChatMessage): number {
     const parts = message.parts.filter(
-        it => it.type === 'reasoning' && !it.text?.trim() && it.endedAt != null
+        it =>
+            it.type === 'reasoning' &&
+            !it.text?.trim() &&
+            it.startedAt != null &&
+            it.endedAt != null
     ) as ChatReasoningPart[];
     return parts.length ? sumBy(parts, it => it.endedAt - it.startedAt) : null;
 }

@@ -1,4 +1,5 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
+import type {PlainObject} from '@xh/hoist/core';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {
     AgUiCodec,
@@ -230,6 +231,32 @@ describe('replayChatEvents', () => {
         expect(spec).toMatchObject({id: 'a1', status: 'complete'});
         expect(spec.metadata).toMatchObject({serverId: 's1', version: 3, runStarted: true});
         expect(spec.metadata).not.toHaveProperty('elapsedMs');
+    });
+
+    it('times no part by the load when the events have no timestamps', () => {
+        const call = toolCallEvents('search', {}, {toolCallId: 'c1', result: 'ok'}),
+            agent = subagentEvents('Researcher', [], {subagentRunId: 's1'}) as ChatEvent[],
+            open = toolCallEvents('server_search', {}, {toolCallId: 'c2'}),
+            events = [STARTED, ...reasoningOpen('r1', 'Hm.'), ...reasoningClose('r1'), ...call],
+            finished = replayChatEvents([...events, ...agent, FINISHED]),
+            detached = replayChatEvents([...events, agent[0], ...open]),
+            failed = replayChatEvents([
+                ...events,
+                agent[0],
+                ...open,
+                {type: 'RUN_ERROR', message: 'Boom.'}
+            ]);
+
+        [finished, detached, failed].forEach(spec => {
+            spec.parts.forEach(part => {
+                const times: PlainObject = part.type === 'data' ? part.data : part;
+                expect(times.startedAt ?? null).toBeNull();
+                expect(times.endedAt ?? null).toBeNull();
+            });
+            expect(spec.metadata).not.toHaveProperty('elapsedMs');
+            expect(spec.metadata).not.toHaveProperty('endedAt');
+        });
+        expect(failed.parts.find(it => it.id === 'c2')).toMatchObject({state: 'output-error'});
     });
 });
 

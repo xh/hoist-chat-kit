@@ -14,10 +14,12 @@ import {
     type ChatPart,
     type ChatToolCallPart,
     type ChatToolCallState,
-    type ChatToolSpec
+    type ChatToolSpec,
+    replayChatEvents
 } from '../../../core';
 import {
     activityEvents,
+    type ChatEvent,
     errorEvents,
     ScriptedChatTransport,
     scriptedDelay,
@@ -698,6 +700,34 @@ describe('ChatTimeline', () => {
             expect(agent.getAttribute('aria-label')).toMatch(/, not finished yet$/);
         });
 
+        it('shows no times for a reply restored from events with no timestamps', () => {
+            const spec = replayChatEvents([
+                    {type: 'RUN_STARTED', threadId: 't', runId: 'r'},
+                    {type: 'REASONING_START', messageId: 'r1'},
+                    {type: 'REASONING_MESSAGE_START', messageId: 'r1', role: 'reasoning'},
+                    {type: 'REASONING_MESSAGE_CONTENT', messageId: 'r1', delta: 'Plan.'},
+                    {type: 'REASONING_MESSAGE_END', messageId: 'r1'},
+                    {type: 'REASONING_END', messageId: 'r1'},
+                    ...toolCallEvents('lookup', {desk: 'Rates'}, {toolCallId: 'c1', result: 'ok'}),
+                    ...toolCallEvents('lookup', {desk: 'FX'}, {toolCallId: 'c2', result: 'ok'}),
+                    ...(subagentEvents('Researcher', [], {subagentRunId: 's1'}) as ChatEvent[]),
+                    ...textEvents('Done.'),
+                    {type: 'RUN_FINISHED', threadId: 't', runId: 'r'}
+                ]),
+                {container} = renderChat(createChat([new ChatMessage(spec)]));
+
+            expect(container.querySelector('.xh-chat-message__elapsed')).toBeNull();
+            expect(lineButton(container).textContent).not.toMatch(DURATION);
+            fireEvent.click(lineButton(container));
+            const rows = screen.getAllByRole('treeitem');
+            expect(rows.length).toBeGreaterThan(2);
+            rows.forEach(it => expect(it.getAttribute('aria-label')).not.toMatch(DURATION));
+            timeline(container)
+                .querySelectorAll('.xh-chat-timeline__time')
+                .forEach(it => expect(it.textContent).toBe(''));
+            expect(container.textContent).not.toMatch(/Thought (briefly|for)/);
+        });
+
         it('ends a failed run at its last step', () => {
             const {container} = renderReply([call('c1'), call('c2')], {}, {status: 'error'});
             expect(lineButton(container).textContent).toContain('Ended at step 2');
@@ -1135,6 +1165,9 @@ async function runAgent({assistantName}: {assistantName?: string} = {}) {
     expect(model.messages[1].status).toBe('complete');
     return result;
 }
+
+/** A step time, as rows and labels show one. */
+const DURATION = /<0\.1s|\d(\.\d)?s\b|\bseconds?\b|\bminutes?\b/;
 
 const TOOLS: ChatToolSpec[] = [
     {name: 'lookup', display: 'timeline'},

@@ -430,7 +430,8 @@ export function formatStepDuration(ms: number): string {
 export function getSpanMs(calls: ChatToolCallPart[]): number {
     const start = minBy(calls, 'startedAt')?.startedAt,
         end = maxBy(calls, 'endedAt')?.endedAt;
-    if (isNil(start) || isNil(end) || calls.some(it => it.endedAt == null)) return null;
+    if (isNil(start) || isNil(end)) return null;
+    if (calls.some(it => it.startedAt == null || it.endedAt == null)) return null;
     return end - start;
 }
 

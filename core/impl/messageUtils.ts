@@ -83,6 +83,15 @@ export function settleOpenCalls(
 }
 
 /**
+ * The time to record as a part's end: `now`, or null for a part with no start, such as one
+ * replayed from events with no timestamps. A duration from no start would be made up.
+ * @internal
+ */
+export function getEndTime(startedAt: number, now: number = Date.now()): number {
+    return startedAt != null ? now : null;
+}
+
+/**
  * True for a reply left running on the server - `aborted`, with `metadata.detached`.
  * @internal
  */
@@ -138,7 +147,7 @@ export function getClientToolCalls(message: ChatMessage, step: number): ChatTool
 //------------------
 /**
  * Settle streaming parts - and tool calls and sub-agents too, if given a reason to close them
- * with.
+ * with. A part with no start gets no end - see `getEndTime`.
  */
 function settleParts(
     message: ChatMessage,
@@ -157,7 +166,7 @@ function settleParts(
                 case 'reasoning':
                     if (part.state !== 'streaming') return part;
                     changed = true;
-                    return {...part, state: 'done', endedAt: now};
+                    return {...part, state: 'done', endedAt: getEndTime(part.startedAt, now)};
                 case 'toolCall':
                     // A server call that waits on an interrupt gets its result from the server.
                     if (toolCallReason == null || isToolCallFinal(part) || part.awaitsResume) {
@@ -169,7 +178,7 @@ function settleParts(
                         state:
                             part.state === 'approval-requested' ? 'output-denied' : 'output-error',
                         errorText: toolCallReason,
-                        endedAt: part.endedAt ?? now,
+                        endedAt: part.endedAt ?? getEndTime(part.startedAt, now),
                         ...(isCancelled ? {cancelled: true} : {})
                     };
                 case 'data': {
@@ -180,7 +189,7 @@ function settleParts(
                         ...(isCancelled
                             ? {status: 'cancelled'}
                             : {status: 'error', error: toolCallReason}),
-                        endedAt: part.data.endedAt ?? now
+                        endedAt: part.data.endedAt ?? getEndTime(part.data.startedAt, now)
                     };
                     return {...part, data};
                 }

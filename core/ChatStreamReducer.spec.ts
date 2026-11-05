@@ -1332,6 +1332,45 @@ describe('ChatStreamReducer', () => {
             const replayed = callOf(new ChatStreamReducer(0, {useEventTimestamps: true}));
             expect([replayed.startedAt, replayed.endedAt]).toEqual([1000, 4000]);
         });
+
+        it('records no times from events with no timestamps, rather than the time of the load', () => {
+            const reducer = new ChatStreamReducer(0, {useEventTimestamps: true}),
+                reply = reducer.finish(
+                    reducer.apply(pendingMessage(), [
+                        {type: 'RUN_STARTED', threadId: 't', runId: 'r'},
+                        {type: 'TOOL_CALL_START', toolCallId: 'c1', toolCallName: 'lookup'},
+                        {type: 'TOOL_CALL_END', toolCallId: 'c1'},
+                        {type: 'TOOL_CALL_RESULT', messageId: 'm', toolCallId: 'c1', content: 'ok'},
+                        {type: 'SUBAGENT_STARTED', subagentRunId: 's1', name: 'Researcher'},
+                        FINISHED
+                    ])
+                ),
+                [call, agent] = reply.parts as [ChatToolCallPart, ChatDataPart];
+
+            expect([call.startedAt, call.endedAt]).toEqual([null, null]);
+            expect(agent.data).toMatchObject({status: 'complete', startedAt: null, endedAt: null});
+        });
+
+        it('gives no end to a part that started before any event had a time', () => {
+            const reducer = new ChatStreamReducer(0, {useEventTimestamps: true}),
+                reply = reducer.apply(pendingMessage(), [
+                    {type: 'TOOL_CALL_START', toolCallId: 'c1', toolCallName: 'lookup'},
+                    {type: 'SUBAGENT_STARTED', subagentRunId: 's1', name: 'Researcher'},
+                    {type: 'TOOL_CALL_END', toolCallId: 'c1'},
+                    {
+                        type: 'TOOL_CALL_RESULT',
+                        messageId: 'm',
+                        toolCallId: 'c1',
+                        content: 'ok',
+                        timestamp: 5000
+                    },
+                    {type: 'SUBAGENT_FINISHED', subagentRunId: 's1', timestamp: 6000}
+                ]),
+                [call, agent] = reply.parts as [ChatToolCallPart, ChatDataPart];
+
+            expect([call.startedAt, call.endedAt]).toEqual([null, null]);
+            expect(agent.data).toMatchObject({startedAt: null, endedAt: null});
+        });
     });
 });
 

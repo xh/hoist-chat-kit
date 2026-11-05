@@ -37,7 +37,7 @@ import {
 } from '@ag-ui/core';
 import {genChatId} from '../impl/LangUtils';
 import type {ChatInterrupt} from './message/ChatInterrupt';
-import {isRunningSubagent, SUBAGENT_UNFINISHED} from './impl/messageUtils';
+import {getEndTime, isRunningSubagent, SUBAGENT_UNFINISHED} from './impl/messageUtils';
 import {parsePartialJson} from './impl/parsePartialJson';
 
 /**
@@ -77,6 +77,10 @@ import {parsePartialJson} from './impl/parsePartialJson';
  * `TOOL_CALL_RESULT`. It counts the parts it drops in the message's `metadata.supersededCount`.
  *
  * Events the kit does not act on, and unknown event types, are ignored.
+ *
+ * The reducer times parts by the local clock, for a live stream. To rebuild a reply from stored
+ * events, use {@link replayChatEvents}, which times parts by the events. A reducer of your own
+ * for stored events needs `useEventTimestamps`, or it times every part by the load.
  */
 export class ChatStreamReducer {
     /** Index of the step within the turn - set as the `step` of each new part. */
@@ -143,7 +147,8 @@ export class ChatStreamReducer {
      *      start and end them, rather than by the local clock as the events arrive. For events
      *      replayed from storage - see {@link replayChatEvents}. A live stream keeps the local
      *      clock, so that the server's clock cannot skew the timers that run beside it. An event
-     *      with no `timestamp` takes the latest one before it. Default false.
+     *      with no `timestamp` takes the latest one before it. Parts that start before any event
+     *      has one record no times. Default false.
      */
     constructor(
         step: number,
@@ -465,9 +470,12 @@ export class ChatStreamReducer {
         }
     }
 
-    /** The time to record on a part: by the events with `useEventTimestamps`, else now. */
+    /**
+     * The time to record on a part: now, or by the events with `useEventTimestamps` - null if no
+     * event yet had one, so that a part replayed without times is not timed by the load.
+     */
     private now(): number {
-        return this.eventTime ?? Date.now();
+        return this.useEventTimestamps ? this.eventTime : Date.now();
     }
 
     //------------------
@@ -817,7 +825,7 @@ export class ChatStreamReducer {
                 input: null,
                 state: 'output-error',
                 errorText: `Invalid tool input: ${e.message}`,
-                endedAt: this.now()
+                endedAt: getEndTime(part.startedAt, this.now())
             });
         }
     }
@@ -868,11 +876,12 @@ export class ChatStreamReducer {
             return;
         }
         this.endToolCall(draft, toolCallId);
+        const part = getPart<ChatToolCallPart>(draft, toolCallId);
         putPart(draft, {
-            ...getPart<ChatToolCallPart>(draft, toolCallId),
+            ...part,
             ...changes,
             providerExecuted: true,
-            endedAt: this.now()
+            endedAt: getEndTime(part.startedAt, this.now())
         });
     }
 
@@ -885,7 +894,8 @@ export class ChatStreamReducer {
             logDebug(['Ignored end of unknown sub-agent', subagentRunId], this);
             return;
         }
-        const endedAt = changes.status === 'waiting' ? null : this.now();
+        const endedAt =
+            changes.status === 'waiting' ? null : getEndTime(part.data?.startedAt, this.now());
         putPart(draft, {...part, data: {...part.data, ...changes, endedAt}});
     }
 
@@ -1005,7 +1015,11 @@ export class ChatStreamReducer {
         const part = getPart<ChatTextPart | ChatReasoningPart>(draft, id);
         if (part?.state !== 'streaming') return;
         if (part.type === 'reasoning') {
-            putPart(draft, {...part, state: 'done', endedAt: this.now()});
+            putPart(draft, {
+                ...part,
+                state: 'done',
+                endedAt: getEndTime(part.startedAt, this.now())
+            });
         } else {
             const {revising: _revising, ...rest} = part;
             this.revisingLengths.delete(id);

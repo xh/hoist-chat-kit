@@ -101,10 +101,10 @@ export interface ChatReasoningPart extends ChatPartBase {
     /** `streaming` while more reasoning may arrive, then `done`. */
     state: ChatPartState;
 
-    /** Epoch millis when reasoning began. */
+    /** Epoch millis when reasoning began - null if unknown, as for history with no event times. */
     startedAt: number;
 
-    /** Epoch millis when reasoning ended - null while streaming. */
+    /** Epoch millis when reasoning ended - null while streaming, or if unknown. */
     endedAt: number;
 
     /**

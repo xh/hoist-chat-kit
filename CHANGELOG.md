@@ -55,6 +55,10 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Fixed a reply left running on the server, live, loaded or replayed, to show its unfinished server
   calls and sub-agents as "Not finished yet", not as failed, cancelled or "Stopped". Once the
   conversation moves past the reply, it reads as complete and its open work closes.
+* Fixed `replayChatEvents` to record no times for events with no `timestamp`. Before, it timed
+  every tool call, sub-agent and reasoning part by the load, so each showed "<0.1s". The timeline,
+  its screen reader labels and the reasoning label now show no time for them. A backend that
+  stores events should stamp each one as the agent emits it.
 
 ### ✨ Styles
 
