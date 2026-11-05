@@ -2320,8 +2320,9 @@ go: `showStopHint`, the region's `assistantName`, `ChatStatusRegion.defaults` an
 `ChatKit.defaults.busyIcon`. The Stop button names Esc in its tooltip.
 
 `ChatThreadsModel` blocks sends while the server runs a turn that the chat does not follow: the last
-list that held the thread showed it running, and its history has no reply to that turn yet. The
-history is empty, ends with the user's message, or ends with a detached reply. The block offers
+list that held the thread showed it running, and its history has no settled reply to that turn
+yet. The history is empty, ends with the user's message, ends with a detached reply, or ends with
+one that failed in a way that is not retry-safe, as on a dropped connection. The block offers
 Refresh Status. A store that does not report `isRunning` gets no block. With a detached reply, it
 shows as the reply's status, not as a block. `getChatComposerStatus()` still reports every status,
 for a layout of an app's own.
@@ -2358,9 +2359,10 @@ the reply lands. A reload that fails, or lands before the reply was saved, leave
 for the next check to reload.
 
 One record per open thread, a `RunWatch`, holds all that the model knows of such a turn. Its
-phase is `idle`, `waiting` (a list shows the turn running), `due` (a list showed it done),
-`settling` (the last reply may still change, with no run listed) or `stopped`. It also records when the watch
-began, the load that settles its phase, the reloads that found no reply, and the reload in flight.
+phase is `idle`, `waiting` (a list shows the turn running), `timedOut` (as `waiting`, with no
+more checks), `due` (a list showed it done), `settling` (the last reply may still change, with no
+run listed) or `stopped`. It also records when the phase began, the load that settles it, the
+reloads that found no reply, and the reload in flight.
 Only `stepRunWatch()` changes it: a pure function of the record, the thread's facts and one event,
 which returns the next record and whether to reload the history now. The facts are what the model
 reads from the thread each time: busy, saved, loaded, failed to load, checked by the model, listed
@@ -2371,7 +2373,9 @@ after it marks the run done, then the run counts as died.
 
 The model stops, and Refresh Status returns, after `statusRefreshTimeoutMs`, 30 minutes by default,
 when a reload leaves the turn unsettled, or when the current list leaves the thread out, as under
-a search. `statusRefreshMs: null` turns the checks off. A stalled reply keeps Refresh Status: its
+a search. A wait that times out keeps sends waiting, and a list that shows its run done still
+brings the reply, with a fresh window. A thread the backend never saw is not watched, and its
+Refresh Status reloads only the list. `statusRefreshMs: null` turns the checks off. A stalled reply keeps Refresh Status: its
 stream is still open.
 
 **Why.** Many users never see the small Refresh Status button. A backend reports no event when a

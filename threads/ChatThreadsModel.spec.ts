@@ -1260,6 +1260,65 @@ describe('ChatThreadsModel', () => {
                 expect(model.chatModel.isRunningOnServer).toBe(false);
             });
 
+            it('blocks sends after a dropped reply, while the list shows its run going', async () => {
+                const {model, store} = await openRunning();
+                store.saveThread({
+                    id: 't9',
+                    isRunning: true,
+                    messages: [
+                        {role: 'user', content: 'Rates?'},
+                        {
+                            role: 'assistant',
+                            status: 'error',
+                            error: 'Connection lost.',
+                            metadata: {errorCode: 'connection-lost'}
+                        }
+                    ]
+                });
+                await model.chatModel.refreshStatusAsync();
+
+                expect(model.chatModel.sendBlockedReason).toBe('Wait for the reply to finish.');
+                expect(model.chatModel.composerModel.getStatus()).toMatchObject({
+                    type: 'failed',
+                    action: null
+                });
+            });
+
+            it("reads a running thread's messages that the app loads into a new chat as running", async () => {
+                const {model, store} = await openRunning({statusRefreshMs: null});
+                store.saveThread({id: 't8', title: 'Budget', isRunning: true, messages: []});
+                await model.loadAsync();
+                const chat = model.newThread();
+
+                chat.loadMessages([{role: 'user', content: 'Rates?'}], 't8');
+
+                expect(chat.isRunningOnServer).toBe(true);
+                expect(chat.sendBlockedReason).toBe('Wait for the reply to finish.');
+            });
+
+            it('never loads the history of a thread the backend never saw, on Refresh Status', async () => {
+                vi.useFakeTimers({
+                    toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date']
+                });
+                onTestFinished(() => {
+                    vi.useRealTimers();
+                });
+                const {model, store} = setup({
+                        respond: () => {
+                            throw new Error('Connection reset');
+                        }
+                    }),
+                    load = vi.spyOn(store, 'loadMessagesAsync'),
+                    chat = model.newThread();
+                await chat.sendAsync('Hi');
+                expect(chat.lastMessage.status).toBe('error');
+
+                await chat.refreshStatusAsync();
+
+                expect(load).not.toHaveBeenCalled();
+                expect(model.isThreadNotFound).toBe(false);
+            });
+
             it('leaves a run that died to Refresh Status, after a few reloads', async () => {
                 const {model, store} = await openRunning(),
                     load = vi.spyOn(store, 'loadMessagesAsync');

@@ -378,10 +378,11 @@ turn that the backend finished on its own.
 ### A turn running on the server
 
 A thread can hold a turn that runs on the server while its chat does not follow it, as after a
-page reload. The store then lists the thread with `isRunning`, and the history has no reply to the
-turn yet: it is empty, before the backend saves the turn, ends with the user's message, or ends
-with a reply left running - see the `detached` metadata in
-[`/core/`](../core/README.md#stop-or-detach-a-turn). A store that does not report `isRunning`
+page reload. The store then lists the thread with `isRunning`, and the history has no settled
+reply to the turn yet. It is empty, before the backend saves the turn, ends with the user's
+message, ends with a reply left running - see the `detached` metadata in
+[`/core/`](../core/README.md#stop-or-detach-a-turn) - or ends with one that failed in a way that
+is not retry-safe, as on a dropped connection. A store that does not report `isRunning`
 gets none of what follows.
 
 While the turn runs:
@@ -404,15 +405,16 @@ that lands before the backend saved the reply, up to three reloads. If none brin
 run died: the block lifts, and the model stops. With no checks, one reload decides. A history load
 for a check shows no load state, and never applies over a turn the user started meanwhile.
 
-The model checks too on a reply that may still change, with no run listed: a detached reply, or
-one that failed in a way that is not retry-safe, such as on a dropped connection. It reloads the
-history once the list does not show the run going. If that reload leaves the reply as it was, the
-run died, and the model stops. A thread the backend never saw, as when its first turn fails, is
-not checked.
+The model checks too on a reply that may still change while no list shows its run going: a
+detached reply, or one that failed in a way that is not retry-safe. It reloads the history at a
+check. If that reload leaves the reply as it was, the run died, and the model stops. A thread the
+backend never saw, as when its first turn fails, is not checked, and its Refresh Status reloads
+only the list.
 
 The model stops checking, and Refresh Status returns, after `statusRefreshTimeoutMs`, 30 minutes
-by default, and on a run that died. Once stopped, a list that shows the thread running wakes the
-checks again. While a search leaves the thread out of the list, the model makes no checks of its
+by default, and on a run that died. A wait that times out keeps sends waiting, and a list that
+shows the run done still brings the reply. A run that died wakes the checks again once a list
+shows the thread running. While a search leaves the thread out of the list, the model makes no checks of its
 own, and offers Refresh Status. It keeps the `isRunning` of the last list that held the thread, so
 such a search does not lift the block. With `statusRefreshMs` null, the model makes no checks,
 and the region offers Refresh Status. A list that shows the run done still reloads the thread's

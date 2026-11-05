@@ -56,8 +56,9 @@ export interface ChatThreadSummary {
 
     /**
      * True if the backend reports a run in progress in the thread. While it is, the threads model
-     * blocks sends to the thread if its history has no reply to that run yet: it is empty, ends
-     * with the user's message, or ends with a reply left running.
+     * blocks sends to the thread if its history has no settled reply to that run yet: it is empty,
+     * ends with the user's message, ends with a reply left running, or ends with one that failed in
+     * a way that is not retry-safe.
      */
     isRunning?: boolean;
 

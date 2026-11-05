@@ -662,7 +662,17 @@ export class ChatThreadsModel extends HoistModel {
         if (thread.loadState === 'loading') return;
         const conversation = thread.conversation as ChatModelConversation;
         if (conversation.isBusy) conversation.detach();
-        await Promise.all([this.loadHistoryAsync(thread), this.refreshAsync()]);
+        if (thread.isSaved) {
+            await Promise.all([this.loadHistoryAsync(thread), this.refreshAsync()]);
+            return;
+        }
+        // A thread the backend never saw has no history to load: a load would find it missing.
+        // Load it only if the list now holds it, as when its first turn reached the backend.
+        await this.refreshAsync();
+        if (some(this.listedThreads, {id: conversation.threadId})) {
+            thread.setSaved(true);
+            await this.loadHistoryAsync(thread);
+        }
     }
 
     private getSendBlockedReason(thread: OpenThread): string {
@@ -758,13 +768,13 @@ export class ChatThreadsModel extends HoistModel {
             thread.resetLoad();
             // The listing of the thread it held says nothing of the one it holds now.
             thread.setListedRunning(find(this.threads, {id: threadId})?.isRunning ?? null);
-            this.stepRun(thread, {type: 'reset'});
             // A cleared chat holds a thread the backend has not seen. Loaded history with a user
             // message is saved - a greeting alone is not. A conversation of the app's own says
             // through its `isSaved`, or holds a loaded thread if it leaves that out.
             thread.setSaved(
                 chatModel ? some(chatModel.messages, 'isUser') : (conversation.isSaved ?? true)
             );
+            this.stepRun(thread, {type: 'reset'});
         }
         this.openThreads = {...omit(this.openThreads, prevThreadId), [threadId]: thread};
         if (this.selectedThreadId === prevThreadId) this.selectedThreadId = threadId;
@@ -780,9 +790,6 @@ export class ChatThreadsModel extends HoistModel {
             this.stepRun(thread, {type: 'turn'});
             return;
         }
-        // A turn that ended may have left a reply to check on.
-        this.stepRun(thread, {type: 'turn'});
-
         // The backend has seen the thread once a run of it started. A turn that failed before
         // any response, or stopped before the run started, leaves it unsaved. A conversation of
         // the app's own that does not report `isSaved` counts as saved once a turn ends, unless
@@ -793,6 +800,8 @@ export class ChatThreadsModel extends HoistModel {
         } else if (conversation.isSaved == null && endedEarly?.runEnd !== 'cancelled') {
             thread.setSaved(true);
         }
+        // A turn that ended may have left a reply to check on.
+        this.stepRun(thread, {type: 'turn'});
         // A turn that pauses for the user has not finished - the thread lists as awaiting.
         if (!conversation.isAwaitingUser) this.noteTurnEnd(threadId, endedEarly);
         // The backend may have set a title, or the thread's place in the list may change.
@@ -1024,10 +1033,10 @@ export class ChatThreadsModel extends HoistModel {
             const isCurrent = thread.isLoadCurrent(loadKey);
             if (!isCurrent) {
                 this.logWarn(`Discarded a failed load of thread ${threadId}, no longer open`, e);
-            } else if (isQuiet) {
-                this.logWarn(`Failed to check on the run of thread ${threadId}`, e);
             } else if (isNotFound(e)) {
                 thread.endLoadNotFound();
+            } else if (isQuiet) {
+                this.logWarn(`Failed to check on the run of thread ${threadId}`, e);
             } else {
                 thread.endLoad(e);
                 XH.handleException(e, {showAlert: false});

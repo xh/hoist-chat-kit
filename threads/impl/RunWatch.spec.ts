@@ -31,7 +31,15 @@ describe('RunWatch', () => {
             expect(phaseOf(IDLE_WATCH, {...DONE, listedRunning: null, history: 'detached'})).toBe(
                 'settling'
             );
-            expect(phaseOf(IDLE_WATCH, {...RUNNING, history: 'unsafeFailure'})).toBe('settling');
+            expect(phaseOf(IDLE_WATCH, {...DONE, history: 'unsafeFailure'})).toBe('settling');
+        });
+
+        it('waits on a failure that is not retry-safe, while the list shows its run going', () => {
+            const failure = {...RUNNING, history: 'unsafeFailure' as const},
+                watch = run(IDLE_WATCH, failure).watch;
+
+            expect(watch.phase).toBe('waiting');
+            expect(isRunningOnServer(watch, failure)).toBe(true);
         });
 
         it('watches nothing for a finished reply, an unsaved thread, or a failed load', () => {
@@ -85,9 +93,21 @@ describe('RunWatch', () => {
         it('stops checking at the timeout, and keeps sends waiting', () => {
             const late = run(waiting, {...RUNNING, now: 1000 + TIMEOUT}, {type: 'tick'});
 
-            expect(late.watch).toMatchObject({phase: 'waiting', isTimedOut: true});
+            expect(late.watch.phase).toBe('timedOut');
             expect(isRunningOnServer(late.watch, RUNNING)).toBe(true);
             expect(isWatchAutomatic(late.watch, RUNNING)).toBe(false);
+            expect(run(late.watch, RUNNING, {type: 'tick'}).reload).toBe(false);
+        });
+
+        it('makes the reply due once timed out, with a fresh window and its full reloads', () => {
+            const late = run(waiting, {...RUNNING, now: 1000 + TIMEOUT}, {type: 'tick'}).watch,
+                due = run(late, {...DONE, now: 2000 + TIMEOUT});
+
+            expect(due).toMatchObject({
+                watch: {phase: 'due', since: 2000 + TIMEOUT, misses: 0},
+                reload: true
+            });
+            expect(phaseOf(due.watch, {...DONE, now: 3000 + TIMEOUT}, {type: 'tick'})).toBe('due');
         });
 
         it('goes idle once the history shows the reply', () => {
@@ -129,6 +149,10 @@ describe('RunWatch', () => {
             expect(phaseOf(due, DONE, failed(4, true))).toBe('stopped');
         });
 
+        it('settles on a reload that brings a failure, rather than counting it a miss', () => {
+            expect(phaseOf(due, {...DONE, history: 'unsafeFailure'}, loaded(4))).toBe('settling');
+        });
+
         it('waits again on a turn that a later list shows running', () => {
             expect(phaseOf(due, RUNNING, {type: 'listed'})).toBe('waiting');
         });
@@ -148,13 +172,15 @@ describe('RunWatch', () => {
             expect(phaseOf(settling, SETTLING, loaded(4))).toBe('stopped');
         });
 
-        it('waits for a failure whose run a list shows going', () => {
-            const failure = {...RUNNING, history: 'unsafeFailure' as const},
+        it('waits on a failure whose run a list then shows going', () => {
+            const failure = {...DONE, history: 'unsafeFailure' as const},
                 watch = run(IDLE_WATCH, failure).watch;
 
-            expect(run(watch, failure, {type: 'tick'}).reload).toBe(false);
-            expect(phaseOf(watch, failure, loaded(4))).toBe('settling');
+            expect(watch.phase).toBe('settling');
             expect(isRunningOnServer(watch, failure)).toBe(false);
+            expect(phaseOf(watch, {...failure, listedRunning: true}, {type: 'listed'})).toBe(
+                'waiting'
+            );
         });
 
         it('waits on a detached reply that a list then shows running', () => {
@@ -216,11 +242,19 @@ describe('RunWatch', () => {
             expect(isRunningOnServer(waiting, {...RUNNING, isLoadFailed: true})).toBe(false);
         });
 
-        it('checks on its own only for a thread the current list holds', () => {
+        it('checks on its own only for a thread the current list holds, that loaded', () => {
             const waiting = run(IDLE_WATCH, RUNNING).watch;
 
             expect(isWatchAutomatic(waiting, RUNNING)).toBe(true);
             expect(isWatchAutomatic(waiting, {...RUNNING, isChecked: false})).toBe(false);
+            expect(isWatchAutomatic(waiting, {...RUNNING, isLoadFailed: true})).toBe(false);
+        });
+
+        it('goes idle once the history fails to load, or the thread is gone', () => {
+            const waiting = run(IDLE_WATCH, RUNNING).watch;
+            expect(phaseOf(waiting, {...RUNNING, isLoadFailed: true}, failed(4, true))).toBe(
+                'idle'
+            );
         });
     });
 
