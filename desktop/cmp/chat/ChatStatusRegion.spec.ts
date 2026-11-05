@@ -36,6 +36,20 @@ describe('ChatStatusRegion', () => {
         expect(retry).toHaveBeenCalledTimes(1);
     });
 
+    it('withdraws the announcement of a status once it passes', async () => {
+        const chatModel = createModel({
+            responses: [errorEvents('Model timed out.'), textEvents('Recovered.')]
+        });
+        renderRegion(chatModel);
+        await act(() => chatModel.sendAsync('Hi'));
+        expect(chatAnnouncer.assertive?.text).toBe('The reply failed. Model timed out.');
+
+        await act(() => chatModel.retryAsync());
+
+        expect(regionText()).toBeNull();
+        expect(chatAnnouncer.assertive).toBeNull();
+    });
+
     it('never announces the status a thread already had when the region mounts or the thread opens', async () => {
         const chatModel = createModel({
             threadId: 't1',

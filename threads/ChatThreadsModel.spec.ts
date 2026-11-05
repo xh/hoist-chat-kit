@@ -1,4 +1,5 @@
 import {XH} from '@xh/hoist/core';
+import {observable, runInAction} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -1218,6 +1219,22 @@ describe('ChatThreadsModel', () => {
                     expect(model.chatModel.sendBlockedReason).toBeNull();
                 }
             );
+
+            it('makes no checks while the page is hidden, and checks at once when it shows', async () => {
+                // A page whose visibility the test sets, read by the model as it builds.
+                const isVisible = observable.box(true);
+                vi.spyOn(XH, 'pageIsVisible', 'get').mockImplementation(() => isVisible.get());
+                const {store} = await openRunning(),
+                    list = vi.spyOn(store, 'listThreadsAsync');
+                runInAction(() => isVisible.set(false));
+
+                await vi.advanceTimersByTimeAsync(30_000);
+                expect(list).not.toHaveBeenCalled();
+
+                runInAction(() => isVisible.set(true));
+                await vi.advanceTimersByTimeAsync(0);
+                expect(list).toHaveBeenCalledTimes(1);
+            });
 
             it('makes no checks of its own on a thread a search hides', async () => {
                 const {model, store} = await openRunning();

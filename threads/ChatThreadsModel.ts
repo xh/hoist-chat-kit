@@ -373,6 +373,13 @@ export class ChatThreadsModel extends HoistModel {
                 runFn: () => this.checkStatusAsync(),
                 interval: this.statusRefreshMs
             });
+            // A page that shows again checks at once, as its checks paused while it was hidden.
+            this.addReaction({
+                track: () => XH.pageIsVisible,
+                run: isVisible => {
+                    if (isVisible) this.checkStatusAsync();
+                }
+            });
         }
 
         this.addReaction({
@@ -752,9 +759,11 @@ export class ChatThreadsModel extends HoistModel {
 
     /**
      * Check on the turns that run on the server: reload the thread list, if the model checks on
-     * any open thread, then step each thread's watch on the check.
+     * any open thread, then step each thread's watch on the check. A hidden page makes no checks,
+     * as Hoist's auto-refresh makes none.
      */
     private async checkStatusAsync() {
+        if (!XH.pageIsVisible) return;
         if (Object.values(this.openThreads).some(it => this.isStatusWatched(it))) {
             await this.autoRefreshAsync();
         }

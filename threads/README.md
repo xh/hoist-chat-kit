@@ -397,8 +397,9 @@ While the turn runs:
   block with Refresh Status once it stops.
 
 The model checks on such a turn on its own, every `statusRefreshMs`, 5 seconds by default. Each
-check reloads the thread list quietly, with no busy state. A thread with no messages yet also
-reloads its history on each check, so that the turn shows once the backend saves it.
+check reloads the thread list quietly, with no busy state. A hidden page makes no checks, as
+Hoist's auto-refresh makes none, and checks at once when it shows again. A thread with no messages
+yet also reloads its history on each check, so that the turn shows once the backend saves it.
 
 Once a list shows the run done, the thread reloads its history at once, and reads as waiting
 until the reply lands. A reload that fails leaves the reply due, for the next check. So does one

@@ -654,8 +654,8 @@ status of the thread, with at most one action. It holds only what stops a send o
 user's action. A reply's progress shows in the reply itself, so a reply in progress or waiting for
 the user's answer shows no line. A custom layout renders it with `chatStatusRegion()` above the
 composer. Screen readers hear each new status once, a turn that pauses for the user's answer
-included. The status a thread already has when the region mounts, or when the thread opens, is
-not announced.
+included, and a status withdraws its announcement once it passes. The status a thread already has
+when the region mounts, or when the thread opens, is not announced.
 
 | Status | Shows | Action |
 |---|---|---|

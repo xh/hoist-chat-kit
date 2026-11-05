@@ -37,6 +37,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * `ChatThreadsModel` now checks on a turn that runs on the server while its chat does not follow
   it, and loads the reply once the thread list shows the run done. Set the interval with
   `ChatKit.defaults.statusRefreshMs` or `ChatThreadsConfig.statusRefreshMs`, null for none.
+* Added `chatAnnouncer.withdraw()`, to take back an announcement whose news no longer holds. The
+  status region withdraws a status's announcement once it passes.
 * `ChatMessageList` now shows "Still working on the server" for such a turn with no reply saved
   yet, in place of the empty state or after the user's question. The composer's start items breathe
   while it runs.

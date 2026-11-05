@@ -1048,6 +1048,10 @@ chatAnnouncer.announce('Reply failed: model request timed out.', 'assertive');
 Announce what the user must know once. Never announce tokens, status words, elapsed time or
 countdown seconds.
 
+`chatAnnouncer.withdraw(text)` takes back an announcement whose news no longer holds, such as a
+status that has passed, so that a user who browses to the region does not read it. It empties a
+region only if the region still shows exactly that text.
+
 ## Properties/API Reference
 
 See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatComposerModel.ts` and

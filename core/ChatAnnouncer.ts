@@ -62,6 +62,19 @@ export class ChatAnnouncer extends HoistBase {
         this.schedulePolite();
     }
 
+    /**
+     * Take back an announcement whose news no longer holds, such as a status that has passed, so
+     * that a screen reader user who browses to the region does not read it. Empties a region only
+     * if it still shows exactly this text, and drops it if it waits, leaving other announcements.
+     */
+    withdraw(text: string) {
+        text = text?.trim();
+        if (!text) return;
+        this.pendingPolite = without(this.pendingPolite, text);
+        if (this.polite?.text === text) this.setRegion('polite', null);
+        if (this.assertive?.text === text) this.setRegion('assertive', null);
+    }
+
     /** Drop waiting announcements and empty both regions. */
     clear() {
         clearTimeout(this.politeTimer);

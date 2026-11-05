@@ -2344,7 +2344,8 @@ user then gets an error for a send the kit could have held.
 **Decision.** `ChatThreadsModel` checks on its own on a turn that runs on the server while its
 chat does not follow it: one that blocks sends (D116), a detached reply, or a reply that failed in
 a way that is not retry-safe. Every `ChatKit.defaults.statusRefreshMs`, 5 s by default, it reloads
-the thread list as an auto-refresh, with no busy state. Once the list no longer shows the run, it
+the thread list as an auto-refresh, with no busy state, and not while the page is hidden, as
+Hoist's `AutoRefreshService` does. Once the list no longer shows the run, it
 reloads the thread's history, quietly, with no load state. A thread with no messages yet reloads
 its history on each check, so that the turn shows once saved. A quiet load never applies over a
 turn the user started meanwhile.
