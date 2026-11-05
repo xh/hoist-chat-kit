@@ -193,6 +193,59 @@ describe('ChatToolCall display modes', () => {
         expect(header.querySelector('.xh-chat-tool-call__glyph--denied')).toBeTruthy();
     });
 
+    it('shows the open calls of a reply left running as not finished, with no spinner', () => {
+        // A lone call in its step shows as a card, and two in the next as a group.
+        const open = (id: string, step: number) =>
+            toolCall('lookup_rows', {id, step, state: 'input-available', output: null});
+        renderList(
+            createChat({}, [
+                {
+                    id: 'a1',
+                    role: 'assistant',
+                    status: 'aborted',
+                    metadata: {detached: true},
+                    parts: [open('c1', 0), open('c2', 1), open('c3', 1)]
+                }
+            ])
+        );
+
+        const card = document.querySelector('.xh-chat-tool-call'),
+            group = document.querySelector('.xh-chat-tool-call-group__header');
+        expect(card.classList).toContain('xh-chat-tool-call--unfinished');
+        expect(card.textContent).toContain('Not finished yet');
+        expect(group.textContent).toContain('Using 2 tools');
+        expect(group.textContent).toContain('Not finished yet');
+        expect(group.querySelector('.xh-chat-tool-call__glyph--unfinished')).toBeTruthy();
+        expect(document.querySelector('.xh-chat-spinner')).toBeNull();
+    });
+
+    it('shows an open inline call of a reply left running as not finished, with no approval', () => {
+        renderList(
+            createChat({tools: [{name: 'chart', display: 'inline', needsApproval: true}]}, [
+                {
+                    id: 'a1',
+                    role: 'assistant',
+                    status: 'aborted',
+                    metadata: {detached: true},
+                    parts: [
+                        toolCall('chart', {id: 'c1', state: 'input-streaming', output: null}),
+                        toolCall('chart', {id: 'c2', state: 'approval-requested', output: null})
+                    ]
+                }
+            ])
+        );
+
+        const captions = Array.from(
+            document.querySelectorAll('.xh-chat-tool-call__caption-status--unfinished')
+        );
+        expect(captions.map(it => it.textContent)).toEqual([
+            'Not finished yet',
+            'Not finished yet'
+        ]);
+        expect(document.querySelector('.xh-chat-spinner')).toBeNull();
+        expect(document.querySelector('.xh-chat-tool-call__approval-bar')).toBeNull();
+    });
+
     it('shows the output of an inline tool with no renderer, as markdown, with no row', () => {
         const chatModel = createChat({tools: [{name: 'final_answer', display: 'inline'}]}, [
             reply(toolCall('final_answer', {output: 'HY Credit is **over** its limit.'}))

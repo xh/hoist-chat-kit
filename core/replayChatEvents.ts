@@ -62,7 +62,8 @@ export interface ChatReplayOptions {
  *    chat then offers to refresh its status, as after the user left a live reply running.
  *
  * Anything a turn leaves open, such as a tool call with no result, is closed as the live chat
- * would close it, at the time of the turn's last event. An interrupt that a later run answered
+ * would close it, at the time of the turn's last event. A detached turn's open tool calls and
+ * sub-agents stay open, as the server may still finish them. An interrupt that a later run answered
  * counts as delivered. The user's answers to it are not among the events.
  *
  * A record that the decoder rejects fails the reply, as it would fail a live stream, with the
@@ -98,12 +99,15 @@ export function replayChatEvents(
         isStopped = decodeError != null || opts.status === 'aborted' || !isEnded;
     message = isStopped ? reducer.settleText(message) : reducer.finish(message);
 
+    // A turn with no end goes on on the server, so its open calls and sub-agents stay open - but
+    // for the calls of its earlier steps, which ended with their runs.
     const status = decodeError ? 'error' : (opts.status ?? endStatus(message, reducer, isEnded)),
+        isDetached = !isEnded && opts.status == null && !decodeError,
         times = runs.map(runTimes).filter(it => it != null),
         endedAt = max(times.map(it => it[1])) ?? null,
         settleAt = endedAt ?? Date.now(),
         settled =
-            status === 'paused'
+            status === 'paused' || isDetached
                 ? settleStreamingParts(settleEarlierCalls(message, lastIdx, settleAt), settleAt)
                 : settleOpenParts(message, SETTLE_REASONS[status], status === 'aborted', settleAt);
 
@@ -118,9 +122,7 @@ export function replayChatEvents(
         const elapsedMs = sumBy(times, ([start, end]) => end - start);
         replyMetadata = {...replyMetadata, elapsedMs, ...(status === 'paused' ? {} : {endedAt})};
     }
-    if (!isEnded && opts.status == null && !decodeError) {
-        replyMetadata = {...replyMetadata, detached: true};
-    }
+    if (isDetached) replyMetadata = {...replyMetadata, detached: true};
     // The server took each answer that a later run carried.
     if (replyMetadata.interrupts) {
         replyMetadata = {
@@ -205,9 +207,9 @@ function splitRuns(events: ChatEvent[]): ChatEvent[][] {
 }
 
 /**
- * A paused reply with the tool calls of its earlier steps closed. A call the browser ran has its
- * result in the next step's request, not among the events, so it would otherwise wait on the user
- * again. Other parts stay as they are, such as a sub-agent that waits on the reply's interrupts.
+ * A paused or detached reply with the tool calls of its earlier steps closed. A call the browser
+ * ran has its result in the next step's request, not among the events, so it would otherwise stay
+ * open. Other parts stay as they are, such as a sub-agent that waits on the reply's interrupts.
  */
 function settleEarlierCalls(message: ChatMessage, step: number, endedAt: number): ChatMessage {
     const calls = message.toolCalls.filter(it => it.step < step),

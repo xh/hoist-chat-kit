@@ -1,11 +1,10 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
-import {span} from '@xh/hoist/cmp/layout';
 import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {afterEach, beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {chatAnnouncer, ChatKit, ChatModel, type ChatModelConfig} from '../../../core';
 import {type ChatEvent, errorEvents, ScriptedChatTransport, textEvents} from '../../../transport';
-import {ChatStatusRegion, chatStatusRegion, type ChatStatusRegionProps} from './ChatStatusRegion';
+import {chatStatusRegion, type ChatStatusRegionProps} from './ChatStatusRegion';
 
 /**
  * The status region holds the thread's one next action (D64). These specs pin what it offers for
@@ -35,6 +34,20 @@ describe('ChatStatusRegion', () => {
         expect(chatAnnouncer.assertive?.text).toBe('The reply failed. Model timed out.');
         fireEvent.click(screen.getByRole('button', {name: 'Try Again'}));
         expect(retry).toHaveBeenCalledTimes(1);
+    });
+
+    it('withdraws the announcement of a status once it passes', async () => {
+        const chatModel = createModel({
+            responses: [errorEvents('Model timed out.'), textEvents('Recovered.')]
+        });
+        renderRegion(chatModel);
+        await act(() => chatModel.sendAsync('Hi'));
+        expect(chatAnnouncer.assertive?.text).toBe('The reply failed. Model timed out.');
+
+        await act(() => chatModel.retryAsync());
+
+        expect(regionText()).toBeNull();
+        expect(chatAnnouncer.assertive).toBeNull();
     });
 
     it('never announces the status a thread already had when the region mounts or the thread opens', async () => {
@@ -213,77 +226,14 @@ describe('ChatStatusRegion', () => {
         expect(regionText()).toBe('Wait for the conversation to load.');
     });
 
-    it('shows a reply in progress, with Esc to stop when the host can stop', async () => {
+    it('shows no line while a reply is in progress - the reply shows its own progress', async () => {
         vi.useFakeTimers();
         const chatModel = createModel({responses: [textEvents('A long answer.')], delayMs: 50});
         const done = chatModel.sendAsync('Hi');
-        renderRegion(chatModel, {assistantName: 'Analyst'});
+        renderRegion(chatModel);
 
-        expect(regionText()).toBe('Analyst is working · Esc to stop');
-        await act(() => vi.advanceTimersByTimeAsync(5000));
-        await done;
+        expect(chatModel.composerModel.getStatus().type).toBe('busy');
         expect(regionText()).toBeNull();
-    });
-
-    it('splits the busy line into a lead and a hint, with the kit spinner as its icon', async () => {
-        vi.useFakeTimers();
-        const chatModel = createModel({responses: [textEvents('A long answer.')], delayMs: 50});
-        const done = chatModel.sendAsync('Hi');
-        renderRegion(chatModel, {assistantName: 'Analyst'});
-
-        expect(regionPart('lead')).toBe('Analyst is working');
-        expect(regionPart('hint')).toBe(' · Esc to stop');
-        expect(
-            document.querySelector('.xh-chat-status-region__icon .xh-chat-spinner')
-        ).toBeTruthy();
-        await act(() => vi.advanceTimersByTimeAsync(5000));
-        await done;
-    });
-
-    it('leaves the stop hint out of the busy line and its tooltip for showStopHint false or ChatStatusRegion.defaults', async () => {
-        vi.useFakeTimers();
-        const {defaults} = ChatStatusRegion;
-        onTestFinished(() => {
-            defaults.showStopHint = true;
-        });
-        let chatModel = createModel({responses: [textEvents('A long answer.')], delayMs: 50});
-        let done = chatModel.sendAsync('Hi');
-        const {unmount} = renderRegion(chatModel, {showStopHint: false});
-        expectBusyLineWithoutHint();
-        await act(() => vi.advanceTimersByTimeAsync(5000));
-        await done;
-        unmount();
-
-        defaults.showStopHint = false;
-        chatModel = createModel({responses: [textEvents('A long answer.')], delayMs: 50});
-        done = chatModel.sendAsync('Hi');
-        renderRegion(chatModel);
-        expectBusyLineWithoutHint();
-        await act(() => vi.advanceTimersByTimeAsync(5000));
-        await done;
-    });
-
-    it('shows the busy icon from ChatKit.defaults.busyIcon, and none when it returns null', async () => {
-        vi.useFakeTimers();
-        const prior = ChatKit.defaults.busyIcon;
-        onTestFinished(() => {
-            ChatKit.defaults.busyIcon = prior;
-        });
-        ChatKit.defaults.busyIcon = () => span({className: 'app-orbit'});
-        let chatModel = createModel({responses: [textEvents('A long answer.')], delayMs: 50});
-        let done = chatModel.sendAsync('Hi');
-        const {unmount} = renderRegion(chatModel);
-        expect(document.querySelector('.xh-chat-status-region__icon .app-orbit')).toBeTruthy();
-        await act(() => vi.advanceTimersByTimeAsync(5000));
-        await done;
-        unmount();
-
-        ChatKit.defaults.busyIcon = () => null;
-        chatModel = createModel({responses: [textEvents('A long answer.')], delayMs: 50});
-        done = chatModel.sendAsync('Hi');
-        renderRegion(chatModel);
-        expect(regionText()).toBe('Assistant is working · Esc to stop');
-        expect(document.querySelector('.xh-chat-status-region__icon')).toBeNull();
         await act(() => vi.advanceTimersByTimeAsync(5000));
         await done;
     });
@@ -322,19 +272,8 @@ function renderRegion(chatModel: ChatModel, props: Omit<ChatStatusRegionProps, '
     return render(chatStatusRegion({model: chatModel.composerModel, ...props}));
 }
 
-function expectBusyLineWithoutHint() {
-    const text = document.querySelector('.xh-chat-status-region__text');
-    expect(text.textContent).toBe('Assistant is working');
-    expect(text.getAttribute('title')).toBe('Assistant is working');
-    expect(regionPart('hint')).toBeNull();
-}
-
 function regionText(): string {
     return document.querySelector('.xh-chat-status-region__text')?.textContent ?? null;
-}
-
-function regionPart(part: 'lead' | 'hint'): string {
-    return document.querySelector(`.xh-chat-status-region__${part}`)?.textContent ?? null;
 }
 
 async function settleAsync(promise: Promise<void>) {

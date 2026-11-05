@@ -271,8 +271,7 @@ export class ChatComposerModel extends HoistModel {
     }
 
     /**
-     * The status the composer's status region shows now, or null - see
-     * {@link getChatComposerStatus}.
+     * The thread's status for the composer now, or null - see {@link getChatComposerStatus}.
      *
      * @param now - epoch millis to read the clock-based states at. Default now.
      */
@@ -288,6 +287,8 @@ export class ChatComposerModel extends HoistModel {
             retryWaitEndsAt: this.retryWait?.endsAt,
             canRetry: this.canRetry,
             canRefreshStatus: this.canRefreshStatus,
+            isStatusRefreshAutomatic: !!this.chatModel?.isStatusRefreshAutomatic,
+            isRunningOnServer: !!this.chatModel?.isRunningOnServer,
             draftSavedAt: this.restoredDraft?.savedAt,
             now
         });

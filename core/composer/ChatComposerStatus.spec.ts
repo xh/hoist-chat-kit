@@ -56,6 +56,20 @@ describe('getChatComposerStatus', () => {
         ['a server cancel as failed', 'failed', {lastMessage: failed({errorCode: 'cancelled'})}],
         ['a reply left running as detached', 'detached', {lastMessage: detached()}],
         [
+            'a send blocked while the reply runs on as detached, not blocked',
+            'detached',
+            {
+                sendBlockedReason: 'Wait for the reply to finish.',
+                isRunningOnServer: true,
+                lastMessage: detached()
+            }
+        ],
+        [
+            "an app's own send blocker before a reply left running",
+            'blocked',
+            {sendBlockedReason: 'Sign in again.', lastMessage: detached()}
+        ],
+        [
             'a reply with no data past the stall time as stalled',
             'stalled',
             {lastMessage: streaming(), lastActivityAt: NOW - 31_000, stallAfterMs: 30_000}
@@ -65,6 +79,60 @@ describe('getChatComposerStatus', () => {
         ['a restored draft last', 'draftRestored', {lastMessage: complete(), draftSavedAt: NOW}]
     ])('shows %s', (_, type, spec) => {
         expect(getChatComposerStatus({now: NOW, canRetry: true, ...spec}).type).toBe(type);
+    });
+
+    it('offers Refresh Status for a send blocked while the server runs the turn', () => {
+        const spec = {
+            sendBlockedReason: 'Wait for the reply to finish.',
+            isRunningOnServer: true,
+            canRefreshStatus: true
+        };
+        expect(getChatComposerStatus(spec)).toMatchObject({
+            type: 'blocked',
+            action: 'refreshStatus'
+        });
+        expect(
+            getChatComposerStatus({...spec, sendBlockedReason: 'Sign in again.'}).action
+        ).toBeNull();
+    });
+
+    it('offers no Refresh Status while the host refreshes on its own, but for a stall', () => {
+        const auto = {
+            canRefreshStatus: true,
+            isStatusRefreshAutomatic: true,
+            canRetry: true,
+            now: NOW
+        };
+        expect(getChatComposerStatus({...auto, lastMessage: detached()}).action).toBeNull();
+        // A send blocked while the server runs the turn shows nothing - the chat says so.
+        expect(
+            getChatComposerStatus({
+                ...auto,
+                isRunningOnServer: true,
+                sendBlockedReason: 'Wait for the reply to finish.'
+            })
+        ).toBeNull();
+        // The same words from an app's own blocker, with no run on the server, still show.
+        expect(
+            getChatComposerStatus({...auto, sendBlockedReason: 'Wait for the reply to finish.'})
+                .type
+        ).toBe('blocked');
+        // A failure that is not retry-safe offers no Try Again either: a resend could run twice.
+        expect(
+            getChatComposerStatus({
+                ...auto,
+                historyMode: 'server',
+                lastMessage: failed({errorCode: 'connection-lost'})
+            }).action
+        ).toBeNull();
+        expect(
+            getChatComposerStatus({
+                ...auto,
+                lastMessage: streaming(),
+                lastActivityAt: NOW - 31_000,
+                stallAfterMs: 30_000
+            }).action
+        ).toBe('refreshStatus');
     });
 
     it('shows nothing for a finished or stopped reply', () => {

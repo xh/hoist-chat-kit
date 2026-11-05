@@ -30,7 +30,7 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
     /**
      * Items that lead the input row, before the text - such as a brand mark. They sit level with
      * the first line as the input grows, or the last with `layout: 'inline'`. They breathe while
-     * a reply runs - see `breatheStartItems`.
+     * a reply runs, here or on the server - see `breatheStartItems`.
      */
     startItems?: ReactNode;
 
@@ -71,9 +71,11 @@ export interface ChatComposerProps extends HoistProps<ChatComposerModel>, BoxPro
 
     /**
      * False to keep start items still while a reply runs. By default they breathe - a slow fade
-     * and scale - and ease back to rest when it ends, which suits a mark, not a control. Still
-     * under reduced motion. To animate them yourself, set this false and style them under the
-     * composer's `xh-chat-composer--busy` class.
+     * and scale - and ease back to rest when it ends, which suits a mark, not a control. They
+     * breathe too while the chat's turn runs on the server, as after a page reload - see
+     * `ChatModel.isRunningOnServer`. Still under reduced motion. To animate them yourself, set
+     * this false and style them under the composer's `xh-chat-composer--busy` class, which the
+     * composer takes at the same times.
      */
     breatheStartItems?: boolean;
 
@@ -154,7 +156,9 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                 composerModel,
             isPaused = chatModel?.lastMessage?.status === 'paused',
             isInline = layout === 'inline',
-            startRef = useBreathing<HTMLDivElement>(breatheStartItems && host.isBusy);
+            // The assistant works while its turn runs here, or on the server after a reload.
+            isWorking = host.isBusy || !!chatModel?.isRunningOnServer,
+            startRef = useBreathing<HTMLDivElement>(breatheStartItems && isWorking);
         useLayoutEffect(() => impl.fitInput(), [impl, text, maxRows]);
         // After the fit, so that the field first takes the input's fitted height.
         const fieldRef = useSmoothFieldHeight<HTMLDivElement>();
@@ -184,7 +188,7 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
             className: classNames(className, {
                 'xh-chat-composer--inline': isInline,
                 'xh-chat-composer--dragging': impl.isDragging,
-                'xh-chat-composer--busy': host.isBusy,
+                'xh-chat-composer--busy': isWorking,
                 'xh-chat-composer--attention': isPaused,
                 'xh-chat-composer--waiting': !!composerModel.retryWait
             }),
@@ -348,6 +352,7 @@ function sendButton(
                 key: 'stop',
                 icon: Icon.stop({prefix: 'fas'}),
                 text: 'Stop',
+                tooltip: 'Stop (Esc)',
                 outlined: true,
                 ...stopProps,
                 className: classNames('xh-chat-composer__stop', stopProps.className),

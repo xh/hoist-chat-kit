@@ -59,7 +59,8 @@ export class ChatStatusRegionLocalModel extends HoistModel {
     /**
      * Announce a status to screen readers once, when it first shows. A countdown repeats every
      * 10 s at most, and never its seconds in between. The status a thread has when the region
-     * mounts, or when the thread opens, is history and never announced.
+     * mounts, or when the thread opens, is history and never announced. A status that passes
+     * withdraws its announcement.
      */
     noteStatus(status: ChatComposerStatus, text: string) {
         const key = announceKey(status),
@@ -70,14 +71,19 @@ export class ChatStatusRegionLocalModel extends HoistModel {
 
         if (key === this.lastAnnounceKey) return;
         this.lastAnnounceKey = key;
+        // A status that passed takes its words back, so that none lingers in the region.
+        if (this.lastAnnounced) chatAnnouncer.withdraw(this.lastAnnounced);
+        this.lastAnnounced = null;
         if (key == null || isBaseline) return;
         chatAnnouncer.announce(text, politenessOf(status));
+        this.lastAnnounced = text;
     }
 
     //------------------
     // Implementation
     //------------------
     private lastAnnounceKey: string = null;
+    private lastAnnounced: string = null;
     private lastThreadId: string = null;
     private hasBaseline = false;
 }

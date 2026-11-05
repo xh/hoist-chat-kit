@@ -84,7 +84,9 @@ import {genChatId} from '../impl/LangUtils';
 import {
     createTextPart,
     getClientToolCalls,
+    isDetachedReply,
     SETTLE_REASONS,
+    settleOpenCalls,
     settleOpenParts,
     settleStreamingParts,
     updatePart
@@ -273,6 +275,21 @@ export interface ChatModelConfig {
      * in `onTurnComplete`, to keep a paused reply across a reload.
      */
     onTurnPause?: (message: ChatMessage) => void;
+}
+
+/** What a thread layer knows of a thread's runs - see {@link ChatModel.setStatusRefresher}. */
+export interface ChatStatusRefresherOptions {
+    /**
+     * Returns true while the thread layer refreshes the status on its own, so that the user need
+     * not - see {@link ChatModel.isStatusRefreshAutomatic}. Default never.
+     */
+    isAutomatic?: () => boolean;
+
+    /**
+     * Returns true while the server runs a turn of the thread that the chat does not follow - see
+     * {@link ChatModel.isRunningOnServer}. Default never.
+     */
+    isRunningOnServer?: () => boolean;
 }
 
 /** Who owns the conversation history - see {@link ChatModelConfig.historyMode}. */
@@ -548,7 +565,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     @computed
     get waitingToolCalls(): ChatToolCallPart[] {
         const {lastMessage} = this;
-        if (this.isBusy || !lastMessage?.isAssistant) return [];
+        // A detached reply's open calls wait on the server, not the user.
+        if (this.isBusy || !lastMessage?.isAssistant || isDetachedReply(lastMessage)) return [];
         const isPausedOnInterrupts = !!this.pausedInterruptSet;
         return lastMessage.toolCalls.filter(
             it =>
@@ -605,6 +623,26 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     @computed
     get canRefreshStatus(): boolean {
         return !!this.statusRefresher;
+    }
+
+    /**
+     * True while the thread layer refreshes the status on its own - see
+     * {@link setStatusRefresher}. The composer's status region then offers no Refresh Status for a
+     * turn the chat does not follow.
+     */
+    @computed
+    get isStatusRefreshAutomatic(): boolean {
+        return !!this.statusRefresherOpts?.isAutomatic?.();
+    }
+
+    /**
+     * True if the thread layer reports a turn that runs on the server while the chat does not
+     * follow it, as after a page reload - see {@link setStatusRefresher}. Sends then wait, and an
+     * empty chat shows that the reply is on its way rather than the empty state.
+     */
+    @computed
+    get isRunningOnServer(): boolean {
+        return !this.isBusy && !!this.statusRefresherOpts?.isRunningOnServer?.();
     }
 
     /**
@@ -717,7 +755,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.modelTools = tools.filter(
             it => it.sendToModel ?? (it.execute != null || !!it.interactive)
         );
-        this.messages = restoreMessages(initialMessages);
+        this.messages = this.restore(initialMessages);
         this.addArtifactsOf(this.messages);
         tools.forEach(it => {
             if (it.interactive && !it.execute && !it.renderer) {
@@ -798,7 +836,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     /**
      * Stop following the current turn, without cancelling it. The message is kept as 'aborted',
      * as with `stop`. In server mode, a turn with a step in flight is marked `metadata.detached`,
-     * as the server finishes it on its own, and a reload of the thread later shows its answer.
+     * as the server finishes it on its own, and a reload of the thread later shows its answer. Its
+     * unfinished tool calls and sub-agents stay open, where a stop closes them as cancelled.
      */
     detach() {
         this.abortTurn('detach');
@@ -1107,10 +1146,13 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     /**
      * Supply the function that reloads the thread from the backend, for
      * {@link refreshStatusAsync}. A thread layer calls this when it creates the chat.
+     *
+     * @param opts - what the thread layer knows of the thread's runs, read as observable state.
      */
     @action
-    setStatusRefresher(refreshAsync: () => Promise<void>) {
+    setStatusRefresher(refreshAsync: () => Promise<void>, opts: ChatStatusRefresherOptions = {}) {
         this.statusRefresher = refreshAsync;
+        this.statusRefresherOpts = opts;
     }
 
     /**
@@ -1135,7 +1177,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      * that was pending or streaming becomes 'aborted', with its unfinished tool calls failed. A
      * paused turn at the end of the history stays paused, so the user can still answer its tool
      * calls - or send a new message, which closes them. A paused turn earlier in the history is
-     * closed.
+     * closed. So is a detached reply - see {@link detach} - except at the end of the history,
+     * where its unfinished tool calls and sub-agents stay open.
      *
      * In server mode, a turn still running on the server is detached rather than cancelled - see
      * {@link detach}.
@@ -1189,6 +1232,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     @observableRef private accessor feedbackSubmitter: ChatFeedbackSubmitter = null;
     @observableRef private accessor sendBlockers: Array<() => string>;
     @observableRef private accessor statusRefresher: () => Promise<void> = null;
+    @observableRef private accessor statusRefresherOpts: ChatStatusRefresherOptions = null;
 
     // The latest feedback submit for each message, by count - see `submitFeedbackAsync`.
     private readonly feedbackSubmits = new Map<string, number>();
@@ -1709,6 +1753,30 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         }
     }
 
+    /** Messages from stored specs, closed as `loadMessages` describes. */
+    private restore(specs: ChatMessageSpec[]): ChatMessage[] {
+        const messages = restoreMessages(specs),
+            last = messages[messages.length - 1];
+        if (isDetachedReply(last)) messages[messages.length - 1] = this.closeClientCalls(last);
+        return messages;
+    }
+
+    /**
+     * A detached reply with the open calls that the browser would run or answer closed - those to
+     * a tool of the chat with an `execute`, or an interactive one. The turn that would run them
+     * is over, and the server never does. Calls the server runs, display tools included, stay open.
+     */
+    private closeClientCalls(message: ChatMessage): ChatMessage {
+        return settleOpenCalls(
+            message,
+            it => {
+                const spec = it.providerExecuted ? null : this.getOwnToolSpec(it.toolName);
+                return !!(spec?.execute || spec?.interactive);
+            },
+            SETTLE_REASONS.interrupted
+        );
+    }
+
     /** The spec for a tool in `tools`, or null - the only kind that runs or answers a call. */
     private getOwnToolSpec(name: string): ChatToolSpec {
         return this.tools.find(it => it.name === name) ?? null;
@@ -1759,7 +1827,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.abortTurn(reason);
         this._threadId = threadId ?? genChatId();
         this.isThreadIdProvisional = threadId == null || !hasHistory(specs);
-        this.messages = restoreMessages(specs);
+        this.messages = this.restore(specs);
         this.interruptSet = restoreInterruptSet(this.messages);
         // A history rebuilt from events, rather than saved by the chat, has no marks on the
         // server calls that a paused reply's interrupts wait on.
@@ -1788,7 +1856,8 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         if (this.interruptSet) this.setInterruptSet(declineRest(this.interruptSet));
         this.closePausedTurn();
 
-        const history = getHistory(),
+        // A detached reply the conversation moves past gets no more results.
+        const history = getHistory().map(it => (isDetachedReply(it) ? closeMovedPast(it) : it)),
             userMessage = findLast(history, it => it.isUser),
             message = new ChatMessage({role: 'assistant', status: 'pending'}),
             turn = createTurn(message, 0, true, {
@@ -1871,10 +1940,12 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             this.logError('Could not check the reply for catalog UI', e);
         }
 
-        const settled = settleOpenParts(
-            message,
-            SETTLE_REASONS[status],
-            status === 'aborted'
+        // A detached reply's work goes on on the server, so its open calls and sub-agents stay
+        // open.
+        const settled = (
+            detached
+                ? this.closeClientCalls(settleStreamingParts(message))
+                : settleOpenParts(message, SETTLE_REASONS[status], status === 'aborted')
         ).withChanges({
             status,
             error: error ? errorText(error) : null,
@@ -2158,7 +2229,8 @@ function stopTurnClock(turn: ChatTurn): number {
 
 /**
  * Messages from stored specs, with anything left in progress closed - see `loadMessages`. A
- * paused turn at the end of the specs stays paused.
+ * paused turn at the end of the specs stays paused. So does the open work of a detached reply at
+ * the end, which the server may still finish.
  */
 function restoreMessages(specs: ChatMessageSpec[]): ChatMessage[] {
     const messages = specs.map(it => new ChatMessage(it)),
@@ -2178,8 +2250,26 @@ function restoreMessages(specs: ChatMessageSpec[]): ChatMessage[] {
                     status: 'aborted'
                 });
             default:
-                return settleOpenParts(message, SETTLE_REASONS.interrupted);
+                if (!isDetachedReply(message)) {
+                    return settleOpenParts(message, SETTLE_REASONS.interrupted);
+                }
+                return idx === lastIdx ? settleStreamingParts(message) : closeMovedPast(message);
         }
+    });
+}
+
+/**
+ * A detached reply that the conversation moved past, as complete, with its open work closed - as
+ * for a paused reply the user moved past. The chat will not learn how its run ended.
+ */
+function closeMovedPast(message: ChatMessage): ChatMessage {
+    // A call approved for a resume gets no result either, once nothing follows the reply.
+    const parts = message.parts.map(it =>
+        it.type === 'toolCall' && it.awaitsResume ? {...it, awaitsResume: false} : it
+    );
+    return settleOpenParts(message.withChanges({parts}), SETTLE_REASONS.complete).withChanges({
+        status: 'complete',
+        metadata: omit(message.metadata, 'detached')
     });
 }
 

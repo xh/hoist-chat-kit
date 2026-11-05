@@ -1,5 +1,5 @@
 import {compact, isEmpty, isString} from 'lodash';
-import type {ReactNode} from 'react';
+import {type ReactNode, useContext} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
@@ -28,6 +28,7 @@ import {
 } from './impl/ToolCallStatus';
 import {chatSpinner} from '../../impl/ChatLiveCues';
 import {chatToolApproval} from './impl/ChatToolApproval';
+import {ReplyDetachedContext} from './impl/ReplyDetached';
 import {getHostToolSpec, getToolCallDisplay} from './impl/groupParts';
 import {CHAT_MARKDOWN_COMPONENTS} from './ChatMarkdownComponents';
 
@@ -51,7 +52,8 @@ export interface ChatToolCallProps extends HoistProps {
  * tool's title and name, with the first line of any error, and its summary and status words at
  * the right. The row opens to show the call's input and output as JSON, or the tool's own
  * rendering. A call waiting for approval frames itself in the attention color, and shows Allow
- * and Deny, with an optional reason sent with either.
+ * and Deny, with an optional reason sent with either. A call still open in a reply left running
+ * on the server shows as "Not finished yet", with no spinner and no Allow or Deny.
  *
  * Display is configured per tool by its {@link ChatToolSpec}: `displayName`, `icon`, `summary`,
  * `renderer` and `approvalPrompt`. A tool with `display: 'inline'` shows its renderer's output with
@@ -70,6 +72,7 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
 
     render({className, part, context}, ref) {
         const impl = useLocalModel(ChatToolCallLocalModel),
+            isDetached = useContext(ReplyDetachedContext),
             {chatModel} = context,
             host = context.host ?? chatModel,
             spec = getHostToolSpec(host, part.toolName);
@@ -78,20 +81,31 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
             case 'hidden':
                 return null;
             case 'inline':
-                return inlineToolCall({ref, className, part, context, chatModel, spec, impl});
+                return inlineToolCall({
+                    ref,
+                    className,
+                    part,
+                    context,
+                    chatModel,
+                    spec,
+                    impl,
+                    isDetached
+                });
         }
 
+        // A call left open in a reply the chat no longer follows waits on no one here.
         const {state, toolName} = part,
-            isApproval = state === 'approval-requested',
+            isApproval = state === 'approval-requested' && !isDetached,
             hasRenderer = !!spec?.renderer,
             hasBody = hasRenderer || hasDefaultBody(part),
             isExpanded = hasBody && (impl.expanded ?? (isApproval || hasRenderer)),
-            kind = getToolCallStatusKind(part, spec),
+            kind = getToolCallStatusKind(part, spec, isDetached),
             title = getToolTitle(part, spec),
             errorLine = getErrorLine(part),
-            meta = compact([spec?.summary?.(part), getToolCallStatusLabel(part, spec)]).join(' · '),
+            statusLabel = getToolCallStatusLabel(part, spec, isDetached),
+            meta = compact([spec?.summary?.(part), statusLabel]).join(' · '),
             rowItems = [
-                statusGlyph(part, spec),
+                statusGlyph(part, spec, isDetached),
                 spec?.icon ? span({className: 'xh-chat-tool-call__icon', item: spec.icon}) : null,
                 span({className: 'xh-chat-tool-call__title', item: title}),
                 title !== toolName
@@ -128,9 +142,7 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
                           className: 'xh-chat-tool-call__header',
                           text: span({className: 'xh-chat-tool-call__row', items: rowItems}),
                           'aria-expanded': isExpanded,
-                          'aria-label': compact([title, getToolCallStatusLabel(part, spec)]).join(
-                              ', '
-                          ),
+                          'aria-label': compact([title, statusLabel]).join(', '),
                           onClick: () => impl.setExpanded(!isExpanded)
                       })
                     : div({
@@ -187,6 +199,9 @@ interface InlineToolCallArgs extends ChatToolCallProps {
     chatModel: ChatModel;
     spec: ChatToolSpec;
     impl: ChatToolCallLocalModel;
+
+    /** True if the call's reply was left running on the server - see `ReplyDetachedContext`. */
+    isDetached: boolean;
 }
 
 /**
@@ -206,11 +221,12 @@ function inlineToolCall({
     context,
     chatModel,
     spec,
-    impl
+    impl,
+    isDetached
 }: InlineToolCallArgs) {
     const {state, errorText} = part,
         // The approval bar asks for approval itself, so the caption need not say so too.
-        inlineStatus = getInlineStatus(part, spec),
+        inlineStatus = getInlineStatus(part, spec, isDetached),
         status = inlineStatus?.type === 'approval' ? null : inlineStatus,
         inputValue = getInputValue(part),
         hasDetails =
@@ -236,7 +252,8 @@ function inlineToolCall({
                     ? toolCallBody({part, spec, context})
                     : outputView(part.output)
                 : null,
-            state === 'approval-requested' && chatModel
+            // A call left open in a reply the chat no longer follows waits on no one here.
+            state === 'approval-requested' && chatModel && !isDetached
                 ? chatToolApproval({part, spec, chatModel})
                 : null,
             div({
@@ -304,6 +321,8 @@ function inlineStatusIcon(type: InlineCallStatus['type']): ReactNode {
             return Icon.stopCircle();
         case 'denied':
             return Icon.slashedCircle();
+        case 'unfinished':
+            return Icon.circle();
     }
 }
 

@@ -14,10 +14,17 @@ import {
     without
 } from 'lodash';
 import type {LoadSpec} from '@xh/hoist/core';
+import {Timer} from '@xh/hoist/utils/async';
 import {HoistModel, managed, TaskObserver, XH} from '@xh/hoist/core';
 import {action, bindable, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {debounced, throwIf} from '@xh/hoist/utils/js';
-import {ChatKit, type ChatModel} from '../core';
+import {
+    ChatKit,
+    type ChatModel,
+    getChatReplyStatus,
+    isChatRetrySafe,
+    RUN_ON_SERVER_REASON
+} from '../core';
 import {genChatId} from '../impl/LangUtils';
 import type {
     ChatConversation,
@@ -29,6 +36,14 @@ import type {ChatThreadPage, ChatThreadStore, ChatThreadSummary} from './ChatThr
 import {ChatModelConversation} from './impl/ChatModelConversation';
 import {ChatModelDrafts} from './impl/ChatModelDrafts';
 import {OpenThread} from './impl/OpenThread';
+import {
+    isRunningOnServer,
+    isWatchAutomatic,
+    type RunFacts,
+    type RunHistory,
+    type RunWatchEvent,
+    stepRunWatch
+} from './impl/RunWatch';
 import {isNotFound, UNTITLED_THREAD} from './impl/threadUtils';
 
 /** Configuration for a {@link ChatThreadsModel}. */
@@ -60,6 +75,19 @@ export interface ChatThreadsConfig {
      * the parameter then stay in sync both ways.
      */
     route?: ChatThreadsRoute;
+
+    /**
+     * Milliseconds between checks on a turn that runs on the server while its chat does not
+     * follow it, or null to check only when the user clicks Refresh Status. Default
+     * `ChatKit.defaults.statusRefreshMs`, 5,000. See the README's "A turn running on the server".
+     */
+    statusRefreshMs?: number;
+
+    /**
+     * Milliseconds after which the model stops checking on such a turn, and offers Refresh Status
+     * instead. Default `ChatKit.defaults.statusRefreshTimeoutMs`, 30 minutes.
+     */
+    statusRefreshTimeoutMs?: number;
 }
 
 /** @deprecated - use {@link ChatConversationSpec}. */
@@ -124,6 +152,12 @@ export class ChatThreadsModel extends HoistModel {
 
     /** The route that holds the selected thread, or null. */
     readonly route: ChatThreadsRoute;
+
+    /** Milliseconds between checks on a turn that runs on the server, or null - see config. */
+    readonly statusRefreshMs: number;
+
+    /** Milliseconds after which the model stops checking on such a turn - see config. */
+    readonly statusRefreshTimeoutMs: number;
 
     /** Tracks loads of the thread list. */
     @managed readonly listTask = TaskObserver.trackLast();
@@ -328,6 +362,25 @@ export class ChatThreadsModel extends HoistModel {
         this.createChatModel = createChatModel ?? null;
         this.createConversation = createConversation ?? null;
         this.route = route;
+        this.statusRefreshMs =
+            config.statusRefreshMs !== undefined
+                ? config.statusRefreshMs
+                : ChatKit.defaults.statusRefreshMs;
+        this.statusRefreshTimeoutMs =
+            config.statusRefreshTimeoutMs ?? ChatKit.defaults.statusRefreshTimeoutMs;
+        if (this.isCheckingOn) {
+            this.statusTimer = Timer.create({
+                runFn: () => this.checkStatusAsync(),
+                interval: this.statusRefreshMs
+            });
+            // A page that shows again checks at once, as its checks paused while it was hidden.
+            this.addReaction({
+                track: () => XH.pageIsVisible,
+                run: isVisible => {
+                    if (isVisible) this.checkStatusAsync();
+                }
+            });
+        }
 
         this.addReaction({
             track: () => this.searchQuery,
@@ -375,10 +428,17 @@ export class ChatThreadsModel extends HoistModel {
             listNumber = this.listCount++;
 
         try {
-            const page = await this.store.listThreadsAsync({search}).linkTo(this.listTask);
+            // A check on a turn running on the server reloads the list quietly.
+            const request = this.store.listThreadsAsync({search}),
+                page = await (loadSpec.isAutoRefresh ? request : request.linkTo(this.listTask));
             if (this.isListCurrent(listNumber, search)) this.applyThreadPage(page, listNumber);
         } catch (e) {
             if (!this.isListCurrent(listNumber, search)) return;
+            // A check on a turn running on the server fails quietly, and the next one tries again.
+            if (loadSpec.isAutoRefresh) {
+                this.logWarn('Failed to check the thread list', e);
+                return;
+            }
             this.setListError(e);
             XH.handleException(e, {showAlert: false});
         }
@@ -505,6 +565,9 @@ export class ChatThreadsModel extends HoistModel {
     // Threads whose turn ended early in the background, in this session - see `endedEarlyThreads`.
     @observableRef private accessor endedEarlyHere: Record<string, ChatThreadEndedEarly> = {};
 
+    // Checks on the turns that run on the server - see `statusRefreshMs`.
+    @managed private statusTimer: Timer = null;
+
     // Threads whose turn finished in the background, in this session - see `finishedAwayThreadIds`.
     @observableRef private accessor finishedAwayHere: string[] = [];
 
@@ -565,6 +628,8 @@ export class ChatThreadsModel extends HoistModel {
             onBusyChange: it => this.onBusyChange(it)
         });
         this.putOpenThread(threadId, thread);
+        const summary = find(this.threads, {id: threadId});
+        if (summary) this.noteListing(thread, !!summary.isRunning);
         return thread;
     }
 
@@ -587,19 +652,34 @@ export class ChatThreadsModel extends HoistModel {
             store: this.store,
             drafts: this.drafts,
             getSendBlockedReason: () => this.getSendBlockedReason(getThread()),
-            refreshStatusAsync: () => this.refreshStatusAsync(getThread())
+            refreshStatusAsync: () => this.refreshStatusAsync(getThread()),
+            statusRefresherOpts: {
+                isAutomatic: () => this.isStatusWatched(getThread()),
+                isRunningOnServer: () => this.isRunningElsewhere(getThread())
+            }
         });
     }
 
     /**
-     * Reload a thread's history, to learn how a run ended that its chat lost sight of. A turn
-     * still running here - one that stalled - is detached first, as the server may finish it.
+     * Reload a thread's history, to learn how a run ended that its chat lost sight of, and the
+     * thread list, whose row for the thread may still show the run. A turn still running here -
+     * one that stalled - is detached first, as the server may finish it.
      */
     private async refreshStatusAsync(thread: OpenThread): Promise<void> {
         if (thread.loadState === 'loading') return;
         const conversation = thread.conversation as ChatModelConversation;
         if (conversation.isBusy) conversation.detach();
-        await this.loadHistoryAsync(thread);
+        if (thread.isSaved) {
+            await Promise.all([this.loadHistoryAsync(thread), this.refreshAsync()]);
+            return;
+        }
+        // A thread the backend never saw has no history to load: a load would find it missing.
+        // Load it only if the list now holds it, as when its first turn reached the backend.
+        await this.refreshAsync();
+        if (some(this.listedThreads, {id: conversation.threadId})) {
+            thread.setSaved(true);
+            await this.loadHistoryAsync(thread);
+        }
     }
 
     private getSendBlockedReason(thread: OpenThread): string {
@@ -611,7 +691,83 @@ export class ChatThreadsModel extends HoistModel {
             case 'notFound':
                 return 'This conversation does not exist. Start a new chat.';
         }
-        return null;
+        return this.isRunningElsewhere(thread) ? RUN_ON_SERVER_REASON : null;
+    }
+
+    //------------------------
+    // Turns running on the server - see `RunWatch`
+    //------------------------
+    /**
+     * True if the server runs a turn of the thread that its chat does not follow, with no reply
+     * to it yet - see `RunWatch`. Sends then wait, as one would start a second run.
+     */
+    private isRunningElsewhere(thread: OpenThread): boolean {
+        return !!thread?.chatModel && isRunningOnServer(thread.runWatch, this.getRunFacts(thread));
+    }
+
+    /** True while the model checks on a thread's turn on its own - see `statusRefreshMs`. */
+    private isStatusWatched(thread: OpenThread): boolean {
+        return !!thread?.chatModel && isWatchAutomatic(thread.runWatch, this.getRunFacts(thread));
+    }
+
+    /** True if the model checks on turns running on the server on its own. */
+    private get isCheckingOn(): boolean {
+        return this.statusRefreshMs > 0;
+    }
+
+    /** What the run watch reads from a thread - see `RunFacts`. */
+    private getRunFacts(thread: OpenThread): RunFacts {
+        const {chatModel, loadState} = thread;
+        return {
+            isBusy: chatModel.isBusy,
+            isSaved: thread.isSaved,
+            isLoaded: loadState === 'loaded',
+            isLoadFailed: loadState === 'failed' || loadState === 'notFound',
+            // A thread the current list leaves out, as under a search, has no run a check can see.
+            isChecked: this.isCheckingOn && some(this.threads, {id: chatModel.threadId}),
+            listedRunning: thread.isListedRunning,
+            history: getRunHistory(chatModel),
+            loadKey: thread.loadKey,
+            now: Date.now()
+        };
+    }
+
+    /**
+     * Step a thread's run watch on an event - the one place it changes - and reload the thread's
+     * history quietly if the step asks.
+     */
+    private stepRun(thread: OpenThread, event: RunWatchEvent) {
+        if (!thread?.chatModel || thread.isDestroyed) return;
+        const {watch, reload} = stepRunWatch(
+            thread.runWatch,
+            this.getRunFacts(thread),
+            event,
+            this.statusRefreshTimeoutMs
+        );
+        thread.setRunWatch(watch);
+        if (reload) this.loadHistoryAsync(thread, true);
+    }
+
+    /** Record what a list says of a thread's run, and step its watch on it. */
+    private noteListing(thread: OpenThread, isRunning: boolean) {
+        // A list that holds the thread proves the backend does, as for a first turn that dropped
+        // before any event.
+        thread.setSaved(true);
+        thread.setListedRunning(isRunning);
+        this.stepRun(thread, {type: 'listed'});
+    }
+
+    /**
+     * Check on the turns that run on the server: reload the thread list, if the model checks on
+     * any open thread, then step each thread's watch on the check. A hidden page makes no checks,
+     * as Hoist's auto-refresh makes none.
+     */
+    private async checkStatusAsync() {
+        if (!XH.pageIsVisible) return;
+        if (Object.values(this.openThreads).some(it => this.isStatusWatched(it))) {
+            await this.autoRefreshAsync();
+        }
+        Object.values(this.openThreads).forEach(it => this.stepRun(it, {type: 'tick'}));
     }
 
     @action
@@ -627,12 +783,15 @@ export class ChatThreadsModel extends HoistModel {
             this.rekeyThread(prevThreadId, threadId);
         } else {
             thread.resetLoad();
+            // The listing of the thread it held says nothing of the one it holds now.
+            thread.setListedRunning(find(this.threads, {id: threadId})?.isRunning ?? null);
             // A cleared chat holds a thread the backend has not seen. Loaded history with a user
             // message is saved - a greeting alone is not. A conversation of the app's own says
             // through its `isSaved`, or holds a loaded thread if it leaves that out.
             thread.setSaved(
                 chatModel ? some(chatModel.messages, 'isUser') : (conversation.isSaved ?? true)
             );
+            this.stepRun(thread, {type: 'reset'});
         }
         this.openThreads = {...omit(this.openThreads, prevThreadId), [threadId]: thread};
         if (this.selectedThreadId === prevThreadId) this.selectedThreadId = threadId;
@@ -643,11 +802,11 @@ export class ChatThreadsModel extends HoistModel {
             {threadId} = conversation;
         this.noteActivity(conversation);
         if (conversation.isBusy) {
-            // A new turn: its reply is the one to see now.
+            // A new turn: its reply is the one to see now, and the one to check on if it drops.
             this.clearMarks(threadId);
+            this.stepRun(thread, {type: 'turn'});
             return;
         }
-
         // The backend has seen the thread once a run of it started. A turn that failed before
         // any response, or stopped before the run started, leaves it unsaved. A conversation of
         // the app's own that does not report `isSaved` counts as saved once a turn ends, unless
@@ -658,6 +817,8 @@ export class ChatThreadsModel extends HoistModel {
         } else if (conversation.isSaved == null && endedEarly?.runEnd !== 'cancelled') {
             thread.setSaved(true);
         }
+        // A turn that ended may have left a reply to check on.
+        this.stepRun(thread, {type: 'turn'});
         // A turn that pauses for the user has not finished - the thread lists as awaiting.
         if (!conversation.isAwaitingUser) this.noteTurnEnd(threadId, endedEarly);
         // The backend may have set a title, or the thread's place in the list may change.
@@ -860,22 +1021,44 @@ export class ChatThreadsModel extends HoistModel {
     //------------------------
     // History
     //------------------------
-    private async loadHistoryAsync(thread: OpenThread) {
+    /**
+     * Load a thread's history. Each load ends with an event for the thread's run watch, whether
+     * it applied or not.
+     *
+     * @param isQuiet - true for a reload the run watch asked for. The thread shows no load in
+     *      progress, and a failed reload is logged, leaving the thread as it was.
+     */
+    private async loadHistoryAsync(thread: OpenThread, isQuiet: boolean = false) {
         const {threadId} = thread.conversation,
-            loadKey = thread.beginLoad();
+            loadKey = thread.beginLoad(isQuiet);
+        if (isQuiet) this.stepRun(thread, {type: 'reloadStarted', key: loadKey});
 
         try {
-            await thread.conversation.loadAsync().linkTo(this.loadTask);
-            if (thread.isLoadCurrent(loadKey)) thread.endLoad();
+            const {conversation} = thread,
+                isApplied = isQuiet
+                    ? await (conversation as ChatModelConversation).checkAsync()
+                    : await conversation.loadAsync().linkTo(this.loadTask),
+                isCurrent = thread.isLoadCurrent(loadKey);
+            if (isCurrent && !isQuiet) thread.endLoad();
+            // An app's own conversation reports nothing, and applies what it loads.
+            this.stepRun(thread, {
+                type: 'loaded',
+                key: loadKey,
+                isApplied: isCurrent && isApplied !== false
+            });
         } catch (e) {
-            if (!thread.isLoadCurrent(loadKey)) {
+            const isCurrent = thread.isLoadCurrent(loadKey);
+            if (!isCurrent) {
                 this.logWarn(`Discarded a failed load of thread ${threadId}, no longer open`, e);
             } else if (isNotFound(e)) {
                 thread.endLoadNotFound();
+            } else if (isQuiet) {
+                this.logWarn(`Failed to check on the run of thread ${threadId}`, e);
             } else {
                 thread.endLoad(e);
                 XH.handleException(e, {showAlert: false});
             }
+            this.stepRun(thread, {type: 'loadFailed', key: loadKey});
         }
     }
 
@@ -893,6 +1076,11 @@ export class ChatThreadsModel extends HoistModel {
         this.appliedListNumber = listNumber;
         this.listedSearch = this.searchQuery;
         this.listedThreads = threads;
+        threads.forEach(it => {
+            const thread = this.openThreads[it.id];
+            if (!thread) return;
+            this.noteListing(thread, !!it.isRunning);
+        });
         this.localThreads = differenceBy(this.localThreads, threads, 'id');
         this.noteSeenFromList(threads, listNumber, this.listedSearch);
         this.pendingChanges = this.pendingChanges.filter(it => listNumber < it.doneBefore);
@@ -1128,4 +1316,16 @@ function applyChange(thread: ChatThreadSummary, change: PendingChange): ChatThre
 
 function applyChanges(thread: ChatThreadSummary, changes: PendingChange[]): ChatThreadSummary {
     return changes.reduce((ret, change) => ret && applyChange(ret, change), thread);
+}
+
+/** What a chat's history ends with, as the run watch reads it - see `RunHistory`. */
+function getRunHistory(chatModel: ChatModel): RunHistory {
+    const {lastMessage} = chatModel;
+    if (!lastMessage) return 'empty';
+    if (lastMessage.isUser) return 'question';
+    if (getChatReplyStatus({message: lastMessage}) === 'detached') return 'detached';
+    if (lastMessage.status === 'error' && !isChatRetrySafe(lastMessage, chatModel.historyMode)) {
+        return 'unsafeFailure';
+    }
+    return 'replied';
 }

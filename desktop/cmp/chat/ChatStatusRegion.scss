@@ -11,14 +11,6 @@
   min-width: 0;
   padding: 0 2px 0 var(--xh-chat-composer-status-inset);
 
-  &--busy {
-    color: var(--xh-chat-busy-color);
-  }
-
-  &--attention {
-    color: var(--xh-chat-attention-color);
-  }
-
   &--warning {
     color: var(--xh-chat-warning-color);
   }

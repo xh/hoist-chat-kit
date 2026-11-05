@@ -1,7 +1,7 @@
 import {cloneDeep, findLast} from 'lodash';
 import {HoistBase, managed} from '@xh/hoist/core';
 import {action} from '@xh/hoist/mobx';
-import {type ChatModel, getChatReplyStatus} from '../../core';
+import {type ChatModel, type ChatStatusRefresherOptions, getChatReplyStatus} from '../../core';
 import type {ChatConversation} from '../ChatConversation';
 import type {ChatMessagePage, ChatThreadStore} from '../ChatThreadStore';
 import type {ChatThreadEndedEarly} from '../ChatThreadsModel';
@@ -19,6 +19,9 @@ export interface ChatModelConversationConfig {
 
     /** Reload the thread's history for Refresh Status - see `ChatModel.setStatusRefresher`. */
     refreshStatusAsync: () => Promise<void>;
+
+    /** What the threads model knows of the thread's runs. */
+    statusRefresherOpts: ChatStatusRefresherOptions;
 }
 
 /**
@@ -55,7 +58,8 @@ export class ChatModelConversation extends HoistBase implements ChatConversation
         store,
         drafts,
         getSendBlockedReason,
-        refreshStatusAsync
+        refreshStatusAsync,
+        statusRefresherOpts
     }: ChatModelConversationConfig) {
         super();
         this.chatModel = chatModel;
@@ -68,7 +72,7 @@ export class ChatModelConversation extends HoistBase implements ChatConversation
             );
         }
         chatModel.addSendBlocker(getSendBlockedReason);
-        chatModel.setStatusRefresher(refreshStatusAsync);
+        chatModel.setStatusRefresher(refreshStatusAsync, statusRefresherOpts);
         drafts.open(chatModel.threadId, chatModel);
     }
 
@@ -76,14 +80,33 @@ export class ChatModelConversation extends HoistBase implements ChatConversation
      * Load the thread's history from the store. The result applies only if this is the latest
      * load, and the chat still holds the thread - an app may clear the chat, or load other
      * messages into it, while the load runs.
+     *
      */
     async loadAsync(): Promise<void> {
+        await this.loadHistoryAsync(false);
+    }
+
+    /**
+     * Load the thread's history for a check on a turn that runs on the server. As `loadAsync`, but
+     * the result applies only if the chat's messages did not change meanwhile, so that it never
+     * replaces a turn the user started.
+     *
+     * @returns true if the history applied.
+     */
+    checkAsync(): Promise<boolean> {
+        return this.loadHistoryAsync(true);
+    }
+
+    private async loadHistoryAsync(isQuiet: boolean): Promise<boolean> {
         const {chatModel} = this,
-            {threadId} = chatModel,
+            {threadId, messages} = chatModel,
             loadNumber = ++this.loadCount,
             page = await this.store.loadMessagesAsync({threadId});
-        if (this.isDestroyed || loadNumber !== this.loadCount) return;
-        if (chatModel.threadId === threadId) this.applyHistory(threadId, page);
+        if (this.isDestroyed || loadNumber !== this.loadCount) return false;
+        if (isQuiet && (chatModel.isBusy || chatModel.messages !== messages)) return false;
+        if (chatModel.threadId !== threadId) return false;
+        this.applyHistory(threadId, page);
+        return true;
     }
 
     stop() {

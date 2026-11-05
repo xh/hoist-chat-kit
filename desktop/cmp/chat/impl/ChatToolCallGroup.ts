@@ -1,5 +1,5 @@
 import {compact, uniq} from 'lodash';
-import type {ReactNode} from 'react';
+import {type ReactNode, useContext} from 'react';
 import {div, span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
@@ -16,7 +16,8 @@ import {chatToolCall} from '../ChatToolCall';
 import classNames from 'classnames';
 import {chatErrorBoundary} from '../ChatErrorBoundary';
 import {getHostToolSpec} from './groupParts';
-import {getToolTitle} from './ToolCallStatus';
+import {getToolTitle, UNFINISHED_LABEL} from './ToolCallStatus';
+import {ReplyDetachedContext} from './ReplyDetached';
 import {chatSpinner} from '../../../impl/ChatLiveCues';
 
 interface ChatToolCallGroupProps extends HoistProps {
@@ -39,14 +40,21 @@ export const chatToolCallGroup = hoistCmp.factory<ChatToolCallGroupProps>({
 
     render({className, parts, context}) {
         const impl = useLocalModel(ChatToolCallGroupLocalModel),
-            isRunning = parts.some(it => !isToolCallFinal(it)),
+            isDetached = useContext(ReplyDetachedContext),
+            isOpen = parts.some(it => !isToolCallFinal(it)),
+            // Calls open in a reply the chat no longer follows have not finished, but do not run.
+            isRunning = isOpen && !isDetached,
+            isUnfinished = isOpen && isDetached,
             isExpanded = impl.expanded ?? isRunning,
             count = parts.length,
             names = uniq(
                 parts.map(it => getToolTitle(it, getHostToolSpec(context.host, it.toolName)))
             ),
-            title = `${isRunning ? 'Using' : 'Used'} ${pluralize('tool', count, true)}`,
-            problems = getProblems(parts);
+            title = `${isOpen ? 'Using' : 'Used'} ${pluralize('tool', count, true)}`,
+            problems = getProblems(parts),
+            meta = compact([isUnfinished ? UNFINISHED_LABEL : null, formatProblems(problems)]).join(
+                ' · '
+            );
 
         return div({
             className: classNames(className, {
@@ -60,7 +68,7 @@ export const chatToolCallGroup = hoistCmp.factory<ChatToolCallGroupProps>({
                     text: span({
                         className: 'xh-chat-tool-call-group__row',
                         items: [
-                            groupGlyph(isRunning, problems),
+                            groupGlyph(isRunning, isUnfinished, problems),
                             span({className: 'xh-chat-tool-call-group__title', item: title}),
                             span({
                                 className: 'xh-chat-tool-call-group__summary',
@@ -68,7 +76,7 @@ export const chatToolCallGroup = hoistCmp.factory<ChatToolCallGroupProps>({
                             }),
                             span({
                                 className: 'xh-chat-tool-call-group__meta',
-                                item: formatProblems(problems)
+                                item: meta
                             }),
                             span({
                                 className: 'xh-chat-tool-call-group__chevron',
@@ -79,7 +87,7 @@ export const chatToolCallGroup = hoistCmp.factory<ChatToolCallGroupProps>({
                         ]
                     }),
                     'aria-expanded': isExpanded,
-                    'aria-label': compact([title, formatProblems(problems)]).join(', '),
+                    'aria-label': compact([title, meta]).join(', '),
                     onClick: () => impl.setExpanded(!isExpanded)
                 }),
                 isExpanded
@@ -147,19 +155,34 @@ function formatProblems({failed, denied, cancelled}: GroupProblems): string {
 }
 
 // A spinner while any call runs, then a check - or a mark when any call failed, or, when no call
-// ran to a result, a stop if the user stopped any, else the denied glyph.
-function groupGlyph(isRunning: boolean, {failed, cancelled, noneRan}: GroupProblems): ReactNode {
-    const kind = isRunning ? 'busy' : failed ? 'error' : noneRan ? 'denied' : 'success';
+// ran to a result, a stop if the user stopped any, else the denied glyph. A group with calls open
+// in a reply the chat no longer follows shows them as not finished yet.
+function groupGlyph(
+    isRunning: boolean,
+    isUnfinished: boolean,
+    {failed, cancelled, noneRan}: GroupProblems
+): ReactNode {
+    const kind = isRunning
+        ? 'busy'
+        : isUnfinished
+          ? 'unfinished'
+          : failed
+            ? 'error'
+            : noneRan
+              ? 'denied'
+              : 'success';
     return span({
         className: `xh-chat-tool-call__glyph xh-chat-tool-call__glyph--${kind}`,
         item: isRunning
             ? chatSpinner()
-            : failed
-              ? Icon.error({title: 'Failed'})
-              : noneRan
-                ? cancelled
-                    ? Icon.stopCircle({title: 'Cancelled'})
-                    : Icon.slashedCircle({title: 'Denied'})
-                : Icon.check({title: 'All done'})
+            : isUnfinished
+              ? Icon.circle({title: UNFINISHED_LABEL})
+              : failed
+                ? Icon.error({title: 'Failed'})
+                : noneRan
+                  ? cancelled
+                      ? Icon.stopCircle({title: 'Cancelled'})
+                      : Icon.slashedCircle({title: 'Denied'})
+                  : Icon.check({title: 'All done'})
     });
 }

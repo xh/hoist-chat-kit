@@ -84,6 +84,7 @@ import {
 } from './impl/groupParts';
 import {ChatSourceLinks, findSidePanel} from './impl/ChatSourceLinks';
 import {jsonView} from './impl/JsonView';
+import {replyDetachedProvider} from './impl/ReplyDetached';
 import {useChatMarkdownComponents} from './ChatMarkdownComponents';
 import {formatFailureDetails, getFailureCause, isReplyNotSent} from './impl/ReplyFailure';
 
@@ -621,50 +622,59 @@ function assistantContent(
             className: 'xh-chat-message__main',
             items: [
                 props.showHeader === false ? null : messageHeader(props, context),
-                div({
-                    className: 'xh-chat-message__body',
-                    items: [
-                        ...withInterrupts(
-                            runs,
-                            message,
-                            chatModel,
-                            runs.map((run, idx) =>
-                                run.type === 'process'
-                                    ? processRun(
-                                          run,
-                                          props,
-                                          impl,
-                                          context,
-                                          references,
-                                          markerSources
-                                      )
-                                    : run.type === 'timeline'
-                                      ? timelineBlock(run, props, context, idx < runs.length - 1)
-                                      : renderGroup(
-                                            run,
-                                            props,
-                                            impl,
-                                            context,
-                                            references,
-                                            markerSources
-                                        )
-                            )
-                        ),
-                        // With no header to show its status, a reply that waits for its first
-                        // content shows a working cue in its body - after any answered questions.
-                        props.showHeader === false &&
-                        message.isStreaming &&
-                        isEmpty(runs) &&
-                        chatModel
-                            ? workingCue({
-                                  key: 'working',
-                                  message,
-                                  chatModel,
-                                  isLast: props.isLast
-                              })
-                            : null,
-                        replyNotice(props, chatModel)
-                    ]
+                replyDetachedProvider({
+                    value: getChatReplyStatus({message}) === 'detached',
+                    item: div({
+                        className: 'xh-chat-message__body',
+                        items: [
+                            ...withInterrupts(
+                                runs,
+                                message,
+                                chatModel,
+                                runs.map((run, idx) =>
+                                    run.type === 'process'
+                                        ? processRun(
+                                              run,
+                                              props,
+                                              impl,
+                                              context,
+                                              references,
+                                              markerSources
+                                          )
+                                        : run.type === 'timeline'
+                                          ? timelineBlock(
+                                                run,
+                                                props,
+                                                context,
+                                                idx < runs.length - 1
+                                            )
+                                          : renderGroup(
+                                                run,
+                                                props,
+                                                impl,
+                                                context,
+                                                references,
+                                                markerSources
+                                            )
+                                )
+                            ),
+                            // With no header to show its status, a reply that waits for its
+                            // first content shows a working cue in its body - after any answered
+                            // questions.
+                            props.showHeader === false &&
+                            message.isStreaming &&
+                            isEmpty(runs) &&
+                            chatModel
+                                ? workingCue({
+                                      key: 'working',
+                                      message,
+                                      chatModel,
+                                      isLast: props.isLast
+                                  })
+                                : null,
+                            replyNotice(props, chatModel)
+                        ]
+                    })
                 }),
                 !isNoAnswer && references.length
                     ? chatSources({sources: toSourceList(references), links: impl.sourceLinks})

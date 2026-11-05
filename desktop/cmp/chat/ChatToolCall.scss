@@ -96,7 +96,8 @@
       color: var(--xh-chat-error-color);
     }
 
-    &--denied {
+    &--denied,
+    &--unfinished {
       color: var(--xh-chat-meta-text-color);
     }
   }

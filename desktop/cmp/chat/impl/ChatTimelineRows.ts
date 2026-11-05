@@ -35,7 +35,7 @@ import {
 import type {ChatTimelineLocalModel} from './ChatTimelineLocalModel';
 import {getHostActivitySpec, getHostToolSpec} from './groupParts';
 import {CHAT_MARKDOWN_COMPONENTS} from '../ChatMarkdownComponents';
-import {getErrorLine, getToolTitle, isAwaitingAnswer} from './ToolCallStatus';
+import {getErrorLine, getToolTitle, isAwaitingAnswer, UNFINISHED_LABEL} from './ToolCallStatus';
 
 /** Levels of nesting shown as indent. Deeper rows name their parent instead. @internal */
 export const TIMELINE_MAX_DEPTH = 3;
@@ -53,6 +53,12 @@ export interface ChatTimelineRowContext {
 
     /** True once the reply was stopped - calls still in flight show as cancelled. */
     isStopped: boolean;
+
+    /**
+     * True if the reply was left running on the server - calls and sub-agents still open show as
+     * not finished yet.
+     */
+    isDetached?: boolean;
 
     /** True while the reply streams. A sub-agent shows as running only then. */
     isLive: boolean;
@@ -113,9 +119,14 @@ export function timelineRows(
 // Rows
 //------------------
 /** The state a call's row shows. */
-type RowState = 'running' | 'approval' | 'question' | 'done' | 'failed' | 'denied' | 'cancelled';
+type RowState =
+    'running' | 'approval' | 'question' | 'done' | 'failed' | 'denied' | 'cancelled' | 'unfinished';
 
-function getRowState(part: ChatToolCallPart, spec: ChatToolSpec, isStopped: boolean): RowState {
+function getRowState(
+    part: ChatToolCallPart,
+    spec: ChatToolSpec,
+    {isStopped, isDetached}: Pick<ChatTimelineRowContext, 'isStopped' | 'isDetached'>
+): RowState {
     if (part.cancelled) return 'cancelled';
     switch (part.state) {
         case 'output-available':
@@ -125,9 +136,10 @@ function getRowState(part: ChatToolCallPart, spec: ChatToolSpec, isStopped: bool
         case 'output-denied':
             return 'denied';
         case 'approval-requested':
-            return isStopped ? 'cancelled' : 'approval';
+            return isStopped ? 'cancelled' : isDetached ? 'unfinished' : 'approval';
         default:
             if (isStopped) return 'cancelled';
+            if (isDetached) return 'unfinished';
             return isAwaitingAnswer(part, spec) ? 'question' : 'running';
     }
 }
@@ -139,9 +151,9 @@ function callRow(
     parentName: string
 ): ReactNode {
     const {part, retry} = item,
-        {impl, host, isStopped} = ctx,
+        {impl, host} = ctx,
         spec = getHostToolSpec(host, part.toolName),
-        state = getRowState(part, spec, isStopped),
+        state = getRowState(part, spec, ctx),
         title = getToolTitle(part, spec),
         input = summarizeInput(part, spec),
         // A call that waits for an answer shows its card under the line, not in its row.
@@ -199,14 +211,15 @@ function batchRow(
     depth: number,
     parentName: string
 ): ReactNode {
-    const {impl, host, isStopped} = ctx,
+    const {impl, host} = ctx,
         calls = item.items.map(it => it.part),
         first = calls[0],
         spec = getHostToolSpec(host, first.toolName),
         title = getToolTitle(first, spec),
-        states = calls.map(it => getRowState(it, spec, isStopped)),
+        states = calls.map(it => getRowState(it, spec, ctx)),
         failed = states.filter(it => it === 'failed').length,
         isRunning = states.includes('running'),
+        isUnfinished = !isRunning && states.includes('unfinished'),
         isOpen = impl.isRowOpen(item.id),
         targets = uniq(compact(calls.map(it => summarizeInput(it, spec).text))),
         shown = targets.slice(0, 4),
@@ -227,7 +240,7 @@ function batchRow(
             title,
             `${calls.length} calls`,
             failed ? `${failed} failed` : null,
-            isRunning ? 'running' : null
+            isRunning ? 'running' : isUnfinished ? UNFINISHED_LABEL.toLowerCase() : null
         ]).join(', '),
         items: [
             rowLine({
@@ -236,11 +249,16 @@ function batchRow(
                 depth,
                 isOpen,
                 hasDetails: true,
-                icon: isRunning
-                    ? callIcon('running', spec)
-                    : failed
-                      ? callIcon('failed', spec)
-                      : callIcon('done', spec),
+                icon: callIcon(
+                    isRunning
+                        ? 'running'
+                        : isUnfinished
+                          ? 'unfinished'
+                          : failed
+                            ? 'failed'
+                            : 'done',
+                    spec
+                ),
                 title: depthTitle(title, depth, parentName),
                 count: calls.length,
                 input,
@@ -261,11 +279,13 @@ function agentRow(
     depth: number,
     parentName: string
 ): ReactNode {
-    const {impl, isLive} = ctx,
+    const {impl, isLive, isDetached} = ctx,
         {data} = item,
         name = data?.name ?? 'Agent',
-        // A reply that is no longer live has nothing running, whatever its data says.
+        // A reply that is no longer live has nothing running, whatever its data says. One left
+        // running on the server shows its open sub-agents as not finished yet.
         isRunning = data?.status === 'running' && isLive,
+        isUnfinished = isDetached && (data?.status === 'running' || data?.status === 'waiting'),
         isFailed = data?.status === 'error',
         isCancelled = data?.status === 'cancelled',
         isWaiting = data?.status === 'waiting',
@@ -291,15 +311,17 @@ function agentRow(
             pluralize('step', steps, true),
             isRunning
                 ? 'running'
-                : isFailed
-                  ? data.error
-                      ? `failed: ${data.error}`
-                      : 'failed'
-                  : isCancelled
-                    ? 'cancelled'
-                    : isWaiting
-                      ? 'waiting for you'
-                      : null
+                : isUnfinished
+                  ? UNFINISHED_LABEL.toLowerCase()
+                  : isFailed
+                    ? data.error
+                        ? `failed: ${data.error}`
+                        : 'failed'
+                    : isCancelled
+                      ? 'cancelled'
+                      : isWaiting
+                        ? 'waiting for you'
+                        : null
         ]).join(', '),
         items: [
             rowLine({
@@ -310,16 +332,18 @@ function agentRow(
                 hasDetails: true,
                 icon: isRunning
                     ? span({className: 'xh-chat-timeline__icon--busy', item: chatSpinner()})
-                    : isFailed
-                      ? span({className: 'xh-chat-timeline__icon--error', item: Icon.xCircle()})
-                      : isCancelled
-                        ? Icon.stopCircle()
-                        : isWaiting
-                          ? span({
-                                className: 'xh-chat-timeline__icon--attention',
-                                item: Icon.pauseCircle()
-                            })
-                          : Icon.sparkles(),
+                    : isUnfinished
+                      ? Icon.circle({title: UNFINISHED_LABEL})
+                      : isFailed
+                        ? span({className: 'xh-chat-timeline__icon--error', item: Icon.xCircle()})
+                        : isCancelled
+                          ? Icon.stopCircle()
+                          : isWaiting
+                            ? span({
+                                  className: 'xh-chat-timeline__icon--attention',
+                                  item: Icon.pauseCircle()
+                              })
+                            : Icon.sparkles(),
                 title: depthTitle(name, depth, parentName),
                 input: isOpen
                     ? data?.description
@@ -327,13 +351,15 @@ function agentRow(
                           data?.description,
                           steps ? pluralize('step', steps, true) : null
                       ]).join(' · '),
-                status: isFailed
-                    ? (data.error ?? 'Failed')
-                    : isCancelled
-                      ? 'Cancelled'
-                      : isWaiting
-                        ? 'Waiting for you'
-                        : null,
+                status: isUnfinished
+                    ? UNFINISHED_LABEL
+                    : isFailed
+                      ? (data.error ?? 'Failed')
+                      : isCancelled
+                        ? 'Cancelled'
+                        : isWaiting
+                          ? 'Waiting for you'
+                          : null,
                 time: isRunning
                     ? liveTime(data.startedAt)
                     : took != null
@@ -651,6 +677,8 @@ function callIcon(state: RowState, spec: ChatToolSpec): ReactNode {
             return Icon.slashedCircle();
         case 'cancelled':
             return Icon.stopCircle();
+        case 'unfinished':
+            return Icon.circle({title: UNFINISHED_LABEL});
         default:
             return spec?.icon ?? Icon.wrench();
     }
@@ -669,6 +697,8 @@ function getStatusWords(part: ChatToolCallPart, state: RowState): string {
             return 'Denied';
         case 'cancelled':
             return 'Cancelled';
+        case 'unfinished':
+            return UNFINISHED_LABEL;
         default:
             return null;
     }
@@ -704,6 +734,8 @@ function rowStateLabel(
             return deniedReason ? `denied by you: ${deniedReason}` : 'denied by you';
         case 'cancelled':
             return 'cancelled';
+        case 'unfinished':
+            return UNFINISHED_LABEL.toLowerCase();
         default:
             return compact([
                 retry ? `retry ${retry}` : null,

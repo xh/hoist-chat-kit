@@ -289,11 +289,20 @@ export function summarizeTimeline(
  *  - `paused` - the reply waits on the user for something outside the block.
  *  - `done` - the work is done, though the reply may still be writing its answer.
  *  - `stopped` - the user stopped the reply.
+ *  - `detached` - the reply was left running on the server. Its open work may yet finish there.
  *  - `failed` - the reply failed.
  * @internal
  */
 export type ChatTimelineState =
-    'running' | 'quiet' | 'approval' | 'question' | 'paused' | 'done' | 'stopped' | 'failed';
+    | 'running'
+    | 'quiet'
+    | 'approval'
+    | 'question'
+    | 'paused'
+    | 'done'
+    | 'stopped'
+    | 'detached'
+    | 'failed';
 
 /** @internal */
 export function getTimelineState({
@@ -313,7 +322,7 @@ export function getTimelineState({
 }): ChatTimelineState {
     switch (message.status) {
         case 'aborted':
-            return 'stopped';
+            return message.metadata.detached ? 'detached' : 'stopped';
         case 'error':
             return 'failed';
     }

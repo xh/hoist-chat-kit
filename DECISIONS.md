@@ -128,7 +128,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D104](#d104-an-unlisted-tools-display-comes-from-gettoolspec-and-never-runs) | An unlisted tool's display comes from `getToolSpec`, and never runs | Accepted |
 | [D105](#d105-a-call-that-starts-a-sub-agent-hides-behind-the-sub-agents-row) | A call that starts a sub-agent hides behind the sub-agent's row | Accepted |
 | [D106](#d106-the-chat-settles-grows-and-breathes-calmly) | The chat settles, grows and breathes, calmly | Accepted |
-| [D107](#d107-stored-ag-ui-events-replay-through-the-live-reducer-by-their-own-clock) | Stored AG-UI events replay through the live reducer, by their own clock | Accepted |
+| [D107](#d107-stored-ag-ui-events-replay-through-the-live-reducer-by-their-own-clock) | Stored AG-UI events replay through the live reducer, by their own clock | Amended by D115 |
 | [D108](#d108-try-again-can-be-turned-off-too) | Try Again can be turned off too | Accepted |
 | [D109](#d109-the-kit-checks-ag-ui-progress-steps-but-does-not-show-them-and-drops-activity-deltas) | The kit checks AG-UI progress steps but does not show them, and drops activity deltas | Accepted |
 | [D110](#d110-a-timelines-done-summary-can-leave-out-its-failure-count) | A timeline's done summary can leave out its failure count | Accepted |
@@ -136,6 +136,9 @@ still in force, with their amendments. Do not read the whole file.
 | [D112](#d112-a-composer-pill-opens-toward-the-room-it-has) | A composer pill opens toward the room it has | Accepted |
 | [D113](#d113-the-scope-chip-chooses-any-kind-of-option-and-its-selection-is-literal) | The scope chip chooses any kind of option, and its selection is literal | Accepted |
 | [D114](#d114-onsourceclick-takes-a-handler-per-source-type) | `onSourceClick` takes a handler per source type | Accepted |
+| [D115](#d115-a-detached-reply-keeps-its-open-work-open) | A detached reply keeps its open work open | Accepted |
+| [D116](#d116-the-status-region-holds-only-actions-and-a-turn-running-on-the-server-blocks-sends) | The status region holds only actions, and a turn running on the server blocks sends | Amended by D117 |
+| [D117](#d117-the-thread-layer-checks-on-a-turn-running-on-the-server) | The thread layer checks on a turn running on the server | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2110,7 +2113,8 @@ view, and the text wobbles.
 
 ## D107. Stored AG-UI events replay through the live reducer, by their own clock
 
-**Status.** Accepted.
+**Status.** Amended by [D115](#d115-a-detached-reply-keeps-its-open-work-open): a detached turn's
+open calls and sub-agents stay open.
 
 **Decision.** `replayChatEvents` rebuilds a reply from the events a backend stored for its turn.
 It runs them through an app's decoder, for the same checks as a live stream, and through
@@ -2277,3 +2281,114 @@ source types says it up front, in the kit's own vocabulary.
 It is decided at click time, after the icon and the name have rendered wrong, and `false` means
 "suppress the default" everywhere else in the DOM. A second prop that lists the types the handler
 takes. It is one more thing to name on four components, and it can disagree with the handler.
+
+## D115. A detached reply keeps its open work open
+
+**Status.** Accepted. Amends D107.
+
+**Decision.** A reply left running on the server keeps the unfinished tool calls and sub-agents of
+the server open: on a live detach, in `loadMessages()` for the last reply of the history, and in
+`replayChatEvents()` for a turn with no end. A replayed turn still closes the calls of its earlier
+steps, which ended with their runs. Calls that the browser would run or answer close as
+interrupted, as the turn that would run them is over. The views show open work as "Not finished
+yet", with no spinner, and the timeline's line reads "So far: 3 tools done". A detached reply
+never waits on the user for a call.
+
+When a later turn starts, or the history holds a later message, the conversation has moved past the
+reply. It then becomes `complete`, without `metadata.detached`, and its open work closes as "No
+result - the conversation moved on", as for a paused reply the user moved past.
+
+**Why.** A detached reply is a snapshot of work the server is still doing. Closing its calls as
+failed or cancelled told the user something the server never reported, and the reply's status said
+"Still working" beside them. The rule that every call in the history has a result stays where it
+matters: in the history a request sends, since some model APIs reject a call with none.
+
+**Alternatives.** Close the calls as before, and only reword them. The reply still says the work
+ended. Mark the calls with a flag of their own. The reply's `metadata.detached` already says it,
+and a flag would have to be cleared on every path that closes them.
+
+## D116. The status region holds only actions, and a turn running on the server blocks sends
+
+**Status.** Amended by [D117](#d117-the-thread-layer-checks-on-a-turn-running-on-the-server): the
+block shows nothing while the thread layer checks on the turn by itself.
+
+**Decision.** `ChatStatusRegion` shows a line only for what stops a send or needs the user's
+action: a blocked send, offline, a failure, a retry countdown and a restored draft. A reply left
+running or stalled shows one only with Refresh Status. A reply in progress, or one waiting for the
+user's answer, shows none. The announcer still reads a paused turn. The settings of the busy line
+go: `showStopHint`, the region's `assistantName`, `ChatStatusRegion.defaults` and
+`ChatKit.defaults.busyIcon`. The Stop button names Esc in its tooltip.
+
+`ChatThreadsModel` blocks sends while the server runs a turn that the chat does not follow: the last
+list that held the thread showed it running, and its history has no settled reply to that turn
+yet. The history is empty, ends with the user's message, ends with a detached reply, or ends with
+one that failed in a way that is not retry-safe, as on a dropped connection. The block offers
+Refresh Status. A store that does not report `isRunning` gets no block. With a detached reply, it
+shows as the reply's status, not as a block. `getChatComposerStatus()` still reports every status,
+for a layout of an app's own.
+
+**Why.** The reply, its timeline and the region each showed the reply's progress, and they could
+disagree. The reply is where the work shows, so it alone says how the work goes. A backend that
+runs one turn at a time per thread rejects a send while one runs, and a second run would race the
+first.
+
+**Alternatives.** Props to hide the region's lines or the timeline's. Every app would get the
+duplicates by default, and the views could still disagree. Show the busy line only when the reply
+is out of view. It adds a rule for a case no app asked about. Leave the send to the backend. The
+user then gets an error for a send the kit could have held.
+
+## D117. The thread layer checks on a turn running on the server
+
+**Status.** Accepted.
+
+**Decision.** `ChatThreadsModel` checks on its own on a turn that runs on the server while its
+chat does not follow it: one that blocks sends (D116), a detached reply, or a reply that failed in
+a way that is not retry-safe. Every `ChatKit.defaults.statusRefreshMs`, 5 s by default, it reloads
+the thread list as an auto-refresh, with no busy state, and not while the page is hidden, as
+Hoist's `AutoRefreshService` does. Once the list no longer shows the run, it
+reloads the thread's history, quietly, with no load state. A thread with no messages yet reloads
+its history on each check, so that the turn shows once saved. A quiet load never applies over a
+turn the user started meanwhile.
+
+The thread layer reports what it knows through the options of `ChatModel.setStatusRefresher()`:
+`isAutomatic` while it checks, and `isRunningOnServer` while the server runs a turn the chat does
+not follow. While it checks, the status region offers no Refresh Status, and a send blocked by the
+run shows nothing. The message list shows "Still working on the server" in an empty chat, in place
+of its empty state, or after the user's question, and the composer's start items breathe. When a
+list shows such a turn done, the thread reloads its history at once, and reads as waiting until
+the reply lands. A reload that fails, or lands before the reply was saved, leaves the reply due,
+for the next check to reload.
+
+One record per open thread, a `RunWatch`, holds all that the model knows of such a turn. Its
+phase is `idle`, `waiting` (a list shows the turn running), `timedOut` (as `waiting`, with no
+more checks), `due` (a list showed it done), `settling` (the last reply may still change, with no
+run listed) or `stopped`. It also records when the phase began, the load that settles it, the
+reloads that found no reply, and the reload in flight.
+Only `stepRunWatch()` changes it: a pure function of the record, the thread's facts and one event,
+which returns the next record and whether to reload the history now. The facts are what the model
+reads from the thread each time: busy, saved, loaded, failed to load, checked by the model, listed
+running, what its history ends with, and its load key. The events are a listing, a turn, a load
+that ended or failed, a reload that started, a check and a reset. The phase alone answers whether
+sends wait. A due reply gets up to three reloads, for a backend that saves the reply a moment
+after it marks the run done, then the run counts as died.
+
+The model stops, and Refresh Status returns, after `statusRefreshTimeoutMs`, 30 minutes by default,
+when a reload leaves the turn unsettled, or when the current list leaves the thread out, as under
+a search. A wait that times out keeps sends waiting, and a list that shows its run done still
+brings the reply, with a fresh window. A thread the backend never saw is not watched. Its Refresh
+Status reloads the list, and the history only once the list holds the thread. A list that holds a
+thread marks it saved. `statusRefreshMs: null`, or 0, turns the checks off. A stalled reply keeps
+Refresh Status: its stream is still open.
+
+**Why.** Many users never see the small Refresh Status button. A backend reports no event when a
+run ends, so the client has to ask. The thread list is cheap to load, and a thread's history can be
+large, so the model polls the list and loads a history only once its run is done.
+
+**Alternatives.** Flags on the open thread, one per concern - listed running, reload pending,
+reload in flight, watch ended. Their combinations raced each other across list loads, checks,
+user refreshes and resets, and each fix added a flag. A state machine with one transition
+function gives each event one rule, and its own transition-table spec. Poll the history. It costs
+a full conversation per check. Reconnect to the run's
+stream, with the transport's `reconnect`. It shows progress live, but needs backend support, and
+waits for an app to ask. Refresh a stalled reply on its own too. That would detach a stream that
+may still answer, and a transport has no hard timeout by default to end a stall for good.

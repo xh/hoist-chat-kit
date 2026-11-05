@@ -82,10 +82,7 @@ export interface ChatPanelProps
      */
     messageListProps?: Omit<ChatMessageListProps, 'model' | 'modelConfig' | 'modelRef'>;
 
-    /**
-     * Props for the status region above the composer - for example `showStopHint`. Its
-     * `assistantName` defaults to the message list's.
-     */
+    /** Props for the status region above the composer. */
     statusRegionProps?: Omit<ChatStatusRegionProps, 'model' | 'modelConfig' | 'modelRef'>;
 }
 
@@ -133,8 +130,15 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
             ...rest
         } = props;
 
-        // The composer keeps its place in the tree across the move, so that it keeps focus.
-        const isCentered = model.isEmpty && emptyState == null && !messageListProps?.emptyState,
+        // A thread whose turn runs on the server, with nothing saved yet, shows that the reply is
+        // on its way in the list, not the centered empty state of a new chat.
+        const isAwaitingReply = model.isEmpty && model.isRunningOnServer,
+            // The composer keeps its place in the tree across the move, so that it keeps focus.
+            isCentered =
+                model.isEmpty &&
+                !isAwaitingReply &&
+                emptyState == null &&
+                !messageListProps?.emptyState,
             {footer, belowComposer, ...headProps} = emptyStateProps ?? {};
         return panel({
             ref,
@@ -177,7 +181,6 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                         items: [
                             chatStatusRegion({
                                 model: model.composerModel,
-                                assistantName: messageListProps?.assistantName,
                                 ...statusRegionProps
                             }),
                             chatComposer({

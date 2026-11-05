@@ -18,6 +18,18 @@ describe('ChatAnnouncer', () => {
         vi.useRealTimers();
     });
 
+    it('withdraws an announcement that no longer holds, and leaves others', () => {
+        announcer.announce('Still working on the server.');
+        announcer.announce('A tool failed.', 'assertive');
+
+        announcer.withdraw('Something else.');
+        expect(announcer.polite?.text).toBe('Still working on the server.');
+        announcer.withdraw('Still working on the server.');
+
+        expect(announcer.polite).toBeNull();
+        expect(announcer.assertive?.text).toBe('A tool failed.');
+    });
+
     it('reads the first polite announcement at once', () => {
         announcer.announce('Assistant replied after 4 seconds.');
         expect(announcer.polite.text).toBe('Assistant replied after 4 seconds.');

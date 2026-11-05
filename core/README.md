@@ -354,8 +354,8 @@ new ChatModel({transport, historyMode: 'server', allowEdit: false, allowRegenera
 For a backend that cannot run a turn a second time, such as one that keys each run to its
 request, set `allowRetry` to false. The composer then never offers Try Again, and
 never retries on its own after a wait the server asked for. A failure the server may still be
-running offers Refresh Status, where the chat can refresh, and any other failure offers no
-action. `retryAsync()` does nothing.
+running offers Refresh Status, where the chat can refresh and the thread layer does not check on
+it by itself, and any other failure offers no action. `retryAsync()` does nothing.
 
 All three are `@bindable`, so an app can change them at run time, for example when the user
 picks an agent that supports none of them. With a thread layer, set them in `createChatModel`.
@@ -417,6 +417,15 @@ chatModel.runOptions = {documentIds: selectedIds, profile: 'thorough'};
 | `detach()` | `aborted` | No | The run goes on. The reply gets `metadata.detached: true` |
 | `clear()`, `loadMessages()` | Discarded | No | As for `detach()` |
 | `destroy()` | Discarded | No | The run goes on |
+
+A detached reply keeps the server's unfinished tool calls and sub-agents open, as the server may
+still finish them. Calls to a tool of the chat with an `execute`, or an interactive one, close as
+interrupted, as the turn that would run them is over. The same holds for the last reply of a
+history loaded with `loadMessages()`, if it is detached.
+
+When the next turn starts, the reply becomes `complete`, without `metadata.detached`. Its open work
+closes as "No result - the conversation moved on", so that the history a request sends has a
+result for every call. A reply that a stop ended closes its open work as cancelled.
 
 The turn's signal aborts with a `ChatAbortError`. Its `name` is `AbortError`, and its `reason` is
 `stop`, `detach`, `clear`, `load` or `destroy`. A client tool can read the reason from
@@ -930,7 +939,13 @@ The composer's status region holds the thread's next action. `ChatComposerModel.
 reads it as a `ChatComposerStatus`: a `type`, the reply's display status, at most one `action`,
 and the reason. `getChatComposerStatus()` is the same reading as a pure function. One status
 shows at a time, in this order: blocked, offline, failed or detached, stalled, waiting to retry,
-paused, busy, and a restored draft.
+paused, busy, and a restored draft. A send that `ChatThreadsModel` blocks while the server runs the
+turn - see `isRunningOnServer` - reads as detached when the last reply is. It offers Refresh
+Status, or shows nothing while the thread layer checks on the turn by itself. A failure that is
+not retry-safe still shows, but with no Refresh Status while the thread layer checks on it. The
+desktop
+`ChatStatusRegion` shows a line only for what stops a send or needs the user's action - see
+[Recover from a failed reply](../desktop/cmp/chat/README.md#recover-from-a-failed-reply).
 
 The action for a failure depends on whether a resend is safe. `isChatRetrySafe(message,
 historyMode)` decides it:
@@ -1033,6 +1048,10 @@ chatAnnouncer.announce('Reply failed: model request timed out.', 'assertive');
 Announce what the user must know once. Never announce tokens, status words, elapsed time or
 countdown seconds.
 
+`chatAnnouncer.withdraw(text)` takes back an announcement whose news no longer holds, such as a
+status that has passed, so that a user who browses to the region does not read it. It empties a
+region only if the region still shows exactly that text.
+
 ## Properties/API Reference
 
 See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatComposerModel.ts` and
@@ -1090,6 +1109,8 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `feedbackErrors` | `Record<string, Error>` | Why the last feedback on a message failed to save, by message id, for the form to show. Cleared on the next submit. Observable. |
 | `feedbackDrafts` | `Record<string, ChatFeedbackDraft>` | Comments typed in feedback forms and not yet sent, by message id, with their send state and last error. Observable. |
 | `canRefreshStatus` | `boolean` | True once a refresher is set with `setStatusRefresher()`. |
+| `isStatusRefreshAutomatic` | `boolean` | True while the thread layer refreshes the status on its own. The status region then offers no Refresh Status for a turn the chat does not follow. |
+| `isRunningOnServer` | `boolean` | True while the thread layer reports a turn that runs on the server while the chat does not follow it, as after a page reload. The message list then shows "Still working on the server" in an empty chat or after the user's question, and the composer's start items breathe. |
 | `isBusy` | `boolean` | True for `submitted` or `streaming`. False while a turn is paused. |
 | `sendBlockedReason` | `string` | Why sending must wait, from the `sendBlocker` or an added blocker, or null. |
 | `isEmpty` | `boolean` | True if there are no messages. |
@@ -1123,7 +1144,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `loadMessages(specs, threadId?)` | Replace the conversation. Default a new thread id. |
 | `submitFeedbackAsync(messageId, rating, comment?)` | Rate a reply, or clear its rating with null. Shows at once. If the submit fails, it reverts and records the error in `feedbackErrors`, with no toast. |
 | `setFeedbackDraft(messageId, draft)` | Keep the comment typed in a message's feedback form, or remove it with null. For the feedback form. |
-| `setStatusRefresher(refreshAsync)` | Set the function that reloads the thread, for Refresh Status. For a thread layer. |
+| `setStatusRefresher(refreshAsync, opts?)` | Set the function that reloads the thread, for Refresh Status. `opts` holds `isAutomatic` and `isRunningOnServer`, functions that report what the thread layer knows of the thread's runs. For a thread layer. |
 | `refreshStatusAsync()` | Reload the thread to learn how a run ended. Does nothing without a refresher. |
 | `setFeedbackSubmitter(submitAsync)` | Set the submitter to use when `feedback.submitAsync` is not configured. For a thread layer. |
 | `addSendBlocker(blocker)` | Add a reason for sends to wait, checked after the `sendBlocker`. For a thread layer. |
@@ -1177,7 +1198,7 @@ The kit records these keys in the `metadata` of an assistant message:
 | `retryAfterSeconds` | Wait the backend asked for before a retry, on a failed run. |
 | `runId` | Id of the latest run, from `RUN_STARTED`. |
 | `serverId` | The server's id for the message, from `xh.chat.message` or `RUN_FINISHED`. Also set on a user message. |
-| `detached` | True on a reply left running on the server by `detach()`, `clear()` or `loadMessages()`, in server mode. |
+| `detached` | True on a reply left running on the server by `detach()`, `clear()` or `loadMessages()`, in server mode. Its unfinished tool calls and sub-agents stay open - see [Stop or detach a turn](#stop-or-detach-a-turn). |
 | `feedback` | The user's rating, as `{rating, comment?}`. History usually restores the rating alone. |
 | `artifacts` | `ChatArtifact[]` that the reply's tools produced, for generative UI. Restored to `artifacts` with the history. |
 | `catalogVersion` | Version of the chat's catalog, on a reply that shows its UI. |
@@ -1393,9 +1414,10 @@ Fields of `ChatKit.defaults`. See `ChatKit.ts`.
 | Field | Type | Description |
 |-------|------|-------------|
 | `assistantIcon` | `() => ReactElement` | Returns the icon that marks the assistant. A component's `assistantIcon` prop overrides it. Default `() => Icon.ai()`. |
-| `busyIcon` | `() => ReactElement` | Returns the icon beside "Assistant is working" in the status region. Return null from it for no icon. Null for the kit's spinner. Default null. |
 | `reducedMotionSpinner` | `'static' \| 'spin'` | Under reduced motion, `static` swaps the chat's spinners for a static icon, and `spin` keeps Hoist's spinner. Default `static`. |
 | `stallAfterMs` | `number` | Milliseconds with no data from the server before a reply shows as stalled. `ChatModelConfig.stallAfterMs` overrides it. Default 30,000. |
+| `statusRefreshMs` | `number` | Milliseconds between the checks `ChatThreadsModel` makes on a turn that runs on the server while its chat does not follow it. Null to check only on Refresh Status. `ChatThreadsConfig.statusRefreshMs` overrides it. Default 5,000. See [A turn running on the server](../threads/README.md#a-turn-running-on-the-server). |
+| `statusRefreshTimeoutMs` | `number` | Milliseconds after which `ChatThreadsModel` stops those checks and offers Refresh Status. `ChatThreadsConfig.statusRefreshTimeoutMs` overrides it. Default 1,800,000, 30 minutes. |
 | `drafts` | `'local' \| 'memory'` | Where the composer keeps its unsent draft text: local storage, per thread, or memory only. Default `local`. See [Keep drafts](#keep-drafts). |
 | `shortcuts` | `ChatShortcuts` | Key combos in the format of Hoist's `useHotkeys`, by action: `newChat`, `focusComposer`, `cycleRegions` and `toggleSidebar`. Null drops a shortcut. See [Keyboard](../desktop/cmp/chat/README.md#keyboard). |
 | `markdownTableMaxRows` | `number` | Most body rows a markdown table shows in full, in a reply, its reasoning or a tool's output. A longer table shows that many in a card, with Show All. Default 100. |

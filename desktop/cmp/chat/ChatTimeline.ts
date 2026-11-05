@@ -160,6 +160,7 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<
                 host,
                 context,
                 isStopped: state === 'stopped',
+                isDetached: state === 'detached',
                 isLive,
                 tabStopId: impl.focusId ?? firstRowId
             };
@@ -259,6 +260,7 @@ function lineIcon(state: ChatTimelineState): ReactNode {
         case 'failed':
             return span({className: 'xh-chat-timeline__icon--error', item: Icon.xCircle()});
         default:
+            // A detached reply's notice says it is still working, so its line shows no status.
             return Icon.tools();
     }
 }
@@ -303,6 +305,8 @@ function lineStage(
         }
         case 'failed':
             return stage(`Ended at step ${calls.length}`);
+        case 'detached':
+            return stage(soFarLabel(summary));
         default:
             return stage(usedLabel(summary, host, impl.isNarrow));
     }
@@ -339,6 +343,12 @@ function usedLabel(summary: ChatTimelineSummary, host: ChatTranscript, isNarrow:
     const work = countTimelineWork(summary, host);
     if (!work.length) return 'Done';
     return `Used ${isNarrow ? work.join(', ') : joinWithAnd(work)}`;
+}
+
+// The tools a reply left running finished, as far as the chat saw.
+function soFarLabel(summary: ChatTimelineSummary): string {
+    const done = summary.calls.filter(it => isToolCallFinal(it) && !it.cancelled).length;
+    return done ? `So far: ${pluralize('tool', done, true)} done` : 'Nothing finished yet';
 }
 
 function lineMeta(

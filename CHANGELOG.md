@@ -14,6 +14,50 @@
 
 ## 2.0.0-SNAPSHOT - unreleased
 
+### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - remove the busy-line settings)
+
+See [`docs/upgrade-notes/v2-upgrade-notes.md`](docs/upgrade-notes/v2-upgrade-notes.md) for
+detailed, step-by-step upgrade instructions with before/after code examples.
+
+* `ChatStatusRegion` now shows only what stops a send or needs the user's action. A reply in
+  progress, or one waiting for the user's answer, shows no line, as the reply shows its progress.
+* Removed the busy line's settings: `showStopHint` and `assistantName` on `ChatStatusRegion`,
+  `ChatStatusRegion.defaults` with its `ChatStatusRegionDefaults` type, and
+  `ChatKit.defaults.busyIcon`. The Stop button names Esc in its tooltip.
+* Removed the `xh-chat-status-region__lead`, `xh-chat-status-region__hint`,
+  `xh-chat-status-region--busy` and `xh-chat-status-region--attention` classes, which the region no
+  longer renders.
+
+### 🎁 New Features
+
+* `ChatThreadsModel` now blocks sends while the store lists a thread as running and its history has
+  no settled reply to that turn yet. The status region shows the block only with Refresh Status,
+  once the automatic checks below stop.
+
+* `ChatThreadsModel` now checks on a turn that runs on the server while its chat does not follow
+  it, and loads the reply once the thread list shows the run done. Set the interval with
+  `ChatKit.defaults.statusRefreshMs` or `ChatThreadsConfig.statusRefreshMs`, null for none.
+* Added `chatAnnouncer.withdraw()`, to take back an announcement whose news no longer holds. The
+  status region withdraws a status's announcement once it passes.
+* `ChatMessageList` now shows "Still working on the server" for such a turn with no reply saved
+  yet, in place of the empty state or after the user's question. The composer's start items breathe
+  while it runs.
+
+### 🐞 Bug Fixes
+
+* Fixed Refresh Status in a `ChatThreadsModel` chat to reload the thread list too. The list could
+  show a thread as running after its run had finished.
+* Fixed a reply left running on the server, live, loaded or replayed, to show its unfinished server
+  calls and sub-agents as "Not finished yet", not as failed, cancelled or "Stopped". Once the
+  conversation moves past the reply, it reads as complete and its open work closes.
+
+### ✨ Styles
+
+* Added the `xh-chat-timeline--detached`, `xh-chat-timeline__item--unfinished`,
+  `xh-chat-tool-call--unfinished`, `xh-chat-tool-call__glyph--unfinished` and
+  `xh-chat-message-list__awaiting-reply` classes. A detached
+  reply's timeline no longer takes `xh-chat-timeline--stopped`.
+
 ## 1.0.0 - 2026-11-02
 
 The first release of Hoist Chat Kit, a library of chat components for Hoist React applications.

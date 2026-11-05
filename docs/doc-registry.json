@@ -14,14 +14,16 @@
     {"id": "package", "title": "Package Documentation"},
     {"id": "concept", "title": "Concept Documentation"},
     {"id": "conventions", "title": "Conventions"},
-    {"id": "index", "title": "Index"}
+    {"id": "index", "title": "Index"},
+    {"id": "upgrade", "title": "Upgrade Notes"}
   ],
   "viewerCategories": [
     {"id": "overview", "title": "Overview"},
     {"id": "concepts", "title": "Concepts"},
     {"id": "core", "title": "Core Framework"},
     {"id": "components", "title": "Components"},
-    {"id": "desktop", "title": "Desktop"}
+    {"id": "desktop", "title": "Desktop"},
+    {"id": "upgrade", "title": "Upgrade Notes"}
   ],
   "entries": [
     {
@@ -267,7 +269,13 @@
         "ChatInterrupt",
         "answerInterrupt",
         "submitInterruptsAsync",
-        "onTurnPause"
+        "onTurnPause",
+        "detached",
+        "metadata.detached",
+        "statusRefreshMs",
+        "isStatusRefreshAutomatic",
+        "isRunningOnServer",
+        "ChatStatusRefresherOptions"
       ]
     },
     {
@@ -317,7 +325,14 @@
         "recency groups",
         "replayChatEvents",
         "stored AG-UI events",
-        "history replay"
+        "history replay",
+        "isRunning",
+        "send blocked",
+        "Wait for the reply to finish",
+        "Refresh Status",
+        "statusRefreshMs",
+        "statusRefreshTimeoutMs",
+        "auto-refresh"
       ]
     },
     {
@@ -601,8 +616,6 @@
         "ChatEmptyState",
         "ChatSuggestions",
         "ChatStatusRegion",
-        "showStopHint",
-        "ChatStatusRegion.defaults",
         "showSummaryFailureCount",
         "ChatTimeline.defaults",
         "ChatComposerPill",
@@ -642,7 +655,9 @@
         "onSourceClick",
         "ChatSourceClickFn",
         "markdownPlugins",
-        "KaTeX"
+        "KaTeX",
+        "detached",
+        "Not finished yet"
       ]
     },
     {
@@ -677,6 +692,25 @@
         "rehype",
         "KaTeX",
         "math"
+      ]
+    },
+    {
+      "id": "docs/upgrade-notes/v2-upgrade-notes.md",
+      "title": "v2 Upgrade Notes",
+      "mcpCategory": "upgrade",
+      "viewerCategory": "upgrade",
+      "description": "Upgrade guide from v1.x to v2.0.0. Low difficulty. Covers the removal of the status region's busy line and its settings, and the region's CSS and tests.",
+      "keywords": [
+        "upgrade",
+        "migration",
+        "breaking changes",
+        "v2",
+        "v1",
+        "showStopHint",
+        "busyIcon",
+        "ChatStatusRegion.defaults",
+        "ChatStatusRegionDefaults",
+        "status region"
       ]
     }
   ]

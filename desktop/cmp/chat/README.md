@@ -334,6 +334,7 @@ The block is one 28px line. Its height never changes, and it changes only its wo
 | Paused | "Paused", when the reply waits on the user for something outside the block | As running, with the time held |
 | Done | "Used 7 tools and 1 agent" | Time taken, failures |
 | Stopped | "Stopped after 5 tools". Calls open at the stop show as cancelled, not failed. | Cancelled count |
+| Detached | "So far: 5 tools done", or "Nothing finished yet", for a reply left running on the server. Its open calls and sub-agents show as "Not finished yet", with no spinner. | Time taken, failures |
 | Failed | "Ended at step 5". The reply's failed row says why. | Tool count |
 
 The line swaps to its done summary in place once the answer starts below the block. Failures
@@ -380,7 +381,8 @@ Open, the block shows a tree of rows:
   closes the group. A sub-agent row starts open while it runs and closed once done. Below three
   levels, a row names its parent in place of more indent. A sub-agent runs only while its reply
   streams. One left running when its run ends, as on an error or a dropped stream, shows as
-  failed, and one open at a stop shows as cancelled.
+  failed, and one open at a stop shows as cancelled. One open in a reply left running on the
+  server shows as "Not finished yet".
 - **Activities** - an activity that is not a tool call, such as a skill the agent loads, shows
   as a row with its icon, title and summary, and no time. It opens to the type's data renderer,
   or to its data. While it is the newest row, the line names it. See
@@ -508,10 +510,10 @@ left slot of the composer's bar, for pills. `rightItems` goes before the attach 
 buttons, for a context meter. `topItems` adds content above the input, such as context chips.
 `bottomItems` adds a row under it. Both sit outside the input's bordered box, spaced by
 `--xh-chat-composer-row-gap`. `startItems` leads the input row, before the text, such as a brand
-mark. It breathes while a reply
-runs - see [Motion](#motion). To animate it yourself, pass `breatheStartItems: false`, and style it
-under the composer's `xh-chat-composer--busy` class. `layout: 'inline'` puts
-the bar after the text, in the same row, for a one-row composer. As the text grows, start items
+mark. It breathes while a reply runs, here or on the server after a page reload - see
+[Motion](#motion). To animate it yourself, pass `breatheStartItems: false`, and style it under the
+composer's `xh-chat-composer--busy` class. `layout: 'inline'` puts the bar after the text, in the
+same row, for a one-row composer. As the text grows, start items
 and the bar stay level with its last line. In a narrow composer, pills give way before the text.
 
 ```typescript
@@ -648,32 +650,26 @@ chatScopeChip({
 ### Recover from a failed reply
 
 `ChatPanel` renders a `ChatStatusRegion` above the composer. It shows one line, the most urgent
-status of the thread, with at most one action. A custom layout renders it with
-`chatStatusRegion()` above the composer. Screen readers hear each new status once. The status a
-thread already has when the region mounts, or when the thread opens, is not announced.
+status of the thread, with at most one action. It holds only what stops a send or needs the
+user's action. A reply's progress shows in the reply itself, so a reply in progress or waiting for
+the user's answer shows no line. A custom layout renders it with `chatStatusRegion()` above the
+composer. Screen readers hear each new status once, a turn that pauses for the user's answer
+included, and a status withdraws its announcement once it passes. The status a thread already has
+when the region mounts, or when the thread opens, is not announced.
 
 | Status | Shows | Action |
 |---|---|---|
-| Sending blocked | The `sendBlockedReason` | None |
+| Sending blocked | The `sendBlockedReason`. A block while the server runs the turn shows as the detached reply, if there is one, and shows nothing while the thread layer checks on the turn by itself. | Refresh Status, for a block while the server runs the turn |
 | Offline | "Offline. Your draft is kept; send it when you're back online." | None |
 | Failed, retry-safe | "The reply failed." and the cause | Try Again |
-| Failed, not retry-safe | The cause, and "It may still be running." | Refresh Status, else Try Again |
+| Failed, not retry-safe | The cause, and "It may still be running." | Refresh Status, else Try Again. None while the thread layer refreshes on its own. |
 | Interrupted or cancelled by the server | The server's reason | Try Again, or Refresh Status |
-| Left running on the server | "Still working on the server." | Refresh Status |
-| Stalled | "No response for 34s." | Refresh Status |
+| Left running on the server | "Still working on the server.", only when the chat can refresh and the thread layer does not refresh on its own | Refresh Status |
+| Stalled | "No response for 34s.", only when the chat can refresh | Refresh Status |
 | Server asked for a wait | "Waiting to retry, 42 s." | Cancel. The turn retries at zero, at most 3 times in a row |
-| Waiting for the user | "Waiting for your answer above." | None |
-| Reply in progress | "Assistant is working · Esc to stop" | None |
 | Draft restored | "Draft from 10:31am restored." | Discard |
 
-Set `showStopHint` false to leave "Esc to stop" out of the busy line and its tooltip. Esc still
-stops the reply. Pass it to `ChatPanel` in `statusRegionProps`, or set it app-wide at startup:
-
-```ts
-chatPanel({model: chatModel, statusRegionProps: {showStopHint: false}});
-
-ChatStatusRegion.defaults.showStopHint = false;
-```
+Esc stops a reply in progress, as does the composer's Stop button, whose tooltip names the key.
 
 A chat with `allowRetry` false never offers Try Again, and never retries on its own. See
 [Hide Edit, Regenerate and Try Again](../../../core/README.md#hide-edit-regenerate-and-try-again).
@@ -759,6 +755,11 @@ chatPanel({
 
 To show other content instead, pass it as `emptyState`. The message list shows it, and the
 composer stays at the bottom.
+
+A thread whose turn runs on the server while the chat does not follow it, as after a page reload,
+shows no empty state. The list shows "Still working on the server" instead, in
+`xh-chat-message-list__awaiting-reply`, and after the user's question when that is all the
+history holds - see `ChatModel.isRunningOnServer`.
 
 ### Collect feedback
 
@@ -1238,7 +1239,7 @@ Accepts all `PanelProps` except `model`, `modelConfig` and `modelRef`.
 | `markdownPlugins` | `ChatMarkdownPlugins` | Remark and rehype plugins for assistant text and reasoning. Pass a stable object. |
 | `composerProps` | `ChatComposerProps` | Props for the composer. |
 | `messageListProps` | `ChatMessageListProps` | Props for the message list. |
-| `statusRegionProps` | `ChatStatusRegionProps` | Props for the status region. Its `assistantName` defaults to the message list's. |
+| `statusRegionProps` | `ChatStatusRegionProps` | Props for the status region. |
 
 ### ChatMessageList
 
@@ -1329,7 +1330,7 @@ it.
 | `ChatFileChip` | `file`, `onRemove`, `allowImages` | Show a file, with a remove button when `onRemove` is set. An image at a URL shows a thumbnail only if `allowImages` permits it. |
 | `ChatEmptyState` | `header`, `icon`, `title`, `text`, `suggestions`, `footer`, `composerModel` | Welcome the user to an empty chat. |
 | `ChatSuggestions` | `suggestions`, `onSelect`, `composerModel` | Show prompt cards that fill the composer: `composerModel`, else the `ChatModel`'s. `onSelect` replaces the fill. With neither, it renders nothing. |
-| `ChatStatusRegion` | `model`, `assistantName`, `showStopHint` | Show the thread's next action above a composer, in a custom layout. |
+| `ChatStatusRegion` | `model` | Show the thread's next action above a composer, in a custom layout. |
 | `ChatComposerPill` | `text`, `icon`, `count`, `menuItems`, `content`, `tooltip`, `active`, `disabled`, `onOpenChange`, `popoverClassName`, `popoverAlign` | Add a pill to the composer's left slot or its `bottomItems`. |
 | `ChatScopeChip` | `options`, `noun`, `icon`, `runOption`, `value`, `onChange`, `searchThreshold`, `tooltip`, `topItems`, `bottomItems`, `disabled`, `onOpenChange`, `popoverClassName`, `popoverAlign` | Choose some options for the next question, such as documents, agents or tools. Binds `runOptions[runOption]`, or `value` and `onChange`. |
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |

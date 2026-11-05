@@ -680,6 +680,24 @@ describe('ChatTimeline', () => {
             );
         });
 
+        it('shows the open work of a reply left running as not finished, never stopped', () => {
+            const {container} = renderReply(
+                [call('c1'), call('c2', {state: 'input-available'}), agentPart('s1', 'Researcher')],
+                {},
+                {status: 'aborted', metadata: {detached: true}}
+            );
+
+            const head = lineButton(container);
+            expect(head.textContent).toContain('So far: 1 tool done');
+            expect(head.textContent).not.toMatch(/Stopped|cancelled/);
+            expect(timeline(container).querySelector('.xh-chat-spinner')).toBeNull();
+            fireEvent.click(head);
+            const [, open, agent] = screen.getAllByRole('treeitem');
+            expect(open.getAttribute('aria-label')).toBe('Lookup, Rates, not finished yet');
+            expect(open.classList).toContain('xh-chat-timeline__item--unfinished');
+            expect(agent.getAttribute('aria-label')).toMatch(/, not finished yet$/);
+        });
+
         it('ends a failed run at its last step', () => {
             const {container} = renderReply([call('c1'), call('c2')], {}, {status: 'error'});
             expect(lineButton(container).textContent).toContain('Ended at step 2');

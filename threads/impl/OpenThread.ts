@@ -3,6 +3,7 @@ import {action, observable, observableRef} from '@xh/hoist/mobx';
 import type {ChatModel} from '../../core';
 import type {ChatConversation} from '../ChatConversation';
 import {ChatModelConversation} from './ChatModelConversation';
+import {IDLE_WATCH, type RunWatch} from './RunWatch';
 
 /** State of an open thread's history. `notFound` if the store reported the thread missing. */
 export type OpenThreadLoadState = 'loading' | 'loaded' | 'notFound' | 'failed';
@@ -43,6 +44,19 @@ export class OpenThread extends HoistBase {
      * (observable)
      */
     @observable accessor isSaved: boolean;
+
+    /**
+     * The `isRunning` of the thread in the last list that held it, or null if none has. Kept
+     * apart from the list, so that a search or a capped list that leaves the thread out does not
+     * lose it. (observable)
+     */
+    @observable accessor isListedRunning: boolean = null;
+
+    /**
+     * What the threads model knows of a turn of this thread that runs on the server - see
+     * {@link RunWatch}. (observable)
+     */
+    @observableRef accessor runWatch: RunWatch = IDLE_WATCH;
 
     /** The conversation's `ChatModel`, or null for a conversation of the app's own. */
     get chatModel(): ChatModel {
@@ -90,18 +104,31 @@ export class OpenThread extends HoistBase {
     }
 
     @action
+    setListedRunning(isRunning: boolean) {
+        this.isListedRunning = isRunning;
+    }
+
+    @action
+    setRunWatch(watch: RunWatch) {
+        if (watch !== this.runWatch) this.runWatch = watch;
+    }
+
+    @action
     setSaved(isSaved: boolean) {
         this.isSaved = isSaved;
     }
 
     /**
      * Start a load of the history, superseding any load in flight.
+     * @param isQuiet - true for a background check, which leaves the load state as it is.
      * @returns a key that identifies the load - see {@link isLoadCurrent}.
      */
     @action
-    beginLoad(): number {
-        this.loadState = 'loading';
-        this.loadError = null;
+    beginLoad(isQuiet: boolean = false): number {
+        if (!isQuiet) {
+            this.loadState = 'loading';
+            this.loadError = null;
+        }
         return ++this.loadCount;
     }
 
@@ -127,6 +154,11 @@ export class OpenThread extends HoistBase {
     resetLoad() {
         this.loadCount++;
         this.endLoad();
+    }
+
+    /** The key of the latest load - see {@link beginLoad}. */
+    get loadKey(): number {
+        return this.loadCount;
     }
 
     /** True if the load with this key is the latest, and the thread is still open. */

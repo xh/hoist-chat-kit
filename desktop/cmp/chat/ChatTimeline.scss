@@ -96,7 +96,8 @@
   }
 
   &--paused &__stage,
-  &--stopped &__stage {
+  &--stopped &__stage,
+  &--detached &__stage {
     color: var(--xh-chat-meta-text-color);
     font-weight: 400;
   }
