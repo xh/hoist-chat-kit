@@ -2417,3 +2417,36 @@ list would no longer be the only source for the row, and a run the history does 
 such as a new turn from another tab, would read as done. An optional store method that reports
 the runs of a few threads. It costs less per check, but every app's store has to add it, and the
 list reload would remain its fallback. It waits for an app whose list is too costly to reload.
+
+## D119. The thread layer asks the app to title a new thread
+
+**Status.** Accepted.
+
+**Decision.** `ChatThreadsConfig.titleThreadAsync({threadId, text})` returns a title for a thread
+the user started on this page. The model calls it once per thread, when the thread counts as
+saved and a turn has started in it. Saved is the kit's own signal that the backend has the
+thread, which is also when the route takes the id. A conversation of the app's own may count as
+saved at birth, before it holds a message. One that leaves out `isSaved` counts as saved when its
+first turn ends, even a failed turn. `text` is the user's latest message at that moment.
+
+The model saves the title through the store's `renameThreadAsync`, which the option requires, with
+no toast on failure. A rename by the
+user on this page wins: the title waits while a rename saves, and drops if one saved. The model
+holds one record per thread that waits for a title. It makes the record before the thread opens,
+moves it with the thread's id, and drops it once the title settles, or when the thread closes
+before the request.
+
+**Why.** An app asked for model-written titles. It could build them from `isNew` and
+`showThreadTitle()`, but each app would rebuild the same parts: when the backend first has the
+thread, which only the kit tracks for a `ChatModel`, a rename made while the title was on its way,
+and a single call per thread. The title starts while the first reply streams, so a long run does
+not delay it.
+
+**Alternatives.** Call it when the first turn ends. Simpler, but a long agent run would show the
+provisional title for its whole length. Let the app's function save the title, and only show it.
+A backend that writes and saves a title in one call would then save it once, not twice. But a
+rename by the user while the function ran could be overwritten on the backend, and the next list
+would bring the model's title back. Only a save the kit makes can lose to the user's rename. Call
+it on every new thread's first turn, even one that never reached the backend. Such a thread is
+not saved, so the title would have nowhere to go. Fall back to showing the title only, with a store that cannot rename. The next list would drop
+it, and a search that hid the thread would lose it. Such an app calls `showThreadTitle()` itself.

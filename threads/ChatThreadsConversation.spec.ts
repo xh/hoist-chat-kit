@@ -1,4 +1,4 @@
-import {last} from 'lodash';
+import {find, last} from 'lodash';
 import {HoistBase, XH} from '@xh/hoist/core';
 import {action, observable, observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
@@ -396,6 +396,77 @@ describe('ChatThreadsModel with an app conversation', () => {
             expect(last(conversations).spec.isNew).toBe(true);
             expect(model.selectedThreadId).toBe(last(conversations).threadId);
         });
+    });
+
+    it('asks for a title once a turn starts in a new thread saved from the start', async () => {
+        const titleThreadAsync = vi.fn(async () => 'Escrow review'),
+            conversations: TestConversation[] = [],
+            {model, store} = setup({
+                titleThreadAsync,
+                createConversation: spec => {
+                    const ret = new TestConversation(spec.threadId, spec.isNew, spec);
+                    ret.set({isSaved: true});
+                    conversations.push(ret);
+                    return ret;
+                }
+            });
+        model.newThread();
+        const conversation = last(conversations);
+        store.saveThread({id: conversation.threadId});
+        await wait();
+        expect(titleThreadAsync).not.toHaveBeenCalled();
+
+        conversation.set({isBusy: true});
+        await wait();
+        expect(titleThreadAsync).toHaveBeenCalledExactlyOnceWith({
+            threadId: conversation.threadId,
+            text: null
+        });
+        conversation.set({isBusy: false});
+        await wait();
+        expect(model.selectedSummary.title).toBe('Escrow review');
+    });
+
+    it('asks for a title when a first turn ends in the background, without isSaved', async () => {
+        const titleThreadAsync = vi.fn(async () => 'Escrow review'),
+            {model, store, conversations} = setup({titleThreadAsync});
+        model.newThread();
+        const conversation = last(conversations);
+        store.saveThread({id: conversation.threadId});
+        conversation.set({isBusy: true});
+        await selectAsync(model, conversations, 't1');
+
+        conversation.set({isBusy: false});
+        await wait();
+
+        expect(titleThreadAsync).toHaveBeenCalledExactlyOnceWith({
+            threadId: conversation.threadId,
+            text: null
+        });
+        expect(find(model.threads, {id: conversation.threadId}).title).toBe('Escrow review');
+    });
+
+    it('never asks for a title for a thread left before its first turn, when it opens again', async () => {
+        const titleThreadAsync = vi.fn(async () => 'Escrow review'),
+            conversations: TestConversation[] = [],
+            {model} = setup({
+                titleThreadAsync,
+                createConversation: spec => {
+                    const ret = new TestConversation(spec.threadId, spec.isNew, spec);
+                    ret.set({isSaved: true});
+                    conversations.push(ret);
+                    return ret;
+                }
+            });
+        model.newThread();
+        const {threadId} = last(conversations);
+        await selectAsync(model, conversations, 't1');
+
+        await selectAsync(model, conversations, threadId);
+        last(conversations).set({isBusy: true});
+        await wait();
+
+        expect(titleThreadAsync).not.toHaveBeenCalled();
     });
 });
 

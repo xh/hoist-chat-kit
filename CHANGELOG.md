@@ -43,6 +43,14 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   yet, in place of the empty state or after the user's question. The composer's start items breathe
   while it runs.
 
+* Added `ChatThreadsModel.showThreadTitle()`, to show a title the backend already holds, such as
+  one it wrote in the background. The list and the workspace header show it at once, with no
+  store call and no list reload.
+* Added `ChatThreadsConfig.titleThreadAsync`, to give a thread the user starts a title of the app's
+  own, such as a summary that a model writes. The model calls it once per thread, as soon as the
+  backend has the thread, then saves the title through the store and shows it. A rename by the
+  user wins.
+
 ### 🐞 Bug Fixes
 
 * Fixed the thread list to stop showing a thread as working within one `statusRefreshMs` check

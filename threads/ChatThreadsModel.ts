@@ -3,6 +3,7 @@ import {
     difference,
     differenceBy,
     find,
+    findLast,
     isEmpty,
     keyBy,
     keys,
@@ -71,6 +72,21 @@ export interface ChatThreadsConfig {
     createConversation?: (spec: ChatConversationSpec) => ChatConversation;
 
     /**
+     * Write a title for a thread the user started on this page, such as a summary from a model.
+     * The model calls it once for each such thread, as soon as the backend has the thread, while
+     * the first reply streams. A conversation of the app's own that leaves out `isSaved` counts
+     * as saved when its first turn ends, so the model calls it then. It saves the title through
+     * the store's `renameThreadAsync`, which this option requires, and the list and the
+     * workspace header show it at once.
+     *
+     * The model does not call it for a thread opened from the list, or for a turn that never
+     * reached the backend - it waits for one that does. A rename by the user on this page wins:
+     * the title waits while one saves, and drops if one saved. A null title is dropped. A failure
+     * is logged, and the thread keeps its title.
+     */
+    titleThreadAsync?: (spec: ChatThreadTitleSpec) => Promise<string>;
+
+    /**
      * A route whose parameter holds the selected thread's id, for deep links. The selection and
      * the parameter then stay in sync both ways.
      */
@@ -93,6 +109,19 @@ export interface ChatThreadsConfig {
 
 /** @deprecated - use {@link ChatConversationSpec}. */
 export type ChatThreadChatSpec = ChatConversationSpec;
+
+/** Passed to {@link ChatThreadsConfig.titleThreadAsync}. */
+export interface ChatThreadTitleSpec {
+    /** Id of the thread, as the backend knows it. */
+    threadId: string;
+
+    /**
+     * Text of the user's latest message as the backend first has the thread - their first
+     * message, unless an earlier turn failed before it reached the backend. Null for a
+     * conversation of the app's own, from `createConversation` - read it from the conversation.
+     */
+    text: string;
+}
 
 /** A route that holds the selected thread - see {@link ChatThreadsConfig.route}. */
 export interface ChatThreadsRoute {
@@ -359,10 +388,15 @@ export class ChatThreadsModel extends HoistModel {
             createChatModel && !store.loadMessagesAsync,
             'ChatThreadsModel with createChatModel requires a store with loadMessagesAsync.'
         );
+        throwIf(
+            config.titleThreadAsync && !store.renameThreadAsync,
+            'ChatThreadsModel with titleThreadAsync requires a store with renameThreadAsync.'
+        );
 
         this.store = store;
         this.createChatModel = createChatModel ?? null;
         this.createConversation = createConversation ?? null;
+        this.titleThreadFn = config.titleThreadAsync ?? null;
         this.route = route;
         this.statusRefreshMs =
             config.statusRefreshMs !== undefined
@@ -508,12 +542,44 @@ export class ChatThreadsModel extends HoistModel {
         title = title?.trim();
         throwIf(!title, 'A thread title cannot be empty.');
 
-        await this.changeThreadsAsync(
-            [threadId],
-            {title},
-            'The conversation was not renamed.',
-            () => this.store.renameThreadAsync(threadId, title)
-        );
+        // A title from `titleThreadAsync` waits while the rename saves, and drops if it saved. A
+        // title already saving goes first, so that the backend takes the rename last.
+        const wait = this.titleWaits.get(threadId),
+            titleSaving = wait?.titleSaving,
+            saving = this.changeThreadsAsync(
+                [threadId],
+                {title},
+                'The conversation was not renamed.',
+                () => {
+                    const save = () => this.store.renameThreadAsync(threadId, title);
+                    return titleSaving ? titleSaving.then(save) : save();
+                }
+            );
+        if (wait) wait.renaming = saving;
+        const isSaved = await saving;
+        if (wait) {
+            if (isSaved) wait.isRenamed = true;
+            if (wait.renaming === saving) wait.renaming = null;
+        }
+    }
+
+    /**
+     * Show a title that the backend already holds for a thread, such as one it wrote in the
+     * background. The list and the workspace header show it at once. Unlike
+     * {@link renameThreadAsync}, the model does not call the store, and does not reload the list.
+     *
+     * The title holds until a list requested after this call applies. That list's title then
+     * shows, as for any other row. A thread that is neither in the store's list nor started
+     * here, or an empty title, is ignored.
+     */
+    @action
+    showThreadTitle(threadId: string, title: string) {
+        title = title?.trim();
+        if (!title || !this.hasThread(threadId)) return;
+
+        const change: PendingChange = {threadId, changes: {title}, doneBefore: Infinity};
+        this.addPendingChanges([change]);
+        this.commitPendingChanges([change]);
     }
 
     /**
@@ -544,6 +610,11 @@ export class ChatThreadsModel extends HoistModel {
     //------------------
     private readonly createChatModel: (spec: ChatConversationSpec) => ChatModel;
     private readonly createConversation: (spec: ChatConversationSpec) => ChatConversation;
+    private readonly titleThreadFn: (spec: ChatThreadTitleSpec) => Promise<string>;
+
+    // Threads started here that wait for a title from `titleThreadAsync`, or for the one on its
+    // way, by thread id.
+    private readonly titleWaits = new Map<string, TitleWait>();
 
     // Threads with an open chat, by thread id.
     @observableRef private accessor openThreads: Record<string, OpenThread> = {};
@@ -615,6 +686,8 @@ export class ChatThreadsModel extends HoistModel {
     //------------------------
     /** Create the conversation for a thread, and wire it to this model. */
     private openThread(threadId: string, isNew: boolean, seed: ChatSeedSpec = null): OpenThread {
+        // Before the thread opens, as a conversation may count as saved from the start.
+        if (isNew) this.waitForTitle(threadId);
         const spec = {threadId, isNew, seed};
         let conversation: ChatConversation;
         if (this.createChatModel) {
@@ -631,7 +704,8 @@ export class ChatThreadsModel extends HoistModel {
             conversation,
             isLoaded: isNew,
             onThreadIdChange: (it, prevThreadId) => this.onThreadIdChange(it, prevThreadId),
-            onBusyChange: it => this.onBusyChange(it)
+            onBusyChange: it => this.onBusyChange(it),
+            onSaved: it => this.requestTitleIfReady(it)
         });
         this.putOpenThread(threadId, thread);
         const summary = find(this.threads, {id: threadId});
@@ -810,14 +884,79 @@ export class ChatThreadsModel extends HoistModel {
             thread.setListedRunning(find(this.threads, {id: threadId})?.isRunning ?? null);
             // A cleared chat holds a thread the backend has not seen. Loaded history with a user
             // message is saved - a greeting alone is not. A conversation of the app's own says
-            // through its `isSaved`, or holds a loaded thread if it leaves that out.
-            thread.setSaved(
-                chatModel ? some(chatModel.messages, 'isUser') : (conversation.isSaved ?? true)
-            );
+            // through its `isSaved`, or holds a loaded thread if it leaves that out. A thread
+            // the backend has not seen was started here, and waits for a title. The thread it
+            // held keeps only a title already on its way.
+            const isSaved = chatModel
+                ? some(chatModel.messages, 'isUser')
+                : (conversation.isSaved ?? true);
+            if (!this.titleWaits.get(prevThreadId)?.isRequested) {
+                this.titleWaits.delete(prevThreadId);
+            }
+            if (!isSaved) this.waitForTitle(threadId);
+            thread.setSaved(isSaved);
             this.stepRun(thread, {type: 'reset'});
         }
         this.openThreads = {...omit(this.openThreads, prevThreadId), [threadId]: thread};
         if (this.selectedThreadId === prevThreadId) this.selectedThreadId = threadId;
+    }
+
+    /** Note a thread started here as waiting for a title, if the app gives them. */
+    private waitForTitle(threadId: string) {
+        if (!this.titleThreadFn) return;
+        this.titleWaits.set(threadId, {
+            threadId,
+            isRequested: false,
+            renaming: null,
+            isRenamed: false,
+            titleSaving: null
+        });
+    }
+
+    /**
+     * Ask the app to title a thread started here, once the backend has it and a turn has started
+     * in it - a conversation of the app's own may count as saved before either.
+     */
+    private requestTitleIfReady(thread: OpenThread) {
+        const {threadId} = thread.conversation,
+            wait = this.titleWaits.get(threadId);
+        if (!wait || wait.isRequested || !thread.isSaved || !this.hasThread(threadId)) return;
+        wait.isRequested = true;
+        this.requestTitleAsync(thread, wait);
+    }
+
+    /**
+     * Get a title from the app, and save it through the store. A rename by the user wins: the
+     * title waits while one saves, and drops if one saved. A failure is logged, with no toast.
+     */
+    private async requestTitleAsync(thread: OpenThread, wait: TitleWait) {
+        const {chatModel} = thread;
+        try {
+            if (wait.isRenamed) return;
+            // The user's latest message as the backend first has the thread - their first,
+            // unless an earlier turn failed before it reached the backend.
+            const text = chatModel ? (findLast(chatModel.messages, 'isUser')?.text ?? null) : null,
+                title = (await this.titleThreadFn({threadId: wait.threadId, text}))?.trim();
+            while (wait.renaming) await wait.renaming;
+            // A thread deleted meanwhile drops its wait. One a search hides keeps it. The wait
+            // holds the thread's id, which may have changed meanwhile.
+            if (!title || this.isDestroyed || wait.isRenamed || !this.isTitleWaiting(wait)) return;
+
+            const {threadId} = wait;
+            wait.titleSaving = this.changeThreadsAsync([threadId], {title}, null, () =>
+                this.store.renameThreadAsync(threadId, title)
+            );
+            await wait.titleSaving;
+        } catch (e) {
+            this.logWarn(`Failed to title thread ${wait.threadId}`, e);
+        } finally {
+            if (this.isTitleWaiting(wait)) this.titleWaits.delete(wait.threadId);
+        }
+    }
+
+    /** True if a title wait is still held, not dropped with its thread. */
+    private isTitleWaiting(wait: TitleWait): boolean {
+        return this.titleWaits.get(wait.threadId) === wait;
     }
 
     private onBusyChange(thread: OpenThread) {
@@ -827,6 +966,7 @@ export class ChatThreadsModel extends HoistModel {
         if (conversation.isBusy) {
             // A new turn: its reply is the one to see now, and the one to check on if it drops.
             this.clearMarks(threadId);
+            this.requestTitleIfReady(thread);
             this.stepRun(thread, {type: 'turn'});
             return;
         }
@@ -846,6 +986,9 @@ export class ChatThreadsModel extends HoistModel {
         if (!conversation.isAwaitingUser) this.noteTurnEnd(threadId, endedEarly);
         // The backend may have set a title, or the thread's place in the list may change.
         this.refreshThreadsSoon();
+        // Before the thread closes, which drops a title wait not yet asked - a turn's end may
+        // have just saved the thread.
+        this.requestTitleIfReady(thread);
         this.closeIdleThreads();
     }
 
@@ -996,6 +1139,9 @@ export class ChatThreadsModel extends HoistModel {
         // A thread the backend never saw can never be listed or opened again, so its drafts go.
         const unsavedIds: string[] = [];
         Object.entries(idle).forEach(([id, thread]) => {
+            // A thread left before it was asked for a title never gets one: it opens from the
+            // list next time.
+            if (!this.titleWaits.get(id)?.isRequested) this.titleWaits.delete(id);
             if (this.isThreadSaved(thread)) {
                 const {conversation} = thread;
                 if (conversation instanceof ChatModelConversation) conversation.saveDraft(id);
@@ -1009,7 +1155,10 @@ export class ChatThreadsModel extends HoistModel {
         if (!isEmpty(unsavedIds)) {
             ChatKit.clearLocalData(unsavedIds);
             this.localThreads = this.localThreads.filter(it => !unsavedIds.includes(it.id));
-            unsavedIds.forEach(id => this.seenOnNextList.delete(id));
+            unsavedIds.forEach(id => {
+                this.seenOnNextList.delete(id);
+                this.titleWaits.delete(id);
+            });
         }
         this.openThreads = omit(this.openThreads, keys(idle));
     }
@@ -1032,6 +1181,7 @@ export class ChatThreadsModel extends HoistModel {
             thread?.destroy();
             this.drafts.remove(id);
             this.seenOnNextList.delete(id);
+            this.titleWaits.delete(id);
             if (this.lastShownId === id) this.lastShownId = null;
         });
         // After the chats close, as a composer saves its draft when destroyed.
@@ -1121,21 +1271,29 @@ export class ChatThreadsModel extends HoistModel {
      * at once if the call fails.
      *
      * @param changes - fields to change, or null to delete the threads.
+     * @param failureMessage - toast for a failure, or null to log it only.
+     * @returns true if the store saved the change.
      */
     private async changeThreadsAsync(
         threadIds: string[],
         changes: Partial<ChatThreadSummary>,
         failureMessage: string,
         saveAsync: () => Promise<void>
-    ) {
+    ): Promise<boolean> {
         const pending = threadIds.map(threadId => ({threadId, changes, doneBefore: Infinity}));
         this.addPendingChanges(pending);
         try {
             await saveAsync();
             this.commitPendingChanges(pending);
+            return true;
         } catch (e) {
             this.dropPendingChanges(pending);
-            XH.handleException(e, {message: failureMessage, alertType: 'toast'});
+            if (failureMessage) {
+                XH.handleException(e, {message: failureMessage, alertType: 'toast'});
+            } else {
+                this.logWarn('Failed to save a change to threads', threadIds, e);
+            }
+            return false;
         }
     }
 
@@ -1213,6 +1371,12 @@ export class ChatThreadsModel extends HoistModel {
         if (this.seenOnNextList.has(prevThreadId)) {
             this.seenOnNextList.set(threadId, this.seenOnNextList.get(prevThreadId));
             this.seenOnNextList.delete(prevThreadId);
+        }
+        const titleWait = this.titleWaits.get(prevThreadId);
+        if (titleWait) {
+            titleWait.threadId = threadId;
+            this.titleWaits.set(threadId, titleWait);
+            this.titleWaits.delete(prevThreadId);
         }
         const isListed = this.hasThread(threadId),
             rekey = (thread: ChatThreadSummary) =>
@@ -1323,6 +1487,24 @@ interface TurnEndWait {
 
     /** The activity a list reported for the turn before the user saw it end, or null. */
     reportedActivityAt: number;
+}
+
+/** A thread started here, waiting for a title from `titleThreadAsync` - see `titleWaits`. */
+interface TitleWait {
+    /** Id of the thread, which moves with the thread's id - see `rekeyThread`. */
+    threadId: string;
+
+    /** True once the model asked the app for the title. */
+    isRequested: boolean;
+
+    /** The latest rename by the user while it saves, resolving true if the store saved it. */
+    renaming: Promise<boolean>;
+
+    /** True once the store saved a rename by the user. The title then drops. */
+    isRenamed: boolean;
+
+    /** The save of the title from `titleThreadAsync`, while the store saves it. */
+    titleSaving: Promise<boolean>;
 }
 
 /** A rename or delete, laid over the threads - see `changeThreadsAsync`. */

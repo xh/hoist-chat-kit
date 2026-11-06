@@ -368,6 +368,56 @@ drafts, in memory and in local storage, through `ChatKit.clearLocalData(threadId
 deletes the selected thread, the model selects a new one. Check `canRename` and `canDelete`
 before you show each action. A call the store cannot make throws.
 
+A title that the backend already holds, such as one it wrote in the background, needs no rename.
+Show it with `showThreadTitle()`, which neither calls the store nor reloads the list:
+
+```typescript
+threadsModel.showThreadTitle(threadId, title);
+```
+
+The title shows in the list and the workspace header at once, including for a new thread on its
+first turn. It holds until a list requested after the call applies, and that list's title then
+shows. A thread that is neither in the store's list nor started on this page is ignored.
+
+### Title new threads
+
+A new thread shows the start of its first message as its title until the store lists one. For a
+better title, such as a summary that a model writes, give `titleThreadAsync`. It returns the
+title, and the model saves it:
+
+```typescript
+new ChatThreadsModel({
+    store,
+    createChatModel,
+    titleThreadAsync: ({text}) =>
+        XH.fetchService.postJson({url: 'assistant/summarizeTitle', body: {text}})
+});
+```
+
+The model calls it once for each thread the user starts on this page, as soon as the backend has
+the thread. `text` is the user's latest message at that moment. That is their first message,
+unless an earlier turn failed before it reached the backend. The first reply streams as usual and
+never waits for the title. A conversation of the app's own that leaves out `isSaved` counts as
+saved when its first turn ends, so the model calls it then. Such a conversation that changes its
+thread id while idle counts as holding a thread the backend has, so it is not titled. Report
+`isSaved` false for a thread the user clears into a new one.
+
+The model saves the title through the store's `renameThreadAsync`, which this option requires,
+and the list and the workspace header show it at once. With a store that cannot rename, title
+threads in your app and call `showThreadTitle()`.
+
+A rename by the user on this page wins. The title waits while a rename saves, and is dropped if the
+rename saved. A rename made while the title saves goes to the store after it. A null title, a
+failure of your function, or a failed save leaves the thread's title as it was. The model logs the
+failure, and the user sees no error.
+
+The model does not call it for a thread opened from the list or after a reload, or on a later
+turn. A thread the user leaves before its first turn reaches the backend is never titled. With
+`createConversation`, `text` is null. Read the message from the conversation.
+
+Use `titleThreadAsync` or `showThreadTitle()` for a thread, not both. A title the app shows while
+one from `titleThreadAsync` is on its way does not stop the model from saving the later one.
+
 ### Recover from a failed load
 
 If a thread's history fails to load, `loadError` holds the error, and the thread blocks sends
@@ -589,6 +639,7 @@ conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those
 | `store` | `ChatThreadStore` | Adapter to the backend. Required. |
 | `createChatModel` | `({threadId, isNew, seed}) => ChatModel` | Builds the chat for a thread. Must pass `threadId` to the `ChatModel`. `isNew` is false for a thread whose history is about to load. A new thread may start with a greeting in `initialMessages`. The model applies `seed` itself. Requires the store's `loadMessagesAsync`. Give this or `createConversation`. |
 | `createConversation` | `({threadId, isNew, seed}) => ChatConversation` | Builds a conversation of the app's own for a thread, over a chat that runs on another library. Must take `threadId`. Give this or `createChatModel`. |
+| `titleThreadAsync` | `({threadId, text}) => Promise<string>` | Writes a title for a thread started on this page, which the model saves through the store's `renameThreadAsync`. Requires it. Called once, when the backend first has the thread. Default none. See [Title new threads](#title-new-threads). |
 | `route` | `{name, param, threadRoute?}` | Route whose parameter holds the selected thread id. `threadRoute` names a child route that holds the thread in its path. Default none. |
 | `statusRefreshMs` | `number` | Milliseconds between checks on a turn that runs on the server, or null to check only on Refresh Status. Default `ChatKit.defaults.statusRefreshMs`, 5,000. See [A turn running on the server](#a-turn-running-on-the-server). |
 | `statusRefreshTimeoutMs` | `number` | Milliseconds after which the model stops those checks and offers Refresh Status. Default `ChatKit.defaults.statusRefreshTimeoutMs`, 30 minutes. |
@@ -627,6 +678,7 @@ conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those
 | `selectThreadAsync(threadId)` | Select a thread, opening its chat and loading its history if needed. |
 | `reloadThreadAsync()` | Load the selected thread's history again. Ignored while its turn runs. |
 | `renameThreadAsync(threadId, title)` | Rename at once. Rolls back with a toast on failure. |
+| `showThreadTitle(threadId, title)` | Show a title the backend already holds, with no store call and no list reload. |
 | `deleteThreadsAsync(threadIds)` | Delete at once, closing the chats. Rolls back with a toast on failure. |
 
 ### ChatThreadStore

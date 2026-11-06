@@ -20,6 +20,9 @@ export interface OpenThreadConfig {
 
     /** Called when the conversation starts or ends a turn. */
     onBusyChange: (thread: OpenThread) => void;
+
+    /** Called when the thread turns saved - see {@link OpenThread.isSaved}. */
+    onSaved?: (thread: OpenThread) => void;
 }
 
 /**
@@ -64,7 +67,13 @@ export class OpenThread extends HoistBase {
         return conversation instanceof ChatModelConversation ? conversation.chatModel : null;
     }
 
-    constructor({conversation, isLoaded, onThreadIdChange, onBusyChange}: OpenThreadConfig) {
+    constructor({
+        conversation,
+        isLoaded,
+        onThreadIdChange,
+        onBusyChange,
+        onSaved
+    }: OpenThreadConfig) {
         super();
         this.conversation = conversation;
         this.loadState = isLoaded ? 'loaded' : 'loading';
@@ -77,6 +86,12 @@ export class OpenThread extends HoistBase {
             {
                 track: () => conversation.isBusy,
                 run: () => onBusyChange(this)
+            },
+            {
+                track: () => this.isSaved,
+                run: isSaved => {
+                    if (isSaved) onSaved?.(this);
+                }
             }
         );
 

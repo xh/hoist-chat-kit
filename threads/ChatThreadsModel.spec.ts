@@ -1,3 +1,4 @@
+import {find} from 'lodash';
 import {XH} from '@xh/hoist/core';
 import {observable, runInAction} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
@@ -786,6 +787,69 @@ describe('ChatThreadsModel', () => {
             expect(model.threads[0].title).toBe('Newer');
         });
 
+        it('shows a title the backend holds, with no store call, until the next list', async () => {
+            const {model, store} = setup();
+            await model.loadAsync();
+            await model.selectThreadAsync('t1');
+            const callCount = store.calls.length;
+
+            model.showThreadTitle('t1', '  Budget, Q3  ');
+            expect(model.threads[0].title).toBe('Budget, Q3');
+            expect(model.selectedSummary.title).toBe('Budget, Q3');
+            expect(store.calls.length).toBe(callCount);
+
+            store.saveThread({id: 't1', title: 'Budget from the store'});
+            await model.refreshAsync();
+            expect(model.threads[0].title).toBe('Budget from the store');
+        });
+
+        it('keeps a shown title over a list requested before it', async () => {
+            const {model, store} = setup();
+            await model.loadAsync();
+            store.hold('listThreadsAsync');
+
+            const staleList = model.refreshAsync();
+            model.showThreadTitle('t1', 'Budget, Q3');
+            store.heldCalls('listThreadsAsync')[0].release();
+            await staleList;
+
+            expect(model.threads[0].title).toBe('Budget, Q3');
+        });
+
+        it('shows a title for a new thread that the store has not listed yet', async () => {
+            const turns = new TurnGates(),
+                {model} = setup({respond: turns.respond});
+            await model.loadAsync();
+            const chatModel = model.newThread(),
+                done = chatModel.sendAsync('Help me plan the Q3 budget for the travel team');
+            await wait();
+
+            model.showThreadTitle(chatModel.threadId, 'Q3 travel budget');
+            expect(model.threads[0]).toMatchObject({
+                id: chatModel.threadId,
+                title: 'Q3 travel budget'
+            });
+            expect(model.selectedSummary.title).toBe('Q3 travel budget');
+            turns.open(chatModel.threadId);
+            await done;
+        });
+
+        it('ignores a title for a thread the list does not show, or an empty one', async () => {
+            const {model} = setup();
+            await model.loadAsync();
+            const chatModel = model.newThread();
+
+            model.showThreadTitle('missing', 'Lost');
+            model.showThreadTitle(chatModel.threadId, 'Not started');
+            model.showThreadTitle('t1', '   ');
+
+            expect(model.threads.map(it => it.title)).toEqual([
+                'Budget review',
+                'Travel plans',
+                'Q3 forecast'
+            ]);
+        });
+
         it('deletes at once, and restores the threads with a toast if the store fails', async () => {
             const handleException = spyHandleException(),
                 {model, store} = setup();
@@ -806,6 +870,266 @@ describe('ChatThreadsModel', () => {
                 message: 'The conversations were not deleted.',
                 alertType: 'toast'
             });
+        });
+    });
+
+    describe('titles for new threads', () => {
+        it('asks once, with the first message, and saves the title without delaying the reply', async () => {
+            const titles = new TitleGate(),
+                {model, store} = setup({titleThreadAsync: titles.fn});
+            await model.loadAsync();
+            const chatModel = model.newThread();
+            store.saveThread({id: chatModel.threadId});
+
+            await chatModel.sendAsync('Help me plan the Q3 travel budget');
+            expect(texts(chatModel)).toEqual([
+                'Help me plan the Q3 travel budget',
+                `Reply in ${chatModel.threadId}`
+            ]);
+            expect(titles.fn).toHaveBeenCalledExactlyOnceWith({
+                threadId: chatModel.threadId,
+                text: 'Help me plan the Q3 travel budget'
+            });
+
+            await titles.resolve('Q3 travel budget');
+            expect(model.selectedSummary.title).toBe('Q3 travel budget');
+            expect(renameCalls(store)).toEqual([[chatModel.threadId, 'Q3 travel budget']]);
+
+            await chatModel.sendAsync('And for Q4?');
+            expect(titles.fn).toHaveBeenCalledOnce();
+        });
+
+        it('asks with the id the backend minted', async () => {
+            const titles = new TitleGate(),
+                {model} = setup({
+                    titleThreadAsync: titles.fn,
+                    respond: () => [runStarted('srv-9'), textEvents('Hi there.')]
+                });
+
+            await model.newThread().sendAsync('Hello');
+
+            expect(titles.fn).toHaveBeenCalledExactlyOnceWith({threadId: 'srv-9', text: 'Hello'});
+        });
+
+        it('does not ask for a thread opened from the list', async () => {
+            const titles = new TitleGate(),
+                {model} = setup({titleThreadAsync: titles.fn});
+            await model.selectThreadAsync('t1');
+
+            await model.chatModel.sendAsync('One more thing');
+
+            expect(titles.fn).not.toHaveBeenCalled();
+        });
+
+        it('waits for a turn that reaches the backend', async () => {
+            spyHandleException();
+            const titles = new TitleGate(),
+                responses: Respond[] = [
+                    () => {
+                        throw new Error('Connection reset');
+                    },
+                    () => textEvents('Hello!')
+                ],
+                {model} = setup({
+                    titleThreadAsync: titles.fn,
+                    respond: (...args) => responses.shift()(...args)
+                }),
+                chatModel = model.newThread();
+
+            await chatModel.sendAsync('Hi');
+            expect(titles.fn).not.toHaveBeenCalled();
+
+            await chatModel.sendAsync('Hi again');
+            expect(titles.fn).toHaveBeenCalledExactlyOnceWith({
+                threadId: chatModel.threadId,
+                text: 'Hi again'
+            });
+        });
+
+        it("keeps a rename made before the thread took the backend's id", async () => {
+            let release: () => void;
+            const gate = new Promise<void>(resolve => (release = resolve)),
+                titles = new TitleGate(),
+                {model, store} = setup({
+                    titleThreadAsync: titles.fn,
+                    respond: async function* () {
+                        await gate;
+                        yield runStarted('srv-9');
+                        yield* textEvents('Hi there.');
+                    }
+                });
+            await model.loadAsync();
+            const chatModel = model.newThread(),
+                localId = chatModel.threadId,
+                done = chatModel.sendAsync('Hello');
+            await wait();
+            store.saveThread({id: localId});
+
+            await model.renameThreadAsync(localId, 'My chat');
+            release();
+            await done;
+
+            expect(chatModel.threadId).toBe('srv-9');
+            expect(titles.fn).not.toHaveBeenCalled();
+            expect(model.selectedSummary.title).toBe('My chat');
+        });
+
+        it("saves the title if the user's rename failed", async () => {
+            spyHandleException();
+            const titles = new TitleGate(),
+                {model, store} = setup({titleThreadAsync: titles.fn});
+            await model.loadAsync();
+            const chatModel = model.newThread();
+            await chatModel.sendAsync('Help me plan the Q3 travel budget');
+            store.saveThread({id: chatModel.threadId});
+            store.hold('renameThreadAsync');
+
+            const renamed = model.renameThreadAsync(chatModel.threadId, 'My budget');
+            store.heldCalls('renameThreadAsync')[0].fail(new Error('Server down'));
+            await renamed;
+            store.hold('renameThreadAsync', false);
+            await titles.resolve('Q3 travel budget');
+
+            expect(model.selectedSummary.title).toBe('Q3 travel budget');
+        });
+
+        it("keeps the user's rename over a title that arrives after it", async () => {
+            const titles = new TitleGate(),
+                {model, store} = setup({titleThreadAsync: titles.fn});
+            await model.loadAsync();
+            const chatModel = model.newThread();
+            await chatModel.sendAsync('Help me plan the Q3 travel budget');
+            store.saveThread({id: chatModel.threadId});
+
+            await model.renameThreadAsync(chatModel.threadId, 'My budget');
+            await titles.resolve('Q3 travel budget');
+
+            expect(model.selectedSummary.title).toBe('My budget');
+            expect(renameCalls(store)).toEqual([[chatModel.threadId, 'My budget']]);
+        });
+
+        it('waits for a rename that is saving, and saves the title if the rename fails', async () => {
+            spyHandleException();
+            const titles = new TitleGate(),
+                {model, store} = setup({titleThreadAsync: titles.fn});
+            await model.loadAsync();
+            const chatModel = model.newThread();
+            await chatModel.sendAsync('Help me plan the Q3 travel budget');
+            store.saveThread({id: chatModel.threadId});
+            store.hold('renameThreadAsync');
+
+            const renamed = model.renameThreadAsync(chatModel.threadId, 'My budget');
+            await titles.resolve('Q3 travel budget');
+            expect(store.heldCalls('renameThreadAsync')).toHaveLength(1);
+            store.heldCalls('renameThreadAsync')[0].fail(new Error('Server down'));
+            await renamed;
+            await wait();
+            store.heldCalls('renameThreadAsync')[0].release();
+            await wait();
+
+            await model.refreshAsync();
+            expect(model.selectedSummary.title).toBe('Q3 travel budget');
+        });
+
+        it('sends a rename made while the title saves to the store after it', async () => {
+            const titles = new TitleGate(),
+                {model, store} = setup({titleThreadAsync: titles.fn});
+            await model.loadAsync();
+            const chatModel = model.newThread();
+            store.saveThread({id: chatModel.threadId});
+            await chatModel.sendAsync('Help me plan the Q3 travel budget');
+            store.hold('renameThreadAsync');
+            await titles.resolve('Q3 travel budget');
+
+            const renamed = model.renameThreadAsync(chatModel.threadId, 'My budget');
+            await wait();
+            expect(renameCalls(store)).toEqual([[chatModel.threadId, 'Q3 travel budget']]);
+            store.heldCalls('renameThreadAsync')[0].release();
+            await wait();
+            store.heldCalls('renameThreadAsync')[0].release();
+            await renamed;
+
+            expect(renameCalls(store).map(it => it[1])).toEqual(['Q3 travel budget', 'My budget']);
+            expect(model.selectedSummary.title).toBe('My budget');
+            await model.refreshAsync();
+            expect(model.selectedSummary.title).toBe('My budget');
+        });
+
+        it('saves the title of a thread that a search hides', async () => {
+            const titles = new TitleGate(),
+                {model, store} = setup({titleThreadAsync: titles.fn});
+            await model.loadAsync();
+            const chatModel = model.newThread();
+            store.saveThread({id: chatModel.threadId});
+            await chatModel.sendAsync('Help me plan the Q3 travel budget');
+            await model.refreshAsync();
+
+            vi.useFakeTimers({toFake: ['setTimeout', 'clearTimeout', 'Date']});
+            onTestFinished(() => {
+                vi.useRealTimers();
+            });
+            model.search = 'forecast';
+            await vi.advanceTimersByTimeAsync(300);
+            expect(ids(model.threads)).toEqual(['t3']);
+            titles.resolve('Q3 travel budget');
+            await vi.advanceTimersByTimeAsync(0);
+            model.search = null;
+            await vi.advanceTimersByTimeAsync(300);
+
+            expect(renameCalls(store)).toEqual([[chatModel.threadId, 'Q3 travel budget']]);
+            expect(find(model.threads, {id: chatModel.threadId}).title).toBe('Q3 travel budget');
+        });
+
+        it('drops the title of a thread deleted while it was on its way', async () => {
+            const titles = new TitleGate(),
+                {model, store} = setup({titleThreadAsync: titles.fn});
+            await model.loadAsync();
+            const chatModel = model.newThread();
+            store.saveThread({id: chatModel.threadId});
+            await chatModel.sendAsync('Help me plan the Q3 travel budget');
+            store.hold('deleteThreadsAsync');
+
+            const deleted = model.deleteThreadsAsync([chatModel.threadId]);
+            await titles.resolve('Q3 travel budget');
+            store.heldCalls('deleteThreadsAsync')[0].release();
+            await deleted;
+
+            expect(renameCalls(store)).toEqual([]);
+        });
+
+        it('requires a store that can rename', () => {
+            expect(() =>
+                setup({
+                    titleThreadAsync: async () => 'Title',
+                    store: new LocalChatThreadStore({
+                        threads: THREADS,
+                        omit: ['renameThreadAsync']
+                    })
+                })
+            ).toThrow('requires a store with renameThreadAsync');
+        });
+
+        it('keeps the title it has, with no error, if the app gives none or fails, or the store fails', async () => {
+            const handleException = spyHandleException(),
+                titles = new TitleGate(),
+                {model} = setup({titleThreadAsync: titles.fn});
+            await model.loadAsync();
+            const first = model.newThread();
+            await first.sendAsync('First question');
+            await titles.resolve(null);
+            expect(model.selectedSummary.title).toBe('First question');
+
+            const second = model.newThread();
+            await second.sendAsync('Second question');
+            await titles.fail(new Error('Title service down'));
+            expect(model.selectedSummary.title).toBe('Second question');
+
+            // The store has no record of the third thread, so it fails the save.
+            const third = model.newThread();
+            await third.sendAsync('Third question');
+            await titles.resolve('Third title');
+            expect(model.selectedSummary.title).toBe('Third question');
+            expect(handleException).not.toHaveBeenCalled();
         });
     });
 
@@ -1784,6 +2108,28 @@ class TurnGates {
     }
 }
 
+/** A `titleThreadAsync` whose calls wait until the test resolves or fails the latest one. */
+class TitleGate {
+    private pending: {resolve: (title: string) => void; reject: (e: Error) => void} = null;
+
+    readonly fn = vi.fn(
+        () =>
+            new Promise<string>((resolve, reject) => {
+                this.pending = {resolve, reject};
+            })
+    );
+
+    async resolve(title: string) {
+        this.pending.resolve(title);
+        await wait();
+    }
+
+    async fail(e: Error) {
+        this.pending.reject(e);
+        await wait();
+    }
+}
+
 function runStarted(threadId: string): ChatEvent {
     return {type: 'RUN_STARTED', threadId, runId: 'run-1'};
 }
@@ -1798,6 +2144,10 @@ function ids(threads: {id: string}[]): string[] {
 
 function texts(chatModel: ChatModel): string[] {
     return chatModel.messages.map(it => it.text);
+}
+
+function renameCalls(store: LocalChatThreadStore) {
+    return store.calls.filter(it => it.method === 'renameThreadAsync').map(it => it.args);
 }
 
 function listCalls(store: LocalChatThreadStore) {
