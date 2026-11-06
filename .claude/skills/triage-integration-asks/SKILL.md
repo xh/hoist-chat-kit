@@ -146,7 +146,7 @@ wins first, then take one decision at a time.
    Parked for the end: Ask 4.
    ```
 
-2. **Build the clear wins** (steps 7 and 8). Report each one as done in a line.
+2. **Build the clear wins** (steps 7 to 9). Report each one as done in a line.
 3. **Take the discussion items one per message,** in order of importance. Each message holds one
    decision, in this shape:
 
@@ -181,6 +181,20 @@ reproduce it, ask the app for the steps or the stream that shows it. Do not fix 
 
 ### 8. Build
 
+Before you write a change that adds state or async work, list how it can go wrong, and write a
+failing spec for each case first. Specs written after the code test the cases you had in mind,
+and the review then finds the rest. Cover:
+
+- **Each point in a lifecycle.** Per-thread state in `ChatThreadsModel` must hold up when a
+  thread opens, takes the backend's id, is cleared in place, closes while idle, is deleted, and
+  when the model is destroyed. Follow an existing field through each point, such as
+  `seenOnNextList`.
+- **Each race.** An async result can arrive after the user renamed, deleted or left the thread,
+  after a list reload, or after a newer result. The concurrency rules in the threads README and
+  the overlay entries in `DECISIONS.md` show the races the thread layer guards.
+- **Each kind of host.** A `ChatModel`, and a conversation of the app's own. A store with and
+  without each optional method.
+
 Follow `AGENTS.md`. A change is done with its specs, doc comments, README section, index and
 registry rows, and CHANGELOG entry. Add a `DECISIONS.md` entry when the change makes a design
 choice: a new seam, a new convention, or a declined option that will come up again. Run the
@@ -192,7 +206,37 @@ the maintainer's plan. Do not infer it from the repo's state.
 Branching, committing, pushing and publishing each need the maintainer's ask, as `AGENTS.md`
 states.
 
-### 9. Write the reply to the app
+### 9. Get an independent review
+
+Once a change other than a doc fix passes its specs, have it reviewed before you report it as
+done. Do not wait for the maintainer to ask.
+
+A reviewer that knows your reasoning tends to accept it. Give it the code and the ask, not your
+case for the design.
+
+1. Run the `code-review` skill on the change, at a level sized to it. It reads the diff with no
+   context from you.
+2. For an ask with requirements, also have an agent check the diff against the ask. Give it the
+   ask as the app wrote it, and list each place the change departs from the ask, as a plain
+   statement with no argument for it. Add only the conventions it must not flag, such as
+   nullable values typed as plain types.
+
+Then:
+
+1. Fix each must-fix finding, and each should-fix finding whose failure an app could plausibly
+   hit, with a spec for each. Decline the rest, each with a reason in one line.
+2. Review the fixes once more, with the `code-review` skill on their diff alone. Stop there. A
+   blind review of a change with state and async work seldom comes back empty, and each round
+   finds new orderings of events, so a rule of "until clean" does not end.
+3. If that round finds a must-fix, fix it, and bring the rest to the maintainer rather than
+   start a third round.
+4. If two rounds find bugs in the same area, simplify the design or cut scope before you patch
+   it again. Most late findings come from surface that an earlier fix added.
+
+Give the maintainer a line on what the reviews found and what you declined. If a fix reverses a
+choice the maintainer approved, say so.
+
+### 10. Write the reply to the app
 
 Write the reply once every ask is built, declined or parked. The app agent may have nothing but the
 installed package and this reply. Write it to stand alone.
