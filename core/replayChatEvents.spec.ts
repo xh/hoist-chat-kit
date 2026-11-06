@@ -12,6 +12,8 @@ import {
     toolCallEvents
 } from '../transport';
 import {ChatModel} from './ChatModel';
+import {isChatRetrySafe} from './composer/ChatComposerStatus';
+import {ChatMessage} from './message/ChatMessage';
 import type {ChatDataPart, ChatReasoningPart, ChatToolCallPart} from './message/ChatPart';
 import {replayChatEvents} from './replayChatEvents';
 
@@ -231,6 +233,54 @@ describe('replayChatEvents', () => {
         expect(spec).toMatchObject({id: 'a1', status: 'complete'});
         expect(spec.metadata).toMatchObject({serverId: 's1', version: 3, runStarted: true});
         expect(spec.metadata).not.toHaveProperty('elapsedMs');
+    });
+
+    it('marks each reply it rebuilds as received by the backend, even with no events', () => {
+        const empty = replayChatEvents([], {status: 'error', error: 'The reply did not finish.'}),
+            noRun = replayChatEvents([{type: 'RUN_ERROR', message: 'Boom.'}]);
+
+        [empty, noRun].forEach(spec => expect(spec.metadata.runStarted).toBe(true));
+        expect(empty).toMatchObject({status: 'error', error: 'The reply did not finish.'});
+    });
+
+    it('fails a reply marked failed, whose events have no end, as a stream cut short', () => {
+        const call = toolCallEvents('book', {}, {toolCallId: 'c1', result: 'ok'}),
+            broken = replayChatEvents([STARTED, ...call], {status: 'error'}),
+            empty = replayChatEvents([], {status: 'error'});
+
+        [broken, empty].forEach(spec => {
+            expect(spec.metadata.errorCode).toBe('incomplete-stream');
+            expect(isChatRetrySafe(new ChatMessage(spec), 'server')).toBe(false);
+            expect(isChatRetrySafe(new ChatMessage(spec), 'client')).toBe(true);
+        });
+    });
+
+    it('keeps the retry safety of a RUN_ERROR, and what the app says of a failure', () => {
+        const ended = replayChatEvents(failedTurn('overloaded'), {status: 'error'}),
+            safe = replayChatEvents([STARTED], {status: 'error', metadata: {retrySafe: true}}),
+            coded = replayChatEvents([STARTED], {status: 'error', metadata: {errorCode: 'lost'}});
+
+        expect(ended.metadata.errorCode).toBe('overloaded');
+        expect(isChatRetrySafe(new ChatMessage(ended), 'server')).toBe(true);
+        expect(isChatRetrySafe(new ChatMessage(safe), 'server')).toBe(true);
+        expect(coded.metadata.errorCode).toBe('lost');
+        expect(isChatRetrySafe(new ChatMessage(coded), 'server')).toBe(true);
+        expect(
+            replayChatEvents([], {status: 'error', metadata: {errorCode: 'lost'}}).metadata
+                .errorCode
+        ).toBe('lost');
+    });
+
+    it('fails a record the decoder rejects by its own code, over what the app says', () => {
+        const spec = replayChatEvents([STARTED, ...textEvents('Hi.'), STARTED], {
+            decoder: new AgUiCodec().createDecoder(),
+            status: 'error',
+            metadata: {errorCode: 'lost', retrySafe: true}
+        });
+
+        expect(spec.metadata.errorCode).toBe('invalid-stream');
+        expect(spec.metadata).not.toHaveProperty('retrySafe');
+        expect(isChatRetrySafe(new ChatMessage(spec), 'server')).toBe(false);
     });
 
     it('times no part by the load when the events have no timestamps', () => {

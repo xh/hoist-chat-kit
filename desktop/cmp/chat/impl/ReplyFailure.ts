@@ -4,14 +4,16 @@ import type {ChatMessage} from '../../../../core';
 
 /**
  * True for a reply that failed before its run started - for example offline, or a failed thread
- * create - so that the turn's message was never sent. Such a reply has no parts, no run id from
- * the server, and no error code from a run. The user message shows "Not sent" in its place.
+ * create - so that the turn's message was never sent. Such a reply has no parts, no mark that its
+ * run started, no run id from the server, and no error code from a run. A reply rebuilt from the
+ * backend's history carries the mark, as the backend has its turn. The user message shows
+ * "Not sent" in its place.
  * @internal
  */
 export function isReplyNotSent(reply: ChatMessage): boolean {
     if (!reply?.isAssistant || reply.status !== 'error' || !isEmpty(reply.parts)) return false;
-    const {runId, errorCode} = reply.metadata;
-    return runId == null && errorCode == null;
+    const {runStarted, runId, errorCode} = reply.metadata;
+    return !runStarted && runId == null && errorCode == null;
 }
 
 /**

@@ -63,6 +63,18 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Fixed a reply left running on the server, live, loaded or replayed, to show its unfinished server
   calls and sub-agents as "Not finished yet", not as failed, cancelled or "Stopped". Once the
   conversation moves past the reply, it reads as complete and its open work closes.
+* Fixed a failed reply rebuilt by `replayChatEvents` to show as a failed reply, with its error.
+  Before, a reply with no parts, run id or error code showed as "Not sent" under the user's
+  message, though the backend had the turn. Each rebuilt reply now carries
+  `metadata.runStarted: true`, as a live reply does once its run starts. A live reply whose run
+  started with no run id, then failed with no parts or code, now shows as failed too.
+* Fixed a reply rebuilt by `replayChatEvents` with `status: 'error'`, from events that end in
+  neither `RUN_FINISHED` nor `RUN_ERROR`, to read as not retry-safe in server mode. It now gets
+  error code `incomplete-stream`, as a live stream that broke off does, so the chat never offers
+  Try Again for it. Pass `metadata: {retrySafe: true}` to mark it safe. A record the decoder
+  rejects still fails the reply as `invalid-stream`, over the app's `errorCode` and `retrySafe`.
+* `isChatRetrySafe` now takes `metadata.retrySafe: true` over the kit's own unsafe error codes.
+  Before, only `false` decided.
 * Fixed `replayChatEvents` to record no times for events with no `timestamp`. Before, it timed
   every tool call, sub-agent and reasoning part by the load, so each showed "<0.1s". The timeline,
   its screen reader labels and the reasoning label now show no time for them. A backend that

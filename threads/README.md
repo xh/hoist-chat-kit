@@ -337,6 +337,15 @@ export class AssistantThreadStore implements ChatThreadStore {
   fails it. With neither, the turn is still running on the server, and the reply loads detached.
   Pass `status` when the backend records the outcome its own way, such as a turn the user stopped
   that it stores as a `RUN_ERROR`.
+- **A failed reply** always shows as failed, with its error, never as "Not sent", even with no
+  events. The backend has the turn, so its message was sent. If you pass `status: 'error'` and
+  the events end in neither `RUN_FINISHED` nor `RUN_ERROR`, the reply gets error code
+  `incomplete-stream`, as a live stream that broke off does. In server mode that is not
+  retry-safe, since the backend may have run some of the turn's tools. So the chat never offers
+  Try Again for it. As for a live reply that broke off, the model reloads the thread once to
+  check on it, then offers Refresh Status. Pass `metadata: {retrySafe: true}` if you know a
+  resend is safe, or your own `errorCode`. A reply whose events end in `RUN_ERROR` keeps that
+  event's code and retry safety.
 - **A cut stream** should end with a `RUN_ERROR` as it is stored. AG-UI's checks reject a
   `RUN_FINISHED` while a message or tool call is still open, and a second `RUN_STARTED` or
   `RUN_FINISHED` for one run. A reply whose events fail the checks loads failed, with what came

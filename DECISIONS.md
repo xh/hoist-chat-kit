@@ -1187,7 +1187,7 @@ answer. Today a heartbeat resets the transport's timer but never reaches the mod
 
 ## D64. A failure shows inline, and the next action sits above the composer
 
-**Status.** Accepted.
+**Status.** Amended by [D120](#d120-a-replayed-failure-reads-as-the-same-failure-live).
 
 **Decision.** The inline failed row in the reply records what happened, with Edit Prompt and Copy
 Details. The composer's status region holds the thread's one next action. `ChatErrorBanner`, an
@@ -2115,7 +2115,8 @@ view, and the text wobbles.
 ## D107. Stored AG-UI events replay through the live reducer, by their own clock
 
 **Status.** Amended by [D115](#d115-a-detached-reply-keeps-its-open-work-open): a detached turn's
-open calls and sub-agents stay open.
+open calls and sub-agents stay open. Amended by
+[D120](#d120-a-replayed-failure-reads-as-the-same-failure-live).
 
 **Decision.** `replayChatEvents` rebuilds a reply from the events a backend stored for its turn.
 It runs them through an app's decoder, for the same checks as a live stream, and through
@@ -2450,3 +2451,23 @@ would bring the model's title back. Only a save the kit makes can lose to the us
 it on every new thread's first turn, even one that never reached the backend. Such a thread is
 not saved, so the title would have nowhere to go. Fall back to showing the title only, with a store that cannot rename. The next list would drop
 it, and a search that hid the thread would lose it. Such an app calls `showThreadTitle()` itself.
+
+## D120. A replayed failure reads as the same failure live
+
+**Status.** Accepted.
+
+**Decision.** `replayChatEvents` marks each reply it builds `metadata.runStarted`, and "Not sent"
+requires that mark to be absent. A reply given `status: 'error'` whose events end in neither
+`RUN_FINISHED` nor `RUN_ERROR` gets error code `incomplete-stream`, unless the app names its own.
+`isChatRetrySafe` takes an explicit `metadata.retrySafe`, true or false, over the kit's own codes.
+
+**Why.** An app reported both. "Not sent" inferred a turn that never left the browser from what a
+reply lacked: parts, a run id and an error code. A reply rebuilt from history can lack all three,
+yet the backend has its turn. A rebuilt reply that broke off read as retry-safe, while the same
+reply live did not, so Try Again could run the backend's tools a second time. The flag the
+server uses to mark a failure unsafe is the natural way for an app to mark one safe.
+
+**Alternatives.** Mark the live failure as not sent, rather than the replayed reply as sent.
+Replies stored by an older version would then lose "Not sent". A new error code for a replayed
+reply with no end: it would mean the same as `incomplete-stream`, and every check of that code
+would need it too.

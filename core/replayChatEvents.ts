@@ -64,6 +64,14 @@ export interface ChatReplayOptions {
  *  - neither - `aborted` and `metadata.detached`, for a turn still running on the server. The
  *    chat then offers to refresh its status, as after the user left a live reply running.
  *
+ * A reply given `status: 'error'` whose events end in neither gets error code
+ * `incomplete-stream`, as a live stream that broke off - unless `opts.metadata` names its own
+ * `errorCode`. In server mode it is then not retry-safe, as the backend may have run some of its
+ * tools. Pass `metadata: {retrySafe: true}` if a resend is safe. See `isChatRetrySafe()`. A
+ * record the decoder rejects sets the decoder's code instead, and drops the app's `retrySafe`. Each
+ * reply is marked `metadata.runStarted`, as the backend has its turn, so that a failure shows as
+ * a failed reply and never as "Not sent".
+ *
  * Anything a turn leaves open, such as a tool call with no result, is closed as the live chat
  * would close it, at the time of the turn's last event. A detached turn's open tool calls and
  * sub-agents stay open, as the server may still finish them. An interrupt that a later run answered
@@ -114,11 +122,24 @@ export function replayChatEvents(
                 ? settleStreamingParts(settleEarlierCalls(message, lastIdx, endedAt), endedAt)
                 : settleOpenParts(message, SETTLE_REASONS[status], status === 'aborted', endedAt);
 
+    // The backend has the turn, so its message was sent - even if it stored no events of it.
     // A failure's details go with the failure, as for a stopped turn that a backend stored as one.
-    let replyMetadata: PlainObject =
-        status === 'error' ? settled.metadata : omit(settled.metadata, ERROR_KEYS);
+    let replyMetadata: PlainObject = {
+        ...(status === 'error' ? settled.metadata : omit(settled.metadata, ERROR_KEYS)),
+        runStarted: true
+    };
     if (decodeError) {
-        replyMetadata = {...replyMetadata, errorCode: decodeError.code ?? 'invalid-stream'};
+        // The kit could not read the stored stream, so its own code decides, as for a live one.
+        replyMetadata = {
+            ...omit(replyMetadata, 'retrySafe'),
+            errorCode: decodeError.code ?? 'invalid-stream'
+        };
+    } else if (status === 'error' && !isEnded) {
+        // A failure whose events do not say how it ended reads as a live stream that broke off.
+        replyMetadata = {
+            ...replyMetadata,
+            errorCode: replyMetadata.errorCode ?? 'incomplete-stream'
+        };
     }
     // The time the runs took. Waits between them, such as for the user's answers, do not count.
     if (!isEmpty(times)) {

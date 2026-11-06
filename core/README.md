@@ -950,8 +950,8 @@ desktop
 The action for a failure depends on whether a resend is safe. `isChatRetrySafe(message,
 historyMode)` decides it:
 
-- A failure is retry-safe unless the server's `RUN_ERROR` sets `metadata.retrySafe: false`. The
-  reply records the flag as `metadata.retrySafe`.
+- A reply's `metadata.retrySafe`, when set, decides: the server's `RUN_ERROR` sets it, or an app
+  that rebuilt the reply. Otherwise a failure is retry-safe, but for the rules below.
 - In server mode, the kit's own `stalled`, `incomplete-stream` and `invalid-stream` errors are
   not retry-safe, because the server may still be running the turn.
 - In server mode, a stream that throws, such as on a network reset or a gateway timeout, records

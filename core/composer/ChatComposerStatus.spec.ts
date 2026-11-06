@@ -23,6 +23,12 @@ describe('isChatRetrySafe', () => {
         ['a failure with no word from the server', {}, 'client', true],
         ['a failure the server marks unsafe', {retrySafe: false}, 'client', false],
         ['a failure the server marks safe', {retrySafe: true}, 'server', true],
+        [
+            'a dropped stream marked safe in server mode',
+            {errorCode: 'incomplete-stream', retrySafe: true},
+            'server',
+            true
+        ],
         ['a stall in client mode', {errorCode: 'stalled'}, 'client', true],
         ['a stall in server mode', {errorCode: 'stalled'}, 'server', false],
         ['a dropped stream in server mode', {errorCode: 'incomplete-stream'}, 'server', false],

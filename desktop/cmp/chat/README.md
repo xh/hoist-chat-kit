@@ -674,9 +674,10 @@ Esc stops a reply in progress, as does the composer's Stop button, whose tooltip
 A chat with `allowRetry` false never offers Try Again, and never retries on its own. See
 [Hide Edit, Regenerate and Try Again](../../../core/README.md#hide-edit-regenerate-and-try-again).
 
-A failure is retry-safe unless the server's `RUN_ERROR` sets `metadata.retrySafe: false`. In
-server mode, the kit's own `stalled`, `incomplete-stream` and `connection-lost` errors are not
-retry-safe either, because the server may still be running the turn. Refresh Status shows only
+A reply's `metadata.retrySafe`, when set, decides whether a failure is retry-safe. The server's
+`RUN_ERROR` sets it, or an app that rebuilt the reply. Otherwise a failure is retry-safe, but in
+server mode the kit's own `stalled`, `incomplete-stream`, `invalid-stream` and `connection-lost`
+errors are not, because the server may still be running the turn. Refresh Status shows only
 when the chat can reload the thread. `ChatThreadsModel` supplies that for its chats. See
 [Recover from a failed reply](../../../core/README.md#recover-from-a-failed-reply).
 

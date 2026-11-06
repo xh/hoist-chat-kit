@@ -1,7 +1,7 @@
 import {act, fireEvent, render, screen} from '@testing-library/react';
 import {fragment} from '@xh/hoist/cmp/layout';
 import {span} from '@xh/hoist/cmp/layout';
-import {creates, hoistCmp, HoistModel, XH} from '@xh/hoist/core';
+import {creates, hoistCmp, HoistModel, type PlainObject, XH} from '@xh/hoist/core';
 import {runInAction} from '@xh/hoist/mobx';
 import {useState} from 'react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
@@ -200,6 +200,34 @@ describe('ChatMessageView', () => {
 
             expect(container.querySelector('.xh-chat-message__not-sent')).toBeNull();
             expect(container.querySelector('.xh-chat-message__failed')).toBeTruthy();
+        });
+
+        it('shows a failed row for a run with no id that failed with no code', () => {
+            const chatModel = createModel({}, [
+                question(),
+                failedReply({parts: [], metadata: {runStarted: true}})
+            ]);
+            const {container} = renderList(chatModel);
+
+            expect(container.querySelector('.xh-chat-message__not-sent')).toBeNull();
+            expect(container.querySelector('.xh-chat-message__failed')).toBeTruthy();
+        });
+
+        it('shows a failed row, not "Not sent", for a failed reply rebuilt from history', () => {
+            const replies = [
+                replayChatEvents([], {status: 'error', error: 'The reply did not finish.'}),
+                replayChatEvents([{type: 'RUN_ERROR', message: 'The reply did not finish.'}])
+            ];
+            replies.forEach(reply => {
+                const chatModel = createModel({}, [question(), reply]),
+                    {container, unmount} = renderList(chatModel);
+
+                expect(container.querySelector('.xh-chat-message__not-sent')).toBeNull();
+                expect(container.querySelector('.xh-chat-message__failed').textContent).toContain(
+                    'The reply did not finish.'
+                );
+                unmount();
+            });
         });
     });
 
@@ -950,12 +978,14 @@ function failedReply({
     id = 'a1',
     parts = [],
     error = 'Model request timed out.',
-    errorCode = null
+    errorCode = null,
+    metadata = {}
 }: {
     id?: string;
     parts?: ChatPart[];
     error?: string;
     errorCode?: string;
+    metadata?: PlainObject;
 }): ChatMessageSpec {
     return {
         id,
@@ -963,7 +993,7 @@ function failedReply({
         parts,
         status: 'error',
         error,
-        metadata: errorCode ? {errorCode} : {}
+        metadata: errorCode ? {...metadata, errorCode} : metadata
     };
 }
 

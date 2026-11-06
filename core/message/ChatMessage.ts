@@ -48,9 +48,9 @@ export interface ChatMessageSpec {
     /**
      * Open-ended data about the message. The kit records `elapsedMs`, `endedAt` (epoch millis),
      * `finishReason`, `stopReason`, `usage`, `runStarted: true` once the backend reports the run
-     * began, `supersededCount` for the parts of attempts that a retry replaced, and, for a failed
-     * turn, `errorCode`, `retryAfterSeconds` and `retrySafe` on assistant messages. Apps may add
-     * their own keys.
+     * began or for a reply rebuilt from its history, `supersededCount` for the parts of attempts
+     * that a retry replaced, and, for a failed turn, `errorCode`, `retryAfterSeconds` and
+     * `retrySafe` on assistant messages. Apps may add their own keys.
      */
     metadata?: PlainObject;
 }
