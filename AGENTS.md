@@ -30,11 +30,11 @@ hoist-core and this kit. Use the `hoist-search-docs`, `hoist-list-docs`, `hoist-
 resources. Pass `library: "react"` or `library: "chat-kit"` to search one library; this kit's doc
 ids take a `chat-kit:` prefix (`chat-kit:core/README.md`).
 
-`.mcp.json` runs the tool with `npx`. In this checkout it serves the installed `@xh/hoist`, and the
-`develop` indexes of this kit and hoist-core, so the kit's own entries reflect its last published
-`develop` build rather than your working tree. Read the kit's docs and source directly for
-in-progress work. To serve indexes built locally instead, build them in a hoist-docs checkout
-(`pnpm build:react --root ../hoist-chat-kit --library chat-kit`, and `--root ../hoist-react` for
+`.mcp.json` runs the tool with `npx`. In this checkout it serves the index inside the installed
+`@xh/hoist`, plus the newest published snapshots of this kit and hoist-core, so the kit's own
+entries reflect its last published snapshot rather than your working tree. Read the kit's docs and
+source directly for in-progress work. To serve indexes built locally instead, build them in a
+hoist-docs checkout (`pnpm build:react --root ../hoist-chat-kit`, and `--root ../hoist-react` for
 in-progress framework code) and set `HOIST_DOCS_INDEX_DIR` to its `indexes` directory.
 
 **Without the server**, read the docs directly: hoist-react's in `node_modules/@xh/hoist/docs`
@@ -185,9 +185,10 @@ or feature is not done until its README, doc comments, index row, and registry e
 
 Read [`docs/doc-conventions.md`](docs/doc-conventions.md) before you write or change a doc. It
 covers the README template, the `docs/README.md` index, and the `docs/doc-registry.json` catalog.
-These match hoist-react's documentation structure. The `hoist.docRegistry` field in `package.json`
-declares the registry, so the `hoist-react` MCP server and `hoist-docs` CLI serve the kit's docs
-to agents in any app that installs it. Follow the `xh:clear-writing` skill for all prose.
+These match hoist-react's documentation structure. At publish, `prepack` builds the kit's Hoist
+Docs index from the registry and its source, and the package ships it (`hoistDocs` in
+`package.json`), so Hoist Docs serves the kit's docs and API to agents in any app that installs
+it. Follow the `xh:clear-writing` skill for all prose.
 
 ## Test Harness: Toolbox
 

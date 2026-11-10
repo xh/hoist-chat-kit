@@ -19,6 +19,7 @@
     "core",
     "desktop",
     "docs",
+    "hoist-docs",
     "genui",
     "impl",
     "styles",
@@ -27,8 +28,12 @@
     "!**/*.spec.ts",
     "!**/*.spec.tsx"
   ],
-  "hoist": {
-    "docRegistry": "docs/doc-registry.json"
+  "hoistDocs": {
+    "id": "chat-kit",
+    "index": "hoist-docs/index.json.gz",
+    "exclude": [
+      "test"
+    ]
   },
   "scripts": {
     "lint": "pnpm lint:all",
@@ -41,7 +46,8 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "build": "node scripts/check-package.mjs",
-    "prepare": "husky"
+    "prepare": "husky",
+    "prepack": "hoist-docs-build --root . --file hoist-docs/index.json.gz"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,mjs,mts}": [
@@ -69,6 +75,7 @@
     "@xh/eslint-config": "^8.1.0",
     "@xh/hoist": "^89.3.1",
     "@xh/hoist-dev-utils": "^16.1.1",
+    "@xh/hoist-docs-builder": "link:../hoist-docs/builders/react",
     "ag-grid-community": "~36.2.0",
     "ag-grid-react": "~36.2.0",
     "eslint": "^10.13.0",

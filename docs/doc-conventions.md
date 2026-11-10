@@ -6,8 +6,8 @@ Docs are part of the product. A component or feature is not done until its docs 
 indexed. The docs ship in the npm package next to the source, as hoist-react's do.
 
 This kit uses the same documentation structure as hoist-react: package READMEs, a `docs/README.md`
-index, and a `docs/doc-registry.json` catalog. hoist-react's MCP server and Toolbox's doc viewer
-both read that catalog format. See [How Agents Read These Docs](#how-agents-read-these-docs).
+index, and a `docs/doc-registry.json` catalog. Hoist Docs and Toolbox's doc viewer both read that
+catalog format. See [How Agents Read These Docs](#how-agents-read-these-docs).
 
 ## What to Write
 
@@ -16,7 +16,7 @@ both read that catalog format. See [How Agents Read These Docs](#how-agents-read
 | Package README | `<package>/README.md`, one per source package | What the package does, its classes, and how to use them |
 | Concept doc | `docs/<topic>.md` | A topic that spans packages, such as message streaming or theming |
 | Documentation index | `docs/README.md` | Every doc, with a description and key topics, plus a "Quick Reference by Task" table |
-| Doc registry | `docs/doc-registry.json` | The same catalog, in the JSON schema that hoist-react's tools read |
+| Doc registry | `docs/doc-registry.json` | The same catalog, in the JSON schema that Hoist Docs reads |
 | Root README | `README.md` | What the kit is, how to install it in an app, and where the docs start |
 | CHANGELOG | `CHANGELOG.md` | One entry per change that an app developer can see |
 
@@ -125,17 +125,18 @@ Also add each new top-level source package to the `files` list in `package.json`
 
 ## How Agents Read These Docs
 
-The `hoist` field in `package.json` points hoist-react's tools at the registry:
+At publish, the `prepack` script builds the kit's Hoist Docs index from the registry, the docs it
+lists, and the kit's source, and the package ships it. `package.json` declares it:
 
 ```json
-"hoist": {"docRegistry": "docs/doc-registry.json"}
+"hoistDocs": {"id": "chat-kit", "index": "hoist-docs/index.json.gz", "exclude": ["test"]}
 ```
 
-When an app installs the kit, the `hoist-react` MCP server and the `hoist-docs` CLI load the
-registry and serve each registered doc next to Hoist's own. Each doc id gets the package name as a
-prefix, so `core/README.md` becomes `@xh/hoist-chat-kit/core/README.md`. Agents in this repo get
-the same docs, because the kit opts itself in. The hoist-react doc
-`docs/companion-library-docs.md` holds the full contract.
+When an app installs the kit, [Hoist Docs](https://github.com/xh/hoist-docs) finds the index and
+serves the kit's docs and symbols next to Hoist's own. Doc ids take a `chat-kit:` prefix, so
+`core/README.md` becomes `chat-kit:core/README.md`. The registry's `mcpInstructions` reach the
+agent as the kit's guidance. The hoist-react doc `docs/companion-library-docs.md` holds the full
+contract.
 
 Write each doc with that reader in mind:
 
