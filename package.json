@@ -75,7 +75,7 @@
     "@xh/eslint-config": "^8.1.0",
     "@xh/hoist": "^89.3.1",
     "@xh/hoist-dev-utils": "^16.1.1",
-    "@xh/hoist-docs-builder": "0.0.1",
+    "@xh/hoist-docs-builder": "next",
     "ag-grid-community": "~36.2.0",
     "ag-grid-react": "~36.2.0",
     "eslint": "^10.13.0",
