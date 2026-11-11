@@ -23,31 +23,26 @@ that runs every check.
 on Hoist, and its code must look and behave like Hoist's own. Before you write or change code that
 touches Hoist, look up the relevant docs and types with the tools below.
 
-**MCP Server (`hoist-react`)** - configured in `.mcp.json` and enabled in `.claude/settings.json`.
-Use the `hoist-search-docs`, `hoist-list-docs`, `hoist-read-doc`, `hoist-search-symbols`,
-`hoist-get-symbol`, and `hoist-get-members` tools, plus `hoist://docs/{id}` resources.
+**MCP Server (`hoist-docs`)** - [Hoist Docs](https://github.com/xh/hoist-docs), configured in
+`.mcp.json` and enabled in `.claude/settings.json`. It serves the docs and API of hoist-react,
+hoist-core and this kit. Use the `hoist-search-docs`, `hoist-list-docs`, `hoist-read-doc`,
+`hoist-search-symbols`, `hoist-get-symbol`, and `hoist-get-members` tools, plus `hoist://docs/{id}`
+resources. Pass `library: "react"` or `library: "chat-kit"` to search one library; this kit's doc
+ids take a `chat-kit:` prefix (`chat-kit:core/README.md`).
 
-The server starts from `.claude/start-hoist-react-mcp.sh`. When a sibling `../hoist-react` checkout
-exists, the server reads it. Otherwise it reads the installed `node_modules/@xh/hoist`. Local mode
-shows in-progress framework code. Type-checking and tests always use the installed version. An API
-that exists only in the local checkout fails `pnpm typecheck` until you install a snapshot that
-has it.
+`.mcp.json` runs the tool with `npx`. In this checkout it serves the index inside the installed
+`@xh/hoist`, plus the newest published snapshots of this kit and hoist-core, so the kit's own
+entries reflect its last published snapshot rather than your working tree. Read the kit's docs and
+source directly for in-progress work. To serve indexes built locally instead, build them in a
+hoist-docs checkout (`pnpm build:react --root ../hoist-chat-kit`, and `--root ../hoist-react` for
+in-progress framework code) and set `HOIST_DOCS_INDEX_DIR` to its `indexes` directory.
 
-**CLI tools** - for environments without MCP. They read the installed `@xh/hoist`:
+**Without the server**, read the docs directly: hoist-react's in `node_modules/@xh/hoist/docs`
+(start at `docs/README.md`), and this kit's in `docs/` and each package's `README.md`.
 
-```bash
-node node_modules/@xh/hoist/bin/hoist-docs.mjs search "grid sorting"   # Search all docs
-node node_modules/@xh/hoist/bin/hoist-docs.mjs read cmp/grid           # Read a doc by ID
-node node_modules/@xh/hoist/bin/hoist-docs.mjs conventions             # Print coding conventions
-node node_modules/@xh/hoist/bin/hoist-docs.mjs index                   # Print the doc catalog
-node node_modules/@xh/hoist/bin/hoist-ts.mjs search GridModel          # Search symbols and members
-node node_modules/@xh/hoist/bin/hoist-ts.mjs symbol GridModel          # Signature, docs, members
-node node_modules/@xh/hoist/bin/hoist-ts.mjs members GridModel --filter col
-```
-
-**Recommended workflow:** Start with the doc index (`hoist://docs/index`, or `hoist-docs index`).
-Use its "Quick Reference by Task" table to find the right doc, then read it. Use the symbol tools
-for exact signatures and members.
+**Recommended workflow:** Start with the doc index (`hoist://docs/docs/README.md`, or
+`hoist-read-doc` with id `docs/README.md`). Use its "Quick Reference by Task" table to find the
+right doc, then read it. Use the symbol tools for exact signatures and members.
 
 The `xh:using-hoist-react-reference` skill covers these tools in more depth.
 
@@ -190,9 +185,10 @@ or feature is not done until its README, doc comments, index row, and registry e
 
 Read [`docs/doc-conventions.md`](docs/doc-conventions.md) before you write or change a doc. It
 covers the README template, the `docs/README.md` index, and the `docs/doc-registry.json` catalog.
-These match hoist-react's documentation structure. The `hoist.docRegistry` field in `package.json`
-declares the registry, so the `hoist-react` MCP server and `hoist-docs` CLI serve the kit's docs
-to agents in any app that installs it. Follow the `xh:clear-writing` skill for all prose.
+These match hoist-react's documentation structure. At publish, `prepack` builds the kit's Hoist
+Docs index from the registry and its source, and the package ships it (`hoistDocs` in
+`package.json`), so Hoist Docs serves the kit's docs and API to agents in any app that installs
+it. Follow the `xh:clear-writing` skill for all prose.
 
 ## Test Harness: Toolbox
 

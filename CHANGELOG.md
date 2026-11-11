@@ -87,6 +87,15 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   `xh-chat-message-list__awaiting-reply` classes. A detached
   reply's timeline no longer takes `xh-chat-timeline--stopped`.
 
+### 🤖 AI Docs + Tooling
+
+* The package now ships its Hoist Docs index (`hoist-docs/index.json.gz`), built at publish by
+  `@xh/hoist-docs-builder` and declared by `hoistDocs` in `package.json`. Hoist Docs
+  (`@xh/hoist-docs`) reads it from the installed package and serves the kit's docs and API to
+  agents in apps that install it, next to hoist-react's and hoist-core's.
+* Switched this repo's `.mcp.json` from the hoist-react MCP server to Hoist Docs, and removed
+  `.claude/start-hoist-react-mcp.sh`.
+
 ## 1.0.0 - 2026-11-02
 
 The first release of Hoist Chat Kit, a library of chat components for Hoist React applications.
