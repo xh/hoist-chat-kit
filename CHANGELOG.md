@@ -89,9 +89,10 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 
 ### 🤖 AI Docs + Tooling
 
-* Hoist Docs (`@xh/hoist-docs`) now serves the kit's docs and API to agents in apps that install
-  it, next to hoist-react's and hoist-core's, from the `@xh/hoist-docs-index-chat-kit` package.
-  Hoist Docs builds that index from each kit release - nothing changes in the kit's own release.
+* The package now ships its Hoist Docs index (`hoist-docs/index.json.gz`), built at publish by
+  `@xh/hoist-docs-builder` and declared by `hoistDocs` in `package.json`. Hoist Docs
+  (`@xh/hoist-docs`) reads it from the installed package and serves the kit's docs and API to
+  agents in apps that install it, next to hoist-react's and hoist-core's.
 * Switched this repo's `.mcp.json` from the hoist-react MCP server to Hoist Docs, and removed
   `.claude/start-hoist-react-mcp.sh`.
 
