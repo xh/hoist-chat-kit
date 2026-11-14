@@ -82,6 +82,7 @@ ChatRunRequest
 ├── runOptions: PlainObject                     # Options the user picked, copied at send
 ├── catalogVersion: string                      # Version of the chat's generative UI catalog
 ├── resume?: ResumeEntry[]                      # Responses to the last interrupted run
+├── agentState?: any                            # The agent's shared state, as the chat holds it
 ├── tools: ChatToolSpec[]                       # Tools to send to the model
 ├── context: ChatRunContext[]                   # Live context from the context providers
 └── signal: AbortSignal                         # Aborts the step, with a ChatAbortError
@@ -382,8 +383,7 @@ new ChatModel({
         headers: async () => ({Authorization: `Bearer ${await getTokenAsync()}`}),
         codec: new AgUiCodec({
             context: () => [{description: 'Selected sector', value: this.selectedSector}],
-            forwardedProps: {tenant: 'emea'},
-            state: () => ({selectedSector: this.selectedSector})
+            forwardedProps: {tenant: 'emea'}
         })
     })
 });
@@ -399,9 +399,16 @@ User messages carry their text as `content`, or a list of text, image, audio, vi
 parts when they have attachments. Each step of an assistant turn becomes three kinds of message: a
 `reasoning` message per reasoning part, an `assistant` message with its text and its finished
 `toolCalls`, and a `tool` message per call result. A failed or denied call also carries `error`.
-Tools go out as `{name, description, parameters}`. `context`, `forwardedProps` and `state` take a
-value, or a function that builds the value for each step. `state` defaults to `{}`. The structured
-context of the turn's user message, from `metadata.context`, goes last in `context`, as JSON.
+Tools go out as `{name, description, parameters}`. `context` and `forwardedProps` take a value, or
+a function that builds the value for each step. The structured context of the turn's user message,
+from `metadata.context`, goes last in `context`, as JSON.
+
+`state` is the agent's shared state as the chat holds it, from the request's `agentState`. A
+request with none sends `{}`. The agent's `STATE_SNAPSHOT` and `STATE_DELTA` events change the
+state from there, and the next run sends the result back. The codec takes no `state` of its own,
+and warns of one in its config. The app reads and sets the state on the chat, with
+`prepareAgentState` for the values each run must carry. See
+[Share state with an agent](../core/README.md#share-state-with-an-agent).
 
 Before it sends a request, the codec runs the official `@ag-ui/client` check on it. The check
 strips fields AG-UI does not define, with a console warning. A malformed field, such as a
@@ -681,6 +688,11 @@ if you want to stop the step, because the default signal never aborts.
 
 The reducer returns a new message for each batch and never marks it `complete`. `finish()` fails a
 reply whose stream ended without `RUN_FINISHED`, or that finished with no content.
+
+The reducer also folds the step's `STATE_SNAPSHOT` and `STATE_DELTA` events into the agent's
+shared state. Read it from `reducer.agentState` once the step ends. To send it back, pass it as
+the `agentState` of the next request, and of that step's reducer, so that its patches apply to
+the state the request sent.
 
 To answer the client tool calls in the reply, run the tools yourself. Give each tool call part its
 `output` and the state `output-available`, in a new message. Then send a request for the next step.
@@ -1094,7 +1106,6 @@ Shared by `HoistChatTransport` and `SseChatTransport`.
 |----------|------|-------------|
 | `context` | `AgUiContext[] \| (request) => AgUiContext[]` | Ambient information for the agent, as `{description, value}` items. The chat's live context follows these entries. Default none. |
 | `forwardedProps` | `PlainObject \| (request) => PlainObject` | App values passed to the agent untouched. Default none. |
-| `state` | `PlainObject \| (request) => PlainObject` | The agent's state, sent as `state`. Default `{}`. |
 | `newMessagesOnly` | `boolean` | True to send only what the server has not seen, in server mode. Outside the AG-UI spec. See [Server-owned conversations](#server-owned-conversations). Default false. |
 
 ### ScriptedChatTransportConfig
@@ -1131,6 +1142,8 @@ The kit acts on these AG-UI 1.0 events. It accepts the rest and ignores them.
 | `ACTIVITY_SNAPSHOT` | `messageId`, `activityType`, `content`, `replace?` | Adds or replaces a data part, with `dataType` set to `activityType`. |
 | `SUBAGENT_STARTED` | `subagentRunId`, `name`, `description?`, `parentSubagentRunId?`, `parentToolCallId?` | Adds a data part of type `xh.chat.subagent`, with the run id as its id. Tool calls with the same `subagentRunId` nest under it in the activity timeline. A call that `parentToolCallId` names hides, as the sub-agent's row stands for it, unless it fails. |
 | `SUBAGENT_FINISHED`, `SUBAGENT_ERROR` | `subagentRunId`, `result?` or `message`, `outcome?` | Ends the sub-agent's data part, with its result or error. A `suspended` outcome sets it `waiting` for the user, until a later run starts it again. |
+| `STATE_SNAPSHOT` | `snapshot` | None. Replaces the agent's shared state, `ChatModel.agentState`, with any JSON value. |
+| `STATE_DELTA` | `delta` | None. Patches the agent's shared state with a JSON Patch (RFC 6902), whole or not at all. A patch that does not apply changes nothing, with a console warning. |
 | `CUSTOM` | `name`, `value` | The `xh.chat.*` events below. Others are ignored. |
 
 A text, reasoning or tool call part keeps the `metadata` of its events, merged key by key, with
@@ -1139,9 +1152,9 @@ the last write winning, and `AgUiCodec` sends it back with the history. A reason
 the call's own, less the `error`, `isError` and `artifacts` that the kit reads. `AgUiCodec` sends
 it back on the result's `role: 'tool'` message.
 
-Ignored: `STEP_STARTED` and `STEP_FINISHED`, after the checks, as well as `RAW`, `STATE_SNAPSHOT`,
-`STATE_DELTA`, `MESSAGES_SNAPSHOT` and `ACTIVITY_DELTA`. `AgUiCodec` drops events of an unknown
-type, and expands chunk events before the chat sees them.
+Ignored: `STEP_STARTED` and `STEP_FINISHED`, after the checks, as well as `RAW`,
+`MESSAGES_SNAPSHOT` and `ACTIVITY_DELTA`. `AgUiCodec` drops events of an unknown type, and expands
+chunk events before the chat sees them.
 
 When a stream ends, the chat closes the step. Open text and reasoning parts become `done`, and
 tool calls that never saw `TOOL_CALL_END` get their input parsed.

@@ -36,6 +36,10 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   the `ChatUiMetrics` component, `chatUiMetrics()`, `ChatUiMetricsProps` and the
   `xh-chat-ui-metrics__*` classes. The spec's name and props are unchanged. See
   [Move Metrics Code to StatCard](docs/upgrade-notes/v2-upgrade-notes.md#5-move-metrics-code-to-statcard).
+* Removed `AgUiCodecConfig.state`. The chat now holds the agent's state, and `AgUiCodec` sends it
+  with each run. Move a codec `state` to `ChatModelConfig.prepareAgentState`. A backend that
+  emits `STATE_SNAPSHOT` now gets its state back with every run. See
+  [Move the Agent State to the Chat](docs/upgrade-notes/v2-upgrade-notes.md#6-move-the-agent-state-to-the-chat).
 
 ### 🎁 New Features
 
@@ -76,6 +80,16 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   nested answer, with no tool or tag of its own.
 * Added `chatUiStackSpec()`, a column or row container for nested answers, and `chatUiTextSpec()`,
   a markdown text component for the prose between their components. Neither is standalone.
+* Added `chatUiTabsSpec()` and `chatUiSectionSpec()`, containers for nested answers over Hoist's
+  `TabContainer` and `Card`. Tabs show one child at a time, named by `titles`. A section groups
+  its children under a title, and the user can collapse it. Neither is standalone.
+* Added `chatUiCalloutSpec()`, a note, success, warning or error message over Hoist's `Banner`,
+  with the `show_callout` tool. Its text renders as chat markdown, which loads no image.
+* Added `chatUiBadgesSpec()`, a row of Hoist `Badge` labels, and `chatUiDividerSpec()`, a rule
+  between the parts of a nested answer. Neither is standalone.
+* Added `chatUiTreeMapSpec()`, boxes sized by one number and colored by another over Hoist's
+  `TreeMap`, with the `show_treemap` tool. The app imports two Highcharts modules in its
+  `Bootstrap.ts`: `highcharts/modules/heatmap`, then `highcharts/modules/treemap`.
 * Added `ChatModel.streamingMessageId`, the id of the reply in progress. It changes only as a turn
   starts or ends, so a renderer that reads it does not re-render as the reply streams.
 * Enhanced Copy and the announcement of a finished reply to read UI in the reply's text as words,
@@ -92,6 +106,19 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   program, for prompt examples and scripted demos.
 * Added `isChatUiActionSchema()`, true for a schema that `chatUiActionSchema()` returned. Formats
   use it to find action props, so place that schema in a props schema as is, not as a clone.
+* Added support for AG-UI shared state. `ChatModel.agentState` holds the state an agent shares,
+  such as the to-do list of a LangGraph deep agent, as an observable JSON value for the app to
+  render. `STATE_SNAPSHOT` replaces it, `STATE_DELTA` patches it, and each run sends it back.
+* Added `ChatModel.setAgentState()`, to change the agent's state while no turn runs, with
+  `canSetAgentState` to say when. Added `ChatModelConfig.agentState`, for its first value.
+  `clear()` and `loadMessages()` reset the state, and `loadMessages()` takes one in its new `opts`.
+* Added `ChatModelConfig.prepareAgentState`, which sets the agent's state before each step, for
+  values of the app's own that every run must carry, such as the current selection.
+* Added `ChatMessagePage.agentState`, for a `ChatThreadStore` to return the state its backend
+  holds for a thread. `ChatThreadsModel` also keeps the state of a closed thread in memory, and
+  gives it to the thread's next chat.
+* Added `ChatRunRequest.agentState` and `ChatStreamReducer.agentState`, for an app that runs a
+  transport without `ChatModel`.
 * Added state to generative UI documents. `ChatUiDocument.state` takes a `ChatUiStateSpec`, which
   creates the state of a rendered document and resolves the document for it. The catalog keeps
   the state while the document shows, and renders again when an observable it reads changes.
@@ -121,6 +148,11 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   own rules.
 
 ### 🐞 Bug Fixes
+
+* Fixed `ChatUiChart` and `ChatUiChartView` to escape the text they pass to Highcharts: series,
+  slice and category names, axis titles, and the column labels and row text of a chart by
+  reference. Highcharts reads such text as markup, so a model or a result could draw a link that
+  skipped the chat's link checks, or an inline style that loads a URL.
 
 * Fixed the thread list to stop showing a thread as working within one `statusRefreshMs` check
   of its run's end, whether the thread is open or not. While the list shows a thread as working

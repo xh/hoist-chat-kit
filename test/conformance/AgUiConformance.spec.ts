@@ -13,8 +13,9 @@ import {KNOWN_GAPS, NOT_APPLICABLE} from './agUiKnownGaps';
  *
  * Each fixture is a stream of raw events and what a client must do with it. The runner decodes the
  * stream with `AgUiCodec`, as a transport would, and reads it to the end, as `ChatModel` does. It
- * folds the events into a reply with the kit's `ChatStreamReducer`, and checks the fixture's expectations against the events delivered and the
- * reply. A fixture passes, or fails exactly the checks its entry in `agUiKnownGaps.ts` names. A gap
+ * folds the events into a reply and a shared state with the kit's `ChatStreamReducer`, and checks
+ * the fixture's expectations against the events delivered, the reply and the state. A fixture
+ * passes, or fails exactly the checks its entry in `agUiKnownGaps.ts` names. A gap
  * that closes fails the run until its entry leaves the list, so the list is always current.
  *
  * The runner applies the corpus's own rules for a client other than the official ones - see
@@ -94,6 +95,7 @@ interface KitRun {
     error: string;
     delivered: ChatEvent[];
     messages: PlainObject[];
+    state: unknown;
     request: PlainObject;
 }
 
@@ -110,14 +112,16 @@ async function runFixture(fixture: PlainObject): Promise<KitRun> {
         error = [e.message, e.cause?.message].filter(Boolean).join(' - ');
     }
 
-    // The reducer failing would fail the turn too.
-    let messages: PlainObject[] = [];
+    // The reducer failing would fail the turn too. The state starts as the one the run was sent.
+    let messages: PlainObject[] = [],
+        state: unknown;
     try {
-        const reducer = new ChatStreamReducer(0),
+        const reducer = new ChatStreamReducer(0, {agentState: fixture.input?.state}),
             reply = reducer.finish(
                 reducer.apply(new ChatMessage({role: 'assistant', status: 'pending'}), delivered)
             );
         messages = [...(fixture.input?.messages ?? []), ...toAgUiMessages(reply)];
+        state = reducer.agentState;
     } catch (e) {
         error ??= e.message;
     }
@@ -127,6 +131,7 @@ async function runFixture(fixture: PlainObject): Promise<KitRun> {
         error,
         delivered,
         messages,
+        state,
         request: await codec.encodeRequest(runRequest())
     };
 }
@@ -275,8 +280,7 @@ async function failingChecks(fixture: PlainObject): Promise<string[]> {
                 }
                 break;
             case 'state':
-                // The kit keeps no AG-UI state.
-                check(key, false);
+                check(key, isEqual(run.state, want));
                 break;
             case 'request':
                 check(key, subsetMatch(run.request, want));

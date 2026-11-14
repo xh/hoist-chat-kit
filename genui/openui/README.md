@@ -292,6 +292,11 @@ export class AnalystModel extends HoistModel {
 }
 ```
 
+Every component of the catalog is a component of the program. For more variety, add the
+built-in specs over Hoist's `TabContainer`, `Card`, `Banner`, `Badge` and `TreeMap`: a program
+can then write `Tabs([chart, table], ["Chart", "Data"])` or `Callout("warning", "Limit breach", "VaR is over its limit.")`.
+See [`/desktop/cmp/genui/`](../../desktop/cmp/genui/README.md#group-tab-and-call-out-parts-of-an-answer).
+
 The format's name is `openui`. With only `openui` in `modes`, the chat sends no catalog tools.
 The model writes UI in its reply, and the message view renders it in place as the reply
 streams. Copy and the announcement of a finished reply read each program as words.

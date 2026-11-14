@@ -1,4 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
+import {logWarn} from '@xh/hoist/utils/js';
 import {compact, find, flatMap, isEmpty, isFunction, isNil, last, map, omitBy} from 'lodash';
 import {
     type ChatFilePart,
@@ -35,12 +36,6 @@ export interface AgUiCodecConfig {
      * or a function to build them per run. Default none.
      */
     forwardedProps?: PlainObject | ((request: ChatRunRequest) => PlainObject);
-
-    /**
-     * The agent's state, sent as the `state` of each run - or a function to build it per run, e.g.
-     * from the app's current selection. Default an empty object.
-     */
-    state?: PlainObject | ((request: ChatRunRequest) => PlainObject);
 
     /**
      * True to send only what the server has not seen, in server mode: the user message on the
@@ -81,6 +76,11 @@ export interface AgUiContext {
  * value as text, or as JSON for an object. The structured context of the turn's user message,
  * from its `metadata.context`, goes last, as JSON.
  *
+ * `state` is the agent's shared state as the chat holds it - the request's `agentState`, or an
+ * empty object for a request with none. The codec takes no state of its own: set it on the chat,
+ * with `ChatModelConfig.prepareAgentState` for values each run must carry. The agent's `STATE_SNAPSHOT` and `STATE_DELTA` events
+ * change the state from there - see `ChatModel.agentState`.
+ *
  * `messages` carries every message the chat holds, in both history modes, as AG-UI requires: an
  * agent "MUST treat it as the complete history it is being shown". A tool result always travels
  * with the assistant message that called the tool. Each message goes with the server's id where
@@ -115,37 +115,37 @@ export class AgUiCodec implements ChatCodec {
     /** Values passed to the agent untouched, or a function to build them per run. */
     readonly forwardedProps: AgUiCodecConfig['forwardedProps'];
 
-    /** The agent's state, or a function to build it per run. */
-    readonly state: AgUiCodecConfig['state'];
-
     /** True to send only what the server has not seen, in server mode. */
     readonly newMessagesOnly: boolean;
 
     /** True - the codec sends the request's `resume` list, to answer interrupts. */
     readonly supportsInterrupts = true;
 
-    constructor({
-        context = null,
-        forwardedProps = null,
-        state = null,
-        newMessagesOnly = false
-    }: AgUiCodecConfig = {}) {
+    constructor(config: AgUiCodecConfig = {}) {
+        const {context = null, forwardedProps = null, newMessagesOnly = false} = config;
         this.context = context;
         this.forwardedProps = forwardedProps;
-        this.state = state;
         this.newMessagesOnly = newMessagesOnly;
+        // The chat holds the state, so a `state` here, as from untyped config, would be lost.
+        if ('state' in config) {
+            logWarn(
+                'AgUiCodec ignores a `state` config. The chat holds the agent state - see ' +
+                    'ChatModelConfig.prepareAgentState.',
+                'AgUiCodec'
+            );
+        }
     }
 
     encodeRequest(request: ChatRunRequest): PlainObject {
-        const {threadId, runId, historyMode, messages, newMessages, tools} = request,
-            {context, state} = this,
+        const {threadId, runId, historyMode, messages, newMessages, tools, agentState} = request,
+            {context} = this,
             // Each id goes out once per request.
             usedIds = new Set<string>();
         return checkAgUiInput({
             threadId,
             runId,
             protocolVersion: '1.0',
-            state: (isFunction(state) ? state(request) : state) ?? {},
+            state: agentState ?? {},
             messages:
                 this.newMessagesOnly && historyMode === 'server'
                     ? flatMap(newMessages, it => encodeNewMessage(it, usedIds))

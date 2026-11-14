@@ -1,5 +1,6 @@
 import {
     dropRight,
+    escape,
     groupBy,
     isArray,
     isFinite,
@@ -9,6 +10,7 @@ import {
     max,
     omit,
     sortBy,
+    unescape,
     uniq
 } from 'lodash';
 import type {PlainObject} from '@xh/hoist/core';
@@ -40,6 +42,10 @@ export interface ChatUiChartLayoutProps extends Omit<ChatUiChartSpecProps, 'type
 /**
  * Highcharts options for a chart's type and axes - everything but the series, which load
  * separately so that they can stream into the same chart.
+ *
+ * Highcharts reads a category or a title as markup, and keeps a link or an inline style it finds
+ * there. The text comes from a model or from the rows of an artifact, so each string is escaped.
+ * Highcharts decodes the entities for display.
  */
 export function toHighchartsConfig(
     props: Pick<ChatUiChartLayoutProps, 'type' | 'xAxis' | 'yAxis' | 'stacking'>
@@ -52,15 +58,23 @@ export function toHighchartsConfig(
             fmtChatUiNumber(v, format, decimals, {asHtml: true, compact: true});
 
     return {
-        chart: {type, animation: false, backgroundColor: 'transparent'},
+        chart: {
+            type,
+            animation: false,
+            backgroundColor: 'transparent',
+            // A data export is not markup, so its cells show each name as written.
+            events: {exportData: decodeExportData}
+        },
         legend: {enabled: true},
         xAxis: {
             type: xAxis.type ?? 'category',
-            categories: xAxis.categories,
-            title: {text: xAxis.title ?? null}
+            categories: isArray(xAxis.categories)
+                ? xAxis.categories.map(escapeText)
+                : xAxis.categories,
+            title: {text: escapeText(xAxis.title) ?? null}
         },
         yAxis: {
-            title: {text: yAxis.title ?? null},
+            title: {text: escapeText(yAxis.title) ?? null},
             labels: {
                 formatter: function (this: any) {
                     return fmtAxisValue(this.value);
@@ -69,10 +83,20 @@ export function toHighchartsConfig(
         },
         tooltip: {
             shared: type !== 'pie',
+            // The header over the points names the category or the slice, so each line names
+            // the series. The name reaches Highcharts escaped - see `toSeries()`.
             pointFormatter: function (this: any) {
-                const value = fmtValue(this.y),
-                    label = type === 'pie' ? this.name : this.series.name;
-                return `<span style="color:${this.color}">●</span> ${label}: <b>${value}</b><br/>`;
+                const name = this.series?.name,
+                    label = name ? `${name}: ` : '',
+                    // A slice also shows its share of the pie, as its data label does.
+                    share =
+                        type === 'pie' && isFinite(this.percentage)
+                            ? ` (${fmtChatUiNumber(this.percentage / 100, 'percent', 1, {asHtml: true})})`
+                            : '';
+                return (
+                    `<span style="color:${this.color}">●</span> ${label}` +
+                    `<b>${fmtValue(this.y)}</b>${share}<br/>`
+                );
             }
         },
         plotOptions: {
@@ -92,7 +116,7 @@ export function toHighchartsConfig(
 /**
  * Highcharts series for a chart. Dates on a datetime axis become timestamps, and values that are
  * not numbers become gaps. A pie's `[name, value]` pairs name its slices, and its plain values take
- * their names from the x-axis categories.
+ * their names from the x-axis categories. Each name is escaped, as Highcharts reads it as markup.
  *
  * @param props - the chart's props.
  * @param isPartial - true while the props stream. The last point is left out, as it may be cut
@@ -113,11 +137,14 @@ export function toSeries(
         let data = isArray(it.data) ? it.data : [];
         if (isPartial && idx === validSeries.length - 1) data = dropRight(data);
         const ret: PlainObject = {
-            name: it.name ?? '',
+            name: escapeText(it.name) ?? '',
             showInLegend: isPie || validSeries.length > 1,
             data: data.map((point, pointIdx) =>
                 isPie && !isArray(point)
-                    ? {name: categories[pointIdx] ?? `Item ${pointIdx + 1}`, y: toValue(point)}
+                    ? {
+                          name: escapeText(categories[pointIdx]) ?? `Item ${pointIdx + 1}`,
+                          y: toValue(point)
+                      }
                     : toPoint(point, isDatetime)
             )
         };
@@ -410,5 +437,22 @@ function toValue(value: unknown): number {
 function toPoint(point: ChatUiChartPoint, isDatetime: boolean): number | [unknown, number] {
     if (!isArray(point)) return toValue(point);
     const [x, y] = point;
-    return [isDatetime ? toTimestamp(x) : x, toValue(y)];
+    // A text x names the point: a pie slice, or a category.
+    return [isDatetime ? toTimestamp(x) : escapeText(x), toValue(y)];
+}
+
+// Text for Highcharts, which reads a string as markup. Other values pass as they are.
+function escapeText<T>(value: T): T {
+    return (isString(value) ? escape(value) : value) as T;
+}
+
+// Handler of Highcharts' `exportData` event, which fires with the rows of a CSV or a table before
+// they are written: the header row, then a row per x value. Decodes the text that
+// `escapeText()` encoded, in place, as Highcharts reads the same array after the event.
+function decodeExportData(e: {dataRows: unknown[][]}) {
+    e?.dataRows?.forEach(row =>
+        row?.forEach((cell, idx) => {
+            if (isString(cell)) row[idx] = unescape(cell);
+        })
+    );
 }

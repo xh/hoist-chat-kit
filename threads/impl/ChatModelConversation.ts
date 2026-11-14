@@ -143,7 +143,7 @@ export class ChatModelConversation extends HoistBase implements ChatConversation
     @action
     private applyHistory(threadId: string, page: ChatMessagePage) {
         const {chatModel, drafts} = this;
-        drafts.loadHistory(chatModel, threadId, page.messages ?? []);
+        drafts.loadHistory(chatModel, threadId, page);
         // Run options, such as a document scope, belong to the thread. It opens with those of its
         // last question, unless the user changed them here.
         const lastRunOptions = findLast(chatModel.messages, it => it.isUser)?.metadata.runOptions;

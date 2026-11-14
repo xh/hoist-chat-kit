@@ -1,6 +1,5 @@
 // The reasons shared by several gaps.
-const STATE = 'The kit keeps no AG-UI state. See issue #33.',
-    SUBAGENT_TEXT =
+const SUBAGENT_TEXT =
         'The kit does not attribute text to its sub-agent. See the support table in docs/protocols.md.',
     SNAPSHOT = 'The kit ignores MESSAGES_SNAPSHOT. See the support table in docs/protocols.md.',
     ERA = 'An era shim for an older peer, which the spec permits but does not require.';
@@ -14,16 +13,6 @@ const STATE = 'The kit keeps no AG-UI state. See issue #33.',
  * their ids. The support table in `docs/protocols.md` lists what the kit does not support yet.
  */
 export const KNOWN_GAPS: Record<string, {checks: string[]; reason: string}> = {
-    // Shared state.
-    'conformant-run-is-quiet': {checks: ['state'], reason: STATE},
-    'open-object-patch-op-extras': {checks: ['state'], reason: STATE},
-    'state-delta-applies': {checks: ['state'], reason: STATE},
-    'state-delta-unappliable-warns-and-keeps': {checks: ['state'], reason: STATE},
-    'state-delta-unknown-op-dropped': {checks: ['state'], reason: STATE},
-    'state-falsy-snapshot-applies': {checks: ['state'], reason: STATE},
-    'state-null-snapshot-applies': {checks: ['state'], reason: STATE},
-    'state-snapshot-replaces': {checks: ['state'], reason: STATE},
-
     // Message assembly.
     'subagent-unannounced-attribution-accepted': {checks: ['messages'], reason: SUBAGENT_TEXT},
     'subagent-terminal-closes-open-chunk-stream': {

@@ -8,3 +8,9 @@
   --xh-stat-card-value-font-size: var(--xh-chat-tile-value-font-size);
   line-height: normal;
 }
+
+// In a row of a stack, the strip keeps the height of its cards. A row stretches each child to its
+// tallest, such as a chart, and a stretched strip stretches its cards with it.
+.xh-chat-ui-stack.xh-hbox > .xh-chat-ui-metrics {
+  align-self: flex-start;
+}

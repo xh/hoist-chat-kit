@@ -31,6 +31,8 @@ Key features:
 - **Human in the loop** - tool calls can wait for the user to approve them, or for the user to
   answer them. The turn pauses and resumes when the user responds.
 - **Live context** - context providers describe the app's state to the model at every step.
+- **Shared state** - the chat holds the state that an agent shares, such as its to-do list, for
+  the app to render and to change between turns.
 - **Two conversation shapes** - the browser owns the history, or an agent service owns it and
   the chat sends only each new message. See [Run a server-owned
   conversation](#run-a-server-owned-conversation).
@@ -53,6 +55,7 @@ ChatModel (HoistModel)
 ├── threadId: string                  # Identifies the conversation to the backend
 ├── historyMode: ChatHistoryMode      # 'client' | 'server' - who owns the history
 ├── runOptions: PlainObject           # Options for the next turn (bindable)
+├── agentState: any                   # The agent's shared state, a JSON value (observable)
 ├── allowEdit, allowRegenerate,       # Show Edit, Regenerate and Try Again (bindable)
 │   allowRetry
 ├── Computed:
@@ -72,6 +75,7 @@ ChatModel (HoistModel)
     ├── denyToolCallAsync()           # Deny a waiting call
     ├── addToolOutputAsync()          # Answer a call to an interactive tool
     ├── submitFeedbackAsync()         # Rate a reply, or clear its rating
+    ├── setAgentState()               # Replace the agent's shared state, while no turn runs
     ├── loadMessages() / clear()      # Replace the conversation, as a new thread
     └── getMessageSpecs()             # The conversation as JSON, for storage
 
@@ -86,7 +90,8 @@ ChatPart = ChatTextPart | ChatReasoningPart | ChatToolCallPart
 ChatStreamReducer                     # Folds the events of one step into the reply
 ├── apply(message, events)            # A new message for each batch of events
 ├── finish(message)                   # Close out the step when its stream ends
-└── runId, runThreadId, userServerId  # Ids the step's events reported, or null
+├── runId, runThreadId, userServerId  # Ids the step's events reported, or null
+└── agentState                        # The agent's shared state after the step's events
 
 replayChatEvents(records, opts)       # Rebuilds a reply from its turn's stored events
 ```
@@ -577,6 +582,110 @@ format: an AG-UI `context` entry, or tagged text after the history. See
 Context leaves the browser on every step and counts toward the token budget. Describe structure,
 such as columns, sorts and widgets, rather than row values, unless the app chooses to send data.
 
+### Share state with an agent
+
+An agent can share its state with the app: its to-do list, the status of its sub-agents, or any
+other value. A LangGraph deep agent reports its plan this way, not through sub-agent events.
+`ChatModel.agentState` holds that state, as a plain JSON value. It is an empty object until the
+agent or the app sets it, and it is never null.
+
+The agent changes the state as a turn runs. An AG-UI `STATE_SNAPSHOT` event replaces it. A
+`STATE_DELTA` event patches it, with a JSON Patch on the state the chat holds. A patch applies
+whole or not at all. One that does not apply changes nothing, with a console warning, and the
+turn goes on. Every request carries the state as it then stands, as `ChatRunRequest.agentState`,
+and `AgUiCodec` sends it as the run's `state`. A backend that sends snapshots therefore gets its
+whole state back with every run, and with every step of a tool loop.
+
+`agentState` is observable, and each change replaces the value. A change that leaves it equal
+keeps the value held, so text that streams does not render its readers again. A component of the
+app can render it beside the chat:
+
+```typescript
+const todoPanel = hoistCmp.factory<TodoPanelModel>(({model}) => {
+    const todos = model.chatModel.agentState.todos ?? [];
+    return panel({
+        title: 'Plan',
+        items: todos.map(it => div({key: it.id, item: `${it.status} - ${it.content}`}))
+    });
+});
+```
+
+The kit does not read the state, so its shape is the agent's own. Check the shape before you
+render it, because the agent can set any JSON value. For an agent's null snapshot, the chat holds
+an empty object, and sends that with the next run.
+
+#### Change the state between turns
+
+The app changes the state with `setAgentState()`. The chat holds a plain JSON copy of the value
+given, so a MobX observable in it is safe. The next request carries the change, and the agent's
+later patches apply to it.
+
+```typescript
+removeTodo(id: string) {
+    const {chatModel} = this,
+        state = chatModel.agentState;
+    if (!chatModel.canSetAgentState) return;
+    chatModel.setAgentState({...state, todos: state.todos.filter(it => it.id !== id)});
+}
+```
+
+`setAgentState()` works only while no turn runs, so that the agent and the app never write at
+the same time. Read `canSetAgentState` first, for example to disable an editor. Otherwise the
+call logs a warning and does nothing:
+
+- **While a turn runs in the chat.** That includes a client tool's `execute`, which runs within
+  its turn. A tool tells the agent of a change through its result.
+- **While a turn runs on the server** that the chat does not follow, as after a page reload.
+  The chat cannot send then, and the load that follows the turn would discard the change.
+
+A turn paused for the user is not running, so the app can change the state before the user
+answers. The chat sends the state as it stands on a retry, a regenerate or an edit, and never
+rolls it back.
+
+#### Send the app's values with every run
+
+Some values are the app's own, and every run must carry them, such as the current selection.
+Give the chat a `prepareAgentState` function. It runs before each step, with the state the chat
+holds and the step's request. Its result becomes the chat's state, and the request carries it:
+
+```typescript
+new ChatModel({
+    transport,
+    prepareAgentState: state => ({...state, selectedSector: this.selectedSector})
+});
+```
+
+The function runs for every thread and after every `clear()`, so the values are never missing.
+Return a new value, and never change the one given. Use it for values the agent reads from its
+state. Send a value that only informs the agent as `context`, and one for the server alone as
+the codec's `forwardedProps`.
+
+#### Keep the state across a reload
+
+The chat does not store the state. `clear()` and `loadMessages()` reset it to an empty object,
+and so discard a change that no request carried. The backend owns the state. For a backend that
+sends a snapshot at the start of each run, nothing more is needed. Other backends need the state
+back from the app:
+
+- **To show it as soon as a thread opens.** Until the agent's next snapshot, the chat holds an
+  empty object.
+- **For a backend that takes the request's `state` as its base.** An empty state then starts
+  the agent from nothing.
+
+Give the state back where the history loads:
+
+- With a thread layer, return it from the store as `agentState`, with the messages. See
+  [`/threads/`](../threads/README.md#restore-an-agents-shared-state).
+- Without one, pass it to `loadMessages()` as `opts.agentState`, or as `agentState` in the
+  config of a chat built with `initialMessages`. The config value serves the chat's first
+  thread only.
+
+`replayChatEvents()` rebuilds replies, and skips state events. A backend that stores only
+events must still return the thread's state, through one of these paths.
+
+**Avoid:** mutating the state in place. The chat and its observers compare values, so a change in
+place renders nothing. Build a new value for each change.
+
 ### Return result sets from a tool
 
 A client tool can wrap its result with `chatToolResult()`, to pass the chat options with it. Its
@@ -717,6 +826,9 @@ the approvals and fails the rest, so the history stays valid for the model.
 
 `clear()` removes all messages and starts a new thread. Both `clear()` and `loadMessages()` stop
 any turn in progress.
+
+The message specs do not hold the agent's shared state. To keep it across a reload, see
+[Share state with an agent](#share-state-with-an-agent).
 
 ### Handle errors and finish reasons
 
@@ -1072,6 +1184,8 @@ See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatCom
 | `threadId` | `string` | Identifies the conversation to the backend. Default a new UUID. |
 | `historyMode` | `'client' \| 'server'` | Who owns the history. Default `client`. See [Run a server-owned conversation](#run-a-server-owned-conversation). |
 | `runOptions` | `PlainObject` | Initial value of `runOptions`. Default null. |
+| `agentState` | `any` | Initial value of `agentState`, such as the state the backend holds for a restored thread. Serves the chat's first thread only. Default an empty object. |
+| `prepareAgentState` | `(state, request) => any` | Prepares the agent's shared state before each step. Its result becomes `agentState`, and the request carries it. For values of the app's own that every run must send. See [Share state with an agent](#send-the-apps-values-with-every-run). Default none. |
 | `allowEdit` | `boolean` | Initial value of `allowEdit`. Default true. |
 | `allowRegenerate` | `boolean` | Initial value of `allowRegenerate`. Default true. |
 | `allowRetry` | `boolean` | Initial value of `allowRetry`. Default true. |
@@ -1102,6 +1216,8 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `lastActivityAt` | `number` | Epoch millis of the last data from the server for the step in flight, heartbeats included. Null while no step is in flight. Changes at most once a second. Observable. |
 | `threadId` | `string` | Current thread. Observable. `clear()` and `loadMessages()` change it. In server mode, the first run of a new thread can change it once. Read-only. |
 | `runOptions` | `PlainObject` | Options for the next turn. `@bindableRef` - replace the value to change it. |
+| `agentState` | `any` | The agent's shared state, a plain JSON value, never null. An empty object until the agent or the app sets it. Observable. Replaced, never mutated. `clear()` and `loadMessages()` reset it. Read-only: change it with `setAgentState()`. See [Share state with an agent](#share-state-with-an-agent). |
+| `canSetAgentState` | `boolean` | True if `setAgentState()` takes a change now: no turn runs, in the chat or on the server. |
 | `allowEdit` | `boolean` | True to show Edit, Edit Prompt and Edit Question. While false, `editMessageAsync()` does nothing. `@bindable`. |
 | `allowRegenerate` | `boolean` | True to show Regenerate. While false, `regenerateAsync()` does nothing. `@bindable`. |
 | `allowRetry` | `boolean` | True to offer Try Again for a failed turn, and to retry after a wait the server asked for. While false, `retryAsync()` does nothing. `@bindable`. |
@@ -1141,8 +1257,9 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `declineInterrupt(interruptId)` | Decline a pending interrupt, which abandons it. |
 | `submitInterruptsAsync()` | Send the responses and resume the run, once every pending interrupt has one or has expired, and no client call waits. |
 | `addToolOutputAsync(toolCallId, output)` | Give the result of a call to an interactive tool. |
-| `clear()` | Remove all messages and start a new thread. |
-| `loadMessages(specs, threadId?)` | Replace the conversation. Default a new thread id. |
+| `setAgentState(state)` | Replace the agent's shared state, for the next request to carry. The chat holds a plain JSON copy. Null resets it to an empty object. While `canSetAgentState` is false, logs a warning and does nothing. |
+| `clear()` | Remove all messages and start a new thread, with an empty `agentState`. |
+| `loadMessages(specs, threadId?, opts?)` | Replace the conversation. Default a new thread id. Sets `agentState` to `opts.agentState`, or else to an empty object. |
 | `submitFeedbackAsync(messageId, rating, comment?)` | Rate a reply, or clear its rating with null. Shows at once. If the submit fails, it reverts and records the error in `feedbackErrors`, with no toast. |
 | `setFeedbackDraft(messageId, draft)` | Keep the comment typed in a message's feedback form, or remove it with null. For the feedback form. |
 | `setStatusRefresher(refreshAsync, opts?)` | Set the function that reloads the thread, for Refresh Status. `opts` holds `isAutomatic` and `isRunningOnServer`, functions that report what the thread layer knows of the thread's runs. For a thread layer. |
@@ -1456,7 +1573,8 @@ the chat components render.
 - **Message records** - build history in code with `ChatMessageSpec` and `loadMessages()`, for
   example a greeting, or a thread loaded from your server.
 - **Stream reducer** - run a transport without `ChatModel`, and fold its events into your own
-  `ChatMessage` with `ChatStreamReducer`. `ChatModel` uses the same reducer for every step. See
+  `ChatMessage` with `ChatStreamReducer`. `ChatModel` uses the same reducer for every step. The
+  reducer's `agentState` holds the agent's shared state after the step's events. See
   [Use a transport without ChatModel](../transport/README.md#use-a-transport-without-chatmodel).
 - **Stored events** - rebuild a thread's replies from the AG-UI events a backend stored, with
   `replayChatEvents`. See

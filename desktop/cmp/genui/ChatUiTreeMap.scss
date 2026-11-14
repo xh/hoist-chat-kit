@@ -1,0 +1,13 @@
+// The treemap card: a Hoist TreeMap at the height of a chart card.
+.xh-chat-ui-treemap {
+  &__body {
+    display: flex;
+    flex-direction: column;
+    height: var(--xh-chat-chart-height, 220px);
+    min-width: 0;
+
+    > .xh-chat-ui-skeleton {
+      flex: 1 1 auto;
+    }
+  }
+}

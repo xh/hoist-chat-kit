@@ -1,9 +1,9 @@
 /** Options shared by the factories of the built-in generative UI components. */
 export interface ChatUiSpecOptions {
     /**
-     * Name of the component in its catalog. The model shows it by calling the tool
-     * `show_<name>`. Defaults to the component's own name - `grid`, `chart`, `metrics`, `card`,
-     * `stack` or `text`.
+     * Name of the component in its catalog, and in documents and programs. A standalone
+     * component also has the tool `show_<name>`. Defaults to the component's own name, such as
+     * `grid`, `chart` or `tabs`.
      */
     name?: string;
 
