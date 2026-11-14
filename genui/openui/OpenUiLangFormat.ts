@@ -102,25 +102,23 @@ export interface OpenUiLangFormatOptions extends OpenUiLibraryOptions {
     queryTools?: (string | OpenUiToolSpec)[];
 
     /**
-     * The chat tools that a program may call with `Mutation()`, by name or as a spec. A mutation
-     * runs on a click, as a step of a button's action, and its tooltip names the tool. It runs
-     * only a client tool listed here, with arguments that pass the tool's schema. A tool that
-     * needs approval asks the user first. Listing a tool turns `bindings` on by default. Default
-     * none: a `Mutation()` fails, and the steps after it do not run.
-     */
-    mutationTools?: (string | OpenUiToolSpec)[];
-
-    /**
      * The least seconds between two automatic refreshes of a `Query()`, whatever interval the
-     * program asks for. An interval of more than a day is held to a day. Default 10.
+     * program asks for. At least 1, whatever is set here. An interval of more than a day is held
+     * to a day. Default 10.
      */
     minRefreshSeconds?: number;
 
     /**
-     * Most `Query()` and `Mutation()` statements in one program. A program with more runs none
-     * of them. Default 8.
+     * Most `Query()` statements in one program. A program with more runs none of them. Default
+     * 8. Only the first three programs of a reply that hold queries run them.
      */
     maxCalls?: number;
+
+    /**
+     * Most tool calls that all the programs of one chat may start in a minute. A call past it
+     * does not run, and its query keeps the result it has. Default 60.
+     */
+    maxCallsPerMinute?: number;
 
     /**
      * Called with each tool call of a program that passed its checks, as it starts - to log or
@@ -196,9 +194,10 @@ export function isOpenUiDocumentSegment(
  * Add it to the catalog's `textFormats`, and name it in `modes` to explain it to the model.
  * The prompt section comes from lang-core, with no inline mode, and with the kit's rules, which
  * explain inline programs in their place. By default it has no state, queries or built-in
- * functions either. `bindings`, `builtinFunctions`, `queryTools` and `mutationTools` turn those
- * on: the format then runs each program on lang-core's store, evaluator and query manager, and
- * the document it returns has `state`. A program calls only the chat tools that the app lists.
+ * functions either. `bindings`, `builtinFunctions` and `queryTools` turn those on: the format
+ * then runs each program on lang-core's store, evaluator and query manager, and the document it
+ * returns has `state`. A query calls only the chat tools that the app lists. A program cannot
+ * change data: the format runs no `Mutation()`, and throws for a `mutationTools` option.
  *
  * Each document segment the format returns is an {@link OpenUiDocumentSegment}, which carries
  * what the parser found in the program.
@@ -332,7 +331,7 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
                     examples: examples ?? createExamples(catalog, library, opts, features)
                 }
             });
-        return addRules(prompt, [
+        return addRules(removeMutationSection(prompt), [
             ...createKitRules(catalog, library, inline, features),
             ...additionalRules
         ]);
@@ -455,7 +454,7 @@ export interface OpenUiFeatures {
     /** True to list the built-in functions in the prompt. */
     builtinFunctions: boolean;
 
-    /** True if a program may call a tool, with `Query()` or `Mutation()`. */
+    /** True if a program may call a tool, with `Query()`. */
     toolCalls: boolean;
 
     /** The tools a program may call, as lang-core's prompt lists them. */
@@ -467,14 +466,14 @@ export interface OpenUiFeatures {
     /** What the runtime of each program takes from the options. */
     runtime: Pick<
         OpenUiRuntimeConfig,
-        'queryTools' | 'mutationTools' | 'minRefreshSeconds' | 'maxCalls' | 'onToolCall'
+        'queryTools' | 'minRefreshSeconds' | 'maxCalls' | 'maxCallsPerMinute' | 'onToolCall'
     >;
 }
 
 /** @internal */
 export function getOpenUiFeatures(opts: OpenUiLangFormatOptions): OpenUiFeatures {
-    const {queryTools = [], mutationTools = [], minRefreshSeconds, maxCalls, onToolCall} = opts,
-        specs = uniqBy([...queryTools, ...mutationTools], toolName),
+    const {queryTools = [], minRefreshSeconds, maxCalls, maxCallsPerMinute, onToolCall} = opts,
+        specs = uniqBy(queryTools, toolName),
         toolCalls = !isEmpty(specs),
         bindings = opts.bindings ?? toolCalls,
         builtinFunctions = opts.builtinFunctions ?? bindings;
@@ -483,8 +482,14 @@ export function getOpenUiFeatures(opts: OpenUiLangFormatOptions): OpenUiFeatures
     // one switch for it, and nothing else can turn a part of it on.
     throwIf(
         !bindings && (builtinFunctions || toolCalls),
-        'OpenUI Lang builtinFunctions, queryTools and mutationTools need bindings: they run on ' +
-            'the evaluator that bindings turns on.'
+        'OpenUI Lang builtinFunctions and queryTools need bindings: they run on the evaluator ' +
+            'that bindings turns on.'
+    );
+    // An app that passes the option must not think that its programs can write.
+    throwIf(
+        (opts as PlainObject).mutationTools != null,
+        'OpenUI Lang has no mutationTools option: a program cannot change data. Have it send ' +
+            'a message with @ToAssistant, so that the assistant acts.'
     );
     return {
         bindings,
@@ -494,9 +499,9 @@ export function getOpenUiFeatures(opts: OpenUiLangFormatOptions): OpenUiFeatures
         hasState: bindings,
         runtime: {
             queryTools: queryTools.map(toolName),
-            mutationTools: mutationTools.map(toolName),
             ...(minRefreshSeconds != null ? {minRefreshSeconds} : {}),
             ...(maxCalls != null ? {maxCalls} : {}),
+            ...(maxCallsPerMinute != null ? {maxCallsPerMinute} : {}),
             ...(onToolCall ? {onToolCall} : {})
         }
     };
@@ -518,6 +523,7 @@ const SOURCE = 'OpenUiLangFormat',
     MAX_EXAMPLE_CHILDREN = 2,
     // Where lang-core's own list of rules ends, and its last section starts.
     AFTER_RULES = '\n\n## Final Verification',
+    MUTATION_SECTION = '\n## Mutation',
     MAX_PARSERS = 100;
 
 // True for a first line that starts a bare program: `root = ...`, or a statement that calls a
@@ -576,6 +582,14 @@ function isProgramFence(text: string, fence: MarkdownFence, isStreaming: boolean
     return isOpenerStreaming && !!tag && FENCE_TAG.startsWith(tag);
 }
 
+// lang-core's prompt without its section on Mutation, which it adds whenever a tool is listed.
+// The kit runs no mutation, so the section would teach what does nothing.
+function removeMutationSection(prompt: string): string {
+    const start = prompt.indexOf(MUTATION_SECTION),
+        end = start < 0 ? -1 : prompt.indexOf('\n## ', start + MUTATION_SECTION.length);
+    return start < 0 || end < 0 ? prompt : prompt.slice(0, start) + prompt.slice(end);
+}
+
 // Add rules to lang-core's prompt, at the end of its own list of rules. lang-core puts the rules
 // it is given after its last section, the checks to run before finishing, where they read as
 // more checks.
@@ -596,7 +610,7 @@ function createKitRules(
 ): string[] {
     const {maxElements, maxDepth, maxInlineRows} = catalog.limits,
         usesActions = !!getOwn(library.schema.$defs as PlainObject, 'ActionExpression');
-    const {queryTools, mutationTools} = features.runtime;
+    const {queryTools} = features.runtime;
     return compact([
         ...(inline ? INLINE_RULES : []),
         createFeatureRule(features),
@@ -605,7 +619,11 @@ function createKitRules(
               'it, alone or in an expression.'
             : null,
         !isEmpty(queryTools) ? `Query can call only: ${queryTools.join(', ')}.` : null,
-        !isEmpty(mutationTools) ? `Mutation can call only: ${mutationTools.join(', ')}.` : null,
+        features.bindings
+            ? 'A program cannot change data. Mutation is not available, so ignore each mention ' +
+              'of it above. To change something, send a message with @ToAssistant that asks ' +
+              'the assistant to do it.'
+            : null,
         features.toolCalls
             ? 'The sections above show components of another library in their examples, such ' +
               'as FormControl, Input and SelectItem. Use only the components under Component ' +
@@ -653,15 +671,14 @@ function createCatalogRules(
 
 // The rule that names the parts of OpenUI Lang the format does not run.
 function createFeatureRule(features: OpenUiFeatures): string {
-    const {queryTools, mutationTools} = features.runtime,
+    const {queryTools} = features.runtime,
         off = compact([
             features.bindings ? null : '$variables',
             isEmpty(queryTools) ? 'Query' : null,
-            isEmpty(mutationTools) ? 'Mutation' : null,
+            'Mutation',
             ...(features.bindings ? [] : ['@Set', '@Reset']),
             features.toolCalls ? null : '@Run'
         ]);
-    if (isEmpty(off)) return null;
     return `Do not use ${[off.slice(0, -1).join(', '), off.at(-1)].filter(Boolean).join(' or ')}.`;
 }
 

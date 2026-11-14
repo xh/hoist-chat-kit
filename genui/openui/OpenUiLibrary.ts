@@ -180,6 +180,16 @@ export function toOpenUiLibrary(catalog: ChatUiCatalog, opts: OpenUiLibraryOptio
     };
 }
 
+/**
+ * True for a prop that a library types as an action, or as a list of actions.
+ * @internal
+ */
+export function isOpenUiActionProp(library: OpenUiLibrary, typeName: string, key: string): boolean {
+    const def = getOwn(library.schema.$defs, typeName),
+        prop = getOwn(def?.properties as PlainObject, key);
+    return [prop?.$ref, prop?.items?.$ref].includes(ACTION_REF.$ref);
+}
+
 //------------------
 // Implementation
 //------------------

@@ -33,7 +33,7 @@ import {elementPath} from '../impl/documentStructure';
 import type {OpenUiRuntime} from './impl/OpenUiRuntime';
 import {warnOnce} from './impl/warnOnce';
 import {openUiToAction, toOpenUiSteps} from './OpenUiActions';
-import type {OpenUiLibrary} from './OpenUiLibrary';
+import {isOpenUiActionProp, type OpenUiLibrary} from './OpenUiLibrary';
 
 /** Options for {@link openUiToDocument}. */
 export interface OpenUiTranslationOptions {
@@ -205,7 +205,7 @@ export function openUiToDocument(
                 if (bound.value != null) element.props[key] = bound.value;
                 element.bindings = {...element.bindings, [key]: bound.binding};
             } else {
-                const isAction = isActionProp(library, typeName, key),
+                const isAction = isOpenUiActionProp(library, typeName, key),
                     prop = toPropValue(isLast && !isAction ? trimCutValue(value) : value, library, {
                         propSchema: getOwn(
                             opts.catalog?.getComponent(element.component)?.props?.properties,
@@ -283,7 +283,10 @@ export function openUiToDocument(
 // Implementation
 //------------------
 const REF_PREFIX = '#/$defs/',
-    ACTION_REF = `${REF_PREFIX}ActionExpression`,
+    // Why an action that was written cannot run, for the user.
+    NOT_VALID = 'This action is not valid, so it cannot run.',
+    NOT_ALLOWED = 'This action is not allowed here, so it cannot run.',
+    CANNOT_RUN = 'This action cannot run here.',
     // The key lang-core gives the pair still to come in an object cut short.
     PENDING_KEY = '?',
     MAX_SCANS = 50,
@@ -505,18 +508,17 @@ function isChildListProp(library: OpenUiLibrary, typeName: string, key: string):
     });
 }
 
-// True for a prop that the library types as an action, or a list of actions.
-function isActionProp(library: OpenUiLibrary, typeName: string, key: string): boolean {
-    const def = getOwn(library.schema.$defs, typeName),
-        prop = getOwn(def?.properties as PlainObject, key);
-    return [prop?.$ref, prop?.items?.$ref].includes(ACTION_REF);
-}
-
-// A prop's value, with each action expression as a kit action, and each other expression, such
-// as a reference, as null. Null drops the prop. An action that the prop's schema refuses is
-// dropped, with a warning. An action list left with no actions is empty, or null where the
-// schema requires items. With a runtime, the value is already evaluated: an action is the plan
-// that lang-core made of it, and an expression is one that could not evaluate.
+// A prop's value. Null drops the prop.
+//
+// A prop that takes no action keeps its value, and drops an expression that lang-core left
+// unevaluated, such as a reference or a number cut off as it streams.
+//
+// A prop that takes an action reads it only from action syntax: an expression with no state, or
+// the plan that lang-core made of one with state. Anything else is data, which is never an
+// action. An action that was written and cannot run becomes a `state` action with a
+// `disabledReason`, where the prop's schema takes `state` actions, so that its button says so in
+// place of doing something else. Elsewhere it is dropped, with a warning. An action list left
+// with no actions is empty, or null where the schema requires items.
 function toPropValue(
     value: unknown,
     library: OpenUiLibrary,
@@ -529,74 +531,75 @@ function toPropValue(
     }
 ): unknown {
     const {propSchema, path, warn, runtime} = opts,
-        actionSchema: PlainObject = propSchema?.type === 'array' ? propSchema.items : propSchema,
+        isList = propSchema?.type === 'array',
+        actionSchema: PlainObject = isList ? propSchema.items : propSchema,
         withLabel = requiresLabel(actionSchema);
 
     // One value where the schema takes a list is a list of one. A text format gets no retry, so
     // a single action in a list of actions must not fail the element.
     const isSingle =
-        propSchema?.type === 'array' &&
-        value != null &&
-        !isArray(value) &&
-        (opts.isActionProp || !isExpression(value));
+        isList && value != null && !isArray(value) && (opts.isActionProp || !isExpression(value));
     if (isSingle) value = [value];
 
-    // An action that passes the prop's schema, with a label where the schema requires one.
-    const accept = (action: ChatUiAction, parts: ChatUiAction[] = [action]) => {
-        if (!action) return null;
+    if (!opts.isActionProp) {
+        if (isExpression(value)) return null;
+        return isArray(value) ? value.filter(it => !isExpression(it)) : value;
+    }
 
+    // An action that was written and cannot run. Where the prop's schema takes a `state`
+    // action, it becomes one that is disabled, with the reason. Elsewhere it is dropped.
+    const refuse = (id: string, reason: string, detail: string = reason): ChatUiAction => {
+        const disabled: ChatUiAction = {type: 'state', id, summary: reason, disabledReason: reason},
+            canHold = isPlainObject(actionSchema) && !getRefusal(disabled, actionSchema),
+            message = `OpenUI action ${canHold ? 'disabled at' : 'dropped from'} ${id}: ${detail}`;
+        if (warn) warnOnce(message, message, 'OpenUiDocument');
+        if (!canHold) return null;
+        return withLabel ? {...disabled, label: toLabel(disabled)} : disabled;
+    };
+
+    // An action that passes the prop's schema, with a label where the schema requires one.
+    const accept = (id: string, action: ChatUiAction, parts: ChatUiAction[] = [action]) => {
+        if (!action) return null;
         const refusal = compact(parts.map(it => getRefusal(it, actionSchema)))[0];
         if (refusal) {
-            const message =
-                `OpenUI action dropped from ${path}, as its ${refusal}: ` +
-                `${describeChatUiAction(action)}.`;
-            if (warn) warnOnce(message, message, 'OpenUiDocument');
-            return null;
+            return refuse(id, NOT_ALLOWED, `its ${refusal} - ${describeChatUiAction(action)}.`);
         }
         return withLabel && action.label == null ? {...action, label: toLabel(action)} : action;
     };
-    const toAction = (node: ASTNode) => accept(openUiToAction(node, library, {warn}));
 
-    // The schema must allow a state action, and each kit action among its steps.
-    const toPlanAction = (plan: ActionPlan, id: string) => {
-        const steps = toOpenUiSteps(plan, library),
-            created = runtime.createAction(id, steps);
-        if (!created) {
-            const message =
-                `OpenUI action dropped from ${id}, as its ${steps.length} steps hold none the ` +
-                'kit can run, or cannot be shown to the user in full.';
-            if (warn && !isEmpty(plan.steps)) warnOnce(message, message, 'OpenUiDocument');
-            return null;
-        }
+    // With no state: an action expression as lang-core parsed it.
+    const fromSyntax = (node: ASTNode, id: string) => {
+        if (node.k === 'Null' || node.k === 'Ph') return null;
+        const action = openUiToAction(node, library, {warn});
+        return action ? accept(id, action) : refuse(id, CANNOT_RUN);
+    };
+
+    // With state: the plan that lang-core made of an action expression. The schema must allow
+    // a state action, and each kit action among its steps.
+    const fromPlan = (plan: ActionPlan, id: string) => {
+        const created = runtime.createAction(id, toOpenUiSteps(plan));
+        if (!created) return null;
 
         const {action} = created;
-        if (action.type !== 'state') return accept(action);
+        if (action.type !== 'state' || action.disabledReason) return accept(id, action);
 
-        const stepActions = steps.flatMap(it => (it.type === 'action' ? [it.action] : [])),
-            ret = accept(action, [action, ...stepActions]);
-        if (ret) runtime.registerAction(action, created.plan);
+        const stepActions = created.plan.flatMap(it => (it.type === 'action' ? [it.action] : [])),
+            ret = accept(id, action, [action, ...stepActions]);
+        if (ret === action || (ret?.type === 'state' && !ret.disabledReason)) {
+            runtime.registerAction(action, created.plan);
+        }
         return ret;
     };
 
-    if (runtime) {
-        if (opts.isActionProp && isActionPlan(value)) return toPlanAction(value, path);
-        if (opts.isActionProp && isArray(value)) {
-            const ret = value
-                .map((it, idx) => (isActionPlan(it) ? toPlanAction(it, `${path}[${idx}]`) : it))
-                .filter(it => it != null && !isExpression(it));
-            return isEmpty(ret) && propSchema?.minItems > 0 ? null : ret;
-        }
-        return isExpression(value) ? null : value;
-    }
+    const toAction = (item: unknown, id: string) => {
+        if (item == null) return null;
+        if (runtime) return isActionPlan(item) ? fromPlan(item, id) : refuse(id, NOT_VALID);
+        return isExpression(item) ? fromSyntax(item, id) : refuse(id, NOT_VALID);
+    };
 
-    if (isExpression(value)) return toAction(value);
-    if (isArray(value) && value.some(isExpression)) {
-        const ret = value
-            .map(it => (isExpression(it) ? toAction(it) : it))
-            .filter(it => it != null);
-        return isEmpty(ret) && propSchema?.minItems > 0 ? null : ret;
-    }
-    return value;
+    if (!isArray(value)) return toAction(value, path);
+    const ret = compact(value.map((it, idx) => toAction(it, `${path}[${idx}]`)));
+    return isEmpty(ret) && propSchema?.minItems > 0 ? null : ret;
 }
 
 // Why an action schema refuses an action, or null if it does not: an action type it does not

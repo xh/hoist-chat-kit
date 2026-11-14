@@ -47,19 +47,15 @@ export function openUiLangAdapter(opts: OpenUiLangAdapterOptions): ChatUiAdapter
                     catalog,
                     quiet: features.hasState
                 });
-            // A program cut off when the reply ended is complete: nothing more will arrive. A
-            // data part most often holds a whole program while its reply still streams. So a
-            // program with a root, and no statement still being written, runs its queries.
+            // A program cut off when the reply ended is complete: nothing more will arrive. Its
+            // queries run only once the reply ends. A data part can grow while the reply
+            // streams, and a query that ran at each step would run once per line.
             const isDocumentPartial = isPartial && translation.isPartial,
-                isWhole =
-                    translation.document.root != null &&
-                    translation.openStatement == null &&
-                    !result.meta.incomplete,
                 state = features.hasState
                     ? createOpenUiStateSpec(result, library, {
                           catalog,
                           text: program,
-                          isComplete: !isDocumentPartial || isWhole,
+                          isComplete: !isPartial,
                           isTextComplete: !isPartial,
                           logKey: program,
                           runtime: features.runtime
