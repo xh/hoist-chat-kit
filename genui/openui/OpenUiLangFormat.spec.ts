@@ -1,4 +1,3 @@
-import {createStreamingParser} from '@openuidev/lang-core';
 import type * as LangCore from '@openuidev/lang-core';
 import {fragment} from '@xh/hoist/cmp/layout';
 import {creates, hoistCmp, HoistModel} from '@xh/hoist/core';
@@ -21,12 +20,24 @@ import {
 } from './OpenUiLangFormat';
 import {toOpenUiLibrary} from './OpenUiLibrary';
 
-// Pass lang-core through, to count the streaming parsers the format creates. The kit's rule
-// against mocks covers Hoist modules, whose real services the tests run. This is a pass-through
-// spy on a third-party factory, which changes no behavior.
+// Pass lang-core through, to count the programs that its parser reads. The kit's rule against
+// mocks covers Hoist modules, whose real services the tests run. This is a pass-through spy on a
+// third-party factory, which changes no behavior.
+const parsed = vi.hoisted(() => ({count: 0}));
 vi.mock('@openuidev/lang-core', async importOriginal => {
     const actual = await importOriginal<typeof LangCore>();
-    return {...actual, createStreamingParser: vi.fn(actual.createStreamingParser)};
+    return {
+        ...actual,
+        createParser: (...args: Parameters<typeof actual.createParser>) => {
+            const parser = actual.createParser(...args);
+            return {
+                parse: (input: string) => {
+                    parsed.count++;
+                    return parser.parse(input);
+                }
+            };
+        }
+    };
 });
 
 /**
@@ -241,13 +252,12 @@ describe('openUiLangFormat', () => {
 
     it('reads a closed fence as complete while the rest of the reply streams', () => {
         const catalog = createCatalog(),
-            created = vi.mocked(createStreamingParser),
             parse = (text: string) =>
                 catalog.parseText(text, {isStreaming: true, messageId: 'm1', partId: 'p9'}),
             fenced =
                 '```openui-lang\nroot = Stack([rev], "column", "medium")\n' +
                 'rev = Metrics([{label: "Revenue"}])\n```\n\nRevenue is';
-        created.mockClear();
+        parsed.count = 0;
 
         parse(fenced);
         const segments = parse(`${fenced} up.`);
@@ -255,8 +265,8 @@ describe('openUiLangFormat', () => {
         expect(segments[0]).toMatchObject({type: 'document', isPartial: false});
         expectDocument(segments[0]).toMatchObject({isPartial: false});
         expect(segments[1]).toEqual({type: 'markdown', text: '\n\nRevenue is up.'});
-        // The program keeps its parser while the reply streams.
-        expect(created).toHaveBeenCalledTimes(1);
+        // The program is checked and parsed once while the text after it streams.
+        expect(parsed.count).toBe(1);
     });
 
     it('holds back a first line or a fence opener that may yet start a program', () => {
@@ -272,32 +282,22 @@ describe('openUiLangFormat', () => {
         expect(parse('Here:\n```ocaml\n')).toEqual([{type: 'markdown', text: 'Here:\n```ocaml\n'}]);
     });
 
-    it('keeps one parser per part, and drops it when the part completes', () => {
+    it('parses each text of a program once, however often it renders', () => {
         const catalog = createCatalog(),
-            created = vi.mocked(createStreamingParser),
             parse = (text: string, isStreaming: boolean, partId = 'p1') =>
                 catalog.parseText(text, {isStreaming, messageId: 'm1', partId});
-        created.mockClear();
+        parsed.count = 0;
 
         parse('root = Stack(', true);
         parse('root = Stack([], "row"', true);
         parse('root = Stack([], "row")', true);
-        expect(created).toHaveBeenCalledTimes(1);
+        expect(parsed.count).toBe(3);
 
-        // Another part streams with its own parser.
+        // The same text in another part, and once the reply ends, is not parsed again.
         parse('root = Stack(', true, 'p2');
-        expect(created).toHaveBeenCalledTimes(2);
-
-        // The last parse uses the part's parser, then drops it.
         parse('root = Stack([], "row")', false);
-        expect(created).toHaveBeenCalledTimes(2);
         parse('root = Stack([], "row")', false);
-        expect(created).toHaveBeenCalledTimes(3);
-
-        // Text outside a chat has no ids, so each parse gets a fresh parser.
-        catalog.parseText('root = Stack(', {isStreaming: true});
-        catalog.parseText('root = Stack(', {isStreaming: true});
-        expect(created).toHaveBeenCalledTimes(5);
+        expect(parsed.count).toBe(3);
     });
 
     it('writes a prompt from lang-core with no inline mode or bindings, and the kit rules', () => {
