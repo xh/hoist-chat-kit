@@ -549,7 +549,8 @@ fails keeps its defaults, and the kit logs why. The kit bounds how often queries
   changes. It runs whether or not a component reads its result. A program in a data part runs
   its queries once the part is complete, not as the program grows.
 - Only the first three programs of one reply run their queries. A program after them shows its
-  defaults, and the kit logs a warning.
+  defaults, and the kit logs a warning. A program that holds too many queries, or that the gate
+  refuses, still takes one of the three places.
 - All the programs of one chat together start at most `maxCallsPerMinute` calls in any minute,
   60 by default. A call past the rate fails, and its query keeps the result it had.
 - A program in an older reply waits for the user. Its queries run once the user changes a value
