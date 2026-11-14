@@ -2614,31 +2614,53 @@ the client's console warning. The base of a step is the state its request sent, 
 sub-agent change the same state, as in the official client.
 
 - **One owner of what goes out.** The chat sends the state it holds, so `AgUiCodecConfig.state`
-  is removed. A state built in the codec was one the chat could not see, and deltas would patch
-  the wrong base.
-- **One writer at a time.** `setAgentState()` replaces the state only while no turn runs. A turn
-  paused for the user is not running. While a turn runs, the call logs a warning and does
-  nothing, as the chat's other actions do.
+  is removed, and the codec warns of one. A state built in the codec was one the chat could not
+  see, and deltas would patch the wrong base. Its successor is
+  `ChatModelConfig.prepareAgentState`, which runs before each step. Its result becomes the
+  chat's state and the state the request carries. The name follows the codecs' `prepareBody`:
+  it adjusts a value the chat is about to send.
+- **One writer at a time.** `setAgentState()` replaces the state only while no turn runs, and
+  `canSetAgentState` says when. A turn paused for the user is not running. While a turn runs,
+  in the chat or on the server, the call logs a warning and does nothing, as the chat's other
+  actions do. A client tool's `execute` runs within its turn, so it cannot write.
+- **Plain values, and no null.** The chat holds a JSON copy of what the app gives it, so no MobX
+  observable reaches the patch or a reader. Null is an empty object: from the app, from the
+  store, and from an agent's null snapshot once the chat takes it. A request then always sends
+  a `state`. The reducer alone reports a null snapshot as null, as AG-UI defines. A value equal
+  to the one held keeps it, so readers render only on a change.
 - **No storage.** `clear()` and `loadMessages()` reset the state. The backend owns it. A thread
-  store can return it as `ChatMessagePage.agentState`, and the thread layer sets it on the chat
-  after each load. The chat never rolls the state back for a retry, regenerate or edit.
+  store can return it as `ChatMessagePage.agentState`, which wins on every load. With none, the
+  thread layer keeps, in memory, the state a thread last had on the page. It does so only if a
+  chat saw the thread's last run end. The chat never rolls the state back for a retry,
+  regenerate or edit.
 - **No replay.** `replayChatEvents` skips state events. A stored turn does not hold the state
   its request sent, so its deltas have no base.
 - **No size cap, and no kit component.** The app renders the state, whose shape is the agent's.
 
 The patch runs through `compactEvents()` of `@ag-ui/client`, which folds a snapshot and a delta
 into one snapshot. It is the client's one plain function that applies a JSON Patch - see D84.
+The kit's wrapper never throws: a state the client cannot copy reads as a patch that did not
+apply.
 
 **Why.** A LangGraph deep agent reports its to-do list and its sub-agents as shared state, not as
 `SUBAGENT_*` events. A chat that dropped the state showed the agent's text and none of its plan.
 A Hoist component needs a single state on the chat, replaced on each change, to render it. Other
 kit code reads and writes the same value. A write while the agent streams would race its deltas,
-and the next snapshot would discard it.
+and the next snapshot would discard it. A write while a turn runs on the server could not go
+out, and the load after the turn would discard it. A thread that came back with an empty state
+would reset an agent that takes the request's state as its base.
+
+**Costs.** The client's warning for a failed patch prints the whole state to the console. The
+kit cannot shorten it without a copy of the client's code. A page reload, or a run the server
+finishes without the chat, still leaves the chat with an empty state unless the store returns
+one.
 
 **Alternatives.** Keep `AgUiCodecConfig.state` beside the chat's state. The two disagree, and
-the chat cannot tell which one the agent patched. Depend on `fast-json-patch` directly, as the
-client does inside. It is a second pin to keep in step with the client's. Let the app write
-between the steps of a turn. No app asked for it, and a client tool can tell the agent of a
-change through its result. Store the state with the messages. The backend's copy is the truth,
+the chat cannot tell which one the agent patched. Have the app set the state from a reaction,
+with no hook. A reaction misses a `clear()` and a thread that opens later. Depend on
+`fast-json-patch` directly, as the client does inside. It is a second pin to keep in step with
+the client's, though it would let the kit word the warning. Let the app write between the steps
+of a turn. No app asked for it, and a client tool can tell the agent of a change through its
+result. Store the state with the messages, or in local storage. The backend's copy is the truth,
 and a stored copy goes stale when a run finishes on the server. Fold stored state events on
 replay. They give a state only if each run opens with a snapshot, which the kit cannot assume.

@@ -405,8 +405,9 @@ from `metadata.context`, goes last in `context`, as JSON.
 
 `state` is the agent's shared state as the chat holds it, from the request's `agentState`. A
 request with none sends `{}`. The agent's `STATE_SNAPSHOT` and `STATE_DELTA` events change the
-state from there, and the next run sends the result back. The app reads and sets the state on the
-chat, not on the codec. See
+state from there, and the next run sends the result back. The codec takes no `state` of its own,
+and warns of one in its config. The app reads and sets the state on the chat, with
+`prepareAgentState` for the values each run must carry. See
 [Share state with an agent](../core/README.md#share-state-with-an-agent).
 
 Before it sends a request, the codec runs the official `@ag-ui/client` check on it. The check

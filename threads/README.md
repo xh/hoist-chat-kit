@@ -358,9 +358,21 @@ export class AssistantThreadStore implements ChatThreadStore {
 
 ### Restore an agent's shared state
 
-A chat holds the state that its agent shares, as `ChatModel.agentState`, and does not store it.
-A thread that opens from the store therefore has an empty state until its agent next sends one.
-To show the state as soon as the thread opens, return it with the messages, as `agentState`:
+A chat holds the state that its agent shares, as `ChatModel.agentState`, and sends it back with
+every run. The kit does not store it. Each time a thread's history loads, the model sets the
+chat's state from the first of these that applies:
+
+1. The `agentState` that the store returns with the messages.
+2. The state the thread last had on this page, if its chat saw the thread's last run end. The
+   model keeps the state of a closed thread in memory, as it keeps drafts, so a switch to another
+   thread and back loses nothing.
+3. An empty object.
+
+Step 2 does not hold after a page reload, in another tab, or for a run that the server finished
+without the chat, as after a detach or a lost connection. The chat then sends an empty state
+with its next run. That is fine for a backend that keeps its own state and sends a snapshot at
+the start of each run. A backend that takes the request's `state` as its base starts the agent
+from nothing. For such a backend, return the state from the store:
 
 ```typescript
 async loadMessagesAsync({threadId}) {
@@ -370,9 +382,12 @@ async loadMessagesAsync({threadId}) {
 ```
 
 Return the state the backend holds for the thread, such as the values of a LangGraph checkpoint.
-The model sets it on the chat after each load of the history, a reload included, in place of
-the state the chat held. Leave `agentState` out, or null, for a backend that sends a snapshot at
-the start of each run. See
+The store's state replaces the chat's on every load, a reload and Refresh Status included, so it
+also discards a change the app made that no run carried. A store that replays stored events
+returns it too, as `replayChatEvents` skips state events.
+
+While a turn runs on the server that the chat does not follow, `setAgentState()` takes no
+change, and `canSetAgentState` is false. See
 [Share state with an agent](../core/README.md#share-state-with-an-agent).
 
 ### Search
@@ -716,7 +731,7 @@ conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those
 | Method | Description |
 |--------|-------------|
 | `listThreadsAsync({search})` | Required. A `ChatThreadPage`: threads most recently active first. The store decides how many. |
-| `loadMessagesAsync({threadId})` | Required with `createChatModel`, and never called with `createConversation`. A `ChatMessagePage`: the thread's messages, oldest first. Its optional `agentState` sets the chat's shared state. The kit ignores its optional `nextCursor`. |
+| `loadMessagesAsync({threadId})` | Required with `createChatModel`, and never called with `createConversation`. A `ChatMessagePage`: the thread's messages, oldest first. Its optional `agentState` sets the chat's shared state on each load. The kit ignores its optional `nextCursor`. |
 | `renameThreadAsync(threadId, title)` | Rename a thread. |
 | `deleteThreadsAsync(threadIds)` | Delete threads. Deleting a missing thread succeeds. |
 | `submitFeedbackAsync(spec, message)` | Save a rating. The rated message comes with the spec. See `ChatFeedbackSpec` in [`/core/`](../core/README.md#rate-a-reply). |
