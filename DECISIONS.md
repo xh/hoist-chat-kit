@@ -2550,7 +2550,8 @@ adapter folds its protocol's operations into one document on each call instead.
 **Status.** Amended by
 [D127](#d127-openui-lang-state-and-queries-run-on-lang-cores-runtime-and-a-program-cannot-change-data): an app can turn on
 `$state`, `@Set`, `@Reset`, `@Run` and `Query()`, which run on lang-core's store, evaluator and
-query manager. Amends D8 and D15.
+query manager. lang-core writes only the grammar of the prompt, and the kit writes each section
+that names components. Amends D8 and D15.
 
 **Decision.** `/genui/openui/` reads OpenUI Lang into the catalog. `openUiLangFormat()` is a text
 format, named `openui`, for programs in reply text. `openUiLangAdapter()` renders a program sent in
@@ -2803,17 +2804,61 @@ kit bounds the rest:
   once the user acts in it. Only the latest reply refreshes on a timer, between
   `minRefreshSeconds` and a day, and never faster than once a second.
 - A program in a data part runs its queries once the part is complete.
-- A program is measured before it evaluates, and one that would expand past a cap is refused.
-  The measure counts each value that the state and the queries hold, at each read.
+- A query tool with no `parameters` schema runs only with no arguments.
 - Arguments and results cross as plain JSON, with no `__proto__`, `constructor` or `prototype`
   key.
 
+**The gate.** Nothing that lang-core parses or evaluates runs before the kit has measured it,
+with `bindings` on or off, in the text format and in the adapter. lang-core does unbounded work
+in places that a check inside the runtime cannot reach: its parser evaluates the default of each
+`$variable`, and its query manager evaluates arguments and defaults on its own. So the gate sits
+in front of all of it:
+
+- **Before the parse.** The kit reads the statements with lang-core's tokenizer and writes them
+  out in a plain form, which lang-core's parser reads exactly as the tokenizer does. It replaces
+  with null a statement whose object poses as a node, an element or a binding. It counts what
+  each statement expands to on the graph of references, and measures each `$variable` default.
+  With `bindings` off it replaces each `$variable` declaration with null.
+- **Before each evaluation.** The runtime measures the root before a render and before a binding
+  writes, and the tool, arguments, defaults and interval of each query before it evaluates them
+  itself. lang-core's query manager gets values, and evaluates nothing.
+- **The measure evaluates nothing.** A list length is a bound from where the list comes from.
+  A loop variable counts at its largest item, at each place that names it. `@Sort` and `@Filter`
+  weigh their field path. A value that a `$variable` or a query holds reads as a safe copy.
+
+| Limit | Value |
+|-------|-------|
+| Characters in one program | 50,000 |
+| Statements in one program | 500 |
+| Brackets inside brackets in one statement | 64 |
+| Components a program writes, each shared statement at each use | 4 times `maxElements` |
+| Values the statements expand to, and the `$variable` defaults cost | 100,000 |
+| Values one evaluation costs, and the state and results it reads hold | 100,000 |
+| `@Each` inside `@Each` | 3 levels |
+| Steps in one action | 8 |
+| Characters in the summary of an action | 1,000 |
+| Spaces or tabs in a row in a value an action shows | 2 |
+| `Query()` statements in one program | `maxCalls`, default 8 |
+| Programs of one reply that run queries | 3, refused ones counted |
+| Tool calls a chat's programs start in a minute | `maxCallsPerMinute`, default 60 |
+| Seconds between two refreshes of a query | `minRefreshSeconds`, 1 to a day, default 10 |
+
+**Elements and actions come from syntax only.** A value that a `$variable` or a query holds
+cannot become a component: an object with the shape of an element reads as null. Each action
+that the kit prepared starts with a mark that data cannot copy, and a plan without it is refused.
+`toOpenUiLibrary()` throws for a component that nests an action below the top level of a prop,
+as such an action would come from data. Throwing is the safer of the two fixes: the rule is
+checked once, at configuration, and no data path stays open.
+
 lang-core is pinned within one minor version, `~1.1.0`. This amends the pin by major of D122.
 
-The prompt uses lang-core's own sections for what is on. The kit's rules name what is off, list the
-query tools, and say what lang-core's text names that the catalog lacks. Each action prop lists
-only the steps that its schema accepts. The kit still does not run app-defined actions, message
-markers or edit mode.
+**The prompt.** lang-core writes the grammar. The kit writes each section that names components:
+actions, filters, forms and the data workflow. Their examples call the catalog's own components,
+in their argument order, and list only the steps that a component accepts. A section whose
+component the catalog lacks is left out, and no section names `Mutation()`. This changes the rule
+of D122 that lang-core writes the prompt. The kit's rules name what is off and list the query
+tools. Each action prop lists only the steps that its schema accepts. The kit still does not run
+app-defined actions, message markers or edit mode.
 
 **Why.** D122 left state out because it needed OpenUI's evaluator and renderer, which would split
 the checks between two runtimes. lang-core's evaluator is headless, and D126 lets the catalog check
@@ -2852,6 +2897,13 @@ named through `{type: "callTool", ...}` written as data, where an action schema 
 model wrote, so each value is quoted and escaped, or it could pose as the words around it.
 
 lang-core inlines each reference, so a short program can take exponential time to evaluate. A
+third review showed that a measure inside the runtime cannot bound this: a 447 character program
+took 1.6 s in lang-core's parser, with `bindings` off, and the query manager evaluated what the
+render had refused. It also showed that a measure which evaluates a list to count it can be
+lied to, as a list that reads a loop variable has no value yet. So one gate stands in front of
+every evaluation, from the parse on, and it evaluates nothing. lang-core's stock prompt taught
+`FormControl`, `SelectItem`, `Mutation()` and `@OpenUrl` to a catalog that has none of them, and
+one kit rule told the model to ignore that. A model follows an example before such a rule. A
 reply can hold many programs, and each can refresh on a timer, so a cap per program does not bound
 the calls of a chat. The kit reads token types and a library shape that lang-core's types do not
 promise, so a minor release can break it.

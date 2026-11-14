@@ -215,8 +215,8 @@ avoid most of this cost: a tag costs no call, and a reference costs a few tokens
   tooltip, and a sent message as the user's own, capped at 200 characters. Structured context is
   a flat object of at most 8 short values, such as record ids. It goes on the message's
   `metadata.context`, never inside its text, and shows under the sent message and in the tooltip.
-- `describeChatUiAction()` writes the tooltip. It shows the text of a `send` and each context
-  value as a JSON string, in quotes. A character the user could not see, such as a zero-width
+- `describeChatUiAction()` writes the tooltip. It shows the text of a `send`, each context value
+  and the url of an `openUrl` as a JSON string, in quotes. A character the user could not see, such as a zero-width
   space or a right-to-left override, shows as its code. So text cannot hide, or pose as the words
   around it.
 - A `state` action says what it does in its `summary`, which a button shows before the click.
