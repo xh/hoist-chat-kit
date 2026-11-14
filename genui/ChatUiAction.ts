@@ -1,7 +1,7 @@
 import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import {isEmpty, isObject, isPlainObject} from 'lodash';
 import type {ChatPartRenderContext} from '../core';
-import {escapeInvisible, quoteForDisplay} from './impl/displayText';
+import {escapeInvisible, keyForDisplay, quoteForDisplay} from './impl/displayText';
 
 /** The kinds of {@link ChatUiAction}. */
 export type ChatUiActionType = 'send' | 'openUrl' | 'navigate' | 'callTool' | 'app' | 'state';
@@ -198,9 +198,10 @@ export function isChatUiActionSchema(schema: unknown): boolean {
 
 /**
  * What an action does, in plain words for the user - for a tooltip that shows exactly what a
- * click will do, such as `Sends: "Show my open trades."` or `Opens https://example.com/report`.
+ * click will do, such as `Sends: "Show my open trades."` or `Opens "https://example.com/report"`.
  *
- * The text of a `send` and each text value of its context show as JSON strings, in quotes. A
+ * The text of a `send`, each text value of its context and the url of an `openUrl` show as JSON
+ * strings, in quotes. A context key that is not a plain name shows in quotes too. A
  * character the user could not see, such as a zero-width space or a right-to-left override,
  * shows as its code, so that text cannot hide or pose as the words around it.
  */
@@ -209,13 +210,13 @@ export function describeChatUiAction(action: ChatUiAction): string {
         case 'send': {
             const context = isPlainObject(action.context)
                 ? Object.entries(action.context)
-                      .map(([key, value]) => `${escapeInvisible(key)}: ${quoteForDisplay(value)}`)
+                      .map(([key, value]) => `${keyForDisplay(key)}: ${quoteForDisplay(value)}`)
                       .join(', ')
                 : null;
             return `Sends: ${quoteForDisplay(action.text)}${context ? `, with ${context}` : ''}`;
         }
         case 'openUrl':
-            return `Opens ${escapeInvisible(`${action.url}`)}`;
+            return `Opens ${quoteForDisplay(`${action.url}`)}`;
         case 'navigate':
             return `Goes to ${action.route}`;
         case 'callTool':
