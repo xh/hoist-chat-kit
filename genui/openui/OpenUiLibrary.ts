@@ -39,6 +39,13 @@ export interface OpenUiLibraryOptions {
      * components. Default every component of the catalog, for every slot.
      */
     slotAccepts?: Record<string, Record<string, string[]>>;
+
+    /**
+     * True to mark each prop that a component lists in its `stateProps` as `$binding<type>` in
+     * its signature, so the model knows it takes a `$variable`. Set by the format when it runs
+     * programs with state. Default false.
+     */
+    bindings?: boolean;
 }
 
 /** A catalog as an OpenUI library - see {@link toOpenUiLibrary}. */
@@ -66,9 +73,15 @@ export interface OpenUiLibrary {
  * Each component takes its `default` slot first, as `children`, as OpenUI's own components do.
  * Its props follow, in the order of its props schema, then its named slots. A prop typed with
  * {@link chatUiActionSchema} takes an OpenUI action expression, such as `@ToAssistant("...")`.
+ * With `bindings`, a prop in the component's `stateProps` is typed `$binding<type>`.
  */
 export function toOpenUiLibrary(catalog: ChatUiCatalog, opts: OpenUiLibraryOptions): OpenUiLibrary {
-    const {root, componentName = spec => upperFirst(spec.name), slotAccepts = {}} = opts,
+    const {
+            root,
+            componentName = spec => upperFirst(spec.name),
+            slotAccepts = {},
+            bindings = false
+        } = opts,
         specs = catalog.components,
         openUiNames: Record<string, string> = {};
 
@@ -119,7 +132,7 @@ export function toOpenUiLibrary(catalog: ChatUiCatalog, opts: OpenUiLibraryOptio
     let usesActions = false;
     specs.forEach(spec => {
         const name = openUiNames[spec.name],
-            {def, fields} = toComponentDef(spec, name, getAccepted);
+            {def, fields} = toComponentDef(spec, name, getAccepted, bindings);
         $defs[name] = def;
         components[name] = {
             signature: buildSignature(name, fields),
@@ -192,7 +205,8 @@ const ACTION_EXPRESSION: PlainObject = {
 function toComponentDef(
     spec: ChatUiComponentSpec,
     name: string,
-    getAccepted: (spec: ChatUiComponentSpec, slot: string) => string[]
+    getAccepted: (spec: ChatUiComponentSpec, slot: string) => string[],
+    bindings: boolean
 ): {def: PlainObject; fields: FieldInfo[]} {
     const {properties = {}, required = []} = spec.props,
         props: PlainObject = {},
@@ -234,7 +248,9 @@ function toComponentDef(
         } else if (schema?.type === 'array' && isChatUiActionSchema(schema.items)) {
             add(key, {type: 'array', items: ACTION_REF}, `${ACTION_DEF}[]`);
         } else {
-            add(key, schema, toTypeAnnotation(schema));
+            const type = toTypeAnnotation(schema),
+                isBound = bindings && spec.stateProps?.includes(key);
+            add(key, schema, isBound ? `$binding<${type}>` : type);
         }
     });
 

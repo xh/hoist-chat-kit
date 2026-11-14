@@ -3,8 +3,9 @@ import {createParser} from '@openuidev/lang-core';
 import {isString} from 'lodash';
 import type {ChatUiAdapter} from '../ChatUiAdapter';
 import {openUiToDocument} from './OpenUiDocument';
-import type {OpenUiLangFormatOptions} from './OpenUiLangFormat';
+import {getOpenUiFeatures, type OpenUiLangFormatOptions} from './OpenUiLangFormat';
 import {createLibraryCache} from './impl/libraryCache';
+import {createOpenUiStateSpec} from './impl/openUiStateSpec';
 
 /** Options for {@link openUiLangAdapter}. */
 export interface OpenUiLangAdapterOptions extends OpenUiLangFormatOptions {
@@ -16,11 +17,13 @@ export interface OpenUiLangAdapterOptions extends OpenUiLangFormatOptions {
  * An adapter that renders an OpenUI Lang program sent in a data part, for a server that sends UI
  * apart from the reply's text. The part's `data` is the program, or an object with the program
  * in `program`. The program becomes a document of catalog components, as with
- * {@link openUiLangFormat}. Register it with {@link ChatUiCatalog.createDataRenderers}.
+ * {@link openUiLangFormat}, and runs with state under the same `bindings` and `builtinFunctions`
+ * options. Register it with {@link ChatUiCatalog.createDataRenderers}.
  */
 export function openUiLangAdapter(opts: OpenUiLangAdapterOptions): ChatUiAdapter {
     const {dataType = 'openui', ...libraryOpts} = opts,
-        getLibrary = createLibraryCache(libraryOpts);
+        features = getOpenUiFeatures(opts),
+        getLibrary = createLibraryCache({...libraryOpts, bindings: features.bindings});
 
     return {
         dataType,
@@ -40,7 +43,21 @@ export function openUiLangAdapter(opts: OpenUiLangAdapterOptions): ChatUiAdapter
                     catalog
                 });
             // A program cut off when the reply ended is complete: nothing more will arrive.
-            return {...translation.document, isPartial: isPartial && translation.isPartial};
+            const isDocumentPartial = isPartial && translation.isPartial,
+                state = features.hasState
+                    ? createOpenUiStateSpec(result, library, {
+                          catalog,
+                          text: program,
+                          isComplete: !isDocumentPartial,
+                          isTextComplete: !isPartial,
+                          logKey: program
+                      })
+                    : null;
+            return {
+                ...translation.document,
+                isPartial: isDocumentPartial,
+                ...(state ? {state} : {})
+            };
         }
     };
 }

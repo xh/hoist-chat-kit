@@ -1,6 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
-import type {ASTNode} from '@openuidev/lang-core';
+import type {ActionPlan, ASTNode} from '@openuidev/lang-core';
 import {
+    castArray,
     compact,
     fromPairs,
     isBoolean,
@@ -38,6 +39,9 @@ import type {OpenUiLibrary} from './OpenUiLibrary';
  * - `Action([...])` becomes its one step the kit can run. Of several, the first `send` wins, or
  *   else the first step, and the rest are dropped with a warning.
  *
+ * This reads an action as lang-core parsed it, for a program that runs with no state. A program
+ * with state evaluates its actions first, and reads them with {@link toOpenUiSteps}.
+ *
  * @returns the action, or null for an expression the kit cannot run - such as `@Set`, `@Reset` or
  *      `@Run`, which act on OpenUI state and queries.
  */
@@ -49,20 +53,13 @@ export function openUiToAction(node: ASTNode, library: OpenUiLibrary): ChatUiAct
     switch (name) {
         case 'Action':
             return fromSteps(args[0], library);
-        case 'ToAssistant': {
-            const text = arg('message', 0),
-                context = toContext(getOwn(mappedProps, 'context') ?? args[1]);
-            if (!isString(text) || !text) return null;
-            return {
-                type: 'send',
-                text: text.slice(0, CHAT_UI_MAX_SEND_LENGTH),
-                ...(context ? {context} : {})
-            };
-        }
-        case 'OpenUrl': {
-            const url = arg('url', 0);
-            return isString(url) && url ? {type: 'openUrl', url} : null;
-        }
+        case 'ToAssistant':
+            return toSendAction(
+                arg('message', 0),
+                toValue(getOwn(mappedProps, 'context') ?? args[1])
+            );
+        case 'OpenUrl':
+            return toOpenUrlAction(arg('url', 0));
         default:
             return getOwn(library.schema.actions, name)
                 ? {type: 'app', name, params: mapValues(mappedProps, toValue)}
@@ -70,9 +67,76 @@ export function openUiToAction(node: ASTNode, library: OpenUiLibrary): ChatUiAct
     }
 }
 
+/**
+ * One step of an action in a program with state: a change to the state, or a kit action.
+ * @internal
+ */
+export type OpenUiStep =
+    | {type: 'set'; target: string; valueAST: ASTNode}
+    | {type: 'reset'; targets: string[]}
+    | {type: 'run'; statementId: string; refType: 'query' | 'mutation'}
+    | {type: 'action'; action: ChatUiAction};
+
+/**
+ * Turn an action that lang-core evaluated into steps the kit can run, in order. `@ToAssistant`,
+ * `@OpenUrl` and a library action become kit actions, with the same caps as
+ * {@link openUiToAction}. `@Set`, `@Reset` and `@Run` become steps on the program's state. A step
+ * the kit cannot run is left out.
+ * @internal
+ */
+export function toOpenUiSteps(plan: ActionPlan, library: OpenUiLibrary): OpenUiStep[] {
+    return compact(
+        plan.steps.map((step): OpenUiStep => {
+            switch (step?.type) {
+                case 'set':
+                    return isString(step.target) && step.valueAST
+                        ? {type: 'set', target: step.target, valueAST: step.valueAST}
+                        : null;
+                case 'reset':
+                    return {type: 'reset', targets: castArray(step.targets).filter(isString)};
+                case 'run':
+                    return isString(step.statementId)
+                        ? {type: 'run', statementId: step.statementId, refType: step.refType}
+                        : null;
+                case 'continue_conversation':
+                    return toActionStep(toSendAction(step.message, step.context));
+                case 'open_url':
+                    return toActionStep(toOpenUrlAction(step.url));
+                case 'custom_action':
+                    return getOwn(library.schema.actions, step.name)
+                        ? {
+                              type: 'action',
+                              action: {type: 'app', name: step.name, params: step.params}
+                          }
+                        : null;
+                default:
+                    return null;
+            }
+        })
+    );
+}
+
 //------------------
 // Implementation
 //------------------
+function toActionStep(action: ChatUiAction): OpenUiStep {
+    return action ? {type: 'action', action} : null;
+}
+
+function toSendAction(text: unknown, contextValue: unknown): ChatUiAction {
+    const context = toContext(contextValue);
+    if (!isString(text) || !text) return null;
+    return {
+        type: 'send',
+        text: text.slice(0, CHAT_UI_MAX_SEND_LENGTH),
+        ...(context ? {context} : {})
+    };
+}
+
+function toOpenUrlAction(url: unknown): ChatUiAction {
+    return isString(url) && url ? {type: 'openUrl', url} : null;
+}
+
 function fromSteps(list: ASTNode, library: OpenUiLibrary): ChatUiAction {
     const steps = list?.k === 'Arr' ? list.els : [],
         actions = compact(steps.map(it => openUiToAction(it, library)));
@@ -105,8 +169,7 @@ function toValue(node: ASTNode): unknown {
     }
 }
 
-function toContext(node: ASTNode): PlainObject {
-    const value = toValue(node);
+function toContext(value: unknown): PlainObject {
     if (value == null) return null;
 
     const entries = isPlainObject(value) ? Object.entries(value) : [['value', value]];

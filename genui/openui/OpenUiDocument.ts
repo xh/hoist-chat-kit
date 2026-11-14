@@ -1,22 +1,34 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {
     isElementNode,
+    isReactiveAssign,
     split,
     tokenize,
+    type ActionPlan,
     type ASTNode,
     type ElementNode,
     type ParseResult,
     type ValidationError
 } from '@openuidev/lang-core';
-import {compact, forEach, isArray, isEmpty, isPlainObject, isString, last} from 'lodash';
+import {
+    compact,
+    flattenDeep,
+    forEach,
+    isArray,
+    isEmpty,
+    isPlainObject,
+    isString,
+    last
+} from 'lodash';
 import {getOwn} from '../../impl/LangUtils';
 import {formatError, propPath} from '../../impl/SchemaUtils';
 import {describeChatUiAction, type ChatUiAction} from '../ChatUiAction';
 import type {ChatUiCatalog} from '../ChatUiCatalog';
 import type {ChatUiDocument, ChatUiElement} from '../ChatUiDocument';
 import {elementPath} from '../impl/documentStructure';
+import type {OpenUiRuntime} from './impl/OpenUiRuntime';
 import {warnOnce} from './impl/warnOnce';
-import {openUiToAction} from './OpenUiActions';
+import {openUiToAction, toOpenUiSteps} from './OpenUiActions';
 import type {OpenUiLibrary} from './OpenUiLibrary';
 
 /** Options for {@link openUiToDocument}. */
@@ -39,6 +51,14 @@ export interface OpenUiTranslationOptions {
      * Default none: actions get no label.
      */
     catalog?: ChatUiCatalog;
+
+    /**
+     * The state of the program, for a result whose props that state has evaluated. A prop that
+     * holds a two-way binding then takes its current value, with a binding in the element's
+     * `bindings`, and an action that changes state becomes a `state` action.
+     * @internal
+     */
+    runtime?: OpenUiRuntime;
 }
 
 /** What {@link openUiToDocument} returns. */
@@ -102,6 +122,7 @@ export function openUiToDocument(
             isPartial && (!hasText || statementId === streamingStatement);
 
     const elements: Record<string, ChatUiElement> = {},
+        {runtime} = opts,
         toComponent = (typeName: string) => library.toCatalogName(typeName) ?? typeName;
 
     const addElement = (node: ElementNode, syntheticId: string, parentStatement: string) => {
@@ -128,6 +149,10 @@ export function openUiToDocument(
                 } else {
                     element.slots = {...element.slots, [key]: ids};
                 }
+            } else if (runtime && isReactiveAssign(value)) {
+                const bound = runtime.toBinding(key, value);
+                if (bound.value != null) element.props[key] = bound.value;
+                element.bindings = {...element.bindings, [key]: bound.binding};
             } else {
                 const prop = toPropValue(value, library, {
                     propSchema: getOwn(
@@ -137,7 +162,9 @@ export function openUiToDocument(
                     path: `${id}.${key}`,
                     // Warn of a refusal once its statement completes, not for a value still
                     // being written.
-                    warn: !isPartialElement
+                    warn: !isPartialElement,
+                    runtime,
+                    isActionProp: isActionProp(library, typeName, key)
                 });
                 if (prop != null) element.props[key] = prop;
             }
@@ -179,6 +206,7 @@ export function openUiToDocument(
 // Implementation
 //------------------
 const REF_PREFIX = '#/$defs/',
+    ACTION_REF = `${REF_PREFIX}ActionExpression`,
     MAX_LABEL_LENGTH = 40,
     AST_KINDS: ASTNode['k'][] = [
         'Comp',
@@ -232,8 +260,12 @@ function getChildNodes(
 ): [ElementNode, number][] {
     if (isElementNode(value)) return [[value, 0]];
     if (!isArray(value)) return null;
-    if (!isChildListProp(library, typeName, key) && !value.some(isElementNode)) return null;
-    return value
+
+    // A list of children that an expression built, such as an `@Each`, nests in its place.
+    const isChildList = isChildListProp(library, typeName, key),
+        items: unknown[] = isChildList ? flattenDeep(value) : value;
+    if (!isChildList && !items.some(isElementNode)) return null;
+    return items
         .map((it, idx): [unknown, number] => [it, idx])
         .filter((it): it is [ElementNode, number] => isElementNode(it[0]));
 }
@@ -253,23 +285,38 @@ function isChildListProp(library: OpenUiLibrary, typeName: string, key: string):
     });
 }
 
+// True for a prop that the library types as an action, or a list of actions.
+function isActionProp(library: OpenUiLibrary, typeName: string, key: string): boolean {
+    const def = getOwn(library.schema.$defs, typeName),
+        prop = getOwn(def?.properties as PlainObject, key);
+    return [prop?.$ref, prop?.items?.$ref].includes(ACTION_REF);
+}
+
 // A prop's value, with each action expression as a kit action, and each other expression, such
 // as a reference, as null. Null drops the prop. An action that the prop's schema refuses is
 // dropped, with a warning. An action list left with no actions is empty, or null where the
-// schema requires items.
+// schema requires items. With a runtime, the value is already evaluated: an action is the plan
+// that lang-core made of it, and an expression is one that could not evaluate.
 function toPropValue(
     value: unknown,
     library: OpenUiLibrary,
-    opts: {propSchema: PlainObject; path: string; warn: boolean}
+    opts: {
+        propSchema: PlainObject;
+        path: string;
+        warn: boolean;
+        runtime: OpenUiRuntime;
+        isActionProp: boolean;
+    }
 ): unknown {
-    const {propSchema, path, warn} = opts,
+    const {propSchema, path, warn, runtime} = opts,
         actionSchema: PlainObject = propSchema?.type === 'array' ? propSchema.items : propSchema,
         withLabel = requiresLabel(actionSchema);
-    const toAction = (node: ASTNode) => {
-        const action = openUiToAction(node, library);
+
+    // An action that passes the prop's schema, with a label where the schema requires one.
+    const accept = (action: ChatUiAction, parts: ChatUiAction[] = [action]) => {
         if (!action) return null;
 
-        const refusal = getRefusal(action, actionSchema);
+        const refusal = compact(parts.map(it => getRefusal(it, actionSchema)))[0];
         if (refusal) {
             const message =
                 `OpenUI action dropped from ${path}, as its ${refusal}: ` +
@@ -279,6 +326,31 @@ function toPropValue(
         }
         return withLabel && action.label == null ? {...action, label: toLabel(action)} : action;
     };
+    const toAction = (node: ASTNode) => accept(openUiToAction(node, library));
+
+    // The schema must allow a state action, and each kit action among its steps.
+    const toPlanAction = (plan: ActionPlan, id: string) => {
+        const steps = toOpenUiSteps(plan, library),
+            action = runtime.createAction(id, steps);
+        if (action?.type !== 'state') return accept(action);
+
+        const stepActions = steps.flatMap(it => (it.type === 'action' ? [it.action] : [])),
+            ret = accept(action, [action, ...stepActions]);
+        if (ret) runtime.registerAction(action, steps);
+        return ret;
+    };
+
+    if (runtime) {
+        if (opts.isActionProp && isActionPlan(value)) return toPlanAction(value, path);
+        if (opts.isActionProp && isArray(value)) {
+            const ret = value
+                .map((it, idx) => (isActionPlan(it) ? toPlanAction(it, `${path}[${idx}]`) : it))
+                .filter(it => it != null && !isExpression(it));
+            return isEmpty(ret) && propSchema?.minItems > 0 ? null : ret;
+        }
+        return isExpression(value) ? null : value;
+    }
+
     if (isExpression(value)) return toAction(value);
     if (isArray(value) && value.some(isExpression)) {
         const ret = value
@@ -328,9 +400,16 @@ function toLabel(action: ChatUiAction): string {
             }
         case 'app':
             return action.name.slice(0, MAX_LABEL_LENGTH);
+        case 'state':
+            return action.summary.slice(0, MAX_LABEL_LENGTH);
         default:
             return null;
     }
+}
+
+// True for an action as lang-core's evaluator leaves it: a list of steps.
+function isActionPlan(value: unknown): value is ActionPlan {
+    return isPlainObject(value) && isArray((value as PlainObject).steps);
 }
 
 // True for an AST node that lang-core left unevaluated, such as an action or a reference.

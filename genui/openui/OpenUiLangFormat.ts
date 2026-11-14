@@ -8,6 +8,7 @@ import {
     isArray,
     isEmpty,
     isPlainObject,
+    isString,
     isUndefined
 } from 'lodash';
 import {getOwn} from '../../impl/LangUtils';
@@ -25,6 +26,7 @@ import {hashJson} from '../impl/hash';
 import {findFences, type MarkdownFence} from '../impl/parseTags';
 import {openUiToDocument} from './OpenUiDocument';
 import {createLibraryCache} from './impl/libraryCache';
+import {createOpenUiStateSpec} from './impl/openUiStateSpec';
 import {warnOnce} from './impl/warnOnce';
 import type {OpenUiLibrary, OpenUiLibraryOptions} from './OpenUiLibrary';
 
@@ -50,6 +52,20 @@ export interface OpenUiLangFormatOptions extends OpenUiLibraryOptions {
 
     /** Rules for the model, added after the kit's own rules. */
     additionalRules?: string[];
+
+    /**
+     * True to run OpenUI state: `$variables`, the expressions that read them, and the `@Set` and
+     * `@Reset` actions. A prop that a component lists in its `stateProps` takes a `$variable` as
+     * a two-way binding. The prompt then teaches all of this, with lang-core's own text. Default
+     * false: the kit drops each prop that holds a `$variable`.
+     */
+    bindings?: boolean;
+
+    /**
+     * True to run OpenUI's built-in functions, such as `@Count`, `@Filter` and `@Each`, and to
+     * list them in the prompt. Default the value of `bindings`.
+     */
+    builtinFunctions?: boolean;
 }
 
 /**
@@ -68,12 +84,15 @@ export interface OpenUiLangFormatOptions extends OpenUiLibraryOptions {
  * in the order of its props schema, then its named slots - see {@link toOpenUiLibrary}.
  *
  * Add it to the catalog's `textFormats`, and name it in `modes` to explain it to the model.
- * The prompt section comes from lang-core, with no state, queries, built-in functions or inline
- * mode, and with the kit's rules, which explain inline programs in their place.
+ * The prompt section comes from lang-core, with no inline mode, and with the kit's rules, which
+ * explain inline programs in their place. By default it has no state, queries or built-in
+ * functions either. `bindings` and `builtinFunctions` turn those on: the format then runs each
+ * program on lang-core's store and evaluator, and the document it returns has `state`.
  */
 export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextFormat {
     const {inline = true, examples = null, preamble = null, additionalRules = []} = opts,
-        getLibrary = createLibraryCache(opts),
+        features = getOpenUiFeatures(opts),
+        getLibrary = createLibraryCache({...opts, bindings: features.bindings}),
         parsers = new Map<string, {library: OpenUiLibrary; parser: StreamParser}>();
 
     // A streaming parser per program of a part, so that each chunk parses only what it adds. Kept
@@ -120,7 +139,10 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
             }),
             logKey = [messageId ?? program, partId, index, programIndex].join('|');
 
-        if (document.root == null) {
+        // A root that an expression picks, such as a ternary, has no element until it evaluates.
+        const hasRoot =
+            document.root != null || (features.hasState && result.rootExpression != null);
+        if (!hasRoot) {
             if (isStreaming) return {type: 'placeholder', component: null, source: program};
             if (isBare) {
                 warnOnce(
@@ -148,10 +170,19 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
         }
 
         // A program cut off when the reply ended is complete: nothing more will arrive.
-        const isPartial = isStreaming && translation.isPartial;
+        const isPartial = isStreaming && translation.isPartial,
+            state = features.hasState
+                ? createOpenUiStateSpec(result, library, {
+                      catalog,
+                      text: program,
+                      isComplete: !isPartial,
+                      isTextComplete: !isStreaming,
+                      logKey
+                  })
+                : null;
         return {
             type: 'document',
-            document: {...document, isPartial},
+            document: {...document, isPartial, ...(state ? {state} : {})},
             isPartial,
             source: program,
             ...(isEmpty(elementErrors) ? {} : {elementErrors})
@@ -167,12 +198,15 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
                 // lang-core's inline mode text describes a persistent dashboard, patched with
                 // changed statements. The kit writes its own inline rules instead.
                 inlineMode: false,
-                bindings: false,
+                bindings: features.bindings,
                 toolCalls: false,
-                builtinFunctions: false,
+                builtinFunctions: features.builtinFunctions,
                 preamble: preamble ?? (inline ? INLINE_PREAMBLE : PROGRAM_PREAMBLE),
-                examples: examples ?? createExamples(catalog, library, opts),
-                additionalRules: [...createKitRules(catalog, library, inline), ...additionalRules]
+                examples: examples ?? createExamples(catalog, library, opts, features),
+                additionalRules: [
+                    ...createKitRules(catalog, library, inline, features),
+                    ...additionalRules
+                ]
             }
         });
     };
@@ -185,7 +219,9 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
             preamble,
             additionalRules,
             root: opts.root,
-            slotAccepts: opts.slotAccepts ?? null
+            slotAccepts: opts.slotAccepts ?? null,
+            // Left out when off, so that a format with no state keeps its version.
+            ...(features.hasState ? {features} : {})
         }),
 
         parse(text, ctx) {
@@ -278,6 +314,28 @@ export function formatOpenUiProgram(
     return lines.join('\n');
 }
 
+/**
+ * The parts of OpenUI Lang that a format or an adapter runs beyond components, from its options.
+ * @internal
+ */
+export interface OpenUiFeatures {
+    /** True to run `$variables`, `@Set` and `@Reset`. */
+    bindings: boolean;
+
+    /** True to list the built-in functions in the prompt. */
+    builtinFunctions: boolean;
+
+    /** True if programs run with state, on lang-core's store and evaluator. */
+    hasState: boolean;
+}
+
+/** @internal */
+export function getOpenUiFeatures(opts: OpenUiLangFormatOptions): OpenUiFeatures {
+    const bindings = !!opts.bindings,
+        builtinFunctions = opts.builtinFunctions ?? bindings;
+    return {bindings, builtinFunctions, hasState: bindings || builtinFunctions};
+}
+
 //------------------
 // Implementation
 //------------------
@@ -290,6 +348,7 @@ const SOURCE = 'OpenUiLangFormat',
     STATEMENT_PREFIX_RE = /^[A-Za-z_]\w*\s*=\s*([A-Z]\w*)?$/,
     IDENTIFIER_RE = /^[A-Za-z_]\w*$/,
     KEY_RE = /^[A-Za-z_$][\w$]*$/,
+    BINDING_MARK = '__xhBinding__',
     MAX_PARSERS = 100;
 
 // True for a first line that starts a bare program: `root = ...`, or a statement that calls a
@@ -339,12 +398,23 @@ function isProgramFence(text: string, fence: MarkdownFence, isStreaming: boolean
 
 // The rules the kit adds to lang-core's: how to mix programs with prose, its own caps, and the
 // features it does not run.
-function createKitRules(catalog: ChatUiCatalog, library: OpenUiLibrary, inline: boolean): string[] {
+function createKitRules(
+    catalog: ChatUiCatalog,
+    library: OpenUiLibrary,
+    inline: boolean,
+    features: OpenUiFeatures
+): string[] {
     const {maxElements, maxDepth, maxInlineRows} = catalog.limits,
         usesActions = !!getOwn(library.schema.$defs as PlainObject, 'ActionExpression');
     return compact([
         ...(inline ? INLINE_RULES : []),
-        'Do not use $variables, Query, Mutation, @Set, @Reset or @Run.',
+        features.bindings
+            ? 'Do not use Query, Mutation or @Run.'
+            : 'Do not use $variables, Query, Mutation, @Set, @Reset or @Run.',
+        features.bindings
+            ? 'Bind a $variable only to an argument marked $binding. Any other argument reads ' +
+              'it, alone or in an expression.'
+            : null,
         usesActions
             ? `Keep the message of a @ToAssistant to at most ${CHAT_UI_MAX_SEND_LENGTH} ` +
               `characters, and its context to a flat object of at most ` +
@@ -359,28 +429,50 @@ function createKitRules(catalog: ChatUiCatalog, library: OpenUiLibrary, inline: 
 function createExamples(
     catalog: ChatUiCatalog,
     library: OpenUiLibrary,
-    opts: OpenUiLangFormatOptions
+    opts: OpenUiLangFormatOptions,
+    features: OpenUiFeatures
 ): string[] {
     const {root} = opts,
         rootExample = catalog.getComponent(root)?.example ?? {},
         accepted = getOwn(getOwn(opts.slotAccepts, root), 'default');
 
-    return compact(
-        catalog.components.map(({name, example}) => {
-            if (!example || (name !== root && accepted && !accepted.includes(name))) return null;
-            if (name === root)
-                return formatOpenUiProgram(catalog, library, toChatUiDocument(name, example));
+    const inRoot = (name: string, props: PlainObject) => {
+        const id = camelCase(name);
+        return formatOpenUiProgram(catalog, library, {
+            root: 'root',
+            elements: {
+                root: {component: root, props: rootExample, children: [id]},
+                [id]: {component: name, props}
+            }
+        });
+    };
+    const isAccepted = (name: string) => !accepted || accepted.includes(name),
+        examples = catalog.components.map(({name, example}) => {
+            if (!example || (name !== root && !isAccepted(name))) return null;
+            return name === root
+                ? formatOpenUiProgram(catalog, library, toChatUiDocument(name, example))
+                : inRoot(name, example);
+        });
 
-            const id = camelCase(name);
-            return formatOpenUiProgram(catalog, library, {
-                root: 'root',
-                elements: {
-                    root: {component: root, props: rootExample, children: [id]},
-                    [id]: {component: name, props: example}
-                }
-            });
-        })
-    );
+    // One more, to show a $variable bound to the first component that takes one.
+    const bound = features.bindings
+        ? catalog.components.find(
+              it => it.example && !isEmpty(it.stateProps) && it.name !== root && isAccepted(it.name)
+          )
+        : null;
+    if (bound) {
+        const prop = bound.stateProps[0],
+            example: PlainObject = bound.example,
+            hasName = isString(example.name) && IDENTIFIER_RE.test(example.name),
+            variable = '$' + (hasName ? example.name : prop),
+            lines = inRoot(bound.name, {...example, [prop]: BINDING_MARK})
+                .replace(JSON.stringify(BINDING_MARK), variable)
+                .split('\n'),
+            declaration =
+                example[prop] != null ? `${variable} = ${formatValue(example[prop])}` : null;
+        examples.push(compact([lines[0], declaration, ...lines.slice(1)]).join('\n'));
+    }
+    return compact(examples);
 }
 
 // An element as an OpenUI call, with the ids of the elements it references, in order.
