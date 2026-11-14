@@ -99,7 +99,6 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
 
     override onLinked() {
         this.chatForm = this.lookupModel(ChatUiFormModel);
-        this.chatForm?.register(this);
 
         this.addReaction(
             {
@@ -130,6 +129,11 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
                 }
             }
         );
+    }
+
+    // Once the first render is done, as the form's buttons observe its fields.
+    override afterLinked() {
+        this.chatForm?.register(this);
     }
 
     override destroy() {

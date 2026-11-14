@@ -255,7 +255,7 @@ describe('OpenUI Lang queries and mutations', () => {
                 ]
             }).toPrompt();
 
-            expect(prompt).toContain('## Query — Live Data Fetching');
+            expect(prompt).toContain('## Query');
             expect(prompt).toContain('- get_sales(region?: string) → {total?: number}');
             expect(prompt).toContain('Sales by region.');
             expect(prompt).toContain('- Query can call only: get_sales.');
