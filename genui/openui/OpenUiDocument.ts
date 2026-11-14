@@ -12,13 +12,16 @@ import {
 } from '@openuidev/lang-core';
 import {
     compact,
+    dropRight,
     flattenDeep,
     forEach,
     isArray,
     isEmpty,
     isPlainObject,
     isString,
-    last
+    last,
+    omit,
+    uniq
 } from 'lodash';
 import {getOwn} from '../../impl/LangUtils';
 import {formatError, propPath} from '../../impl/SchemaUtils';
@@ -81,9 +84,16 @@ export interface OpenUiTranslation {
     /**
      * Parser errors about statements lang-core dropped, by element id, in the kit's
      * `path: message` form. Pass them to {@link ChatUiCatalog.renderDocument} as
-     * `elementErrors`, to render the stand-in for each one as a fallback that lists them.
+     * `elementErrors`, to render the stand-in for each one as a fallback that lists them. An
+     * element whose statement writes an argument by name has an entry too.
      */
     elementErrors: Record<string, string[]>;
+
+    /** Names the program refers to and does not define. lang-core dropped each reference. */
+    unresolved: string[];
+
+    /** Names of the statements that nothing under the root refers to, so they do not render. */
+    orphaned: string[];
 }
 
 /**
@@ -108,6 +118,18 @@ export interface OpenUiTranslation {
  *   Other parser errors go in `errors`: lang-core has already dropped the prop or inline node
  *   at fault, and the catalog checks what remains. While the program streams, a missing
  *   required prop of the statement still streaming is not an error.
+ * - With `text`, a statement that a newline has closed is complete. In the statement still being
+ *   written, the value at the end of the last argument may be cut short. The last item of a list
+ *   there is left out, and so is a key of an object with no value yet. The element then renders
+ *   what has arrived, and never as a fallback for a value that is only half-written.
+ * - With `text`, an argument written by name, as in `Stack([a], direction: "row")`, gives its
+ *   statement an entry in `elementErrors`. lang-core reads the name as a reference and shifts
+ *   the arguments after it, so the element would otherwise render with the wrong props.
+ * - One value in a prop whose schema takes a list becomes a list of one, such as a single
+ *   action in a list of actions.
+ * - With a `runtime`, the result holds evaluated props. A prop that is a two-way binding takes
+ *   its current value, with a binding in the element's `bindings`. An action is the plan that
+ *   lang-core made of it: one kit action, or a `state` action for steps that act on state.
  */
 export function openUiToDocument(
     result: ParseResult,
@@ -117,7 +139,8 @@ export function openUiToDocument(
     const {root, meta} = result,
         isPartial = meta.incomplete || !opts.complete,
         hasText = opts.text != null,
-        streamingStatement = hasText && isPartial ? findLastStatement(opts.text) : null,
+        program = hasText ? scanProgram(opts.text) : null,
+        streamingStatement = isPartial ? (program?.openStatement ?? null) : null,
         isStreaming = (statementId: string) =>
             isPartial && (!hasText || statementId === streamingStatement);
 
@@ -125,23 +148,34 @@ export function openUiToDocument(
         {runtime} = opts,
         toComponent = (typeName: string) => library.toCatalogName(typeName) ?? typeName;
 
-    const addElement = (node: ElementNode, syntheticId: string, parentStatement: string) => {
+    // `isTrailing` is true for the element at the end of the statement still being written. The
+    // value at the end of its last argument may be cut short.
+    const addElement = (
+        node: ElementNode,
+        syntheticId: string,
+        parentStatement: string,
+        isTrailing: boolean
+    ) => {
         const {statementId, typeName} = node,
             ownId = toElementId(statementId),
             id = ownId != null && !Object.hasOwn(elements, ownId) ? ownId : syntheticId,
             statement = statementId ?? parentStatement,
             isPartialElement = hasText ? isStreaming(statement) : node.partial,
+            isCut = statementId != null ? hasText && isStreaming(statementId) : isTrailing,
+            lastKey = last(Object.keys(node.props)),
             element: ChatUiElement = {component: toComponent(typeName), props: {}};
         elements[id] = element;
 
         forEach(node.props, (value, key) => {
-            const children = getChildNodes(library, typeName, key, value);
+            const children = getChildNodes(library, typeName, key, value),
+                isLast = isCut && key === lastKey;
             if (children) {
-                const ids = children.map(([child, idx]) =>
+                const ids = children.map(([child, idx], position) =>
                     addElement(
                         child,
                         isArray(value) ? `${id}.${key}[${idx}]` : `${id}.${key}`,
-                        statement
+                        statement,
+                        isLast && position === children.length - 1
                     )
                 );
                 if (key === 'children') {
@@ -154,29 +188,47 @@ export function openUiToDocument(
                 if (bound.value != null) element.props[key] = bound.value;
                 element.bindings = {...element.bindings, [key]: bound.binding};
             } else {
-                const prop = toPropValue(value, library, {
-                    propSchema: getOwn(
-                        opts.catalog?.getComponent(element.component)?.props?.properties,
-                        key
-                    ),
-                    path: `${id}.${key}`,
-                    // Warn of a refusal once its statement completes, not for a value still
-                    // being written.
-                    warn: !isPartialElement,
-                    runtime,
-                    isActionProp: isActionProp(library, typeName, key)
-                });
+                const isAction = isActionProp(library, typeName, key),
+                    prop = toPropValue(isLast && !isAction ? trimCutValue(value) : value, library, {
+                        propSchema: getOwn(
+                            opts.catalog?.getComponent(element.component)?.props?.properties,
+                            key
+                        ),
+                        path: `${id}.${key}`,
+                        // Warn of a refusal once its statement completes, not for a value still
+                        // being written.
+                        warn: !isPartialElement,
+                        runtime,
+                        isActionProp: isAction
+                    });
                 if (prop != null) element.props[key] = prop;
             }
         });
         element.isPartial = isPartialElement;
         return id;
     };
-    const rootId = root ? addElement(root, toElementId(root.statementId) ?? 'root', null) : null,
+    const rootId = root
+            ? addElement(root, toElementId(root.statementId) ?? 'root', null, false)
+            : null,
         rootTakesChildren = root ? isChildListProp(library, root.typeName, 'children') : false;
 
     const errors: string[] = [],
         elementErrors: Record<string, string[]> = Object.create(null);
+
+    // An argument written by name shifts the arguments after it into the wrong props. lang-core
+    // reports nothing, so the element would render wrong. It renders as a fallback instead.
+    program?.namedArguments.forEach((names, statementId) => {
+        const id = toElementId(statementId);
+        if (!Object.hasOwn(elements, id)) return;
+        elementErrors[id] = names.map(name =>
+            formatError(
+                elementPath(id),
+                `argument '${name}' is written by name - OpenUI Lang takes arguments by ` +
+                    'position, so write only the value'
+            )
+        );
+    });
+
     meta.errors.forEach(error => {
         const {statementId, component, code, severity, message} = error,
             id = toElementId(statementId);
@@ -199,7 +251,14 @@ export function openUiToDocument(
         (elementErrors[id] ??= []).push(formatError(toErrorPath(id, error), message));
     });
 
-    return {document: {root: rootId, elements}, isPartial, errors, elementErrors};
+    return {
+        document: {root: rootId, elements},
+        isPartial,
+        errors,
+        elementErrors,
+        unresolved: uniq(meta.unresolved ?? []),
+        orphaned: uniq(meta.orphaned ?? [])
+    };
 }
 
 //------------------
@@ -207,6 +266,19 @@ export function openUiToDocument(
 //------------------
 const REF_PREFIX = '#/$defs/',
     ACTION_REF = `${REF_PREFIX}ActionExpression`,
+    // The key lang-core gives the pair still to come in an object cut short.
+    PENDING_KEY = '?',
+    // lang-core's token types, which it declares as a const enum and so does not export.
+    TOKEN = {
+        lParen: 1,
+        rParen: 2,
+        lBrack: 3,
+        rBrack: 4,
+        lBrace: 5,
+        rBrace: 6,
+        colon: 8,
+        question: 34
+    },
     MAX_LABEL_LENGTH = 40,
     AST_KINDS: ASTNode['k'][] = [
         'Comp',
@@ -244,9 +316,89 @@ function toElementId(statementId: string): string {
     return OBJECT_MEMBER_IDS.includes(statementId) ? `${statementId}$` : statementId;
 }
 
-// The id of the last statement in a program's text - the one still streaming, while it streams.
-function findLastStatement(text: string): string {
-    return last(split(tokenize(text)))?.id ?? null;
+// What the text of a program shows that lang-core's result does not.
+interface ProgramScan {
+    // Id of the statement at the end of the text that no newline has closed: the one still being
+    // written, while the program streams. Null if the last statement is closed.
+    openStatement: string;
+
+    // The names of the arguments written by name, as in `Stack([a], direction: "row")`, by the
+    // id of the statement that holds them.
+    namedArguments: Map<string, string[]>;
+}
+
+function scanProgram(text: string): ProgramScan {
+    const statements = split(tokenize(text)),
+        lastStatement = last(statements),
+        namedArguments = new Map<string, string[]>();
+
+    statements.forEach(({id, tokens}) => {
+        const names = findNamedArguments(tokens);
+        if (!isEmpty(names)) namedArguments.set(id, names);
+    });
+    return {
+        openStatement:
+            lastStatement && !(lastStatement.end < text.length) ? lastStatement.id : null,
+        namedArguments
+    };
+}
+
+// The names of the arguments that a statement writes by name: each colon directly inside the
+// parentheses of a call. A colon inside an object, or after the `?` of a ternary, is not one.
+function findNamedArguments(tokens: ReturnType<typeof tokenize>): string[] {
+    const open: number[] = [],
+        ternaries: number[] = [0],
+        ret: string[] = [];
+
+    tokens.forEach((token, idx) => {
+        switch (token.t as number) {
+            case TOKEN.lParen:
+            case TOKEN.lBrack:
+            case TOKEN.lBrace:
+                open.push(token.t);
+                ternaries.push(0);
+                break;
+            case TOKEN.rParen:
+            case TOKEN.rBrack:
+            case TOKEN.rBrace:
+                open.pop();
+                if (ternaries.length > 1) ternaries.pop();
+                break;
+            case TOKEN.question:
+                ternaries[ternaries.length - 1]++;
+                break;
+            case TOKEN.colon:
+                if (last(ternaries) > 0) {
+                    ternaries[ternaries.length - 1]--;
+                } else if (last(open) === TOKEN.lParen) {
+                    const name = tokens[idx - 1]?.v;
+                    ret.push(isString(name) ? name : '?');
+                }
+                break;
+        }
+    });
+    return ret;
+}
+
+// A value at the end of a statement still being written, without the part that may be cut
+// short. lang-core closes what is open, so a half-written object has a key cut short with no
+// value, and a `?` key for the pair to come. The last item of a list goes, as it may hold either.
+// In an object, the `?` key goes, and so does a last key with no value yet.
+function trimCutValue(value: unknown): unknown {
+    if (isArray(value)) return dropRight(value);
+    if (!isPlainObject(value) || isExpression(value) || isElementNode(value)) return value;
+
+    const ret = omit(value as PlainObject, PENDING_KEY),
+        key = last(Object.keys(ret));
+    if (key == null) return ret;
+
+    const trimmed = trimCutValue(ret[key]);
+    if (trimmed == null || isExpression(trimmed)) {
+        delete ret[key];
+    } else {
+        ret[key] = trimmed;
+    }
+    return ret;
 }
 
 // The element nodes of a prop that holds a child list, each with its index, or null for a prop
@@ -311,6 +463,15 @@ function toPropValue(
     const {propSchema, path, warn, runtime} = opts,
         actionSchema: PlainObject = propSchema?.type === 'array' ? propSchema.items : propSchema,
         withLabel = requiresLabel(actionSchema);
+
+    // One value where the schema takes a list is a list of one. A text format gets no retry, so
+    // a single action in a list of actions must not fail the element.
+    const isSingle =
+        propSchema?.type === 'array' &&
+        value != null &&
+        !isArray(value) &&
+        (opts.isActionProp || !isExpression(value));
+    if (isSingle) value = [value];
 
     // An action that passes the prop's schema, with a label where the schema requires one.
     const accept = (action: ChatUiAction, parts: ChatUiAction[] = [action]) => {

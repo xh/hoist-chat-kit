@@ -73,7 +73,7 @@ describe('built-in form components', () => {
             );
             expect(signature('DateInput')).toMatch(/value\?: \$binding<string>\)$/);
             expect(signature('Button')).toBe(
-                'Button(label: string, action?: ActionExpression, ' +
+                'Button(label: string, action?: @ToAssistant | @Set | @Reset, ' +
                     'intent?: "primary" | "success" | "warning" | "danger")'
             );
         });

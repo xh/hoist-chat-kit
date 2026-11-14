@@ -27,7 +27,7 @@ import {
 import type {ChatUiCatalog} from '../ChatUiCatalog';
 import {toChatUiDocument, type ChatUiDocument, type ChatUiElement} from '../ChatUiDocument';
 import type {ChatUiFormatContext, ChatUiTextFormat} from '../ChatUiTextFormat';
-import type {ChatUiTextSegment} from '../ChatUiTextSegment';
+import type {ChatUiDocumentSegment, ChatUiTextSegment} from '../ChatUiTextSegment';
 import {hashJson} from '../impl/hash';
 import {findFences, type MarkdownFence} from '../impl/parseTags';
 import {openUiToDocument} from './OpenUiDocument';
@@ -119,6 +119,37 @@ export interface OpenUiToolSpec {
 }
 
 /**
+ * What lang-core's parser found in a program beyond the document it gave. lang-core drops what
+ * it cannot use and renders the rest, so these say why a program shows less than it wrote.
+ */
+export interface OpenUiDiagnostics {
+    /**
+     * Problems with props and inline calls that lang-core dropped, in the kit's `path: message`
+     * form. Problems with whole statements are in the segment's `elementErrors`.
+     */
+    errors: string[];
+
+    /** Names the program refers to and does not define. Each reference is dropped. */
+    unresolved: string[];
+
+    /** Names of the statements that nothing under the root refers to, so they do not render. */
+    orphaned: string[];
+}
+
+/** The document segment of an OpenUI Lang program, with what its parser found. */
+export interface OpenUiDocumentSegment extends ChatUiDocumentSegment {
+    /** What the parser found in the program - for an inspector, a log or an eval. */
+    openui: OpenUiDiagnostics;
+}
+
+/** True for a segment that {@link openUiLangFormat} parsed from a program. */
+export function isOpenUiDocumentSegment(
+    segment: ChatUiTextSegment
+): segment is OpenUiDocumentSegment {
+    return segment?.type === 'document' && isPlainObject((segment as OpenUiDocumentSegment).openui);
+}
+
+/**
  * The OpenUI Lang format, named `openui`: UI written as an OpenUI Lang program, which
  * `@openuidev/lang-core` parses as it streams. Each statement assigns a component call to a
  * name, and the root statement holds the rest by reference:
@@ -142,7 +173,11 @@ export interface OpenUiToolSpec {
 export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextFormat {
     const {inline = true, examples = null, preamble = null, additionalRules = []} = opts,
         features = getOpenUiFeatures(opts),
-        getLibrary = createLibraryCache({...opts, bindings: features.bindings}),
+        getLibrary = createLibraryCache({
+            ...opts,
+            bindings: features.bindings,
+            toolCalls: features.toolCalls
+        }),
         parsers = new Map<string, {library: OpenUiLibrary; parser: StreamParser}>();
 
     // A streaming parser per program of a part, so that each chunk parses only what it adds. Kept
@@ -214,9 +249,12 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
             };
         }
 
-        // Errors about props and inline calls that lang-core dropped from a complete program.
-        if (!isStreaming && !isEmpty(errors)) {
-            warnOnce(`errors|${logKey}`, ['OpenUI program rendered without:', ...errors], SOURCE);
+        // What lang-core dropped from a complete program: props and inline calls with errors, and
+        // references to names the program does not define.
+        const {unresolved, orphaned} = translation,
+            dropped = [...errors, ...unresolved.map(it => `reference to undefined '${it}'`)];
+        if (!isStreaming && !isEmpty(dropped)) {
+            warnOnce(`errors|${logKey}`, ['OpenUI program rendered without:', ...dropped], SOURCE);
         }
 
         // A program cut off when the reply ended is complete: nothing more will arrive.
@@ -231,36 +269,38 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
                       runtime: features.runtime
                   })
                 : null;
-        return {
+        const segment: OpenUiDocumentSegment = {
             type: 'document',
             document: {...document, isPartial, ...(state ? {state} : {})},
             isPartial,
             source: program,
-            ...(isEmpty(elementErrors) ? {} : {elementErrors})
+            ...(isEmpty(elementErrors) ? {} : {elementErrors}),
+            openui: {errors, unresolved, orphaned}
         };
+        return segment;
     };
 
     const toPrompt = (catalog: ChatUiCatalog) => {
         const library = getLibrary(catalog),
-            {root, components, schema} = library;
-        return generateSystemPrompt({
-            library: {root, components, schema},
-            promptOptions: {
-                // lang-core's inline mode text describes a persistent dashboard, patched with
-                // changed statements. The kit writes its own inline rules instead.
-                inlineMode: false,
-                bindings: features.bindings,
-                toolCalls: features.toolCalls,
-                tools: features.toolCalls ? features.tools : undefined,
-                builtinFunctions: features.builtinFunctions,
-                preamble: preamble ?? (inline ? INLINE_PREAMBLE : PROGRAM_PREAMBLE),
-                examples: examples ?? createExamples(catalog, library, opts, features),
-                additionalRules: [
-                    ...createKitRules(catalog, library, inline, features),
-                    ...additionalRules
-                ]
-            }
-        });
+            {root, components, schema} = library,
+            prompt = generateSystemPrompt({
+                library: {root, components, schema},
+                promptOptions: {
+                    // lang-core's inline mode text describes a persistent dashboard, patched
+                    // with changed statements. The kit writes its own inline rules instead.
+                    inlineMode: false,
+                    bindings: features.bindings,
+                    toolCalls: features.toolCalls,
+                    tools: features.toolCalls ? features.tools : undefined,
+                    builtinFunctions: features.builtinFunctions,
+                    preamble: preamble ?? (inline ? INLINE_PREAMBLE : PROGRAM_PREAMBLE),
+                    examples: examples ?? createExamples(catalog, library, opts, features)
+                }
+            });
+        return addRules(prompt, [
+            ...createKitRules(catalog, library, inline, features),
+            ...additionalRules
+        ]);
     };
 
     return {
@@ -424,6 +464,8 @@ const SOURCE = 'OpenUiLangFormat',
     IDENTIFIER_RE = /^[A-Za-z_]\w*$/,
     KEY_RE = /^[A-Za-z_$][\w$]*$/,
     BINDING_MARK = '__xhBinding__',
+    // Where lang-core's own list of rules ends, and its last section starts.
+    AFTER_RULES = '\n\n## Final Verification',
     MAX_PARSERS = 100;
 
 // True for a first line that starts a bare program: `root = ...`, or a statement that calls a
@@ -482,8 +524,18 @@ function isProgramFence(text: string, fence: MarkdownFence, isStreaming: boolean
     return isOpenerStreaming && !!tag && FENCE_TAG.startsWith(tag);
 }
 
-// The rules the kit adds to lang-core's: how to mix programs with prose, its own caps, and the
-// features it does not run.
+// Add rules to lang-core's prompt, at the end of its own list of rules. lang-core puts the rules
+// it is given after its last section, the checks to run before finishing, where they read as
+// more checks.
+function addRules(prompt: string, rules: string[]): string {
+    if (isEmpty(rules)) return prompt;
+    const lines = rules.map(it => `- ${it}`).join('\n'),
+        at = prompt.indexOf(AFTER_RULES);
+    return at < 0 ? `${prompt}\n\n${lines}` : `${prompt.slice(0, at)}\n${lines}${prompt.slice(at)}`;
+}
+
+// The rules the kit adds to lang-core's: how to mix programs with prose, its own caps, the
+// features it does not run, and what lang-core's text names that the catalog lacks.
 function createKitRules(
     catalog: ChatUiCatalog,
     library: OpenUiLibrary,
@@ -512,8 +564,38 @@ function createKitRules(
               `characters, and its context to a flat object of at most ` +
               `${CHAT_UI_MAX_CONTEXT_ENTRIES} short values.`
             : null,
+        ...createCatalogRules(catalog, library, features, usesActions),
         `A program holds at most ${maxElements} components, nested at most ${maxDepth} deep, ` +
             `with at most ${maxInlineRows} items in any list.`
+    ]);
+}
+
+// Rules for what lang-core's text offers that this catalog has no component for: an action step
+// that no prop accepts, the Button of its action examples, and the forms it suggests for input.
+function createCatalogRules(
+    catalog: ChatUiCatalog,
+    library: OpenUiLibrary,
+    features: OpenUiFeatures,
+    usesActions: boolean
+): string[] {
+    const offered = [
+            'ToAssistant',
+            'OpenUrl',
+            ...(features.bindings ? ['Set', 'Reset'] : []),
+            ...(features.toolCalls ? ['Run'] : [])
+        ],
+        unaccepted = offered.filter(it => !library.actionSteps.includes(it)).map(it => `@${it}`),
+        hasInputs = catalog.components.some(it => !isEmpty(it.stateProps));
+    return compact([
+        usesActions && !isEmpty(unaccepted)
+            ? `No component takes ${unaccepted.join(' or ')}. Do not use ` +
+              `${unaccepted.length > 1 ? 'them' : 'it'}.`
+            : null,
+        usesActions && !getOwn(library.components, 'Button')
+            ? 'The Action section shows a Button in its examples. This library has no Button. ' +
+              'Write an action only in an argument that Component Signatures types for one.'
+            : null,
+        hasInputs ? null : 'This library has no inputs and no forms. Ask for input in words.'
     ]);
 }
 

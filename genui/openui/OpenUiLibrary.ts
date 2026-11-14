@@ -46,6 +46,12 @@ export interface OpenUiLibraryOptions {
      * programs with state. Default false.
      */
     bindings?: boolean;
+
+    /**
+     * True if programs can call tools, so that a prop which takes a `state` action is offered
+     * the `@Run` step. Set by the format from its tool options. Default false.
+     */
+    toolCalls?: boolean;
 }
 
 /** A catalog as an OpenUI library - see {@link toOpenUiLibrary}. */
@@ -64,6 +70,12 @@ export interface OpenUiLibrary {
 
     /** The catalog name of a component, by its OpenUI name, or null for an unknown name. */
     toCatalogName: (openUiName: string) => string;
+
+    /**
+     * The OpenUI action steps that some component of the library accepts, such as `ToAssistant`.
+     * A step that is not here has no prop to go in.
+     */
+    actionSteps: string[];
 }
 
 /**
@@ -74,14 +86,20 @@ export interface OpenUiLibrary {
  * Its props follow, in the order of its props schema, then its named slots. A prop typed with
  * {@link chatUiActionSchema} takes an OpenUI action expression, such as `@ToAssistant("...")`.
  * With `bindings`, a prop in the component's `stateProps` is typed `$binding<type>`.
+ *
+ * An action prop is typed by the steps its schema accepts. A prop that takes every step the
+ * prompt offers is an `ActionExpression`. Any other lists its steps, such as `@ToAssistant`, so
+ * that the model writes no step that the kit would drop.
  */
 export function toOpenUiLibrary(catalog: ChatUiCatalog, opts: OpenUiLibraryOptions): OpenUiLibrary {
     const {
             root,
             componentName = spec => upperFirst(spec.name),
             slotAccepts = {},
-            bindings = false
+            bindings = false,
+            toolCalls = false
         } = opts,
+        offeredSteps = getOfferedSteps(bindings, toolCalls),
         specs = catalog.components,
         openUiNames: Record<string, string> = {};
 
@@ -128,17 +146,21 @@ export function toOpenUiLibrary(catalog: ChatUiCatalog, opts: OpenUiLibraryOptio
     );
 
     const $defs: Record<string, PlainObject> = {},
-        components: OpenUiLibrary['components'] = {};
+        components: OpenUiLibrary['components'] = {},
+        actionSteps: string[] = [];
     let usesActions = false;
     specs.forEach(spec => {
         const name = openUiNames[spec.name],
-            {def, fields} = toComponentDef(spec, name, getAccepted, bindings);
+            {def, fields, steps} = toComponentDef(spec, name, getAccepted, bindings, offeredSteps);
         $defs[name] = def;
         components[name] = {
             signature: buildSignature(name, fields),
             description: toDescription(spec)
         };
-        usesActions ||= fields.some(it => ACTION_TYPES.includes(it.typeAnnotation));
+        if (steps) {
+            usesActions = true;
+            actionSteps.push(...steps);
+        }
     });
     if (usesActions) $defs[ACTION_DEF] = ACTION_EXPRESSION;
 
@@ -153,7 +175,8 @@ export function toOpenUiLibrary(catalog: ChatUiCatalog, opts: OpenUiLibraryOptio
         } as LibraryJSONSchema,
         root: openUiNames[root],
         components,
-        toCatalogName: openUiName => getOwn(catalogNames, openUiName)
+        toCatalogName: openUiName => getOwn(catalogNames, openUiName),
+        actionSteps: uniq(actionSteps)
     };
 }
 
@@ -167,7 +190,6 @@ const NAME_RE = /^[A-Z][A-Za-z0-9_]*$/,
     MAX_TYPE_DEPTH = 3,
     ACTION_DEF = 'ActionExpression',
     ACTION_REF = toRef(ACTION_DEF),
-    ACTION_TYPES = [ACTION_DEF, `${ACTION_DEF}[]`],
     PROPS_LABEL = 'Props: ',
     PROPS_SEPARATOR = '; ',
     MAX_PROPS_LENGTH = 600;
@@ -206,8 +228,9 @@ function toComponentDef(
     spec: ChatUiComponentSpec,
     name: string,
     getAccepted: (spec: ChatUiComponentSpec, slot: string) => string[],
-    bindings: boolean
-): {def: PlainObject; fields: FieldInfo[]} {
+    bindings: boolean,
+    offeredSteps: string[]
+): {def: PlainObject; fields: FieldInfo[]; steps: string[]} {
     const {properties = {}, required = []} = spec.props,
         props: PlainObject = {},
         fields: FieldInfo[] = [],
@@ -242,11 +265,27 @@ function toComponentDef(
     // The default slot first, as `children`, as in OpenUI's own components.
     if (slots.includes('default')) addSlot('default');
 
+    // The steps that the action props of the component accept, or null if it has none.
+    let steps: string[] = null;
+    const toActionType = (schema: PlainObject) => {
+        const accepted = getAcceptedSteps(schema, offeredSteps);
+        steps = [...(steps ?? []), ...accepted];
+        // A prop that takes every step on offer, or none the model can write, is not narrowed.
+        return isEmpty(accepted) || accepted.length === offeredSteps.length
+            ? ACTION_DEF
+            : accepted.map(it => `@${it}`).join(' | ');
+    };
+
     Object.entries<PlainObject>(properties).forEach(([key, schema]) => {
         if (isChatUiActionSchema(schema)) {
-            add(key, ACTION_REF, ACTION_DEF);
+            add(key, ACTION_REF, toActionType(schema));
         } else if (schema?.type === 'array' && isChatUiActionSchema(schema.items)) {
-            add(key, {type: 'array', items: ACTION_REF}, `${ACTION_DEF}[]`);
+            const type = toActionType(schema.items);
+            add(
+                key,
+                {type: 'array', items: ACTION_REF},
+                type.includes(' ') ? `(${type})[]` : `${type}[]`
+            );
         } else {
             const type = toTypeAnnotation(schema),
                 isBound = bindings && spec.stateProps?.includes(key);
@@ -265,9 +304,37 @@ function toComponentDef(
             additionalProperties: false,
             description: spec.description
         },
-        fields
+        fields,
+        steps
     };
 }
+
+// The action steps that lang-core's prompt lists for a format with these features.
+function getOfferedSteps(bindings: boolean, toolCalls: boolean): string[] {
+    return [
+        ...(toolCalls ? ['Run'] : []),
+        'ToAssistant',
+        'OpenUrl',
+        ...(bindings ? ['Set', 'Reset'] : [])
+    ];
+}
+
+// The steps on offer that an action schema accepts: `@ToAssistant` for a `send`, `@OpenUrl` for
+// an `openUrl`, and the steps that act on state for a `state` action.
+function getAcceptedSteps(schema: PlainObject, offeredSteps: string[]): string[] {
+    const branches: PlainObject[] = schema.anyOf ?? [schema],
+        types = branches.map(it => it?.properties?.type?.const);
+    return offeredSteps.filter(step => types.includes(STEP_ACTION_TYPES[step]));
+}
+
+// The kit action that each OpenUI action step becomes.
+const STEP_ACTION_TYPES: Record<string, string> = {
+    ToAssistant: 'send',
+    OpenUrl: 'openUrl',
+    Set: 'state',
+    Reset: 'state',
+    Run: 'state'
+};
 
 // A component's description, then a line that lists the guidance of its props, such as
 // `Props: metrics: The tiles.; metrics[].value: A number.`, cut at a prop to fit the cap.

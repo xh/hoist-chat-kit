@@ -104,7 +104,8 @@ describe('toOpenUiLibrary', () => {
             items: {$ref: '#/$defs/ActionExpression'}
         });
         expect(schema.$defs.ActionExpression).toEqual(ACTION_EXPRESSION);
-        expect(components.Card.signature).toContain('actions?: ActionExpression[]');
+        // The card takes only `send` actions, so its prop lists the one step that makes one.
+        expect(components.Card.signature).toContain('actions?: @ToAssistant[]');
     });
 
     it('does not recognize a clone of an action schema, which must be placed as is', () => {
@@ -158,7 +159,7 @@ describe('toOpenUiLibrary', () => {
                 'footer?: (Metric | Button)[])'
         );
         expect(components.Button.signature).toBe(
-            'Button(label: string, action?: ActionExpression, more?: ActionExpression[])'
+            'Button(label: string, action?: @ToAssistant, more?: ActionExpression[])'
         );
         expect(components.Table.signature).toBe(
             'Table(rows: object[], tags?: string[], meta?: object, count?: number, ' +

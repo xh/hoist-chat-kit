@@ -280,7 +280,13 @@ const ACTION_FIELDS: Record<ChatUiActionType, {required: string[]; properties: P
         required: ['id', 'summary'],
         properties: {
             id: {type: 'string', maxLength: 200},
-            summary: {type: 'string', maxLength: CHAT_UI_MAX_SUMMARY_LENGTH}
+            summary: {
+                type: 'string',
+                maxLength: CHAT_UI_MAX_SUMMARY_LENGTH,
+                description:
+                    'What the action does. A format with state writes this action. A document ' +
+                    'written as JSON has no state, so do not write it there.'
+            }
         }
     }
 };

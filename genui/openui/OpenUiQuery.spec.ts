@@ -272,7 +272,7 @@ describe('OpenUI Lang queries and mutations', () => {
 
             expect(prompt).toContain('- Query can call only: get_sales.');
             expect(prompt).toContain('- Mutation can call only: save_region.');
-            expect(prompt).not.toContain('Do not use');
+            expect(prompt).not.toMatch(/Do not use (Query|Mutation)/);
         });
     });
 });

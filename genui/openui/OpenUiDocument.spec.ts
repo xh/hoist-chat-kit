@@ -333,7 +333,11 @@ describe('openUiToDocument', () => {
         });
         onTestFinished(() => chatModel.destroy());
 
-        const html = render({document, isPartial, errors: [], elementErrors}, catalog, chatModel);
+        const html = render(
+            {document, isPartial, errors: [], elementErrors, unresolved: [], orphaned: []},
+            catalog,
+            chatModel
+        );
         expect(html).not.toContain('could not be displayed');
         expect(html).toMatch(/<button[^>]*>(?:(?!<\/button>).)*Show details/s);
     });

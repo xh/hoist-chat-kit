@@ -23,7 +23,11 @@ export interface OpenUiLangAdapterOptions extends OpenUiLangFormatOptions {
 export function openUiLangAdapter(opts: OpenUiLangAdapterOptions): ChatUiAdapter {
     const {dataType = 'openui', ...libraryOpts} = opts,
         features = getOpenUiFeatures(opts),
-        getLibrary = createLibraryCache({...libraryOpts, bindings: features.bindings});
+        getLibrary = createLibraryCache({
+            ...libraryOpts,
+            bindings: features.bindings,
+            toolCalls: features.toolCalls
+        });
 
     return {
         dataType,
