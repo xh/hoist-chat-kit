@@ -58,7 +58,13 @@ export function toHighchartsConfig(
             fmtChatUiNumber(v, format, decimals, {asHtml: true, compact: true});
 
     return {
-        chart: {type, animation: false, backgroundColor: 'transparent'},
+        chart: {
+            type,
+            animation: false,
+            backgroundColor: 'transparent',
+            // A data export is not markup, so its cells show each name as written.
+            events: {exportData: decodeExportData}
+        },
         legend: {enabled: true},
         xAxis: {
             type: xAxis.type ?? 'category',
@@ -77,11 +83,20 @@ export function toHighchartsConfig(
         },
         tooltip: {
             shared: type !== 'pie',
+            // The header over the points names the category or the slice, so each line names
+            // the series. The name reaches Highcharts escaped - see `toSeries()`.
             pointFormatter: function (this: any) {
-                // Both names reach Highcharts escaped - see `toSeries()`.
-                const value = fmtValue(this.y),
-                    label = type === 'pie' ? this.name : this.series.name;
-                return `<span style="color:${this.color}">●</span> ${label}: <b>${value}</b><br/>`;
+                const name = this.series?.name,
+                    label = name ? `${name}: ` : '',
+                    // A slice also shows its share of the pie, as its data label does.
+                    share =
+                        type === 'pie' && isFinite(this.percentage)
+                            ? ` (${fmtChatUiNumber(this.percentage / 100, 'percent', 1, {asHtml: true})})`
+                            : '';
+                return (
+                    `<span style="color:${this.color}">●</span> ${label}` +
+                    `<b>${fmtValue(this.y)}</b>${share}<br/>`
+                );
             }
         },
         plotOptions: {
@@ -94,9 +109,7 @@ export function toHighchartsConfig(
                 borderWidth: 0,
                 dataLabels: {enabled: true, format: '{point.name}: {point.percentage:.1f}%'}
             }
-        },
-        // A CSV is not markup, so its column headers show each name as written.
-        exporting: {csv: {columnHeaderFormatter: formatCsvHeader}}
+        }
     };
 }
 
@@ -433,10 +446,13 @@ function escapeText<T>(value: T): T {
     return (isString(value) ? escape(value) : value) as T;
 }
 
-// The header of a CSV column, for Highcharts' `exporting.csv.columnHeaderFormatter`: the name of
-// a series or the title of an axis, decoded. False leaves the header to Highcharts.
-function formatCsvHeader(item: any, key: string, keyLength: number): string | false {
-    const text = item?.coll ? item.options?.title?.text : item?.name;
-    if (!isString(text) || !text) return false;
-    return unescape(text) + (!item.coll && keyLength > 1 ? ` (${key})` : '');
+// Handler of Highcharts' `exportData` event, which fires with the rows of a CSV or a table before
+// they are written: the header row, then a row per x value. Decodes the text that
+// `escapeText()` encoded, in place, as Highcharts reads the same array after the event.
+function decodeExportData(e: {dataRows: unknown[][]}) {
+    e?.dataRows?.forEach(row =>
+        row?.forEach((cell, idx) => {
+            if (isString(cell)) row[idx] = unescape(cell);
+        })
+    );
 }

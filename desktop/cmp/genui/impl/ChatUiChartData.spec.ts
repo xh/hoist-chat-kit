@@ -54,16 +54,45 @@ describe('toHighchartsConfig', () => {
         expect(toHighchartsConfig({type: 'line'}).xAxis.title).toEqual({text: null});
     });
 
-    it('writes each name as written in the header of a CSV column', () => {
-        const {columnHeaderFormatter} = toHighchartsConfig({type: 'line'}).exporting.csv;
+    it('decodes every text cell of a data export, headers and categories alike', () => {
+        const {exportData} = toHighchartsConfig({type: 'column'}).chart.events,
+            // The rows Highcharts builds for a CSV: a header row, then a row per category.
+            dataRows = [
+                ['Desk &amp; &lt;team&gt;', 'P&amp;L', 'Fees &amp; &lt;costs&gt;'],
+                ['R&amp;D', 182000, -20000],
+                ['&lt;Ops&gt;', -45000, undefined]
+            ],
+            event = {dataRows};
 
-        expect(columnHeaderFormatter({name: 'P&amp;L'}, 'y', 1)).toBe('P&L');
-        expect(columnHeaderFormatter({name: 'Range'}, 'low', 2)).toBe('Range (low)');
+        exportData(event);
+
+        // Highcharts reads the same array after the event, so the cells change in place.
+        expect(event.dataRows).toBe(dataRows);
+        expect(dataRows).toEqual([
+            ['Desk & <team>', 'P&L', 'Fees & <costs>'],
+            ['R&D', 182000, -20000],
+            ['<Ops>', -45000, undefined]
+        ]);
+        expect(toHighchartsConfig({type: 'column'}).exporting).toBeUndefined();
+    });
+
+    it('names the series on each tooltip line, and shows a slice with its share of the pie', () => {
+        const format = (type: 'line' | 'pie', point: object) =>
+            toHighchartsConfig({
+                type,
+                yAxis: {format: 'currency', decimals: 0}
+            }).tooltip.pointFormatter.call({color: '#123', ...point});
+
+        expect(format('line', {y: 182000, series: {name: 'P&amp;L'}})).toBe(
+            '<span style="color:#123">●</span> P&amp;L: <b>$182,000</b><br/>'
+        );
+        // The header over the line names the slice, so the line does not repeat it.
         expect(
-            columnHeaderFormatter({coll: 'xAxis', options: {title: {text: 'R&amp;D'}}}, 'x', 1)
-        ).toBe('R&D');
-        // An axis with no title keeps the header Highcharts gives it.
-        expect(columnHeaderFormatter({coll: 'xAxis', options: {}}, 'x', 1)).toBe(false);
+            format('pie', {y: 4200, percentage: 42, name: 'R&amp;D', series: {name: 'Weight'}})
+        ).toBe('<span style="color:#123">●</span> Weight: <b>$4,200</b> (42.0%)<br/>');
+        expect(format('pie', {y: 4200, percentage: 42, name: 'R&amp;D', series: {name: ''}})).toBe(
+            '<span style="color:#123">●</span> <b>$4,200</b> (42.0%)<br/>'
+        );
     });
 
     it('shares the tooltip across series, except for a pie', () => {
