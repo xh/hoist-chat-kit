@@ -161,10 +161,14 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
     // not only by a query result.
     private isSyncExternal: boolean = false;
 
-    // Each query as the query manager last got it, and when a query result last changed its
-    // arguments, by statement id - see `holdChains`.
+    // What bounds the runs that query results start - see `holdChains`. Each query as the query
+    // manager last got it, by statement id. The queries whose arguments a result changed, and
+    // that have not run on them yet. When each query ran after such a change. The timer that
+    // lets a held query catch up.
     private readonly applied = new Map<string, {key: string; node: QueryNode}>();
+    private readonly awaitingRun = new Set<string>();
     private readonly chained = new Map<string, number[]>();
+    private catchUpTimer: ReturnType<typeof setTimeout> = null;
 
     // True once the user changed a value or clicked a button of the program, and once its
     // queries first ran.
@@ -215,7 +219,14 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
                   })
                 : null;
         this.queryManager = createQueryManager(
-            gate ? {callTool: (name, args) => gate.callAsync(name, args)} : null
+            gate
+                ? {
+                      callTool: (name, args) => {
+                          this.noteRun(name, args);
+                          return gate.callAsync(name, args);
+                      }
+                  }
+                : null
         );
 
         this.store.subscribe(() => {
@@ -448,6 +459,7 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
 
     override destroy() {
         this.abortController.abort();
+        clearTimeout(this.catchUpTimer);
         this.queryManager.dispose();
         this.budget?.release(this.messageId, this);
         this.store.dispose();
@@ -721,33 +733,72 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
 
     // Bound what the results of queries can start with no action by the user. A result may
     // change the arguments of a query, which then runs again, and its result may change more.
-    // Each query takes such a change a few times in a window. Past that it keeps the arguments
-    // it last ran with, until the user, the program or a later window lets it go on. So a
-    // program that feeds results back into arguments cannot call a tool in a loop.
+    // So a program that feeds results back into arguments could call a tool in a loop.
+    //
+    // The bound is on runs, not on changes. A query that reads several others gets new
+    // arguments as each result arrives, and lang-core holds it until all of them have one.
+    // Those changes start no run, so they do not count. Once a query has run a few times in a
+    // window after such changes, it keeps the arguments it last ran with. It takes the newest
+    // ones when the window ends, or at once when the user or the program acts.
     private holdChains(nodes: QueryNode[], isExternal: boolean): QueryNode[] {
-        const {applied, chained, messageId} = this,
+        const {applied, awaitingRun, chained, messageId} = this,
             now = Date.now(),
-            windowMs = this.minRefreshSeconds * 1000;
-        if (isExternal) chained.clear();
+            windowMs = this.chainWindowMs;
+        if (isExternal) {
+            chained.clear();
+            awaitingRun.clear();
+        }
 
         return nodes.map(node => {
             const {statementId} = node,
                 key = JSON.stringify([node.toolName, node.args, node.deps, node.refreshInterval]),
                 last = applied.get(statementId);
             if (last && last.key !== key && !isExternal) {
-                const times = (chained.get(statementId) ?? []).filter(it => now - it < windowMs);
-                if (times.length >= MAX_CHAINED_RUNS) {
+                const runs = (chained.get(statementId) ?? []).filter(it => now - it < windowMs);
+                chained.set(statementId, runs);
+                if (runs.length >= MAX_CHAINED_RUNS) {
                     const message =
-                        `Query '${statementId}' keeps its arguments: the results of queries ` +
-                        `changed them ${MAX_CHAINED_RUNS} times with no action by the user.`;
+                        `Query '${statementId}' keeps its arguments for now: it ran ` +
+                        `${MAX_CHAINED_RUNS} times on the results of queries, with no action ` +
+                        'by the user.';
                     warnOnce(`${messageId}|${message}`, message, 'OpenUiRuntime');
+                    this.catchUpAfter(runs[0] + windowMs - now);
                     return last.node;
                 }
-                chained.set(statementId, [...times, now]);
+                awaitingRun.add(statementId);
             }
             applied.set(statementId, {key, node});
             return node;
         });
+    }
+
+    private get chainWindowMs(): number {
+        return this.minRefreshSeconds * 1000;
+    }
+
+    // Count a run of a tool for each query that runs it now with arguments that a result
+    // changed. lang-core passes the arguments of the query as it got them.
+    private noteRun(toolName: string, args: unknown) {
+        const {applied, awaitingRun, chained} = this,
+            now = Date.now();
+        applied.forEach(({node}, statementId) => {
+            const isRun = node.toolName === toolName && (node.args == null || node.args === args);
+            if (!isRun || !awaitingRun.delete(statementId)) return;
+            chained.set(statementId, [...(chained.get(statementId) ?? []), now]);
+        });
+    }
+
+    // Sync once more when the window of a held query ends, so that it runs with the arguments
+    // that its results now give.
+    private catchUpAfter(delayMs: number) {
+        if (this.catchUpTimer) return;
+        this.catchUpTimer = setTimeout(
+            () => {
+                this.catchUpTimer = null;
+                if (!this.isDestroyed) this.syncQueriesSoon(false);
+            },
+            Math.max(delayMs, 0) + 1
+        );
     }
 
     // Each query with its tool, its arguments and its interval evaluated.
@@ -803,8 +854,8 @@ export function warnOfEvaluationErrors(key: string, errors: string[]) {
 // Implementation
 //------------------
 const MAX_STEPS = 8,
-    // Times that the results of queries may change the arguments of one query, in one window
-    // of the least refresh interval, with no action by the user.
+    // Times that one query may run on arguments that the results of queries changed, in one
+    // window of the least refresh interval, with no action by the user.
     MAX_CHAINED_RUNS = 3,
     MIN_REFRESH_SECONDS = 1,
     MAX_REFRESH_SECONDS = 24 * 60 * 60;
