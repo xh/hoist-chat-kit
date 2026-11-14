@@ -1,4 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
+import {throwIf} from '@xh/hoist/utils/js';
 import {
     createStreamingParser,
     generateSystemPrompt,
@@ -15,6 +16,8 @@ import {
     isPlainObject,
     isString,
     isUndefined,
+    omit,
+    take,
     uniqBy
 } from 'lodash';
 import {getOwn} from '../../impl/LangUtils';
@@ -25,7 +28,8 @@ import {
     type ChatUiAction
 } from '../ChatUiAction';
 import type {ChatUiCatalog} from '../ChatUiCatalog';
-import {toChatUiDocument, type ChatUiDocument, type ChatUiElement} from '../ChatUiDocument';
+import type {ChatUiComponentSpec} from '../ChatUiComponentSpec';
+import type {ChatUiDocument, ChatUiElement} from '../ChatUiDocument';
 import type {ChatUiFormatContext, ChatUiTextFormat} from '../ChatUiTextFormat';
 import type {ChatUiDocumentSegment, ChatUiTextSegment} from '../ChatUiTextSegment';
 import {hashJson} from '../impl/hash';
@@ -34,6 +38,9 @@ import {openUiToDocument} from './OpenUiDocument';
 import {createLibraryCache} from './impl/libraryCache';
 import {createOpenUiStateSpec} from './impl/openUiStateSpec';
 import type {OpenUiRuntimeConfig} from './impl/OpenUiRuntime';
+import type {OpenUiToolCall} from './impl/OpenUiToolGate';
+
+export type {OpenUiToolCall};
 import {warnOnce} from './impl/warnOnce';
 import type {OpenUiLibrary, OpenUiLibraryOptions} from './OpenUiLibrary';
 
@@ -51,6 +58,8 @@ export interface OpenUiLangFormatOptions extends OpenUiLibraryOptions {
     /**
      * OpenUI Lang programs to show the model in the prompt. Default one per component with an
      * `example`, written by {@link formatOpenUiProgram}, inside the root when it is not the root.
+     * A container shows two children: the two components after it in the catalog that it accepts
+     * and that have an example. So list a form ahead of its inputs.
      */
     examples?: string[];
 
@@ -63,14 +72,19 @@ export interface OpenUiLangFormatOptions extends OpenUiLibraryOptions {
     /**
      * True to run OpenUI state: `$variables`, the expressions that read them, and the `@Set` and
      * `@Reset` actions. A prop that a component lists in its `stateProps` takes a `$variable` as
-     * a two-way binding. The prompt then teaches all of this, with lang-core's own text. Default
-     * false: the kit drops each prop that holds a `$variable`.
+     * a two-way binding. The prompt then teaches all of this, with lang-core's own text. This is
+     * the one switch for the evaluator: with it on, a program also runs the built-in functions.
+     * Default false, or true when a tool is listed. With it off, the kit evaluates nothing, and
+     * drops each prop that holds an expression. The format throws for false with a tool listed.
      */
     bindings?: boolean;
 
     /**
-     * True to run OpenUI's built-in functions, such as `@Count`, `@Filter` and `@Each`, and to
-     * list them in the prompt. Default the value of `bindings`.
+     * True to list OpenUI's built-in functions, such as `@Count`, `@Filter` and `@Each`, in the
+     * prompt. The functions run on the same evaluator as `$variables`, so they run whenever
+     * `bindings` is on, whatever this option says. Set it to false to leave them out of the
+     * prompt. It needs `bindings`: the format throws for true with `bindings` off. Default the
+     * value of `bindings`.
      */
     builtinFunctions?: boolean;
 
@@ -81,6 +95,9 @@ export interface OpenUiLangFormatOptions extends OpenUiLibraryOptions {
      * here, with arguments that pass the tool's schema, and never a tool that needs approval for
      * them. Listing a tool turns `bindings` on by default. Default none: a `Query()` keeps its
      * defaults, and runs nothing.
+     *
+     * A listed tool receives arguments that the model chose, with no action by the user. List
+     * only a tool that reads, and that sends its arguments to no third party.
      */
     queryTools?: (string | OpenUiToolSpec)[];
 
@@ -95,9 +112,21 @@ export interface OpenUiLangFormatOptions extends OpenUiLibraryOptions {
 
     /**
      * The least seconds between two automatic refreshes of a `Query()`, whatever interval the
-     * program asks for. Default 10.
+     * program asks for. An interval of more than a day is held to a day. Default 10.
      */
     minRefreshSeconds?: number;
+
+    /**
+     * Most `Query()` and `Mutation()` statements in one program. A program with more runs none
+     * of them. Default 8.
+     */
+    maxCalls?: number;
+
+    /**
+     * Called with each tool call of a program that passed its checks, as it starts - to log or
+     * audit what programs run. A call is not part of the history, so this is its one trace.
+     */
+    onToolCall?: (call: OpenUiToolCall) => void;
 }
 
 /**
@@ -224,7 +253,9 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
             {document, errors, elementErrors, ...translation} = openUiToDocument(result, library, {
                 complete: !isStreaming,
                 text: program,
-                catalog
+                catalog,
+                // With state, the runtime reads each action again, and warns of what it drops.
+                quiet: features.hasState
             }),
             logKey = [messageId ?? program, partId, index, programIndex].join('|');
 
@@ -316,8 +347,11 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
             additionalRules,
             root: opts.root,
             slotAccepts: opts.slotAccepts ?? null,
-            // Left out when off, so that a format with no state keeps its version.
-            ...(features.hasState ? {features} : {})
+            // Left out when off, so that a format with no state keeps its version. A callback
+            // is no part of the version.
+            ...(features.hasState
+                ? {features: {...features, runtime: omit(features.runtime, 'onToolCall')}}
+                : {})
         }),
 
         parse(text, ctx) {
@@ -431,26 +465,39 @@ export interface OpenUiFeatures {
     hasState: boolean;
 
     /** What the runtime of each program takes from the options. */
-    runtime: Pick<OpenUiRuntimeConfig, 'queryTools' | 'mutationTools' | 'minRefreshSeconds'>;
+    runtime: Pick<
+        OpenUiRuntimeConfig,
+        'queryTools' | 'mutationTools' | 'minRefreshSeconds' | 'maxCalls' | 'onToolCall'
+    >;
 }
 
 /** @internal */
 export function getOpenUiFeatures(opts: OpenUiLangFormatOptions): OpenUiFeatures {
-    const {queryTools = [], mutationTools = [], minRefreshSeconds} = opts,
+    const {queryTools = [], mutationTools = [], minRefreshSeconds, maxCalls, onToolCall} = opts,
         specs = uniqBy([...queryTools, ...mutationTools], toolName),
         toolCalls = !isEmpty(specs),
         bindings = opts.bindings ?? toolCalls,
         builtinFunctions = opts.builtinFunctions ?? bindings;
+
+    // One evaluator runs variables, functions and the arguments of a call. So `bindings` is the
+    // one switch for it, and nothing else can turn a part of it on.
+    throwIf(
+        !bindings && (builtinFunctions || toolCalls),
+        'OpenUI Lang builtinFunctions, queryTools and mutationTools need bindings: they run on ' +
+            'the evaluator that bindings turns on.'
+    );
     return {
         bindings,
         builtinFunctions,
         toolCalls,
         tools: specs.map(toPromptTool),
-        hasState: bindings || builtinFunctions || toolCalls,
+        hasState: bindings,
         runtime: {
             queryTools: queryTools.map(toolName),
             mutationTools: mutationTools.map(toolName),
-            ...(minRefreshSeconds != null ? {minRefreshSeconds} : {})
+            ...(minRefreshSeconds != null ? {minRefreshSeconds} : {}),
+            ...(maxCalls != null ? {maxCalls} : {}),
+            ...(onToolCall ? {onToolCall} : {})
         }
     };
 }
@@ -468,6 +515,7 @@ const SOURCE = 'OpenUiLangFormat',
     IDENTIFIER_RE = /^[A-Za-z_]\w*$/,
     KEY_RE = /^[A-Za-z_$][\w$]*$/,
     BINDING_MARK = '__xhBinding__',
+    MAX_EXAMPLE_CHILDREN = 2,
     // Where lang-core's own list of rules ends, and its last section starts.
     AFTER_RULES = '\n\n## Final Verification',
     MAX_PARSERS = 100;
@@ -628,22 +676,56 @@ function createExamples(
         rootExample = catalog.getComponent(root)?.example ?? {},
         accepted = getOwn(getOwn(opts.slotAccepts, root), 'default');
 
+    // A container shows children, or its example would teach a call with none. They are the
+    // two components after it in the catalog that it accepts, each with its own example.
+    const {components} = catalog,
+        getChildren = (container: ChatUiComponentSpec): Record<string, ChatUiElement> => {
+            if (!container.slots?.includes('default')) return {};
+            const slot = getOwn(getOwn(opts.slotAccepts, container.name), 'default'),
+                idx = components.indexOf(container),
+                after = [...components.slice(idx + 1), ...components.slice(0, idx)],
+                leaves = after.filter(
+                    it => it.example && isEmpty(it.slots) && (!slot || slot.includes(it.name))
+                );
+            return Object.fromEntries(
+                take(leaves, MAX_EXAMPLE_CHILDREN).map(it => [
+                    camelCase(it.name),
+                    {component: it.name, props: it.example}
+                ])
+            );
+        };
+
     const inRoot = (name: string, props: PlainObject) => {
-        const id = camelCase(name);
+        const id = camelCase(name),
+            children = getChildren(catalog.getComponent(name)),
+            childIds = Object.keys(children);
         return formatOpenUiProgram(catalog, library, {
             root: 'root',
             elements: {
                 root: {component: root, props: rootExample, children: [id]},
-                [id]: {component: name, props}
+                [id]: {
+                    component: name,
+                    props,
+                    ...(isEmpty(childIds) ? {} : {children: childIds})
+                },
+                ...children
             }
         });
     };
     const isAccepted = (name: string) => !accepted || accepted.includes(name),
-        examples = catalog.components.map(({name, example}) => {
+        examples = components.map(spec => {
+            const {name, example} = spec;
             if (!example || (name !== root && !isAccepted(name))) return null;
-            return name === root
-                ? formatOpenUiProgram(catalog, library, toChatUiDocument(name, example))
-                : inRoot(name, example);
+            if (name !== root) return inRoot(name, example);
+
+            const children = getChildren(spec);
+            return formatOpenUiProgram(catalog, library, {
+                root: 'root',
+                elements: {
+                    root: {component: name, props: example, children: Object.keys(children)},
+                    ...children
+                }
+            });
         });
 
     // One more, to show a $variable bound to the first component that takes one.

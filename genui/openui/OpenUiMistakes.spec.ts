@@ -9,7 +9,9 @@ import {
     chatUiCardSpec,
     chatUiInputSpecs,
     chatUiMetricsSpec,
+    chatUiSectionSpec,
     chatUiStackSpec,
+    chatUiTabsSpec,
     chatUiTextSpec
 } from '../../desktop/cmp/genui';
 import {ChatUiCatalog, type ChatUiCatalogConfig} from '../ChatUiCatalog';
@@ -166,6 +168,27 @@ describe('OpenUI Lang mistakes', () => {
 
             const full = prompt({components: [chatUiStackSpec(), ...chatUiInputSpecs()]});
             expect(full).not.toContain('This library has no');
+        });
+
+        it('shows children in the example of each container', () => {
+            const text = prompt({
+                components: [
+                    chatUiStackSpec(),
+                    chatUiTextSpec(),
+                    chatUiMetricsSpec(),
+                    chatUiTabsSpec(),
+                    chatUiSectionSpec(),
+                    ...chatUiInputSpecs()
+                ]
+            });
+
+            // Each container takes the two components after it in the catalog that take no
+            // children of their own.
+            expect(text).toContain('root = Stack([text, metrics], "column", "medium")');
+            expect(text).toMatch(/tabs = Tabs\(\[button, textInput\], \["Chart", "Data"\]\)/);
+            expect(text).toMatch(/section = Section\(\[button, textInput\], /);
+            expect(text).toContain('form = Form([button, textInput], "Contact details")');
+            expect(text).not.toMatch(/= (Stack|Tabs|Section|Form)\(\[\]/);
         });
 
         it("puts the kit's rules with lang-core's rules, ahead of its final checks", () => {

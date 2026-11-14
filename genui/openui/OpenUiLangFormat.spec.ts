@@ -315,7 +315,7 @@ describe('openUiLangFormat', () => {
         expect(prompt).not.toContain('## Built-in Functions');
 
         // An example per component that has one, wrapped in the root.
-        expect(prompt).toContain('root = Stack([], "column", "medium")');
+        expect(prompt).toContain('root = Stack([metrics, text], "column", "medium")');
         expect(prompt).toContain(
             'root = Stack([text], "column", "medium")\ntext = Text("Revenue **grew** in every region.")'
         );
