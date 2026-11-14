@@ -446,8 +446,8 @@ function stringSize(text: string): number {
     return 1 + Math.floor(text.length / STRING_UNIT);
 }
 
-// The shape of a value that is one of two: the largest of each number, at each level.
-function widest(a: ValueShape, b: ValueShape): ValueShape {
+/** The shape of a value that is one of two: the largest of each number, at each level. @internal */
+export function widest(a: ValueShape, b: ValueShape): ValueShape {
     if (!a || !b) return a ?? b;
     const inside = widest(a.inside, b.inside),
         // The fields that both are sure to have. A value that is no object has no say.

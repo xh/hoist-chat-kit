@@ -2831,6 +2831,8 @@ in front of all of it:
 | Characters in one program | 50,000 |
 | Statements in one program | 500 |
 | Brackets inside brackets in one statement | 64 |
+| Value statements that refer to each other in a circle | None |
+| The variable of an `@Each` | A plain name in quotes that no statement has |
 | Components a program writes, each shared statement at each use | 4 times `maxElements` |
 | Values the statements expand to, and the `$variable` defaults cost | 100,000 |
 | Values one evaluation costs, and the state and results it reads hold | 100,000 |
@@ -2840,8 +2842,15 @@ in front of all of it:
 | Spaces or tabs in a row in a value an action shows | 2 |
 | `Query()` statements in one program | `maxCalls`, default 8 |
 | Programs of one reply that run queries | 3, refused ones counted |
+| Times query results change the arguments of one query, with no user action | 3 per window |
 | Tool calls a chat's programs start in a minute | `maxCallsPerMinute`, default 60 |
 | Seconds between two refreshes of a query | `minRefreshSeconds`, 1 to a day, default 10 |
+
+The gate's count holds only where lang-core reads a program as the gate does. Two constructs
+broke that, and the gate refuses both instead of modelling them. lang-core does not share the
+result of a statement that met a circle of references, so a circle made the parse exponential.
+It reads the variable of an `@Each` that has the name of a query as the query in the list of the
+loop, and as the item in the template. A name without quotes takes the item of an outer loop.
 
 **Elements and actions come from syntax only.** A value that a `$variable` or a query holds
 cannot become a component: an object with the shape of an element reads as null. Each action

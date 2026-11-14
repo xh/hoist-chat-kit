@@ -44,6 +44,7 @@ import {
     scalarShape,
     SizeBudget,
     SizeLimitError,
+    widest,
     type ValueShape
 } from './programSize';
 import {warnOnce} from './warnOnce';
@@ -331,9 +332,13 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
                 // It reads the new value as `$value`.
                 set: next => {
                     const pass = this.beginPass();
+                    // Any other read of `$value` gets what the state holds, so count the larger.
                     pass.shapes.set(
                         'state|$value',
-                        measureValue(toSafeValue(next), pass.held, pass.seen)
+                        widest(
+                            measureValue(toSafeValue(next), pass.held, pass.seen),
+                            this.getHeldShape('$value', 'state')
+                        )
                     );
                     this.admit([this.program?.root, this.program?.rootExpression]);
                     field.setValue(next);

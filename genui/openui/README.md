@@ -200,7 +200,12 @@ Before the parse, the gate:
    The segment's `openui.errors` names each one.
 4. Counts what each statement expands to, on the graph of references, so a chain that doubles
    is counted in one pass.
-5. Measures the default of each `$variable` before lang-core evaluates it. With `bindings` off,
+5. Refuses two things that lang-core reads another way than they look. Statements that refer
+   to each other in a circle: lang-core then expands each statement on the way again at each
+   use. And an `@Each` whose variable is not a plain name in quotes, or has the name of a
+   statement: lang-core reads such a name as the statement in one place and as the item in
+   another.
+6. Measures the default of each `$variable` before lang-core evaluates it. With `bindings` off,
    it replaces each `$variable` declaration with null, so lang-core evaluates nothing at all.
 
 As a program runs, the gate measures again before each evaluation: before a render, before a
@@ -218,7 +223,8 @@ The measure evaluates nothing. It counts:
   evaluated to count it.
 - Each read of a loop variable at the size of the largest item of its list. lang-core copies
   the item into the template for each place that names the variable.
-- `@Sort` and `@Filter` once per item, times the size of their field path.
+- `@Sort` and `@Filter` once per item, times the size of their field path, of an item, and of
+  the value that a filter compares with.
 - A field read on a list once per item.
 
 A value that a `$variable` or a query holds reads as a safe copy: an object inside it with the
@@ -229,6 +235,8 @@ shape of a lang-core node, an element or a two-way binding reads as null.
 | Characters in one program | 50,000 | The program is refused, before it is read |
 | Statements in one program | 500 | The program is refused |
 | Brackets inside brackets in one statement | 64 | The program is refused |
+| Value statements that refer to each other in a circle | None | The program is refused |
+| The variable of an `@Each` | A plain name in quotes, of at most 64 characters, that no statement has | The program is refused |
 | Components a program writes, with each shared statement counted at each use | 4 times the catalog's `maxElements` | The program is refused before the parse. The catalog then refuses a document past `maxElements` |
 | Values that the statements expand to, and that the defaults of the `$variables` cost | 100,000 | The program is refused before the parse |
 | Values that one evaluation costs, and that the state and the query results it reads hold | 100,000 | The program shows one fallback. Queries keep their last result |
@@ -238,6 +246,7 @@ shape of a lang-core node, an element or a two-way binding reads as null.
 | Spaces or tabs in a row in a value an action shows | 2 | The action is disabled |
 | `Query()` statements in one program | `maxCalls`, default 8 | None of them runs |
 | Programs of one reply that run queries | 3 | A later program shows its defaults |
+| Times that the results of queries change the arguments of one query, with no action by the user | 3 in one window of `minRefreshSeconds` | The query keeps the arguments it last ran with |
 | Tool calls a chat's programs start in a minute | `maxCallsPerMinute`, default 60 | The call fails, and its query keeps its result |
 | Seconds between two refreshes of a query | `minRefreshSeconds`, default 10, at least 1, at most a day | The interval is held to the bound |
 
