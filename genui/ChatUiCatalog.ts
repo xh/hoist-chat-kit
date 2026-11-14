@@ -800,6 +800,7 @@ export class ChatUiCatalog {
             }
             case 'state': {
                 const {state} = context;
+                throwIf(!!action.disabledReason, action.disabledReason);
                 throwIf(
                     !state?.runActionAsync,
                     'No state to act on - a state action needs a document with state.'

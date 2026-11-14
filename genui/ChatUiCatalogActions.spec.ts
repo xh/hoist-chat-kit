@@ -313,7 +313,7 @@ describe('ChatUiCatalog actions', () => {
             [{type: 'send', text: 'Show trades.'}, 'Sends: "Show trades."'],
             [
                 {type: 'send', text: 'Explain it.', context: {ticker: 'XYZ', quarter: 3}},
-                'Sends: "Explain it.", with ticker: XYZ, quarter: 3'
+                'Sends: "Explain it.", with ticker: "XYZ", quarter: 3'
             ],
             [{type: 'openUrl', url: 'https://x.io/r'}, 'Opens https://x.io/r'],
             [{type: 'navigate', route: 'default.trades'}, 'Goes to default.trades'],

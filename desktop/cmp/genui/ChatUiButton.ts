@@ -45,6 +45,10 @@ export interface ChatUiButtonSpecOptions extends ChatUiSpecOptions {
  * shows them. A `send` holds at most 8 values of at most 100 characters each. A form that holds
  * more cannot send, and its button says why.
  *
+ * An action that a format read and had to refuse arrives as a `state` action with a
+ * `disabledReason`. The button is then disabled, with the reason as its tooltip. It never falls
+ * back to sending its label for an action that was written.
+ *
  * It shows only inside a nested answer, so it has no tool or tag of its own.
  */
 export function chatUiButtonSpec(
@@ -108,6 +112,18 @@ export const [ChatUiButton, chatUiButton] = hoistCmp.withFactory<ChatUiButtonPro
     render({className, label, action, intent, chatModel, isPartial, runActionAsync}) {
         const formModel = useContextModel(ChatUiFormModel);
         if (!label) return null;
+
+        // An action that was written and cannot run says why, and does nothing else.
+        if (action?.type === 'state' && action.disabledReason) {
+            return button({
+                className,
+                text: label,
+                intent,
+                outlined: true,
+                tooltip: action.disabledReason,
+                disabled: true
+            });
+        }
 
         // The values show in the tooltip as they stand, and go with the click as they then are.
         const base: ChatUiAction = action ?? {type: 'send', text: label},

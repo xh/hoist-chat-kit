@@ -1,6 +1,7 @@
 import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import {isEmpty, isObject, isPlainObject} from 'lodash';
 import type {ChatPartRenderContext} from '../core';
+import {escapeInvisible, quoteForDisplay} from './impl/displayText';
 
 /** The kinds of {@link ChatUiAction}. */
 export type ChatUiActionType = 'send' | 'openUrl' | 'navigate' | 'callTool' | 'app' | 'state';
@@ -82,6 +83,13 @@ export interface ChatUiStateAction extends ChatUiActionBase {
 
     /** What the action does, in plain words. The user sees it before the click. */
     summary: string;
+
+    /**
+     * Why the action cannot run, for an action that a format read and had to refuse. A component
+     * shows the reason and disables its button, in place of a click that does something else.
+     * The catalog refuses to run such an action.
+     */
+    disabledReason?: string;
 }
 
 /**
@@ -138,7 +146,7 @@ export const CHAT_UI_MAX_SUMMARY_LENGTH = 1000;
 export function formatChatUiContext(context: PlainObject): string {
     if (!isPlainObject(context) || isEmpty(context)) return null;
     return Object.entries(context)
-        .map(([key, value]) => `${key}: ${value}`)
+        .map(([key, value]) => escapeInvisible(`${key}: ${value}`))
         .join(', ');
 }
 
@@ -191,15 +199,23 @@ export function isChatUiActionSchema(schema: unknown): boolean {
 /**
  * What an action does, in plain words for the user - for a tooltip that shows exactly what a
  * click will do, such as `Sends: "Show my open trades."` or `Opens https://example.com/report`.
+ *
+ * The text of a `send` and each text value of its context show as JSON strings, in quotes. A
+ * character the user could not see, such as a zero-width space or a right-to-left override,
+ * shows as its code, so that text cannot hide or pose as the words around it.
  */
 export function describeChatUiAction(action: ChatUiAction): string {
     switch (action.type) {
         case 'send': {
-            const context = formatChatUiContext(action.context);
-            return `Sends: "${action.text}"${context ? `, with ${context}` : ''}`;
+            const context = isPlainObject(action.context)
+                ? Object.entries(action.context)
+                      .map(([key, value]) => `${escapeInvisible(key)}: ${quoteForDisplay(value)}`)
+                      .join(', ')
+                : null;
+            return `Sends: ${quoteForDisplay(action.text)}${context ? `, with ${context}` : ''}`;
         }
         case 'openUrl':
-            return `Opens ${action.url}`;
+            return `Opens ${escapeInvisible(`${action.url}`)}`;
         case 'navigate':
             return `Goes to ${action.route}`;
         case 'callTool':
@@ -207,7 +223,7 @@ export function describeChatUiAction(action: ChatUiAction): string {
         case 'app':
             return `Runs ${action.name}`;
         case 'state':
-            return action.summary;
+            return action.disabledReason ?? action.summary;
     }
 }
 
@@ -280,6 +296,7 @@ const ACTION_FIELDS: Record<ChatUiActionType, {required: string[]; properties: P
         required: ['id', 'summary'],
         properties: {
             id: {type: 'string', maxLength: 200},
+            disabledReason: {type: 'string', maxLength: 300},
             summary: {
                 type: 'string',
                 maxLength: CHAT_UI_MAX_SUMMARY_LENGTH,
