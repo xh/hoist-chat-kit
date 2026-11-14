@@ -13,12 +13,11 @@ import {
     type OpenUIError,
     type ParseResult,
     type QueryManager,
-    type Store,
-    type ToolProvider
+    type Store
 } from '@openuidev/lang-core';
-import {HoistBase} from '@xh/hoist/core';
+import {HoistBase, type PlainObject} from '@xh/hoist/core';
 import {action, observable} from '@xh/hoist/mobx';
-import {isEmpty, lowerFirst, mapValues, truncate} from 'lodash';
+import {isEmpty, isPlainObject, isString, lowerFirst, mapValues, truncate} from 'lodash';
 import type {ChatPartRenderContext} from '../../../core';
 import {getOwn} from '../../../impl/LangUtils';
 import {
@@ -33,6 +32,7 @@ import type {ChatUiDocumentContext} from '../../ChatUiComponentSpec';
 import type {ChatUiBinding, ChatUiState} from '../../ChatUiState';
 import type {OpenUiStep} from '../OpenUiActions';
 import type {OpenUiLibrary} from '../OpenUiLibrary';
+import {createOpenUiToolProvider} from './openUiToolProvider';
 import {warnOnce} from './warnOnce';
 
 /** Configuration for an {@link OpenUiRuntime}. */
@@ -46,10 +46,19 @@ export interface OpenUiRuntimeConfig {
     /** The chat, message and part that hold the program. */
     context?: ChatUiDocumentContext;
 
-    /** Runs the tools of `Query()` and `Mutation()`. Null to run none: a query keeps its defaults. */
-    toolProvider?: ToolProvider;
+    /**
+     * Names of the chat tools that a `Query()` may run. Default none: a query keeps its
+     * defaults.
+     */
+    queryTools?: string[];
 
-    /** The least seconds between two automatic refreshes of a query. */
+    /**
+     * Names of the chat tools that a `Mutation()` may run, on a click. Default none: a mutation
+     * fails, and the steps after it do not run.
+     */
+    mutationTools?: string[];
+
+    /** The least seconds between two automatic refreshes of a query. Default 10. */
     minRefreshSeconds?: number;
 }
 
@@ -89,8 +98,12 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
 
     private readonly catalog: ChatUiCatalog;
     private readonly library: OpenUiLibrary;
-    private readonly queryManager: QueryManager;
     private readonly minRefreshSeconds: number;
+
+    // One manager per kind of call, as each runs its tools under its own rules.
+    private readonly queryManager: QueryManager;
+    private readonly mutationManager: QueryManager;
+    private readonly abortController = new AbortController();
 
     // What lang-core's evaluator reads of a library: which props are two-way bindings.
     private readonly evalLibrary: Library;
@@ -113,12 +126,30 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
 
     constructor(config: OpenUiRuntimeConfig) {
         super();
-        const {catalog, library, toolProvider = null, minRefreshSeconds = 10} = config;
+        const {
+                catalog,
+                library,
+                context,
+                queryTools = [],
+                mutationTools = [],
+                minRefreshSeconds = 10
+            } = config,
+            chatModel = context?.chatModel,
+            {signal} = this.abortController;
         this.catalog = catalog;
         this.library = library;
         this.minRefreshSeconds = minRefreshSeconds;
         this.evalLibrary = createEvalLibrary(catalog, library);
-        this.queryManager = createQueryManager(toolProvider);
+
+        // With no chat or no tools allowed, a manager has no provider, and runs nothing.
+        const createManager = (kind: 'query' | 'mutation', tools: string[]) =>
+            createQueryManager(
+                chatModel && !isEmpty(tools)
+                    ? createOpenUiToolProvider({chatModel, tools, kind, signal})
+                    : null
+            );
+        this.queryManager = createManager('query', queryTools);
+        this.mutationManager = createManager('mutation', mutationTools);
 
         this.store.subscribe(() => {
             if (this.isInitializing) return;
@@ -126,6 +157,7 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
             this.syncQueriesSoon();
         });
         this.queryManager.subscribe(() => this.noteQueryChange());
+        this.mutationManager.subscribe(() => this.noteQueryChange());
     }
 
     /**
@@ -178,7 +210,11 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
                 message: `Prop evaluation failed: ${(e as Error)?.message ?? e}`
             });
         }
-        return {root, errors: errors.map(it => it.message)};
+        // A query or mutation that failed keeps its defaults, so say so with the rest.
+        const callErrors = [this.queryManager, this.mutationManager].flatMap(
+            it => it.getSnapshot().__openui_errors
+        );
+        return {root, errors: [...errors, ...callErrors].map(it => it.message)};
     }
 
     /**
@@ -249,7 +285,11 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
                     break;
                 }
                 case 'run':
-                    if (step.refType === 'query') this.queryManager.invalidate([step.statementId]);
+                    if (step.refType === 'query') {
+                        this.queryManager.invalidate([step.statementId]);
+                    } else if (!(await this.runMutationAsync(step.statementId))) {
+                        return null;
+                    }
                     break;
                 case 'action':
                     await this.catalog.runActionAsync(step.action, context);
@@ -260,7 +300,9 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
     }
 
     override destroy() {
+        this.abortController.abort();
         this.queryManager.dispose();
+        this.mutationManager.dispose();
         this.store.dispose();
         this.plans.clear();
         super.destroy();
@@ -288,14 +330,37 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
         return evaluate(node, this.evaluationContext);
     }
 
-    // The result of a query, or its defaults before it first runs, as while the program streams.
+    // The result of a mutation, or of a query, or the query's defaults before it first runs, as
+    // while the program streams.
     private getResult(name: string): unknown {
-        const {queryManager, program} = this,
-            ret = queryManager.getMutationResult(name) ?? queryManager.getResult(name);
+        const {queryManager, mutationManager, program} = this,
+            ret = mutationManager.getMutationResult(name) ?? queryManager.getResult(name);
         if (ret != null) return ret;
 
+        if (program?.mutationStatements?.some(it => it.statementId === name)) return IDLE;
         const statement = program?.queryStatements?.find(it => it.statementId === name);
         return statement?.defaultsAST ? this.evaluateNode(statement.defaultsAST) : null;
+    }
+
+    // Run the tool of a mutation, with its arguments as the state now gives them. False if the
+    // call fails, or the user does not approve it.
+    private async runMutationAsync(statementId: string): Promise<boolean> {
+        const {tool, args} = this.getMutation(statementId);
+        if (!tool) return false;
+        return this.mutationManager.fireMutation(statementId, args);
+    }
+
+    // The tool and the arguments of a mutation, as the state now gives them.
+    private getMutation(statementId: string): {tool: string; args: PlainObject} {
+        const statement = this.program?.mutationStatements?.find(
+                it => it.statementId === statementId
+            ),
+            tool = statement?.toolAST ? this.evaluateNode(statement.toolAST) : null,
+            args = statement?.argsAST ? this.evaluateNode(statement.argsAST) : null;
+        return {
+            tool: isString(tool) ? tool : null,
+            args: isPlainObject(args) ? (args as PlainObject) : {}
+        };
     }
 
     // Queries run outside of a render, as each run notifies the observers of the results.
@@ -310,8 +375,15 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
 
     // A query runs once its program is complete, and again when a `$variable` it reads changes.
     private syncQueries() {
-        const {program, isComplete, queryManager, minRefreshSeconds} = this;
+        const {program, isComplete, queryManager, mutationManager, minRefreshSeconds} = this;
         if (!program || !isComplete) return;
+
+        mutationManager.registerMutations(
+            (program.mutationStatements ?? []).map(({statementId}) => ({
+                statementId,
+                toolName: this.getMutation(statementId).tool ?? ''
+            }))
+        );
 
         const statements = (program.queryStatements ?? []).map(statement => {
             if (!statement.refreshAST) return statement;
@@ -329,8 +401,13 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
                 return `Sets ${step.target} to ${formatValue(this.evaluateNode(step.valueAST))}`;
             case 'reset':
                 return `Resets ${step.targets.join(', ')}`;
-            case 'run':
-                return `Refreshes ${step.statementId}`;
+            case 'run': {
+                if (step.refType === 'query') return `Refreshes ${step.statementId}`;
+                const {tool, args} = this.getMutation(step.statementId);
+                return isEmpty(args)
+                    ? `Runs the tool ${tool}`
+                    : `Runs the tool ${tool} with ${formatValue(args, MAX_ARGS_LENGTH)}`;
+            }
             case 'action':
                 return describeChatUiAction(step.action);
         }
@@ -350,7 +427,11 @@ export function warnOfEvaluationErrors(key: string, errors: string[]) {
 //------------------
 // Implementation
 //------------------
-const MAX_STEPS = 8;
+const MAX_STEPS = 8,
+    MAX_ARGS_LENGTH = 200;
+
+// What a mutation reads as before its first run.
+const IDLE = {status: 'idle'};
 
 // Marks a prop as a two-way binding, in the form lang-core's evaluator looks for.
 const REACTIVE_PROP = {};
@@ -368,6 +449,6 @@ function createEvalLibrary(catalog: ChatUiCatalog, library: OpenUiLibrary): Libr
     return {components} as unknown as Library;
 }
 
-function formatValue(value: unknown): string {
-    return truncate(JSON.stringify(value) ?? 'null', {length: CHAT_UI_MAX_CONTEXT_VALUE_LENGTH});
+function formatValue(value: unknown, length: number = CHAT_UI_MAX_CONTEXT_VALUE_LENGTH): string {
+    return truncate(JSON.stringify(value) ?? 'null', {length});
 }

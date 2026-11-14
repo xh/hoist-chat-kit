@@ -1,5 +1,10 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {createStreamingParser, generateSystemPrompt, type StreamParser} from '@openuidev/lang-core';
+import {
+    createStreamingParser,
+    generateSystemPrompt,
+    type StreamParser,
+    type ToolSpec
+} from '@openuidev/lang-core';
 import {
     camelCase,
     compact,
@@ -9,7 +14,8 @@ import {
     isEmpty,
     isPlainObject,
     isString,
-    isUndefined
+    isUndefined,
+    uniqBy
 } from 'lodash';
 import {getOwn} from '../../impl/LangUtils';
 import {
@@ -27,6 +33,7 @@ import {findFences, type MarkdownFence} from '../impl/parseTags';
 import {openUiToDocument} from './OpenUiDocument';
 import {createLibraryCache} from './impl/libraryCache';
 import {createOpenUiStateSpec} from './impl/openUiStateSpec';
+import type {OpenUiRuntimeConfig} from './impl/OpenUiRuntime';
 import {warnOnce} from './impl/warnOnce';
 import type {OpenUiLibrary, OpenUiLibraryOptions} from './OpenUiLibrary';
 
@@ -66,6 +73,49 @@ export interface OpenUiLangFormatOptions extends OpenUiLibraryOptions {
      * list them in the prompt. Default the value of `bindings`.
      */
     builtinFunctions?: boolean;
+
+    /**
+     * The chat tools that a program may call with `Query()`, by name, or as a spec that also
+     * describes the tool in the prompt. A query runs with no click, when its program completes
+     * and when a `$variable` in its arguments changes. So it runs only a client tool listed
+     * here, with arguments that pass the tool's schema, and never a tool that needs approval for
+     * them. Listing a tool turns `bindings` on by default. Default none: a `Query()` keeps its
+     * defaults, and runs nothing.
+     */
+    queryTools?: (string | OpenUiToolSpec)[];
+
+    /**
+     * The chat tools that a program may call with `Mutation()`, by name or as a spec. A mutation
+     * runs on a click, as a step of a button's action, and its tooltip names the tool. It runs
+     * only a client tool listed here, with arguments that pass the tool's schema. A tool that
+     * needs approval asks the user first. Listing a tool turns `bindings` on by default. Default
+     * none: a `Mutation()` fails, and the steps after it do not run.
+     */
+    mutationTools?: (string | OpenUiToolSpec)[];
+
+    /**
+     * The least seconds between two automatic refreshes of a `Query()`, whatever interval the
+     * program asks for. Default 10.
+     */
+    minRefreshSeconds?: number;
+}
+
+/**
+ * A chat tool that an OpenUI Lang program may call, as the prompt describes it. A
+ * {@link ChatToolSpec} serves as one, so an app can list the tools it gives the chat.
+ */
+export interface OpenUiToolSpec {
+    /** Name of the tool, as the chat's `tools` list it. */
+    name: string;
+
+    /** What the tool does, for the model. */
+    description?: string;
+
+    /** JSON Schema of the tool's input, so the model knows its arguments. */
+    parameters?: PlainObject;
+
+    /** JSON Schema of the tool's result, so the model can write the defaults of a query. */
+    returns?: PlainObject;
 }
 
 /**
@@ -177,7 +227,8 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
                       text: program,
                       isComplete: !isPartial,
                       isTextComplete: !isStreaming,
-                      logKey
+                      logKey,
+                      runtime: features.runtime
                   })
                 : null;
         return {
@@ -199,7 +250,8 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
                 // changed statements. The kit writes its own inline rules instead.
                 inlineMode: false,
                 bindings: features.bindings,
-                toolCalls: false,
+                toolCalls: features.toolCalls,
+                tools: features.toolCalls ? features.tools : undefined,
                 builtinFunctions: features.builtinFunctions,
                 preamble: preamble ?? (inline ? INLINE_PREAMBLE : PROGRAM_PREAMBLE),
                 examples: examples ?? createExamples(catalog, library, opts, features),
@@ -325,15 +377,38 @@ export interface OpenUiFeatures {
     /** True to list the built-in functions in the prompt. */
     builtinFunctions: boolean;
 
+    /** True if a program may call a tool, with `Query()` or `Mutation()`. */
+    toolCalls: boolean;
+
+    /** The tools a program may call, as lang-core's prompt lists them. */
+    tools: (string | ToolSpec)[];
+
     /** True if programs run with state, on lang-core's store and evaluator. */
     hasState: boolean;
+
+    /** What the runtime of each program takes from the options. */
+    runtime: Pick<OpenUiRuntimeConfig, 'queryTools' | 'mutationTools' | 'minRefreshSeconds'>;
 }
 
 /** @internal */
 export function getOpenUiFeatures(opts: OpenUiLangFormatOptions): OpenUiFeatures {
-    const bindings = !!opts.bindings,
+    const {queryTools = [], mutationTools = [], minRefreshSeconds} = opts,
+        specs = uniqBy([...queryTools, ...mutationTools], toolName),
+        toolCalls = !isEmpty(specs),
+        bindings = opts.bindings ?? toolCalls,
         builtinFunctions = opts.builtinFunctions ?? bindings;
-    return {bindings, builtinFunctions, hasState: bindings || builtinFunctions};
+    return {
+        bindings,
+        builtinFunctions,
+        toolCalls,
+        tools: specs.map(toPromptTool),
+        hasState: bindings || builtinFunctions || toolCalls,
+        runtime: {
+            queryTools: queryTools.map(toolName),
+            mutationTools: mutationTools.map(toolName),
+            ...(minRefreshSeconds != null ? {minRefreshSeconds} : {})
+        }
+    };
 }
 
 //------------------
@@ -383,6 +458,17 @@ const INLINE_RULES = [
         'write them.'
 ];
 
+function toolName(tool: string | OpenUiToolSpec): string {
+    return isString(tool) ? tool : tool.name;
+}
+
+// A tool as lang-core's prompt takes it: a name, or a spec with the schemas it has.
+function toPromptTool(tool: string | OpenUiToolSpec): string | ToolSpec {
+    if (isString(tool)) return tool;
+    const {name, description, parameters, returns} = tool;
+    return {name, description, inputSchema: parameters, outputSchema: returns} as ToolSpec;
+}
+
 function markdown(text: string): ChatUiTextSegment {
     return {type: 'markdown', text};
 }
@@ -406,14 +492,20 @@ function createKitRules(
 ): string[] {
     const {maxElements, maxDepth, maxInlineRows} = catalog.limits,
         usesActions = !!getOwn(library.schema.$defs as PlainObject, 'ActionExpression');
+    const {queryTools, mutationTools} = features.runtime;
     return compact([
         ...(inline ? INLINE_RULES : []),
-        features.bindings
-            ? 'Do not use Query, Mutation or @Run.'
-            : 'Do not use $variables, Query, Mutation, @Set, @Reset or @Run.',
+        createFeatureRule(features),
         features.bindings
             ? 'Bind a $variable only to an argument marked $binding. Any other argument reads ' +
               'it, alone or in an expression.'
+            : null,
+        !isEmpty(queryTools) ? `Query can call only: ${queryTools.join(', ')}.` : null,
+        !isEmpty(mutationTools) ? `Mutation can call only: ${mutationTools.join(', ')}.` : null,
+        features.toolCalls
+            ? 'The sections above show components of another library in their examples, such ' +
+              'as FormControl, Input and SelectItem. Use only the components under Component ' +
+              'Signatures, with their arguments in the order shown.'
             : null,
         usesActions
             ? `Keep the message of a @ToAssistant to at most ${CHAT_UI_MAX_SEND_LENGTH} ` +
@@ -423,6 +515,20 @@ function createKitRules(
         `A program holds at most ${maxElements} components, nested at most ${maxDepth} deep, ` +
             `with at most ${maxInlineRows} items in any list.`
     ]);
+}
+
+// The rule that names the parts of OpenUI Lang the format does not run.
+function createFeatureRule(features: OpenUiFeatures): string {
+    const {queryTools, mutationTools} = features.runtime,
+        off = compact([
+            features.bindings ? null : '$variables',
+            isEmpty(queryTools) ? 'Query' : null,
+            isEmpty(mutationTools) ? 'Mutation' : null,
+            ...(features.bindings ? [] : ['@Set', '@Reset']),
+            features.toolCalls ? null : '@Run'
+        ]);
+    if (isEmpty(off)) return null;
+    return `Do not use ${[off.slice(0, -1).join(', '), off.at(-1)].filter(Boolean).join(' or ')}.`;
 }
 
 // A program per component with an example: the root alone, or any other component inside it.

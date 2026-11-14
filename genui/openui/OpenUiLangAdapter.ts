@@ -50,7 +50,8 @@ export function openUiLangAdapter(opts: OpenUiLangAdapterOptions): ChatUiAdapter
                           text: program,
                           isComplete: !isDocumentPartial,
                           isTextComplete: !isPartial,
-                          logKey: program
+                          logKey: program,
+                          runtime: features.runtime
                       })
                     : null;
             return {
