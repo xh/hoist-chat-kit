@@ -57,16 +57,16 @@ model and reducer, and does not use the client's agent classes.
 | Activity | `ACTIVITY_SNAPSHOT`, as data parts keyed by `activityType`, with their `subagentRunId`. A `ChatActivitySpec` shows a type as a row in the activity timeline. A new snapshot replaces the content, so send one for each change. | `ACTIVITY_DELTA`, which the kit drops. |
 | Sub-agents | `SUBAGENT_*`, as data parts of type `xh.chat.subagent`. The timeline nests their calls and activities. | Attribution of text and reasoning to a sub-agent. |
 | Metadata | Metadata on text, reasoning, tool calls and tool results, merged from their events and sent back with the history. `metadata` on events the kit reads, such as `RUN_ERROR` and `TOOL_CALL_RESULT`. | Metadata on an activity. |
-| Shared state | The `state` a codec sends with each run. | `STATE_SNAPSHOT` and `STATE_DELTA`. |
+| Shared state | `STATE_SNAPSHOT` and `STATE_DELTA`, as `ChatModel.agentState`: a snapshot replaces the state, and a delta patches it with the official client's JSON Patch support. Each run sends the state back as `state`. The app can set it between turns. The backend owns the state: the kit does not store it, and a thread store can return it. | - |
 | History snapshots | - | `MESSAGES_SNAPSHOT`. |
 | Pass-through | `CUSTOM` events named `xh.chat.*`. Others are ignored, as is `RAW`. | - |
 | Requests | A `RunAgentInput` with `protocolVersion: '1.0'`, the whole history with the server's ids and metadata, tools, context, `state`, `forwardedProps` and `resume`, checked before it goes. | - |
 | Interrupts | The `interrupt` outcome on `RUN_FINISHED`, answered in the next run's `resume`: questions, forms of simple fields, and approvals of server tool calls. A sub-agent's `suspended` outcome. | A form beyond a flat object of simple fields. Approval with edited arguments. |
 
 The official AG-UI 1.0 conformance corpus runs in the kit's CI, from `test/conformance/` in the
-repo. Of the 61 fixtures that apply to a client other than the official ones, 47 pass. 8 more
-fail only because the kit keeps no shared state. A committed list names each gap and its reason,
-and a gap that closes fails the run until it leaves the list.
+repo. Of the 61 fixtures that apply to a client other than the official ones, 55 pass. A
+committed list names each gap and its reason, and a gap that closes fails the run until it
+leaves the list.
 
 An AG-UI `RUN_FINISHED` with an `outcome` of `success` maps to the finish reason `stop`. Any
 other outcome maps to `other`. An `interrupt` outcome pauses the reply for the user, who answers

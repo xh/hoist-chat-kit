@@ -36,6 +36,9 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   the `ChatUiMetrics` component, `chatUiMetrics()`, `ChatUiMetricsProps` and the
   `xh-chat-ui-metrics__*` classes. The spec's name and props are unchanged. See
   [Move Metrics Code to StatCard](docs/upgrade-notes/v2-upgrade-notes.md#5-move-metrics-code-to-statcard).
+* Removed `AgUiCodecConfig.state`. The chat now holds the agent's state, and `AgUiCodec` sends it
+  with each run. Set it with `ChatModelConfig.agentState` or `ChatModel.setAgentState()`. See
+  [Move the Agent State to the Chat](docs/upgrade-notes/v2-upgrade-notes.md#6-move-the-agent-state-to-the-chat).
 
 ### 🎁 New Features
 
@@ -92,6 +95,15 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   program, for prompt examples and scripted demos.
 * Added `isChatUiActionSchema()`, true for a schema that `chatUiActionSchema()` returned. Formats
   use it to find action props, so place that schema in a props schema as is, not as a clone.
+* Added support for AG-UI shared state. `ChatModel.agentState` holds the state an agent shares,
+  such as the to-do list of a LangGraph deep agent, as an observable JSON value for the app to
+  render. `STATE_SNAPSHOT` replaces it, `STATE_DELTA` patches it, and each run sends it back.
+* Added `ChatModel.setAgentState()`, to change the agent's state while no turn runs, and
+  `ChatModelConfig.agentState`, for its first value. `clear()` and `loadMessages()` reset it.
+* Added `ChatMessagePage.agentState`, for a `ChatThreadStore` to return the state its backend
+  holds for a thread. The chat then holds it as soon as the thread opens.
+* Added `ChatRunRequest.agentState` and `ChatStreamReducer.agentState`, for an app that runs a
+  transport without `ChatModel`.
 
 ### 🐞 Bug Fixes
 

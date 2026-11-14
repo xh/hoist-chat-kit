@@ -49,6 +49,7 @@ its tools.
 | Stop a run, or leave it running on the server | [`/core/`](../core/README.md#stop-or-detach-a-turn) |
 | Send ratings and comments on replies | [`/core/`](../core/README.md#rate-a-reply) |
 | Describe the app's live state to the model at every step | [`/core/`](../core/README.md#send-live-context-with-every-step) |
+| Render or change the state an agent shares, such as its to-do list | [`/core/`](../core/README.md#share-state-with-an-agent) |
 | Hide Edit, Regenerate and Try Again for a backend that cannot rewrite or re-run its history | [`/core/`](../core/README.md#hide-edit-regenerate-and-try-again) |
 | Connect to an OpenAI-compatible model gateway | [`/transport/`](../transport/README.md#bring-your-own-llm) |
 | List a user's stored threads, and switch between them | [`/threads/`](../threads/README.md) |

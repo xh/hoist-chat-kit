@@ -128,7 +128,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D104](#d104-an-unlisted-tools-display-comes-from-gettoolspec-and-never-runs) | An unlisted tool's display comes from `getToolSpec`, and never runs | Accepted |
 | [D105](#d105-a-call-that-starts-a-sub-agent-hides-behind-the-sub-agents-row) | A call that starts a sub-agent hides behind the sub-agent's row | Accepted |
 | [D106](#d106-the-chat-settles-grows-and-breathes-calmly) | The chat settles, grows and breathes, calmly | Accepted |
-| [D107](#d107-stored-ag-ui-events-replay-through-the-live-reducer-by-their-own-clock) | Stored AG-UI events replay through the live reducer, by their own clock | Amended by D115 |
+| [D107](#d107-stored-ag-ui-events-replay-through-the-live-reducer-by-their-own-clock) | Stored AG-UI events replay through the live reducer, by their own clock | Amended by D115, D120 and D125 |
 | [D108](#d108-try-again-can-be-turned-off-too) | Try Again can be turned off too | Accepted |
 | [D109](#d109-the-kit-checks-ag-ui-progress-steps-but-does-not-show-them-and-drops-activity-deltas) | The kit checks AG-UI progress steps but does not show them, and drops activity deltas | Accepted |
 | [D110](#d110-a-timelines-done-summary-can-leave-out-its-failure-count) | A timeline's done summary can leave out its failure count | Accepted |
@@ -146,6 +146,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D122](#d122-openui-lang-runs-on-thesyss-headless-core-with-the-kits-catalog) | OpenUI Lang runs on Thesys's headless core, with the kit's catalog | Accepted |
 | [D123](#d123-adapters-render-partial-documents) | Adapters render partial documents | Accepted |
 | [D124](#d124-built-in-generative-ui-components-render-hoist-components) | Built-in generative UI components render Hoist components | Accepted |
+| [D125](#d125-the-chat-holds-the-agents-shared-state-and-the-backend-owns-it) | The chat holds the agent's shared state, and the backend owns it | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2130,7 +2131,9 @@ view, and the text wobbles.
 
 **Status.** Amended by [D115](#d115-a-detached-reply-keeps-its-open-work-open): a detached turn's
 open calls and sub-agents stay open. Amended by
-[D120](#d120-a-replayed-failure-reads-as-the-same-failure-live).
+[D120](#d120-a-replayed-failure-reads-as-the-same-failure-live). Amended by
+[D125](#d125-the-chat-holds-the-agents-shared-state-and-the-backend-owns-it): a replay skips
+shared state events.
 
 **Decision.** `replayChatEvents` rebuilds a reply from the events a backend stored for its turn.
 It runs them through an app's decoder, for the same checks as a live stream, and through
@@ -2597,3 +2600,45 @@ through Hoist's own variables.
 **Alternatives.** Keep the kit's own components beside Hoist's. Each would need its own styling,
 accessibility work and docs. Rename the spec and its catalog name after `StatCard`. The catalog
 name is vocabulary for prompts and stored replies, not for the implementation.
+
+## D125. The chat holds the agent's shared state, and the backend owns it
+
+**Status.** Accepted. Amends D107.
+
+**Decision.** `ChatModel.agentState` holds AG-UI's shared state for the chat's thread, as a plain
+JSON value in an observable reference. It starts as an empty object. `ChatStreamReducer` folds the
+state events of each step, apart from the reply. A `STATE_SNAPSHOT` replaces the state. A
+`STATE_DELTA` patches it, whole or not at all, and one that does not apply changes nothing, with
+the client's console warning. The base of a step is the state its request sent, as
+`ChatRunRequest.agentState`, which `AgUiCodec` sends as `state`. State events that name a
+sub-agent change the same state, as in the official client.
+
+- **One owner of what goes out.** The chat sends the state it holds, so `AgUiCodecConfig.state`
+  is removed. A state built in the codec was one the chat could not see, and deltas would patch
+  the wrong base.
+- **One writer at a time.** `setAgentState()` replaces the state only while no turn runs. A turn
+  paused for the user is not running. While a turn runs, the call logs a warning and does
+  nothing, as the chat's other actions do.
+- **No storage.** `clear()` and `loadMessages()` reset the state. The backend owns it. A thread
+  store can return it as `ChatMessagePage.agentState`, and the thread layer sets it on the chat
+  after each load. The chat never rolls the state back for a retry, regenerate or edit.
+- **No replay.** `replayChatEvents` skips state events. A stored turn does not hold the state
+  its request sent, so its deltas have no base.
+- **No size cap, and no kit component.** The app renders the state, whose shape is the agent's.
+
+The patch runs through `compactEvents()` of `@ag-ui/client`, which folds a snapshot and a delta
+into one snapshot. It is the client's one plain function that applies a JSON Patch - see D84.
+
+**Why.** A LangGraph deep agent reports its to-do list and its sub-agents as shared state, not as
+`SUBAGENT_*` events. A chat that dropped the state showed the agent's text and none of its plan.
+A Hoist component needs a single state on the chat, replaced on each change, to render it. Other
+kit code reads and writes the same value. A write while the agent streams would race its deltas,
+and the next snapshot would discard it.
+
+**Alternatives.** Keep `AgUiCodecConfig.state` beside the chat's state. The two disagree, and
+the chat cannot tell which one the agent patched. Depend on `fast-json-patch` directly, as the
+client does inside. It is a second pin to keep in step with the client's. Let the app write
+between the steps of a turn. No app asked for it, and a client tool can tell the agent of a
+change through its result. Store the state with the messages. The backend's copy is the truth,
+and a stored copy goes stale when a run finishes on the server. Fold stored state events on
+replay. They give a state only if each run opens with a snapshot, which the kit cannot assume.

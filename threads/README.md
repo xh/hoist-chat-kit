@@ -353,6 +353,27 @@ export class AssistantThreadStore implements ChatThreadStore {
 - **The user's message** is not among AG-UI events. Build it from the backend's own record. If
   that record has no time, give it the reply's, so that it does not read as sent just now.
 - **Superseded attempts** drop, as they do live.
+- **Shared state** is not part of a reply, so the replay skips `STATE_SNAPSHOT` and `STATE_DELTA`
+  events. See [Restore an agent's shared state](#restore-an-agents-shared-state).
+
+### Restore an agent's shared state
+
+A chat holds the state that its agent shares, as `ChatModel.agentState`, and does not store it.
+A thread that opens from the store therefore has an empty state until its agent next sends one.
+To show the state as soon as the thread opens, return it with the messages, as `agentState`:
+
+```typescript
+async loadMessagesAsync({threadId}) {
+    const thread = await XH.fetchJson({url: `assistant/chats/${threadId}`});
+    return {messages: thread.messages, agentState: thread.state};
+}
+```
+
+Return the state the backend holds for the thread, such as the values of a LangGraph checkpoint.
+The model sets it on the chat after each load of the history, a reload included, in place of
+the state the chat held. Leave `agentState` out, or null, for a backend that sends a snapshot at
+the start of each run. See
+[Share state with an agent](../core/README.md#share-state-with-an-agent).
 
 ### Search
 
@@ -695,7 +716,7 @@ conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those
 | Method | Description |
 |--------|-------------|
 | `listThreadsAsync({search})` | Required. A `ChatThreadPage`: threads most recently active first. The store decides how many. |
-| `loadMessagesAsync({threadId})` | Required with `createChatModel`, and never called with `createConversation`. A `ChatMessagePage`: the thread's messages, oldest first. The kit ignores its optional `nextCursor`. |
+| `loadMessagesAsync({threadId})` | Required with `createChatModel`, and never called with `createConversation`. A `ChatMessagePage`: the thread's messages, oldest first. Its optional `agentState` sets the chat's shared state. The kit ignores its optional `nextCursor`. |
 | `renameThreadAsync(threadId, title)` | Rename a thread. |
 | `deleteThreadsAsync(threadIds)` | Delete threads. Deleting a missing thread succeeds. |
 | `submitFeedbackAsync(spec, message)` | Save a rating. The rated message comes with the spec. See `ChatFeedbackSpec` in [`/core/`](../core/README.md#rate-a-reply). |
