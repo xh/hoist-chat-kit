@@ -142,7 +142,9 @@ describe('OpenUI Lang mistakes', () => {
 
             expect(text).toContain('actions?: @ToAssistant[]');
             expect(text).toContain('action?: @ToAssistant | @Set | @Reset');
-            expect(text).toContain('- No component takes @OpenUrl. Do not use it.');
+            // The prompt lists the steps that a component takes, and names no other.
+            expect(text).toContain('- @Set(variable: $variable, value: any)');
+            expect(text).not.toContain('@OpenUrl');
         });
 
         it('leaves a prop that takes every step as an ActionExpression', () => {
@@ -155,15 +157,16 @@ describe('OpenUI Lang mistakes', () => {
             });
 
             expect(text).toContain('actions?: ActionExpression[]');
-            expect(text).not.toContain('No component takes');
+            expect(text).toContain('- @OpenUrl(url: string)');
         });
 
-        it('says what the stock text names that the catalog lacks', () => {
+        it('shows no button that the catalog lacks, and says when it has no inputs', () => {
             const text = prompt({
                 components: [chatUiStackSpec(), chatUiTextSpec(), chatUiCardSpec()]
             });
 
-            expect(text).toContain('- The Action section shows a Button in its examples.');
+            expect(text).not.toContain('Button(');
+            expect(text).not.toContain('## Forms');
             expect(text).toContain('- This library has no inputs and no forms.');
 
             const full = prompt({components: [chatUiStackSpec(), ...chatUiInputSpecs()]});

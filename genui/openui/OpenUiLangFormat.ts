@@ -33,6 +33,7 @@ import {openUiToDocument} from './OpenUiDocument';
 import {createLibraryCache} from './impl/libraryCache';
 import {createOpenUiStateSpec} from './impl/openUiStateSpec';
 import {parseOpenUiProgram} from './impl/programGate';
+import {rewritePromptSections} from './impl/promptSections';
 import type {OpenUiRuntimeConfig} from './impl/OpenUiRuntime';
 import type {OpenUiToolCall} from './impl/OpenUiToolGate';
 
@@ -318,7 +319,16 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
                     examples: examples ?? createExamples(catalog, library, opts, features)
                 }
             });
-        return addRules(removeMutationSection(prompt), [
+        // lang-core writes the grammar. The kit writes each section that names components.
+        const sections = rewritePromptSections(prompt, {
+            catalog,
+            library,
+            root: opts.root,
+            bindings: features.bindings,
+            toolCalls: features.toolCalls,
+            formatProgram: doc => formatOpenUiProgram(catalog, library, doc)
+        });
+        return addRules(sections, [
             ...createKitRules(catalog, library, inline, features),
             ...additionalRules
         ]);
@@ -509,8 +519,7 @@ const SOURCE = 'OpenUiLangFormat',
     BINDING_MARK = '__xhBinding__',
     MAX_EXAMPLE_CHILDREN = 2,
     // Where lang-core's own list of rules ends, and its last section starts.
-    AFTER_RULES = '\n\n## Final Verification',
-    MUTATION_SECTION = '\n## Mutation';
+    AFTER_RULES = '\n\n## Final Verification';
 
 // True for a first line that starts a bare program: `root = ...`, or a statement that calls a
 // component of the library. Prose such as `Total = revenue - cost` is neither.
@@ -568,14 +577,6 @@ function isProgramFence(text: string, fence: MarkdownFence, isStreaming: boolean
     return isOpenerStreaming && !!tag && FENCE_TAG.startsWith(tag);
 }
 
-// lang-core's prompt without its section on Mutation, which it adds whenever a tool is listed.
-// The kit runs no mutation, so the section would teach what does nothing.
-function removeMutationSection(prompt: string): string {
-    const start = prompt.indexOf(MUTATION_SECTION),
-        end = start < 0 ? -1 : prompt.indexOf('\n## ', start + MUTATION_SECTION.length);
-    return start < 0 || end < 0 ? prompt : prompt.slice(0, start) + prompt.slice(end);
-}
-
 // Add rules to lang-core's prompt, at the end of its own list of rules. lang-core puts the rules
 // it is given after its last section, the checks to run before finishing, where they read as
 // more checks.
@@ -606,53 +607,26 @@ function createKitRules(
             : null,
         !isEmpty(queryTools) ? `Query can call only: ${queryTools.join(', ')}.` : null,
         features.bindings
-            ? 'A program cannot change data. Mutation is not available, so ignore each mention ' +
-              'of it above. To change something, send a message with @ToAssistant that asks ' +
-              'the assistant to do it.'
+            ? 'A program cannot change data. To change something, send a message with ' +
+              '@ToAssistant that asks the assistant to do it.'
             : null,
-        features.toolCalls
-            ? 'The sections above show components of another library in their examples, such ' +
-              'as FormControl, Input and SelectItem. Use only the components under Component ' +
-              'Signatures, with their arguments in the order shown.'
-            : null,
+        'Use only the components under Component Signatures, with their arguments in the ' +
+            'order shown.',
         usesActions
             ? `Keep the message of a @ToAssistant to at most ${CHAT_UI_MAX_SEND_LENGTH} ` +
               `characters, and its context to a flat object of at most ` +
               `${CHAT_UI_MAX_CONTEXT_ENTRIES} short values.`
             : null,
-        ...createCatalogRules(catalog, library, features, usesActions),
+        ...createCatalogRules(catalog),
         `A program holds at most ${maxElements} components, nested at most ${maxDepth} deep, ` +
             `with at most ${maxInlineRows} items in any list.`
     ]);
 }
 
-// Rules for what lang-core's text offers that this catalog has no component for: an action step
-// that no prop accepts, the Button of its action examples, and the forms it suggests for input.
-function createCatalogRules(
-    catalog: ChatUiCatalog,
-    library: OpenUiLibrary,
-    features: OpenUiFeatures,
-    usesActions: boolean
-): string[] {
-    const offered = [
-            'ToAssistant',
-            'OpenUrl',
-            ...(features.bindings ? ['Set', 'Reset'] : []),
-            ...(features.toolCalls ? ['Run'] : [])
-        ],
-        unaccepted = offered.filter(it => !library.actionSteps.includes(it)).map(it => `@${it}`),
-        hasInputs = catalog.components.some(it => !isEmpty(it.stateProps));
-    return compact([
-        usesActions && !isEmpty(unaccepted)
-            ? `No component takes ${unaccepted.join(' or ')}. Do not use ` +
-              `${unaccepted.length > 1 ? 'them' : 'it'}.`
-            : null,
-        usesActions && !getOwn(library.components, 'Button')
-            ? 'The Action section shows a Button in its examples. This library has no Button. ' +
-              'Write an action only in an argument that Component Signatures types for one.'
-            : null,
-        hasInputs ? null : 'This library has no inputs and no forms. Ask for input in words.'
-    ]);
+// A rule for a catalog that gives the user nothing to enter.
+function createCatalogRules(catalog: ChatUiCatalog): string[] {
+    const hasInputs = catalog.components.some(it => !isEmpty(it.stateProps));
+    return hasInputs ? [] : ['This library has no inputs and no forms. Ask for input in words.'];
 }
 
 // The rule that names the parts of OpenUI Lang the format does not run.
