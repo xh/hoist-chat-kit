@@ -119,9 +119,49 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   gives it to the thread's next chat.
 * Added `ChatRunRequest.agentState` and `ChatStreamReducer.agentState`, for an app that runs a
   transport without `ChatModel`.
+* Added state to generative UI documents. `ChatUiDocument.state` takes a `ChatUiStateSpec`, which
+  creates the state of a rendered document and resolves the document for it. The catalog keeps
+  the state while the document shows, and renders again when an observable it reads changes.
+* Added `ChatUiComponentSpec.stateProps`, for the props that a user changes, and
+  `context.setProp()` to write one. The write goes to the document's state where
+  `ChatUiElement.bindings` ties the prop to it. Otherwise the catalog keeps the value.
+* Added the `state` action, which runs steps on the state of its document and says what they do
+  in its `summary`. `chatUiActionSchema()` allows it only where `types` lists `state`. A `state`
+  action with a `disabledReason` never runs, and the built-in button shows the reason.
+* Added form components to `/desktop/cmp/genui/`: `chatUiFormSpec()`, `chatUiButtonSpec()`, and
+  input specs over Hoist's `TextInput`, `TextArea`, `NumberInput`, `Select`, `DateInput`,
+  `Checkbox`, `SwitchInput` and `SegmentedControl`. `chatUiInputSpecs()` returns them all. Each
+  input validates with Hoist rules, and a button in a form sends the field values with its
+  message.
+* Added `bindings` and `builtinFunctions` to `openUiLangFormat()` and `openUiLangAdapter()`. With
+  `bindings`, a program runs `$variables`, expressions, `@Set` and `@Reset` on lang-core's own
+  store and evaluator, and a state prop takes a `$variable` both ways. Both are off by default.
+* Added `queryTools` to the same options. A program's `Query()` calls only the chat tools that
+  the app lists there, and refuses a tool that needs approval. A program cannot change data: the
+  kit runs no `Mutation()`, and the options throw for `mutationTools`.
+* Added `maxCalls`, `maxCallsPerMinute` and `onToolCall` to the same options. A program holds at
+  most 8 `Query()` statements by default, the programs of a chat start at most 60 calls a minute,
+  and `onToolCall` reports each call that runs. Only the first three programs of a reply run
+  queries, and a program in an older reply runs them only once the user acts in it.
+* An OpenUI Lang action now comes only from action syntax, such as `@Set` and `@ToAssistant`.
+  An action written as data, or one that the user could not review in full, renders as a
+  disabled button that says why. The steps of an `Action([...])` evaluate in order when the
+  button renders, so a step sees the values that a `@Set` before it sets.
+* `openUiLangFormat()` now renders a statement still being written without the value that a
+  chunk cut short, so a valid program shows no fallback as it streams. It reads one action where
+  a prop takes a list, and shows an argument written by name as a fallback that names it.
+* Added `isOpenUiDocumentSegment()`. The document segment of an OpenUI Lang program carries
+  `openui`, with the parser's errors, the undefined names and the unused statements.
+* The OpenUI Lang prompt now offers each action prop only the steps that its schema accepts, and
+  says what lang-core's text names that the catalog lacks. The kit's rules sit with lang-core's
+  own rules.
 
 ### 🐞 Bug Fixes
 
+* Fixed `describeChatUiAction()` and `formatChatUiContext()` to show a character the user could
+  not see, such as a zero-width space or a right-to-left override, as its code. The tooltip of a
+  `send` action now shows its text and each context value as a JSON string, so text cannot pose
+  as the words around it.
 * Fixed `ChatUiChart` and `ChatUiChartView` to escape the text they pass to Highcharts: series,
   slice and category names, axis titles, and the column labels and row text of a chart by
   reference. Highcharts reads such text as markup, so a model or a result could draw a link that
@@ -154,6 +194,13 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   its screen reader labels and the reasoning label now show no time for them. A backend that
   stores events should stamp each one as the agent emits it.
 
+### ⚙️ Typescript API Adjustments
+
+* `ChatUiActionType` and `ChatUiAction` gained `state`. Add a case for it to a `switch` over
+  action types that must cover every type.
+* `ChatUiRenderContext` gained `setProp`. Add it to a render context built by hand, as in a spec
+  that calls a component's `render` directly.
+
 ### ✨ Styles
 
 * `ChatWorkspace` lays out its sidebar and side panel for the 1px panel splitter of Hoist 90, in
@@ -162,12 +209,14 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   `xh-chat-tool-call--unfinished`, `xh-chat-tool-call__glyph--unfinished` and
   `xh-chat-message-list__awaiting-reply` classes. A detached
   reply's timeline no longer takes `xh-chat-timeline--stopped`.
+* Added the `xh-chat-ui-form`, `xh-chat-ui-field` and `xh-chat-ui-button` classes, on the form
+  components. They take their look from Hoist's `FormFieldSet`, `FormField` and `Button`.
 
 ### 📚 Libraries
 
 * @xh/hoist `89.3 → 90.1`
-* @openuidev/lang-core `1.1` - added as an optional peer dependency. Apps that use
-  `/genui/openui/` install it with `zod`. Other apps never load it.
+* @openuidev/lang-core `~1.1.0` - added as an optional peer dependency, within one minor
+  version. Apps that use `/genui/openui/` install it with `zod`. Other apps never load it.
 
 ## 1.0.0 - 2026-11-02
 

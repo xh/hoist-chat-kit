@@ -9,8 +9,8 @@
 | [Overview](#overview) | What the catalog does, and the key features |
 | [Architecture](#architecture) | The catalog, the document model, the delivery modes and text formats, and the cost of a render |
 | [Configuration Pattern](#configuration-pattern) | Creating a catalog and wiring it to a `ChatModel` |
-| [Common Usage Patterns](#common-usage-patterns) | Components, partial props, nested answers, tags, text formats, OpenUI Lang, data by reference, views, actions, export, adapters |
-| [Properties/API Reference](#propertiesapi-reference) | Catalog config and methods, component spec, render context, document, text formats and segments, adapters, limits, and the schema subset |
+| [Common Usage Patterns](#common-usage-patterns) | Components, partial props, state props, nested answers, tags, text formats, OpenUI Lang, data by reference, views, actions, export, adapters, documents with state |
+| [Properties/API Reference](#propertiesapi-reference) | Catalog config and methods, component spec, render context, document, state, text formats and segments, adapters, limits, and the schema subset |
 | [Extension Points](#extension-points) | Your own components, text formats, fallbacks, action handlers and adapters |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
 | [Related Packages](#related-packages) | The built-in components, the core models, and the chat components |
@@ -45,6 +45,9 @@ Key features:
   its rows. The kit loads the rows through the app's `ChatDataSource`.
 - **Typed actions** - buttons run checked actions, such as sending a message or opening an
   allowed URL, never code.
+- **State** - a component can hold a value that the user changes, such as the text of an input.
+  A format or an adapter can give a document state, and bind props to it, so that the document
+  renders again as the user works.
 - **A server export** - the catalog exports its tool schemas, its prompt and a version hash, so
   a server agent can register it.
 - **Fallbacks** - an element that fails its checks, or throws, renders as a caption with a "View
@@ -110,6 +113,11 @@ streams sets it. Unset, the document is complete. Inside a partial document, an 
 `isPartial: false` to say it is complete. It then renders, and passes its full checks, before
 the rest of the document arrives. A text format that knows when each element completes sets it.
 In a complete document, every element runs the full checks, whatever its own `isPartial` says.
+
+A document can have `state`: values that the user changes, with props that follow them. A format
+or an adapter for a protocol with a data model sets it, in code. The catalog then renders what the
+state resolves to, and renders again when the state changes. See
+[Give a document state](#give-a-document-state).
 
 `renderDocument()` takes each document through the same steps:
 
@@ -207,6 +215,17 @@ avoid most of this cost: a tag costs no call, and a reference costs a few tokens
   tooltip, and a sent message as the user's own, capped at 200 characters. Structured context is
   a flat object of at most 8 short values, such as record ids. It goes on the message's
   `metadata.context`, never inside its text, and shows under the sent message and in the tooltip.
+- `describeChatUiAction()` writes the tooltip. It shows the text of a `send` and each context
+  value as a JSON string, in quotes. A character the user could not see, such as a zero-width
+  space or a right-to-left override, shows as its code. So text cannot hide, or pose as the words
+  around it.
+- A `state` action says what it does in its `summary`, which a button shows before the click.
+  The state of the document holds the steps, so a model cannot write them. A document read from
+  JSON has no state, and refuses the action.
+- A `state` action with a `disabledReason` never runs. A format writes one for an action that
+  it read and had to refuse, so that a button can say why in place of doing something else.
+- State and bindings hold functions, so only code sets them. The catalog drops both from a
+  document read from JSON.
 - Tag names, action names and data types are looked up as own properties only, so a name such as
   `constructor` is unknown, never a member that every object inherits.
 - Tags in fenced and inline code stay text. Tags in an indented code block render, so tell the
@@ -336,6 +355,49 @@ The rules for a component that streams well:
 
 Schema order matters. The generated instructions ask the model to write props in the order the
 schema lists them, so list the props a component needs first, first.
+
+### Write a component the user changes
+
+A component that holds a value the user changes, such as an input, lists the prop in `stateProps`.
+`props` holds the current value, and `context.setProp()` writes a new one:
+
+```typescript
+const ratingSpec: ChatUiComponentSpec<{label: string; value?: number}> = {
+    name: 'rating',
+    description: 'A rating from 1 to 5 that the user sets.',
+    props: {
+        type: 'object',
+        required: ['label'],
+        additionalProperties: false,
+        properties: {
+            label: {type: 'string', maxLength: 80},
+            value: {type: 'integer', minimum: 1, maximum: 5}
+        }
+    },
+    stateProps: ['value'],
+    render: ({label, value}, {setProp}) =>
+        hbox(
+            label,
+            slider({
+                value: isFinite(value) ? value : 1,
+                min: 1,
+                max: 5,
+                onChange: v => setProp('value', v)
+            })
+        )
+};
+```
+
+The component does not need to know where the value lives:
+
+- Where the document binds the prop to its state, the write goes to the state. The document then
+  resolves again, with the value in `props`.
+- Otherwise the catalog keeps the value for as long as the component shows.
+
+The catalog checks the value the model wrote against the schema. It does not check a bound value,
+as the user writes it, so `render` must accept any value for a state prop. `setProp()` throws for a
+prop that is not in `stateProps`. The built-in inputs are specs of this kind. See
+[`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md#ask-the-user-for-input).
 
 ### Write a container
 
@@ -499,8 +561,12 @@ const catalog = new ChatUiCatalog({
 });
 ```
 
+With `bindings`, a program has state: `$variables` that inputs write and expressions read. With
+`queryTools`, it reads live data through the chat tools that the app lists. Both are off by
+default.
+
 See [`/genui/openui/`](./openui/README.md) for the install, the prompt, the export, name
-mapping and the parts of OpenUI Lang the kit does not run.
+mapping, state, queries and the parts of OpenUI Lang the kit does not run.
 
 ### Show data by reference
 
@@ -632,12 +698,15 @@ button({
 | `navigate` | Routes the app to `route`, with `params`, through `XH.navigate()` |
 | `callTool` | Runs a client tool of the chat with `input`, once the input passes the tool's schema |
 | `app` | Runs the handler in `actionHandlers` for `name`, with `params` |
+| `state` | Runs steps on the state of the document, such as setting a value. `summary` says what they do. With a `disabledReason`, it cannot run, and a button shows the reason |
 
 Each action may add a `label` and a `confirm: {title, message}`. An action with `confirm` asks the
 user with `XH.confirm()` first, and does nothing if they cancel. A `callTool` action for a tool
 with `needsApproval` asks first, with the tool's `approvalPrompt`. A `callTool` action waits while
 the chat is busy, and refuses a tool whose schema uses keywords the catalog cannot check. Its call
-is not part of the history. `send` and `callTool` need the render context's `chatModel`, which is
+is not part of the history. A format with state writes a `state` action, in code. `chatUiActionSchema()` allows one only
+where `types` lists `state`, and a document with no state refuses it. `send` and `callTool` need
+the render context's `chatModel`, which is
 null in a message list over a host that is not a `ChatModel`. `isChatUiMessagingAction()` tells a
 component which actions to hide there. `runActionAsync()` rejects an action that fails its checks.
 Treat every payload as untrusted, also in an `app` handler.
@@ -720,6 +789,74 @@ ends.
 document as partial only while the document sets `isPartial: true`. The catalog repairs and
 checks each document before it renders.
 
+### Give a document state
+
+A protocol with a data model, such as OpenUI Lang with its `$variables`, needs props that follow
+what the user does. A format or an adapter gives its document a `state`: a `ChatUiStateSpec` that
+creates the state, and resolves the document for it.
+
+```typescript
+import {HoistBase} from '@xh/hoist/core';
+import {bindable} from '@xh/hoist/mobx';
+import type {ChatUiAdapter, ChatUiState} from '@xh/hoist-chat-kit/genui';
+
+class OrderState extends HoistBase implements ChatUiState {
+    @bindable accessor quantity: number = 1;
+}
+
+// A payload of the shape {price: number}.
+const orderAdapter: ChatUiAdapter = {
+    dataType: 'order-ui',
+    translate: payload => ({
+        root: null,
+        elements: {},
+        state: {
+            create: () => new OrderState(),
+            resolve: (order: OrderState) => ({
+                root: 'root',
+                elements: {
+                    root: {component: 'stack', props: {}, children: ['quantity', 'total']},
+                    quantity: {
+                        component: 'numberInput',
+                        props: {name: 'quantity', label: 'Quantity', value: order.quantity},
+                        bindings: {value: {set: value => (order.quantity = value as number)}}
+                    },
+                    total: {
+                        component: 'text',
+                        props: {text: `Total: ${order.quantity * payload.price}`}
+                    }
+                }
+            })
+        }
+    })
+};
+```
+
+The catalog owns the life of the state:
+
+- It calls `create()` once, when the document first renders. A reply that streams gives a new
+  spec with each parse, and the catalog keeps the state that the first one created.
+- It calls `resolve()` on each render, inside a MobX observer. The document renders again when an
+  observable that `resolve()` reads changes.
+- It destroys the state when the document goes away with its message, through the state's
+  `destroy()`. A state that extends `HoistBase` has one.
+
+`resolve()` returns a plain document: the current value in `props`, and a `ChatUiBinding` in
+`bindings` for each state prop that the component may write. The catalog repairs, checks and
+renders it as any other document, so its caps and fallbacks apply to each state. A change of state
+can add or remove elements. An element keeps its component, and so its focus, while its id stays
+the same.
+
+The `elements` beside `state` stand for the document where nothing renders it, such as in copied
+text. A state that fails while the reply streams shows a placeholder, and a fallback once it ends.
+
+A state can run actions of its own. Write a `state` action into a prop from `resolve()`, with an
+`id` that names its steps and a `summary` that says what they do. The catalog checks the action,
+then calls the state's `runActionAsync()`. Keep the steps in the state, never in the action, so
+that a model cannot write them. For an action that the state read and cannot run, set a
+`disabledReason`. The catalog then refuses the action, and the built-in button renders disabled
+with the reason as its tooltip.
+
 ## Properties/API Reference
 
 ### ChatUiCatalogConfig
@@ -769,6 +906,7 @@ checks each document before it renders.
 | `example` | `P` | Example props, shown to the model in the prompt. |
 | `slots` | `string[]` | Child lists of a container: `default` for `children`, other names for named slots. Default none. |
 | `dataProps` | `(string \| ChatUiDataPropSpec)[]` | Props that name an artifact, typed as strings. Each takes a `pageSize`, default 100, and a `maxRows`. |
+| `stateProps` | `string[]` | Props that hold a value the user changes. `props` holds the current value, and `context.setProp()` writes one. Default none. |
 | `standalone` | `boolean` | False for a component that shows only inside a nested answer, with no tool or tag of its own. Default true. |
 
 ### ChatUiRenderContext
@@ -787,6 +925,8 @@ Passed to `render`. Extends the chat's `ChatPartRenderContext`, which holds `cha
 | `data` | `Record<string, ChatDataHandle>` | The data behind each reference prop with a value. |
 | `artifacts` | `ChatArtifactRegistry` | The registry `data` reads, for a side panel request. |
 | `runActionAsync` | `(action) => Promise<unknown>` | Check and run a typed action. |
+| `setProp` | `(name, value) => void` | Write a new value for one of the spec's `stateProps`. |
+| `state` | `ChatUiState` | The state of the document, for one that has it. Null otherwise. |
 
 ### ChatUiDocument and ChatUiElement
 
@@ -796,11 +936,26 @@ Passed to `render`. Extends the chat's `ChatPartRenderContext`, which holds `cha
 | `elements` | `Record<string, ChatUiElement>` | Each element, by id. |
 | `catalogVersion` | `string` | The catalog version the document was written against. |
 | `isPartial` | `boolean` | Document: true while the sender still adds to it. Unset, the document is complete. |
+| `state` | `ChatUiStateSpec` | Document: state that its props follow. Set in code by a format or an adapter. |
 | `component` | `string` | Element: name of a catalog component. |
 | `props` | `PlainObject` | Element: props for the component. |
 | `children` | `string[]` | Element: ids of the child elements. |
 | `slots` | `Record<string, string[]>` | Element: ids of the elements in each named slot. |
 | `isPartial` | `boolean` | Element: `false` for an element complete inside a partial document, to run its full checks early. Ignored in a complete document. Unset, the document's state applies. |
+| `bindings` | `Record<string, ChatUiBinding>` | Element: the state props tied to the document's state, by prop name. Set by a `ChatUiStateSpec`. The catalog does not check a bound prop against the schema. |
+
+### ChatUiStateSpec, ChatUiState and ChatUiBinding
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `create` | `(context) => ChatUiState` | Spec: create the state. Called once, when the document first renders. Required. |
+| `resolve` | `(state, context) => ChatUiDocument` | Spec: the plain document for the current state. Runs in a MobX observer on each render, and must not change observable state. Required. |
+| `runActionAsync` | `(action, context) => Promise<unknown>` | State: run a `state` action of the document. A state without it refuses every one. Optional. |
+| `destroy` | `() => void` | State: release what the state holds. Called when the document goes away. Optional. |
+| `set` | `(value) => void` | Binding: write a new value to the state. Required. |
+
+`isChatUiStateSpec()` and `isChatUiBindings()` tell a value that can serve as each. A value read
+from JSON cannot, as it holds no functions.
 
 ### ChatUiTextFormat
 
@@ -904,6 +1059,8 @@ in `elements.chart.props.rows[3].value`. See `impl/validateSchema.ts` for the de
 - **Data sources** - implement `ChatDataSource` to page rows from the app's server.
 - **Adapters** - implement `ChatUiAdapter` for a protocol, and register it with
   `createDataRenderers()`.
+- **State** - give a document a `ChatUiStateSpec`, for a protocol with a data model. List
+  `stateProps` on a component that the user changes.
 
 ## Common Pitfalls
 
@@ -937,6 +1094,26 @@ render: (_, {data}) => (data.data?.state === 'ready' ? resultTable({frame: data.
 // ❌ Don't: Read the rows straight away
 render: (_, {data}) => resultTable({frame: data.data.frame})
 ```
+
+### Trusting the value of a state prop
+
+The catalog does not check a bound prop against the schema, as the user writes its value. The
+state can hold any value: a program can declare a default of the wrong type.
+
+```typescript
+// ✅ Do: Show a value only if it is of the right type
+render: ({value}, {setProp}) =>
+    numberInput({value: isFinite(value) ? value : null, onCommit: v => setProp('value', v)})
+
+// ❌ Don't: Pass the value on as if the schema had checked it
+render: ({value}) => numberInput({value})
+```
+
+### Changing state while a document resolves
+
+`resolve()` runs as a component renders. A change to an observable there renders the document
+again while it renders. Read state in `resolve()`, and change it in a binding's `set()`, in
+`runActionAsync()`, or in the state's own reactions.
 
 ### Loose schemas
 
@@ -977,7 +1154,8 @@ prompt on the server, and send only `catalog.version` from the browser.
 
 - [`/genui/openui/`](./openui/README.md) - the OpenUI Lang format and adapter
 - [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) - the built-in grid, chart, metrics,
-  card, stack and text components, and the frame and number formats for your own
+  card, stack and text components, the form, button and inputs, and the frame and number formats
+  for your own
 - [`/core/`](../core/README.md) - `ChatModel`, `ChatToolSpec` and data renderers
 - [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) - the chat components that display tool
   calls, including inline ones

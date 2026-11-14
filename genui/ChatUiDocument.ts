@@ -1,4 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
+import type {ChatUiBinding, ChatUiStateSpec} from './ChatUiState';
 
 /**
  * A generative UI answer: a flat map of elements keyed by id, with the id of the top element. Every
@@ -44,6 +45,14 @@ export interface ChatUiDocument {
      * sets it. Unset: the document is complete.
      */
     isPartial?: boolean;
+
+    /**
+     * State for a document whose props follow values that the user changes - see
+     * {@link ChatUiStateSpec}. A format or an adapter sets it, in code. The catalog then renders
+     * what the spec's `resolve()` returns, in place of the `elements` here, which stand for the
+     * document where nothing renders it, such as in copied text.
+     */
+    state?: ChatUiStateSpec;
 }
 
 /** One component of a {@link ChatUiDocument}, with its props and the ids of its children. */
@@ -73,6 +82,14 @@ export interface ChatUiElement {
      * full checks. Unset: the document's state applies.
      */
     isPartial?: boolean;
+
+    /**
+     * The props tied to the state of the document, by prop name, for the props the component
+     * lists in its `stateProps`. `props` holds the current value of each, and the component
+     * writes a new one with `context.setProp()`. The catalog does not check a bound prop against
+     * the schema, as the user writes its value. Set by a {@link ChatUiStateSpec}, in code.
+     */
+    bindings?: Record<string, ChatUiBinding>;
 }
 
 /** A {@link ChatUiElement} with its id - the element a component renders for. */

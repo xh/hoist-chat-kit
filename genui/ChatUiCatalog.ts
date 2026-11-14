@@ -23,12 +23,14 @@ import {
     mapValues,
     omit,
     uniq,
-    values
+    values,
+    without
 } from 'lodash';
-import {type ReactNode, useEffect} from 'react';
+import {type ReactNode, useEffect, useState} from 'react';
 import type {ChatDataRenderer, ChatModel, ChatPartRenderContext, ChatToolSpec} from '../core';
 import {ChatArtifactRegistry, type ChatDataHandle} from './ChatArtifactRegistry';
 import {
+    CHAT_UI_ACTION_TYPES,
     CHAT_UI_MAX_CONTEXT_ENTRIES,
     type ChatUiAction,
     type ChatUiActionHandler,
@@ -52,6 +54,7 @@ import {
     type ChatUiNode,
     toChatUiDocument
 } from './ChatUiDocument';
+import {type ChatUiState, isChatUiBindings, isChatUiStateSpec} from './ChatUiState';
 import type {ChatUiFormatContext, ChatUiTextFormat} from './ChatUiTextFormat';
 import type {
     ChatUiComponentSegment,
@@ -69,6 +72,7 @@ import {
 import {chatUiFallback, chatUiPlaceholder} from './ChatUiFallback';
 import {chatUiTagFormat} from './formats/ChatUiTagFormat';
 import {chatUiElementBoundary} from './impl/ChatUiElementBoundary';
+import {chatUiLiveDocument} from './impl/ChatUiLiveDocument';
 import {
     elementPath,
     findDanglingRefs,
@@ -346,6 +350,7 @@ export class ChatUiCatalog {
                 example: it.example,
                 slots: it.slots,
                 dataProps: it.dataProps,
+                stateProps: it.stateProps,
                 standalone: it.standalone
             })),
             modes: this.modes,
@@ -451,10 +456,41 @@ export class ChatUiCatalog {
      * a disclosure - and logs a warning once.
      * So does a document whose structure is broken.
      *
+     * A document with a `state` renders through its {@link ChatUiStateSpec}. The catalog creates
+     * the state on the first render, keeps it while the document shows, and renders what the
+     * spec's `resolve()` returns, again whenever an observable it reads changes.
+     *
      * @param doc - the document to render.
      * @param context - the part that holds the document, and whether it is still streaming.
      */
     renderDocument(doc: ChatUiDocument, context: ChatUiDocumentContext): ReactNode {
+        if (!isPlainObject(doc) || !isChatUiStateSpec(doc.state)) {
+            return this.renderResolved(doc, context);
+        }
+        return chatUiLiveDocument({
+            doc,
+            context,
+            renderDocument: (resolved, resolvedContext) =>
+                this.renderResolved(resolved, resolvedContext),
+            // State that fails while the reply streams may yet resolve.
+            renderError: e => {
+                if (context.isPartial) return this.renderPlaceholder(null);
+                logError(['Could not resolve the state of a document', e], 'ChatUiCatalog');
+                return this.renderFallback(
+                    {
+                        component: null,
+                        caption: CAPTION,
+                        errors: [(e as Error)?.message ?? String(e)],
+                        input: omit(doc, 'state')
+                    },
+                    context
+                );
+            }
+        });
+    }
+
+    /** Render a document with no state of its own, or one that its state resolved. */
+    private renderResolved(doc: ChatUiDocument, context: ChatUiDocumentContext): ReactNode {
         const {isPartial} = context;
 
         let repaired: ChatUiDocument;
@@ -685,6 +721,8 @@ export class ChatUiCatalog {
      *    while the chat is busy, and for a tool whose schema uses keywords the catalog cannot
      *    check. The call is not part of the history.
      *  - `app` - runs the handler in `actionHandlers` for its name. Resolves to its result.
+     *  - `state` - runs against the state of the document that holds it, from the context. Refused
+     *    for a document with no state, or a state that runs no actions.
      *
      * `send` and `callTool` need the context's `chatModel`, and are refused without one - where
      * the message list shows a host that is not a `ChatModel`.
@@ -693,9 +731,13 @@ export class ChatUiCatalog {
      * cancel.
      *
      * @param action - the action to run.
-     * @param context - the chat and message of the component that runs it.
+     * @param context - the chat and message of the component that runs it, and the `state` of
+     *      its document, if it has one.
      */
-    async runActionAsync(action: ChatUiAction, context: ChatPartRenderContext): Promise<unknown> {
+    async runActionAsync(
+        action: ChatUiAction,
+        context: ChatPartRenderContext & {state?: ChatUiState}
+    ): Promise<unknown> {
         const errors = validateSchema(action, ACTION_SCHEMA);
         throwIf(!isEmpty(errors), `Invalid action: ${errors.join('; ')}`);
 
@@ -755,6 +797,16 @@ export class ChatUiCatalog {
                 throwIf(!handler, `No handler for app action '${action.name}'.`);
                 if (!(await this.confirmAsync(action.confirm))) return null;
                 return handler(action.params ?? {}, context);
+            }
+            case 'state': {
+                const {state} = context;
+                throwIf(!!action.disabledReason, action.disabledReason);
+                throwIf(
+                    !state?.runActionAsync,
+                    'No state to act on - a state action needs a document with state.'
+                );
+                if (!(await this.confirmAsync(action.confirm))) return null;
+                return state.runActionAsync(action, context);
             }
         }
     }
@@ -880,9 +932,16 @@ export class ChatUiCatalog {
         component: ChatUiComponentSpec,
         props: PlainObject,
         isPartial: boolean,
-        path: string
+        path: string,
+        bound: string[] = []
     ): string[] {
-        const errors = validateSchema(props, component.props, {isPartial, path}),
+        // The user writes the value of a bound prop, so the schema does not apply to it.
+        const hasBound = !isEmpty(bound) && isPlainObject(props),
+            schema = hasBound ? withoutProps(component.props, bound) : component.props,
+            errors = validateSchema(hasBound ? omit(props, bound) : props, schema, {
+                isPartial,
+                path
+            }),
             {maxInlineRows} = this.limits;
 
         if (isPlainObject(props)) {
@@ -969,7 +1028,10 @@ export class ChatUiCatalog {
                 });
             }
         }
-        return [...ret, ...this.validateProps(component, props, isPartial, `${path}.props`)];
+        const bound = isChatUiBindings(element.bindings)
+            ? Object.keys(element.bindings).filter(it => component.stateProps?.includes(it))
+            : [];
+        return [...ret, ...this.validateProps(component, props, isPartial, `${path}.props`, bound)];
     }
 
     private renderElement(
@@ -1274,7 +1336,13 @@ const chatUiComponent = hoistCmp.factory<ChatUiComponentProps>({
     model: uses('*', {optional: true}),
 
     render({spec, node, context, catalog, registry, children, slots}) {
-        const {props} = node,
+        // What the user set for state props that the document does not bind. A binding takes
+        // the prop over, as the document then holds its value.
+        const [localProps, setLocalProps] = useState<PlainObject>(null),
+            bindings = isChatUiBindings(node.bindings) ? node.bindings : {},
+            props = localProps
+                ? {...node.props, ...omit(localProps, Object.keys(bindings))}
+                : node.props,
             dataProps = getDataProps(spec).filter(it => isString(props[it.name]) && props[it.name]),
             handles: Record<string, ChatDataHandle> = {};
 
@@ -1303,7 +1371,19 @@ const chatUiComponent = hoistCmp.factory<ChatUiComponentProps>({
             slots,
             data: handles,
             artifacts: registry,
-            runActionAsync: action => catalog.runActionAsync(action, context)
+            runActionAsync: action => catalog.runActionAsync(action, context),
+            setProp: (name, value) => {
+                throwIf(
+                    !spec.stateProps?.includes(name),
+                    `'${name}' is not a state prop of component '${spec.name}'.`
+                );
+                const binding = getOwn(bindings, name);
+                if (binding) {
+                    binding.set(value);
+                } else {
+                    setLocalProps(current => ({...current, [name]: value}));
+                }
+            }
         };
         return spec.render(props, renderContext);
     }
@@ -1325,7 +1405,7 @@ const DEFAULT_LIMITS: Required<ChatUiLimits> = {
     TAG_PREFIX_RE = /^[A-Za-z][A-Za-z0-9_-]*$/,
     CAPTION = 'This content could not be displayed.',
     TOOL_NOTE = 'Calling this tool shows the component to the user, inline in the chat.',
-    ACTION_SCHEMA = chatUiActionSchema();
+    ACTION_SCHEMA = chatUiActionSchema({types: CHAT_UI_ACTION_TYPES});
 
 // Resolves reference props for a catalog with no `artifacts` config - every one is waiting or
 // missing.
@@ -1341,7 +1421,7 @@ function getDataProps(component: ChatUiComponentSpec): ChatUiDataPropSpec[] {
 
 /** Throw if a component spec is incomplete, or relies on what the catalog cannot check. */
 function checkComponent(component: ChatUiComponentSpec) {
-    const {name, props, render, slots, dataProps} = component;
+    const {name, props, render, slots, dataProps, stateProps} = component;
     throwIf(
         !name || !props || !render,
         `ChatUiCatalog component '${name}' requires a name, props and render.`
@@ -1363,6 +1443,12 @@ function checkComponent(component: ChatUiComponentSpec) {
         slots != null && (!isArray(slots) || !slots.every(isString)),
         `ChatUiCatalog component '${name}' must list its slots as names.`
     );
+    throwIf(
+        stateProps != null &&
+            (!isArray(stateProps) || !stateProps.every(it => Object.hasOwn(props.properties, it))),
+        `ChatUiCatalog component '${name}' must list its stateProps as names of props that its ` +
+            'schema declares.'
+    );
     getDataProps({...component, dataProps}).forEach(it => {
         const type = castArray(props.properties?.[it.name]?.type ?? []);
         throwIf(
@@ -1371,6 +1457,15 @@ function checkComponent(component: ChatUiComponentSpec) {
                 'props schema must type as a string - the id of an artifact.'
         );
     });
+}
+
+/** A props schema without some of its props, neither declared nor required. */
+function withoutProps(schema: PlainObject, names: string[]): PlainObject {
+    return {
+        ...schema,
+        properties: omit(schema.properties, names),
+        ...(isArray(schema.required) ? {required: without(schema.required, ...names)} : {})
+    };
 }
 
 /** The origin of an allow list entry, so that `https://example.com/` matches as written. */

@@ -5,6 +5,7 @@ import type {ChatArtifactRegistry, ChatDataHandle} from './ChatArtifactRegistry'
 import type {ChatUiAction} from './ChatUiAction';
 import type {ChatUiCatalog} from './ChatUiCatalog';
 import type {ChatUiNode} from './ChatUiDocument';
+import type {ChatUiState} from './ChatUiState';
 
 /**
  * Declares a component that the model can show in the chat, as part of a {@link ChatUiCatalog}.
@@ -97,6 +98,16 @@ export interface ChatUiComponentSpec<P = PlainObject> {
     dataProps?: (string | ChatUiDataPropSpec)[];
 
     /**
+     * Props that hold a value the user changes, such as the `value` of an input. `props` holds
+     * the current value of each, and `context.setProp()` writes a new one. Where the document
+     * ties the prop to its state, the write goes there - see {@link ChatUiElement.bindings}.
+     * Otherwise the catalog keeps the value for as long as the component shows. The value of a
+     * bound prop is not checked against `props`, so `render` must accept any value for it.
+     * Default none.
+     */
+    stateProps?: string[];
+
+    /**
      * False for a component that shows only inside a nested answer: a document or a text format's
      * program. The catalog offers it to the model as no tool and no tag of its own. Default true.
      */
@@ -151,6 +162,12 @@ export interface ChatUiRenderContext extends ChatUiDocumentContext {
      * {@link ChatUiCatalog.runActionAsync}. Rejects an action that fails its checks.
      */
     runActionAsync(action: ChatUiAction): Promise<unknown>;
+
+    /**
+     * Write a new value for one of the component's `stateProps`, such as what the user typed.
+     * The component renders again with the value in `props`. Throws for any other prop.
+     */
+    setProp(name: string, value: unknown): void;
 }
 
 /** Passed to {@link ChatUiCatalog.renderDocument}: where the document shows, and its state. */
@@ -170,6 +187,12 @@ export interface ChatUiDocumentContext extends ChatPartRenderContext {
      * an entry renders as a fallback that lists them.
      */
     elementErrors?: Record<string, string[]>;
+
+    /**
+     * The state of the document, for one with a {@link ChatUiStateSpec}. The catalog sets it as
+     * it renders the document, and `state` actions run against it. Null for a document with none.
+     */
+    state?: ChatUiState;
 }
 
 /** Passed to {@link ChatUiCatalogConfig.fallback}: an element that cannot render. */

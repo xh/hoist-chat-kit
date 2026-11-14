@@ -14,7 +14,7 @@ change. Check each project's own docs for its current state.
 | [Anthropic Messages API](#anthropic-messages-api) | Claude's request format and SSE stream | Provider format | **Built.** `AnthropicCodec`. |
 | [OpenAI](#openai) | The Responses and Chat Completions streams | Provider format | **Chat Completions built.** `ChatCompletionsCodec`. A codec can add Responses. |
 | [A2UI](#a2ui) | Declarative JSON UI, drawn from a client catalog | UI payload | **Streaming adapter seam built.** An app adapter maps it to catalog components, and renders it as it streams. |
-| [OpenUI (Thesys)](#openui-thesys) | Generative UI framework and streaming UI language | UI payload or reply text | **Built, experimental.** `openUiLangFormat()` reads OpenUI Lang from reply text, and `openUiLangAdapter()` from a data part. Both render it with catalog components. |
+| [OpenUI (Thesys)](#openui-thesys) | Generative UI framework and streaming UI language | UI payload or reply text | **Built, experimental.** `openUiLangFormat()` reads OpenUI Lang from reply text, and `openUiLangAdapter()` from a data part. Both render it with catalog components, and run its state and queries where the app turns them on. |
 | [MCP Apps](#mcp-apps) | MCP tools that return sandboxed HTML views | UI payload | **Seam built.** Host not planned for now. |
 | [Vercel AI SDK](#vercel-ai-sdk-vocabulary) | `UIMessage` parts and tool states | Message model | **Built.** The kit's part and state names. |
 
@@ -295,14 +295,19 @@ controls and does not relate to agents.
 - `openUiLangAdapter()` reads a program sent in a data part, for a server that sends UI apart
   from the reply's text.
 - The kit derives an OpenUI library, as plain JSON Schema, from the catalog. It uses Thesys's
-  headless core, `@openuidev/lang-core`, for the parser and the prompt generator only. The
-  catalog keeps the checks, actions, data and rendering.
+  headless core, `@openuidev/lang-core`, for the parser and the prompt generator. The catalog
+  keeps the checks, actions, data and rendering.
+- An app can turn on OpenUI state: `$variables`, expressions, `@Set` and `@Reset`, and
+  `Query()` for the chat tools it lists. They run on lang-core's own store, evaluator and query
+  manager. The built-in form components give a program inputs to bind.
+- A program cannot change data. The kit runs no `Mutation()`: a program sends a message that
+  asks the assistant to act.
 - The catalog's export carries the library schema and the prompt, for a server that checks
   programs with Thesys's own parser.
 
 `@openuidev/lang-core` is an optional peer dependency. An app that uses the format installs it
-with `zod`. The kit does not run OpenUI state, queries, mutations, app-defined actions or message
-markers. See [`/genui/openui/`](../genui/openui/README.md).
+with `zod`. By default the kit runs no OpenUI state or queries. It never runs mutations,
+app-defined actions or message markers. See [`/genui/openui/`](../genui/openui/README.md).
 
 An app can also draw each text part with OpenUI's own renderer, through
 `ChatModelConfig.textRenderer`, and give Copy and screen readers words through `getCopyText`.

@@ -1,0 +1,10 @@
+// A form: a Hoist FormFieldSet, with its inputs and buttons in a column at the reply's part gap.
+.xh-chat-ui-form {
+  min-width: 0;
+
+  .xh-card__content {
+    align-items: flex-start;
+    gap: var(--xh-chat-part-gap, var(--xh-pad-px));
+    padding: var(--xh-pad-px);
+  }
+}

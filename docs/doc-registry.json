@@ -410,7 +410,7 @@
       "title": "Generative UI",
       "mcpCategory": "package",
       "viewerCategory": "core",
-      "description": "Generative UI: a catalog of app components the model can show inline, as tools, UI in the reply text or nested documents, with data by reference, typed actions and a server export.",
+      "description": "Generative UI: a catalog of app components the model can show inline, as tools, UI in the reply text or nested documents, with data by reference, typed actions, state and a server export.",
       "keywords": [
         "ChatUiCatalog",
         "chatUiFallback",
@@ -479,7 +479,16 @@
         "OpenUI",
         "maxSteps",
         "safety",
-        "isChatUiMessagingAction"
+        "isChatUiMessagingAction",
+        "ChatUiStateSpec",
+        "ChatUiState",
+        "ChatUiBinding",
+        "ChatUiStateAction",
+        "stateProps",
+        "setProp",
+        "bindings",
+        "document state",
+        "state action"
       ]
     },
     {
@@ -487,7 +496,7 @@
       "title": "OpenUI Lang",
       "mcpCategory": "package",
       "viewerCategory": "core",
-      "description": "OpenUI Lang for the catalog: a text format and a data part adapter that render streaming OpenUI Lang programs with catalog components, on Thesys's headless core.",
+      "description": "OpenUI Lang for the catalog: a text format and a data part adapter that render streaming OpenUI Lang programs with catalog components, and run their state and queries, on Thesys's headless core.",
       "keywords": [
         "openUiLangFormat",
         "openUiLangAdapter",
@@ -517,7 +526,27 @@
         "ToAssistant",
         "OpenUrl",
         "OPENUI_TELEMETRY_DISABLED",
-        "allowBuilds"
+        "allowBuilds",
+        "bindings",
+        "$variables",
+        "$binding",
+        "builtinFunctions",
+        "Set",
+        "Reset",
+        "Run",
+        "Query",
+        "Mutation",
+        "queryTools",
+        "minRefreshSeconds",
+        "maxCalls",
+        "maxCallsPerMinute",
+        "disabledReason",
+        "onToolCall",
+        "OpenUiToolCall",
+        "OpenUiToolSpec",
+        "isOpenUiDocumentSegment",
+        "OpenUiDiagnostics",
+        "forms"
       ]
     },
     {
@@ -596,7 +625,7 @@
       "title": "Desktop Generative UI Components",
       "mcpCategory": "package",
       "viewerCategory": "desktop",
-      "description": "Built-in generative UI components for a ChatUiCatalog: a result table in two tiers, a Hoist chart, stat cards, a detail card, a treemap, and a stack, tabs, sections, callouts, badges and text for nested answers.",
+      "description": "Built-in generative UI components for a ChatUiCatalog: a result table in two tiers, a Hoist chart, stat cards, a detail card, a treemap, a stack, tabs, sections, callouts, badges and text for nested answers, and a form, a button and inputs over Hoist's own.",
       "keywords": [
         "chatUiGridSpec",
         "chatUiChartSpec",
@@ -657,7 +686,25 @@
         "ChatUiChart.defaults",
         "exportConfirmAbove",
         "side panel",
-        "Expand"
+        "Expand",
+        "chatUiInputSpecs",
+        "chatUiFormSpec",
+        "chatUiButtonSpec",
+        "chatUiTextInputSpec",
+        "chatUiTextAreaSpec",
+        "chatUiNumberInputSpec",
+        "chatUiSelectSpec",
+        "chatUiDateInputSpec",
+        "chatUiCheckboxSpec",
+        "chatUiSwitchSpec",
+        "chatUiSegmentedControlSpec",
+        "ChatUiForm",
+        "ChatUiButton",
+        "ChatUiInputRules",
+        "forms",
+        "inputs",
+        "validation rules",
+        "FormField"
       ]
     },
     {

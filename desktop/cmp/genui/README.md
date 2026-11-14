@@ -9,7 +9,7 @@
 | [Overview](#overview) | What the built-in components are, and the key features |
 | [Architecture](#architecture) | Factories, components, and how a call becomes a rendered component |
 | [Configuration Pattern](#configuration-pattern) | Adding the components to a `ChatUiCatalog` and a `ChatModel` |
-| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, metrics, cards, nested answers, tabs, sections, callouts, and direct use |
+| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, metrics, cards, nested answers, tabs, sections, callouts, forms and inputs, and direct use |
 | [Properties/API Reference](#propertiesapi-reference) | Factory options and the props each component takes |
 | [Extension Points](#extension-points) | Renaming, describing, limiting, and writing your own |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -55,6 +55,9 @@ Key features:
   a message as the user's next turn, and its tooltip shows what the click does.
 - **One card frame** - every card shares a 28 px header strip, a footer for counts, and the same
   loading, failed and empty states. `.xh-chat--compact` narrows them for a docked chat.
+- **Forms and inputs** - a form, a button and eight inputs put Hoist's `FormField`, inputs and
+  `Button` to work. Each input holds a value that the user changes, validates it with Hoist
+  rules, and can bind it to the state of its document.
 
 ## Architecture
 
@@ -427,6 +430,104 @@ Hoist's `TreeMap` draws nested boxes only with a tree grid bound to it.
 The treemap needs two Highcharts modules, heatmap then treemap. See
 [Expecting a treemap without its Highcharts modules](#expecting-a-treemap-without-its-highcharts-modules).
 
+### Ask the user for input
+
+`chatUiInputSpecs()` returns the form components: a form, a button, and an input of each kind.
+Each is a spec over a Hoist component. Add them to a catalog with a container, as they show only
+inside a nested answer:
+
+```typescript
+const catalog = new ChatUiCatalog({
+    components: [chatUiStackSpec(), chatUiTextSpec(), ...chatUiInputSpecs()],
+    modes: ['document']
+});
+```
+
+| Factory | Catalog name | Hoist component | Value |
+|---------|--------------|-----------------|-------|
+| `chatUiFormSpec` | `form` | `FormFieldSet` | - |
+| `chatUiButtonSpec` | `button` | `Button` | - |
+| `chatUiTextInputSpec` | `textInput` | `TextInput` | Text of at most 100 characters |
+| `chatUiTextAreaSpec` | `textArea` | `TextArea` | Text of at most 100 characters |
+| `chatUiNumberInputSpec` | `numberInput` | `NumberInput` | A number |
+| `chatUiSelectSpec` | `select` | `Select` | One choice, or a list with `multi` |
+| `chatUiDateInputSpec` | `dateInput` | `DateInput` | A day, as `YYYY-MM-DD` |
+| `chatUiCheckboxSpec` | `checkbox` | `Checkbox` | True or false |
+| `chatUiSwitchSpec` | `switch` | `SwitchInput` | True or false |
+| `chatUiSegmentedControlSpec` | `segmentedControl` | `SegmentedControl` | One choice |
+
+The model writes a form as a document, or as the program of a text format:
+
+```json
+{
+    "root": "form",
+    "elements": {
+        "form": {"component": "form", "props": {"title": "Contact"}, "children": ["email", "region", "send"]},
+        "email": {"component": "textInput", "props": {"name": "email", "label": "Email", "rules": {"required": true, "email": true}}},
+        "region": {"component": "select", "props": {"name": "region", "label": "Region", "options": ["EMEA", "APAC"]}},
+        "send": {"component": "button", "props": {"label": "Send", "intent": "primary", "action": {"type": "send", "text": "Use these contact details."}}}
+    }
+}
+```
+
+**Each input** takes a `name`, a `label`, and a `value`. It renders its Hoist input in a Hoist
+`FormField`, which draws the label, the mark of a required field and the validation message.
+`value` is a state prop, so the input works in any document:
+
+- With no binding, the input keeps what the user enters, for a form to send.
+- Where the document binds `value` to its state, as an OpenUI `$variable` does, the input writes
+  the state, and shows what the state holds. See
+  [Run programs with state](../../../genui/openui/README.md#run-programs-with-state).
+
+A text or number input writes its value when the user leaves it or presses Enter, as Hoist
+commits it. A select, a checkbox, a switch and a segmented control write on each change. Each
+input shows only a value of its own type, whatever the state holds.
+
+**Rules** are an object, such as `{required: true, email: true}`. They run as Hoist rules, and
+their messages show under the input:
+
+| Rule | Inputs | Hoist rule |
+|------|--------|------------|
+| `required` | All but the checkbox and the switch | `required` |
+| `email` | Text input | `validEmail` |
+| `minLength`, `maxLength` | Text input, text area | `lengthIs` |
+| `min`, `max` | Number input | `numberIs` |
+| `min`, `max`, as `YYYY-MM-DD` | Date input | `dateIs`, and the bounds of the calendar |
+
+**The form** groups inputs and buttons in a Hoist `FormFieldSet`. Its children can be inputs,
+buttons, and any layout around them, such as a stack in a row. The set takes the color of the
+worst validation problem on show.
+
+**The button** runs one typed action. With no action, it sends its label as the user's next
+message. Inside a form, a click first validates every field, and shows each message. If all are
+valid, the action runs. A `send` then carries the value of each field in its `context`, by field
+name, beside any context of its own:
+
+```
+Use these contact details.
+email: ann@example.com, region: EMEA
+```
+
+The tooltip of the button shows the message and the values before the click, and the sent message
+shows them after it. A select with `multi` sends its choices as one text, joined with commas. An
+empty field sends nothing.
+
+A `send` holds at most 8 values of at most 100 characters each, so that the user can read all of
+it. The form keeps to that:
+
+- Text in an input is at most 100 characters. A longer entry fails validation. Outside a form
+  no button validates it, and a `@ToAssistant` that sends it cuts it to the cap.
+- A form with more values than a send can hold cannot send. Its button is disabled, and its
+  tooltip says why.
+
+The button takes `send` and `state` actions by default. A `state` action acts on the state of
+the document, as an OpenUI `@Set` does. Pass `actionTypes` to allow `openUrl`, `navigate`,
+`callTool` or `app`.
+
+A `state` action with a `disabledReason` is one that a format read and had to refuse, such as an
+OpenUI action written as data. The button is then disabled, with the reason as its tooltip. It
+does not fall back to sending its label.
+
 ### Render a component directly
 
 The components also work outside a catalog, for example in a data renderer or a custom tool
@@ -484,6 +585,10 @@ and `description`, the text that tells the model when to use the component.
 | | `actionTypes` | `ChatUiActionType[]` | Kinds of action the model may put on the card. Default `['send']`. |
 | `chatUiStackSpec` | - | - | No options beyond `name` and `description`. |
 | `chatUiTextSpec` | `maxLength` | `number` | Most characters of text the model may send. Default 2,000. |
+| `chatUiButtonSpec` | `actionTypes` | `ChatUiActionType[]` | Kinds of action the model may put on the button. Default `['send', 'state']`. |
+| `chatUiSelectSpec` | `maxOptions` | `number` | Most choices. Default 50. |
+| `chatUiSegmentedControlSpec` | `maxOptions` | `number` | Most choices. Default 6. |
+| `chatUiFormSpec` and the other inputs | - | - | No options beyond `name` and `description`. |
 | `chatUiTabsSpec` | `maxTabs` | `number` | Most tabs. Default 6. |
 | `chatUiSectionSpec` | - | - | No options beyond `name` and `description`. |
 | `chatUiCalloutSpec` | `maxLength` | `number` | Most characters of text. Default 500. |
@@ -536,6 +641,25 @@ their own. Their props from the model:
 
 See the TSDoc in each source file for the full shape of the props.
 
+### Form component props
+
+Each input takes these props, in this order. `value` comes last, where lang-core's prompt tells
+a model to bind a `$variable`.
+
+| Component | Props |
+|-----------|-------|
+| `form` | `title` |
+| `button` | `label`, `action`, `intent` |
+| `textInput`, `textArea`, `numberInput` | `name`, `label`, `placeholder`, `rules`, `value` |
+| `select` | `name`, `options`, `label`, `placeholder`, `multi`, `rules`, `value` |
+| `dateInput` | `name`, `label`, `rules`, `value` |
+| `checkbox`, `switch` | `name`, `label`, `value` |
+| `segmentedControl` | `name`, `options`, `label`, `rules`, `value` |
+
+An option is a value, or an object with a `value` and a `label`. `name` is the key of the field
+among the values a form sends, so it must be unique in its form. See `ChatUiInput.ts` for the
+shared types.
+
 ## Extension Points
 
 - **Describe your data** - pass a `description` that names your app's records, so the model
@@ -554,7 +678,22 @@ See the TSDoc in each source file for the full shape of the props.
   `ChatUiNumberFormat`, optionally `compact`. `CHAT_UI_NUMBER_FORMAT_SCHEMA` and
   `CHAT_UI_DECIMALS_SCHEMA` declare the same number props in your own schemas.
 
+- **Write an input of your own** - list the prop that the user changes in `stateProps`, and
+  write it with `context.setProp()`. See
+  [Write a component the user changes](../../../genui/README.md#write-a-component-the-user-changes).
+
 ## Common Pitfalls
+
+### Expecting an input to show outside a nested answer
+
+The form, the button and the inputs have `standalone: false`. They have no tool and no tag of
+their own, as an input alone has nothing to submit it. Add a container, and the `document` mode
+or a text format whose program nests components.
+
+### Asking for long text in a form
+
+A form sends its values as the context of a message, which holds at most 100 characters per
+value. A text area is for a short note. Ask the user to write a long answer as their own message.
 
 ### Sending fractions as percentages
 
@@ -614,3 +753,5 @@ footer, and the full grid stays on offer. Have the tool sort and filter on the s
   `Badge`, `TreeMap` and `Banner`
 - hoist-react `/cmp/chart/` - `ChartModel`, and installing Highcharts
 - hoist-react `/format/` - the number and date formatters
+- hoist-react `/cmp/form/` and `/cmp/input/` - `FormField`, `FieldModel`, validation rules, and
+  the change and commit cycle of an input

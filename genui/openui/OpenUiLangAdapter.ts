@@ -3,8 +3,9 @@ import {createParser} from '@openuidev/lang-core';
 import {isString} from 'lodash';
 import type {ChatUiAdapter} from '../ChatUiAdapter';
 import {openUiToDocument} from './OpenUiDocument';
-import type {OpenUiLangFormatOptions} from './OpenUiLangFormat';
+import {getOpenUiFeatures, type OpenUiLangFormatOptions} from './OpenUiLangFormat';
 import {createLibraryCache} from './impl/libraryCache';
+import {createOpenUiStateSpec} from './impl/openUiStateSpec';
 
 /** Options for {@link openUiLangAdapter}. */
 export interface OpenUiLangAdapterOptions extends OpenUiLangFormatOptions {
@@ -16,11 +17,17 @@ export interface OpenUiLangAdapterOptions extends OpenUiLangFormatOptions {
  * An adapter that renders an OpenUI Lang program sent in a data part, for a server that sends UI
  * apart from the reply's text. The part's `data` is the program, or an object with the program
  * in `program`. The program becomes a document of catalog components, as with
- * {@link openUiLangFormat}. Register it with {@link ChatUiCatalog.createDataRenderers}.
+ * {@link openUiLangFormat}, and runs with state under the same `bindings` and `builtinFunctions`
+ * options. Register it with {@link ChatUiCatalog.createDataRenderers}.
  */
 export function openUiLangAdapter(opts: OpenUiLangAdapterOptions): ChatUiAdapter {
     const {dataType = 'openui', ...libraryOpts} = opts,
-        getLibrary = createLibraryCache(libraryOpts);
+        features = getOpenUiFeatures(opts),
+        getLibrary = createLibraryCache({
+            ...libraryOpts,
+            bindings: features.bindings,
+            toolCalls: features.toolCalls
+        });
 
     return {
         dataType,
@@ -37,10 +44,28 @@ export function openUiLangAdapter(opts: OpenUiLangAdapterOptions): ChatUiAdapter
                 translation = openUiToDocument(result, library, {
                     complete: !isPartial,
                     text: program,
-                    catalog
+                    catalog,
+                    quiet: features.hasState
                 });
-            // A program cut off when the reply ended is complete: nothing more will arrive.
-            return {...translation.document, isPartial: isPartial && translation.isPartial};
+            // A program cut off when the reply ended is complete: nothing more will arrive. Its
+            // queries run only once the reply ends. A data part can grow while the reply
+            // streams, and a query that ran at each step would run once per line.
+            const isDocumentPartial = isPartial && translation.isPartial,
+                state = features.hasState
+                    ? createOpenUiStateSpec(result, library, {
+                          catalog,
+                          text: program,
+                          isComplete: !isPartial,
+                          isTextComplete: !isPartial,
+                          logKey: program,
+                          runtime: features.runtime
+                      })
+                    : null;
+            return {
+                ...translation.document,
+                isPartial: isDocumentPartial,
+                ...(state ? {state} : {})
+            };
         }
     };
 }
