@@ -28,19 +28,22 @@ export interface ValueShape {
     /** Values that a walk of the value visits. Never less than the cost to compute it. */
     size: number;
 
-    /** Items in the value, if it is a list. */
+    /** Items in the value, if it is a list. Zero for a value that cannot be a list. */
     length: number;
 
-    /** Items in the longest list inside the value, at any depth below its top. */
-    innerLength: number;
+    /**
+     * The shape of what the value holds: any item of a list, or any field of an object. Each
+     * number is the largest among them. Undefined for a value that holds nothing.
+     */
+    inside?: ValueShape;
 
-    /** Size of the largest item of any list in the value. */
-    itemSize: number;
+    /** For an object: the names of the fields that it is sure to have. */
+    keys?: Set<string>;
 }
 
-/** The shape of a value that is not a list and holds none. @internal */
+/** The shape of a value that is not a list and holds nothing. @internal */
 export function scalarShape(size: number = 1): ValueShape {
-    return {size, length: 0, innerLength: 0, itemSize: 0};
+    return {size, length: 0};
 }
 
 /**
@@ -113,11 +116,11 @@ export function measureValue(
         const ret = scalarShape(),
             list = isArray(it);
         if (list) ret.length = it.length;
+        else ret.keys = new Set(Object.keys(it));
         for (const [key, child] of Object.entries(it)) {
             const shape = walk(child, depth + 1);
             ret.size += shape.size;
-            ret.innerLength = Math.max(ret.innerLength, shape.length, shape.innerLength);
-            ret.itemSize = Math.max(ret.itemSize, shape.itemSize, list ? shape.size : 0);
+            ret.inside = widest(ret.inside, shape);
             if (!list && key.length >= STRING_UNIT) {
                 const keySize = stringSize(key) - 1;
                 budget.spend(keySize);
@@ -156,8 +159,9 @@ export interface MeasureOptions {
  * - The template of an `@Each` once per item of its list. The length of the list is a bound that
  *   follows from where the list comes from: a list written out, a held value, or a list inside
  *   one. No list is evaluated to count it, as one that reads a loop variable has no value yet.
- * - Each read of a loop variable at the size of the largest item of its list, as lang-core
- *   copies the item into the template.
+ * - Each read of a loop variable at the size of the largest item of its list. lang-core copies
+ *   the item into the template once per item, for each place that names the variable. It then
+ *   reads a field of an item that is an object straight from the copy.
  * - `@Sort` and `@Filter` once per item, times the size of their field path, which they split
  *   again for each item.
  * - A field read on a list once per item, as it reads the field of each.
@@ -172,27 +176,37 @@ export interface MeasureOptions {
  */
 export function measureExpression(root: unknown, opts: MeasureOptions): ValueShape {
     const {budget, held, statement} = opts,
-        open = new Set<string>();
+        open = new Set<string>(),
+        // How often the template being measured names each loop variable.
+        uses = new Map<string, number>();
 
-    const total = (shape: ValueShape): ValueShape => {
+    const total = <T extends ValueShape>(shape: T): T => {
         budget.check(shape.size);
         return shape;
     };
 
     // The shape of a container of parts: a list, an object, an element or a call.
-    const group = (parts: unknown[], at: Position, list: boolean) => {
+    const group = (parts: unknown[], at: Position, list: boolean): ValueShape => {
         const ret = scalarShape();
         if (list) ret.length = parts.length;
         for (const part of parts) {
             const shape = measure(part, deeper(at));
             ret.size += shape.size;
-            ret.innerLength = Math.max(ret.innerLength, shape.length, shape.innerLength);
-            ret.itemSize = Math.max(ret.itemSize, shape.itemSize, list ? shape.size : 0);
+            ret.inside = widest(ret.inside, shape);
         }
         return total(ret);
     };
 
-    const measure = (value: unknown, at: Position): ValueShape => {
+    // A read of a loop variable. The item is an object where it cannot be a list, and a field
+    // read on it then costs only the field.
+    const readItem = (name: string, at: Position): Measured => {
+        if (at.isDynamic) return {...anyItem(at)};
+        uses.set(name, (uses.get(name) ?? 0) + 1);
+        const item = at.scope.get(name);
+        return {...item, isItem: item.length === 0};
+    };
+
+    const measure = (value: unknown, at: Position): Measured => {
         budget.visit();
         if (isString(value)) return scalarShape(stringSize(value));
         if (value == null || typeof value !== 'object') return scalarShape();
@@ -208,12 +222,15 @@ export function measureExpression(root: unknown, opts: MeasureOptions): ValueSha
                 return scalarShape(stringSize(value.v));
             case 'StateRef':
                 return total(held(value.n, 'state'));
-            case 'RuntimeRef':
-                return total(at.scope.get(value.n) ?? held(value.n, 'query'));
+            case 'RuntimeRef': {
+                // A loop variable hides a query of the same name.
+                const {n} = value;
+                if (at.isDynamic) return total(widest(held(n, 'query'), anyItem(at)));
+                return total(at.scope.has(n) ? readItem(n, at) : held(n, 'query'));
+            }
             case 'Ref': {
-                const {n} = value,
-                    item = at.scope.get(n);
-                if (item) return total(item);
+                const {n} = value;
+                if (at.isDynamic || at.scope.has(n)) return total(readItem(n, at));
                 const target = open.has(n) ? undefined : statement?.(n);
                 if (target === undefined) return scalarShape();
                 if (target === 'query') return total(held(n, 'query'));
@@ -228,11 +245,14 @@ export function measureExpression(root: unknown, opts: MeasureOptions): ValueSha
             case 'Arr':
                 return group(value.els, at, true);
             case 'Obj':
-                return group(
-                    value.entries.map(it => it[1]),
-                    at,
-                    false
-                );
+                return {
+                    ...group(
+                        value.entries.map(it => it[1]),
+                        at,
+                        false
+                    ),
+                    keys: new Set(value.entries.map(it => it[0]))
+                };
             case 'Comp':
                 return measureCall(value, at);
             case 'BinOp': {
@@ -258,23 +278,30 @@ export function measureExpression(root: unknown, opts: MeasureOptions): ValueSha
                 });
             }
             case 'Member': {
+                const obj = sub(value.obj),
+                    field = obj.inside ?? scalarShape();
+                // The field of an item that is an object, read from lang-core's copy. A field
+                // that the item may lack is not: lang-core then evaluates the whole copy.
+                if (obj.isItem && obj.keys?.has(value.field)) {
+                    return total({...field, size: 1 + field.size, isItem: field.length === 0});
+                }
                 // On a list, a field read gives the field of each item.
-                const obj = sub(value.obj);
+                const fields: ValueShape = {
+                    size: 1 + obj.length * (field.inside?.size ?? 1),
+                    length: obj.length,
+                    inside: field.inside
+                };
                 return total({
-                    size: 1 + obj.size + obj.length,
-                    length: Math.max(obj.length, obj.innerLength),
-                    innerLength: obj.innerLength,
-                    itemSize: obj.itemSize
+                    ...(obj.length > 0 ? widest(field, fields) : field),
+                    size: 1 + obj.size + obj.length
                 });
             }
             case 'Index': {
                 const obj = sub(value.obj),
                     index = sub(value.index);
                 return total({
-                    size: 1 + obj.size + index.size,
-                    length: obj.innerLength,
-                    innerLength: obj.innerLength,
-                    itemSize: obj.itemSize
+                    ...(obj.inside ?? scalarShape()),
+                    size: 1 + obj.size + index.size
                 });
             }
             case 'Assign':
@@ -286,7 +313,8 @@ export function measureExpression(root: unknown, opts: MeasureOptions): ValueSha
 
     const measureCall = (node: Extract<ASTNode, {k: 'Comp'}>, at: Position): ValueShape => {
         const args: ASTNode[] = node.args ?? [],
-            sub = (it: unknown) => measure(it, deeper(at));
+            sub = (it: unknown) => measure(it, deeper(at)),
+            sizeOf = (shapes: ValueShape[]) => shapes.reduce((sum, it) => sum + it.size, 0);
         switch (node.name) {
             case 'Each': {
                 const [listNode, varNode, template] = args,
@@ -299,47 +327,49 @@ export function measureExpression(root: unknown, opts: MeasureOptions): ValueSha
                             `most ${MAX_EACH_DEPTH} deep.`
                     );
                 }
-                // lang-core copies the item into the template at each read of the variable.
                 const list = sub(listNode),
-                    item: ValueShape = {
-                        size: Math.max(1, list.itemSize),
-                        length: list.innerLength,
-                        innerLength: list.innerLength,
-                        itemSize: list.itemSize
-                    },
-                    result = measure(template, {
-                        scope: new Map(at.scope).set(name, item),
-                        eachDepth: at.eachDepth + 1,
-                        depth: at.depth + 1
-                    });
+                    item = list.inside ?? scalarShape(),
+                    outer = at.scope.get(name),
+                    outerUses = uses.get(name);
+                uses.set(name, 0);
+                const result = measure(template, {
+                    // An outer loop puts its item in place of the name through the whole
+                    // template, so a name used twice may stand for either item.
+                    scope: new Map(at.scope).set(name, widest(outer, item)),
+                    // An outer loop also puts its item in place of a variable name that is
+                    // not in quotes. The names in the template then depend on the data, so
+                    // each name may stand for any item.
+                    isDynamic: at.isDynamic || (varNode.k === 'Ref' && at.scope.has(varNode.n)),
+                    eachDepth: at.eachDepth + 1,
+                    depth: at.depth + 1
+                });
+                // lang-core copies the item once for each place in the template that names
+                // the variable, at each item.
+                const inner = uses.get(name),
+                    copies = inner * item.size;
+                // An outer loop of the same name copies its item into these places too.
+                uses.set(name, (outerUses ?? 0) + (outer ? inner : 0));
                 return total({
-                    size: 1 + list.size + list.length * (1 + result.size),
+                    size: 1 + list.size + list.length * (1 + result.size + copies),
                     length: list.length,
-                    innerLength: Math.max(result.length, result.innerLength),
-                    itemSize: Math.max(result.size, result.itemSize)
+                    inside: result
                 });
             }
             case 'Sort':
             case 'Filter': {
                 // Each compare splits the field path again.
                 const [list, field, ...rest] = args.map(sub),
-                    perItem = (node.name === 'Sort' ? SORT_COMPARES : 1) * (field?.size ?? 1),
-                    others = rest.reduce((sum, it) => sum + it.size, 0);
+                    perItem = (node.name === 'Sort' ? SORT_COMPARES : 1) * (field?.size ?? 1);
                 if (!list) return scalarShape();
                 return total({
                     ...list,
-                    size: 1 + list.size + (field?.size ?? 0) + others + list.length * perItem
+                    size: 1 + list.size + (field?.size ?? 0) + sizeOf(rest) + list.length * perItem
                 });
             }
             case 'First':
             case 'Last': {
                 const list = args[0] ? sub(args[0]) : scalarShape();
-                return total({
-                    size: 1 + list.size,
-                    length: list.innerLength,
-                    innerLength: list.innerLength,
-                    itemSize: list.itemSize
-                });
+                return total({...(list.inside ?? scalarShape()), size: 1 + list.size});
             }
             case 'Round':
             case 'Abs':
@@ -348,10 +378,7 @@ export function measureExpression(root: unknown, opts: MeasureOptions): ValueSha
                 // These run on each number of a list, and of the lists inside it.
                 const [number, ...rest] = args.map(sub);
                 if (!number) return scalarShape();
-                return total({
-                    ...number,
-                    size: 1 + number.size + rest.reduce((sum, it) => sum + it.size, 0)
-                });
+                return total({...number, size: 1 + number.size + sizeOf(rest)});
             }
             default: {
                 // A component, an action step, or a function that gives one value. A component
@@ -364,15 +391,27 @@ export function measureExpression(root: unknown, opts: MeasureOptions): ValueSha
         }
     };
 
-    return measure(root, {scope: new Map(), eachDepth: 0, depth: 0});
+    const {isItem: _isItem, ...ret} = measure(root, {
+        scope: new Map(),
+        isDynamic: false,
+        eachDepth: 0,
+        depth: 0
+    });
+    return ret;
 }
 
 //------------------
 // Implementation
 //------------------
+// A measured expression. `isItem` is true for a loop variable whose item is an object, and for
+// a field of one that is an object too.
+type Measured = ValueShape & {isItem?: boolean};
+
 // Where the walk is: the loop variables in scope with the shape of an item, and how deep.
 interface Position {
     scope: Map<string, ValueShape>;
+    // True where the name of a loop variable depends on the data - see `Each`.
+    isDynamic: boolean;
     eachDepth: number;
     depth: number;
 }
@@ -390,17 +429,29 @@ function deeper(at: Position): Position {
     return {...at, depth: at.depth + 1};
 }
 
+// The widest shape that any loop variable in scope may hold.
+function anyItem(at: Position): ValueShape {
+    return [...at.scope.values()].reduce(widest, scalarShape());
+}
+
 function stringSize(text: string): number {
     return 1 + Math.floor(text.length / STRING_UNIT);
 }
 
-// The shape of a value that is one of two.
+// The shape of a value that is one of two: the largest of each number, at each level.
 function widest(a: ValueShape, b: ValueShape): ValueShape {
+    if (!a || !b) return a ?? b;
+    const inside = widest(a.inside, b.inside),
+        // The fields that both are sure to have. A value that is no object has no say.
+        keys =
+            a.keys && b.keys
+                ? new Set([...a.keys].filter(it => b.keys.has(it)))
+                : (a.keys ?? b.keys);
     return {
         size: Math.max(a.size, b.size),
         length: Math.max(a.length, b.length),
-        innerLength: Math.max(a.innerLength, b.innerLength),
-        itemSize: Math.max(a.itemSize, b.itemSize)
+        ...(inside ? {inside} : {}),
+        ...(keys ? {keys} : {})
     };
 }
 

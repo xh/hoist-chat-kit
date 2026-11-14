@@ -318,6 +318,61 @@ describe('OpenUI Lang gate', () => {
             expect(text).toContain('too large to evaluate');
         });
 
+        it.each<[string, string]>([
+            [
+                'a name that an outer loop sets from its data',
+                '@Each(["j"], x, @Each([$big], x, @Each($l, "j", [j, j, j, j, j, j, j, j, j, j, j, j, j, j, j, j, j, j, j, j])))'
+            ],
+            [
+                'a field that the item does not have',
+                '@Each([$obj], "r", @Each($l, "j", @Each($l, "k", r.nope)))'
+            ],
+            [
+                'many places that name it',
+                `@Each($objs, "r", [${Array(1000).fill('r.f0').join(', ')}])`
+            ],
+            [
+                'a name that two loops share',
+                '@Each([$big], "x", @Each($l, "x", @Each($l, "k", x)))'
+            ],
+            [
+                'a query that a loop variable from the data hides',
+                '@Each(["q"], x, @Each([$big], x, @Each($l, "j", [q, q, q, q, q, q, q, q, q, q, q, q, q, q, q, q, q, q, q, q])))'
+            ]
+        ])('counts a loop variable at its largest item for %s', (_, expr) => {
+            silenceLogs();
+            const {ms, text} = timedRender(
+                'root = Stack([note])\n' +
+                    'q = Query("get_sales", {}, {total: 0})\n' +
+                    `$big = [${Array(5000).fill('1').join(',')}]\n` +
+                    `$obj = {${[...Array(2500).keys()].map(it => `f${it}: 1`).join(',')}}\n` +
+                    '$objs = [$obj, $obj, $obj, $obj, $obj, $obj, $obj, $obj, $obj, $obj]\n' +
+                    `$l = ${numbers(60)}\n` +
+                    `note = Note("n=" + @Count(${expr}))`,
+                {}
+            );
+
+            expect(ms).toBeLessThan(FAST);
+            expect(text).toContain('too large to evaluate');
+        });
+
+        it('still runs a loop inside a loop over rows of a modest size', () => {
+            const groups = [...Array(8).keys()]
+                .map(
+                    g =>
+                        `{name: "g${g}", rows: [${[...Array(40).keys()].map(r => `{id: ${r}, label: "row ${r}"}`).join(',')}]}`
+                )
+                .join(',');
+            renderProgram(
+                'root = Stack([note])\n' +
+                    `$groups = [${groups}]\n` +
+                    'note = Note("n=" + @Count(@Each($groups, "g", @Each(g.rows, "r", g.name + " " + r.label))))',
+                {}
+            );
+
+            expect(text('note')).toBe('n=8');
+        });
+
         it.each([100, 200])(
             'measures the defaults of a query against the %i rows that another returned',
             async count => {
@@ -596,6 +651,38 @@ describe('OpenUI Lang gate', () => {
             }
 
             expect(getSales.execute.mock.calls.length).toBeLessThanOrEqual(60);
+        });
+
+        it('counts a refused program among the three of a reply that run queries', async () => {
+            silenceLogs();
+            const getSales = salesTool(),
+                program = (name: string, queries: number) =>
+                    '```openui-lang\n' +
+                    ['root = Stack([note])', 'note = Note("x")']
+                        .concat(
+                            [...Array(queries).keys()].map(
+                                it => `q${it} = Query("get_sales", {region: "${name}${it}"}, {})`
+                            )
+                        )
+                        .join('\n') +
+                    '\n```\n\n';
+            renderProgram(
+                program('a', 1) +
+                    program('b', 9) +
+                    program('c', 1) +
+                    program('d', 1) +
+                    program('e', 1),
+                {tools: [getSales], queryTools: ['get_sales']}
+            );
+            await settleAsync();
+            await settleAsync();
+
+            // The second program holds more queries than a program may, so it runs none. It
+            // still takes the second of the three places.
+            expect(getSales.execute.mock.calls.map(it => it[0].region).sort()).toEqual([
+                'a0',
+                'c0'
+            ]);
         });
 
         it('runs a query once under StrictMode', async () => {

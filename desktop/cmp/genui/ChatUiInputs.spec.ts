@@ -504,6 +504,29 @@ describe('built-in form components', () => {
             expect(container.textContent).not.toContain('Showing Europe');
         });
 
+        it('writes once through a binding whose expression changes what the user typed', async () => {
+            const chatModel = createOpenUiChat(
+                    'root = Stack([name, note])\n' +
+                        '$a = "x"\n' +
+                        'name = TextInput("name", "Name", null, null, $a = "x" + $value)\n' +
+                        'note = Text("Value " + $a)'
+                ),
+                {container} = render(chatMessageList({model: chatModel}));
+            await act(async () => {
+                await chatModel.sendAsync('Show the field.');
+            });
+            const input = container.querySelector<HTMLInputElement>('.xh-text-input input');
+            expect(input.value).toBe('x');
+
+            typeInto(input, 'b');
+            await act(async () => {
+                await new Promise(resolve => setTimeout(resolve, 50));
+            });
+            // The state takes the expression of what was typed, once, and the field shows it.
+            expect(container.textContent).toContain('Value xb');
+            expect(input.value).toBe('xb');
+        });
+
         it('submits a form with the current values of its $variables', async () => {
             const chatModel = createOpenUiChat(PROGRAM),
                 {container} = render(chatMessageList({model: chatModel}));
