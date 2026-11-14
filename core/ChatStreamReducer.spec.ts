@@ -1129,11 +1129,142 @@ describe('ChatStreamReducer', () => {
         });
     });
 
+    describe('shared state', () => {
+        it('starts as the state the request sent, or an empty object', () => {
+            const sent = {todos: ['Plan']};
+
+            expect(new ChatStreamReducer(0).agentState).toEqual({});
+            expect(new ChatStreamReducer(0, {agentState: sent}).agentState).toBe(sent);
+            // A request with a null state sends an empty object, so that is what a delta patches.
+            expect(new ChatStreamReducer(0, {agentState: null}).agentState).toEqual({});
+        });
+
+        it('replaces the state with a snapshot, whatever JSON value it is', () => {
+            const reducer = new ChatStreamReducer(0, {agentState: {todos: ['Plan']}}),
+                snapshot = (value: any) => {
+                    reducer.apply(pendingMessage(), [{type: 'STATE_SNAPSHOT', snapshot: value}]);
+                    return reducer.agentState;
+                };
+
+            expect(snapshot({phase: 'draft'})).toEqual({phase: 'draft'});
+            expect(snapshot(['only-this'])).toEqual(['only-this']);
+            expect(snapshot(0)).toBe(0);
+            expect(snapshot(null)).toBeNull();
+        });
+
+        it('patches the state the request sent with a delta, in the order of its operations', () => {
+            const sent = {plan: {status: 'open', steps: ['outline']}},
+                reducer = new ChatStreamReducer(0, {agentState: sent});
+
+            reducer.apply(pendingMessage(), [
+                {
+                    type: 'STATE_DELTA',
+                    delta: [
+                        {op: 'add', path: '/plan/steps/-', value: 'review'},
+                        {op: 'replace', path: '/plan/status', value: 'closed'}
+                    ]
+                }
+            ]);
+
+            expect(reducer.agentState).toEqual({
+                plan: {status: 'closed', steps: ['outline', 'review']}
+            });
+            // A new value, so that an observer of the old one sees a change.
+            expect(reducer.agentState).not.toBe(sent);
+            expect(sent).toEqual({plan: {status: 'open', steps: ['outline']}});
+        });
+
+        it('patches the latest snapshot, across batches of events', () => {
+            const reducer = new ChatStreamReducer(0);
+
+            reducer.apply(pendingMessage(), [
+                {type: 'STATE_SNAPSHOT', snapshot: {count: 1}},
+                {type: 'STATE_DELTA', delta: [{op: 'replace', path: '/count', value: 2}]}
+            ]);
+            reducer.apply(pendingMessage(), [
+                {type: 'STATE_DELTA', delta: [{op: 'add', path: '/done', value: true}]}
+            ]);
+
+            expect(reducer.agentState).toEqual({count: 2, done: true});
+        });
+
+        it('keeps the state whole, with a warning, when a delta does not apply', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {}),
+                sent = {plan: {status: 'open'}},
+                reducer = new ChatStreamReducer(0, {agentState: sent}),
+                message = reducer.apply(pendingMessage(), [
+                    {
+                        type: 'STATE_DELTA',
+                        delta: [
+                            {op: 'replace', path: '/plan/status', value: 'closed'},
+                            {op: 'replace', path: '/absent/deeper', value: 1}
+                        ]
+                    },
+                    {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'Still here.'}
+                ]);
+
+            // Not even the first operation, which did apply. The same value, so nothing renders.
+            expect(reducer.agentState).toBe(sent);
+            expect(warn).toHaveBeenCalledWith(
+                expect.stringContaining('Failed to apply state patch')
+            );
+            expect(message.text).toBe('Still here.');
+        });
+
+        it('keeps the same value for a delta that changes nothing', () => {
+            const sent = {count: 1},
+                reducer = new ChatStreamReducer(0, {agentState: sent});
+
+            reducer.apply(pendingMessage(), [
+                {type: 'STATE_DELTA', delta: [{op: 'replace', path: '/count', value: 1}]}
+            ]);
+
+            expect(reducer.agentState).toBe(sent);
+        });
+
+        it('keeps the same value for a snapshot equal to the state', () => {
+            const sent = {todos: [{id: 1, status: 'done'}]},
+                reducer = new ChatStreamReducer(0, {agentState: sent});
+
+            reducer.apply(pendingMessage(), [
+                {type: 'STATE_SNAPSHOT', snapshot: {todos: [{id: 1, status: 'done'}]}}
+            ]);
+
+            expect(reducer.agentState).toBe(sent);
+        });
+
+        it('keeps a state it cannot copy, with a warning, and goes on with the step', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {}),
+                // The official client copies the state with `structuredClone`, which throws here.
+                sent = {todos: [], onChange: () => {}},
+                reducer = new ChatStreamReducer(0, {agentState: sent}),
+                message = reducer.apply(pendingMessage(), [
+                    {type: 'STATE_DELTA', delta: [{op: 'add', path: '/todos/-', value: 'Plan'}]},
+                    {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'Still here.'}
+                ]);
+
+            expect(reducer.agentState).toBe(sent);
+            expect(warn).toHaveBeenCalled();
+            expect(message.text).toBe('Still here.');
+        });
+
+        it('leaves the message alone', () => {
+            const message = pendingMessage(),
+                reducer = new ChatStreamReducer(0);
+
+            expect(
+                reducer.apply(message, [
+                    {type: 'STATE_SNAPSHOT', snapshot: {count: 1}},
+                    {type: 'STATE_DELTA', delta: [{op: 'replace', path: '/count', value: 2}]}
+                ])
+            ).toBe(message);
+        });
+    });
+
     describe('unknown and ignored events', () => {
         it('ignores unsupported events and unknown event types without throwing', () => {
             const message = pendingMessage(),
                 events = [
-                    {type: 'STATE_SNAPSHOT', snapshot: {}},
                     {type: 'MESSAGES_SNAPSHOT', messages: []},
                     {type: 'RAW', event: {}},
                     {type: 'CUSTOM', name: 'acme.unknown', value: 1},

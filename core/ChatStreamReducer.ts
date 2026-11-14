@@ -4,6 +4,7 @@ import {
     findLast,
     isBoolean,
     isEmpty,
+    isEqual,
     isFinite,
     isNil,
     isPlainObject,
@@ -37,6 +38,7 @@ import {
 } from '@ag-ui/core';
 import {genChatId} from '../impl/LangUtils';
 import type {ChatInterrupt} from './message/ChatInterrupt';
+import {applyAgentStateDelta} from './impl/agentState';
 import {getEndTime, isRunningSubagent, SUBAGENT_UNFINISHED} from './impl/messageUtils';
 import {parsePartialJson} from './impl/parsePartialJson';
 
@@ -75,6 +77,9 @@ import {parsePartialJson} from './impl/parsePartialJson';
  * with `metadata.superseded: true` on `TEXT_MESSAGE_END` and `TOOL_CALL_END`. The reducer drops
  * each marked part from the message, and ignores any later event for it, such as a closing
  * `TOOL_CALL_RESULT`. It counts the parts it drops in the message's `metadata.supersededCount`.
+ *
+ * The reducer also folds the step's `STATE_SNAPSHOT` and `STATE_DELTA` events into the agent's
+ * shared state, apart from the message - see {@link agentState}.
  *
  * Events the kit does not act on, and unknown event types, are ignored.
  *
@@ -116,6 +121,19 @@ export class ChatStreamReducer {
         return this.lastFinishedRunId;
     }
 
+    /**
+     * The agent's shared state after the events applied so far. It starts as `opts.agentState`,
+     * the state the step's request sent. A `STATE_SNAPSHOT` replaces it, and a `STATE_DELTA`
+     * patches it. A new value on each change, never mutated, and the same value for a snapshot
+     * or a delta that changes nothing - see `ChatModel.agentState`.
+     *
+     * A snapshot of null makes the state null, as AG-UI defines, which no later delta can patch.
+     * `ChatModel` holds an empty object in its place.
+     */
+    get agentState(): any {
+        return this.sharedState;
+    }
+
     private readonly textTransform: ChatTextTransform;
     private readonly useEventTimestamps: boolean;
     /** The `timestamp` of the latest event that had one, for `useEventTimestamps`. */
@@ -138,6 +156,7 @@ export class ChatStreamReducer {
     private userMessageServerId: string = null;
     private lastOutcome: RunFinishedOutcome = null;
     private lastFinishedRunId: string = null;
+    private sharedState: any;
 
     /**
      * @param step - zero-based index of the step within its turn - the request's `stepIndex`.
@@ -149,14 +168,22 @@ export class ChatStreamReducer {
      *      clock, so that the server's clock cannot skew the timers that run beside it. An event
      *      with no `timestamp` takes the latest one before it. Parts that start before any event
      *      has one record no times. Default false.
+     * @param opts.agentState - the agent's shared state that the step's request sent - the
+     *      request's `agentState` - which the step's `STATE_DELTA` events patch. Default an empty
+     *      object, also for null, as `AgUiCodec` sends for a request with none.
      */
     constructor(
         step: number,
-        opts: {textTransform?: ChatTextTransform; useEventTimestamps?: boolean} = {}
+        opts: {
+            textTransform?: ChatTextTransform;
+            useEventTimestamps?: boolean;
+            agentState?: any;
+        } = {}
     ) {
         this.step = step;
         this.textTransform = opts.textTransform ?? null;
         this.useEventTimestamps = opts.useEventTimestamps ?? false;
+        this.sharedState = opts.agentState ?? {};
     }
 
     /** Apply a batch of events, returning the updated message. */
@@ -357,6 +384,17 @@ export class ChatStreamReducer {
                     data: event.content,
                     ...(event.subagentRunId != null ? {subagentRunId: event.subagentRunId} : {})
                 });
+                break;
+
+            case 'STATE_SNAPSHOT':
+                // Any JSON value replaces the state, null and other falsy values included. An
+                // equal one keeps the value held, so that its readers do not render again.
+                if (event.snapshot !== undefined && !isEqual(event.snapshot, this.sharedState)) {
+                    this.sharedState = event.snapshot;
+                }
+                break;
+            case 'STATE_DELTA':
+                this.sharedState = applyAgentStateDelta(this.sharedState, event.delta);
                 break;
 
             case 'SUBAGENT_STARTED': {

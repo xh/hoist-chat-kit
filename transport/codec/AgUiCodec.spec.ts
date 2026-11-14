@@ -92,12 +92,30 @@ describe('AgUiCodec', () => {
             expect(body.forwardedProps).toEqual({threadId: 't1'});
         });
 
-        it('sends the agent state as a value, or built per run by a function', () => {
-            const fixed = new AgUiCodec({state: {sector: 'Energy'}}),
-                built = new AgUiCodec({state: req => ({run: req.runId})});
+        it("sends the request's agent state as the state, whatever JSON value it is", () => {
+            const encode = (agentState: any) =>
+                new AgUiCodec().encodeRequest(request([user('Hi')], {agentState})).state;
 
-            expect(fixed.encodeRequest(request([user('Hi')])).state).toEqual({sector: 'Energy'});
-            expect(built.encodeRequest(request([user('Hi')])).state).toEqual({run: 'r1'});
+            expect(encode({todos: ['Plan']})).toEqual({todos: ['Plan']});
+            expect(encode(['only-this'])).toEqual(['only-this']);
+            // A falsy state the agent set goes back as it is, not as an empty object.
+            expect(encode(0)).toBe(0);
+        });
+
+        it('warns of a state config, which it does not send', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {}),
+                codec = new AgUiCodec({state: {sector: 'Energy'}} as any);
+
+            expect(codec.encodeRequest(request([user('Hi')])).state).toEqual({});
+            expect(warn.mock.calls.flat().join(' ')).toContain('prepareAgentState');
+        });
+
+        it('sends an empty object for a request with no state, or a null one', () => {
+            const encode = (changes: Partial<ChatRunRequest>) =>
+                new AgUiCodec().encodeRequest(request([user('Hi')], changes)).state;
+
+            expect(encode({})).toEqual({});
+            expect(encode({agentState: null})).toEqual({});
         });
 
         it('sends user attachments as content parts', () => {

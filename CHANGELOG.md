@@ -36,6 +36,10 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   the `ChatUiMetrics` component, `chatUiMetrics()`, `ChatUiMetricsProps` and the
   `xh-chat-ui-metrics__*` classes. The spec's name and props are unchanged. See
   [Move Metrics Code to StatCard](docs/upgrade-notes/v2-upgrade-notes.md#5-move-metrics-code-to-statcard).
+* Removed `AgUiCodecConfig.state`. The chat now holds the agent's state, and `AgUiCodec` sends it
+  with each run. Move a codec `state` to `ChatModelConfig.prepareAgentState`. A backend that
+  emits `STATE_SNAPSHOT` now gets its state back with every run. See
+  [Move the Agent State to the Chat](docs/upgrade-notes/v2-upgrade-notes.md#6-move-the-agent-state-to-the-chat).
 
 ### 🎁 New Features
 
@@ -92,6 +96,19 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   program, for prompt examples and scripted demos.
 * Added `isChatUiActionSchema()`, true for a schema that `chatUiActionSchema()` returned. Formats
   use it to find action props, so place that schema in a props schema as is, not as a clone.
+* Added support for AG-UI shared state. `ChatModel.agentState` holds the state an agent shares,
+  such as the to-do list of a LangGraph deep agent, as an observable JSON value for the app to
+  render. `STATE_SNAPSHOT` replaces it, `STATE_DELTA` patches it, and each run sends it back.
+* Added `ChatModel.setAgentState()`, to change the agent's state while no turn runs, with
+  `canSetAgentState` to say when. Added `ChatModelConfig.agentState`, for its first value.
+  `clear()` and `loadMessages()` reset the state, and `loadMessages()` takes one in its new `opts`.
+* Added `ChatModelConfig.prepareAgentState`, which sets the agent's state before each step, for
+  values of the app's own that every run must carry, such as the current selection.
+* Added `ChatMessagePage.agentState`, for a `ChatThreadStore` to return the state its backend
+  holds for a thread. `ChatThreadsModel` also keeps the state of a closed thread in memory, and
+  gives it to the thread's next chat.
+* Added `ChatRunRequest.agentState` and `ChatStreamReducer.agentState`, for an app that runs a
+  transport without `ChatModel`.
 
 ### 🐞 Bug Fixes
 

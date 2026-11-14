@@ -43,6 +43,8 @@ export type ChatEvent =
     | ToolCallChunkEvent
     | ToolCallResultEvent
     | ActivitySnapshotEvent
+    | StateSnapshotEvent
+    | StateDeltaEvent
     | SubagentStartedEvent
     | SubagentFinishedEvent
     | SubagentErrorEvent
@@ -201,6 +203,23 @@ export interface ToolCallResultEvent extends Wire<AgUi.ToolCallResultEvent> {
 export interface ActivitySnapshotEvent extends Wire<AgUi.ActivitySnapshotEvent> {}
 
 //------------------
+// Shared state
+//------------------
+/**
+ * The agent's shared state, whole. Its `snapshot`, any JSON value, replaces the state the chat
+ * holds - see `ChatModel.agentState`.
+ */
+export interface StateSnapshotEvent extends Wire<AgUi.StateSnapshotEvent> {}
+
+/**
+ * A change to the agent's shared state: its `delta` is a JSON Patch (RFC 6902) on the state the
+ * chat holds. Before the first event of a run, that is the state the run's request sent. A patch
+ * applies whole or not at all. One that does not apply changes nothing, with a console warning,
+ * and the run goes on.
+ */
+export interface StateDeltaEvent extends Wire<AgUi.StateDeltaEvent> {}
+
+//------------------
 // Sub-agents
 //------------------
 /**
@@ -230,11 +249,7 @@ export interface ChatCustomEvent extends Wire<AgUi.CustomEvent> {}
 
 /** AG-UI events the kit accepts but does not act on. */
 export type IgnoredEvent =
-    | Wire<AgUi.RawEvent>
-    | Wire<AgUi.StateSnapshotEvent>
-    | Wire<AgUi.StateDeltaEvent>
-    | Wire<AgUi.MessagesSnapshotEvent>
-    | Wire<AgUi.ActivityDeltaEvent>;
+    Wire<AgUi.RawEvent> | Wire<AgUi.MessagesSnapshotEvent> | Wire<AgUi.ActivityDeltaEvent>;
 
 /**
  * Names of the `CUSTOM` events with which a backend sends kit-specific content:

@@ -29,6 +29,9 @@ export interface LocalChatThread extends Partial<ChatThreadSummary> {
 
     /** Messages of the thread, oldest first. */
     messages?: ChatMessageSpec[];
+
+    /** The agent's shared state for the thread, for a backend that returns it. Default none. */
+    agentState?: any;
 }
 
 /** An optional method that a {@link LocalChatThreadStore} can leave out. */
@@ -236,7 +239,8 @@ export class LocalChatThreadStore implements ChatThreadStore {
     }
 
     private loadMessages({threadId}: ChatMessageQuery): ChatMessagePage {
-        return {messages: this.getOrThrow(threadId).messages};
+        const {messages, agentState} = this.getOrThrow(threadId);
+        return agentState === undefined ? {messages} : {messages, agentState};
     }
 
     private saveFeedback({threadId, messageId, rating, comment}: ChatFeedbackSpec) {

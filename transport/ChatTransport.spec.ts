@@ -62,6 +62,7 @@ describe('createChatRunRequest', () => {
             runOptions: null,
             catalogVersion: null,
             resume: null,
+            agentState: {},
             tools: [],
             context: [],
             signal: expect.any(AbortSignal)

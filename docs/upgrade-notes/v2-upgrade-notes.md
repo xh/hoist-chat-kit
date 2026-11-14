@@ -6,8 +6,8 @@
 
 Hoist Chat Kit v2 is a light upgrade. It needs hoist-react v90.1. Its other required steps apply
 only to apps that set the busy line of the status region, that style or test the status region,
-that write a `ChatUiAdapter`, that export a catalog for a server, or that render or style the
-metrics component themselves.
+that write a `ChatUiAdapter`, that export a catalog for a server, that render or style the
+metrics component themselves, or that set `state` on an `AgUiCodec`.
 
 - **Busy-line settings (required if used)** - v2 removes the settings of the status region's busy
   line, as the region no longer shows one - see Step 1.
@@ -21,6 +21,8 @@ metrics component themselves.
   Hoist's `StatCard`, and the kit's own `ChatUiMetrics` is gone - see Step 5.
 - **Segment switches (required if used)** - `ChatUiTextSegment` gained a `document` member, so an
   exhaustive `switch` over segments needs a case for it.
+- **Agent state (required if used)** - `AgUiCodecConfig.state` is gone, as the chat now holds the
+  agent's state - see Step 6.
 
 ## Prerequisites
 
@@ -172,6 +174,54 @@ statCardStrip(
 );
 ```
 
+### 6. Move the Agent State to the Chat
+
+The chat now holds the state that an AG-UI agent shares, as `ChatModel.agentState`. The agent
+patches that state as it runs, and `AgUiCodec` sends it back with each run. The codec's own
+`state` option sent a state that the chat could not see, so v2 removes it. Passing it fails to
+compile. From untyped config, the codec ignores it and logs a warning.
+
+Apps that never set `state` send the same `{}` as before, with one exception. If the backend
+already emits `STATE_SNAPSHOT` or `STATE_DELTA`, the chat now holds that state. It sends the
+whole of it back with every run, and with every step of a tool loop. Check that the backend
+accepts its own state as the `state` of a request.
+
+**Find affected code:**
+
+```bash
+grep -rnE "AgUiCodec\(" client-app/src/
+```
+
+- Move a `state` that the agent reads to the chat's config, as `prepareAgentState`. It runs
+  before each step, as the codec's function did. It gets the state the chat holds, so spread
+  that state to keep what the agent wrote.
+- Move a fixed `state` the same way. `ChatModelConfig.agentState` sets only the first state of
+  the chat's first thread, so it is not a replacement.
+- If the value only informs the agent, send it as `context`. If only the server reads it, send
+  it as `forwardedProps`. The codec still builds both for each step.
+
+**Before:**
+
+```typescript
+new ChatModel({
+    transport: new SseChatTransport({
+        url,
+        codec: new AgUiCodec({state: () => ({selectedSector: this.selectedSector})})
+    })
+});
+```
+
+**After:**
+
+```typescript
+new ChatModel({
+    transport: new SseChatTransport({url}),
+    prepareAgentState: state => ({...state, selectedSector: this.selectedSector})
+});
+```
+
+See [Share state with an agent](../../core/README.md#share-state-with-an-agent).
+
 ## Verification Checklist
 
 - [ ] `tsc` passes, with no reference to the removed settings, and each `ChatUiAdapter` takes the
@@ -181,3 +231,5 @@ statCardStrip(
 - [ ] A reply that shows metrics draws a row of Hoist stat cards, with deltas in color.
 - [ ] If the catalog configures text formats, a server that loads its export reports no version
       drift for the current client.
+- [ ] If the app set `state` on an `AgUiCodec`, the agent still receives it, as the `state` of
+      each run.

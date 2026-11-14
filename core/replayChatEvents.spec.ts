@@ -1,6 +1,6 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {PlainObject} from '@xh/hoist/core';
-import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     AgUiCodec,
     type ChatEvent,
@@ -307,6 +307,22 @@ describe('replayChatEvents', () => {
             expect(spec.metadata).not.toHaveProperty('endedAt');
         });
         expect(failed.parts.find(it => it.id === 'c2')).toMatchObject({state: 'output-error'});
+    });
+
+    it("skips a turn's state events, whose deltas patch a state it does not hold", () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {}),
+            spec = replayChatEvents([
+                ...at(1000, [STARTED, ...textEvents('Done.')]),
+                ...at(3000, [
+                    {type: 'STATE_DELTA', delta: [{op: 'add', path: '/todos/-', value: 'Review'}]}
+                ]),
+                ...at(4000, [FINISHED])
+            ]);
+
+        expect(spec).toMatchObject({status: 'complete'});
+        expect(spec.parts).toMatchObject([{type: 'text', text: 'Done.'}]);
+        // No patch ran, so none failed against a state that was never there.
+        expect(warn).not.toHaveBeenCalled();
     });
 });
 
