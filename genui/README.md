@@ -146,8 +146,8 @@ server that sends a complete document mid-reply sees it render complete at once.
 
 A component with `standalone: false` shows only inside a nested answer: a document, or the
 program of a text format. The catalog gives it no tool and no tag of its own, but the document
-tool and the `document` prompt section keep it. The built-in stack and text components are not
-standalone.
+tool and the `document` prompt section keep it. The built-in stack, text, tabs, section, badges
+and divider components are not standalone.
 
 ### How a call becomes a component
 
@@ -339,16 +339,17 @@ schema lists them, so list the props a component needs first, first.
 
 ### Write a container
 
-The built-in `chatUiStackSpec()` lays its children out in a column or a row. See
+The built-in `chatUiStackSpec()` lays its children out in a column or a row,
+`chatUiTabsSpec()` shows one at a time, and `chatUiSectionSpec()` groups them under a title. See
 [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md#lay-out-a-nested-answer). Write a
 container of your own for any other layout. A container lists its child lists in `slots`:
 `default` for its `children`, and other names for named slots. It renders the children it
 receives:
 
 ```typescript
-const sectionSpec: ChatUiComponentSpec<{gap?: number}> = {
-    name: 'section',
-    description: 'A section of the answer, with an optional header over its components.',
+const groupSpec: ChatUiComponentSpec<{gap?: number}> = {
+    name: 'group',
+    description: 'A group of components, with an optional header over them.',
     props: {type: 'object', additionalProperties: false, properties: {gap: {type: 'integer', maximum: 32}}},
     slots: ['default', 'header'],
     render: ({gap = 8}, {children, slots}) => vbox({style: {gap}, items: [...(slots.header ?? []), ...children]})
@@ -889,8 +890,10 @@ in `elements.chart.props.rows[3].value`. See `impl/validateSchema.ts` for the de
   `CHAT_UI_DECIMALS_SCHEMA` give your components the same look and number formats as the
   built-in ones.
 - **The built-in components** - `chatUiGridSpec()`, `chatUiChartSpec()`, `chatUiMetricsSpec()`,
-  `chatUiCardSpec()`, `chatUiStackSpec()` and `chatUiTextSpec()` return specs with options for
-  names, descriptions and limits. See [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md).
+  `chatUiCardSpec()`, `chatUiStackSpec()`, `chatUiTextSpec()`, `chatUiTabsSpec()`,
+  `chatUiSectionSpec()`, `chatUiCalloutSpec()`, `chatUiBadgesSpec()`, `chatUiDividerSpec()` and
+  `chatUiTreeMapSpec()` return specs with options for names, descriptions and limits. See
+  [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md).
 - **Text formats** - implement `ChatUiTextFormat` for a grammar of UI in the answer text, and add
   it to `textFormats`. See [Add a text format](#add-a-text-format).
 - **Instructions and rules** - pass `instructions` to say which component suits which question,
@@ -960,8 +963,8 @@ check user input.
 
 ### Expecting a tool or tag for a component that is not standalone
 
-A component with `standalone: false`, such as the built-in stack and text, has no tool and no
-tag. A tag that names one renders as a fallback, with the error `'<name>' shows only inside a
+A component with `standalone: false`, such as the built-in stack, text, tabs and section, has no
+tool and no tag. A tag that names one renders as a fallback, with the error `'<name>' shows only inside a
 document`. Add the `document` mode, or a text format whose program nests components, so the model
 can show it.
 

@@ -21,8 +21,8 @@ The `/desktop/cmp/genui/` package holds ready-made components for generative UI.
 them inline in its reply: a result table, a Hoist chart, a row of stat cards, and a detail card. A
 stack and a text component lay these out in a nested answer. Tabs, sections, callouts, badges,
 dividers and a treemap add structure and emphasis, each a spec over a Hoist component. Add them to
-a `ChatUiCatalog` next to your own components. The model can then answer with real Hoist UI in place of long tables of
-text.
+a `ChatUiCatalog` next to your own components. The model can then answer with real Hoist UI in
+place of long tables of text.
 
 Import from `@xh/hoist-chat-kit/desktop/cmp/genui`.
 
@@ -80,8 +80,8 @@ model calls the tool, the catalog checks the props against the spec's schema and
 function. It then calls the spec's `render`, which returns the matching component.
 
 The stack, text, tabs, section, badges and divider components set `standalone: false`, so they
-have no tool or tag of their own. They show only inside a nested answer: a `show_ui` document, an `xh.chat.ui` data part, or
-a text format that writes documents.
+have no tool or tag of their own. They show only inside a nested answer: a `show_ui` document, an
+`xh.chat.ui` data part, or a text format that writes documents.
 
 While the model writes the props, `render` runs with `isPartial: true` and props that may be cut
 short. The components handle this:
