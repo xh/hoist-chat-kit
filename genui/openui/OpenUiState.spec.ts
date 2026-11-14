@@ -278,7 +278,7 @@ describe('OpenUI Lang state', () => {
             expect(prompt).toContain('## Built-in Functions');
             expect(prompt).toContain('Field(label: string, value?: $binding<string>)');
             expect(prompt).toContain('@Set(');
-            expect(prompt).toContain('- Do not use Query, Mutation or @Run.');
+            expect(prompt).toContain('- Do not use Query or @Run.');
             expect(prompt).not.toContain('Do not use $variables');
             expect(prompt).not.toContain('## Query');
         });

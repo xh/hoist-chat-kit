@@ -179,7 +179,7 @@ describe('OpenUI Lang queries', () => {
             expect(prompt).toContain('- get_sales(region?: string) → {total?: number}');
             expect(prompt).toContain('Sales by region.');
             expect(prompt).toContain('- Query can call only: get_sales.');
-            expect(prompt).toContain('- Do not use Mutation.');
+            expect(prompt).not.toContain('Mutation');
             // Tools turn bindings on, as a query re-runs on a $variable.
             expect(prompt).toContain('value?: $binding<string>');
         });
