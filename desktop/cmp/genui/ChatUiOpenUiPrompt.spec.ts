@@ -54,14 +54,14 @@ describe('OpenUI Lang prompt for the built-in components', () => {
         const prompt = createPrompt({queryTools: [SALES_TOOL]});
 
         expect(section(prompt, 'Action')).toContain(
-            'Button("Show trades", Action([@Set($step, 2), @ToAssistant("Show the next step")]))'
+            'Button("Next", Action([@Set($step, 2), @ToAssistant("Show the next step")]))'
         );
         expect(section(prompt, 'Query')).toContain(
-            'Button("Show trades", Action([@Run(query1), @Run(query2)]))'
+            'Button("Refresh", Action([@Run(query1), @Run(query2)]))'
         );
         expect(section(prompt, 'Interactive Filters')).toMatch(/Bind it .*: `\w+\(.*\$\w+\)`/);
         expect(section(prompt, 'Forms')).toMatch(/form = Form\(\[field, submit\]/);
-        expect(section(prompt, 'Forms')).toContain('submit = Button(');
+        expect(section(prompt, 'Forms')).toContain('submit = Button("Submit", @ToAssistant(');
         expect(section(prompt, 'Data Workflow')).toContain('cannot change it');
     });
 

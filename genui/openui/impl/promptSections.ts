@@ -131,10 +131,10 @@ class SectionWriter {
             'An action wires a click to operations. Write an action only in an argument that ' +
                 'Component Signatures types for one.' +
                 (one
-                    ? ` Pass one @-prefixed step bare, such as \`${this.buttonCall(one)}\`.`
+                    ? ` Pass one @-prefixed step bare, such as \`${this.buttonCall(one, 'More')}\`.`
                     : '') +
                 (several
-                    ? ` Put several steps in Action([...]), such as \`${this.buttonCall(several)}\`.`
+                    ? ` Put several steps in Action([...]), such as \`${this.buttonCall(several, 'Next')}\`.`
                     : ''),
             '',
             'Available steps:',
@@ -191,7 +191,7 @@ class SectionWriter {
                 submit: {
                     component: button.name,
                     props: {
-                        ...button.example,
+                        ...this.buttonProps('Submit'),
                         [actionProp]: {type: 'send', text: 'Use these details.'}
                     }
                 }
@@ -247,7 +247,7 @@ class SectionWriter {
                 .filter(it => !/^- (Manual refresh|Refresh all queries)/.test(it));
         if (canRun) {
             lines.push(
-                `- Manual refresh: \`${this.buttonCall('Action([@Run(query1), @Run(query2)])')}\` ` +
+                `- Manual refresh: \`${this.buttonCall('Action([@Run(query1), @Run(query2)])', 'Refresh')}\` ` +
                     'fetches the listed queries again.'
             );
         }
@@ -270,13 +270,19 @@ class SectionWriter {
     }
 
     // The example button with an action expression in its action argument.
-    private buttonCall(action: string): string {
+    private buttonCall(action: string, label: string): string {
         const {button, actionProp} = this;
         if (!button) return action;
         return this.callOf(button, {
-            ...button.example,
+            ...this.buttonProps(label),
             [actionProp]: {type: 'send', text: ACTION_MARK}
         }).replace(`@ToAssistant(${JSON.stringify(ACTION_MARK)})`, action);
+    }
+
+    // The props of the example button, with a label that fits the example where it has one.
+    private buttonProps(label: string): PlainObject {
+        const example = this.button.example as PlainObject;
+        return {...example, ...(isString(example.label) ? {label} : {})};
     }
 
     // A component as a call, with its arguments in the order of its signature.
