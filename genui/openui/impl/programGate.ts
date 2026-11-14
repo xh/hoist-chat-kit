@@ -128,6 +128,11 @@ const MAX_CACHED = 32,
         `This program is too long to read: it may hold at most ${MAX_PROGRAM_LENGTH} ` +
         `characters and ${MAX_STATEMENTS} statements.`,
     TOO_COMPLEX = 'This program is too complex to read.',
+    REFERS_TO_ITSELF =
+        'This program holds statements that refer to each other in a circle, so it cannot be read.',
+    LOOP_VARIABLE =
+        'This program names the variable of an @Each in a way that cannot be read. Write the ' +
+        'name in quotes, as a plain name that no statement has.',
     POSES_AS_CODE =
         'holds an object with the shape of a component or an expression, so it reads as null',
     NAME_RE = /^\$?[A-Za-z_]\w*$/;
@@ -183,6 +188,7 @@ function checkProgram(
         statements.set(id, {id, kind: isCall ? 'query' : isState ? 'state' : 'value', expr});
     });
 
+    checkLoops(statements);
     checkExpansion(statements, library, opts);
     if (opts.bindings) checkDefaults(statements);
     return {canonical, errors};
@@ -219,8 +225,9 @@ function checkExpansion(
     const countStatement = (id: string): Expansion => {
         const known = counts.get(id);
         if (known) return known;
-        // A statement that refers to itself is null there.
-        if (open.has(id)) return {values: 1, elements: 0};
+        // lang-core reads a statement that refers to itself as null there, and then expands
+        // each statement on the way again at each use. No count on the graph bounds that.
+        if (open.has(id)) throw new SizeLimitError(REFERS_TO_ITSELF);
 
         open.add(id);
         const ret = {values: 0, elements: 0};
@@ -288,6 +295,24 @@ function checkDefaults(statements: Map<string, Statement>) {
     });
 }
 
+// The variable of each `@Each` must be a plain name in quotes that no statement has. lang-core
+// puts the item of a loop in place of a name without quotes, and reads a name that a statement
+// shares as that statement in some places and as the item in others. Either way the names in a
+// template would depend on the data, and no measure could trust them.
+function checkLoops(statements: Map<string, Statement>) {
+    statements.forEach(({expr}) =>
+        walk(expr, node => {
+            if (node.k !== 'Comp' || node.name !== 'Each' || node.args.length < 2) return;
+            const name = node.args[1];
+            if (name.k !== 'Str' || !LOOP_NAME_RE.test(name.v) || statements.has(name.v)) {
+                throw new SizeLimitError(LOOP_VARIABLE);
+            }
+        })
+    );
+}
+
+const LOOP_NAME_RE = /^[A-Za-z_]\w{0,63}$/;
+
 interface Expansion {
     values: number;
     elements: number;
@@ -344,13 +369,12 @@ function findUnsafeObject(expr: ASTNode): boolean {
     let ret = false;
     walk(expr, node => {
         if (node.k !== 'Obj') return;
-        const keys = new Map(node.entries),
-            kind = keys.get('k')?.k;
-        if (
-            keys.has('__reactive') ||
-            (kind != null && kind !== 'Num' && kind !== 'Bool' && kind !== 'Null') ||
-            ELEMENT_KEYS.every(it => keys.has(it))
-        ) {
+        // A key written twice counts each time, whichever value lang-core keeps.
+        const keys = new Set(node.entries.map(it => it[0])),
+            posesAsNode = node.entries.some(
+                ([key, value]) => key === 'k' && !['Num', 'Bool', 'Null'].includes(value?.k)
+            );
+        if (keys.has('__reactive') || posesAsNode || ELEMENT_KEYS.every(it => keys.has(it))) {
             ret = true;
         }
     });
