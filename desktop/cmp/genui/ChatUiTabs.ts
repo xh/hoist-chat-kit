@@ -1,4 +1,4 @@
-import {isArray, isEmpty, isString} from 'lodash';
+import {isArray, isEmpty, isString, times} from 'lodash';
 import {Children, type ReactNode} from 'react';
 import {div} from '@xh/hoist/cmp/layout';
 import {tabContainer, TabContainerModel} from '@xh/hoist/cmp/tab';
@@ -26,9 +26,11 @@ export interface ChatUiTabsSpecOptions extends ChatUiSpecOptions {
  * to switch between them. It renders Hoist's `TabContainer`, over a `TabContainerModel` that it
  * creates once and updates as the children stream in.
  *
- * The model writes plain titles, matched to the children by position. A child with no title is
- * named `Tab 2`, and a title with no child shows no tab. A tab renders its child when first
- * shown, and keeps it after that, so a chart in a later tab is built once.
+ * The model writes plain titles, matched to the children by position. A title with no child
+ * shows no tab. A child with no title is named `Tab 2`, but only once the props are complete, so
+ * that no default name shows while the titles are still to come. A tab renders its child when
+ * first shown, and keeps it after that, so a chart in a later tab is built once. Tabs that do not
+ * fit the width scroll, and show in a menu.
  *
  * It has no tool or tag of its own. The model nests it in a document.
  */
@@ -66,7 +68,10 @@ export function chatUiTabsSpec(
 
 /** Props for {@link ChatUiTabs}. */
 export interface ChatUiTabsProps extends HoistProps, Partial<ChatUiTabsSpecProps> {
-    /** True while the props stream. A placeholder shows until the first child arrives. */
+    /**
+     * True while the props stream. A child shows its tab once its title arrives, and a placeholder
+     * shows until the first one does.
+     */
     isPartial?: boolean;
 }
 
@@ -86,7 +91,15 @@ export const [ChatUiTabs, chatUiTabs] = hoistCmp.withFactory<ChatUiTabsProps>({
         if (isEmpty(impl.tabContainerModel.tabs)) {
             return isPartial ? chatUiSkeleton(SKELETON_HEIGHT) : null;
         }
-        return tabContainer({className, model: impl.tabContainerModel});
+        return tabContainer({
+            className,
+            model: impl.tabContainerModel,
+            // With no size of its own, a TabContainer sets an inline flex that keeps it from
+            // sharing the width of a row. A width leaves its flex to the stylesheets.
+            width: '100%',
+            // Tabs that do not fit the chat scroll, and show in a menu.
+            switcher: {enableOverflow: true}
+        });
     }
 });
 
@@ -124,13 +137,14 @@ class ChatUiTabsLocalModel extends HoistModel {
         });
     }
 
-    // A title per child. A title may be missing, or cut short, while the props stream.
+    // A title per child. While the props stream, a child whose title has not arrived has no tab
+    // yet, as OpenUI Lang writes the children before the titles. Once the props are complete, a
+    // child with no title gets a default name.
     private get tabTitles(): string[] {
-        const {titles} = this.props;
-        return this.items.map((_, idx) => {
-            const title = isArray(titles) ? titles[idx] : null;
-            return isString(title) && title ? title : `Tab ${idx + 1}`;
-        });
+        const {titles, isPartial} = this.props,
+            written = (isArray(titles) ? titles : []).filter(it => isString(it) && it),
+            count = isPartial ? Math.min(this.items.length, written.length) : this.items.length;
+        return times(count, idx => written[idx] ?? `Tab ${idx + 1}`);
     }
 
     // Tabs keep their ids by position, so a tab the user chose stays active as more arrive.

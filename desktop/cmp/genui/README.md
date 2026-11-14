@@ -96,8 +96,8 @@ short. The components handle this:
 - `ChatUiStack` shows each child as it arrives. The catalog draws a placeholder for a child still
   to come.
 - `ChatUiText` renders its markdown as it streams, as a reply's own text does.
-- `ChatUiTabs` adds a tab as each child arrives, and renames it when its title does. It keeps one
-  `TabContainerModel`, so the tab the user chose stays active.
+- `ChatUiTabs` adds a tab once a child and its title arrive, and renames it as the title grows.
+  It keeps one `TabContainerModel`, so the tab the user chose stays active.
 - The section spec remounts its `Card` if a collapse prop arrives after the title, as a
   `CardModel` reads its config once.
 - The callout spec takes its intent and title before its text, so a warning shows as one from its
@@ -379,8 +379,9 @@ Tabs and sections are containers, as the stack is. Each takes children, and nest
 ```
 
 - **Tabs** render Hoist's `TabContainer`. `titles` names the children by position: the first
-  title is the tab of the first child. A child with no title is named `Tab 2`, and a title with
-  no child shows no tab. A tab builds its child when first shown, and keeps it after that.
+  title is the tab of the first child. A title with no child shows no tab. A child with no title
+  is named `Tab 2` once the props are complete. A tab builds its child when first shown, and
+  keeps it after that. Tabs that do not fit the width scroll, and show in a menu.
 - **A section** renders Hoist's `Card`: a bordered group under a `title`, with an optional
   `intent` for the color of its border and title. With `collapsible`, a click on the title
   collapses it. With `collapsed`, it starts collapsed and builds its children on first expand.
