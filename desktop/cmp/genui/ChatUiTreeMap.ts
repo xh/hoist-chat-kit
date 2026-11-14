@@ -100,15 +100,12 @@ export function chatUiTreeMapSpec(
                 },
                 heatFormat: {
                     ...CHAT_UI_NUMBER_FORMAT_SCHEMA,
-                    description:
-                        'How to display the heat. "percent" expects a fraction - 0.012 shows ' +
-                        'as 1.2%. Default "number".'
+                    description: 'How to display the heat. Default "number".'
                 },
                 nodes: {
                     type: 'array',
                     minItems: 1,
                     maxItems: maxNodes,
-                    description: 'The boxes, one per item.',
                     items: {
                         type: 'object',
                         required: ['label', 'value'],
@@ -123,7 +120,7 @@ export function chatUiTreeMapSpec(
                                 type: 'number',
                                 description:
                                     'Color of the box: green above zero, red below, stronger ' +
-                                    'the further from zero. Default none - a neutral box.'
+                                    'further from zero. Default a neutral box.'
                             }
                         }
                     }
