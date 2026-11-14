@@ -347,7 +347,8 @@ format that writes documents:
 The stack takes three props, all optional:
 
 - `direction` - `column`, the default, fills the width of the reply. `row` shares the width
-  among the children, at least 150 px each, and wraps where they do not fit.
+  among the children, at least 150 px each, and wraps where they do not fit. A button takes only
+  the width of its label.
 - `gap` - the space between the children: `none`, `small`, `medium` or `large`. Default `medium`.
 - `title` - puts the stack in a `ChatUiFrame` with this title. Default none, with no frame.
 
@@ -497,6 +498,12 @@ their messages show under the input:
 **The form** groups inputs and buttons in a Hoist `FormFieldSet`. Its children can be inputs,
 buttons, and any layout around them, such as a stack in a row. The set takes the color of the
 worst validation problem on show.
+
+**Sizing** follows Hoist: the container sets the width. The form fills the reply, and a field in
+it fills the form, or its share of a row. Put fields in a row stack to use a wide form, or set a
+`max-width` on `.xh-chat-ui-form`. Outside a form, a field is at most 360 px wide. A segmented
+control keeps the width of its options, and a row that cannot hold it wraps. A button keeps the
+size of its label. In a row, it sits at the bottom, level with the input of a field beside it.
 
 **The button** runs one typed action. With no action, it sends its label as the user's next
 message. Inside a form, a click first validates every field, and shows each message. If all are

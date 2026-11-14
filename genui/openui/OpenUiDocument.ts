@@ -104,6 +104,12 @@ export interface OpenUiTranslation {
      */
     openStatement: string;
 
+    /**
+     * Ids of the elements with a prop that the state computes: an expression, or a `$variable`.
+     * Their props in the document are not final, as the document holds no value for one.
+     */
+    computed: string[];
+
     /** Names the program refers to and does not define. lang-core dropped each reference. */
     unresolved: string[];
 
@@ -162,6 +168,7 @@ export function openUiToDocument(
             isPartial && (!hasText || statementId === streamingStatement);
 
     const elements: Record<string, ChatUiElement> = {},
+        computed: string[] = [],
         {runtime} = opts,
         toComponent = (typeName: string) => library.toCatalogName(typeName) ?? typeName;
 
@@ -200,7 +207,11 @@ export function openUiToDocument(
                 } else {
                     element.slots = {...element.slots, [key]: ids};
                 }
-            } else if (runtime && isReactiveAssign(value)) {
+                return;
+            }
+            // A prop of its own that the state computes, not one of a child.
+            if (!computed.includes(id) && holdsExpression(value)) computed.push(id);
+            if (runtime && isReactiveAssign(value)) {
                 const bound = runtime.toBinding(key, value);
                 if (bound.value != null) element.props[key] = bound.value;
                 element.bindings = {...element.bindings, [key]: bound.binding};
@@ -274,6 +285,7 @@ export function openUiToDocument(
         errors,
         elementErrors,
         openStatement: program?.openStatement ?? null,
+        computed,
         unresolved: uniq(meta.unresolved ?? []),
         orphaned: uniq(meta.orphaned ?? [])
     };
@@ -668,4 +680,11 @@ function toErrorPath(id: string, error: ValidationError): string {
                 : propPath(path, it.replace(/~1/g, '/').replace(/~0/g, '~')),
         segments.length ? `${elementPath(id)}.props` : elementPath(id)
     );
+}
+
+// True for a value that holds an expression at any depth, for the state to evaluate.
+function holdsExpression(value: unknown, depth: number = 0): boolean {
+    if (value == null || typeof value !== 'object' || depth > 20) return false;
+    if (isExpression(value) || isReactiveAssign(value)) return true;
+    return Object.values(value).some(it => holdsExpression(it, depth + 1));
 }

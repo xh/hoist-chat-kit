@@ -11,6 +11,7 @@ import {
 } from '../../../genui';
 import {ChatUiFormModel} from './impl/ChatUiFormModel';
 import type {ChatUiIntent, ChatUiSpecOptions} from './Types';
+import './ChatUiButton.scss';
 
 /** Props of a {@link ChatUiButton}, as written by the model. */
 export interface ChatUiButtonSpecProps {
@@ -102,7 +103,7 @@ export interface ChatUiButtonProps extends HoistProps, Partial<ChatUiButtonSpecP
  * A button that runs one action - the component that {@link chatUiButtonSpec} renders, over
  * Hoist's `Button`. Its tooltip always says what the click does, as the label may not. Inside a
  * {@link ChatUiForm}, a click validates the form's fields first, and a `send` carries their
- * values.
+ * values. It keeps the size of its label, in a column and in a row.
  */
 export const [ChatUiButton, chatUiButton] = hoistCmp.withFactory<ChatUiButtonProps>({
     displayName: 'ChatUiButton',

@@ -1,6 +1,20 @@
-// A generative UI field: a Hoist FormField that fills its row, up to a readable width.
+// A generative UI field: a Hoist FormField. The stack or form around it sets the space between
+// its children, so the field has no margin of its own. Outside a form nothing sets a width for
+// the field, so it fills its place up to a readable width.
 .xh-chat-ui-field {
+  --xh-form-field-margin: 0;
   max-width: 360px;
   min-width: 0;
   width: 100%;
+}
+
+// In a form, the field fills the width the form gives it, as a Hoist field fills its container.
+.xh-chat-ui-form .xh-chat-ui-field {
+  max-width: none;
+}
+
+// In a row of a stack, a segmented control keeps the width of its options, which do not shrink
+// or wrap. A row that cannot hold it wraps.
+.xh-chat-ui-stack.xh-hbox > .xh-chat-ui-field.xh-form-field--segmented-control {
+  min-width: min-content;
 }

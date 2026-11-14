@@ -143,6 +143,18 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   most 8 `Query()` statements by default, the programs of a chat start at most 60 calls a minute,
   and `onToolCall` reports each call that runs. Only the first three programs of a reply run
   queries, and a program in an older reply runs them only once the user acts in it.
+* Added a gate in front of every evaluation of an OpenUI Lang program, from the parse on. A
+  program past a limit on its length, its statements or the values it expands to shows as one
+  fallback, in a few milliseconds. `/genui/openui/README.md` lists each limit.
+* `toOpenUiLibrary()` now throws for a component that nests an action below the top level of a
+  prop. Give the action a prop of its own, or a list prop whose items are actions.
+* The OpenUI Lang prompt now takes only its grammar from lang-core. The kit writes the sections
+  on actions, filters, forms and the data workflow from the catalog, with the catalog's own
+  components in their examples.
+* Added `computed` to the `openui` diagnostics of a document segment: the ids of the elements
+  with a prop that the state computes.
+* A `Query()` now runs a tool with no `parameters` schema only with no arguments.
+* The built-in button now sizes to its label, and a field in a form fills the form's width.
 * An OpenUI Lang action now comes only from action syntax, such as `@Set` and `@ToAssistant`.
   An action written as data, or one that the user could not review in full, renders as a
   disabled button that says why. The steps of an `Action([...])` evaluate in order when the
@@ -161,7 +173,7 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Fixed `describeChatUiAction()` and `formatChatUiContext()` to show a character the user could
   not see, such as a zero-width space or a right-to-left override, as its code. The tooltip of a
   `send` action now shows its text and each context value as a JSON string, so text cannot pose
-  as the words around it.
+  as the words around it. The url of an `openUrl` action shows in quotes too.
 * Fixed `ChatUiChart` and `ChatUiChartView` to escape the text they pass to Highcharts: series,
   slice and category names, axis titles, and the column labels and row text of a chart by
   reference. Highcharts reads such text as markup, so a model or a result could draw a link that
@@ -215,7 +227,7 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 ### 📚 Libraries
 
 * @xh/hoist `89.3 → 90.1`
-* @openuidev/lang-core `~1.1.0` - added as an optional peer dependency, within one minor
+* @openuidev/lang-core `1.1.0` - added as an optional peer dependency, at that exact
   version. Apps that use `/genui/openui/` install it with `zod`. Other apps never load it.
 
 ## 1.0.0 - 2026-11-02

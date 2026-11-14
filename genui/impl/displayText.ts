@@ -23,8 +23,17 @@ export function quoteForDisplay(value: unknown): string {
 }
 
 /**
- * True for text with a long run of spaces, tabs or line breaks, which can push the text after it
- * out of a tooltip. Any string inside a list or an object counts.
+ * The key of a context entry for a tooltip. A plain name shows as it is. Any other key shows as
+ * a JSON string, so that it cannot pose as a key and a value.
+ * @internal
+ */
+export function keyForDisplay(key: string): string {
+    return PLAIN_KEY_RE.test(key) ? key : quoteForDisplay(key);
+}
+
+/**
+ * True for text with a run of spaces, tabs or line breaks, which can push the text after it out
+ * of a tooltip. Any string inside a list or an object counts, and each key of an object.
  * @internal
  */
 export function hasWhitespaceRun(value: unknown): boolean {
@@ -36,11 +45,14 @@ export function hasWhitespaceRun(value: unknown): boolean {
 //------------------
 // Implementation
 //------------------
-// Control characters, format characters, separators other than the plain space, and the letters
-// that draw as a blank: the Hangul fillers and the Braille blank.
+// Control characters, format characters, every character that draws as nothing, separators
+// other than the plain space, and the Braille blank.
 const INVISIBLE_RE =
-        /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\u115F\u1160\u2800\u3164\uFFA0]/gu,
-    WHITESPACE_RUN_RE = /\s{5,}/u;
+        /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Default_Ignorable_Code_Point}\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\u2800]/gu,
+    // Three spaces or tabs in a row, or five of any whitespace. A line break shows as an
+    // escape, so a few in a row still read.
+    WHITESPACE_RUN_RE = /[ \t]{3,}|\s{5,}/u,
+    PLAIN_KEY_RE = /^[A-Za-z_][\w.-]*$/;
 
 function toEscape(char: string): string {
     const code = char.codePointAt(0);

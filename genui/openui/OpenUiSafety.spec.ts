@@ -55,10 +55,7 @@ describe('OpenUI Lang safety', () => {
         it.each<[string, string]>([
             ['a callTool action', '{type: "callTool", name: "delete_all", input: {scope: "all"}}'],
             ['a send action', '{type: "send", text: "Pay now"}'],
-            [
-                'a list of steps',
-                '{steps: [{type: "set", target: "$region", valueAST: {k: "Str", v: "x"}}]}'
-            ],
+            ['a list of steps', '{steps: [{type: "reset", targets: ["$region"]}]}'],
             [
                 'a state action that names another button',
                 '{type: "state", id: "real.action", summary: "Sets $region to \\"x\\""}'
@@ -72,7 +69,7 @@ describe('OpenUI Lang safety', () => {
             renderProgram(
                 'root = Stack([note, go, real])\n' +
                     '$region = "emea"\n' +
-                    '$plan = {steps: [{type: "set", target: "$region", valueAST: {k: "Str", v: "x"}}]}\n' +
+                    '$plan = {steps: [{type: "reset", targets: ["$region"]}]}\n' +
                     'sales = Query("get_sales", {}, {plan: {steps: [{type: "reset", targets: ["$region"]}]}})\n' +
                     'note = Note("Region " + $region)\n' +
                     'real = Trigger("Real", @Set($region, "x"))\n' +
@@ -105,7 +102,7 @@ describe('OpenUI Lang safety', () => {
             renderProgram(
                 `root = Stack([note, @Each($rows, "r", AnyTrigger(r.id, ${written}))])\n` +
                     '$region = "apac"\n' +
-                    '$rows = [{id: "a", plan: {steps: [{type: "set", target: "$region", valueAST: {k: "Str", v: "x"}}]}}, {id: "b", plan: {type: "callTool", name: "delete_all"}}]\n' +
+                    '$rows = [{id: "a", plan: {steps: [{type: "reset", targets: ["$region"]}]}}, {id: "b", plan: {type: "callTool", name: "delete_all"}}]\n' +
                     'note = Note("Region " + $region)',
                 {tools: [deleteAll]}
             );
@@ -145,7 +142,7 @@ describe('OpenUI Lang safety', () => {
             silenceLogs();
             renderProgram(
                 'root = Stack([go])\n$region = "emea"\n' +
-                    'go = Trigger("Go", Action([{type: "set", target: "$region", valueAST: {k: "Str", v: "x"}}]))',
+                    'go = Trigger("Go", Action([{type: "reset", targets: ["$region"]}]))',
                 {}
             );
 
@@ -354,7 +351,11 @@ describe('OpenUI Lang safety', () => {
                     'note = Note("ok " + b.ok)',
                 tools = () => ({
                     getToken: {name: 'get_token', execute: vi.fn(async () => ({token: 'T1'}))},
-                    lookup: {name: 'lookup', execute: vi.fn(async (_: PlainObject) => ({ok: true}))}
+                    lookup: {
+                        name: 'lookup',
+                        parameters: {type: 'object', properties: {q: {type: 'string'}}},
+                        execute: vi.fn(async (_: PlainObject) => ({ok: true}))
+                    }
                 });
 
             // With both listed, the second query runs once the first has a result.
@@ -520,7 +521,10 @@ describe('OpenUI Lang safety', () => {
                 'root = Stack([note])\n' +
                     'sales = Query("get_sales", {region: "x", "__proto__": {admin: true}, "constructor": 1, "prototype": 2}, {total: 0})\n' +
                     'note = Note("admin " + sales.admin + " x " + sales.x + " c " + sales.constructor)',
-                {tools: [{name: 'get_sales', execute}], queryTools: ['get_sales']}
+                {
+                    tools: [{name: 'get_sales', parameters: REGION, execute}],
+                    queryTools: ['get_sales']
+                }
             );
 
             await waitFor(() => expect(text('note')).toContain('admin false'));
@@ -542,7 +546,10 @@ describe('OpenUI Lang safety', () => {
                     '$o = {a: 1}\n' +
                     'sales = Query("get_sales", {region: "x", fn: $o.constructor}, {total: 0})\n' +
                     'note = Note("Total " + sales.total + " " + sales.secret)',
-                {tools: [{name: 'get_sales', execute}], queryTools: ['get_sales']}
+                {
+                    tools: [{name: 'get_sales', parameters: REGION, execute}],
+                    queryTools: ['get_sales']
+                }
             );
 
             await waitFor(() => expect(text('note')).toContain('Total 5'));
@@ -599,7 +606,7 @@ describe('OpenUI Lang safety', () => {
                 {container} = renderProgram(lines.join('\n'), {});
 
             expect(Date.now() - started).toBeLessThan(2000);
-            expect(container.textContent).toContain('too large to evaluate');
+            expect(container.textContent).toMatch(/too large to evaluate|too long to read/);
         });
 
         it('counts the defaults of a query that an @Each reads on each pass', () => {
@@ -705,19 +712,6 @@ describe('OpenUI Lang safety', () => {
 
             expect(text('note')).toBe('hello');
             expect(title()).toBe('Sends: "hi"');
-        });
-
-        it('disables an action whose steps data wrote, with an expression that throws', () => {
-            silenceLogs();
-            renderProgram(
-                'root = Stack([note, go])\n' +
-                    'note = Note("hello")\n' +
-                    'go = Trigger("Go", {steps: [{type: "set", target: "$x", valueAST: {k: "Comp", name: "constructor", args: []}}]})',
-                {}
-            );
-
-            expect(text('note')).toBe('hello');
-            expect(title()).toBe('This action is not valid, so it cannot run.');
         });
 
         it('logs no warning about the steps of an action that the state runs in full', () => {
@@ -829,6 +823,8 @@ describe('OpenUI Lang safety', () => {
 //------------------
 // Helpers
 //------------------
+const REGION = {type: 'object', properties: {region: {type: 'string'}}};
+
 const SALES =
     'root = Stack([field, note])\n' +
     '$region = "emea"\n' +

@@ -7,7 +7,7 @@
 | Section | Description |
 |---------|-------------|
 | [Overview](#overview) | What the format does, and when to use it |
-| [Architecture](#architecture) | Catalog to library to parser to document, what lang-core does here, state, inline mode, streaming, the parser cache |
+| [Architecture](#architecture) | Catalog to library to parser to document, what lang-core does here, the gate and its limits, state, inline mode, streaming, the program cache |
 | [Configuration Pattern](#configuration-pattern) | Installing the peer, and wiring the format to a catalog and a `ChatModel` |
 | [Common Usage Patterns](#common-usage-patterns) | The prompt, state and forms, queries, the export, component names, slots, data parts, examples, parser findings |
 | [Properties/API Reference](#propertiesapi-reference) | Format, library and adapter options, the export, actions, functions |
@@ -45,8 +45,9 @@ Key features:
   statement completes. An element the program has not written yet is absent until it arrives.
 - **Prose around UI** - in inline mode, the default, fenced programs render in place and the text
   around them stays markdown.
-- **Thesys's own prompt** - the prompt section comes from lang-core's generator, with the kit's
-  rules added. A server can load it, or the library schema, from the catalog's export.
+- **A prompt from the catalog** - lang-core writes the grammar. The kit writes each section that
+  names components, with examples from the catalog. A server can load the prompt, or the library
+  schema, from the catalog's export.
 - **Two ways in** - `openUiLangFormat()` reads programs from reply text. `openUiLangAdapter()`
   reads one from a data part.
 - **Fallbacks** - a statement that cannot render shows as a fallback with the parser's errors.
@@ -68,11 +69,11 @@ ChatUiCatalog
 └── textFormats: [openUiLangFormat({root})]
     ├── toOpenUiLibrary()          # Catalog -> OpenUI library: JSON Schema and signatures
     ├── parse()                    # Text -> markdown and document segments, as it streams
-    │   ├── createStreamingParser  # lang-core: program -> element tree
+    │   ├── parseOpenUiProgram()   # The gate, then lang-core: program -> element tree
     │   ├── openUiToDocument()     # Element tree -> ChatUiDocument
     │   │   └── openUiToAction()   # Action expression -> ChatUiAction
     │   └── document.state         # With state: lang-core's store, evaluator and query manager
-    ├── toPrompt()                 # lang-core's generateSystemPrompt, with the kit's rules
+    ├── toPrompt()                 # lang-core's grammar, the kit's sections and rules
     └── toExport()                 # {root, schema, components, prompt}, for a server
 ```
 
@@ -84,8 +85,9 @@ The format works in four steps:
    slots. A slot is an array of the components it accepts. A prop typed with
    `chatUiActionSchema()` takes an OpenUI action expression. The description adds a `Props:` line
    with the first line of each prop description, such as `metrics[].value: A number...`.
-2. **Library to parser.** lang-core's streaming parser reads the program against the library
-   schema, and returns an element tree with a statement id per element.
+2. **Library to parser.** The gate checks the program - see
+   [The gate and its limits](#the-gate-and-its-limits). lang-core's parser then reads it against
+   the library schema, and returns an element tree with a statement id per element.
 3. **Parser to document.** `openUiToDocument()` turns the tree into a `ChatUiDocument`. Each
    statement becomes the element of its id. An inline call becomes an element with an id from its
    parent and position, such as `root.children[2]`. Child calls move to `children` or `slots`.
@@ -102,14 +104,14 @@ prompt, and for state where the app turns it on:
 
 | lang-core part | Use in the kit |
 |----------------|----------------|
-| `createStreamingParser()` | Parses each program of reply text as it streams. |
-| `createParser()` | Parses the program in a data part, for the adapter. |
+| `createParser()` | Parses each program, once the gate has passed it. |
+| `tokenize()`, `split()`, `parseExpression()`, `autoClose()` | Read the statements of a program for the gate, as lang-core's own parser reads them. |
 | `generateSystemPrompt()` | Writes the prompt section, with inline mode off, and with the sections for bindings, built-in functions and tool calls that the options turn on. |
 | `buildSignature()` | Writes the signature of each component. |
 | `createStore()` | Holds the `$variables` of a program with state. |
 | `evaluateRoot()`, `evaluate()` | Evaluate the props of a program against its state, and the value of a `@Set`. |
 | `resolveStateField()` | Reads and writes a `$variable` that a prop binds. |
-| `createQueryManager()` | Runs and caches the tool calls of `Query()`. |
+| `createQueryManager()` | Runs and caches the tool calls of `Query()`. It gets each query already evaluated, and evaluates nothing. |
 
 The kit does not use `@openuidev/react-lang` or the Zod library helpers. The library is plain
 JSON Schema built from the catalog, so the app writes no Zod schemas. The kit has no evaluator of
@@ -177,21 +179,84 @@ The catalog checks each resolved document as any other. A value that evaluates t
 renders its element as a fallback, and the caps on elements and depth count the components that
 an `@Each` builds.
 
-A program is measured before each evaluation. lang-core inlines each reference, so a chain such
-as `a = b + b`, `b = c + c` doubles the work with each line. The measure counts:
+### The gate and its limits
 
-- Each shared expression at each use, and the template of an `@Each` once per item of its list.
-- Each value that the state or a query holds, as the tree that a copy of it walks. A list that
-  holds the same list twice counts it twice. A long string counts one more for each 64
-  characters.
-- Each read of a `$variable` or a query at the size of the value it holds. The defaults of a
-  query evaluate once per pass, and each read counts their size.
-- An `@Each` over a list that only evaluation can size, such as a field of the loop variable of
-  an outer `@Each`, at the longest list that the program, its state and its query results hold.
+A model writes each program, and a short program can ask lang-core for hours of work. lang-core
+puts each statement in place of each reference to it, so `a = Stack([b, b])`, `b = Stack([c, c])`
+doubles with each line. It evaluates the default of each `$variable` as it parses. Its evaluator
+runs the template of an `@Each` once per item. So **nothing that lang-core parses or evaluates
+runs before the kit has measured it.** This holds with `bindings` off, for the text format and
+for the adapter.
 
-A program whose values and expressions expand to more than 100,000 values, or that nests `@Each`
-more than three deep, does not evaluate. It shows as one fallback that says so. The measure runs
-before the kit evaluates or copies a value, so the refusal is fast.
+Before the parse, the gate:
+
+1. Applies the blunt limits of the table below, before anything else runs.
+2. Reads the statements with lang-core's own tokenizer, and writes them out in a plain form:
+   one statement per line, each string with its marks as escapes, and no comment or fence.
+   lang-core's parser reads that text exactly as its tokenizer does. So it parses the statements
+   that the gate measured, and no others.
+3. Replaces with null a statement that writes an object with the shape of a lang-core node, an
+   element or a two-way binding. lang-core would run such an object, so data would run as code.
+   The segment's `openui.errors` names each one.
+4. Counts what each statement expands to, on the graph of references, so a chain that doubles
+   is counted in one pass.
+5. Refuses two things that lang-core reads another way than they look. Statements that refer
+   to each other in a circle: lang-core then expands each statement on the way again at each
+   use. And an `@Each` whose variable is not a plain name in quotes, or has the name of a
+   statement: lang-core reads such a name as the statement in one place and as the item in
+   another.
+6. Measures the default of each `$variable` before lang-core evaluates it. With `bindings` off,
+   it replaces each `$variable` declaration with null, so lang-core evaluates nothing at all.
+
+As a program runs, the gate measures again before each evaluation: before a render, before a
+two-way binding writes, and before the queries run. The runtime evaluates the tool, the
+arguments, the defaults and the interval of each query itself, and hands lang-core's query
+manager the values. So lang-core evaluates nothing on its own.
+
+The measure evaluates nothing. It counts:
+
+- Each value and operator once, and each string by its length.
+- Each read of a `$variable` or a query at the size of the value it holds. The values that a
+  program reads count toward one total, and each is walked once.
+- The template of an `@Each` once per item. The length of the list is a bound that follows from
+  where the list comes from: a list written out, a held value, or a list inside one. No list is
+  evaluated to count it.
+- Each read of a loop variable at the size of the largest item of its list. lang-core copies
+  the item into the template for each place that names the variable.
+- `@Filter` once per item, and `@Sort` once per compare, times the size of their field path and
+  of what they compare: the value of the field, or the whole item where no field is named. A
+  filter also counts the value it compares with.
+- A field read on a list once per item.
+
+A value that a `$variable` or a query holds reads as a safe copy: an object inside it with the
+shape of a lang-core node, an element or a two-way binding reads as null.
+
+With these limits a program can sort or filter a table of about 2,000 rows of 8 fields by one
+field. Each read of a table counts its size, so a program that reads a large table in many
+places reaches the limit sooner.
+
+| Limit | Value | Past it |
+|-------|-------|---------|
+| Characters in one program | 50,000 | The program is refused, before it is read |
+| Statements in one program | 500 | The program is refused |
+| Brackets inside brackets in one statement | 64 | The program is refused |
+| Value statements that refer to each other in a circle | None | The program is refused |
+| The variable of an `@Each` | A plain name in quotes, of at most 64 characters, that no statement has | The program is refused |
+| Components a program writes, with each shared statement counted at each use | 4 times the catalog's `maxElements` | The program is refused before the parse. The catalog then refuses a document past `maxElements` |
+| Values that the statements expand to, and that the defaults of the `$variables` cost | 100,000 | The program is refused before the parse |
+| Values that one evaluation costs, and that the state and the query results it reads hold | 100,000 | The program shows one fallback. Queries keep their last result |
+| `@Each` inside `@Each` | 3 levels | The program is refused |
+| Steps in one action | 8 | The action is disabled |
+| Characters in the summary of an action | 1,000 | The action is disabled |
+| Spaces or tabs in a row in a value an action shows | 2 | The action is disabled |
+| `Query()` statements in one program | `maxCalls`, default 8 | None of them runs |
+| Programs of one reply that run queries | 3 | A later program shows its defaults |
+| Times that one query runs on arguments that the results of queries changed, with no action by the user | 3 in one window of `minRefreshSeconds` | The query keeps the arguments it last ran with, and takes the newest when the window ends |
+| Tool calls a chat's programs start in a minute | `maxCallsPerMinute`, default 60 | The call fails, and its query keeps its result |
+| Seconds between two refreshes of a query | `minRefreshSeconds`, default 10, at least 1, at most a day | The interval is held to the bound |
+
+A refused program shows as one fallback that says why. Each refusal takes a few milliseconds,
+whatever the program asks for.
 
 ### Inline and whole-reply modes
 
@@ -254,27 +319,31 @@ that has one clear meaning, and shows an error where a slip would render wrong:
 The adapter for data parts gets no element errors from the parser, so an argument by name renders
 there with shifted props.
 
-### The parser cache
+### The program cache
 
-A streaming parser keeps its state between chunks, so each chunk parses only what it adds. The
-format keeps one parser per program of a text part, keyed by message id, part id, markdown piece
-and program. It keeps the parser until the reply ends, and the last parse of the part drops it.
-Text with no message or part id, such as text outside a chat, gets a new parser on each call. The
-format holds at most 100 parsers, and clears them all when full. It builds the library once per
-catalog.
+The gate keeps the result of each program text that it checked and parsed, up to 32 texts per
+catalog. A program that is complete is checked and parsed once, however often the text after it
+streams or the message renders. A program that still streams is checked and parsed on each
+chunk, which the limits keep short. The format builds the library once per catalog.
 
 ## Configuration Pattern
 
 Install the peer, and Zod, which lang-core needs:
 
 ```bash
-pnpm add @openuidev/lang-core@~1.1.0 zod
+pnpm add @openuidev/lang-core@1.1.0 zod
 ```
 
-The kit takes lang-core within one minor version, `~1.1.0`. It reads a few things that
-lang-core's types do not promise, such as the token types of its tokenizer and the shape its
-evaluator reads to find a two-way binding. A new minor version can change them. The kit's specs
-pin each one, and the range moves once they pass against a new version.
+The kit takes exactly lang-core `1.1.0`. The gate is a model of how that version reads and
+evaluates a program: what it shares between references, how it scopes the variable of a loop,
+and what each built-in function does per item. A patch release can change any of these, and so
+reopen the evaluation budget, with no change to lang-core's types. The kit also reads the token
+types of its tokenizer, and the shape its evaluator reads to find a two-way binding.
+
+To move to a new version of lang-core, read its parser and evaluator for what changed, and run
+`OpenUiGate.spec.ts`, `OpenUiSafety.spec.ts` and `OpenUiLangCore.spec.ts` against it. The first
+two hold each attack that the gate must refuse, with a time limit. The third pins the parts of
+lang-core that the kit builds on. The version in `package.json` moves only once all three pass.
 
 lang-core runs a telemetry script when it installs. See
 [Letting lang-core send install telemetry](#letting-lang-core-send-install-telemetry).
@@ -337,8 +406,28 @@ streams. Copy and the announcement of a finished reply read each program as word
 ### Put the OpenUI prompt in the system prompt
 
 `catalog.instructions` holds the prompt for the catalog's `modes`. With `openui` in `modes`, it
-holds the format's section: lang-core's grammar, a signature and description per component,
-examples, and the rules. The kit adds these rules, before your own:
+holds the format's section.
+
+**lang-core writes the grammar, and the kit writes anything that names components.** lang-core's
+own sections on actions, filters, forms and data show the components of Thesys's library, such
+as `FormControl` and `SelectItem`, with that library's argument order. They also teach
+`Mutation()` and `@OpenUrl`, whatever the catalog takes. A model follows an example before a
+rule that says to ignore it. So the kit writes these sections from the catalog:
+
+| Section | The kit writes | Left out when |
+|---------|----------------|---------------|
+| Action | The steps that some component accepts, with examples on the catalog's own button | No component takes an action |
+| Interactive Filters | How to bind a `$variable` to the first component with a state prop, and pass it to a `Query()` | `bindings` is off, no tool is listed, or no component has a state prop with an example |
+| Forms | A form with an input and a button, written with the catalog's components | The catalog has no `form`, no input or no button that sends |
+| Data Workflow | How to use `Query()`, with no `Mutation()` | No tool is listed |
+| Query | lang-core's text, with its refresh example on the catalog's button | No tool is listed |
+| Mutation | Nothing | Always |
+
+An example button is the first component with a prop that takes one action and an `example`.
+An example input is the first component with `stateProps` and an `example`. So give each
+component an `example`.
+
+The kit adds these rules, before your own:
 
 - In inline mode, write prose where it helps, fence each program as `openui-lang`, and write each
   program in full, starting with `root`. Show UI where it answers best, and words where they do.
@@ -346,13 +435,10 @@ examples, and the rules. The kit adds these rules, before your own:
   `Mutation`, `@Set`, `@Reset` and `@Run`. `Mutation` is always off.
 - With `bindings` on: a program cannot change data. To change something, send a message with
   `@ToAssistant` that asks the assistant to do it.
+- Use only the components under Component Signatures, with their arguments in the order shown.
 - Keep a `@ToAssistant` message to 200 characters, and its context to a flat object of at most 8
   short values. This rule shows only when a component takes actions.
-- Do not use an action step that no component accepts, such as `@OpenUrl` in a catalog whose
-  action props take only `send`.
-- What lang-core's text names that the catalog lacks. Its Action section shows a `Button` in its
-  examples, and its rules suggest forms for input. The kit says so when the catalog has no
-  `Button`, or no component with `stateProps`.
+- Ask for input in words, where the catalog has no component with `stateProps`.
 - Stay within the catalog's `limits` on components, depth and list items.
 
 The kit places these rules, and yours, at the end of lang-core's own list of rules, ahead of its
@@ -466,6 +552,7 @@ The kit runs a query only where the app would allow it:
 | The tool is in `queryTools`. Default no tool. | Required |
 | The tool is a client tool of the chat, with an `execute`. | Required |
 | The arguments pass the tool's schema, and the kit can check that schema in full. | Required |
+| The tool has no `parameters` schema. | Runs only with no arguments |
 | The tool needs approval for the arguments. | Refused, as a query runs with no click |
 | The program holds at most `maxCalls` `Query()` statements, 8 by default. | Required: a program with more runs none |
 
@@ -482,7 +569,8 @@ fails keeps its defaults, and the kit logs why. The kit bounds how often queries
   changes. It runs whether or not a component reads its result. A program in a data part runs
   its queries once the part is complete, not as the program grows.
 - Only the first three programs of one reply run their queries. A program after them shows its
-  defaults, and the kit logs a warning.
+  defaults, and the kit logs a warning. A program that holds too many queries, or that the gate
+  refuses, still takes one of the three places.
 - All the programs of one chat together start at most `maxCallsPerMinute` calls in any minute,
   60 by default. A call past the rate fails, and its query keeps the result it had.
 - A program in an older reply waits for the user. Its queries run once the user changes a value
@@ -512,6 +600,10 @@ leaves out each `__proto__`, `constructor` and `prototype` key on the way in and
 A tool that returns a live object exposes only its data. A tool that the server runs cannot be
 called from a program.
 
+A query result is data only. The kit drops the artifacts that a tool returns with
+`chatToolResult(output, {artifacts})`, so a component that takes data by reference cannot show
+the result of a `Query()`. For a table by reference, have the assistant call the tool.
+
 **Avoid:** listing a tool that changes data in `queryTools`. A query runs with no click, as often
 as its arguments change.
 
@@ -540,15 +632,21 @@ import {isOpenUiDocumentSegment} from '@xh/hoist-chat-kit/genui/openui';
 
 catalog.parseText(text, {messageId, partId}).forEach(segment => {
     if (!isOpenUiDocumentSegment(segment)) return;
-    const {errors, unresolved, orphaned} = segment.openui;
-    // errors: props and inline calls that the parser dropped
+    const {errors, unresolved, orphaned, computed} = segment.openui;
+    // errors: props and inline calls that the parser dropped, and statements the gate replaced
     // unresolved: names the program refers to and does not define
     // orphaned: statements that nothing under the root refers to
+    // computed: ids of the elements with a prop that the state computes
 });
 ```
 
 Problems with whole statements are in the segment's `elementErrors`, by element id. Each such
 element renders as a fallback.
+
+With state on, the segment's `document.elements` holds no final value for a prop that an
+expression or a `$variable` gives. `computed` names each element with such a prop. Do not check
+one of these against its schema with `catalog.validate()`: the check would report a value as
+missing that the rendered document has.
 
 ### Export the OpenUI library for a server
 
@@ -757,6 +855,10 @@ or `{steps: [...]}`, a `$variable`, or a field of a query result. lang-core's ow
 run data shaped like a list of steps. The target of a `@Set` or a `@Reset` must be a
 `$identifier`.
 
+An action is a prop of its own, or an item of a list prop. `toOpenUiLibrary()` throws for a
+component whose props schema holds an action below that, such as in each row of a list of
+objects. Such an action would come from data, which the format cannot check.
+
 With state on, one step that is a `@ToAssistant` or an `@OpenUrl` is that kit action. Anything
 else is a `state` action: its `summary` says what each step does, and the program's state holds
 the steps.
@@ -771,7 +873,8 @@ step at the click.
 The summary shows each value as JSON, so a string is in quotes, with its own quotes and line
 breaks as escapes. A character the user could not see shows as its code, such as `\u202e` for a
 right-to-left override or `\u200b` for a zero-width space. So text cannot pose as the words
-around it. A `send` tooltip shows its text and its context values the same way.
+around it. A `send` tooltip shows its text and its context values the same way, and an
+`openUrl` its url. A context key that is not a plain name shows in quotes too.
 
 The kit disables an action that the user could not review, or that it cannot run:
 
@@ -780,7 +883,7 @@ The kit disables an action that the user could not review, or that it cannot run
 | Data in place of action syntax, or a `@Set` target that is not a `$identifier` | This action is not valid, so it cannot run. |
 | More than 8 steps, or a summary of more than 1,000 characters | This action is too long to show in full, so it cannot run. |
 | Two messages in one action | This action sends more than one message, so it cannot run. |
-| A value, a message or a context value with five or more whitespace characters in a row | This action holds text that cannot be shown in full, so it cannot run. |
+| A value, a message, a url, or a context key or value with three or more spaces or tabs in a row, or five or more whitespace characters | This action holds text that cannot be shown in full, so it cannot run. |
 | A `@Run` of a `Mutation()` | This action would change data, which a program cannot do. |
 | An action that the prop's action schema refuses, by its type or its url | This action is not allowed here, so it cannot run. |
 | With state off, a `@Set`, `@Reset` or `@Run` | This action cannot run here. |

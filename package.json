@@ -54,7 +54,7 @@
     ]
   },
   "peerDependencies": {
-    "@openuidev/lang-core": "~1.1.0",
+    "@openuidev/lang-core": "1.1.0",
     "@xh/hoist": ">=90.1.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

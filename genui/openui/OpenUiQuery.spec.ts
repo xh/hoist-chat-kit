@@ -120,6 +120,7 @@ describe('OpenUI Lang queries', () => {
         it('reads a result that the tool wrote as JSON for the model', async () => {
             const tool: ChatToolSpec = {
                 name: 'get_sales',
+                parameters: {type: 'object', properties: {region: {type: 'string'}}},
                 execute: async () => chatToolResult(JSON.stringify({total: 42}))
             };
             renderProgram(SALES, {tools: [tool], queryTools: ['get_sales']});

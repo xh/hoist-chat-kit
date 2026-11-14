@@ -13,21 +13,13 @@ import {
     type OpenUIError,
     type ParseResult,
     type QueryManager,
+    type QueryNode,
     type Store
 } from '@openuidev/lang-core';
 import {HoistBase, type PlainObject} from '@xh/hoist/core';
 import {action, observable} from '@xh/hoist/mobx';
 import {logError, throwIf} from '@xh/hoist/utils/js';
-import {
-    clamp,
-    compact,
-    findLastIndex,
-    isArray,
-    isEmpty,
-    isFinite,
-    lowerFirst,
-    mapValues
-} from 'lodash';
+import {clamp, compact, findLastIndex, isEmpty, isFinite, lowerFirst, mapValues} from 'lodash';
 import type {ChatModel, ChatPartRenderContext} from '../../../core';
 import {getOwn} from '../../../impl/LangUtils';
 import {
@@ -44,8 +36,17 @@ import {toOpenUrlAction, toSendAction, type OpenUiStep} from '../OpenUiActions';
 import {isOpenUiActionProp, type OpenUiLibrary} from '../OpenUiLibrary';
 import {prepareActions} from './actionSyntax';
 import {getCallBudget, MAX_QUERY_PROGRAMS, type OpenUiCallBudget} from './callBudget';
+import {toSafeValue} from './heldValue';
 import {OpenUiToolGate, toJson, type OpenUiToolCall} from './OpenUiToolGate';
-import {measureProgram, measureValue} from './programSize';
+import {
+    measureExpression,
+    measureValue,
+    scalarShape,
+    SizeBudget,
+    SizeLimitError,
+    widest,
+    type ValueShape
+} from './programSize';
 import {warnOnce} from './warnOnce';
 
 /** Configuration for an {@link OpenUiRuntime}. */
@@ -118,7 +119,7 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
     readonly evaluationContext: EvaluationContext = {
         getState: name => {
             this.track(this.stateVersion);
-            return this.store.get(name);
+            return toSafeValue(this.store.get(name));
         },
         resolveRef: name => {
             this.track(this.queryVersion);
@@ -156,14 +157,26 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
     private isInitializing: boolean = false;
     private isSyncPending: boolean = false;
 
+    // True if the sync that is pending was asked for by the user, the program or the chat, and
+    // not only by a query result.
+    private isSyncExternal: boolean = false;
+
+    // What bounds the runs that query results start - see `holdChains`. Each query as the query
+    // manager last got it, by statement id. The queries whose arguments a result changed, and
+    // that have not run on them yet. When each query ran after such a change. The timer that
+    // lets a held query catch up.
+    private readonly applied = new Map<string, {key: string; node: QueryNode}>();
+    private readonly awaitingRun = new Set<string>();
+    private readonly chained = new Map<string, number[]>();
+    private catchUpTimer: ReturnType<typeof setTimeout> = null;
+
     // True once the user changed a value or clicked a button of the program, and once its
     // queries first ran.
     private hasUserActed: boolean = false;
     private hasSynced: boolean = false;
 
-    // The defaults of each query that has no result yet, by statement id. Kept for one pass, so
-    // that many reads of one query evaluate its defaults once.
-    private readonly defaults = new Map<string, unknown>();
+    // One pass of the gate - see `beginPass`.
+    private pass: GatePass = null;
 
     // The steps of each state action of the program as last resolved, by action id.
     private readonly plans = new Map<string, {steps: OpenUiPlanStep[]; summary: string}>();
@@ -206,7 +219,14 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
                   })
                 : null;
         this.queryManager = createQueryManager(
-            gate ? {callTool: (name, args) => gate.callAsync(name, args)} : null
+            gate
+                ? {
+                      callTool: (name, args) => {
+                          this.noteRun(name, args);
+                          return gate.callAsync(name, args);
+                      }
+                  }
+                : null
         );
 
         this.store.subscribe(() => {
@@ -215,7 +235,13 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
             this.noteStateChange();
             this.syncQueriesSoon();
         });
-        this.queryManager.subscribe(() => this.noteQueryChange());
+        // A query whose arguments read the result of another runs again when that one changes.
+        this.queryManager.subscribe(() => {
+            this.noteQueryChange();
+            if (this.program?.queryStatements?.some(it => !isEmpty(it.waitFor))) {
+                this.syncQueriesSoon(false);
+            }
+        });
 
         // A program refreshes on a timer only while its reply is the latest of the chat.
         if (chatModel) {
@@ -259,12 +285,12 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
      * then runs again when a `$variable` or a query result that the program reads changes. The
      * actions of the last evaluation no longer run: register those of this one.
      *
-     * @throws if the program would take too long to evaluate - see {@link measureProgram}.
+     * @throws if the program would take too long to evaluate - see {@link measureExpression}.
      */
     evaluateProgram(): OpenUiEvaluation {
         this.plans.clear();
-        this.defaults.clear();
-        this.checkSize();
+        this.beginPass();
+        this.admit([this.program?.root, this.program?.rootExpression]);
 
         const errors: OpenUIError[] = [],
             evalCtx: EvalContext = {
@@ -310,7 +336,26 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
             () => null
         );
         this.track(this.stateVersion);
-        return {value: field.value, binding: {set: next => field.setValue(next)}};
+        return {
+            value: field.value,
+            binding: {
+                // lang-core evaluates the expression of the binding as it writes.
+                // It reads the new value as `$value`.
+                set: next => {
+                    const pass = this.beginPass();
+                    // Any other read of `$value` gets what the state holds, so count the larger.
+                    pass.shapes.set(
+                        'state|$value',
+                        widest(
+                            measureValue(toSafeValue(next), pass.held, pass.seen),
+                            this.getHeldShape('$value', 'state')
+                        )
+                    );
+                    this.admit([this.program?.root, this.program?.rootExpression]);
+                    field.setValue(next);
+                }
+            }
+        };
     }
 
     /**
@@ -414,6 +459,7 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
 
     override destroy() {
         this.abortController.abort();
+        clearTimeout(this.catchUpTimer);
         this.queryManager.dispose();
         this.budget?.release(this.messageId, this);
         this.store.dispose();
@@ -487,93 +533,69 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
         return getOwn(this.program?.stateDeclarations, name) ?? null;
     }
 
-    // Refuse a program whose evaluation would hang the page, or run out of memory. Each value
-    // that the state and the queries hold is measured as the tree that a copy of it walks. The
-    // program is then measured with each shared expression counted at each use, the template of
-    // an `@Each` once per item, and each read of a value at the size of that value.
-    private checkSize() {
-        const {program, store} = this;
-        if (!program) return;
-
-        const sizes = new Map<string, number>(),
-            refSize = (ref: {n: string}) => sizes.get(ref.n) ?? 1;
-        let longestList = 0;
-        const measureHeld = (name: string, value: unknown) => {
-            const measured = measureValue(value, MAX_VALUES);
-            throwIf(measured.size > MAX_VALUES, TOO_LARGE);
-            sizes.set(name, measured.size);
-            longestList = Math.max(longestList, measured.longestList);
+    // Start a pass of the gate. Each time the runtime is about to hand lang-core something to
+    // evaluate, it starts a pass, measures what will evaluate, and goes on only if the measure
+    // is under the cap. A pass keeps what it measured of the state and the query results, so
+    // that each value is walked once.
+    private beginPass(): GatePass {
+        this.pass = {
+            held: new SizeBudget(),
+            defaults: new SizeBudget(),
+            seen: new Map(),
+            shapes: new Map(),
+            values: new Map()
         };
-        const check = (parts: unknown[], listLength: (list: ASTNode) => number) => {
-            const size = measureProgram(parts, {listLength, refSize});
-            throwIf(
-                size.eachDepth > MAX_EACH_DEPTH,
-                `This program nests @Each ${size.eachDepth} deep, and may nest it at most ` +
-                    `${MAX_EACH_DEPTH} deep.`
-            );
-            throwIf(!(size.values <= MAX_VALUES), TOO_LARGE);
-        };
-
-        const {queryStatements} = program,
-            defaults = queryStatements.map(it => it.defaultsAST),
-            parts = [
-                program.root,
-                program.rootExpression,
-                ...queryStatements.flatMap(it => [it.toolAST, it.argsAST, it.refreshAST]),
-                ...defaults
-            ];
-
-        // The state first, as it needs no evaluation. A list whose length is not known until it
-        // evaluates, such as a field of the loop variable of an outer `@Each`, is taken as the
-        // longest list that the state, the queries or the program itself hold.
-        Object.entries(store.getSnapshot()).forEach(([name, value]) => measureHeld(name, value));
-        longestList = Math.max(
-            longestList,
-            measureProgram(parts, {listLength: () => 1, refSize}).longestList
-        );
-
-        // The defaults of the queries next, before any of them evaluates.
-        check(defaults, list => (list?.k === 'Arr' ? list.els.length : longestList));
-        queryStatements.forEach(({statementId}) =>
-            measureHeld(statementId, this.getResult(statementId))
-        );
-
-        check(parts, list => this.getListLength(list, longestList, refSize));
+        return this.pass;
     }
 
-    // The number of items in the list of an `@Each`. A list written out is counted. A small
-    // expression is evaluated, as it is cheap. Any other is taken as the longest list known.
-    private getListLength(
-        list: ASTNode,
-        longestList: number,
-        refSize: (ref: {n: string}) => number
-    ): number {
-        if (list?.k === 'Arr') return list.els.length;
-        const {values} = measureProgram([list], {listLength: () => longestList, refSize});
-        if (values > MAX_LIST_EXPRESSION) return longestList;
-        try {
-            const value = this.evaluateNode(list);
-            return isArray(value) ? value.length : longestList;
-        } catch {
-            return longestList;
-        }
+    // Measure expressions that are about to evaluate, against one total. Throws for a total
+    // past the cap, before any of them evaluates.
+    private admit(parts: unknown[]) {
+        const budget = new SizeBudget(),
+            held = (name: string, kind: 'state' | 'query') => this.getHeldShape(name, kind);
+        parts.forEach(part => {
+            if (part == null) return;
+            budget.spend(measureExpression(part, {budget, held}).size);
+        });
+    }
+
+    // The shape of what a `$variable` or a query holds in this pass. All that the program reads
+    // counts toward one total, with a value that two names hold counted for each.
+    private getHeldShape(name: string, kind: 'state' | 'query'): ValueShape {
+        const pass = this.pass ?? this.beginPass(),
+            key = `${kind}|${name}`,
+            known = pass.shapes.get(key);
+        if (known) return known;
+
+        // Set first, so that the defaults of a query that read the query itself do not loop.
+        pass.shapes.set(key, scalarShape());
+        const value = kind === 'state' ? toSafeValue(this.store.get(name)) : this.getResult(name),
+            ret = measureValue(value, pass.held, pass.seen);
+        pass.shapes.set(key, ret);
+        return ret;
     }
 
     // The result of a query, or its defaults before it first runs, as while the program
-    // streams. A `Mutation()` never runs, so it reads as idle.
+    // streams. The defaults are measured before they evaluate, once per pass. A `Mutation()`
+    // never runs, so it reads as idle.
     private getResult(name: string): unknown {
-        const {queryManager, program, defaults} = this,
+        const {queryManager, program} = this,
+            pass = this.pass ?? this.beginPass(),
             ret = queryManager.getResult(name);
-        if (ret != null) return ret;
-        if (defaults.has(name)) return defaults.get(name);
-
+        if (ret != null) return toSafeValue(ret);
+        if (pass.values.has(name)) return pass.values.get(name);
         if (program?.mutationStatements?.some(it => it.statementId === name)) return IDLE;
 
         const statement = program?.queryStatements?.find(it => it.statementId === name);
         // Set first, so that defaults which read their own query do not loop.
-        defaults.set(name, null);
-        const value = statement?.defaultsAST ? this.evaluateNode(statement.defaultsAST) : null;
-        defaults.set(name, value);
+        pass.values.set(name, null);
+        if (!statement?.defaultsAST) return null;
+
+        const held = (ref: string, kind: 'state' | 'query') => this.getHeldShape(ref, kind),
+            shape = measureExpression(statement.defaultsAST, {budget: pass.defaults, held});
+        pass.defaults.spend(shape.size);
+        const value = toSafeValue(this.evaluateNode(statement.defaultsAST));
+        pass.values.set(name, value);
         return value;
     }
 
@@ -608,8 +630,11 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
                     return {type: 'action', action: send};
                 }
                 case 'openUrl': {
-                    const open = toOpenUrlAction(this.evaluateNode(step.valueAST, ctx));
-                    if (!open) throw new ActionRefusal(NOT_VALID);
+                    const url = this.evaluateNode(step.valueAST, ctx),
+                        open = toOpenUrlAction(url);
+                    if (!open) {
+                        throw new ActionRefusal(hasWhitespaceRun(url) ? HIDDEN_TEXT : NOT_VALID);
+                    }
                     return {type: 'action', action: open};
                 }
                 case 'run': {
@@ -647,14 +672,18 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
     }
 
     // Queries run outside of a render, as each run notifies the observers of the results.
-    private syncQueriesSoon() {
+    // `isExternal` is false for a sync that a query result asks for.
+    private syncQueriesSoon(isExternal: boolean = true) {
+        this.isSyncExternal ||= isExternal;
         if (this.isSyncPending) return;
         this.isSyncPending = true;
         queueMicrotask(() => {
+            const wasExternal = this.isSyncExternal;
             this.isSyncPending = false;
+            this.isSyncExternal = false;
             if (this.isDestroyed) return;
             try {
-                this.syncQueries();
+                this.syncQueries(wasExternal);
             } catch (e) {
                 logError(['Could not run the queries of an OpenUI program', e], this);
             }
@@ -664,31 +693,140 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
     // A query runs once its program is complete, and again when a `$variable` it reads changes.
     // A program that is not in the latest reply waits for the user: it runs its queries once
     // they change a value or click a button in it. Only the latest reply refreshes on a timer.
-    private syncQueries() {
+    //
+    // The runtime evaluates the tool, the arguments and the interval of each query itself, once
+    // the gate has measured them. lang-core's query manager gets the values, and evaluates
+    // nothing.
+    private syncQueries(isExternal: boolean = true) {
         const {program, isComplete, queryManager, isLatestReply, budget, messageId} = this;
         if (!program || !isComplete || isEmpty(program.queryStatements)) return;
         if (!isLatestReply && !this.hasUserActed && !this.hasSynced) return;
-        this.defaults.clear();
 
-        const refusal = this.isOverCallLimit
-            ? this.callLimitMessage
-            : budget && !budget.admit(messageId, this)
-              ? `Only the first ${MAX_QUERY_PROGRAMS} programs of a reply run their queries.`
+        // A program takes its place among those of the reply that may run queries, whether or
+        // not its own queries then run.
+        const isAdmitted = budget?.admit(messageId, this) ?? true;
+        let nodes: QueryNode[];
+        const refusal = !isAdmitted
+            ? `Only the first ${MAX_QUERY_PROGRAMS} programs of a reply run their queries.`
+            : this.isOverCallLimit
+              ? this.callLimitMessage
               : null;
         if (refusal) {
             warnOnce(`${messageId}|${refusal}`, refusal, 'OpenUiRuntime');
-            queryManager.evaluateStatements([], this.evaluationContext);
+            queryManager.evaluateQueries([]);
+            return;
+        }
+
+        // Arguments past the cap do not evaluate. The queries stay as they last ran: to clear
+        // them would drop the result that made the arguments large, and so run them again.
+        try {
+            nodes = this.toQueryNodes();
+        } catch (e) {
+            if (!(e instanceof SizeLimitError)) throw e;
+            warnOnce(`${messageId}|${e.message}`, e.message, 'OpenUiRuntime');
             return;
         }
 
         this.hasSynced = true;
-        const statements = program.queryStatements.map(statement => {
-            if (!statement.refreshAST) return statement;
-            // A model sets the interval, so hold it between a floor and a ceiling.
-            const seconds = isLatestReply ? this.getRefreshSeconds(statement.refreshAST) : 0;
-            return {...statement, refreshAST: {k: 'Num', v: seconds} as ASTNode};
+        queryManager.evaluateQueries(this.holdChains(nodes, isExternal));
+    }
+
+    // Bound what the results of queries can start with no action by the user. A result may
+    // change the arguments of a query, which then runs again, and its result may change more.
+    // So a program that feeds results back into arguments could call a tool in a loop.
+    //
+    // The bound is on runs, not on changes. A query that reads several others gets new
+    // arguments as each result arrives, and lang-core holds it until all of them have one.
+    // Those changes start no run, so they do not count. Once a query has run a few times in a
+    // window after such changes, it keeps the arguments it last ran with. It takes the newest
+    // ones when the window ends, or at once when the user or the program acts.
+    private holdChains(nodes: QueryNode[], isExternal: boolean): QueryNode[] {
+        const {applied, awaitingRun, chained, messageId} = this,
+            now = Date.now(),
+            windowMs = this.chainWindowMs;
+        if (isExternal) {
+            chained.clear();
+            awaitingRun.clear();
+        }
+
+        return nodes.map(node => {
+            const {statementId} = node,
+                key = JSON.stringify([node.toolName, node.args, node.deps, node.refreshInterval]),
+                last = applied.get(statementId);
+            if (last && last.key !== key && !isExternal) {
+                const runs = (chained.get(statementId) ?? []).filter(it => now - it < windowMs);
+                chained.set(statementId, runs);
+                if (runs.length >= MAX_CHAINED_RUNS) {
+                    const message =
+                        `Query '${statementId}' keeps its arguments for now: it ran ` +
+                        `${MAX_CHAINED_RUNS} times on the results of queries, with no action ` +
+                        'by the user.';
+                    warnOnce(`${messageId}|${message}`, message, 'OpenUiRuntime');
+                    this.catchUpAfter(runs[0] + windowMs - now);
+                    return last.node;
+                }
+                awaitingRun.add(statementId);
+            }
+            applied.set(statementId, {key, node});
+            return node;
         });
-        queryManager.evaluateStatements(statements, this.evaluationContext);
+    }
+
+    private get chainWindowMs(): number {
+        return this.minRefreshSeconds * 1000;
+    }
+
+    // Count a run of a tool for each query that runs it now with arguments that a result
+    // changed. lang-core passes the arguments of the query as it got them.
+    private noteRun(toolName: string, args: unknown) {
+        const {applied, awaitingRun, chained} = this,
+            now = Date.now();
+        applied.forEach(({node}, statementId) => {
+            const isRun = node.toolName === toolName && (node.args == null || node.args === args);
+            if (!isRun || !awaitingRun.delete(statementId)) return;
+            chained.set(statementId, [...(chained.get(statementId) ?? []), now]);
+        });
+    }
+
+    // Sync once more when the window of a held query ends, so that it runs with the arguments
+    // that its results now give.
+    private catchUpAfter(delayMs: number) {
+        if (this.catchUpTimer) return;
+        this.catchUpTimer = setTimeout(
+            () => {
+                this.catchUpTimer = null;
+                if (!this.isDestroyed) this.syncQueriesSoon(false);
+            },
+            Math.max(delayMs, 0) + 1
+        );
+    }
+
+    // Each query with its tool, its arguments and its interval evaluated.
+    private toQueryNodes(): QueryNode[] {
+        const {queryStatements} = this.program,
+            {isLatestReply, evaluationContext} = this;
+        this.beginPass();
+        this.admit(queryStatements.flatMap(it => [it.toolAST, it.argsAST, it.refreshAST]));
+
+        return queryStatements.map(statement => {
+            const {statementId, toolAST, argsAST, refreshAST, deps, complete, waitFor} = statement,
+                held = Object.fromEntries(
+                    (deps ?? []).map(it => [it, evaluationContext.getState(it)])
+                );
+            return {
+                statementId,
+                toolName: toolAST ? (this.evaluateNode(toolAST) as string) : '',
+                args: argsAST ? this.evaluateNode(argsAST) : null,
+                // The runtime evaluates the defaults as a program reads them - see `getResult`.
+                defaults: null,
+                // A model sets the interval, so hold it between a floor and a ceiling.
+                refreshInterval:
+                    refreshAST && isLatestReply ? this.getRefreshSeconds(refreshAST) : 0,
+                deps: isEmpty(held) ? undefined : held,
+                complete,
+                waitFor
+            };
+        });
     }
 
     // The seconds between two refreshes of a query, or 0 for none. An interval that is not a
@@ -716,24 +854,37 @@ export function warnOfEvaluationErrors(key: string, errors: string[]) {
 // Implementation
 //------------------
 const MAX_STEPS = 8,
+    // Times that one query may run on arguments that the results of queries changed, in one
+    // window of the least refresh interval, with no action by the user.
+    MAX_CHAINED_RUNS = 3,
     MIN_REFRESH_SECONDS = 1,
-    MAX_REFRESH_SECONDS = 24 * 60 * 60,
-    // Most values one evaluation may visit, with a string counted by its length. An evaluation
-    // of this size takes a few milliseconds.
-    MAX_VALUES = 100_000,
-    MAX_EACH_DEPTH = 3,
-    // The largest list expression that is evaluated to count its items.
-    MAX_LIST_EXPRESSION = 1000;
+    MAX_REFRESH_SECONDS = 24 * 60 * 60;
 
 // Why an action cannot run, for the user.
 const NOT_VALID = 'This action is not valid, so it cannot run.',
     TOO_LONG = 'This action is too long to show in full, so it cannot run.',
     TWO_MESSAGES = 'This action sends more than one message, so it cannot run.',
     HIDDEN_TEXT = 'This action holds text that cannot be shown in full, so it cannot run.',
-    CHANGES_DATA = 'This action would change data, which a program cannot do.',
-    TOO_LARGE =
-        'This program is too large to evaluate: its values and expressions expand past ' +
-        `${MAX_VALUES} values.`;
+    CHANGES_DATA = 'This action would change data, which a program cannot do.';
+
+// What one pass of the gate has measured and evaluated.
+interface GatePass {
+    // The total of what the state and the query results hold, of all that the pass has read.
+    held: SizeBudget;
+
+    // The total of what the defaults of the queries cost to evaluate.
+    defaults: SizeBudget;
+
+    // The shape of each object measured, so that a value which two names hold is walked once.
+    seen: Map<object, ValueShape>;
+
+    // The shape of what each `$variable` and each query holds, by kind and name.
+    shapes: Map<string, ValueShape>;
+
+    // The defaults of each query that has no result yet, by statement id, so that many reads
+    // of one query evaluate its defaults once.
+    values: Map<string, unknown>;
+}
 
 // Thrown for a step that the kit refuses, with the reason for the user.
 class ActionRefusal extends Error {}

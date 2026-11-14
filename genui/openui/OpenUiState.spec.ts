@@ -10,7 +10,11 @@ import {ChatUiCatalog} from '../ChatUiCatalog';
 import type {ChatUiComponentSpec, ChatUiDocumentContext} from '../ChatUiComponentSpec';
 import type {ChatUiDocumentSegment} from '../ChatUiTextSegment';
 import {openUiLangAdapter} from './OpenUiLangAdapter';
-import {openUiLangFormat, type OpenUiLangFormatOptions} from './OpenUiLangFormat';
+import {
+    isOpenUiDocumentSegment,
+    openUiLangFormat,
+    type OpenUiLangFormatOptions
+} from './OpenUiLangFormat';
 
 /**
  * With `bindings`, an OpenUI Lang program has state: `$variables` that inputs write and that
@@ -322,6 +326,16 @@ describe('OpenUI Lang state', () => {
             fireEvent.click(screen.getByTestId('field'));
             expect(text('note')).toBe('Got a!');
         });
+    });
+
+    it('names the elements whose props the state computes, in the segment of the program', () => {
+        const catalog = createCatalog({bindings: true}),
+            [segment] = catalog.parseText(
+                'root = Stack([a, b])\n$n = 1\na = Note("Static")\nb = Note("Count " + $n)',
+                {messageId: 'm1', partId: 'p1'}
+            );
+
+        expect(isOpenUiDocumentSegment(segment) && segment.openui.computed).toEqual(['b']);
     });
 });
 
