@@ -98,9 +98,14 @@ describe('AgUiCodec', () => {
 
             expect(encode({todos: ['Plan']})).toEqual({todos: ['Plan']});
             expect(encode(['only-this'])).toEqual(['only-this']);
-            // A state the agent set to a falsy value goes back as it is, not as an empty object.
-            expect(encode(null)).toBeNull();
+            // A falsy state the agent set goes back as it is, not as an empty object.
             expect(encode(0)).toBe(0);
+        });
+
+        it('leaves a null state out of the request, as the official check does', () => {
+            const body = new AgUiCodec().encodeRequest(request([user('Hi')], {agentState: null}));
+
+            expect(body).not.toHaveProperty('state');
         });
 
         it('sends user attachments as content parts', () => {

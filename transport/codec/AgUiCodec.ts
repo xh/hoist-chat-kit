@@ -77,7 +77,8 @@ export interface AgUiContext {
  *
  * `state` is the agent's shared state as the chat holds it - the request's `agentState`, or an
  * empty object for a request with none. The agent's `STATE_SNAPSHOT` and `STATE_DELTA` events
- * change the state from there - see `ChatModel.agentState`.
+ * change the state from there - see `ChatModel.agentState`. A state the agent set to null goes
+ * with no `state`, as the official check drops an optional field that is null.
  *
  * `messages` carries every message the chat holds, in both history modes, as AG-UI requires: an
  * agent "MUST treat it as the complete history it is being shown". A tool result always travels
@@ -138,7 +139,7 @@ export class AgUiCodec implements ChatCodec {
             threadId,
             runId,
             protocolVersion: '1.0',
-            // Null is a state of its own, which an agent may set.
+            // Null is a state of its own, which an agent may set. The check then sends no state.
             state: agentState === undefined ? {} : agentState,
             messages:
                 this.newMessagesOnly && historyMode === 'server'

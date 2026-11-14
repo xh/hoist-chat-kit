@@ -1168,6 +1168,28 @@ describe('ChatThreadsModel', () => {
 
             expect(model.chatModel.sendBlockedReason).toBeNull();
         });
+
+        it('gives a chat the agent state its store returns with the history, and none otherwise', async () => {
+            const {model, store} = setup({
+                respond: () => [
+                    {type: 'STATE_SNAPSHOT', snapshot: {todos: ['Plan', 'Review']}},
+                    textEvents('Done.')
+                ]
+            });
+            store.saveThread({id: 't1', agentState: {todos: ['Plan']}});
+
+            await model.selectThreadAsync('t1');
+            expect(model.chatModel.agentState).toEqual({todos: ['Plan']});
+
+            // The store's state replaces what the chat held from a run, as the backend owns it.
+            await model.chatModel.sendAsync('Add a review');
+            expect(model.chatModel.agentState).toEqual({todos: ['Plan', 'Review']});
+            await model.reloadThreadAsync();
+            expect(model.chatModel.agentState).toEqual({todos: ['Plan']});
+
+            await model.selectThreadAsync('t2');
+            expect(model.chatModel.agentState).toEqual({});
+        });
     });
 
     describe('status and run options', () => {
