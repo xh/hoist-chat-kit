@@ -343,6 +343,7 @@ describe('openUiToDocument', () => {
                 errors: [],
                 elementErrors,
                 openStatement: null,
+                computed: [],
                 unresolved: [],
                 orphaned: []
             },

@@ -158,6 +158,14 @@ export interface OpenUiDiagnostics {
 
     /** Names of the statements that nothing under the root refers to, so they do not render. */
     orphaned: string[];
+
+    /**
+     * Ids of the elements with a prop that the state computes: an expression, or a `$variable`.
+     * The segment's `document.elements` holds no final value for such a prop, so a check of one
+     * of these elements against its schema says nothing of what renders. Empty for a program
+     * with no state.
+     */
+    computed: string[];
 }
 
 /** The document segment of an OpenUI Lang program, with what its parser found. */
@@ -297,7 +305,7 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
             isPartial,
             source: program,
             ...(isEmpty(elementErrors) ? {} : {elementErrors}),
-            openui: {errors, unresolved, orphaned}
+            openui: {errors, unresolved, orphaned, computed: translation.computed}
         };
         return segment;
     };
