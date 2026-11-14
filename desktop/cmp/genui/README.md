@@ -100,7 +100,8 @@ short. The components handle this:
   `TabContainerModel`, so the tab the user chose stays active.
 - The section spec remounts its `Card` if a collapse prop arrives after the title, as a
   `CardModel` reads its config once.
-- The callout spec shows its text as it streams. The badges spec shows complete badges only.
+- The callout spec takes its intent and title before its text, so a warning shows as one from its
+  first word. The badges spec shows complete badges only.
 - `ChatUiTreeMap` loads its `Store` with each complete box. Hoist updates the boxes in place.
 
 A table or chart card keeps the height it will need from the moment its type is known, so
@@ -369,7 +370,7 @@ Tabs and sections are containers, as the stack is. Each takes children, and nest
     "root": "answer",
     "elements": {
         "answer": {"component": "stack", "props": {}, "children": ["note", "tags", "views", "detail"]},
-        "note": {"component": "callout", "props": {"text": "VaR is **12% over** its limit.", "intent": "warning", "title": "Limit breach"}},
+        "note": {"component": "callout", "props": {"intent": "warning", "title": "Limit breach", "text": "VaR is **12% over** its limit."}},
         "tags": {"component": "badges", "props": {"badges": [{"label": "Rates", "intent": "danger"}, {"label": "USD"}]}},
         "views": {"component": "tabs", "props": {"titles": ["Chart", "Data"]}, "children": ["trend", "rows"]},
         "detail": {"component": "section", "props": {"title": "By desk", "collapsed": true}, "children": ["desks"]}
@@ -525,7 +526,7 @@ their own. Their props from the model:
 | Spec | Props from the model |
 |------|----------------------|
 | `chatUiSectionSpec` | `title`, `intent`, `collapsible`, `collapsed` |
-| `chatUiCalloutSpec` | `text`, `intent`, `title` |
+| `chatUiCalloutSpec` | `intent`, `title`, `text` |
 | `chatUiBadgesSpec` | `badges`, each a `label` and an optional `intent` |
 | `chatUiDividerSpec` | None |
 

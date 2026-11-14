@@ -35,7 +35,7 @@ describe('built-in specs as an OpenUI library', () => {
                 'collapsible?: boolean, collapsed?: boolean)'
         );
         expect(components.Callout.signature).toBe(
-            `Callout(text: string, intent?: ${INTENT}, title?: string)`
+            `Callout(intent?: ${INTENT}, title?: string, text: string)`
         );
         expect(components.Badges.signature).toBe(
             `Badges(badges: {label: string; intent?: ${INTENT}}[])`
@@ -116,7 +116,7 @@ describe('built-in specs as an OpenUI library', () => {
 //------------------
 const PROGRAM = [
     'root = Stack([note, tags, rule, views])',
-    'note = Callout("VaR is over its limit.", "warning", "Limit breach")',
+    'note = Callout("warning", "Limit breach", "VaR is over its limit.")',
     'tags = Badges([{label: "Rates", intent: "danger"}])',
     'rule = Divider()',
     'views = Tabs([map, detail], ["Exposure", "Detail"])',

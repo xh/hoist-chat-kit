@@ -60,11 +60,18 @@ describe('chatUiCalloutSpec', () => {
         expect(container.querySelector('img')).toBeNull();
     });
 
-    it('shows a placeholder until the text begins, then the text as it streams', () => {
+    it('shows a placeholder until its title or text begins, then its intent at once', () => {
         const waiting = renderCallout({intent: 'danger'}, true);
         expect(waiting.container.querySelector('.xh-chat-ui-skeleton')).toBeTruthy();
         expect(waiting.container.querySelector('.xh-banner')).toBeNull();
         waiting.unmount();
+
+        // The intent and the title arrive before the text, so a warning shows as one at once.
+        const early = renderCallout({intent: 'danger', title: 'Limit br'}, true);
+        expect(early.container.querySelector('.xh-banner').className).toContain(
+            'xh-banner--danger'
+        );
+        early.unmount();
 
         // An intent cut short as it streams falls back to a note.
         const {container} = renderCallout({text: 'Desk limit', intent: 'warn' as any}, true);
@@ -83,6 +90,9 @@ describe('chatUiCalloutSpec', () => {
         );
         expect(catalog.validate('callout', {text: 'Hi', intent: 'info'})).not.toEqual([]);
         expect(catalog.validate('callout', {title: 'No text'})).not.toEqual([]);
+        expect(catalog.validate('callout', {text: ''})).not.toEqual([]);
+        // A model writes props in schema order, and OpenUI Lang takes them by position.
+        expect(Object.keys(spec.props.properties)).toEqual(['intent', 'title', 'text']);
         expect(spec.result({text: 'Over limit.', title: 'Breach'})).toBe('Breach: Over limit.');
         expect(spec.result({text: 'Over limit.'})).toBe('Over limit.');
     });

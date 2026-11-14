@@ -17,6 +17,34 @@
 
   .xh-banner__message {
     overflow-wrap: anywhere;
+
+    // A banner message is one run of text: bold, italics and links, with no block markdown. Hoist's
+    // Banner says so with rules as specific as the chat markdown's own, so these decide it.
+    .xh-chat-markdown {
+      h1,
+      h2,
+      h3,
+      h4,
+      p,
+      ul,
+      ol,
+      li,
+      code {
+        color: inherit;
+        display: inline;
+        font-family: inherit;
+        font-size: inherit;
+        font-weight: inherit;
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: underline;
+      }
+    }
   }
 
   &__title {
