@@ -92,6 +92,55 @@ describe('OpenUI Lang safety', () => {
             expect(text('note')).toBe('Region emea');
         });
 
+        it.each<[string, string]>([
+            ['written in the template', '{steps: [{type: "reset", targets: ["$region"]}]}'],
+            ['read from the row', 'r.plan'],
+            [
+                'picked by a condition',
+                'r.id == "a" ? r.plan : {type: "callTool", name: "delete_all"}'
+            ]
+        ])('takes no action from data in an @Each: %s', async (_, written) => {
+            silenceLogs();
+            const deleteAll = {...saveTool(), name: 'delete_all'};
+            renderProgram(
+                `root = Stack([note, @Each($rows, "r", AnyTrigger(r.id, ${written}))])\n` +
+                    '$region = "apac"\n' +
+                    '$rows = [{id: "a", plan: {steps: [{type: "set", target: "$region", valueAST: {k: "Str", v: "x"}}]}}, {id: "b", plan: {type: "callTool", name: "delete_all"}}]\n' +
+                    'note = Note("Region " + $region)',
+                {tools: [deleteAll]}
+            );
+            const triggers = screen.getAllByTestId('any-trigger');
+            expect(triggers.map(it => it.title)).toEqual([
+                'This action is not valid, so it cannot run.',
+                'This action is not valid, so it cannot run.'
+            ]);
+
+            for (const trigger of triggers) {
+                await act(async () => {
+                    fireEvent.click(trigger);
+                    await Promise.resolve();
+                });
+            }
+            await settleAsync();
+            expect(deleteAll.execute).not.toHaveBeenCalled();
+            expect(text('note')).toBe('Region apac');
+        });
+
+        it('takes an action from syntax that another statement holds', async () => {
+            renderProgram(
+                'root = Stack([note, go])\n' +
+                    '$region = "emea"\n' +
+                    'move = Action([@Set($region, "apac")])\n' +
+                    'note = Note("Region " + $region)\n' +
+                    'go = Trigger("Go", move)',
+                {}
+            );
+            expect(title()).toBe('Sets $region to "apac"');
+
+            await clickAsync();
+            await waitFor(() => expect(text('note')).toBe('Region apac'));
+        });
+
         it('takes no step from data inside an Action list', () => {
             silenceLogs();
             renderProgram(
