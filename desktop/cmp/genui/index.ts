@@ -11,5 +11,6 @@ export * from './ChatUiMetrics';
 export * from './ChatUiSection';
 export * from './ChatUiStack';
 export * from './ChatUiTableView';
+export * from './ChatUiTabs';
 export * from './ChatUiText';
 export type * from './Types';
