@@ -546,7 +546,7 @@ function expectDocument(segment: ChatUiTextSegment) {
 }
 
 function countTiles(html: string): number {
-    return html.match(/class="xh-chat-ui-metrics__tile /g)?.length ?? 0;
+    return html.match(/class="xh-stat-card[ "]/g)?.length ?? 0;
 }
 
 function markup(content: ReactNode): string {

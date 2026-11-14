@@ -192,7 +192,7 @@ new ChatModel({
 
 A catalog that the app controls keeps the model to known components and known props. It also
 puts Hoist's own grids and charts in the chat, which suit data-dense apps better than generic
-component kits do. The built-in grid, chart, KPI tiles and card are in
+component kits do. The built-in grid, chart, stat cards and card are in
 [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md). See [`/genui/`](../genui/README.md) for
 the catalog, its safety model, and the cost of each render.
 

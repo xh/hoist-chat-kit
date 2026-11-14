@@ -14,7 +14,9 @@
 
 ## 2.0.0-SNAPSHOT - unreleased
 
-### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - drop busy-line settings, update adapters)
+Requires `@xh/hoist` 90.1 or later.
+
+### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - Hoist 90.1, drop busy-line settings, update adapters)
 
 See [`docs/upgrade-notes/v2-upgrade-notes.md`](docs/upgrade-notes/v2-upgrade-notes.md) for
 detailed, step-by-step upgrade instructions with before/after code examples.
@@ -30,6 +32,10 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * `ChatUiAdapter.translate()` now takes `{catalog, isPartial}` as its second argument, in place of
   the catalog. See
   [Update Protocol Adapters](docs/upgrade-notes/v2-upgrade-notes.md#3-update-protocol-adapters).
+* `chatUiMetricsSpec()` now renders Hoist's `StatCardStrip`, with a `StatCard` per figure. Removed
+  the `ChatUiMetrics` component, `chatUiMetrics()`, `ChatUiMetricsProps` and the
+  `xh-chat-ui-metrics__*` classes. The spec's name and props are unchanged. See
+  [Move Metrics Code to StatCard](docs/upgrade-notes/v2-upgrade-notes.md#5-move-metrics-code-to-statcard).
 
 ### 🎁 New Features
 
@@ -118,6 +124,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 
 ### ✨ Styles
 
+* `ChatWorkspace` lays out its sidebar and side panel for the 1px panel splitter of Hoist 90, in
+  place of the 8px splitter of Hoist 89.
 * Added the `xh-chat-timeline--detached`, `xh-chat-timeline__item--unfinished`,
   `xh-chat-tool-call--unfinished`, `xh-chat-tool-call__glyph--unfinished` and
   `xh-chat-message-list__awaiting-reply` classes. A detached
@@ -125,6 +133,7 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 
 ### 📚 Libraries
 
+* @xh/hoist `89.3 → 90.1`
 * @openuidev/lang-core `1.1` - added as an optional peer dependency. Apps that use
   `/genui/openui/` install it with `zod`. Other apps never load it.
 

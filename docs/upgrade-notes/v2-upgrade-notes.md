@@ -4,9 +4,10 @@
 
 ## Overview
 
-Hoist Chat Kit v2 is a light upgrade. Its required steps apply only to apps that set the busy line
-of the status region, that style or test the status region, that write a `ChatUiAdapter`, or that
-export a catalog for a server.
+Hoist Chat Kit v2 is a light upgrade. It needs hoist-react v90.1. Its other required steps apply
+only to apps that set the busy line of the status region, that style or test the status region,
+that write a `ChatUiAdapter`, that export a catalog for a server, or that render or style the
+metrics component themselves.
 
 - **Busy-line settings (required if used)** - v2 removes the settings of the status region's busy
   line, as the region no longer shows one - see Step 1.
@@ -16,6 +17,8 @@ export a catalog for a server.
   not the catalog - see Step 3.
 - **Catalog exports with text formats (required if used)** - if you configure text formats,
   regenerate the export - see Step 4.
+- **Metrics component (required if rendered or styled directly)** - the metrics spec renders
+  Hoist's `StatCard`, and the kit's own `ChatUiMetrics` is gone - see Step 5.
 - **Segment switches (required if used)** - `ChatUiTextSegment` gained a `document` member, so an
   exhaustive `switch` over segments needs a case for it.
 
@@ -24,6 +27,7 @@ export a catalog for a server.
 Before starting, make sure:
 
 - [ ] The app runs Hoist Chat Kit v1.x.
+- [ ] The app runs hoist-react v90.1 or later. Follow hoist-react's v90 upgrade notes first.
 
 ## Upgrade Steps
 
@@ -131,11 +135,49 @@ the default format, need no change.
   in one call. See
   [Export the catalog for a server](../../genui/README.md#export-the-catalog-for-a-server).
 
+### 5. Move Metrics Code to StatCard
+
+`chatUiMetricsSpec()` now renders Hoist's `StatCardStrip`, with a `StatCard` per figure. The spec
+keeps its name, its tool `show_metrics` and its props, so catalogs, prompts and stored replies need
+no change. The kit's own `ChatUiMetrics` component, its `chatUiMetrics()` factory, the
+`ChatUiMetricsProps` type and the `xh-chat-ui-metrics__*` classes are gone. Apps that only list
+`chatUiMetricsSpec()` in a catalog need no change.
+
+**Find affected code:**
+
+```bash
+grep -rnE "chatUiMetrics\(|ChatUiMetrics\b|ChatUiMetricsProps|xh-chat-ui-metrics__" client-app/src/
+```
+
+- Replace a direct `chatUiMetrics()` call with Hoist's `statCardStrip()` and `statCard()`, from
+  `@xh/hoist/cmp/statcard`. Format each value with `fmtChatUiNumber()` to match the chat.
+- Move style overrides of the `xh-chat-ui-metrics__*` classes to Hoist's `--xh-stat-card-*`
+  variables, set under `.xh-chat-ui-metrics`. The `--xh-chat-tile-min-width` and
+  `--xh-chat-tile-value-font-size` variables still apply.
+
+**Before:**
+
+```typescript
+chatUiMetrics({metrics: [{label: 'Revenue', value: 1250000, format: 'currency'}]});
+```
+
+**After:**
+
+```typescript
+statCardStrip(
+    statCard({
+        title: 'Revenue',
+        value: fmtChatUiNumber(1250000, 'currency', null, {compact: true})
+    })
+);
+```
+
 ## Verification Checklist
 
 - [ ] `tsc` passes, with no reference to the removed settings, and each `ChatUiAdapter` takes the
       context object.
 - [ ] While a reply runs, the line above the composer is empty, and the reply shows its progress.
 - [ ] A failed reply still shows its line, with Try Again or Refresh Status.
+- [ ] A reply that shows metrics draws a row of Hoist stat cards, with deltas in color.
 - [ ] If the catalog configures text formats, a server that loads its export reports no version
       drift for the current client.

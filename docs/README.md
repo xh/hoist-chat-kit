@@ -94,7 +94,7 @@ its tools.
 | Add feedback buttons or other message actions | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#add-message-actions-such-as-feedback) |
 | Render a tool call or a data part as UI | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#render-a-tool-call-as-ui) |
 | Allow markdown images in replies | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md#allow-images) |
-| Let the model show grids, charts, KPI tiles and cards | [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) |
+| Let the model show grids, charts, stat cards and cards | [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) |
 | Render streaming markdown | [`/cmp/markdown/`](../cmp/markdown/README.md) |
 | Ask the kit's maintainers for a feature, an API change or a bug fix | [Request a Change](./requesting-changes.md) |
 
@@ -117,7 +117,7 @@ its tools.
 | [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) | Desktop chat components: panel, message list, message view, composer, tool cards and more | ChatPanel, ChatMessageList, ChatMessageView, ChatComposer, ChatToolCall, ChatFeedbackControls, ChatClearButton, ChatReasoning, ChatSources, ChatSidePanel, ChatNoAnswer, ChatEmptyState, ChatSuggestions, ChatTranscript, read-only transcripts, render context, message actions, tool call groups, inline tool calls, detached replies, status region, citations, approvalPrompt, allowImages, theming |
 | [`/desktop/cmp/threads/`](../desktop/cmp/threads/README.md) | Desktop thread list: recency groups, search, inline rename, delete with confirm, and row states | ChatThreadList, ChatThreadsModel, recency groups, inline rename, delete confirm, running, awaiting, finishedAwayThreadIds, endedEarlyThreads, lastRunEnd, tree grid, keyboard |
 | [`/desktop/cmp/workspace/`](../desktop/cmp/workspace/README.md) | Desktop full-page chat: a thread sidebar and rail, the conversation, header and notice slots, and a side panel, laid out by its own width | ChatWorkspace, ChatWorkspaceModel, conversationView, sidebar, rail, side panel, header, notice, PanelModel, persistWith, ResizeObserver, breakpoints, compact density |
-| [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) | Built-in generative UI components for a ChatUiCatalog: a result table in two tiers, a Hoist chart, KPI tiles, a detail card, and a stack and text for nested answers | chatUiGridSpec, chatUiChartSpec, chatUiMetricsSpec, chatUiCardSpec, chatUiStackSpec, chatUiTextSpec, ChatUiGrid, ChatUiChart, ChatUiMetrics, ChatUiCard, ChatUiStack, ChatUiText, nested answers, ChatUiTableView, ChatUiChartView, ChatUiFrame, fmtChatUiNumber, preview table, byReference, number formats, compact numbers, streaming |
+| [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) | Built-in generative UI components for a ChatUiCatalog: a result table in two tiers, a Hoist chart, stat cards, a detail card, and a stack and text for nested answers | chatUiGridSpec, chatUiChartSpec, chatUiMetricsSpec, chatUiCardSpec, chatUiStackSpec, chatUiTextSpec, ChatUiGrid, ChatUiChart, ChatUiMetrics, ChatUiCard, ChatUiStack, ChatUiText, nested answers, ChatUiTableView, ChatUiChartView, ChatUiFrame, fmtChatUiNumber, preview table, byReference, number formats, compact numbers, streaming |
 | [`/cmp/markdown/`](../cmp/markdown/README.md) | Platform-neutral markdown renderer for streaming model output | ChatMarkdown, streaming, block memoization, markdown components, useChatMarkdownStreaming, image policy, links, trailingContent |
 
 ## Concepts

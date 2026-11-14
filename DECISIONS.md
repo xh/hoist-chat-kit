@@ -145,6 +145,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D121](#d121-reply-text-reaches-the-catalog-through-ui-formats) | Reply text reaches the catalog through UI formats | Accepted |
 | [D122](#d122-openui-lang-runs-on-thesyss-headless-core-with-the-kits-catalog) | OpenUI Lang runs on Thesys's headless core, with the kit's catalog | Accepted |
 | [D123](#d123-adapters-render-partial-documents) | Adapters render partial documents | Accepted |
+| [D124](#d124-built-in-generative-ui-components-render-hoist-components) | Built-in generative UI components render Hoist components | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2573,3 +2574,26 @@ install script sends telemetry. The kit blocks the script with `allowBuilds`, an
 state, actions and queries, so the catalog's checks, fallbacks and data by reference would not
 apply. Write a parser of our own. It would drift from a language that ships often. Make lang-core a
 direct dependency. Every app would install it, even one that never uses the format.
+
+## D124. Built-in generative UI components render Hoist components
+
+**Status.** Accepted.
+
+**Decision.** The kit holds chat components only. A built-in generative UI component is a spec over
+a hoist-react component: a props schema that a model can write, checks, a description, and a
+`render` that maps the props to the Hoist component. `chatUiMetricsSpec()` is the first. It renders
+`StatCardStrip` and `StatCard`, from Hoist 90.1, and the kit's own `ChatUiMetrics` is removed. The
+spec keeps its name, its catalog name `metrics` and its props, so catalogs, prompts and stored
+replies still work. When the catalog needs a component that Hoist lacks, the component is built in
+hoist-react. The other built-ins move the same way as Hoist gains what they need. The kit's
+`@xh/hoist` minimum moves to 90.1.
+
+**Why.** A component such as a KPI card is useful outside a chat, and two versions of it drift
+apart. A Hoist component takes formatted values, elements and callbacks, which a model cannot
+write. The spec is the layer that makes one ready for a model. It takes plain data, bounds it,
+formats it, and handles props that are cut short as they stream. Apps then style one component,
+through Hoist's own variables.
+
+**Alternatives.** Keep the kit's own components beside Hoist's. Each would need its own styling,
+accessibility work and docs. Rename the spec and its catalog name after `StatCard`. The catalog
+name is vocabulary for prompts and stored replies, not for the implementation.

@@ -30,7 +30,8 @@ import type {ChatUiNode} from './ChatUiDocument';
  *             }
  *         }
  *     },
- *     render: ({metrics}, {isPartial}) => chatUiMetrics({metrics, isPartial}),
+ *     render: ({metrics}) =>
+ *         statCardStrip(metrics.map(it => statCard({title: it.label, value: fmtNumber(it.value)}))),
  *     example: {metrics: [{label: 'Revenue', value: 1250000}]}
  * };
  * ```

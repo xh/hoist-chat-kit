@@ -18,7 +18,7 @@
 ## Overview
 
 The `/desktop/cmp/genui/` package holds ready-made components for generative UI. A model shows
-them inline in its reply: a result table, a Hoist chart, a row of KPI tiles, and a detail card. A
+them inline in its reply: a result table, a Hoist chart, a row of stat cards, and a detail card. A
 stack and a text component lay these out in a nested answer. Add them to a `ChatUiCatalog` next
 to your own components. The model can then answer with real Hoist UI in place of long tables of
 text.
@@ -45,7 +45,7 @@ Key features:
   `currency` or `percent`. Hoist's formatters render each value.
 - **Themes** - the components use Hoist and chat CSS variables, and the chart uses Hoist's chart
   themes, so they follow the light and dark themes.
-- **Numbers that never cut short** - a KPI tile shows a large value in a compact form, such as
+- **Numbers that never cut short** - a stat card shows a large value in a compact form, such as
   `$48.5B`, with the full value in a tooltip.
 - **Follow-up actions** - a card's follow-up chips run typed actions. By default each one sends
   a message as the user's next turn, and its tooltip shows what the click does.
@@ -57,7 +57,7 @@ Key features:
 ```
 chatUiGridSpec(opts)    → ChatUiComponentSpec<ChatUiGridSpecProps>    → ChatUiGrid  → ChatUiTableView
 chatUiChartSpec(opts)   → ChatUiComponentSpec<ChatUiChartSpecProps>   → ChatUiChart → ChatUiChartView
-chatUiMetricsSpec(opts) → ChatUiComponentSpec<ChatUiMetricsSpecProps> → ChatUiMetrics
+chatUiMetricsSpec(opts) → ChatUiComponentSpec<ChatUiMetricsSpecProps> → StatCardStrip (Hoist)
 chatUiCardSpec(opts)    → ChatUiComponentSpec<ChatUiCardSpecProps>    → ChatUiCard
 chatUiStackSpec(opts)   → ChatUiComponentSpec<ChatUiStackSpecProps>   → ChatUiStack
 chatUiTextSpec(opts)    → ChatUiComponentSpec<ChatUiTextSpecProps>    → ChatUiText
@@ -80,7 +80,7 @@ short. The components handle this:
   The last row is left out until the props are complete, as it may still be missing values.
 - `ChatUiChart` waits until the chart type and axes are complete, creates its `ChartModel`, and
   passes the series to `setSeries()`. Hoist updates the points in place.
-- `ChatUiMetrics` shows each tile once it is complete.
+- The metrics spec shows each stat card once its figure is complete.
 - `ChatUiCard` shows fields as they arrive, and its actions once the props are complete.
 - `ChatUiStack` shows each child as it arrives. The catalog draws a placeholder for a child still
   to come.
@@ -268,11 +268,13 @@ from the artifact. A change of type updates the series in place, so a zoom survi
 ]}
 ```
 
-Tiles are outlined, at least 150 px wide, and wrap: four fit at 820 px, and two per row at 380 px.
-A delta shows with an arrow, in Hoist's positive color when up and its negative color when down.
+The metrics spec renders Hoist's `StatCardStrip`, with a `StatCard` per figure. Cards are
+outlined, at least 150 px wide, and wrap to an even grid before a value is cut short. Style them
+through Hoist's `--xh-stat-card-*` variables, under `.xh-chat-ui-metrics`.
+A delta shows after the value with an arrow, in Hoist's positive color when up and its negative color when down.
 With `invert`, for a metric where up is bad, a rise shows in the negative color. It takes the
-format and decimals of its value, unless the model sets `deltaFormat`. An `intent` colors the
-tile's outline. A large `number` or `currency` value, from
+format and decimals of its value, unless the model sets `deltaFormat`. Its `deltaLabel` shows
+under the value. An `intent` colors the card's outline. A large `number` or `currency` value, from
 100,000 up, shows to three significant digits with a `K`, `M`, `B` or `T` suffix. Its tooltip
 shows the full value. The model sends the full number.
 
@@ -345,12 +347,12 @@ const catalog = new ChatUiCatalog({
 
 The components also work outside a catalog, for example in a data renderer or a custom tool
 renderer. Pass the props the model would write. A table by reference takes a `ChatDataHandle`,
-which the catalog loads for its own components:
+which the catalog loads for its own components. For metrics, render Hoist's `statCardStrip()` and
+`statCard()` from `@xh/hoist/cmp/statcard`:
 
 ```typescript
 chatUiGrid({columns, rows});
 chatUiGrid({dataHandle: registry.getHandle(artifactId), registry, view});
-chatUiMetrics({metrics});
 chatUiCard({
     title,
     fields,
@@ -388,7 +390,7 @@ and `description`, the text that tells the model when to use the component.
 | | `maxRows` | `number` | Most rows of an artifact to chart, by reference. Default 5,000. |
 | | `height` | `number` | Chart body height, in pixels. Default the `--xh-chat-chart-height` variable. |
 | | `byReference` | `boolean` | Take an artifact and a chart view, not series. Default false. |
-| `chatUiMetricsSpec` | `maxItems` | `number` | Most tiles. Default 4. |
+| `chatUiMetricsSpec` | `maxItems` | `number` | Most figures. Default 4. |
 | `chatUiCardSpec` | `maxFields` | `number` | Most fields. Default 16. |
 | | `maxActions` | `number` | Most actions. Default 4. |
 | | `actionTypes` | `ChatUiActionType[]` | Kinds of action the model may put on the card. Default `['send']`. |
@@ -421,7 +423,6 @@ ChatUiGrid.defaults.exportConfirmAbove = 50_000;
 | `ChatUiChart` | `title`, `type`, `xAxis`, `yAxis`, `series` | `isPartial`, `height`, `dataHandle`, `registry`, `view` |
 | `ChatUiTableView` | - | `request`, `tbarItems`, `panelProps` |
 | `ChatUiChartView` | - | `request`, `tbarItems`, `panelProps` |
-| `ChatUiMetrics` | `metrics` | `isPartial` |
 | `ChatUiCard` | `title`, `subtitle`, `fields`, `actions` | `chatModel`, `runActionAsync`, `isPartial` |
 | `ChatUiStack` | `direction`, `gap`, `title` | `children` |
 | `ChatUiText` | `text` | `isPartial` |

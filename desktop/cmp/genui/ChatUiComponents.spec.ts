@@ -7,11 +7,11 @@ import {runInAction} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatModel} from '../../../core';
-import {type ChatUiAction, ChatUiCatalog} from '../../../genui';
+import {type ChatUiAction, ChatUiCatalog, type ChatUiRenderContext} from '../../../genui';
 import {ScriptedChatTransport} from '../../../transport';
 import {chatUiCard} from './ChatUiCard';
 import {chatUiChart, type ChatUiChartProps} from './ChatUiChart';
-import {chatUiMetrics} from './ChatUiMetrics';
+import {chatUiMetricsSpec, type ChatUiMetricsSpecProps} from './ChatUiMetrics';
 import {chatUiStackSpec} from './ChatUiStack';
 import {chatUiTextSpec} from './ChatUiText';
 
@@ -56,58 +56,70 @@ describe('generative UI components', () => {
         });
     });
 
-    describe('ChatUiMetrics', () => {
-        it('shows a large value in a compact form, with the full value in a tooltip', () => {
+    describe('chatUiMetricsSpec', () => {
+        const renderMetrics = (props: ChatUiMetricsSpecProps, isPartial = false) =>
             render(
-                chatUiMetrics({
-                    metrics: [{label: 'Market cap', value: 48500000000, format: 'currency'}]
-                })
+                chatUiMetricsSpec().render(props, {
+                    isPartial
+                } as ChatUiRenderContext) as ReactElement
             );
 
-            const value = screen.getByText('$48.5B');
-            expect(value.closest('.xh-chat-ui-metrics__value').getAttribute('title')).toBe(
-                '$48,500,000,000.00'
+        it('renders a Hoist StatCard for each figure, in a StatCardStrip', () => {
+            const {container} = renderMetrics({
+                metrics: [
+                    {label: 'Revenue', value: 12},
+                    {label: 'Status', value: 'On track', intent: 'success'}
+                ]
+            });
+
+            const strip = container.querySelector('.xh-stat-card-strip.xh-chat-ui-metrics'),
+                cards = strip.querySelectorAll('.xh-stat-card');
+            expect(cards).toHaveLength(2);
+            expect(cards[0].querySelector('.xh-stat-card__title').textContent).toBe('Revenue');
+            expect(cards[1].querySelector('.xh-stat-card__value-primary').textContent).toBe(
+                'On track'
             );
+            expect(cards[1].className).toContain('xh-stat-card--intent-success');
         });
 
-        it('shows only complete tiles while the props stream', () => {
-            render(
-                chatUiMetrics({
+        it('shows a large value in a compact form, with the full value in a tooltip', () => {
+            renderMetrics({
+                metrics: [{label: 'Market cap', value: 48500000000, format: 'currency'}]
+            });
+
+            expect(screen.getByText('$48.5B').getAttribute('title')).toBe('$48,500,000,000.00');
+        });
+
+        it('shows only complete figures while the props stream', () => {
+            renderMetrics(
+                {
                     metrics: [
                         {label: 'Revenue', value: 12},
                         {label: 'Margin', value: 0.3}
-                    ],
-                    isPartial: true
-                })
+                    ]
+                },
+                true
             );
 
             expect(screen.getByText('Revenue')).toBeTruthy();
             expect(screen.queryByText('Margin')).toBeNull();
         });
+
         it('colors only the delta, with an arrow, and flips the colors with invert', () => {
-            const {container} = render(
-                chatUiMetrics({
-                    metrics: [
-                        {label: 'P&L', value: 4820000, delta: 1100000, deltaLabel: 'vs last week'},
-                        {label: 'VaR', value: 6100000, delta: 400000, invert: true}
-                    ]
-                })
-            );
+            const {container} = renderMetrics({
+                metrics: [
+                    {label: 'P&L', value: 4820000, delta: 1100000, deltaLabel: 'vs last week'},
+                    {label: 'VaR', value: 6100000, delta: 400000, invert: true}
+                ]
+            });
 
-            const [pnl, risk] = container.querySelectorAll('.xh-chat-ui-metrics__change');
-            expect(pnl.className).toContain('--pos');
-            expect(risk.className).toContain('--neg');
-            expect(pnl.querySelector('svg')).toBeTruthy();
-        });
-
-        it('reads each tile as its label, value and delta in words', () => {
-            render(
-                chatUiMetrics({
-                    metrics: [{label: 'P&L', value: 4820000, delta: -1100000, deltaLabel: 'vs Q2'}]
-                })
-            );
-            expect(screen.getByRole('listitem').getAttribute('aria-label')).toBe(
-                'P&L, 4.82M, down 1.1M vs Q2'
+            const [pnl, risk] = container.querySelectorAll('.xh-stat-card__sub-value > span');
+            expect(pnl.className).toContain('xh-pos-val');
+            expect(risk.className).toContain('xh-neg-val');
+            expect(pnl.textContent).toBe('▴1.1M');
+            expect(container.querySelector('.xh-stat-card__value-primary .xh-pos-val')).toBeNull();
+            expect(container.querySelector('.xh-stat-card__detail').textContent).toBe(
+                'vs last week'
             );
         });
     });

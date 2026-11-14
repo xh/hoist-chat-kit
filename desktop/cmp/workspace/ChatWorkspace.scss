@@ -18,7 +18,7 @@
 
   // The sidebar and the side panel are resizable Hoist panels, siblings of the conversation. The
   // layout may show one narrower than its saved size, to leave the conversation its minimum.
-  &__sidebar > :not(.xh-resizable-splitter, .xh-resizable-dragger) {
+  &__sidebar > :not(.xh-panel-splitter) {
     max-width: var(--xh-chat-workspace-sidebar-width, none);
   }
 
@@ -26,7 +26,7 @@
     min-height: 0;
   }
 
-  &__side-panel > :not(.xh-resizable-splitter, .xh-resizable-dragger) {
+  &__side-panel > :not(.xh-panel-splitter) {
     max-width: var(--xh-chat-workspace-side-panel-width, none);
   }
 
