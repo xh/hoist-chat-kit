@@ -1,8 +1,9 @@
 import type {ParseResult} from '@openuidev/lang-core';
 import type {ChatUiCatalog} from '../../ChatUiCatalog';
 import type {ChatUiStateSpec} from '../../ChatUiState';
-import {openUiToDocument} from '../OpenUiDocument';
+import {getOpenStatement, openUiToDocument} from '../OpenUiDocument';
 import type {OpenUiLibrary} from '../OpenUiLibrary';
+import {trimOpenTemplate} from './openTemplate';
 import {OpenUiRuntime, type OpenUiRuntimeConfig, warnOfEvaluationErrors} from './OpenUiRuntime';
 
 /** Options for {@link createOpenUiStateSpec}. */
@@ -37,13 +38,15 @@ export function createOpenUiStateSpec(
     library: OpenUiLibrary,
     opts: OpenUiStateSpecOptions
 ): ChatUiStateSpec<OpenUiRuntime> {
-    const {catalog, text, isComplete, isTextComplete, logKey} = opts;
+    const {catalog, text, isComplete, isTextComplete, logKey} = opts,
+        // While the text streams, the template at the end of the open statement may be cut.
+        program = isTextComplete ? result : trimOpenTemplate(result, getOpenStatement(text));
     return {
         create: context => new OpenUiRuntime({catalog, library, context, ...opts.runtime}),
         resolve: runtime => {
-            runtime.setProgram(result, text, isComplete);
+            runtime.setProgram(program, text, isComplete);
             const {root, errors} = runtime.evaluateProgram(),
-                {document} = openUiToDocument({...result, root}, library, {
+                {document} = openUiToDocument({...program, root}, library, {
                     complete: isTextComplete,
                     text,
                     catalog,

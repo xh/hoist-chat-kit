@@ -169,7 +169,7 @@ describe('OpenUI Lang gate', () => {
                 );
 
             expect(ms).toBeLessThan(FAST);
-            expect(text).toContain('could not be displayed');
+            expect(text).toContain('too long to read');
         });
 
         it('refuses a chain of field reads over a list that fits the length cap', () => {

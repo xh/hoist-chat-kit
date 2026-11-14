@@ -314,11 +314,12 @@ describe('openUiLangFormat', () => {
         expect(prompt).not.toContain('## Query');
         expect(prompt).not.toContain('## Built-in Functions');
 
-        // An example per component that has one, wrapped in the root.
-        expect(prompt).toContain('root = Stack([metrics, text], "column", "medium")');
+        // One example in a fence: the root with the components that show data.
         expect(prompt).toContain(
-            'root = Stack([text], "column", "medium")\ntext = Text("Revenue **grew** in every region.")'
+            '```openui-lang\nroot = Stack([metrics, text], "column", "medium")\nmetrics = Metrics('
         );
+        expect(prompt).toContain('\ntext = Text("Revenue **grew** in every region.")\n```');
+        expect(prompt.match(/^root = /gm)).toHaveLength(1);
 
         // The kit's rules, then the app's.
         expect(prompt).toContain(
@@ -332,12 +333,16 @@ describe('openUiLangFormat', () => {
             '- When a question is best answered with UI, show it; when it is best answered with ' +
                 'words, write them.'
         );
-        expect(prompt).toContain('- Do not use $variables, Query, Mutation, @Set, @Reset or @Run.');
+        expect(prompt).toContain('- Do not use $variables, Query, @Set, @Reset or @Run.');
+        expect(prompt).toContain('- A program cannot change data.');
+        expect(prompt).not.toContain('Mutation');
         expect(prompt).toContain('at most 50 components');
         expect(prompt).toContain('- Lead with a Text.');
 
         const wholeReply = createCatalog({inline: false}).toPrompt();
         expect(wholeReply).not.toContain('fenced code block');
+        expect(wholeReply).not.toContain('```');
+        expect(wholeReply).toContain('\n\nroot = Stack([metrics, text], "column", "medium")\n');
         expect(wholeReply).toContain('- Do not use $variables');
 
         expect(format.toExport({catalog})).toEqual({

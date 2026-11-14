@@ -260,7 +260,16 @@ export function openUiToDocument(
     meta.errors.forEach(error => {
         const {statementId, component, code, severity, message} = error,
             id = toElementId(statementId);
-        if (code === 'missing-required' && isStreaming(statementId)) return;
+        // A statement still being written may lack an argument, or end in a name that is not
+        // whole yet, which lang-core reads as null. It is partial, not wrong.
+        if (STREAMING_CODES.includes(code) && isStreaming(statementId)) {
+            if (rootTakesChildren && id != null && !Object.hasOwn(elements, id)) {
+                elements[id] = {component: toComponent(component), props: {}, isPartial: true};
+                const rootElement = elements[rootId];
+                rootElement.children = [...(rootElement.children ?? []), id];
+            }
+            return;
+        }
 
         const isDropped =
             rootTakesChildren &&
@@ -268,7 +277,7 @@ export function openUiToDocument(
             severity !== 'warning' &&
             (Object.hasOwn(elementErrors, id) || !Object.hasOwn(elements, id));
         if (!isDropped) {
-            errors.push(formatError(id != null ? elementPath(id) : '', message));
+            errors.push(formatError(id != null ? elementPath(id) : '', toPlainText(message)));
             return;
         }
         if (!Object.hasOwn(elements, id)) {
@@ -276,7 +285,7 @@ export function openUiToDocument(
             const rootElement = elements[rootId];
             rootElement.children = [...(rootElement.children ?? []), id];
         }
-        (elementErrors[id] ??= []).push(formatError(toErrorPath(id, error), message));
+        (elementErrors[id] ??= []).push(formatError(toErrorPath(id, error), toPlainText(message)));
     });
 
     return {
@@ -295,6 +304,8 @@ export function openUiToDocument(
 // Implementation
 //------------------
 const REF_PREFIX = '#/$defs/',
+    // What lang-core reports for a call that lacks a required argument, or holds null for one.
+    STREAMING_CODES = ['missing-required', 'null-required'],
     // Why an action that was written cannot run, for the user.
     NOT_VALID = 'This action is not valid, so it cannot run.',
     NOT_ALLOWED = 'This action is not allowed here, so it cannot run.',
@@ -363,6 +374,24 @@ interface ProgramScan {
     // The names of the arguments written by name, as in `Stack([a], direction: "row")`, by the
     // id of the statement that holds them.
     namedArguments: Map<string, string[]>;
+}
+
+/**
+ * Id of the statement at the end of a program text that is still being written, or null if the
+ * last statement is closed.
+ * @internal
+ */
+export function getOpenStatement(text: string): string {
+    return scanProgram(text).openStatement;
+}
+
+/**
+ * Text from lang-core for display, in the kit's style: a spaced hyphen where lang-core writes
+ * a dash.
+ * @internal
+ */
+export function toPlainText(text: string): string {
+    return isString(text) ? text.replace(/\s*[\u2014\u2013]\s*/g, ' - ') : text;
 }
 
 // A program is scanned once per text. Each change of state translates the same text again.

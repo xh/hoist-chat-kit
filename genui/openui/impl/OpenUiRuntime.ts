@@ -33,6 +33,7 @@ import type {ChatUiDocumentContext} from '../../ChatUiComponentSpec';
 import type {ChatUiBinding, ChatUiState} from '../../ChatUiState';
 import {hasWhitespaceRun, quoteForDisplay} from '../../impl/displayText';
 import {toOpenUrlAction, toSendAction, type OpenUiStep} from '../OpenUiActions';
+import {toPlainText} from '../OpenUiDocument';
 import {isOpenUiActionProp, type OpenUiLibrary} from '../OpenUiLibrary';
 import {prepareActions} from './actionSyntax';
 import {getCallBudget, MAX_QUERY_PROGRAMS, type OpenUiCallBudget} from './callBudget';
@@ -316,7 +317,7 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
         return {
             root,
             errors: compact([
-                ...[...errors, ...callErrors].map(it => it.message),
+                ...[...errors, ...callErrors].map(it => toPlainText(it.message)),
                 this.isOverCallLimit ? this.callLimitMessage : null
             ])
         };

@@ -979,7 +979,7 @@ first. A parser that keeps state per part keys it by all three.
 | `component` | `element`, `source` | One complete component with valid props. Equal sources must give equal elements. |
 | `document` | `document`, `isPartial`, `source` | A nested answer, a `ChatUiDocumentSegment`. While partial, elements still to come render as placeholders. |
 | `placeholder` | `component`, `source` | UI still being written at the end of streaming text. |
-| `fallback` | `component`, `name`, `props`, `errors`, `source` | UI that cannot render: an unknown component, invalid props, or broken markup. |
+| `fallback` | `component`, `name`, `props`, `errors`, `source`, `caption` | UI that cannot render: an unknown component, invalid props, or broken markup. An optional `caption` is a line for the user that says why, in place of the catalog's general line. |
 
 ### ChatUiAdapter
 

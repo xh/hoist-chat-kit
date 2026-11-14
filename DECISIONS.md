@@ -2866,12 +2866,14 @@ in its parser and evaluator, and running `OpenUiGate.spec.ts`, `OpenUiSafety.spe
 `OpenUiLangCore.spec.ts` against the new version before the pin moves.
 
 **The prompt.** lang-core writes the grammar. The kit writes each section that names components:
-actions, filters, forms and the data workflow. Their examples call the catalog's own components,
-in their argument order, and list only the steps that a component accepts. A section whose
-component the catalog lacks is left out, and no section names `Mutation()`. This changes the rule
-of D122 that lang-core writes the prompt. The kit's rules name what is off and list the query
-tools. Each action prop lists only the steps that its schema accepts. The kit still does not run
-app-defined actions, message markers or edit mode.
+actions, filters, forms and the data workflow. Their examples call the catalog's own components, in
+their argument order, and list only the steps that a component accepts. A section whose component
+the catalog lacks is left out, and the prompt never names `Mutation`. The kit also edits the few
+lines of the grammar that name a made-up component or a step that no component takes, and reports a
+line of lang-core's that it no longer finds. Its default examples are at most two complete programs.
+This changes the rule of D122 that lang-core writes the prompt. The kit's rules name what is off and
+list the query tools. Each action prop lists only the steps that its schema accepts. The kit still
+does not run app-defined actions, message markers or edit mode.
 
 **Why.** D122 left state out because it needed OpenUI's evaluator and renderer, which would split
 the checks between two runtimes. lang-core's evaluator is headless, and D126 lets the catalog check

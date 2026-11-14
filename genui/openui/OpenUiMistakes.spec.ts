@@ -7,6 +7,7 @@ import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     chatUiButtonSpec,
     chatUiCardSpec,
+    chatUiDividerSpec,
     chatUiInputSpecs,
     chatUiMetricsSpec,
     chatUiSectionSpec,
@@ -142,6 +143,13 @@ describe('OpenUI Lang mistakes', () => {
 
             expect(text).toContain('actions?: @ToAssistant[]');
             expect(text).toContain('action?: @ToAssistant | @Set | @Reset');
+            // The line ahead of the signatures names these types, and no type that none shows.
+            expect(text).toContain(
+                'A prop typed `@ToAssistant[]` or `@ToAssistant | @Set | @Reset` takes only the ' +
+                    'steps that its type lists: one @step, or Action([@steps...]) for several. ' +
+                    'See the Action section for what each step does.'
+            );
+            expect(text).not.toContain('ActionExpression');
             // The prompt lists the steps that a component takes, and names no other.
             expect(text).toContain('- @Set(variable: $variable, value: any)');
             expect(text).not.toContain('@OpenUrl');
@@ -158,6 +166,45 @@ describe('OpenUI Lang mistakes', () => {
 
             expect(text).toContain('actions?: ActionExpression[]');
             expect(text).toContain('- @OpenUrl(url: string)');
+            expect(text).toContain(
+                'A prop typed `ActionExpression` takes one @step, or Action([@steps...]) for ' +
+                    'several. A prop typed `@ToAssistant` takes only the steps that its type ' +
+                    'lists. See the Action section for what each step does.'
+            );
+        });
+
+        it('says nothing of actions where no prop takes one', () => {
+            const text = prompt({components: [chatUiStackSpec(), chatUiTextSpec()]});
+
+            expect(text).not.toContain('A prop typed');
+            expect(text).not.toContain('Action');
+            expect(text).not.toContain('@ToAssistant');
+        });
+
+        it('says once that a program cannot change data, and names no way to write', () => {
+            const rule = '- A program cannot change data.',
+                send =
+                    ' To change something, send a message with @ToAssistant that asks the ' +
+                    'assistant to do it.',
+                buttons = [chatUiStackSpec(), chatUiCardSpec(), chatUiButtonSpec()],
+                noActions = prompt({components: [chatUiStackSpec(), chatUiTextSpec()]}),
+                noState = prompt({components: buttons}),
+                withState = prompt({components: buttons}, {bindings: true}),
+                withTool = prompt({components: buttons}, {queryTools: ['get_sales']});
+
+            // With no component that sends a message, the rule names no step.
+            expect(noActions).toContain(`${rule}\n`);
+            [noState, withState, withTool].forEach(text => {
+                expect(text).toContain(rule + send);
+                expect(text.match(/cannot change/g)).toHaveLength(1);
+            });
+            [noActions, noState, withState, withTool].forEach(text =>
+                expect(text).not.toContain('Mutation')
+            );
+            // A format that runs every part of the language lists no part as off.
+            expect(noState).toContain('- Do not use $variables, Query, @Set, @Reset or @Run.');
+            expect(withState).toContain('- Do not use Query or @Run.');
+            expect(withTool).not.toContain('Do not use');
         });
 
         it('shows no button that the catalog lacks, and says when it has no inputs', () => {
@@ -173,25 +220,24 @@ describe('OpenUI Lang mistakes', () => {
             expect(full).not.toContain('This library has no');
         });
 
-        it('shows children in the example of each container', () => {
+        it('shows one program with the components that show data, not one per component', () => {
             const text = prompt({
                 components: [
                     chatUiStackSpec(),
-                    chatUiTextSpec(),
-                    chatUiMetricsSpec(),
+                    chatUiDividerSpec(),
                     chatUiTabsSpec(),
                     chatUiSectionSpec(),
+                    chatUiTextSpec(),
+                    chatUiMetricsSpec(),
                     ...chatUiInputSpecs()
                 ]
             });
 
-            // Each container takes the two components after it in the catalog that take no
-            // children of their own.
-            expect(text).toContain('root = Stack([text, metrics], "column", "medium")');
-            expect(text).toMatch(/tabs = Tabs\(\[button, textInput\], \["Chart", "Data"\]\)/);
-            expect(text).toMatch(/section = Section\(\[button, textInput\], /);
-            expect(text).toContain('form = Form([button, textInput], "Contact details")');
-            expect(text).not.toMatch(/= (Stack|Tabs|Section|Form)\(\[\]/);
+            // The root holds no divider, no empty container and no input.
+            expect(text.match(/^root = .*$/gm)).toEqual([
+                'root = Stack([text, metrics], "column", "medium")'
+            ]);
+            expect(text).not.toMatch(/^\w+ = (Divider|Tabs|Section|Form|Button|TextInput)\(/m);
         });
 
         it("puts the kit's rules with lang-core's rules, ahead of its final checks", () => {

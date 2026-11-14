@@ -82,6 +82,12 @@ export interface ChatUiFallbackSegment {
     /** What is wrong, in the kit's `path: message` form. */
     errors: string[];
 
+    /**
+     * A line for the user that says why the content cannot show, in place of the catalog's
+     * general line. For a reason the user can act on or pass on, such as a limit.
+     */
+    caption?: string;
+
     /** The tag as written. */
     source: string;
 }

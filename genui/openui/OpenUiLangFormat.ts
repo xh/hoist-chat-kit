@@ -12,7 +12,6 @@ import {
     isString,
     isUndefined,
     omit,
-    take,
     uniqBy
 } from 'lodash';
 import {getOwn} from '../../impl/LangUtils';
@@ -23,7 +22,6 @@ import {
     type ChatUiAction
 } from '../ChatUiAction';
 import type {ChatUiCatalog} from '../ChatUiCatalog';
-import type {ChatUiComponentSpec} from '../ChatUiComponentSpec';
 import type {ChatUiDocument, ChatUiElement} from '../ChatUiDocument';
 import type {ChatUiFormatContext, ChatUiTextFormat} from '../ChatUiTextFormat';
 import type {ChatUiDocumentSegment, ChatUiTextSegment} from '../ChatUiTextSegment';
@@ -33,7 +31,8 @@ import {openUiToDocument} from './OpenUiDocument';
 import {createLibraryCache} from './impl/libraryCache';
 import {createOpenUiStateSpec} from './impl/openUiStateSpec';
 import {parseOpenUiProgram} from './impl/programGate';
-import {rewritePromptSections} from './impl/promptSections';
+import {createPromptExamples} from './impl/promptExamples';
+import {rewritePromptSections, type PromptSectionOptions} from './impl/promptSections';
 import type {OpenUiRuntimeConfig} from './impl/OpenUiRuntime';
 import type {OpenUiToolCall} from './impl/OpenUiToolGate';
 
@@ -53,10 +52,11 @@ export interface OpenUiLangFormatOptions extends OpenUiLibraryOptions {
     inline?: boolean;
 
     /**
-     * OpenUI Lang programs to show the model in the prompt. Default one per component with an
-     * `example`, written by {@link formatOpenUiProgram}, inside the root when it is not the root.
-     * A container shows two children: the two components after it in the catalog that it accepts
-     * and that have an example. So list a form ahead of its inputs.
+     * OpenUI Lang programs to show the model in the prompt, in place of the ones the kit writes.
+     * Default at most two complete programs, written from the `example` of each component they
+     * use: a brief of components that show data, and, with state on, a view with an input bound
+     * to a `$variable`, which feeds a `Query()` and a table where the catalog and a listed tool
+     * allow. In inline mode each one is inside an `openui-lang` fence.
      */
     examples?: string[];
 
@@ -239,6 +239,7 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
                 name: 'openui',
                 props: {},
                 errors: [gated.refusal],
+                caption: gated.refusal,
                 source: program
             };
         }
@@ -313,6 +314,15 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
     const toPrompt = (catalog: ChatUiCatalog) => {
         const library = getLibrary(catalog),
             {root, components, schema} = library,
+            sectionOpts: PromptSectionOptions = {
+                catalog,
+                library,
+                root: opts.root,
+                bindings: features.bindings,
+                builtinFunctions: features.builtinFunctions,
+                toolCalls: features.toolCalls,
+                formatProgram: doc => formatOpenUiProgram(catalog, library, doc)
+            },
             prompt = generateSystemPrompt({
                 library: {root, components, schema},
                 promptOptions: {
@@ -324,19 +334,22 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
                     tools: features.toolCalls ? features.tools : undefined,
                     builtinFunctions: features.builtinFunctions,
                     preamble: preamble ?? (inline ? INLINE_PREAMBLE : PROGRAM_PREAMBLE),
-                    examples: examples ?? createExamples(catalog, library, opts, features)
+                    examples: examples ?? createExamples(sectionOpts, opts, features, inline)
                 }
             });
-        // lang-core writes the grammar. The kit writes each section that names components.
-        const sections = rewritePromptSections(prompt, {
-            catalog,
-            library,
-            root: opts.root,
-            bindings: features.bindings,
-            toolCalls: features.toolCalls,
-            formatProgram: doc => formatOpenUiProgram(catalog, library, doc)
-        });
-        return addRules(sections, [
+        // lang-core writes the grammar. The kit writes each part that names components.
+        const sections = rewritePromptSections(prompt, sectionOpts);
+        if (!isEmpty(sections.missing)) {
+            warnOnce(
+                `prompt|${sections.missing.join('|')}`,
+                [
+                    'OpenUI prompt keeps text of lang-core that the kit expected to replace:',
+                    ...sections.missing
+                ],
+                SOURCE
+            );
+        }
+        return addRules(sections.prompt, [
             ...createKitRules(catalog, library, inline, features),
             ...additionalRules
         ]);
@@ -524,8 +537,6 @@ const SOURCE = 'OpenUiLangFormat',
     STATEMENT_PREFIX_RE = /^[A-Za-z_]\w*\s*=\s*([A-Z]\w*)?$/,
     IDENTIFIER_RE = /^[A-Za-z_]\w*$/,
     KEY_RE = /^[A-Za-z_$][\w$]*$/,
-    BINDING_MARK = '__xhBinding__',
-    MAX_EXAMPLE_CHILDREN = 2,
     // Where lang-core's own list of rules ends, and its last section starts.
     AFTER_RULES = '\n\n## Final Verification';
 
@@ -596,7 +607,9 @@ function addRules(prompt: string, rules: string[]): string {
 }
 
 // The rules the kit adds to lang-core's: how to mix programs with prose, its own caps, the
-// features it does not run, and what lang-core's text names that the catalog lacks.
+// features it does not run, and what lang-core's text names that the catalog lacks. They say
+// once that a program cannot change data, with what to do instead where a component sends a
+// message.
 function createKitRules(
     catalog: ChatUiCatalog,
     library: OpenUiLibrary,
@@ -604,7 +617,8 @@ function createKitRules(
     features: OpenUiFeatures
 ): string[] {
     const {maxElements, maxDepth, maxInlineRows} = catalog.limits,
-        usesActions = !!getOwn(library.schema.$defs as PlainObject, 'ActionExpression');
+        usesActions = !!getOwn(library.schema.$defs as PlainObject, 'ActionExpression'),
+        canSend = library.actionSteps.includes('ToAssistant');
     const {queryTools} = features.runtime;
     return compact([
         ...(inline ? INLINE_RULES : []),
@@ -614,10 +628,11 @@ function createKitRules(
               'it, alone or in an expression.'
             : null,
         !isEmpty(queryTools) ? `Query can call only: ${queryTools.join(', ')}.` : null,
-        features.bindings
-            ? 'A program cannot change data. To change something, send a message with ' +
-              '@ToAssistant that asks the assistant to do it.'
-            : null,
+        'A program cannot change data.' +
+            (canSend
+                ? ' To change something, send a message with @ToAssistant that asks the ' +
+                  'assistant to do it.'
+                : ''),
         'Use only the components under Component Signatures, with their arguments in the ' +
             'order shown.',
         usesActions
@@ -637,101 +652,33 @@ function createCatalogRules(catalog: ChatUiCatalog): string[] {
     return hasInputs ? [] : ['This library has no inputs and no forms. Ask for input in words.'];
 }
 
-// The rule that names the parts of OpenUI Lang the format does not run.
+// The rule that names the parts of OpenUI Lang the format does not run. Null if it runs them all.
 function createFeatureRule(features: OpenUiFeatures): string {
     const {queryTools} = features.runtime,
         off = compact([
             features.bindings ? null : '$variables',
             isEmpty(queryTools) ? 'Query' : null,
-            'Mutation',
             ...(features.bindings ? [] : ['@Set', '@Reset']),
             features.toolCalls ? null : '@Run'
         ]);
+    if (isEmpty(off)) return null;
     return `Do not use ${[off.slice(0, -1).join(', '), off.at(-1)].filter(Boolean).join(' or ')}.`;
 }
 
-// A program per component with an example: the root alone, or any other component inside it.
+// The example programs of the prompt, written from the catalog. In inline mode each one is in
+// a fence, as the model is to write it.
 function createExamples(
-    catalog: ChatUiCatalog,
-    library: OpenUiLibrary,
+    sectionOpts: PromptSectionOptions,
     opts: OpenUiLangFormatOptions,
-    features: OpenUiFeatures
+    features: OpenUiFeatures,
+    inline: boolean
 ): string[] {
-    const {root} = opts,
-        rootExample = catalog.getComponent(root)?.example ?? {},
-        accepted = getOwn(getOwn(opts.slotAccepts, root), 'default');
-
-    // A container shows children, or its example would teach a call with none. They are the
-    // two components after it in the catalog that it accepts, each with its own example.
-    const {components} = catalog,
-        getChildren = (container: ChatUiComponentSpec): Record<string, ChatUiElement> => {
-            if (!container.slots?.includes('default')) return {};
-            const slot = getOwn(getOwn(opts.slotAccepts, container.name), 'default'),
-                idx = components.indexOf(container),
-                after = [...components.slice(idx + 1), ...components.slice(0, idx)],
-                leaves = after.filter(
-                    it => it.example && isEmpty(it.slots) && (!slot || slot.includes(it.name))
-                );
-            return Object.fromEntries(
-                take(leaves, MAX_EXAMPLE_CHILDREN).map(it => [
-                    camelCase(it.name),
-                    {component: it.name, props: it.example}
-                ])
-            );
-        };
-
-    const inRoot = (name: string, props: PlainObject) => {
-        const id = camelCase(name),
-            children = getChildren(catalog.getComponent(name)),
-            childIds = Object.keys(children);
-        return formatOpenUiProgram(catalog, library, {
-            root: 'root',
-            elements: {
-                root: {component: root, props: rootExample, children: [id]},
-                [id]: {
-                    component: name,
-                    props,
-                    ...(isEmpty(childIds) ? {} : {children: childIds})
-                },
-                ...children
-            }
-        });
-    };
-    const isAccepted = (name: string) => !accepted || accepted.includes(name),
-        examples = components.map(spec => {
-            const {name, example} = spec;
-            if (!example || (name !== root && !isAccepted(name))) return null;
-            if (name !== root) return inRoot(name, example);
-
-            const children = getChildren(spec);
-            return formatOpenUiProgram(catalog, library, {
-                root: 'root',
-                elements: {
-                    root: {component: name, props: example, children: Object.keys(children)},
-                    ...children
-                }
-            });
-        });
-
-    // One more, to show a $variable bound to the first component that takes one.
-    const bound = features.bindings
-        ? catalog.components.find(
-              it => it.example && !isEmpty(it.stateProps) && it.name !== root && isAccepted(it.name)
-          )
-        : null;
-    if (bound) {
-        const prop = bound.stateProps[0],
-            example: PlainObject = bound.example,
-            hasName = isString(example.name) && IDENTIFIER_RE.test(example.name),
-            variable = '$' + (hasName ? example.name : prop),
-            lines = inRoot(bound.name, {...example, [prop]: BINDING_MARK})
-                .replace(JSON.stringify(BINDING_MARK), variable)
-                .split('\n'),
-            declaration =
-                example[prop] != null ? `${variable} = ${formatValue(example[prop])}` : null;
-        examples.push(compact([lines[0], declaration, ...lines.slice(1)]).join('\n'));
-    }
-    return compact(examples);
+    const programs = createPromptExamples({
+        ...sectionOpts,
+        tools: features.tools,
+        slotAccepts: opts.slotAccepts
+    });
+    return inline ? programs.map(it => `\`\`\`${FENCE_TAG}\n${it}\n\`\`\``) : programs;
 }
 
 // An element as an OpenUI call, with the ids of the elements it references, in order.

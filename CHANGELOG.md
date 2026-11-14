@@ -145,12 +145,15 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   queries, and a program in an older reply runs them only once the user acts in it.
 * Added a gate in front of every evaluation of an OpenUI Lang program, from the parse on. A
   program past a limit on its length, its statements or the values it expands to shows as one
-  fallback, in a few milliseconds. `/genui/openui/README.md` lists each limit.
+  fallback, in a few milliseconds. The fallback says why, in plain words.
+  `/genui/openui/README.md` lists each limit.
+* Added `caption` to `ChatUiFallbackSegment`, for a format to say why content cannot show.
 * `toOpenUiLibrary()` now throws for a component that nests an action below the top level of a
   prop. Give the action a prop of its own, or a list prop whose items are actions.
 * The OpenUI Lang prompt now takes only its grammar from lang-core. The kit writes the sections
   on actions, filters, forms and the data workflow from the catalog, with the catalog's own
-  components in their examples.
+  components in their examples. Its default `examples` are now at most two complete programs,
+  each in a fence in inline mode, in place of one program per component.
 * Added `computed` to the `openui` diagnostics of a document segment: the ids of the elements
   with a prop that the state computes.
 * A `Query()` now runs a tool with no `parameters` schema only with no arguments.

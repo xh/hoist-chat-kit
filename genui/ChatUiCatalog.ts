@@ -70,6 +70,7 @@ import {
     isStandalone
 } from './impl/catalogPrompt';
 import {chatUiFallback, chatUiPlaceholder} from './ChatUiFallback';
+import {ChatUiRefusal} from './impl/ChatUiRefusal';
 import {chatUiTagFormat} from './formats/ChatUiTagFormat';
 import {chatUiElementBoundary} from './impl/ChatUiElementBoundary';
 import {chatUiLiveDocument} from './impl/ChatUiLiveDocument';
@@ -479,7 +480,7 @@ export class ChatUiCatalog {
                 return this.renderFallback(
                     {
                         component: null,
-                        caption: CAPTION,
+                        caption: e instanceof ChatUiRefusal ? e.message : CAPTION,
                         errors: [(e as Error)?.message ?? String(e)],
                         input: omit(doc, 'state')
                     },
@@ -607,7 +608,7 @@ export class ChatUiCatalog {
                 return this.renderFallback(
                     {
                         component: segment.component,
-                        caption: this.getCaption(segment.component),
+                        caption: segment.caption ?? this.getCaption(segment.component),
                         errors: segment.errors,
                         input: segment.source
                     },
@@ -688,7 +689,7 @@ export class ChatUiCatalog {
                             return this.renderFallback(
                                 {
                                     component: null,
-                                    caption: CAPTION,
+                                    caption: e instanceof ChatUiRefusal ? e.message : CAPTION,
                                     errors: [(e as Error)?.message ?? String(e)],
                                     input: part.data
                                 },
