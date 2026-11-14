@@ -80,6 +80,16 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   nested answer, with no tool or tag of its own.
 * Added `chatUiStackSpec()`, a column or row container for nested answers, and `chatUiTextSpec()`,
   a markdown text component for the prose between their components. Neither is standalone.
+* Added `chatUiTabsSpec()` and `chatUiSectionSpec()`, containers for nested answers over Hoist's
+  `TabContainer` and `Card`. Tabs show one child at a time, named by `titles`. A section groups
+  its children under a title, and the user can collapse it. Neither is standalone.
+* Added `chatUiCalloutSpec()`, a note, success, warning or error message over Hoist's `Banner`,
+  with the `show_callout` tool. Its text renders as chat markdown, which loads no image.
+* Added `chatUiBadgesSpec()`, a row of Hoist `Badge` labels, and `chatUiDividerSpec()`, a rule
+  between the parts of a nested answer. Neither is standalone.
+* Added `chatUiTreeMapSpec()`, boxes sized by one number and colored by another over Hoist's
+  `TreeMap`, with the `show_treemap` tool. The app imports two Highcharts modules in its
+  `Bootstrap.ts`: `highcharts/modules/heatmap`, then `highcharts/modules/treemap`.
 * Added `ChatModel.streamingMessageId`, the id of the reply in progress. It changes only as a turn
   starts or ends, so a renderer that reads it does not re-render as the reply streams.
 * Enhanced Copy and the announcement of a finished reply to read UI in the reply's text as words,
@@ -111,6 +121,11 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   transport without `ChatModel`.
 
 ### 🐞 Bug Fixes
+
+* Fixed `ChatUiChart` and `ChatUiChartView` to escape the text they pass to Highcharts: series,
+  slice and category names, axis titles, and the column labels and row text of a chart by
+  reference. Highcharts reads such text as markup, so a model or a result could draw a link that
+  skipped the chat's link checks, or an inline style that loads a URL.
 
 * Fixed the thread list to stop showing a thread as working within one `statusRefreshMs` check
   of its run's end, whether the thread is open or not. While the list shows a thread as working

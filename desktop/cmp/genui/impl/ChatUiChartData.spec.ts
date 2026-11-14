@@ -31,6 +31,41 @@ describe('toHighchartsConfig', () => {
         expect(config.yAxis.labels.formatter.call({value: 25000})).toBe('$25,000');
     });
 
+    it('escapes categories and axis titles, which Highcharts reads as markup', () => {
+        const config = toHighchartsConfig({
+            type: 'column',
+            xAxis: {
+                categories: ['<a href="https://example.com">Q1</a>', 'R&D'],
+                title: '<span style="background:url(https://example.com/x)">Quarter</span>'
+            },
+            yAxis: {title: '<b>Revenue</b>'}
+        });
+
+        expect(config.xAxis.categories).toEqual([
+            '&lt;a href=&quot;https://example.com&quot;&gt;Q1&lt;/a&gt;',
+            'R&amp;D'
+        ]);
+        expect(config.xAxis.title.text).toBe(
+            '&lt;span style=&quot;background:url(https://example.com/x)&quot;&gt;Quarter&lt;/span&gt;'
+        );
+        expect(config.yAxis.title.text).toBe('&lt;b&gt;Revenue&lt;/b&gt;');
+        expect(JSON.stringify(config)).not.toContain('<');
+        // No title is still no title.
+        expect(toHighchartsConfig({type: 'line'}).xAxis.title).toEqual({text: null});
+    });
+
+    it('writes each name as written in the header of a CSV column', () => {
+        const {columnHeaderFormatter} = toHighchartsConfig({type: 'line'}).exporting.csv;
+
+        expect(columnHeaderFormatter({name: 'P&amp;L'}, 'y', 1)).toBe('P&L');
+        expect(columnHeaderFormatter({name: 'Range'}, 'low', 2)).toBe('Range (low)');
+        expect(
+            columnHeaderFormatter({coll: 'xAxis', options: {title: {text: 'R&amp;D'}}}, 'x', 1)
+        ).toBe('R&D');
+        // An axis with no title keeps the header Highcharts gives it.
+        expect(columnHeaderFormatter({coll: 'xAxis', options: {}}, 'x', 1)).toBe(false);
+    });
+
     it('shares the tooltip across series, except for a pie', () => {
         expect(toHighchartsConfig({type: 'line'}).tooltip.shared).toBe(true);
         expect(toHighchartsConfig({type: 'pie'}).tooltip.shared).toBe(false);
@@ -94,6 +129,51 @@ describe('toSeries', () => {
             ['Energy', 0.18]
         ]);
         expect(validateChartProps(props)).toEqual([]);
+    });
+
+    it('escapes series, slice and category names, which Highcharts reads as markup', () => {
+        const link = '<a href="https://example.com">Go</a>',
+            escaped = '&lt;a href=&quot;https://example.com&quot;&gt;Go&lt;/a&gt;';
+
+        expect(toSeries({type: 'line', series: [{name: link, data: [1]}]}, false)[0].name).toBe(
+            escaped
+        );
+        // A pie's slices, named by pairs or by the categories.
+        expect(
+            toSeries({type: 'pie', series: [{name: 'Weight', data: [[link, 0.4]]}]}, false)[0].data
+        ).toEqual([[escaped, 0.4]]);
+        expect(
+            toSeries(
+                {type: 'pie', xAxis: {categories: [link]}, series: [{name: 'Weight', data: [0.4]}]},
+                false
+            )[0].data
+        ).toEqual([{name: escaped, y: 0.4}]);
+        // A text x on a category axis. A date stays a timestamp, and a number a number.
+        expect(
+            toSeries({type: 'column', series: [{name: 'P&L', data: [[link, 2]]}]}, false)[0]
+        ).toMatchObject({name: 'P&amp;L', data: [[escaped, 2]]});
+        expect(
+            toSeries({type: 'scatter', series: [{name: 'A', data: [[3, 2]]}]}, false)[0].data
+        ).toEqual([[3, 2]]);
+    });
+
+    it('escapes the column labels and row text of a chart by reference', () => {
+        const frame: ChatDataFrame = {
+                columns: [
+                    {name: 'desk', type: 'string', label: '<i>Desk</i>'},
+                    {name: 'pnl', type: 'number', label: '<a href="https://example.com">P&L</a>'}
+                ],
+                rows: [{desk: '<b>Rates</b>', pnl: 4}],
+                totalRows: 1
+            },
+            props = toChartProps(frame, {type: 'column', x: 'desk', y: ['pnl']}),
+            config = toHighchartsConfig(props),
+            [series] = toSeries(props, false);
+
+        expect(config.xAxis.categories).toEqual(['&lt;b&gt;Rates&lt;/b&gt;']);
+        expect(config.xAxis.title.text).toBe('&lt;i&gt;Desk&lt;/i&gt;');
+        expect(series.name).toBe('&lt;a href=&quot;https://example.com&quot;&gt;P&amp;L&lt;/a&gt;');
+        expect(JSON.stringify([config, series])).not.toContain('<');
     });
 
     it('shows a legend entry per series only when there is more than one', () => {

@@ -1,0 +1,26 @@
+// A Hoist TabContainer that takes the height of its active tab, not that of a parent.
+.xh-chat-ui-tabs {
+  font-size: var(--xh-chat-font-size, var(--xh-font-size-px));
+  line-height: normal;
+  min-width: 0;
+
+  // Named with Hoist's own class, to outrank Hoist's rules whatever the stylesheet order.
+  &.xh-tab-container {
+    max-height: none;
+
+    > .xh-tab-wrapper {
+      flex: 1 1 auto;
+    }
+
+    > .xh-tab-switcher--top {
+      border-bottom: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+      padding-left: 0;
+    }
+  }
+
+  &__content {
+    flex: 1 1 auto;
+    min-width: 0;
+    padding-top: var(--xh-chat-part-gap, var(--xh-pad-px));
+  }
+}

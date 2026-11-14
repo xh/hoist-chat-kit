@@ -1,11 +1,17 @@
+export * from './ChatUiBadges';
+export * from './ChatUiCallout';
 export * from './ChatUiCard';
 export * from './ChatUiChart';
 export * from './ChatUiChartView';
+export * from './ChatUiDivider';
 export * from './ChatUiFormat';
 export * from './ChatUiFrame';
 export * from './ChatUiGrid';
 export * from './ChatUiMetrics';
+export * from './ChatUiSection';
 export * from './ChatUiStack';
 export * from './ChatUiTableView';
+export * from './ChatUiTabs';
 export * from './ChatUiText';
+export * from './ChatUiTreeMap';
 export type * from './Types';

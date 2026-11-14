@@ -1,0 +1,24 @@
+// A Hoist Card, on the chat's surface and at its radius, with the reply's gap between children.
+.xh-chat-ui-section {
+  --xh-card-bg: var(--xh-chat-bg);
+  --xh-card-border-color: var(--xh-chat-part-border-color);
+  --xh-card-border-radius-px: var(--xh-chat-border-radius);
+  --xh-card-header-font-size-px: var(--xh-chat-font-size, var(--xh-font-size-px));
+
+  box-sizing: border-box;
+  font-size: var(--xh-chat-font-size, var(--xh-font-size-px));
+  line-height: normal;
+  margin: 0;
+
+  // A fieldset is as wide as its content unless told otherwise.
+  min-width: 0;
+
+  > .xh-card__content {
+    gap: var(--xh-chat-part-gap, var(--xh-pad-px));
+    min-width: 0;
+  }
+
+  > legend {
+    max-width: 100%;
+  }
+}
