@@ -6,6 +6,7 @@ import type {ChatUiComponentSpec} from '../../../genui';
 import {chatUiSkeleton} from './ChatUiFrame';
 import {CHAT_UI_INTENTS, toHoistIntent} from './impl/ChatUiIntents';
 import type {ChatUiIntent, ChatUiSpecOptions} from './Types';
+import '../../../styles/vars.scss';
 import './ChatUiCallout.scss';
 
 /** Props of a callout component, as written by the model. It shows as a Hoist `Banner`. */

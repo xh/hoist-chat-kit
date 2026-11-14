@@ -6,6 +6,7 @@ import {creates, hoistCmp, HoistModel, type HoistProps, managed} from '@xh/hoist
 import type {ChatUiComponentSpec} from '../../../genui';
 import {chatUiSkeleton} from './ChatUiFrame';
 import type {ChatUiSpecOptions} from './Types';
+import '../../../styles/vars.scss';
 import './ChatUiTabs.scss';
 
 /** Props of a {@link ChatUiTabs}, as written by the model. */

@@ -1,6 +1,7 @@
 import {hr} from '@xh/hoist/cmp/layout';
 import type {ChatUiComponentSpec} from '../../../genui';
 import type {ChatUiSpecOptions} from './Types';
+import '../../../styles/vars.scss';
 import './ChatUiDivider.scss';
 
 /** Props of a divider component. It takes none. */

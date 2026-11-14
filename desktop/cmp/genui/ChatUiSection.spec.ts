@@ -46,6 +46,12 @@ describe('chatUiSectionSpec', () => {
         expect(screen.queryByRole('button')).toBeNull();
     });
 
+    it('takes no color from an intent cut short as it streams', () => {
+        const {container} = renderDoc({title: 'By desk', intent: 'warn'}, true);
+
+        expect(container.querySelector('.xh-card').className).toContain('xh-card--intent-none');
+    });
+
     it('collapses and expands on a click of its title, when collapsible', () => {
         const {container} = renderDoc({title: 'By desk', collapsible: true}),
             card = container.querySelector('.xh-card');

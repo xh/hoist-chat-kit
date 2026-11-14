@@ -1,6 +1,8 @@
 import {card} from '@xh/hoist/cmp/card';
 import type {ChatUiComponentSpec} from '../../../genui';
+import {CHAT_UI_INTENTS, toHoistIntent} from './impl/ChatUiIntents';
 import type {ChatUiIntent, ChatUiSpecOptions} from './Types';
+import '../../../styles/vars.scss';
 import './ChatUiSection.scss';
 
 /** Props of a section component, as written by the model. It shows as a Hoist `Card`. */
@@ -42,7 +44,7 @@ export function chatUiSectionSpec(
             properties: {
                 title: {type: 'string', maxLength: 120},
                 intent: {
-                    enum: ['none', 'primary', 'success', 'warning', 'danger'],
+                    enum: CHAT_UI_INTENTS,
                     description: 'Color of the border and the title. Default "none".'
                 },
                 collapsible: {
@@ -68,7 +70,8 @@ export function chatUiSectionSpec(
                 key: `${canCollapse}|${startCollapsed}`,
                 className: 'xh-chat-ui-section',
                 title,
-                intent: intent && intent !== 'none' ? intent : null,
+                // An intent cut short as it streams is not yet one of Hoist's.
+                intent: toHoistIntent(intent),
                 modelConfig: {
                     collapsible: canCollapse,
                     defaultCollapsed: startCollapsed,
