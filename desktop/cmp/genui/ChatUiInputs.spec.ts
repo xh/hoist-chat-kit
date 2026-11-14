@@ -1,0 +1,567 @@
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {fragment} from '@xh/hoist/cmp/layout';
+import {HoistBase, hoistCmp, type HoistProps, type PlainObject, uses} from '@xh/hoist/core';
+import {action, observable} from '@xh/hoist/mobx';
+import {initTestAppAsync} from '@xh/hoist/test-support';
+import type {ReactNode} from 'react';
+import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
+import {ChatModel} from '../../../core';
+import {
+    ChatUiCatalog,
+    type ChatUiDocument,
+    type ChatUiDocumentContext,
+    type ChatUiElement,
+    type ChatUiState,
+    type ChatUiStateAction
+} from '../../../genui';
+import {openUiLangFormat, toOpenUiLibrary} from '../../../genui/openui';
+import {ScriptedChatTransport, textEvents} from '../../../transport';
+import {chatMessageList} from '../chat/ChatMessageList';
+import {chatUiInputSpecs} from './ChatUiInput';
+import {chatUiStackSpec} from './ChatUiStack';
+import {chatUiTextSpec} from './ChatUiText';
+
+/**
+ * The built-in form components put Hoist's inputs, `FormField` and `Button` to work in generative
+ * UI. Apps rely on each input to hold a state prop that a document can bind, to run the model's
+ * rules as Hoist validation, and on a form's button to check the fields and send their values
+ * exactly as its tooltip shows them.
+ */
+describe('built-in form components', () => {
+    beforeAll(() => initTestAppAsync());
+
+    // jsdom has no layout, and so no ResizeObserver or element scrolling.
+    beforeEach(() => {
+        vi.stubGlobal('ResizeObserver', NoopResizeObserver);
+        Element.prototype.scrollTo ??= () => {};
+        Element.prototype.scrollIntoView ??= () => {};
+    });
+
+    describe('specs', () => {
+        it('show only inside a nested answer, with no tool of their own', () => {
+            const catalog = createCatalog();
+
+            expect(catalog.tools.map(it => it.name)).toEqual([]);
+            expect(chatUiInputSpecs().map(it => it.name)).toEqual([
+                'form',
+                'button',
+                'textInput',
+                'textArea',
+                'numberInput',
+                'select',
+                'dateInput',
+                'checkbox',
+                'switch',
+                'segmentedControl'
+            ]);
+        });
+
+        it('take a $variable as the last argument of each input, in an OpenUI library', () => {
+            const {components} = toOpenUiLibrary(createCatalog(), {root: 'stack', bindings: true}),
+                signature = (name: string) => components[name].signature;
+
+            expect(signature('TextInput')).toBe(
+                'TextInput(name: string, label?: string, placeholder?: string, ' +
+                    'rules?: {required?: boolean; email?: boolean; minLength?: number; ' +
+                    'maxLength?: number}, value?: $binding<string>)'
+            );
+            expect(signature('Select')).toMatch(
+                /^Select\(name: string, options: .*, value\?: \$binding<string \| number \| \(string \| number\)\[\]>\)$/
+            );
+            expect(signature('Checkbox')).toBe(
+                'Checkbox(name: string, label?: string, value?: $binding<boolean>)'
+            );
+            expect(signature('DateInput')).toMatch(/value\?: \$binding<string>\)$/);
+            expect(signature('Button')).toBe(
+                'Button(label: string, action?: ActionExpression, ' +
+                    'intent?: "primary" | "success" | "warning" | "danger")'
+            );
+        });
+
+        it('give each example props that pass the schema', () => {
+            const catalog = createCatalog();
+
+            chatUiInputSpecs().forEach(({name, example}) =>
+                expect(catalog.validate(name, example), name).toEqual([])
+            );
+        });
+    });
+
+    describe('inputs', () => {
+        it('writes committed text to the state, and shows a value the state sets', () => {
+            const {values, container} = renderBound({
+                top: {component: 'textInput', props: {name: 'email', label: 'Email'}}
+            });
+            const input = container.querySelector<HTMLInputElement>('.xh-text-input input');
+            expect(screen.getByText('Email')).toBeTruthy();
+
+            typeInto(input, 'ann@example.com');
+            expect(values.get('top')).toBe('ann@example.com');
+
+            act(() => values.set('top', 'bob@example.com'));
+            expect(input.value).toBe('bob@example.com');
+        });
+
+        it('keeps the value of an input with no binding, for a form to send', async () => {
+            const chatModel = createChatModel(),
+                {container} = renderDocument(
+                    {
+                        root: 'form',
+                        elements: {
+                            form: {component: 'form', props: {}, children: ['name', 'go']},
+                            name: {component: 'textInput', props: {name: 'name', value: 'Ann'}},
+                            go: {component: 'button', props: {label: 'Submit'}}
+                        }
+                    },
+                    chatModel
+                );
+
+            typeInto(container.querySelector('.xh-text-input input'), 'Bob');
+            await clickAsync(screen.getByRole('button', {name: 'Submit'}));
+
+            expect(chatModel.messages[0].metadata.context).toEqual({name: 'Bob'});
+        });
+
+        it('holds a number, a boolean and a date as plain JSON values', () => {
+            const {values, container} = renderBound({
+                top: {component: 'stack', props: {}, children: ['qty', 'ok', 'live', 'start']},
+                qty: {component: 'numberInput', props: {name: 'qty'}},
+                ok: {component: 'checkbox', props: {name: 'ok', label: 'OK'}},
+                live: {component: 'switch', props: {name: 'live', label: 'Live'}},
+                start: {component: 'dateInput', props: {name: 'start'}}
+            });
+
+            typeInto(container.querySelector('.xh-number-input input'), '1,250');
+            fireEvent.click(container.querySelector('.xh-check-box input'));
+            fireEvent.click(container.querySelector('.xh-switch-input input'));
+            typeInto(container.querySelector('.xh-date-input input'), '2026-05-06');
+
+            expect(values.get('qty')).toBe(1250);
+            expect(values.get('ok')).toBe(true);
+            expect(values.get('live')).toBe(true);
+            expect(values.get('start')).toBe('2026-05-06');
+
+            fireEvent.click(container.querySelector('.xh-check-box input'));
+            expect(values.get('ok')).toBe(false);
+        });
+
+        it('shows only values of the right type, whatever the state holds', () => {
+            const {container} = renderBound(
+                {
+                    top: {component: 'stack', props: {}, children: ['qty', 'ok', 'start', 'name']},
+                    qty: {component: 'numberInput', props: {name: 'qty'}},
+                    ok: {component: 'checkbox', props: {name: 'ok', label: 'OK'}},
+                    start: {component: 'dateInput', props: {name: 'start'}},
+                    name: {component: 'textInput', props: {name: 'name'}}
+                },
+                {qty: 'many', ok: 'yes', start: '2026-13-45', name: 12}
+            );
+            const value = (selector: string) =>
+                container.querySelector<HTMLInputElement>(selector).value;
+
+            expect(value('.xh-number-input input')).toBe('');
+            expect(container.querySelector<HTMLInputElement>('.xh-check-box input').checked).toBe(
+                false
+            );
+            expect(value('.xh-date-input input')).toBe('');
+            expect(value('.xh-text-input:not(.xh-date-input) input')).toBe('12');
+        });
+
+        it('selects one choice, or a list of them with multi', () => {
+            const options = ['emea', {value: 'apac', label: 'APAC'}, {value: 'amer'}],
+                {values, container} = renderBound(
+                    {
+                        top: {component: 'stack', props: {}, children: ['one', 'many']},
+                        one: {component: 'select', props: {name: 'one', options}},
+                        many: {component: 'select', props: {name: 'many', options, multi: true}}
+                    },
+                    {one: 'emea'}
+                );
+            const [one, many] = container.querySelectorAll<HTMLElement>('.xh-select');
+            expect(one.textContent).toContain('emea');
+
+            choose(one, 'APAC');
+            expect(values.get('one')).toBe('apac');
+
+            choose(many, 'emea');
+            choose(many, 'amer');
+            expect(values.get('many')).toEqual(['emea', 'amer']);
+        });
+
+        it('picks a segment of a segmented control', () => {
+            const {values} = renderBound(
+                {
+                    top: {
+                        component: 'segmentedControl',
+                        props: {
+                            name: 'period',
+                            label: 'Period',
+                            options: [{value: 'day', label: 'Day'}, 'week']
+                        }
+                    }
+                },
+                {top: 'day'}
+            );
+            expect(screen.getByRole('radio', {name: 'Day'}).getAttribute('aria-checked')).toBe(
+                'true'
+            );
+
+            fireEvent.click(screen.getByRole('radio', {name: 'week'}));
+            expect(values.get('top')).toBe('week');
+        });
+
+        it('leaves out the last choice while the props stream, as it may be cut short', () => {
+            const element: ChatUiElement = {
+                    component: 'segmentedControl',
+                    props: {name: 'period', options: ['day', 'week', 'mon']}
+                },
+                catalog = createCatalog(),
+                view = (isPartial: boolean) =>
+                    fragment(
+                        catalog.renderDocument(
+                            {root: 'top', elements: {top: element}},
+                            context(null, isPartial)
+                        )
+                    ),
+                {rerender} = render(view(true));
+            expect(screen.getAllByRole('radio').map(it => it.textContent)).toEqual(['day', 'week']);
+
+            rerender(view(false));
+            expect(screen.getAllByRole('radio')).toHaveLength(3);
+        });
+    });
+
+    describe('form', () => {
+        const formDoc = (button: PlainObject = {label: 'Submit', intent: 'primary'}) => ({
+            root: 'form',
+            elements: {
+                form: {
+                    component: 'form',
+                    props: {title: 'Contact'},
+                    children: ['email', 'qty', 'region', 'go']
+                },
+                email: {
+                    component: 'textInput',
+                    props: {name: 'email', label: 'Email', rules: {required: true, email: true}}
+                },
+                qty: {
+                    component: 'numberInput',
+                    props: {name: 'qty', label: 'Quantity', rules: {min: 1, max: 10}, value: 2}
+                },
+                region: {
+                    component: 'select',
+                    props: {name: 'region', options: ['emea', 'apac'], multi: true}
+                },
+                go: {component: 'button', props: button}
+            }
+        });
+
+        it('checks every field on a click, and sends nothing while one is not valid', async () => {
+            const chatModel = createChatModel(),
+                {container} = renderDocument(formDoc(), chatModel);
+
+            typeInto(container.querySelector('.xh-number-input input'), '50');
+            await clickAsync(screen.getByRole('button', {name: 'Submit'}));
+
+            expect(chatModel.messages).toHaveLength(0);
+            expect(container.textContent).toContain('Email is required.');
+            expect(container.textContent).toContain('Quantity must be less than or equal to 10.');
+            // The Hoist field set takes the color of the worst problem.
+            expect(container.querySelector('.xh-chat-ui-form').className).toContain(
+                'xh-card--intent-danger'
+            );
+        });
+
+        it('runs the email rule on what the user typed', async () => {
+            const chatModel = createChatModel(),
+                {container} = renderDocument(formDoc(), chatModel);
+
+            typeInto(container.querySelector('.xh-text-input input'), 'not an address');
+            await clickAsync(screen.getByRole('button', {name: 'Submit'}));
+
+            expect(chatModel.messages).toHaveLength(0);
+            expect(container.textContent).toContain(
+                'Email is not a properly formatted email address.'
+            );
+        });
+
+        it("sends the value of each field in the message's context, beside the action's own", async () => {
+            const chatModel = createChatModel(),
+                {container} = renderDocument(
+                    formDoc({
+                        label: 'Submit',
+                        action: {type: 'send', text: 'Place the order.', context: {source: 'chat'}}
+                    }),
+                    chatModel
+                );
+
+            typeInto(container.querySelector('.xh-text-input input'), 'ann@example.com');
+            choose(container.querySelector('.xh-select'), 'emea');
+            choose(container.querySelector('.xh-select'), 'apac');
+            await clickAsync(screen.getByRole('button', {name: 'Submit'}));
+            expect(chatModel.messages[0]).toMatchObject({
+                role: 'user',
+                text: 'Place the order.',
+                metadata: {
+                    context: {
+                        email: 'ann@example.com',
+                        qty: 2,
+                        region: 'emea, apac',
+                        source: 'chat'
+                    }
+                }
+            });
+        });
+
+        it('sends its label when the button has no action', async () => {
+            const chatModel = createChatModel();
+            renderDocument(
+                {root: 'go', elements: {go: {component: 'button', props: {label: 'Show more'}}}},
+                chatModel
+            );
+
+            await clickAsync(screen.getByRole('button', {name: 'Show more'}));
+            expect(chatModel.messages[0]).toMatchObject({role: 'user', text: 'Show more'});
+            expect(chatModel.messages[0].metadata.context).toBeUndefined();
+        });
+
+        it('cannot send more values than a message holds, and says why', () => {
+            const names = [...Array(9).keys()].map(it => `f${it}`),
+                chatModel = createChatModel();
+            renderDocument(
+                {
+                    root: 'form',
+                    elements: {
+                        form: {component: 'form', props: {}, children: [...names, 'go']},
+                        ...Object.fromEntries(
+                            names.map(name => [
+                                name,
+                                {component: 'textInput', props: {name, value: 'x'}}
+                            ])
+                        ),
+                        go: {component: 'button', props: {label: 'Submit'}}
+                    }
+                },
+                chatModel
+            );
+
+            expect(screen.getByRole<HTMLButtonElement>('button', {name: 'Submit'}).disabled).toBe(
+                true
+            );
+        });
+
+        it('hides a button that sends where there is no chat to send to', () => {
+            renderDocument(formDoc(), null);
+            expect(screen.queryByRole('button', {name: 'Submit'})).toBeNull();
+        });
+
+        it('checks the fields before a state action runs', async () => {
+            const stateAction: ChatUiStateAction = {type: 'state', id: 'go', summary: 'Saves'},
+                {state, container} = renderBound(
+                    formDoc({label: 'Save', action: stateAction}).elements
+                );
+
+            await clickAsync(screen.getByRole('button', {name: 'Save'}));
+            expect(state.runActionAsync).not.toHaveBeenCalled();
+
+            typeInto(container.querySelector('.xh-text-input input'), 'ann@example.com');
+            await clickAsync(screen.getByRole('button', {name: 'Save'}));
+            expect(state.runActionAsync).toHaveBeenCalledWith(stateAction, expect.anything());
+        });
+    });
+
+    describe('in an OpenUI Lang program', () => {
+        const PROGRAM =
+            'root = Stack([region, note, form])\n' +
+            '$region = "emea"\n' +
+            'region = Select("region", [{value: "emea", label: "EMEA"}, {value: "apac", label: "APAC"}], "Region", null, null, null, $region)\n' +
+            'note = Text("Showing " + ($region == "apac" ? "Asia Pacific" : "Europe"))\n' +
+            'form = Form([name, submit], "Details")\n' +
+            'name = TextInput("name", "Name", null, {required: true}, $name)\n' +
+            'submit = Button("Submit", @ToAssistant("Use these details", {name: $name, region: $region}), "primary")';
+
+        it('re-renders an expression on a $variable when the select bound to it changes', async () => {
+            const chatModel = createOpenUiChat(PROGRAM),
+                {container} = render(chatMessageList({model: chatModel}));
+
+            // The program streams in as the reply text, a few characters at a time.
+            await act(async () => {
+                await chatModel.sendAsync('Show the details form.');
+            });
+            expect(container.textContent).toContain('Showing Europe');
+
+            choose(container.querySelector('.xh-select'), 'APAC');
+            expect(container.textContent).toContain('Showing Asia Pacific');
+            expect(container.textContent).not.toContain('Showing Europe');
+        });
+
+        it('submits a form with the current values of its $variables', async () => {
+            const chatModel = createOpenUiChat(PROGRAM),
+                {container} = render(chatMessageList({model: chatModel}));
+            await act(async () => {
+                await chatModel.sendAsync('Show the details form.');
+            });
+
+            await clickAsync(screen.getByRole('button', {name: 'Submit'}));
+            expect(container.textContent).toContain('Name is required.');
+            expect(chatModel.messages).toHaveLength(2);
+
+            typeInto(container.querySelector('.xh-text-input input'), 'Ann');
+            choose(container.querySelector('.xh-select'), 'APAC');
+            await clickAsync(screen.getByRole('button', {name: 'Submit'}));
+
+            await waitFor(() => expect(chatModel.messages.length).toBeGreaterThan(2));
+            expect(chatModel.messages[2]).toMatchObject({
+                role: 'user',
+                text: 'Use these details',
+                metadata: {context: {name: 'Ann', region: 'apac'}}
+            });
+        });
+    });
+});
+
+//------------------
+// Helpers
+//------------------
+class NoopResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+}
+
+// State for a document: the value of each input, by element id.
+class Values extends HoistBase implements ChatUiState {
+    private readonly map = observable.map<string, unknown>({}, {deep: false});
+
+    runActionAsync = vi.fn(async () => null);
+
+    get(id: string): unknown {
+        return this.map.get(id);
+    }
+
+    @action
+    set(id: string, value: unknown) {
+        this.map.set(id, value);
+    }
+}
+
+// Components render within a chat, whose model gives them the model context Hoist needs.
+const chatHost = hoistCmp.factory<HoistProps<ChatModel>>({
+    displayName: 'ChatHost',
+    model: uses(ChatModel, {optional: true}),
+    render: ({children}) => fragment({items: children})
+});
+
+function createCatalog(): ChatUiCatalog {
+    return new ChatUiCatalog({
+        components: [chatUiStackSpec(), chatUiTextSpec(), ...chatUiInputSpecs()],
+        modes: ['document']
+    });
+}
+
+function renderDocument(doc: PlainObject, chatModel: ChatModel) {
+    return render(
+        chatHost({
+            model: chatModel,
+            item: createCatalog().renderDocument(
+                doc as ChatUiDocument,
+                context(chatModel)
+            ) as ReactNode
+        })
+    );
+}
+
+// Renders a document whose inputs each bind their `value` to a state, by element id.
+function renderBound(elements: Record<string, ChatUiElement>, initial: PlainObject = {}) {
+    const values = new Values(),
+        state = values;
+    Object.entries(initial).forEach(([id, value]) => values.set(id, value));
+
+    const doc: ChatUiDocument = {
+        root: Object.keys(elements)[0],
+        elements: {},
+        state: {
+            create: () => values,
+            resolve: () => ({
+                root: Object.keys(elements)[0],
+                elements: Object.fromEntries(
+                    Object.entries(elements).map(([id, element]) => {
+                        const isInput = Object.hasOwn(element.props, 'name');
+                        return [
+                            id,
+                            {
+                                ...element,
+                                props: isInput
+                                    ? {...element.props, value: values.get(id)}
+                                    : element.props,
+                                ...(isInput
+                                    ? {bindings: {value: {set: v => values.set(id, v)}}}
+                                    : {})
+                            } as ChatUiElement
+                        ];
+                    })
+                )
+            })
+        }
+    };
+    return {values, state, ...renderDocument(doc, null)};
+}
+
+function context(chatModel: ChatModel, isPartial: boolean = false): ChatUiDocumentContext {
+    return {
+        chatModel,
+        messageId: 'm1',
+        part: {type: 'data', id: 'd1', dataType: 'xh.chat.ui', data: null},
+        isPartial
+    };
+}
+
+function createChatModel(): ChatModel {
+    const chatModel = new ChatModel({
+        transport: new ScriptedChatTransport({respond: () => textEvents('Done.'), delayMs: 0})
+    });
+    onTestFinished(() => chatModel.destroy());
+    return chatModel;
+}
+
+// A chat whose first reply is an OpenUI Lang program, and whose later replies are text.
+function createOpenUiChat(program: string): ChatModel {
+    const catalog = new ChatUiCatalog({
+            components: [chatUiStackSpec(), chatUiTextSpec(), ...chatUiInputSpecs()],
+            textFormats: [openUiLangFormat({root: 'stack', bindings: true})],
+            modes: ['openui']
+        }),
+        chatModel = new ChatModel({
+            catalog,
+            transport: new ScriptedChatTransport({
+                respond: (_, {turnIndex}) => textEvents(turnIndex === 0 ? program : 'Done.'),
+                delayMs: 0
+            })
+        });
+    onTestFinished(() => chatModel.destroy());
+    return chatModel;
+}
+
+// Type a value into a Hoist input, and commit it as leaving the input does.
+function typeInto(input: Element, value: string) {
+    fireEvent.focus(input);
+    fireEvent.change(input, {target: {value}});
+    fireEvent.blur(input);
+}
+
+// Open a Hoist select, and click the choice with the given label.
+function choose(selectEl: Element, label: string) {
+    fireEvent.keyDown(selectEl.querySelector('input'), {key: 'ArrowDown', keyCode: 40});
+    const option = [...document.querySelectorAll('.xh-select__option')].find(
+        it => it.textContent === label
+    );
+    fireEvent.click(option);
+}
+
+// Click, then let the action, which runs async, finish and render.
+async function clickAsync(target: HTMLElement) {
+    await act(async () => {
+        fireEvent.click(target);
+        await new Promise(resolve => setTimeout(resolve, 0));
+    });
+}

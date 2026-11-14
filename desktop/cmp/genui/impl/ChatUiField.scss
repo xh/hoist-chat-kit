@@ -1,0 +1,6 @@
+// A generative UI field: a Hoist FormField that fills its row, up to a readable width.
+.xh-chat-ui-field {
+  max-width: var(--xh-chat-ui-field-max-width, 360px);
+  min-width: 0;
+  width: 100%;
+}
