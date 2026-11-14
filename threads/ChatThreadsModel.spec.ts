@@ -1190,6 +1190,56 @@ describe('ChatThreadsModel', () => {
             await model.selectThreadAsync('t2');
             expect(model.chatModel.agentState).toEqual({});
         });
+
+        it("keeps a thread's agent state while its chat is closed, for its next run to send", async () => {
+            const {model, transport} = setup({
+                respond: () => [
+                    {type: 'STATE_SNAPSHOT', snapshot: {todos: ['Plan']}},
+                    textEvents('Done.')
+                ]
+            });
+            await model.selectThreadAsync('t1');
+            const first = model.chatModel;
+            await first.sendAsync('Plan the work');
+
+            await model.selectThreadAsync('t2');
+            expect(first.isDestroyed).toBe(true);
+            expect(model.chatModel.agentState).toEqual({});
+
+            await model.selectThreadAsync('t1');
+            expect(model.chatModel).not.toBe(first);
+            expect(model.chatModel.agentState).toEqual({todos: ['Plan']});
+            await model.chatModel.sendAsync('Carry on');
+            expect(transport.requests.at(-1).agentState).toEqual({todos: ['Plan']});
+        });
+
+        it("keeps a chat's agent state on a reload, when the store returns none", async () => {
+            const {model} = setup({
+                respond: () => [
+                    {type: 'STATE_SNAPSHOT', snapshot: {todos: ['Plan']}},
+                    textEvents('Done.')
+                ]
+            });
+            await model.selectThreadAsync('t1');
+            await model.chatModel.sendAsync('Plan the work');
+
+            await model.reloadThreadAsync();
+
+            expect(model.chatModel.agentState).toEqual({todos: ['Plan']});
+        });
+
+        it("starts a thread with the chat's configured agent state, unless the store returns one", async () => {
+            const {model, store} = setup({chat: {agentState: {mode: 'research'}}});
+            store.saveThread({id: 't2', agentState: {mode: 'review'}});
+
+            expect(model.newThread().agentState).toEqual({mode: 'research'});
+
+            await model.selectThreadAsync('t1');
+            expect(model.chatModel.agentState).toEqual({mode: 'research'});
+
+            await model.selectThreadAsync('t2');
+            expect(model.chatModel.agentState).toEqual({mode: 'review'});
+        });
     });
 
     describe('status and run options', () => {
@@ -1355,6 +1405,31 @@ describe('ChatThreadsModel', () => {
                 expect(load).toHaveBeenCalledTimes(1);
                 expect(model.chatModel.lastMessage.text).toBe('Flat.');
                 expect(model.chatModel.sendBlockedReason).toBeNull();
+            });
+
+            it("takes no agent state from the app or the chat while the turn runs, and the store's once it ends", async () => {
+                const {model, store} = await openRunning({chat: {agentState: {todos: ['Stale']}}}),
+                    {chatModel} = model,
+                    logWarn = vi.spyOn(chatModel, 'logWarn').mockImplementation(() => {});
+
+                // The server may be past any state the page holds, so the chat starts with none.
+                expect(chatModel.agentState).toEqual({});
+                expect(chatModel.canSetAgentState).toBe(false);
+                chatModel.setAgentState({todos: ['Mine']});
+                expect(chatModel.agentState).toEqual({});
+                expect(logWarn).toHaveBeenCalledWith(expect.stringContaining('runs on the server'));
+
+                store.saveThread({
+                    id: 't9',
+                    isRunning: false,
+                    messages: DONE,
+                    agentState: {todos: ['Done']}
+                });
+                await vi.advanceTimersByTimeAsync(5_000);
+
+                expect(chatModel.lastMessage.text).toBe('Flat.');
+                expect(chatModel.agentState).toEqual({todos: ['Done']});
+                expect(chatModel.canSetAgentState).toBe(true);
             });
 
             it('stops checking after statusRefreshTimeoutMs, and offers Refresh Status', async () => {

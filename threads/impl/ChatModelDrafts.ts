@@ -1,6 +1,7 @@
 import {compact, isEmpty, isEqual, uniq} from 'lodash';
 import type {PlainObject} from '@xh/hoist/core';
-import type {ChatFeedbackDraft, ChatMessage, ChatMessageSpec, ChatModel} from '../../core';
+import type {ChatFeedbackDraft, ChatMessage, ChatModel} from '../../core';
+import type {ChatMessagePage} from '../ChatThreadStore';
 
 /**
  * What the threads model keeps of closed `ChatModel`s for the session: each thread's draft and
@@ -13,6 +14,10 @@ export class ChatModelDrafts {
 
     // Feedback comments of closed threads, by thread id, for when their history loads again.
     private readonly feedbackDrafts = new Map<string, SavedFeedbackDraft[]>();
+
+    // The agent's shared state of closed threads, as of each one's last run, for when they open
+    // again. A backend that takes a request's state as its base needs it back.
+    private readonly agentStates = new Map<string, any>();
 
     // The run options each chat was built with, so that a draft keeps only the user's changes.
     private readonly defaultRunOptions = new WeakMap<ChatModel, PlainObject>();
@@ -41,25 +46,39 @@ export class ChatModelDrafts {
 
         const feedbackDrafts = getFeedbackDrafts(chatModel);
         if (!isEmpty(feedbackDrafts)) this.feedbackDrafts.set(threadId, feedbackDrafts);
+
+        if (holdsCurrentState(chatModel) && !isEqual(chatModel.agentState, {})) {
+            this.agentStates.set(threadId, chatModel.agentState);
+        } else {
+            this.agentStates.delete(threadId);
+        }
     }
 
     /** Drop all that is kept for a thread. */
     remove(threadId: string) {
         this.drafts.delete(threadId);
         this.feedbackDrafts.delete(threadId);
+        this.agentStates.delete(threadId);
     }
 
     /**
      * Load history into a chat, keeping its feedback comments: those of the thread when it was
      * closed, and those open in the chat, which the load clears.
+     *
+     * The chat takes the agent's shared state that the store returned with the history. With
+     * none, it keeps the state the thread last had on this page - kept when the thread closed,
+     * else the chat's own - unless the server may have run on past it.
      */
-    loadHistory(chatModel: ChatModel, threadId: string, messages: ChatMessageSpec[]) {
+    loadHistory(chatModel: ChatModel, threadId: string, page: ChatMessagePage) {
         const feedbackDrafts = [
-            ...(this.feedbackDrafts.get(threadId) ?? []),
-            ...getFeedbackDrafts(chatModel)
-        ];
+                ...(this.feedbackDrafts.get(threadId) ?? []),
+                ...getFeedbackDrafts(chatModel)
+            ],
+            keptState = this.agentStates.get(threadId) ?? chatModel.agentState,
+            agentState = page.agentState ?? (holdsCurrentState(chatModel) ? keptState : null);
         this.feedbackDrafts.delete(threadId);
-        chatModel.loadMessages(messages, threadId);
+        this.agentStates.delete(threadId);
+        chatModel.loadMessages(page.messages ?? [], threadId, {agentState});
         restoreFeedbackDrafts(chatModel, feedbackDrafts);
     }
 
@@ -72,6 +91,21 @@ export class ChatModelDrafts {
 //------------------
 // Implementation
 //------------------
+/**
+ * True if a chat saw its thread's last run end, so that the state it holds is the agent's. False
+ * for a run the server may still be on, or one that broke off: the server's state may be ahead.
+ */
+function holdsCurrentState(chatModel: ChatModel): boolean {
+    const {lastMessage} = chatModel;
+    if (chatModel.isBusy || chatModel.isRunningOnServer) return false;
+    if (!lastMessage) return true;
+    return (
+        lastMessage.isAssistant &&
+        (lastMessage.status === 'complete' || lastMessage.status === 'paused') &&
+        !lastMessage.metadata.detached
+    );
+}
+
 /** A feedback comment kept for a thread, with the ids its message may come back under. */
 interface SavedFeedbackDraft {
     /** The message's id when the comment was typed. */

@@ -97,8 +97,14 @@ export interface ChatMessagePage {
 
     /**
      * The agent's shared state for the thread, as the backend holds it - see
-     * `ChatModel.agentState`. The chat then holds it as soon as the thread opens. Leave it out,
-     * or null, for a chat with no state until the agent next sends it.
+     * `ChatModel.agentState`. The chat takes it on each load of the history, in place of the
+     * state it held, and sends it with the next run.
+     *
+     * Leave it out, or null, for a backend that keeps its own state whatever a request sends.
+     * The chat then keeps the state the thread last had on this page, and starts from an empty
+     * object after a page reload, or after a run that the server finished without the chat. A
+     * backend that takes the request's state as its base needs this, or such a run starts it
+     * from nothing.
      */
     agentState?: any;
 
