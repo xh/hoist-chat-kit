@@ -1,11 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
-import {
-    createStreamingParser,
-    generateSystemPrompt,
-    type StreamParser,
-    type ToolSpec
-} from '@openuidev/lang-core';
+import {generateSystemPrompt, type ToolSpec} from '@openuidev/lang-core';
 import {
     camelCase,
     compact,
@@ -37,6 +32,7 @@ import {findFences, type MarkdownFence} from '../impl/parseTags';
 import {openUiToDocument} from './OpenUiDocument';
 import {createLibraryCache} from './impl/libraryCache';
 import {createOpenUiStateSpec} from './impl/openUiStateSpec';
+import {parseOpenUiProgram} from './impl/programGate';
 import type {OpenUiRuntimeConfig} from './impl/OpenUiRuntime';
 import type {OpenUiToolCall} from './impl/OpenUiToolGate';
 
@@ -209,33 +205,7 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
             ...opts,
             bindings: features.bindings,
             toolCalls: features.toolCalls
-        }),
-        parsers = new Map<string, {library: OpenUiLibrary; parser: StreamParser}>();
-
-    // A streaming parser per program of a part, so that each chunk parses only what it adds. Kept
-    // until the reply ends, as a program may complete before the rest of the reply.
-    const getParser = (
-        ctx: ChatUiFormatContext,
-        programIndex: number,
-        library: OpenUiLibrary
-    ): StreamParser => {
-        const {messageId, partId, index, isStreaming} = ctx,
-            create = () => createStreamingParser(library.schema, library.root);
-        if (messageId == null && partId == null) return create();
-
-        const key = `${messageId}|${partId}|${index}|${programIndex}`,
-            entry = parsers.get(key),
-            cached = entry?.library === library ? entry.parser : null;
-        if (!isStreaming) {
-            parsers.delete(key);
-            return cached ?? create();
-        }
-        if (cached) return cached;
-        if (parsers.size >= MAX_PARSERS) parsers.clear();
-        const parser = create();
-        parsers.set(key, {library, parser});
-        return parser;
-    };
+        });
 
     // Parse one program. `isStreaming` is true while the program itself may still grow. A bare
     // program, with no fence, that ends with no root is prose after all, and stays markdown.
@@ -248,14 +218,31 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
     ): ChatUiTextSegment => {
         const {catalog, messageId, partId, index} = ctx,
             library = getLibrary(catalog),
-            result = getParser(ctx, programIndex, library).set(program, !isStreaming),
-            {document, errors, elementErrors, ...translation} = openUiToDocument(result, library, {
+            gated = parseOpenUiProgram(program, library, {
+                bindings: features.bindings,
+                maxElements: catalog.limits.maxElements
+            });
+        // A program that the gate refused was not parsed, and shows why.
+        if (gated.refusal) {
+            return {
+                type: 'fallback',
+                component: null,
+                name: 'openui',
+                props: {},
+                errors: [gated.refusal],
+                source: program
+            };
+        }
+
+        const {result} = gated,
+            {document, elementErrors, ...translation} = openUiToDocument(result, library, {
                 complete: !isStreaming,
                 text: program,
                 catalog,
                 // With state, the runtime reads each action again, and warns of what it drops.
                 quiet: features.hasState
             }),
+            errors = [...gated.errors, ...translation.errors],
             logKey = [messageId ?? program, partId, index, programIndex].join('|');
 
         // A root that an expression picks, such as a ternary, has no element until it evaluates.
@@ -523,8 +510,7 @@ const SOURCE = 'OpenUiLangFormat',
     MAX_EXAMPLE_CHILDREN = 2,
     // Where lang-core's own list of rules ends, and its last section starts.
     AFTER_RULES = '\n\n## Final Verification',
-    MUTATION_SECTION = '\n## Mutation',
-    MAX_PARSERS = 100;
+    MUTATION_SECTION = '\n## Mutation';
 
 // True for a first line that starts a bare program: `root = ...`, or a statement that calls a
 // component of the library. Prose such as `Total = revenue - cost` is neither.

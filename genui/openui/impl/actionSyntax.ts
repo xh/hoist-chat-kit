@@ -18,7 +18,16 @@ export interface ActionSyntaxOptions {
  */
 export const SEND_TARGET = '@ToAssistant',
     OPEN_URL_TARGET = '@OpenUrl',
-    REFUSED_TARGET = '@Refused';
+    REFUSED_TARGET = '@Refused',
+    GENUINE_TARGET = '@Genuine';
+
+/**
+ * The value of the step that {@link prepareActions} puts first in each action it prepares. A
+ * plan is genuine only if its first step holds this very object. Data can copy the shape of a
+ * plan, but not this object, as each value that data gives is a new one.
+ * @internal
+ */
+export const GENUINE_MARK: ASTNode = Object.freeze({k: 'Null'}) as ASTNode;
 
 /** A name that a program can give a `$variable`, with its `$`. @internal */
 export const STATE_NAME_RE = /^\$[A-Za-z_]\w*$/;
@@ -34,6 +43,9 @@ export const STATE_NAME_RE = /^\$[A-Za-z_]\w*$/;
  *   data: an object the program wrote, a `$variable`, or the result of a query. lang-core would
  *   run data shaped like a list of steps. Here it becomes a refused action, which a button shows
  *   as disabled.
+ * - **Marks each action it prepared**, with a first step that holds {@link GENUINE_MARK}. The
+ *   kit runs a plan only with that mark, so a plan that data built is refused even where it
+ *   reaches an action prop.
  * - **Makes every step lazy.** lang-core evaluates the arguments of a `@ToAssistant` when the
  *   props evaluate, and those of a `@Set` not at all. So a message after a `@Set` in the same
  *   action would read the old value. Each `@ToAssistant` and `@OpenUrl` becomes a `@Set` on a
@@ -79,7 +91,7 @@ export function prepareActions<T extends ElementNode | ASTNode>(
                     mappedProps = value.mappedProps
                         ? (mapValuesSame(value.mappedProps, (it, key) =>
                               opts.isComponent(name) && opts.isActionProp(name, key)
-                                  ? prepareAction(it as ASTNode)
+                                  ? prepareMapped(it as ASTNode)
                                   : prepare(it)
                           ) as Record<string, ASTNode>)
                         : value.mappedProps;
@@ -134,9 +146,16 @@ export function prepareActions<T extends ElementNode | ASTNode>(
     // The value of an action prop of an element: an action, a list of them, or nothing.
     const prepareArgument = (value: unknown): unknown => {
         if (value == null) return value;
-        if (isArray(value)) return value.map(it => (isAst(it) ? prepareAction(it) : REFUSED));
-        return isAst(value) ? prepareAction(value) : REFUSED;
+        if (isArray(value)) return value.map(it => mark(isAst(it) ? prepareAction(it) : REFUSED));
+        return mark(isAst(value) ? prepareAction(value) : REFUSED);
     };
+
+    // The value of an action prop of a component call inside an expression. A list written out
+    // is a list of actions.
+    const prepareMapped = (node: ASTNode): ASTNode =>
+        node?.k === 'Arr'
+            ? {...node, els: node.els.map(it => mark(prepareAction(it)))}
+            : mark(prepareAction(node));
 
     // An action expression: one step, an `Action([...])`, or a condition that picks between
     // them. Any other expression is data, and is refused.
@@ -227,6 +246,16 @@ const NULL: ASTNode = {k: 'Null'};
 // Stands for an action argument that is not action syntax. It evaluates to a step that the
 // runtime refuses, so the component can say that its action cannot run.
 const REFUSED = toSet(REFUSED_TARGET, NULL);
+
+// A prepared action behind the step that marks it as genuine. Nothing stays nothing.
+function mark(node: ASTNode): ASTNode {
+    if (node == null || node.k === 'Null' || node.k === 'Ph') return node;
+    return {
+        k: 'Comp',
+        name: 'Action',
+        args: [{k: 'Arr', els: [toSet(GENUINE_TARGET, GENUINE_MARK), node]}]
+    };
+}
 
 // A `@Set` step, which lang-core keeps with its value as an expression.
 function toSet(target: string, value: ASTNode): ASTNode {

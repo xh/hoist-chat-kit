@@ -23,7 +23,13 @@ import {
     type ChatUiAction
 } from '../ChatUiAction';
 import {hasWhitespaceRun} from '../impl/displayText';
-import {OPEN_URL_TARGET, SEND_TARGET, STATE_NAME_RE} from './impl/actionSyntax';
+import {
+    GENUINE_MARK,
+    GENUINE_TARGET,
+    OPEN_URL_TARGET,
+    SEND_TARGET,
+    STATE_NAME_RE
+} from './impl/actionSyntax';
 import {warnOnce} from './impl/warnOnce';
 import type {OpenUiLibrary} from './OpenUiLibrary';
 
@@ -93,13 +99,21 @@ export type OpenUiStep =
     | {type: 'refused'};
 
 /**
- * Read the steps of an action that lang-core evaluated. A `@Set` on a reserved target is the
- * `@ToAssistant` or the `@OpenUrl` that {@link prepareActions} rewrote. Any step of another
- * shape is refused: the kit takes a step only from action syntax, never from data.
+ * Read the steps of an action that lang-core evaluated. The first step must be the mark that
+ * {@link prepareActions} put there, or the whole plan is refused: data built it. A `@Set` on a
+ * reserved target is the `@ToAssistant` or the `@OpenUrl` that {@link prepareActions} rewrote.
+ * Any step of another shape is refused: the kit takes a step only from action syntax, never
+ * from data.
  * @internal
  */
 export function toOpenUiSteps(plan: ActionPlan): OpenUiStep[] {
-    return plan.steps.map((step): OpenUiStep => {
+    const [first, ...steps] = plan.steps;
+    if (first == null) return [];
+    const isGenuine =
+        first.type === 'set' && first.target === GENUINE_TARGET && first.valueAST === GENUINE_MARK;
+    if (!isGenuine) return [REFUSED];
+
+    return steps.map((step): OpenUiStep => {
         switch (step?.type) {
             case 'set': {
                 const {target, valueAST} = step;
@@ -143,9 +157,13 @@ export function toSendAction(text: unknown, contextValue: unknown): ChatUiAction
     };
 }
 
-/** An `openUrl` action for a url that an expression gave, or null. @internal */
+/**
+ * An `openUrl` action for a url that an expression gave. Null for a url that is not text, or
+ * that holds a run of whitespace.
+ * @internal
+ */
 export function toOpenUrlAction(url: unknown): ChatUiAction {
-    return isString(url) && url ? {type: 'openUrl', url} : null;
+    return isString(url) && url && !hasWhitespaceRun(url) ? {type: 'openUrl', url} : null;
 }
 
 //------------------

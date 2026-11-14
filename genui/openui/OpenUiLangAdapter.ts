@@ -1,11 +1,11 @@
 import {throwIf} from '@xh/hoist/utils/js';
-import {createParser} from '@openuidev/lang-core';
 import {isString} from 'lodash';
 import type {ChatUiAdapter} from '../ChatUiAdapter';
 import {openUiToDocument} from './OpenUiDocument';
 import {getOpenUiFeatures, type OpenUiLangFormatOptions} from './OpenUiLangFormat';
 import {createLibraryCache} from './impl/libraryCache';
 import {createOpenUiStateSpec} from './impl/openUiStateSpec';
+import {parseOpenUiProgram} from './impl/programGate';
 
 /** Options for {@link openUiLangAdapter}. */
 export interface OpenUiLangAdapterOptions extends OpenUiLangFormatOptions {
@@ -40,13 +40,19 @@ export function openUiLangAdapter(opts: OpenUiLangAdapterOptions): ChatUiAdapter
             );
 
             const library = getLibrary(catalog),
-                result = createParser(library.schema, library.root).parse(program),
-                translation = openUiToDocument(result, library, {
-                    complete: !isPartial,
-                    text: program,
-                    catalog,
-                    quiet: features.hasState
+                {result, refusal} = parseOpenUiProgram(program, library, {
+                    bindings: features.bindings,
+                    maxElements: catalog.limits.maxElements
                 });
+            // A program that the gate refused was not parsed. The part shows why.
+            throwIf(refusal, refusal);
+
+            const translation = openUiToDocument(result, library, {
+                complete: !isPartial,
+                text: program,
+                catalog,
+                quiet: features.hasState
+            });
             // A program cut off when the reply ended is complete: nothing more will arrive. Its
             // queries run only once the reply ends. A data part can grow while the reply
             // streams, and a query that ran at each step would run once per line.

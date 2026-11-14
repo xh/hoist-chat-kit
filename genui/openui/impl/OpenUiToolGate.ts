@@ -49,7 +49,7 @@ export interface OpenUiToolGateConfig {
  * - The app must list the tool by name. With none listed, no tool runs.
  * - The tool must be a client tool of the chat, with an `execute`.
  * - The arguments must pass the tool's schema, and that schema must use only keywords the kit
- *   can check.
+ *   can check. A tool with no schema takes no arguments.
  * - A query cannot ask the user, so a tool that needs approval for the arguments is refused.
  * - The chat has calls left in its budget for the minute.
  *
@@ -84,6 +84,13 @@ export class OpenUiToolGate {
             json = toJson(args),
             input: PlainObject = isPlainObject(json) ? (json as PlainObject) : {};
         throwIf(!tool?.execute, `No client tool named '${toolName}'.`);
+
+        // A tool with no schema says nothing of its input, so it takes none from a program.
+        throwIf(
+            !tool.parameters && !isEmpty(input),
+            `Tool '${toolName}' has no 'parameters' schema, so a Query can run it only with ` +
+                'no arguments.'
+        );
 
         // The check must cover the whole schema, or invalid input would reach the tool.
         const schemaProblems = tool.parameters ? findSchemaProblems(tool.parameters) : [];

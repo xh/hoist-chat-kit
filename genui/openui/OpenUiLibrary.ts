@@ -297,6 +297,15 @@ function toComponentDef(
                 type.includes(' ') ? `(${type})[]` : `${type}[]`
             );
         } else {
+            // An action below the top level of a prop would come from data, such as a list of
+            // rows that a `$variable` or a query holds. The format takes an action only from
+            // action syntax, which it can check only at the top.
+            throwIf(
+                holdsActionSchema(schema),
+                `Component '${spec.name}' cannot be in an OpenUI library: its prop '${key}' ` +
+                    'holds an action below its top level. Give the action a prop of its own, ' +
+                    'or a list prop whose items are actions.'
+            );
             const type = toTypeAnnotation(schema),
                 isBound = bindings && spec.stateProps?.includes(key);
             add(key, schema, isBound ? `$binding<${type}>` : type);
@@ -429,4 +438,11 @@ function toType(type: string, schema: PlainObject, depth: number): string {
         default:
             return 'any';
     }
+}
+
+// True for a schema that holds an action schema at any depth.
+function holdsActionSchema(schema: unknown, depth: number = 0): boolean {
+    if (schema == null || typeof schema !== 'object' || depth > 20) return false;
+    if (isChatUiActionSchema(schema)) return true;
+    return Object.values(schema).some(it => holdsActionSchema(it, depth + 1));
 }
