@@ -143,9 +143,12 @@ still in force, with their amendments. Do not read the whole file.
 | [D119](#d119-the-thread-layer-asks-the-app-to-title-a-new-thread) | The thread layer asks the app to title a new thread | Accepted |
 | [D120](#d120-a-replayed-failure-reads-as-the-same-failure-live) | A replayed failure reads as the same failure live | Accepted |
 | [D121](#d121-reply-text-reaches-the-catalog-through-ui-formats) | Reply text reaches the catalog through UI formats | Accepted |
-| [D122](#d122-openui-lang-runs-on-thesyss-headless-core-with-the-kits-catalog) | OpenUI Lang runs on Thesys's headless core, with the kit's catalog | Accepted |
-| [D123](#d123-adapters-render-partial-documents) | Adapters render partial documents | Accepted |
+| [D122](#d122-openui-lang-runs-on-thesyss-headless-core-with-the-kits-catalog) | OpenUI Lang runs on Thesys's headless core, with the kit's catalog | Amended by D127 |
+| [D123](#d123-adapters-render-partial-documents) | Adapters render partial documents | Amended by D126 |
 | [D124](#d124-built-in-generative-ui-components-render-hoist-components) | Built-in generative UI components render Hoist components | Accepted |
+| [D126](#d126-a-document-can-have-state-and-a-component-can-write-a-bound-prop) | A document can have state, and a component can write a bound prop | Accepted |
+| [D127](#d127-openui-lang-state-queries-and-mutations-run-on-lang-cores-runtime) | OpenUI Lang state, queries and mutations run on lang-core's runtime | Accepted |
+| [D129](#d129-each-built-in-input-owns-one-hoist-field-and-a-form-sends-within-the-caps-of-a-send) | Each built-in input owns one Hoist field, and a form sends within the caps of a send | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2518,7 +2521,9 @@ the results. Two formats could then claim the same text.
 
 ## D123. Adapters render partial documents
 
-**Status.** Accepted. Amends D8.
+**Status.** Amended by
+[D126](#d126-a-document-can-have-state-and-a-component-can-write-a-bound-prop): a document can
+have state, with props bound to it. Amends D8.
 
 **Decision.** `ChatUiAdapter.translate()` takes a context, `{catalog, isPartial}`, as its second
 argument, in place of the catalog. `createDataRenderers()` passes the reply's streaming state:
@@ -2538,7 +2543,10 @@ adapter folds its protocol's operations into one document on each call instead.
 
 ## D122. OpenUI Lang runs on Thesys's headless core, with the kit's catalog
 
-**Status.** Accepted. Amends D8 and D15.
+**Status.** Amended by
+[D127](#d127-openui-lang-state-queries-and-mutations-run-on-lang-cores-runtime): an app can turn on
+`$state`, `@Set`, `@Reset`, `@Run`, `Query()` and `Mutation()`, which run on lang-core's store,
+evaluator and query manager. Amends D8 and D15.
 
 **Decision.** `/genui/openui/` reads OpenUI Lang into the catalog. `openUiLangFormat()` is a text
 format, named `openui`, for programs in reply text. `openUiLangAdapter()` renders a program sent in
@@ -2597,3 +2605,110 @@ through Hoist's own variables.
 **Alternatives.** Keep the kit's own components beside Hoist's. Each would need its own styling,
 accessibility work and docs. Rename the spec and its catalog name after `StatCard`. The catalog
 name is vocabulary for prompts and stored replies, not for the implementation.
+
+## D126. A document can have state, and a component can write a bound prop
+
+**Status.** Accepted. Amends D123.
+
+**Decision.** `ChatUiDocument.state` holds a `ChatUiStateSpec`, with `create()` and `resolve()`.
+The catalog creates the state when the document first renders. It keeps the state while the
+document shows, through each new parse of a reply that streams, and destroys it on unmount.
+`resolve()` runs in a MobX observer and returns a plain document for the current state. The
+catalog repairs, checks and renders that document as it does any other.
+
+A component lists the props that a user changes in `stateProps`, and writes one with
+`context.setProp()`. Where the element has a `ChatUiBinding` for the prop, in `bindings`, the write
+goes to the state. Otherwise the catalog keeps the value for as long as the component shows. The
+catalog does not check a bound prop against the schema. A `state` action names its steps by `id`
+and says what they do in `summary`. The state holds the steps and runs them, through
+`ChatUiState.runActionAsync()`. `chatUiActionSchema()` leaves `state` out unless a spec asks for it,
+and a document with no state refuses the action. State and bindings hold functions, so only code
+sets them. `repairDocument()` drops both from a document read from JSON.
+
+**Why.** D123 left a data model with bound values out until an adapter needed one. OpenUI Lang
+needs it now, and A2UI has the same shape. A change of state can add or remove elements, as a list
+template or a condition does, so the whole document resolves again, as OpenUI's own renderer
+evaluates its whole tree. A resolved document is plain, so every check stays in one place. The
+state lives with the rendered document, as that is the one place that knows when the message goes
+away. The user writes a bound value, so a schema check would replace an input with a fallback as
+they type. A component spec that knows nothing of state keeps working: it gets plain props. The
+`summary` keeps D17: the user sees what a click does. The model cannot write the steps of a `state`
+action, as the state holds them.
+
+**Alternatives.** Resolve each bound prop in the observer of its own element. That renders less
+on each change, but it cannot add or remove elements. Give the core a store of values by name,
+with bindings as paths. That is a guess at what A2UI needs, and OpenUI must run on lang-core's own
+store. Keep the state in the format, by message and part id. A format gets no signal to release
+it, and an adapter gets no ids. Put a function in an action prop. The catalog could not check it or
+describe it.
+
+## D127. OpenUI Lang state, queries and mutations run on lang-core's runtime
+
+**Status.** Accepted. Amends D122.
+
+**Decision.** `openUiLangFormat()` and `openUiLangAdapter()` take `bindings`, `builtinFunctions`,
+`queryTools`, `mutationTools` and `minRefreshSeconds`. All are off by default, and a format with
+none keeps its prompt and its version. With one on, each rendered program gets a runtime built on
+lang-core: `createStore()`, `evaluateRoot()`, `resolveStateField()` and `createQueryManager()`.
+The kit writes no evaluator, and does not use `@openuidev/react-lang`. The store and the query
+manager notify plain listeners. Each notice bumps an observable version that every read of state
+tracks, so a Hoist component renders again. The document a program returns has `state`, per D126.
+
+A prop in a component's `stateProps` is typed `$binding<type>` and takes a `$variable` both ways.
+`@ToAssistant` and `@OpenUrl` stay `send` and `openUrl`. lang-core evaluates their arguments when
+the props evaluate, so a button shows the values it sends, within the caps of D17 and D56. `@Set`,
+`@Reset` and `@Run`, alone or in an `Action([...])`, become one `state` action.
+
+A program calls a tool only if the app lists it. `Query()` runs a tool in `queryTools`, and
+`Mutation()` a tool in `mutationTools`. Each call must be a client tool of the chat, with arguments
+that pass a schema the kit can check in full. A query runs with no click, once its program is
+complete and when a `$variable` in its arguments changes, so it refuses a tool that needs approval.
+A mutation runs on a click, and its `state` action names the tool and the arguments. A tool that
+needs approval asks the user first, as a `callTool` action does. A call is not part of the history.
+
+The prompt uses lang-core's own sections for what is on. The kit's rules name what is off, list the
+tools of each kind, and say what lang-core's text names that the catalog lacks. Each action prop
+lists only the steps that its schema accepts. The kit still does not run app-defined actions,
+message markers or edit mode.
+
+**Why.** D122 left state out because it needed OpenUI's evaluator and renderer, which would split
+the checks between two runtimes. lang-core's evaluator is headless, and D126 lets the catalog check
+what it returns. Clients who prompt in OpenUI Lang expect `$variables`, forms and live data. A
+model writes the program, and a prompt injection can steer it. So a tool is opt-in by name, a
+query cannot ask for approval on every change of a variable, and a mutation shows what it runs
+before the click. Each kind of call has its own query manager, as each runs under its own rules.
+
+**Alternatives.** Write an evaluator. It would drift from a language that ships often. Take one
+list of tools for both kinds of call. A read that runs with no click and a write need different
+rules. Ask for approval before a query. It would ask again on each change. Evaluate a
+`@ToAssistant` at the click, as OpenUI does for `@Set`. The message could then differ from the one
+the button showed.
+
+## D129. Each built-in input owns one Hoist field, and a form sends within the caps of a send
+
+**Status.** Accepted.
+
+**Decision.** `/desktop/cmp/genui/` adds specs for a form, a button and eight inputs. Each input
+renders its Hoist input in a `FormField`, over a `FormModel` of one field. Its `value` is a state
+prop, per D126, and the model's `rules` run as Hoist rules. The form renders Hoist's `FormFieldSet`.
+Each input inside it registers its field with the form, which it finds through Hoist's model
+context. A button inside the form validates every field first. A `send` then carries the value of
+each field in its `context`, by field name.
+
+A `send` holds at most 8 values of at most 100 characters, per D56. So text in an input is at most
+100 characters, and a form that holds more than a send can carry cannot send. Its button says why.
+The kit does not cut a value to fit. Each input takes its label as a prop, and its `value` last.
+None has a tool or a tag of its own.
+
+**Why.** A Hoist `FormModel` takes its fields when it is created, and the inputs of a model-written
+form arrive one at a time as the reply streams. A `FormModel` per input gives each one Hoist's
+label, required mark and validation message at once. The caps of D56 still apply to a form. A model
+writes the default of a field, and a text area shows only a few lines, so a long default could hide
+an instruction. A value cut to fit would send something the user did not write. `value` comes last
+because lang-core's prompt tells the model to bind a `$variable` there.
+
+**Alternatives.** One `form` spec that takes its fields as data, over one `FormModel`. It is the
+most direct use of Hoist, but it has no layout of its own, and an input outside a form would need a
+second vocabulary. Copy the signatures of OpenUI's own `Form`, `FormControl` and `Input`. D122
+keeps the argument order of the kit. Raise the cap for text that the user types. That needs a way
+to tell typed text from a default.
