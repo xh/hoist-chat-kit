@@ -5,5 +5,9 @@
     flex-direction: column;
     height: var(--xh-chat-chart-height, 220px);
     min-width: 0;
+
+    > .xh-chat-ui-skeleton {
+      flex: 1 1 auto;
+    }
   }
 }

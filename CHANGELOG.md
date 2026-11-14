@@ -84,7 +84,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Added `chatUiBadgesSpec()`, a row of Hoist `Badge` labels, and `chatUiDividerSpec()`, a rule
   between the parts of a nested answer. Neither is standalone.
 * Added `chatUiTreeMapSpec()`, boxes sized by one number and colored by another over Hoist's
-  `TreeMap`, with the `show_treemap` tool. The app imports the Highcharts treemap module.
+  `TreeMap`, with the `show_treemap` tool. The app imports two Highcharts modules in its
+  `Bootstrap.ts`: `highcharts/modules/heatmap`, then `highcharts/modules/treemap`.
 * Added `ChatModel.streamingMessageId`, the id of the reply in progress. It changes only as a turn
   starts or ends, so a renderer that reads it does not re-render as the reply streams.
 * Enhanced Copy and the announcement of a finished reply to read UI in the reply's text as words,

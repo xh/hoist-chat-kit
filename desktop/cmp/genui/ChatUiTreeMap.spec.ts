@@ -57,13 +57,15 @@ describe('chatUiTreeMapSpec', () => {
         );
 
         expect(container.querySelector('.xh-chat-ui-skeleton')).toBeNull();
+        // Hoist's TreeMap reads its store after a short delay, so it gets no empty text to flash.
+        expect(container.textContent).not.toContain('No values');
         expect(new Set(loadData.mock.contexts).size).toBe(1);
         expect(loadData.mock.calls.map(([rows]) => rows)).toEqual([
             [],
-            [{id: 0, name: 'Rates', value: 42, heat: 0.01}],
+            [{id: 0, name: 'Rates', value: 42, heat: 0.01, color: 0.01}],
             [
-                {id: 0, name: 'Rates', value: 42, heat: 0.01},
-                {id: 1, name: 'Credit', value: 26, heat: null}
+                {id: 0, name: 'Rates', value: 42, heat: 0.01, color: 0.01},
+                {id: 1, name: 'Credit', value: 26, heat: null, color: null}
             ]
         ]);
 
@@ -111,6 +113,70 @@ describe('chatUiTreeMapSpec', () => {
         // A box with no heat names none.
         expect(tooltips[1]).toContain('$1,100,000');
         expect(tooltips[1]).not.toContain('Day');
+    });
+
+    it('says there is nothing to show when no complete box has a size', () => {
+        spyOnModels();
+        const nodes = [
+                {label: 'Rates', value: 0},
+                {label: 'Credit', value: 0}
+            ],
+            {container, rerender} = render(chatUiTreeMap({nodes, isPartial: true}));
+        // More boxes may follow while the props stream.
+        expect(container.querySelector('.xh-chat-ui-skeleton')).toBeTruthy();
+        expect(container.querySelector('[role="note"]')).toBeNull();
+
+        rerender(chatUiTreeMap({nodes}));
+        expect(container.querySelector('.xh-chat-ui-skeleton')).toBeNull();
+        expect(container.querySelector('.xh-treemap')).toBeNull();
+        expect(container.querySelector('[role="note"]').textContent).toBe('No values to show.');
+    });
+
+    it('leaves every box neutral when all heats are zero, and still shows the heat', async () => {
+        const {loadData} = spyOnModels(),
+            processData = vi.spyOn(TreeMapModel.prototype, 'processAndSetData');
+        onTestFinished(() => processData.mockRestore());
+        render(
+            chatUiTreeMap({
+                nodes: [
+                    {label: 'Rates', value: 42, heat: 0},
+                    {label: 'Credit', value: 26, heat: 0}
+                ],
+                heatLabel: 'Day change',
+                heatFormat: 'percent'
+            })
+        );
+        await vi.waitFor(() => expect(processData).toHaveBeenCalled());
+
+        // Hoist's TreeMap divides by the largest heat, so a zero scale gives no color at all.
+        const treeMapModel = processData.mock.contexts[0] as TreeMapModel,
+            store = loadData.mock.contexts[0] as Store;
+        expect(loadData.mock.calls.at(-1)[0]).toEqual([
+            {id: 0, name: 'Rates', value: 42, heat: 0, color: null},
+            {id: 1, name: 'Credit', value: 26, heat: 0, color: null}
+        ]);
+        expect(treeMapModel.data.map(it => it.colorValue)).toEqual([0.5, 0.5]);
+        expect((treeMapModel.tooltip as TreeMapTooltipFn)(store.records[0])).toContain(
+            'Day change:'
+        );
+    });
+
+    it('colors a zero heat as the least positive when another box has a heat', async () => {
+        spyOnModels();
+        const processData = vi.spyOn(TreeMapModel.prototype, 'processAndSetData');
+        onTestFinished(() => processData.mockRestore());
+        render(
+            chatUiTreeMap({
+                nodes: [
+                    {label: 'Rates', value: 42, heat: 0},
+                    {label: 'Credit', value: 26, heat: -0.02}
+                ]
+            })
+        );
+        await vi.waitFor(() => expect(processData).toHaveBeenCalled());
+
+        const treeMapModel = processData.mock.contexts[0] as TreeMapModel;
+        expect(treeMapModel.data.map(it => it.colorValue)).toEqual([0.6, 0]);
     });
 
     it('has a tool of its own, and bounds its boxes', () => {

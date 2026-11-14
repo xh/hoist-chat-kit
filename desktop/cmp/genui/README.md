@@ -400,23 +400,27 @@ Style them through Hoist's own variables, such as `--xh-card-*` under `.xh-chat-
 ```json
 {
     "title": "Exposure by desk",
-    "format": "currency",
-    "decimals": 0,
-    "heatLabel": "Day change",
-    "heatFormat": "percent",
     "nodes": [
         {"label": "Rates", "value": 4200000, "heat": 0.012},
         {"label": "Credit", "value": 2600000, "heat": -0.008},
         {"label": "FX", "value": 1100000}
-    ]
+    ],
+    "format": "currency",
+    "decimals": 0,
+    "heatLabel": "Day change",
+    "heatFormat": "percent"
 }
 ```
 
 The treemap renders Hoist's `TreeMap` at the height of a chart card. Each box takes its size from
 `value` and its color from `heat`: green above zero and red below, stronger the further from
-zero. A box with no heat is neutral. The tooltip shows the value in `format`, and the heat in
-`heatFormat` under `heatLabel`. The treemap is flat. Hoist's `TreeMap` draws nested boxes only
-with a tree grid bound to it.
+zero. A box with no heat is neutral, as is every box when all heats are zero. The tooltip shows
+the value in `format`, and the heat in `heatFormat` under `heatLabel`. A box with a zero value
+does not show, and a treemap with no other box says "No values to show." The treemap is flat.
+Hoist's `TreeMap` draws nested boxes only with a tree grid bound to it.
+
+The treemap needs two Highcharts modules, heatmap then treemap. See
+[Expecting a treemap without its Highcharts modules](#expecting-a-treemap-without-its-highcharts-modules).
 
 ### Render a component directly
 
@@ -513,7 +517,7 @@ ChatUiGrid.defaults.exportConfirmAbove = 50_000;
 | `ChatUiStack` | `direction`, `gap`, `title` | `children` |
 | `ChatUiText` | `text` | `isPartial` |
 | `ChatUiTabs` | `titles` | `children`, `isPartial` |
-| `ChatUiTreeMap` | `title`, `format`, `decimals`, `heatLabel`, `heatFormat`, `nodes` | `height`, `isPartial` |
+| `ChatUiTreeMap` | `title`, `nodes`, `format`, `decimals`, `heatLabel`, `heatFormat` | `height`, `isPartial` |
 
 The section, callout, badges and divider specs render Hoist components, and have no component of
 their own. Their props from the model:
@@ -557,11 +561,18 @@ The format descriptions in each schema tell the model so.
 `ChatUiChart` renders a Hoist `Chart`, which shows a placeholder if the app has not installed
 Highcharts. Install it in `Bootstrap.ts` with `installHighcharts()`.
 
-### Expecting a treemap without the treemap module
+### Expecting a treemap without its Highcharts modules
 
-`ChatUiTreeMap` renders a Hoist `TreeMap`, which needs Highcharts with its treemap module.
-Import `highcharts/modules/treemap` in `Bootstrap.ts` before the call to `installHighcharts()`, as
-for any Hoist `TreeMap`.
+`ChatUiTreeMap` renders a Hoist `TreeMap`, which needs two Highcharts modules. Import them in
+`Bootstrap.ts`, in this order, before the call to `installHighcharts()`:
+
+```typescript
+import 'highcharts/modules/heatmap';
+import 'highcharts/modules/treemap';
+```
+
+The heatmap module holds the color axis that colors a box by its heat. The `coloraxis` module
+does the same. With neither, the treemap draws, but every box takes one default color.
 
 ### Passing model text to a Hoist prop that reads markup
 

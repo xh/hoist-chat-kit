@@ -1,4 +1,4 @@
-import {dropRight, escape, isEmpty, isFinite, isPlainObject, isString} from 'lodash';
+import {dropRight, escape, isFinite, isPlainObject, isString} from 'lodash';
 import {div} from '@xh/hoist/cmp/layout';
 import {treeMap, TreeMapModel} from '@xh/hoist/cmp/treemap';
 import {
@@ -42,6 +42,9 @@ export interface ChatUiTreeMapSpecProps {
     /** Title of the treemap, shown in its header strip. */
     title?: string;
 
+    /** The boxes. */
+    nodes: ChatUiTreeMapNode[];
+
     /** How a value displays in the tooltip. Default `number`. */
     format?: ChatUiNumberFormat;
 
@@ -53,9 +56,6 @@ export interface ChatUiTreeMapSpecProps {
 
     /** How a heat displays in the tooltip. Default `number`. */
     heatFormat?: ChatUiNumberFormat;
-
-    /** The boxes. */
-    nodes: ChatUiTreeMapNode[];
 }
 
 /** Options for {@link chatUiTreeMapSpec}. */
@@ -72,8 +72,12 @@ export interface ChatUiTreeMapSpecOptions extends ChatUiSpecOptions {
  * another, for the parts of a whole. It renders Hoist's `TreeMap`, over a `TreeMapModel` and a
  * `Store` that it creates once and loads as the boxes stream in.
  *
- * The treemap needs Highcharts with its treemap module, installed by the app as for any Hoist
- * `TreeMap`.
+ * The treemap needs Highcharts with two modules, which the app imports in its `Bootstrap.ts`:
+ * `highcharts/modules/heatmap`, then `highcharts/modules/treemap`. The first holds the color axis
+ * that colors a box by its heat. With no heatmap module, every box takes one default color.
+ *
+ * The model writes the boxes before the formats, so that `Treemap("Title", [...])` is a whole
+ * call in OpenUI Lang. The tooltip reads the formats when it shows.
  *
  * The model's tool is `show_treemap`, unless renamed with `name`.
  */
@@ -91,17 +95,6 @@ export function chatUiTreeMapSpec(
             additionalProperties: false,
             properties: {
                 title: {type: 'string', maxLength: 120},
-                format: CHAT_UI_NUMBER_FORMAT_SCHEMA,
-                decimals: CHAT_UI_DECIMALS_SCHEMA,
-                heatLabel: {
-                    type: 'string',
-                    maxLength: 40,
-                    description: 'What the heat measures - e.g. "Day change".'
-                },
-                heatFormat: {
-                    ...CHAT_UI_NUMBER_FORMAT_SCHEMA,
-                    description: 'How to display the heat. Default "number".'
-                },
                 nodes: {
                     type: 'array',
                     minItems: 1,
@@ -124,21 +117,32 @@ export function chatUiTreeMapSpec(
                             }
                         }
                     }
+                },
+                format: CHAT_UI_NUMBER_FORMAT_SCHEMA,
+                decimals: CHAT_UI_DECIMALS_SCHEMA,
+                heatLabel: {
+                    type: 'string',
+                    maxLength: 40,
+                    description: 'What the heat measures - e.g. "Day change".'
+                },
+                heatFormat: {
+                    ...CHAT_UI_NUMBER_FORMAT_SCHEMA,
+                    description: 'How to display the heat. Default "number".'
                 }
             }
         },
         render: (props, {isPartial}) => chatUiTreeMap({...props, height, isPartial}),
         example: {
             title: 'Exposure by desk',
-            format: 'currency',
-            decimals: 0,
-            heatLabel: 'Day change',
-            heatFormat: 'percent',
             nodes: [
                 {label: 'Rates', value: 4200000, heat: 0.012},
                 {label: 'Credit', value: 2600000, heat: -0.008},
                 {label: 'FX', value: 1100000}
-            ]
+            ],
+            format: 'currency',
+            decimals: 0,
+            heatLabel: 'Day change',
+            heatFormat: 'percent'
         }
     };
 }
@@ -166,7 +170,7 @@ export const [ChatUiTreeMap, chatUiTreeMap] = hoistCmp.withFactory<ChatUiTreeMap
 
     render({model, className, title, height, isPartial}) {
         const impl = model as ChatUiTreeMapLocalModel,
-            isBuilding = isPartial && isEmpty(impl.rows);
+            isBuilding = isPartial && !impl.hasBoxes;
 
         return chatUiFrame({
             className,
@@ -176,7 +180,15 @@ export const [ChatUiTreeMap, chatUiTreeMap] = hoistCmp.withFactory<ChatUiTreeMap
             item: div({
                 className: 'xh-chat-ui-treemap__body',
                 style: height ? {height} : null,
-                item: isBuilding ? chatUiSkeleton(null) : treeMap({model: impl.treeMapModel})
+                item: isBuilding
+                    ? chatUiSkeleton(null)
+                    : impl.hasBoxes
+                      ? treeMap({model: impl.treeMapModel})
+                      : div({
+                            className: 'xh-chat-ui-center',
+                            role: 'note',
+                            item: 'No values to show.'
+                        })
             })
         });
     }
@@ -198,7 +210,8 @@ class ChatUiTreeMapLocalModel extends HoistModel {
         fields: [
             {name: 'name', type: 'string'},
             {name: 'value', type: 'number'},
-            {name: 'heat', type: 'number'}
+            {name: 'heat', type: 'number'},
+            {name: 'color', type: 'number'}
         ]
     });
 
@@ -206,8 +219,7 @@ class ChatUiTreeMapLocalModel extends HoistModel {
         store: this.store,
         labelField: 'name',
         valueField: 'value',
-        heatField: 'heat',
-        emptyText: 'No values to show.',
+        heatField: 'color',
         tooltip: record => this.renderTooltip(record)
     });
 
@@ -215,19 +227,34 @@ class ChatUiTreeMapLocalModel extends HoistModel {
         return this.componentProps as ChatUiTreeMapProps;
     }
 
-    /** The complete boxes, as store data. Highcharts reads a name as HTML, so it is escaped. */
+    /**
+     * The complete boxes, as store data. Highcharts reads a name as HTML, so it is escaped. `heat`
+     * is what the model wrote, for the tooltip, and `color` is the heat that colors the box.
+     */
     @computed
     get rows(): PlainObject[] {
-        const {nodes, isPartial} = this.props;
-        // While streaming, the last box may be cut short - its value still being written.
-        return (isPartial ? dropRight(nodes) : (nodes ?? []))
-            .filter(it => isPlainObject(it) && isString(it.label) && isFinite(it.value))
-            .map(({label, value, heat}, idx) => ({
-                id: idx,
-                name: escape(label),
-                value,
-                heat: isFinite(heat) ? heat : null
-            }));
+        const {nodes, isPartial} = this.props,
+            // While streaming, the last box may be cut short - its value still being written.
+            complete = (isPartial ? dropRight(nodes) : (nodes ?? [])).filter(
+                it => isPlainObject(it) && isString(it.label) && isFinite(it.value)
+            ),
+            // Hoist's TreeMap scales each heat by the largest, so heats that are all zero give
+            // it no scale and a color it cannot compute. Such boxes are neutral.
+            hasHeat = complete.some(it => isFinite(it.heat) && it.heat !== 0);
+
+        return complete.map(({label, value, heat}, idx) => ({
+            id: idx,
+            name: escape(label),
+            value,
+            heat: isFinite(heat) ? heat : null,
+            color: hasHeat && isFinite(heat) ? heat : null
+        }));
+    }
+
+    /** True if any complete box has a size. Hoist's TreeMap draws no box for a zero. */
+    @computed
+    get hasBoxes(): boolean {
+        return this.rows.some(it => it.value !== 0);
     }
 
     override onLinked() {

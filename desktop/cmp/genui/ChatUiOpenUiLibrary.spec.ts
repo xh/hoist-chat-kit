@@ -42,9 +42,9 @@ describe('built-in specs as an OpenUI library', () => {
         );
         expect(components.Divider.signature).toBe('Divider()');
         expect(components.Treemap.signature).toBe(
-            `Treemap(title?: string, format?: ${FORMAT}, decimals?: number, ` +
-                `heatLabel?: string, heatFormat?: ${FORMAT}, ` +
-                'nodes: {label: string; value: number; heat?: number}[])'
+            'Treemap(title?: string, nodes: {label: string; value: number; heat?: number}[], ' +
+                `format?: ${FORMAT}, decimals?: number, heatLabel?: string, ` +
+                `heatFormat?: ${FORMAT})`
         );
     });
 
@@ -79,7 +79,10 @@ describe('built-in specs as an OpenUI library', () => {
                 props: {titles: ['Exposure', 'Detail']},
                 children: ['map', 'detail']
             },
-            map: {component: 'treemap', props: {nodes: [{label: 'Rates', value: 42}]}},
+            map: {
+                component: 'treemap',
+                props: {title: 'Exposure', nodes: [{label: 'Rates', value: 42}]}
+            },
             detail: {
                 component: 'section',
                 props: {title: 'By desk', collapsible: true},
@@ -117,7 +120,7 @@ const PROGRAM = [
     'tags = Badges([{label: "Rates", intent: "danger"}])',
     'rule = Divider()',
     'views = Tabs([map, detail], ["Exposure", "Detail"])',
-    'map = Treemap(null, null, null, null, null, [{label: "Rates", value: 42}])',
+    'map = Treemap("Exposure", [{label: "Rates", value: 42}])',
     'detail = Section([body], "By desk", null, true)',
     'body = Text("Rates leads.")'
 ].join('\n');
