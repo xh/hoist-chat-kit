@@ -1,0 +1,15 @@
+// A button keeps the size of its label. A column stretches each child to its own width, so the
+// button aligns to the start of the column.
+.xh-chat-ui-button {
+  align-self: flex-start;
+}
+
+// In a row of a stack, the button takes no share of the width, and keeps its own height. It sits
+// at the bottom of the row, level with the input of a field beside it, which has its label on
+// top. The margin matches the padding of that field.
+.xh-chat-ui-stack.xh-hbox > .xh-chat-ui-button {
+  align-self: flex-end;
+  flex: none;
+  margin-bottom: var(--xh-form-field-padding);
+  min-width: auto;
+}

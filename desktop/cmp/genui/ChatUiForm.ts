@@ -53,7 +53,7 @@ export interface ChatUiFormProps extends HoistProps<ChatUiFormModel>, ChatUiForm
  * A group of inputs and the buttons that submit them - the component that
  * {@link chatUiFormSpec} renders, over Hoist's `FormFieldSet`. Each built-in input inside it
  * registers its field, and each {@link ChatUiButton} inside it validates the fields before its
- * action runs.
+ * action runs. It fills the width it is given, and each field fills the form.
  */
 export const [ChatUiForm, chatUiForm] = hoistCmp.withFactory<ChatUiFormProps>({
     displayName: 'ChatUiForm',

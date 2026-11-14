@@ -436,6 +436,49 @@ describe('built-in form components', () => {
         });
     });
 
+    // jsdom has no layout, so these check only what the stylesheets select on.
+    describe('layout', () => {
+        const stateAction: ChatUiStateAction = {type: 'state', id: 'go', summary: 'Goes'},
+            period: ChatUiElement = {
+                component: 'segmentedControl',
+                props: {name: 'period', options: ['day', 'week']}
+            },
+            go: ChatUiElement = {component: 'button', props: {label: 'Go', action: stateAction}},
+            childrenOf = (el: Element, selector: string) =>
+                [...el.children].filter(it => it.matches(selector));
+
+        it('renders a field and a button as direct children of a row stack', () => {
+            const {container} = renderBound({
+                    top: {
+                        component: 'stack',
+                        props: {direction: 'row'},
+                        children: ['period', 'go']
+                    },
+                    period,
+                    go
+                }),
+                row = container.querySelector('.xh-chat-ui-stack.xh-hbox');
+
+            // A segmented control keeps the width of its options, by the class Hoist gives its field.
+            expect(
+                childrenOf(row, '.xh-chat-ui-field.xh-form-field--segmented-control')
+            ).toHaveLength(1);
+            expect(childrenOf(row, 'button.xh-chat-ui-button')).toHaveLength(1);
+        });
+
+        it('renders a field and a button as direct children of the content of a form', () => {
+            const {container} = renderBound({
+                    top: {component: 'form', props: {}, children: ['period', 'go']},
+                    period,
+                    go
+                }),
+                content = container.querySelector('.xh-chat-ui-form .xh-card__content');
+
+            expect(childrenOf(content, '.xh-chat-ui-field')).toHaveLength(1);
+            expect(childrenOf(content, 'button.xh-chat-ui-button')).toHaveLength(1);
+        });
+    });
+
     describe('in an OpenUI Lang program', () => {
         const PROGRAM =
             'root = Stack([region, note, form])\n' +
