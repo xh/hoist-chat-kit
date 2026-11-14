@@ -17,6 +17,7 @@ import {
     type ChatTranscript,
     replayChatEvents
 } from '../../../core';
+import {ChatUiCatalog, type ChatUiTextFormat} from '../../../genui';
 import {type ChatTransport, ScriptedChatTransport, textEvents} from '../../../transport';
 import {chatMessageList, type ChatMessageListProps} from './ChatMessageList';
 
@@ -745,6 +746,50 @@ describe('ChatMessageView', () => {
         });
     });
 
+    describe('UI in reply text', () => {
+        it('renders a document segment from a text format as its components', () => {
+            const chatModel = createModel({catalog: braceCatalog()}, [
+                question(),
+                reply('a1', [text('t1', 'Desk totals {{metrics}} are in.')])
+            ]);
+            const {container} = renderList(chatModel);
+
+            expect(container.querySelector('.test-metrics').textContent).toBe('Revenue tile');
+            expect(container.textContent).toContain('Desk totals');
+            expect(container.textContent).toContain('are in.');
+            expect(container.textContent).not.toContain('{{metrics}}');
+        });
+
+        it('copies words for a reply whose text holds UI, and the text as is without UI', async () => {
+            const writeText = vi.fn(() => Promise.resolve());
+            vi.stubGlobal('navigator', {...navigator, clipboard: {writeText}});
+            const chatModel = createModel({catalog: braceCatalog()}, [
+                question(),
+                reply('a1', [text('t1', 'Totals:\n\n{{metrics}}'), text('t2', 'Done.')]),
+                reply('a2', [text('t3', 'Just **text**.')])
+            ]);
+            renderList(chatModel);
+
+            const copies = screen.getAllByRole('button', {name: 'Copy'});
+            await act(async () => fireEvent.click(copies[1]));
+            expect(writeText).toHaveBeenLastCalledWith('Totals:\n\nRevenue is 12.\n\nDone.');
+            await act(async () => fireEvent.click(copies[2]));
+            expect(writeText).toHaveBeenLastCalledWith('Just **text**.');
+        });
+
+        it('copies what getCopyText returns before words for UI', async () => {
+            const writeText = vi.fn(() => Promise.resolve());
+            vi.stubGlobal('navigator', {...navigator, clipboard: {writeText}});
+            const chatModel = createModel({catalog: braceCatalog(), getCopyText: () => 'Mine'}, [
+                reply('a1', [text('t1', '{{metrics}}')])
+            ]);
+            renderList(chatModel);
+
+            await act(async () => fireEvent.click(screen.getByRole('button', {name: 'Copy'})));
+            expect(writeText).toHaveBeenCalledWith('Mine');
+        });
+    });
+
     it('renders a user message with no text and no files, as stored history may hold one', () => {
         const model = createModel({}, [{id: 'u1', role: 'user', parts: [text('u1-t', '')]}]),
             {container} = renderList(model);
@@ -1013,4 +1058,42 @@ function toolCall(id: string, step: number): ChatPart {
         output: 'ok',
         errorText: null
     };
+}
+
+/** A catalog whose brace format reads `{{metrics}}` as a document of one metrics element. */
+function braceCatalog(): ChatUiCatalog {
+    const braceFormat: ChatUiTextFormat = {
+        name: 'brace',
+        parse: text =>
+            text
+                .split(/(\{\{metrics\}\})/)
+                .filter(it => it)
+                .map(it =>
+                    it === '{{metrics}}'
+                        ? {
+                              type: 'document',
+                              document: {
+                                  root: 'm',
+                                  elements: {m: {component: 'metrics', props: {}}}
+                              },
+                              isPartial: false,
+                              source: it
+                          }
+                        : {type: 'markdown', text: it}
+                ),
+        toPrompt: () => 'Write {{metrics}}.'
+    };
+    return new ChatUiCatalog({
+        components: [
+            {
+                name: 'metrics',
+                description: 'KPI tiles.',
+                props: {type: 'object', properties: {}},
+                render: () => span({className: 'test-metrics', item: 'Revenue tile'}),
+                result: () => 'Revenue is 12.'
+            }
+        ],
+        textFormats: [braceFormat],
+        modes: ['brace']
+    });
 }

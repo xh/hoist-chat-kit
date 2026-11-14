@@ -16,13 +16,15 @@ export interface CatalogPromptSource {
 
 /**
  * System prompt text that explains a catalog to the model, for the delivery modes given: the
- * shared rules, then a section per mode, then the app's own rules and instructions.
+ * shared rules, then a section per mode, then the app's own rules and instructions. The sections
+ * of text formats come from the formats, and go between the tools and document sections.
  * @internal
  */
 export function createPrompt(
     source: CatalogPromptSource,
     modes: ChatUiDeliveryMode[],
-    rules: string[]
+    rules: string[],
+    formatSections: string[]
 ): string {
     const {components, instructions} = source,
         hasTools = modes.includes('tools') || modes.includes('document'),
@@ -58,7 +60,7 @@ export function createPrompt(
     return compact([
         compact(intro).join('\n'),
         modes.includes('tools') ? createToolsSection(source) : null,
-        modes.includes('tags') ? createTagsSection(source) : null,
+        ...formatSections,
         modes.includes('document') ? createDocumentSection(source) : null,
         instructions?.trim()
     ]).join('\n\n');
@@ -158,6 +160,49 @@ export function formatTag(prefix: string, name: string, props: PlainObject): str
     return `<${prefix}${[name, ...attrs].join(' ')}/>`;
 }
 
+/**
+ * The prompt section of the tag format: the tag grammar, and each `standalone` component with its
+ * props and an example tag.
+ * @internal
+ */
+export function createTagsSection(
+    source: Pick<CatalogPromptSource, 'components' | 'tagPrefix'>
+): string {
+    const {tagPrefix: prefix} = source;
+    return [
+        '### Component tags',
+        '',
+        'Write a component as a tag in your answer, on a line of its own, where it belongs: ' +
+            `\`<${prefix}NAME prop="text" prop='JSON'/>\`.`,
+        `- Name the tag \`${prefix}\` followed by the component name.`,
+        '- Write text values in double quotes. Write numbers, booleans, lists and objects as ' +
+            'JSON in single quotes.',
+        '- Close every tag with `/>`. Never put a tag in a code block.',
+        ...source.components.filter(isStandalone).map(it => {
+            const {properties = {}, required = []} = it.props;
+            return compact([
+                '',
+                `#### ${prefix}${it.name}`,
+                it.description.trim(),
+                isEmpty(properties) ? null : 'Props:',
+                ...Object.entries(properties).map(([key, schema]: [string, PlainObject]) =>
+                    describeProp(key, schema, required.includes(key))
+                ),
+                it.example ? `Example: ${formatTag(prefix, it.name, it.example)}` : null
+            ]).join('\n');
+        })
+    ].join('\n');
+}
+
+/**
+ * True for a component the model can show on its own, with a tool or a tag - see
+ * {@link ChatUiComponentSpec.standalone}.
+ * @internal
+ */
+export function isStandalone(component: ChatUiComponentSpec): boolean {
+    return component.standalone !== false;
+}
+
 //------------------
 // Implementation
 //------------------
@@ -181,40 +226,15 @@ function createToolsSection(source: CatalogPromptSource): string {
         '',
         "Call a component's tool with the component's props as the input. Each call renders " +
             "one component, from props that match the tool's input schema.",
-        ...source.components.map(it =>
-            compact([
-                '',
-                `#### ${source.getToolName(it)}`,
-                it.example ? `Example props: ${JSON.stringify(it.example)}` : null
-            ]).join('\n')
-        )
-    ].join('\n');
-}
-
-function createTagsSection(source: CatalogPromptSource): string {
-    const {tagPrefix: prefix} = source;
-    return [
-        '### Component tags',
-        '',
-        'Write a component as a tag in your answer, on a line of its own, where it belongs: ' +
-            `\`<${prefix}NAME prop="text" prop='JSON'/>\`.`,
-        `- Name the tag \`${prefix}\` followed by the component name.`,
-        '- Write text values in double quotes. Write numbers, booleans, lists and objects as ' +
-            'JSON in single quotes.',
-        '- Close every tag with `/>`. Never put a tag in a code block.',
-        ...source.components.map(it => {
-            const {properties = {}, required = []} = it.props;
-            return compact([
-                '',
-                `#### ${prefix}${it.name}`,
-                it.description.trim(),
-                isEmpty(properties) ? null : 'Props:',
-                ...Object.entries(properties).map(([key, schema]: [string, PlainObject]) =>
-                    describeProp(key, schema, required.includes(key))
-                ),
-                it.example ? `Example: ${formatTag(prefix, it.name, it.example)}` : null
-            ]).join('\n');
-        })
+        ...source.components
+            .filter(isStandalone)
+            .map(it =>
+                compact([
+                    '',
+                    `#### ${source.getToolName(it)}`,
+                    it.example ? `Example props: ${JSON.stringify(it.example)}` : null
+                ]).join('\n')
+            )
     ].join('\n');
 }
 

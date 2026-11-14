@@ -12,8 +12,10 @@ import {untracked} from '@xh/hoist/mobx';
 import {logError, logWarn, throwIf} from '@xh/hoist/utils/js';
 import {
     castArray,
+    compact,
     isArray,
     isEmpty,
+    isEqual,
     isFunction,
     isPlainObject,
     isString,
@@ -50,18 +52,22 @@ import {
     type ChatUiNode,
     toChatUiDocument
 } from './ChatUiDocument';
+import type {ChatUiFormatContext, ChatUiTextFormat} from './ChatUiTextFormat';
 import type {
     ChatUiComponentSegment,
     ChatUiParseTagsOptions,
+    ChatUiParseTextOptions,
     ChatUiTextSegment
 } from './ChatUiTextSegment';
 import {
     createDocumentSchema,
     createDocumentToolDescription,
     createPrompt,
-    formatTag
+    formatTag,
+    isStandalone
 } from './impl/catalogPrompt';
 import {chatUiFallback, chatUiPlaceholder} from './ChatUiFallback';
+import {chatUiTagFormat} from './formats/ChatUiTagFormat';
 import {chatUiElementBoundary} from './impl/ChatUiElementBoundary';
 import {
     elementPath,
@@ -71,7 +77,6 @@ import {
 } from './impl/documentStructure';
 import {getOwn} from '../impl/LangUtils';
 import {hashJson} from './impl/hash';
-import {parseTags} from './impl/parseTags';
 import {
     findSchemaProblems,
     formatError,
@@ -84,10 +89,11 @@ import {
  * How the model delivers generative UI - see the genui README:
  *
  *  - `tools` - a tool call per component, `show_<name>`.
- *  - `tags` - a self-closing component tag in the answer's markdown.
  *  - `document` - a call to the document tool, `show_ui`, with a nested {@link ChatUiDocument}.
+ *  - the name of a configured {@link ChatUiTextFormat} - UI written into the answer's text, such
+ *    as `tags` for the default tag format: a self-closing component tag in the markdown.
  */
-export type ChatUiDeliveryMode = 'tools' | 'tags' | 'document';
+export type ChatUiDeliveryMode = 'tools' | 'tags' | 'document' | (string & {});
 
 /** Options for {@link ChatUiCatalog.toPrompt} and {@link ChatUiCatalog.toToolSchemas}. */
 export interface ChatUiPromptOptions {
@@ -114,9 +120,15 @@ export interface ChatUiCatalogConfig {
      * How the model delivers UI in the chats that use the catalog. Sets the default modes of
      * `instructions`, `toPrompt()` and `toToolSchemas()`, and the tools a client-mode
      * {@link ChatModel} sends: the component tools for `tools`, and the document tool for
-     * `document`. Default `['tools']`.
+     * `document`. A mode may also name one of the `textFormats`. Default `['tools']`.
      */
     modes?: ChatUiDeliveryMode[];
+
+    /**
+     * Grammars for UI in reply text, which `parseText()` runs in order. Name one in `modes` to
+     * explain it to the model. Names must be unique. Default `[chatUiTagFormat()]`.
+     */
+    textFormats?: ChatUiTextFormat[];
 
     /**
      * Guidance for the model, added to the end of the generated prompt - for example which
@@ -208,9 +220,9 @@ export class ChatUiCatalog {
     readonly components: ChatUiComponentSpec[];
 
     /**
-     * One client tool per component, which a client-mode chat with the catalog sends for the
-     * `tools` mode. Each tool checks the props it is called with and confirms the render to the
-     * model, and displays its calls as the rendered component.
+     * One client tool per `standalone` component, which a client-mode chat with the catalog sends
+     * for the `tools` mode. Each tool checks the props it is called with and confirms the render
+     * to the model, and displays its calls as the rendered component.
      */
     readonly tools: ChatToolSpec[];
 
@@ -239,10 +251,14 @@ export class ChatUiCatalog {
     /** How the model delivers UI in the chats that use the catalog. */
     readonly modes: ChatUiDeliveryMode[];
 
+    /** Grammars for UI in reply text, in the order `parseText()` runs them. */
+    readonly textFormats: ChatUiTextFormat[];
+
     /**
      * A stable hash of the catalog's content - the names, descriptions, schemas, examples and
-     * limits of its components, and its instructions. A server that loads an export of the catalog
-     * compares it with the version the browser sends, to detect drift.
+     * limits of its components, its instructions, and its text formats unless they are the
+     * default. A server that loads an export of the catalog compares it with the version the
+     * browser sends, to detect drift.
      */
     readonly version: string;
 
@@ -259,6 +275,7 @@ export class ChatUiCatalog {
         const {
             components,
             modes = DEFAULT_MODES,
+            textFormats = [chatUiTagFormat()],
             instructions = null,
             tagPrefix = 'ui-',
             documentToolName = 'show_ui',
@@ -279,10 +296,16 @@ export class ChatUiCatalog {
                     components.length + 1,
             'ChatUiCatalog component names and tool names must be unique.'
         );
+        const formatNames = textFormats.map(it => it.name),
+            acceptedModes = [...BUILT_IN_MODES, ...formatNames];
         throwIf(
-            isEmpty(modes) || !modes.every(it => DELIVERY_MODES.includes(it)),
-            `ChatUiCatalog modes must be one or more of ${DELIVERY_MODES.join(', ')}.`
+            uniq(acceptedModes).length !== acceptedModes.length || formatNames.some(isEmpty),
+            'ChatUiCatalog text format names must be unique, and not ' +
+                `${BUILT_IN_MODES.join(' or ')}.`
         );
+        throwIf(isEmpty(modes), modesError(acceptedModes));
+        this.acceptedModes = acceptedModes;
+        this.checkModes(modes);
         throwIf(
             !TAG_PREFIX_RE.test(tagPrefix),
             `ChatUiCatalog tagPrefix '${tagPrefix}' must start with a letter, and hold only ` +
@@ -291,6 +314,7 @@ export class ChatUiCatalog {
 
         this.components = components;
         this.modes = uniq(modes);
+        this.textFormats = textFormats;
         this.componentsByName = keyBy(components, 'name');
         this.configInstructions = instructions;
         this.tagPrefix = tagPrefix;
@@ -303,10 +327,16 @@ export class ChatUiCatalog {
         this.fallbackRenderer = fallback;
         this.placeholderRenderer = placeholder;
 
-        this.tools = components.map(it => this.createComponentTool(it));
+        this.tools = components.filter(isStandalone).map(it => this.createComponentTool(it));
         this.documentTool = this.createDocumentTool();
         this.displayTools = [...this.tools, this.documentTool].map(toDisplayTool);
         this.instructions = this.toPrompt();
+
+        // The default format adds nothing, so that such a catalog keeps the version it had before
+        // text formats could be configured.
+        const formats = textFormats.map(({name, version}) =>
+            version != null ? {name, version} : name
+        );
         this.version = hashJson({
             components: components.map(it => ({
                 name: it.name,
@@ -315,9 +345,11 @@ export class ChatUiCatalog {
                 props: it.props,
                 example: it.example,
                 slots: it.slots,
-                dataProps: it.dataProps
+                dataProps: it.dataProps,
+                standalone: it.standalone
             })),
             modes: this.modes,
+            ...(isEqual(formats, DEFAULT_FORMAT_NAMES) ? {} : {formats}),
             instructions,
             tagPrefix,
             documentToolName,
@@ -450,35 +482,64 @@ export class ChatUiCatalog {
     }
 
     /**
-     * Split a text part into markdown and component tags - `<ui-NAME prop="text" prop='JSON'/>`.
-     * Tags in fenced or inline code, or escaped with a backslash, stay markdown. Each tag's
-     * attributes are read with the browser's XML parser and checked as the component's props:
-     * text that starts with `[` or `{` parses as JSON, as does a number or boolean for a prop that
-     * takes no text. Render each segment that is not markdown with {@link renderSegment}.
+     * Split a text part into markdown and UI with the catalog's `textFormats`. The first format
+     * parses the whole text, and each later one the markdown segments the earlier ones left. A
+     * format that throws leaves its input as markdown, and logs a warning once per message.
+     * Render each segment that is not markdown with {@link renderSegment}.
+     *
+     * @param text - the text, in markdown.
+     * @param opts - set `isStreaming` while the text streams, to hold back UI still being
+     *      written. Pass the ids of the message and part for formats that keep state per part.
+     */
+    parseText(text: string, opts: ChatUiParseTextOptions = {}): ChatUiTextSegment[] {
+        const ctx: Omit<ChatUiFormatContext, 'index'> = {
+            catalog: this,
+            isStreaming: !!opts.isStreaming,
+            messageId: opts.messageId ?? null,
+            partId: opts.partId ?? null
+        };
+        return this.textFormats.reduce<ChatUiTextSegment[]>(
+            (ret, format) => {
+                let index = 0;
+                return ret.flatMap(it =>
+                    it.type === 'markdown'
+                        ? this.runFormat(format, it.text, {...ctx, index: index++})
+                        : it
+                );
+            },
+            text ? [{type: 'markdown', text}] : []
+        );
+    }
+
+    /**
+     * Split a text part into markdown and component tags - `<ui-NAME prop="text" prop='JSON'/>` -
+     * with the tag format, whatever the catalog's `textFormats`. Tags in fenced or inline code, or
+     * escaped with a backslash, stay markdown. Each tag's attributes are read with the browser's
+     * XML parser and checked as the component's props: text that starts with `[` or `{` parses as
+     * JSON, as does a number or boolean for a prop that takes no text. Render each segment that is
+     * not markdown with {@link renderSegment}.
      *
      * @param text - the text, in markdown.
      * @param opts - set `isStreaming` while the text streams, to hold back a tag still being
      *      written as a placeholder segment.
      */
     parseTags(text: string, opts: ChatUiParseTagsOptions = {}): ChatUiTextSegment[] {
-        const segments = parseTags(text, {
-            prefix: this.tagPrefix,
+        return this.runFormat(TAG_FORMAT, text, {
+            catalog: this,
             isStreaming: !!opts.isStreaming,
-            getComponent: name => this.getComponent(name),
-            validate: (name, props) => this.validate(name, props)
+            messageId: null,
+            partId: null,
+            index: 0
         });
-        // A tag parses the same way each time, so a component keeps the same props object as the
-        // text after it streams in, and need not reload its data on each change.
-        return segments.map(it => (it.type === 'component' ? this.cacheSegment(it) : it));
     }
 
     /**
-     * Render a segment from {@link parseTags}: a component tag as its component, a tag still
-     * streaming as a placeholder, and a broken tag as a fallback. A markdown segment renders
-     * nothing - render it as markdown.
+     * Render a segment from {@link parseText}: a component tag as its component, a document as its
+     * elements, UI still streaming as a placeholder, and broken UI as a fallback. A markdown
+     * segment renders nothing - render it as markdown.
      *
      * @param segment - the segment to render.
-     * @param context - the text part that holds the tag, and its chat.
+     * @param context - the text part that holds the UI, and its chat.
      */
     renderSegment(
         segment: ChatUiTextSegment,
@@ -492,6 +553,12 @@ export class ChatUiCatalog {
                     isPartial: false
                 });
             }
+            case 'document':
+                return this.renderDocument(segment.document, {
+                    ...context,
+                    isPartial: segment.isPartial,
+                    elementErrors: segment.elementErrors ?? context.elementErrors
+                });
             case 'placeholder':
                 return this.renderPlaceholder(segment.component);
             case 'fallback': {
@@ -525,22 +592,59 @@ export class ChatUiCatalog {
     }
 
     /**
+     * Plain text for segments from {@link parseText}, to copy or to read aloud in place of the UI
+     * source. Each component, and each element of a document, becomes a line: its spec's
+     * `result()`, or `Showed <name>.`. A blank result adds no line. UI still streaming or broken
+     * adds nothing. Each markdown piece, and the lines of each component or document, are trimmed
+     * and joined with blank lines. Text with no UI comes back unchanged.
+     */
+    toCopyText(segments: ChatUiTextSegment[]): string {
+        if (segments.every(it => it.type === 'markdown')) {
+            return segments.map(it => it.text).join('');
+        }
+
+        const pieces = segments.map(it => {
+            switch (it.type) {
+                case 'markdown':
+                    return it.text;
+                case 'component':
+                    return this.describeDocument(
+                        toChatUiDocument(it.element.component, it.element.props)
+                    );
+                case 'document':
+                    return this.describeDocument(it.document);
+                default:
+                    return null;
+            }
+        });
+        return compact(pieces.map(it => it?.trim())).join('\n\n');
+    }
+
+    /**
      * Data renderers that draw generative UI from data parts, for
      * {@link ChatModelConfig.dataRenderers}: one for documents sent as-is, with the `dataType`
      * `xh.chat.ui`, and one per adapter, which translates a protocol's payload into a document.
+     * Each renders its document as partial only while the document's `isPartial` is true.
      */
     createDataRenderers(adapters: ChatUiAdapter[] = []): Record<string, ChatDataRenderer> {
         return {
             [CHAT_UI_DOCUMENT_DATA_TYPE]: (part, context) =>
-                this.renderDocument(part.data, {...context, part, isPartial: false}),
+                this.renderDocument(part.data, {
+                    ...context,
+                    part,
+                    isPartial: part.data?.isPartial === true
+                }),
             ...mapValues(
                 keyBy(adapters, 'dataType'),
                 (adapter): ChatDataRenderer =>
                     (part, context) => {
+                        const isPartial = isMessageStreaming(context);
                         let doc: ChatUiDocument;
                         try {
-                            doc = adapter.translate(part.data, this);
+                            doc = adapter.translate(part.data, {catalog: this, isPartial});
                         } catch (e) {
+                            // A payload that still streams may fail until it is complete.
+                            if (isPartial) return this.renderPlaceholder(null);
                             logError(
                                 [`Could not translate '${adapter.dataType}' data`, e],
                                 'ChatUiCatalog'
@@ -555,7 +659,11 @@ export class ChatUiCatalog {
                                 {...context, part}
                             );
                         }
-                        return this.renderDocument(doc, {...context, part, isPartial: false});
+                        return this.renderDocument(doc, {
+                            ...context,
+                            part,
+                            isPartial: doc?.isPartial === true
+                        });
                     }
             )
         };
@@ -676,11 +784,13 @@ export class ChatUiCatalog {
      * The catalog's tools as plain JSON - name, description and input schema - for a server that
      * runs the tool loop to register as display tools.
      *
-     * @param opts - `modes` selects the tools: `tools` for one per component, `document` for the
-     *      document tool. Default the catalog's `modes`.
+     * @param opts - `modes` selects the tools: `tools` for one per `standalone` component,
+     *      `document` for the document tool. Default the catalog's `modes`.
+     * @throws for a mode that is not `tools`, `document` or the name of a text format.
      */
     toToolSchemas(opts: Pick<ChatUiPromptOptions, 'modes'> = {}): ChatUiToolSchema[] {
         const {modes = this.modes} = opts;
+        this.checkModes(modes);
         return [
             ...(modes.includes('tools') ? this.tools : []),
             ...(modes.includes('document') ? [this.documentTool] : [])
@@ -689,22 +799,52 @@ export class ChatUiCatalog {
 
     /**
      * System prompt text that explains the catalog to the model: the rules, then how to deliver
-     * UI in each mode given, then the config's `instructions`. The `tags` mode lists each
-     * component with its description and props, and the tag grammar the parser reads, so the
-     * prompt and the parser come from one source.
+     * UI in each mode given, then the config's `instructions`. A mode that names a text format
+     * adds the format's own section - for `tags`, each `standalone` component with its description
+     * and props, and the tag grammar the parser reads, so the prompt and the parser come from one
+     * source.
      *
      * @param opts - the delivery `modes` to explain, default the catalog's `modes`, and app
      *      `rules` to add.
+     * @throws for a mode that is not `tools`, `document` or the name of a text format.
      */
     toPrompt(opts: ChatUiPromptOptions = {}): string {
         const {modes = this.modes, rules = []} = opts;
-        return createPrompt(this.promptSource, modes, rules);
+        this.checkModes(modes);
+
+        const formatSections = this.textFormats
+            .filter(it => modes.includes(it.name))
+            .map(it => it.toPrompt({catalog: this}, {modes, rules}));
+        return createPrompt(this.promptSource, modes, rules, formatSections);
+    }
+
+    /**
+     * The catalog as plain JSON, for a server that runs the tool loop: its `version`, its `tools`
+     * from `toToolSchemas()`, its `prompt` from `toPrompt()`, and the export of each text format
+     * that has one, by name, in `formats`.
+     *
+     * @param opts - the delivery `modes` for the tools and the prompt. Default the catalog's
+     *      `modes`.
+     * @throws for a mode that is not `tools`, `document` or the name of a text format.
+     */
+    toExport(opts: Pick<ChatUiPromptOptions, 'modes'> = {}): PlainObject {
+        return {
+            version: this.version,
+            tools: this.toToolSchemas(opts),
+            prompt: this.toPrompt(opts),
+            formats: Object.fromEntries(
+                this.textFormats
+                    .filter(it => it.toExport)
+                    .map(it => [it.name, it.toExport({catalog: this})])
+            )
+        };
     }
 
     //------------------
     // Implementation
     //------------------
     private readonly componentsByName: Record<string, ChatUiComponentSpec>;
+    private readonly acceptedModes: ChatUiDeliveryMode[];
     private readonly configInstructions: string;
     private readonly getArtifacts: (chatModel: ChatModel) => ChatArtifactRegistry;
     private readonly actionHandlers: Record<string, ChatUiActionHandler>;
@@ -713,11 +853,11 @@ export class ChatUiCatalog {
     private readonly fallbackRenderer: (spec: ChatUiFallbackSpec) => ReactNode;
     private readonly placeholderRenderer: (spec: ChatUiPlaceholderSpec) => ReactNode;
 
-    // Fallbacks already logged, so that each logs once, however often it renders. Bounded, as a
-    // catalog lives as long as the app.
+    // Fallbacks and format errors already logged, so that each logs once, however often it
+    // renders. Bounded, as a catalog lives as long as the app.
     private readonly loggedFallbacks = new Set<string>();
 
-    // Component segments by their tag, most recent last - see `parseTags()`.
+    // Component segments by format and source, most recent last - see `cacheSegment()`.
     private readonly segmentCache = new Map<string, ChatUiComponentSegment>();
 
     private get promptSource() {
@@ -729,6 +869,11 @@ export class ChatUiCatalog {
             limits: this.limits,
             getToolName
         };
+    }
+
+    private checkModes(modes: ChatUiDeliveryMode[]) {
+        const {acceptedModes} = this;
+        throwIf(!modes.every(it => acceptedModes.includes(it)), modesError(acceptedModes));
     }
 
     private validateProps(
@@ -833,7 +978,7 @@ export class ChatUiCatalog {
         context: ChatUiDocumentContext
     ): ReactNode {
         const {isPartial} = context,
-            element = doc.elements[id];
+            element = getOwn(doc.elements, id);
 
         if (element == null) {
             return isPartial
@@ -850,8 +995,13 @@ export class ChatUiCatalog {
                   );
         }
 
-        const component = this.getComponent(element.component),
-            errors = this.findElementProblems(id, element, isPartial);
+        // An element may say it is complete inside a partial document, never the reverse.
+        const elementPartial = isPartial ? (element.isPartial ?? true) : false,
+            component = this.getComponent(element.component),
+            errors = [
+                ...this.findElementProblems(id, element, elementPartial),
+                ...(getOwn(context.elementErrors, id) ?? [])
+            ];
         if (!isEmpty(errors)) {
             return this.renderFallback(
                 {
@@ -874,7 +1024,7 @@ export class ChatUiCatalog {
         // too, as a name that streams may grow into another, whose hooks would not match.
         return chatUiElementBoundary({
             key: `${id}|${component.name}`,
-            resetKey: isPartial,
+            resetKey: elementPartial,
             renderError: e =>
                 this.renderFallback(
                     {
@@ -889,7 +1039,7 @@ export class ChatUiCatalog {
             item: chatUiComponent({
                 spec: component,
                 node,
-                context,
+                context: {...context, isPartial: elementPartial},
                 catalog: this,
                 registry: this.getRegistry(context.chatModel),
                 children: renderIds(element.children),
@@ -913,24 +1063,96 @@ export class ChatUiCatalog {
         context: Omit<ChatUiDocumentContext, 'isPartial'>,
         key?: string
     ): ReactNode {
-        const logKey = [context.messageId, context.part?.id, key, ...spec.errors].join('|');
-        if (!this.loggedFallbacks.has(logKey)) {
-            if (this.loggedFallbacks.size >= MAX_LOGGED_FALLBACKS) this.loggedFallbacks.clear();
-            this.loggedFallbacks.add(logKey);
-            logWarn([spec.caption, spec.errors.join('; ')], 'ChatUiCatalog');
-        }
+        this.warnOnce([context.messageId, context.part?.id, key, ...spec.errors].join('|'), [
+            spec.caption,
+            spec.errors.join('; ')
+        ]);
         return fragment({key, item: this.fallbackRenderer(spec)});
     }
 
-    private cacheSegment(segment: ChatUiComponentSegment): ChatUiComponentSegment {
+    private warnOnce(logKey: string, message: unknown[]) {
+        const {loggedFallbacks} = this;
+        if (loggedFallbacks.has(logKey)) return;
+        if (loggedFallbacks.size >= MAX_LOGGED_FALLBACKS) loggedFallbacks.clear();
+        loggedFallbacks.add(logKey);
+        logWarn(message, 'ChatUiCatalog');
+    }
+
+    /**
+     * Parse text with one format. A format that throws leaves the text as markdown, so that a
+     * parser that fails on a half-written chunk cannot break the message as it streams.
+     */
+    private runFormat(
+        format: ChatUiTextFormat,
+        text: string,
+        ctx: ChatUiFormatContext
+    ): ChatUiTextSegment[] {
+        let segments: ChatUiTextSegment[];
+        try {
+            segments = format.parse(text, ctx);
+        } catch (e) {
+            this.warnOnce(`format|${format.name}|${ctx.messageId}`, [
+                `Text format '${format.name}' could not parse a reply`,
+                e
+            ]);
+            return text ? [{type: 'markdown', text}] : [];
+        }
+        return segments.map(it =>
+            it.type === 'component' ? this.cacheSegment(format.name, it) : it
+        );
+    }
+
+    // A component's source parses the same way each time, so a component keeps the same props
+    // object as the text after it streams in, and need not reload its data on each change. Keyed
+    // by format too, as two formats may read the same source differently.
+    private cacheSegment(
+        formatName: string,
+        segment: ChatUiComponentSegment
+    ): ChatUiComponentSegment {
+        if (!segment.source) return segment;
+
         const {segmentCache} = this,
-            cached = segmentCache.get(segment.source);
+            key = `${formatName}|${segment.source}`,
+            cached = segmentCache.get(key);
         if (cached) return cached;
         if (segmentCache.size >= MAX_CACHED_SEGMENTS) {
             segmentCache.delete(segmentCache.keys().next().value);
         }
-        segmentCache.set(segment.source, segment);
+        segmentCache.set(key, segment);
         return segment;
+    }
+
+    /**
+     * A line per element of a document, root first and then depth first through each named slot
+     * and its children, for `toCopyText()`: the spec's `result()` for valid props, else
+     * `Showed <name>.`. Elements of unknown components, and results that are blank, add nothing.
+     */
+    private describeDocument(doc: ChatUiDocument): string {
+        const repaired = this.repairDocument(doc),
+            elements = repaired?.elements ?? {},
+            visited = new Set<string>(),
+            ret: string[] = [];
+
+        const visit = (id: string) => {
+            const element = getOwn(elements, id);
+            if (!isPlainObject(element) || visited.has(id)) return;
+            visited.add(id);
+
+            const component = this.getComponent(element.component),
+                props = element.props ?? {};
+            if (component) {
+                const {name, result} = component,
+                    isValid = result && isEmpty(this.validate(name, props)),
+                    line = isValid ? result(props) : `Showed ${name}.`;
+                if (line?.trim()) ret.push(line);
+            }
+            // Named slots first, as a header draws above the children.
+            [...values(element.slots ?? {}), element.children].forEach(ids =>
+                castArray(ids ?? []).forEach(visit)
+            );
+        };
+        visit(repaired?.root);
+        return ret.join('\n');
     }
 
     private getRegistry(chatModel: ChatModel): ChatArtifactRegistry {
@@ -1093,7 +1315,9 @@ const DEFAULT_LIMITS: Required<ChatUiLimits> = {
         maxInlineRows: 500
     },
     DEFAULT_MODES: ChatUiDeliveryMode[] = ['tools'],
-    DELIVERY_MODES: ChatUiDeliveryMode[] = ['tools', 'tags', 'document'],
+    DEFAULT_FORMAT_NAMES = ['tags'],
+    BUILT_IN_MODES: ChatUiDeliveryMode[] = ['tools', 'document'],
+    TAG_FORMAT = chatUiTagFormat(),
     DEFAULT_PAGE_SIZE = 100,
     MAX_MIGRATIONS = 20,
     MAX_CACHED_SEGMENTS = 200,
@@ -1158,6 +1382,10 @@ function toOrigin(entry: string): string {
     }
 }
 
+function modesError(acceptedModes: ChatUiDeliveryMode[]): string {
+    return `ChatUiCatalog modes must be one or more of ${acceptedModes.join(', ')}.`;
+}
+
 function toDisplayTool(tool: ChatToolSpec): ChatToolSpec {
     return {...omit(tool, 'execute'), sendToModel: false};
 }
@@ -1185,8 +1413,11 @@ function withMessageVersion(doc: ChatUiDocument, context: ChatPartRenderContext)
     return catalogVersion != null ? {...doc, catalogVersion} : doc;
 }
 
+// Observes only which message streams, so that an observer re-renders as a turn starts or ends,
+// not on each change to the reply.
 function isMessageStreaming(context: ChatPartRenderContext): boolean {
-    return !!context.chatModel?.getMessage(context.messageId)?.isStreaming;
+    const {chatModel, messageId} = context;
+    return chatModel != null && chatModel.streamingMessageId === messageId;
 }
 
 /** The confirmation a `callTool` action needs - the tool's approval, or the action's own. */

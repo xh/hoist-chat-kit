@@ -9,7 +9,7 @@
 | [Overview](#overview) | What the built-in components are, and the key features |
 | [Architecture](#architecture) | Factories, components, and how a call becomes a rendered component |
 | [Configuration Pattern](#configuration-pattern) | Adding the components to a `ChatUiCatalog` and a `ChatModel` |
-| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, metrics, cards, and direct use |
+| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, metrics, cards, nested answers, and direct use |
 | [Properties/API Reference](#propertiesapi-reference) | Factory options and the props each component takes |
 | [Extension Points](#extension-points) | Renaming, describing, limiting, and writing your own |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -17,18 +17,21 @@
 
 ## Overview
 
-The `/desktop/cmp/genui/` package holds four ready-made components for generative UI. A model
-shows them inline in its reply: a result table, a Hoist chart, a row of KPI tiles, and a detail
-card. Add them to a `ChatUiCatalog` next to your own components. The model can then answer with
-real Hoist UI in place of long tables of text.
+The `/desktop/cmp/genui/` package holds ready-made components for generative UI. A model shows
+them inline in its reply: a result table, a Hoist chart, a row of KPI tiles, and a detail card. A
+stack and a text component lay these out in a nested answer. Add them to a `ChatUiCatalog` next
+to your own components. The model can then answer with real Hoist UI in place of long tables of
+text.
 
 Import from `@xh/hoist-chat-kit/desktop/cmp/genui`.
 
 Key features:
 
-- **Factories that return specs** - `chatUiGridSpec()`, `chatUiChartSpec()`, `chatUiMetricsSpec()`
-  and `chatUiCardSpec()` each return a `ChatUiComponentSpec`, with a props schema, checks, a
-  description for the model, and an example.
+- **Factories that return specs** - `chatUiGridSpec()`, `chatUiChartSpec()`, `chatUiMetricsSpec()`,
+  `chatUiCardSpec()`, `chatUiStackSpec()` and `chatUiTextSpec()` each return a
+  `ChatUiComponentSpec`, with a props schema, checks, a description for the model, and an example.
+- **Nested answers** - a stack lays out components in a column or a row, and a text component
+  holds the prose between them, as markdown.
 - **Result tables in two tiers** - inline, a table is a light preview of its first rows and
   columns, with a footer that says what it leaves out. Expand opens one Hoist `Grid` over the
   whole result, in the chat's side panel or in a dialog.
@@ -56,12 +59,18 @@ chatUiGridSpec(opts)    → ChatUiComponentSpec<ChatUiGridSpecProps>    → Chat
 chatUiChartSpec(opts)   → ChatUiComponentSpec<ChatUiChartSpecProps>   → ChatUiChart → ChatUiChartView
 chatUiMetricsSpec(opts) → ChatUiComponentSpec<ChatUiMetricsSpecProps> → ChatUiMetrics
 chatUiCardSpec(opts)    → ChatUiComponentSpec<ChatUiCardSpecProps>    → ChatUiCard
+chatUiStackSpec(opts)   → ChatUiComponentSpec<ChatUiStackSpecProps>   → ChatUiStack
+chatUiTextSpec(opts)    → ChatUiComponentSpec<ChatUiTextSpecProps>    → ChatUiText
 ```
 
 Each factory returns a spec for a `ChatUiCatalog`. The catalog turns the spec into a tool named
 `show_<name>`: `show_grid`, `show_chart`, `show_metrics` and `show_card` by default. When the
 model calls the tool, the catalog checks the props against the spec's schema and its `validate`
 function. It then calls the spec's `render`, which returns the matching component.
+
+The stack and the text component set `standalone: false`, so they have no tool or tag of their
+own. They show only inside a nested answer: a `show_ui` document, an `xh.chat.ui` data part, or
+a text format that writes documents.
 
 While the model writes the props, `render` runs with `isPartial: true` and props that may be cut
 short. The components handle this:
@@ -73,6 +82,9 @@ short. The components handle this:
   passes the series to `setSeries()`. Hoist updates the points in place.
 - `ChatUiMetrics` shows each tile once it is complete.
 - `ChatUiCard` shows fields as they arrive, and its actions once the props are complete.
+- `ChatUiStack` shows each child as it arrives. The catalog draws a placeholder for a child still
+  to come.
+- `ChatUiText` renders its markdown as it streams, as a reply's own text does.
 
 A table or chart card keeps the height it will need from the moment its type is known, so
 nothing below it moves when the data lands. A skeleton still shown after a second shimmers three
@@ -288,6 +300,47 @@ message list over a host that is not a `ChatModel`, the card hides them.
 Pass `actionTypes` to allow more kinds of action, such as `navigate` or `app`. See [Run
 actions](../../../genui/README.md#run-actions) for each type and its checks.
 
+### Lay out a nested answer
+
+A stack is the root of an answer made of several components, such as headline metrics over a
+chart over a short note. The model writes it as a document, with the `show_ui` tool or a text
+format that writes documents:
+
+```json
+{
+    "root": "answer",
+    "elements": {
+        "answer": {"component": "stack", "props": {"title": "Q3 revenue"}, "children": ["kpis", "trend", "note"]},
+        "kpis": {"component": "metrics", "props": {"metrics": [{"label": "Revenue", "value": 1250000, "format": "currency"}]}},
+        "trend": {"component": "chart", "props": {"type": "line", "xAxis": {"categories": ["Jul", "Aug"]}, "series": [{"name": "Revenue", "data": [182000, 205000]}]}},
+        "note": {"component": "text", "props": {"text": "Revenue **grew** in every region."}}
+    }
+}
+```
+
+The stack takes three props, all optional:
+
+- `direction` - `column`, the default, fills the width of the reply. `row` shares the width
+  among the children, at least 150 px each, and wraps where they do not fit.
+- `gap` - the space between the children: `none`, `small`, `medium` or `large`. Default `medium`.
+- `title` - puts the stack in a `ChatUiFrame` with this title. Default none, with no frame.
+
+The stack's `result()` returns its title, so Copy reads a titled stack as its title. An untitled
+stack adds no line.
+
+The text component renders its `text` prop as markdown, with no frame. Its `result()` returns the
+text, so Copy and screen readers read it as words. `maxLength` caps the text, 2,000 characters by
+default.
+
+Add both to the catalog with the components they lay out:
+
+```typescript
+const catalog = new ChatUiCatalog({
+    components: [chatUiStackSpec(), chatUiTextSpec(), chatUiMetricsSpec(), chatUiChartSpec()],
+    modes: ['tools', 'document']
+});
+```
+
 ### Render a component directly
 
 The components also work outside a catalog, for example in a data renderer or a custom tool
@@ -322,8 +375,8 @@ Every numeric value takes a `format` and optional `decimals`:
 
 ### Factory options
 
-All factories take `name`, the catalog name and the `show_<name>` tool, and `description`, the
-text that tells the model when to use the component.
+All factories take `name`, the catalog name and the `show_<name>` tool of a standalone component,
+and `description`, the text that tells the model when to use the component.
 
 | Factory | Option | Type | Description |
 |---------|--------|------|-------------|
@@ -339,6 +392,8 @@ text that tells the model when to use the component.
 | `chatUiCardSpec` | `maxFields` | `number` | Most fields. Default 16. |
 | | `maxActions` | `number` | Most actions. Default 4. |
 | | `actionTypes` | `ChatUiActionType[]` | Kinds of action the model may put on the card. Default `['send']`. |
+| `chatUiStackSpec` | - | - | No options beyond `name` and `description`. |
+| `chatUiTextSpec` | `maxLength` | `number` | Most characters of text the model may send. Default 2,000. |
 
 ### App-wide defaults
 
@@ -368,6 +423,8 @@ ChatUiGrid.defaults.exportConfirmAbove = 50_000;
 | `ChatUiChartView` | - | `request`, `tbarItems`, `panelProps` |
 | `ChatUiMetrics` | `metrics` | `isPartial` |
 | `ChatUiCard` | `title`, `subtitle`, `fields`, `actions` | `chatModel`, `runActionAsync`, `isPartial` |
+| `ChatUiStack` | `direction`, `gap`, `title` | `children` |
+| `ChatUiText` | `text` | `isPartial` |
 
 See the TSDoc in each source file for the full shape of the props.
 

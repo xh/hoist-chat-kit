@@ -1,6 +1,7 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {ChatMessage, ChatModel, type ChatPart} from '../../../../core';
+import {ChatUiCatalog} from '../../../../genui';
 import {ScriptedChatTransport} from '../../../../transport';
 import {ChatTimeline} from '../ChatTimeline';
 import {formatReplyAnnouncement} from './ReplyAnnouncement';
@@ -110,6 +111,30 @@ describe('formatReplyAnnouncement', () => {
         const withoutCopy = new ChatModel({transport: new ScriptedChatTransport(), textRenderer});
         onTestFinished(() => withoutCopy.destroy());
         expect(formatReplyAnnouncement(message, 'Bot', withoutCopy)).toBe('Bot replied.');
+    });
+
+    it('announces the copy text of a reply whose text holds UI', () => {
+        const catalog = new ChatUiCatalog({
+                components: [
+                    {
+                        name: 'note',
+                        description: 'A note.',
+                        props: {type: 'object', properties: {text: {type: 'string'}}},
+                        render: () => null,
+                        result: ({text}) => `Note: ${text}.`
+                    }
+                ]
+            }),
+            message = reply('See below.\n\n<ui-note text="Desks are open"/>'),
+            host = new ChatModel({transport: new ScriptedChatTransport(), catalog});
+        onTestFinished(() => host.destroy());
+
+        expect(formatReplyAnnouncement(message, 'Bot', host)).toBe(
+            'Bot replied. See below. Continues in the message.'
+        );
+        expect(
+            formatReplyAnnouncement(reply('<ui-note text="Desks are open"/>'), 'Bot', host)
+        ).toBe('Bot replied. Note: Desks are open.');
     });
 
     it('counts activities by their noun, between tools and agents', () => {

@@ -5,8 +5,13 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {ChatModel, type ChatPartRenderContext, type ChatToolCallPart} from '../core';
-import {ScriptedChatTransport, toolCallEvents, textEvents} from '../transport';
+import {
+    ChatModel,
+    type ChatDataPart,
+    type ChatPartRenderContext,
+    type ChatToolCallPart
+} from '../core';
+import {ScriptedChatTransport, dataEvents, toolCallEvents, textEvents} from '../transport';
 import {ChatArtifactRegistry, type ChatDataHandle} from './ChatArtifactRegistry';
 import {ChatUiCatalog, type ChatUiCatalogConfig} from './ChatUiCatalog';
 import type {ChatUiComponentSpec, ChatUiDocumentContext} from './ChatUiComponentSpec';
@@ -248,6 +253,15 @@ describe('ChatUiCatalog documents', () => {
             createCatalog().repairDocument(input as any);
             expect(input).toEqual(copy);
         });
+
+        it('keeps isPartial on an element through repairDocument', () => {
+            const repaired = createCatalog().repairDocument({
+                root: 'a',
+                elements: {a: {component: 'list', props: {}, isPartial: true}}
+            });
+
+            expect(repaired.elements.a.isPartial).toBe(true);
+        });
     });
 
     describe('migrateDocument', () => {
@@ -341,6 +355,19 @@ describe('ChatUiCatalog documents', () => {
             expect(html).toContain('Building…');
         });
 
+        it('reads a child id such as constructor as a missing element, not an inherited member', () => {
+            const partial = {
+                    root: 'top',
+                    elements: {top: stack(['n1', 'constructor', 'toString']), n1: noteEl('a')}
+                },
+                html = markup(
+                    createCatalog().renderDocument(partial, documentContext({isPartial: true}))
+                );
+
+            expect(html).toContain('(a)');
+            expect(html.match(/Building…/g)).toHaveLength(2);
+        });
+
         it('renders a placeholder while the root or a component name streams', () => {
             const catalog = createCatalog(),
                 context = documentContext({isPartial: true});
@@ -370,6 +397,22 @@ describe('ChatUiCatalog documents', () => {
             expect(html).toContain('elements.bad.props.text: expected string, got number');
             expect(html).toContain('elements.gone: missing');
             expect(warn).toHaveBeenCalledTimes(2);
+        });
+
+        it('renders an element with an elementErrors entry as a fallback, and its siblings', () => {
+            silenceWarnings();
+            const html = markup(
+                createCatalog().renderDocument(NESTED, {
+                    ...documentContext(),
+                    elementErrors: {b: ['elements.b: written wrong'], gone: ['ignored']}
+                })
+            );
+
+            expect(html).toContain('(Head)');
+            expect(html).toContain('(a)');
+            expect(html).not.toContain('(b)');
+            expect(html).toContain('This note could not be displayed.');
+            expect(html).toContain('elements.b: written wrong');
         });
 
         it('renders one fallback for a document whose structure is broken', () => {
@@ -487,6 +530,70 @@ describe('ChatUiCatalog documents', () => {
             expect(context.element).toEqual({id: 'top', ...stack(['n'])});
             expect(markup(context.children)).toBe('(x)');
             expect(context.catalog).toBe(catalog);
+        });
+
+        it('renders an element complete, and validates it, when its own isPartial is false in a partial document', () => {
+            silenceWarnings();
+            const catalog = createCatalog(),
+                html = markup(
+                    catalog.renderDocument(
+                        doc({
+                            top: stack(['a', 'b']),
+                            a: {...noteEl('bad'), isPartial: false},
+                            b: noteEl('bad')
+                        }),
+                        documentContext({isPartial: true})
+                    )
+                );
+
+            expect(html).toContain('elements.a.props.text: must not be &quot;bad&quot;');
+            expect(html).toContain('(bad)');
+        });
+
+        it('runs the full checks on every element of a complete document, whatever its isPartial says', () => {
+            silenceWarnings();
+            const catalog = createCatalog({components: [NEEDY]}),
+                html = markup(
+                    catalog.renderDocument(
+                        doc({top: {component: 'needy', props: {}, isPartial: true}}),
+                        documentContext()
+                    )
+                );
+
+            expect(html).toContain('This needy could not be displayed.');
+            expect(html).toContain('elements.top.props.title: required');
+        });
+
+        it("renders a complete xh.chat.ui data part's bad element as a fallback even when it says isPartial", async () => {
+            silenceWarnings();
+            const catalog = createCatalog({components: [NEEDY]}),
+                chatModel = new ChatModel({
+                    transport: new ScriptedChatTransport({
+                        responses: [
+                            [
+                                ...dataEvents(
+                                    'xh.chat.ui',
+                                    doc({top: {component: 'needy', props: {}, isPartial: true}})
+                                ),
+                                ...textEvents('Done.')
+                            ]
+                        ]
+                    }),
+                    dataRenderers: catalog.createDataRenderers()
+                });
+            onTestFinished(() => chatModel.destroy());
+
+            await chatModel.sendAsync('Show.');
+
+            const message = chatModel.lastMessage,
+                part = message.parts.find(it => it.type === 'data') as ChatDataPart,
+                html = markup(
+                    chatModel.dataRenderers['xh.chat.ui'](part, {
+                        chatModel,
+                        messageId: message.id
+                    })
+                );
+            expect(html).toContain('This needy could not be displayed.');
         });
     });
 
@@ -647,7 +754,7 @@ describe('ChatUiCatalog documents', () => {
 
         it('resolves a reference to a missing artifact as missing, or waiting while streaming', () => {
             const catalog = createCatalog({components: [TABLE]}),
-                chatModel = {getMessage: () => ({isStreaming: true})} as any;
+                chatModel = {streamingMessageId: 'm1', getMessage: () => null} as any;
 
             expect(markup(catalog.renderDocument(tableDoc('sales'), documentContext()))).toBe(
                 'missing'
@@ -709,6 +816,12 @@ const STACK: ChatUiComponentSpec = {
         props: {type: 'object', properties: {text: {type: 'string'}}},
         validate: ({text}) => (text === 'bad' ? ['text: must not be "bad"'] : []),
         render: ({text}) => `(${text})`
+    },
+    NEEDY: ChatUiComponentSpec = {
+        name: 'needy',
+        description: 'Needs a title.',
+        props: {type: 'object', properties: {title: {type: 'string'}}, required: ['title']},
+        render: () => 'needy'
     },
     LIST: ChatUiComponentSpec = {
         name: 'list',

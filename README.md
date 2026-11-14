@@ -19,8 +19,8 @@ follows Hoist's own conventions, so it reads and behaves like the rest of a Hois
   that suits each call, or for the user to answer them.
 - **Generative UI** - the model shows the app's own Hoist components inline in its reply: grids,
   charts, KPI tiles and cards, or components the app writes. A catalog the app controls limits
-  the model to known components with checked props, and adapters draw A2UI or OpenUI payloads
-  with the same components.
+  the model to known components with checked props. The kit reads OpenUI Lang as it streams, and
+  adapters draw A2UI payloads, with the same components.
 - **Rich message parts** - markdown text, reasoning, tool call cards, files, sources with inline
   citations, and app-defined data parts.
 - **Conversation actions** - stop, retry, regenerate, edit a past message, and persist history.
@@ -111,6 +111,9 @@ export default ({envMode}) =>
 Toolbox compiles the kit this way on its chat kit feature branch, where the Weather V2 Dashboard
 Agent and a Chat Kit demo app run on the kit.
 
+To use the OpenUI Lang format in `/genui/openui/`, also add its optional peer and Zod:
+`pnpm add @openuidev/lang-core zod`. See [`/genui/openui/`](./genui/openui/README.md).
+
 ## Documentation
 
 Start with the [Documentation Index](./docs/README.md). Its Quick Reference table maps common
@@ -122,6 +125,7 @@ tasks to the right doc.
 | [`/core/`](./core/README.md) | `ChatModel`, messages and parts, tools, approvals, persistence, errors |
 | [`/transport/`](./transport/README.md) | Transports, codecs, `ChatEvent`, server contracts, the Grails example |
 | [`/genui/`](./genui/README.md) | The generative UI catalog, component specs and protocol adapters |
+| [`/genui/openui/`](./genui/openui/README.md) | The OpenUI Lang format and adapter, over the catalog |
 | [`/desktop/cmp/chat/`](./desktop/cmp/chat/README.md) | Desktop components and theming |
 | [`/desktop/cmp/genui/`](./desktop/cmp/genui/README.md) | The built-in grid, chart, KPI tile and card components |
 | [`/cmp/markdown/`](./cmp/markdown/README.md) | The streaming markdown renderer |

@@ -4,8 +4,10 @@
 # Dependency build scripts do not run unless reviewed here. Unreviewed scripts are a hard error
 # in CI. esbuild (via tsx, which powers the @xh/hoist MCP server and CLI tools) is allowed so its
 # platform binary install is guaranteed. The rest ship prebuilt output or only print a funding
-# message.
+# message. @openuidev/lang-core only runs install-time telemetry, which
+# CI also disables with OPENUI_TELEMETRY_DISABLED.
 allowBuilds:
+  '@openuidev/lang-core': false
   '@parcel/watcher': false
   browser-tabs-lock: false
   core-js: false
@@ -40,7 +42,8 @@ peerDependencyRules:
     react-dom: '19'
     '@vitest/mocker>msw': '3'
 
-# zod reaches the kit only through @ag-ui/client and @ag-ui/proto, which declare ^3.25.76. Every
+# zod reaches the kit through @ag-ui/client and @ag-ui/proto, which declare ^3.25.76, and through
+# @openuidev/lang-core, the optional peer that the kit installs as a devDependency. Every
 # zod 3.x carries GHSA-mrhx-c7xc-m3w5 (memory exhaustion while validating oversized collections),
 # fixed in 4.6.6. The @ag-ui packages import the `zod/v4` entry point, which zod 4 serves
 # unchanged, and the kit's suite, including the AG-UI conformance specs, passes on zod 4. So the

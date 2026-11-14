@@ -9,6 +9,7 @@ import {
 } from '../../../../core';
 import {ChatTimeline} from '../ChatTimeline';
 import {joinWithAnd} from './ChatFormat';
+import {getUiCopyText} from './ChatCopyText';
 import {countTimelineWork} from './ChatTimelineItems';
 import {getActivityDisplay, getToolCallDisplay, groupParts} from './groupParts';
 
@@ -75,17 +76,20 @@ function getSpokenText(message: ChatMessage, host: ChatTranscript): string {
     return getAnswerText(message, host);
 }
 
-/** The reply's text, less the narration that its activity timelines hold. */
+/**
+ * The reply's text, less the narration that its activity timelines hold. A catalog's UI in it
+ * reads as words.
+ */
 function getAnswerText(message: ChatMessage, host: ChatTranscript) {
     const narrationIds = new Set(
         groupParts(message.parts, host).flatMap(group =>
             group.type === 'timeline' ? group.parts.map(it => it.id) : []
         )
     );
-    return message.parts
-        .filter(it => it.type === 'text' && !narrationIds.has(it.id))
-        .map(it => (it as ChatTextPart).text)
-        .join('\n\n');
+    const parts = message.parts.filter(
+        (it): it is ChatTextPart => it.type === 'text' && !narrationIds.has(it.id)
+    );
+    return getUiCopyText(parts, message.id, host.catalog) ?? parts.map(it => it.text).join('\n\n');
 }
 
 function plural(count: number, noun: string): string {

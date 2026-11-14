@@ -1,6 +1,19 @@
 import type {ChatUiCatalog} from './ChatUiCatalog';
 import type {ChatUiDocument} from './ChatUiDocument';
 
+/** What a {@link ChatUiAdapter} gets with each payload. */
+export interface ChatUiAdapterContext {
+    /** The catalog that renders the result - for example to look up components. */
+    catalog: ChatUiCatalog;
+
+    /**
+     * True while the reply that holds the data part still streams. A protocol that sends a growing
+     * document gets it again as it grows. It may return the part that has arrived so far, with
+     * the document's `isPartial` set from this flag.
+     */
+    isPartial: boolean;
+}
+
 /**
  * Translates the UI payload of a generative UI protocol, such as OpenUI Lang or A2UI, into a
  * {@link ChatUiDocument} of components from a {@link ChatUiCatalog}. The payload arrives in a data
@@ -27,8 +40,13 @@ export interface ChatUiAdapter {
      * catalog cannot show. The catalog repairs and checks the document before it renders, and
      * renders an element that fails its checks as a fallback.
      *
+     * The catalog renders the result as partial only if its `isPartial` is true - then a missing
+     * element renders as a placeholder. An adapter for a protocol that streams sets it from
+     * `context.isPartial`. A `translate()` that throws renders a placeholder while the reply
+     * streams, and a fallback once it ends.
+     *
      * @param payload - the `data` of the data part.
-     * @param catalog - the catalog that renders the result - for example to look up components.
+     * @param context - the catalog that renders the result, and whether the reply still streams.
      */
-    translate(payload: any, catalog: ChatUiCatalog): ChatUiDocument;
+    translate(payload: any, context: ChatUiAdapterContext): ChatUiDocument;
 }

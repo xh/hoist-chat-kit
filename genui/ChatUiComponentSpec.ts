@@ -94,6 +94,12 @@ export interface ChatUiComponentSpec<P = PlainObject> {
      * and row limit of the component.
      */
     dataProps?: (string | ChatUiDataPropSpec)[];
+
+    /**
+     * False for a component that shows only inside a nested answer: a document or a text format's
+     * program. The catalog offers it to the model as no tool and no tag of its own. Default true.
+     */
+    standalone?: boolean;
 }
 
 /** A reference prop of a component, with how much of its data the component shows. */
@@ -156,6 +162,13 @@ export interface ChatUiDocumentContext extends ChatPartRenderContext {
 
     /** True while the answer is still streaming, so that any element or prop may be incomplete. */
     isPartial: boolean;
+
+    /**
+     * Problems a format found with elements of the document, by element id, in the kit's
+     * `path: message` form - such as the errors a parser reports for a statement. An element with
+     * an entry renders as a fallback that lists them.
+     */
+    elementErrors?: Record<string, string[]>;
 }
 
 /** Passed to {@link ChatUiCatalogConfig.fallback}: an element that cannot render. */

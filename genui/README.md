@@ -7,11 +7,11 @@
 | Section | Description |
 |---------|-------------|
 | [Overview](#overview) | What the catalog does, and the key features |
-| [Architecture](#architecture) | The catalog, the document model, the four delivery modes, and the cost of a render |
+| [Architecture](#architecture) | The catalog, the document model, the delivery modes and text formats, and the cost of a render |
 | [Configuration Pattern](#configuration-pattern) | Creating a catalog and wiring it to a `ChatModel` |
-| [Common Usage Patterns](#common-usage-patterns) | Components, partial props, nested answers, tags, data by reference, views, actions, export, adapters |
-| [Properties/API Reference](#propertiesapi-reference) | Catalog config, component spec, render context, document, limits, actions, and the schema subset |
-| [Extension Points](#extension-points) | Your own components, fallbacks, action handlers and adapters |
+| [Common Usage Patterns](#common-usage-patterns) | Components, partial props, nested answers, tags, text formats, OpenUI Lang, data by reference, views, actions, export, adapters |
+| [Properties/API Reference](#propertiesapi-reference) | Catalog config and methods, component spec, render context, document, text formats and segments, adapters, limits, and the schema subset |
+| [Extension Points](#extension-points) | Your own components, text formats, fallbacks, action handlers and adapters |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
 | [Related Packages](#related-packages) | The built-in components, the core models, and the chat components |
 
@@ -32,8 +32,11 @@ Key features:
   writes runs as code.
 - **One document model** - every answer is a `ChatUiDocument`, a flat map of elements keyed by
   id. A tool call is a one-element document, and a nested answer is a tree of ids.
-- **Four delivery modes** - component tools, display tools for a server-run loop, tags in a
-  markdown answer, and a `show_ui` tool that takes a whole document.
+- **Several delivery modes** - component tools, display tools for a server-run loop, UI in the
+  answer text, and a `show_ui` tool that takes a whole document.
+- **Text formats** - a `ChatUiTextFormat` reads UI from the answer text as it streams. The tag
+  format, `<ui-grid .../>` in markdown, is the default. The kit also ships a format for OpenUI
+  Lang, and an app can add its own.
 - **Streaming** - a component renders while the model writes its props. A document renders what
   has arrived, with a placeholder for the rest.
 - **Errors the model can fix** - invalid props fail the call with a list of problems, each with
@@ -47,7 +50,8 @@ Key features:
 - **Fallbacks** - an element that fails its checks, or throws, renders as a caption with a "View
   input" disclosure. The rest of the answer still renders.
 - **Protocol adapters** - a `ChatUiAdapter` translates the UI payload of a protocol, such as
-  OpenUI or A2UI, into a document. The protocol's UI then draws with Hoist components.
+  OpenUI or A2UI, into a document. The protocol's UI then draws with Hoist components, and
+  renders as it streams.
 
 ## Architecture
 
@@ -57,6 +61,7 @@ ChatUiCatalog
 ├── tools: ChatToolSpec[]               # One inline client tool per component
 ├── documentTool: ChatToolSpec          # The show_ui tool, for nested documents
 ├── displayTools: ChatToolSpec[]        # Display-only specs, for a server-run loop
+├── textFormats: ChatUiTextFormat[]     # Grammars for UI in the answer text
 ├── instructions: string                # System prompt text for the tools mode
 ├── version: string                     # Content hash, to detect drift
 └── Methods:
@@ -64,12 +69,15 @@ ChatUiCatalog
     ├── validateDocument()              # Check a document's structure and elements
     ├── repairDocument()                # Make lossless fixes to a document
     ├── renderDocument()                # Render a document, with placeholders and fallbacks
-    ├── parseTags()                     # Split text into markdown and component tags
-    ├── renderSegment()                 # Render a tag segment
+    ├── parseText()                     # Split text into markdown and UI, with the text formats
+    ├── parseTags()                     # Split text with the tag format alone
+    ├── renderSegment()                 # Render a UI segment of parsed text
+    ├── toCopyText()                    # Words for parsed text, to copy or read aloud
     ├── runActionAsync()                # Check and run a typed action
     ├── isUrlAllowed()                  # Check a URL against urlAllowList
     ├── toToolSchemas()                 # Export the tools as JSON
     ├── toPrompt()                      # Export the prompt, per delivery mode
+    ├── toExport()                      # Export the tools, prompt, version and formats
     └── createDataRenderers()           # Data renderers for documents and adapters
 ```
 
@@ -92,10 +100,16 @@ container lists its `slots`, and a component that shows an artifact lists its `d
 }
 ```
 
-`stack`, `kpis` and `trendChart` here are app components that take data by reference, not the
-built-in ones. Elements refer to their children by id, so a document can stream in any order. Each element
-has a `component`, its `props`, and the ids of its `children` or of the elements in each named
-slot. An element has at most one parent.
+`stack` here is the built-in container from `chatUiStackSpec()`. `kpis` and `trendChart` are app
+components that take data by reference. Elements refer to their children by id, so a document
+can stream in any order. Each element has a `component`, its `props`, and the ids of its
+`children` or of the elements in each named slot. An element has at most one parent.
+
+A document sets `isPartial: true` while its sender still adds to it. A format or an adapter that
+streams sets it. Unset, the document is complete. Inside a partial document, an element can set
+`isPartial: false` to say it is complete. It then renders, and passes its full checks, before
+the rest of the document arrives. A text format that knows when each element completes sets it.
+In a complete document, every element runs the full checks, whatever its own `isPartial` says.
 
 `renderDocument()` takes each document through the same steps:
 
@@ -107,18 +121,33 @@ slot. An element has at most one parent.
    a placeholder while the document streams. An element with an unknown component or invalid
    props renders as a fallback, and logs a warning once.
 
-### Four delivery modes
+### Delivery modes
 
 | Mode | Wire | Who answers | Use |
 |------|------|-------------|-----|
 | Component tools | `show_<name>` tool calls | The browser, whose `execute` checks the props | A client-run loop |
 | Display tools | The same tools, registered by the server | The server, with an acknowledgment | A server-run loop. The kit renders from the call's input |
-| Tags in markdown | `<ui-grid data="sales" title="Q3"/>` in the answer text | No one, as the text is the answer | A server agent whose answer is markdown. Cheapest in tokens |
+| A text format | UI in the answer text, such as `<ui-grid data="sales" title="Q3"/>` for the tag format | No one, as the text is the answer | A server agent whose answer is markdown. Cheapest in tokens |
 | UI document | The `show_ui` tool, or an `xh.chat.ui` data part | Either | Nested answers, and the target of protocol adapters |
 
 Per-component tools are more reliable than one tool that takes a union of every component. The
 model sees one small schema per tool, and the provider can enforce it. Use `show_ui` only for
 answers that nest.
+
+A text format is a grammar for UI in the answer text. The catalog's `textFormats` default to the
+tag format, `chatUiTagFormat()`, named `tags`. `parseText()` runs each format over the text as it
+streams, and splits it into markdown and UI segments. A format returns a `component` segment for
+one component, or a `document` segment for a nested answer. The catalog's `modes` take the name
+of a format, as `tags`, to explain its grammar to the model. See
+[Add a text format](#add-a-text-format).
+
+An `xh.chat.ui` data part renders as partial only while its document sets `isPartial: true`. A
+server that sends a complete document mid-reply sees it render complete at once.
+
+A component with `standalone: false` shows only inside a nested answer: a document, or the
+program of a text format. The catalog gives it no tool and no tag of its own, but the document
+tool and the `document` prompt section keep it. The built-in stack and text components are not
+standalone.
 
 ### How a call becomes a component
 
@@ -245,11 +274,15 @@ The chat also does the rest of the wiring:
 
 - Each chat manages its own artifact registry, `chatModel.artifacts`, which the catalog reads by
   default. Give the chat a `dataSource` for rows not yet in the browser.
-- The desktop message view renders component tags in the text of a reply, and data parts of type
-  `xh.chat.ui` as documents.
+- The desktop message view renders UI in the text of a reply through the catalog's text formats,
+  and data parts of type `xh.chat.ui` as documents. A data part renders as partial while its
+  reply streams.
+- Copy and the announcement of a finished reply read the UI in its text as words, from
+  `toCopyText()`. A host's `getCopyText` still wins for Copy.
 - Each request carries `catalog.version`, as `ChatRunRequest.catalogVersion`.
-- A reply that shows catalog UI records the catalog's version as `metadata.catalogVersion`. A
-  stored reply renders through the catalog's `migrations` from that version.
+- A reply that shows catalog UI, from any text format, records the catalog's version as
+  `metadata.catalogVersion`. A stored reply renders through the catalog's `migrations` from that
+  version.
 
 ## Common Usage Patterns
 
@@ -306,13 +339,16 @@ schema lists them, so list the props a component needs first, first.
 
 ### Write a container
 
-A container lists its child lists in `slots`: `default` for its `children`, and other names for
-named slots. It renders the children it receives:
+The built-in `chatUiStackSpec()` lays its children out in a column or a row. See
+[`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md#lay-out-a-nested-answer). Write a
+container of your own for any other layout. A container lists its child lists in `slots`:
+`default` for its `children`, and other names for named slots. It renders the children it
+receives:
 
 ```typescript
-const stackSpec: ChatUiComponentSpec<{gap?: number}> = {
-    name: 'stack',
-    description: 'A vertical stack of components, with an optional header.',
+const sectionSpec: ChatUiComponentSpec<{gap?: number}> = {
+    name: 'section',
+    description: 'A section of the answer, with an optional header over its components.',
     props: {type: 'object', additionalProperties: false, properties: {gap: {type: 'integer', maximum: 32}}},
     slots: ['default', 'header'],
     render: ({gap = 8}, {children, slots}) => vbox({style: {gap}, items: [...(slots.header ?? []), ...children]})
@@ -326,11 +362,15 @@ renderer with `createDataRenderers()`.
 ### Read tags in a markdown answer
 
 A server agent can place components in its answer text, where they belong. The desktop message
-view renders the tags of each reply in a chat with a catalog. A custom text renderer splits a text
-part with `parseTags()` and renders each segment:
+view renders the UI in each reply in a chat with a catalog. A custom text renderer splits a text
+part with `parseText()`, which runs the catalog's text formats, and renders each segment:
 
 ```typescript
-const segments = catalog.parseTags(part.text, {isStreaming: part.state === 'streaming'});
+const segments = catalog.parseText(part.text, {
+    isStreaming: part.state === 'streaming',
+    messageId,
+    partId: part.id
+});
 
 segments.map((segment, idx) =>
     segment.type === 'markdown'
@@ -345,9 +385,121 @@ value is checked against the props schema. While the text streams, a tag cut off
 becomes a placeholder segment, and renders as "Building chart…". An unknown tag name, invalid
 props, or broken markup becomes a fallback segment. Tags in fenced or inline code, and tags
 escaped with a backslash, stay markdown. Set `tagPrefix` to change the `ui-` prefix.
+`parseTags()` runs the tag format alone, whatever the catalog's `textFormats`.
 
 `toPrompt({modes: ['tags']})` explains the grammar to the model, and lists each component with its
 props. The prompt and the parser come from one catalog, so they always agree.
+
+`toCopyText(segments)` turns parsed text into plain words, to copy or to read aloud. Each
+component, and each element of a document, becomes a line: its spec's `result()`, or
+`Showed <name>.`. A blank result adds no line. A document lists each named slot of an element
+before its children, as a header draws first. The catalog trims each markdown piece and each
+block of lines, and joins them with blank lines. Text with no UI comes back unchanged. The
+desktop message view uses it for Copy and for the announcement of a finished reply.
+
+### Add a text format
+
+A `ChatUiTextFormat` teaches the catalog a new grammar for UI in the answer text, such as a
+model-written UI language. It has a `name`, a `parse()` that splits text into segments, and a
+`toPrompt()` that explains the grammar to the model. This one reads a fenced `ui` block that holds
+a document as JSON:
+
+```typescript
+import type {ChatUiTextFormat, ChatUiTextSegment} from '@xh/hoist-chat-kit/genui';
+
+const FENCE = /```ui\n([\s\S]*?)```/g;
+
+export const fencedUiFormat: ChatUiTextFormat = {
+    name: 'fenced-ui',
+    parse(text, {isStreaming}) {
+        const ret: ChatUiTextSegment[] = [];
+        let last = 0;
+        for (const match of text.matchAll(FENCE)) {
+            if (match.index > last) ret.push({type: 'markdown', text: text.slice(last, match.index)});
+            ret.push(toSegment(match[0], match[1]));
+            last = match.index + match[0].length;
+        }
+
+        // A block still being written shows as a placeholder.
+        const rest = text.slice(last),
+            open = isStreaming ? rest.indexOf('```ui') : -1;
+        if (open >= 0) {
+            if (open > 0) ret.push({type: 'markdown', text: rest.slice(0, open)});
+            ret.push({type: 'placeholder', component: null, source: rest.slice(open)});
+        } else if (rest) {
+            ret.push({type: 'markdown', text: rest});
+        }
+        return ret;
+    },
+    toPrompt: ({catalog}) =>
+        'For a nested answer, write a ```ui fenced block that holds a document as JSON. ' +
+        `Components: ${catalog.components.map(it => it.name).join(', ')}.`
+};
+
+function toSegment(source: string, json: string): ChatUiTextSegment {
+    try {
+        return {type: 'document', document: JSON.parse(json), isPartial: false, source};
+    } catch (e) {
+        return {type: 'fallback', component: null, name: 'ui', props: null, errors: [(e as Error).message], source};
+    }
+}
+```
+
+Add the format to the catalog, and name it in `modes` to add its `toPrompt()` to the prompt:
+
+```typescript
+const catalog = new ChatUiCatalog({
+    components: [chatUiStackSpec(), chatUiTextSpec(), chatUiGridSpec(), chatUiChartSpec()],
+    textFormats: [chatUiTagFormat(), fencedUiFormat],
+    modes: ['tools', 'fenced-ui']
+});
+```
+
+`parseText()` runs the formats in order. The first parses the whole text, and each later one
+parses the markdown segments that the earlier ones left. List `chatUiTagFormat()` too, to keep the
+tag format. Format names must be unique, and must not be `tools` or `document`.
+
+The rules for a format:
+
+- **Return UI that cannot render as a fallback segment.** If `parse()` throws, the text it was
+  given stays markdown: the whole text for the first format, or one markdown segment for a later
+  one. The catalog logs a warning once per message.
+- **Hold back UI still being written.** While `isStreaming` is true, the text may end inside the
+  format's markup. Return a placeholder segment for it, or a `document` segment with `isPartial:
+  true`. The catalog renders each element still to come as a placeholder.
+- **Mark each element that is complete.** A format that streams a document can set
+  `isPartial: false` on each `ChatUiElement` it knows is complete. The element then renders in
+  full, and passes its full checks, while the rest streams.
+- **Give equal elements for equal sources.** The catalog reuses the component segment of an
+  earlier parse with the same format and `source`, so the component keeps its props object as the
+  text streams.
+- **Keep state per part, if you must.** The context passes `messageId`, `partId` and `index`,
+  for a streaming parser that keeps state between calls. `index` counts the markdown pieces that
+  a later format parses, from 0. Key the state by all three. Either id can be null, for example
+  for text outside a chat or from `parseTags()`, so a parser must not rely on them.
+- **Set a `version` when options change the format.** The catalog's `version` covers each format's
+  name, and its `version` when set. A catalog with only the default tag format keeps the version
+  it would have with no text formats.
+
+A format's optional `toExport()` adds its own entry to `toExport().formats`, for a server.
+
+### Render OpenUI Lang
+
+`openUiLangFormat()`, in `@xh/hoist-chat-kit/genui/openui`, reads OpenUI Lang, the streaming UI
+language of Thesys OpenUI. It renders each program with the catalog's components, element by
+element as the reply streams. `openUiLangAdapter()` does the same for a program sent in a data
+part. Both need the optional peer `@openuidev/lang-core`, with `zod`:
+
+```typescript
+const catalog = new ChatUiCatalog({
+    components: [chatUiStackSpec(), chatUiTextSpec(), chatUiMetricsSpec(), chatUiGridSpec()],
+    textFormats: [openUiLangFormat({root: 'stack'})],
+    modes: ['openui']
+});
+```
+
+See [`/genui/openui/`](./openui/README.md) for the install, the prompt, the export, name
+mapping and the parts of OpenUI Lang the kit does not run.
 
 ### Show data by reference
 
@@ -499,20 +651,12 @@ prompt from the browser. Write the export to a file at build time, for the serve
 import {writeFileSync} from 'node:fs';
 import {catalog} from '../client-app/src/chat/catalog';
 
-const modes = ['tools', 'tags', 'document'] as const;
-writeFileSync(
-    'grails-app/conf/chatCatalog.json',
-    JSON.stringify(
-        {
-            version: catalog.version,
-            tools: catalog.toToolSchemas({modes: [...modes]}),
-            prompt: catalog.toPrompt({modes: [...modes]})
-        },
-        null,
-        2
-    )
-);
+const json = catalog.toExport({modes: ['tools', 'tags', 'document']});
+writeFileSync('grails-app/conf/chatCatalog.json', JSON.stringify(json, null, 2));
 ```
+
+`toExport()` returns the catalog's `version`, its `tools` from `toToolSchemas()`, its `prompt`
+from `toPrompt()`, and in `formats` the export of each text format that has one, by name.
 
 The browser sends only `catalog.version`. `AgUiCodec` sends it in `forwardedProps`, with the
 turn's ids. The server compares it with the version in its export to detect drift. In the
@@ -520,9 +664,11 @@ browser, give a server-mode `ChatModel` the catalog. The chat adds the catalog's
 which render each call as the client tools do, with no `execute`, and are not sent to the model.
 
 `version` is an FNV-1a hash of the catalog's content: the names, descriptions, schemas, examples,
-slots and data props of its components, its modes, its instructions, its tag prefix and its limits.
-Render functions do not count. A document keeps the `catalogVersion` it was written against.
-`migrations` upgrade a stored document from an older version.
+slots, data props and `standalone` flags of its components, its modes, its instructions, its tag
+prefix and its limits. It covers the names and versions of the text formats too, unless they are
+the default tag format alone. Render functions do not count. A document keeps the
+`catalogVersion` it was written against. `migrations` upgrade a stored document from an older
+version.
 
 ### Adapt a protocol's UI payload
 
@@ -547,7 +693,7 @@ function toElement(c: PlainObject): ChatUiElement {
         case 'Column':
             return {component: 'stack', props: {}, children: c.childIds};
         case 'Stat':
-            return {component: 'metrics', props: {items: [{label: c.label, value: c.value}]}};
+            return {component: 'metrics', props: {metrics: [{label: c.label, value: c.value}]}};
         default:
             return {component: c.type, props: {}}; // Renders as a fallback.
     }
@@ -560,8 +706,17 @@ const chatModel = new ChatModel({
 });
 ```
 
+The chat calls `translate(payload, {catalog, isPartial})`. `isPartial` is true while the reply
+that holds the data part still streams. A protocol that sends a growing document, as one
+`ACTIVITY_SNAPSHOT` after another, gets each snapshot in turn. Return the part that has arrived,
+and set the document's `isPartial` from the context. The catalog renders the result as partial
+only while the document says so, with a placeholder for each element still to come. A
+`translate()` that throws renders a placeholder while the reply streams, and a fallback once it
+ends.
+
 `createDataRenderers()` also returns a renderer for documents sent as they are, with the
-`dataType` `xh.chat.ui`. A chat with a catalog adds that renderer itself. The catalog repairs and
+`dataType` `xh.chat.ui`. A chat with a catalog adds that renderer itself. It too renders a
+document as partial only while the document sets `isPartial: true`. The catalog repairs and
 checks each document before it renders.
 
 ## Properties/API Reference
@@ -571,7 +726,8 @@ checks each document before it renders.
 | Property | Type | Description |
 |----------|------|-------------|
 | `components` | `ChatUiComponentSpec[]` | Components the model can show. Names and tool names must be unique. Required. |
-| `modes` | `ChatUiDeliveryMode[]` | How the model delivers UI: `tools`, `tags`, `document`. Sets the tools a client-mode chat sends, and the default modes of the prompt and the export. Default `['tools']`. |
+| `modes` | `ChatUiDeliveryMode[]` | How the model delivers UI: `tools`, `document`, or the name of a text format, such as `tags`. Sets the tools a client-mode chat sends, and the default modes of the prompt and the export. Default `['tools']`. |
+| `textFormats` | `ChatUiTextFormat[]` | Grammars for UI in the answer text, which `parseText()` runs in order. Names must be unique. Default `[chatUiTagFormat()]`. |
 | `instructions` | `string` | Guidance for the model, added to the end of the generated prompt. |
 | `tagPrefix` | `string` | Prefix of component tags in markdown. Default `ui-`. |
 | `documentToolName` | `string` | Name of the document tool. Default `show_ui`. |
@@ -582,6 +738,21 @@ checks each document before it renders.
 | `migrations` | `Record<string, (doc) => ChatUiDocument>` | Upgrades for stored documents, keyed by the version they upgrade from. |
 | `fallback` | `(spec: ChatUiFallbackSpec) => ReactNode` | Renders an element that cannot render. Default `chatUiFallback`, a caption with a "View input" disclosure, which a custom fallback can call for the cases it does not handle. |
 | `placeholder` | `(spec: ChatUiPlaceholderSpec) => ReactNode` | Renders an element still streaming in. Default "Building chart…". |
+
+### ChatUiCatalog methods for text and export
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `parseText(text, opts)` | `ChatUiTextSegment[]` | Split a text part into markdown and UI with the `textFormats`. `opts` is a `ChatUiParseTextOptions`: `isStreaming`, `messageId` and `partId`. |
+| `parseTags(text, {isStreaming})` | `ChatUiTextSegment[]` | Split a text part with the tag format alone. |
+| `renderSegment(segment, context)` | `ReactNode` | Render a UI segment: a component, a document, a placeholder or a fallback. Nothing for markdown. |
+| `toCopyText(segments)` | `string` | Plain words for parsed text: trimmed markdown pieces and a line per component or element, joined with blank lines. |
+| `toPrompt({modes, rules})` | `string` | System prompt text for the given modes, with each named format's section. |
+| `toToolSchemas({modes})` | `ChatUiToolSchema[]` | The tools for the given modes, as JSON. |
+| `toExport({modes})` | `PlainObject` | `version`, `tools`, `prompt` and each format's export in `formats`, for a server. |
+
+`toPrompt()`, `toToolSchemas()` and `toExport()` throw for a mode that is not `tools`,
+`document` or the name of a configured text format, as the constructor does.
 
 ### ChatUiComponentSpec
 
@@ -597,6 +768,7 @@ checks each document before it renders.
 | `example` | `P` | Example props, shown to the model in the prompt. |
 | `slots` | `string[]` | Child lists of a container: `default` for `children`, other names for named slots. Default none. |
 | `dataProps` | `(string \| ChatUiDataPropSpec)[]` | Props that name an artifact, typed as strings. Each takes a `pageSize`, default 100, and a `maxRows`. |
+| `standalone` | `boolean` | False for a component that shows only inside a nested answer, with no tool or tag of its own. Default true. |
 
 ### ChatUiRenderContext
 
@@ -622,10 +794,43 @@ Passed to `render`. Extends the chat's `ChatPartRenderContext`, which holds `cha
 | `root` | `string` | Id of the top element. |
 | `elements` | `Record<string, ChatUiElement>` | Each element, by id. |
 | `catalogVersion` | `string` | The catalog version the document was written against. |
+| `isPartial` | `boolean` | Document: true while the sender still adds to it. Unset, the document is complete. |
 | `component` | `string` | Element: name of a catalog component. |
 | `props` | `PlainObject` | Element: props for the component. |
 | `children` | `string[]` | Element: ids of the child elements. |
 | `slots` | `Record<string, string[]>` | Element: ids of the elements in each named slot. |
+| `isPartial` | `boolean` | Element: `false` for an element complete inside a partial document, to run its full checks early. Ignored in a complete document. Unset, the document's state applies. |
+
+### ChatUiTextFormat
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `name` | `string` | Name of the format, and its delivery mode in `modes`. Required. |
+| `version` | `string` | Changes when the format's options change the prompt or the parse. Hashed into the catalog's version when set. Optional. |
+| `parse` | `(text, ctx) => ChatUiTextSegment[]` | Split text into markdown and UI segments, in order. Runs on every change while the text streams. Required. |
+| `toPrompt` | `({catalog}, opts) => string` | The prompt section for the format: its grammar and its components. Required. |
+| `toExport` | `({catalog}) => PlainObject` | The format's entry in `toExport().formats`, for a server. Optional. |
+
+`ctx` is a `ChatUiFormatContext`: the `catalog`, `isStreaming`, the `messageId` and `partId` of
+the text, null outside a chat, and the `index` of the markdown piece the call parses, 0 for the
+first. A parser that keeps state per part keys it by all three.
+
+### ChatUiTextSegment
+
+| Type | Fields | Description |
+|------|--------|-------------|
+| `markdown` | `text` | Markdown text between UI. |
+| `component` | `element`, `source` | One complete component with valid props. Equal sources must give equal elements. |
+| `document` | `document`, `isPartial`, `source` | A nested answer, a `ChatUiDocumentSegment`. While partial, elements still to come render as placeholders. |
+| `placeholder` | `component`, `source` | UI still being written at the end of streaming text. |
+| `fallback` | `component`, `name`, `props`, `errors`, `source` | UI that cannot render: an unknown component, invalid props, or broken markup. |
+
+### ChatUiAdapter
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `dataType` | `string` | The `dataType` of the data parts the adapter handles. Required. |
+| `translate` | `(payload, context: ChatUiAdapterContext) => ChatUiDocument` | Translate a payload into a document of catalog components. The context holds the `catalog`, and `isPartial`, true while the reply streams. Set the document's `isPartial` from it to render the result as partial. Required. |
 
 ### ChatUiLimits
 
@@ -683,9 +888,11 @@ in `elements.chart.props.rows[3].value`. See `impl/validateSchema.ts` for the de
   built-in `chatUiFrame`, `fmtChatUiNumber`, `CHAT_UI_NUMBER_FORMAT_SCHEMA` and
   `CHAT_UI_DECIMALS_SCHEMA` give your components the same look and number formats as the
   built-in ones.
-- **The built-in components** - `chatUiGridSpec()`, `chatUiChartSpec()`, `chatUiMetricsSpec()`
-  and `chatUiCardSpec()` return specs with options for names, descriptions and limits. See
-  [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md).
+- **The built-in components** - `chatUiGridSpec()`, `chatUiChartSpec()`, `chatUiMetricsSpec()`,
+  `chatUiCardSpec()`, `chatUiStackSpec()` and `chatUiTextSpec()` return specs with options for
+  names, descriptions and limits. See [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md).
+- **Text formats** - implement `ChatUiTextFormat` for a grammar of UI in the answer text, and add
+  it to `textFormats`. See [Add a text format](#add-a-text-format).
 - **Instructions and rules** - pass `instructions` to say which component suits which question,
   and `rules` to `toPrompt()` to add to its list of rules.
 - **Fallbacks and placeholders** - pass `fallback` and `placeholder` to draw them with the app's
@@ -751,6 +958,13 @@ The model writes every action, and a prompt injection can steer what it writes. 
 action's payload outside `runActionAsync()`. In an `app` handler, check the params as you would
 check user input.
 
+### Expecting a tool or tag for a component that is not standalone
+
+A component with `standalone: false`, such as the built-in stack and text, has no tool and no
+tag. A tag that names one renders as a fallback, with the error `'<name>' shows only inside a
+document`. Add the `document` mode, or a text format whose program nests components, so the model
+can show it.
+
 ### Sending the prompt from the browser
 
 A server that takes its prompt from the browser lets any user rewrite it. Load the exported
@@ -758,8 +972,9 @@ prompt on the server, and send only `catalog.version` from the browser.
 
 ## Related Packages
 
-- [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) - the built-in grid, chart, metrics and
-  card components, and the frame and number formats for your own
+- [`/genui/openui/`](./openui/README.md) - the OpenUI Lang format and adapter
+- [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) - the built-in grid, chart, metrics,
+  card, stack and text components, and the frame and number formats for your own
 - [`/core/`](../core/README.md) - `ChatModel`, `ChatToolSpec` and data renderers
 - [`/desktop/cmp/chat/`](../desktop/cmp/chat/README.md) - the chat components that display tool
   calls, including inline ones

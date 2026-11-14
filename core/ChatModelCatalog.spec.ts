@@ -86,6 +86,18 @@ describe('ChatModel catalog', () => {
         expect(without.transport.requests[0].catalogVersion).toBeNull();
     });
 
+    it('names the reply in streamingMessageId only while its turn runs', async () => {
+        const {model} = createModel({responses: [textEvents('A reply in a few chunks.')]}),
+            seen: string[] = [];
+        model.addReaction({track: () => model.streamingMessageId, run: id => seen.push(id)});
+
+        expect(model.streamingMessageId).toBeNull();
+        await model.sendAsync('Hi');
+
+        expect(seen).toEqual([model.lastMessage.id, null]);
+        expect(model.streamingMessageId).toBeNull();
+    });
+
     describe('artifacts', () => {
         it('records artifacts from xh.chat.artifact events and backend tool results', async () => {
             const {model} = createModel({
@@ -217,6 +229,40 @@ describe('ChatModel catalog', () => {
                     catalog,
                     responses: [textEvents(`See ${catalog.formatTag('note', {text: 'Hi'})}.`)]
                 });
+
+            await model.sendAsync('Show');
+
+            expect(model.lastMessage.metadata.catalogVersion).toBe(catalog.version);
+        });
+
+        it('records the version on a reply whose text holds UI of a custom text format', async () => {
+            const catalog = createCatalog({
+                    textFormats: [
+                        {
+                            name: 'brace',
+                            parse: text =>
+                                text
+                                    .split(/(\{\{metrics\}\})/)
+                                    .filter(it => it)
+                                    .map(it =>
+                                        it === '{{metrics}}'
+                                            ? {
+                                                  type: 'document',
+                                                  document: {
+                                                      root: 'm',
+                                                      elements: {m: {component: 'note', props: {}}}
+                                                  },
+                                                  isPartial: false,
+                                                  source: it
+                                              }
+                                            : {type: 'markdown', text: it}
+                                    ),
+                            toPrompt: () => 'Write {{metrics}}.'
+                        }
+                    ],
+                    modes: ['brace']
+                }),
+                {model} = createModel({catalog, responses: [textEvents('See {{metrics}}.')]});
 
             await model.sendAsync('Show');
 

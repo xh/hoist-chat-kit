@@ -38,6 +38,12 @@ export interface ChatUiDocument {
      * from an older version with its `migrations`.
      */
     catalogVersion?: string;
+
+    /**
+     * True while the sender is still adding to the document. A format or an adapter that streams
+     * sets it. Unset: the document is complete.
+     */
+    isPartial?: boolean;
 }
 
 /** One component of a {@link ChatUiDocument}, with its props and the ids of its children. */
@@ -59,6 +65,14 @@ export interface ChatUiElement {
      * lists the slot in its `slots`. Passed to the component as `context.slots`, rendered.
      */
     slots?: Record<string, string[]>;
+
+    /**
+     * False for an element that is complete inside a partial document, so that it runs the full
+     * checks and `validate()` before the rest of the document arrives. Set by a format that knows
+     * when each element completes. Ignored in a complete document, whose elements always run the
+     * full checks. Unset: the document's state applies.
+     */
+    isPartial?: boolean;
 }
 
 /** A {@link ChatUiElement} with its id - the element a component renders for. */

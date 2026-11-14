@@ -1083,7 +1083,7 @@ See `ChatModel.ts`, `ChatMessage.ts`, `ChatPart.ts`, `ChatToolSpec.ts`, `ChatCom
 | `sendBlocker` | `() => string` | Returns why sending must wait, or null to allow it. Read as a computed value. While blocked, the composer disables Send and shows the reason, and `sendAsync`, `editMessageAsync`, `retryAsync` and `regenerateAsync` do nothing. Blockers added with `addSendBlocker()` work the same way. |
 | `dataRenderers` | `Record<string, ChatDataRenderer>` | Renderers for data parts, keyed by `dataType`. A renderer is `(part, context) => ReactNode`, with a `ChatPartRenderContext`. |
 | `textRenderer` | `ChatTextRenderer` | Renders reply text in place of the kit's markdown, as `(part, context) => ReactNode`. Return null for markdown. See [Render reply text yourself](../desktop/cmp/chat/README.md#render-reply-text-yourself). |
-| `getCopyText` | `(message) => string` | The text Copy copies from a message, or null to hide Copy. Default the message's `text`. |
+| `getCopyText` | `(message) => string` | The text Copy copies from a message, or null to hide Copy. Default the message's `text`. With a `catalog`, any UI in the text reads as words, from `toCopyText()`. |
 | `activities` | `ChatActivitySpec[]` | How data parts display, by `dataType`, such as a skill the agent loads shown in the activity timeline. See [Show an agent's activities](#show-an-agents-activities). |
 | `onTurnComplete` | `(message) => void` | Called when a turn ends - complete, failed or stopped - with its final message. Not called when a turn pauses. |
 | `onTurnPause` | `(message) => void` | Called when a turn pauses for the user, with the paused message. Save here to keep a paused reply across a reload. |
@@ -1115,6 +1115,7 @@ message. An error thrown by the callback is logged and does not affect the chat.
 | `sendBlockedReason` | `string` | Why sending must wait, from the `sendBlocker` or an added blocker, or null. |
 | `isEmpty` | `boolean` | True if there are no messages. |
 | `lastMessage` | `ChatMessage` | The newest message, or null. |
+| `streamingMessageId` | `string` | Id of the message that awaits or receives content, or null. Changes only as a turn starts or ends. |
 | `waitingToolCalls` | `ChatToolCallPart[]` | Calls the paused turn waits on. Empty unless paused. |
 | `isAwaitingUser` | `boolean` | True if a turn is paused for the user, on its tool calls or on a server agent's interrupts. |
 | `pendingInterrupts` | `ChatInterrupt[]` | The interrupts the paused reply waits on, answered or not, until the user submits them. Empty unless paused on them. |
@@ -1383,8 +1384,8 @@ A read-only conversation, for the desktop message list to show without a `ChatMo
 | `messages` | `ChatMessage[]` | The conversation, oldest first. |
 | `dataRenderers` | `Record<string, ChatDataRenderer>` | Optional. Renderers for data parts, by `dataType`. |
 | `textRenderer` | `ChatTextRenderer` | Optional. Renders reply text in place of the kit's markdown. Return null for markdown. |
-| `getCopyText(message)` | `string` | Optional. The text Copy copies from a message, or null to hide Copy. Without it, Copy copies the message's `text`. |
-| `catalog` | `ChatUiCatalog` | Optional. The catalog whose components render in replies, for its tags and for calls to its tools. |
+| `getCopyText(message)` | `string` | Optional. The text Copy copies from a message, or null to hide Copy. Without it, Copy copies the message's `text`, with any UI of the `catalog` in it read as words. |
+| `catalog` | `ChatUiCatalog` | Optional. The catalog whose components render in replies, for its text formats and for calls to its tools. |
 | `getToolSpec(name)` | `ChatToolSpec` | Optional. The spec of a tool, for how its calls display: title, icon, summary and display mode. Without it, a call shows under its tool's name. |
 | `getActivitySpec(dataType)` | `ChatActivitySpec` | Optional. The spec of a type of data part, for how its parts display. Without it, every data part shows inline. |
 

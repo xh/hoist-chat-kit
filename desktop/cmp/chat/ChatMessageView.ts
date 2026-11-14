@@ -65,6 +65,7 @@ import {
     getFeedbackHost
 } from './impl/ChatFeedbackControls';
 import {chatCaret} from '../../impl/ChatLiveCues';
+import {getUiCopyText} from './impl/ChatCopyText';
 import {chatReplyLiveStatus} from './impl/ChatReplyLiveStatus';
 import {ChatStepAnnouncer} from './impl/ChatStepAnnouncer';
 import {chatErrorBoundary} from './ChatErrorBoundary';
@@ -1025,8 +1026,13 @@ const textPart = hoistCmp.factory<TextPartProps>({
             ),
             {catalog} = host,
             segments = useMemo(
-                () => catalog?.parseTags(text, {isStreaming}) ?? null,
-                [catalog, text, isStreaming]
+                () =>
+                    catalog?.parseText(text, {
+                        isStreaming,
+                        messageId: context.messageId,
+                        partId: part?.id
+                    }) ?? null,
+                [catalog, text, isStreaming, context.messageId, part?.id]
             ),
             // Only the end of the text streams, and citations trail its last markdown.
             markdown = (content: string, isEnd: boolean, isLastMarkdown: boolean, key?: string) =>
@@ -1352,9 +1358,14 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
     }
 });
 
-/** The text Copy copies from a message - the host's choice, else its text - or null for none. */
+/**
+ * The text Copy copies from a message - the host's choice, else words for UI in its text, else its
+ * text - or null for none.
+ */
 function getCopyText(message: ChatMessage, host: ChatTranscript): string {
-    return host?.getCopyText ? host.getCopyText(message) : message.text;
+    if (host?.getCopyText) return host.getCopyText(message);
+    const textParts = message.parts.filter((it): it is ChatTextPart => it.type === 'text');
+    return getUiCopyText(textParts, message.id, host?.catalog) ?? message.text;
 }
 
 /** What shows under a reply, below its action bar: the open feedback form. */

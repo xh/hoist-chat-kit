@@ -8,15 +8,21 @@ import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     ChatModel,
     type ChatDataPart,
+    type ChatModelConfig,
     type ChatPartRenderContext,
     type ChatToolCallPart,
     type ChatToolCallState,
     type ChatToolSpec
 } from '../core';
-import {ScriptedChatTransport, textEvents, toolCallEvents} from '../transport';
+import {ScriptedChatTransport, dataEvents, textEvents, toolCallEvents} from '../transport';
 import type {ChatUiAdapter} from './ChatUiAdapter';
-import {ChatUiCatalog} from './ChatUiCatalog';
-import type {ChatUiComponentSpec} from './ChatUiComponentSpec';
+import {ChatUiCatalog, type ChatUiCatalogConfig} from './ChatUiCatalog';
+import type {ChatUiComponentSpec, ChatUiDocumentContext} from './ChatUiComponentSpec';
+import type {ChatUiDocument} from './ChatUiDocument';
+import type {ChatUiTextFormat} from './ChatUiTextFormat';
+import type {ChatUiDocumentSegment} from './ChatUiTextSegment';
+import {chatUiTagFormat} from './formats/ChatUiTagFormat';
+import {hashJson} from './impl/hash';
 
 /**
  * ChatUiCatalog turns app components into tools the model calls to show UI. Apps rely on it to
@@ -43,6 +49,43 @@ describe('ChatUiCatalog', () => {
             expect(metrics.description).toContain('A row of KPI tiles.');
             expect(metrics.description).toContain('shows the component to the user');
             expect(note.parameters).toBe(NOTE.props);
+        });
+
+        it('offers a component that is not standalone only inside a document', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {}),
+                catalog = createCatalog({
+                    components: [METRICS, {...NOTE, standalone: false}],
+                    modes: ['tools', 'tags', 'document']
+                }),
+                doc = {root: 'n', elements: {n: {component: 'note', props: {text: 'hi'}}}};
+            onTestFinished(() => warn.mockRestore());
+
+            expect(catalog.tools.map(it => it.name)).toEqual(['show_metrics']);
+            expect(catalog.displayTools.map(it => it.name)).toEqual(['show_metrics', 'show_ui']);
+            expect(catalog.toToolSchemas().map(it => it.name)).toEqual(['show_metrics', 'show_ui']);
+            expect(catalog.instructions).not.toContain('add_note');
+            expect(catalog.instructions).not.toContain('ui-note');
+            expect(catalog.documentTool.description).toContain('- note: A short note.');
+
+            const tag = '<ui-note text="hi"/>';
+            expect(catalog.parseText(tag)).toEqual([
+                {
+                    type: 'fallback',
+                    component: 'note',
+                    name: 'note',
+                    props: {text: 'hi'},
+                    errors: ["'note' shows only inside a document"],
+                    source: tag
+                }
+            ]);
+            expect(
+                markup(
+                    catalog.documentTool.renderer(
+                        {...callPart('output-available', doc), toolName: 'show_ui'},
+                        renderContext()
+                    )
+                )
+            ).toBe('(hi)');
         });
 
         it('requires unique component and tool names', () => {
@@ -100,6 +143,15 @@ describe('ChatUiCatalog', () => {
                     examples: ['y']
                 })
             ).not.toThrow();
+        });
+
+        it('allows extension keywords that start with x-, and sends them to the model as is', () => {
+            const value = {type: 'string', 'x-app-hint': {format: 'ticker'}},
+                catalog = catalogWithProp(value);
+            expect(catalog.tools[0].parameters).toEqual({
+                type: 'object',
+                properties: {value}
+            });
         });
 
         it('refuses a pattern that does not compile as a Unicode regular expression', () => {
@@ -426,6 +478,109 @@ describe('ChatUiCatalog', () => {
 
             expect(warn).toHaveBeenCalledTimes(1);
         });
+
+        it('passes the reply streaming state to an adapter, and renders its document as partial while it says so', async () => {
+            const states: boolean[] = [],
+                renders: boolean[] = [],
+                adapter: ChatUiAdapter = {
+                    dataType: 'test-ui',
+                    translate: (payload, {catalog, isPartial}) => {
+                        states.push(isPartial);
+                        expect(catalog).toBeInstanceOf(ChatUiCatalog);
+                        return {
+                            root: 'n',
+                            elements: {n: {component: 'note', props: {text: payload.text}}},
+                            isPartial
+                        };
+                    }
+                },
+                catalog = createCatalog({
+                    components: [
+                        {
+                            ...NOTE,
+                            render: (_, {isPartial}) => {
+                                renders.push(isPartial);
+                                return null;
+                            }
+                        }
+                    ]
+                }),
+                chatModel = createStreamingModel(
+                    [...dataEvents('test-ui', {text: 'hi'}), ...textEvents('Done.')],
+                    catalog.createDataRenderers([adapter])
+                );
+
+            await chatModel.sendAsync('Go');
+
+            expect(states[0]).toBe(true);
+            expect(states.at(-1)).toBe(false);
+            expect(renders[0]).toBe(true);
+            expect(renders.at(-1)).toBe(false);
+        });
+
+        it('renders a placeholder while a streaming adapter throws, and a fallback once the reply ends', async () => {
+            const error = vi.spyOn(console, 'error').mockImplementation(() => {}),
+                adapter: ChatUiAdapter = {
+                    dataType: 'test-ui',
+                    translate: () => {
+                        throw new Error('half a program');
+                    }
+                },
+                catalog = createCatalog({placeholder: () => 'PLACEHOLDER'}),
+                outputs: string[] = [],
+                chatModel = createStreamingModel(
+                    [...dataEvents('test-ui', {}), ...textEvents('Done.')],
+                    catalog.createDataRenderers([adapter]),
+                    html => outputs.push(html)
+                );
+            onTestFinished(() => error.mockRestore());
+
+            await chatModel.sendAsync('Go');
+
+            expect(outputs[0]).toBe('PLACEHOLDER');
+            expect(outputs.at(-1)).toContain('could not be displayed');
+            expect(outputs.at(-1)).toContain('half a program');
+        });
+
+        it('renders an xh.chat.ui data part complete while its reply streams unless the document says isPartial', async () => {
+            const renders: boolean[] = [],
+                catalog = createCatalog({
+                    components: [
+                        {
+                            ...NOTE,
+                            render: (_, {isPartial}) => {
+                                renders.push(isPartial);
+                                return null;
+                            }
+                        }
+                    ]
+                }),
+                doc = {root: 'n', elements: {n: {component: 'note', props: {text: 'hi'}}}},
+                complete = createStreamingModel(
+                    [...dataEvents('xh.chat.ui', doc), ...textEvents('Some more text.')],
+                    catalog.createDataRenderers()
+                );
+
+            await complete.sendAsync('Go');
+
+            expect(renders.length).toBeGreaterThan(1);
+            expect(renders.every(it => it === false)).toBe(true);
+
+            renders.length = 0;
+            const growing = createStreamingModel(
+                [
+                    ...dataEvents('xh.chat.ui', {...doc, isPartial: true}, {id: 'd1'}),
+                    ...textEvents('Some more text.'),
+                    ...dataEvents('xh.chat.ui', doc, {id: 'd1'})
+                ],
+                catalog.createDataRenderers()
+            );
+
+            await growing.sendAsync('Go');
+
+            expect(renders[0]).toBe(true);
+            expect(renders.at(-1)).toBe(false);
+        });
     });
 
     describe('with a ChatModel', () => {
@@ -513,6 +668,306 @@ describe('ChatUiCatalog', () => {
             });
         });
     });
+
+    describe('text formats', () => {
+        it('defaults to the tag format, and lists it in textFormats', () => {
+            const catalog = createCatalog(),
+                text = 'Note:\n<ui-note text="hi"/>';
+
+            expect(catalog.textFormats.map(it => it.name)).toEqual(['tags']);
+            expect(catalog.parseText(text)).toEqual(catalog.parseTags(text));
+        });
+
+        it('refuses a mode that names no configured format, and accepts a format name as a mode', () => {
+            expect(() => createCatalog({modes: ['brace']})).toThrow(
+                'ChatUiCatalog modes must be one or more of tools, document, tags.'
+            );
+            expect(() => createCatalog({textFormats: [braceFormat()], modes: ['tags']})).toThrow(
+                'one or more of tools, document, brace'
+            );
+
+            expect(() => createCatalog({textFormats: [braceFormat(), braceFormat()]})).toThrow(
+                'text format names must be unique'
+            );
+            expect(() => createCatalog({textFormats: [{...braceFormat(), name: 'tools'}]})).toThrow(
+                'text format names must be unique'
+            );
+
+            const catalog = createCatalog({textFormats: [braceFormat()], modes: ['brace']});
+            expect(catalog.modes).toEqual(['brace']);
+            expect(catalog.instructions).toContain('### Brace tokens');
+            expect(catalog.instructions).not.toContain('### Component tags');
+            expect(catalog.toPrompt({modes: ['tools']})).not.toContain('### Brace tokens');
+        });
+
+        it('parseText runs the configured formats in order over the markdown segments', () => {
+            const brace = braceFormat(),
+                parse = vi.spyOn(brace, 'parse'),
+                catalog = createCatalog({textFormats: [chatUiTagFormat(), brace]}),
+                segments = catalog.parseText('A <ui-note text="hi"/> B {{metrics}} C', {
+                    messageId: 'm1',
+                    partId: 'p1'
+                });
+
+            expect(segments).toEqual([
+                {type: 'markdown', text: 'A '},
+                {
+                    type: 'component',
+                    element: {component: 'note', props: {text: 'hi'}},
+                    source: '<ui-note text="hi"/>'
+                },
+                {type: 'markdown', text: ' B '},
+                {type: 'document', document: METRICS_DOC, isPartial: false, source: '{{metrics}}'},
+                {type: 'markdown', text: ' C'}
+            ]);
+            expect(parse.mock.calls.map(it => it[0])).toEqual(['A ', ' B {{metrics}} C']);
+            expect(parse.mock.calls[0][1]).toEqual({
+                catalog,
+                isStreaming: false,
+                messageId: 'm1',
+                partId: 'p1',
+                index: 0
+            });
+        });
+
+        it('passes each format the index of the markdown piece it parses', () => {
+            const brace = braceFormat(),
+                parse = vi.spyOn(brace, 'parse'),
+                catalog = createCatalog({textFormats: [chatUiTagFormat(), brace]});
+
+            catalog.parseText('A <ui-note text="hi"/> B', {messageId: 'm1', partId: 'p1'});
+
+            expect(parse.mock.calls.map(([text, ctx]) => [text, ctx.index])).toEqual([
+                ['A ', 0],
+                [' B', 1]
+            ]);
+        });
+
+        it('leaves text as markdown when a format throws, and warns once per message', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {}),
+                broken: ChatUiTextFormat = {
+                    name: 'broken',
+                    parse: () => {
+                        throw new Error('half-written');
+                    },
+                    toPrompt: () => ''
+                },
+                catalog = createCatalog({textFormats: [chatUiTagFormat(), broken]}),
+                text = 'A <ui-note text="hi"/> B';
+            onTestFinished(() => warn.mockRestore());
+
+            const segments = catalog.parseText(text, {messageId: 'm1', isStreaming: true});
+            catalog.parseText(text, {messageId: 'm1'});
+
+            expect(segments.map(it => it.type)).toEqual(['markdown', 'component', 'markdown']);
+            expect(segments[0]).toEqual({type: 'markdown', text: 'A '});
+            expect(segments[2]).toEqual({type: 'markdown', text: ' B'});
+            expect(warn).toHaveBeenCalledTimes(1);
+
+            catalog.parseText(text, {messageId: 'm2'});
+            expect(warn).toHaveBeenCalledTimes(2);
+        });
+
+        it('reuses a component segment by format and source, and never one with no source', () => {
+            let emptyText = 'one';
+            const catalog = createCatalog({
+                    textFormats: [
+                        tokenFormat('a', '{{a}}', '{{x}}', () => 'from a'),
+                        tokenFormat('b', '{{b}}', '{{x}}', () => 'from b'),
+                        tokenFormat('e', '{{e}}', '', () => emptyText)
+                    ]
+                }),
+                elementTexts = (text: string) =>
+                    catalog
+                        .parseText(text)
+                        .filter(it => it.type === 'component')
+                        .map(it => it.element.props.text);
+
+            expect(elementTexts('{{a}} {{b}}')).toEqual(['from a', 'from b']);
+            expect(catalog.parseText('{{a}}')[0]).toBe(catalog.parseText('{{a}}')[0]);
+
+            expect(elementTexts('{{e}}')).toEqual(['one']);
+            emptyText = 'two';
+            expect(elementTexts('{{e}}')).toEqual(['two']);
+        });
+
+        it('renders a document segment, partial with placeholders, then complete', () => {
+            const catalog = createCatalog({components: [STACK, NOTE]}),
+                elements = {
+                    top: {component: 'stack', props: {}, children: ['a', 'b']},
+                    a: {component: 'note', props: {text: 'a'}}
+                },
+                partial = markup(
+                    catalog.renderSegment(
+                        documentSegment({root: 'top', elements}, true),
+                        textContext()
+                    )
+                ),
+                complete = markup(
+                    catalog.renderSegment(
+                        documentSegment(
+                            {
+                                root: 'top',
+                                elements: {...elements, b: {component: 'note', props: {text: 'b'}}}
+                            },
+                            false
+                        ),
+                        textContext()
+                    )
+                );
+
+            expect(partial).toContain('[(a)');
+            expect(partial).toContain('Building…');
+            expect(complete).toBe('[(a)(b)]');
+        });
+
+        it('renders one fallback for a document segment whose structure is broken', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {}),
+                catalog = createCatalog({components: [STACK, NOTE]}),
+                html = markup(
+                    catalog.renderSegment(
+                        documentSegment(
+                            {
+                                root: 'top',
+                                elements: {
+                                    top: {component: 'stack', props: {}, children: ['a']},
+                                    a: {component: 'stack', props: {}, children: ['top']}
+                                }
+                            },
+                            false
+                        ),
+                        textContext()
+                    )
+                );
+            onTestFinished(() => warn.mockRestore());
+
+            expect(html.split('This content could not be displayed.')).toHaveLength(2);
+            expect(html).not.toContain('Building');
+            expect(warn).toHaveBeenCalledTimes(1);
+        });
+
+        it('holds a partial fence as markdown while streaming', () => {
+            const text = 'Code:\n```\n<ui-note text="a"/>';
+            expect(createCatalog().parseText(text, {isStreaming: true})).toEqual([
+                {type: 'markdown', text}
+            ]);
+        });
+
+        it('toCopyText returns text with no UI unchanged, and words for each element of a document', () => {
+            const catalog = createCatalog({
+                    components: [
+                        {...STACK, result: () => ' '},
+                        {...NOTE, result: ({text}) => `Noted ${text}.`},
+                        METRICS
+                    ]
+                }),
+                plain = 'Just **text**.\n\nMore.\n';
+
+            expect(catalog.toCopyText(catalog.parseText(plain))).toBe(plain);
+            expect(
+                catalog.toCopyText([
+                    {type: 'markdown', text: 'Intro.\n'},
+                    documentSegment(
+                        {
+                            root: 'top',
+                            elements: {
+                                top: {
+                                    component: 'stack',
+                                    props: {},
+                                    children: ['n', 'chart'],
+                                    slots: {header: ['m']}
+                                },
+                                n: {component: 'note', props: {text: 'a'}},
+                                chart: {component: 'chart', props: {}},
+                                m: METRICS_DOC.elements.m
+                            }
+                        },
+                        false
+                    ),
+                    {type: 'markdown', text: '\n'},
+                    ...catalog.parseTags('<ui-note text="hi"/>'),
+                    {type: 'placeholder', component: 'note', source: '<ui-note'},
+                    {
+                        type: 'fallback',
+                        component: null,
+                        name: 'chart',
+                        props: {},
+                        errors: ['unknown'],
+                        source: '<ui-chart/>'
+                    },
+                    {type: 'markdown', text: '\nEnd.'}
+                ])
+            ).toBe('Intro.\n\nShowed metrics.\nNoted a.\n\nNoted hi.\n\nEnd.');
+        });
+
+        it('changes version when the formats change', () => {
+            const base = createCatalog().version;
+
+            expect(createCatalog({textFormats: [chatUiTagFormat()]}).version).toBe(base);
+            expect(
+                createCatalog({textFormats: [chatUiTagFormat(), braceFormat()]}).version
+            ).not.toBe(base);
+            expect(createCatalog({textFormats: []}).version).not.toBe(base);
+            expect(
+                createCatalog({textFormats: [{...chatUiTagFormat(), version: '2'}]}).version
+            ).not.toBe(base);
+        });
+
+        it('keeps the version a catalog had before text formats, with the default format', () => {
+            const catalog = new ChatUiCatalog({components: [NOTE]});
+
+            expect(catalog.version).toBe(
+                hashJson({
+                    components: [
+                        {
+                            name: 'note',
+                            toolName: 'add_note',
+                            description: NOTE.description,
+                            props: NOTE.props
+                        }
+                    ],
+                    modes: ['tools'],
+                    instructions: null,
+                    tagPrefix: 'ui-',
+                    documentToolName: 'show_ui',
+                    limits: catalog.limits
+                })
+            );
+        });
+
+        it('refuses a mode it does not know in toPrompt, toToolSchemas and toExport', () => {
+            const catalog = createCatalog(),
+                error = 'ChatUiCatalog modes must be one or more of tools, document, tags.';
+
+            expect(() => catalog.toPrompt({modes: ['brace']})).toThrow(error);
+            expect(() => catalog.toToolSchemas({modes: ['tool' as any]})).toThrow(error);
+            expect(() => catalog.toExport({modes: ['tools', 'brace']})).toThrow(error);
+        });
+
+        it('toExport holds the version, tools, prompt and each format export', () => {
+            const brace = {
+                    ...braceFormat(),
+                    toExport: ({catalog}) => ({count: catalog.components.length})
+                },
+                catalog = createCatalog({
+                    textFormats: [chatUiTagFormat(), brace],
+                    modes: ['tools', 'brace']
+                });
+
+            expect(catalog.toExport()).toEqual({
+                version: catalog.version,
+                tools: catalog.toToolSchemas(),
+                prompt: catalog.instructions,
+                formats: {brace: {count: 2}}
+            });
+            expect(catalog.toExport({modes: ['document']})).toMatchObject({
+                tools: [{name: 'show_ui'}],
+                prompt: catalog.toPrompt({modes: ['document']})
+            });
+            expect(createCatalog().toExport().formats).toEqual({});
+            expect(JSON.parse(JSON.stringify(catalog.toExport()))).toEqual(catalog.toExport());
+        });
+    });
 });
 
 //------------------
@@ -566,15 +1021,112 @@ function catalogWithProp(schema: PlainObject): ChatUiCatalog {
     });
 }
 
-function createCatalog(
-    config: {components?: ChatUiComponentSpec<any>[]; instructions?: string} = {}
-): ChatUiCatalog {
+const STACK: ChatUiComponentSpec = {
+    name: 'stack',
+    description: 'A vertical stack.',
+    props: {type: 'object', properties: {}},
+    slots: ['default', 'header'],
+    render: (_, {children, slots}) =>
+        fragment({items: ['[', ...(slots.header ?? []), ...children, ']']})
+};
+
+const METRICS_DOC: ChatUiDocument = {
+    root: 'm',
+    elements: {m: {component: 'metrics', props: {items: [{label: 'Revenue', value: 12}]}}}
+};
+
+/** A text format that reads `{{metrics}}` as a document of one metrics element. */
+function braceFormat(): ChatUiTextFormat {
+    return {
+        name: 'brace',
+        parse: text =>
+            text
+                .split(/(\{\{metrics\}\})/)
+                .filter(it => it)
+                .map(it =>
+                    it === '{{metrics}}'
+                        ? {type: 'document', document: METRICS_DOC, isPartial: false, source: it}
+                        : {type: 'markdown', text: it}
+                ),
+        toPrompt: () => '### Brace tokens\n\nWrite `{{metrics}}` to show the metrics.'
+    };
+}
+
+/** A text format that reads `token` as a note, with the given source and text. */
+function tokenFormat(
+    name: string,
+    token: string,
+    source: string,
+    getText: () => string
+): ChatUiTextFormat {
+    return {
+        name,
+        parse: text =>
+            text.split(token).flatMap((it, idx) => [
+                ...(idx > 0
+                    ? [
+                          {
+                              type: 'component' as const,
+                              element: {component: 'note', props: {text: getText()}},
+                              source
+                          }
+                      ]
+                    : []),
+                ...(it ? [{type: 'markdown' as const, text: it}] : [])
+            ]),
+        toPrompt: () => ''
+    };
+}
+
+function documentSegment(document: ChatUiDocument, isPartial: boolean): ChatUiDocumentSegment {
+    return {type: 'document', document, isPartial, source: ''};
+}
+
+function textContext(): Omit<ChatUiDocumentContext, 'isPartial'> {
+    return {
+        chatModel: null,
+        messageId: 'm1',
+        part: {type: 'text', id: 't1', text: '', state: 'done'}
+    };
+}
+
+function createCatalog(config: Partial<ChatUiCatalogConfig> = {}): ChatUiCatalog {
     return new ChatUiCatalog({components: [METRICS, NOTE], ...config});
 }
 
 function createModel(transport: ScriptedChatTransport, tools: ChatToolSpec[]): ChatModel {
     const model = new ChatModel({transport, tools});
     onTestFinished(() => model.destroy());
+    return model;
+}
+
+/** A chat whose data parts render on each update, as the message list would render them. */
+function createStreamingModel(
+    events: any[],
+    dataRenderers: ChatModelConfig['dataRenderers'],
+    onRender: (html: string) => void = () => {}
+): ChatModel {
+    const model = new ChatModel({
+        transport: new ScriptedChatTransport({responses: [events], delayMs: 20}),
+        dataRenderers
+    });
+    onTestFinished(() => model.destroy());
+    model.addReaction({
+        track: () => model.lastMessage,
+        run: message => {
+            const part = message?.parts.find(it => it.type === 'data') as ChatDataPart;
+            if (part) {
+                onRender(
+                    markup(
+                        model.dataRenderers[part.dataType](part, {
+                            chatModel: model,
+                            messageId: message.id
+                        })
+                    )
+                );
+            }
+        }
+    });
     return model;
 }
 

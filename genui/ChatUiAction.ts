@@ -1,5 +1,5 @@
 import type {Awaitable, PlainObject} from '@xh/hoist/core';
-import {isEmpty, isPlainObject} from 'lodash';
+import {isEmpty, isObject, isPlainObject} from 'lodash';
 import type {ChatPartRenderContext} from '../core';
 
 /** The kinds of {@link ChatUiAction}. */
@@ -120,6 +120,9 @@ export function formatChatUiContext(context: PlainObject): string {
 
 /**
  * A JSON Schema for a {@link ChatUiAction}, for the props of a component that takes actions.
+ * Place the returned object in the props schema as is, not a clone of it: formats that write
+ * actions in their own syntax, such as OpenUI Lang, recognize an action prop by this object - see
+ * {@link isChatUiActionSchema}.
  *
  * ```ts
  * properties: {
@@ -138,7 +141,17 @@ export function chatUiActionSchema(opts: ChatUiActionSchemaOptions = {}): PlainO
                 properties: {type: {const: type}, ...properties, ...BASE_PROPERTIES}
             };
         });
-    return branches.length === 1 ? branches[0] : {anyOf: branches};
+    const ret = branches.length === 1 ? branches[0] : {anyOf: branches};
+    ACTION_SCHEMAS.add(ret);
+    return ret;
+}
+
+/**
+ * True if a schema is one that {@link chatUiActionSchema} returned. A clone of one, or a schema
+ * written by hand, is not.
+ */
+export function isChatUiActionSchema(schema: unknown): boolean {
+    return isObject(schema) && ACTION_SCHEMAS.has(schema);
 }
 
 /**
@@ -166,6 +179,9 @@ export function describeChatUiAction(action: ChatUiAction): string {
 // Implementation
 //------------------
 const ACTION_TYPES: ChatUiActionType[] = ['send', 'openUrl', 'navigate', 'callTool', 'app'];
+
+// Every schema chatUiActionSchema() returned, so that formats can recognize action props.
+const ACTION_SCHEMAS = new WeakSet<object>();
 
 const BASE_PROPERTIES: PlainObject = {
     label: {type: 'string', maxLength: 40, description: 'Text for the button.'},

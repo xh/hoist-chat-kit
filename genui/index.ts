@@ -6,5 +6,7 @@ export type * from './ChatUiAdapter';
 export * from './ChatUiCatalog';
 export type * from './ChatUiComponentSpec';
 export * from './ChatUiDocument';
+export type * from './ChatUiTextFormat';
 export type * from './ChatUiTextSegment';
 export * from './ChatUiFallback';
+export * from './formats/ChatUiTagFormat';

@@ -14,7 +14,7 @@
 
 ## 2.0.0-SNAPSHOT - unreleased
 
-### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - remove the busy-line settings)
+### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - drop busy-line settings, update adapters)
 
 See [`docs/upgrade-notes/v2-upgrade-notes.md`](docs/upgrade-notes/v2-upgrade-notes.md) for
 detailed, step-by-step upgrade instructions with before/after code examples.
@@ -27,6 +27,9 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Removed the `xh-chat-status-region__lead`, `xh-chat-status-region__hint`,
   `xh-chat-status-region--busy` and `xh-chat-status-region--attention` classes, which the region no
   longer renders.
+* `ChatUiAdapter.translate()` now takes `{catalog, isPartial}` as its second argument, in place of
+  the catalog. See
+  [Update Protocol Adapters](docs/upgrade-notes/v2-upgrade-notes.md#3-update-protocol-adapters).
 
 ### 🎁 New Features
 
@@ -50,6 +53,39 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   own, such as a summary that a model writes. The model calls it once per thread, as soon as the
   backend has the thread, then saves the title through the store and shows it. A rename by the
   user wins.
+
+* Added `ChatUiTextFormat`, a grammar for UI in reply text, and `ChatUiCatalogConfig.textFormats`.
+  The tag grammar is now the first format, `chatUiTagFormat()`, and the default. `modes` take the
+  name of a format, such as `tags`, to explain it to the model. `ChatUiCatalog.version` now covers
+  any format other than the default, by name and by its optional `version`.
+* Added `ChatUiCatalog.parseText()`, to split text with every text format, `toCopyText()`, to
+  turn parsed text into words, and `toExport()`, to export the catalog for a server in one call.
+* Added `ChatUiDocument.isPartial`, true while a document still grows, and
+  `ChatUiElement.isPartial`, so that a format can mark each element of a partial document as
+  complete. A complete element renders in full while the rest streams.
+* `ChatUiCatalog.createDataRenderers()` now renders a document from an adapter or an `xh.chat.ui`
+  data part as partial while it sets `isPartial`, with a placeholder for each element still to
+  come. An adapter sets it from the `isPartial` of its context.
+* Added `ChatUiComponentSpec.standalone`. A component that sets it to `false` shows only inside a
+  nested answer, with no tool or tag of its own.
+* Added `chatUiStackSpec()`, a column or row container for nested answers, and `chatUiTextSpec()`,
+  a markdown text component for the prose between their components. Neither is standalone.
+* Added `ChatModel.streamingMessageId`, the id of the reply in progress. It changes only as a turn
+  starts or ends, so a renderer that reads it does not re-render as the reply streams.
+* Enhanced Copy and the announcement of a finished reply to read UI in the reply's text as words,
+  from `toCopyText()`, not as its source. A host's `getCopyText` still wins for Copy.
+* Added `openUiLangFormat()` in `/genui/openui/`, an experimental text format for OpenUI Lang. It
+  renders each program in the reply text with catalog components, element by element as it
+  streams, and keeps the prose around a fenced program as markdown. Its prompt section comes from
+  lang-core's own generator, with the kit's rules.
+* Added `openUiLangAdapter()`, which renders an OpenUI Lang program sent in a data part of type
+  `openui`, element by element while the reply streams.
+* Added `toOpenUiLibrary()`, which exports a catalog as an OpenUI library: the JSON Schema that
+  OpenUI parsers read programs against, and a signature per component. The format's entry in
+  `toExport().formats` carries it, for a server. `formatOpenUiProgram()` writes a document as a
+  program, for prompt examples and scripted demos.
+* Added `isChatUiActionSchema()`, true for a schema that `chatUiActionSchema()` returned. Formats
+  use it to find action props, so place that schema in a props schema as is, not as a clone.
 
 ### 🐞 Bug Fixes
 
@@ -86,6 +122,11 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   `xh-chat-tool-call--unfinished`, `xh-chat-tool-call__glyph--unfinished` and
   `xh-chat-message-list__awaiting-reply` classes. A detached
   reply's timeline no longer takes `xh-chat-timeline--stopped`.
+
+### 📚 Libraries
+
+* @openuidev/lang-core `1.1` - added as an optional peer dependency. Apps that use
+  `/genui/openui/` install it with `zod`. Other apps never load it.
 
 ## 1.0.0 - 2026-11-02
 

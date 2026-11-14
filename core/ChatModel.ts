@@ -122,8 +122,8 @@ export interface ChatModelConfig {
      *  - In server mode, the catalog's display tools. The server registers the tools and answers
      *    their calls. The chat renders the calls, and never sends these tools to the model.
      *
-     * Text in replies renders the catalog's component tags, data parts of type `xh.chat.ui`
-     * render as documents, and each request carries the catalog's version - see
+     * Text in replies renders the UI of the catalog's text formats, data parts of type
+     * `xh.chat.ui` render as documents, and each request carries the catalog's version - see
      * `ChatRunRequest.catalogVersion`. Throws if a catalog tool has the name of another tool in
      * `tools`. Default none.
      */
@@ -250,8 +250,9 @@ export interface ChatModelConfig {
 
     /**
      * Returns the text that Copy copies from a message, or null to hide Copy on it. Called for
-     * each message that offers Copy, as its action bar renders. Default the message's `text`.
-     * A failed reply's Copy Details is not affected.
+     * each message that offers Copy, as its action bar renders. Default the message's `text`, or
+     * with a `catalog`, words for any UI in its text, from `ChatUiCatalog.toCopyText()`. A failed
+     * reply's Copy Details is not affected.
      */
     getCopyText?: (message: ChatMessage) => string;
 
@@ -457,7 +458,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
 
     /**
      * The config's `getCopyText`, which returns the text Copy copies from a message - or null when
-     * Copy copies each message's `text`.
+     * Copy copies each message's `text`, with words for any UI of the `catalog` in it.
      */
     readonly getCopyText: (message: ChatMessage) => string;
 
@@ -557,6 +558,15 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     @computed
     get lastMessage(): ChatMessage {
         return this.messages[this.messages.length - 1] ?? null;
+    }
+
+    /**
+     * Id of the message that awaits or receives content, or null. Changes only as a turn starts
+     * or ends, so an observer of it does not re-render as the reply streams.
+     */
+    @computed
+    get streamingMessageId(): string {
+        return findLast(this.messages, it => it.isStreaming)?.id ?? null;
     }
 
     /**
@@ -2050,7 +2060,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
                 case 'data':
                     return part.dataType === CHAT_UI_DOCUMENT_DATA_TYPE;
                 case 'text':
-                    return catalog.parseTags(part.text).some(it => it.type !== 'markdown');
+                    return catalog.parseText(part.text).some(it => it.type !== 'markdown');
                 default:
                     return false;
             }

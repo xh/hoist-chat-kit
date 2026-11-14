@@ -194,8 +194,8 @@ export function repairDocument(
 //------------------
 // Implementation
 //------------------
-const DOCUMENT_KEYS = ['root', 'elements', 'catalogVersion'],
-    ELEMENT_KEYS = ['component', 'props', 'children', 'slots'];
+const DOCUMENT_KEYS = ['root', 'elements', 'catalogVersion', 'isPartial'],
+    ELEMENT_KEYS = ['component', 'props', 'children', 'slots', 'isPartial'];
 
 function repairElement(
     element: unknown,

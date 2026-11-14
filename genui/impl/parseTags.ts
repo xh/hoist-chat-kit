@@ -3,6 +3,7 @@ import {castArray, isEmpty} from 'lodash';
 import type {ChatUiComponentSpec} from '../ChatUiComponentSpec';
 import type {ChatUiTextSegment} from '../ChatUiTextSegment';
 import {getOwn} from '../../impl/LangUtils';
+import {isStandalone} from './catalogPrompt';
 import {formatError} from '../../impl/SchemaUtils';
 
 /** What {@link parseTags} needs from its catalog. */
@@ -220,6 +221,9 @@ function parseTag(
     });
     // An unknown component keeps its props, for a migration of the catalog to rename it.
     if (!spec) return fallback(name, props, [`unknown component '${name}'`], source, ctx);
+    if (!isStandalone(spec)) {
+        return fallback(name, props, [`'${name}' shows only inside a document`], source, ctx);
+    }
     errors.push(...ctx.validate(name, props));
 
     return isEmpty(errors)
@@ -312,21 +316,50 @@ function fallback(
 }
 
 /**
- * Ranges of the text inside fenced code blocks and inline code spans, as `[start, end)`. An
- * unclosed fence runs to the end of the text. A backtick run with no closing run of the same
- * length is plain text - unless the text still streams and the run is in its last paragraph,
- * where the closing run may yet arrive. Indented code blocks are not detected.
+ * A fenced code block in markdown text, from {@link findFences}.
+ * @internal
  */
-function findCodeRanges(text: string, isStreaming: boolean): [number, number][] {
-    const fenced: [number, number][] = [];
+export interface MarkdownFence {
+    /** Offset of the opening fence line. */
+    start: number;
+
+    /** Offset of the end of the closing fence line, or the length of the text if unclosed. */
+    end: number;
+
+    /** The info string after the opening fence, trimmed, such as `ts` or `openui`. */
+    info: string;
+
+    /** Offsets of the code between the fence lines, without the line break before the closer. */
+    bodyStart: number;
+    bodyEnd: number;
+
+    /** False for a fence that runs to the end of the text. */
+    closed: boolean;
+}
+
+/**
+ * The fenced code blocks of markdown text, in order. A fence opens with three or more backticks
+ * or tildes, indented at most three spaces, and closes with a line of at least as many of the
+ * same character. An unclosed fence runs to the end of the text.
+ * @internal
+ */
+export function findFences(text: string): MarkdownFence[] {
+    const ret: MarkdownFence[] = [];
     let offset = 0,
-        fence: {char: string; length: number; start: number} = null;
+        fence: {char: string; length: number; start: number; info: string; bodyStart: number} =
+            null;
 
     for (const line of text.split('\n')) {
         const match = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
         if (!fence) {
             if (match && !(match[1][0] === '`' && match[2].includes('`'))) {
-                fence = {char: match[1][0], length: match[1].length, start: offset};
+                fence = {
+                    char: match[1][0],
+                    length: match[1].length,
+                    start: offset,
+                    info: match[2].trim(),
+                    bodyStart: offset + line.length + 1
+                };
             }
         } else if (
             match &&
@@ -334,12 +367,41 @@ function findCodeRanges(text: string, isStreaming: boolean): [number, number][] 
             match[1].length >= fence.length &&
             !match[2].trim()
         ) {
-            fenced.push([fence.start, offset + line.length]);
+            const {start, info, bodyStart} = fence;
+            ret.push({
+                start,
+                end: offset + line.length,
+                info,
+                bodyStart,
+                bodyEnd: Math.max(bodyStart, offset - 1),
+                closed: true
+            });
             fence = null;
         }
         offset += line.length + 1;
     }
-    if (fence) fenced.push([fence.start, text.length]);
+    if (fence) {
+        const {start, info, bodyStart} = fence;
+        ret.push({
+            start,
+            end: text.length,
+            info,
+            bodyStart: Math.min(bodyStart, text.length),
+            bodyEnd: text.length,
+            closed: false
+        });
+    }
+    return ret;
+}
+
+/**
+ * Ranges of the text inside fenced code blocks and inline code spans, as `[start, end)`. An
+ * unclosed fence runs to the end of the text. A backtick run with no closing run of the same
+ * length is plain text - unless the text still streams and the run is in its last paragraph,
+ * where the closing run may yet arrive. Indented code blocks are not detected.
+ */
+function findCodeRanges(text: string, isStreaming: boolean): [number, number][] {
+    const fenced = findFences(text).map(({start, end}): [number, number] => [start, end]);
 
     const ret = [...fenced],
         inFence = (pos: number) => fenced.some(([from, to]) => pos >= from && pos < to),

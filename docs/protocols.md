@@ -13,8 +13,8 @@ change. Check each project's own docs for its current state.
 | [AG-UI](#ag-ui) | Event stream between an agent backend and a frontend | Wire events | **Built.** The kit's own event vocabulary, on the official packages. |
 | [Anthropic Messages API](#anthropic-messages-api) | Claude's request format and SSE stream | Provider format | **Built.** `AnthropicCodec`. |
 | [OpenAI](#openai) | The Responses and Chat Completions streams | Provider format | **Chat Completions built.** `ChatCompletionsCodec`. A codec can add Responses. |
-| [A2UI](#a2ui) | Declarative JSON UI, drawn from a client catalog | UI payload | **Adapter seam built.** An app adapter maps it to catalog components. |
-| [OpenUI (Thesys)](#openui-thesys) | Generative UI framework and streaming UI language | UI payload or reply text | **Adapter seam built.** An app adapter maps it to catalog components, or the app draws reply text with OpenUI's own renderer. |
+| [A2UI](#a2ui) | Declarative JSON UI, drawn from a client catalog | UI payload | **Streaming adapter seam built.** An app adapter maps it to catalog components, and renders it as it streams. |
+| [OpenUI (Thesys)](#openui-thesys) | Generative UI framework and streaming UI language | UI payload or reply text | **Built, experimental.** `openUiLangFormat()` reads OpenUI Lang from reply text, and `openUiLangAdapter()` from a data part. Both render it with catalog components. |
 | [MCP Apps](#mcp-apps) | MCP tools that return sandboxed HTML views | UI payload | **Seam built.** Host not planned for now. |
 | [Vercel AI SDK](#vercel-ai-sdk-vocabulary) | `UIMessage` parts and tool states | Message model | **Built.** The kit's part and state names. |
 
@@ -162,9 +162,10 @@ Generative UI lets a model put real UI in the chat, such as a grid, a chart or a
 only text. Three protocols compete here: A2UI, OpenUI and MCP Apps.
 
 **Status in the kit: built.** A `ChatUiCatalog` lets the model show the app's own Hoist
-components, and an adapter seam lets A2UI and OpenUI payloads draw with them. The model can
-deliver UI in four ways: component tools, display tools, tags in markdown and UI documents. See
-[Four delivery modes](../genui/README.md#four-delivery-modes).
+components. The kit reads OpenUI Lang into the catalog, and an adapter seam lets A2UI draw with
+it too. The model
+can deliver UI in four ways: component tools, display tools, a text format such as tags in
+markdown, and UI documents. See [Delivery modes](../genui/README.md#delivery-modes).
 
 ### The catalog: components as tools
 
@@ -200,9 +201,12 @@ the catalog, its safety model, and the cost of each render.
 The catalog's `modes` set how the model delivers UI. Component tools are the default. The other
 modes put the same components in a reply:
 
-- **Tags in markdown.** The model writes a tag such as `<ui-grid data="sales"/>` in its answer
-  text, and the message view renders the component in its place. Tags cost the fewest tokens.
-  See [Read tags in a markdown answer](../genui/README.md#read-tags-in-a-markdown-answer).
+- **A text format.** The model writes UI in its answer text, and the message view renders it in
+  place as the text streams. The default tag format reads a tag such as
+  `<ui-grid data="sales"/>`. Tags cost the fewest tokens. See
+  [Read tags in a markdown answer](../genui/README.md#read-tags-in-a-markdown-answer). An app can
+  add a format for another UI language. See
+  [Add a text format](../genui/README.md#add-a-text-format).
 - **The `show_ui` document tool.** The model sends a document, a flat map of elements that nest
   by id, for an answer with a layout. A server can also send a document as an `xh.chat.ui` data
   part. See [The document model](../genui/README.md#the-document-model).
@@ -224,12 +228,15 @@ each adapter, which translates the payload and renders the resulting components:
 new ChatModel({
     transport,
     catalog,
-    dataRenderers: catalog.createDataRenderers([a2uiAdapter, openUiAdapter])
+    dataRenderers: catalog.createDataRenderers([a2uiAdapter, openUiLangAdapter({root: 'stack'})])
 });
 ```
 
-The kit ships the interface and no adapter. Each protocol names its components its own way, and
-an app maps those names to the components in its catalog. See
+The chat passes the reply's streaming state to `translate()`. A protocol that sends a growing
+document renders element by element, with a placeholder for each element still to come.
+
+The kit ships an adapter for OpenUI Lang, and none for A2UI. Each protocol names its components
+its own way, and an app maps those names to the components in its catalog. See
 [Adapt a protocol's UI payload](../genui/README.md#adapt-a-protocols-ui-payload) for a worked
 adapter.
 
@@ -266,8 +273,10 @@ release candidate. The project calls itself an early-stage public preview, and a
 renderer is planned but not released.
 
 **In the kit:** an A2UI payload arrives as a data part. A `ChatUiAdapter` maps its components to
-catalog components, which then render it with Hoist components. The kit ships no A2UI adapter.
-A2UI's model fits the catalog well, because both map component names to native components.
+catalog components, which then render it with Hoist components. The adapter is the seam. It gets
+each snapshot as the reply streams, and the catalog renders the part that has arrived. The kit
+ships no A2UI adapter. A2UI's model fits the catalog well, because both map component names to
+native components.
 
 ### OpenUI (Thesys)
 
@@ -278,14 +287,26 @@ generates a system prompt from it, and draws each component as its lines arrive.
 "Open UI" here means Thesys OpenUI. The W3C Open UI community group works on standard HTML
 controls and does not relate to agents.
 
-**In the kit:** an OpenUI payload arrives as a data part, and a `ChatUiAdapter` maps it to catalog
-components. The kit ships no OpenUI adapter. The catalog follows the same idea as OpenUI, a
-registered component library with typed props and a generated prompt, on Hoist components.
+**In the kit: built, and experimental.** `/genui/openui/` reads OpenUI Lang into the catalog:
 
-A model that writes OpenUI Lang as its reply text needs no adapter. The app draws each text part
-with OpenUI's own renderer, through `ChatModelConfig.textRenderer`, and gives Copy and screen
-readers words through `getCopyText`. See
-[Render reply text yourself](../desktop/cmp/chat/README.md#render-reply-text-yourself).
+- `openUiLangFormat()` is a text format. It reads programs from the reply text as they stream,
+  fenced among prose or as the whole reply. Each program becomes a document of catalog
+  components, which renders element by element.
+- `openUiLangAdapter()` reads a program sent in a data part, for a server that sends UI apart
+  from the reply's text.
+- The kit derives an OpenUI library, as plain JSON Schema, from the catalog. It uses Thesys's
+  headless core, `@openuidev/lang-core`, for the parser and the prompt generator only. The
+  catalog keeps the checks, actions, data and rendering.
+- The catalog's export carries the library schema and the prompt, for a server that checks
+  programs with Thesys's own parser.
+
+`@openuidev/lang-core` is an optional peer dependency. An app that uses the format installs it
+with `zod`. The kit does not run OpenUI state, queries, mutations, app-defined actions or message
+markers. See [`/genui/openui/`](../genui/openui/README.md).
+
+An app can also draw each text part with OpenUI's own renderer, through
+`ChatModelConfig.textRenderer`, and give Copy and screen readers words through `getCopyText`.
+See [Render reply text yourself](../desktop/cmp/chat/README.md#render-reply-text-yourself).
 
 ### MCP Apps
 

@@ -1,0 +1,29 @@
+// A column or row of children. A row wraps, and its children share the width.
+.xh-chat-ui-stack {
+  min-width: 0;
+
+  &--none {
+    gap: 0;
+  }
+
+  &--small {
+    gap: calc(var(--xh-pad-px) / 2);
+  }
+
+  &--medium {
+    gap: var(--xh-chat-part-gap, var(--xh-pad-px));
+  }
+
+  &--large {
+    gap: calc(var(--xh-pad-px) * 2);
+  }
+
+  &.xh-hbox {
+    flex-wrap: wrap;
+
+    > * {
+      flex: 1 1 0;
+      min-width: 150px;
+    }
+  }
+}

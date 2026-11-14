@@ -7,11 +7,13 @@ import {runInAction} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatModel} from '../../../core';
-import type {ChatUiAction} from '../../../genui';
+import {type ChatUiAction, ChatUiCatalog} from '../../../genui';
 import {ScriptedChatTransport} from '../../../transport';
 import {chatUiCard} from './ChatUiCard';
 import {chatUiChart, type ChatUiChartProps} from './ChatUiChart';
 import {chatUiMetrics} from './ChatUiMetrics';
+import {chatUiStackSpec} from './ChatUiStack';
+import {chatUiTextSpec} from './ChatUiText';
 
 /**
  * The built-in generative UI components render props as the model writes them. Apps rely on each
@@ -107,6 +109,111 @@ describe('generative UI components', () => {
             expect(screen.getByRole('listitem').getAttribute('aria-label')).toBe(
                 'P&L, 4.82M, down 1.1M vs Q2'
             );
+        });
+    });
+
+    describe('ChatUiStack', () => {
+        const catalog = new ChatUiCatalog({components: [chatUiStackSpec(), chatUiTextSpec()]}),
+            context = {chatModel: null as ChatModel, messageId: 'm1'},
+            doc = (props: object) => ({
+                root: 'top',
+                elements: {
+                    top: {component: 'stack', props, children: ['a', 'b']},
+                    a: {component: 'text', props: {text: 'First'}},
+                    b: {component: 'text', props: {text: 'Second'}}
+                }
+            }),
+            renderDoc = (props: object) =>
+                renderInChat(
+                    fragment({
+                        item: catalog.renderDocument(doc(props), {
+                            ...context,
+                            part: {type: 'data', id: 'd1', dataType: 'xh.chat.ui', data: null},
+                            isPartial: false
+                        })
+                    })
+                );
+
+        it('renders its children in a column by default, and in a row on request', () => {
+            const {container, unmount} = renderDoc({});
+            const stack = container.querySelector('.xh-chat-ui-stack');
+            expect(stack.className).toContain('xh-chat-ui-stack--medium');
+            expect(stack.className).toContain('xh-vbox');
+            expect(stack.textContent).toBe('FirstSecond');
+            unmount();
+
+            const row = renderDoc({direction: 'row', gap: 'large'}).container.querySelector(
+                '.xh-chat-ui-stack'
+            );
+            expect(row.className).toContain('xh-hbox');
+            expect(row.className).toContain('xh-chat-ui-stack--large');
+        });
+
+        it('shows its title in a frame', () => {
+            const {container} = renderDoc({title: 'Summary'});
+            expect(container.querySelector('.xh-chat-ui-frame__header').textContent).toBe(
+                'Summary'
+            );
+            expect(container.querySelector('.xh-chat-ui-frame .xh-chat-ui-stack')).toBeTruthy();
+        });
+
+        it('is a container with a default slot, and lists it in the document prompt', () => {
+            const spec = chatUiStackSpec();
+            expect(spec.slots).toEqual(['default']);
+            expect(spec.props.additionalProperties).toBe(false);
+            expect(spec.props.properties.direction.enum).toEqual(['column', 'row']);
+            expect(spec.props.properties.gap.enum).toEqual(['none', 'small', 'medium', 'large']);
+            expect(catalog.toPrompt({modes: ['document']})).toContain('stack');
+            expect(catalog.validate('stack', {gap: 'huge'})).not.toEqual([]);
+        });
+
+        it('shows only inside a document, as does the text component', () => {
+            const all = new ChatUiCatalog({
+                components: [chatUiStackSpec(), chatUiTextSpec()],
+                modes: ['tools', 'tags', 'document']
+            });
+
+            expect(chatUiStackSpec().standalone).toBe(false);
+            expect(chatUiTextSpec().standalone).toBe(false);
+            expect(all.toToolSchemas().map(it => it.name)).toEqual(['show_ui']);
+            expect(all.instructions).not.toContain('ui-stack');
+            expect(all.parseText('<ui-text text="Hi"/>')[0]).toMatchObject({
+                type: 'fallback',
+                errors: ["'text' shows only inside a document"]
+            });
+        });
+
+        it('describes itself by its title, and adds no line to copied text without one', () => {
+            const spec = chatUiStackSpec();
+            expect(spec.result({title: 'Summary'})).toBe('Summary');
+            expect(spec.result({})).toBe('');
+            expect(
+                catalog.toCopyText([
+                    {type: 'document', document: doc({}), isPartial: false, source: ''}
+                ])
+            ).toBe('First\nSecond');
+        });
+    });
+
+    describe('ChatUiText', () => {
+        const spec = chatUiTextSpec(),
+            context = (isPartial: boolean) => ({isPartial}) as any;
+
+        it('renders its text as markdown, streaming while partial', () => {
+            const {container} = renderInChat(
+                fragment({item: spec.render({text: 'Some **bold**'}, context(true))})
+            );
+            expect(container.querySelector('.xh-chat-ui-text strong').textContent).toBe('bold');
+            expect(container.querySelector('.xh-chat-markdown--streaming')).toBeTruthy();
+        });
+
+        it('returns its text as the result, and refuses text over maxLength', () => {
+            const short = chatUiTextSpec({maxLength: 10}),
+                catalog = new ChatUiCatalog({components: [short]});
+            expect(short.result({text: 'Hello'})).toBe('Hello');
+            expect(catalog.validate('text', {text: 'Hello'})).toEqual([]);
+            expect(catalog.validate('text', {text: 'Hello there, friend'})).not.toEqual([]);
+            expect(chatUiTextSpec().props.properties.text.maxLength).toBe(2000);
         });
     });
 

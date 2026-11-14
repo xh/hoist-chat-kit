@@ -29,21 +29,21 @@ still in force, with their amendments. Do not read the whole file.
 | [D5](#d5-codecs-translate-wire-formats-transports-carry-them) | Codecs translate wire formats, transports carry them | Accepted |
 | [D6](#d6-ndjson-through-xhfetchndjson-is-the-default-transport) | NDJSON through `XH.fetchNdjson` is the default transport | Accepted |
 | [D7](#d7-the-client-runs-the-tool-loop) | The client runs the tool loop | Accepted |
-| [D8](#d8-generative-ui-goes-through-data-parts-and-a-renderer-registry) | Generative UI goes through data parts and a renderer registry | Accepted |
+| [D8](#d8-generative-ui-goes-through-data-parts-and-a-renderer-registry) | Generative UI goes through data parts and a renderer registry | Amended by D122 and D123 |
 | [D9](#d9-desktop-components-first-platform-neutral-models) | Desktop components first, platform-neutral models | Accepted |
 | [D10](#d10-css-class-and-variable-names-use-the-xh-chat-prefix) | CSS class and variable names use the `xh-chat` prefix | Accepted |
 | [D11](#d11-codeql-runs-only-when-the-repo-is-public) | CodeQL runs only when the repo is public | Accepted |
 | [D12](#d12-the-build-check-packs-the-package) | The build check packs the package | Accepted |
 | [D13](#d13-finish-reasons-use-the-vercel-ai-sdk-vocabulary) | Finish reasons use the Vercel AI SDK vocabulary | Accepted |
 | [D14](#d14-streams-abort-through-fetchoptssignal-not-autoabortkey) | Streams abort through `fetchOpts.signal`, not `autoAbortKey` | Accepted |
-| [D15](#d15-generative-ui-is-a-hoist-component-catalog-with-protocols-as-translators) | Generative UI is a Hoist component catalog, with protocols as translators | Accepted |
+| [D15](#d15-generative-ui-is-a-hoist-component-catalog-with-protocols-as-translators) | Generative UI is a Hoist component catalog, with protocols as translators | Amended by D122 |
 | [D16](#d16-markdown-images-do-not-load-by-default) | Markdown images do not load by default | Accepted |
 | [D17](#d17-a-card-action-shows-exactly-what-it-sends) | A card action shows exactly what it sends | Amended by D56 |
 | [D18](#d18-generative-ui-names-carry-the-chatui-prefix) | Generative UI names carry the `ChatUi` prefix | Accepted |
 | [D19](#d19-two-conversation-shapes-both-first-class) | Two conversation shapes, both first-class | Amended by D85 |
 | [D20](#d20-a-thread-layer-in-the-kit) | A thread layer in the kit | Accepted |
 | [D21](#d21-a-workspace-shell) | A workspace shell | Accepted |
-| [D22](#d22-generative-ui-binds-data-by-reference-through-four-delivery-modes) | Generative UI binds data by reference, through four delivery modes | Accepted |
+| [D22](#d22-generative-ui-binds-data-by-reference-through-four-delivery-modes) | Generative UI binds data by reference, through four delivery modes | Amended by D121 |
 | [D23](#d23-an-activity-timeline-and-one-tool-display-setting) | An activity timeline, and one tool display setting | Amended by D92 |
 | [D24](#d24-bring-your-own-llm) | Bring your own LLM | Accepted |
 | [D25](#d25-the-hoist-core-streaming-companion-belongs-to-hoist-core) | The hoist-core streaming companion belongs to hoist-core | Accepted |
@@ -68,7 +68,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D44](#d44-a-run-that-finishes-with-nothing-fails-coded-empty-response) | A run that finishes with nothing fails, coded `empty-response` | Amended by D64 |
 | [D45](#d45-the-thread-list-is-a-computed-overlay) | The thread list is a computed overlay | Accepted |
 | [D46](#d46-small-additions-to-the-thread-layer-spec) | Small additions to the thread layer spec | Accepted |
-| [D47](#d47-choices-in-the-generative-ui-core) | Choices in the generative UI core | Accepted |
+| [D47](#d47-choices-in-the-generative-ui-core) | Choices in the generative UI core | Amended by D121 |
 | [D48](#d48-only-the-latest-reply-with-changes-can-be-undone) | Only the latest reply with changes can be undone | Superseded by D92 |
 | [D49](#d49-choices-in-the-helper-agent-core-seams-and-chatcompletionscodec) | Choices in the helper agent core seams and `ChatCompletionsCodec` | Superseded in part by D52 |
 | [D50](#d50-chatservice-reads-chatconfig-and-its-prompt-is-static-text) | `ChatService` reads `chatConfig`, and its prompt is static text | Withdrawn by D81 |
@@ -85,7 +85,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D61](#d61-the-assistant-icon-and-assistant-profiles) | The assistant icon and assistant profiles | Accepted |
 | [D62](#d62-a-display-status-over-the-existing-statuses) | A display status over the existing statuses | Accepted |
 | [D63](#d63-stalled-is-a-soft-state-before-d34s-hard-timeout) | Stalled is a soft state before D34's hard timeout | Accepted |
-| [D64](#d64-a-failure-shows-inline-and-the-next-action-sits-above-the-composer) | A failure shows inline, and the next action sits above the composer | Accepted |
+| [D64](#d64-a-failure-shows-inline-and-the-next-action-sits-above-the-composer) | A failure shows inline, and the next action sits above the composer | Amended by D120 |
 | [D65](#d65-one-announcer-for-the-chat) | One announcer for the chat | Amended |
 | [D66](#d66-the-keyboard-map-configurable) | The keyboard map, configurable | Accepted |
 | [D67](#d67-drafts-persist-in-local-storage) | Drafts persist in local storage | Accepted |
@@ -140,6 +140,11 @@ still in force, with their amendments. Do not read the whole file.
 | [D116](#d116-the-status-region-holds-only-actions-and-a-turn-running-on-the-server-blocks-sends) | The status region holds only actions, and a turn running on the server blocks sends | Amended by D117 |
 | [D117](#d117-the-thread-layer-checks-on-a-turn-running-on-the-server) | The thread layer checks on a turn running on the server | Amended by D118 |
 | [D118](#d118-the-thread-layer-checks-on-every-thread-the-list-shows-working) | The thread layer checks on every thread the list shows working | Accepted |
+| [D119](#d119-the-thread-layer-asks-the-app-to-title-a-new-thread) | The thread layer asks the app to title a new thread | Accepted |
+| [D120](#d120-a-replayed-failure-reads-as-the-same-failure-live) | A replayed failure reads as the same failure live | Accepted |
+| [D121](#d121-reply-text-reaches-the-catalog-through-ui-formats) | Reply text reaches the catalog through UI formats | Accepted |
+| [D122](#d122-openui-lang-runs-on-thesyss-headless-core-with-the-kits-catalog) | OpenUI Lang runs on Thesys's headless core, with the kit's catalog | Accepted |
+| [D123](#d123-adapters-render-partial-documents) | Adapters render partial documents | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -248,7 +253,11 @@ works, because the backend then sends both the calls and the results.
 
 ## D8. Generative UI goes through data parts and a renderer registry
 
-**Status.** Accepted.
+**Status.** Amended by
+[D122](#d122-openui-lang-runs-on-thesyss-headless-core-with-the-kits-catalog):
+the kit ships an OpenUI Lang format and adapter, on the catalog. Amended by
+[D123](#d123-adapters-render-partial-documents): an adapter gets the reply's streaming state, and
+its result renders as partial while the reply streams.
 
 **Decision.** AG-UI `ACTIVITY_SNAPSHOT` events and `xh.chat.data` events become `data` parts. An
 app renders them through `ChatModelConfig.dataRenderers`, keyed by `dataType`. A data part with no
@@ -336,7 +345,9 @@ workaround.
 
 ## D15. Generative UI is a Hoist component catalog, with protocols as translators
 
-**Status.** Accepted.
+**Status.** Amended by
+[D122](#d122-openui-lang-runs-on-thesyss-headless-core-with-the-kits-catalog):
+OpenUI Lang translates into the catalog through a text format and an adapter that the kit ships.
 
 **Decision.** The next deliverable after the chat UI is a generative UI registry. An app
 registers Hoist components, such as a grid, a chart or a card, each with a typed props schema.
@@ -463,7 +474,8 @@ observers and a rebuilt composer. Another built the same layout on Hoist `Panel`
 
 ## D22. Generative UI binds data by reference, through four delivery modes
 
-**Status.** Accepted.
+**Status.** Amended by [D121](#d121-reply-text-reaches-the-catalog-through-ui-formats): component
+tags in markdown are one text format of several, and a delivery mode can name any format.
 
 **Decision.** One catalog, delivered four ways: display tools that the server answers, client
 tools (built), component tags in markdown, and a UI document in the text stream. A `ref` prop
@@ -807,7 +819,8 @@ by one list covers that case, and a newer rename survives an older one that fail
 
 ## D47. Choices in the generative UI core
 
-**Status.** Accepted.
+**Status.** Amended by [D121](#d121-reply-text-reaches-the-catalog-through-ui-formats): the choices
+for tag attributes apply to the tag format, one of the catalog's text formats.
 
 **Decision.** WP 7 step 1 builds the generative UI core, with these choices where the spec is open
 or differs from the kit's conventions:
@@ -2471,3 +2484,92 @@ server uses to mark a failure unsafe is the natural way for an app to mark one s
 Replies stored by an older version would then lose "Not sent". A new error code for a replayed
 reply with no end: it would mean the same as `incomplete-stream`, and every check of that code
 would need it too.
+
+## D121. Reply text reaches the catalog through UI formats
+
+**Status.** Accepted. Amends D22 and D47.
+
+**Decision.** A `ChatUiTextFormat` turns reply text into markdown and UI segments as the text
+streams, and writes the prompt section that teaches the model its grammar. The tag grammar is now
+one format, `chatUiTagFormat()`, named `tags`, and the default of `ChatUiCatalogConfig.textFormats`.
+`modes` take `tools`, `document` or the name of a configured format. `ChatUiCatalog.parseText()`
+runs the formats in order. The first parses the whole text, and each later one parses the markdown
+segments that the earlier ones left. A format returns a `component` segment for one component, or a
+`document` segment for a nested answer, which renders through `renderDocument()`.
+
+Other parts follow from the seam. `ChatUiElement.isPartial` lets a format mark an element complete
+before its document ends. The message view calls `parseText()`, and Copy and the finished-reply
+announcement read text that holds UI through `toCopyText()`. `parseTags()` stays, as the tag format
+alone. The catalog's `version` covers the names of its formats, and `toExport()` carries each
+format's own export.
+
+**Why.** The tag parser was the only path from reply text to UI, and it knew one grammar. Apps will
+meet other model-written UI languages, such as OpenUI Lang. With a format seam, an app writes its
+components once, and the model's language is a setting. The catalog keeps its schemas, checks,
+actions, data by reference and rendering for every format. A format that throws leaves its text as
+markdown, so a parser that fails on a half-written chunk cannot break a message as it streams. Copy
+and screen readers get words, because a format's source is not text a user wants.
+
+**Alternatives.** Keep one grammar, and let an app draw other languages through `textRenderer`, as
+[D102](#d102-an-app-can-draw-reply-text-through-textrenderer) allows. The app would lose the
+catalog's checks, fallbacks and data by reference. Run every format over the whole text and merge
+the results. Two formats could then claim the same text.
+
+## D123. Adapters render partial documents
+
+**Status.** Accepted. Amends D8.
+
+**Decision.** `ChatUiAdapter.translate()` takes a context, `{catalog, isPartial}`, as its second
+argument, in place of the catalog. `createDataRenderers()` passes the reply's streaming state:
+`isPartial` is true while the reply that holds the data part still streams. The catalog renders the
+result, and every `xh.chat.ui` data part, as partial while it streams, with a placeholder for each
+element still to come. A `translate()` that throws renders a placeholder while partial, and a
+fallback once the reply ends.
+
+**Why.** Every adapter result rendered as complete, so a protocol that sends a growing document, as
+one `ACTIVITY_SNAPSHOT` after another, could not render element by element. `renderDocument()`
+already handled partial documents. A payload that still streams may not translate until it is
+complete, so an error while partial is not yet a failure.
+
+**Alternatives.** Give the document model an operation log, a data model with bound values, list
+templates or visibility conditions, as A2UI has. Each is a guess until an adapter needs it. An
+adapter folds its protocol's operations into one document on each call instead.
+
+## D122. OpenUI Lang runs on Thesys's headless core, with the kit's catalog
+
+**Status.** Accepted. Amends D8 and D15.
+
+**Decision.** `/genui/openui/` reads OpenUI Lang into the catalog. `openUiLangFormat()` is a text
+format, named `openui`, for programs in reply text. `openUiLangAdapter()` renders a program sent in
+a data part. Both use `@openuidev/lang-core` for the grammar and the prompt: its parsers, its prompt
+generator and its signature writer. The kit uses nothing else from Thesys. The catalog keeps the
+schema, the checks, the actions, the data and the rendering. `lang-core` is an optional peer
+dependency, pinned by major. Apps that use the format install it with `zod`, its own peer.
+
+`toOpenUiLibrary()` derives the library from the catalog as plain JSON Schema. Each component takes
+its `default` slot first, as `children`, then its props in schema order, then its named slots. A
+prop typed with `chatUiActionSchema()` takes an OpenUI action expression. The kit finds such props
+by identity, with `isChatUiActionSchema()`, so a clone is a plain prop. An OpenUI name defaults to
+the catalog name with its first letter in uppercase, as lang-core reads a lowercase call as a
+reference. `componentName` maps names, and `slotAccepts` narrows slots. The prompt turns off
+bindings, tool calls, built-in functions and lang-core's inline mode. It adds the kit's own inline
+rules and caps. `@ToAssistant` maps to `send` and `@OpenUrl` to `openUrl`, within the caps of D17
+and D56. The kit does not run `$state`, `@Set`, `@Reset`, `@Run`, `Query()`, `Mutation()`,
+app-defined actions or message markers.
+
+**Why.** Clients that already prompt models in OpenUI Lang can draw with Hoist components. A client
+keeps the prompts and evals it writes against the kit's own library export. Names map through
+`componentName`, but the argument order is the kit's. Children come first, as in OpenUI's own
+`Stack` and in lang-core's prompt examples. lang-core writes the prompt, so the kit's prompt matches
+Thesys's by construction. lang-core's inline mode describes a persistent dashboard, patched with
+changed statements, so the kit writes its own inline rules. lang-core takes plain JSON Schema, so
+the catalog's schemas drive it, and the app writes no Zod schemas. OpenUI state, queries and
+mutations need OpenUI's evaluator and renderer. They would split the checks, actions and data
+between two runtimes. lang-core ships often, so a pin by major keeps a breaking release out. Its
+install script sends telemetry. The kit blocks the script with `allowBuilds`, and sets
+`OPENUI_TELEMETRY_DISABLED` in CI.
+
+**Alternatives.** Render with `@openuidev/react-lang`, OpenUI's React renderer. It owns rendering,
+state, actions and queries, so the catalog's checks, fallbacks and data by reference would not
+apply. Write a parser of our own. It would drift from a language that ships often. Make lang-core a
+direct dependency. Every app would install it, even one that never uses the format.
