@@ -11,11 +11,11 @@ import type {ChatUiComponentSpec, ChatUiDocumentContext} from '../ChatUiComponen
 import {openUiLangFormat, type OpenUiLangFormatOptions} from './OpenUiLangFormat';
 
 /**
- * A program can read data with `Query()` and write it with `Mutation()`, through the chat's
- * tools. A model writes the program, so apps rely on the format to run only the tools they list,
- * never a tool that needs approval without asking, and a mutation only on a click that names it.
+ * A program can read data with `Query()`, through the chat's tools. A model writes the program,
+ * and a query runs with no click. So apps rely on the format to run only the tools they list,
+ * and never a tool that needs approval.
  */
-describe('OpenUI Lang queries and mutations', () => {
+describe('OpenUI Lang queries', () => {
     beforeAll(() => initTestAppAsync());
 
     const SALES =
@@ -161,87 +161,6 @@ describe('OpenUI Lang queries and mutations', () => {
         });
     });
 
-    describe('Mutation', () => {
-        const SAVE =
-            'root = Stack([field, status, go])\n' +
-            '$region = "emea"\n' +
-            'field = Field("region", $region)\n' +
-            'saved = Mutation("save_region", {region: $region})\n' +
-            'status = Note("Status " + saved.status)\n' +
-            'go = Trigger("Save", Action([@Run(saved), @Set($region, "done")]))';
-
-        it('runs a listed tool on a click, with the arguments its button names', async () => {
-            const save = saveTool();
-            renderProgram(SAVE, {tools: [save], mutationTools: ['save_region']});
-            await settleAsync();
-            expect(save.execute).not.toHaveBeenCalled();
-            expect(text('note')).toBe('Status idle');
-            expect(screen.getByTestId('trigger').title).toBe(
-                'Runs the tool save_region with {"region":"emea"}, then sets $region to "done"'
-            );
-
-            await clickAsync('trigger');
-            await waitFor(() => expect(text('note')).toBe('Status success'));
-            expect(save.execute).toHaveBeenCalledExactlyOnceWith(
-                {region: 'emea'},
-                expect.anything()
-            );
-            expect(text('field')).toBe('region=done');
-        });
-
-        it('stops the steps after a mutation that fails', async () => {
-            silenceLogs();
-            const save = {
-                ...saveTool(),
-                execute: vi.fn(async () => {
-                    throw new Error('Server is down');
-                })
-            };
-            renderProgram(SAVE, {tools: [save], mutationTools: ['save_region']});
-
-            await clickAsync('trigger');
-            await waitFor(() => expect(text('note')).toBe('Status error'));
-            expect(text('field')).toBe('region=emea');
-        });
-
-        it('runs no tool that the app did not list, and none by default', async () => {
-            silenceLogs();
-            const save = saveTool();
-            renderProgram(SAVE, {
-                tools: [save],
-                queryTools: ['save_region'],
-                mutationTools: ['other_tool']
-            });
-
-            await clickAsync('trigger');
-            await settleAsync();
-            expect(save.execute).not.toHaveBeenCalled();
-            expect(text('field')).toBe('region=emea');
-        });
-
-        it('asks the user first for a tool that needs approval, and runs nothing if they refuse', async () => {
-            silenceLogs();
-            const confirm = vi.spyOn(XH, 'confirm').mockResolvedValue(false),
-                save = {
-                    ...saveTool(),
-                    needsApproval: true,
-                    approvalPrompt: ({region}: PlainObject) => `Save ${region}?`
-                };
-            onTestFinished(() => confirm.mockRestore());
-            renderProgram(SAVE, {tools: [save], mutationTools: ['save_region']});
-
-            await clickAsync('trigger');
-            await waitFor(() => expect(confirm).toHaveBeenCalledOnce());
-            expect(confirm.mock.calls[0][0]).toMatchObject({message: 'Save emea?'});
-            await settleAsync();
-            expect(save.execute).not.toHaveBeenCalled();
-
-            confirm.mockResolvedValue(true);
-            await clickAsync('trigger');
-            await waitFor(() => expect(save.execute).toHaveBeenCalledOnce());
-        });
-    });
-
     describe('prompt', () => {
         it('teaches Query with lang-core text, and lists only the tools the app allows', () => {
             const prompt = createCatalog({
@@ -264,15 +183,13 @@ describe('OpenUI Lang queries and mutations', () => {
             expect(prompt).toContain('value?: $binding<string>');
         });
 
-        it('names the tools of each kind when both are allowed', () => {
-            const prompt = createCatalog({
-                queryTools: ['get_sales'],
-                mutationTools: ['save_region']
-            }).toPrompt();
+        it('leaves Mutation out of the prompt, and tells the model to ask the assistant', () => {
+            const prompt = createCatalog({queryTools: ['get_sales']}).toPrompt();
 
-            expect(prompt).toContain('- Query can call only: get_sales.');
-            expect(prompt).toContain('- Mutation can call only: save_region.');
-            expect(prompt).not.toMatch(/Do not use (Query|Mutation)/);
+            expect(prompt).not.toContain('## Mutation');
+            expect(prompt).toContain('## Query');
+            expect(prompt).toContain('- A program cannot change data.');
+            expect(prompt).toContain('send a message with @ToAssistant');
         });
     });
 });
@@ -353,18 +270,6 @@ function salesTool() {
     };
 }
 
-function saveTool() {
-    return {
-        name: 'save_region',
-        parameters: {
-            type: 'object',
-            additionalProperties: false,
-            properties: {region: {type: 'string'}}
-        },
-        execute: vi.fn(async (_input: PlainObject, _context: PlainObject) => 'Saved.')
-    };
-}
-
 function createCatalog(opts: Partial<OpenUiLangFormatOptions> = {}): ChatUiCatalog {
     return new ChatUiCatalog({
         components: [STACK, NOTE, FIELD, TRIGGER],
@@ -382,6 +287,8 @@ function renderProgram(
         catalog = createCatalog({bindings: true, ...formatOpts}),
         chatModel = new ChatModel({
             tools,
+            // The chat holds the reply with the program, as its latest.
+            initialMessages: [{id: 'm1', role: 'assistant', parts: []}],
             transport: new ScriptedChatTransport({respond: () => textEvents('Done.'), delayMs: 0})
         }),
         context: Omit<ChatUiDocumentContext, 'isPartial'> = {

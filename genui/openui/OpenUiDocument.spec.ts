@@ -232,8 +232,11 @@ describe('openUiToDocument', () => {
         expect(elements.one.props.action).toEqual({type: 'openUrl', url: 'https://xh.io'});
         expect(elements.many.props.action).toEqual({type: 'send', text: 'First'});
         expect(elements.many.props.more).toEqual([{type: 'send', text: 'Kept'}]);
-        expect(warn).toHaveBeenCalledTimes(1);
-        expect(String(warn.mock.calls[0])).toContain('Second');
+        // One warning for each action that cannot run with no state, and one for the steps
+        // that the last list drops.
+        const warnings = warn.mock.calls.map(String);
+        expect(warnings.filter(it => it.includes('cannot run here'))).toHaveLength(4);
+        expect(warnings.filter(it => it.includes('Second'))).toHaveLength(1);
     });
 
     it('reports an unknown component as a fallback for that element, and renders the rest', () => {

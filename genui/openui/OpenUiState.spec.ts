@@ -185,7 +185,7 @@ describe('OpenUI Lang state', () => {
             );
             fireEvent.click(screen.getByTestId('field'));
             expect(screen.getByTestId('trigger').title).toBe(
-                'Sends: "Greet them", with name: Ann!'
+                'Sends: "Greet them", with name: "Ann!"'
             );
 
             await clickAsync('trigger');
@@ -196,7 +196,7 @@ describe('OpenUI Lang state', () => {
             });
         });
 
-        it('runs the steps of an Action in order, and sends what the button showed', async () => {
+        it('runs the steps of an Action in order, each with the values set before it', async () => {
             const chatModel = createChatModel();
             renderProgram(
                 'root = Stack([note, go])\n' +
@@ -205,13 +205,13 @@ describe('OpenUI Lang state', () => {
                     'go = Trigger("Go", Action([@Set($step, 2), @ToAssistant("Next", {step: $step})]))',
                 {chatModel}
             );
-            const title = 'Sets $step to 2, then sends: "Next", with step: 1';
+            const title = 'Sets $step to 2, then sends: "Next", with step: 2';
             expect(screen.getByTestId('trigger').title).toBe(title);
 
             await clickAsync('trigger');
             expect(text('note')).toBe('Step 2');
-            // The message holds the value its button showed, not the one the first step set.
-            expect(chatModel.messages[0].metadata.context).toEqual({step: 1});
+            // The message holds the value its button showed: the one the first step sets.
+            expect(chatModel.messages[0].metadata.context).toEqual({step: 2});
         });
 
         it('keeps a sent message within the caps', async () => {
@@ -245,9 +245,13 @@ describe('OpenUI Lang state', () => {
                 {onError: e => (failure = e)}
             );
 
+            // The button says that its action cannot run, and a click does nothing.
+            expect(screen.getByTestId('trigger').title).toBe(
+                'This action is not valid, so it cannot run.'
+            );
             fireEvent.click(screen.getByTestId('trigger'));
             await vi.waitFor(() => expect(failure).toBeDefined());
-            expect(String(failure)).toContain('out of date');
+            expect(String(failure)).toContain('not valid');
         });
     });
 

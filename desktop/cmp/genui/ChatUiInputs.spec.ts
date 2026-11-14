@@ -352,6 +352,45 @@ describe('built-in form components', () => {
             expect(chatModel.messages[0].metadata.context).toBeUndefined();
         });
 
+        it('disables a button whose action a format refused, and does not send its label', async () => {
+            const chatModel = createChatModel(),
+                action: ChatUiStateAction = {
+                    type: 'state',
+                    id: 'go',
+                    summary: '',
+                    disabledReason: 'This action is not valid, so it cannot run.'
+                };
+            renderDocument(
+                {root: 'go', elements: {go: {component: 'button', props: {label: 'Pay', action}}}},
+                chatModel
+            );
+            const button = screen.getByRole<HTMLButtonElement>('button', {name: 'Pay'});
+            expect(button.disabled).toBe(true);
+            expect(button.title).toBe('This action is not valid, so it cannot run.');
+
+            await clickAsync(button);
+            expect(chatModel.messages).toHaveLength(0);
+        });
+
+        it('says why an action of an OpenUI program cannot run, in place of sending the label', async () => {
+            const chatModel = createOpenUiChat(
+                    'root = Stack([go])\n' +
+                        'saved = Mutation("save_region", {region: "x"})\n' +
+                        'go = Button("Save", @Run(saved))'
+                ),
+                {container} = render(chatMessageList({model: chatModel}));
+            await act(async () => {
+                await chatModel.sendAsync('Save it.');
+            });
+            const button = screen.getByRole<HTMLButtonElement>('button', {name: 'Save'});
+            expect(button.disabled).toBe(true);
+            expect(button.title).toBe('This action would change data, which a program cannot do.');
+
+            await clickAsync(button);
+            expect(chatModel.messages).toHaveLength(2);
+            expect(container.textContent).not.toContain('could not be displayed');
+        });
+
         it('cannot send more values than a message holds, and says why', () => {
             const names = [...Array(9).keys()].map(it => `f${it}`),
                 chatModel = createChatModel();
