@@ -98,11 +98,14 @@ short. The components handle this:
 - `ChatUiText` renders its markdown as it streams, as a reply's own text does.
 - `ChatUiTabs` adds a tab once a child and its title arrive, and renames it as the title grows.
   It keeps one `TabContainerModel`, so the tab the user chose stays active.
-- The section spec remounts its `Card` if a collapse prop arrives after the title, as a
-  `CardModel` reads its config once.
+- The section spec shows its title over a placeholder while a format still writes its props,
+  and mounts its children once they are complete. A section that starts collapsed never shows
+  open first. In a document with no state per element, it remounts its `Card` if a collapse prop
+  arrives after the title, as a `CardModel` reads its config once.
 - The callout spec takes its intent and title before its text, so a warning shows as one from its
   first word. The badges spec shows complete badges only.
 - `ChatUiTreeMap` loads its `Store` with each complete box. Hoist updates the boxes in place.
+  The skeleton stays until the map has data to draw.
 
 A table or chart card keeps the height it will need from the moment its type is known, so
 nothing below it moves when the data lands. A skeleton still shown after a second shimmers three

@@ -104,6 +104,57 @@ describe('chatUiSectionSpec', () => {
         expect(container.querySelector('.xh-badge')).toBeTruthy();
     });
 
+    it('holds its children while a format still writes its props, so it never shows open first', () => {
+        // OpenUI Lang writes the children first and `collapsed` last, and marks each element.
+        const render1 = (props: object, isElementPartial: boolean) =>
+                fragment({
+                    item: catalog.renderDocument(
+                        {
+                            root: 'top',
+                            elements: {
+                                top: {
+                                    component: 'section',
+                                    props,
+                                    children: ['a'],
+                                    isPartial: isElementPartial
+                                },
+                                a: {
+                                    component: 'badges',
+                                    props: {badges: [{label: 'Inside'}]},
+                                    isPartial: false
+                                }
+                            }
+                        },
+                        {
+                            chatModel: null as ChatModel,
+                            messageId: 'm1',
+                            part: {type: 'data', id: 'd1', dataType: 'xh.chat.ui', data: null},
+                            isPartial: true
+                        }
+                    )
+                }),
+            {container, rerender} = render(render1({title: 'Detail', intent: 'primary'}, true));
+
+        expect(container.querySelector('legend').textContent).toBe('Detail');
+        expect(container.querySelector('.xh-card').className).toContain('xh-card--intent-primary');
+        expect(container.querySelector('.xh-chat-ui-skeleton')).toBeTruthy();
+        expect(container.querySelector('.xh-badge')).toBeNull();
+
+        rerender(render1({title: 'Detail', intent: 'primary', collapsible: true}, true));
+        expect(container.querySelector('.xh-badge')).toBeNull();
+
+        // The section's statement is complete, while the rest of the program still streams.
+        rerender(
+            render1({title: 'Detail', intent: 'primary', collapsible: true, collapsed: true}, false)
+        );
+        expect(container.querySelector('.xh-chat-ui-skeleton')).toBeNull();
+        expect(container.querySelector('.xh-card').className).toContain('xh-card--collapsed');
+        expect(container.querySelector('.xh-badge')).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', {name: 'Detail'}));
+        expect(container.querySelector('.xh-badge').textContent).toBe('Inside');
+    });
+
     it('is a container that shows only inside a document, and reads as its title when copied', () => {
         const spec = chatUiSectionSpec();
 

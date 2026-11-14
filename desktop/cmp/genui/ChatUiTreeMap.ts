@@ -170,7 +170,11 @@ export const [ChatUiTreeMap, chatUiTreeMap] = hoistCmp.withFactory<ChatUiTreeMap
 
     render({model, className, title, height, isPartial}) {
         const impl = model as ChatUiTreeMapLocalModel,
-            isBuilding = isPartial && !impl.hasBoxes;
+            {hasBoxes, treeMapModel} = impl,
+            isBuilding = isPartial && !hasBoxes,
+            // Hoist's TreeMapModel reads its store after a short delay, and its TreeMap draws an
+            // empty box until then. The skeleton holds the place, and the map mounts with data.
+            isLoading = hasBoxes && treeMapModel.empty;
 
         return chatUiFrame({
             className,
@@ -180,15 +184,16 @@ export const [ChatUiTreeMap, chatUiTreeMap] = hoistCmp.withFactory<ChatUiTreeMap
             item: div({
                 className: 'xh-chat-ui-treemap__body',
                 style: height ? {height} : null,
-                item: isBuilding
-                    ? chatUiSkeleton(null)
-                    : impl.hasBoxes
-                      ? treeMap({model: impl.treeMapModel})
-                      : div({
-                            className: 'xh-chat-ui-center',
-                            role: 'note',
-                            item: 'No values to show.'
-                        })
+                item:
+                    isBuilding || isLoading
+                        ? chatUiSkeleton(null)
+                        : hasBoxes
+                          ? treeMap({model: treeMapModel})
+                          : div({
+                                className: 'xh-chat-ui-center',
+                                role: 'note',
+                                item: 'No values to show.'
+                            })
             })
         });
     }
