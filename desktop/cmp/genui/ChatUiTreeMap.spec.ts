@@ -23,7 +23,7 @@ describe('chatUiTreeMapSpec', () => {
         return {loadData, destroy};
     };
 
-    it('loads complete boxes into one Store as they stream, and destroys its models on unmount', () => {
+    it('loads complete boxes into one Store as they stream, and destroys its models on unmount', async () => {
         const {loadData, destroy} = spyOnModels(),
             {container, rerender, unmount} = render(
                 chatUiTreeMap({
@@ -56,8 +56,7 @@ describe('chatUiTreeMapSpec', () => {
             })
         );
 
-        expect(container.querySelector('.xh-chat-ui-skeleton')).toBeNull();
-        // Hoist's TreeMap reads its store after a short delay, so it gets no empty text to flash.
+        await vi.waitFor(() => expect(container.querySelector('.xh-chat-ui-skeleton')).toBeNull());
         expect(container.textContent).not.toContain('No values');
         expect(new Set(loadData.mock.contexts).size).toBe(1);
         expect(loadData.mock.calls.map(([rows]) => rows)).toEqual([
@@ -113,6 +112,20 @@ describe('chatUiTreeMapSpec', () => {
         // A box with no heat names none.
         expect(tooltips[1]).toContain('$1,100,000');
         expect(tooltips[1]).not.toContain('Day');
+    });
+
+    it('holds its skeleton until the TreeMapModel has data, then mounts the TreeMap', async () => {
+        spyOnModels();
+        const {container} = render(chatUiTreeMap({nodes: [{label: 'Rates', value: 42}]}));
+
+        // Hoist's TreeMapModel reads its store after a short delay. A TreeMap mounted before
+        // then draws an empty box, so the card waits.
+        expect(container.querySelector('.xh-chat-ui-skeleton')).toBeTruthy();
+        expect(container.textContent).not.toContain(NO_HIGHCHARTS);
+        expect(container.querySelector('.xh-placeholder')).toBeNull();
+
+        await vi.waitFor(() => expect(container.textContent).toContain(NO_HIGHCHARTS));
+        expect(container.querySelector('.xh-chat-ui-skeleton')).toBeNull();
     });
 
     it('says there is nothing to show when no complete box has a size', () => {
@@ -194,3 +207,9 @@ describe('chatUiTreeMapSpec', () => {
         expect(catalog.validate('treemap', {title: 'No boxes'})).not.toEqual([]);
     });
 });
+
+//------------------
+// Helpers
+//------------------
+// What Hoist's TreeMap renders in a test, where no app installed Highcharts. It marks the mount.
+const NO_HIGHCHARTS = 'Highcharts not available';

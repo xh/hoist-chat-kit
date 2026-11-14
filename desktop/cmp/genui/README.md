@@ -103,6 +103,7 @@ short. The components handle this:
 - The callout spec takes its intent and title before its text, so a warning shows as one from its
   first word. The badges spec shows complete badges only.
 - `ChatUiTreeMap` loads its `Store` with each complete box. Hoist updates the boxes in place.
+  The skeleton stays until the map has data to draw.
 
 A table or chart card keeps the height it will need from the moment its type is known, so
 nothing below it moves when the data lands. A skeleton still shown after a second shimmers three
