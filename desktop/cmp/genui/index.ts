@@ -13,4 +13,5 @@ export * from './ChatUiStack';
 export * from './ChatUiTableView';
 export * from './ChatUiTabs';
 export * from './ChatUiText';
+export * from './ChatUiTreeMap';
 export type * from './Types';
