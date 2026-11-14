@@ -1,4 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
+import {logWarn} from '@xh/hoist/utils/js';
 import {compact, find, flatMap, isEmpty, isFunction, isNil, last, map, omitBy} from 'lodash';
 import {
     type ChatFilePart,
@@ -76,7 +77,8 @@ export interface AgUiContext {
  * from its `metadata.context`, goes last, as JSON.
  *
  * `state` is the agent's shared state as the chat holds it - the request's `agentState`, or an
- * empty object for a request with none. The agent's `STATE_SNAPSHOT` and `STATE_DELTA` events
+ * empty object for a request with none. The codec takes no state of its own: set it on the chat,
+ * with `ChatModelConfig.prepareAgentState` for values each run must carry. The agent's `STATE_SNAPSHOT` and `STATE_DELTA` events
  * change the state from there - see `ChatModel.agentState`.
  *
  * `messages` carries every message the chat holds, in both history modes, as AG-UI requires: an
@@ -119,14 +121,19 @@ export class AgUiCodec implements ChatCodec {
     /** True - the codec sends the request's `resume` list, to answer interrupts. */
     readonly supportsInterrupts = true;
 
-    constructor({
-        context = null,
-        forwardedProps = null,
-        newMessagesOnly = false
-    }: AgUiCodecConfig = {}) {
+    constructor(config: AgUiCodecConfig = {}) {
+        const {context = null, forwardedProps = null, newMessagesOnly = false} = config;
         this.context = context;
         this.forwardedProps = forwardedProps;
         this.newMessagesOnly = newMessagesOnly;
+        // The chat holds the state, so a `state` here, as from untyped config, would be lost.
+        if ('state' in config) {
+            logWarn(
+                'AgUiCodec ignores a `state` config. The chat holds the agent state - see ' +
+                    'ChatModelConfig.prepareAgentState.',
+                'AgUiCodec'
+            );
+        }
     }
 
     encodeRequest(request: ChatRunRequest): PlainObject {

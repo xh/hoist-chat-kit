@@ -181,9 +181,28 @@ export interface ChatModelConfig {
 
     /**
      * Initial value of {@link ChatModel.agentState}, such as the state that the backend holds for
-     * a thread restored with `initialMessages`. Default an empty object.
+     * a thread restored with `initialMessages`. It serves the chat's first thread only, as
+     * `clear` and `loadMessages` reset the state. For a value that every run must carry, use
+     * `prepareAgentState`. Default an empty object.
      */
     agentState?: any;
+
+    /**
+     * Prepares the agent's shared state for each request - for values of the app's own that
+     * every run must carry, such as the current selection. Called before each step, with the
+     * state the chat holds and the step's request. Its result becomes the chat's
+     * {@link ChatModel.agentState}, and the request carries it, so the agent's deltas patch
+     * what it was sent:
+     *
+     * ```ts
+     * prepareAgentState: state => ({...state, selectedSector: this.selectedSector})
+     * ```
+     *
+     * Return a new value, and never change the one given. Return the state given, or nothing,
+     * to leave it as it is. Must be fast. A function that throws fails the turn, with Retry.
+     * Default none: each request carries the state as the chat holds it.
+     */
+    prepareAgentState?: (state: any, request: ChatRunRequest) => any;
 
     /**
      * Rewrites model text as it streams, before it is stored - for example to strip markup that
@@ -300,6 +319,15 @@ export interface ChatStatusRefresherOptions {
      * {@link ChatModel.isRunningOnServer}. Default never.
      */
     isRunningOnServer?: () => boolean;
+}
+
+/** Options for {@link ChatModel.loadMessages}. */
+export interface ChatLoadOptions {
+    /**
+     * The agent's shared state for the loaded thread, as the backend holds it - see
+     * {@link ChatModel.agentState}. Default an empty object.
+     */
+    agentState?: any;
 }
 
 /** Who owns the conversation history - see {@link ChatModelConfig.historyMode}. */
@@ -505,8 +533,9 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      *
      * The agent changes it as a turn runs. An AG-UI `STATE_SNAPSHOT` event replaces it, and a
      * `STATE_DELTA` event patches it. The app changes it with {@link setAgentState}, only while no
-     * turn runs. Every request carries the state as it then stands, as
-     * `ChatRunRequest.agentState`, which `AgUiCodec` sends as the run's `state`.
+     * turn runs, and with the config's `prepareAgentState`, before each request. Every request
+     * carries the state as it then stands, as `ChatRunRequest.agentState`, which `AgUiCodec`
+     * sends as the run's `state`.
      *
      * Replaced, never mutated, on change, so a component that reads it renders again. A change
      * that leaves it equal keeps the value held. Never null: the chat holds an empty object for
@@ -641,6 +670,15 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         return this.pendingInterrupts.filter(it => it.response == null && !isExpired(it));
     }
 
+    /**
+     * True if the app may change the agent's shared state now, with {@link setAgentState}: no
+     * turn runs, in the chat or on the server. A turn paused for the user is not running.
+     */
+    @computed
+    get canSetAgentState(): boolean {
+        return !this.isBusy && !this.isRunningOnServer;
+    }
+
     /** Tool calls waiting for the user to approve or deny them - a subset of `waitingToolCalls`. */
     @computed
     get pendingApprovals(): ChatToolCallPart[] {
@@ -711,6 +749,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             historyMode = 'client',
             runOptions = null,
             agentState = null,
+            prepareAgentState = null,
             textTransform = null,
             feedback,
             stallAfterMs,
@@ -780,6 +819,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.isThreadIdProvisional = threadId == null || !hasHistory(initialMessages);
         this.runOptions = runOptions;
         this._agentState = toAgentState(agentState);
+        this.agentStatePreparer = prepareAgentState;
         this.textTransform = textTransform;
         this.trackOptions = track === true ? {} : track || null;
         this.dataRenderers = {...catalog?.createDataRenderers(), ...dataRenderers};
@@ -1210,7 +1250,10 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      *
      * Works only while no turn runs, so that the agent and the app never write the state at the
      * same time. A turn paused for the user is not running. While a turn runs, the call logs a
-     * warning and does nothing, so read `isBusy` first.
+     * warning and does nothing, so read {@link canSetAgentState} first. That holds for a client
+     * tool's `execute` too, which runs within its turn, and for a turn that runs on the server
+     * while the chat does not follow it - see {@link isRunningOnServer}. Such a turn blocks
+     * sends, and the reload that follows it would discard the change.
      *
      * @param state - a JSON value. The chat holds a plain copy of it, so a MobX observable or a
      *      later change to the value given never reaches the state. Null resets the state to an
@@ -1218,8 +1261,12 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      */
     @action
     setAgentState(state: any) {
-        if (this.isTurnRunning) {
-            this.logWarn('Agent state not set - a turn is in progress.');
+        if (this.isTurnRunning || this.isRunningOnServer) {
+            this.logWarn(
+                this.isTurnRunning
+                    ? 'Agent state not set - a turn is in progress.'
+                    : 'Agent state not set - a turn runs on the server.'
+            );
             return;
         }
         this.applyAgentState(toAgentState(state));
@@ -1230,7 +1277,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      * turn in progress.
      */
     clear() {
-        this.replaceThread([], null, 'clear');
+        this.replaceThread([], null, 'clear', null);
     }
 
     /**
@@ -1247,13 +1294,16 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      * In server mode, a turn still running on the server is detached rather than cancelled - see
      * {@link detach}.
      *
-     * The load resets {@link agentState} to an empty object. To restore a state the backend
-     * holds for the thread, call {@link setAgentState} after the load.
+     * The load resets {@link agentState} to an empty object, and so discards a change the app
+     * made that no request carried. To restore the state the backend holds for the thread, pass
+     * it as `opts.agentState`.
      *
      * @param threadId - id of the loaded conversation, to send to the backend. Default a new id.
+     * @param opts.agentState - the agent's shared state for the loaded thread. Default an empty
+     *      object.
      */
-    loadMessages(specs: ChatMessageSpec[], threadId?: string) {
-        this.replaceThread(specs, threadId, 'load');
+    loadMessages(specs: ChatMessageSpec[], threadId?: string, opts: ChatLoadOptions = {}) {
+        this.replaceThread(specs, threadId, 'load', opts.agentState);
     }
 
     /** The conversation as plain objects, for storage. */
@@ -1289,6 +1339,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     @observableRef private accessor interruptSet: InterruptSet = null;
     private readonly modelTools: ChatToolSpec[];
     private readonly textTransform: ChatTextTransform;
+    private readonly agentStatePreparer: ChatModelConfig['prepareAgentState'];
     private readonly toolSpecFn: (name: string) => ChatToolSpec;
     /** Display specs from `toolSpecFn`, by tool name, null for none. */
     private readonly resolvedToolSpecs = new Map<string, ChatToolSpec>();
@@ -1596,6 +1647,13 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
                     isRequestSent = true;
                 }
             };
+        // The app's values go into the state first, so that the request carries what the chat
+        // then holds, and the step's deltas patch it.
+        if (this.agentStatePreparer) {
+            const prepared = this.agentStatePreparer(request.agentState, request);
+            if (prepared !== undefined) this.applyAgentState(toAgentState(prepared));
+            request.agentState = this.agentState;
+        }
         if (!isEmpty(this.contextProviders)) {
             request.context = await this.getContextAsync(request);
             if (!this.isCurrent(turn)) return;
@@ -1898,7 +1956,12 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     // Observable state changes
     //------------------------
     @action
-    private replaceThread(specs: ChatMessageSpec[], threadId: string, reason: ChatAbortReason) {
+    private replaceThread(
+        specs: ChatMessageSpec[],
+        threadId: string,
+        reason: ChatAbortReason,
+        agentState: any
+    ) {
         this.abortTurn(reason);
         this._threadId = threadId ?? genChatId();
         this.isThreadIdProvisional = threadId == null || !hasHistory(specs);
@@ -1915,7 +1978,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         }
         this.artifacts.clear();
         this.addArtifactsOf(this.messages);
-        this._agentState = {};
+        this._agentState = toAgentState(agentState);
         this.feedbackDrafts = {};
         this.status = 'ready';
         this.lastError = null;

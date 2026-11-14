@@ -102,6 +102,14 @@ describe('AgUiCodec', () => {
             expect(encode(0)).toBe(0);
         });
 
+        it('warns of a state config, which it does not send', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {}),
+                codec = new AgUiCodec({state: {sector: 'Energy'}} as any);
+
+            expect(codec.encodeRequest(request([user('Hi')])).state).toEqual({});
+            expect(warn.mock.calls.flat().join(' ')).toContain('prepareAgentState');
+        });
+
         it('sends an empty object for a request with no state, or a null one', () => {
             const encode = (changes: Partial<ChatRunRequest>) =>
                 new AgUiCodec().encodeRequest(request([user('Hi')], changes)).state;
