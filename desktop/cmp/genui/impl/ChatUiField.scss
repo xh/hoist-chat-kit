@@ -13,6 +13,13 @@
   max-width: none;
 }
 
+// A date input fills the field, as the other inputs do. Hoist's DateInput holds its text input in
+// a Blueprint popover target, an inline box that keeps the width of its content. No DateInput prop
+// changes that, so the target is a block here.
+.xh-chat-ui-field .xh-date-input__wrapper > .bp6-popover-target {
+  display: block;
+}
+
 // In a row of a stack, a segmented control keeps the width of its options, which do not shrink
 // or wrap. A row that cannot hold it wraps.
 .xh-chat-ui-stack.xh-hbox > .xh-chat-ui-field.xh-form-field--segmented-control {
