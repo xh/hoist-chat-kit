@@ -507,8 +507,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      * `ChatRunRequest.agentState`, which `AgUiCodec` sends as the run's `state`.
      *
      * Replaced, never mutated, on change, so a component that reads it renders again. `clear` and
-     * `loadMessages` reset it to an empty object, as the chat does not store it. Set only by the
-     * chat. (observable)
+     * `loadMessages` reset it to an empty object, as the chat does not store it. (observable)
      */
     get agentState(): any {
         return this._agentState;
