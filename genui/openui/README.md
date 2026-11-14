@@ -223,12 +223,17 @@ The measure evaluates nothing. It counts:
   evaluated to count it.
 - Each read of a loop variable at the size of the largest item of its list. lang-core copies
   the item into the template for each place that names the variable.
-- `@Sort` and `@Filter` once per item, times the size of their field path, of an item, and of
-  the value that a filter compares with.
+- `@Filter` once per item, and `@Sort` once per compare, times the size of their field path and
+  of what they compare: the value of the field, or the whole item where no field is named. A
+  filter also counts the value it compares with.
 - A field read on a list once per item.
 
 A value that a `$variable` or a query holds reads as a safe copy: an object inside it with the
 shape of a lang-core node, an element or a two-way binding reads as null.
+
+With these limits a program can sort or filter a table of about 2,000 rows of 8 fields by one
+field. Each read of a table counts its size, so a program that reads a large table in many
+places reaches the limit sooner.
 
 | Limit | Value | Past it |
 |-------|-------|---------|
@@ -246,7 +251,7 @@ shape of a lang-core node, an element or a two-way binding reads as null.
 | Spaces or tabs in a row in a value an action shows | 2 | The action is disabled |
 | `Query()` statements in one program | `maxCalls`, default 8 | None of them runs |
 | Programs of one reply that run queries | 3 | A later program shows its defaults |
-| Times that the results of queries change the arguments of one query, with no action by the user | 3 in one window of `minRefreshSeconds` | The query keeps the arguments it last ran with |
+| Times that one query runs on arguments that the results of queries changed, with no action by the user | 3 in one window of `minRefreshSeconds` | The query keeps the arguments it last ran with, and takes the newest when the window ends |
 | Tool calls a chat's programs start in a minute | `maxCallsPerMinute`, default 60 | The call fails, and its query keeps its result |
 | Seconds between two refreshes of a query | `minRefreshSeconds`, default 10, at least 1, at most a day | The interval is held to the bound |
 
@@ -326,13 +331,19 @@ chunk, which the limits keep short. The format builds the library once per catal
 Install the peer, and Zod, which lang-core needs:
 
 ```bash
-pnpm add @openuidev/lang-core@~1.1.0 zod
+pnpm add @openuidev/lang-core@1.1.0 zod
 ```
 
-The kit takes lang-core within one minor version, `~1.1.0`. It reads a few things that
-lang-core's types do not promise, such as the token types of its tokenizer and the shape its
-evaluator reads to find a two-way binding. A new minor version can change them. The kit's specs
-pin each one, and the range moves once they pass against a new version.
+The kit takes exactly lang-core `1.1.0`. The gate is a model of how that version reads and
+evaluates a program: what it shares between references, how it scopes the variable of a loop,
+and what each built-in function does per item. A patch release can change any of these, and so
+reopen the evaluation budget, with no change to lang-core's types. The kit also reads the token
+types of its tokenizer, and the shape its evaluator reads to find a two-way binding.
+
+To move to a new version of lang-core, read its parser and evaluator for what changed, and run
+`OpenUiGate.spec.ts`, `OpenUiSafety.spec.ts` and `OpenUiLangCore.spec.ts` against it. The first
+two hold each attack that the gate must refuse, with a time limit. The third pins the parts of
+lang-core that the kit builds on. The version in `package.json` moves only once all three pass.
 
 lang-core runs a telemetry script when it installs. See
 [Letting lang-core send install telemetry](#letting-lang-core-send-install-telemetry).

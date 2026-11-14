@@ -2842,7 +2842,7 @@ in front of all of it:
 | Spaces or tabs in a row in a value an action shows | 2 |
 | `Query()` statements in one program | `maxCalls`, default 8 |
 | Programs of one reply that run queries | 3, refused ones counted |
-| Times query results change the arguments of one query, with no user action | 3 per window |
+| Times one query runs on arguments that query results changed, with no user action | 3 per window |
 | Tool calls a chat's programs start in a minute | `maxCallsPerMinute`, default 60 |
 | Seconds between two refreshes of a query | `minRefreshSeconds`, 1 to a day, default 10 |
 
@@ -2859,7 +2859,11 @@ that the kit prepared starts with a mark that data cannot copy, and a plan witho
 as such an action would come from data. Throwing is the safer of the two fixes: the rule is
 checked once, at configuration, and no data path stays open.
 
-lang-core is pinned within one minor version, `~1.1.0`. This amends the pin by major of D122.
+lang-core is pinned to exactly `1.1.0`, as a peer and as a devDependency. This amends the pin by
+major of D122. The gate is a model of how that version reads and evaluates a program, so a patch
+release can reopen the budget with no change to its types. An upgrade means reading what changed
+in its parser and evaluator, and running `OpenUiGate.spec.ts`, `OpenUiSafety.spec.ts` and
+`OpenUiLangCore.spec.ts` against the new version before the pin moves.
 
 **The prompt.** lang-core writes the grammar. The kit writes each section that names components:
 actions, filters, forms and the data workflow. Their examples call the catalog's own components,
@@ -2915,7 +2919,7 @@ every evaluation, from the parse on, and it evaluates nothing. lang-core's stock
 one kit rule told the model to ignore that. A model follows an example before such a rule. A
 reply can hold many programs, and each can refresh on a timer, so a cap per program does not bound
 the calls of a chat. The kit reads token types and a library shape that lang-core's types do not
-promise, so a minor release can break it.
+promise, so any release can break it.
 
 **Alternatives.** Write an evaluator. It would drift from a language that ships often. Keep
 `Mutation()` with the tooltip as its guard. The reviews above show why not. Ask for approval

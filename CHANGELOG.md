@@ -227,7 +227,7 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 ### 📚 Libraries
 
 * @xh/hoist `89.3 → 90.1`
-* @openuidev/lang-core `~1.1.0` - added as an optional peer dependency, within one minor
+* @openuidev/lang-core `1.1.0` - added as an optional peer dependency, at that exact
   version. Apps that use `/genui/openui/` install it with `zod`. Other apps never load it.
 
 ## 1.0.0 - 2026-11-02
