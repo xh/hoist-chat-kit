@@ -1,4 +1,4 @@
-import {act, fireEvent, render, screen} from '@testing-library/react';
+import {act, cleanup, fireEvent, render, screen} from '@testing-library/react';
 import {div, fragment} from '@xh/hoist/cmp/layout';
 import type {PlainObject} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
@@ -286,7 +286,7 @@ describe('OpenUI Lang gate', () => {
             expect(text).toContain('too large to evaluate');
         });
 
-        it('reads a loop variable named as a query as the item, not the query', () => {
+        it('refuses a loop variable named as a query', () => {
             silenceLogs();
             const {ms, text} = timedRender(
                 'root = Stack([note])\n' +
@@ -298,7 +298,7 @@ describe('OpenUI Lang gate', () => {
             );
 
             expect(ms).toBeLessThan(FAST);
-            expect(text).toContain('too large to evaluate');
+            expect(text).toContain('names the variable of an @Each');
         });
 
         it.each([
@@ -353,7 +353,7 @@ describe('OpenUI Lang gate', () => {
             );
 
             expect(ms).toBeLessThan(FAST);
-            expect(text).toContain('too large to evaluate');
+            expect(text).toMatch(/too large to evaluate|names the variable of an @Each/);
         });
 
         it('still runs a loop inside a loop over rows of a modest size', () => {
@@ -517,6 +517,289 @@ describe('OpenUI Lang gate', () => {
             );
 
             expect(text('note')).toBe('a2b,a,c');
+        });
+    });
+
+    describe('where lang-core reads a name another way than it looks', () => {
+        // Pairs of statements that refer to each other, deepest first, with the root last.
+        const pairs = (depth: number, tail: string[]) => {
+            const lines: string[] = [];
+            for (let i = depth; i >= 0; i--) {
+                lines.push(`x${i} = [y${i}, ${i === depth ? '1, 1' : `y${i + 1}, y${i + 1}`}]`);
+                lines.push(`y${i} = [x${i}]`);
+            }
+            return fenced([...lines, ...tail]);
+        };
+        // A program that does not start with its root reads as one only inside a fence.
+        const fenced = (lines: string[]) => '```openui-lang\n' + lines.join('\n') + '\n```';
+        const unfenced = (program: string) => program.replace(/```openui-lang\n|\n```/g, '');
+
+        it.each([4, 12, 18, 22])(
+            'refuses statements that refer to each other in a circle, %i pairs deep',
+            depth => {
+                silenceLogs();
+                const {ms, text} = timedRender(
+                    pairs(depth, ['root = Stack([note])', 'note = Note("n " + @Count(x0))']),
+                    {}
+                );
+
+                expect(ms).toBeLessThan(FAST);
+                expect(text).toContain('refer to each other in a circle');
+            }
+        );
+
+        it.each([12, 22])('refuses such a circle with bindings off, %i pairs deep', depth => {
+            silenceLogs();
+            const program = pairs(depth, ['root = Stack([list])', 'list = Items(x0)']),
+                started = performance.now(),
+                segments = createCatalog({}).parseText(program, {messageId: 'm1', partId: 'p1'});
+
+            expect(performance.now() - started).toBeLessThan(FAST);
+            expect(segments[0]).toMatchObject({type: 'fallback'});
+        });
+
+        it('refuses such a circle in a data part', () => {
+            const adapter = openUiLangAdapter({root: 'stack'}),
+                started = performance.now();
+
+            expect(() =>
+                adapter.translate(
+                    unfenced(pairs(20, ['root = Stack([list])', 'list = Items(x0)'])),
+                    {
+                        catalog: createCatalog({}),
+                        isPartial: false
+                    }
+                )
+            ).toThrow('refer to each other in a circle');
+            expect(performance.now() - started).toBeLessThan(FAST);
+        });
+
+        it.each<[string, string[]]>([
+            [
+                'a statement that names itself',
+                ['a = [a, 1]', 'root = Stack([note])', 'note = Note("n " + @Count(a))']
+            ],
+            [
+                'a circle of three',
+                [
+                    'root = Stack([note])',
+                    'a = [b]',
+                    'b = [c]',
+                    'c = [a]',
+                    'note = Note("n " + @Count(a))'
+                ]
+            ],
+            [
+                'a circle that nothing under the root reads',
+                ['root = Stack([note])', 'note = Note("x")', 'a = [b]', 'b = [a]']
+            ]
+        ])('refuses %s', (_, lines) => {
+            silenceLogs();
+            expect(timedRender(fenced(lines), {}).text).toContain(
+                'refer to each other in a circle'
+            );
+        });
+
+        it.each<[string, (lines: string[]) => string[]]>([
+            ['first', lines => lines],
+            ['last', lines => [...lines.slice(1), lines[0]]],
+            ['in the middle', lines => [...lines.slice(1, 12), lines[0], ...lines.slice(12)]],
+            ['with the statements in reverse', lines => [...lines].reverse()]
+        ])('counts a chain that doubles the same with the root %s', (_, order) => {
+            silenceLogs();
+            const values = ['root = Stack([note])', 'note = Note("n " + @Count(a0))'],
+                elements = ['root = Stack([e0])'];
+            for (let i = 0; i < 22; i++) {
+                values.push(`a${i} = [a${i + 1}, a${i + 1}]`);
+                elements.push(`e${i} = Stack([e${i + 1}, e${i + 1}])`);
+            }
+            values.push('a22 = [1]');
+            elements.push('e22 = Note("x")');
+
+            for (const lines of [values, elements]) {
+                const {ms, text, unmount} = timedRender(fenced(order(lines)), {});
+                expect(ms).toBeLessThan(FAST);
+                expect(text).toMatch(/too large to evaluate|writes more than \d+ components/);
+                unmount();
+            }
+        });
+
+        it('takes the last statement of a name, as lang-core does', () => {
+            silenceLogs();
+            // The second `a` is the one that doubles.
+            const lines = ['root = Stack([note])', 'note = Note("n " + @Count(a))', 'a = [1]'];
+            for (let i = 0; i < 22; i++) lines.push(`b${i} = [b${i + 1}, b${i + 1}]`);
+            lines.push('b22 = [1]', 'a = b0');
+            expect(timedRender(lines.join('\n'), {}).text).toContain('too large to evaluate');
+
+            // The second `a` replaces the first.
+            cleanup();
+            renderProgram(
+                'root = Stack([note])\nnote = Note("n " + @Count(a))\na = [1, 2, 3]\na = [1, 2]',
+                {}
+            );
+            expect(text('note')).toBe('n 2');
+        });
+
+        it('keeps a $variable and a statement of the same name apart', () => {
+            renderProgram(
+                'root = Stack([note])\n' +
+                    '$rows = [1, 2, 3]\n' +
+                    'rows = [1, 2]\n' +
+                    'note = Note(@Count($rows) + "/" + @Count(rows) + "/" + @Count(@Each($rows, "row", rows)))',
+                {}
+            );
+
+            expect(text('note')).toBe('3/2/3');
+        });
+
+        it.each<[string, string]>([
+            [
+                'a query',
+                '@Each(q.rows, "q", @Each($l, "i", @Each($l, "j", [1,2,3,4,5,6,7,8,9,10])))'
+            ],
+            [
+                'a query, with a short template',
+                `@Each(q.rows, "q", [${Array(300).fill('1').join(',')}])`
+            ],
+            ['a value statement', '@Each($l, "list", list)'],
+            ['a name with no quotes', '@Each($l, item, item)'],
+            ['a name that is not a plain name', '@Each($l, "a.b", 1)'],
+            ['a name that an expression gives', '@Each($l, "i" + "j", 1)']
+        ])('refuses an @Each whose variable is %s', (_, expr) => {
+            silenceLogs();
+            const {ms, text} = timedRender(
+                'root = Stack([note])\n' +
+                    `$l = ${numbers(80)}\n` +
+                    'list = [1, 2]\n' +
+                    `q = Query("nope", {}, {rows: [${Array(3000).fill('1').join(',')}]})\n` +
+                    `note = Note("n=" + @Count(${expr}))`,
+                {}
+            );
+
+            expect(ms).toBeLessThan(FAST);
+            expect(text).toContain('names the variable of an @Each');
+        });
+
+        it('measures a result of 2000 rows that a program reads only through loops', async () => {
+            silenceLogs();
+            const tool = {
+                name: 'get_rows',
+                execute: vi.fn(async (_: PlainObject) => ({rows: Array(2000).fill(1)}))
+            };
+            renderProgram(
+                'root = Stack([note])\n' +
+                    `$l = ${numbers(80)}\n` +
+                    'q = Query("get_rows", {}, {rows: []})\n' +
+                    'note = Note("n=" + @Count(@Each(q.rows, "row", @Each($l, "i", @Each($l, "j", [1,2,3,4,5,6,7,8,9,10])))))',
+                {tools: [tool], queryTools: ['get_rows']}
+            );
+            expect(text('note')).toBe('n=0');
+
+            const started = performance.now();
+            await settleAsync();
+            expect(performance.now() - started).toBeLessThan(FAST);
+            expect(document.body.textContent).toContain('too large to evaluate');
+        });
+
+        it.each<[string, string, number]>([
+            ['a filter against a long list', '@Filter($a, "", "contains", $big)', 4000],
+            ['a filter against a long list', '@Filter($a, "", "contains", $big)', 12000],
+            ['a filter by equality', '@Filter($a, "", "==", $big)', 4000],
+            ['a sort of long items', '@Sort($items, "")', 200]
+        ])('counts each item of %s: %s over %i', (_, call, items) => {
+            silenceLogs();
+            const {ms, text} = timedRender(
+                'root = Stack([note])\n' +
+                    `$a = [${Array(items).fill('1').join(',')}]\n` +
+                    `l = ${numbers(300)}\n` +
+                    `$big = [${Array(100).fill('l').join(',')}]\n` +
+                    `$items = [${Array(items > 1000 ? 1 : items)
+                        .fill('l')
+                        .join(',')}]\n` +
+                    `note = Note("n=" + @Count(${call}))`,
+                {}
+            );
+
+            expect(ms).toBeLessThan(FAST);
+            expect(text).toContain('too large to evaluate');
+        });
+
+        it.each<[string, string[]]>([
+            [
+                'through a loop over itself',
+                [
+                    'q = Query("search", {q: "x" + @First(@Each([q], "q", q.n))}, {n: 0})',
+                    'w = Query("search", {q: "w" + q.n}, {n: 0})'
+                ]
+            ],
+            [
+                'with one query only',
+                ['q = Query("search", {q: "x" + @First(@Each([q], "q", q.n))}, {n: 0})']
+            ]
+        ])('runs no query whose arguments read its own result %s', async (_, queries) => {
+            silenceLogs();
+            const search = searchTool();
+            renderProgram(
+                ['root = Stack([note])', ...queries, 'note = Note("n=" + q.n)'].join('\n'),
+                {
+                    tools: [search],
+                    queryTools: ['search']
+                }
+            );
+            for (let i = 0; i < 10; i++) await settleAsync();
+
+            expect(search.execute).not.toHaveBeenCalled();
+            expect(document.body.textContent).toContain('names the variable of an @Each');
+        });
+
+        it('lets the results of queries change the arguments of a query only a few times', async () => {
+            silenceLogs();
+            vi.useFakeTimers();
+            onTestFinished(() => {
+                vi.useRealTimers();
+            });
+            // Five queries refresh each second, and each result changes the arguments of `b`.
+            let count = 0;
+            const search = searchTool(),
+                getState = {
+                    name: 'get_state',
+                    parameters: {type: 'object', properties: {id: {type: 'number'}}},
+                    execute: vi.fn(
+                        ({id}: PlainObject) =>
+                            new Promise(resolve => setTimeout(() => resolve({n: ++count}), id * 20))
+                    )
+                },
+                ids = [1, 2, 3, 4, 5];
+            renderProgram(
+                'root = Stack([field, note])\n' +
+                    '$region = "emea"\n' +
+                    'field = Field("region", $region)\n' +
+                    ids
+                        .map(id => `a${id} = Query("get_state", {id: ${id}}, {n: 0}, 1)`)
+                        .join('\n') +
+                    `\nb = Query("search", {q: $region + ${ids.map(id => `a${id}.n`).join(' + "," + ')}}, {n: 0})\n` +
+                    'note = Note("n=" + b.n)',
+                {
+                    tools: [search, getState],
+                    queryTools: ['search', 'get_state'],
+                    minRefreshSeconds: 1
+                }
+            );
+            await act(() => vi.advanceTimersByTimeAsync(500));
+            expect(search.execute).toHaveBeenCalledTimes(1);
+
+            // One refresh of each of the five gives five new results, a moment apart. The
+            // arguments of `b` follow three of them.
+            await act(() => vi.advanceTimersByTimeAsync(900));
+            expect(getState.execute).toHaveBeenCalledTimes(10);
+            expect(search.execute).toHaveBeenCalledTimes(4);
+
+            // A change by the user runs the query again at once, with the results as they are.
+            fireEvent.click(screen.getByTestId('field'));
+            await act(() => vi.advanceTimersByTimeAsync(10));
+            expect(search.execute).toHaveBeenCalledTimes(5);
+            expect(search.execute.mock.calls.at(-1)[0].q).toBe('apac6,7,8,9,10');
         });
     });
 
@@ -788,6 +1071,16 @@ function doublingDefault(depth: number): string {
     return lines.join('\n');
 }
 
+// A tool that gives each call a new number, so a result fed back into arguments never settles.
+function searchTool() {
+    let calls = 0;
+    return {
+        name: 'search',
+        parameters: {type: 'object', properties: {q: {type: 'string'}}},
+        execute: vi.fn(async ({q}: PlainObject) => ({echo: q, n: ++calls}))
+    };
+}
+
 function rowsTool(count: number) {
     return {
         name: 'get_rows',
@@ -797,8 +1090,8 @@ function rowsTool(count: number) {
 
 function timedRender(program: string, opts: Parameters<typeof renderProgram>[1]) {
     const started = performance.now(),
-        {container} = renderProgram(program, opts);
-    return {ms: performance.now() - started, text: container.textContent};
+        {container, unmount} = renderProgram(program, opts);
+    return {ms: performance.now() - started, text: container.textContent, unmount};
 }
 
 //------------------
