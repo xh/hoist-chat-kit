@@ -2,6 +2,7 @@ import type {PlainObject} from '@xh/hoist/core';
 import {isArray, isPlainObject, isString, last, pick, uniq} from 'lodash';
 import type {ChatUiDocument, ChatUiElement} from '../ChatUiDocument';
 import type {ChatUiComponentSpec} from '../ChatUiComponentSpec';
+import {isChatUiBindings} from '../ChatUiState';
 import {formatError, propPath, typeOf} from '../../impl/SchemaUtils';
 
 /** Options for {@link findStructureProblems}. */
@@ -156,7 +157,8 @@ export function elementPath(id: string): string {
 /**
  * Make the fixes to a document that lose nothing the model meant:
  *
- *  - Drop unknown top-level keys and unknown element keys.
+ *  - Drop unknown top-level keys and unknown element keys. `state`, and `bindings` that hold no
+ *    functions, drop with them.
  *  - Accept `elements` as a list of elements, each with a unique `id`.
  *  - Take an element's `type` as its `component`, if it has none.
  *  - Move a prop the component declares, written beside `props` in place of inside it, into
@@ -195,7 +197,7 @@ export function repairDocument(
 // Implementation
 //------------------
 const DOCUMENT_KEYS = ['root', 'elements', 'catalogVersion', 'isPartial'],
-    ELEMENT_KEYS = ['component', 'props', 'children', 'slots', 'isPartial'];
+    ELEMENT_KEYS = ['component', 'props', 'children', 'slots', 'isPartial', 'bindings'];
 
 function repairElement(
     element: unknown,
@@ -206,6 +208,8 @@ function repairElement(
     const source = element as PlainObject,
         ret = pick(source, ELEMENT_KEYS) as PlainObject;
 
+    // Bindings hold functions, so only code can set them - never a document read from JSON.
+    if (ret.bindings != null && !isChatUiBindings(ret.bindings)) delete ret.bindings;
     if (ret.component == null && isString(source.type)) ret.component = source.type;
     if (ret.props == null) ret.props = {};
     if (isString(ret.children)) ret.children = [ret.children];
