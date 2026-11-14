@@ -9,7 +9,7 @@
 | [Overview](#overview) | What the format does, and when to use it |
 | [Architecture](#architecture) | Catalog to library to parser to document, what lang-core does here, state, inline mode, streaming, the parser cache |
 | [Configuration Pattern](#configuration-pattern) | Installing the peer, and wiring the format to a catalog and a `ChatModel` |
-| [Common Usage Patterns](#common-usage-patterns) | The prompt, state and forms, queries and mutations, the export, component names, slots, data parts, examples, parser findings |
+| [Common Usage Patterns](#common-usage-patterns) | The prompt, state and forms, queries, the export, component names, slots, data parts, examples, parser findings |
 | [Properties/API Reference](#propertiesapi-reference) | Format, library and adapter options, the export, actions, functions |
 | [Extension Points](#extension-points) | Names, slots, prompt text, and formats of your own |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -54,8 +54,8 @@ Key features:
 - **State, on request** - with `bindings`, a program has `$variables` that inputs write and
   expressions read, and buttons that run `@Set` and `@Reset`. It runs on lang-core's own store
   and evaluator.
-- **Live data, for tools the app lists** - `Query()` and `Mutation()` call the chat's tools, and
-  only those named in `queryTools` and `mutationTools`.
+- **Live data, for tools the app lists** - `Query()` reads through the chat's tools, and only
+  those named in `queryTools`. A program cannot change data: the kit runs no `Mutation()`.
 
 Use this format when a backend, prompt or eval set already speaks OpenUI Lang. For a new app,
 component tools or tags need no extra dependency. See
@@ -89,8 +89,9 @@ The format works in four steps:
 3. **Parser to document.** `openUiToDocument()` turns the tree into a `ChatUiDocument`. Each
    statement becomes the element of its id. An inline call becomes an element with an id from its
    parent and position, such as `root.children[2]`. Child calls move to `children` or `slots`.
-   Action expressions become `ChatUiAction` values. An action that the prop's schema refuses, by
-   its type or its url, drops with a warning, and the element keeps its other actions.
+   Action expressions become `ChatUiAction` values. An action that the kit refuses becomes a
+   disabled action, or drops with a warning - see [Actions](#actions). The element keeps its
+   other actions.
 4. **Document to components.** The catalog repairs, checks and renders the document, as it does
    any other.
 
@@ -108,7 +109,7 @@ prompt, and for state where the app turns it on:
 | `createStore()` | Holds the `$variables` of a program with state. |
 | `evaluateRoot()`, `evaluate()` | Evaluate the props of a program against its state, and the value of a `@Set`. |
 | `resolveStateField()` | Reads and writes a `$variable` that a prop binds. |
-| `createQueryManager()` | Runs and caches the tool calls of `Query()` and `Mutation()`. |
+| `createQueryManager()` | Runs and caches the tool calls of `Query()`. |
 
 The kit does not use `@openuidev/react-lang` or the Zod library helpers. The library is plain
 JSON Schema built from the catalog, so the app writes no Zod schemas. The kit has no evaluator of
@@ -122,16 +123,19 @@ evaluator. The tool lists then say which tools a program may call:
 | `$variables`, expressions on them, `@Set`, `@Reset` | `bindings` |
 | Built-in functions, such as `@Count` and `@Each` | `bindings`. They run on the same evaluator, so `builtinFunctions` only lists them in the prompt, or leaves them out |
 | `Query()`, and `@Run` of a query | `bindings`, for a tool in `queryTools` |
-| `Mutation()`, and `@Run` of a mutation | `bindings`, for a tool in `mutationTools` |
+| `Mutation()`, and `@Run` of a mutation | Never - see [A program cannot change data](#a-program-cannot-change-data) |
 
-`builtinFunctions`, `queryTools` and `mutationTools` need `bindings`. The format throws for one
-of them with `bindings` set to false. With `bindings` off, the kit evaluates nothing.
+`builtinFunctions` and `queryTools` need `bindings`. The format throws for one of them with
+`bindings` set to false. With `bindings` off, the kit evaluates nothing.
 
 The prompt tells the model not to use a part that is off. If it does, the kit drops the prop that
-holds one. For example, with `bindings` off a button with `@Set(...)` renders with no action.
+holds one, and disables an action that needs one. For example, with `bindings` off a button with
+`@Set(...)` renders disabled, with a tooltip that says why.
 
 The kit never runs these:
 
+- `Mutation()`. The format has no option that turns it on.
+- A `callTool` action. OpenUI Lang has no syntax for one, and the kit takes no action from data.
 - App-defined actions. `openUiToAction()` maps a call to an action in `schema.actions` to an `app`
   action, but `toOpenUiLibrary()` declares no `schema.actions` yet. A call to one becomes no
   action.
@@ -148,7 +152,7 @@ the format returns then has a `state`, which the catalog creates once per render
 ChatUiDocument.state                  # ChatUiStateSpec, one per parse
 ├── create()   -> OpenUiRuntime       # Once per rendered program, kept while it streams
 │   ├── createStore()                 # lang-core: the $variables
-│   └── createQueryManager()          # lang-core: Query and Mutation, one manager each
+│   └── createQueryManager()          # lang-core: runs each Query through the tool gate
 └── resolve()                         # On each render, in a MobX observer
     ├── store.initialize(defaults)    # Declares the $variables of the newest parse
     ├── evaluateRoot()                # lang-core: props for the current state
@@ -174,10 +178,20 @@ renders its element as a fallback, and the caps on elements and depth count the 
 an `@Each` builds.
 
 A program is measured before each evaluation. lang-core inlines each reference, so a chain such
-as `a = b + b`, `b = c + c` doubles the work with each line. The measure counts each shared
-expression at each use, and the template of an `@Each` once per item of its list. A program whose
-expressions expand to more than 100,000 values, or that nests `@Each` more than three deep, does
-not evaluate. It shows as one fallback that says so.
+as `a = b + b`, `b = c + c` doubles the work with each line. The measure counts:
+
+- Each shared expression at each use, and the template of an `@Each` once per item of its list.
+- Each value that the state or a query holds, as the tree that a copy of it walks. A list that
+  holds the same list twice counts it twice. A long string counts one more for each 64
+  characters.
+- Each read of a `$variable` or a query at the size of the value it holds. The defaults of a
+  query evaluate once per pass, and each read counts their size.
+- An `@Each` over a list that only evaluation can size, such as a field of the loop variable of
+  an outer `@Each`, at the longest list that the program, its state and its query results hold.
+
+A program whose values and expressions expand to more than 100,000 values, or that nests `@Each`
+more than three deep, does not evaluate. It shows as one fallback that says so. The measure runs
+before the kit evaluates or copies a value, so the refusal is fast.
 
 ### Inline and whole-reply modes
 
@@ -329,7 +343,9 @@ examples, and the rules. The kit adds these rules, before your own:
 - In inline mode, write prose where it helps, fence each program as `openui-lang`, and write each
   program in full, starting with `root`. Show UI where it answers best, and words where they do.
 - Do not use the parts of OpenUI Lang that are off. By default these are `$variables`, `Query`,
-  `Mutation`, `@Set`, `@Reset` and `@Run`.
+  `Mutation`, `@Set`, `@Reset` and `@Run`. `Mutation` is always off.
+- With `bindings` on: a program cannot change data. To change something, send a message with
+  `@ToAssistant` that asks the assistant to do it.
 - Keep a `@ToAssistant` message to 200 characters, and its context to a flat object of at most 8
   short values. This rule shows only when a component takes actions.
 - Do not use an action step that no component accepts, such as `@OpenUrl` in a catalog whose
@@ -402,6 +418,9 @@ submit = Button("Submit", @ToAssistant("Use these details", {name: $name, region
 - `@Set($x, value)` and `@Reset($x)` change the state on a click. Several steps go in an
   `Action([...])`, and run in order. The kit turns them into one `state` action, whose tooltip
   says what each step does, such as `Sets $step to 2, then sends: "Next"`.
+- A step sees the values that the steps before it set. So
+  `Action([@Set($id, row.id), @ToAssistant("Open " + $id)])` in an `@Each` sends the id of its
+  own row.
 
 The prompt gains lang-core's text for `$variables`, expressions, the built-in functions and the
 `@Set` and `@Reset` steps. The kit adds one example that binds a `$variable` to the first
@@ -414,17 +433,15 @@ them by default. For a component of your own, list `state` in its action types:
 properties: {action: chatUiActionSchema({types: ['send', 'state']})}
 ```
 
-### Let a program read and write through the chat's tools
+### Let a program read through the chat's tools
 
 `Query()` reads data through a tool, and reads it again when a `$variable` in its arguments
-changes. `Mutation()` writes through a tool on a click. A model writes the program, so the kit
-runs only the tools that the app lists:
+changes. A model writes the program, so the kit runs only the tools that the app lists:
 
 ```typescript
 openUiLangFormat({
     root: 'stack',
-    queryTools: [salesTool],
-    mutationTools: ['save_filter']
+    queryTools: [salesTool]
 });
 ```
 
@@ -434,26 +451,23 @@ its `parameters`. Add `returns`, the JSON Schema of the result, so the model can
 defaults of a query. Listing a tool turns `bindings` on.
 
 ```
-root = Stack([region, total, save])
+root = Stack([region, total, refresh])
 $region = "emea"
 region = Select("region", ["emea", "apac"], "Region", null, null, null, $region)
 sales = Query("get_sales", {region: $region}, {total: 0})
 total = Metrics([{label: "Sales", value: sales.total, format: "currency"}])
-saved = Mutation("save_filter", {region: $region})
-save = Button("Save filter", Action([@Run(saved), @Run(sales)]))
+refresh = Button("Refresh", @Run(sales))
 ```
 
-The kit runs a call only where the app and the user would allow it:
+The kit runs a query only where the app would allow it:
 
-| Check | Query | Mutation |
-|-------|-------|----------|
-| The tool is in the list for its kind. Default no tool. | Required | Required |
-| The tool is a client tool of the chat, with an `execute`. | Required | Required |
-| The arguments pass the tool's schema, and the kit can check that schema in full. | Required | Required |
-| The tool needs approval for the arguments. | Refused, as a query runs with no click | Asks the user first, with the tool's own prompt, or with one that names the tool and shows every argument |
-| The chat is busy. | Runs | Refused before any step of the action runs. The user clicks again once the reply ends |
-| When it runs. | Once the program is complete, and when a `$variable` in its arguments changes | On a click, as a step of a button's action |
-| The program holds at most `maxCalls` `Query()` and `Mutation()` statements, 8 by default. | Required: a program with more runs none | Required |
+| Check | Rule |
+|-------|------|
+| The tool is in `queryTools`. Default no tool. | Required |
+| The tool is a client tool of the chat, with an `execute`. | Required |
+| The arguments pass the tool's schema, and the kit can check that schema in full. | Required |
+| The tool needs approval for the arguments. | Refused, as a query runs with no click |
+| The program holds at most `maxCalls` `Query()` statements, 8 by default. | Required: a program with more runs none |
 
 **A listed query tool gets arguments that the model chose, with no action by the user.** A
 prompt injection can steer what the model writes. So list in `queryTools` only a tool that reads,
@@ -465,40 +479,56 @@ A query shows its defaults until its first result, and while the program streams
 fails keeps its defaults, and the kit logs why. The kit bounds how often queries run:
 
 - A query runs when its program completes, and again when a `$variable` in its arguments
-  changes. It runs whether or not a component reads its result.
+  changes. It runs whether or not a component reads its result. A program in a data part runs
+  its queries once the part is complete, not as the program grows.
+- Only the first three programs of one reply run their queries. A program after them shows its
+  defaults, and the kit logs a warning.
+- All the programs of one chat together start at most `maxCallsPerMinute` calls in any minute,
+  60 by default. A call past the rate fails, and its query keeps the result it had.
 - A program in an older reply waits for the user. Its queries run once the user changes a value
   or clicks a button in it. Until then it shows its defaults. So a thread that loads again runs
-  the queries of its last reply only.
+  the queries of its last reply only. A program whose message the chat does not hold waits too.
 - Only the latest reply refreshes on a timer. `minRefreshSeconds` holds the interval to a floor
-  of 10 seconds, and the kit holds it to a day at most. An interval that is not a positive number
-  is no refresh. The refreshes stop when the message goes away.
-
-A mutation is a step of a `state` action. Its button says what it runs before the click, such as
-`Runs the tool save_filter with {"region":"emea"}`, with every argument in full. The kit fixes
-the tool and the arguments when the button renders, and the click runs those. A `@Set` earlier in
-the same action does not change them. Arguments too long to show give no action. A mutation that
-fails stops the steps after it. The program reads `saved.status`, `saved.data` and `saved.error`.
+  of 10 seconds, and the kit holds it to a day at most. The kit holds a floor of one second
+  whatever the option says. An interval that is not a positive number is no refresh. The
+  refreshes stop when the message goes away.
 
 A call from a program is not part of the history. The model does not see its result, unless a
 `@ToAssistant` sends it. `onToolCall` is the trace of each call: the kit calls it as each call
-that passed its checks starts, with the kind, the tool, the arguments and the message id. The kit
-also logs each call at debug level.
+that passed its checks starts, with the tool, the arguments and the message id. The kit also logs
+each call at debug level.
 
 ```typescript
 openUiLangFormat({
     root: 'stack',
     queryTools: ['get_sales'],
-    onToolCall: ({kind, toolName, args, messageId}) =>
-        XH.track({category: 'Chat', message: `OpenUI ${kind}: ${toolName}`, data: {args, messageId}})
+    onToolCall: ({toolName, args, messageId}) =>
+        XH.track({category: 'Chat', message: `OpenUI query: ${toolName}`, data: {args, messageId}})
 });
 ```
 
-Arguments reach a tool as plain JSON, and a result reaches the program as plain JSON. A tool that
-returns a live object exposes only its data. A tool that the server runs cannot be called from a
-program.
+Arguments reach a tool as plain JSON, and a result reaches the program as plain JSON. The kit
+leaves out each `__proto__`, `constructor` and `prototype` key on the way in and on the way out.
+A tool that returns a live object exposes only its data. A tool that the server runs cannot be
+called from a program.
 
 **Avoid:** listing a tool that changes data in `queryTools`. A query runs with no click, as often
 as its arguments change.
+
+### A program cannot change data
+
+The kit runs no `Mutation()`, and has no option that turns one on. Passing `mutationTools`
+throws, so no app can believe it is on. A program asks the assistant to act instead:
+
+```
+save = Button("Save filter", @ToAssistant("Save this filter", {region: $region}))
+```
+
+The message goes through the chat as the user's own. The assistant then calls the tool, under
+the chat's approval rules, and the call is part of the history.
+
+A program that holds a `Mutation()` still renders. A read of it, such as `saved.status`, gives
+`idle`. A button whose action runs it is disabled, and its tooltip says why.
 
 ### Read what the parser found
 
@@ -643,10 +673,13 @@ Options for `openUiLangFormat()`. Extends `OpenUiLibraryOptions`.
 | `bindings` | `boolean` | True to run `$variables`, the expressions that read them, `@Set` and `@Reset`. Default false, or true when a tool is listed. |
 | `builtinFunctions` | `boolean` | True to list the built-in functions, such as `@Count` and `@Each`, in the prompt. They run whenever `bindings` is on. Needs `bindings`. Default the value of `bindings`. |
 | `queryTools` | `(string \| OpenUiToolSpec)[]` | The chat tools that `Query()` may call. Default none: a query keeps its defaults. |
-| `mutationTools` | `(string \| OpenUiToolSpec)[]` | The chat tools that `Mutation()` may call, on a click. Default none: a mutation fails. |
-| `minRefreshSeconds` | `number` | The least seconds between two automatic refreshes of a query. The most is a day. Default 10. |
-| `maxCalls` | `number` | Most `Query()` and `Mutation()` statements in one program. A program with more runs none. Default 8. |
-| `onToolCall` | `(call: OpenUiToolCall) => void` | Called as each tool call of a program starts, once it passed its checks: `{kind, toolName, args, messageId}`. |
+| `minRefreshSeconds` | `number` | The least seconds between two automatic refreshes of a query. At least 1, and the most is a day. Default 10. |
+| `maxCalls` | `number` | Most `Query()` statements in one program. A program with more runs none. Default 8. |
+| `maxCallsPerMinute` | `number` | Most tool calls that all the programs of one chat start in any minute. Default 60. |
+| `onToolCall` | `(call: OpenUiToolCall) => void` | Called as each tool call of a program starts, once it passed its checks: `{toolName, args, messageId}`. |
+
+The format has no `mutationTools` option, and throws if a config passes one. See
+[A program cannot change data](#a-program-cannot-change-data).
 
 The format's `version` covers `inline`, `examples`, `preamble`, `additionalRules`, `root` and
 `slotAccepts`, so a change to one changes `catalog.version`. It covers the state options too, once
@@ -715,34 +748,57 @@ before it runs:
 | `@OpenUrl(url)` | `openUrl`. `urlAllowList` still applies. |
 | `@Name(...)`, for an action in `schema.actions` | `app`, with the call's arguments as its params. `toOpenUiLibrary()` declares no `schema.actions` yet. |
 | `Action([...])` | Its one step the kit can run: the first `send`, or else the first step. The kit drops the rest with a warning. With state on, one `state` action that runs every step in order. |
-| `@Set`, `@Reset`, `@Run` | No action, and the kit drops the prop. With state on, a `state` action. |
+| `@Set`, `@Reset`, `@Run` | A disabled action. With state on, a `state` action. |
 
-With state on, lang-core evaluates each action first. One step that is a `@ToAssistant`, an
-`@OpenUrl` or a library action is that kit action. Anything else is a `state` action: its
-`summary` says what each step does, and the program's state holds the steps.
+The kit takes an action only from action syntax: `Action([...])`, `@Set`, `@Reset`, `@Run`,
+`@ToAssistant` and `@OpenUrl`, alone or as the branches of a condition. Anything else in an
+action prop is data, and gives no action that runs: an object such as `{type: "callTool", ...}`
+or `{steps: [...]}`, a `$variable`, or a field of a query result. lang-core's own renderer would
+run data shaped like a list of steps. The target of a `@Set` or a `@Reset` must be a
+`$identifier`.
 
-A click runs exactly what the summary says. The kit fixes every value when the button renders:
-the value of each `@Set`, the message of a `@ToAssistant`, and the tool and the arguments of each
-mutation. The summary states each one in full, and nothing is cut for display. So a step cannot
-change what a later step does after the user read the tooltip. This differs from OpenUI's own
-renderer, which evaluates each step at the click.
+With state on, one step that is a `@ToAssistant` or an `@OpenUrl` is that kit action. Anything
+else is a `state` action: its `summary` says what each step does, and the program's state holds
+the steps.
 
-The kit gives no action, with a warning, for steps the user could not review: more than 8 steps,
-a summary of more than 1,000 characters, two messages in one action, or a mutation whose tool is
-not a name.
+A click runs exactly what the summary says. The kit evaluates the steps in order when the button
+renders, and fixes every value: the value of each `@Set`, and the message and the context of a
+`@ToAssistant`. A step sees the values that the steps before it set. The summary states each
+value in full, and nothing is cut for display. So no step can change what a later step does
+after the user read the tooltip. This differs from OpenUI's own renderer, which evaluates each
+step at the click.
+
+The summary shows each value as JSON, so a string is in quotes, with its own quotes and line
+breaks as escapes. A character the user could not see shows as its code, such as `\u202e` for a
+right-to-left override or `\u200b` for a zero-width space. So text cannot pose as the words
+around it. A `send` tooltip shows its text and its context values the same way.
+
+The kit disables an action that the user could not review, or that it cannot run:
+
+| Case | The tooltip says |
+|------|------------------|
+| Data in place of action syntax, or a `@Set` target that is not a `$identifier` | This action is not valid, so it cannot run. |
+| More than 8 steps, or a summary of more than 1,000 characters | This action is too long to show in full, so it cannot run. |
+| Two messages in one action | This action sends more than one message, so it cannot run. |
+| A value, a message or a context value with five or more whitespace characters in a row | This action holds text that cannot be shown in full, so it cannot run. |
+| A `@Run` of a `Mutation()` | This action would change data, which a program cannot do. |
+| An action that the prop's action schema refuses, by its type or its url | This action is not allowed here, so it cannot run. |
+| With state off, a `@Set`, `@Reset` or `@Run` | This action cannot run here. |
+
+A disabled action is a `state` action with a `disabledReason`. The catalog refuses to run it.
+The built-in button renders it disabled, with the reason as its tooltip. It does not fall back
+to sending its label. Where the prop takes no `state` action, the kit drops the action with a
+warning.
 
 The kit checks all that an action needs before its first step runs: the chat is free for a
-message or a mutation, each URL is allowed, and each mutation may run, with the user's approval
-where its tool needs one. An action that cannot finish changes nothing. A tool that fails as it
-runs still stops the steps after it.
+message, and each URL is allowed. An action that cannot finish changes nothing.
 
 Where a prop's action schema requires a `label`, as the built-in card's actions do, the kit fills
 one: the text of a `send`, cut to 40 characters, or the host of an `openUrl`.
 
-With a catalog, the kit drops an action that the prop's action schema refuses, with a warning. It
-checks the action's type, and the url of an `openUrl` against the schema's pattern. The element
-keeps its other actions. An action list left empty stays empty, or drops where the schema sets
-`minItems`.
+With a catalog, the kit checks each action against the prop's action schema: its type, and the
+url of an `openUrl` against the schema's pattern. The element keeps its other actions. An action
+list left empty stays empty, or drops where the schema sets `minItems`.
 
 ### Functions
 
@@ -801,10 +857,11 @@ start with an uppercase letter.
 
 ### Teaching `$state` in an app prompt with state off
 
-By default the kit does not run OpenUI state, queries or mutations, and its rules tell the model
-not to use them. An app prompt or eval set that teaches `$state`, `Query()` or `Mutation()`
-contradicts those rules. The kit drops each prop that holds one, so the UI renders, but without
-that behavior. Turn on `bindings`, and list the tools, to run them.
+By default the kit does not run OpenUI state or queries, and its rules tell the model not to
+use them. An app prompt or eval set that teaches `$state` or `Query()` contradicts those rules.
+The kit drops each prop that holds one, and disables each button that needs one. So the UI
+renders, but without that behavior. Turn on `bindings`, and list the tools, to run them. The kit never runs `Mutation()`, so do not teach
+it.
 
 ### Binding a `$variable` to a prop that is not a state prop
 

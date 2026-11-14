@@ -148,7 +148,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D124](#d124-built-in-generative-ui-components-render-hoist-components) | Built-in generative UI components render Hoist components | Accepted |
 | [D125](#d125-the-chat-holds-the-agents-shared-state-and-the-backend-owns-it) | The chat holds the agent's shared state, and the backend owns it | Accepted |
 | [D126](#d126-a-document-can-have-state-and-a-component-can-write-a-bound-prop) | A document can have state, and a component can write a bound prop | Accepted |
-| [D127](#d127-openui-lang-state-queries-and-mutations-run-on-lang-cores-runtime) | OpenUI Lang state, queries and mutations run on lang-core's runtime | Accepted |
+| [D127](#d127-openui-lang-state-and-queries-run-on-lang-cores-runtime-and-a-program-cannot-change-data) | OpenUI Lang state and queries run on lang-core's runtime, and a program cannot change data | Accepted |
 | [D128](#d128-a-spec-gives-a-hoist-component-plain-data-safe-text-and-one-model) | A spec gives a Hoist component plain data, safe text and one model | Accepted |
 | [D129](#d129-each-built-in-input-owns-one-hoist-field-and-a-form-sends-within-the-caps-of-a-send) | Each built-in input owns one Hoist field, and a form sends within the caps of a send | Accepted |
 
@@ -2548,9 +2548,9 @@ adapter folds its protocol's operations into one document on each call instead.
 ## D122. OpenUI Lang runs on Thesys's headless core, with the kit's catalog
 
 **Status.** Amended by
-[D127](#d127-openui-lang-state-queries-and-mutations-run-on-lang-cores-runtime): an app can turn on
-`$state`, `@Set`, `@Reset`, `@Run`, `Query()` and `Mutation()`, which run on lang-core's store,
-evaluator and query manager. Amends D8 and D15.
+[D127](#d127-openui-lang-state-and-queries-run-on-lang-cores-runtime-and-a-program-cannot-change-data): an app can turn on
+`$state`, `@Set`, `@Reset`, `@Run` and `Query()`, which run on lang-core's store, evaluator and
+query manager. Amends D8 and D15.
 
 **Decision.** `/genui/openui/` reads OpenUI Lang into the catalog. `openUiLangFormat()` is a text
 format, named `openui`, for programs in reply text. `openUiLangAdapter()` renders a program sent in
@@ -2730,7 +2730,8 @@ A component lists the props that a user changes in `stateProps`, and writes one 
 goes to the state. Otherwise the catalog keeps the value for as long as the component shows. The
 catalog does not check a bound prop against the schema. A `state` action names its steps by `id`
 and says what they do in `summary`. The state holds the steps and runs them, through
-`ChatUiState.runActionAsync()`. `chatUiActionSchema()` leaves `state` out unless a spec asks for it,
+`ChatUiState.runActionAsync()`. A `state` action with a `disabledReason` never runs: a format
+writes one for an action it read and had to refuse, and a button shows the reason. `chatUiActionSchema()` leaves `state` out unless a spec asks for it,
 and a document with no state refuses the action. State and bindings hold functions, so only code
 sets them. `repairDocument()` drops both from a document read from JSON.
 
@@ -2751,12 +2752,12 @@ store. Keep the state in the format, by message and part id. A format gets no si
 it, and an adapter gets no ids. Put a function in an action prop. The catalog could not check it or
 describe it.
 
-## D127. OpenUI Lang state, queries and mutations run on lang-core's runtime
+## D127. OpenUI Lang state and queries run on lang-core's runtime, and a program cannot change data
 
 **Status.** Accepted. Amends D122.
 
 **Decision.** `openUiLangFormat()` and `openUiLangAdapter()` take `bindings`, `builtinFunctions`,
-`queryTools`, `mutationTools`, `minRefreshSeconds`, `maxCalls` and `onToolCall`. All are off by
+`queryTools`, `minRefreshSeconds`, `maxCalls`, `maxCallsPerMinute` and `onToolCall`. All are off by
 default, and a format with none keeps its prompt and its version. `bindings` is the one switch for
 the evaluator, and the other options need it. With it on, each rendered program gets a runtime
 built on lang-core: `createStore()`, `evaluateRoot()`, `resolveStateField()` and
@@ -2765,53 +2766,102 @@ The kit writes no evaluator, and does not use `@openuidev/react-lang`. The store
 manager notify plain listeners. Each notice bumps an observable version that every read of state
 tracks, so a Hoist component renders again. The document a program returns has `state`, per D126.
 
-A prop in a component's `stateProps` is typed `$binding<type>` and takes a `$variable` both ways.
-`@ToAssistant` and `@OpenUrl` stay `send` and `openUrl`. lang-core evaluates their arguments when
-the props evaluate, so a button shows the values it sends, within the caps of D17 and D56. `@Set`,
-`@Reset` and `@Run`, alone or in an `Action([...])`, become one `state` action. The kit fixes every
-value of that action when its button renders: the value of each `@Set`, and the tool and the
-arguments of each mutation. The summary states each one in full, and a click runs the same ones.
-Steps the user could not review give no action. The kit checks all that an action needs before its
-first step, so an action that cannot finish changes nothing.
+**A program cannot change data.** The kit runs no `Mutation()`. The options throw for
+`mutationTools`, so no app can believe it is on. A `Mutation()` in a program reads as idle, and a
+button whose action runs one is disabled. The prompt drops lang-core's Mutation section, and tells
+the model to send a message that asks the assistant to act. The kit also takes no `callTool`
+action from a program.
 
-A program calls a tool only if the app lists it. `Query()` runs a tool in `queryTools`, and
-`Mutation()` a tool in `mutationTools`. Each call must be a client tool of the chat, with arguments
-that pass a schema the kit can check in full. A query runs with no click, once its program is
-complete and when a `$variable` in its arguments changes, so it refuses a tool that needs approval.
-A mutation runs on a click, and its `state` action names the tool and the arguments. A tool that
-needs approval asks the user first, as a `callTool` action does. A call is not part of the history,
-so `onToolCall` reports each one.
+**Actions.** A prop in a component's `stateProps` is typed `$binding<type>` and takes a
+`$variable` both ways. The kit takes an action only from action syntax: `Action([...])`, `@Set`,
+`@Reset`, `@Run`, `@ToAssistant` and `@OpenUrl`, alone or as the branches of a condition. Data in
+an action prop gives no action that runs: an object shaped like a plan or like a kit action, a
+`$variable`, or a query result. The target of a `@Set` must be a `$identifier`.
+
+One `@ToAssistant` or `@OpenUrl` stays a `send` or an `openUrl`, within the caps of D17 and D56.
+Anything else becomes one `state` action. The kit evaluates the steps in order when the button
+renders, and each step sees the values that the steps before it set. Every value is then fixed.
+The summary states each one in full, as JSON, with any character the user could not see as its
+code. A click runs the same values. An action that the user could not review is disabled, and
+its button says why: too many steps, a summary too long, two messages, or text with a long run of
+whitespace. The kit checks all that an action needs before its first step, so an action that
+cannot finish changes nothing.
+
+**Queries.** `Query()` runs only a tool in `queryTools`. The tool must be a client tool of the
+chat, with arguments that pass a schema the kit can check in full. A query runs with no click,
+once its program is complete and when a `$variable` in its arguments changes, so it refuses a tool
+that needs approval. A call is not part of the history, so `onToolCall` reports each one.
 
 A listed query tool gets arguments that the model chose, with no action by the user. So an app must
 list only a tool that reads, has no side effects, and sends its arguments to no third party. The
-kit bounds the rest. A program holds at most `maxCalls` calls, 8 by default. A program in an older
-reply runs its queries only once the user acts in it, and only the latest reply refreshes on a
-timer, between `minRefreshSeconds` and a day. A program is measured before it evaluates, and one
-that would expand past a cap is refused. Arguments and results cross as plain JSON.
+kit bounds the rest:
+
+- A program holds at most `maxCalls` queries, 8 by default. Only the first three programs of a
+  reply run queries.
+- All the programs of a chat start at most `maxCallsPerMinute` calls a minute, 60 by default.
+- A program in an older reply, or in a message the chat does not hold, runs its queries only
+  once the user acts in it. Only the latest reply refreshes on a timer, between
+  `minRefreshSeconds` and a day, and never faster than once a second.
+- A program in a data part runs its queries once the part is complete.
+- A program is measured before it evaluates, and one that would expand past a cap is refused.
+  The measure counts each value that the state and the queries hold, at each read.
+- Arguments and results cross as plain JSON, with no `__proto__`, `constructor` or `prototype`
+  key.
 
 lang-core is pinned within one minor version, `~1.1.0`. This amends the pin by major of D122.
 
 The prompt uses lang-core's own sections for what is on. The kit's rules name what is off, list the
-tools of each kind, and say what lang-core's text names that the catalog lacks. Each action prop
-lists only the steps that its schema accepts. The kit still does not run app-defined actions,
-message markers or edit mode.
+query tools, and say what lang-core's text names that the catalog lacks. Each action prop lists
+only the steps that its schema accepts. The kit still does not run app-defined actions, message
+markers or edit mode.
 
 **Why.** D122 left state out because it needed OpenUI's evaluator and renderer, which would split
 the checks between two runtimes. lang-core's evaluator is headless, and D126 lets the catalog check
 what it returns. Clients who prompt in OpenUI Lang expect `$variables`, forms and live data. A
-model writes the program, and a prompt injection can steer it. So a tool is opt-in by name, a
-query cannot ask for approval on every change of a variable, and a mutation shows what it runs
-before the click. Each kind of call has its own query manager, as each runs under its own rules.
-OpenUI evaluates each step of an action at the click. A `@Set` could then change the tool or the
-arguments of a mutation after the user read the tooltip, which breaks D17. lang-core inlines each
-reference, so a short program can take exponential time to evaluate. The kit reads token types and
-a library shape that lang-core's types do not promise, so a minor release can break it.
+model writes the program, and a prompt injection can steer it. So a tool is opt-in by name, and a
+query cannot ask for approval on every change of a variable.
 
-**Alternatives.** Write an evaluator. It would drift from a language that ships often. Take one
-list of tools for both kinds of call. A read that runs with no click and a write need different
-rules. Ask for approval before a query. It would ask again on each change. Evaluate each step
-at the click, as OpenUI does, and refuse when a value differs from the one shown. An action that
-sets a value and then uses it would always be refused. Run the queries of every reply when a
+A first design ran `Mutation()` on a click, for tools in a `mutationTools` list, with the tool and
+the arguments fixed when the button rendered. Two security reviews broke it, and it was pulled:
+
+- **The button fixes its values again under the cursor.** With
+  `q = Query("get_sales", {}, {loading: true})` and
+  `pay = Mutation("save_region", {region: q.loading ? "emea" : "ATTACKER"})`, the tooltip flips
+  when the query returns, and the click runs the new value. With
+  `$armed ? Action([@Run(pay)]) : Action([@Set($armed, true)])`, a double click becomes a
+  mutation. For a tool with no approval the tooltip is the only defense, and a program can swap
+  it between the read and the click.
+- **The idiom that lang-core's prompt teaches acts on the wrong row.**
+  `Action([@Set($id, r.id), @Run(del)])` in an `@Each` reads `$id` as it was at render, once
+  values are fixed at render.
+
+`Mutation()` can come back only with a design that meets this bar:
+
+- Every mutation asks first, whatever the tool's own approval rule.
+- The kit builds the dialog from the fixed tool name and arguments, as structured data. It does
+  not build it from the summary sentence.
+- The steps evaluate in order, and a later step sees the value that an earlier `@Set` sets.
+
+The last point holds now for the steps that remain. OpenUI evaluates each step at the click,
+which lets a step change what a later one does after the user read the tooltip, and breaks D17.
+Fixed values with no order break the per-row idiom. So the kit evaluates in order at render.
+
+lang-core runs data shaped like a list of steps as an action. A review ran a tool that no list
+named through `{type: "callTool", ...}` written as data, where an action schema allowed
+`callTool`. So an action comes from syntax only. A summary is a sentence that holds values the
+model wrote, so each value is quoted and escaped, or it could pose as the words around it.
+
+lang-core inlines each reference, so a short program can take exponential time to evaluate. A
+reply can hold many programs, and each can refresh on a timer, so a cap per program does not bound
+the calls of a chat. The kit reads token types and a library shape that lang-core's types do not
+promise, so a minor release can break it.
+
+**Alternatives.** Write an evaluator. It would drift from a language that ships often. Keep
+`Mutation()` with the tooltip as its guard. The reviews above show why not. Ask for approval
+before a query. It would ask again on each change. Evaluate each step at the click, as OpenUI
+does, and refuse when a value differs from the one shown. An action that sets a value and then
+uses it would always be refused. Drop an action that the kit refuses. The built-in button would
+then send its label, which is not what the model wrote. Run the queries of every reply when a
 thread loads. Each load would call the tools of every old program, with no user action.
 
 ## D129. Each built-in input owns one Hoist field, and a form sends within the caps of a send

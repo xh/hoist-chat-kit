@@ -126,7 +126,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   `context.setProp()` to write one. The write goes to the document's state where
   `ChatUiElement.bindings` ties the prop to it. Otherwise the catalog keeps the value.
 * Added the `state` action, which runs steps on the state of its document and says what they do
-  in its `summary`. `chatUiActionSchema()` allows it only where `types` lists `state`.
+  in its `summary`. `chatUiActionSchema()` allows it only where `types` lists `state`. A `state`
+  action with a `disabledReason` never runs, and the built-in button shows the reason.
 * Added form components to `/desktop/cmp/genui/`: `chatUiFormSpec()`, `chatUiButtonSpec()`, and
   input specs over Hoist's `TextInput`, `TextArea`, `NumberInput`, `Select`, `DateInput`,
   `Checkbox`, `SwitchInput` and `SegmentedControl`. `chatUiInputSpecs()` returns them all. Each
@@ -135,13 +136,17 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Added `bindings` and `builtinFunctions` to `openUiLangFormat()` and `openUiLangAdapter()`. With
   `bindings`, a program runs `$variables`, expressions, `@Set` and `@Reset` on lang-core's own
   store and evaluator, and a state prop takes a `$variable` both ways. Both are off by default.
-* Added `queryTools` and `mutationTools` to the same options. A program's `Query()` and
-  `Mutation()` call only the chat tools that the app lists there. A query refuses a tool that
-  needs approval. A mutation runs on a click, with the tool and the arguments its button showed,
-  and asks first for a tool that needs approval.
-* Added `maxCalls` and `onToolCall` to the same options. A program holds at most 8 `Query()` and
-  `Mutation()` statements by default, and `onToolCall` reports each call that runs. A program in
-  an older reply runs its queries only once the user acts in it.
+* Added `queryTools` to the same options. A program's `Query()` calls only the chat tools that
+  the app lists there, and refuses a tool that needs approval. A program cannot change data: the
+  kit runs no `Mutation()`, and the options throw for `mutationTools`.
+* Added `maxCalls`, `maxCallsPerMinute` and `onToolCall` to the same options. A program holds at
+  most 8 `Query()` statements by default, the programs of a chat start at most 60 calls a minute,
+  and `onToolCall` reports each call that runs. Only the first three programs of a reply run
+  queries, and a program in an older reply runs them only once the user acts in it.
+* An OpenUI Lang action now comes only from action syntax, such as `@Set` and `@ToAssistant`.
+  An action written as data, or one that the user could not review in full, renders as a
+  disabled button that says why. The steps of an `Action([...])` evaluate in order when the
+  button renders, so a step sees the values that a `@Set` before it sets.
 * `openUiLangFormat()` now renders a statement still being written without the value that a
   chunk cut short, so a valid program shows no fallback as it streams. It reads one action where
   a prop takes a list, and shows an argument written by name as a fallback that names it.
@@ -153,6 +158,10 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 
 ### 🐞 Bug Fixes
 
+* Fixed `describeChatUiAction()` and `formatChatUiContext()` to show a character the user could
+  not see, such as a zero-width space or a right-to-left override, as its code. The tooltip of a
+  `send` action now shows its text and each context value as a JSON string, so text cannot pose
+  as the words around it.
 * Fixed `ChatUiChart` and `ChatUiChartView` to escape the text they pass to Highcharts: series,
   slice and category names, axis titles, and the column labels and row text of a chart by
   reference. Highcharts reads such text as markup, so a model or a result could draw a link that

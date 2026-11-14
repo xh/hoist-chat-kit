@@ -215,9 +215,15 @@ avoid most of this cost: a tag costs no call, and a reference costs a few tokens
   tooltip, and a sent message as the user's own, capped at 200 characters. Structured context is
   a flat object of at most 8 short values, such as record ids. It goes on the message's
   `metadata.context`, never inside its text, and shows under the sent message and in the tooltip.
+- `describeChatUiAction()` writes the tooltip. It shows the text of a `send` and each context
+  value as a JSON string, in quotes. A character the user could not see, such as a zero-width
+  space or a right-to-left override, shows as its code. So text cannot hide, or pose as the words
+  around it.
 - A `state` action says what it does in its `summary`, which a button shows before the click.
   The state of the document holds the steps, so a model cannot write them. A document read from
   JSON has no state, and refuses the action.
+- A `state` action with a `disabledReason` never runs. A format writes one for an action that
+  it read and had to refuse, so that a button can say why in place of doing something else.
 - State and bindings hold functions, so only code sets them. The catalog drops both from a
   document read from JSON.
 - Tag names, action names and data types are looked up as own properties only, so a name such as
@@ -692,7 +698,7 @@ button({
 | `navigate` | Routes the app to `route`, with `params`, through `XH.navigate()` |
 | `callTool` | Runs a client tool of the chat with `input`, once the input passes the tool's schema |
 | `app` | Runs the handler in `actionHandlers` for `name`, with `params` |
-| `state` | Runs steps on the state of the document, such as setting a value. `summary` says what they do |
+| `state` | Runs steps on the state of the document, such as setting a value. `summary` says what they do. With a `disabledReason`, it cannot run, and a button shows the reason |
 
 Each action may add a `label` and a `confirm: {title, message}`. An action with `confirm` asks the
 user with `XH.confirm()` first, and does nothing if they cancel. A `callTool` action for a tool
@@ -847,7 +853,9 @@ text. A state that fails while the reply streams shows a placeholder, and a fall
 A state can run actions of its own. Write a `state` action into a prop from `resolve()`, with an
 `id` that names its steps and a `summary` that says what they do. The catalog checks the action,
 then calls the state's `runActionAsync()`. Keep the steps in the state, never in the action, so
-that a model cannot write them.
+that a model cannot write them. For an action that the state read and cannot run, set a
+`disabledReason`. The catalog then refuses the action, and the built-in button renders disabled
+with the reason as its tooltip.
 
 ## Properties/API Reference
 

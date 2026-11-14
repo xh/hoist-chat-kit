@@ -524,6 +524,10 @@ The button takes `send` and `state` actions by default. A `state` action acts on
 the document, as an OpenUI `@Set` does. Pass `actionTypes` to allow `openUrl`, `navigate`,
 `callTool` or `app`.
 
+A `state` action with a `disabledReason` is one that a format read and had to refuse, such as an
+OpenUI action written as data. The button is then disabled, with the reason as its tooltip. It
+does not fall back to sending its label.
+
 ### Render a component directly
 
 The components also work outside a catalog, for example in a data renderer or a custom tool

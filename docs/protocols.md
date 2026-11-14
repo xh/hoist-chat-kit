@@ -298,13 +298,15 @@ controls and does not relate to agents.
   headless core, `@openuidev/lang-core`, for the parser and the prompt generator. The catalog
   keeps the checks, actions, data and rendering.
 - An app can turn on OpenUI state: `$variables`, expressions, `@Set` and `@Reset`, and
-  `Query()` and `Mutation()` for the chat tools it lists. They run on lang-core's own store,
-  evaluator and query manager. The built-in form components give a program inputs to bind.
+  `Query()` for the chat tools it lists. They run on lang-core's own store, evaluator and query
+  manager. The built-in form components give a program inputs to bind.
+- A program cannot change data. The kit runs no `Mutation()`: a program sends a message that
+  asks the assistant to act.
 - The catalog's export carries the library schema and the prompt, for a server that checks
   programs with Thesys's own parser.
 
 `@openuidev/lang-core` is an optional peer dependency. An app that uses the format installs it
-with `zod`. By default the kit runs no OpenUI state, queries or mutations. It never runs
+with `zod`. By default the kit runs no OpenUI state or queries. It never runs mutations,
 app-defined actions or message markers. See [`/genui/openui/`](../genui/openui/README.md).
 
 An app can also draw each text part with OpenUI's own renderer, through
