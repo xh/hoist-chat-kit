@@ -2756,9 +2756,11 @@ describe it.
 **Status.** Accepted. Amends D122.
 
 **Decision.** `openUiLangFormat()` and `openUiLangAdapter()` take `bindings`, `builtinFunctions`,
-`queryTools`, `mutationTools` and `minRefreshSeconds`. All are off by default, and a format with
-none keeps its prompt and its version. With one on, each rendered program gets a runtime built on
-lang-core: `createStore()`, `evaluateRoot()`, `resolveStateField()` and `createQueryManager()`.
+`queryTools`, `mutationTools`, `minRefreshSeconds`, `maxCalls` and `onToolCall`. All are off by
+default, and a format with none keeps its prompt and its version. `bindings` is the one switch for
+the evaluator, and the other options need it. With it on, each rendered program gets a runtime
+built on lang-core: `createStore()`, `evaluateRoot()`, `resolveStateField()` and
+`createQueryManager()`.
 The kit writes no evaluator, and does not use `@openuidev/react-lang`. The store and the query
 manager notify plain listeners. Each notice bumps an observable version that every read of state
 tracks, so a Hoist component renders again. The document a program returns has `state`, per D126.
@@ -2766,14 +2768,28 @@ tracks, so a Hoist component renders again. The document a program returns has `
 A prop in a component's `stateProps` is typed `$binding<type>` and takes a `$variable` both ways.
 `@ToAssistant` and `@OpenUrl` stay `send` and `openUrl`. lang-core evaluates their arguments when
 the props evaluate, so a button shows the values it sends, within the caps of D17 and D56. `@Set`,
-`@Reset` and `@Run`, alone or in an `Action([...])`, become one `state` action.
+`@Reset` and `@Run`, alone or in an `Action([...])`, become one `state` action. The kit fixes every
+value of that action when its button renders: the value of each `@Set`, and the tool and the
+arguments of each mutation. The summary states each one in full, and a click runs the same ones.
+Steps the user could not review give no action. The kit checks all that an action needs before its
+first step, so an action that cannot finish changes nothing.
 
 A program calls a tool only if the app lists it. `Query()` runs a tool in `queryTools`, and
 `Mutation()` a tool in `mutationTools`. Each call must be a client tool of the chat, with arguments
 that pass a schema the kit can check in full. A query runs with no click, once its program is
 complete and when a `$variable` in its arguments changes, so it refuses a tool that needs approval.
 A mutation runs on a click, and its `state` action names the tool and the arguments. A tool that
-needs approval asks the user first, as a `callTool` action does. A call is not part of the history.
+needs approval asks the user first, as a `callTool` action does. A call is not part of the history,
+so `onToolCall` reports each one.
+
+A listed query tool gets arguments that the model chose, with no action by the user. So an app must
+list only a tool that reads, has no side effects, and sends its arguments to no third party. The
+kit bounds the rest. A program holds at most `maxCalls` calls, 8 by default. A program in an older
+reply runs its queries only once the user acts in it, and only the latest reply refreshes on a
+timer, between `minRefreshSeconds` and a day. A program is measured before it evaluates, and one
+that would expand past a cap is refused. Arguments and results cross as plain JSON.
+
+lang-core is pinned within one minor version, `~1.1.0`. This amends the pin by major of D122.
 
 The prompt uses lang-core's own sections for what is on. The kit's rules name what is off, list the
 tools of each kind, and say what lang-core's text names that the catalog lacks. Each action prop
@@ -2786,12 +2802,17 @@ what it returns. Clients who prompt in OpenUI Lang expect `$variables`, forms an
 model writes the program, and a prompt injection can steer it. So a tool is opt-in by name, a
 query cannot ask for approval on every change of a variable, and a mutation shows what it runs
 before the click. Each kind of call has its own query manager, as each runs under its own rules.
+OpenUI evaluates each step of an action at the click. A `@Set` could then change the tool or the
+arguments of a mutation after the user read the tooltip, which breaks D17. lang-core inlines each
+reference, so a short program can take exponential time to evaluate. The kit reads token types and
+a library shape that lang-core's types do not promise, so a minor release can break it.
 
 **Alternatives.** Write an evaluator. It would drift from a language that ships often. Take one
 list of tools for both kinds of call. A read that runs with no click and a write need different
-rules. Ask for approval before a query. It would ask again on each change. Evaluate a
-`@ToAssistant` at the click, as OpenUI does for `@Set`. The message could then differ from the one
-the button showed.
+rules. Ask for approval before a query. It would ask again on each change. Evaluate each step
+at the click, as OpenUI does, and refuse when a value differs from the one shown. An action that
+sets a value and then uses it would always be refused. Run the queries of every reply when a
+thread loads. Each load would call the tools of every old program, with no user action.
 
 ## D129. Each built-in input owns one Hoist field, and a form sends within the caps of a send
 
@@ -2806,7 +2827,9 @@ each field in its `context`, by field name.
 
 A `send` holds at most 8 values of at most 100 characters, per D56. So text in an input is at most
 100 characters, and a form that holds more than a send can carry cannot send. Its button says why.
-The kit does not cut a value to fit. Each input takes its label as a prop, and its `value` last.
+A form does not cut a value to fit. Outside a form, no button validates an input. A `@ToAssistant`
+there cuts each value of its context to the cap, as D122 has it, and its button shows the cut
+value. The input shows its own length error. Each input takes its label as a prop, and its `value` last.
 None has a tool or a tag of its own.
 
 **Why.** A Hoist `FormModel` takes its fields when it is created, and the inputs of a model-written

@@ -515,7 +515,8 @@ empty field sends nothing.
 A `send` holds at most 8 values of at most 100 characters each, so that the user can read all of
 it. The form keeps to that:
 
-- Text in an input is at most 100 characters. A longer entry fails validation.
+- Text in an input is at most 100 characters. A longer entry fails validation. Outside a form
+  no button validates it, and a `@ToAssistant` that sends it cuts it to the cap.
 - A form with more values than a send can hold cannot send. Its button is disabled, and its
   tooltip says why.
 

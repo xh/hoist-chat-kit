@@ -137,7 +137,11 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   store and evaluator, and a state prop takes a `$variable` both ways. Both are off by default.
 * Added `queryTools` and `mutationTools` to the same options. A program's `Query()` and
   `Mutation()` call only the chat tools that the app lists there. A query refuses a tool that
-  needs approval, and a mutation runs on a click and asks first.
+  needs approval. A mutation runs on a click, with the tool and the arguments its button showed,
+  and asks first for a tool that needs approval.
+* Added `maxCalls` and `onToolCall` to the same options. A program holds at most 8 `Query()` and
+  `Mutation()` statements by default, and `onToolCall` reports each call that runs. A program in
+  an older reply runs its queries only once the user acts in it.
 * `openUiLangFormat()` now renders a statement still being written without the value that a
   chunk cut short, so a valid program shows no fallback as it streams. It reads one action where
   a prop takes a list, and shows an argument written by name as a fallback that names it.
@@ -202,8 +206,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 ### 📚 Libraries
 
 * @xh/hoist `89.3 → 90.1`
-* @openuidev/lang-core `1.1` - added as an optional peer dependency. Apps that use
-  `/genui/openui/` install it with `zod`. Other apps never load it.
+* @openuidev/lang-core `~1.1.0` - added as an optional peer dependency, within one minor
+  version. Apps that use `/genui/openui/` install it with `zod`. Other apps never load it.
 
 ## 1.0.0 - 2026-11-02
 

@@ -114,14 +114,18 @@ The kit does not use `@openuidev/react-lang` or the Zod library helpers. The lib
 JSON Schema built from the catalog, so the app writes no Zod schemas. The kit has no evaluator of
 its own.
 
-By default the kit runs none of OpenUI state. The options below turn each part on:
+By default the kit runs none of OpenUI state. `bindings` is the one switch for lang-core's
+evaluator. The tool lists then say which tools a program may call:
 
 | Part of OpenUI Lang | Runs with |
 |---------------------|-----------|
 | `$variables`, expressions on them, `@Set`, `@Reset` | `bindings` |
-| Built-in functions, such as `@Count` and `@Each` | `builtinFunctions`, on by default with `bindings` |
-| `Query()`, and `@Run` of a query | `queryTools` |
-| `Mutation()`, and `@Run` of a mutation | `mutationTools` |
+| Built-in functions, such as `@Count` and `@Each` | `bindings`. They run on the same evaluator, so `builtinFunctions` only lists them in the prompt, or leaves them out |
+| `Query()`, and `@Run` of a query | `bindings`, for a tool in `queryTools` |
+| `Mutation()`, and `@Run` of a mutation | `bindings`, for a tool in `mutationTools` |
+
+`builtinFunctions`, `queryTools` and `mutationTools` need `bindings`. The format throws for one
+of them with `bindings` set to false. With `bindings` off, the kit evaluates nothing.
 
 The prompt tells the model not to use a part that is off. If it does, the kit drops the prop that
 holds one. For example, with `bindings` off a button with `@Set(...)` renders with no action.
@@ -136,7 +140,7 @@ The kit never runs these:
 
 ### State
 
-With `bindings`, `builtinFunctions` or a tool option, a program runs with state. The document that
+With `bindings`, a program runs with state. The document that
 the format returns then has a `state`, which the catalog creates once per rendered program. See
 [Give a document state](../README.md#give-a-document-state).
 
@@ -168,6 +172,12 @@ therefore add or remove components, as `@Each` and a ternary do.
 The catalog checks each resolved document as any other. A value that evaluates to the wrong type
 renders its element as a fallback, and the caps on elements and depth count the components that
 an `@Each` builds.
+
+A program is measured before each evaluation. lang-core inlines each reference, so a chain such
+as `a = b + b`, `b = c + c` doubles the work with each line. The measure counts each shared
+expression at each use, and the template of an `@Each` once per item of its list. A program whose
+expressions expand to more than 100,000 values, or that nests `@Each` more than three deep, does
+not evaluate. It shows as one fallback that says so.
 
 ### Inline and whole-reply modes
 
@@ -244,8 +254,13 @@ catalog.
 Install the peer, and Zod, which lang-core needs:
 
 ```bash
-pnpm add @openuidev/lang-core zod
+pnpm add @openuidev/lang-core@~1.1.0 zod
 ```
+
+The kit takes lang-core within one minor version, `~1.1.0`. It reads a few things that
+lang-core's types do not promise, such as the token types of its tokenizer and the shape its
+evaluator reads to find a two-way binding. A new minor version can change them. The kit's specs
+pin each one, and the range moves once they pass against a new version.
 
 lang-core runs a telemetry script when it installs. See
 [Letting lang-core send install telemetry](#letting-lang-core-send-install-telemetry).
@@ -379,6 +394,9 @@ submit = Button("Submit", @ToAssistant("Use these details", {name: $name, region
   `$binding<type>`. Here the select writes `$region`, and the text input writes `$name`.
 - Any other prop reads a variable, alone or in an expression. The text renders again when the
   select changes.
+- A `@ToAssistant` cuts its message and each value of its context to the caps of a send, as it
+  does with no state. A value from an input outside a form is cut too, and the button shows the
+  cut value. Put inputs in a form to check them before a send.
 - A `@ToAssistant` sends the values the state holds when its button renders. The button's
   tooltip shows them, and the sent message holds the same ones.
 - `@Set($x, value)` and `@Reset($x)` change the state on a click. Several steps go in an
@@ -432,21 +450,52 @@ The kit runs a call only where the app and the user would allow it:
 | The tool is in the list for its kind. Default no tool. | Required | Required |
 | The tool is a client tool of the chat, with an `execute`. | Required | Required |
 | The arguments pass the tool's schema, and the kit can check that schema in full. | Required | Required |
-| The tool needs approval for the arguments. | Refused, as a query runs with no click | Asks the user first, with the tool's own prompt |
-| The chat is busy. | Runs | Refused: the mutation fails, and the user clicks again once the reply ends |
+| The tool needs approval for the arguments. | Refused, as a query runs with no click | Asks the user first, with the tool's own prompt, or with one that names the tool and shows every argument |
+| The chat is busy. | Runs | Refused before any step of the action runs. The user clicks again once the reply ends |
 | When it runs. | Once the program is complete, and when a `$variable` in its arguments changes | On a click, as a step of a button's action |
+| The program holds at most `maxCalls` `Query()` and `Mutation()` statements, 8 by default. | Required: a program with more runs none | Required |
+
+**A listed query tool gets arguments that the model chose, with no action by the user.** A
+prompt injection can steer what the model writes. So list in `queryTools` only a tool that reads,
+that has no side effects, and that sends its arguments to no third party. A web search is not
+such a tool: its query text leaves the app. The result of one query can flow into the arguments
+of another, so judge the listed tools together.
 
 A query shows its defaults until its first result, and while the program streams. A query that
-fails keeps its defaults, and the kit logs why. A program can ask for an automatic refresh, and
-`minRefreshSeconds` holds the interval to a floor of 10 seconds. The refreshes stop when the
-message goes away.
+fails keeps its defaults, and the kit logs why. The kit bounds how often queries run:
 
-A mutation is a step of a `state` action, so its button says what it runs before the click, such
-as `Runs the tool save_filter with {"region":"emea"}`. A mutation that fails stops the steps after
-it. The program reads `saved.status`, `saved.data` and `saved.error`.
+- A query runs when its program completes, and again when a `$variable` in its arguments
+  changes. It runs whether or not a component reads its result.
+- A program in an older reply waits for the user. Its queries run once the user changes a value
+  or clicks a button in it. Until then it shows its defaults. So a thread that loads again runs
+  the queries of its last reply only.
+- Only the latest reply refreshes on a timer. `minRefreshSeconds` holds the interval to a floor
+  of 10 seconds, and the kit holds it to a day at most. An interval that is not a positive number
+  is no refresh. The refreshes stop when the message goes away.
+
+A mutation is a step of a `state` action. Its button says what it runs before the click, such as
+`Runs the tool save_filter with {"region":"emea"}`, with every argument in full. The kit fixes
+the tool and the arguments when the button renders, and the click runs those. A `@Set` earlier in
+the same action does not change them. Arguments too long to show give no action. A mutation that
+fails stops the steps after it. The program reads `saved.status`, `saved.data` and `saved.error`.
 
 A call from a program is not part of the history. The model does not see its result, unless a
-`@ToAssistant` sends it. A tool that the server runs cannot be called from a program.
+`@ToAssistant` sends it. `onToolCall` is the trace of each call: the kit calls it as each call
+that passed its checks starts, with the kind, the tool, the arguments and the message id. The kit
+also logs each call at debug level.
+
+```typescript
+openUiLangFormat({
+    root: 'stack',
+    queryTools: ['get_sales'],
+    onToolCall: ({kind, toolName, args, messageId}) =>
+        XH.track({category: 'Chat', message: `OpenUI ${kind}: ${toolName}`, data: {args, messageId}})
+});
+```
+
+Arguments reach a tool as plain JSON, and a result reaches the program as plain JSON. A tool that
+returns a live object exposes only its data. A tool that the server runs cannot be called from a
+program.
 
 **Avoid:** listing a tool that changes data in `queryTools`. A query runs with no click, as often
 as its arguments change.
@@ -544,7 +593,9 @@ Pass the same library options as the format, so both read the same names.
 
 ### Write prompt examples with `formatOpenUiProgram()`
 
-By default, the prompt holds one example per component with an `example`, inside the root.
+By default, the prompt holds one example per component with an `example`, inside the root. A
+container shows two children in its example: the two components after it in the catalog that it
+accepts, that take no children, and that have an example. So list a form ahead of its inputs.
 `formatOpenUiProgram()` writes a document as a program, in the form the model writes. Use it for
 examples of your own, and for scripted demos and specs:
 
@@ -590,10 +641,12 @@ Options for `openUiLangFormat()`. Extends `OpenUiLibraryOptions`.
 | `preamble` | `string` | The first paragraph of the prompt section. Default a line that introduces OpenUI Lang. |
 | `additionalRules` | `string[]` | Rules for the model, added after the kit's own rules. |
 | `bindings` | `boolean` | True to run `$variables`, the expressions that read them, `@Set` and `@Reset`. Default false, or true when a tool is listed. |
-| `builtinFunctions` | `boolean` | True to run the built-in functions, such as `@Count` and `@Each`, and to list them in the prompt. Default the value of `bindings`. |
+| `builtinFunctions` | `boolean` | True to list the built-in functions, such as `@Count` and `@Each`, in the prompt. They run whenever `bindings` is on. Needs `bindings`. Default the value of `bindings`. |
 | `queryTools` | `(string \| OpenUiToolSpec)[]` | The chat tools that `Query()` may call. Default none: a query keeps its defaults. |
 | `mutationTools` | `(string \| OpenUiToolSpec)[]` | The chat tools that `Mutation()` may call, on a click. Default none: a mutation fails. |
-| `minRefreshSeconds` | `number` | The least seconds between two automatic refreshes of a query. Default 10. |
+| `minRefreshSeconds` | `number` | The least seconds between two automatic refreshes of a query. The most is a day. Default 10. |
+| `maxCalls` | `number` | Most `Query()` and `Mutation()` statements in one program. A program with more runs none. Default 8. |
+| `onToolCall` | `(call: OpenUiToolCall) => void` | Called as each tool call of a program starts, once it passed its checks: `{kind, toolName, args, messageId}`. |
 
 The format's `version` covers `inline`, `examples`, `preamble`, `additionalRules`, `root` and
 `slotAccepts`, so a change to one changes `catalog.version`. It covers the state options too, once
@@ -666,10 +719,22 @@ before it runs:
 
 With state on, lang-core evaluates each action first. One step that is a `@ToAssistant`, an
 `@OpenUrl` or a library action is that kit action. Anything else is a `state` action: its
-`summary` says what each step does, and the program's state holds the steps. A `state` action
-takes at most 8 steps, and a summary of at most 1,000 characters. The kit drops a longer one. A
-`@ToAssistant` among the steps sends the values its button showed, through the catalog's own
-checks. A step that fails stops the rest.
+`summary` says what each step does, and the program's state holds the steps.
+
+A click runs exactly what the summary says. The kit fixes every value when the button renders:
+the value of each `@Set`, the message of a `@ToAssistant`, and the tool and the arguments of each
+mutation. The summary states each one in full, and nothing is cut for display. So a step cannot
+change what a later step does after the user read the tooltip. This differs from OpenUI's own
+renderer, which evaluates each step at the click.
+
+The kit gives no action, with a warning, for steps the user could not review: more than 8 steps,
+a summary of more than 1,000 characters, two messages in one action, or a mutation whose tool is
+not a name.
+
+The kit checks all that an action needs before its first step runs: the chat is free for a
+message or a mutation, each URL is allowed, and each mutation may run, with the user's approval
+where its tool needs one. An action that cannot finish changes nothing. A tool that fails as it
+runs still stops the steps after it.
 
 Where a prop's action schema requires a `label`, as the built-in card's actions do, the kit fills
 one: the text of a `send`, cut to 40 characters, or the host of an `openUrl`.
@@ -765,7 +830,8 @@ A `@Set`, `@Reset` or `@Run` becomes a `state` action. A prop runs it only if it
 ### Expecting a reply loaded from history to keep its state
 
 The state of a program lives with the component that shows it. A thread that loads again shows
-each program from its declared defaults.
+each program from its declared defaults. Only the last reply runs its queries on load. A program
+in an older reply shows the defaults of its queries until the user acts in it.
 
 ### Forgetting Zod
 
