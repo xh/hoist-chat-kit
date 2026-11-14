@@ -162,8 +162,8 @@ export interface MeasureOptions {
  * - Each read of a loop variable at the size of the largest item of its list. lang-core copies
  *   the item into the template once per item, for each place that names the variable. It then
  *   reads a field of an item that is an object straight from the copy.
- * - `@Sort` and `@Filter` once per item, times the size of their field path, which they split
- *   again for each item.
+ * - `@Sort` and `@Filter` once per item, times the size of their field path, of an item, and of
+ *   the value that a filter compares with. They read each of these again for each item.
  * - A field read on a list once per item, as it reads the field of each.
  *
  * It accepts what lang-core's parser returns, where plain values, elements and expressions mix,
@@ -231,7 +231,10 @@ export function measureExpression(root: unknown, opts: MeasureOptions): ValueSha
             case 'Ref': {
                 const {n} = value;
                 if (at.isDynamic || at.scope.has(n)) return total(readItem(n, at));
-                const target = open.has(n) ? undefined : statement?.(n);
+                // After the parse, a name that is no loop variable reads the query of that
+                // name, if there is one.
+                if (!statement) return total(held(n, 'query'));
+                const target = open.has(n) ? undefined : statement(n);
                 if (target === undefined) return scalarShape();
                 if (target === 'query') return total(held(n, 'query'));
                 // A name that refers to itself is null in lang-core.
@@ -357,9 +360,14 @@ export function measureExpression(root: unknown, opts: MeasureOptions): ValueSha
             }
             case 'Sort':
             case 'Filter': {
-                // Each compare splits the field path again.
+                // Each compare splits the field path again, and turns the item into text. A
+                // filter also turns the value it compares with into text, once per item.
                 const [list, field, ...rest] = args.map(sub),
-                    perItem = (node.name === 'Sort' ? SORT_COMPARES : 1) * (field?.size ?? 1);
+                    item = list?.inside?.size ?? 1,
+                    perItem =
+                        node.name === 'Sort'
+                            ? SORT_COMPARES * ((field?.size ?? 1) + item)
+                            : (field?.size ?? 1) + item + sizeOf(rest);
                 if (!list) return scalarShape();
                 return total({
                     ...list,
