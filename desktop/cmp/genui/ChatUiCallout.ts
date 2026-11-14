@@ -9,7 +9,7 @@ import './ChatUiCallout.scss';
 
 /** Props of a callout component, as written by the model. It shows as a Hoist `Banner`. */
 export interface ChatUiCalloutSpecProps {
-    /** The message, in markdown. Bold, italics and links show - other markdown shows inline. */
+    /** The message, in markdown - for bold, italics and links. Keep it to a sentence or two. */
     text: string;
 
     /**

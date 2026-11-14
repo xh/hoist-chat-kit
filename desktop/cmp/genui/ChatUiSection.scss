@@ -12,16 +12,13 @@
 
   // A fieldset is as wide as its content unless told otherwise.
   min-width: 0;
-  padding: 0;
 
   > .xh-card__content {
     gap: var(--xh-chat-part-gap, var(--xh-pad-px));
     min-width: 0;
-    padding: var(--xh-pad-px);
   }
 
   > legend {
-    font-weight: 500;
     max-width: 100%;
   }
 }
