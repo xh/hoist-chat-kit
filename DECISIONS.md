@@ -146,6 +146,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D122](#d122-openui-lang-runs-on-thesyss-headless-core-with-the-kits-catalog) | OpenUI Lang runs on Thesys's headless core, with the kit's catalog | Accepted |
 | [D123](#d123-adapters-render-partial-documents) | Adapters render partial documents | Accepted |
 | [D124](#d124-built-in-generative-ui-components-render-hoist-components) | Built-in generative UI components render Hoist components | Accepted |
+| [D128](#d128-a-spec-gives-a-hoist-component-plain-data-safe-text-and-one-model) | A spec gives a Hoist component plain data, safe text and one model | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2597,3 +2598,43 @@ through Hoist's own variables.
 **Alternatives.** Keep the kit's own components beside Hoist's. Each would need its own styling,
 accessibility work and docs. Rename the spec and its catalog name after `StatCard`. The catalog
 name is vocabulary for prompts and stored replies, not for the implementation.
+
+## D128. A spec gives a Hoist component plain data, safe text and one model
+
+**Status.** Accepted.
+
+**Decision.** The specs for tabs, sections, callouts, badges, dividers and treemaps follow D124:
+each renders a hoist-react component, and the kit adds no presentational component. They share
+four rules, which a later built-in spec follows too.
+
+- **Plain data, matched by position.** A model cannot write a `TabConfig` with a `content`
+  function, so the tabs spec takes a list of titles. The first title names the first child. A
+  missing title gets a default, and a title with no child shows no tab.
+- **Model text is never markup.** A string prop that a Hoist component reads as markup takes an
+  element or escaped text. The callout passes `Banner` rendered chat markdown, as a string
+  `message` goes through Hoist's markdown, which loads images. The treemap escapes each label, as
+  Highcharts reads a label as HTML.
+- **One Hoist model for the life of the component.** A component that needs a Hoist model, such as
+  a `TabContainerModel` or a `TreeMapModel`, creates it once and updates it as the props stream.
+  Where a Hoist model reads its config once, as `CardModel` does, the spec remounts the component
+  when that config changes.
+- **A catalog name says what the component is for.** The spec over `Card` is `section`, as `card`
+  already names the record card. The spec over `Banner` is `callout`.
+
+`ChatUiFrame`, `ChatUiCard` and the frames of the grid, chart and treemap stay as they are. They
+move together or not at all, so that the cards of one reply look alike.
+
+**Why.** These rules are what "ready for a model" came to mean across six wraps. A model writes
+JSON, by position in OpenUI Lang, and its text may come from a prompt injection. A Hoist component
+takes models, elements and callbacks, and trusts its developer. The spec is where the two meet.
+
+Hoist's `Panel` is the nearest match for `ChatUiFrame`, with a title, an icon, header items and a
+bottom toolbar. It has no slot for muted text after the title and no building state, and it is
+built to fill a flex parent. Hoist's `Card` has no header items and no footer. Hoist has no
+component for a list of labeled values, and a read-only `Form` cannot add a field as one streams
+in. Those gaps are hoist-react backlog.
+
+**Alternatives.** A `tab` component per child, with its own title, as OpenUI's `TabItem`. A
+container sees its children rendered, not their props, so it could not read the titles. Move the
+titled stack alone onto `Card`. It would then look unlike the grid and chart cards beside it.
+Build a list of labeled values in the kit. D124 rules that out.

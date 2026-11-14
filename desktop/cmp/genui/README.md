@@ -9,7 +9,7 @@
 | [Overview](#overview) | What the built-in components are, and the key features |
 | [Architecture](#architecture) | Factories, components, and how a call becomes a rendered component |
 | [Configuration Pattern](#configuration-pattern) | Adding the components to a `ChatUiCatalog` and a `ChatModel` |
-| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, metrics, cards, nested answers, and direct use |
+| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, metrics, cards, nested answers, tabs, sections, callouts, and direct use |
 | [Properties/API Reference](#propertiesapi-reference) | Factory options and the props each component takes |
 | [Extension Points](#extension-points) | Renaming, describing, limiting, and writing your own |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -19,8 +19,9 @@
 
 The `/desktop/cmp/genui/` package holds ready-made components for generative UI. A model shows
 them inline in its reply: a result table, a Hoist chart, a row of stat cards, and a detail card. A
-stack and a text component lay these out in a nested answer. Add them to a `ChatUiCatalog` next
-to your own components. The model can then answer with real Hoist UI in place of long tables of
+stack and a text component lay these out in a nested answer. Tabs, sections, callouts, badges,
+dividers and a treemap add structure and emphasis, each a spec over a Hoist component. Add them to
+a `ChatUiCatalog` next to your own components. The model can then answer with real Hoist UI in place of long tables of
 text.
 
 Import from `@xh/hoist-chat-kit/desktop/cmp/genui`.
@@ -32,6 +33,9 @@ Key features:
   `ChatUiComponentSpec`, with a props schema, checks, a description for the model, and an example.
 - **Nested answers** - a stack lays out components in a column or a row, and a text component
   holds the prose between them, as markdown.
+- **Hoist components for structure** - `chatUiTabsSpec()`, `chatUiSectionSpec()`,
+  `chatUiCalloutSpec()`, `chatUiBadgesSpec()`, `chatUiDividerSpec()` and `chatUiTreeMapSpec()` map
+  plain props to Hoist's `TabContainer`, `Card`, `Banner`, `Badge`, `hr` and `TreeMap`.
 - **Result tables in two tiers** - inline, a table is a light preview of its first rows and
   columns, with a footer that says what it leaves out. Expand opens one Hoist `Grid` over the
   whole result, in the chat's side panel or in a dialog.
@@ -61,15 +65,22 @@ chatUiMetricsSpec(opts) → ChatUiComponentSpec<ChatUiMetricsSpecProps> → Stat
 chatUiCardSpec(opts)    → ChatUiComponentSpec<ChatUiCardSpecProps>    → ChatUiCard
 chatUiStackSpec(opts)   → ChatUiComponentSpec<ChatUiStackSpecProps>   → ChatUiStack
 chatUiTextSpec(opts)    → ChatUiComponentSpec<ChatUiTextSpecProps>    → ChatUiText
+chatUiTabsSpec(opts)    → ChatUiComponentSpec<ChatUiTabsSpecProps>    → ChatUiTabs → TabContainer (Hoist)
+chatUiSectionSpec(opts) → ChatUiComponentSpec<ChatUiSectionSpecProps> → Card (Hoist)
+chatUiCalloutSpec(opts) → ChatUiComponentSpec<ChatUiCalloutSpecProps> → Banner (Hoist)
+chatUiBadgesSpec(opts)  → ChatUiComponentSpec<ChatUiBadgesSpecProps>  → Badge (Hoist)
+chatUiDividerSpec(opts) → ChatUiComponentSpec<ChatUiDividerSpecProps> → hr (Hoist)
+chatUiTreeMapSpec(opts) → ChatUiComponentSpec<ChatUiTreeMapSpecProps> → ChatUiTreeMap → TreeMap (Hoist)
 ```
 
 Each factory returns a spec for a `ChatUiCatalog`. The catalog turns the spec into a tool named
-`show_<name>`: `show_grid`, `show_chart`, `show_metrics` and `show_card` by default. When the
+`show_<name>`: `show_grid`, `show_chart`, `show_metrics`, `show_card`, `show_callout` and
+`show_treemap` by default. When the
 model calls the tool, the catalog checks the props against the spec's schema and its `validate`
 function. It then calls the spec's `render`, which returns the matching component.
 
-The stack and the text component set `standalone: false`, so they have no tool or tag of their
-own. They show only inside a nested answer: a `show_ui` document, an `xh.chat.ui` data part, or
+The stack, text, tabs, section, badges and divider components set `standalone: false`, so they
+have no tool or tag of their own. They show only inside a nested answer: a `show_ui` document, an `xh.chat.ui` data part, or
 a text format that writes documents.
 
 While the model writes the props, `render` runs with `isPartial: true` and props that may be cut
@@ -85,6 +96,12 @@ short. The components handle this:
 - `ChatUiStack` shows each child as it arrives. The catalog draws a placeholder for a child still
   to come.
 - `ChatUiText` renders its markdown as it streams, as a reply's own text does.
+- `ChatUiTabs` adds a tab as each child arrives, and renames it when its title does. It keeps one
+  `TabContainerModel`, so the tab the user chose stays active.
+- The section spec remounts its `Card` if a collapse prop arrives after the title, as a
+  `CardModel` reads its config once.
+- The callout spec shows its text as it streams. The badges spec shows complete badges only.
+- `ChatUiTreeMap` loads its `Store` with each complete box. Hoist updates the boxes in place.
 
 A table or chart card keeps the height it will need from the moment its type is known, so
 nothing below it moves when the data lands. A skeleton still shown after a second shimmers three
@@ -343,6 +360,64 @@ const catalog = new ChatUiCatalog({
 });
 ```
 
+### Group, tab and call out parts of an answer
+
+Tabs and sections are containers, as the stack is. Each takes children, and nests in a document:
+
+```json
+{
+    "root": "answer",
+    "elements": {
+        "answer": {"component": "stack", "props": {}, "children": ["note", "tags", "views", "detail"]},
+        "note": {"component": "callout", "props": {"text": "VaR is **12% over** its limit.", "intent": "warning", "title": "Limit breach"}},
+        "tags": {"component": "badges", "props": {"badges": [{"label": "Rates", "intent": "danger"}, {"label": "USD"}]}},
+        "views": {"component": "tabs", "props": {"titles": ["Chart", "Data"]}, "children": ["trend", "rows"]},
+        "detail": {"component": "section", "props": {"title": "By desk", "collapsed": true}, "children": ["desks"]}
+    }
+}
+```
+
+- **Tabs** render Hoist's `TabContainer`. `titles` names the children by position: the first
+  title is the tab of the first child. A child with no title is named `Tab 2`, and a title with
+  no child shows no tab. A tab builds its child when first shown, and keeps it after that.
+- **A section** renders Hoist's `Card`: a bordered group under a `title`, with an optional
+  `intent` for the color of its border and title. With `collapsible`, a click on the title
+  collapses it. With `collapsed`, it starts collapsed and builds its children on first expand.
+  Several collapsible sections in a column read as an accordion. A section with no title never
+  collapses.
+- **A callout** renders Hoist's `Banner`, tinted and with the icon of its `intent`: `primary` for
+  a note, `success`, `warning` or `danger`, and `none` for a neutral message with no icon. Its
+  `text` takes markdown bold, italics and links. It has a tool of its own, `show_callout`.
+- **Badges** render a Hoist `Badge` per label, each in the color of its `intent`, in a row that
+  wraps.
+- **A divider** renders a rule. It takes no props. In a row stack it stands as a vertical rule.
+
+Style them through Hoist's own variables, such as `--xh-card-*` under `.xh-chat-ui-section` and
+`--xh-badge-*` under `.xh-chat-ui-badges`.
+
+### Show a treemap
+
+```json
+{
+    "title": "Exposure by desk",
+    "format": "currency",
+    "decimals": 0,
+    "heatLabel": "Day change",
+    "heatFormat": "percent",
+    "nodes": [
+        {"label": "Rates", "value": 4200000, "heat": 0.012},
+        {"label": "Credit", "value": 2600000, "heat": -0.008},
+        {"label": "FX", "value": 1100000}
+    ]
+}
+```
+
+The treemap renders Hoist's `TreeMap` at the height of a chart card. Each box takes its size from
+`value` and its color from `heat`: green above zero and red below, stronger the further from
+zero. A box with no heat is neutral. The tooltip shows the value in `format`, and the heat in
+`heatFormat` under `heatLabel`. The treemap is flat. Hoist's `TreeMap` draws nested boxes only
+with a tree grid bound to it.
+
 ### Render a component directly
 
 The components also work outside a catalog, for example in a data renderer or a custom tool
@@ -360,7 +435,11 @@ chatUiCard({
     chatModel,
     runActionAsync: action => catalog.runActionAsync(action, {chatModel, messageId})
 });
+chatUiTabs({titles: ['Chart', 'Data'], items: [chart, grid]});
+chatUiTreeMap({nodes, format: 'currency'});
 ```
+
+For a section, a callout or badges, render Hoist's `card()`, `banner()` and `badge()`.
 
 ## Properties/API Reference
 
@@ -396,6 +475,13 @@ and `description`, the text that tells the model when to use the component.
 | | `actionTypes` | `ChatUiActionType[]` | Kinds of action the model may put on the card. Default `['send']`. |
 | `chatUiStackSpec` | - | - | No options beyond `name` and `description`. |
 | `chatUiTextSpec` | `maxLength` | `number` | Most characters of text the model may send. Default 2,000. |
+| `chatUiTabsSpec` | `maxTabs` | `number` | Most tabs. Default 6. |
+| `chatUiSectionSpec` | - | - | No options beyond `name` and `description`. |
+| `chatUiCalloutSpec` | `maxLength` | `number` | Most characters of text. Default 500. |
+| `chatUiBadgesSpec` | `maxItems` | `number` | Most badges. Default 12. |
+| `chatUiDividerSpec` | - | - | No options beyond `name` and `description`. |
+| `chatUiTreeMapSpec` | `maxNodes` | `number` | Most boxes. Default 60. |
+| | `height` | `number` | Treemap body height, in pixels. Default the `--xh-chat-chart-height` variable. |
 
 ### App-wide defaults
 
@@ -426,6 +512,18 @@ ChatUiGrid.defaults.exportConfirmAbove = 50_000;
 | `ChatUiCard` | `title`, `subtitle`, `fields`, `actions` | `chatModel`, `runActionAsync`, `isPartial` |
 | `ChatUiStack` | `direction`, `gap`, `title` | `children` |
 | `ChatUiText` | `text` | `isPartial` |
+| `ChatUiTabs` | `titles` | `children`, `isPartial` |
+| `ChatUiTreeMap` | `title`, `format`, `decimals`, `heatLabel`, `heatFormat`, `nodes` | `height`, `isPartial` |
+
+The section, callout, badges and divider specs render Hoist components, and have no component of
+their own. Their props from the model:
+
+| Spec | Props from the model |
+|------|----------------------|
+| `chatUiSectionSpec` | `title`, `intent`, `collapsible`, `collapsed` |
+| `chatUiCalloutSpec` | `text`, `intent`, `title` |
+| `chatUiBadgesSpec` | `badges`, each a `label` and an optional `intent` |
+| `chatUiDividerSpec` | None |
 
 See the TSDoc in each source file for the full shape of the props.
 
@@ -459,6 +557,19 @@ The format descriptions in each schema tell the model so.
 `ChatUiChart` renders a Hoist `Chart`, which shows a placeholder if the app has not installed
 Highcharts. Install it in `Bootstrap.ts` with `installHighcharts()`.
 
+### Expecting a treemap without the treemap module
+
+`ChatUiTreeMap` renders a Hoist `TreeMap`, which needs Highcharts with its treemap module.
+Import `highcharts/modules/treemap` in `Bootstrap.ts` before the call to `installHighcharts()`, as
+for any Hoist `TreeMap`.
+
+### Passing model text to a Hoist prop that reads markup
+
+A Hoist component may read a string prop as markup. `Banner` renders a string `message` with
+Hoist's markdown, which loads images, and Highcharts reads a label as HTML. Model text may come
+from a prompt injection. The built-in specs pass it as rendered chat markdown, or escape it. Do
+the same in a spec of your own.
+
 ### Keeping limits high
 
 Every later step of a turn resends a component's props with the history. A grid of 100 rows
@@ -482,5 +593,8 @@ footer, and the full grid stays on offer. Have the tool sort and filter on the s
 - [`/core/`](../../../core/README.md) - `ChatModel` and `ChatToolSpec`
 - [Protocols](../../../docs/protocols.md) - how generative UI protocols relate to the kit
 - hoist-react `/cmp/grid/` - `GridModel`, columns, and renderers
+- hoist-react `/cmp/tab/` - `TabContainer` and `TabContainerModel`
+- hoist-react `/cmp/card/`, `/cmp/badge/`, `/cmp/treemap/` and `/desktop/cmp/banner/` - `Card`,
+  `Badge`, `TreeMap` and `Banner`
 - hoist-react `/cmp/chart/` - `ChartModel`, and installing Highcharts
 - hoist-react `/format/` - the number and date formatters

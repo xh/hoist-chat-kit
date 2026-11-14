@@ -2,8 +2,8 @@
 export interface ChatUiSpecOptions {
     /**
      * Name of the component in its catalog. The model shows it by calling the tool
-     * `show_<name>`. Defaults to the component's own name - `grid`, `chart`, `metrics`, `card`,
-     * `stack` or `text`.
+     * `show_<name>`. Defaults to the component's own name, such as `grid`, `chart`, `metrics`,
+     * `card`, `stack`, `text`, `tabs` or `section`.
      */
     name?: string;
 
