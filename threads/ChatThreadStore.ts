@@ -96,6 +96,13 @@ export interface ChatMessagePage {
     messages: ChatMessageSpec[];
 
     /**
+     * The agent's shared state for the thread, as the backend holds it - see
+     * `ChatModel.agentState`. The chat then holds it as soon as the thread opens. Leave it out,
+     * or null, for a chat with no state until the agent next sends it.
+     */
+    agentState?: any;
+
+    /**
      * Cursor for older messages, for a backend that returns history a page at a time, or null if
      * there are none. The kit ignores it, and shows the messages returned.
      */

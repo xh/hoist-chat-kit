@@ -37,12 +37,6 @@ export interface AgUiCodecConfig {
     forwardedProps?: PlainObject | ((request: ChatRunRequest) => PlainObject);
 
     /**
-     * The agent's state, sent as the `state` of each run - or a function to build it per run, e.g.
-     * from the app's current selection. Default an empty object.
-     */
-    state?: PlainObject | ((request: ChatRunRequest) => PlainObject);
-
-    /**
      * True to send only what the server has not seen, in server mode: the user message on the
      * first step of a turn, or, on a `continue` step, the client tool calls of the reply's last
      * step with their results. This is outside the AG-UI spec, which requires the whole history.
@@ -81,6 +75,10 @@ export interface AgUiContext {
  * value as text, or as JSON for an object. The structured context of the turn's user message,
  * from its `metadata.context`, goes last, as JSON.
  *
+ * `state` is the agent's shared state as the chat holds it - the request's `agentState`, or an
+ * empty object for a request with none. The agent's `STATE_SNAPSHOT` and `STATE_DELTA` events
+ * change the state from there - see `ChatModel.agentState`.
+ *
  * `messages` carries every message the chat holds, in both history modes, as AG-UI requires: an
  * agent "MUST treat it as the complete history it is being shown". A tool result always travels
  * with the assistant message that called the tool. Each message goes with the server's id where
@@ -115,9 +113,6 @@ export class AgUiCodec implements ChatCodec {
     /** Values passed to the agent untouched, or a function to build them per run. */
     readonly forwardedProps: AgUiCodecConfig['forwardedProps'];
 
-    /** The agent's state, or a function to build it per run. */
-    readonly state: AgUiCodecConfig['state'];
-
     /** True to send only what the server has not seen, in server mode. */
     readonly newMessagesOnly: boolean;
 
@@ -127,25 +122,24 @@ export class AgUiCodec implements ChatCodec {
     constructor({
         context = null,
         forwardedProps = null,
-        state = null,
         newMessagesOnly = false
     }: AgUiCodecConfig = {}) {
         this.context = context;
         this.forwardedProps = forwardedProps;
-        this.state = state;
         this.newMessagesOnly = newMessagesOnly;
     }
 
     encodeRequest(request: ChatRunRequest): PlainObject {
-        const {threadId, runId, historyMode, messages, newMessages, tools} = request,
-            {context, state} = this,
+        const {threadId, runId, historyMode, messages, newMessages, tools, agentState} = request,
+            {context} = this,
             // Each id goes out once per request.
             usedIds = new Set<string>();
         return checkAgUiInput({
             threadId,
             runId,
             protocolVersion: '1.0',
-            state: (isFunction(state) ? state(request) : state) ?? {},
+            // Null is a state of its own, which an agent may set.
+            state: agentState === undefined ? {} : agentState,
             messages:
                 this.newMessagesOnly && historyMode === 'server'
                     ? flatMap(newMessages, it => encodeNewMessage(it, usedIds))

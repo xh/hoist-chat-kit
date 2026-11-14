@@ -140,6 +140,14 @@ export interface ChatRunRequest {
      */
     resume?: ResumeEntry[];
 
+    /**
+     * The agent's shared state, as the chat holds it when the step starts - see
+     * `ChatModel.agentState`. `AgUiCodec` sends it as `RunAgentInput.state`, and the step's
+     * `STATE_DELTA` events patch it. The other codecs do not send it. Optional: a request with
+     * none sends an empty object.
+     */
+    agentState?: any;
+
     /** Tools the model may call - only those to be sent to the model. */
     tools: ChatToolSpec[];
 
@@ -193,6 +201,7 @@ export interface ChatRunRequestSpec extends Partial<ChatRunRequest> {
  *  - `turnId` - id of the last user message. `newMessages` - that message alone.
  *  - `runOptions` - the `metadata.runOptions` of that message, or null.
  *  - `replacedMessageId`, `catalogVersion` and `resume` - null. `tools` and `context` - empty.
+ *  - `agentState` - an empty object.
  *  - `signal` - the signal of a new `AbortController`, which nothing aborts. Pass your own
  *    signal to be able to stop the step.
  *
@@ -214,6 +223,7 @@ export function createChatRunRequest(spec: ChatRunRequestSpec): ChatRunRequest {
         runOptions: userMessage?.metadata.runOptions ?? null,
         catalogVersion: null,
         resume: null,
+        agentState: {},
         tools: [],
         context: [],
         signal: new AbortController().signal,

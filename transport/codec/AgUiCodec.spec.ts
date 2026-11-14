@@ -92,12 +92,15 @@ describe('AgUiCodec', () => {
             expect(body.forwardedProps).toEqual({threadId: 't1'});
         });
 
-        it('sends the agent state as a value, or built per run by a function', () => {
-            const fixed = new AgUiCodec({state: {sector: 'Energy'}}),
-                built = new AgUiCodec({state: req => ({run: req.runId})});
+        it("sends the request's agent state as the state, whatever JSON value it is", () => {
+            const encode = (agentState: any) =>
+                new AgUiCodec().encodeRequest(request([user('Hi')], {agentState})).state;
 
-            expect(fixed.encodeRequest(request([user('Hi')])).state).toEqual({sector: 'Energy'});
-            expect(built.encodeRequest(request([user('Hi')])).state).toEqual({run: 'r1'});
+            expect(encode({todos: ['Plan']})).toEqual({todos: ['Plan']});
+            expect(encode(['only-this'])).toEqual(['only-this']);
+            // A state the agent set to a falsy value goes back as it is, not as an empty object.
+            expect(encode(null)).toBeNull();
+            expect(encode(0)).toBe(0);
         });
 
         it('sends user attachments as content parts', () => {

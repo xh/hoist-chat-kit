@@ -83,6 +83,11 @@ export interface ChatReplayOptions {
  * Neither the user's message nor the results of tools run in the browser are among AG-UI events.
  * Build the user's message from the backend's own record of it.
  *
+ * The agent's shared state is no part of a reply, so the replay skips `STATE_SNAPSHOT` and
+ * `STATE_DELTA` events. A stored turn does not hold the state its request sent, which its deltas
+ * patch. Take the thread's state from the backend's own record of it - see
+ * `ChatModel.agentState`.
+ *
  * @param records - the turn's stored events, in the order they streamed. With `opts.decoder`, the
  *      raw records it decodes.
  */
@@ -100,7 +105,11 @@ export function replayChatEvents(
         reducer: ChatStreamReducer = null;
     runs.forEach((run, idx) => {
         reducer = new ChatStreamReducer(idx, {textTransform, useEventTimestamps: true});
-        message = reducer.apply(message, run);
+        // State events count for the run's times only - their deltas have no state to patch here.
+        message = reducer.apply(
+            message,
+            run.filter(it => !STATE_EVENT_TYPES.includes(it.type))
+        );
         if (idx < lastIdx) message = reducer.finish(message);
     });
 
@@ -173,7 +182,8 @@ export function replayChatEvents(
 //------------------
 // Implementation
 //------------------
-const ERROR_KEYS = ['errorCode', 'retryAfterSeconds', 'retrySafe'];
+const ERROR_KEYS = ['errorCode', 'retryAfterSeconds', 'retrySafe'],
+    STATE_EVENT_TYPES = ['STATE_SNAPSHOT', 'STATE_DELTA'];
 
 /**
  * The records' events, through the decoder if given. A record the decoder rejects ends the

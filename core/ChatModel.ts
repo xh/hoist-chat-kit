@@ -178,6 +178,12 @@ export interface ChatModelConfig {
     runOptions?: PlainObject;
 
     /**
+     * Initial value of {@link ChatModel.agentState}, such as the state that the backend holds for
+     * a thread restored with `initialMessages`. Default an empty object.
+     */
+    agentState?: any;
+
+    /**
      * Rewrites model text as it streams, before it is stored - for example to strip markup that
      * a model leaks, such as `<thinking>` tags. Called on each change to a text part of a reply,
      * with all of the part's text so far, and once more when the part is done. Must be pure and
@@ -491,6 +497,24 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     @bindableRef accessor runOptions: PlainObject;
 
     /**
+     * The agent's shared state: a JSON value that the agent and the app both read and write, such
+     * as an agent's to-do list or the status of its sub-agents. An empty object until either sets
+     * it.
+     *
+     * The agent changes it as a turn runs. An AG-UI `STATE_SNAPSHOT` event replaces it, and a
+     * `STATE_DELTA` event patches it. The app changes it with {@link setAgentState}, only while no
+     * turn runs. Every request carries the state as it then stands, as
+     * `ChatRunRequest.agentState`, which `AgUiCodec` sends as the run's `state`.
+     *
+     * Replaced, never mutated, on change, so a component that reads it renders again. `clear` and
+     * `loadMessages` reset it to an empty object, as the chat does not store it. Set only by the
+     * chat. (observable)
+     */
+    get agentState(): any {
+        return this._agentState;
+    }
+
+    /**
      * True if the user may edit a sent message and re-run from it. While false, the message views
      * hide Edit, Edit Prompt and Edit Question, and `editMessageAsync` does nothing. (bindable)
      */
@@ -683,6 +707,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             threadId,
             historyMode = 'client',
             runOptions = null,
+            agentState = null,
             textTransform = null,
             feedback,
             stallAfterMs,
@@ -751,6 +776,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         // An id given with history is the backend's. A new thread's may yet be replaced by it.
         this.isThreadIdProvisional = threadId == null || !hasHistory(initialMessages);
         this.runOptions = runOptions;
+        this._agentState = agentState ?? {};
         this.textTransform = textTransform;
         this.trackOptions = track === true ? {} : track || null;
         this.dataRenderers = {...catalog?.createDataRenderers(), ...dataRenderers};
@@ -1175,7 +1201,30 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         await this.statusRefresher?.();
     }
 
-    /** Remove all messages and start a new thread. Stops any turn in progress. */
+    /**
+     * Replace the agent's shared state - see {@link agentState}. The next request carries the new
+     * state, and the agent's later changes apply to it.
+     *
+     * Works only while no turn runs, so that the agent and the app never write the state at the
+     * same time. A turn paused for the user is not running. While a turn runs, the call logs a
+     * warning and does nothing, so read `isBusy` first.
+     *
+     * @param state - a plain JSON value, new for each change. Null resets the state to an empty
+     *      object.
+     */
+    @action
+    setAgentState(state: any) {
+        if (this.isTurnRunning) {
+            this.logWarn('Agent state not set - a turn is in progress.');
+            return;
+        }
+        this._agentState = state ?? {};
+    }
+
+    /**
+     * Remove all messages and start a new thread, with an empty {@link agentState}. Stops any
+     * turn in progress.
+     */
     clear() {
         this.replaceThread([], null, 'clear');
     }
@@ -1193,6 +1242,9 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      *
      * In server mode, a turn still running on the server is detached rather than cancelled - see
      * {@link detach}.
+     *
+     * The load resets {@link agentState} to an empty object. To restore a state the backend
+     * holds for the thread, call {@link setAgentState} after the load.
      *
      * @param threadId - id of the loaded conversation, to send to the backend. Default a new id.
      */
@@ -1239,6 +1291,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     private readonly trackOptions: ChatTrackOptions;
 
     @observable private accessor _threadId: string;
+    @observableRef private accessor _agentState: any = {};
     @observable private accessor _lastActivityAt: number = null;
     @observableRef private accessor feedbackSubmitter: ChatFeedbackSubmitter = null;
     @observableRef private accessor sendBlockers: Array<() => string>;
@@ -1528,6 +1581,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
                 runOptions: turn.runOptions,
                 catalogVersion: this.catalog?.version ?? null,
                 resume: this.interruptSet?.isSubmitted ? buildResume(this.interruptSet) : null,
+                agentState: this.agentState,
                 tools: this.modelTools,
                 context: [],
                 signal: turn.abortController.signal,
@@ -1543,7 +1597,11 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             if (!this.isCurrent(turn)) return;
         }
 
-        turn.reducer = new ChatStreamReducer(step, {textTransform: this.textTransform});
+        // The step's state events change the state from the one its request carries.
+        turn.reducer = new ChatStreamReducer(step, {
+            textTransform: this.textTransform,
+            agentState: request.agentState
+        });
         turn.request = request;
         turn.isStepSent = true;
         this.setLastActivityAt(Date.now());
@@ -1853,6 +1911,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         }
         this.artifacts.clear();
         this.addArtifactsOf(this.messages);
+        this._agentState = {};
         this.feedbackDrafts = {};
         this.status = 'ready';
         this.lastError = null;
@@ -1981,6 +2040,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.replaceMessage(message);
         this.addArtifactsOf([message]);
         this.applyServerIds(turn);
+        this._agentState = turn.reducer.agentState;
         if (message.status === 'streaming' && this.status === 'submitted') {
             this.status = 'streaming';
         }
