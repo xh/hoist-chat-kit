@@ -1135,7 +1135,8 @@ describe('ChatStreamReducer', () => {
 
             expect(new ChatStreamReducer(0).agentState).toEqual({});
             expect(new ChatStreamReducer(0, {agentState: sent}).agentState).toBe(sent);
-            expect(new ChatStreamReducer(0, {agentState: null}).agentState).toBeNull();
+            // A request with a null state sends an empty object, so that is what a delta patches.
+            expect(new ChatStreamReducer(0, {agentState: null}).agentState).toEqual({});
         });
 
         it('replaces the state with a snapshot, whatever JSON value it is', () => {
@@ -1219,6 +1220,32 @@ describe('ChatStreamReducer', () => {
             ]);
 
             expect(reducer.agentState).toBe(sent);
+        });
+
+        it('keeps the same value for a snapshot equal to the state', () => {
+            const sent = {todos: [{id: 1, status: 'done'}]},
+                reducer = new ChatStreamReducer(0, {agentState: sent});
+
+            reducer.apply(pendingMessage(), [
+                {type: 'STATE_SNAPSHOT', snapshot: {todos: [{id: 1, status: 'done'}]}}
+            ]);
+
+            expect(reducer.agentState).toBe(sent);
+        });
+
+        it('keeps a state it cannot copy, with a warning, and goes on with the step', () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => {}),
+                // The official client copies the state with `structuredClone`, which throws here.
+                sent = {todos: [], onChange: () => {}},
+                reducer = new ChatStreamReducer(0, {agentState: sent}),
+                message = reducer.apply(pendingMessage(), [
+                    {type: 'STATE_DELTA', delta: [{op: 'add', path: '/todos/-', value: 'Plan'}]},
+                    {type: 'TEXT_MESSAGE_CONTENT', messageId: 'm1', delta: 'Still here.'}
+                ]);
+
+            expect(reducer.agentState).toBe(sent);
+            expect(warn).toHaveBeenCalled();
+            expect(message.text).toBe('Still here.');
         });
 
         it('leaves the message alone', () => {

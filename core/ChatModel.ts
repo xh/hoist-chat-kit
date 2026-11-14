@@ -7,6 +7,7 @@ import {
     intersection,
     isArray,
     isEmpty,
+    isEqual,
     isFunction,
     isString,
     keys,
@@ -81,6 +82,7 @@ import {
 } from './impl/interrupts';
 import type {Interrupt} from '@ag-ui/core';
 import {genChatId} from '../impl/LangUtils';
+import {toAgentState} from './impl/agentState';
 import {
     createTextPart,
     getClientToolCalls,
@@ -506,8 +508,10 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      * turn runs. Every request carries the state as it then stands, as
      * `ChatRunRequest.agentState`, which `AgUiCodec` sends as the run's `state`.
      *
-     * Replaced, never mutated, on change, so a component that reads it renders again. `clear` and
-     * `loadMessages` reset it to an empty object, as the chat does not store it. (observable)
+     * Replaced, never mutated, on change, so a component that reads it renders again. A change
+     * that leaves it equal keeps the value held. Never null: the chat holds an empty object for
+     * a null state, from the app or from an agent's snapshot. `clear` and `loadMessages` reset it
+     * to an empty object, as the chat does not store it. (observable)
      */
     get agentState(): any {
         return this._agentState;
@@ -775,7 +779,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         // An id given with history is the backend's. A new thread's may yet be replaced by it.
         this.isThreadIdProvisional = threadId == null || !hasHistory(initialMessages);
         this.runOptions = runOptions;
-        this._agentState = agentState ?? {};
+        this._agentState = toAgentState(agentState);
         this.textTransform = textTransform;
         this.trackOptions = track === true ? {} : track || null;
         this.dataRenderers = {...catalog?.createDataRenderers(), ...dataRenderers};
@@ -1208,8 +1212,9 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      * same time. A turn paused for the user is not running. While a turn runs, the call logs a
      * warning and does nothing, so read `isBusy` first.
      *
-     * @param state - a plain JSON value, new for each change. Null resets the state to an empty
-     *      object.
+     * @param state - a JSON value. The chat holds a plain copy of it, so a MobX observable or a
+     *      later change to the value given never reaches the state. Null resets the state to an
+     *      empty object. Throws for a value with no JSON form, such as a function.
      */
     @action
     setAgentState(state: any) {
@@ -1217,7 +1222,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
             this.logWarn('Agent state not set - a turn is in progress.');
             return;
         }
-        this._agentState = state ?? {};
+        this.applyAgentState(toAgentState(state));
     }
 
     /**
@@ -2039,7 +2044,7 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         this.replaceMessage(message);
         this.addArtifactsOf([message]);
         this.applyServerIds(turn);
-        this._agentState = turn.reducer.agentState;
+        this.applyAgentState(turn.reducer.agentState);
         if (message.status === 'streaming' && this.status === 'submitted') {
             this.status = 'streaming';
         }
@@ -2069,6 +2074,18 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         if (threadId !== this.threadId) {
             this.logDebug('Adopted the server thread id', threadId);
             this._threadId = threadId;
+        }
+    }
+
+    /**
+     * Hold a state, unless it equals the one held, so that readers render only on a change. The
+     * chat holds an empty object for null, such as from an agent's null snapshot.
+     */
+    @action
+    private applyAgentState(state: any) {
+        state ??= {};
+        if (state !== this._agentState && !isEqual(state, this._agentState)) {
+            this._agentState = state;
         }
     }
 

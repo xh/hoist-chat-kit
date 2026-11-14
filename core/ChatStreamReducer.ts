@@ -4,6 +4,7 @@ import {
     findLast,
     isBoolean,
     isEmpty,
+    isEqual,
     isFinite,
     isNil,
     isPlainObject,
@@ -123,7 +124,11 @@ export class ChatStreamReducer {
     /**
      * The agent's shared state after the events applied so far. It starts as `opts.agentState`,
      * the state the step's request sent. A `STATE_SNAPSHOT` replaces it, and a `STATE_DELTA`
-     * patches it. A new value on each change, never mutated - see `ChatModel.agentState`.
+     * patches it. A new value on each change, never mutated, and the same value for a snapshot
+     * or a delta that changes nothing - see `ChatModel.agentState`.
+     *
+     * A snapshot of null makes the state null, as AG-UI defines, which no later delta can patch.
+     * `ChatModel` holds an empty object in its place.
      */
     get agentState(): any {
         return this.sharedState;
@@ -165,7 +170,7 @@ export class ChatStreamReducer {
      *      has one record no times. Default false.
      * @param opts.agentState - the agent's shared state that the step's request sent - the
      *      request's `agentState` - which the step's `STATE_DELTA` events patch. Default an empty
-     *      object, as `AgUiCodec` sends for a request with none.
+     *      object, also for null, as `AgUiCodec` sends for a request with none.
      */
     constructor(
         step: number,
@@ -178,8 +183,7 @@ export class ChatStreamReducer {
         this.step = step;
         this.textTransform = opts.textTransform ?? null;
         this.useEventTimestamps = opts.useEventTimestamps ?? false;
-        // Null is a state of its own, which an agent may set.
-        this.sharedState = opts.agentState === undefined ? {} : opts.agentState;
+        this.sharedState = opts.agentState ?? {};
     }
 
     /** Apply a batch of events, returning the updated message. */
@@ -383,8 +387,11 @@ export class ChatStreamReducer {
                 break;
 
             case 'STATE_SNAPSHOT':
-                // Any JSON value replaces the state, null and other falsy values included.
-                if (event.snapshot !== undefined) this.sharedState = event.snapshot;
+                // Any JSON value replaces the state, null and other falsy values included. An
+                // equal one keeps the value held, so that its readers do not render again.
+                if (event.snapshot !== undefined && !isEqual(event.snapshot, this.sharedState)) {
+                    this.sharedState = event.snapshot;
+                }
                 break;
             case 'STATE_DELTA':
                 this.sharedState = applyAgentStateDelta(this.sharedState, event.delta);

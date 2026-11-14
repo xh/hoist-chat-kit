@@ -144,7 +144,7 @@ export interface ChatRunRequest {
      * The agent's shared state, as the chat holds it when the step starts - see
      * `ChatModel.agentState`. `AgUiCodec` sends it as `RunAgentInput.state`, and the step's
      * `STATE_DELTA` events patch it. The other codecs do not send it. Optional: a request with
-     * none sends an empty object.
+     * none, or with null, sends an empty object.
      */
     agentState?: any;
 

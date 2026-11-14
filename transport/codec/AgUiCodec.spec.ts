@@ -102,10 +102,12 @@ describe('AgUiCodec', () => {
             expect(encode(0)).toBe(0);
         });
 
-        it('leaves a null state out of the request, as the official check does', () => {
-            const body = new AgUiCodec().encodeRequest(request([user('Hi')], {agentState: null}));
+        it('sends an empty object for a request with no state, or a null one', () => {
+            const encode = (changes: Partial<ChatRunRequest>) =>
+                new AgUiCodec().encodeRequest(request([user('Hi')], changes)).state;
 
-            expect(body).not.toHaveProperty('state');
+            expect(encode({})).toEqual({});
+            expect(encode({agentState: null})).toEqual({});
         });
 
         it('sends user attachments as content parts', () => {
