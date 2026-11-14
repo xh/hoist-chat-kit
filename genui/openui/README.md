@@ -255,8 +255,9 @@ places reaches the limit sooner.
 | Tool calls a chat's programs start in a minute | `maxCallsPerMinute`, default 60 | The call fails, and its query keeps its result |
 | Seconds between two refreshes of a query | `minRefreshSeconds`, default 10, at least 1, at most a day | The interval is held to the bound |
 
-A refused program shows as one fallback that says why. Each refusal takes a few milliseconds,
-whatever the program asks for.
+A refused program shows as one fallback. Its caption is the reason, in plain words that the
+user can act on or pass on, such as the limit that the program is past. Each refusal takes a few
+milliseconds, whatever the program asks for.
 
 ### Inline and whole-reply modes
 
@@ -286,7 +287,16 @@ complete.
 A chunk can cut a statement anywhere: inside a key, a number or a string. lang-core closes what
 is open, so a half-written object has a key cut short and no value. The kit leaves out the last
 item of a list at the end of that statement, and a key with no value yet. The element renders what
-has arrived, and never shows a fallback for a value that is only half-written. An unclosed fence is a program still streaming. A fence that
+has arrived, and never shows a fallback for a value that is only half-written.
+
+A statement still being written can also end in a name that is not whole yet, such as
+`positions.firstRows` cut at `pos`. lang-core reads such a name as null, which a required
+argument refuses. The kit keeps the statement partial, so its element shows as a placeholder
+with no error. With state on, an `@Each` evaluates its template once per item, so a value that
+the stream cut in the template would be in every element that the `@Each` gives. The kit trims
+the template of the statement still being written before it evaluates, in the same way.
+
+An unclosed fence is a program still streaming. A fence that
 has closed is a complete program, even while the rest of the reply streams. A program cut off
 when the reply ends counts as complete, as nothing more will arrive.
 
@@ -299,7 +309,8 @@ puts a stand-in for it at the end of the root's children, so it renders there as
 the parser's errors. It does not render in the place the model wrote it. The adapter discards the
 parser's text, so its stand-ins render with the catalog's own messages. For a statement
 lang-core keeps, it drops only the bad prop or inline call. The catalog then checks what remains.
-The format logs those errors once per message, once the program is complete.
+The format logs those errors once per message, once the program is complete. It shows
+lang-core's messages with a spaced hyphen where lang-core writes a dash.
 
 lang-core also drops a reference to a statement the program has not written. So an element still
 to come is absent from the document, not a placeholder, until its statement arrives.
@@ -417,24 +428,50 @@ rule that says to ignore it. So the kit writes these sections from the catalog:
 | Section | The kit writes | Left out when |
 |---------|----------------|---------------|
 | Action | The steps that some component accepts, with examples on the catalog's own button | No component takes an action |
-| Interactive Filters | How to bind a `$variable` to the first component with a state prop, and pass it to a `Query()` | `bindings` is off, no tool is listed, or no component has a state prop with an example |
+| Interactive Filters | How to bind a `$variable` to an input, and pass it to a `Query()` | `bindings` is off, no tool is listed, or no component has a state prop with an example |
 | Forms | A form with an input and a button, written with the catalog's components | The catalog has no `form`, no input or no button that sends |
-| Data Workflow | How to use `Query()`, with no `Mutation()` | No tool is listed |
-| Query | lang-core's text, with its refresh example on the catalog's button | No tool is listed |
-| Mutation | Nothing | Always |
+| Data Workflow | How to use `Query()`. With a component that has `dataProps`, also when to call a tool and show its result by id instead | No tool is listed |
+| Mutation | Nothing. The prompt never names `Mutation` | Always |
 
 An example button is the first component with a prop that takes one action and an `example`.
-An example input is the first component with `stateProps` and an `example`. So give each
-component an `example`.
+An example input is the first component with `stateProps` and an `example`. The input of a
+filter is the first one whose example gives its state prop a value, which the `$variable` takes
+as its default. So give each component an `example`.
+
+The kit also replaces single lines of lang-core's other sections:
+
+| Line | The kit writes |
+|------|----------------|
+| Arguments by position, in Syntax Rules | The root with the values of its `example`, right and then wrong, such as `Stack([children], "column", "medium")` |
+| The types of action props, in Component Signatures | The types that the signatures show, such as `@ToAssistant[]`. No line where no prop takes an action |
+| The `@Each` template, in Built-in Functions | The simplest component that shows a string, such as `Text(item.field)` |
+| The result and the refresh button, in Query | A result named `data`, and the catalog's own button |
+| What to do with no fitting tool, in Available Tools | Say in words that the data is not available, and never invent figures |
+
+The kit finds each of these lines by lang-core's exact text. The kit pins lang-core to one
+version, so the text is there. If an upgrade changes a line, the kit keeps the changed line, and
+logs a warning that names it. The kit's specs fail for the same change.
+
+The prompt ends with at most two example programs, written from the `example` of each
+component. In inline mode each one is in an `openui-lang` fence, as the model is to write it:
+
+- **A brief.** The root with the first three components that only show data.
+- **A view that the user changes**, with `bindings` on. An input bound to a `$variable`, and a
+  component that reads it. With a tool that takes the value, a `Query()` passes it to the tool,
+  and a component with a prop for rows of any shape, such as the built-in grid, shows the result.
+  For that, list the tool as a spec with `parameters`. Otherwise a text shows the value. With no
+  component for either, the input stands alone.
+
+An example whose components the catalog lacks is left out. Your own `examples` replace both.
 
 The kit adds these rules, before your own:
 
 - In inline mode, write prose where it helps, fence each program as `openui-lang`, and write each
   program in full, starting with `root`. Show UI where it answers best, and words where they do.
 - Do not use the parts of OpenUI Lang that are off. By default these are `$variables`, `Query`,
-  `Mutation`, `@Set`, `@Reset` and `@Run`. `Mutation` is always off.
-- With `bindings` on: a program cannot change data. To change something, send a message with
-  `@ToAssistant` that asks the assistant to do it.
+  `@Set`, `@Reset` and `@Run`.
+- A program cannot change data. Where a component takes a `@ToAssistant`, the rule adds what to
+  do: send a message that asks the assistant to make the change.
 - Use only the components under Component Signatures, with their arguments in the order shown.
 - Keep a `@ToAssistant` message to 200 characters, and its context to a flat object of at most 8
   short values. This rule shows only when a component takes actions.
@@ -509,8 +546,9 @@ submit = Button("Submit", @ToAssistant("Use these details", {name: $name, region
   own row.
 
 The prompt gains lang-core's text for `$variables`, expressions, the built-in functions and the
-`@Set` and `@Reset` steps. The kit adds one example that binds a `$variable` to the first
-component with a state prop. Pass `examples` of your own to show the model a whole form.
+`@Set` and `@Reset` steps. One of the kit's two examples binds a `$variable` to an input, and
+feeds a `Query()` and a table from it where a listed tool allows. Pass `examples` of your own to
+show the model a whole form.
 
 A component needs a prop that takes `state` actions to run a `@Set`. The built-in button takes
 them by default. For a component of your own, list `state` in its action types:
@@ -721,10 +759,12 @@ Pass the same library options as the format, so both read the same names.
 
 ### Write prompt examples with `formatOpenUiProgram()`
 
-By default, the prompt holds one example per component with an `example`, inside the root. A
-container shows two children in its example: the two components after it in the catalog that it
-accepts, that take no children, and that have an example. So list a form ahead of its inputs.
-`formatOpenUiProgram()` writes a document as a program, in the form the model writes. Use it for
+By default, the prompt holds at most two complete examples, written from the `example` of each
+component they use. The first is a brief: the root with the first components that only show
+data. The second, with state on, is a view the user can change: an input bound to a
+`$variable`, and a `Query()` that feeds a table where a listed tool and the catalog allow. The
+signatures already show each component alone, so the kit writes no example per component. In
+inline mode each example is inside an `openui-lang` fence. `formatOpenUiProgram()` writes a document as a program, in the form the model writes. Use it for
 examples of your own, and for scripted demos and specs:
 
 ```typescript
@@ -765,7 +805,7 @@ Options for `openUiLangFormat()`. Extends `OpenUiLibraryOptions`.
 | `componentName` | `(spec) => string` | The OpenUI name of a catalog component. Default the catalog name with its first letter in uppercase. |
 | `slotAccepts` | `Record<string, Record<string, string[]>>` | The components each slot accepts, by catalog name: component, then slot. Default every component, for every slot. |
 | `inline` | `boolean` | True to read fenced programs and keep the text around them as markdown. False to read the whole text as one program. Default true. |
-| `examples` | `string[]` | Programs to show the model in the prompt. Default one per component with an `example`, inside the root. |
+| `examples` | `string[]` | Programs to show the model in the prompt, in place of the kit's own. Default at most two complete programs, written from the components' `example` props. |
 | `preamble` | `string` | The first paragraph of the prompt section. Default a line that introduces OpenUI Lang. |
 | `additionalRules` | `string[]` | Rules for the model, added after the kit's own rules. |
 | `bindings` | `boolean` | True to run `$variables`, the expressions that read them, `@Set` and `@Reset`. Default false, or true when a tool is listed. |
