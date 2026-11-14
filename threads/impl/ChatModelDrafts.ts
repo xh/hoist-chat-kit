@@ -5,7 +5,8 @@ import type {ChatMessagePage} from '../ChatThreadStore';
 
 /**
  * What the threads model keeps of closed `ChatModel`s for the session: each thread's draft and
- * run options, its unsent feedback comments, and the run options each chat was built with.
+ * run options, its unsent feedback comments, its agent's shared state, and the run options each
+ * chat was built with.
  * @internal
  */
 export class ChatModelDrafts {
