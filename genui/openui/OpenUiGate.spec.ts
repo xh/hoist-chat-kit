@@ -753,13 +753,48 @@ describe('OpenUI Lang gate', () => {
             expect(document.body.textContent).toContain('names the variable of an @Each');
         });
 
-        it('lets the results of queries change the arguments of a query only a few times', async () => {
+        it.each([3, 4, 6])(
+            'runs a query that reads %i others once, with the results of them all',
+            async fanIn => {
+                const part = {
+                        name: 'get_part',
+                        parameters: {type: 'object', properties: {id: {type: 'number'}}},
+                        execute: vi.fn(async ({id}: PlainObject) => {
+                            await new Promise(resolve => setTimeout(resolve, 5 * (id + 1)));
+                            return {v: `P${id}`};
+                        })
+                    },
+                    join = {
+                        name: 'join',
+                        parameters: {type: 'object', properties: {key: {type: 'string'}}},
+                        execute: vi.fn(async ({key}: PlainObject) => ({got: key}))
+                    },
+                    ids = [...Array(fanIn).keys()],
+                    expected = ids.map(it => `P${it}`).join('-');
+                renderProgram(
+                    'root = Stack([note])\n' +
+                        ids
+                            .map(it => `p${it} = Query("get_part", {id: ${it}}, {v: "d${it}"})`)
+                            .join('\n') +
+                        `\nj = Query("join", {key: ${ids.map(it => `p${it}.v`).join(' + "-" + ')}}, {got: "none"})\n` +
+                        'note = Note("got " + j.got)',
+                    {tools: [part, join], queryTools: ['get_part', 'join']}
+                );
+                for (let i = 0; i < 8; i++) await settleAsync();
+
+                expect(join.execute.mock.calls.map(it => it[0].key)).toEqual([expected]);
+                expect(text('note')).toBe(`got ${expected}`);
+            }
+        );
+
+        it('holds a query that results keep running, then lets it catch up', async () => {
             silenceLogs();
             vi.useFakeTimers();
             onTestFinished(() => {
                 vi.useRealTimers();
             });
-            // Five queries refresh each second, and each result changes the arguments of `b`.
+            // Five queries refresh every 30 seconds. Their results arrive a moment apart, and
+            // each one changes the arguments of `b`, which then runs again.
             let count = 0;
             const search = searchTool(),
                 getState = {
@@ -772,13 +807,11 @@ describe('OpenUI Lang gate', () => {
                 },
                 ids = [1, 2, 3, 4, 5];
             renderProgram(
-                'root = Stack([field, note])\n' +
-                    '$region = "emea"\n' +
-                    'field = Field("region", $region)\n' +
+                'root = Stack([note])\n' +
                     ids
-                        .map(id => `a${id} = Query("get_state", {id: ${id}}, {n: 0}, 1)`)
+                        .map(id => `a${id} = Query("get_state", {id: ${id}}, {n: 0}, 30)`)
                         .join('\n') +
-                    `\nb = Query("search", {q: $region + ${ids.map(id => `a${id}.n`).join(' + "," + ')}}, {n: 0})\n` +
+                    `\nb = Query("search", {q: ${ids.map(id => `a${id}.n`).join(' + "," + ')}}, {n: 0})\n` +
                     'note = Note("n=" + b.n)',
                 {
                     tools: [search, getState],
@@ -786,20 +819,42 @@ describe('OpenUI Lang gate', () => {
                     minRefreshSeconds: 1
                 }
             );
+            // It waits for all five, then runs once.
             await act(() => vi.advanceTimersByTimeAsync(500));
-            expect(search.execute).toHaveBeenCalledTimes(1);
+            expect(search.execute.mock.calls.map(it => it[0].q)).toEqual(['1,2,3,4,5']);
 
-            // One refresh of each of the five gives five new results, a moment apart. The
-            // arguments of `b` follow three of them.
-            await act(() => vi.advanceTimersByTimeAsync(900));
+            // The refresh gives five new results. `b` runs on three of them, then is held.
+            await act(() => vi.advanceTimersByTimeAsync(30000));
             expect(getState.execute).toHaveBeenCalledTimes(10);
             expect(search.execute).toHaveBeenCalledTimes(4);
+            expect(search.execute.mock.calls.at(-1)[0].q).toBe('6,7,8,4,5');
 
-            // A change by the user runs the query again at once, with the results as they are.
-            fireEvent.click(screen.getByTestId('field'));
-            await act(() => vi.advanceTimersByTimeAsync(10));
+            // When its window ends it runs with the results as they are, with no action.
+            await act(() => vi.advanceTimersByTimeAsync(1100));
             expect(search.execute).toHaveBeenCalledTimes(5);
-            expect(search.execute.mock.calls.at(-1)[0].q).toBe('apac6,7,8,9,10');
+            expect(search.execute.mock.calls.at(-1)[0].q).toBe('6,7,8,9,10');
+        });
+
+        it.each([300, 700, 2000])('sorts and filters a table of %i rows by a field', async rows => {
+            const tool = {
+                name: 'get_rows',
+                execute: vi.fn(async (_: PlainObject) => ({
+                    rows: [...Array(rows).keys()].map(it => ({
+                        ...{id: it, a: 1, b: 2, c: 3, d: 4, e: 5, f: 6},
+                        total: (it * 7919) % rows
+                    }))
+                }))
+            };
+            renderProgram(
+                'root = Stack([note])\n' +
+                    'q = Query("get_rows", {}, {rows: []})\n' +
+                    'note = Note("top " + @First(@Sort(q.rows, "total", "desc")).total + " of " + @Count(@Filter(q.rows, "total", ">=", 0)))',
+                {tools: [tool], queryTools: ['get_rows']}
+            );
+            await settleAsync();
+            await settleAsync();
+
+            expect(text('note')).toBe(`top ${rows - 1} of ${rows}`);
         });
     });
 
