@@ -1,5 +1,6 @@
 import {isElementNode, type ASTNode} from '@openuidev/lang-core';
 import {isArray, isPlainObject, isString} from 'lodash';
+import {ChatUiRefusal} from '../../impl/ChatUiRefusal';
 
 /**
  * Most values that one evaluation of a program may visit, and that its state and query results
@@ -17,8 +18,8 @@ export const TOO_LARGE =
     'This program is too large to evaluate: its values and expressions expand past ' +
     `${MAX_VALUES} values.`;
 
-/** Thrown for a program, or a value, past a size limit. @internal */
-export class SizeLimitError extends Error {}
+/** Thrown for a program, or a value, past a size limit. Its message is for the user. @internal */
+export class SizeLimitError extends ChatUiRefusal {}
 
 /**
  * What the measure knows of a value before it exists. Each number is an upper bound.

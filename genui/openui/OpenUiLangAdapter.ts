@@ -1,6 +1,7 @@
 import {throwIf} from '@xh/hoist/utils/js';
 import {isString} from 'lodash';
 import type {ChatUiAdapter} from '../ChatUiAdapter';
+import {ChatUiRefusal} from '../impl/ChatUiRefusal';
 import {openUiToDocument} from './OpenUiDocument';
 import {getOpenUiFeatures, type OpenUiLangFormatOptions} from './OpenUiLangFormat';
 import {createLibraryCache} from './impl/libraryCache';
@@ -45,7 +46,7 @@ export function openUiLangAdapter(opts: OpenUiLangAdapterOptions): ChatUiAdapter
                     maxElements: catalog.limits.maxElements
                 });
             // A program that the gate refused was not parsed. The part shows why.
-            throwIf(refusal, refusal);
+            if (refusal) throw new ChatUiRefusal(refusal);
 
             const translation = openUiToDocument(result, library, {
                 complete: !isPartial,

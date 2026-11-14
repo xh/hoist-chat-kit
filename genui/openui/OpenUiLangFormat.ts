@@ -239,6 +239,7 @@ export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextForma
                 name: 'openui',
                 props: {},
                 errors: [gated.refusal],
+                caption: gated.refusal,
                 source: program
             };
         }
