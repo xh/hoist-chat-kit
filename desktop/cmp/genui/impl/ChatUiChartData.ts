@@ -1,5 +1,6 @@
 import {
     dropRight,
+    escape,
     groupBy,
     isArray,
     isFinite,
@@ -9,6 +10,7 @@ import {
     max,
     omit,
     sortBy,
+    unescape,
     uniq
 } from 'lodash';
 import type {PlainObject} from '@xh/hoist/core';
@@ -40,6 +42,10 @@ export interface ChatUiChartLayoutProps extends Omit<ChatUiChartSpecProps, 'type
 /**
  * Highcharts options for a chart's type and axes - everything but the series, which load
  * separately so that they can stream into the same chart.
+ *
+ * Highcharts reads a category or a title as markup, and keeps a link or an inline style it finds
+ * there. The text comes from a model or from the rows of an artifact, so each string is escaped.
+ * Highcharts decodes the entities for display.
  */
 export function toHighchartsConfig(
     props: Pick<ChatUiChartLayoutProps, 'type' | 'xAxis' | 'yAxis' | 'stacking'>
@@ -56,11 +62,13 @@ export function toHighchartsConfig(
         legend: {enabled: true},
         xAxis: {
             type: xAxis.type ?? 'category',
-            categories: xAxis.categories,
-            title: {text: xAxis.title ?? null}
+            categories: isArray(xAxis.categories)
+                ? xAxis.categories.map(escapeText)
+                : xAxis.categories,
+            title: {text: escapeText(xAxis.title) ?? null}
         },
         yAxis: {
-            title: {text: yAxis.title ?? null},
+            title: {text: escapeText(yAxis.title) ?? null},
             labels: {
                 formatter: function (this: any) {
                     return fmtAxisValue(this.value);
@@ -70,6 +78,7 @@ export function toHighchartsConfig(
         tooltip: {
             shared: type !== 'pie',
             pointFormatter: function (this: any) {
+                // Both names reach Highcharts escaped - see `toSeries()`.
                 const value = fmtValue(this.y),
                     label = type === 'pie' ? this.name : this.series.name;
                 return `<span style="color:${this.color}">●</span> ${label}: <b>${value}</b><br/>`;
@@ -85,14 +94,16 @@ export function toHighchartsConfig(
                 borderWidth: 0,
                 dataLabels: {enabled: true, format: '{point.name}: {point.percentage:.1f}%'}
             }
-        }
+        },
+        // A CSV is not markup, so its column headers show each name as written.
+        exporting: {csv: {columnHeaderFormatter: formatCsvHeader}}
     };
 }
 
 /**
  * Highcharts series for a chart. Dates on a datetime axis become timestamps, and values that are
  * not numbers become gaps. A pie's `[name, value]` pairs name its slices, and its plain values take
- * their names from the x-axis categories.
+ * their names from the x-axis categories. Each name is escaped, as Highcharts reads it as markup.
  *
  * @param props - the chart's props.
  * @param isPartial - true while the props stream. The last point is left out, as it may be cut
@@ -113,11 +124,14 @@ export function toSeries(
         let data = isArray(it.data) ? it.data : [];
         if (isPartial && idx === validSeries.length - 1) data = dropRight(data);
         const ret: PlainObject = {
-            name: it.name ?? '',
+            name: escapeText(it.name) ?? '',
             showInLegend: isPie || validSeries.length > 1,
             data: data.map((point, pointIdx) =>
                 isPie && !isArray(point)
-                    ? {name: categories[pointIdx] ?? `Item ${pointIdx + 1}`, y: toValue(point)}
+                    ? {
+                          name: escapeText(categories[pointIdx]) ?? `Item ${pointIdx + 1}`,
+                          y: toValue(point)
+                      }
                     : toPoint(point, isDatetime)
             )
         };
@@ -410,5 +424,19 @@ function toValue(value: unknown): number {
 function toPoint(point: ChatUiChartPoint, isDatetime: boolean): number | [unknown, number] {
     if (!isArray(point)) return toValue(point);
     const [x, y] = point;
-    return [isDatetime ? toTimestamp(x) : x, toValue(y)];
+    // A text x names the point: a pie slice, or a category.
+    return [isDatetime ? toTimestamp(x) : escapeText(x), toValue(y)];
+}
+
+// Text for Highcharts, which reads a string as markup. Other values pass as they are.
+function escapeText<T>(value: T): T {
+    return (isString(value) ? escape(value) : value) as T;
+}
+
+// The header of a CSV column, for Highcharts' `exporting.csv.columnHeaderFormatter`: the name of
+// a series or the title of an axis, decoded. False leaves the header to Highcharts.
+function formatCsvHeader(item: any, key: string, keyLength: number): string | false {
+    const text = item?.coll ? item.options?.title?.text : item?.name;
+    if (!isString(text) || !text) return false;
+    return unescape(text) + (!item.coll && keyLength > 1 ? ` (${key})` : '');
 }

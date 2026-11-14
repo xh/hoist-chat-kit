@@ -105,6 +105,11 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 
 ### 🐞 Bug Fixes
 
+* Fixed `ChatUiChart` and `ChatUiChartView` to escape the text they pass to Highcharts: series,
+  slice and category names, axis titles, and the column labels and row text of a chart by
+  reference. Highcharts reads such text as markup, so a model or a result could draw a link that
+  skipped the chat's link checks, or an inline style that loads a URL.
+
 * Fixed the thread list to stop showing a thread as working within one `statusRefreshMs` check
   of its run's end, whether the thread is open or not. While the list shows a thread as working
   that no chat on the page streams, `ChatThreadsModel` reloads the list on each check, up to

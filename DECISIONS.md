@@ -2612,8 +2612,8 @@ four rules, which a later built-in spec follows too.
   missing title gets a default, and a title with no child shows no tab.
 - **Model text is never markup.** A string prop that a Hoist component reads as markup takes an
   element or escaped text. The callout passes `Banner` rendered chat markdown, as a string
-  `message` goes through Hoist's markdown, which loads images. The treemap escapes each label, as
-  Highcharts reads a label as HTML.
+  `message` goes through Hoist's markdown, which loads images. The treemap and the chart escape
+  each name and title, as Highcharts reads them as markup.
 - **One Hoist model for the life of the component.** A component that needs a Hoist model, such as
   a `TabContainerModel` or a `TreeMapModel`, creates it once and updates it as the props stream.
   Where a Hoist model reads its config once, as `CardModel` does, the spec remounts the component
