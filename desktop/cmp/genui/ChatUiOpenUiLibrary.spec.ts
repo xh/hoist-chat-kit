@@ -109,6 +109,41 @@ describe('built-in specs as an OpenUI library', () => {
         expect(container.querySelectorAll('.xh-tab-container [role="tab"]')).toHaveLength(2);
         expect(container.querySelector('.xh-chat-ui-treemap')).toBeTruthy();
     });
+
+    it('never shows a section open that the program then collapses', () => {
+        const catalog = createCatalog(),
+            head = [
+                'root = Stack([sec])',
+                'inner = Badges([{label: "Inside"}, {label: "More"}])',
+                'sec = Section([inner], "Detail", "primary", true'
+            ].join('\n'),
+            renderProgram = (text: string, isStreaming: boolean) => {
+                const [segment] = catalog.parseText(text, {
+                    isStreaming,
+                    messageId: 'm1',
+                    partId: 'p1'
+                });
+                if (segment.type !== 'document') throw new Error(`Got a ${segment.type} segment`);
+                return fragment({
+                    item: catalog.renderDocument(segment.document, {
+                        chatModel: null as ChatModel,
+                        messageId: 'm1',
+                        part: {type: 'text', id: 'p1', text, state: 'streaming'},
+                        isPartial: segment.isPartial
+                    })
+                });
+            },
+            {container, rerender} = render(renderProgram(head, true));
+
+        // The children are written, but `collapsed` is the last argument and still to come.
+        expect(container.querySelector('legend').textContent).toBe('Detail');
+        expect(container.querySelector('.xh-chat-ui-skeleton')).toBeTruthy();
+        expect(container.querySelector('.xh-badge')).toBeNull();
+
+        rerender(renderProgram(`${head}, true)`, false));
+        expect(container.querySelector('.xh-card').className).toContain('xh-card--collapsed');
+        expect(container.querySelector('.xh-badge')).toBeNull();
+    });
 });
 
 //------------------

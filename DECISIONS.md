@@ -2683,8 +2683,9 @@ four rules, which a later built-in spec follows too.
   each name and title, as Highcharts reads them as markup.
 - **One Hoist model for the life of the component.** A component that needs a Hoist model, such as
   a `TabContainerModel` or a `TreeMapModel`, creates it once and updates it as the props stream.
-  Where a Hoist model reads its config once, as `CardModel` does, the spec remounts the component
-  when that config changes.
+  Where a Hoist model reads its config once, as `CardModel` does, the spec holds the content
+  until a format says the element's props are complete. Where no format says so, it remounts the
+  component when that config changes.
 - **A catalog name says what the component is for.** The spec over `Card` is `section`, as `card`
   already names the record card. The spec over `Banner` is `callout`.
 
