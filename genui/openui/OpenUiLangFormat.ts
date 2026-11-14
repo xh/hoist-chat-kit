@@ -167,8 +167,12 @@ export function isOpenUiDocumentSegment(
  * Add it to the catalog's `textFormats`, and name it in `modes` to explain it to the model.
  * The prompt section comes from lang-core, with no inline mode, and with the kit's rules, which
  * explain inline programs in their place. By default it has no state, queries or built-in
- * functions either. `bindings` and `builtinFunctions` turn those on: the format then runs each
- * program on lang-core's store and evaluator, and the document it returns has `state`.
+ * functions either. `bindings`, `builtinFunctions`, `queryTools` and `mutationTools` turn those
+ * on: the format then runs each program on lang-core's store, evaluator and query manager, and
+ * the document it returns has `state`. A program calls only the chat tools that the app lists.
+ *
+ * Each document segment the format returns is an {@link OpenUiDocumentSegment}, which carries
+ * what the parser found in the program.
  */
 export function openUiLangFormat(opts: OpenUiLangFormatOptions): ChatUiTextFormat {
     const {inline = true, examples = null, preamble = null, additionalRules = []} = opts,
