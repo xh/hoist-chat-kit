@@ -162,8 +162,9 @@ export interface MeasureOptions {
  * - Each read of a loop variable at the size of the largest item of its list. lang-core copies
  *   the item into the template once per item, for each place that names the variable. It then
  *   reads a field of an item that is an object straight from the copy.
- * - `@Sort` and `@Filter` once per item, times the size of their field path, of an item, and of
- *   the value that a filter compares with. They read each of these again for each item.
+ * - `@Filter` once per item, and `@Sort` once per compare, times the size of their field path
+ *   and of what they compare: the value of the field, or the whole item where no field is
+ *   named. A filter also counts the value it compares with, once per item.
  * - A field read on a list once per item, as it reads the field of each.
  *
  * It accepts what lang-core's parser returns, where plain values, elements and expressions mix,
@@ -360,15 +361,21 @@ export function measureExpression(root: unknown, opts: MeasureOptions): ValueSha
             }
             case 'Sort':
             case 'Filter': {
-                // Each compare splits the field path again, and turns the item into text. A
+                // Each compare splits the field path again, and turns what it compares into
+                // text: the value of the field, or the whole item where no field is named. A
                 // filter also turns the value it compares with into text, once per item.
-                const [list, field, ...rest] = args.map(sub),
-                    item = list?.inside?.size ?? 1,
+                const [list, field, ...rest] = args.map(sub);
+                if (!list) return scalarShape();
+
+                const fieldNode = args[1],
+                    namesField = fieldNode?.k === 'Str' && fieldNode.v !== '',
+                    item = list.inside ?? scalarShape(),
+                    compared = (namesField ? item.inside : item)?.size ?? 1,
                     perItem =
                         node.name === 'Sort'
-                            ? SORT_COMPARES * ((field?.size ?? 1) + item)
-                            : (field?.size ?? 1) + item + sizeOf(rest);
-                if (!list) return scalarShape();
+                            ? Math.ceil(Math.log2(list.length + 1)) *
+                              ((field?.size ?? 1) + compared)
+                            : (field?.size ?? 1) + compared + sizeOf(rest);
                 return total({
                     ...list,
                     size: 1 + list.size + (field?.size ?? 0) + sizeOf(rest) + list.length * perItem
@@ -426,8 +433,6 @@ interface Position {
 
 // Characters of a string that count as one value.
 const STRING_UNIT = 64,
-    // Compares that a sort makes per item, as a bound.
-    SORT_COMPARES = 16,
     // Most levels of nesting that a value or an expression may have. Past it, a walk could
     // overflow the stack.
     MAX_DEPTH = 200,
