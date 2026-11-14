@@ -17,11 +17,22 @@ import {
 } from '@openuidev/lang-core';
 import {HoistBase, type PlainObject} from '@xh/hoist/core';
 import {action, observable} from '@xh/hoist/mobx';
-import {isEmpty, isPlainObject, isString, lowerFirst, mapValues, truncate} from 'lodash';
-import type {ChatPartRenderContext} from '../../../core';
+import {logError, throwIf} from '@xh/hoist/utils/js';
+import {
+    clamp,
+    compact,
+    findLastIndex,
+    isArray,
+    isEmpty,
+    isFinite,
+    isPlainObject,
+    isString,
+    lowerFirst,
+    mapValues
+} from 'lodash';
+import type {ChatModel, ChatPartRenderContext} from '../../../core';
 import {getOwn} from '../../../impl/LangUtils';
 import {
-    CHAT_UI_MAX_CONTEXT_VALUE_LENGTH,
     CHAT_UI_MAX_SUMMARY_LENGTH,
     describeChatUiAction,
     type ChatUiAction,
@@ -32,7 +43,8 @@ import type {ChatUiDocumentContext} from '../../ChatUiComponentSpec';
 import type {ChatUiBinding, ChatUiState} from '../../ChatUiState';
 import type {OpenUiStep} from '../OpenUiActions';
 import type {OpenUiLibrary} from '../OpenUiLibrary';
-import {createOpenUiToolProvider} from './openUiToolProvider';
+import {OpenUiToolGate, type OpenUiToolCall} from './OpenUiToolGate';
+import {measureProgram} from './programSize';
 import {warnOnce} from './warnOnce';
 
 /** Configuration for an {@link OpenUiRuntime}. */
@@ -60,6 +72,12 @@ export interface OpenUiRuntimeConfig {
 
     /** The least seconds between two automatic refreshes of a query. Default 10. */
     minRefreshSeconds?: number;
+
+    /** Most `Query()` and `Mutation()` statements in one program. Default 8. */
+    maxCalls?: number;
+
+    /** Called with each tool call of the program that passed its checks, as it starts. */
+    onToolCall?: (call: OpenUiToolCall) => void;
 }
 
 /** A program that the runtime evaluated - see {@link OpenUiRuntime.evaluateProgram}. */
@@ -70,6 +88,18 @@ export interface OpenUiEvaluation {
     /** What failed as the props evaluated, in the kit's `path: message` form. */
     errors: string[];
 }
+
+/**
+ * A step of a `state` action, with every value it uses fixed when its button rendered. A click
+ * runs these values, so it does what the button's tooltip said.
+ * @internal
+ */
+export type OpenUiPlanStep =
+    | {type: 'set'; target: string; value: unknown}
+    | {type: 'reset'; targets: string[]}
+    | {type: 'refresh'; statementId: string}
+    | {type: 'mutation'; statementId: string; tool: string; args: PlainObject}
+    | {type: 'action'; action: ChatUiAction};
 
 /**
  * The state of one OpenUI Lang program: its `$variables`, and the results of its queries. It runs
@@ -98,11 +128,16 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
 
     private readonly catalog: ChatUiCatalog;
     private readonly library: OpenUiLibrary;
+    private readonly chatModel: ChatModel;
+    private readonly messageId: string;
     private readonly minRefreshSeconds: number;
+    private readonly maxCalls: number;
 
-    // One manager per kind of call, as each runs its tools under its own rules.
+    // One manager per kind of call, as each runs its tools under its own rules. A manager with
+    // no gate runs nothing.
     private readonly queryManager: QueryManager;
     private readonly mutationManager: QueryManager;
+    private readonly mutationGate: OpenUiToolGate;
     private readonly abortController = new AbortController();
 
     // What lang-core's evaluator reads of a library: which props are two-way bindings.
@@ -121,8 +156,16 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
     private isInitializing: boolean = false;
     private isSyncPending: boolean = false;
 
+    // True once the user changed a value or clicked a button of the program, and once its
+    // queries first ran.
+    private hasUserActed: boolean = false;
+    private hasSynced: boolean = false;
+
     // The steps of each state action of the program as last resolved, by action id.
-    private readonly plans = new Map<string, {steps: OpenUiStep[]; summary: string}>();
+    private readonly plans = new Map<string, {steps: OpenUiPlanStep[]; summary: string}>();
+
+    // The one mutation the user approved and that may run now - see `runMutationAsync()`.
+    private approvedMutation: {tool: string; args: PlainObject; run: () => Promise<unknown>} = null;
 
     constructor(config: OpenUiRuntimeConfig) {
         super();
@@ -132,32 +175,62 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
                 context,
                 queryTools = [],
                 mutationTools = [],
-                minRefreshSeconds = 10
+                minRefreshSeconds = 10,
+                maxCalls = 8,
+                onToolCall
             } = config,
-            chatModel = context?.chatModel,
+            chatModel = context?.chatModel ?? null,
+            messageId = context?.messageId ?? null,
             {signal} = this.abortController;
         this.catalog = catalog;
         this.library = library;
+        this.chatModel = chatModel;
+        this.messageId = messageId;
         this.minRefreshSeconds = minRefreshSeconds;
+        this.maxCalls = maxCalls;
         this.evalLibrary = createEvalLibrary(catalog, library);
 
-        // With no chat or no tools allowed, a manager has no provider, and runs nothing.
-        const createManager = (kind: 'query' | 'mutation', tools: string[]) =>
-            createQueryManager(
-                chatModel && !isEmpty(tools)
-                    ? createOpenUiToolProvider({chatModel, tools, kind, signal})
-                    : null
-            );
-        this.queryManager = createManager('query', queryTools);
-        this.mutationManager = createManager('mutation', mutationTools);
+        // With no chat or no tools allowed, a kind of call has no gate, and runs nothing.
+        const createGate = (kind: OpenUiToolCall['kind'], tools: string[]) =>
+            chatModel && !isEmpty(tools)
+                ? new OpenUiToolGate({chatModel, tools, kind, messageId, signal, onToolCall})
+                : null;
+        const queryGate = createGate('query', queryTools);
+        this.mutationGate = createGate('mutation', mutationTools);
+        this.queryManager = createQueryManager(
+            queryGate
+                ? {callTool: async (name, args) => (await queryGate.prepareAsync(name, args))()}
+                : null
+        );
+        // A mutation runs only the call that the user's click prepared, never one that the
+        // manager names.
+        this.mutationManager = createQueryManager({
+            callTool: async (name, args) => {
+                const approved = this.approvedMutation;
+                throwIf(
+                    !approved || approved.tool !== name || approved.args !== args,
+                    `Mutation cannot run '${name}'. It is not the call the user started.`
+                );
+                return approved.run();
+            }
+        });
 
         this.store.subscribe(() => {
             if (this.isInitializing) return;
+            this.hasUserActed = true;
             this.noteStateChange();
             this.syncQueriesSoon();
         });
         this.queryManager.subscribe(() => this.noteQueryChange());
         this.mutationManager.subscribe(() => this.noteQueryChange());
+
+        // A program refreshes on a timer only while its reply is the latest of the chat.
+        if (chatModel) {
+            this.addReaction({
+                track: () => this.isLatestReply,
+                run: () => this.syncQueriesSoon()
+            });
+        }
     }
 
     /**
@@ -189,9 +262,13 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
      * Evaluate the props of the program against the current state. Call inside an observer: it
      * then runs again when a `$variable` or a query result that the program reads changes. The
      * actions of the last evaluation no longer run: register those of this one.
+     *
+     * @throws if the program would take too long to evaluate - see {@link measureProgram}.
      */
     evaluateProgram(): OpenUiEvaluation {
         this.plans.clear();
+        this.checkSize();
+
         const errors: OpenUIError[] = [],
             evalCtx: EvalContext = {
                 ctx: this.evaluationContext,
@@ -210,11 +287,18 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
                 message: `Prop evaluation failed: ${(e as Error)?.message ?? e}`
             });
         }
+
         // A query or mutation that failed keeps its defaults, so say so with the rest.
         const callErrors = [this.queryManager, this.mutationManager].flatMap(
             it => it.getSnapshot().__openui_errors
         );
-        return {root, errors: [...errors, ...callErrors].map(it => it.message)};
+        return {
+            root,
+            errors: compact([
+                ...[...errors, ...callErrors].map(it => it.message),
+                this.isOverCallLimit ? this.callLimitMessage : null
+            ])
+        };
     }
 
     /**
@@ -235,33 +319,61 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
     }
 
     /**
-     * The kit action for the steps of an action expression. One step that is a kit action is
-     * that action. Anything else is a `state` action, which names the steps by `id` and says what
-     * they do. Null for steps that are too many, or too long to show in full.
+     * The kit action for the steps of an action expression, with the plan that a click runs. One
+     * step that is a kit action is that action, with no plan. Anything else is a `state` action,
+     * which names the plan by `id` and says what it does.
+     *
+     * Every value of the plan is fixed here: the value of each `@Set`, and the tool and the
+     * arguments of each mutation. The summary states each one in full, and a click runs the same
+     * ones. So a step cannot change what a later step does after the user saw the summary.
+     *
+     * Null for steps the user could not review: too many, a summary too long to show in full,
+     * more than one message, or a mutation whose tool is not a name.
      *
      * Call {@link registerAction} for a `state` action once it has passed its checks.
      */
-    createAction(id: string, steps: OpenUiStep[]): ChatUiAction {
+    createAction(id: string, steps: OpenUiStep[]): {action: ChatUiAction; plan: OpenUiPlanStep[]} {
         if (isEmpty(steps) || steps.length > MAX_STEPS) return null;
-        if (steps.length === 1 && steps[0].type === 'action') return steps[0].action;
+        if (steps.length === 1 && steps[0].type === 'action') {
+            return {action: steps[0].action, plan: null};
+        }
 
-        const summary = steps
+        // A step that data wrote, in place of the parser, can hold an expression that throws.
+        let plan: OpenUiPlanStep[];
+        try {
+            plan = steps.map(it => this.toPlanStep(it));
+        } catch {
+            return null;
+        }
+        const sends = plan.filter(it => it?.type === 'action' && it.action.type === 'send');
+        // A second message would go nowhere, as the chat is busy with the first.
+        if (plan.some(it => it == null) || sends.length > 1) return null;
+
+        const summary = plan
             .map((step, idx) => {
-                const text = this.describeStep(step);
+                const text = describePlanStep(step);
                 return idx === 0 ? text : lowerFirst(text);
             })
             .join(', then ');
-        return summary.length <= CHAT_UI_MAX_SUMMARY_LENGTH ? {type: 'state', id, summary} : null;
+        return summary.length <= CHAT_UI_MAX_SUMMARY_LENGTH
+            ? {action: {type: 'state', id, summary}, plan}
+            : null;
     }
 
-    /** Hold the steps of a `state` action, for the click that runs it. */
-    registerAction(stateAction: ChatUiStateAction, steps: OpenUiStep[]) {
-        this.plans.set(stateAction.id, {steps, summary: stateAction.summary});
+    /** Hold the plan of a `state` action, for the click that runs it. */
+    registerAction(stateAction: ChatUiStateAction, plan: OpenUiPlanStep[]) {
+        this.plans.set(stateAction.id, {steps: plan, summary: stateAction.summary});
     }
 
     /**
-     * Run a `state` action: its steps, in order. A step that fails stops the rest. An action that
-     * the runtime does not hold, or whose summary differs from the one the user saw, is refused.
+     * Run a `state` action: the steps of its plan, in order, with the values its summary showed.
+     * An action that the runtime does not hold, or whose summary differs from the one the user
+     * saw, is refused.
+     *
+     * Everything the plan needs is checked before its first step runs: the chat is free for a
+     * message or a mutation, each URL is allowed, and each mutation may run, with the user's
+     * approval where its tool needs one. So a plan that cannot finish changes nothing. A tool
+     * that fails as it runs still stops the steps after it.
      */
     async runActionAsync(
         stateAction: ChatUiStateAction,
@@ -272,10 +384,12 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
             throw new Error('This action is out of date - the program has changed.');
         }
 
+        const mutations = await this.prepareAsync(plan.steps);
+        this.hasUserActed = true;
         for (const step of plan.steps) {
             switch (step.type) {
                 case 'set':
-                    this.store.set(step.target, this.evaluateNode(step.valueAST));
+                    this.store.set(step.target, step.value);
                     break;
                 case 'reset': {
                     const defaults = this.program?.stateDeclarations ?? {};
@@ -284,12 +398,16 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
                     );
                     break;
                 }
-                case 'run':
-                    if (step.refType === 'query') {
+                case 'refresh':
+                    // A program that was waiting for the user runs its queries from here on.
+                    if (this.hasSynced) {
                         this.queryManager.invalidate([step.statementId]);
-                    } else if (!(await this.runMutationAsync(step.statementId))) {
-                        return null;
+                    } else {
+                        this.syncQueriesSoon();
                     }
+                    break;
+                case 'mutation':
+                    if (!(await this.runMutationAsync(step, mutations.get(step)))) return null;
                     break;
                 case 'action':
                     await this.catalog.runActionAsync(step.action, context);
@@ -330,6 +448,69 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
         return evaluate(node, this.evaluationContext);
     }
 
+    // True unless the chat holds a later reply than the one with the program. Observable.
+    // A message the chat does not hold, as in a transcript, counts as the latest.
+    private get isLatestReply(): boolean {
+        const messages = this.chatModel?.messages ?? [],
+            idx = findLastIndex(messages, it => it.id === this.messageId);
+        return idx < 0 || !messages.slice(idx + 1).some(it => it.role === 'assistant');
+    }
+
+    private get callCount(): number {
+        const {program} = this;
+        return (program?.queryStatements?.length ?? 0) + (program?.mutationStatements?.length ?? 0);
+    }
+
+    private get isOverCallLimit(): boolean {
+        return this.callCount > this.maxCalls;
+    }
+
+    private get callLimitMessage(): string {
+        return (
+            `The program holds ${this.callCount} Query and Mutation statements, and may hold ` +
+            `at most ${this.maxCalls}. None of them runs.`
+        );
+    }
+
+    // Refuse a program whose evaluation would hang the page. The measure counts each shared
+    // expression at each use, and the template of an `@Each` once per item.
+    private checkSize() {
+        const {program} = this;
+        if (!program) return;
+
+        const calls = [...(program.queryStatements ?? []), ...(program.mutationStatements ?? [])],
+            measure = (parts: unknown[]) => measureProgram(parts, list => this.getListLength(list)),
+            size = measure([
+                program.root,
+                program.rootExpression,
+                ...calls.flatMap(it => Object.values(it))
+            ]);
+        throwIf(
+            size.eachDepth > MAX_EACH_DEPTH,
+            `This program nests @Each ${size.eachDepth} deep, and may nest it at most ` +
+                `${MAX_EACH_DEPTH} deep.`
+        );
+        throwIf(
+            !(size.values <= MAX_VALUES),
+            'This program is too large to evaluate: its expressions expand to more than ' +
+                `${MAX_VALUES} values.`
+        );
+    }
+
+    // The number of items in the list of an `@Each`. A list written out is counted. A small
+    // expression is evaluated, as it is cheap. Any other is taken as a list of some length.
+    private getListLength(list: ASTNode): number {
+        if (list?.k === 'Arr') return list.els.length;
+        const {values} = measureProgram([list], () => ASSUMED_LIST_LENGTH);
+        if (values > MAX_LIST_EXPRESSION) return ASSUMED_LIST_LENGTH;
+        try {
+            const value = this.evaluateNode(list);
+            return isArray(value) ? value.length : ASSUMED_LIST_LENGTH;
+        } catch {
+            return ASSUMED_LIST_LENGTH;
+        }
+    }
+
     // The result of a mutation, or of a query, or the query's defaults before it first runs, as
     // while the program streams.
     private getResult(name: string): unknown {
@@ -342,25 +523,98 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
         return statement?.defaultsAST ? this.evaluateNode(statement.defaultsAST) : null;
     }
 
-    // Run the tool of a mutation, with its arguments as the state now gives them. False if the
-    // call fails, or the user does not approve it.
-    private async runMutationAsync(statementId: string): Promise<boolean> {
-        const {tool, args} = this.getMutation(statementId);
-        if (!tool) return false;
-        return this.mutationManager.fireMutation(statementId, args);
+    // A step with each value it uses evaluated now, or null for a step that cannot run.
+    private toPlanStep(step: OpenUiStep): OpenUiPlanStep {
+        switch (step.type) {
+            case 'set':
+                return {
+                    type: 'set',
+                    target: step.target,
+                    value: toJson(this.evaluateNode(step.valueAST))
+                };
+            case 'reset':
+                return step;
+            case 'run': {
+                const {statementId} = step;
+                if (step.refType === 'query') return {type: 'refresh', statementId};
+                const {tool, args} = this.getMutation(statementId);
+                return tool ? {type: 'mutation', statementId, tool, args} : null;
+            }
+            case 'action':
+                return step;
+        }
     }
 
-    // The tool and the arguments of a mutation, as the state now gives them.
+    // The tool and the arguments of a mutation, as the state now gives them. The tool is null
+    // unless it is a name.
     private getMutation(statementId: string): {tool: string; args: PlainObject} {
         const statement = this.program?.mutationStatements?.find(
                 it => it.statementId === statementId
             ),
             tool = statement?.toolAST ? this.evaluateNode(statement.toolAST) : null,
-            args = statement?.argsAST ? this.evaluateNode(statement.argsAST) : null;
+            args = statement?.argsAST ? toJson(this.evaluateNode(statement.argsAST)) : null;
         return {
-            tool: isString(tool) ? tool : null,
+            tool: isString(tool) && tool ? tool : null,
             args: isPlainObject(args) ? (args as PlainObject) : {}
         };
+    }
+
+    // Check all that a plan needs before any step runs, so that a plan which cannot finish
+    // changes nothing. Returns the call that each mutation step may make.
+    private async prepareAsync(
+        steps: OpenUiPlanStep[]
+    ): Promise<Map<OpenUiPlanStep, () => Promise<unknown>>> {
+        const {chatModel, catalog, mutationGate} = this,
+            ret = new Map<OpenUiPlanStep, () => Promise<unknown>>();
+
+        for (const step of steps) {
+            if (step.type === 'action' && step.action.type === 'send') {
+                throwIf(!chatModel, "No chat to send to - a 'send' action needs a ChatModel.");
+                throwIf(
+                    chatModel.isBusy || !!chatModel.sendBlockedReason,
+                    chatModel.sendBlockedReason ?? 'Wait for the reply to finish.'
+                );
+            }
+            if (step.type === 'action' && step.action.type === 'openUrl') {
+                const {url} = step.action;
+                throwIf(!catalog.isUrlAllowed(url), `URL not allowed: ${url}`);
+            }
+        }
+
+        // Approvals last, so that the user is asked only for a plan that can run.
+        for (const step of steps) {
+            if (step.type !== 'mutation') continue;
+            throwIf(this.isOverCallLimit, this.callLimitMessage);
+            throwIf(!mutationGate, `Mutation cannot run '${step.tool}'. No tools are allowed.`);
+            ret.set(step, await mutationGate.prepareAsync(step.tool, step.args));
+        }
+        return ret;
+    }
+
+    // Run the tool of a mutation, with the tool and the arguments its button showed. False if
+    // the call fails.
+    private async runMutationAsync(
+        step: Extract<OpenUiPlanStep, {type: 'mutation'}>,
+        run: () => Promise<unknown>
+    ): Promise<boolean> {
+        const {mutationManager} = this,
+            {statementId, tool, args} = step;
+
+        // The manager calls the tool it holds for the statement, so give it the one shown.
+        mutationManager.registerMutations(this.getMutationNodes({[statementId]: tool}));
+        this.approvedMutation = {tool, args, run};
+        try {
+            return await mutationManager.fireMutation(statementId, args);
+        } finally {
+            this.approvedMutation = null;
+        }
+    }
+
+    private getMutationNodes(tools: Record<string, string> = {}) {
+        return (this.program?.mutationStatements ?? []).map(({statementId}) => ({
+            statementId,
+            toolName: getOwn(tools, statementId) ?? this.getMutation(statementId).tool ?? ''
+        }));
     }
 
     // Queries run outside of a render, as each run notifies the observers of the results.
@@ -369,48 +623,49 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
         this.isSyncPending = true;
         queueMicrotask(() => {
             this.isSyncPending = false;
-            if (!this.isDestroyed) this.syncQueries();
+            if (this.isDestroyed) return;
+            try {
+                this.syncQueries();
+            } catch (e) {
+                logError(['Could not run the queries of an OpenUI program', e], this);
+            }
         });
     }
 
     // A query runs once its program is complete, and again when a `$variable` it reads changes.
+    // A program in an older reply waits for the user: it runs its queries once they change a
+    // value or click a button in it. Only the latest reply refreshes on a timer.
     private syncQueries() {
-        const {program, isComplete, queryManager, mutationManager, minRefreshSeconds} = this;
+        const {program, isComplete, queryManager, mutationManager, isLatestReply} = this;
         if (!program || !isComplete) return;
+        if (!isLatestReply && !this.hasUserActed && !this.hasSynced) return;
 
-        mutationManager.registerMutations(
-            (program.mutationStatements ?? []).map(({statementId}) => ({
-                statementId,
-                toolName: this.getMutation(statementId).tool ?? ''
-            }))
-        );
+        if (this.isOverCallLimit) {
+            warnOnce(this.callLimitMessage, this.callLimitMessage, 'OpenUiRuntime');
+            queryManager.evaluateStatements([], this.evaluationContext);
+            mutationManager.registerMutations([]);
+            return;
+        }
 
-        const statements = (program.queryStatements ?? []).map(statement => {
+        this.hasSynced = true;
+        mutationManager.registerMutations(this.getMutationNodes());
+        const statements = program.queryStatements.map(statement => {
             if (!statement.refreshAST) return statement;
-            // A model sets the interval, so hold it to a floor.
-            const seconds = Number(this.evaluateNode(statement.refreshAST)),
-                v = seconds > 0 ? Math.max(seconds, minRefreshSeconds) : 0;
-            return {...statement, refreshAST: {k: 'Num', v} as ASTNode};
+            // A model sets the interval, so hold it between a floor and a ceiling.
+            const seconds = isLatestReply ? this.getRefreshSeconds(statement.refreshAST) : 0;
+            return {...statement, refreshAST: {k: 'Num', v: seconds} as ASTNode};
         });
         queryManager.evaluateStatements(statements, this.evaluationContext);
     }
 
-    private describeStep(step: OpenUiStep): string {
-        switch (step.type) {
-            case 'set':
-                return `Sets ${step.target} to ${formatValue(this.evaluateNode(step.valueAST))}`;
-            case 'reset':
-                return `Resets ${step.targets.join(', ')}`;
-            case 'run': {
-                if (step.refType === 'query') return `Refreshes ${step.statementId}`;
-                const {tool, args} = this.getMutation(step.statementId);
-                return isEmpty(args)
-                    ? `Runs the tool ${tool}`
-                    : `Runs the tool ${tool} with ${formatValue(args, MAX_ARGS_LENGTH)}`;
-            }
-            case 'action':
-                return describeChatUiAction(step.action);
-        }
+    // The seconds between two refreshes of a query, or 0 for none. An interval that is not a
+    // positive number is none. One past the ceiling would overflow a timer, which then fires at
+    // once and without end.
+    private getRefreshSeconds(node: ASTNode): number {
+        const seconds = this.evaluateNode(node);
+        return isFinite(seconds) && (seconds as number) > 0
+            ? clamp(seconds as number, this.minRefreshSeconds, MAX_REFRESH_SECONDS)
+            : 0;
     }
 }
 
@@ -428,7 +683,15 @@ export function warnOfEvaluationErrors(key: string, errors: string[]) {
 // Implementation
 //------------------
 const MAX_STEPS = 8,
-    MAX_ARGS_LENGTH = 200;
+    MAX_REFRESH_SECONDS = 24 * 60 * 60,
+    // Most values one evaluation may visit. An evaluation of this size takes a few milliseconds.
+    MAX_VALUES = 100_000,
+    MAX_EACH_DEPTH = 3,
+    // The items taken for a list whose length is not known until it evaluates, such as a field
+    // of the loop variable of an outer `@Each`.
+    ASSUMED_LIST_LENGTH = 100,
+    // The largest list expression that is evaluated to count its items.
+    MAX_LIST_EXPRESSION = 1000;
 
 // What a mutation reads as before its first run.
 const IDLE = {status: 'idle'};
@@ -449,6 +712,30 @@ function createEvalLibrary(catalog: ChatUiCatalog, library: OpenUiLibrary): Libr
     return {components} as unknown as Library;
 }
 
-function formatValue(value: unknown, length: number = CHAT_UI_MAX_CONTEXT_VALUE_LENGTH): string {
-    return truncate(JSON.stringify(value) ?? 'null', {length});
+// What a step of a plan does, in full. No value is cut short, as a click runs the value.
+function describePlanStep(step: OpenUiPlanStep): string {
+    switch (step.type) {
+        case 'set':
+            return `Sets ${step.target} to ${JSON.stringify(step.value)}`;
+        case 'reset':
+            return `Resets ${step.targets.join(', ')}`;
+        case 'refresh':
+            return `Refreshes ${step.statementId}`;
+        case 'mutation':
+            return isEmpty(step.args)
+                ? `Runs the tool ${step.tool}`
+                : `Runs the tool ${step.tool} with ${JSON.stringify(step.args)}`;
+        case 'action':
+            return describeChatUiAction(step.action);
+    }
+}
+
+// A value as plain JSON, so that the value a summary shows is the value a click uses. A value
+// that JSON cannot hold, such as a function, is null.
+function toJson(value: unknown): unknown {
+    try {
+        return JSON.parse(JSON.stringify(value) ?? 'null');
+    } catch {
+        return null;
+    }
 }
