@@ -24,6 +24,7 @@ import {
     uniq
 } from 'lodash';
 import {getOwn} from '../../impl/LangUtils';
+import {logWarn} from '@xh/hoist/utils/js';
 import {formatError, propPath} from '../../impl/SchemaUtils';
 import {describeChatUiAction, type ChatUiAction} from '../ChatUiAction';
 import type {ChatUiCatalog} from '../ChatUiCatalog';
@@ -62,6 +63,13 @@ export interface OpenUiTranslationOptions {
      * @internal
      */
     runtime?: OpenUiRuntime;
+
+    /**
+     * True to log no warning about an action. For the translation of a program that also runs
+     * with state, where the state reads each action again, and in full.
+     * @internal
+     */
+    quiet?: boolean;
 }
 
 /** What {@link openUiToDocument} returns. */
@@ -88,6 +96,13 @@ export interface OpenUiTranslation {
      * element whose statement writes an argument by name has an entry too.
      */
     elementErrors: Record<string, string[]>;
+
+    /**
+     * Id of the statement at the end of the text that is still being written, or null if the
+     * last statement is closed: by a newline, or by the bracket that ends its call. Null with no
+     * `text`.
+     */
+    openStatement: string;
 
     /** Names the program refers to and does not define. lang-core dropped each reference. */
     unresolved: string[];
@@ -118,7 +133,9 @@ export interface OpenUiTranslation {
  *   Other parser errors go in `errors`: lang-core has already dropped the prop or inline node
  *   at fault, and the catalog checks what remains. While the program streams, a missing
  *   required prop of the statement still streaming is not an error.
- * - With `text`, a statement that a newline has closed is complete. In the statement still being
+ * - With `text`, a statement is complete once a newline closes it, or the bracket that ends its
+ *   call. So a program that arrives whole, with no newline at its end, is complete. In the
+ *   statement still being
  *   written, the value at the end of the last argument may be cut short. The last item of a list
  *   there is left out, and so is a key of an object with no value yet. The element then renders
  *   what has arrived, and never as a fallback for a value that is only half-written.
@@ -197,7 +214,7 @@ export function openUiToDocument(
                         path: `${id}.${key}`,
                         // Warn of a refusal once its statement completes, not for a value still
                         // being written.
-                        warn: !isPartialElement,
+                        warn: !isPartialElement && !opts.quiet,
                         runtime,
                         isActionProp: isAction
                     });
@@ -256,6 +273,7 @@ export function openUiToDocument(
         isPartial,
         errors,
         elementErrors,
+        openStatement: program?.openStatement ?? null,
         unresolved: uniq(meta.unresolved ?? []),
         orphaned: uniq(meta.orphaned ?? [])
     };
@@ -268,17 +286,7 @@ const REF_PREFIX = '#/$defs/',
     ACTION_REF = `${REF_PREFIX}ActionExpression`,
     // The key lang-core gives the pair still to come in an object cut short.
     PENDING_KEY = '?',
-    // lang-core's token types, which it declares as a const enum and so does not export.
-    TOKEN = {
-        lParen: 1,
-        rParen: 2,
-        lBrack: 3,
-        rBrack: 4,
-        lBrace: 5,
-        rBrace: 6,
-        colon: 8,
-        question: 34
-    },
+    MAX_SCANS = 50,
     MAX_LABEL_LENGTH = 40,
     AST_KINDS: ASTNode['k'][] = [
         'Comp',
@@ -316,6 +324,21 @@ function toElementId(statementId: string): string {
     return OBJECT_MEMBER_IDS.includes(statementId) ? `${statementId}$` : statementId;
 }
 
+interface TokenTypes {
+    lParen: number;
+    rParen: number;
+    lBrack: number;
+    rBrack: number;
+    lBrace: number;
+    rBrace: number;
+    colon: number;
+    question: number;
+}
+
+let tokenTypes: TokenTypes;
+
+const scans = new Map<string, ProgramScan>();
+
 // What the text of a program shows that lang-core's result does not.
 interface ProgramScan {
     // Id of the statement at the end of the text that no newline has closed: the one still being
@@ -327,7 +350,11 @@ interface ProgramScan {
     namedArguments: Map<string, string[]>;
 }
 
+// A program is scanned once per text. Each change of state translates the same text again.
 function scanProgram(text: string): ProgramScan {
+    const cached = scans.get(text);
+    if (cached) return cached;
+
     const statements = split(tokenize(text)),
         lastStatement = last(statements),
         namedArguments = new Map<string, string[]>();
@@ -336,19 +363,60 @@ function scanProgram(text: string): ProgramScan {
         const names = findNamedArguments(tokens);
         if (!isEmpty(names)) namedArguments.set(id, names);
     });
-    return {
-        openStatement:
-            lastStatement && !(lastStatement.end < text.length) ? lastStatement.id : null,
-        namedArguments
-    };
+    const isOpen =
+            lastStatement != null &&
+            !(lastStatement.end < text.length) &&
+            !endsItsCall(lastStatement.tokens),
+        ret = {openStatement: isOpen ? lastStatement.id : null, namedArguments};
+
+    if (scans.size >= MAX_SCANS) scans.delete(scans.keys().next().value);
+    scans.set(text, ret);
+    return ret;
+}
+
+// True for a statement whose last token is the closing parenthesis of a call, with every bracket
+// before it closed. Nothing more can follow in such a statement, so it is complete with no
+// newline after it, as at the end of a program that arrives whole.
+function endsItsCall(tokens: ReturnType<typeof tokenize>): boolean {
+    const types = getTokenTypes();
+    if (!types || last(tokens)?.t !== types.rParen) return false;
+
+    let depth = 0;
+    for (const {t} of tokens) {
+        if (t === types.lParen || t === types.lBrack || t === types.lBrace) depth++;
+        if (t === types.rParen || t === types.rBrack || t === types.rBrace) depth--;
+        if (depth < 0) return false;
+    }
+    return depth === 0;
+}
+
+// lang-core's token types for the brackets, the colon and the question mark. It declares them as
+// a const enum, which has no values to import, so they are read from its tokenizer. Null if the
+// tokenizer does not give eight distinct types, as after a change to it.
+function getTokenTypes(): TokenTypes {
+    if (tokenTypes === undefined) {
+        const types = tokenize('( ) [ ] { } : ?')
+            .slice(0, 8)
+            .map(it => it.t as number);
+        if (uniq(types).length === 8) {
+            const [lParen, rParen, lBrack, rBrack, lBrace, rBrace, colon, question] = types;
+            tokenTypes = {lParen, rParen, lBrack, rBrack, lBrace, rBrace, colon, question};
+        } else {
+            tokenTypes = null;
+            logWarn('Could not read the token types of lang-core.', 'OpenUiDocument');
+        }
+    }
+    return tokenTypes;
 }
 
 // The names of the arguments that a statement writes by name: each colon directly inside the
 // parentheses of a call. A colon inside an object, or after the `?` of a ternary, is not one.
 function findNamedArguments(tokens: ReturnType<typeof tokenize>): string[] {
-    const open: number[] = [],
+    const TOKEN = getTokenTypes(),
+        open: number[] = [],
         ternaries: number[] = [0],
         ret: string[] = [];
+    if (!TOKEN) return ret;
 
     tokens.forEach((token, idx) => {
         switch (token.t as number) {
@@ -487,17 +555,26 @@ function toPropValue(
         }
         return withLabel && action.label == null ? {...action, label: toLabel(action)} : action;
     };
-    const toAction = (node: ASTNode) => accept(openUiToAction(node, library));
+    const toAction = (node: ASTNode) => accept(openUiToAction(node, library, {warn}));
 
     // The schema must allow a state action, and each kit action among its steps.
     const toPlanAction = (plan: ActionPlan, id: string) => {
         const steps = toOpenUiSteps(plan, library),
-            action = runtime.createAction(id, steps);
-        if (action?.type !== 'state') return accept(action);
+            created = runtime.createAction(id, steps);
+        if (!created) {
+            const message =
+                `OpenUI action dropped from ${id}, as its ${steps.length} steps hold none the ` +
+                'kit can run, or cannot be shown to the user in full.';
+            if (warn && !isEmpty(plan.steps)) warnOnce(message, message, 'OpenUiDocument');
+            return null;
+        }
+
+        const {action} = created;
+        if (action.type !== 'state') return accept(action);
 
         const stepActions = steps.flatMap(it => (it.type === 'action' ? [it.action] : [])),
             ret = accept(action, [action, ...stepActions]);
-        if (ret) runtime.registerAction(action, steps);
+        if (ret) runtime.registerAction(action, created.plan);
         return ret;
     };
 

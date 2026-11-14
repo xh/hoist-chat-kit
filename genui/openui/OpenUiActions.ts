@@ -6,6 +6,7 @@ import {
     fromPairs,
     isBoolean,
     isEmpty,
+    isFinite,
     isNumber,
     isPlainObject,
     isString,
@@ -42,17 +43,22 @@ import type {OpenUiLibrary} from './OpenUiLibrary';
  * This reads an action as lang-core parsed it, for a program that runs with no state. A program
  * with state evaluates its actions first, and reads them with {@link toOpenUiSteps}.
  *
+ * @param opts - set `warn` to false to log no warning for the steps the kit drops.
  * @returns the action, or null for an expression the kit cannot run - such as `@Set`, `@Reset` or
  *      `@Run`, which act on OpenUI state and queries.
  */
-export function openUiToAction(node: ASTNode, library: OpenUiLibrary): ChatUiAction {
+export function openUiToAction(
+    node: ASTNode,
+    library: OpenUiLibrary,
+    opts: {warn?: boolean} = {}
+): ChatUiAction {
     if (!isPlainObject(node) || node.k !== 'Comp') return null;
 
     const {name, args = [], mappedProps = {}} = node,
         arg = (key: string, idx: number) => toValue(getOwn(mappedProps, key) ?? args[idx]);
     switch (name) {
         case 'Action':
-            return fromSteps(args[0], library);
+            return fromSteps(args[0], library, opts.warn !== false);
         case 'ToAssistant':
             return toSendAction(
                 arg('message', 0),
@@ -137,9 +143,9 @@ function toOpenUrlAction(url: unknown): ChatUiAction {
     return isString(url) && url ? {type: 'openUrl', url} : null;
 }
 
-function fromSteps(list: ASTNode, library: OpenUiLibrary): ChatUiAction {
+function fromSteps(list: ASTNode, library: OpenUiLibrary, warn: boolean): ChatUiAction {
     const steps = list?.k === 'Arr' ? list.els : [],
-        actions = compact(steps.map(it => openUiToAction(it, library)));
+        actions = compact(steps.map(it => openUiToAction(it, library, {warn})));
     if (actions.length <= 1) return actions[0] ?? null;
 
     const ret = actions.find(it => it.type === 'send') ?? actions[0],
@@ -148,7 +154,7 @@ function fromSteps(list: ASTNode, library: OpenUiLibrary): ChatUiAction {
             `Kept: ${describeChatUiAction(ret)}.`,
             `Dropped: ${without(actions, ret).map(describeChatUiAction).join('; ')}.`
         ];
-    warnOnce(message.join(' '), message, 'OpenUiActions');
+    if (warn) warnOnce(message.join(' '), message, 'OpenUiActions');
     return ret;
 }
 
@@ -172,15 +178,24 @@ function toValue(node: ASTNode): unknown {
 function toContext(value: unknown): PlainObject {
     if (value == null) return null;
 
-    const entries = isPlainObject(value) ? Object.entries(value) : [['value', value]];
-    if (isEmpty(entries)) return null;
-    return fromPairs(
-        take(entries, CHAT_UI_MAX_CONTEXT_ENTRIES).map(([key, it]) => [key, toContextValue(it)])
-    );
+    // An entry with no value, such as a field that an expression did not find, is left out.
+    const entries = (isPlainObject(value) ? Object.entries(value) : [['value', value]])
+        .map(([key, it]): [string, string | number | boolean] => [key, toContextValue(it)])
+        .filter(([, it]) => it != null);
+    return isEmpty(entries) ? null : fromPairs(take(entries, CHAT_UI_MAX_CONTEXT_ENTRIES));
 }
 
+// A value of a context: a number or a boolean as it is, text cut to the cap, and any other
+// value as its JSON, cut to the cap. Null for a value that JSON cannot hold, such as undefined,
+// a function or a number that is not finite.
 function toContextValue(value: unknown): string | number | boolean {
-    if (isNumber(value) || isBoolean(value)) return value;
-    const text = isString(value) ? value : JSON.stringify(value);
-    return text.slice(0, CHAT_UI_MAX_CONTEXT_VALUE_LENGTH);
+    if (isBoolean(value)) return value;
+    if (isNumber(value)) return isFinite(value) ? value : null;
+    let text: string;
+    try {
+        text = isString(value) ? value : JSON.stringify(value);
+    } catch {
+        return null;
+    }
+    return isString(text) ? text.slice(0, CHAT_UI_MAX_CONTEXT_VALUE_LENGTH) : null;
 }

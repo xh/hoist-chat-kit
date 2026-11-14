@@ -334,7 +334,15 @@ describe('openUiToDocument', () => {
         onTestFinished(() => chatModel.destroy());
 
         const html = render(
-            {document, isPartial, errors: [], elementErrors, unresolved: [], orphaned: []},
+            {
+                document,
+                isPartial,
+                errors: [],
+                elementErrors,
+                openStatement: null,
+                unresolved: [],
+                orphaned: []
+            },
             catalog,
             chatModel
         );

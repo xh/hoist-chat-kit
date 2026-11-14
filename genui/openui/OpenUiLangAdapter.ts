@@ -44,15 +44,22 @@ export function openUiLangAdapter(opts: OpenUiLangAdapterOptions): ChatUiAdapter
                 translation = openUiToDocument(result, library, {
                     complete: !isPartial,
                     text: program,
-                    catalog
+                    catalog,
+                    quiet: features.hasState
                 });
-            // A program cut off when the reply ended is complete: nothing more will arrive.
+            // A program cut off when the reply ended is complete: nothing more will arrive. A
+            // data part most often holds a whole program while its reply still streams. So a
+            // program with a root, and no statement still being written, runs its queries.
             const isDocumentPartial = isPartial && translation.isPartial,
+                isWhole =
+                    translation.document.root != null &&
+                    translation.openStatement == null &&
+                    !result.meta.incomplete,
                 state = features.hasState
                     ? createOpenUiStateSpec(result, library, {
                           catalog,
                           text: program,
-                          isComplete: !isDocumentPartial,
+                          isComplete: !isDocumentPartial || isWhole,
                           isTextComplete: !isPartial,
                           logKey: program,
                           runtime: features.runtime
