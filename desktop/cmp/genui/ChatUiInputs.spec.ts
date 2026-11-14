@@ -210,6 +210,33 @@ describe('built-in form components', () => {
             expect(values.get('top')).toBe('week');
         });
 
+        it('keeps what the user entered when the label and the rules of its input change', async () => {
+            const catalog = createCatalog(),
+                view = (props: PlainObject) =>
+                    chatHost({
+                        model: null,
+                        item: catalog.renderDocument(
+                            {root: 'top', elements: {top: {component: 'textInput', props}}},
+                            context(null)
+                        ) as ReactNode
+                    }),
+                {rerender, container} = render(view({name: 'name', label: 'Name'})),
+                input = () => container.querySelector<HTMLInputElement>('.xh-text-input input');
+            typeInto(input(), 'Ann');
+
+            // Hoist fixes the rules of a field when it creates it, so the input gets a new one.
+            rerender(view({name: 'name', label: 'Full name', rules: {required: true}}));
+            expect(screen.getByText('Full name')).toBeTruthy();
+            expect(input().value).toBe('Ann');
+
+            // The new field runs the new rule, and still holds what the user types.
+            typeInto(input(), '');
+            await waitFor(() => expect(container.textContent).toContain('Full name is required.'));
+            typeInto(input(), 'Bob');
+            expect(input().value).toBe('Bob');
+            await waitFor(() => expect(container.textContent).not.toContain('is required'));
+        });
+
         it('leaves out the last choice while the props stream, as it may be cut short', () => {
             const element: ChatUiElement = {
                     component: 'segmentedControl',
