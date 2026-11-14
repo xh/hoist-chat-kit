@@ -1,0 +1,25 @@
+// A Hoist Banner, at the chat's radius and font size, with a heading over its message.
+.xh-chat-ui-callout {
+  border-radius: var(--xh-chat-border-radius);
+  box-sizing: border-box;
+  font-size: var(--xh-chat-font-size, var(--xh-font-size-px));
+  line-height: normal;
+  min-width: 0;
+
+  // The banner centers its icon. Against a heading and a message, it reads from the top.
+  .xh-banner__content {
+    align-items: flex-start;
+
+    > .xh-icon {
+      margin-top: 2px;
+    }
+  }
+
+  .xh-banner__message {
+    overflow-wrap: anywhere;
+  }
+
+  &__title {
+    font-weight: 600;
+  }
+}
