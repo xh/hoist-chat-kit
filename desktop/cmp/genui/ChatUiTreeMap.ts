@@ -171,10 +171,7 @@ export const [ChatUiTreeMap, chatUiTreeMap] = hoistCmp.withFactory<ChatUiTreeMap
     render({model, className, title, height, isPartial}) {
         const impl = model as ChatUiTreeMapLocalModel,
             {hasBoxes, treeMapModel} = impl,
-            isBuilding = isPartial && !hasBoxes,
-            // Hoist's TreeMapModel reads its store after a short delay, and its TreeMap draws an
-            // empty box until then. The skeleton holds the place, and the map mounts with data.
-            isLoading = hasBoxes && treeMapModel.empty;
+            isBuilding = isPartial && !hasBoxes;
 
         return chatUiFrame({
             className,
@@ -184,16 +181,15 @@ export const [ChatUiTreeMap, chatUiTreeMap] = hoistCmp.withFactory<ChatUiTreeMap
             item: div({
                 className: 'xh-chat-ui-treemap__body',
                 style: height ? {height} : null,
-                item:
-                    isBuilding || isLoading
-                        ? chatUiSkeleton(null)
-                        : hasBoxes
-                          ? treeMap({model: treeMapModel})
-                          : div({
-                                className: 'xh-chat-ui-center',
-                                role: 'note',
-                                item: 'No values to show.'
-                            })
+                item: isBuilding
+                    ? chatUiSkeleton(null)
+                    : hasBoxes
+                      ? treeMap({model: treeMapModel})
+                      : div({
+                            className: 'xh-chat-ui-center',
+                            role: 'note',
+                            item: 'No values to show.'
+                        })
             })
         });
     }
@@ -215,8 +211,7 @@ class ChatUiTreeMapLocalModel extends HoistModel {
         fields: [
             {name: 'name', type: 'string'},
             {name: 'value', type: 'number'},
-            {name: 'heat', type: 'number'},
-            {name: 'color', type: 'number'}
+            {name: 'heat', type: 'number'}
         ]
     });
 
@@ -224,7 +219,7 @@ class ChatUiTreeMapLocalModel extends HoistModel {
         store: this.store,
         labelField: 'name',
         valueField: 'value',
-        heatField: 'color',
+        heatField: 'heat',
         tooltip: record => this.renderTooltip(record)
     });
 
@@ -233,8 +228,8 @@ class ChatUiTreeMapLocalModel extends HoistModel {
     }
 
     /**
-     * The complete boxes, as store data. Highcharts reads a name as HTML, so it is escaped. `heat`
-     * is what the model wrote, for the tooltip, and `color` is the heat that colors the box.
+     * The complete boxes, as store data. Highcharts reads a name as HTML, so it is escaped. A box
+     * with no heat is neutral, as are boxes whose heats are all zero.
      */
     @computed
     get rows(): PlainObject[] {
@@ -242,17 +237,13 @@ class ChatUiTreeMapLocalModel extends HoistModel {
             // While streaming, the last box may be cut short - its value still being written.
             complete = (isPartial ? dropRight(nodes) : (nodes ?? [])).filter(
                 it => isPlainObject(it) && isString(it.label) && isFinite(it.value)
-            ),
-            // Hoist's TreeMap scales each heat by the largest, so heats that are all zero give
-            // it no scale and a color it cannot compute. Such boxes are neutral.
-            hasHeat = complete.some(it => isFinite(it.heat) && it.heat !== 0);
+            );
 
         return complete.map(({label, value, heat}, idx) => ({
             id: idx,
             name: escape(label),
             value,
-            heat: isFinite(heat) ? heat : null,
-            color: hasHeat && isFinite(heat) ? heat : null
+            heat: isFinite(heat) ? heat : null
         }));
     }
 

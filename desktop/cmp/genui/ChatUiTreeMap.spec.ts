@@ -61,10 +61,10 @@ describe('chatUiTreeMapSpec', () => {
         expect(new Set(loadData.mock.contexts).size).toBe(1);
         expect(loadData.mock.calls.map(([rows]) => rows)).toEqual([
             [],
-            [{id: 0, name: 'Rates', value: 42, heat: 0.01, color: 0.01}],
+            [{id: 0, name: 'Rates', value: 42, heat: 0.01}],
             [
-                {id: 0, name: 'Rates', value: 42, heat: 0.01, color: 0.01},
-                {id: 1, name: 'Credit', value: 26, heat: null, color: null}
+                {id: 0, name: 'Rates', value: 42, heat: 0.01},
+                {id: 1, name: 'Credit', value: 26, heat: null}
             ]
         ]);
 
@@ -114,18 +114,15 @@ describe('chatUiTreeMapSpec', () => {
         expect(tooltips[1]).not.toContain('Day');
     });
 
-    it('holds its skeleton until the TreeMapModel has data, then mounts the TreeMap', async () => {
+    it('mounts the TreeMap with its data at once, with no skeleton', () => {
         spyOnModels();
         const {container} = render(chatUiTreeMap({nodes: [{label: 'Rates', value: 42}]}));
 
-        // Hoist's TreeMapModel reads its store after a short delay. A TreeMap mounted before
-        // then draws an empty box, so the card waits.
-        expect(container.querySelector('.xh-chat-ui-skeleton')).toBeTruthy();
-        expect(container.textContent).not.toContain(NO_HIGHCHARTS);
-        expect(container.querySelector('.xh-placeholder')).toBeNull();
-
-        await vi.waitFor(() => expect(container.textContent).toContain(NO_HIGHCHARTS));
+        // Hoist's TreeMapModel reads its store as the store loads, so the map has data when it
+        // mounts and draws no empty box.
         expect(container.querySelector('.xh-chat-ui-skeleton')).toBeNull();
+        expect(container.querySelector('.xh-placeholder')).toBeNull();
+        expect(container.textContent).toContain(NO_HIGHCHARTS);
     });
 
     it('says there is nothing to show when no complete box has a size', () => {
@@ -161,12 +158,12 @@ describe('chatUiTreeMapSpec', () => {
         );
         await vi.waitFor(() => expect(processData).toHaveBeenCalled());
 
-        // Hoist's TreeMap divides by the largest heat, so a zero scale gives no color at all.
+        // Hoist's TreeMap draws heats that are all zero as neutral.
         const treeMapModel = processData.mock.contexts[0] as TreeMapModel,
             store = loadData.mock.contexts[0] as Store;
         expect(loadData.mock.calls.at(-1)[0]).toEqual([
-            {id: 0, name: 'Rates', value: 42, heat: 0, color: null},
-            {id: 1, name: 'Credit', value: 26, heat: 0, color: null}
+            {id: 0, name: 'Rates', value: 42, heat: 0},
+            {id: 1, name: 'Credit', value: 26, heat: 0}
         ]);
         expect(treeMapModel.data.map(it => it.colorValue)).toEqual([0.5, 0.5]);
         expect((treeMapModel.tooltip as TreeMapTooltipFn)(store.records[0])).toContain(
