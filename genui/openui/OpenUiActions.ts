@@ -39,8 +39,10 @@ import type {OpenUiLibrary} from './OpenUiLibrary';
  *
  * - `@ToAssistant(message, context)` becomes `send`. The text is cut to 200 characters. The
  *   context becomes a flat object of at most 8 entries: a string, number or boolean value stays,
- *   with a string cut to 100 characters, and any other value becomes its JSON, cut to 100
- *   characters. A context that is not an object becomes `{value: ...}`.
+ *   with a string cut to 100 characters, and any other value becomes its JSON. An empty list is
+ *   left out, as a form leaves out an empty field. JSON is never cut: a list or an object whose
+ *   JSON is longer than 100 characters gives no action, as a form refuses it. A context that is
+ *   not an object becomes `{value: ...}`.
  * - `@OpenUrl(url)` becomes `openUrl`.
  * - A call to an action that `library.schema.actions` declares becomes `app`, with the call's
  *   arguments as its params. {@link toOpenUiLibrary} declares no actions yet, so this applies
@@ -148,13 +150,22 @@ export function toOpenUiSteps(plan: ActionPlan): OpenUiStep[] {
  */
 export function toSendAction(text: unknown, contextValue: unknown): ChatUiAction {
     const context = toContext(contextValue);
-    if (!isString(text) || !text) return null;
+    if (!isString(text) || !text || context === TOO_LONG) return null;
     if (hasWhitespaceRun(text) || hasWhitespaceRun(context)) return null;
     return {
         type: 'send',
         text: text.slice(0, CHAT_UI_MAX_SEND_LENGTH),
         ...(context ? {context} : {})
     };
+}
+
+/**
+ * True for a context that {@link toSendAction} refuses as it holds a list or an object whose JSON
+ * is longer than a value of a send may be.
+ * @internal
+ */
+export function hasLongContextValue(contextValue: unknown): boolean {
+    return toContext(contextValue) === TOO_LONG;
 }
 
 /**
@@ -170,6 +181,9 @@ export function toOpenUrlAction(url: unknown): ChatUiAction {
 // Implementation
 //------------------
 const REFUSED: OpenUiStep = {type: 'refused'};
+
+// A context with a value whose JSON is too long to send in full.
+const TOO_LONG: PlainObject = Object.freeze({});
 
 function isStateName(name: unknown): name is string {
     return isString(name) && STATE_NAME_RE.test(name);
@@ -211,23 +225,31 @@ function toContext(value: unknown): PlainObject {
     if (value == null) return null;
 
     // An entry with no value, such as a field that an expression did not find, is left out.
-    const entries = (isPlainObject(value) ? Object.entries(value) : [['value', value]])
-        .map(([key, it]): [string, string | number | boolean] => [key, toContextValue(it)])
-        .filter(([, it]) => it != null);
-    return isEmpty(entries) ? null : fromPairs(take(entries, CHAT_UI_MAX_CONTEXT_ENTRIES));
+    const entries = take(
+        (isPlainObject(value) ? Object.entries(value) : [['value', value]])
+            .map(([key, it]): [string, unknown] => [key, toContextValue(it)])
+            .filter(([, it]) => it != null),
+        CHAT_UI_MAX_CONTEXT_ENTRIES
+    );
+    if (entries.some(([, it]) => it === TOO_LONG)) return TOO_LONG;
+    return isEmpty(entries) ? null : fromPairs(entries);
 }
 
 // A value of a context: a number or a boolean as it is, text cut to the cap, and any other
-// value as its JSON, cut to the cap. Null for a value that JSON cannot hold, such as undefined,
-// a function or a number that is not finite.
-function toContextValue(value: unknown): string | number | boolean {
+// value as its JSON, which is never cut, so that it stays JSON. TOO_LONG for JSON over the cap.
+// Null for an empty list, and for a value that JSON cannot hold, such as undefined, a function or
+// a number that is not finite.
+function toContextValue(value: unknown): string | number | boolean | typeof TOO_LONG {
     if (isBoolean(value)) return value;
     if (isNumber(value)) return isFinite(value) ? value : null;
+    if (isString(value)) return value.slice(0, CHAT_UI_MAX_CONTEXT_VALUE_LENGTH);
+    if (isArray(value) && isEmpty(value)) return null;
     let text: string;
     try {
-        text = isString(value) ? value : JSON.stringify(value);
+        text = JSON.stringify(value);
     } catch {
         return null;
     }
-    return isString(text) ? text.slice(0, CHAT_UI_MAX_CONTEXT_VALUE_LENGTH) : null;
+    if (!isString(text)) return null;
+    return text.length > CHAT_UI_MAX_CONTEXT_VALUE_LENGTH ? TOO_LONG : text;
 }

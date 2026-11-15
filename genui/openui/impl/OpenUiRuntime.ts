@@ -32,7 +32,12 @@ import type {ChatUiCatalog} from '../../ChatUiCatalog';
 import type {ChatUiDocumentContext} from '../../ChatUiComponentSpec';
 import type {ChatUiBinding, ChatUiState} from '../../ChatUiState';
 import {hasWhitespaceRun, quoteForDisplay} from '../../impl/displayText';
-import {toOpenUrlAction, toSendAction, type OpenUiStep} from '../OpenUiActions';
+import {
+    hasLongContextValue,
+    toOpenUrlAction,
+    toSendAction,
+    type OpenUiStep
+} from '../OpenUiActions';
 import {toPlainText} from '../OpenUiDocument';
 import {isOpenUiActionProp, type OpenUiLibrary} from '../OpenUiLibrary';
 import {prepareActions} from './actionSyntax';
@@ -627,7 +632,11 @@ export class OpenUiRuntime extends HoistBase implements ChatUiState {
                 case 'send': {
                     const value = this.evaluateNode(step.valueAST, ctx) as PlainObject,
                         send = toSendAction(value?.message, value?.context);
-                    if (!send) throw new ActionRefusal(HIDDEN_TEXT);
+                    if (!send) {
+                        throw new ActionRefusal(
+                            hasLongContextValue(value?.context) ? TOO_LONG : HIDDEN_TEXT
+                        );
+                    }
                     return {type: 'action', action: send};
                 }
                 case 'openUrl': {

@@ -200,6 +200,17 @@ describe('OpenUI Lang safety', () => {
             expect(title()).toBe('This action is too long to show in full, so it cannot run.');
         });
 
+        it('gives no action for a list in a message whose JSON is too long to send', () => {
+            silenceLogs();
+            const ids = Array.from({length: 40}, (_, idx) => idx + 1000).join(', ');
+            renderProgram(
+                `root = Stack([go])\ngo = Trigger("Go", @ToAssistant("Use these", {ids: [${ids}]}))`,
+                {chatModel: createChatModel({})}
+            );
+
+            expect(title()).toBe('This action is too long to show in full, so it cannot run.');
+        });
+
         it('gives no action for two messages in one action, as the second would go nowhere', () => {
             silenceLogs();
             renderProgram(

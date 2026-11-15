@@ -613,7 +613,8 @@ email: ann@example.com, region: EMEA
 The tooltip of the button shows the message and the values before the click, and the sent message
 shows them after it. A `send` holds text, numbers and booleans only, so a list goes as its JSON:
 a select with `multi` sends `["emea","apac"]`, and a slider with `range` sends `[25,75]`. An
-OpenUI `@ToAssistant` sends a list in its context the same way. An empty field sends nothing.
+OpenUI `@ToAssistant` sends a list in its context the same way. An empty field and an empty list
+send nothing.
 
 A `send` holds at most 8 values of at most 100 characters each, so that the user can read all of
 it. The form keeps to that:
@@ -623,6 +624,9 @@ it. The form keeps to that:
   no button validates it, and a `@ToAssistant` that sends it cuts it to the cap.
 - A form with more values than a send can hold cannot send. Its button is disabled, and its
   tooltip says why.
+- A list whose JSON is longer than 100 characters is never cut, as cut JSON is not a list. The
+  form cannot send it, and neither can a `@ToAssistant`. Each button is disabled, and its tooltip
+  says why.
 
 The button takes `send` and `state` actions by default. A `state` action acts on the state of
 the document, as an OpenUI `@Set` does. Pass `actionTypes` to allow `openUrl`, `navigate`,

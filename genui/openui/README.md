@@ -882,7 +882,7 @@ before it runs:
 
 | OpenUI Lang | Kit action |
 |-------------|------------|
-| `@ToAssistant(message, context)` | `send`. The text is cut to 200 characters. The context becomes a flat object of at most 8 entries, each a string, number or boolean, with a string cut to 100 characters. A nested value becomes its JSON. A context that is not an object becomes `{value: ...}`. |
+| `@ToAssistant(message, context)` | `send`. The text is cut to 200 characters. The context becomes a flat object of at most 8 entries, each a string, number or boolean, with a string cut to 100 characters. A nested value becomes its JSON, which is never cut: JSON longer than 100 characters gives no action. An empty list is left out. A context that is not an object becomes `{value: ...}`. |
 | `@OpenUrl(url)` | `openUrl`. `urlAllowList` still applies. |
 | `@Name(...)`, for an action in `schema.actions` | `app`, with the call's arguments as its params. `toOpenUiLibrary()` declares no `schema.actions` yet. |
 | `Action([...])` | Its one step the kit can run: the first `send`, or else the first step. The kit drops the rest with a warning. With state on, one `state` action that runs every step in order. |

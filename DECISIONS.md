@@ -3009,6 +3009,12 @@ package ships as source, so an import of a module that Hoist 90 lacks fails the 
 button's tooltip shows the same text. The caps of D56 apply to it, so a list whose JSON is longer
 than 100 characters stops the send, and the button says why.
 
+A form and an OpenUI `@ToAssistant` follow one rule for a list. An empty list is no value, so it
+is left out, as an empty field is. JSON is never cut, as cut JSON is not a list. So a
+`@ToAssistant` whose context holds a list or an object with JSON longer than 100 characters is
+refused, and its button says why, as the form's does. A `@ToAssistant` still cuts text to the cap,
+as D129 has it.
+
 **Why.** The form joined the values with commas. A choice that holds a comma then read as two
 choices. The same `$variable` also went out in two forms, as joined text from the form and as
 JSON from an action's own context. JSON is one form that a model reads back as a list.

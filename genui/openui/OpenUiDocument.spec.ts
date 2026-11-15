@@ -181,6 +181,23 @@ describe('openUiToDocument', () => {
         expect(action('c')).toEqual({type: 'send', text: 'Why?', context: {value: 'Q3'}});
     });
 
+    it('leaves an empty list out of a ToAssistant context, and never cuts JSON', () => {
+        const ids = Array.from({length: 40}, (_, idx) => idx + 1000).join(', '),
+            {document} = translate(
+                'root = Stack([], "small", [a, b])\n' +
+                    'a = Button("A", @ToAssistant("Go", {none: [], some: ["emea", "apac"]}))\n' +
+                    `b = Button("B", @ToAssistant("Go", {ids: [${ids}]}))`
+            ),
+            action = (id: string) => document.elements[id].props.action;
+
+        expect(action('a')).toEqual({
+            type: 'send',
+            text: 'Go',
+            context: {some: '["emea","apac"]'}
+        });
+        expect(action('b')).not.toMatchObject({type: 'send'});
+    });
+
     it('maps OpenUrl to openUrl, and an app action to app', () => {
         const library = createLibrary({
                 Approve: {
