@@ -1,0 +1,6 @@
+// A column of Hoist ProgressBars. Each bar fills the width, and has no margin of its own.
+.xh-chat-ui-progress {
+  gap: var(--xh-pad-px);
+  min-width: 0;
+  width: 100%;
+}
