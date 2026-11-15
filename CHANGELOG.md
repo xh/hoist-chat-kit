@@ -139,8 +139,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Added `chatUiProgressSpec()`, a column of bars over Hoist's `ProgressBar`, and
   `chatUiStepsSpec()`, a sequence of steps with a status each over Hoist's `Steps`. Neither is
   standalone.
-* Added `chatUiKeyValuesSpec()`, a list of labeled values over Hoist's `KeyValueList`. It is not
-  standalone.
+* Added `chatUiKeyValuesSpec()`, a list of labeled values over Hoist's `KeyValueList`, and
+  `chatUiListSpec()`, a short list of entries over Hoist's `ItemList`. Neither is standalone.
 * Added `trend` to a metric of `chatUiMetricsSpec()`, a list of recent values that the stat card
   draws as a Hoist `Sparkline`. The `maxTrendPoints` option bounds it.
 * `chatUiDividerSpec()` now renders Hoist's `Separator`, and takes an optional `label`. The rule

@@ -9,7 +9,7 @@
 | [Overview](#overview) | What the built-in components are, and the key features |
 | [Architecture](#architecture) | Factories, components, and how a call becomes a rendered component |
 | [Configuration Pattern](#configuration-pattern) | Adding the components to a `ChatUiCatalog` and a `ChatModel` |
-| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, metrics, cards, nested answers, tabs, sections, callouts, progress, steps, labeled values, forms and inputs, and direct use |
+| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, metrics, cards, nested answers, tabs, sections, callouts, progress, steps, labeled values, lists, forms and inputs, and direct use |
 | [Properties/API Reference](#propertiesapi-reference) | Factory options and the props each component takes |
 | [Extension Points](#extension-points) | Renaming, describing, limiting, and writing your own |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -21,7 +21,7 @@ The `/desktop/cmp/genui/` package holds ready-made components for generative UI.
 them inline in its reply: a result table, a Hoist chart, a row of stat cards, and a detail card. A
 stack and a text component lay these out in a nested answer. Tabs, sections, callouts, badges,
 dividers and a treemap add structure and emphasis, each a spec over a Hoist component. Progress
-bars, steps and a list of labeled values show the state of one thing. Add them to a
+bars, steps, a list of labeled values and a list of entries show the state of one thing. Add them to a
 `ChatUiCatalog` next to your own components. The model can then answer with real Hoist UI in
 place of long tables of text.
 
@@ -37,8 +37,9 @@ Key features:
 - **Hoist components for structure** - `chatUiTabsSpec()`, `chatUiSectionSpec()`,
   `chatUiCalloutSpec()`, `chatUiBadgesSpec()`, `chatUiDividerSpec()` and `chatUiTreeMapSpec()` map
   plain props to Hoist's `TabContainer`, `Card`, `Banner`, `Badge`, `Separator` and `TreeMap`.
-- **Hoist components for one thing** - `chatUiProgressSpec()`, `chatUiStepsSpec()` and
-  `chatUiKeyValuesSpec()` map plain props to Hoist's `ProgressBar`, `Steps` and `KeyValueList`.
+- **Hoist components for one thing** - `chatUiProgressSpec()`, `chatUiStepsSpec()`,
+  `chatUiKeyValuesSpec()` and `chatUiListSpec()` map plain props to Hoist's `ProgressBar`,
+  `Steps`, `KeyValueList` and `ItemList`.
 - **Result tables in two tiers** - inline, a table is a light preview of its first rows and
   columns, with a footer that says what it leaves out. Expand opens one Hoist `Grid` over the
   whole result, in the chat's side panel or in a dialog.
@@ -443,7 +444,7 @@ The treemap needs two Highcharts modules, heatmap then treemap. See
 {
     "root": "answer",
     "elements": {
-        "answer": {"component": "stack", "props": {}, "children": ["usage", "order", "facts"]},
+        "answer": {"component": "stack", "props": {}, "children": ["usage", "order", "facts", "alerts"]},
         "usage": {"component": "progress", "props": {"bars": [
             {"label": "Storage", "value": 72},
             {"label": "Budget", "value": 7200, "max": 10000, "format": "currency", "intent": "warning", "target": 9000}
@@ -457,6 +458,10 @@ The treemap needs two Highcharts modules, heatmap then treemap. See
             {"label": "Counterparty", "value": "Acme Corp"},
             {"label": "Exposure", "value": 4200000, "format": "currency", "decimals": 0},
             {"label": "Status", "value": "Under review", "intent": "warning"}
+        ]}},
+        "alerts": {"component": "list", "props": {"items": [
+            {"title": "Limit breach on Rates", "detail": "09:42", "intent": "danger"},
+            {"title": "Margin call settled", "description": "Paid in full by Acme Corp."}
         ]}}
     }
 }
@@ -472,10 +477,15 @@ The treemap needs two Highcharts modules, heatmap then treemap. See
   after it are pending. A `status` on a step wins: `pending`, `current`, `complete`, `warning` or
   `error`. The model writes no icon, and a step takes no click.
 - **Key values** render Hoist's `KeyValueList`: a label beside each value, in as many columns as
-  fit, or in `columns`. A number takes a `format` and `decimals`, and text shows as is. A missing
-  or blank value shows as `-`. Use the card spec for a record with a frame, a title and actions.
+  fit, or in `columns`. A number takes a `format` and `decimals`. Text shows as is, and a boolean
+  as `true` or `false`. A missing or blank value shows as `-`. Use the card spec for a record
+  with a frame, a title and actions.
+- **A list** renders Hoist's `ItemList`: an entry per item, with a rule between entries. Each is
+  a `title`, with an optional `description` under it and a short `detail` at the end of its line.
+  An `intent` flags an entry with a color. With `ordered`, the entries have numbers. The model
+  writes no icon, and an entry takes no click.
 
-None of the three is standalone, and each shows only its complete items while the props stream.
+None of the four is standalone, and each shows only its complete items while the props stream.
 
 ### Ask the user for input
 
@@ -667,6 +677,7 @@ and `description`, the text that tells the model when to use the component.
 | `chatUiProgressSpec` | `maxItems` | `number` | Most bars. Default 8. |
 | `chatUiStepsSpec` | `maxItems` | `number` | Most steps. Default 8. |
 | `chatUiKeyValuesSpec` | `maxItems` | `number` | Most labeled values. Default 24. |
+| `chatUiListSpec` | `maxItems` | `number` | Most entries. Default 12. |
 | `chatUiTreeMapSpec` | `maxNodes` | `number` | Most boxes. Default 60. |
 | | `height` | `number` | Treemap body height, in pixels. Default the `--xh-chat-chart-height` variable. |
 
@@ -714,6 +725,7 @@ their own. Their props from the model:
 | `chatUiProgressSpec` | `bars`, each a `label`, a `value`, and an optional `max`, `format`, `intent` and `target` |
 | `chatUiStepsSpec` | `steps`, each a `title` and an optional `description`, `detail` and `status`, then `current`, `orientation` |
 | `chatUiKeyValuesSpec` | `items`, each a `label` and an optional `value`, `format`, `decimals` and `intent`, then `columns` |
+| `chatUiListSpec` | `items`, each a `title` and an optional `description`, `detail` and `intent`, then `ordered` |
 
 See the TSDoc in each source file for the full shape of the props.
 
