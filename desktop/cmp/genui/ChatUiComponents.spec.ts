@@ -122,6 +122,47 @@ describe('generative UI components', () => {
                 'vs last week'
             );
         });
+
+        it('draws a trend as a Hoist Sparkline under the value, after the label of the delta', () => {
+            const {container} = renderMetrics({
+                metrics: [
+                    {
+                        label: 'Revenue',
+                        value: 1250000,
+                        format: 'currency',
+                        delta: 0.04,
+                        deltaFormat: 'percent',
+                        deltaLabel: 'vs Q2',
+                        trend: [900000, 1100000, 1250000]
+                    },
+                    {label: 'Margin', value: 0.18, format: 'percent', trend: [0.2, 0.18]}
+                ]
+            });
+            const [revenue, margin] = container.querySelectorAll('.xh-stat-card__detail');
+
+            expect(revenue.textContent).toBe('vs Q2');
+            expect(revenue.querySelector('.xh-sparkline').getAttribute('aria-label')).toBe(
+                'Revenue trend: 3 values, from $900K to $1.25M'
+            );
+            expect(margin.querySelector('.xh-sparkline')).toBeTruthy();
+            expect(margin.textContent).toBe('');
+            // The trend has no color of its own. Only the delta has.
+            expect(container.querySelector('[class*="xh-sparkline--trend"]')).toBeNull();
+        });
+
+        it('draws no trend for fewer than two numbers, and keeps the label of the delta', () => {
+            const {container} = renderMetrics({
+                metrics: [
+                    {label: 'Revenue', value: 12, deltaLabel: 'vs Q2', trend: [5]},
+                    {label: 'Margin', value: 3, trend: ['up', null, 4] as any},
+                    {label: 'Cost', value: 3, trend: 'rising' as any}
+                ]
+            });
+
+            expect(container.querySelector('.xh-sparkline')).toBeNull();
+            expect(container.querySelectorAll('.xh-stat-card__detail')).toHaveLength(1);
+            expect(container.querySelector('.xh-stat-card__detail').textContent).toBe('vs Q2');
+        });
     });
 
     describe('ChatUiStack', () => {
