@@ -554,6 +554,10 @@ their messages show under the input:
 buttons, and any layout around them, such as a stack in a row. The set takes the color of the
 worst validation problem on show.
 
+**A slider is as wide as its field.** It fills a form, as the other inputs do, and is at most
+360 px wide outside one, so one reply can show sliders of two widths. In a row, a slider field is
+at least 190 px wide, and a row that cannot hold it wraps.
+
 **Sizing** follows Hoist: the container sets the width. The form fills the reply, and a field in
 it fills the form, or its share of a row. Put fields in a row stack to use a wide form, or set a
 `max-width` on `.xh-chat-ui-form`. Outside a form, a field is at most 360 px wide. A segmented
@@ -571,8 +575,9 @@ email: ann@example.com, region: EMEA
 ```
 
 The tooltip of the button shows the message and the values before the click, and the sent message
-shows them after it. A select with `multi` sends its choices as one text, joined with commas. A
-slider with `range` sends its two values the same way. An empty field sends nothing.
+shows them after it. A `send` holds text, numbers and booleans only, so a list goes as its JSON:
+a select with `multi` sends `["emea","apac"]`, and a slider with `range` sends `[25,75]`. An
+OpenUI `@ToAssistant` sends a list in its context the same way. An empty field sends nothing.
 
 A `send` holds at most 8 values of at most 100 characters each, so that the user can read all of
 it. The form keeps to that:

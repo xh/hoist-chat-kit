@@ -509,14 +509,15 @@ describe('built-in form components', () => {
                     context: {
                         email: 'ann@example.com',
                         qty: 2,
-                        region: 'emea, apac',
+                        // A list goes as its JSON, which a model reads back as a list.
+                        region: '["emea","apac"]',
                         source: 'chat'
                     }
                 }
             });
         });
 
-        it('sends what a slider and a radio group show, with a range as one text', async () => {
+        it('sends what a slider and a radio group show, with a range as the JSON of a list', async () => {
             const chatModel = createChatModel();
             renderDocument(
                 {
@@ -548,7 +549,7 @@ describe('built-in form components', () => {
 
             expect(chatModel.messages[0].metadata.context).toEqual({
                 level: 1,
-                price: '20, 80',
+                price: '[20,80]',
                 plan: 'pro'
             });
         });

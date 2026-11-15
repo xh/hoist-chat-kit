@@ -52,7 +52,8 @@ export class ChatUiFormModel extends HoistModel {
 
     /**
      * The values of the fields that have one, by field name, in the form a `send` action takes
-     * as its `context`: text, a number or a boolean. A list is joined with commas.
+     * as its `context`: text, a number or a boolean. A list goes as its JSON, such as `[25,75]`,
+     * as a list in the context of an OpenUI `@ToAssistant` does.
      */
     @computedStruct
     get values(): PlainObject {
@@ -99,6 +100,6 @@ export class ChatUiFormModel extends HoistModel {
 function toContextValue(value: unknown): string | number | boolean {
     if (isNil(value) || value === '') return null;
     if (isNumber(value) || isBoolean(value)) return value;
-    if (isArray(value)) return isEmpty(value) ? null : value.join(', ');
+    if (isArray(value)) return isEmpty(value) ? null : JSON.stringify(value);
     return `${value}`;
 }
