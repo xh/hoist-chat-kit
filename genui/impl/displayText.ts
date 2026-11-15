@@ -1,4 +1,4 @@
-import {isString} from 'lodash';
+import {isArray, isString} from 'lodash';
 
 /**
  * Text for a tooltip, with every character the user could not see written as an escape, such as
@@ -20,6 +20,17 @@ export function escapeInvisible(text: string): string {
  */
 export function quoteForDisplay(value: unknown): string {
     return escapeInvisible(JSON.stringify(value) ?? 'null');
+}
+
+/**
+ * The value of a context entry for a tooltip. Text that is the exact JSON of a list, as a form
+ * sends a list, shows as that JSON, as the sent message shows it. Any other value shows as
+ * {@link quoteForDisplay} has it. The JSON quotes and escapes each string in the list, so the list
+ * cannot pose as the words around it.
+ * @internal
+ */
+export function contextValueForDisplay(value: unknown): string {
+    return isListJson(value) ? escapeInvisible(value) : quoteForDisplay(value);
 }
 
 /**
@@ -53,6 +64,16 @@ const INVISIBLE_RE =
     // escape, so a few in a row still read.
     WHITESPACE_RUN_RE = /[ \t]{3,}|\s{5,}/u,
     PLAIN_KEY_RE = /^[A-Za-z_][\w.-]*$/;
+
+function isListJson(value: unknown): value is string {
+    if (!isString(value) || !value.startsWith('[')) return false;
+    try {
+        const parsed = JSON.parse(value);
+        return isArray(parsed) && JSON.stringify(parsed) === value;
+    } catch {
+        return false;
+    }
+}
 
 function toEscape(char: string): string {
     const code = char.codePointAt(0);

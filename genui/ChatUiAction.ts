@@ -1,7 +1,12 @@
 import type {Awaitable, PlainObject} from '@xh/hoist/core';
 import {isEmpty, isObject, isPlainObject} from 'lodash';
 import type {ChatPartRenderContext} from '../core';
-import {escapeInvisible, keyForDisplay, quoteForDisplay} from './impl/displayText';
+import {
+    contextValueForDisplay,
+    escapeInvisible,
+    keyForDisplay,
+    quoteForDisplay
+} from './impl/displayText';
 
 /** The kinds of {@link ChatUiAction}. */
 export type ChatUiActionType = 'send' | 'openUrl' | 'navigate' | 'callTool' | 'app' | 'state';
@@ -201,7 +206,8 @@ export function isChatUiActionSchema(schema: unknown): boolean {
  * click will do, such as `Sends: "Show my open trades."` or `Opens "https://example.com/report"`.
  *
  * The text of a `send`, each text value of its context and the url of an `openUrl` show as JSON
- * strings, in quotes. A context key that is not a plain name shows in quotes too. A
+ * strings, in quotes. A context value that is the JSON of a list, as a form sends a list, shows as
+ * that JSON. A context key that is not a plain name shows in quotes too. A
  * character the user could not see, such as a zero-width space or a right-to-left override,
  * shows as its code, so that text cannot hide or pose as the words around it.
  */
@@ -210,7 +216,10 @@ export function describeChatUiAction(action: ChatUiAction): string {
         case 'send': {
             const context = isPlainObject(action.context)
                 ? Object.entries(action.context)
-                      .map(([key, value]) => `${keyForDisplay(key)}: ${quoteForDisplay(value)}`)
+                      .map(
+                          ([key, value]) =>
+                              `${keyForDisplay(key)}: ${contextValueForDisplay(value)}`
+                      )
                       .join(', ')
                 : null;
             return `Sends: ${quoteForDisplay(action.text)}${context ? `, with ${context}` : ''}`;

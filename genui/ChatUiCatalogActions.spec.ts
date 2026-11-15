@@ -315,6 +315,19 @@ describe('ChatUiCatalog actions', () => {
                 {type: 'send', text: 'Explain it.', context: {ticker: 'XYZ', quarter: 3}},
                 'Sends: "Explain it.", with ticker: "XYZ", quarter: 3'
             ],
+            [
+                {
+                    type: 'send',
+                    text: 'Filter.',
+                    context: {region: '["emea","apac"]', band: '[25,75]', note: '[not json'}
+                },
+                'Sends: "Filter.", with region: ["emea","apac"], band: [25,75], note: "[not json"'
+            ],
+            [
+                // Only the exact JSON of a list shows bare, so a value cannot pose as two.
+                {type: 'send', text: 'Go.', context: {a: '[1], b: 2', c: '[ 1 ]'}},
+                'Sends: "Go.", with a: "[1], b: 2", c: "[ 1 ]"'
+            ],
             [{type: 'openUrl', url: 'https://x.io/r'}, 'Opens "https://x.io/r"'],
             [{type: 'navigate', route: 'default.trades'}, 'Goes to default.trades'],
             [{type: 'callTool', name: 'filter_grid'}, 'Runs the tool filter_grid'],
