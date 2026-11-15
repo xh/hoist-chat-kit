@@ -133,6 +133,9 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   `Checkbox`, `SwitchInput` and `SegmentedControl`. `chatUiInputSpecs()` returns them all. Each
   input validates with Hoist rules, and a button in a form sends the field values with its
   message.
+* Added `chatUiRadioGroupSpec()`, a list of choices with one selected over Hoist's `RadioInput`,
+  and `chatUiSliderSpec()`, a number in a range over Hoist's `Slider`. A slider with `range` holds
+  a low and a high value. `chatUiInputSpecs()` returns both.
 * Added `bindings` and `builtinFunctions` to `openUiLangFormat()` and `openUiLangAdapter()`. With
   `bindings`, a program runs `$variables`, expressions, `@Set` and `@Reset` on lang-core's own
   store and evaluator, and a state prop takes a `$variable` both ways. Both are off by default.

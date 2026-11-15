@@ -456,6 +456,8 @@ const catalog = new ChatUiCatalog({
 | `chatUiCheckboxSpec` | `checkbox` | `Checkbox` | True or false |
 | `chatUiSwitchSpec` | `switch` | `SwitchInput` | True or false |
 | `chatUiSegmentedControlSpec` | `segmentedControl` | `SegmentedControl` | One choice |
+| `chatUiRadioGroupSpec` | `radioGroup` | `RadioInput` | One choice |
+| `chatUiSliderSpec` | `slider` | `Slider` | A number, or a low and a high value with `range` |
 
 The model writes a form as a document, or as the program of a text format:
 
@@ -481,15 +483,22 @@ The model writes a form as a document, or as the program of a text format:
   [Run programs with state](../../../genui/openui/README.md#run-programs-with-state).
 
 A text or number input writes its value when the user leaves it or presses Enter, as Hoist
-commits it. A select, a checkbox, a switch and a segmented control write on each change. Each
-input shows only a value of its own type, whatever the state holds.
+commits it. A select, a checkbox, a switch, a segmented control and a radio group write on each
+change. A slider writes as the user moves a handle. Each input shows only a value of its own
+type, whatever the state holds.
+
+**A slider** always shows a value, so it takes no rules. A value that is missing or outside the
+range shows at the nearest end, and a form sends the value that the slider shows. The slider
+draws a range written backwards, a range of no width and a step of zero as a range it can show.
+With `range` it has two handles, and its value is a list of the low and the high value. `format`
+sets how the slider shows its values, as a [number format](#number-formats).
 
 **Rules** are an object, such as `{required: true, email: true}`. They run as Hoist rules, and
 their messages show under the input:
 
 | Rule | Inputs | Hoist rule |
 |------|--------|------------|
-| `required` | All but the checkbox and the switch | `required` |
+| `required` | All but the checkbox, the switch and the slider | `required` |
 | `email` | Text input | `validEmail` |
 | `minLength`, `maxLength` | Text input, text area | `lengthIs` |
 | `min`, `max` | Number input | `numberIs` |
@@ -516,8 +525,8 @@ email: ann@example.com, region: EMEA
 ```
 
 The tooltip of the button shows the message and the values before the click, and the sent message
-shows them after it. A select with `multi` sends its choices as one text, joined with commas. An
-empty field sends nothing.
+shows them after it. A select with `multi` sends its choices as one text, joined with commas. A
+slider with `range` sends its two values the same way. An empty field sends nothing.
 
 A `send` holds at most 8 values of at most 100 characters each, so that the user can read all of
 it. The form keeps to that:
@@ -595,6 +604,7 @@ and `description`, the text that tells the model when to use the component.
 | `chatUiButtonSpec` | `actionTypes` | `ChatUiActionType[]` | Kinds of action the model may put on the button. Default `['send', 'state']`. |
 | `chatUiSelectSpec` | `maxOptions` | `number` | Most choices. Default 50. |
 | `chatUiSegmentedControlSpec` | `maxOptions` | `number` | Most choices. Default 6. |
+| `chatUiRadioGroupSpec` | `maxOptions` | `number` | Most choices. Default 8. |
 | `chatUiFormSpec` and the other inputs | - | - | No options beyond `name` and `description`. |
 | `chatUiTabsSpec` | `maxTabs` | `number` | Most tabs. Default 6. |
 | `chatUiSectionSpec` | - | - | No options beyond `name` and `description`. |
@@ -661,7 +671,8 @@ a model to bind a `$variable`.
 | `select` | `name`, `options`, `label`, `placeholder`, `multi`, `rules`, `value` |
 | `dateInput` | `name`, `label`, `rules`, `value` |
 | `checkbox`, `switch` | `name`, `label`, `value` |
-| `segmentedControl` | `name`, `options`, `label`, `rules`, `value` |
+| `segmentedControl`, `radioGroup` | `name`, `options`, `label`, `rules`, `value` |
+| `slider` | `name`, `min`, `max`, `label`, `step`, `format`, `range`, `value` |
 
 An option is a value, or an object with a `value` and a `label`. `name` is the key of the field
 among the values a form sends, so it must be unique in its form. See `ChatUiInput.ts` for the
