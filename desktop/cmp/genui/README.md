@@ -212,10 +212,12 @@ A value that does not fit its column's type fails the call, so the model can cor
 A number column with a `max` draws a bar in each cell, after the number: a Hoist `ProgressBar`
 of the value against `max`. Use it for a bounded number, such as usage against a limit, or a
 fraction with the `percent` format and a `max` of 1. A column with no `max` shows no bar, so the
-column states its own maximum and has no default one. Every bar of a column has one width, so the
-bars compare. A number outside the range draws an empty or a full bar. The column still sorts,
-filters and exports as its plain number. A table by reference takes the same `max` on a column
-of its artifact, unless its view scales the numbers to a unit.
+column states its own maximum and has no default one.
+
+Every bar of a column has one width, so the bars compare. A number outside the range draws an
+empty or a full bar. The column still sorts, filters and exports as its plain number. A table by
+reference takes the same `max` on a column of its artifact, unless its view scales the numbers to
+a unit.
 
 The preview shows the first rows after `sortBy`. Its columns follow the model's order, and the
 first one always shows. It shows as many columns as fit at 110 px each, up to the preview limit,

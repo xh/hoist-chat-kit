@@ -142,8 +142,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Added `chatUiKeyValuesSpec()`, a list of labeled values over Hoist's `KeyValueList`, and
   `chatUiListSpec()`, a short list of entries over Hoist's `ItemList`. Neither is standalone.
 * Added `max` to a column of `chatUiGridSpec()` and to `ChatDataColumn`. A number column with a
-  `max` draws each value as a bar against it, a Hoist `ProgressBar` beside the number, in the
-  preview and in the full grid.
+  `max` draws each value as a bar against it, in the preview and in the full grid. The bar is a
+  Hoist `ProgressBar` beside the number.
 * Added `subtitle` to `chatUiSectionSpec()`, shown beside the title. A section now keeps one Hoist
   `CardModel` as its props stream, so a section that the user collapsed stays collapsed.
 * Added `trend` to a metric of `chatUiMetricsSpec()`, a list of recent values that the stat card
