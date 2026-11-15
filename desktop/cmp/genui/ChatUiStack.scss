@@ -28,27 +28,39 @@
   }
 }
 
-// A titled stack sits in a frame whose body has no padding, so that a grid, a chart, a treemap or
-// a card in it meets the frame's border. Content that draws no frame of its own keeps clear of it.
-$unframed: '.xh-chat-ui-key-values, .xh-chat-ui-progress, .xh-chat-ui-steps, .xh-chat-ui-list, .xh-chat-ui-text';
+// A titled stack sits in a frame whose body has no padding, so that content that draws its own
+// frame meets the frame's border: a grid, chart, treemap or card, a section, a callout, tabs,
+// metrics or a stack. Everything else keeps clear of the border. A margin, not a padding, so that
+// a button keeps its own size.
+$framed: '.xh-chat-ui-frame, .xh-chat-ui-section, .xh-chat-ui-callout, .xh-chat-ui-tabs, .xh-chat-ui-metrics, .xh-chat-ui-stack';
 
 .xh-chat-ui-frame__body > .xh-chat-ui-stack {
-  > :is(#{$unframed}) {
-    padding-inline: var(--xh-pad-px);
-  }
+  &.xh-vbox > :not(#{$framed}) {
+    margin-inline: var(--xh-pad-px);
 
-  // In a column, the first and last keep clear of the header and the bottom border too.
-  &.xh-vbox > :is(#{$unframed}) {
     &:first-child {
-      padding-top: var(--xh-pad-px);
+      margin-top: var(--xh-pad-px);
     }
 
     &:last-child {
-      padding-bottom: var(--xh-pad-px);
+      margin-bottom: var(--xh-pad-px);
     }
   }
 
-  &.xh-hbox > :is(#{$unframed}) {
-    padding-block: var(--xh-pad-px);
+  &.xh-hbox > :not(#{$framed}) {
+    margin-block: var(--xh-pad-px);
+
+    &:first-child {
+      margin-left: var(--xh-pad-px);
+    }
+
+    &:last-child {
+      margin-right: var(--xh-pad-px);
+    }
+  }
+
+  // A button in a row sits level with the input of a field beside it.
+  &.xh-hbox > .xh-chat-ui-button {
+    margin-bottom: calc(var(--xh-pad-px) + var(--xh-form-field-padding));
   }
 }
