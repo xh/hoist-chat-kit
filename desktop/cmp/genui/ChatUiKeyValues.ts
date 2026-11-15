@@ -7,6 +7,7 @@ import {
     fmtChatUiNumber
 } from './ChatUiFormat';
 import {CHAT_UI_INTENTS, toHoistIntent} from './impl/ChatUiIntents';
+import {takeItems, withMoreNote} from './impl/ChatUiMore';
 import type {ChatUiIntent, ChatUiNumberFormat, ChatUiSpecOptions} from './Types';
 
 /** One labeled value of a key values component, as written by the model. */
@@ -44,7 +45,7 @@ export interface ChatUiKeyValuesSpecProps {
 
 /** Options for {@link chatUiKeyValuesSpec}. */
 export interface ChatUiKeyValuesSpecOptions extends ChatUiSpecOptions {
-    /** Most labeled values the model may send. Default 24. */
+    /** Most labeled values to show. The rest show as a count. Default 24. */
     maxItems?: number;
 }
 
@@ -73,7 +74,7 @@ export function chatUiKeyValuesSpec(
                 items: {
                     type: 'array',
                     minItems: 1,
-                    maxItems,
+                    description: `At most ${maxItems}.`,
                     items: {
                         type: 'object',
                         required: ['label'],
@@ -105,16 +106,20 @@ export function chatUiKeyValuesSpec(
         standalone: false,
         render: ({items, columns}, {isPartial}) => {
             // While streaming, the last value may be cut short.
-            const entries = (isPartial ? dropRight(items) : (items ?? [])).flatMap(toEntry);
-            if (isEmpty(entries)) return null;
-            const hasColumns = isInteger(columns) && columns >= 1;
-            return keyValueList({
-                className: 'xh-chat-ui-key-values',
-                entries,
-                // The model's count is the most columns. A narrow chat shows fewer.
-                columns: hasColumns ? Math.min(columns, MAX_COLUMNS) : null,
-                minColumnWidth: hasColumns ? MIN_COLUMN_WIDTH : null
-            });
+            const complete = (isPartial ? dropRight(items) : (items ?? [])).flatMap(toEntry),
+                {shown, hidden} = takeItems(complete, maxItems),
+                hasColumns = isInteger(columns) && columns >= 1;
+            if (isEmpty(shown)) return null;
+            return withMoreNote(
+                keyValueList({
+                    className: 'xh-chat-ui-key-values',
+                    entries: shown,
+                    // The model's count is the most columns. A narrow chat shows fewer.
+                    columns: hasColumns ? Math.min(columns, MAX_COLUMNS) : null,
+                    minColumnWidth: hasColumns ? MIN_COLUMN_WIDTH : null
+                }),
+                hidden
+            );
         },
         result: ({items}) => items.map(it => it.label).join(', '),
         example: {

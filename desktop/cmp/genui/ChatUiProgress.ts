@@ -4,6 +4,7 @@ import {dropRight, isEmpty, isFinite, isPlainObject, isString} from 'lodash';
 import type {ChatUiComponentSpec} from '../../../genui';
 import {CHAT_UI_NUMBER_FORMAT_SCHEMA, fmtChatUiNumber} from './ChatUiFormat';
 import {CHAT_UI_INTENTS, toHoistIntent} from './impl/ChatUiIntents';
+import {takeItems, withMoreNote} from './impl/ChatUiMore';
 import type {ChatUiIntent, ChatUiNumberFormat, ChatUiSpecOptions} from './Types';
 import './ChatUiProgress.scss';
 
@@ -40,7 +41,7 @@ export interface ChatUiProgressSpecProps {
 
 /** Options for {@link chatUiProgressSpec}. */
 export interface ChatUiProgressSpecOptions extends ChatUiSpecOptions {
-    /** Most bars the model may send. Default 8. */
+    /** Most bars to show. The rest show as a count. Default 12. */
     maxItems?: number;
 }
 
@@ -55,7 +56,7 @@ export interface ChatUiProgressSpecOptions extends ChatUiSpecOptions {
 export function chatUiProgressSpec(
     opts: ChatUiProgressSpecOptions = {}
 ): ChatUiComponentSpec<ChatUiProgressSpecProps> {
-    const {name = 'progress', description = DESCRIPTION, maxItems = 8} = opts;
+    const {name = 'progress', description = DESCRIPTION, maxItems = 12} = opts;
 
     return {
         name,
@@ -68,7 +69,7 @@ export function chatUiProgressSpec(
                 bars: {
                     type: 'array',
                     minItems: 1,
-                    maxItems,
+                    description: `At most ${maxItems}.`,
                     items: {
                         type: 'object',
                         required: ['label', 'value'],
@@ -104,23 +105,27 @@ export function chatUiProgressSpec(
         standalone: false,
         render: ({bars}, {isPartial}) => {
             // While streaming, the last bar may be cut short - its value still being written.
-            const complete = (isPartial ? dropRight(bars) : (bars ?? [])).filter(isBar);
-            if (isEmpty(complete)) return null;
-            return vbox({
-                className: 'xh-chat-ui-progress',
-                items: complete.map((bar, idx) => {
-                    const max = toMax(bar);
-                    return progressBar({
-                        key: idx,
-                        label: bar.label,
-                        value: bar.value,
-                        max,
-                        valueLabel: toFigure(bar, max),
-                        intent: toHoistIntent(bar.intent),
-                        target: isFinite(bar.target) ? bar.target : null
-                    });
-                })
-            });
+            const complete = (isPartial ? dropRight(bars) : (bars ?? [])).filter(isBar),
+                {shown, hidden} = takeItems(complete, maxItems);
+            if (isEmpty(shown)) return null;
+            return withMoreNote(
+                vbox({
+                    className: 'xh-chat-ui-progress',
+                    items: shown.map((bar, idx) => {
+                        const max = toMax(bar);
+                        return progressBar({
+                            key: idx,
+                            label: bar.label,
+                            value: bar.value,
+                            max,
+                            valueLabel: toFigure(bar, max),
+                            intent: toHoistIntent(bar.intent),
+                            target: isFinite(bar.target) ? bar.target : null
+                        });
+                    })
+                }),
+                hidden
+            );
         },
         result: ({bars}) => bars.map(it => it.label).join(', '),
         example: {

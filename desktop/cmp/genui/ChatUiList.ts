@@ -1,6 +1,7 @@
 import {itemList, type ItemListEntry} from '@xh/hoist/cmp/itemlist';
 import {dropRight, isEmpty, isPlainObject, isString} from 'lodash';
 import type {ChatUiComponentSpec} from '../../../genui';
+import {takeItems, withMoreNote} from './impl/ChatUiMore';
 import {CHAT_UI_INTENTS, toHoistIntent} from './impl/ChatUiIntents';
 import type {ChatUiIntent, ChatUiSpecOptions} from './Types';
 
@@ -30,7 +31,7 @@ export interface ChatUiListSpecProps {
 
 /** Options for {@link chatUiListSpec}. */
 export interface ChatUiListSpecOptions extends ChatUiSpecOptions {
-    /** Most entries the model may send. Default 12. */
+    /** Most entries to show. The rest show as a count. Default 12. */
     maxItems?: number;
 }
 
@@ -58,7 +59,7 @@ export function chatUiListSpec(
                 items: {
                     type: 'array',
                     minItems: 1,
-                    maxItems,
+                    description: `At most ${maxItems}.`,
                     items: {
                         type: 'object',
                         required: ['title'],
@@ -88,14 +89,18 @@ export function chatUiListSpec(
         standalone: false,
         render: ({items, ordered}, {isPartial}) => {
             // While streaming, the last entry may be cut short - its title still being written.
-            const entries = (isPartial ? dropRight(items) : (items ?? [])).flatMap(toEntry);
-            if (isEmpty(entries)) return null;
-            return itemList({
-                className: 'xh-chat-ui-list',
-                entries,
-                ordered: ordered === true,
-                dividers: true
-            });
+            const complete = (isPartial ? dropRight(items) : (items ?? [])).flatMap(toEntry),
+                {shown, hidden} = takeItems(complete, maxItems);
+            if (isEmpty(shown)) return null;
+            return withMoreNote(
+                itemList({
+                    className: 'xh-chat-ui-list',
+                    entries: shown,
+                    ordered: ordered === true,
+                    dividers: true
+                }),
+                hidden
+            );
         },
         result: ({items}) => items.map(it => it.title).join(', '),
         example: {

@@ -117,7 +117,7 @@ describe('chatUiKeyValuesSpec', () => {
         expect(texts(container, 'value')).toEqual(['<a href="http://example.com">open</a>']);
     });
 
-    it('shows only inside a document, bounds its list, and reads as its labels when copied', () => {
+    it('shows only inside a document, shows a count past its most items, and reads as its labels when copied', () => {
         const spec = chatUiKeyValuesSpec({maxItems: 2}),
             catalog = new ChatUiCatalog({
                 components: [chatUiStackSpec(), spec],
@@ -128,7 +128,18 @@ describe('chatUiKeyValuesSpec', () => {
         expect(spec.standalone).toBe(false);
         expect(catalog.toToolSchemas().map(it => it.name)).toEqual(['show_ui']);
         expect(catalog.validate('keyValues', {items: [item, item], columns: 2})).toEqual([]);
-        expect(catalog.validate('keyValues', {items: [item, item, item]})).not.toEqual([]);
+        // More than the most shows the first ones and a count, rather than fail.
+        expect(catalog.validate('keyValues', {items: [item, item, item]})).toEqual([]);
+        const {container} = render(
+            spec.render(
+                {items: [item, item, item]} as any,
+                {isPartial: false} as ChatUiRenderContext
+            ) as ReactElement
+        );
+        expect(container.querySelector('.xh-chat-ui-more__note').textContent).toBe(
+            '1 more not shown'
+        );
+        expect(spec.props.properties.items.description).toBe('At most 2.');
         expect(catalog.validate('keyValues', {items: [item], columns: 9})).not.toEqual([]);
         expect(catalog.validate('keyValues', {items: [{value: 1}]})).not.toEqual([]);
         expect(spec.result({items: [item, {label: 'B'}]})).toBe('A, B');

@@ -510,6 +510,9 @@ The treemap needs two Highcharts modules, heatmap then treemap. See
   writes no icon, and an entry takes no click.
 
 None of the four is standalone, and each shows only its complete items while the props stream.
+Each shows at most `maxItems` items, and a muted count of the rest, such as `4 more not shown`,
+rather than fail as a whole. A model that writes a few too many gets no retry. The prompt states
+each maximum.
 
 ### Ask the user for input
 
@@ -705,10 +708,10 @@ and `description`, the text that tells the model when to use the component.
 | `chatUiCalloutSpec` | `maxLength` | `number` | Most characters of text. Default 500. |
 | `chatUiBadgesSpec` | `maxItems` | `number` | Most badges. Default 12. |
 | `chatUiDividerSpec` | - | - | No options beyond `name` and `description`. |
-| `chatUiProgressSpec` | `maxItems` | `number` | Most bars. Default 8. |
-| `chatUiStepsSpec` | `maxItems` | `number` | Most steps. Default 8. |
-| `chatUiKeyValuesSpec` | `maxItems` | `number` | Most labeled values. Default 24. |
-| `chatUiListSpec` | `maxItems` | `number` | Most entries. Default 12. |
+| `chatUiProgressSpec` | `maxItems` | `number` | Most bars shown. Default 12. |
+| `chatUiStepsSpec` | `maxItems` | `number` | Most steps shown. Default 8. |
+| `chatUiKeyValuesSpec` | `maxItems` | `number` | Most labeled values shown. Default 24. |
+| `chatUiListSpec` | `maxItems` | `number` | Most entries shown. Default 12. |
 | `chatUiTreeMapSpec` | `maxNodes` | `number` | Most boxes. Default 60. |
 | | `height` | `number` | Treemap body height, in pixels. Default the `--xh-chat-chart-height` variable. |
 

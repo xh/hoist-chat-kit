@@ -1,0 +1,10 @@
+// A list that shows its first items, with a muted note of how many more there are.
+.xh-chat-ui-more {
+  gap: calc(var(--xh-pad-px) / 2);
+  min-width: 0;
+
+  &__note {
+    color: var(--xh-chat-meta-text-color);
+    font-size: var(--xh-chat-meta-font-size);
+  }
+}

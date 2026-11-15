@@ -1,6 +1,7 @@
 import {steps as hoistSteps, type StepSpec, type StepStatus} from '@xh/hoist/cmp/steps';
 import {dropRight, isEmpty, isInteger, isPlainObject, isString} from 'lodash';
 import type {ChatUiComponentSpec} from '../../../genui';
+import {takeItems, withMoreNote} from './impl/ChatUiMore';
 import type {ChatUiSpecOptions} from './Types';
 
 /** Where a step stands in its sequence, as written by the model. */
@@ -38,7 +39,7 @@ export interface ChatUiStepsSpecProps {
 
 /** Options for {@link chatUiStepsSpec}. */
 export interface ChatUiStepsSpecOptions extends ChatUiSpecOptions {
-    /** Most steps the model may send. Default 8. */
+    /** Most steps to show. The rest show as a count. Default 8. */
     maxItems?: number;
 }
 
@@ -66,7 +67,7 @@ export function chatUiStepsSpec(
                 steps: {
                     type: 'array',
                     minItems: 1,
-                    maxItems,
+                    description: `At most ${maxItems}.`,
                     items: {
                         type: 'object',
                         required: ['title'],
@@ -107,14 +108,18 @@ export function chatUiStepsSpec(
         standalone: false,
         render: ({steps, current, orientation}, {isPartial}) => {
             // While streaming, the last step may be cut short - its title still being written.
-            const complete = (isPartial ? dropRight(steps) : (steps ?? [])).flatMap(toStep);
-            if (isEmpty(complete)) return null;
-            return hoistSteps({
-                className: 'xh-chat-ui-steps',
-                steps: complete,
-                current: isInteger(current) && current >= 0 ? current : null,
-                orientation: orientation === 'vertical' ? 'vertical' : 'horizontal'
-            });
+            const complete = (isPartial ? dropRight(steps) : (steps ?? [])).flatMap(toStep),
+                {shown, hidden} = takeItems(complete, maxItems);
+            if (isEmpty(shown)) return null;
+            return withMoreNote(
+                hoistSteps({
+                    className: 'xh-chat-ui-steps',
+                    steps: shown,
+                    current: isInteger(current) && current >= 0 ? current : null,
+                    orientation: orientation === 'vertical' ? 'vertical' : 'horizontal'
+                }),
+                hidden
+            );
         },
         result: ({steps}) => steps.map(it => it.title).join(', '),
         example: {

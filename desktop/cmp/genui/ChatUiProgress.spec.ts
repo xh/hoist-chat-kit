@@ -130,7 +130,7 @@ describe('chatUiProgressSpec', () => {
         );
     });
 
-    it('shows only inside a document, bounds its list, and reads as its labels when copied', () => {
+    it('shows only inside a document, shows a count past its most items, and reads as its labels when copied', () => {
         const spec = chatUiProgressSpec({maxItems: 2}),
             catalog = new ChatUiCatalog({
                 components: [chatUiStackSpec(), spec],
@@ -141,7 +141,18 @@ describe('chatUiProgressSpec', () => {
         expect(spec.standalone).toBe(false);
         expect(catalog.toToolSchemas().map(it => it.name)).toEqual(['show_ui']);
         expect(catalog.validate('progress', spec.example)).toEqual([]);
-        expect(catalog.validate('progress', {bars: [bar, bar, bar]})).not.toEqual([]);
+        // More than the most shows the first ones and a count, rather than fail.
+        expect(catalog.validate('progress', {bars: [bar, bar, bar]})).toEqual([]);
+        const {container} = render(
+            spec.render(
+                {bars: [bar, bar, bar]} as any,
+                {isPartial: false} as ChatUiRenderContext
+            ) as ReactElement
+        );
+        expect(container.querySelector('.xh-chat-ui-more__note').textContent).toBe(
+            '1 more not shown'
+        );
+        expect(spec.props.properties.bars.description).toBe('At most 2.');
         expect(catalog.validate('progress', {bars: [{label: 'A'}]})).not.toEqual([]);
         expect(spec.result({bars: [bar, {label: 'B', value: 2}]})).toBe('A, B');
     });

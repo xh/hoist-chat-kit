@@ -95,7 +95,7 @@ describe('chatUiStepsSpec', () => {
         expect(screen.queryByRole('button')).toBeNull();
     });
 
-    it('shows only inside a document, bounds its list, and reads as its titles when copied', () => {
+    it('shows only inside a document, shows a count past its most items, and reads as its titles when copied', () => {
         const spec = chatUiStepsSpec({maxItems: 2}),
             catalog = new ChatUiCatalog({
                 components: [chatUiStackSpec(), spec],
@@ -106,7 +106,18 @@ describe('chatUiStepsSpec', () => {
         expect(spec.standalone).toBe(false);
         expect(catalog.toToolSchemas().map(it => it.name)).toEqual(['show_ui']);
         expect(catalog.validate('steps', {steps: [step, step], current: 1})).toEqual([]);
-        expect(catalog.validate('steps', {steps: [step, step, step]})).not.toEqual([]);
+        // More than the most shows the first ones and a count, rather than fail.
+        expect(catalog.validate('steps', {steps: [step, step, step]})).toEqual([]);
+        const {container} = render(
+            spec.render(
+                {steps: [step, step, step]} as any,
+                {isPartial: false} as ChatUiRenderContext
+            ) as ReactElement
+        );
+        expect(container.querySelector('.xh-chat-ui-more__note').textContent).toBe(
+            '1 more not shown'
+        );
+        expect(spec.props.properties.steps.description).toBe('At most 2.');
         expect(catalog.validate('steps', {steps: [{title: 'A', icon: 'check'}]})).not.toEqual([]);
         expect(catalog.validate('steps', {steps: [step], current: 0.5})).not.toEqual([]);
         expect(spec.result({steps: [step, {title: 'B'}]})).toBe('A, B');
