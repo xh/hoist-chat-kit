@@ -45,13 +45,25 @@ export function rulesSchema(properties: PlainObject): PlainObject {
 
 /** Rules for a text value: required, an email address, and a length. @internal */
 export function toTextRules(rules: ChatUiInputRules): RuleLike[] {
-    const {minLength, maxLength} = rules,
-        max = isFinite(maxLength) ? Math.min(maxLength, MAX_TEXT_LENGTH) : MAX_TEXT_LENGTH;
+    const {minLength} = rules;
     return compact([
         rules.required ? required : null,
         rules.email ? validEmail : null,
-        lengthIs({min: isFinite(minLength) ? minLength : null, max})
+        lengthIs({min: isFinite(minLength) ? minLength : null, max: toMaxLength(rules)})
     ]);
+}
+
+/**
+ * Most characters of a text value: the model's `maxLength` rule, and never more than
+ * {@link MAX_TEXT_LENGTH}. A text input takes it as its `maxLength`, so the user cannot type or
+ * paste more. The rule still checks a longer value that the model or the state sets.
+ * @internal
+ */
+export function toMaxLength(rules: ChatUiInputRules): number {
+    const maxLength = rules?.maxLength;
+    return isFinite(maxLength) && maxLength >= 1
+        ? Math.min(Math.floor(maxLength), MAX_TEXT_LENGTH)
+        : MAX_TEXT_LENGTH;
 }
 
 /** Rules for a number: required, and a range. @internal */

@@ -85,8 +85,6 @@ export class ChatMessageFeedbackModel extends HoistModel {
             track: () => this.inputRef.current,
             run: el => {
                 if (!el) return;
-                const {maxCommentLength} = this.settings;
-                if (maxCommentLength != null) el.maxLength = maxCommentLength;
                 if (this.isFocusPending) {
                     this.isFocusPending = false;
                     el.focus();
@@ -688,6 +686,7 @@ export const chatFeedbackForm = hoistCmp.factory<FeedbackFormProps>({
                     height: null,
                     disabled: isSubmitting,
                     inputRef: model.inputRef,
+                    maxLength: model.settings.maxCommentLength ?? undefined,
                     placeholder: isNegative
                         ? 'Say what was wrong. A sentence is enough.'
                         : 'Anything we should keep doing',

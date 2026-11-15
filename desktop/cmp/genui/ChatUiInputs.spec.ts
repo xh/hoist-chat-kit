@@ -134,6 +134,21 @@ describe('built-in form components', () => {
             expect(chatModel.messages[0].metadata.context).toEqual({name: 'Bob'});
         });
 
+        it('stops typed text at the most a message carries, or at a shorter maxLength rule', () => {
+            const {container} = renderBound({
+                top: {component: 'stack', props: {}, children: ['name', 'code', 'note']},
+                name: {component: 'textInput', props: {name: 'name'}},
+                code: {component: 'textInput', props: {name: 'code', rules: {maxLength: 8}}},
+                note: {component: 'textArea', props: {name: 'note', rules: {maxLength: 40}}}
+            });
+            const [name, code] =
+                container.querySelectorAll<HTMLInputElement>('.xh-text-input input');
+
+            expect(name.maxLength).toBe(100);
+            expect(code.maxLength).toBe(8);
+            expect(container.querySelector('textarea').maxLength).toBe(40);
+        });
+
         it('holds a number, a boolean and a date as plain JSON values', () => {
             const {values, container} = renderBound({
                 top: {component: 'stack', props: {}, children: ['qty', 'ok', 'live', 'start']},

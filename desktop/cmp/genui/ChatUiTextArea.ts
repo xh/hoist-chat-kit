@@ -9,6 +9,7 @@ import {
     NAME_SCHEMA,
     PLACEHOLDER_SCHEMA,
     rulesSchema,
+    toMaxLength,
     toTextRules
 } from './impl/ChatUiInputSupport';
 import type {ChatUiSpecOptions} from './Types';
@@ -68,7 +69,7 @@ export function chatUiTextAreaSpec(
                       value,
                       toInput: toText,
                       setProp,
-                      item: textArea({placeholder, height: 72})
+                      item: textArea({placeholder, height: 72, maxLength: toMaxLength(rules)})
                   })
                 : null,
         result: ({label, name: field}) => label ?? field ?? '',
