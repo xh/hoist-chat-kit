@@ -54,8 +54,9 @@ export interface ChatUiMetric {
     intent?: ChatUiIntent;
 
     /**
-     * Recent values of the metric, oldest first. They show under the value as a small line, a
-     * Hoist `Sparkline`, after the `deltaLabel`. A trend needs at least two numbers.
+     * Past values of this same metric, oldest first, from tool data. They show under the value as a
+     * small line, a Hoist `Sparkline`, after the `deltaLabel`. A trend needs at least two numbers.
+     * The prompt tells the model to leave it out when no tool gives that history.
      */
     trend?: number[];
 }
@@ -150,8 +151,8 @@ export function chatUiMetricsSpec(
                                 maxItems: maxTrendPoints,
                                 items: {type: 'number'},
                                 description:
-                                    'Recent values, oldest first, drawn as a small line under ' +
-                                    'the value.'
+                                    'Past values of this same figure, oldest first, from tool ' +
+                                    'data. Leave it out when no tool gives that history.'
                             }
                         }
                     }

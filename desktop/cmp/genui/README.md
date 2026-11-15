@@ -323,8 +323,9 @@ through Hoist's `--xh-stat-card-*` variables, under `.xh-chat-ui-metrics`.
 A delta shows after the value with an arrow, in Hoist's positive color when up and its negative color when down.
 With `invert`, for a metric where up is bad, a rise shows in the negative color. It takes the
 format and decimals of its value, unless the model sets `deltaFormat`. Its `deltaLabel` shows
-under the value. A `trend`, a list of recent values with the oldest first, shows on the same line
-as a Hoist `Sparkline`. The trend has no color of its own, and needs at least two numbers. An
+under the value. A `trend`, the past values of that same figure with the oldest first, shows on
+the same line as a Hoist `Sparkline`. The model takes it from tool data, and leaves it out when no
+tool gives that history. The trend has no color of its own, and needs at least two numbers. An
 `intent` colors the card's outline. A large `number` or `currency` value, from
 100,000 up, shows to three significant digits with a `K`, `M`, `B` or `T` suffix. Its tooltip
 shows the full value. The model sends the full number.
