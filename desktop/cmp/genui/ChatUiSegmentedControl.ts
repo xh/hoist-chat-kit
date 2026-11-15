@@ -28,7 +28,7 @@ export interface ChatUiSegmentedControlSpecOptions extends ChatUiSpecOptions {
 /**
  * A segmented control for a {@link ChatUiCatalog}: a row of choices with one selected, over
  * Hoist's `SegmentedControl` in a `FormField`. Its `value` is a state prop, written on each
- * click. The rule `required` runs as a Hoist rule.
+ * click. The rule `required` runs as a Hoist rule. Options that do not fit on one row wrap.
  *
  * It shows only inside a nested answer, so it has no tool or tag of its own.
  */
@@ -69,7 +69,7 @@ export function chatUiSegmentedControlSpec(
                 toRules: toRequiredRules,
                 value,
                 setProp,
-                item: segmentedControl({options, fill: false})
+                item: segmentedControl({options, fill: false, wrap: true})
             });
         },
         result: ({label, name: field}) => label ?? field ?? '',

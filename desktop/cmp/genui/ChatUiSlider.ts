@@ -80,7 +80,8 @@ export function chatUiSliderSpec(
         standalone: false,
         render: (props, {setProp}) => {
             const {name: field, label, format, range, value} = props,
-                {min, max, step} = toScale(props);
+                {min, max, step} = toScale(props),
+                handleName = label || field;
             if (!field) return null;
             return chatUiField({
                 // A slider of one handle and one of two hold values of different shapes.
@@ -94,6 +95,13 @@ export function chatUiSliderSpec(
                 fromInput: toJson,
                 setProp,
                 item: slider({
+                    // Hoist names a handle by the label of its field. A field with no label
+                    // has none, and the two handles of a range need a name each.
+                    ariaLabel: range
+                        ? [`${handleName}, low`, `${handleName}, high`]
+                        : label
+                          ? null
+                          : handleName,
                     min,
                     max,
                     stepSize: step,

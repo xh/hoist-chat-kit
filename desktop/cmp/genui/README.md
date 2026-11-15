@@ -560,8 +560,8 @@ at least 190 px wide, and a row that cannot hold it wraps.
 
 **Sizing** follows Hoist: the container sets the width. The form fills the reply, and a field in
 it fills the form, or its share of a row. Put fields in a row stack to use a wide form, or set a
-`max-width` on `.xh-chat-ui-form`. Outside a form, a field is at most 360 px wide. A segmented
-control keeps the width of its options, and a row that cannot hold it wraps. A button keeps the
+`max-width` on `.xh-chat-ui-form`. Outside a form, a field is at most 360 px wide. The options
+of a segmented control wrap onto more rows where one row cannot hold them. A button keeps the
 size of its label. In a row, it sits at the bottom, level with the input of a field beside it.
 
 **The button** runs one typed action. With no action, it sends its label as the user's next

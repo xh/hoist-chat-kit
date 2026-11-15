@@ -232,6 +232,8 @@ describe('built-in form components', () => {
             expect(screen.getByRole('radio', {name: 'Day'}).getAttribute('aria-checked')).toBe(
                 'true'
             );
+            // Options that do not fit on one row wrap, so a narrow chat cuts none off.
+            expect(document.querySelector('.xh-segmented-control--wrap')).toBeTruthy();
 
             fireEvent.click(screen.getByRole('radio', {name: 'week'}));
             expect(values.get('top')).toBe('week');
@@ -290,6 +292,23 @@ describe('built-in form components', () => {
 
             act(() => values.set('top', 0.9));
             expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('0.9');
+        });
+
+        it('names each handle of a slider, by the label of its field or the name of the field', () => {
+            renderBound({
+                top: {component: 'stack', props: {}, children: ['risk', 'level', 'band']},
+                risk: {component: 'slider', props: {name: 'risk', label: 'Risk', min: 0, max: 9}},
+                level: {component: 'slider', props: {name: 'level', min: 0, max: 9}},
+                band: {
+                    component: 'slider',
+                    props: {name: 'band', label: 'Price band', min: 0, max: 9, range: true}
+                }
+            });
+
+            expect(screen.getByRole('slider', {name: 'Risk'})).toBeTruthy();
+            expect(screen.getByRole('slider', {name: 'level'})).toBeTruthy();
+            expect(screen.getByRole('slider', {name: 'Price band, low'})).toBeTruthy();
+            expect(screen.getByRole('slider', {name: 'Price band, high'})).toBeTruthy();
         });
 
         it('shows the values of a slider in its format', () => {
