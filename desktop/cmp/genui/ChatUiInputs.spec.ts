@@ -371,6 +371,58 @@ describe('built-in form components', () => {
             expect(range()).toEqual(['20', '40', '30']);
         });
 
+        describe('a default that streams in before the props that check it', () => {
+            // Renders one element of a component, from props that may still stream.
+            const streamed = (component: string) => {
+                const catalog = createCatalog();
+                return (props: PlainObject, isPartial: boolean) =>
+                    chatHost({
+                        model: null,
+                        item: catalog.renderDocument(
+                            {root: 'top', elements: {top: {component, props}}},
+                            context(null, isPartial)
+                        ) as ReactNode
+                    });
+            };
+
+            it('selects the default of a radio group once its choice arrives', () => {
+                const view = streamed('radioGroup'),
+                    props = {name: 'plan', options: ['basic', 'pro'], value: 'pro'},
+                    {rerender} = render(view(props, true)),
+                    checked = () =>
+                        screen
+                            .getAllByRole<HTMLInputElement>('radio')
+                            .filter(it => it.checked)
+                            .map(it => it.value);
+                // The last choice may be cut short, so it is left out while the props stream.
+                expect(checked()).toEqual([]);
+
+                rerender(view(props, false));
+                expect(checked()).toEqual(['pro']);
+            });
+
+            it('shows the default of a slider once its range takes it in', () => {
+                const view = streamed('slider'),
+                    {rerender} = render(view({name: 'level', min: 0, value: 150}, true)),
+                    now = () => screen.getByRole('slider').getAttribute('aria-valuenow');
+                expect(now()).toBe('100');
+
+                rerender(view({name: 'level', min: 0, value: 150, max: 200}, false));
+                expect(now()).toBe('150');
+            });
+
+            it('keeps the value the user set as the rest of the props stream', () => {
+                const view = streamed('slider'),
+                    {rerender} = render(view({name: 'level', min: 0, value: 50}, true)),
+                    now = () => screen.getByRole('slider').getAttribute('aria-valuenow');
+                fireEvent.keyDown(screen.getByRole('slider'), {key: 'ArrowRight'});
+                expect(now()).toBe('51');
+
+                rerender(view({name: 'level', min: 0, value: 50, max: 200}, false));
+                expect(now()).toBe('51');
+            });
+        });
+
         // Blueprint's slider counts the decimal places of its step, and writes a label per label
         // step. Outside the scale the spec bounds, either loop runs for seconds or for ever.
         it.each([

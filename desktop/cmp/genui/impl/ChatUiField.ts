@@ -84,6 +84,10 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
 
     private chatForm: ChatUiFormModel = null;
 
+    // True once the user has set a value. Until then, a change to a prop that checks the value
+    // applies the state's value again.
+    private userActed = false;
+
     get name(): string {
         return this.props.name;
     }
@@ -111,18 +115,32 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
                 fireImmediately: true
             },
             {
-                // The state changed, as on a reset or a write from another input.
-                track: () => this.props.value,
-                run: value => {
-                    const next = this.toInput(value);
-                    if (!isEqual(next, this.fieldModel.value)) this.fieldModel.init(next);
+                // The state changed, as on a reset or a write from another input. Or a prop that
+                // checks the value changed, such as the choices of a radio group or the range of
+                // a slider, as they stream in after the value. That applies the value again, but
+                // only until the user acts.
+                track: () => {
+                    const {value} = this.props;
+                    return [value, this.toInput(value)];
+                },
+                run: ([value, next], [previous]) => {
+                    const {fieldModel} = this;
+                    if (isEqual(next, fieldModel.value)) return;
+                    if (this.userActed && isEqual(value, previous)) return;
+                    fieldModel.init(next);
                 },
                 equals: 'structural'
             },
             {
-                // The user committed a value.
-                track: () => this.fieldModel?.value,
-                run: () => {
+                // The user committed a value. A new field, or a new initial value, comes from the
+                // state, and is not written back to it.
+                track: () => {
+                    const {fieldModel} = this;
+                    return [fieldModel, fieldModel?.initialValue, fieldModel?.value];
+                },
+                run: ([field, initial], [previousField, previousInitial]) => {
+                    if (field !== previousField || initial !== previousInitial) return;
+                    this.userActed = true;
                     const {value} = this,
                         {value: current = null, setProp} = this.props;
                     if (!isEqual(value, current)) setProp(VALUE, value);
