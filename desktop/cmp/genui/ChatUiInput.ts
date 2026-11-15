@@ -4,8 +4,10 @@ import {chatUiCheckboxSpec} from './ChatUiCheckbox';
 import {chatUiDateInputSpec} from './ChatUiDateInput';
 import {chatUiFormSpec} from './ChatUiForm';
 import {chatUiNumberInputSpec} from './ChatUiNumberInput';
+import {chatUiRadioGroupSpec} from './ChatUiRadioGroup';
 import {chatUiSegmentedControlSpec} from './ChatUiSegmentedControl';
 import {chatUiSelectSpec} from './ChatUiSelect';
+import {chatUiSliderSpec} from './ChatUiSlider';
 import {chatUiSwitchSpec} from './ChatUiSwitch';
 import {chatUiTextAreaSpec} from './ChatUiTextArea';
 import {chatUiTextInputSpec} from './ChatUiTextInput';
@@ -54,7 +56,7 @@ export interface ChatUiInputRules {
     max?: number | string;
 }
 
-/** A choice of a select or a segmented control, as written by the model. */
+/** A choice of a select, a segmented control or a radio group, as written by the model. */
 export interface ChatUiOption {
     /** What the choice stores. */
     value: string | number;
@@ -86,6 +88,8 @@ export function chatUiInputSpecs(): ChatUiComponentSpec<any>[] {
         chatUiDateInputSpec(),
         chatUiCheckboxSpec(),
         chatUiSwitchSpec(),
-        chatUiSegmentedControlSpec()
+        chatUiSegmentedControlSpec(),
+        chatUiRadioGroupSpec(),
+        chatUiSliderSpec()
     ];
 }

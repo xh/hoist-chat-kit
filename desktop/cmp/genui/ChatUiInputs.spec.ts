@@ -52,7 +52,9 @@ describe('built-in form components', () => {
                 'dateInput',
                 'checkbox',
                 'switch',
-                'segmentedControl'
+                'segmentedControl',
+                'radioGroup',
+                'slider'
             ]);
         });
 
@@ -72,6 +74,16 @@ describe('built-in form components', () => {
                 'Checkbox(name: string, label?: string, value?: $binding<boolean>)'
             );
             expect(signature('DateInput')).toMatch(/value\?: \$binding<string>\)$/);
+            expect(signature('RadioGroup')).toBe(
+                'RadioGroup(name: string, options: (string | number | ' +
+                    '{value: string | number; label?: string})[], label?: string, ' +
+                    'rules?: {required?: boolean}, value?: $binding<string | number>)'
+            );
+            expect(signature('Slider')).toBe(
+                'Slider(name: string, min: number, max: number, label?: string, step?: number, ' +
+                    'format?: "number" | "percent" | "currency" | "none", range?: boolean, ' +
+                    'value?: $binding<number | number[]>)'
+            );
             expect(signature('Button')).toBe(
                 'Button(label: string, action?: @ToAssistant | @Set | @Reset, ' +
                     'intent?: "primary" | "success" | "warning" | "danger")'
@@ -210,6 +222,155 @@ describe('built-in form components', () => {
             expect(values.get('top')).toBe('week');
         });
 
+        it('picks a choice of a radio group, and keeps the type of its value', () => {
+            const {values} = renderBound(
+                {
+                    top: {
+                        component: 'radioGroup',
+                        props: {
+                            name: 'term',
+                            label: 'Term',
+                            // A second choice with the text of an earlier one is left out.
+                            options: [{value: 1, label: 'One year'}, 3, 'none', '1']
+                        }
+                    }
+                },
+                {top: 1}
+            );
+            const radio = (name: string) => screen.getByRole<HTMLInputElement>('radio', {name});
+            expect(screen.getAllByRole('radio')).toHaveLength(3);
+            expect(radio('One year').checked).toBe(true);
+
+            fireEvent.click(radio('3'));
+            expect(values.get('top')).toBe(3);
+            expect(radio('3').checked).toBe(true);
+
+            fireEvent.click(radio('none'));
+            expect(values.get('top')).toBe('none');
+
+            // A value that is not a choice selects none, and stays in the state.
+            act(() => values.set('top', 'other'));
+            expect(screen.getAllByRole<HTMLInputElement>('radio').some(it => it.checked)).toBe(
+                false
+            );
+        });
+
+        it('moves a slider by its step, and shows a value the state sets', () => {
+            const {values} = renderBound(
+                {
+                    top: {
+                        component: 'slider',
+                        props: {name: 'share', label: 'Share', min: 0, max: 1, step: 0.1}
+                    }
+                },
+                {top: 0.2}
+            );
+            const handle = screen.getByRole('slider');
+            expect(screen.getByText('Share')).toBeTruthy();
+            expect(handle.getAttribute('aria-valuenow')).toBe('0.2');
+
+            // The slider writes a step without the noise of float sums.
+            fireEvent.keyDown(handle, {key: 'ArrowRight'});
+            expect(values.get('top')).toBe(0.3);
+
+            act(() => values.set('top', 0.9));
+            expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('0.9');
+        });
+
+        it('shows the values of a slider in its format', () => {
+            const {container} = renderBound(
+                {
+                    top: {
+                        component: 'slider',
+                        props: {name: 'share', min: 0, max: 1, step: 0.05, format: 'percent'}
+                    }
+                },
+                {top: 0.25}
+            );
+            const labels = [...container.querySelectorAll('.bp6-slider-label')].map(
+                it => it.textContent
+            );
+
+            expect(labels).toEqual(['0%', '100%', '25%']);
+        });
+
+        it.each([
+            ['a value above the range', {min: 0, max: 10}, 50, 0, 10, 10],
+            ['a value below the range', {min: 5, max: 10}, -3, 5, 10, 5],
+            ['a value that is not a number', {min: 2, max: 10}, 'high', 2, 10, 2],
+            ['no value', {min: 2, max: 10}, undefined, 2, 10, 2],
+            ['a range written backwards', {min: 10, max: 0}, 4, 0, 10, 4],
+            ['a range of no width', {min: 3, max: 3}, 3, 3, 4, 3],
+            ['a step of zero', {min: 0, max: 10, step: 0}, 4, 0, 10, 4]
+        ])('draws a slider for %s', (_, props, value, min, max, shown) => {
+            renderBound(
+                {top: {component: 'slider', props: {name: 'level', ...props}}},
+                {
+                    top: value
+                }
+            );
+            const handle = screen.getByRole('slider');
+
+            expect(handle.getAttribute('aria-valuemin')).toBe(`${min}`);
+            expect(handle.getAttribute('aria-valuemax')).toBe(`${max}`);
+            expect(handle.getAttribute('aria-valuenow')).toBe(`${shown}`);
+        });
+
+        it('draws a slider from its least value while the greatest still streams', () => {
+            const catalog = createCatalog(),
+                view = (props: PlainObject, isPartial: boolean) =>
+                    chatHost({
+                        model: null,
+                        item: catalog.renderDocument(
+                            {root: 'top', elements: {top: {component: 'slider', props}}},
+                            context(null, isPartial)
+                        ) as ReactNode
+                    }),
+                {rerender} = render(view({name: 'level', min: 20}, true)),
+                range = () => {
+                    const handle = screen.getByRole('slider');
+                    return ['min', 'max', 'now'].map(it => handle.getAttribute(`aria-value${it}`));
+                };
+            expect(range()).toEqual(['20', '120', '20']);
+
+            rerender(view({name: 'level', min: 20, max: 40, value: 30}, false));
+            expect(range()).toEqual(['20', '40', '30']);
+        });
+
+        it('draws one label at each end of a slider, however wide its range', () => {
+            const {container} = renderBound(
+                {top: {component: 'slider', props: {name: 'amount', min: 0, max: 1000000}}},
+                {top: 250000}
+            );
+
+            expect(container.querySelectorAll('.bp6-slider-axis .bp6-slider-label')).toHaveLength(
+                2
+            );
+        });
+
+        it('holds a low and a high value in a slider with range', () => {
+            const {values} = renderBound(
+                {
+                    top: {
+                        component: 'slider',
+                        props: {name: 'price', min: 0, max: 100, step: 5, range: true}
+                    }
+                },
+                // The state gives the pair out of order, and one end outside the range.
+                {top: [400, 20]}
+            );
+            const now = () =>
+                screen.getAllByRole('slider').map(it => it.getAttribute('aria-valuenow'));
+            expect(now()).toEqual(['20', '100']);
+
+            fireEvent.keyDown(screen.getAllByRole('slider')[0], {key: 'ArrowRight'});
+            expect(values.get('top')).toEqual([25, 100]);
+
+            // With no pair in the state, the handles sit at the ends.
+            act(() => values.set('top', 7));
+            expect(now()).toEqual(['0', '100']);
+        });
+
         it('keeps what the user entered when the label and the rules of its input change', async () => {
             const catalog = createCatalog(),
                 view = (props: PlainObject) =>
@@ -337,6 +498,43 @@ describe('built-in form components', () => {
                         source: 'chat'
                     }
                 }
+            });
+        });
+
+        it('sends what a slider and a radio group show, with a range as one text', async () => {
+            const chatModel = createChatModel();
+            renderDocument(
+                {
+                    root: 'form',
+                    elements: {
+                        form: {
+                            component: 'form',
+                            props: {},
+                            children: ['level', 'price', 'plan', 'go']
+                        },
+                        // No value: the slider shows its least value, and sends it.
+                        level: {component: 'slider', props: {name: 'level', min: 1, max: 5}},
+                        price: {
+                            component: 'slider',
+                            props: {name: 'price', min: 0, max: 100, range: true, value: [20, 80]}
+                        },
+                        plan: {
+                            component: 'radioGroup',
+                            props: {name: 'plan', options: ['basic', 'pro'], value: 'basic'}
+                        },
+                        go: {component: 'button', props: {label: 'Submit'}}
+                    }
+                },
+                chatModel
+            );
+
+            fireEvent.click(screen.getByRole('radio', {name: 'pro'}));
+            await clickAsync(screen.getByRole('button', {name: 'Submit'}));
+
+            expect(chatModel.messages[0].metadata.context).toEqual({
+                level: 1,
+                price: '20, 80',
+                plan: 'pro'
             });
         });
 
