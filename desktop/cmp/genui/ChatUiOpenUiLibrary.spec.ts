@@ -40,7 +40,7 @@ describe('built-in specs as an OpenUI library', () => {
         expect(components.Badges.signature).toBe(
             `Badges(badges: {label: string; intent?: ${INTENT}}[])`
         );
-        expect(components.Divider.signature).toBe('Divider()');
+        expect(components.Divider.signature).toBe('Divider(label?: string)');
         expect(components.Treemap.signature).toBe(
             'Treemap(title?: string, nodes: {label: string; value: number; heat?: number}[], ' +
                 `format?: ${FORMAT}, decimals?: number, heatLabel?: string, ` +
@@ -105,7 +105,7 @@ describe('built-in specs as an OpenUI library', () => {
         expect(container.querySelector('.xh-chat-ui-fallback')).toBeNull();
         expect(container.querySelector('.xh-banner.xh-banner--warning')).toBeTruthy();
         expect(container.querySelector('.xh-badge.xh-bg-intent-danger').textContent).toBe('Rates');
-        expect(container.querySelector('hr')).toBeTruthy();
+        expect(container.querySelector('.xh-separator.xh-chat-ui-divider')).toBeTruthy();
         expect(container.querySelectorAll('.xh-tab-container [role="tab"]')).toHaveLength(2);
         expect(container.querySelector('.xh-chat-ui-treemap')).toBeTruthy();
     });

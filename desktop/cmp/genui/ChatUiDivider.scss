@@ -1,17 +1,17 @@
-// A rule in the chat's border color. In a row, it stands as a vertical rule.
+// A Hoist Separator in the chat's border color. The stack around it sets the space on each side.
 .xh-chat-ui-divider {
-  align-self: stretch;
-  border: none;
-  border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
-  flex: none;
-  margin: 0;
-  width: 100%;
+  --xh-separator-color: var(--xh-chat-part-border-color);
 }
 
+// In a row, it stands as a vertical rule, as a Separator with the `vertical` orientation does. The
+// spec does not know the direction of its stack, so the row sets it here.
 .xh-chat-ui-stack.xh-hbox > .xh-chat-ui-divider {
-  border-left: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
-  border-top: none;
-  flex: none;
-  min-width: 0;
-  width: 0;
+  flex-direction: column;
+  min-height: 1em;
+
+  &::before,
+  &::after {
+    border-left-width: var(--xh-separator-width);
+    border-top-width: 0;
+  }
 }
