@@ -4,7 +4,7 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it} from 'vitest';
 import {ChatUiCatalog, type ChatUiRenderContext} from '../../../genui';
 import {chatUiDividerSpec} from './ChatUiDivider';
-import {chatUiStackSpec} from './ChatUiStack';
+import {chatUiStack, chatUiStackSpec} from './ChatUiStack';
 
 /**
  * The divider spec draws a rule between the parts of a nested answer, with Hoist's `Separator`.
@@ -49,5 +49,25 @@ describe('chatUiDividerSpec', () => {
 
         expect(labelOf('  ')).toBeNull();
         expect(labelOf(12)).toBeNull();
+    });
+
+    it('stands as a vertical rule with no label in a row, and lies across a column', () => {
+        const spec = chatUiDividerSpec(),
+            ruleIn = (direction: 'row' | 'column') =>
+                render(
+                    chatUiStack({
+                        direction,
+                        items: [spec.render({label: 'More'}, {} as ChatUiRenderContext)]
+                    })
+                ).container.querySelector('.xh-chat-ui-divider');
+
+        const vertical = ruleIn('row');
+        expect(vertical.getAttribute('aria-orientation')).toBe('vertical');
+        expect(vertical.classList).toContain('xh-separator--vertical');
+        expect(vertical.textContent).toBe('');
+
+        const horizontal = ruleIn('column');
+        expect(horizontal.getAttribute('aria-orientation')).toBe('horizontal');
+        expect(horizontal.textContent).toBe('More');
     });
 });
