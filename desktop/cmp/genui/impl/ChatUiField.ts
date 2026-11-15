@@ -3,8 +3,8 @@ import {creates, hoistCmp, HoistModel, type HoistProps, type PlainObject, XH} fr
 import type {RuleLike} from '@xh/hoist/data';
 import {formField} from '@xh/hoist/desktop/cmp/form';
 import {action, observableRef} from '@xh/hoist/mobx';
-import {identity, isEqual} from 'lodash';
-import type {ReactElement} from 'react';
+import {debounce, type DebouncedFunc, identity, isEqual} from 'lodash';
+import {type ReactElement, useLayoutEffect} from 'react';
 import type {ChatUiRenderContext} from '../../../../genui';
 import {type ChatUiFormField, ChatUiFormModel} from './ChatUiFormModel';
 import './ChatUiField.scss';
@@ -38,6 +38,12 @@ export interface ChatUiFieldProps extends HoistProps<ChatUiFieldModel> {
     /** Writes the value - the render context's `setProp`. */
     setProp: ChatUiRenderContext['setProp'];
 
+    /**
+     * Milliseconds to wait after the user's last change before the value goes to the state, so
+     * that a run of changes, such as the drag of a slider, makes one write. Default 0. Read once.
+     */
+    writeDelay?: number;
+
     /** The Hoist input. The field binds it, so it takes no `value`, `bind` or `model`. */
     children?: ReactElement;
 }
@@ -55,6 +61,9 @@ export const chatUiField = hoistCmp.factory<ChatUiFieldProps>({
     className: 'xh-chat-ui-field',
 
     render({model, className, label, hideLabel, children}) {
+        // A write still waiting goes to the state before the document can destroy it.
+        useLayoutEffect(() => () => model.flushWrite(), [model]);
+
         const {formModel} = model;
         if (!formModel) return null;
         return form({
@@ -74,7 +83,8 @@ export const chatUiField = hoistCmp.factory<ChatUiFieldProps>({
  * rules when it is created, so this owns a `FormModel` of one field, and builds a new one when
  * the name, label or rules change, as they do while the props stream. It keeps the field and the
  * state prop in step: a value the state gives re-initializes the field, and a value the user
- * commits goes to the state.
+ * commits goes to the state, at once or after `writeDelay`. A form reads the field itself, so it
+ * sends the value shown even while a write waits.
  * @internal
  */
 export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
@@ -87,6 +97,8 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
     // True once the user has set a value. Until then, a change to a prop that checks the value
     // applies the state's value again.
     private userActed = false;
+
+    private delayedWrite: DebouncedFunc<() => void> = null;
 
     get name(): string {
         return this.props.name;
@@ -103,6 +115,8 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
 
     override onLinked() {
         this.chatForm = this.lookupModel(ChatUiFormModel);
+        const {writeDelay} = this.props;
+        if (writeDelay > 0) this.delayedWrite = debounce(() => this.writeValue(), writeDelay);
 
         this.addReaction(
             {
@@ -141,9 +155,11 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
                 run: ([field, initial], [previousField, previousInitial]) => {
                     if (field !== previousField || initial !== previousInitial) return;
                     this.userActed = true;
-                    const {value} = this,
-                        {value: current = null, setProp} = this.props;
-                    if (!isEqual(value, current)) setProp(VALUE, value);
+                    if (this.delayedWrite) {
+                        this.delayedWrite();
+                    } else {
+                        this.writeValue();
+                    }
                 }
             }
         );
@@ -154,7 +170,13 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
         this.chatForm?.register(this);
     }
 
+    /** Write a value that waits on `writeDelay` now. */
+    flushWrite() {
+        this.delayedWrite?.flush();
+    }
+
     override destroy() {
+        this.delayedWrite?.cancel();
         this.chatForm?.unregister(this);
         XH.safeDestroy(this.formModel);
         super.destroy();
@@ -167,6 +189,12 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
         return this.componentProps as ChatUiFieldProps;
     }
 
+    private writeValue() {
+        const {value} = this,
+            {value: current = null, setProp} = this.props;
+        if (!isEqual(value, current)) setProp(VALUE, value);
+    }
+
     @action
     private createFormModel() {
         const {name, label, rules, toRules, value} = this.props,
@@ -176,7 +204,11 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
                 {
                     name: VALUE,
                     displayName: label || name,
-                    initialValue: this.toInput(value),
+                    // What the user set, as its write to the state may still wait.
+                    initialValue:
+                        previous && this.userActed
+                            ? previous.fields[VALUE].value
+                            : this.toInput(value),
                     rules: toRules?.(rules ?? {}) ?? []
                 }
             ],

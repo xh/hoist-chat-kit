@@ -272,7 +272,7 @@ describe('built-in form components', () => {
             );
         });
 
-        it('moves a slider by its step, and shows a value the state sets', () => {
+        it('moves a slider by its step, and shows a value the state sets', async () => {
             const {values} = renderBound(
                 {
                     top: {
@@ -288,7 +288,7 @@ describe('built-in form components', () => {
 
             // The slider writes a step without the noise of float sums.
             fireEvent.keyDown(handle, {key: 'ArrowRight'});
-            expect(values.get('top')).toBe(0.3);
+            await waitFor(() => expect(values.get('top')).toBe(0.3));
 
             act(() => values.set('top', 0.9));
             expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('0.9');
@@ -454,19 +454,19 @@ describe('built-in form components', () => {
             2000
         );
 
-        it('moves a slider whose range was too narrow to draw', {timeout: 2000}, () => {
+        it('moves a slider whose range was too narrow to draw', {timeout: 2000}, async () => {
             const {values} = renderBound({
                 top: {component: 'slider', props: {name: 'level', min: 0, max: 1e-9}}
             });
 
             fireEvent.keyDown(screen.getByRole('slider'), {key: 'ArrowRight'});
-            expect(values.get('top')).toBeGreaterThan(0);
+            await waitFor(() => expect(values.get('top')).toBeGreaterThan(0));
         });
 
         it(
             'refuses a range beyond a trillion, and holds at most 100,000 steps',
             {timeout: 2000},
-            () => {
+            async () => {
                 const catalog = createCatalog(),
                     {values} = renderBound({
                         top: {
@@ -483,7 +483,7 @@ describe('built-in form components', () => {
                 );
 
                 fireEvent.keyDown(screen.getByRole('slider'), {key: 'ArrowRight'});
-                expect(values.get('top')).toBe(10000);
+                await waitFor(() => expect(values.get('top')).toBe(10000));
             }
         );
 
@@ -498,7 +498,7 @@ describe('built-in form components', () => {
             );
         });
 
-        it('holds a low and a high value in a slider with range', () => {
+        it('holds a low and a high value in a slider with range', async () => {
             const {values} = renderBound(
                 {
                     top: {
@@ -514,11 +514,64 @@ describe('built-in form components', () => {
             expect(now()).toEqual(['20', '100']);
 
             fireEvent.keyDown(screen.getAllByRole('slider')[0], {key: 'ArrowRight'});
-            expect(values.get('top')).toEqual([25, 100]);
+            await waitFor(() => expect(values.get('top')).toEqual([25, 100]));
 
             // With no pair in the state, the handles sit at the ends.
             act(() => values.set('top', 7));
             expect(now()).toEqual(['0', '100']);
+        });
+
+        describe('a slider that the user moves in a run of steps', () => {
+            const renderLevel = () => {
+                const bound = renderBound(
+                        {top: {component: 'slider', props: {name: 'level', min: 0, max: 100}}},
+                        {top: 10}
+                    ),
+                    writes = vi.spyOn(bound.values, 'set');
+                return {...bound, writes};
+            };
+
+            it('moves the handle at once, and writes the state once', async () => {
+                const {values, writes} = renderLevel(),
+                    handle = screen.getByRole('slider');
+                for (let i = 0; i < 20; i++) fireEvent.keyDown(handle, {key: 'ArrowRight'});
+                expect(handle.getAttribute('aria-valuenow')).toBe('30');
+                expect(writes).not.toHaveBeenCalled();
+
+                await waitFor(() => expect(values.get('top')).toBe(30));
+                expect(writes).toHaveBeenCalledTimes(1);
+            });
+
+            it('writes a pending value when it unmounts, and nothing after', async () => {
+                const {values, writes, unmount} = renderLevel();
+                fireEvent.keyDown(screen.getByRole('slider'), {key: 'ArrowRight'});
+                unmount();
+                expect(values.get('top')).toBe(11);
+
+                await new Promise(resolve => setTimeout(resolve, 400));
+                expect(writes).toHaveBeenCalledTimes(1);
+            });
+
+            it('keeps a pending value when its label changes', async () => {
+                const catalog = createCatalog(),
+                    view = (props: PlainObject) =>
+                        chatHost({
+                            model: null,
+                            item: catalog.renderDocument(
+                                {root: 'top', elements: {top: {component: 'slider', props}}},
+                                context(null)
+                            ) as ReactNode
+                        }),
+                    props = {name: 'level', min: 0, max: 100, value: 10},
+                    {rerender} = render(view(props)),
+                    now = () => screen.getByRole('slider').getAttribute('aria-valuenow');
+                fireEvent.keyDown(screen.getByRole('slider'), {key: 'ArrowRight'});
+
+                rerender(view({...props, label: 'Level'}));
+                expect(now()).toBe('11');
+                await new Promise(resolve => setTimeout(resolve, 400));
+                expect(now()).toBe('11');
+            });
         });
 
         it('keeps what the user entered when the label and the rules of its input change', async () => {
@@ -687,6 +740,26 @@ describe('built-in form components', () => {
                 price: '[20,80]',
                 plan: 'pro'
             });
+        });
+
+        it('sends the value a slider shows before its write to the state', async () => {
+            const chatModel = createChatModel();
+            renderDocument(
+                {
+                    root: 'form',
+                    elements: {
+                        form: {component: 'form', props: {}, children: ['level', 'go']},
+                        level: {component: 'slider', props: {name: 'level', min: 1, max: 5}},
+                        go: {component: 'button', props: {label: 'Submit'}}
+                    }
+                },
+                chatModel
+            );
+
+            fireEvent.keyDown(screen.getByRole('slider'), {key: 'ArrowRight'});
+            await clickAsync(screen.getByRole('button', {name: 'Submit'}));
+
+            expect(chatModel.messages[0].metadata.context).toEqual({level: 2});
         });
 
         it('sends its label when the button has no action', async () => {

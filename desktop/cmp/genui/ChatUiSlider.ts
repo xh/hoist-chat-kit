@@ -34,8 +34,9 @@ export interface ChatUiSliderSpecProps extends Omit<
 /**
  * A slider for a {@link ChatUiCatalog}: a number in a range, over Hoist's `Slider` in a
  * `FormField`. Its `value` is a state prop: a number, or a list of two with `range`. The slider
- * writes it as the user drags a handle or moves it with the arrow keys. It shows the value on
- * each handle, and the least and greatest values under its ends.
+ * writes it once the user stops moving a handle for a quarter of a second, so that a drag makes
+ * one write. A form sends the value shown at once. It shows the value on each handle, and the
+ * least and greatest values under its ends.
  *
  * A slider always shows a value, so it takes no rules. A value that is missing, not a number or
  * outside the range shows at the nearest end. The slider bounds the scale it draws: a range too
@@ -101,6 +102,9 @@ export function chatUiSliderSpec(
                     : it => toNumber(isArray(it) ? it[0] : it, min, max, min),
                 fromInput: toJson,
                 setProp,
+                // A drag, or a run of arrow keys, makes one write: a query that reads the value
+                // runs once, not on each step.
+                writeDelay: WRITE_DELAY,
                 item: slider({
                     // Hoist names a handle by the label of its field. A field with no label
                     // has none, and the two handles of a range need a name each.
@@ -131,6 +135,9 @@ const DESCRIPTION =
     'share, or with range for a low and a high value.';
 
 const BOUND_SCHEMA = {type: 'number', minimum: -1e12, maximum: 1e12};
+
+// Milliseconds after the last move of a handle before the value goes to the state.
+const WRITE_DELAY = 250;
 
 // Most decimal places of a value the slider writes, to drop the noise of float steps.
 const MAX_DECIMALS = 10;
