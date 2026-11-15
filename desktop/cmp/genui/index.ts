@@ -12,6 +12,7 @@ export * from './ChatUiFormat';
 export * from './ChatUiFrame';
 export * from './ChatUiGrid';
 export * from './ChatUiInput';
+export * from './ChatUiKeyValues';
 export * from './ChatUiMetrics';
 export * from './ChatUiNumberInput';
 export * from './ChatUiProgress';
