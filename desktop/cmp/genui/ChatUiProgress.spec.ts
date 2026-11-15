@@ -41,7 +41,11 @@ describe('chatUiProgressSpec', () => {
         expect(screen.getByRole('progressbar', {name: 'Storage'})).toBeTruthy();
         expect(widths(container)).toEqual(['72%', '25%']);
         expect(seats.className).toContain('xh-progress-bar--intent-danger');
-        expect(seats.querySelector<HTMLElement>('.xh-progress-bar__target').style.left).toBe('75%');
+        expect(
+            seats
+                .querySelector<HTMLElement>('.xh-progress-bar__target')
+                .style.getPropertyValue('--xh-progress-bar-target-fraction')
+        ).toBe('0.75');
     });
 
     it('shows a whole percent of the maximum, or the value and the maximum in a format', () => {

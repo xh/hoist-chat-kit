@@ -50,24 +50,28 @@ describe('chatUiKeyValuesSpec', () => {
         ).toHaveLength(1);
     });
 
-    it('shows a dash for a value that is missing, blank or not text or a number', () => {
+    it('shows a dash for a value that is missing, blank or a list, and a boolean as text', () => {
         const {container} = renderKeyValues({
             items: [
                 {label: 'Owner'},
                 {label: 'Desk', value: '  '},
                 {label: 'Tags', value: ['a', 'b'] as any},
-                {label: 'Zero', value: 0}
+                {label: 'Zero', value: 0},
+                {label: 'Active', value: true},
+                {label: 'Hedged', value: false}
             ]
         });
 
-        expect(texts(container, 'value')).toEqual(['-', '-', '-', '0']);
+        expect(texts(container, 'value')).toEqual(['-', '-', '-', '0', 'true', 'false']);
     });
 
     it('sets the number of columns, and fits them to the width with none set', () => {
-        const columnsOf = (columns?: number) =>
-            renderKeyValues({items: [{label: 'A', value: 1}], columns})
-                .container.querySelector<HTMLElement>('.xh-key-value-list')
-                .style.getPropertyValue('--xh-key-value-list-columns');
+        // Hoist's list never uses more columns than it has entries.
+        const items = ['A', 'B', 'C', 'D', 'E'].map(label => ({label, value: 1})),
+            columnsOf = (columns?: number) =>
+                renderKeyValues({items, columns})
+                    .container.querySelector<HTMLElement>('.xh-key-value-list')
+                    .style.getPropertyValue('--xh-key-value-list-columns');
 
         expect(columnsOf(2)).toBe('2');
         expect(columnsOf(40)).toBe('4');

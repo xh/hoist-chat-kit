@@ -1,5 +1,5 @@
 import {keyValueList, type KeyValueEntry} from '@xh/hoist/cmp/keyvaluelist';
-import {dropRight, isEmpty, isFinite, isInteger, isPlainObject, isString} from 'lodash';
+import {dropRight, isBoolean, isEmpty, isFinite, isInteger, isPlainObject, isString} from 'lodash';
 import type {ChatUiComponentSpec} from '../../../genui';
 import {
     CHAT_UI_DECIMALS_SCHEMA,
@@ -14,8 +14,11 @@ export interface ChatUiKeyValue {
     /** What the value is, such as `Rating`. */
     label: string;
 
-    /** The value - a number, formatted with `format`, or text shown as is. */
-    value?: number | string;
+    /**
+     * The value - a number, formatted with `format`, text shown as is, or a boolean, shown as
+     * `true` or `false`.
+     */
+    value?: number | string | boolean;
 
     /** How a numeric value displays. Default `number`. */
     format?: ChatUiNumberFormat;
@@ -75,9 +78,9 @@ export function chatUiKeyValuesSpec(
                         properties: {
                             label: {type: 'string', minLength: 1, maxLength: 40},
                             value: {
-                                type: ['number', 'string'],
+                                type: ['number', 'string', 'boolean'],
                                 maxLength: 200,
-                                description: 'A number, or text shown as is.'
+                                description: 'A number, a boolean, or text shown as is.'
                             },
                             format: CHAT_UI_NUMBER_FORMAT_SCHEMA,
                             decimals: CHAT_UI_DECIMALS_SCHEMA,
@@ -138,7 +141,7 @@ function toEntry(item: unknown): KeyValueEntry[] {
             label,
             value: isFinite(value)
                 ? fmtChatUiNumber(value as number, format, decimals)
-                : isString(value)
+                : isString(value) || isBoolean(value)
                   ? value
                   : null,
             intent: toHoistIntent(intent)
