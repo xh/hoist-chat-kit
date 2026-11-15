@@ -492,8 +492,9 @@ The treemap needs two Highcharts modules, heatmap then treemap. See
 - **Progress** renders a Hoist `ProgressBar` per bar, in a column. A bar is a `value` from 0 to
   `max`, 100 by default. With no `format`, the figure over the bar is the value as a whole
   percent of `max`. With a `format`, it is the value and `max` in that format, such as
-  `$7,200 of $10,000`. The `percent` format takes a fraction, with a `max` of 1 by default. A
-  `target` marks a goal on the bar. A value outside the range shows an empty or a full bar.
+  `$7,200 of $10,000`. The `percent` format shows one figure, the share of `max`, which is 1 by
+  default. So a fraction alone and a raw value with its `max` both read right. A `target` marks a
+  goal on the bar. A value outside the range shows an empty or a full bar.
 - **Steps** render Hoist's `Steps`: a sequence in a row, or a list with `orientation: 'vertical'`.
   `current` is the index of the current step, from 0. Steps before it are complete, and steps
   after it are pending. A `status` on a step wins: `pending`, `current`, `complete`, `warning` or

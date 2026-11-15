@@ -20,7 +20,8 @@ export interface ChatUiProgressBar {
 
     /**
      * How the figure over the bar shows the value and `max`, such as `$7,200 of $10,000`. With
-     * none, the figure is the value as a whole percent of `max`.
+     * `percent`, the figure is the share of `max`, such as `24.9%`. With none, it is the whole
+     * percent of `max`.
      */
     format?: ChatUiNumberFormat;
 
@@ -84,8 +85,8 @@ export function chatUiProgressSpec(
                                 ...CHAT_UI_NUMBER_FORMAT_SCHEMA,
                                 description:
                                     'Shows the value and max in this format, as "$7,200 of ' +
-                                    '$10,000". "percent" takes a fraction. Default the percent ' +
-                                    'of max.'
+                                    '$10,000". "percent" shows the share of max. Default the ' +
+                                    'whole percent of max.'
                             },
                             intent: {
                                 enum: CHAT_UI_INTENTS,
@@ -151,10 +152,12 @@ function toMax({max, format}: ChatUiProgressBar): number {
 }
 
 // The figure over the bar. With no format, Hoist shows the value as a whole percent of `max`.
+// With `percent`, one figure: the share of `max`. A model may write a fraction with no `max`, or
+// a raw value with its `max`, and both read the same.
 function toFigure({value, format}: ChatUiProgressBar, max: number): string {
     if (!CHAT_UI_FORMATS.includes(format)) return null;
     const fmt = (it: number) => fmtChatUiNumber(it, format, null, {compact: true, zeroPad: false});
-    return format === 'percent' && max === 1 ? `${fmt(value)}` : `${fmt(value)} of ${fmt(max)}`;
+    return format === 'percent' ? `${fmt(value / max)}` : `${fmt(value)} of ${fmt(max)}`;
 }
 
 const CHAT_UI_FORMATS: ChatUiNumberFormat[] = ['number', 'percent', 'currency', 'none'];

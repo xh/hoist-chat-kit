@@ -64,9 +64,19 @@ describe('chatUiProgressSpec', () => {
             '$7,200 of $10,000',
             '1.5M of 4M',
             '42.5%',
-            '20% of 50%'
+            '40%'
         ]);
         expect(widths(container)).toEqual(['72%', '72%', '37.5%', '42.5%', '40%']);
+    });
+
+    it('shows one share for percent, when the model writes a raw value and its maximum', () => {
+        // From a live model run: percent with a raw value and max, which read as two huge percents.
+        const {container} = renderProgress({
+            bars: [{label: 'Used', value: 1971747900, max: 7915888800, format: 'percent'}]
+        });
+
+        expect(figures(container)).toEqual(['24.9%']);
+        expect(parseFloat(widths(container)[0])).toBeCloseTo(24.9, 1);
     });
 
     it('draws a bar for a value outside its range, and for a maximum that is not above zero', () => {
