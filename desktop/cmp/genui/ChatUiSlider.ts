@@ -118,7 +118,9 @@ export function chatUiSliderSpec(
                     stepSize: step,
                     // A label at each end only. Blueprint draws one per label step.
                     labelStepSize: max - min,
-                    labelRenderer: it => fmtChatUiNumber(it, format, null, {zeroPad: false})
+                    // Compact, as $150m, so that a label of a wide range fits the slider.
+                    labelRenderer: it =>
+                        fmtChatUiNumber(it, format, null, {compact: true, zeroPad: false})
                 })
             });
         },

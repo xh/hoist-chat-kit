@@ -328,6 +328,23 @@ describe('built-in form components', () => {
             expect(labels).toEqual(['0%', '100%', '25%']);
         });
 
+        it('shows the values of a wide currency slider in a compact form, so that they fit', () => {
+            const {container} = renderBound(
+                {
+                    top: {
+                        component: 'slider',
+                        props: {name: 'size', min: 0, max: 150000000, format: 'currency'}
+                    }
+                },
+                {top: 25000000}
+            );
+            const labels = [...container.querySelectorAll('.bp6-slider-label')].map(
+                it => it.textContent
+            );
+
+            expect(labels).toEqual(['$0', '$150M', '$25M']);
+        });
+
         it.each([
             ['a value above the range', {min: 0, max: 10}, 50, 0, 10, 10],
             ['a value below the range', {min: 5, max: 10}, -3, 5, 10, 5],

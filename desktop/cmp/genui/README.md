@@ -577,7 +577,8 @@ draws a range written backwards, a range of no width and a step of zero as a ran
 It bounds its scale: `min` and `max` are from -1e12 to 1e12, a range too narrow to draw becomes
 a range of 1, and a range holds at most 100,000 steps.
 With `range` it has two handles, and its value is a list of the low and the high value. `format`
-sets how the slider shows its values, as a [number format](#number-formats).
+sets how the slider shows its values, as a [number format](#number-formats). A large value shows
+in a compact form, such as `$150M`, so that the label at each end fits.
 
 **Rules** are an object, such as `{required: true, email: true}`. They run as Hoist rules, and
 their messages show under the input:
