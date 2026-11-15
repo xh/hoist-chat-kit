@@ -371,6 +371,70 @@ describe('built-in form components', () => {
             expect(range()).toEqual(['20', '40', '30']);
         });
 
+        // Blueprint's slider counts the decimal places of its step, and writes a label per label
+        // step. Outside the scale the spec bounds, either loop runs for seconds or for ever.
+        it.each([
+            ['a step far below the range', {min: 0, max: 10, step: 1e-310}, 0, 10],
+            ['a range far below any step', {min: 0, max: 1e-306}, 0, 1],
+            ['a range of a ten-billionth', {min: 5, max: 5.0000000001}, 5, 6],
+            ['a range of 1e-11', {min: 0, max: 1e-11}, 0, 1],
+            ['the least number above zero', {min: 0, max: 5e-324}, 0, 1],
+            [
+                'a range narrow beside its numbers',
+                {min: 1e12 - 1, max: 1e12},
+                1e12 - 1,
+                1e12 - 1 + 1e6
+            ]
+        ])(
+            'draws a slider of a bounded scale for %s',
+            (_, props, min, max) => {
+                const {container} = renderBound({
+                        top: {component: 'slider', props: {name: 'level', ...props}}
+                    }),
+                    handle = screen.getByRole('slider');
+
+                expect(handle.getAttribute('aria-valuemin')).toBe(`${min}`);
+                expect(Number(handle.getAttribute('aria-valuemax'))).toBeCloseTo(max, 5);
+                expect(
+                    container.querySelectorAll('.bp6-slider-axis .bp6-slider-label')
+                ).toHaveLength(2);
+            },
+            2000
+        );
+
+        it('moves a slider whose range was too narrow to draw', {timeout: 2000}, () => {
+            const {values} = renderBound({
+                top: {component: 'slider', props: {name: 'level', min: 0, max: 1e-9}}
+            });
+
+            fireEvent.keyDown(screen.getByRole('slider'), {key: 'ArrowRight'});
+            expect(values.get('top')).toBeGreaterThan(0);
+        });
+
+        it(
+            'refuses a range beyond a trillion, and holds at most 100,000 steps',
+            {timeout: 2000},
+            () => {
+                const catalog = createCatalog(),
+                    {values} = renderBound({
+                        top: {
+                            component: 'slider',
+                            props: {name: 'level', min: 0, max: 1e9, step: 1}
+                        }
+                    });
+
+                expect(
+                    catalog.validate('slider', {name: 'level', min: 1e20, max: 1e20})
+                ).not.toEqual([]);
+                expect(catalog.validate('slider', {name: 'level', min: -1e12, max: 1e12})).toEqual(
+                    []
+                );
+
+                fireEvent.keyDown(screen.getByRole('slider'), {key: 'ArrowRight'});
+                expect(values.get('top')).toBe(10000);
+            }
+        );
+
         it('draws one label at each end of a slider, however wide its range', () => {
             const {container} = renderBound(
                 {top: {component: 'slider', props: {name: 'amount', min: 0, max: 1000000}}},

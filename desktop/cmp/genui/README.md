@@ -557,6 +557,8 @@ type, whatever the state holds.
 **A slider** always shows a value, so it takes no rules. A value that is missing or outside the
 range shows at the nearest end, and a form sends the value that the slider shows. The slider
 draws a range written backwards, a range of no width and a step of zero as a range it can show.
+It bounds its scale: `min` and `max` are from -1e12 to 1e12, a range too narrow to draw becomes
+a range of 1, and a range holds at most 100,000 steps.
 With `range` it has two handles, and its value is a list of the low and the high value. `format`
 sets how the slider shows its values, as a [number format](#number-formats).
 
