@@ -76,8 +76,14 @@ chatUiTabsSpec(opts)    → ChatUiComponentSpec<ChatUiTabsSpecProps>    → Chat
 chatUiSectionSpec(opts) → ChatUiComponentSpec<ChatUiSectionSpecProps> → Card (Hoist)
 chatUiCalloutSpec(opts) → ChatUiComponentSpec<ChatUiCalloutSpecProps> → Banner (Hoist)
 chatUiBadgesSpec(opts)  → ChatUiComponentSpec<ChatUiBadgesSpecProps>  → Badge (Hoist)
-chatUiDividerSpec(opts) → ChatUiComponentSpec<ChatUiDividerSpecProps> → hr (Hoist)
+chatUiDividerSpec(opts) → ChatUiComponentSpec<ChatUiDividerSpecProps> → Separator (Hoist)
 chatUiTreeMapSpec(opts) → ChatUiComponentSpec<ChatUiTreeMapSpecProps> → ChatUiTreeMap → TreeMap (Hoist)
+chatUiProgressSpec(opts)   → ChatUiComponentSpec<ChatUiProgressSpecProps>   → ProgressBar (Hoist)
+chatUiStepsSpec(opts)      → ChatUiComponentSpec<ChatUiStepsSpecProps>      → Steps (Hoist)
+chatUiKeyValuesSpec(opts)  → ChatUiComponentSpec<ChatUiKeyValuesSpecProps>  → KeyValueList (Hoist)
+chatUiListSpec(opts)       → ChatUiComponentSpec<ChatUiListSpecProps>       → ItemList (Hoist)
+chatUiRadioGroupSpec(opts) → ChatUiComponentSpec<ChatUiRadioGroupSpecProps> → RadioInput (Hoist)
+chatUiSliderSpec(opts)     → ChatUiComponentSpec<ChatUiSliderSpecProps>     → Slider (Hoist)
 ```
 
 Each factory returns a spec for a `ChatUiCatalog`. The catalog turns the spec into a tool named
@@ -86,8 +92,9 @@ Each factory returns a spec for a `ChatUiCatalog`. The catalog turns the spec in
 model calls the tool, the catalog checks the props against the spec's schema and its `validate`
 function. It then calls the spec's `render`, which returns the matching component.
 
-The stack, text, tabs, section, badges and divider components set `standalone: false`, so they
-have no tool or tag of their own. They show only inside a nested answer: a `show_ui` document, an
+The stack, text, tabs, section, badges, divider, progress, steps, key values and list components
+set `standalone: false`, as do the form, the button and each input. They have no tool or tag of
+their own. They show only inside a nested answer: a `show_ui` document, an
 `xh.chat.ui` data part, or a text format that writes documents.
 
 While the model writes the props, `render` runs with `isPartial: true` and props that may be cut
@@ -107,12 +114,16 @@ short. The components handle this:
   It keeps one `TabContainerModel`, so the tab the user chose stays active.
 - The section spec shows its title over a placeholder while a format still writes its props,
   and mounts its children once they are complete. A section that starts collapsed never shows
-  open first. In a document with no state per element, it remounts its `Card` if a collapse prop
-  arrives after the title, as a `CardModel` reads its config once.
+  open first. It keeps one `CardModel`, and sets it as the props arrive.
 - The callout spec takes its intent and title before its text, so a warning shows as one from its
   first word. The badges spec shows complete badges only.
 - `ChatUiTreeMap` loads its `Store` with each complete box. Hoist updates the boxes in place.
   The skeleton stays until the map has data to draw.
+- The progress, steps, key values and list specs show their complete items only, as the last
+  one may be cut short.
+- The radio group leaves out its last choice until the props are complete. An input shows its
+  `value` once the props that check it arrive, such as the choices of a radio group or the
+  range of a slider, until the user sets a value.
 
 A table or chart card keeps the height it will need from the moment its type is known, so
 nothing below it moves when the data lands. A skeleton still shown after a second shimmers three
@@ -417,7 +428,7 @@ Tabs and sections are containers, as the stack is. Each takes children, and nest
 - **Badges** render a Hoist `Badge` per label, each in the color of its `intent`, in a row that
   wraps.
 - **A divider** renders Hoist's `Separator`: a rule, with an optional `label` within it. In a row
-  stack it stands as a vertical rule.
+  stack it stands as a vertical rule of its own width, with no label.
 
 Style them through Hoist's own variables, such as `--xh-card-*` under `.xh-chat-ui-section` and
 `--xh-badge-*` under `.xh-chat-ui-badges`.
@@ -488,7 +499,8 @@ The treemap needs two Highcharts modules, heatmap then treemap. See
   after it are pending. A `status` on a step wins: `pending`, `current`, `complete`, `warning` or
   `error`. The model writes no icon, and a step takes no click.
 - **Key values** render Hoist's `KeyValueList`: a label beside each value, in as many columns as
-  fit, or in `columns`. A number takes a `format` and `decimals`. Text shows as is, and a boolean
+  fit. `columns` sets the most, and a column is at least 200 px wide, so a narrow chat shows
+  fewer. A number takes a `format` and `decimals`. Text shows as is, and a boolean
   as `true` or `false`. A missing or blank value shows as `-`. Use the card spec for a record
   with a frame, a title and actions.
 - **A list** renders Hoist's `ItemList`: an entry per item, with a rule between entries. Each is
@@ -551,8 +563,9 @@ The model writes a form as a document, or as the program of a text format:
 
 A text or number input writes its value when the user leaves it or presses Enter, as Hoist
 commits it. A select, a checkbox, a switch, a segmented control and a radio group write on each
-change. A slider writes as the user moves a handle. Each input shows only a value of its own
-type, whatever the state holds.
+change. A slider moves at once, and writes once the user stops moving it for a quarter of a
+second, so that a query that reads it runs once per drag. Each input shows only a value of its
+own type, whatever the state holds.
 
 **A slider** always shows a value, so it takes no rules. A value that is missing or outside the
 range shows at the nearest end, and a form sends the value that the slider shows. The slider
