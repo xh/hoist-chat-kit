@@ -235,7 +235,9 @@ function toDetail({label, deltaLabel, trend, format, decimals}: ChatUiMetric): R
                 flex: 1,
                 minWidth: 0,
                 showLast: true,
-                label: `${label} trend: ${values.length} values, from ${fmt(first(values))} to ${fmt(last(values))}`
+                domAttrs: {
+                    'aria-label': `${label} trend: ${values.length} values, from ${fmt(first(values))} to ${fmt(last(values))}`
+                }
             })
         ]
     });
