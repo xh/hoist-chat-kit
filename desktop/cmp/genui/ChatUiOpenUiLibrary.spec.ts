@@ -32,7 +32,7 @@ describe('built-in specs as an OpenUI library', () => {
         expect(components.Tabs.signature).toBe(`Tabs(children?: ${CHILDREN}, titles: string[])`);
         expect(components.Section.signature).toBe(
             `Section(children?: ${CHILDREN}, title?: string, intent?: ${INTENT}, ` +
-                'collapsible?: boolean, collapsed?: boolean)'
+                'collapsible?: boolean, collapsed?: boolean, subtitle?: string)'
         );
         expect(components.Callout.signature).toBe(
             `Callout(intent?: ${INTENT}, title?: string, text: string)`

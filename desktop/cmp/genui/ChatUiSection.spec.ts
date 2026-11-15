@@ -104,6 +104,60 @@ describe('chatUiSectionSpec', () => {
         expect(container.querySelector('.xh-badge')).toBeTruthy();
     });
 
+    it('keeps one card as its props stream, so a section the user collapsed stays collapsed', () => {
+        const view = (props: object) =>
+                fragment({
+                    item: catalog.renderDocument(doc(props), {
+                        chatModel: null as ChatModel,
+                        messageId: 'm1',
+                        part: {type: 'data', id: 'd1', dataType: 'xh.chat.ui', data: null},
+                        isPartial: true
+                    })
+                }),
+            {container, rerender} = render(view({title: 'Detail', collapsible: true})),
+            card = container.querySelector('.xh-card'),
+            badge = container.querySelector('.xh-badge');
+
+        fireEvent.click(screen.getByRole('button', {name: 'Detail'}));
+        expect(card.className).toContain('xh-card--collapsed');
+
+        // More props arrive. The card and its children are the same elements, still collapsed.
+        rerender(
+            view({title: 'Detail', collapsible: true, intent: 'primary', subtitle: '2 desks'})
+        );
+        expect(container.querySelector('.xh-card')).toBe(card);
+        expect(container.querySelector('.xh-badge')).toBe(badge);
+        expect(card.className).toContain('xh-card--collapsed');
+        expect(card.className).toContain('xh-card--intent-primary');
+
+        // A `collapsed` that arrives late sets the state once. The user's next click holds.
+        fireEvent.click(screen.getByRole('button', {name: /Detail/}));
+        rerender(view({title: 'Detail', collapsible: true, collapsed: true}));
+        expect(container.querySelector('.xh-card')).toBe(card);
+        expect(card.className).toContain('xh-card--collapsed');
+        fireEvent.click(screen.getByRole('button', {name: /Detail/}));
+        rerender(view({title: 'Details', collapsible: true, collapsed: true}));
+        expect(card.className).toContain('xh-card--expanded');
+
+        // A section that can no longer collapse is open.
+        fireEvent.click(screen.getByRole('button', {name: /Details/}));
+        rerender(view({title: 'Details'}));
+        expect(card.className).toContain('xh-card--expanded');
+        expect(screen.queryByRole('button')).toBeNull();
+    });
+
+    it('shows a subtitle beside the title, as text, and none for a blank one', () => {
+        const {container, unmount} = renderDoc({title: 'By desk', subtitle: '<b>3</b> desks'});
+        expect(container.querySelector('b')).toBeNull();
+        expect(container.querySelector('legend').textContent).toContain('<b>3</b> desks');
+        unmount();
+
+        expect(
+            renderDoc({title: 'By desk', subtitle: '  '}).container.querySelector('legend')
+                .textContent
+        ).toBe('By desk');
+    });
+
     it('holds its children while a format still writes its props, so it never shows open first', () => {
         // OpenUI Lang writes the children first and `collapsed` last, and marks each element.
         const render1 = (props: object, isElementPartial: boolean) =>

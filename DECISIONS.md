@@ -149,7 +149,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D125](#d125-the-chat-holds-the-agents-shared-state-and-the-backend-owns-it) | The chat holds the agent's shared state, and the backend owns it | Accepted |
 | [D126](#d126-a-document-can-have-state-and-a-component-can-write-a-bound-prop) | A document can have state, and a component can write a bound prop | Accepted |
 | [D127](#d127-openui-lang-state-and-queries-run-on-lang-cores-runtime-and-a-program-cannot-change-data) | OpenUI Lang state and queries run on lang-core's runtime, and a program cannot change data | Accepted |
-| [D128](#d128-a-spec-gives-a-hoist-component-plain-data-safe-text-and-one-model) | A spec gives a Hoist component plain data, safe text and one model | Accepted |
+| [D128](#d128-a-spec-gives-a-hoist-component-plain-data-safe-text-and-one-model) | A spec gives a Hoist component plain data, safe text and one model | Amended by D130 |
 | [D129](#d129-each-built-in-input-owns-one-hoist-field-and-a-form-sends-within-the-caps-of-a-send) | Each built-in input owns one Hoist field, and a form sends within the caps of a send | Amended by D131 |
 | [D130](#d130-the-catalog-gets-its-building-blocks-from-hoist-91) | The catalog gets its building blocks from Hoist 91 | Accepted |
 | [D131](#d131-a-form-sends-a-list-as-its-json) | A form sends a list as its JSON | Accepted |
@@ -2679,7 +2679,7 @@ replay. They give a state only if each run opens with a snapshot, which the kit 
 
 ## D128. A spec gives a Hoist component plain data, safe text and one model
 
-**Status.** Accepted.
+**Status.** Amended by D130.
 
 **Decision.** The specs for tabs, sections, callouts, badges, dividers and treemaps follow D124:
 each renders a hoist-react component, and the kit adds no presentational component. They share
@@ -2966,7 +2966,7 @@ to tell typed text from a default.
 
 ## D130. The catalog gets its building blocks from Hoist 91
 
-**Status.** Accepted. Amends D124.
+**Status.** Accepted. Amends D124 and D128.
 
 **Decision.** The kit's `@xh/hoist` minimum moves to 91. Hoist 91 adds the components that the
 catalog lacked: `ProgressBar`, `Steps`, `KeyValueList`, `ItemList`, `Sparkline` and `Separator`,
@@ -2979,6 +2979,11 @@ that Hoist lacks, the block is built in hoist-react, as a component that any Hoi
 It takes plain data, it renders text as text, and it copes with odd values. The kit then registers
 it. The kit does not build the block itself, and it does not work around a gap in a Hoist
 component with CSS or a wrapper where hoist-react can fix the component.
+
+Hoist 91 also lets `CardModel.collapsible` change. The section spec therefore holds one
+`CardModel` for its life and sets it as props arrive. It no longer mounts a new card when that
+config changes, as D128 had it, so a section that the user collapsed stays collapsed. It still
+holds its content while a format writes its props.
 
 Until Hoist 91 ships, the kit's devDependency follows the `next` dist-tag, and the peer range
 starts at the 91 snapshots.

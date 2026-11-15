@@ -396,7 +396,8 @@ Tabs and sections are containers, as the stack is. Each takes children, and nest
   is named `Tab 2` once the props are complete. A tab builds its child when first shown, and
   keeps it after that. Tabs that do not fit the width scroll, and show in a menu.
 - **A section** renders Hoist's `Card`: a bordered group under a `title`, with an optional
-  `intent` for the color of its border and title. With `collapsible`, a click on the title
+  `subtitle` beside it and an `intent` for the color of its border and title. It keeps one card
+  as its props stream, so a section that the user collapsed stays collapsed. With `collapsible`, a click on the title
   collapses it. With `collapsed`, it starts collapsed and builds its children on first expand.
   Several collapsible sections in a column read as an accordion. A section with no title never
   collapses.
@@ -718,7 +719,7 @@ their own. Their props from the model:
 
 | Spec | Props from the model |
 |------|----------------------|
-| `chatUiSectionSpec` | `title`, `intent`, `collapsible`, `collapsed` |
+| `chatUiSectionSpec` | `title`, `intent`, `collapsible`, `collapsed`, `subtitle` |
 | `chatUiCalloutSpec` | `intent`, `title`, `text` |
 | `chatUiBadgesSpec` | `badges`, each a `label` and an optional `intent` |
 | `chatUiDividerSpec` | `label` |
