@@ -9,7 +9,7 @@
 | [Overview](#overview) | What the built-in components are, and the key features |
 | [Architecture](#architecture) | Factories, components, and how a call becomes a rendered component |
 | [Configuration Pattern](#configuration-pattern) | Adding the components to a `ChatUiCatalog` and a `ChatModel` |
-| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, metrics, cards, nested answers, tabs, sections, callouts, forms and inputs, and direct use |
+| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, metrics, cards, nested answers, tabs, sections, callouts, progress, steps, labeled values, forms and inputs, and direct use |
 | [Properties/API Reference](#propertiesapi-reference) | Factory options and the props each component takes |
 | [Extension Points](#extension-points) | Renaming, describing, limiting, and writing your own |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -20,8 +20,9 @@
 The `/desktop/cmp/genui/` package holds ready-made components for generative UI. A model shows
 them inline in its reply: a result table, a Hoist chart, a row of stat cards, and a detail card. A
 stack and a text component lay these out in a nested answer. Tabs, sections, callouts, badges,
-dividers and a treemap add structure and emphasis, each a spec over a Hoist component. Add them to
-a `ChatUiCatalog` next to your own components. The model can then answer with real Hoist UI in
+dividers and a treemap add structure and emphasis, each a spec over a Hoist component. Progress
+bars, steps and a list of labeled values show the state of one thing. Add them to a
+`ChatUiCatalog` next to your own components. The model can then answer with real Hoist UI in
 place of long tables of text.
 
 Import from `@xh/hoist-chat-kit/desktop/cmp/genui`.
@@ -35,7 +36,9 @@ Key features:
   holds the prose between them, as markdown.
 - **Hoist components for structure** - `chatUiTabsSpec()`, `chatUiSectionSpec()`,
   `chatUiCalloutSpec()`, `chatUiBadgesSpec()`, `chatUiDividerSpec()` and `chatUiTreeMapSpec()` map
-  plain props to Hoist's `TabContainer`, `Card`, `Banner`, `Badge`, `hr` and `TreeMap`.
+  plain props to Hoist's `TabContainer`, `Card`, `Banner`, `Badge`, `Separator` and `TreeMap`.
+- **Hoist components for one thing** - `chatUiProgressSpec()`, `chatUiStepsSpec()` and
+  `chatUiKeyValuesSpec()` map plain props to Hoist's `ProgressBar`, `Steps` and `KeyValueList`.
 - **Result tables in two tiers** - inline, a table is a light preview of its first rows and
   columns, with a footer that says what it leaves out. Expand opens one Hoist `Grid` over the
   whole result, in the chat's side panel or in a dialog.
@@ -298,7 +301,9 @@ through Hoist's `--xh-stat-card-*` variables, under `.xh-chat-ui-metrics`.
 A delta shows after the value with an arrow, in Hoist's positive color when up and its negative color when down.
 With `invert`, for a metric where up is bad, a rise shows in the negative color. It takes the
 format and decimals of its value, unless the model sets `deltaFormat`. Its `deltaLabel` shows
-under the value. An `intent` colors the card's outline. A large `number` or `currency` value, from
+under the value. A `trend`, a list of recent values with the oldest first, shows on the same line
+as a Hoist `Sparkline`. The trend has no color of its own, and needs at least two numbers. An
+`intent` colors the card's outline. A large `number` or `currency` value, from
 100,000 up, shows to three significant digits with a `K`, `M`, `B` or `T` suffix. Its tooltip
 shows the full value. The model sends the full number.
 
@@ -399,7 +404,8 @@ Tabs and sections are containers, as the stack is. Each takes children, and nest
   `text` takes markdown bold, italics and links. It has a tool of its own, `show_callout`.
 - **Badges** render a Hoist `Badge` per label, each in the color of its `intent`, in a row that
   wraps.
-- **A divider** renders a rule. It takes no props. In a row stack it stands as a vertical rule.
+- **A divider** renders Hoist's `Separator`: a rule, with an optional `label` within it. In a row
+  stack it stands as a vertical rule.
 
 Style them through Hoist's own variables, such as `--xh-card-*` under `.xh-chat-ui-section` and
 `--xh-badge-*` under `.xh-chat-ui-badges`.
@@ -430,6 +436,46 @@ Hoist's `TreeMap` draws nested boxes only with a tree grid bound to it.
 
 The treemap needs two Highcharts modules, heatmap then treemap. See
 [Expecting a treemap without its Highcharts modules](#expecting-a-treemap-without-its-highcharts-modules).
+
+### Show progress, steps and labeled values
+
+```json
+{
+    "root": "answer",
+    "elements": {
+        "answer": {"component": "stack", "props": {}, "children": ["usage", "order", "facts"]},
+        "usage": {"component": "progress", "props": {"bars": [
+            {"label": "Storage", "value": 72},
+            {"label": "Budget", "value": 7200, "max": 10000, "format": "currency", "intent": "warning", "target": 9000}
+        ]}},
+        "order": {"component": "steps", "props": {"current": 1, "steps": [
+            {"title": "Ordered", "detail": "May 2"},
+            {"title": "Shipped", "description": "Left the warehouse."},
+            {"title": "Delivered"}
+        ]}},
+        "facts": {"component": "keyValues", "props": {"columns": 2, "items": [
+            {"label": "Counterparty", "value": "Acme Corp"},
+            {"label": "Exposure", "value": 4200000, "format": "currency", "decimals": 0},
+            {"label": "Status", "value": "Under review", "intent": "warning"}
+        ]}}
+    }
+}
+```
+
+- **Progress** renders a Hoist `ProgressBar` per bar, in a column. A bar is a `value` from 0 to
+  `max`, 100 by default. With no `format`, the figure over the bar is the value as a whole
+  percent of `max`. With a `format`, it is the value and `max` in that format, such as
+  `$7,200 of $10,000`. The `percent` format takes a fraction, with a `max` of 1 by default. A
+  `target` marks a goal on the bar. A value outside the range shows an empty or a full bar.
+- **Steps** render Hoist's `Steps`: a sequence in a row, or a list with `orientation: 'vertical'`.
+  `current` is the index of the current step, from 0. Steps before it are complete, and steps
+  after it are pending. A `status` on a step wins: `pending`, `current`, `complete`, `warning` or
+  `error`. The model writes no icon, and a step takes no click.
+- **Key values** render Hoist's `KeyValueList`: a label beside each value, in as many columns as
+  fit, or in `columns`. A number takes a `format` and `decimals`, and text shows as is. A missing
+  or blank value shows as `-`. Use the card spec for a record with a frame, a title and actions.
+
+None of the three is standalone, and each shows only its complete items while the props stream.
 
 ### Ask the user for input
 
@@ -531,7 +577,8 @@ slider with `range` sends its two values the same way. An empty field sends noth
 A `send` holds at most 8 values of at most 100 characters each, so that the user can read all of
 it. The form keeps to that:
 
-- Text in an input is at most 100 characters. A longer entry fails validation. Outside a form
+- Text in an input is at most 100 characters. The input stops typing and pasting at the cap, or
+  at a shorter `maxLength` rule. A longer value that the model or the state sets fails validation. Outside a form
   no button validates it, and a `@ToAssistant` that sends it cuts it to the cap.
 - A form with more values than a send can hold cannot send. Its button is disabled, and its
   tooltip says why.
@@ -596,6 +643,7 @@ and `description`, the text that tells the model when to use the component.
 | | `height` | `number` | Chart body height, in pixels. Default the `--xh-chat-chart-height` variable. |
 | | `byReference` | `boolean` | Take an artifact and a chart view, not series. Default false. |
 | `chatUiMetricsSpec` | `maxItems` | `number` | Most figures. Default 4. |
+| | `maxTrendPoints` | `number` | Most values in the trend of a figure. Default 60. |
 | `chatUiCardSpec` | `maxFields` | `number` | Most fields. Default 16. |
 | | `maxActions` | `number` | Most actions. Default 4. |
 | | `actionTypes` | `ChatUiActionType[]` | Kinds of action the model may put on the card. Default `['send']`. |
@@ -611,6 +659,9 @@ and `description`, the text that tells the model when to use the component.
 | `chatUiCalloutSpec` | `maxLength` | `number` | Most characters of text. Default 500. |
 | `chatUiBadgesSpec` | `maxItems` | `number` | Most badges. Default 12. |
 | `chatUiDividerSpec` | - | - | No options beyond `name` and `description`. |
+| `chatUiProgressSpec` | `maxItems` | `number` | Most bars. Default 8. |
+| `chatUiStepsSpec` | `maxItems` | `number` | Most steps. Default 8. |
+| `chatUiKeyValuesSpec` | `maxItems` | `number` | Most labeled values. Default 24. |
 | `chatUiTreeMapSpec` | `maxNodes` | `number` | Most boxes. Default 60. |
 | | `height` | `number` | Treemap body height, in pixels. Default the `--xh-chat-chart-height` variable. |
 
@@ -654,7 +705,10 @@ their own. Their props from the model:
 | `chatUiSectionSpec` | `title`, `intent`, `collapsible`, `collapsed` |
 | `chatUiCalloutSpec` | `intent`, `title`, `text` |
 | `chatUiBadgesSpec` | `badges`, each a `label` and an optional `intent` |
-| `chatUiDividerSpec` | None |
+| `chatUiDividerSpec` | `label` |
+| `chatUiProgressSpec` | `bars`, each a `label`, a `value`, and an optional `max`, `format`, `intent` and `target` |
+| `chatUiStepsSpec` | `steps`, each a `title` and an optional `description`, `detail` and `status`, then `current`, `orientation` |
+| `chatUiKeyValuesSpec` | `items`, each a `label` and an optional `value`, `format`, `decimals` and `intent`, then `columns` |
 
 See the TSDoc in each source file for the full shape of the props.
 

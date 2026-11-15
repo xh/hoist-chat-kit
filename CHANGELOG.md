@@ -136,6 +136,17 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Added `chatUiRadioGroupSpec()`, a list of choices with one selected over Hoist's `RadioInput`,
   and `chatUiSliderSpec()`, a number in a range over Hoist's `Slider`. A slider with `range` holds
   a low and a high value. `chatUiInputSpecs()` returns both.
+* Added `chatUiProgressSpec()`, a column of bars over Hoist's `ProgressBar`, and
+  `chatUiStepsSpec()`, a sequence of steps with a status each over Hoist's `Steps`. Neither is
+  standalone.
+* Added `chatUiKeyValuesSpec()`, a list of labeled values over Hoist's `KeyValueList`. It is not
+  standalone.
+* Added `trend` to a metric of `chatUiMetricsSpec()`, a list of recent values that the stat card
+  draws as a Hoist `Sparkline`. The `maxTrendPoints` option bounds it.
+* `chatUiDividerSpec()` now renders Hoist's `Separator`, and takes an optional `label`. The rule
+  is a `div` with the `separator` role, in place of an `hr`.
+* The text input and text area specs now set `maxLength` on Hoist's `TextInput` and `TextArea`,
+  so the user cannot type more than a message carries.
 * Added `bindings` and `builtinFunctions` to `openUiLangFormat()` and `openUiLangAdapter()`. With
   `bindings`, a program runs `$variables`, expressions, `@Set` and `@Reset` on lang-core's own
   store and evaluator, and a state prop takes a `$variable` both ways. Both are off by default.
