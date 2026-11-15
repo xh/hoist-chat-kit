@@ -145,12 +145,14 @@ still in force, with their amendments. Do not read the whole file.
 | [D121](#d121-reply-text-reaches-the-catalog-through-ui-formats) | Reply text reaches the catalog through UI formats | Accepted |
 | [D122](#d122-openui-lang-runs-on-thesyss-headless-core-with-the-kits-catalog) | OpenUI Lang runs on Thesys's headless core, with the kit's catalog | Amended by D127 |
 | [D123](#d123-adapters-render-partial-documents) | Adapters render partial documents | Amended by D126 |
-| [D124](#d124-built-in-generative-ui-components-render-hoist-components) | Built-in generative UI components render Hoist components | Accepted |
+| [D124](#d124-built-in-generative-ui-components-render-hoist-components) | Built-in generative UI components render Hoist components | Amended by D130 |
 | [D125](#d125-the-chat-holds-the-agents-shared-state-and-the-backend-owns-it) | The chat holds the agent's shared state, and the backend owns it | Accepted |
 | [D126](#d126-a-document-can-have-state-and-a-component-can-write-a-bound-prop) | A document can have state, and a component can write a bound prop | Accepted |
 | [D127](#d127-openui-lang-state-and-queries-run-on-lang-cores-runtime-and-a-program-cannot-change-data) | OpenUI Lang state and queries run on lang-core's runtime, and a program cannot change data | Accepted |
 | [D128](#d128-a-spec-gives-a-hoist-component-plain-data-safe-text-and-one-model) | A spec gives a Hoist component plain data, safe text and one model | Accepted |
-| [D129](#d129-each-built-in-input-owns-one-hoist-field-and-a-form-sends-within-the-caps-of-a-send) | Each built-in input owns one Hoist field, and a form sends within the caps of a send | Accepted |
+| [D129](#d129-each-built-in-input-owns-one-hoist-field-and-a-form-sends-within-the-caps-of-a-send) | Each built-in input owns one Hoist field, and a form sends within the caps of a send | Amended by D131 |
+| [D130](#d130-the-catalog-gets-its-building-blocks-from-hoist-91) | The catalog gets its building blocks from Hoist 91 | Accepted |
+| [D131](#d131-a-form-sends-a-list-as-its-json) | A form sends a list as its JSON | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2590,7 +2592,7 @@ direct dependency. Every app would install it, even one that never uses the form
 
 ## D124. Built-in generative UI components render Hoist components
 
-**Status.** Accepted.
+**Status.** Amended by D130.
 
 **Decision.** The kit holds chat components only. A built-in generative UI component is a spec over
 a hoist-react component: a props schema that a model can write, checks, a description, and a
@@ -2933,7 +2935,7 @@ thread loads. Each load would call the tools of every old program, with no user 
 
 ## D129. Each built-in input owns one Hoist field, and a form sends within the caps of a send
 
-**Status.** Accepted.
+**Status.** Amended by D131.
 
 **Decision.** `/desktop/cmp/genui/` adds specs for a form, a button and eight inputs. Each input
 renders its Hoist input in a `FormField`, over a `FormModel` of one field. Its `value` is a state
@@ -2961,3 +2963,51 @@ most direct use of Hoist, but it has no layout of its own, and an input outside 
 second vocabulary. Copy the signatures of OpenUI's own `Form`, `FormControl` and `Input`. D122
 keeps the argument order of the kit. Raise the cap for text that the user types. That needs a way
 to tell typed text from a default.
+
+## D130. The catalog gets its building blocks from Hoist 91
+
+**Status.** Accepted. Amends D124.
+
+**Decision.** The kit's `@xh/hoist` minimum moves to 91. Hoist 91 adds the components that the
+catalog lacked: `ProgressBar`, `Steps`, `KeyValueList`, `ItemList`, `Sparkline` and `Separator`,
+and `maxLength` on `TextInput` and `TextArea`. The kit registers each one as a spec or uses it in
+one: `progress`, `steps`, `keyValues`, `list`, the `trend` of a metric, and the `divider`. The
+slider and radio group specs register `Slider` and `RadioInput`, which Hoist already had.
+
+The rule of D124 holds, and this is its first full use. When the catalog needs a building block
+that Hoist lacks, the block is built in hoist-react, as a component that any Hoist app would use.
+It takes plain data, it renders text as text, and it copes with odd values. The kit then registers
+it. The kit does not build the block itself, and it does not work around a gap in a Hoist
+component with CSS or a wrapper where hoist-react can fix the component.
+
+Until Hoist 91 ships, the kit's devDependency follows the `next` dist-tag, and the peer range
+starts at the 91 snapshots.
+
+**Why.** A progress bar, a list of labeled values and a sparkline are useful in any dashboard or
+detail panel. Built in the kit, each would need its own styling, theme support, accessibility work
+and docs, and would drift from a later Hoist version of the same thing. Built in Hoist, apps style
+one component, through Hoist's own variables. A fix in Hoist also removes kit code: the treemap's
+heat guard, the rule for the date input's width, and the rule for a segmented control in a row are
+gone.
+
+**Alternatives.** Keep the minimum at 90.1 and build the six blocks in the kit. D124 rules that
+out. Register the new specs only where the app runs Hoist 91, behind a check of the version. The
+package ships as source, so an import of a module that Hoist 90 lacks fails the app's build.
+
+## D131. A form sends a list as its JSON
+
+**Status.** Accepted. Amends D129.
+
+**Decision.** A field whose value is a list sends the JSON of that list in the `context` of a
+`send`, such as `["emea","apac"]` for a select with `multi` and `[25,75]` for a slider with
+`range`. The context of an OpenUI `@ToAssistant` already sends a list this way, per D127. The
+button's tooltip shows the same text. The caps of D56 apply to it, so a list whose JSON is longer
+than 100 characters stops the send, and the button says why.
+
+**Why.** The form joined the values with commas. A choice that holds a comma then read as two
+choices. The same `$variable` also went out in two forms, as joined text from the form and as
+JSON from an action's own context. JSON is one form that a model reads back as a list.
+
+**Alternatives.** Let the `context` of a `send` hold a list. D56 keeps it a flat object of short
+values, so that the user can read all of it. Keep the joined text and escape each comma. A model
+has no rule to read that back.
