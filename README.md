@@ -80,7 +80,7 @@ controller and service.
 
 ## Installation
 
-The kit needs `@xh/hoist` v90.1.0 or later, with `react` and `react-dom` v19. Your app supplies these
+The kit needs `@xh/hoist` v91.0.0 or later, with `react` and `react-dom` v19. Your app supplies these
 as peer dependencies.
 
 The package ships as TypeScript and SCSS source, as `@xh/hoist` does, and your app compiles it

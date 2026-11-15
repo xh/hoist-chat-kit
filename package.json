@@ -55,7 +55,7 @@
   },
   "peerDependencies": {
     "@openuidev/lang-core": "1.1.0",
-    "@xh/hoist": ">=90.1.0",
+    "@xh/hoist": ">=91.0.0-SNAPSHOT",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
@@ -74,7 +74,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitest/ui": "^5.0.5",
     "@xh/eslint-config": "^8.1.0",
-    "@xh/hoist": "^90.1.0",
+    "@xh/hoist": "next",
     "@xh/hoist-dev-utils": "^16.2.0",
     "ag-grid-community": "~36.2.0",
     "ag-grid-react": "~36.2.0",

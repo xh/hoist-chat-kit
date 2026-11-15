@@ -14,9 +14,9 @@
 
 ## 2.0.0-SNAPSHOT - unreleased
 
-Requires `@xh/hoist` 90.1 or later.
+Requires `@xh/hoist` 91.0 or later.
 
-### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - Hoist 90.1, drop busy-line settings, update adapters)
+### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - Hoist 91, drop busy-line settings, update adapters)
 
 See [`docs/upgrade-notes/v2-upgrade-notes.md`](docs/upgrade-notes/v2-upgrade-notes.md) for
 detailed, step-by-step upgrade instructions with before/after code examples.
@@ -243,7 +243,7 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 
 ### 📚 Libraries
 
-* @xh/hoist `89.3 → 90.1`
+* @xh/hoist `89.3 → 91.0`
 * @openuidev/lang-core `1.1.0` - added as an optional peer dependency, at that exact
   version. Apps that use `/genui/openui/` install it with `zod`. Other apps never load it.
 

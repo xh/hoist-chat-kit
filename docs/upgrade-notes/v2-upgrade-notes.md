@@ -4,7 +4,7 @@
 
 ## Overview
 
-Hoist Chat Kit v2 is a light upgrade. It needs hoist-react v90.1. Its other required steps apply
+Hoist Chat Kit v2 is a light upgrade. It needs hoist-react v91. Its other required steps apply
 only to apps that set the busy line of the status region, that style or test the status region,
 that write a `ChatUiAdapter`, that export a catalog for a server, that render or style the
 metrics component themselves, or that set `state` on an `AgUiCodec`.
@@ -29,7 +29,7 @@ metrics component themselves, or that set `state` on an `AgUiCodec`.
 Before starting, make sure:
 
 - [ ] The app runs Hoist Chat Kit v1.x.
-- [ ] The app runs hoist-react v90.1 or later. Follow hoist-react's v90 upgrade notes first.
+- [ ] The app runs hoist-react v91 or later. Follow hoist-react's v90 and v91 upgrade notes first.
 
 ## Upgrade Steps
 
