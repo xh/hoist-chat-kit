@@ -1,6 +1,8 @@
 import {isArray, isFinite, isPlainObject, isString, keyBy, omit} from 'lodash';
 import type {ReactNode} from 'react';
 import type {ColumnSpec} from '@xh/hoist/cmp/grid';
+import {span} from '@xh/hoist/cmp/layout';
+import {progressBar} from '@xh/hoist/cmp/progressbar';
 import type {PlainObject} from '@xh/hoist/core';
 import {type FieldSpec, type FieldType, genDisplayName} from '@xh/hoist/data';
 import {fmtDate, fmtNumber} from '@xh/hoist/format';
@@ -17,6 +19,7 @@ import {
 } from '../../../../genui';
 import {fmtChatUiNumber} from '../ChatUiFormat';
 import type {ChatUiNumberFormat} from '../Types';
+import './ChatUiTableBar.scss';
 
 /**
  * A column of a result table, as both tiers show it: the inline preview and the full grid. Each
@@ -41,6 +44,9 @@ export interface ChatUiTableColumn {
 
     /** Decimal places for numbers, or null for the format's default. */
     decimals: number;
+
+    /** Value of a full bar, for numbers that show with one. Null for no bar. */
+    max: number;
 }
 
 /** What the inline preview of a result shows, and what it leaves for the full grid. @internal */
@@ -80,7 +86,8 @@ export function toTableColumns(columns: ChatDataColumn[]): ChatUiTableColumn[] {
             format: NUMBER_FORMATS.includes(column.format as ChatUiNumberFormat)
                 ? (column.format as ChatUiNumberFormat)
                 : 'number',
-            decimals: isFinite(column.decimals) ? column.decimals : null
+            decimals: isFinite(column.decimals) ? column.decimals : null,
+            max: toBarMax(column)
         };
     });
 }
@@ -127,7 +134,8 @@ export function formatTableCell(value: unknown, column: ChatUiTableColumn): Reac
         case 'integer': {
             const num = toNumber(value);
             if (num == null) return null;
-            return fmtChatUiNumber(num, column.format, getDecimals(column), {ledger: true});
+            const text = fmtChatUiNumber(num, column.format, getDecimals(column), {ledger: true});
+            return column.max == null ? text : barCell(num, text, column);
         }
         case 'date':
         case 'datetime':
@@ -203,7 +211,9 @@ export function toGridColumnSpecs(
             align: getAlign(column),
             headerAlign: getAlign(column),
             hidden: visibleKeys ? !visibleKeys.includes(column.key) : false,
-            minWidth: isNumber ? NUMBER_MIN_WIDTH : TEXT_MIN_WIDTH,
+            minWidth: isNumber
+                ? NUMBER_MIN_WIDTH + (column.max == null ? 0 : BAR_WIDTH)
+                : TEXT_MIN_WIDTH,
             maxWidth: isNumber || isDate ? null : TEXT_MAX_WIDTH,
             renderer: v => formatTableCell(v, column),
             // Dates may arrive as epoch millis - export them as they show.
@@ -313,6 +323,9 @@ const FIELD_TYPES: Partial<Record<ChatDataColumnType, FieldType>> = {
     boolean: 'bool'
 };
 
+// Width of the bar of a number cell, in pixels. One width, so the bars of a column compare.
+const BAR_WIDTH = 56;
+
 const NUMBER_MIN_WIDTH = 70,
     TEXT_MIN_WIDTH = 60,
     TEXT_MAX_WIDTH = 320;
@@ -342,4 +355,31 @@ function formatDateValue(value: unknown, type: 'date' | 'datetime'): ReactNode {
     const ms = isFinite(value) ? (value as number) : isString(value) ? Date.parse(value) : NaN;
     if (!Number.isFinite(ms)) return toText(value);
     return fmtDate(ms, {fmt: type === 'date' ? DATE_FMT : DATETIME_FMT, asHtml: true});
+}
+
+// The maximum of a column that shows a bar: a number above zero, on a number column. A view that
+// scales the numbers to a unit leaves the maximum behind, so such a column shows no bar.
+function toBarMax(column: ChatDataColumn): number {
+    const isNumber = column.type === 'number' || column.type === 'integer',
+        isScaled = column.units != null && column.units !== 'none';
+    return isNumber && !isScaled && isFinite(column.max) && column.max > 0 ? column.max : null;
+}
+
+// A number, then a bar of it against the column's maximum. Hoist's ProgressBar draws an empty or
+// a full bar for a number outside the range.
+function barCell(value: number, text: ReactNode, column: ChatUiTableColumn): ReactNode {
+    return span({
+        className: 'xh-chat-ui-table-bar',
+        items: [
+            span(text),
+            progressBar({
+                value,
+                max: column.max,
+                showValueLabel: false,
+                width: BAR_WIDTH,
+                flex: 'none',
+                domAttrs: {'aria-label': column.label}
+            })
+        ]
+    });
 }

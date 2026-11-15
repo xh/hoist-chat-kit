@@ -49,7 +49,8 @@ export function toInlineFrame(
             type: it.type ?? 'string',
             label: getHeaderName(it),
             format: it.format,
-            decimals: it.decimals
+            decimals: it.decimals,
+            max: it.max
         })),
         rows: frameRows,
         totalRows: frameRows.length

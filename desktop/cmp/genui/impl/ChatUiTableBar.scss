@@ -1,0 +1,10 @@
+// A number cell with a bar: the number, then a Hoist ProgressBar of one width in every row, so
+// that the bars of a column line up and compare.
+.xh-chat-ui-table-bar {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--xh-pad-half-px);
+  justify-content: flex-end;
+  max-width: 100%;
+  vertical-align: middle;
+}

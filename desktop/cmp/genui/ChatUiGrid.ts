@@ -52,6 +52,13 @@ export interface ChatUiGridColumn {
 
     /** Decimal places, for a `number` column. Default suits the value and the format. */
     decimals?: number;
+
+    /**
+     * Value of a full bar, for a `number` column. With it, each cell shows its number and a bar
+     * of that number against `max`, such as usage against a limit. Use 1 for a fraction that
+     * shows with the `percent` format. Default none, and no bar.
+     */
+    max?: number;
 }
 
 /** Props of a {@link ChatUiGrid}, as written by the model. */
@@ -240,7 +247,13 @@ function createInlineSpec(opts: ChatUiGridSpecOptions): ChatUiComponentSpec<Chat
                                 ...CHAT_UI_NUMBER_FORMAT_SCHEMA,
                                 description: `For number columns. ${CHAT_UI_NUMBER_FORMAT_SCHEMA.description}`
                             },
-                            decimals: CHAT_UI_DECIMALS_SCHEMA
+                            decimals: CHAT_UI_DECIMALS_SCHEMA,
+                            max: {
+                                type: 'number',
+                                description:
+                                    'For number columns. Shows a bar of each value against ' +
+                                    'this maximum. Use 1 for a fraction.'
+                            }
                         }
                     }
                 },

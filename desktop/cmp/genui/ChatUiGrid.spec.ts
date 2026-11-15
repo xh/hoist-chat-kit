@@ -76,6 +76,23 @@ describe('ChatUiGrid', () => {
             expect(cell.className).toContain('xh-chat-ui-table__cell--right');
         });
 
+        it('draws a bar in each cell of a number column that states its maximum', () => {
+            const columns: ChatUiGridColumn[] = [
+                    {field: 'desk'},
+                    {field: 'used', type: 'number', format: 'percent', max: 1}
+                ],
+                rows = [
+                    {desk: 'Rates', used: 0.5},
+                    {desk: 'Credit', used: 0.25}
+                ],
+                {container} = renderInChat(chatUiGrid({columns, rows}));
+            const fills = container.querySelectorAll<HTMLElement>('tbody .xh-progress-bar__fill');
+
+            expect([...fills].map(it => it.style.width)).toEqual(['50%', '25%']);
+            expect(container.querySelector('tbody td:last-child').textContent).toContain('50.0%');
+            expect(chatUiGridSpec().validate({columns, rows})).toEqual([]);
+        });
+
         it('is a table whose caption is its counts', () => {
             renderInChat(chatUiGrid({title: 'Positions', columns: COLUMNS, rows: rows(30)}));
             const table = screen.getByRole('table', {

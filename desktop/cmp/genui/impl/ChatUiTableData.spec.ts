@@ -62,6 +62,66 @@ describe('ChatUiTableData', () => {
             expect(container.textContent).toContain('(0.41)');
             expect(spec.align).toBe('right');
         });
+
+        it('draws a number against the maximum of its column, as a bar beside the number', () => {
+            const [usage, share] = toTableColumns([
+                    {name: 'used', type: 'number', label: 'Used', max: 200},
+                    {name: 'share', type: 'number', format: 'percent', max: 1}
+                ]),
+                {container} = render(
+                    fragment(formatTableCell(50, usage), formatTableCell(0.341, share))
+                ),
+                [usageCell, shareCell] = container.querySelectorAll('.xh-chat-ui-table-bar'),
+                fill = (cell: Element) =>
+                    cell.querySelector<HTMLElement>('.xh-progress-bar__fill').style.width;
+
+            // The number shows in its format. The bar shows no figure of its own.
+            expect(usageCell.textContent).toContain('50');
+            expect(shareCell.textContent).toContain('34.1%');
+            expect(container.querySelector('.xh-progress-bar__value-label')).toBeNull();
+            expect(fill(usageCell)).toBe('25%');
+            expect(fill(shareCell)).toBe('34.1%');
+            expect(usageCell.querySelector('[role="progressbar"]').getAttribute('aria-label')).toBe(
+                'Used'
+            );
+        });
+
+        it('fills or empties the bar of a number outside the range, and still shows the number', () => {
+            const [usage] = toTableColumns([{name: 'used', type: 'number', max: 200}]),
+                {container} = render(
+                    fragment(formatTableCell(500, usage), formatTableCell(-20, usage))
+                ),
+                fills = [...container.querySelectorAll<HTMLElement>('.xh-progress-bar__fill')];
+
+            expect(fills.map(it => it.style.width)).toEqual(['100%', '0%']);
+            expect(container.textContent).toContain('500');
+            expect(container.textContent).toContain('(20)');
+        });
+
+        it('sorts, searches and exports a bar column as its plain number', () => {
+            const [usage] = toTableColumns([{name: 'used', type: 'number', max: 200}]),
+                [spec] = toGridColumnSpecs([usage]);
+
+            expect(formatTableText(50, usage)).toBe('50');
+            expect(spec.exportValue).toBeNull();
+            expect(spec.align).toBe('right');
+        });
+
+        it('draws no bar for a maximum that is not above zero, or on a column it does not suit', () => {
+            const columns = toTableColumns([
+                {name: 'a', type: 'number', max: 0},
+                {name: 'b', type: 'number', max: -5},
+                {name: 'c', type: 'number', max: 'high' as any},
+                {name: 'd', type: 'string', max: 10},
+                // A view scaled these numbers, and left the maximum as it was.
+                {name: 'e', type: 'number', max: 5000000, units: 'millions'}
+            ]);
+
+            expect(columns.map(it => it.max)).toEqual([null, null, null, null, null]);
+            const {container} = render(fragment(formatTableCell(4, columns[0])));
+            expect(container.textContent).toContain('4');
+            expect(container.querySelector('.xh-progress-bar')).toBeNull();
+        });
     });
 
     describe('toTablePreview', () => {

@@ -28,6 +28,12 @@ export interface ChatDataColumn {
     decimals?: number;
 
     /**
+     * Value of a full bar, for a component that can draw each number against a maximum, as the
+     * kit's tables do. A number above zero. Default none, and no bar.
+     */
+    max?: number;
+
+    /**
      * The unit the values were scaled to by {@link applyDataView}, so that a component can label
      * them - for example `millions`. Absent for unscaled values.
      */
