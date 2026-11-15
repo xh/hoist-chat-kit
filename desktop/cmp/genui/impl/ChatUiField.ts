@@ -83,8 +83,8 @@ export const chatUiField = hoistCmp.factory<ChatUiFieldProps>({
  * rules when it is created, so this owns a `FormModel` of one field, and builds a new one when
  * the name, label or rules change, as they do while the props stream. It keeps the field and the
  * state prop in step: a value the state gives re-initializes the field, and a value the user
- * commits goes to the state, at once or after `writeDelay`. A form reads the field itself, so it
- * sends the value shown even while a write waits.
+ * commits goes to the state, at once or after `writeDelay`. A write that waits goes at once when
+ * the user presses or focuses anything, so that a button reads the value shown.
  * @internal
  */
 export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
@@ -156,6 +156,8 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
                     if (field !== previousField || initial !== previousInitial) return;
                     this.userActed = true;
                     if (this.delayedWrite) {
+                        waitingWrites.add(this);
+                        listenForPresses();
                         this.delayedWrite();
                     } else {
                         this.writeValue();
@@ -177,6 +179,7 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
 
     override destroy() {
         this.delayedWrite?.cancel();
+        waitingWrites.delete(this);
         this.chatForm?.unregister(this);
         XH.safeDestroy(this.formModel);
         super.destroy();
@@ -190,6 +193,7 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
     }
 
     private writeValue() {
+        waitingWrites.delete(this);
         const {value} = this,
             {value: current = null, setProp} = this.props;
         if (!isEqual(value, current)) setProp(VALUE, value);
@@ -224,6 +228,20 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
     private toJson(value: unknown): unknown {
         return (this.props.fromInput ?? identity)(value ?? null) ?? null;
     }
+}
+
+// Fields with a write that waits on `writeDelay`. A press or a move of focus anywhere writes
+// them first, so that a button the user then clicks, its tooltip and a reset all see the value
+// that the field shows.
+const waitingWrites = new Set<ChatUiFieldModel>();
+let isListening = false;
+
+function listenForPresses() {
+    if (isListening) return;
+    isListening = true;
+    const flush = () => [...waitingWrites].forEach(it => it.flushWrite());
+    document.addEventListener('pointerdown', flush, true);
+    document.addEventListener('focusin', flush, true);
 }
 
 // Name of the one field of each field's FormModel, and of the state prop it mirrors.

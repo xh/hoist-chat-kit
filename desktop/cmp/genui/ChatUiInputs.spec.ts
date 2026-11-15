@@ -949,6 +949,55 @@ describe('built-in form components', () => {
             expect(input.value).toBe('xb');
         });
 
+        describe('a slider moved just before a click', () => {
+            const SLIDER_PROGRAM =
+                'root = Stack([level, go, reset, now])\n' +
+                '$level = 5\n' +
+                'level = Slider("level", 0, 10, "Level", 1, null, null, $level)\n' +
+                'go = Button("Go", @ToAssistant("Level " + $level))\n' +
+                'reset = Button("Reset", @Reset($level))\n' +
+                'now = Text("Now " + $level)';
+
+            const renderSlider = async () => {
+                const chatModel = createOpenUiChat(SLIDER_PROGRAM),
+                    view = render(chatMessageList({model: chatModel}));
+                await act(async () => {
+                    await chatModel.sendAsync('Show the slider.');
+                });
+                return {chatModel, ...view};
+            };
+
+            // A real click presses the pointer first.
+            const pressAndClickAsync = async (target: HTMLElement) => {
+                fireEvent.pointerDown(target);
+                await clickAsync(target);
+            };
+
+            it('sends the value the slider shows', async () => {
+                const {chatModel} = await renderSlider(),
+                    handle = screen.getByRole('slider');
+                fireEvent.keyDown(handle, {key: 'ArrowRight'});
+                fireEvent.keyDown(handle, {key: 'ArrowRight'});
+
+                await pressAndClickAsync(screen.getByRole('button', {name: 'Go'}));
+                await waitFor(() => expect(chatModel.messages.length).toBeGreaterThan(2));
+                expect(chatModel.messages[2].text).toBe('Level 7');
+            });
+
+            it('keeps a reset that follows a move', async () => {
+                const {container} = await renderSlider(),
+                    handle = screen.getByRole('slider');
+                fireEvent.keyDown(handle, {key: 'ArrowRight'});
+
+                await pressAndClickAsync(screen.getByRole('button', {name: 'Reset'}));
+                await act(async () => {
+                    await new Promise(resolve => setTimeout(resolve, 400));
+                });
+                expect(container.textContent).toContain('Now 5');
+                expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('5');
+            });
+        });
+
         it('submits a form with the current values of its $variables', async () => {
             const chatModel = createOpenUiChat(PROGRAM),
                 {container} = render(chatMessageList({model: chatModel}));
