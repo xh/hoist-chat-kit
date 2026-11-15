@@ -142,8 +142,8 @@ the default format, need no change.
 `chatUiMetricsSpec()` now renders Hoist's `StatCardStrip`, with a `StatCard` per figure. The spec
 keeps its name, its tool `show_metrics` and its props, so catalogs, prompts and stored replies need
 no change. The kit's own `ChatUiMetrics` component, its `chatUiMetrics()` factory, the
-`ChatUiMetricsProps` type and the `xh-chat-ui-metrics__*` classes are gone. Apps that only list
-`chatUiMetricsSpec()` in a catalog need no change.
+`ChatUiMetricsProps` type and the classes of its tiles, such as `xh-chat-ui-metrics__value`, are
+gone. Apps that only list `chatUiMetricsSpec()` in a catalog need no change.
 
 **Find affected code:**
 
@@ -153,9 +153,9 @@ grep -rnE "chatUiMetrics\(|ChatUiMetrics\b|ChatUiMetricsProps|xh-chat-ui-metrics
 
 - Replace a direct `chatUiMetrics()` call with Hoist's `statCardStrip()` and `statCard()`, from
   `@xh/hoist/cmp/statcard`. Format each value with `fmtChatUiNumber()` to match the chat.
-- Move style overrides of the `xh-chat-ui-metrics__*` classes to Hoist's `--xh-stat-card-*`
-  variables, set under `.xh-chat-ui-metrics`. The `--xh-chat-tile-min-width` and
-  `--xh-chat-tile-value-font-size` variables still apply.
+- Move style overrides of those classes to Hoist's `--xh-stat-card-*` variables, set under
+  `.xh-chat-ui-metrics`. The `--xh-chat-tile-min-width` and `--xh-chat-tile-value-font-size`
+  variables still apply.
 
 **Before:**
 
