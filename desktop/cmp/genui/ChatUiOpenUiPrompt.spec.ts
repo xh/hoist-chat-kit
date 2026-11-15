@@ -19,6 +19,7 @@ import {
     chatUiGridSpec,
     chatUiInputSpecs,
     chatUiKeyValuesSpec,
+    chatUiListSpec,
     chatUiMetricsSpec,
     chatUiProgressSpec,
     chatUiSectionSpec,
@@ -358,7 +359,7 @@ const SALES_TOOL = {
         .map(it => it.name),
     DISPLAY_NAMES = [
         ...['text', 'metrics', 'grid', 'chart', 'card', 'tabs', 'section', 'callout'],
-        ...['badges', 'divider', 'treemap', 'progress', 'steps', 'keyValues']
+        ...['badges', 'divider', 'treemap', 'progress', 'steps', 'keyValues', 'list']
     ],
     CONTEXT = {
         chatModel: null as null,
@@ -398,6 +399,7 @@ function createCatalog(
         chatUiProgressSpec(),
         chatUiStepsSpec(),
         chatUiKeyValuesSpec(),
+        chatUiListSpec(),
         // The form, the button and each input.
         ...chatUiInputSpecs()
     ];
