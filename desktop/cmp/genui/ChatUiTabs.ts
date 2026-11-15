@@ -5,6 +5,7 @@ import {tabContainer, TabContainerModel} from '@xh/hoist/cmp/tab';
 import {creates, hoistCmp, HoistModel, type HoistProps, managed} from '@xh/hoist/core';
 import type {ChatUiComponentSpec} from '../../../genui';
 import {chatUiSkeleton} from './ChatUiFrame';
+import {inColumn} from './impl/ChatUiStackDirection';
 import type {ChatUiSpecOptions} from './Types';
 import '../../../styles/vars.scss';
 import './ChatUiTabs.scss';
@@ -60,7 +61,7 @@ export function chatUiTabsSpec(
         slots: ['default'],
         standalone: false,
         render: ({titles}, {children, isPartial}) =>
-            chatUiTabs({titles, isPartial, items: children}),
+            inColumn(chatUiTabs({titles, isPartial, items: children})),
         result: ({titles}) => titles.join(' | '),
         example: {titles: ['Chart', 'Data']}
     };

@@ -5,6 +5,7 @@ import {isString} from 'lodash';
 import type {ChatUiComponentSpec} from '../../../genui';
 import {chatUiSkeleton} from './ChatUiFrame';
 import {CHAT_UI_INTENTS, toHoistIntent} from './impl/ChatUiIntents';
+import {inColumn} from './impl/ChatUiStackDirection';
 import type {ChatUiIntent, ChatUiSpecOptions} from './Types';
 import '../../../styles/vars.scss';
 import './ChatUiSection.scss';
@@ -76,13 +77,15 @@ export function chatUiSectionSpec(
         slots: ['default'],
         standalone: false,
         render: (props, {children, isPartial, element}) =>
-            chatUiSection({
-                ...props,
-                // A format that tracks each element, as OpenUI Lang does, says while this one is
-                // still being written.
-                isWriting: isPartial && element?.isPartial === true,
-                items: children
-            }),
+            inColumn(
+                chatUiSection({
+                    ...props,
+                    // A format that tracks each element, as OpenUI Lang does, says while this one
+                    // is still being written.
+                    isWriting: isPartial && element?.isPartial === true,
+                    items: children
+                })
+            ),
         result: ({title}) => title ?? '',
         example: {title: 'By desk', collapsible: true}
     };
