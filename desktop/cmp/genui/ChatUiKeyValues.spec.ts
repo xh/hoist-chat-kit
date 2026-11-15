@@ -1,7 +1,7 @@
 import {render} from '@testing-library/react';
 import type {ReactElement} from 'react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
-import {beforeAll, beforeEach, describe, expect, it, vi} from 'vitest';
+import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatUiCatalog, type ChatUiRenderContext} from '../../../genui';
 import {chatUiKeyValuesSpec, type ChatUiKeyValuesSpecProps} from './ChatUiKeyValues';
 import {chatUiStackSpec} from './ChatUiStack';
@@ -65,18 +65,24 @@ describe('chatUiKeyValuesSpec', () => {
         expect(texts(container, 'value')).toEqual(['-', '-', '-', '0', 'true', 'false']);
     });
 
-    it('sets the number of columns, and fits them to the width with none set', () => {
+    it('takes the number of columns as the most, and shows fewer in a narrow chat', () => {
         // Hoist's list never uses more columns than it has entries.
         const items = ['A', 'B', 'C', 'D', 'E'].map(label => ({label, value: 1})),
-            columnsOf = (columns?: number) =>
-                renderKeyValues({items, columns})
+            columnsOf = (width: number, columns?: number) => {
+                vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(width);
+                return renderKeyValues({items, columns})
                     .container.querySelector<HTMLElement>('.xh-key-value-list')
                     .style.getPropertyValue('--xh-key-value-list-columns');
+            };
+        onTestFinished(() => {
+            vi.restoreAllMocks();
+        });
 
-        expect(columnsOf(2)).toBe('2');
-        expect(columnsOf(40)).toBe('4');
-        expect(columnsOf(0)).toBe('1');
-        expect(columnsOf()).toBe('1');
+        expect(columnsOf(1000, 2)).toBe('2');
+        expect(columnsOf(1000, 40)).toBe('4');
+        expect(columnsOf(1000, 0)).toBe('3');
+        expect(columnsOf(340, 2)).toBe('1');
+        expect(columnsOf(500, 3)).toBe('2');
     });
 
     it('leaves out an item with no label, an unknown intent, and the last item while streaming', () => {

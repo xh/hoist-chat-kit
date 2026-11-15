@@ -35,7 +35,10 @@ export interface ChatUiKeyValuesSpecProps {
     /** The labeled values, in display order. */
     items: ChatUiKeyValue[];
 
-    /** Number of columns. Default as many as fit the width. */
+    /**
+     * Most columns. Default as many as fit the width. A column is at least 200px wide, so a
+     * narrow chat shows fewer.
+     */
     columns?: number;
 }
 
@@ -95,7 +98,7 @@ export function chatUiKeyValuesSpec(
                     type: 'integer',
                     minimum: 1,
                     maximum: MAX_COLUMNS,
-                    description: 'Number of columns. Default as many as fit.'
+                    description: 'Most columns. Default as many as fit.'
                 }
             }
         },
@@ -104,10 +107,13 @@ export function chatUiKeyValuesSpec(
             // While streaming, the last value may be cut short.
             const entries = (isPartial ? dropRight(items) : (items ?? [])).flatMap(toEntry);
             if (isEmpty(entries)) return null;
+            const hasColumns = isInteger(columns) && columns >= 1;
             return keyValueList({
                 className: 'xh-chat-ui-key-values',
                 entries,
-                columns: isInteger(columns) && columns >= 1 ? Math.min(columns, MAX_COLUMNS) : null
+                // The model's count is the most columns. A narrow chat shows fewer.
+                columns: hasColumns ? Math.min(columns, MAX_COLUMNS) : null,
+                minColumnWidth: hasColumns ? MIN_COLUMN_WIDTH : null
             });
         },
         result: ({items}) => items.map(it => it.label).join(', '),
@@ -125,6 +131,10 @@ export function chatUiKeyValuesSpec(
 // Implementation
 //------------------
 const MAX_COLUMNS = 4;
+
+// Narrowest column, in pixels, when the model sets a count. Hoist's default of 300 would show one
+// column at the width of a typical chat.
+const MIN_COLUMN_WIDTH = 200;
 
 const DESCRIPTION =
     'A list of labeled values, such as the fields of a record. Use it for facts about one ' +
