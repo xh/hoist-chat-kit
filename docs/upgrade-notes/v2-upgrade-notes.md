@@ -1,6 +1,6 @@
 # Hoist Chat Kit v2 Upgrade Notes
 
-> **From:** v1.x → v2.0.0 | **Released:** unreleased | **Difficulty:** 🟢 LOW
+> **From:** v1.x → v2.0.0 | **Released:** 2026-11-16 | **Difficulty:** 🟢 LOW
 
 ## Overview
 
