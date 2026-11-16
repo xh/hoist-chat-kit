@@ -14,6 +14,13 @@
 
 ## 3.0.0-SNAPSHOT - unreleased
 
+### ⚙️ Technical
+
+* Updated the kit to build and test against `@xh/hoist` 90.1. It still supports `@xh/hoist` 89.3.1
+  or later.
+* `chatMarkdown` with a table or a code fence, rendered on its own outside a chat, needs
+  `@xh/hoist` 90 or later. On 89 it shows "No model found", from a Hoist bug fixed in 90.
+
 ## 2.0.0 - 2026-11-16
 
 ### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - remove the busy-line settings)

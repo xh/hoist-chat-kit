@@ -192,7 +192,7 @@ describe('ChatWorkspace', () => {
         });
 
         it('resizes the sidebar and the side panel against the conversation, their sibling', () => {
-            // Resize containers' offsetWidth, each a panel's size plus its 8 px splitter.
+            // The panels' offsetWidth. Every other element, including the splitters, measures 0.
             const widths: Record<string, number> = {
                 'xh-chat-workspace__sidebar': 268,
                 'xh-chat-workspace__side-panel': 528
@@ -220,8 +220,8 @@ describe('ChatWorkspace', () => {
             expect(sidebarEl.nextElementSibling).toBe(main);
             expect(sidePanelEl.previousElementSibling).toBe(main);
 
-            // Hoist's DraggerModel starts from the resize container's offsetWidth, which includes
-            // the splitter, so a drag of N px grows the panel by more than N.
+            // Hoist's DraggerModel starts from the panel's offsetWidth less its splitter's, which
+            // measures 0 here, so a drag of N px grows the panel by N.
             act(() => dragPanel(sidebarEl, 40));
             expect(model.sidebarModel.size).toBe(308);
 
@@ -736,22 +736,23 @@ function shownWidth(panel: 'sidebar' | 'side-panel'): string {
         .style.getPropertyValue(`--xh-chat-workspace-${panel}-width`);
 }
 
-/** Drag a resizable panel's dragger by `dx` pixels, as the browser reports a drag. */
+/** Drag a resizable panel's splitter by `dx` pixels, as the browser reports a drag. */
 function dragPanel(panelEl: HTMLElement, dx: number) {
-    const dragger = panelEl.querySelector('.xh-resizable-dragger'),
+    const hit = panelEl.querySelector<HTMLElement>('.xh-panel-splitter__hit'),
         fire = (type: string, clientX: number) =>
-            dragger.dispatchEvent(
-                Object.assign(new Event(type, {bubbles: true}), {
+            hit.dispatchEvent(
+                Object.assign(new Event(type, {bubbles: true, cancelable: true}), {
+                    button: 0,
+                    pointerId: 1,
                     clientX,
-                    clientY: 10,
-                    screenX: clientX,
-                    screenY: 10,
-                    buttons: 1
+                    clientY: 10
                 })
             );
-    fire('dragstart', 300);
-    fire('drag', 300 + dx);
-    fire('dragend', 300 + dx);
+    // jsdom has no pointer capture.
+    hit.setPointerCapture = () => {};
+    fire('pointerdown', 300);
+    fire('pointermove', 300 + dx);
+    fire('pointerup', 300 + dx);
 }
 
 function widthToMode(model: ChatWorkspaceModel, width: number) {
