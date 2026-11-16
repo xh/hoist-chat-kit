@@ -30,19 +30,21 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 
 ### 🎁 New Features
 
-* `ChatThreadsModel` now blocks sends while the store lists a thread as running and its history has
-  no settled reply to that turn yet. The status region shows the block only with Refresh Status,
-  once the automatic checks below stop.
-
 * `ChatThreadsModel` now checks on a turn that runs on the server while its chat does not follow
   it, and loads the reply once the thread list shows the run done. Set the interval with
-  `ChatKit.defaults.statusRefreshMs` or `ChatThreadsConfig.statusRefreshMs`, null for none.
-* Added `chatAnnouncer.withdraw()`, to take back an announcement whose news no longer holds. The
-  status region withdraws a status's announcement once it passes.
+  `ChatKit.defaults.statusRefreshMs` or `ChatThreadsConfig.statusRefreshMs`, null for none. The
+  checks stop after `statusRefreshTimeoutMs`, which both also take.
+* `ChatThreadsModel` now blocks sends while the store lists a thread as running and its history has
+  no settled reply to that turn yet. The status region shows the block only with Refresh Status,
+  once the automatic checks stop.
 * `ChatMessageList` now shows "Still working on the server" for such a turn with no reply saved
   yet, in place of the empty state or after the user's question. The composer's start items breathe
   while it runs.
-
+* `ChatModel.setStatusRefresher()` now takes `ChatStatusRefresherOptions`, for an app with a thread
+  layer of its own. They drive the new `ChatModel.isRunningOnServer` and
+  `ChatModel.isStatusRefreshAutomatic` getters.
+* Added `chatAnnouncer.withdraw()`, to take back an announcement whose news no longer holds. The
+  status region withdraws a status's announcement once it passes.
 * Added `ChatThreadsModel.showThreadTitle()`, to show a title the backend already holds, such as
   one it wrote in the background. The list and the workspace header show it at once, with no
   store call and no list reload.
@@ -76,9 +78,15 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * `isChatRetrySafe` now takes `metadata.retrySafe: true` over the kit's own unsafe error codes.
   Before, only `false` decided.
 * Fixed `replayChatEvents` to record no times for events with no `timestamp`. Before, it timed
-  every tool call, sub-agent and reasoning part by the load, so each showed "<0.1s". The timeline,
-  its screen reader labels and the reasoning label now show no time for them. A backend that
-  stores events should stamp each one as the agent emits it.
+  every tool call, sub-agent and reasoning part by the load, so each showed "<0.1s". Such parts now
+  carry null `startedAt` and `endedAt`, and the timeline, its screen reader labels and the
+  reasoning label show no time for them. A backend that stores events should stamp each one as the
+  agent emits it.
+
+### ⚙️ Technical
+
+* Added Zod 4 as a dependency of the kit. AG-UI 1.0.4 takes Zod as a peer, so the kit supplies it.
+  Apps no longer need the `zod` override that the 1.0.0 README advised, and can remove it.
 
 ### ✨ Styles
 
