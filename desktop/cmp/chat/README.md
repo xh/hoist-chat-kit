@@ -1381,10 +1381,10 @@ pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
 | | `--xh-chat-meta-font-size` | `--xh-font-size` times 0.9 |
 | Layout | `--xh-chat-column-max-width` | `808px`, for the thread, cards and composer. Includes the side padding, so content runs to 768px |
 | | `--xh-chat-prose-max-width` | `none`. Set it for markdown text narrower than the column |
-| | `--xh-chat-side-pad` | `--xh-pad-double` (20px) |
+| | `--xh-chat-side-pad` | `--xh-spacing-double` (20px) |
 | | `--xh-chat-turn-gap` | `24px`, between messages |
 | | `--xh-chat-action-button-size` | `24px`, the least height and width of a message action or feedback thumb |
-| | `--xh-chat-part-gap`, `--xh-chat-process-gap` | `--xh-pad`, `--xh-pad-half` |
+| | `--xh-chat-part-gap`, `--xh-chat-process-gap` | `--xh-spacing`, `--xh-spacing-half` |
 | | `--xh-chat-part-header-height` | `28px`, for card header strips |
 | | `--xh-chat-user-max-width` | `75%`, for the user bubble |
 | | `--xh-chat-user-padding` | `8px 12px`, inside the user bubble |
@@ -1395,7 +1395,7 @@ pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
 | | `--xh-chat-user-bg`, `--xh-chat-user-text-color` | `--xh-intent-primary-trans1`, a light tint of the primary color, and `--xh-text-color` |
 | | `--xh-chat-part-border-color` | `--xh-border-color` |
 | | `--xh-chat-part-header-bg` | `--xh-bg-alt` |
-| | `--xh-chat-code-bg` | `--xh-grid-bg-odd` |
+| | `--xh-chat-code-bg` | `--xh-grid-odd-row-bg` |
 | Status | `--xh-chat-busy-color` | `--xh-intent-primary-text-color` |
 | | `--xh-chat-attention-color` | `--xh-card-primary-color` |
 | | `--xh-chat-success-color`, `--xh-chat-warning-color`, `--xh-chat-error-color` | Hoist's intent text colors |
@@ -1404,8 +1404,8 @@ pages, must restate the kit's type variables inside it: `--xh-chat-font-size`,
 | | `--xh-chat-composer-border-color` | `--xh-border-color` |
 | | `--xh-chat-composer-focus-border-color` | `--xh-form-field-focused-border-color` |
 | | `--xh-chat-composer-bar-gap` | `6px` |
-| | `--xh-chat-composer-toolbar-padding` | `4px`, then `--xh-pad-px` at the sides and bottom, around the bar of pills and Send |
-| | `--xh-chat-composer-row-gap` | `--xh-pad-px`, between the box and the `topItems` and `bottomItems` rows |
+| | `--xh-chat-composer-toolbar-padding` | `4px`, then `--xh-spacing` at the sides and bottom, around the bar of pills and Send |
+| | `--xh-chat-composer-row-gap` | `--xh-spacing`, between the box and the `topItems` and `bottomItems` rows |
 | | `--xh-chat-composer-pill-height` | `24px` |
 | | `--xh-chat-composer-pill-padding` | `0 6px 0 8px` |
 | | `--xh-chat-composer-pill-gap` | `6px`, between a pill's icon, words and count |
@@ -1426,7 +1426,7 @@ code.
 ### Compact density
 
 Add the `xh-chat--compact` class to a parent of the chat for a narrow host, such as a docked
-side panel. It sets the side padding to `--xh-pad` (10px), the user bubble width to 85%, and the
+side panel. It sets the side padding to `--xh-spacing` (10px), the user bubble width to 85%, and the
 chart height to 160px.
 
 ### Reduced motion
@@ -1451,7 +1451,7 @@ twins there, so the app decides for itself. Hoist's own `Spinner` keeps spinning
 motion for the same reason. To keep only the chat spinner spinning, set
 `ChatKit.defaults.reducedMotionSpinner` to `'spin'`.
 
-Spacing inside the components scales with Hoist's `--xh-pad`, so a denser app gets a denser
+Spacing inside the components scales with Hoist's `--xh-spacing`, so a denser app gets a denser
 chat. Class names follow BEM under `xh-chat-`, for example `xh-chat-message__bubble`.
 
 ### Motion

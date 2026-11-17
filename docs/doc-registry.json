@@ -47,7 +47,6 @@
         "add a chat",
         "install",
         "installation",
-        "extraIncludePaths",
         "rsbuild",
         "peer dependencies",
         "features",
@@ -714,6 +713,25 @@
         "ChatStatusRegion.defaults",
         "ChatStatusRegionDefaults",
         "status region"
+      ]
+    },
+    {
+      "id": "docs/upgrade-notes/v3-upgrade-notes.md",
+      "title": "v3 Upgrade Notes",
+      "mcpCategory": "upgrade",
+      "viewerCategory": "upgrade",
+      "description": "Upgrade guide from v2.x to v3.0.0. Low difficulty. Covers the move to @xh/hoist v91 and its renamed CSS variables, with the codemod for an app's overrides of the kit's variables.",
+      "keywords": [
+        "upgrade",
+        "migration",
+        "breaking changes",
+        "v3",
+        "v2",
+        "hoist v91",
+        "CSS variables",
+        "codemod",
+        "--xh-spacing",
+        "--xh-pad-px"
       ]
     }
   ]

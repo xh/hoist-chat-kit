@@ -10,7 +10,7 @@
     color: var(--xh-menu-item-text-color);
     display: flex;
     flex-direction: column;
-    font-size: var(--xh-menu-item-font-size-px);
+    font-size: var(--xh-menu-item-font-size);
     max-width: 90vw;
     width: var(--xh-chat-scope-popover-width, 320px);
   }

@@ -106,9 +106,8 @@ private Font Awesome registry. `.npmrc` here points the `@fortawesome` scope at 
 
 This package ships **unprocessed TypeScript and SCSS**, as hoist-react does. There is no build or
 bundle step. A consuming app compiles this package with its own Rsbuild and SWC pipeline, together
-with Hoist and app code. The app adds this package to `extraIncludePaths` in its
-`rsbuild.config.mjs`. Toolbox does this for `@xh/package-template`, the minimal XH example of the
-same pattern.
+with Hoist and app code. It needs no app config, as `configureRsbuild()` compiles TypeScript
+wherever it finds it, `node_modules` included.
 
 Consequences:
 
@@ -148,7 +147,7 @@ Code here follows the conventions of the Hoist version it targets. Read them wit
   files or `impl` folders.
 - Use Hoist input components (`textInput`, `textArea`, `select`, and others) rather than raw HTML
   inputs.
-- Style with Hoist CSS variables (`var(--xh-pad-px)`), scoped under the component's `className`.
+- Style with Hoist CSS variables (`var(--xh-spacing)`), scoped under the component's `className`.
 - Components in `desktop/` and `mobile/` are platform-specific. Shared code lives elsewhere.
 
 ## Asks from App Integrations
@@ -202,6 +201,13 @@ Hoist app. Use the `chrome-devtools` MCP server to drive and inspect it.
 
 Run the Toolbox server and client as described in hoist-react's agent guide, under "Running
 Toolbox against this checkout". Leave servers that you did not start running when you finish.
+
+To run this checkout in place of the installed kit, start the app's client with
+`XH_INLINE_PACKAGES=@xh/hoist-chat-kit`. That takes a sibling checkout at `../hoist-chat-kit`. For
+another checkout, such as a worktree, pass `@xh/hoist-chat-kit=/abs/path`. The app needs
+`@xh/hoist-dev-utils` 16.4 or later, and this checkout needs its own `pnpm install`. The app gets
+one copy of Hoist and React, and edits to the kit reload in the browser. See "Inline packages" in
+the hoist-dev-utils README.
 
 ## Code Style
 

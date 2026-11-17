@@ -54,7 +54,7 @@
     ]
   },
   "peerDependencies": {
-    "@xh/hoist": ">=89.3.1",
+    "@xh/hoist": ">=91.0.0-SNAPSHOT",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
@@ -67,8 +67,8 @@
     "@types/react-dom": "^19.3.0",
     "@vitest/ui": "^5.1.0",
     "@xh/eslint-config": "^8.1.0",
-    "@xh/hoist": "^90.1.0",
-    "@xh/hoist-dev-utils": "^16.3.0",
+    "@xh/hoist": "next",
+    "@xh/hoist-dev-utils": "^16.4.0",
     "ag-grid-community": "~36.3.0",
     "ag-grid-react": "~36.3.0",
     "eslint": "^10.15.0",

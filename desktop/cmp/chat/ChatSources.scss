@@ -2,7 +2,7 @@
 
 // Under the reply's text and above its action bar. A compact list follows a hairline.
 .xh-chat-sources {
-  border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border-top: var(--xh-border-width) solid var(--xh-chat-part-border-color);
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -177,7 +177,7 @@
   }
 
   &__excerpt {
-    border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
     border-radius: var(--xh-chat-border-radius);
     color: var(--xh-chat-text-color);
     font-size: var(--xh-chat-code-font-size);
@@ -205,14 +205,14 @@
 
     .xh-chat-sources__list {
       background-color: var(--xh-chat-source-list-bg);
-      border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+      border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
       border-radius: var(--xh-chat-source-list-border-radius);
       max-width: var(--xh-chat-prose-max-width);
       overflow: hidden;
     }
 
     .xh-chat-sources__item + .xh-chat-sources__item {
-      border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+      border-top: var(--xh-border-width) solid var(--xh-chat-part-border-color);
     }
 
     // The highlight covers the whole item, so an open excerpt stays inside it.

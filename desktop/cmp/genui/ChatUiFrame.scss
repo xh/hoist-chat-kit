@@ -4,11 +4,11 @@
 // body, and a footer strip for counts and actions.
 .xh-chat-ui-frame {
   background-color: var(--xh-chat-bg);
-  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
   border-radius: var(--xh-chat-border-radius);
   display: flex;
   flex-direction: column;
-  font-size: var(--xh-chat-font-size, var(--xh-font-size-px));
+  font-size: var(--xh-chat-font-size, var(--xh-font-size));
   line-height: normal;
   min-width: 0;
   overflow: hidden;
@@ -16,7 +16,7 @@
   &__header {
     align-items: center;
     background-color: var(--xh-chat-part-header-bg);
-    border-bottom: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border-bottom: var(--xh-border-width) solid var(--xh-chat-part-border-color);
     color: var(--xh-chat-meta-text-color);
     display: flex;
     flex: none;
@@ -37,7 +37,7 @@
 
   &__title {
     color: var(--xh-chat-text-color);
-    font-size: var(--xh-chat-font-size, var(--xh-font-size-px));
+    font-size: var(--xh-chat-font-size, var(--xh-font-size));
     font-weight: 500;
     min-width: 0;
     overflow: hidden;
@@ -77,7 +77,7 @@
 
   &__footer {
     align-items: center;
-    border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border-top: var(--xh-border-width) solid var(--xh-chat-part-border-color);
     color: var(--xh-chat-meta-text-color);
     display: flex;
     flex: none;
@@ -122,7 +122,7 @@
 
   &__title {
     color: var(--xh-chat-text-color);
-    font-size: var(--xh-chat-font-size, var(--xh-font-size-px));
+    font-size: var(--xh-chat-font-size, var(--xh-font-size));
     font-weight: 600;
   }
 

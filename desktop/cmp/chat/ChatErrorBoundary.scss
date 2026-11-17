@@ -1,16 +1,16 @@
 @use '../../../styles/mixins' as *;
 
 .xh-chat-error-boundary {
-  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
   border-radius: var(--xh-chat-border-radius);
   color: var(--xh-chat-meta-text-color);
   font-size: var(--xh-chat-meta-font-size);
-  padding: var(--xh-pad-half-px) var(--xh-pad-px);
+  padding: var(--xh-spacing-half) var(--xh-spacing);
 
   &__title {
     align-items: center;
     display: flex;
-    gap: calc(var(--xh-pad) * 0.6px);
+    gap: calc(var(--xh-spacing) * 0.6);
 
     .xh-icon {
       color: var(--xh-chat-error-color);
@@ -27,7 +27,7 @@
   }
 
   &__details {
-    margin-top: calc(var(--xh-pad) * 0.4px);
+    margin-top: calc(var(--xh-spacing) * 0.4);
 
     summary {
       cursor: pointer;
@@ -36,7 +36,7 @@
 
     pre {
       font-family: var(--xh-font-family-mono);
-      margin: calc(var(--xh-pad) * 0.4px) 0 0;
+      margin: calc(var(--xh-spacing) * 0.4) 0 0;
       overflow-wrap: anywhere;
       white-space: pre-wrap;
     }

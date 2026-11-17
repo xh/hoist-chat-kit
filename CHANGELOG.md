@@ -14,6 +14,21 @@
 
 ## 3.0.0-SNAPSHOT - unreleased
 
+Requires `@xh/hoist` 91 or later.
+
+### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - upgrade Hoist to v91)
+
+See [`docs/upgrade-notes/v3-upgrade-notes.md`](docs/upgrade-notes/v3-upgrade-notes.md) for
+detailed, step-by-step upgrade instructions with before/after code examples.
+
+* The kit now requires `@xh/hoist` 91 or later. Its styles read Hoist's renamed CSS variables, such
+  as `--xh-spacing` in place of `--xh-pad-px`. The kit's own `--xh-chat-*` variables are unchanged.
+
+### ⚙️ Technical
+
+* Removed the install step that added the kit to `extraIncludePaths`. `configureRsbuild()` compiles
+  the kit's TypeScript without it, so apps can drop that entry.
+
 ## 2.1.0 - 2026-11-16
 
 ### ⚙️ Technical

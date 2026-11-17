@@ -80,7 +80,7 @@ controller and service.
 
 ## Installation
 
-The kit needs `@xh/hoist` v89.3.1 or later, with `react` and `react-dom` v19. Your app supplies these
+The kit needs `@xh/hoist` v91 or later, with `react` and `react-dom` v19. Your app supplies these
 as peer dependencies.
 
 The package ships as TypeScript and SCSS source, as `@xh/hoist` does, and your app compiles it
@@ -88,23 +88,8 @@ with the rest of its code. It depends on the official AG-UI packages, `@ag-ui/co
 `@ag-ui/client`. They bring RxJS with them, and take Zod 4 as a peer, which the kit and
 `@xh/hoist` both supply.
 
-1. Add the package: `pnpm add @xh/hoist-chat-kit`.
-2. Add it to `extraIncludePaths` in your app's `rsbuild.config.mjs`, so the build transpiles it:
-
-```javascript
-import configureRsbuild from '@xh/hoist-dev-utils/configureRsbuild';
-import path from 'node:path';
-
-export default ({envMode}) =>
-    configureRsbuild({
-        appCode: 'myApp',
-        // ...
-        extraIncludePaths: [path.resolve('node_modules/@xh/hoist-chat-kit')]
-    });
-```
-
-Toolbox compiles the kit this way on its chat kit feature branch, where the Weather V2 Dashboard
-Agent and a Chat Kit demo app run on the kit.
+Add the package with `pnpm add @xh/hoist-chat-kit`. The app's build compiles it with no further
+config, as `configureRsbuild()` compiles TypeScript wherever it finds it, `node_modules` included.
 
 ## Documentation
 

@@ -36,7 +36,7 @@
 
 .xh-chat-ui-table {
   border-collapse: collapse;
-  font-size: var(--xh-chat-table-font-size, var(--xh-grid-compact-font-size-px));
+  font-size: var(--xh-chat-table-font-size, var(--xh-grid-compact-font-size));
   font-variant-numeric: tabular-nums;
   line-height: calc(var(--xh-chat-table-row-height, 24px) - 1px);
   table-layout: auto;
@@ -46,7 +46,7 @@
   td {
     max-width: 220px;
     overflow: hidden;
-    padding: 0 var(--xh-grid-compact-cell-lr-pad-px, 4px);
+    padding: 0 var(--xh-grid-compact-cell-padding-inline, 4px);
     text-align: left;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -54,18 +54,18 @@
 
   th {
     background-color: var(--xh-grid-header-bg);
-    border-bottom: var(--xh-border-width-px) solid var(--xh-grid-header-border-color);
+    border-bottom: var(--xh-border-width) solid var(--xh-grid-header-border-color);
     color: var(--xh-grid-header-text-color);
     font-weight: 600;
   }
 
   td {
-    border-bottom: var(--xh-border-width-px) solid var(--xh-grid-border-color);
+    border-bottom: var(--xh-border-width) solid var(--xh-grid-border-color);
     color: var(--xh-chat-text-color);
   }
 
   tbody tr:nth-child(even) td {
-    background-color: var(--xh-grid-bg-odd);
+    background-color: var(--xh-grid-odd-row-bg);
   }
 
   tbody tr:last-child td {
@@ -89,7 +89,7 @@
 
   &__row {
     align-items: center;
-    border-bottom: var(--xh-border-width-px) solid var(--xh-grid-border-color);
+    border-bottom: var(--xh-border-width) solid var(--xh-grid-border-color);
     display: flex;
     gap: 16px;
     height: var(--xh-chat-table-row-height, 24px);

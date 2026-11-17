@@ -22,7 +22,7 @@
 
   &__tag {
     color: var(--xh-chat-meta-text-color);
-    font-size: var(--xh-font-size-small-px);
+    font-size: var(--xh-font-size-small);
     font-weight: 600;
     letter-spacing: 0.06em;
     margin-left: auto;
@@ -46,7 +46,7 @@
   }
 
   @include hoist-button('.xh-button', '.xh-chat-no-answer__buttons') {
-    margin-left: calc(var(--xh-pad-half-px) * -1);
+    margin-left: calc(var(--xh-spacing-half) * -1);
   }
 }
 
