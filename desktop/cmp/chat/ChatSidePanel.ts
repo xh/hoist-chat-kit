@@ -184,7 +184,7 @@ const documentFrame = hoistCmp.factory<DocumentFrameProps>({
                     : null,
                 closeButton(model)
             ],
-            tbar: pageItem(status),
+            tbar: pageItems(status),
             mask:
                 state === 'opening'
                     ? mask({
@@ -358,15 +358,20 @@ function getAnnouncement(
 }
 
 // The page, only once the viewer reports one - a document without pages shows none.
-/** The page that shows, for the toolbar - or null, for no toolbar, until the viewer reports one. */
-function pageItem(status: ChatDocumentStatus): ReactNode {
+/**
+ * The toolbar items: the page that shows, or null for no toolbar until the viewer reports one. An
+ * array, as Panel builds a toolbar only from an array of items.
+ */
+function pageItems(status: ChatDocumentStatus): ReactNode[] {
     const {page, pageCount} = status ?? {};
     if (!isFinite(page)) return null;
 
-    return span({
-        className: 'xh-chat-side-panel__page',
-        item: isFinite(pageCount) ? `Page ${page} of ${pageCount}` : `Page ${page}`
-    });
+    return [
+        span({
+            className: 'xh-chat-side-panel__page',
+            item: isFinite(pageCount) ? `Page ${page} of ${pageCount}` : `Page ${page}`
+        })
+    ];
 }
 
 function formatSize(bytes: number): string {

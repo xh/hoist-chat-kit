@@ -24,6 +24,11 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * The kit now requires `@xh/hoist` 91 or later. Its styles read Hoist's renamed CSS variables, such
   as `--xh-spacing` in place of `--xh-pad-px`. The kit's own `--xh-chat-*` variables are unchanged.
 
+### 🐞 Bug Fixes
+
+* Fixed the side panel to show a document's page, as "Page 12 of 38", in a toolbar. It showed as a
+  bare line under the header.
+
 ### ⚙️ Technical
 
 * Removed the install step that added the kit to `extraIncludePaths`. `configureRsbuild()` compiles

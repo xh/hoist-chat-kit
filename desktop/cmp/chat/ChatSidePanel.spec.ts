@@ -54,6 +54,8 @@ describe('ChatSidePanel', () => {
 
         setStatus(model, {state: 'located', page: 3});
         expect(pageLabel().textContent).toBe('Page 3');
+        // In a Hoist toolbar, which Panel builds only from an array of items.
+        expect(pageLabel().closest('.xh-toolbar')).toBeTruthy();
 
         setStatus(model, {state: 'located', page: 3, pageCount: 12});
         expect(pageLabel().textContent).toBe('Page 3 of 12');
