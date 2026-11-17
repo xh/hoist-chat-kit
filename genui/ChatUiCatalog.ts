@@ -892,7 +892,7 @@ export class ChatUiCatalog {
                 context,
                 catalog: this,
                 registry: this.getRegistry(context.chatModel),
-                children: renderIds(element.children),
+                childNodes: renderIds(element.children),
                 slots: mapValues(element.slots ?? {}, renderIds)
             })
         });
@@ -1038,7 +1038,8 @@ interface ChatUiComponentProps extends HoistProps {
     context: ChatUiDocumentContext;
     catalog: ChatUiCatalog;
     registry: ChatArtifactRegistry;
-    children: ReactNode[];
+    // Not `children`, which Hoist hands to React as child elements, not as an array.
+    childNodes: ReactNode[];
     slots: Record<string, ReactNode[]>;
 }
 
@@ -1051,7 +1052,7 @@ const chatUiComponent = hoistCmp.factory<ChatUiComponentProps>({
     displayName: 'ChatUiComponent',
     model: uses('*', {optional: true}),
 
-    render({spec, node, context, catalog, registry, children, slots}) {
+    render({spec, node, context, catalog, registry, childNodes, slots}) {
         const {props} = node,
             dataProps = getDataProps(spec).filter(it => isString(props[it.name]) && props[it.name]),
             handles: Record<string, ChatDataHandle> = {};
@@ -1077,7 +1078,7 @@ const chatUiComponent = hoistCmp.factory<ChatUiComponentProps>({
             ...context,
             catalog,
             element: node,
-            children,
+            children: childNodes,
             slots,
             data: handles,
             artifacts: registry,
