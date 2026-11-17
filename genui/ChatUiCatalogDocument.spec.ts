@@ -701,7 +701,7 @@ const STACK: ChatUiComponentSpec = {
         props: {type: 'object', additionalProperties: false, properties: {}},
         slots: ['default', 'header'],
         render: (_, {children, slots}) =>
-            fragment({items: ['[', ...(slots.header ?? []), ...children, ']']})
+            fragment({children: ['[', ...(slots.header ?? []), ...children, ']']})
     },
     NOTE: ChatUiComponentSpec<{text: string}> = {
         name: 'note',
@@ -795,7 +795,7 @@ function silenceWarnings() {
 }
 
 function markup(content: ReactNode): string {
-    return renderToStaticMarkup(fragment({items: content}))
+    return renderToStaticMarkup(fragment({children: content}))
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>');
 }

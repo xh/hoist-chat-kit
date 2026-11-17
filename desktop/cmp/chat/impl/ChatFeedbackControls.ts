@@ -563,7 +563,7 @@ export function feedbackThumbs(model: ChatMessageFeedbackModel, isNoAnswer: bool
             span({
                 key: 'hint',
                 className: 'xh-chat-message__thumb-hint',
-                item: 'Thumbs down here means "it is in these documents"'
+                children: 'Thumbs down here means "it is in these documents"'
             }),
             feedbackStatus(model)
         ];
@@ -582,9 +582,9 @@ function feedbackStatus(model: ChatMessageFeedbackModel): ReactNode {
         return span({
             key: 'status',
             className: 'xh-chat-message__feedback-status xh-chat-message__feedback-status--failed',
-            items: [
+            children: [
                 Icon.error(),
-                span({item: "Couldn't save rating"}),
+                span({children: "Couldn't save rating"}),
                 button({
                     className: 'xh-chat-message__feedback-retry',
                     icon: Icon.refresh(),
@@ -603,14 +603,14 @@ function feedbackStatus(model: ChatMessageFeedbackModel): ReactNode {
                   role: 'img',
                   title: sentComment,
                   'aria-label': `Your comment: ${sentComment}`,
-                  item: Icon.comment()
+                  children: Icon.comment()
               })
             : null,
         thanks
             ? span({
                   key: 'thanks',
                   className: 'xh-chat-message__feedback-thanks',
-                  items: [Icon.check(), thanks]
+                  children: [Icon.check(), thanks]
               })
             : null,
         showsCommentLink
@@ -627,9 +627,9 @@ function feedbackStatus(model: ChatMessageFeedbackModel): ReactNode {
     return span({
         key: 'status',
         className: 'xh-chat-message__feedback-status',
-        items: items.flatMap((it, idx) =>
+        children: items.flatMap((it, idx) =>
             idx
-                ? [span({key: `sep${idx}`, className: 'xh-chat-message__dot', item: '·'}), it]
+                ? [span({key: `sep${idx}`, className: 'xh-chat-message__dot', children: '·'}), it]
                 : [it]
         )
     });
@@ -667,15 +667,15 @@ export const chatFeedbackForm = hoistCmp.factory<FeedbackFormProps>({
             className: 'xh-chat-message__feedback',
             role: 'group',
             'aria-label': heading,
-            items: [
+            children: [
                 div({
                     className: 'xh-chat-message__feedback-heading',
-                    items: [
+                    children: [
                         heading,
                         span({
                             id: hintId,
                             className: 'xh-chat-message__feedback-hint',
-                            item: isPending ? 'Comment required' : 'Optional'
+                            children: isPending ? 'Comment required' : 'Optional'
                         })
                     ]
                 }),
@@ -702,7 +702,7 @@ export const chatFeedbackForm = hoistCmp.factory<FeedbackFormProps>({
                     ? div({
                           id: errorId,
                           className: 'xh-chat-message__feedback-error',
-                          items: [
+                          children: [
                               Icon.error(),
                               isRejected && error.message
                                   ? error.message
@@ -712,7 +712,7 @@ export const chatFeedbackForm = hoistCmp.factory<FeedbackFormProps>({
                     : null,
                 div({
                     className: 'xh-chat-message__feedback-bar',
-                    items: [
+                    children: [
                         isFailed
                             ? button({
                                   ref: model.retryRef,
@@ -727,7 +727,7 @@ export const chatFeedbackForm = hoistCmp.factory<FeedbackFormProps>({
                                   ref: model.sendRef,
                                   className: 'xh-chat-message__feedback-send',
                                   tabIndex: -1,
-                                  items: [
+                                  children: [
                                       button({
                                           text: isSubmitting ? 'Sending…' : sendLabel,
                                           intent: 'primary',
@@ -748,7 +748,7 @@ export const chatFeedbackForm = hoistCmp.factory<FeedbackFormProps>({
                             : button({text: 'Cancel', onClick: () => model.cancelForm()}),
                         span({
                             className: 'xh-chat-message__feedback-tip',
-                            item: footHint(comment, isPending, isSubmitting, maxCommentLength)
+                            children: footHint(comment, isPending, isSubmitting, maxCommentLength)
                         })
                     ]
                 })

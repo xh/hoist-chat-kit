@@ -203,7 +203,7 @@ panel({
         newChat: () => threadsModel.newThread(),
         toggleSidebar: () => sidebarModel.toggleCollapsed()
     }),
-    items: [sidebar(), conversation()]
+    children: [sidebar(), conversation()]
 });
 ```
 
@@ -861,7 +861,7 @@ class AnswerFeedbackModel extends HoistModel implements ChatFeedbackHost {
 chatFeedbackControls({message, host: answerFeedbackModel});
 ```
 
-To put the app's own actions in the same bar, pass them as `items`. They lead the bar, with a
+To put the app's own actions in the same bar, pass them as `children`. They lead the bar, with a
 divider before the thumbs, as the message view sets its built-in actions apart. They take the
 bar's quiet button style, and they show even while the reply cannot be rated, such as while it
 streams.
@@ -870,7 +870,7 @@ streams.
 chatFeedbackControls({
     message,
     host: answerFeedbackModel,
-    items: [chatCopyButton({getCopyText: () => message.text})]
+    children: [chatCopyButton({getCopyText: () => message.text})]
 });
 ```
 
@@ -1166,7 +1166,7 @@ because a markdown table carries no result set. A `table` entry replaces both.
 
 ```typescript
 const MARKDOWN_COMPONENTS: ChatMarkdownComponents = {
-    table: ({children}) => div({className: 'my-app-table', items: children})
+    table: ({children}) => div({className: 'my-app-table', children})
 };
 
 chatPanel({model: chatModel, messageListProps: {markdownComponents: MARKDOWN_COMPONENTS}});
@@ -1180,7 +1180,7 @@ panel that owns a `PanelModel`:
 ```typescript
 panel({
     modelConfig: {side: 'right', defaultSize: 420, minSize: 320},
-    item: chatPanel({model: chatModel, flex: 1})
+    children: chatPanel({model: chatModel, flex: 1})
 });
 ```
 
@@ -1210,7 +1210,7 @@ For a layout of your own, compose `chatMessageList` and `chatComposer` directly.
 
 ```typescript
 vframe({
-    items: [
+    children: [
         chatMessageList({model: chatModel, assistantName: 'Analyst'}),
         toolbar(chatComposer({model: chatModel.composerModel, flex: 1}))
     ]
@@ -1337,7 +1337,7 @@ it.
 | `ChatStatusCue` | `status`, `label`, `stalledMs`, `showSpinner` | Show a reply's status as its icon and words. `label` replaces the words, for example with a tool's verb. `showSpinner: false` drops the spinner when another element nearby shows one. |
 | `ChatElapsed` | `startedAt`, `endedAt` | Show the time taken, in whole seconds from 1 s, as `6s` or `1m 02s`. Ticks each second until `endedAt` is set. |
 | `ChatCopyButton` | `getCopyText`, `showText`, `label`, `aria-label` | Copy text, confirming in place with a check for a moment. No `ChatModel` needed. `aria-label` names it for screen readers where the label alone is not enough, as a code block's "Copy python code". |
-| `ChatFeedbackControls` | `message`, `host`, `items` | Rate a reply in a layout of your own: thumbs, then the comment form. `host` is a `ChatModel` or a `ChatFeedbackHost`. See [Collect feedback without a ChatModel](#collect-feedback-without-a-chatmodel). |
+| `ChatFeedbackControls` | `message`, `host`, `children` | Rate a reply in a layout of your own: thumbs, then the comment form. `host` is a `ChatModel` or a `ChatFeedbackHost`. See [Collect feedback without a ChatModel](#collect-feedback-without-a-chatmodel). |
 | `ChatErrorBoundary` | `subject`, `resetKey`, `className` | Catch a render error in a kit component you host yourself, as the message list does for each part. `className` applies to the note that takes its place. |
 
 ## Theming

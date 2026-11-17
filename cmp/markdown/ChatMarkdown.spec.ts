@@ -62,7 +62,7 @@ describe('ChatMarkdown', () => {
                 citations: {
                     sources: SOURCES,
                     renderMarker: (marker, source) =>
-                        span({className: `tip-${source.id}`, item: marker})
+                        span({className: `tip-${source.id}`, children: marker})
                 }
             });
 
@@ -217,7 +217,7 @@ describe('ChatMarkdown', () => {
         it('applies rehype plugins to the block that holds the trailing content', () => {
             const {container} = renderMarkdown({
                 content: 'One\n\nTwo',
-                trailingContent: span({className: 'trailer', item: 'chips'}),
+                trailingContent: span({className: 'trailer', children: 'chips'}),
                 markdownPlugins: {rehype: [[rehypeAddClass, {className: 'from-app'}]]}
             });
 

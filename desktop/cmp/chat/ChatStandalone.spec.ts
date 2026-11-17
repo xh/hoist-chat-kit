@@ -37,7 +37,8 @@ describe('building blocks with no model in context', () => {
             }),
         ChatCodeBlock: () => chatCodeBlock({content: 'print(1)', language: 'python'}),
         ChatCopyButton: () => chatCopyButton({getCopyText: () => 'text'}),
-        ChatErrorBoundary: () => chatErrorBoundary({item: chatCopyButton({getCopyText: () => ''})}),
+        ChatErrorBoundary: () =>
+            chatErrorBoundary({children: chatCopyButton({getCopyText: () => ''})}),
         ChatReasoning: () =>
             chatReasoning({
                 part: {

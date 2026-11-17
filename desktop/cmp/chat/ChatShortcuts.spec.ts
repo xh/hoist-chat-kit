@@ -40,7 +40,7 @@ function renderFrame(newChat: () => void) {
     return render(
         panel({
             hotkeys: getChatHotkeys({newChat}),
-            item: button({text: 'Inside'})
+            children: button({text: 'Inside'})
         })
     );
 }

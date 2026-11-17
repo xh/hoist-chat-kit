@@ -106,7 +106,7 @@ export function deleteMenuItem(
     actionFn: () => void
 ): MenuItem {
     return {
-        text: canDeleteNow ? 'Delete...' : span({title: DELETE_RUNNING_TIP, item: 'Delete...'}),
+        text: canDeleteNow ? 'Delete...' : span({title: DELETE_RUNNING_TIP, children: 'Delete...'}),
         icon: Icon.delete(),
         intent: 'danger',
         omit: !canDelete,

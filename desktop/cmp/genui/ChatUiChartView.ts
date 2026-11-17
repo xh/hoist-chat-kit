@@ -75,7 +75,7 @@ export const [ChatUiChartView, chatUiChartView] = hoistCmp.withFactory<ChatUiCha
                     domAttrs: {'aria-label': 'Chart type'}
                 }),
                 impl.type !== 'pie'
-                    ? span({className: 'xh-chat-ui-chart-view__label', item: 'Y'})
+                    ? span({className: 'xh-chat-ui-chart-view__label', children: 'Y'})
                     : null,
                 picker({
                     className: 'xh-chat-ui-chart-view__select',
@@ -90,7 +90,7 @@ export const [ChatUiChartView, chatUiChartView] = hoistCmp.withFactory<ChatUiCha
                 }),
                 span({
                     className: 'xh-chat-ui-chart-view__label',
-                    item: impl.type === 'pie' ? 'By' : 'X'
+                    children: impl.type === 'pie' ? 'By' : 'X'
                 }),
                 select({
                     className: 'xh-chat-ui-chart-view__select',
@@ -104,7 +104,7 @@ export const [ChatUiChartView, chatUiChartView] = hoistCmp.withFactory<ChatUiCha
                 chartMenuButton({chartModel})
             ],
             mask: impl.frame ? null : impl.loadTask,
-            item: loadError
+            children: loadError
                 ? errorMessage({
                       error: loadError,
                       title: 'Chart unavailable',
@@ -118,7 +118,7 @@ export const [ChatUiChartView, chatUiChartView] = hoistCmp.withFactory<ChatUiCha
                         className: 'xh-chat-ui-chart-view__body',
                         role: 'img',
                         'aria-label': impl.ariaLabel,
-                        item: chart({model: chartModel})
+                        children: chart({model: chartModel})
                     })
         });
     }

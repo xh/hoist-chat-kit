@@ -271,7 +271,7 @@ export const [ChatMarkdown, chatMarkdown] = hoistCmp.withFactory<ChatMarkdownPro
             // Hoist's markdown is memoized on its props, so a finished block renders once. Each
             // block sits in a provider, so that its components see the end of streaming even when
             // the content of the last block does not change.
-            items: blocks.map((block, idx) => {
+            children: blocks.map((block, idx) => {
                 const isBlockStreaming = isStreaming && idx === lastIdx;
                 return createElement(StreamingContext.Provider, {
                     key: idx,
@@ -312,7 +312,7 @@ function createLink(onLinkClickRef: {current: ChatMarkdownProps['onLinkClick']})
             target: '_blank',
             rel: 'noopener noreferrer',
             onClick: e => onLinkClickRef.current?.(href, e),
-            items: children
+            children
         });
 }
 
@@ -330,9 +330,9 @@ function createImage(policyRef: {current: ChatImagePolicy}) {
                   title: url,
                   target: '_blank',
                   rel: 'noopener noreferrer',
-                  items
+                  children: items
               })
-            : span({className: BLOCKED_IMAGE_CLS, items});
+            : span({className: BLOCKED_IMAGE_CLS, children: items});
     };
 }
 
@@ -411,12 +411,15 @@ function createCitation(citationsRef: {current: ChatMarkdownCitations}) {
             cited = numbers.map(number => ({number, source: findCitedSource(sources, number)}));
 
         if (cited.length >= GROUP_MIN && cited.every(it => it.source)) {
-            return span({className: CITATION_CLS, item: groupMarker(cited, onClick, renderGroup)});
+            return span({
+                className: CITATION_CLS,
+                children: groupMarker(cited, onClick, renderGroup)
+            });
         }
 
         return span({
             className: CITATION_CLS,
-            items: cited.map(({number, source}) => {
+            children: cited.map(({number, source}) => {
                 if (!source) return `[${number}]`;
 
                 const label = getSourceLabel(source),
@@ -428,10 +431,10 @@ function createCitation(citationsRef: {current: ChatMarkdownCitations}) {
                         'aria-label': `Source ${number}: ${label}`,
                         title: renderMarker ? null : compact([label, excerpt]).join('\n\n'),
                         onClick: () => (onClick ?? openSourceUrl)(source),
-                        item: String(number)
+                        children: String(number)
                     });
                 return renderMarker
-                    ? fragment({key: number, item: renderMarker(marker, source, number)})
+                    ? fragment({key: number, children: renderMarker(marker, source, number)})
                     : marker;
             })
         });
@@ -457,7 +460,7 @@ function groupMarker(
                       .map(({number, source}) => `${number}. ${getSourceLabel(source)}`)
                       .join('\n'),
             onClick: () => (onClick ?? openSourceUrl)(cited[0].source),
-            item: text
+            children: text
         });
     return renderGroup ? renderGroup(marker, cited) : marker;
 }

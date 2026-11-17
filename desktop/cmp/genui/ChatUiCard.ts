@@ -181,21 +181,21 @@ export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
 
         return div({
             className,
-            items: [
+            children: [
                 chatUiFrame({
                     title,
                     meta: subtitle,
-                    item: div({
+                    children: div({
                         className: 'xh-chat-ui-card__fields',
-                        items: validFields.map(({label, value, format, decimals}, idx) =>
+                        children: validFields.map(({label, value, format, decimals}, idx) =>
                             div({
                                 key: idx,
                                 className: 'xh-chat-ui-card__field',
-                                items: [
-                                    div({className: 'xh-chat-ui-card__label', item: label}),
+                                children: [
+                                    div({className: 'xh-chat-ui-card__label', children: label}),
                                     div({
                                         className: 'xh-chat-ui-card__value',
-                                        item: isFinite(value)
+                                        children: isFinite(value)
                                             ? fmtChatUiNumber(value as number, format, decimals)
                                             : value
                                     })
@@ -207,7 +207,7 @@ export const [ChatUiCard, chatUiCard] = hoistCmp.withFactory<ChatUiCardProps>({
                 validActions.length
                     ? div({
                           className: 'xh-chat-ui-card__actions',
-                          items: validActions.map((action, idx) => {
+                          children: validActions.map((action, idx) => {
                               // A blocked chat ignores a send, so say why the button waits.
                               const isMessaging = isChatUiMessagingAction(action),
                                   blockedReason = isMessaging ? chatModel.sendBlockedReason : null;

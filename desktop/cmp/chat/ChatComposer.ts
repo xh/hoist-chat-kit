@@ -167,14 +167,14 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
             // Inline, the bar's width sets the input's, as when Stop takes Send's place.
             ref: toolbarRef,
             className: 'xh-chat-composer__toolbar',
-            items: [
+            children: [
                 div({
                     className: 'xh-chat-composer__left',
-                    items: castArray(leftItems)
+                    children: castArray(leftItems)
                 }),
                 div({
                     className: 'xh-chat-composer__right',
-                    items: [
+                    children: [
                         ...castArray(rightItems),
                         ...(enableAttachments ? attachButton(composerModel, impl) : []),
                         ...sendButton(composerModel, impl, sendButtonProps, stopButtonProps)
@@ -200,16 +200,16 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
             onDragOver: impl.onDragOver,
             onDragLeave: impl.onDragLeave,
             onDrop: impl.onDrop,
-            items: [
-                topItems ? div({className: 'xh-chat-composer__top', items: topItems}) : null,
+            children: [
+                topItems ? div({className: 'xh-chat-composer__top', children: topItems}) : null,
                 div({
                     ref: boxRef,
                     className: 'xh-chat-composer__box',
-                    items: [
+                    children: [
                         attachments.length
                             ? div({
                                   className: 'xh-chat-composer__attachments',
-                                  items: attachments.map(file =>
+                                  children: attachments.map(file =>
                                       chatFileChip({
                                           key: file.id,
                                           file,
@@ -227,7 +227,7 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                             div({
                                 ref: fieldRef,
                                 className: 'xh-chat-composer__field',
-                                item: textArea({
+                                children: textArea({
                                     className: 'xh-chat-composer__input',
                                     model: composerModel,
                                     bind: 'text',
@@ -252,12 +252,12 @@ export const [ChatComposer, chatComposer] = hoistCmp.withFactory<ChatComposerPro
                     ]
                 }),
                 bottomItems
-                    ? div({className: 'xh-chat-composer__bottom', items: bottomItems})
+                    ? div({className: 'xh-chat-composer__bottom', children: bottomItems})
                     : null,
                 impl.isDragging
                     ? div({
                           className: 'xh-chat-composer__drop-hint',
-                          items: [Icon.paperclip(), 'Drop files to attach']
+                          children: [Icon.paperclip(), 'Drop files to attach']
                       })
                     : null,
                 chatAnnouncerRegions()
@@ -280,8 +280,10 @@ function inputRow(
     if (!items.length && !inlineBar) return input;
     return div({
         className: 'xh-chat-composer__input-row',
-        items: [
-            items.length ? div({ref: startRef, className: 'xh-chat-composer__start', items}) : null,
+        children: [
+            items.length
+                ? div({ref: startRef, className: 'xh-chat-composer__start', children: items})
+                : null,
             input,
             inlineBar
         ]
@@ -316,11 +318,11 @@ function attachButton(composerModel: ChatComposerModel, impl: ChatComposerLocalM
 function attachmentErrorRow(composerModel: ChatComposerModel): ReactNode {
     return div({
         className: 'xh-chat-composer__attachment-errors',
-        items: [
+        children: [
             Icon.warning(),
             div({
                 className: 'xh-chat-composer__attachment-errors-text',
-                item: composerModel.attachmentErrors.join(' ')
+                children: composerModel.attachmentErrors.join(' ')
             }),
             button({
                 icon: Icon.x(),
@@ -386,7 +388,7 @@ function sendButton(
             key: 'reason',
             id: reasonId,
             className: 'xh-chat-composer__send-reason',
-            item: reason
+            children: reason
         }),
         reason
             ? span({
@@ -395,9 +397,9 @@ function sendButton(
                   tabIndex: 0,
                   title: reason,
                   'aria-describedby': reasonId,
-                  item: send
+                  children: send
               })
-            : span({key: 'send', className: 'xh-chat-composer__send-wrap', item: send})
+            : span({key: 'send', className: 'xh-chat-composer__send-wrap', children: send})
     ];
 }
 

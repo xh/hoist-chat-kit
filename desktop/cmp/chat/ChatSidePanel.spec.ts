@@ -29,7 +29,7 @@ describe('ChatSidePanel', () => {
     });
 
     it("frames the app's viewer with the title and Close, and no Back", () => {
-        const renderer = vi.fn(() => div({className: 'app-viewer', item: 'PDF'})),
+        const renderer = vi.fn(() => div({className: 'app-viewer', children: 'PDF'})),
             model = panel(renderer);
         model.open(request(), opener());
         render(chatSidePanel({model}));

@@ -28,6 +28,6 @@ export const [ChatElapsed, chatElapsed] = hoistCmp.withFactory<ChatElapsedProps>
     render({className, startedAt, endedAt = null}) {
         const now = useChatClock(endedAt == null && startedAt != null),
             label = startedAt != null ? formatTickingElapsed((endedAt ?? now) - startedAt) : null;
-        return label ? span({className, title: 'Time taken', item: label}) : null;
+        return label ? span({className, title: 'Time taken', children: label}) : null;
     }
 });

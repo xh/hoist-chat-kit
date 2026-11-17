@@ -104,7 +104,7 @@ export interface ChatPanelProps
  * custom layout, compose a {@link ChatMessageList} and a {@link ChatComposer} directly.
  *
  * To make the chat collapsible or resizable, wrap it in a panel that owns a `PanelModel` -
- * `panel({modelConfig: {side: 'right', defaultSize: 420}, item: chatPanel({model})})`.
+ * `panel({modelConfig: {side: 'right', defaultSize: 420}, children: chatPanel({model})})`.
  */
 export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
     displayName: 'ChatPanel',
@@ -149,12 +149,12 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                 ...(hotkeys ?? [])
             ],
             ...rest,
-            items: [
+            children: [
                 isCentered
                     ? div({
                           key: 'emptyHead',
                           className: 'xh-chat-panel__empty-head',
-                          item: chatEmptyState(headProps)
+                          children: chatEmptyState(headProps)
                       })
                     : chatMessageList({
                           key: 'list',
@@ -176,9 +176,9 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                     }),
                     onDragOver: refuseFileDrop,
                     onDrop: refuseFileDrop,
-                    item: composerCenteredProvider({
+                    children: composerCenteredProvider({
                         value: isCentered,
-                        items: [
+                        children: [
                             chatStatusRegion({
                                 model: model.composerModel,
                                 ...statusRegionProps
@@ -197,12 +197,12 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                           // The tail settles as one: the suggestions within it come and go as the
                           // composer fills and empties, and must not settle again.
                           className: 'xh-chat-panel__empty-tail xh-chat-settle xh-chat-settle--3',
-                          items: [
+                          children: [
                               belowComposer != null
                                   ? div({
                                         key: 'belowComposer',
                                         className: 'xh-chat-panel__below-composer',
-                                        item: belowComposer
+                                        children: belowComposer
                                     })
                                   : null,
                               chatSuggestions({key: 'suggestions', model, suggestions}),
@@ -210,7 +210,7 @@ export const [ChatPanel, chatPanel] = hoistCmp.withFactory<ChatPanelProps>({
                                   ? div({
                                         key: 'footer',
                                         className: 'xh-chat-empty-state__footer',
-                                        item: footer
+                                        children: footer
                                     })
                                   : null
                           ]

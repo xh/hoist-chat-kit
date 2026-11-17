@@ -43,35 +43,35 @@ export const [ChatNoAnswer, chatNoAnswer] = hoistCmp.withFactory<ChatNoAnswerPro
             className,
             role: 'note',
             'aria-label': 'Fixed reply',
-            items: [
+            children: [
                 div({
                     className: 'xh-chat-no-answer__title',
-                    items: [
+                    children: [
                         Icon.search(),
                         span({
                             className: 'xh-chat-no-answer__title-text',
-                            item: searched ? 'Not found in the selected documents' : 'Not found'
+                            children: searched ? 'Not found in the selected documents' : 'Not found'
                         }),
-                        span({className: 'xh-chat-no-answer__tag', item: 'Fixed reply'})
+                        span({className: 'xh-chat-no-answer__tag', children: 'Fixed reply'})
                     ]
                 }),
                 div({
                     className: 'xh-chat-no-answer__message',
-                    item:
+                    children:
                         `I couldn't find this in ${searched ?? 'the documents searched'}, so I ` +
                         "haven't answered. Nothing here is generated from general knowledge."
                 }),
                 documents.length
                     ? div({
                           className: 'xh-chat-no-answer__scope',
-                          items: [
+                          children: [
                               span({
                                   className: 'xh-chat-no-answer__scope-names',
-                                  item: `Searched: ${formatNames(documents.map(it => it.name))}`
+                                  children: `Searched: ${formatNames(documents.map(it => it.name))}`
                               }),
                               span({
                                   className: 'xh-chat-no-answer__scope-count',
-                                  item: `Searched: ${pluralize('document', count, true)}`
+                                  children: `Searched: ${pluralize('document', count, true)}`
                               })
                           ]
                       })
@@ -79,7 +79,7 @@ export const [ChatNoAnswer, chatNoAnswer] = hoistCmp.withFactory<ChatNoAnswerPro
                 onEditQuestion
                     ? div({
                           className: 'xh-chat-no-answer__buttons',
-                          item: button({
+                          children: button({
                               icon: Icon.edit(),
                               text: 'Edit Question',
                               onClick: onEditQuestion

@@ -886,7 +886,7 @@ export class ChatUiCatalog {
                     context,
                     id
                 ),
-            item: chatUiComponent({
+            children: chatUiComponent({
                 spec: component,
                 node,
                 context,
@@ -901,7 +901,7 @@ export class ChatUiCatalog {
     private renderPlaceholder(name: string, key?: string): ReactNode {
         return fragment({
             key,
-            item: this.placeholderRenderer({
+            children: this.placeholderRenderer({
                 component: name,
                 displayName: name ? genDisplayName(name) : null
             })
@@ -919,7 +919,7 @@ export class ChatUiCatalog {
             this.loggedFallbacks.add(logKey);
             logWarn([spec.caption, spec.errors.join('; ')], 'ChatUiCatalog');
         }
-        return fragment({key, item: this.fallbackRenderer(spec)});
+        return fragment({key, children: this.fallbackRenderer(spec)});
     }
 
     private cacheSegment(segment: ChatUiComponentSegment): ChatUiComponentSegment {

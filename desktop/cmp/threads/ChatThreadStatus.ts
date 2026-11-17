@@ -56,7 +56,7 @@ export const [ChatThreadStatus, chatThreadStatus] = hoistCmp.withFactory<ChatThr
             return placeholder({
                 className: classNames(className, 'xh-chat-thread-status--loading'),
                 testId: getTestId(testId, 'loading'),
-                item: mask({bind: model.loadTask, spinner: true})
+                children: mask({bind: model.loadTask, spinner: true})
             });
         }
         return children ?? null;

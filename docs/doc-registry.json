@@ -720,7 +720,7 @@
       "title": "v3 Upgrade Notes",
       "mcpCategory": "upgrade",
       "viewerCategory": "upgrade",
-      "description": "Upgrade guide from v2.x to v3.0.0. Low difficulty. Covers the move to @xh/hoist v91 and its renamed CSS variables, with the codemod for an app's overrides of the kit's variables.",
+      "description": "Upgrade guide from v2.x to v3.0.0. Low difficulty. Requires @xh/hoist v91, whose upgrade notes and codemods also cover an app's use of the kit.",
       "keywords": [
         "upgrade",
         "migration",
@@ -730,8 +730,7 @@
         "hoist v91",
         "CSS variables",
         "codemod",
-        "--xh-spacing",
-        "--xh-pad-px"
+        "children"
       ]
     }
   ]

@@ -101,7 +101,7 @@ export const [ChatSidePanel, chatSidePanel] = hoistCmp.withFactory<ChatSidePanel
             role: 'complementary',
             'aria-label': label,
             onKeyDown: (e: KeyboardEvent) => onFrameKeyDown(e, model),
-            item
+            children: item
         });
     }
 });
@@ -192,7 +192,7 @@ const documentFrame = hoistCmp.factory<DocumentFrameProps>({
                           spinner: false,
                           message: span({
                               className: 'xh-chat-side-panel__opening',
-                              items: [
+                              children: [
                                   chatSpinner(),
                                   impl.isSlow && status.size != null
                                       ? `Still opening (${formatSize(status.size)})…`
@@ -203,17 +203,17 @@ const documentFrame = hoistCmp.factory<DocumentFrameProps>({
                           })
                       })
                     : null,
-            items: [
+            children: [
                 statusStrip(status, passage),
                 div({
                     className: 'xh-chat-side-panel__body',
-                    items: [
+                    children: [
                         // One viewer per document, so a new passage of it does not reload it.
                         div({
                             key: source.id,
                             className: 'xh-chat-side-panel__content',
                             'aria-hidden': isError || undefined,
-                            item: model.documentRenderer(request, model)
+                            children: model.documentRenderer(request, model)
                         }),
                         isError ? errorView(status.error, title) : null
                     ]
@@ -277,9 +277,9 @@ function statusStrip(status: ChatDocumentStatus, passage: string): ReactNode {
 function strip(kind: string, items: ReactNode[]): ReactNode {
     return div({
         className: `xh-chat-side-panel__strip xh-chat-side-panel__strip--${kind}`,
-        items: items.map((item, idx) =>
+        children: items.map((item, idx) =>
             typeof item === 'string'
-                ? span({key: idx, className: 'xh-chat-side-panel__strip-text', item})
+                ? span({key: idx, className: 'xh-chat-side-panel__strip-text', children: item})
                 : item
         )
     });
@@ -300,7 +300,7 @@ function errorView(error: ChatDocumentError, title: string): ReactNode {
 
     return div({
         className: 'xh-chat-side-panel__error',
-        item: errorMessage({
+        children: errorMessage({
             error: error ?? {},
             title: getErrorTitle(title),
             message: getErrorMessage(error),
@@ -369,7 +369,7 @@ function pageItems(status: ChatDocumentStatus): ReactNode[] {
     return [
         span({
             className: 'xh-chat-side-panel__page',
-            item: isFinite(pageCount) ? `Page ${page} of ${pageCount}` : `Page ${page}`
+            children: isFinite(pageCount) ? `Page ${page} of ${pageCount}` : `Page ${page}`
         })
     ];
 }

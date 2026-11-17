@@ -48,13 +48,13 @@ export const [ChatCodeBlock, chatCodeBlock] = hoistCmp.withFactory<ChatCodeBlock
         return div({
             ref,
             className,
-            items: [
+            children: [
                 div({
                     className: 'xh-chat-code-block__header',
-                    items: [
+                    children: [
                         span({
                             className: 'xh-chat-code-block__language',
-                            item: language || 'text'
+                            children: language || 'text'
                         }),
                         chatCopyButton({
                             getCopyText: () => content,
@@ -65,16 +65,16 @@ export const [ChatCodeBlock, chatCodeBlock] = hoistCmp.withFactory<ChatCodeBlock
                 }),
                 pre({
                     className: 'xh-chat-code-block__body',
-                    item: code({
+                    children: code({
                         className: language ? `language-${language}` : undefined,
-                        item: shown
+                        children: shown
                     })
                 }),
                 // One button that stays in place, so that keyboard focus stays on it.
                 extraCount
                     ? div({
                           className: 'xh-chat-code-block__footer',
-                          item: button({
+                          children: button({
                               text: isCollapsed
                                   ? `Show ${pluralize('more line', extraCount, true)}`
                                   : 'Show fewer lines',

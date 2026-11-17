@@ -175,7 +175,7 @@ export const chatCitations = hoistCmp.factory<ChatCitationsProps>({
         // A span, as the markers sit inside the paragraph they support.
         return span({
             className,
-            items: numberCitations(citations, references).map(({citation, number, reference}) =>
+            children: numberCitations(citations, references).map(({citation, number, reference}) =>
                 chatCitationMarker({
                     key: citation.id ?? number,
                     number,

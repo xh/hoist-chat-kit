@@ -41,9 +41,7 @@ export const [ChatErrorBoundary, chatErrorBoundary] = hoistCmp.withFactory<ChatE
             model.clear();
         }, [model, resetKey]);
 
-        return model.error
-            ? fallback(model, subject, className)
-            : errorBoundary({model, item: children});
+        return model.error ? fallback(model, subject, className) : errorBoundary({model, children});
     }
 });
 
@@ -55,10 +53,10 @@ function fallback(model: ErrorBoundaryModel, subject: string, className: string)
     return div({
         className,
         role: 'note',
-        items: [
+        children: [
             div({
                 className: 'xh-chat-error-boundary__title',
-                items: [
+                children: [
                     Icon.warningCircle(),
                     span(`This ${subject} could not be displayed.`),
                     button({
@@ -70,7 +68,7 @@ function fallback(model: ErrorBoundaryModel, subject: string, className: string)
             }),
             details({
                 className: 'xh-chat-error-boundary__details',
-                items: [summary('Details'), pre((error as Error)?.message || String(error))]
+                children: [summary('Details'), pre((error as Error)?.message || String(error))]
             })
         ]
     });

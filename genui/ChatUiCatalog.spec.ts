@@ -293,7 +293,7 @@ describe('ChatUiCatalog', () => {
                 props: {type: 'object', required: ['title'], properties: {title: {type: 'string'}}},
                 slots: ['default'],
                 render: ({title}, {children}) =>
-                    fragment({items: [`[${title}: `, ...children, ']']})
+                    fragment({children: [`[${title}: `, ...children, ']']})
             },
             ADAPTER: ChatUiAdapter = {
                 dataType: 'test-ui',
@@ -610,5 +610,5 @@ function dataPart(data: any): ChatDataPart {
 }
 
 function markup(content: ReactNode): string {
-    return renderToStaticMarkup(fragment({items: content}));
+    return renderToStaticMarkup(fragment({children: content}));
 }

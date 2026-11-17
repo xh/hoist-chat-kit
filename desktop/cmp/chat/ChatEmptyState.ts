@@ -76,21 +76,24 @@ export const [ChatEmptyState, chatEmptyState] = hoistCmp.withFactory<ChatEmptySt
         return div({
             ref,
             className,
-            items: [
+            children: [
                 header != null
-                    ? div({className: 'xh-chat-empty-state__header xh-chat-settle', item: header})
+                    ? div({
+                          className: 'xh-chat-empty-state__header xh-chat-settle',
+                          children: header
+                      })
                     : null,
                 title
-                    ? div({className: 'xh-chat-empty-state__title xh-chat-settle', item: title})
+                    ? div({className: 'xh-chat-empty-state__title xh-chat-settle', children: title})
                     : null,
                 text
                     ? div({
                           className: 'xh-chat-empty-state__text xh-chat-settle xh-chat-settle--1',
-                          items: [
+                          children: [
                               icon
-                                  ? span({className: 'xh-chat-empty-state__icon', item: icon})
+                                  ? span({className: 'xh-chat-empty-state__icon', children: icon})
                                   : null,
-                              span({item: text})
+                              span({children: text})
                           ]
                       })
                     : null,
@@ -100,7 +103,7 @@ export const [ChatEmptyState, chatEmptyState] = hoistCmp.withFactory<ChatEmptySt
                 footer != null
                     ? div({
                           className: 'xh-chat-empty-state__footer xh-chat-settle xh-chat-settle--2',
-                          item: footer
+                          children: footer
                       })
                     : null,
                 children

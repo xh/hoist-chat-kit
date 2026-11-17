@@ -16,13 +16,16 @@
 
 Requires `@xh/hoist` 91 or later.
 
-### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - upgrade Hoist to v91)
+### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - requires Hoist v91)
 
 See [`docs/upgrade-notes/v3-upgrade-notes.md`](docs/upgrade-notes/v3-upgrade-notes.md) for
 detailed, step-by-step upgrade instructions with before/after code examples.
 
 * The kit now requires `@xh/hoist` 91 or later. Its styles read Hoist's renamed CSS variables, such
   as `--xh-spacing` in place of `--xh-pad-px`. The kit's own `--xh-chat-*` variables are unchanged.
+* The kit's components now take child elements as `children`, as Hoist 91's element factories do.
+  The docs and examples use `children` too. The legacy `item` and `items` keys still work in Hoist
+  91.
 
 ### 🐞 Bug Fixes
 
