@@ -114,7 +114,7 @@ describe('generative UI components', () => {
             });
 
             const [pnl, risk] = container.querySelectorAll(
-                '.xh-stat-card__sub-value [aria-hidden="true"] > span'
+                '.xh-stat-card__sub-value [role="img"] > span'
             );
             expect(pnl.className).toContain('xh-pos-val');
             expect(risk.className).toContain('xh-neg-val');
@@ -134,14 +134,10 @@ describe('generative UI components', () => {
                 ]
             });
 
-            const words = [...container.querySelectorAll('.xh-chat-ui-sr-only')].map(
-                it => it.textContent
-            );
-            expect(words).toEqual(['up 1.2%', 'down 400K', 'unchanged']);
-            // The glyph and number on screen are hidden from the screen reader.
-            expect(
-                container.querySelector('.xh-stat-card__sub-value [aria-hidden="true"]').textContent
-            ).toBe('▴1.2%');
+            const names = screen.getAllByRole('img').map(it => it.getAttribute('aria-label'));
+            expect(names).toEqual(['up 1.2%', 'down 400K', 'unchanged']);
+            // StatCard shows a cut-off delta's text in a tooltip, which holds no words.
+            expect(container.querySelector('.xh-stat-card__sub-value').textContent).toBe('▴1.2%');
         });
     });
 

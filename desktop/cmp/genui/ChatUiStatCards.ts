@@ -194,7 +194,8 @@ function toStatCard(card: ChatUiStatCard, idx: number): ReactNode {
 
 /**
  * The delta in color, with an arrow glyph. A screen reader hears it in words instead, such as
- * "up 1.2%", as the glyph alone does not say which way the value moved.
+ * "up 1.2%", as the glyph alone does not say which way the value moved. The words are a label, not
+ * text, as `StatCard` shows the text of a cut-off delta in its tooltip.
  */
 function fmtDelta(
     delta: number,
@@ -210,12 +211,7 @@ function fmtDelta(
         size = fmtChatUiNumber(Math.abs(delta), format, decimals, {compact: true, asHtml: true}),
         words = delta > 0 ? `up ${size}` : delta < 0 ? `down ${size}` : 'unchanged';
 
-    return span({
-        children: [
-            span({key: 'shown', 'aria-hidden': true, children: shown}),
-            span({key: 'words', className: 'xh-chat-ui-sr-only', children: words})
-        ]
-    });
+    return span({role: 'img', 'aria-label': words, children: shown});
 }
 
 /** A value in its compact form, with the full value in a tooltip where the two differ. */
