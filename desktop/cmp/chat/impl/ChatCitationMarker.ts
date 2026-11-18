@@ -85,7 +85,7 @@ export const chatCitationMarker = hoistCmp.factory<ChatCitationMarkerProps>({
                         impl.togglePin();
                     }
                 },
-                item: String(number)
+                children: String(number)
             }),
             impl.isOpen ? sourceCard({key: 'card', impl, number, source, passage, links}) : null
         ]);
@@ -127,21 +127,21 @@ export const chatCitationGroupMarker = hoistCmp.factory<ChatCitationGroupMarkerP
                 'aria-describedby': impl.isOpen ? impl.cardId : undefined,
                 onFocus: impl.onFocus,
                 onClick: () => impl.togglePin(),
-                item: text
+                children: text
             }),
             impl.isOpen
                 ? span({
                       key: 'card',
                       ...cardProps(impl, label),
-                      items: cited.map(({number, source}) =>
+                      children: cited.map(({number, source}) =>
                           span({
                               key: number,
                               className: 'xh-chat-source-card__head',
-                              items: [
+                              children: [
                                   numberPill(number),
                                   span({
                                       className: 'xh-chat-source-card__icon',
-                                      item: sourceIcon(source)
+                                      children: sourceIcon(source)
                                   }),
                                   links.canOpen(source)
                                       ? htmlButton({
@@ -155,11 +155,11 @@ export const chatCitationGroupMarker = hoistCmp.factory<ChatCitationGroupMarkerP
                                                     opener: impl.markerRef.current
                                                 });
                                             },
-                                            item: getTitle(source)
+                                            children: getTitle(source)
                                         })
                                       : span({
                                             className: 'xh-chat-source-card__title',
-                                            item: getTitle(source)
+                                            children: getTitle(source)
                                         })
                               ]
                           })
@@ -319,7 +319,7 @@ function markerWrap(
         },
         onKeyDown: impl.onKeyDown,
         onBlur: impl.onBlur,
-        items
+        children: items
     });
 }
 
@@ -389,26 +389,26 @@ const sourceCard = hoistCmp.factory<SourceCardProps>({
 
         return span({
             ...cardProps(impl, `Source ${number}`),
-            items: [
+            children: [
                 span({
                     className: 'xh-chat-source-card__head',
-                    items: [
+                    children: [
                         numberPill(number),
                         span({
                             className: 'xh-chat-source-card__icon',
-                            item: sourceIcon(source)
+                            children: sourceIcon(source)
                         }),
-                        span({className: 'xh-chat-source-card__title', item: getTitle(source)})
+                        span({className: 'xh-chat-source-card__title', children: getTitle(source)})
                     ]
                 }),
                 meta.length
-                    ? span({className: 'xh-chat-source-card__meta', item: meta.join(' · ')})
+                    ? span({className: 'xh-chat-source-card__meta', children: meta.join(' · ')})
                     : null,
                 excerpt ? excerptText(excerpt, passage, 'xh-chat-source-card__excerpt') : null,
                 canOpen || excerpt
                     ? span({
                           className: 'xh-chat-source-card__foot',
-                          items: [
+                          children: [
                               canOpen
                                   ? button({
                                         icon: isDocument ? Icon.search() : Icon.openExternal(),
@@ -443,9 +443,11 @@ export function excerptText(excerpt: string, passage: string, className: string)
     const {before, passage: cited, after} = trimExcerpt(excerpt, passage);
     return span({
         className,
-        items: [
+        children: [
             before,
-            cited ? htmlMark({key: 'passage', className: 'xh-chat-passage', item: cited}) : null,
+            cited
+                ? htmlMark({key: 'passage', className: 'xh-chat-passage', children: cited})
+                : null,
             after
         ]
     });
@@ -465,7 +467,7 @@ export function getSourceMeta(source: ChatSourcePart): string[] {
 }
 
 function numberPill(number: number): ReactNode {
-    return span({className: 'xh-chat-source-card__number', 'aria-hidden': true, item: number});
+    return span({className: 'xh-chat-source-card__number', 'aria-hidden': true, children: number});
 }
 
 function getTitle(source: ChatSourcePart): string {

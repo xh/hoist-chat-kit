@@ -23,12 +23,12 @@ export const chatSpinner = hoistCmp.factory<HoistProps>({
     render({className}) {
         const spin = spinner({compact: true, className: 'xh-chat-spinner__spin'});
         if (ChatKit.defaults.reducedMotionSpinner === 'spin') {
-            return span({className, 'aria-hidden': true, item: spin});
+            return span({className, 'aria-hidden': true, children: spin});
         }
         return span({
             className: classNames(className, 'xh-chat-spinner--static-twin'),
             'aria-hidden': true,
-            items: [spin, staticBusyIcon()]
+            children: [spin, staticBusyIcon()]
         });
     }
 });

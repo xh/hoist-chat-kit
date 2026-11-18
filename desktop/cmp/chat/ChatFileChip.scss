@@ -4,16 +4,16 @@
 .xh-chat-file-chip {
   align-items: center;
   background-color: var(--xh-chat-bg);
-  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
   border-radius: var(--xh-chat-border-radius);
   box-sizing: border-box;
   display: inline-flex;
   font-size: var(--xh-chat-meta-font-size);
-  gap: calc(var(--xh-pad) * 0.6px);
+  gap: calc(var(--xh-spacing) * 0.6);
   height: 24px;
   max-width: 240px;
   min-width: 0;
-  padding: 0 calc(var(--xh-pad) * 0.8px);
+  padding: 0 calc(var(--xh-spacing) * 0.8);
   position: relative;
 
   &--removable {
@@ -42,7 +42,7 @@
   &__text {
     align-items: baseline;
     display: flex;
-    gap: calc(var(--xh-pad) * 0.6px);
+    gap: calc(var(--xh-spacing) * 0.6);
     line-height: 16px;
     min-width: 0;
   }

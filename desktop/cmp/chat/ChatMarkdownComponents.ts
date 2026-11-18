@@ -59,8 +59,8 @@ const MarkdownTable = hoistCmp<HoistProps & {node?: HastElement}>({
         const rowCount = countBodyRows(node),
             maxRows = ChatKit.defaults.markdownTableMaxRows;
         return rowCount > maxRows
-            ? markdownTableCard({rowCount, maxRows, item: children})
-            : table({items: children});
+            ? markdownTableCard({rowCount, maxRows, children})
+            : table({children});
     }
 });
 
@@ -76,11 +76,11 @@ const markdownTableCard = hoistCmp.factory<HoistProps & {rowCount: number; maxRo
 
         return chatUiFrame({
             className: 'xh-chat-markdown__table-card',
-            item: table({items: isExpanded ? children : capBodyRows(children, maxRows)}),
+            children: table({children: isExpanded ? children : capBodyRows(children, maxRows)}),
             footer: [
                 span({
                     key: 'counts',
-                    item: isExpanded ? rows : `Showing ${maxRows} of ${rows}`
+                    children: isExpanded ? rows : `Showing ${maxRows} of ${rows}`
                 }),
                 div({key: 'fill', className: 'xh-chat-ui-frame__fill'}),
                 button({

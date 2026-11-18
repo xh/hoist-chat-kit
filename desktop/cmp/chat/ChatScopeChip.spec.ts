@@ -95,7 +95,9 @@ describe('ChatScopeChip', () => {
                 {id: 't3', name: 'Archive', disabled: true}
             ];
         render(
-            appHost({item: chatScopeChip({options: tools, noun: 'tool', value: ['t1'], onChange})})
+            appHost({
+                children: chatScopeChip({options: tools, noun: 'tool', value: ['t1'], onChange})
+            })
         );
 
         fireEvent.click(screen.getByRole('button', {name: /^Tools:/}));
@@ -126,7 +128,7 @@ describe('ChatScopeChip', () => {
         // Under an app's own model, as in any app - Hoist inputs look one up in context.
         render(
             appHost({
-                item: chatScopeChip({options: DOCS, noun: 'document', value: ['d1'], onChange})
+                children: chatScopeChip({options: DOCS, noun: 'document', value: ['d1'], onChange})
             })
         );
 

@@ -294,10 +294,10 @@ export const [ChatMessageView, chatMessageView] = hoistCmp.withFactory<ChatMessa
             tabIndex: isSystem ? undefined : isLast ? 0 : -1,
             'aria-label': isSystem ? undefined : getAccessibleName(message, assistantName),
             'aria-busy': message.isStreaming || undefined,
-            items: message.isUser
+            children: message.isUser
                 ? userContent(props, impl, context)
                 : isSystem
-                  ? div({className: 'xh-chat-message__system', item: message.text})
+                  ? div({className: 'xh-chat-message__system', children: message.text})
                   : assistantContent(props, impl, context, references, markerSources)
         });
     }
@@ -459,7 +459,7 @@ function userContent(
         return [
             div({
                 className: 'xh-chat-message__row',
-                items: [files.length ? fileRow(files, allowImages) : null, actions]
+                children: [files.length ? fileRow(files, allowImages) : null, actions]
             }),
             under
         ];
@@ -468,11 +468,11 @@ function userContent(
         files.length ? fileRow(files, allowImages) : null,
         div({
             className: 'xh-chat-message__row',
-            items: [
+            children: [
                 div({
                     className: 'xh-chat-message__bubble',
                     title: fmtDateTime(message.createdAt) as string,
-                    item: message.text
+                    children: message.text
                 }),
                 actions
             ]
@@ -496,23 +496,23 @@ function underBubble(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNo
                       key: 'context',
                       className: 'xh-chat-message__context',
                       title: 'Sent with the message',
-                      item: contextText
+                      children: contextText
                   })
                 : null,
             notSentReason != null
                 ? div({
                       key: 'notSent',
                       className: 'xh-chat-message__not-sent',
-                      items: [
+                      children: [
                           Icon.error(),
                           span({
                               className: 'xh-chat-message__not-sent-text',
-                              item: 'Not sent.'
+                              children: 'Not sent.'
                           }),
                           notSentReason
                               ? span({
                                     className: 'xh-chat-message__not-sent-cause',
-                                    item: notSentReason
+                                    children: notSentReason
                                 })
                               : null,
                           chatModel?.allowEdit
@@ -528,7 +528,7 @@ function underBubble(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNo
                 : null
         ];
     return items.some(it => it)
-        ? div({className: 'xh-chat-message__under', items: items.filter(it => it)})
+        ? div({className: 'xh-chat-message__under', children: items.filter(it => it)})
         : null;
 }
 
@@ -558,7 +558,7 @@ const editBox = hoistCmp.factory<EditBoxProps>({
 
         return div({
             className: 'xh-chat-message__edit',
-            items: [
+            children: [
                 textArea({
                     model: impl,
                     bind: 'draft',
@@ -573,11 +573,11 @@ const editBox = hoistCmp.factory<EditBoxProps>({
                 }),
                 div({
                     className: 'xh-chat-message__edit-bar',
-                    items: [
+                    children: [
                         laterCount
                             ? span({
                                   className: 'xh-chat-message__edit-warning',
-                                  items: [
+                                  children: [
                                       Icon.warning(),
                                       `Resending replaces the ${pluralize('message', laterCount, laterCount > 1)} after this one.`
                                   ]
@@ -620,13 +620,13 @@ function assistantContent(
         div({
             key: 'main',
             className: 'xh-chat-message__main',
-            items: [
+            children: [
                 props.showHeader === false ? null : messageHeader(props, context),
                 replyDetachedProvider({
                     value: getChatReplyStatus({message}) === 'detached',
-                    item: div({
+                    children: div({
                         className: 'xh-chat-message__body',
-                        items: [
+                        children: [
                             ...withInterrupts(
                                 runs,
                                 message,
@@ -707,7 +707,7 @@ function processRun(
     return div({
         key: run.id,
         className: 'xh-chat-message__process',
-        items: run.groups.map(group =>
+        children: run.groups.map(group =>
             renderGroup(group, props, impl, context, references, markerSources)
         )
     });
@@ -767,7 +767,7 @@ function timelineBlock(
     return chatErrorBoundary({
         key: group.id,
         resetKey: message.status,
-        item: chatTimeline({
+        children: chatTimeline({
             message,
             host,
             parts: group.parts,
@@ -795,7 +795,7 @@ function renderGroup(
     return chatErrorBoundary({
         key: group.id,
         resetKey: getResetKey(group),
-        item: renderPartGroup(group, props, impl, context, references, markerSources)
+        children: renderPartGroup(group, props, impl, context, references, markerSources)
     });
 }
 
@@ -822,17 +822,17 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
 
     return div({
         className: 'xh-chat-message__header',
-        items: [
+        children: [
             span({
                 className: 'xh-chat-message__name',
-                items: [
+                children: [
                     span({
                         className: 'xh-chat-message__icon',
-                        item: assistantIcon ?? ChatKit.defaults.assistantIcon()
+                        children: assistantIcon ?? ChatKit.defaults.assistantIcon()
                     }),
                     span({
                         className: 'xh-chat-message__name-text',
-                        item: assistantName ?? 'Assistant'
+                        children: assistantName ?? 'Assistant'
                     })
                 ]
             }),
@@ -847,7 +847,7 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
             isPaused
                 ? span({
                       className: 'xh-chat-message__segment',
-                      item: chatStatusCue({status: 'paused'})
+                      children: chatStatusCue({status: 'paused'})
                   })
                 : null,
             isDone
@@ -861,27 +861,27 @@ function messageHeader(props: ViewProps, context: ChatPartRenderContext): ReactN
                 ? span({
                       className: 'xh-chat-message__segment xh-chat-message__elapsed',
                       title: 'Time taken',
-                      item: elapsed
+                      children: elapsed
                   })
                 : null,
             thought
                 ? span({
                       className: 'xh-chat-message__segment',
                       title: 'Time spent thinking',
-                      item: `Thought for ${thought}`
+                      children: `Thought for ${thought}`
                   })
                 : null,
             failedTools
                 ? span({
                       className: 'xh-chat-message__segment xh-chat-message__warning',
-                      items: [Icon.warning(), `${pluralize('tool', failedTools, true)} failed`]
+                      children: [Icon.warning(), `${pluralize('tool', failedTools, true)} failed`]
                   })
                 : null,
             isRetried
                 ? span({
                       className: 'xh-chat-message__segment xh-chat-message__retried',
                       title: 'An attempt was abandoned, and the assistant tried again.',
-                      item: 'Retried'
+                      children: 'Retried'
                   })
                 : null,
             ...(messageHeaderItems?.(message, context) ?? [])
@@ -1043,14 +1043,14 @@ const textPart = hoistCmp.factory<TextPartProps>({
 
         // Text with no component tags - the common case - renders as one block of markdown.
         if (!segments?.some(it => it.type !== 'markdown')) {
-            return div({className, item: markdown(text, true, true)});
+            return div({className, children: markdown(text, true, true)});
         }
 
         // Segments only grow at the end as the text streams, so their index is a stable key.
         const lastMarkdownIdx = findLastIndex(segments, it => it.type === 'markdown');
         return div({
             className,
-            items: segments.map((segment, idx) =>
+            children: segments.map((segment, idx) =>
                 segment.type === 'markdown'
                     ? markdown(
                           segment.text,
@@ -1061,7 +1061,7 @@ const textPart = hoistCmp.factory<TextPartProps>({
                     : div({
                           key: `s${idx}`,
                           className: 'xh-chat-message__ui',
-                          item: catalog.renderSegment(segment, {...context, part})
+                          children: catalog.renderSegment(segment, {...context, part})
                       })
             )
         });
@@ -1083,7 +1083,7 @@ const appTextPart = hoistCmp.factory<TextPartProps>({
         if (content == null) return textPart(props);
         return div({
             className: classNames('xh-chat-message__text', 'xh-chat-message__text--app'),
-            item: content
+            children: content
         });
     }
 });
@@ -1101,12 +1101,12 @@ const workingCue = hoistCmp.factory<WorkingCueProps>({
 
     render({className, message, chatModel, isLast}) {
         if (ChatKit.defaults.workingCue) {
-            return div({className, item: appWorkingCue({message, chatModel, isLast})});
+            return div({className, children: appWorkingCue({message, chatModel, isLast})});
         }
         // The reply has no rows yet, so no row shows a running tool's spinner.
         return div({
             className: classNames(className, 'xh-chat-message__working--kit'),
-            item: chatReplyLiveStatus({message, chatModel, isLast, alwaysSpin: true})
+            children: chatReplyLiveStatus({message, chatModel, isLast, alwaysSpin: true})
         });
     }
 });
@@ -1141,17 +1141,17 @@ const dataPart = hoistCmp.factory<DataPartProps>({
 
     render({className, part, context, host, onEditQuestion}) {
         const renderer = getOwn(host.dataRenderers ?? {}, part.dataType);
-        if (renderer) return div({className, item: renderer(part, context)});
+        if (renderer) return div({className, children: renderer(part, context)});
 
         // The built-in template, unless the app registers its own renderer for the type.
         if (part.dataType === CHAT_NO_ANSWER_DATA_TYPE) {
-            return div({className, item: chatNoAnswer({part, onEditQuestion})});
+            return div({className, children: chatNoAnswer({part, onEditQuestion})});
         }
 
         return div({
             className: classNames(className, 'xh-chat-message__data--unrendered'),
-            items: [
-                div({className: 'xh-chat-message__data-type', item: part.dataType}),
+            children: [
+                div({className: 'xh-chat-message__data-type', children: part.dataType}),
                 jsonView({value: part.data})
             ]
         });
@@ -1162,7 +1162,7 @@ function fileRow(files: ChatFilePart[], allowImages: ChatImagePolicy): ReactNode
     return div({
         key: `files-${files[0].id}`,
         className: 'xh-chat-message__files',
-        items: files.map(file => chatFileChip({key: file.id, file, allowImages}))
+        children: files.map(file => chatFileChip({key: file.id, file, allowImages}))
     });
 }
 
@@ -1188,18 +1188,18 @@ function replyNotice(props: ViewProps, chatModel: ChatModel): ReactNode {
                 key: 'notice',
                 className: 'xh-chat-message__failed',
                 // No live role: the composer's status region announces the failure.
-                items: [
+                children: [
                     Icon.error({className: 'xh-chat-message__failed-icon'}),
                     div({
                         className: 'xh-chat-message__failed-text',
-                        items: [
+                        children: [
                             span({
                                 className: 'xh-chat-message__failed-title',
-                                item: 'The reply failed.'
+                                children: 'The reply failed.'
                             }),
                             span({
                                 className: 'xh-chat-message__failed-cause',
-                                item: getFailureCause(message)
+                                children: getFailureCause(message)
                             })
                         ]
                     }),
@@ -1222,7 +1222,7 @@ function replyNotice(props: ViewProps, chatModel: ChatModel): ReactNode {
                     ? span({
                           key: 'reason',
                           className: 'xh-chat-message__notice-detail',
-                          item: message.error
+                          children: message.error
                       })
                     : null
             ]);
@@ -1234,7 +1234,7 @@ function replyNotice(props: ViewProps, chatModel: ChatModel): ReactNode {
     if (message.metadata.finishReason === 'length') {
         return notice('xh-chat-message__notice--warning', [
             Icon.warning({key: 'icon'}),
-            span({key: 'text', item: 'Cut off at the length limit.'})
+            span({key: 'text', children: 'Cut off at the length limit.'})
         ]);
     }
     return null;
@@ -1244,7 +1244,7 @@ function notice(className: string, items: ReactNode): ReactNode {
     return div({
         key: 'notice',
         className: classNames('xh-chat-message__notice', className),
-        items
+        children: items
     });
 }
 
@@ -1336,7 +1336,7 @@ const actionBar = hoistCmp.factory<ActionBarProps>({
             // A group, not a toolbar: each action is its own tab stop, with no arrow keys.
             role: 'group',
             'aria-label': 'Message actions',
-            items: groups.flatMap((items, idx) =>
+            children: groups.flatMap((items, idx) =>
                 idx
                     ? [
                           span({
@@ -1364,7 +1364,7 @@ function afterReply(props: ViewProps, impl: ChatMessageViewLocalModel): ReactNod
     return div({
         key: 'after',
         className: 'xh-chat-message__after',
-        item: chatFeedbackForm({key: 'feedback', model: feedback})
+        children: chatFeedbackForm({key: 'feedback', model: feedback})
     });
 }
 

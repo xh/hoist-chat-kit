@@ -104,14 +104,14 @@ export const assistantPage = hoistCmp.factory<AssistantModel>(({model}) => {
         {chatModel} = threadsModel;
     return panel({
         hotkeys: getChatHotkeys({newChat: () => model.newChat()}),
-        item: hframe(
+        children: hframe(
             panel({
                 modelConfig: {side: 'left', defaultSize: 260, minSize: 200, maxSize: 400},
-                item: chatThreadList({model: threadsModel})
+                children: chatThreadList({model: threadsModel})
             }),
             chatThreadStatus({
                 model: threadsModel,
-                item: chatModel
+                children: chatModel
                     ? chatPanel({
                           key: chatModel.xhId,
                           model: chatModel,
@@ -197,7 +197,7 @@ It also takes Hoist's `BoxProps` for layout.
 |------|------|-------------|
 | `model` | `ChatThreadsModel` | The threads model. Default the one in context. |
 | `threadNoun` | `string` | The word for a thread in the status text, as on the list. Default 'thread'. |
-| `item` | `ReactNode` | The conversation to show when the thread has no status to show. |
+| `children` | `ReactNode` | The conversation to show when the thread has no status to show. |
 
 It reads the model's `isThreadLoading`, `isThreadNotFound`, `loadError` and `loadTask`. New Chat
 calls `newThread()`, and Retry calls `reloadThreadAsync()`.

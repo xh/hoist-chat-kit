@@ -60,13 +60,13 @@ export const [ChatReasoning, chatReasoning] = hoistCmp.withFactory<ChatReasoning
                 'xh-chat-reasoning--streaming': isStreaming,
                 'xh-chat-reasoning--expanded': isExpanded
             }),
-            items: [
+            children: [
                 button({
                     className: 'xh-chat-reasoning__toggle',
                     icon: isExpanded ? Icon.groupRowExpanded() : Icon.groupRowCollapsed(),
                     text: span({
                         className: 'xh-chat-reasoning__label',
-                        item: isStreaming ? 'Thinking…' : getDoneLabel(part)
+                        children: isStreaming ? 'Thinking…' : getDoneLabel(part)
                     }),
                     'aria-expanded': isExpanded,
                     onClick: () => impl.setExpanded(!isExpanded)
@@ -74,7 +74,7 @@ export const [ChatReasoning, chatReasoning] = hoistCmp.withFactory<ChatReasoning
                 isExpanded
                     ? div({
                           className: 'xh-chat-reasoning__body',
-                          item: chatMarkdown({
+                          children: chatMarkdown({
                               content: text,
                               isStreaming,
                               components,

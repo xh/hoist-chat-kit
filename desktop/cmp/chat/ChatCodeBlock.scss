@@ -5,7 +5,7 @@
 // The block sets its own type, so that a host's font size or line height cannot spread its lines.
 .xh-chat-code-block {
   background-color: var(--xh-chat-code-bg);
-  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
   border-radius: var(--xh-chat-border-radius);
   font-size: var(--xh-chat-font-size);
   line-height: var(--xh-chat-line-height);
@@ -15,15 +15,15 @@
   &__header {
     align-items: center;
     background-color: var(--xh-chat-part-header-bg);
-    border-bottom: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border-bottom: var(--xh-border-width) solid var(--xh-chat-part-border-color);
     box-sizing: border-box;
     color: var(--xh-chat-meta-text-color);
     display: flex;
     font-size: var(--xh-chat-meta-font-size);
-    gap: calc(var(--xh-pad) * 0.6px);
+    gap: calc(var(--xh-spacing) * 0.6);
     height: var(--xh-chat-part-header-height);
     justify-content: space-between;
-    padding: 0 2px 0 calc(var(--xh-pad) * 0.8px);
+    padding: 0 2px 0 calc(var(--xh-spacing) * 0.8);
   }
 
   &__language {
@@ -53,7 +53,7 @@
     line-height: var(--xh-chat-line-height);
     margin: 0;
     overflow-x: auto;
-    padding: calc(var(--xh-pad) * 0.8px) var(--xh-pad-px);
+    padding: calc(var(--xh-spacing) * 0.8) var(--xh-spacing);
     scrollbar-width: thin;
 
     code {
@@ -67,7 +67,7 @@
 
   // The button for the lines of a long block that do not show. Meta size, as the strip is.
   &__footer {
-    border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border-top: var(--xh-border-width) solid var(--xh-chat-part-border-color);
     display: flex;
     padding: 2px;
   }

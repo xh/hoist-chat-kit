@@ -215,7 +215,7 @@ describe('ChatFeedbackControls', () => {
     it("leads the bar with the app's items, and keeps them while the reply cannot be rated", () => {
         const host = createHost(),
             copy = () => button({text: 'Copy answer'}),
-            first = render(chatFeedbackControls({message: reply(), host, items: [copy()]}));
+            first = render(chatFeedbackControls({message: reply(), host, children: [copy()]}));
 
         const bar = screen.getByRole('group', {name: 'Message actions'});
         expect(bar.firstElementChild.textContent).toBe('Copy answer');
@@ -225,7 +225,7 @@ describe('ChatFeedbackControls', () => {
         first.unmount();
 
         const streaming = render(
-            chatFeedbackControls({message: reply('streaming', 'a2'), host, items: [copy()]})
+            chatFeedbackControls({message: reply('streaming', 'a2'), host, children: [copy()]})
         );
         expect(streaming.getByRole('button', {name: 'Copy answer'})).toBeTruthy();
         expect(streaming.queryByRole('button', {name: 'Good response'})).toBeNull();

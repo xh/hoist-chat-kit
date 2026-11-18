@@ -8,7 +8,7 @@
 
   &__tile {
     background-color: var(--xh-chat-bg);
-    border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
     border-radius: var(--xh-chat-border-radius);
     display: flex;
     flex-direction: column;
@@ -44,7 +44,7 @@
   // Never bigger than a Panel title. A number is never cut short - large values arrive
   // compacted, as `$48.5B`. Text wraps.
   &__value {
-    font-size: var(--xh-chat-tile-value-font-size, var(--xh-font-size-large-px));
+    font-size: var(--xh-chat-tile-value-font-size, var(--xh-font-size-large));
     font-variant-numeric: tabular-nums;
     font-weight: 600;
     line-height: 1.25;

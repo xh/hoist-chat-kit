@@ -170,7 +170,7 @@ export const [ChatUiGrid, chatUiGrid] = hoistCmp.withFactory<ChatUiGridProps, Ch
         return div({
             ref,
             className: classNames(className, {'xh-chat-ui-grid--compact': impl.isCompact}),
-            items: [cardFrame(impl, title), expandDialog(impl)]
+            children: [cardFrame(impl, title), expandDialog(impl)]
         });
     }
 });
@@ -498,21 +498,21 @@ function cardFrame(impl: ChatUiGridLocalModel, title: string): ReactNode {
         isBuilding = state === 'building' || (!!viewError && !!impl.props.isPartial);
 
     if (isBuilding && !title) {
-        return chatUiFrame({status: 'Building table…', item: reservedBody(null)});
+        return chatUiFrame({status: 'Building table…', children: reservedBody(null)});
     }
     if (isBuilding || state === 'waiting' || state === 'loading') {
         return chatUiFrame({
             title,
             icon,
-            item: previewSkeleton(impl.defaults.previewRows),
-            footer: span({className: 'xh-chat-ui-grid__busy', item: 'Loading rows…'})
+            children: previewSkeleton(impl.defaults.previewRows),
+            footer: span({className: 'xh-chat-ui-grid__busy', children: 'Loading rows…'})
         });
     }
     if (!preview) {
         return chatUiFrame({
             title,
             icon,
-            item: reservedBody(unavailable(impl, state, viewError ?? error)),
+            children: reservedBody(unavailable(impl, state, viewError ?? error)),
             footer: frame
                 ? span(`${fmtRows(frame.totalRows)} · ${fmtCount(frame.columns.length)} columns`)
                 : null
@@ -535,16 +535,16 @@ function cardFrame(impl: ChatUiGridLocalModel, title: string): ReactNode {
                   })
               ]
             : [],
-        item: preview.records.length
+        children: preview.records.length
             ? previewTable(preview, counts)
-            : div({className: 'xh-chat-ui-center xh-chat-ui-grid__empty', item: 'No rows.'}),
+            : div({className: 'xh-chat-ui-center xh-chat-ui-grid__empty', children: 'No rows.'}),
         footer: [
-            span({key: 'counts', className: 'xh-chat-ui-grid__counts', item: counts}),
+            span({key: 'counts', className: 'xh-chat-ui-grid__counts', children: counts}),
             isOpen
                 ? span({
                       key: 'open',
                       className: 'xh-chat-ui-grid__open',
-                      items: [Icon.arrowRight(), 'Open in panel']
+                      children: [Icon.arrowRight(), 'Open in panel']
                   })
                 : null,
             div({key: 'fill', className: 'xh-chat-ui-frame__fill'}),
@@ -572,7 +572,7 @@ function cardFrame(impl: ChatUiGridLocalModel, title: string): ReactNode {
 
 // A body at the height the loading preview took, so that nothing below moves when it fails.
 function reservedBody(content: ReactNode): ReactNode {
-    return div({className: 'xh-chat-ui-grid__reserved', item: content});
+    return div({className: 'xh-chat-ui-grid__reserved', children: content});
 }
 
 // Why the preview is not available, with only the actions that can work: Retry for a load that
@@ -586,7 +586,7 @@ function unavailable(
     return div({
         className: 'xh-chat-ui-center',
         role: 'alert',
-        item: errorMessage({
+        children: errorMessage({
             error: error ?? {},
             title: 'Preview unavailable',
             message: getUnavailableText(state, error),

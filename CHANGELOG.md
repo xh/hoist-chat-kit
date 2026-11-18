@@ -12,7 +12,44 @@
   3. Plain ASCII punctuation only. Use " - " for in-sentence breaks, never an em dash.
 -->
 
-## 2.0.0-SNAPSHOT - unreleased
+## 3.0.0-SNAPSHOT - unreleased
+
+Requires `@xh/hoist` 91 or later.
+
+### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - requires Hoist v91)
+
+See [`docs/upgrade-notes/v3-upgrade-notes.md`](docs/upgrade-notes/v3-upgrade-notes.md) for
+detailed, step-by-step upgrade instructions with before/after code examples.
+
+* The kit now requires `@xh/hoist` 91 or later. Its styles read Hoist's renamed CSS variables, such
+  as `--xh-spacing` in place of `--xh-pad-px`. The kit's own `--xh-chat-*` variables are unchanged.
+* The kit's components now take child elements as `children`, as Hoist 91's element factories do.
+  The docs and examples use `children` too. The legacy `item` and `items` keys still work in Hoist
+  91.
+
+### 🐞 Bug Fixes
+
+* Fixed the side panel to show a document's page, as "Page 12 of 38", in a toolbar. It showed as a
+  bare line under the header.
+* Fixed `ChatWorkspace` to size its sidebar and side panel for Hoist's 1px panel splitter. It still
+  reserved 8px per splitter, the width before Hoist 90, so a narrow workspace cut the side panel
+  7px more than it needed to.
+
+### ⚙️ Technical
+
+* Removed the install step that added the kit to `extraIncludePaths`. `configureRsbuild()` compiles
+  the kit's TypeScript without it, so apps can drop that entry.
+
+## 2.1.0 - 2026-11-16
+
+### ⚙️ Technical
+
+* Updated the kit to build and test against `@xh/hoist` 90.1. It still supports `@xh/hoist` 89.3.1
+  or later.
+* `chatMarkdown` with a table or a code fence, rendered on its own outside a chat, needs
+  `@xh/hoist` 90 or later. On 89 it shows "No model found", from a Hoist bug fixed in 90.
+
+## 2.0.0 - 2026-11-16
 
 ### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - remove the busy-line settings)
 
@@ -30,19 +67,21 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 
 ### 🎁 New Features
 
-* `ChatThreadsModel` now blocks sends while the store lists a thread as running and its history has
-  no settled reply to that turn yet. The status region shows the block only with Refresh Status,
-  once the automatic checks below stop.
-
 * `ChatThreadsModel` now checks on a turn that runs on the server while its chat does not follow
   it, and loads the reply once the thread list shows the run done. Set the interval with
-  `ChatKit.defaults.statusRefreshMs` or `ChatThreadsConfig.statusRefreshMs`, null for none.
-* Added `chatAnnouncer.withdraw()`, to take back an announcement whose news no longer holds. The
-  status region withdraws a status's announcement once it passes.
+  `ChatKit.defaults.statusRefreshMs` or `ChatThreadsConfig.statusRefreshMs`, null for none. The
+  checks stop after `statusRefreshTimeoutMs`, which both also take.
+* `ChatThreadsModel` now blocks sends while the store lists a thread as running and its history has
+  no settled reply to that turn yet. The status region shows the block only with Refresh Status,
+  once the automatic checks stop.
 * `ChatMessageList` now shows "Still working on the server" for such a turn with no reply saved
   yet, in place of the empty state or after the user's question. The composer's start items breathe
   while it runs.
-
+* `ChatModel.setStatusRefresher()` now takes `ChatStatusRefresherOptions`, for an app with a thread
+  layer of its own. They drive the new `ChatModel.isRunningOnServer` and
+  `ChatModel.isStatusRefreshAutomatic` getters.
+* Added `chatAnnouncer.withdraw()`, to take back an announcement whose news no longer holds. The
+  status region withdraws a status's announcement once it passes.
 * Added `ChatThreadsModel.showThreadTitle()`, to show a title the backend already holds, such as
   one it wrote in the background. The list and the workspace header show it at once, with no
   store call and no list reload.
@@ -76,9 +115,15 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * `isChatRetrySafe` now takes `metadata.retrySafe: true` over the kit's own unsafe error codes.
   Before, only `false` decided.
 * Fixed `replayChatEvents` to record no times for events with no `timestamp`. Before, it timed
-  every tool call, sub-agent and reasoning part by the load, so each showed "<0.1s". The timeline,
-  its screen reader labels and the reasoning label now show no time for them. A backend that
-  stores events should stamp each one as the agent emits it.
+  every tool call, sub-agent and reasoning part by the load, so each showed "<0.1s". Such parts now
+  carry null `startedAt` and `endedAt`, and the timeline, its screen reader labels and the
+  reasoning label show no time for them. A backend that stores events should stamp each one as the
+  agent emits it.
+
+### ⚙️ Technical
+
+* Added Zod 4 as a dependency of the kit. AG-UI 1.0.4 takes Zod as a peer, so the kit supplies it.
+  Apps no longer need the `zod` override that the 1.0.0 README advised, and can remove it.
 
 ### ✨ Styles
 

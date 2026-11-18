@@ -15,12 +15,12 @@
     align-items: center;
     display: flex;
     flex-wrap: wrap;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
   }
 
   &__box {
     background-color: var(--xh-chat-composer-bg);
-    border: var(--xh-border-width-px) solid var(--xh-chat-composer-border-color);
+    border: var(--xh-border-width) solid var(--xh-chat-composer-border-color);
     border-radius: var(--xh-chat-border-radius);
     display: flex;
     flex-direction: column;
@@ -57,7 +57,7 @@
     color: var(--xh-chat-warning-color);
     display: flex;
     font-size: var(--xh-chat-meta-font-size);
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
     padding: 6px 4px 0 8px;
 
     .xh-button {
@@ -246,7 +246,7 @@
     border-radius: var(--xh-chat-border-radius);
     color: var(--xh-intent-primary-text-color);
     display: flex;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
     inset: 0;
     justify-content: center;
     pointer-events: none;

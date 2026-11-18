@@ -175,7 +175,7 @@ export const [ChatUiMetrics, chatUiMetrics] = hoistCmp.withFactory<ChatUiMetrics
         return div({
             className,
             role: 'list',
-            items: tiles.map((it, idx) => metricTile(it, idx))
+            children: tiles.map((it, idx) => metricTile(it, idx))
         });
     }
 });
@@ -228,8 +228,8 @@ function metricTile(metric: ChatUiMetric, idx: number): ReactNode {
             'xh-chat-ui-metrics__tile',
             `xh-chat-ui-metrics__tile--${metric.intent ?? 'none'}`
         ),
-        items: [
-            div({className: 'xh-chat-ui-metrics__label', title: label, item: label}),
+        children: [
+            div({className: 'xh-chat-ui-metrics__label', title: label, children: label}),
             div({
                 className: classNames('xh-chat-ui-metrics__value', {
                     'xh-chat-ui-metrics__value--text': !isNumeric
@@ -237,17 +237,17 @@ function metricTile(metric: ChatUiMetric, idx: number): ReactNode {
                 title: isNumeric
                     ? (fmtChatUiNumber(value as number, format, decimals, {asHtml: true}) as string)
                     : null,
-                item: isNumeric
+                children: isNumeric
                     ? fmtChatUiNumber(value as number, format, decimals, {compact: true})
                     : value
             }),
             hasDelta
                 ? div({
                       className: 'xh-chat-ui-metrics__delta',
-                      items: [
+                      children: [
                           span({
                               className: `xh-chat-ui-metrics__change xh-chat-ui-metrics__change--${tone}`,
-                              items: [
+                              children: [
                                   direction === 'up'
                                       ? Icon.arrowUp()
                                       : direction === 'down'
@@ -259,7 +259,7 @@ function metricTile(metric: ChatUiMetric, idx: number): ReactNode {
                           deltaLabel
                               ? span({
                                     className: 'xh-chat-ui-metrics__delta-label',
-                                    item: deltaLabel
+                                    children: deltaLabel
                                 })
                               : null
                       ]

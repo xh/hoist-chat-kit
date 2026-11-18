@@ -236,12 +236,12 @@ class NoopResizeObserver {
 const chatHost = hoistCmp.factory<HoistProps<ChatModel>>({
     displayName: 'ChatHost',
     model: uses(ChatModel),
-    render: ({children}) => fragment({items: children})
+    render: ({children}) => fragment({children})
 });
 
 function renderInChat(content: ReactElement) {
     const model = createChatModel(),
-        inChat = (it: ReactElement) => chatHost({model, item: it}),
+        inChat = (it: ReactElement) => chatHost({model, children: it}),
         result = render(inChat(content));
     return {...result, rerender: (it: ReactElement) => result.rerender(inChat(it))};
 }

@@ -87,7 +87,7 @@ describe('ChatUiChart tiers', () => {
     it('takes its height from the chart height variable, unless given one', () => {
         const {container} = renderInHost(
                 div({
-                    items: [
+                    children: [
                         chatUiChart({key: 'a', ...props}),
                         chatUiChart({key: 'b', ...props, height: 300})
                     ]
@@ -225,18 +225,20 @@ class NoopResizeObserver {
 const chatHost = hoistCmp.factory<HoistProps<ChatModel>>({
     displayName: 'ChatHost',
     model: uses(ChatModel),
-    render: ({children}) => fragment({items: children})
+    render: ({children}) => fragment({children})
 });
 
 const sidePanelHost = hoistCmp.factory<HoistProps<ChatSidePanelModel>>({
     displayName: 'SidePanelHost',
     model: uses(ChatSidePanelModel),
-    render: ({children}) => fragment({items: children})
+    render: ({children}) => fragment({children})
 });
 
 function renderInHost(content: ReactElement, opts: {sidePanel?: ChatSidePanelModel} = {}) {
     const model = new ChatModel({transport: new ScriptedChatTransport()});
     onTestFinished(() => model.destroy());
-    const inChat = chatHost({model, item: content});
-    return render(opts.sidePanel ? sidePanelHost({model: opts.sidePanel, item: inChat}) : inChat);
+    const inChat = chatHost({model, children: content});
+    return render(
+        opts.sidePanel ? sidePanelHost({model: opts.sidePanel, children: inChat}) : inChat
+    );
 }

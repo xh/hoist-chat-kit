@@ -143,7 +143,7 @@ describe('ChatToolCall display modes', () => {
             renderRow = (chatModel: ChatModel) =>
                 render(
                     appContext({
-                        item: chatToolCall({
+                        children: chatToolCall({
                             part: pending,
                             context: {chatModel, host: chatModel, messageId: 'a1'}
                         })
@@ -358,7 +358,7 @@ function createChat(
 }
 
 function renderList(chatModel: ChatModel) {
-    return render(appContext({item: chatMessageList({model: chatModel})}));
+    return render(appContext({children: chatMessageList({model: chatModel})}));
 }
 
 function typeReason(value: string) {

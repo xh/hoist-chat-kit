@@ -12,7 +12,7 @@
     display: inline-flex;
     font-size: var(--xh-chat-meta-font-size);
     gap: var(--xh-chat-status-cue-gap);
-    margin-left: var(--xh-pad-half-px);
+    margin-left: var(--xh-spacing-half);
     white-space: nowrap;
 
     &--failed {
@@ -38,14 +38,14 @@
   // Full width below its max width, as when docked at 380 px.
   &__feedback {
     background-color: var(--xh-chat-bg);
-    border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
     border-radius: var(--xh-chat-border-radius);
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: var(--xh-pad-px);
+    gap: var(--xh-spacing);
     max-width: var(--xh-chat-feedback-max-width);
-    padding: var(--xh-pad-px);
+    padding: var(--xh-spacing);
 
     .xh-text-area.bp6-input {
       box-sizing: border-box;
@@ -59,7 +59,7 @@
     align-items: baseline;
     display: flex;
     font-weight: 600;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
   }
 
   &__feedback-hint {
@@ -81,14 +81,14 @@
     align-items: center;
     display: flex;
     flex-wrap: wrap;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
   }
 
   // Wraps Send, to hold focus while Send is disabled mid-flight.
   &__feedback-send {
     align-items: center;
     display: inline-flex;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
     outline: none;
   }
 
@@ -103,7 +103,7 @@
 .xh-chat-message__thumb-hint {
   color: var(--xh-chat-meta-text-color);
   font-size: var(--xh-chat-meta-font-size);
-  padding: 0 var(--xh-pad-half-px);
+  padding: 0 var(--xh-spacing-half);
 }
 
 //------------------------
@@ -114,7 +114,7 @@
   display: flex;
   flex-direction: column;
   font-size: var(--xh-chat-font-size);
-  gap: var(--xh-pad-half-px);
+  gap: var(--xh-spacing-half);
   line-height: var(--xh-chat-line-height);
 
   &__bar {

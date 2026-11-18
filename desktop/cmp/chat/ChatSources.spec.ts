@@ -63,7 +63,7 @@ describe('sources and citations', () => {
         render(
             appContext({
                 model: appModel,
-                item: chatSources({
+                children: chatSources({
                     title: 'References',
                     sources: [
                         {
@@ -326,14 +326,20 @@ describe('sources and citations', () => {
             const appModel = new PlainAppModel();
             onTestFinished(() => appModel.destroy());
             const own = render(
-                appContext({model: appModel, item: chatSources({sources: [DOC1], compact: true})})
+                appContext({
+                    model: appModel,
+                    children: chatSources({sources: [DOC1], compact: true})
+                })
             );
             expect(layout(own.container)).toContain('xh-chat-sources--compact');
             own.unmount();
 
             defaults.compact = true;
             const ownRoomy = render(
-                appContext({model: appModel, item: chatSources({sources: [DOC1], compact: false})})
+                appContext({
+                    model: appModel,
+                    children: chatSources({sources: [DOC1], compact: false})
+                })
             );
             expect(layout(ownRoomy.container)).toContain('xh-chat-sources--roomy');
         });
@@ -631,7 +637,7 @@ function renderReply(
     const ret = render(
         appContext({
             model: appModel,
-            item: chatMessageList({model: chatModel, citationMarkers: true, ...props})
+            children: chatMessageList({model: chatModel, citationMarkers: true, ...props})
         })
     );
     return {...ret, chatModel, appModel, sidePanel: (appModel as TestAppModel).sidePanel ?? null};

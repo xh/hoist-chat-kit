@@ -74,7 +74,7 @@ describe('ChatInterrupts', () => {
         onTestFinished(() => chatModel.destroy());
         await chatModel.sendAsync('Help me');
         const {container} = render(
-            appContext({item: chatMessageList({model: chatModel, showMessageHeader: false})})
+            appContext({children: chatMessageList({model: chatModel, showMessageHeader: false})})
         );
 
         fireEvent.change(screen.getByRole('textbox', {name: 'Your answer'}), {
@@ -226,7 +226,7 @@ async function askAsync(interrupts: PlainInterrupt[], before: ChatEvent[] = []) 
     onTestFinished(() => chatModel.destroy());
 
     await chatModel.sendAsync('Help me');
-    render(appContext({item: chatMessageList({model: chatModel})}));
+    render(appContext({children: chatMessageList({model: chatModel})}));
     return {chatModel, transport};
 }
 

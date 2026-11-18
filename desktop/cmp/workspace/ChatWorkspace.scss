@@ -18,7 +18,7 @@
 
   // The sidebar and the side panel are resizable Hoist panels, siblings of the conversation. The
   // layout may show one narrower than its saved size, to leave the conversation its minimum.
-  &__sidebar > :not(.xh-resizable-splitter, .xh-resizable-dragger) {
+  &__sidebar > :not(.xh-panel-splitter) {
     max-width: var(--xh-chat-workspace-sidebar-width, none);
   }
 
@@ -26,7 +26,7 @@
     min-height: 0;
   }
 
-  &__side-panel > :not(.xh-resizable-splitter, .xh-resizable-dragger) {
+  &__side-panel > :not(.xh-panel-splitter) {
     max-width: var(--xh-chat-workspace-side-panel-width, none);
   }
 
@@ -55,7 +55,7 @@
   &__rail {
     align-items: center;
     background-color: var(--xh-chat-sidebar-bg);
-    border-right: var(--xh-border-width-px) solid var(--xh-chat-sidebar-border-color);
+    border-right: var(--xh-border-width) solid var(--xh-chat-sidebar-border-color);
     box-sizing: border-box;
     display: flex;
     flex: none;
@@ -80,7 +80,7 @@
 
   &__header {
     align-items: center;
-    border-bottom: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border-bottom: var(--xh-border-width) solid var(--xh-chat-part-border-color);
     display: flex;
     flex: none;
     gap: 6px;
@@ -89,7 +89,7 @@
   }
 
   &__title {
-    font-size: var(--xh-font-size-large-px);
+    font-size: var(--xh-font-size-large);
     font-weight: 600;
     min-width: 0;
     overflow: hidden;
@@ -99,7 +99,7 @@
 
   &__notice {
     background-color: var(--xh-chat-part-header-bg);
-    border-bottom: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border-bottom: var(--xh-border-width) solid var(--xh-chat-part-border-color);
     color: var(--xh-chat-meta-text-color);
     flex: none;
     font-size: var(--xh-chat-meta-font-size);

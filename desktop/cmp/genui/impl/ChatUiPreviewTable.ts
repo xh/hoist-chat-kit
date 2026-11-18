@@ -19,28 +19,28 @@ export function previewTable(preview: ChatUiTablePreview, caption: string): Reac
     const {columns, records} = preview;
     return table({
         className: 'xh-chat-ui-table',
-        items: [
-            htmlCaption({key: 'caption', className: 'xh-chat-ui-sr-only', item: caption}),
+        children: [
+            htmlCaption({key: 'caption', className: 'xh-chat-ui-sr-only', children: caption}),
             thead({
                 key: 'head',
-                item: tr({
-                    items: columns.map(it =>
+                children: tr({
+                    children: columns.map(it =>
                         th({
                             key: it.key,
                             scope: 'col',
                             className: `xh-chat-ui-table__cell--${getAlign(it)}`,
                             title: it.label,
-                            item: it.label
+                            children: it.label
                         })
                     )
                 })
             }),
             tbody({
                 key: 'body',
-                items: records.map(record =>
+                children: records.map(record =>
                     tr({
                         key: record[CHAT_DATA_ROW_ID],
-                        items: columns.map(it =>
+                        children: columns.map(it =>
                             td({
                                 key: it.key,
                                 className: `xh-chat-ui-table__cell--${getAlign(it)}`,
@@ -49,7 +49,7 @@ export function previewTable(preview: ChatUiTablePreview, caption: string): Reac
                                     it.type === 'string'
                                         ? formatTableText(record[it.key], it) || null
                                         : null,
-                                item: formatTableCell(record[it.key], it)
+                                children: formatTableCell(record[it.key], it)
                             })
                         )
                     })
@@ -68,11 +68,11 @@ export function previewSkeleton(rowCount: number): ReactNode {
     return div({
         className: 'xh-chat-ui-table-skeleton',
         'aria-hidden': true,
-        items: Array.from({length: rowCount + 1}, (_, idx) =>
+        children: Array.from({length: rowCount + 1}, (_, idx) =>
             div({
                 key: idx,
                 className: 'xh-chat-ui-table-skeleton__row',
-                items: SKELETON_WIDTHS.map((width, barIdx) =>
+                children: SKELETON_WIDTHS.map((width, barIdx) =>
                     span({
                         key: barIdx,
                         className: 'xh-chat-ui-table-skeleton__bar xh-chat-skeleton--shimmer',

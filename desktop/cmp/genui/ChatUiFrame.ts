@@ -55,18 +55,18 @@ export const [ChatUiFrame, chatUiFrame] = hoistCmp.withFactory<ChatUiFrameProps>
             className,
             role: titleText ? 'region' : null,
             'aria-label': titleText,
-            items: [
+            children: [
                 hasHeader
                     ? div({
                           className: 'xh-chat-ui-frame__header',
-                          items: [
+                          children: [
                               ...(status != null
                                   ? [
                                         span({
                                             key: 'status',
                                             className: 'xh-chat-ui-frame__status',
                                             role: 'status',
-                                            items: [chatSpinner(), status]
+                                            children: [chatSpinner(), status]
                                         })
                                     ]
                                   : [
@@ -74,7 +74,7 @@ export const [ChatUiFrame, chatUiFrame] = hoistCmp.withFactory<ChatUiFrameProps>
                                             ? span({
                                                   key: 'icon',
                                                   className: 'xh-chat-ui-frame__icon',
-                                                  item: icon
+                                                  children: icon
                                               })
                                             : null,
                                         title != null
@@ -85,14 +85,14 @@ export const [ChatUiFrame, chatUiFrame] = hoistCmp.withFactory<ChatUiFrameProps>
                                                       titleText?.length > MAX_TITLE
                                                           ? titleText
                                                           : null,
-                                                  item: capTitle(title)
+                                                  children: capTitle(title)
                                               })
                                             : null,
                                         meta != null
                                             ? div({
                                                   key: 'meta',
                                                   className: 'xh-chat-ui-frame__meta',
-                                                  item: meta
+                                                  children: meta
                                               })
                                             : null
                                     ]),
@@ -101,8 +101,10 @@ export const [ChatUiFrame, chatUiFrame] = hoistCmp.withFactory<ChatUiFrameProps>
                           ]
                       })
                     : null,
-                div({className: 'xh-chat-ui-frame__body', item: children}),
-                footer != null ? div({className: 'xh-chat-ui-frame__footer', item: footer}) : null
+                div({className: 'xh-chat-ui-frame__body', children}),
+                footer != null
+                    ? div({className: 'xh-chat-ui-frame__footer', children: footer})
+                    : null
             ]
         });
     }

@@ -5,7 +5,7 @@
 // bar and no motion when rows appear.
 .xh-chat-timeline {
   background-color: var(--xh-chat-timeline-bg);
-  border: var(--xh-border-width-px) solid var(--xh-chat-timeline-border-color);
+  border: var(--xh-border-width) solid var(--xh-chat-timeline-border-color);
   border-radius: var(--xh-chat-border-radius);
   display: flex;
   flex-direction: column;
@@ -134,7 +134,7 @@
   }
 
   &__body {
-    border-top: var(--xh-border-width-px) solid var(--xh-chat-timeline-border-color);
+    border-top: var(--xh-border-width) solid var(--xh-chat-timeline-border-color);
     padding-bottom: 4px;
   }
 
@@ -261,12 +261,12 @@
   &__count {
     align-items: center;
     background-color: var(--xh-chat-timeline-row-open-bg);
-    border: var(--xh-border-width-px) solid var(--xh-chat-timeline-border-color);
+    border: var(--xh-border-width) solid var(--xh-chat-timeline-border-color);
     border-radius: var(--xh-chat-border-radius);
     color: var(--xh-chat-meta-text-color);
     display: inline-flex;
     flex: none;
-    font-size: var(--xh-font-size-small-px);
+    font-size: var(--xh-font-size-small);
     font-weight: 600;
     height: 16px;
     justify-content: center;
@@ -319,7 +319,7 @@
 
   &__pane {
     background-color: var(--xh-chat-timeline-bg);
-    border: var(--xh-border-width-px) solid var(--xh-chat-timeline-border-color);
+    border: var(--xh-border-width) solid var(--xh-chat-timeline-border-color);
     border-radius: var(--xh-chat-border-radius);
     overflow: hidden;
   }
@@ -327,7 +327,7 @@
   &__pane-head {
     align-items: center;
     background-color: var(--xh-chat-part-header-bg);
-    border-bottom: var(--xh-border-width-px) solid var(--xh-chat-timeline-border-color);
+    border-bottom: var(--xh-border-width) solid var(--xh-chat-timeline-border-color);
     color: var(--xh-chat-meta-text-color);
     display: flex;
     font-size: var(--xh-chat-meta-font-size);
@@ -378,7 +378,7 @@
   }
 
   &__pane-more {
-    border-top: var(--xh-border-width-px) solid var(--xh-chat-timeline-border-color);
+    border-top: var(--xh-border-width) solid var(--xh-chat-timeline-border-color);
     color: var(--xh-chat-meta-text-color);
     font-size: var(--xh-chat-meta-font-size);
     padding: 3px 8px;
@@ -389,7 +389,7 @@
   //------------------
   &__ask {
     background-color: var(--xh-chat-timeline-bg);
-    border-top: var(--xh-border-width-px) solid var(--xh-chat-timeline-border-color);
+    border-top: var(--xh-border-width) solid var(--xh-chat-timeline-border-color);
     display: flex;
     flex-direction: column;
     gap: 8px;

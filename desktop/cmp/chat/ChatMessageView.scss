@@ -24,7 +24,7 @@
   //------------------------
   &--user {
     align-items: flex-end;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
   }
 
   &__bubble {
@@ -40,7 +40,7 @@
   &__files {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
     max-width: 100%;
   }
 
@@ -54,7 +54,7 @@
     align-items: flex-end;
     display: flex;
     flex-direction: row-reverse;
-    gap: calc(var(--xh-pad) * 0.4px);
+    gap: calc(var(--xh-spacing) * 0.4);
     min-width: 0;
     width: 100%;
   }
@@ -91,7 +91,7 @@
   &__edit {
     display: flex;
     flex-direction: column;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
     width: 100%;
 
     .xh-text-area.bp6-input {
@@ -101,7 +101,7 @@
       font-size: var(--xh-chat-font-size);
       line-height: var(--xh-chat-line-height);
       min-height: calc(1.5em * 2 + 16px);
-      padding: var(--xh-pad-half-px) var(--xh-pad-px);
+      padding: var(--xh-spacing-half) var(--xh-spacing);
       width: 100%;
     }
   }
@@ -109,7 +109,7 @@
   &__edit-bar {
     align-items: center;
     display: flex;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
     justify-content: flex-end;
   }
 
@@ -157,7 +157,7 @@
   &__header {
     align-items: center;
     color: var(--xh-chat-meta-text-color);
-    column-gap: calc(var(--xh-pad) * 0.6px);
+    column-gap: calc(var(--xh-spacing) * 0.6);
     display: flex;
     flex-wrap: wrap;
     font-size: var(--xh-chat-meta-font-size);
@@ -192,7 +192,7 @@
   &__segment {
     align-items: center;
     display: inline-flex;
-    gap: calc(var(--xh-pad) * 0.6px);
+    gap: calc(var(--xh-spacing) * 0.6);
 
     &::before {
       content: '·';
@@ -214,7 +214,7 @@
       .xh-chat-message__live-status {
         align-items: center;
         display: inline-flex;
-        gap: calc(var(--xh-pad) * 0.6px);
+        gap: calc(var(--xh-spacing) * 0.6);
       }
     }
   }
@@ -222,16 +222,16 @@
   // The busy status and its ticking time, as two segments.
   &__live-status .xh-chat-elapsed::before {
     content: '·';
-    margin-right: calc(var(--xh-pad) * 0.6px);
+    margin-right: calc(var(--xh-spacing) * 0.6);
   }
 
   &__warning {
     color: var(--xh-chat-warning-color);
-    gap: calc(var(--xh-pad) * 0.4px);
+    gap: calc(var(--xh-spacing) * 0.4);
 
     &::before {
       color: var(--xh-chat-meta-text-color);
-      margin-right: calc(var(--xh-pad) * 0.2px);
+      margin-right: calc(var(--xh-spacing) * 0.2);
     }
   }
 
@@ -277,7 +277,7 @@
     &--unrendered {
       display: flex;
       flex-direction: column;
-      gap: calc(var(--xh-pad) * 0.4px);
+      gap: calc(var(--xh-spacing) * 0.4);
     }
   }
 
@@ -312,12 +312,12 @@
   // above it.
   &__failed {
     align-items: center;
-    border: var(--xh-border-width-px) solid var(--xh-chat-error-color);
+    border: var(--xh-border-width) solid var(--xh-chat-error-color);
     border-radius: var(--xh-chat-border-radius);
     display: flex;
-    gap: var(--xh-pad-px);
+    gap: var(--xh-spacing);
     min-height: 32px;
-    padding: 2px 3px 2px var(--xh-pad-px);
+    padding: 2px 3px 2px var(--xh-spacing);
   }
 
   &__failed-icon {
@@ -333,7 +333,7 @@
   &__failed-cause {
     color: var(--xh-chat-meta-text-color);
     font-size: var(--xh-chat-meta-font-size);
-    margin-left: var(--xh-pad-half-px);
+    margin-left: var(--xh-spacing-half);
   }
 
   //------------------------
@@ -358,7 +358,7 @@
   }
 
   &--assistant &__actions {
-    left: calc(var(--xh-pad-half-px) * -1);
+    left: calc(var(--xh-spacing-half) * -1);
     position: absolute;
     top: 100%;
   }
@@ -398,7 +398,7 @@
   &__after {
     display: flex;
     flex-direction: column;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
     margin-top: var(--xh-chat-turn-gap);
   }
 }

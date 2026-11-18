@@ -32,6 +32,6 @@ export const chatUiElementBoundary = hoistCmp.factory<ChatUiElementBoundaryProps
             model.clear();
         }, [model, resetKey]);
 
-        return model.error ? renderError(model.error) : errorBoundary({model, item: children});
+        return model.error ? renderError(model.error) : errorBoundary({model, children});
     }
 });

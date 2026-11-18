@@ -30,7 +30,7 @@ export const chatAnnouncerRegions = hoistCmp.factory<HoistProps>({
         return div({
             ref,
             className,
-            items: [
+            children: [
                 region('polite', chatAnnouncer.getRegionText(host, 'polite')),
                 region('assertive', chatAnnouncer.getRegionText(host, 'assertive'))
             ]
@@ -50,7 +50,7 @@ function region(politeness: 'polite' | 'assertive', announcement: ChatAnnounceme
         role: politeness === 'assertive' ? 'alert' : 'status',
         'aria-live': politeness,
         'aria-atomic': true,
-        item: announcement ? div({key: announcement.id, item: announcement.text}) : null
+        children: announcement ? div({key: announcement.id, children: announcement.text}) : null
     });
 }
 

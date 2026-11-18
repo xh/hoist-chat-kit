@@ -105,7 +105,7 @@ describe('ChatUiGrid', () => {
             const {container} = renderInChat(
                 div({
                     className: 'xh-chat--compact',
-                    item: chatUiGrid({title: 'Positions', columns: COLUMNS, rows: rows(30)})
+                    children: chatUiGrid({title: 'Positions', columns: COLUMNS, rows: rows(30)})
                 })
             );
 
@@ -405,13 +405,13 @@ class NoopResizeObserver {
 const chatHost = hoistCmp.factory<HoistProps<ChatModel>>({
     displayName: 'ChatHost',
     model: uses(ChatModel),
-    render: ({children}) => fragment({items: children})
+    render: ({children}) => fragment({children})
 });
 
 const sidePanelHost = hoistCmp.factory<HoistProps<ChatSidePanelModel>>({
     displayName: 'SidePanelHost',
     model: uses(ChatSidePanelModel),
-    render: ({children}) => fragment({items: children})
+    render: ({children}) => fragment({children})
 });
 
 function renderInChat(content: ReactElement, opts: {sidePanel?: ChatSidePanelModel} = {}) {
@@ -419,8 +419,10 @@ function renderInChat(content: ReactElement, opts: {sidePanel?: ChatSidePanelMod
     onTestFinished(() => model.destroy());
 
     const wrap = (it: ReactElement) => {
-            const inChat = chatHost({model, item: it});
-            return opts.sidePanel ? sidePanelHost({model: opts.sidePanel, item: inChat}) : inChat;
+            const inChat = chatHost({model, children: it});
+            return opts.sidePanel
+                ? sidePanelHost({model: opts.sidePanel, children: inChat})
+                : inChat;
         },
         result = render(wrap(content));
     return {...result, rerender: (it: ReactElement) => result.rerender(wrap(it))};

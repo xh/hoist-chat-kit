@@ -111,7 +111,7 @@ chatMarkdown({content: part.text, isStreaming: part.state === 'streaming'});
 ```typescript
 const COMPONENTS: ChatMarkdownComponents = {
     pre: ({children}) => myCodeBlock({children}),
-    table: ({children}) => div({className: 'my-app-table', items: children})
+    table: ({children}) => div({className: 'my-app-table', children})
 };
 
 chatMarkdown({content, components: COMPONENTS});

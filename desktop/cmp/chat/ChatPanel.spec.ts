@@ -56,7 +56,7 @@ describe('ChatPanel', () => {
     it("shows the app's own header content above the heading of the empty state", () => {
         renderPanel(createModel(), {
             emptyStateProps: {
-                header: span({className: 'app-logo', item: 'Acme'}),
+                header: span({className: 'app-logo', children: 'Acme'}),
                 title: 'What do you want to know?'
             }
         });
@@ -71,8 +71,14 @@ describe('ChatPanel', () => {
         renderPanel(createModel(), {
             emptyStateProps: {
                 title: 'What do you want to know?',
-                belowComposer: span({className: 'app-help', item: 'Shift+Enter for a new line.'}),
-                footer: span({className: 'app-note', item: 'Answers come from policy documents.'})
+                belowComposer: span({
+                    className: 'app-help',
+                    children: 'Shift+Enter for a new line.'
+                }),
+                footer: span({
+                    className: 'app-note',
+                    children: 'Answers come from policy documents.'
+                })
             }
         });
         const below = document.querySelector('.xh-chat-panel__empty-tail').firstElementChild;

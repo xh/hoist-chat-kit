@@ -18,7 +18,7 @@
     font-size: var(--xh-chat-meta-font-size);
     gap: var(--xh-chat-status-cue-gap);
     min-height: 24px;
-    padding: 0 var(--xh-pad-half-px) 0 0;
+    padding: 0 var(--xh-spacing-half) 0 0;
 
     // Spaced by the gap alone, rather than by Hoist's icon margins.
     > * {
@@ -41,7 +41,7 @@
 
   &__body {
     max-width: var(--xh-chat-prose-max-width);
-    padding: 2px 0 4px calc(var(--xh-pad) * 2px);
+    padding: 2px 0 4px calc(var(--xh-spacing) * 2);
 
     .xh-chat-markdown {
       color: var(--xh-chat-meta-text-color);

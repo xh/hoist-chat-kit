@@ -13,13 +13,15 @@ export function chatUiFallback({caption, errors, input}: ChatUiFallbackSpec): Re
     return div({
         className: 'xh-chat-ui-fallback',
         role: 'note',
-        items: [
-            div({className: 'xh-chat-ui-fallback__caption', item: caption}),
+        children: [
+            div({className: 'xh-chat-ui-fallback__caption', children: caption}),
             details({
                 className: 'xh-chat-ui-fallback__details',
-                items: [
+                children: [
                     summary('View input'),
-                    errors.length ? ul(errors.map((it, idx) => li({key: idx, item: it}))) : null,
+                    errors.length
+                        ? ul(errors.map((it, idx) => li({key: idx, children: it})))
+                        : null,
                     input != null ? pre(formatInput(input)) : null
                 ]
             })
@@ -32,7 +34,7 @@ export function chatUiPlaceholder({displayName}: ChatUiPlaceholderSpec): ReactNo
     return div({
         className: 'xh-chat-ui-placeholder',
         role: 'status',
-        item: displayName ? `Building ${displayName.toLowerCase()}…` : 'Building…'
+        children: displayName ? `Building ${displayName.toLowerCase()}…` : 'Building…'
     });
 }
 

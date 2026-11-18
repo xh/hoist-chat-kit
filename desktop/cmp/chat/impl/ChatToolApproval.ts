@@ -53,19 +53,22 @@ export const chatToolApproval = hoistCmp.factory<ChatToolApprovalProps>({
             className: classNames('xh-chat-tool-call__approval', className),
             role: 'group',
             'aria-label': 'Approval needed',
-            items: [
+            children: [
                 div({
                     className: 'xh-chat-tool-call__approval-text',
-                    items: [
+                    children: [
                         prompt,
                         previewContent != null
-                            ? div({className: 'xh-chat-tool-call__preview', item: previewContent})
+                            ? div({
+                                  className: 'xh-chat-tool-call__preview',
+                                  children: previewContent
+                              })
                             : null
                     ]
                 }),
                 div({
                     className: 'xh-chat-tool-call__approval-bar',
-                    items: [
+                    children: [
                         button({
                             ref: impl.allowRef,
                             className: 'xh-chat-tool-call__allow',

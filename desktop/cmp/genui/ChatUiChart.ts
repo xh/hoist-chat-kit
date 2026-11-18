@@ -343,7 +343,10 @@ export const [ChatUiChart, chatUiChart] = hoistCmp.withFactory<
 
     render({className, title, type, height}) {
         const impl = useLocalModel(ChatUiChartLocalModel);
-        return div({className, items: [cardFrame(impl, title, type, height), expandDialog(impl)]});
+        return div({
+            className,
+            children: [cardFrame(impl, title, type, height), expandDialog(impl)]
+        });
     }
 });
 
@@ -558,26 +561,30 @@ function cardFrame(
         chartType = impl.props.view?.type ?? type,
         icon = TYPE_ICONS[chartType]?.() ?? Icon.chartLine(),
         body = (item: ReactNode) =>
-            div({className: 'xh-chat-ui-chart__body', style: height ? {height} : null, item});
+            div({
+                className: 'xh-chat-ui-chart__body',
+                style: height ? {height} : null,
+                children: item
+            });
 
     if (state === 'building' && !title) {
         const typeName = chartType ? `${chartType} chart` : 'chart';
-        return chatUiFrame({status: `Building ${typeName}…`, item: body(null)});
+        return chatUiFrame({status: `Building ${typeName}…`, children: body(null)});
     }
 
     if (state === 'building' || state === 'waiting' || state === 'loading') {
         return chatUiFrame({
             title,
             icon,
-            item: body(chatUiSkeleton(null)),
+            children: body(chatUiSkeleton(null)),
             footer: impl.props.dataHandle
-                ? div({className: 'xh-chat-ui-chart__busy', item: 'Loading rows…'})
+                ? div({className: 'xh-chat-ui-chart__busy', children: 'Loading rows…'})
                 : null
         });
     }
 
     if (state === 'empty' || state === 'tooLarge') {
-        return chatUiFrame({title, icon, item: body(nothingToChart(impl, state))});
+        return chatUiFrame({title, icon, children: body(nothingToChart(impl, state))});
     }
 
     if (state !== 'ready') {
@@ -585,11 +592,11 @@ function cardFrame(
         return chatUiFrame({
             title,
             icon,
-            item: body(
+            children: body(
                 div({
                     className: 'xh-chat-ui-center',
                     role: 'alert',
-                    item: errorMessage({
+                    children: errorMessage({
                         error: error ?? {},
                         title: 'Chart unavailable',
                         message: getUnavailableText(state, error),
@@ -620,7 +627,7 @@ function cardFrame(
                       ? div({
                             key: 'open',
                             className: 'xh-chat-ui-chart__open',
-                            item: 'Open in panel'
+                            children: 'Open in panel'
                         })
                       : null,
                   chatUiExpandButton({title, isActive: isOpen, onClick: onExpand}),
@@ -631,7 +638,7 @@ function cardFrame(
                   })
               ]
             : [],
-        item: body(
+        children: body(
             chartModel
                 ? div({
                       className: 'xh-chat-ui-chart__plot',
@@ -639,7 +646,7 @@ function cardFrame(
                       // with Highcharts". Download CSV in the options menu has the data.
                       role: 'img',
                       'aria-label': getAriaLabel(title, chartType, shownSeries),
-                      item: chart({model: chartModel})
+                      children: chart({model: chartModel})
                   })
                 : chatUiSkeleton(null)
         )
@@ -655,11 +662,11 @@ function nothingToChart(impl: ChatUiChartLocalModel, state: string): ReactNode {
     return div({
         className: 'xh-chat-ui-center',
         role: 'note',
-        items: [
+        children: [
             Icon.chartBar({className: 'xh-chat-ui-chart__empty-icon'}),
             div({
                 className: 'xh-chat-ui-center__title',
-                item: isTooLarge ? 'Too many rows to chart here' : 'No numeric column to chart'
+                children: isTooLarge ? 'Too many rows to chart here' : 'No numeric column to chart'
             }),
             !isTooLarge && !isEmpty(columns)
                 ? div(`The result has ${columns.length} columns: ${names}.`)

@@ -350,9 +350,9 @@ const SIDEBAR_DEFAULT_WIDTH = 260,
     SIDE_PANEL_MIN_WIDTH = 400,
     SIDE_PANEL_MAX_WIDTH = 900,
     // Hoist's splitter beside a resizable panel, and the default of the sidebar's rail.
-    SPLITTER_WIDTH = 8,
+    SPLITTER_WIDTH = 1,
     RAIL_WIDTH = 40,
-    // 380 for the conversation, 8 for the splitter and 400 for the side panel.
+    // Room for the conversation's 380 and the side panel's 400, with the splitter between.
     SIDE_PANEL_MIN_WORKSPACE_WIDTH = 788,
     RAIL_BELOW_WIDTH = 1000,
     WIDE_WIDTH = 1280,
