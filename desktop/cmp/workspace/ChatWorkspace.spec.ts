@@ -88,8 +88,8 @@ describe('ChatWorkspace', () => {
             const {model} = setup({sidePanelOpen: true});
             model.setWidth(900);
 
-            // 900 - 40 for the rail - 8 for the splitter - 380 for the conversation.
-            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 472});
+            // 900 - 40 for the rail - 1 for the splitter - 380 for the conversation.
+            expect(model).toMatchObject({sidebarMode: 'rail', sidePanelWidth: 479});
             // The user's saved width stays as it was.
             expect(model.sidePanelModel.size).toBe(520);
         });
@@ -106,14 +106,14 @@ describe('ChatWorkspace', () => {
         it('narrows the side panel so that the conversation keeps its minimum', () => {
             const {model} = setup({sidePanelOpen: true});
 
-            // 788 - 40 for the rail - 8 for the splitter - 380 for the conversation.
+            // 788 - 40 for the rail - 1 for the splitter - 380 for the conversation.
             model.setWidth(788);
-            expect(model.sidePanelWidth).toBe(360);
+            expect(model.sidePanelWidth).toBe(367);
 
-            // 1,000 - 40 - 8 - 480.
+            // 1,000 - 40 - 1 - 480.
             model.sidePanelModel.size = 900;
             model.setWidth(1000);
-            expect(model.sidePanelWidth).toBe(472);
+            expect(model.sidePanelWidth).toBe(479);
         });
 
         it('reserves the rail at the width its theme variable sets', () => {
@@ -131,9 +131,9 @@ describe('ChatWorkspace', () => {
             onTestFinished(() => vi.mocked(window.getComputedStyle).mockRestore());
             const {model} = renderWorkspace({}, {sidePanelOpen: true});
 
-            // 788 - 56 for the rail - 8 for the splitter - 380 for the conversation.
+            // 788 - 56 for the rail - 1 for the splitter - 380 for the conversation.
             model.setWidth(788);
-            expect(model.sidePanelWidth).toBe(344);
+            expect(model.sidePanelWidth).toBe(351);
         });
 
         it('cuts the side panel, and keeps the sidebar open, when a wide workspace cannot fit both', () => {
@@ -142,12 +142,12 @@ describe('ChatWorkspace', () => {
             model.sidebarModel.size = 400;
             expect(model).toMatchObject({sidebarMode: 'open', sidePanelWidth: 520});
 
-            // 1,300 - 408 for the sidebar - 8 for the splitter - 480 for the conversation.
+            // 1,300 - 401 for the sidebar - 1 for the splitter - 480 for the conversation.
             model.setWidth(1300);
             expect(model).toMatchObject({
                 sidebarMode: 'open',
                 sidebarWidth: 400,
-                sidePanelWidth: 404
+                sidePanelWidth: 418
             });
         });
 
@@ -182,20 +182,21 @@ describe('ChatWorkspace', () => {
             model.sidePanelModel.size = 900;
             model.sidePanel.open(TABLE_REQUEST);
 
-            // 1,100 - 40 for the rail - 8 for the splitter - 480 for the conversation.
+            // 1,100 - 40 for the rail - 1 for the splitter - 480 for the conversation.
             model.setWidth(1100);
-            expect(model.sidePanelWidth).toBe(572);
+            expect(model.sidePanelWidth).toBe(579);
 
-            // 900 - 40 - 8 - 380.
+            // 900 - 40 - 1 - 380.
             model.setWidth(900);
-            expect(model.sidePanelWidth).toBe(472);
+            expect(model.sidePanelWidth).toBe(479);
         });
 
         it('resizes the sidebar and the side panel against the conversation, their sibling', () => {
-            // The panels' offsetWidth. Every other element, including the splitters, measures 0.
+            // Resize containers' offsetWidth, each a panel's size plus its 1 px splitter.
             const widths: Record<string, number> = {
-                'xh-chat-workspace__sidebar': 268,
-                'xh-chat-workspace__side-panel': 528
+                'xh-chat-workspace__sidebar': 261,
+                'xh-chat-workspace__side-panel': 521,
+                'xh-panel-splitter': 1
             };
             const offsetSpy = vi
                     .spyOn(HTMLElement.prototype, 'offsetWidth', 'get')
@@ -220,13 +221,13 @@ describe('ChatWorkspace', () => {
             expect(sidebarEl.nextElementSibling).toBe(main);
             expect(sidePanelEl.previousElementSibling).toBe(main);
 
-            // Hoist's DraggerModel starts from the panel's offsetWidth less its splitter's, which
-            // measures 0 here, so a drag of N px grows the panel by N.
+            // Hoist's DraggerModel starts from the panel's offsetWidth less its splitter's, so a
+            // drag of N px grows the panel by N.
             act(() => dragPanel(sidebarEl, 40));
-            expect(model.sidebarModel.size).toBe(308);
+            expect(model.sidebarModel.size).toBe(300);
 
             act(() => dragPanel(sidePanelEl, -40));
-            expect(model.sidePanelModel.size).toBe(568);
+            expect(model.sidePanelModel.size).toBe(560);
         });
 
         it('lays out from its measured width on the first render, with no wait', () => {
@@ -240,8 +241,8 @@ describe('ChatWorkspace', () => {
 
             expect(screen.queryByRole('treegrid')).toBeNull();
             expect(screen.getByRole('button', {name: 'Expand sidebar'})).toBeTruthy();
-            // Cut to 472 for the conversation.
-            expect(shownWidth('side-panel')).toBe('472px');
+            // Cut to 479 for the conversation.
+            expect(shownWidth('side-panel')).toBe('479px');
         });
 
         it('applies a resize at once, and the last of a burst once it settles', async () => {
@@ -736,20 +737,21 @@ function shownWidth(panel: 'sidebar' | 'side-panel'): string {
         .style.getPropertyValue(`--xh-chat-workspace-${panel}-width`);
 }
 
-/** Drag a resizable panel's splitter by `dx` pixels, as the browser reports a drag. */
+/** Drag a resizable panel's splitter by `dx` pixels, as the browser reports a pointer drag. */
 function dragPanel(panelEl: HTMLElement, dx: number) {
     const hit = panelEl.querySelector<HTMLElement>('.xh-panel-splitter__hit'),
         fire = (type: string, clientX: number) =>
             hit.dispatchEvent(
                 Object.assign(new Event(type, {bubbles: true, cancelable: true}), {
-                    button: 0,
-                    pointerId: 1,
                     clientX,
-                    clientY: 10
+                    clientY: 10,
+                    button: 0,
+                    pointerId: 1
                 })
             );
     // jsdom has no pointer capture.
-    hit.setPointerCapture = () => {};
+    hit.setPointerCapture ??= () => {};
+    hit.releasePointerCapture ??= () => {};
     fire('pointerdown', 300);
     fire('pointermove', 300 + dx);
     fire('pointerup', 300 + dx);

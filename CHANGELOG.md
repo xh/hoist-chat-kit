@@ -31,6 +31,9 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 
 * Fixed the side panel to show a document's page, as "Page 12 of 38", in a toolbar. It showed as a
   bare line under the header.
+* Fixed `ChatWorkspace` to size its sidebar and side panel for Hoist's 1px panel splitter. It still
+  reserved 8px per splitter, the width before Hoist 90, so a narrow workspace cut the side panel
+  7px more than it needed to.
 
 ### ⚙️ Technical
 
