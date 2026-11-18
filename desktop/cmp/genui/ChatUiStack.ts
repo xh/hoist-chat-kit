@@ -20,7 +20,7 @@ export interface ChatUiStackSpecProps {
 
 /**
  * A stack container for a {@link ChatUiCatalog}: lays its children out in a column or a row. It
- * is the root of a nested answer, such as a metrics row over a chart over some text. A `title`
+ * is the root of a nested answer, such as a row of stat cards over a chart over some text. A `title`
  * draws a frame around the children.
  *
  * The model nests it in a document, with the `show_ui` tool. It has no tool or tag of its own.
@@ -86,4 +86,4 @@ export const [ChatUiStack, chatUiStack] = hoistCmp.withFactory<ChatUiStackProps>
 //------------------
 const DESCRIPTION =
     'A container that lays its children out in a column or a row. Use it as the root of an ' +
-    'answer made of several components, such as headline metrics over a chart over a short note.';
+    'answer made of several components, such as headline stat cards over a chart over a short note.';

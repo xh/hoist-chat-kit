@@ -97,4 +97,4 @@ export function chatUiBadgesSpec(
 //------------------
 const DESCRIPTION =
     'A row of short labels, such as the statuses, categories or tags of a record. Use it next ' +
-    'to a title or over a table, for a few words each. Use metrics for figures.';
+    'to a title or over a table, for a few words each. Use stat cards for figures.';

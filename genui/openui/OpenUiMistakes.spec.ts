@@ -9,7 +9,7 @@ import {
     chatUiCardSpec,
     chatUiDividerSpec,
     chatUiInputSpecs,
-    chatUiMetricsSpec,
+    chatUiStatCardsSpec,
     chatUiSectionSpec,
     chatUiStackSpec,
     chatUiTabsSpec,
@@ -56,7 +56,7 @@ describe('OpenUI Lang mistakes', () => {
             const segment = parse(
                 createCatalog({bindings: true}),
                 'root = Stack([kpis, note])\n' +
-                    'kpis = Metrics([{label: "Revenue", value: 12}])\n' +
+                    'kpis = StatCards([{label: "Revenue", value: 12}])\n' +
                     'note = Text($big ? "Large" : "Small")'
             );
 
@@ -103,7 +103,7 @@ describe('OpenUI Lang mistakes', () => {
             const segment = parse(
                 createCatalog(),
                 'root = Stack([kpis, missing])\n' +
-                    'kpis = Metrics([{label: "Revenue", value: 12}], "extra")\n' +
+                    'kpis = StatCards([{label: "Revenue", value: 12}], "extra")\n' +
                     'unused = Text("Never shown")'
             );
 
@@ -112,15 +112,15 @@ describe('OpenUI Lang mistakes', () => {
             expect(segment.openui.unresolved).toEqual(['missing']);
             expect(segment.openui.orphaned).toEqual(['unused']);
             expect(segment.openui.errors).toEqual([
-                expect.stringMatching(/^elements\.kpis: Metrics takes 1 arg/)
+                expect.stringMatching(/^elements\.kpis: StatCards takes 1 arg/)
             ]);
         });
 
         it('tells its own segments from those of another format', () => {
             const [tag] = new ChatUiCatalog({
-                components: [chatUiMetricsSpec()],
+                components: [chatUiStatCardsSpec()],
                 modes: ['tags']
-            }).parseText('<ui-metrics metrics=\'[{"label": "A", "value": 1}]\'/>');
+            }).parseText('<ui-statCards cards=\'[{"label": "A", "value": 1}]\'/>');
 
             expect(isOpenUiDocumentSegment(tag)).toBe(false);
         });
@@ -228,14 +228,14 @@ describe('OpenUI Lang mistakes', () => {
                     chatUiTabsSpec(),
                     chatUiSectionSpec(),
                     chatUiTextSpec(),
-                    chatUiMetricsSpec(),
+                    chatUiStatCardsSpec(),
                     ...chatUiInputSpecs()
                 ]
             });
 
             // The root holds no divider, no empty container and no input.
             expect(text.match(/^root = .*$/gm)).toEqual([
-                'root = Stack([text, metrics], "column", "medium")'
+                'root = Stack([text, statCards], "column", "medium")'
             ]);
             expect(text).not.toMatch(/^\w+ = (Divider|Tabs|Section|Form|Button|TextInput)\(/m);
         });
@@ -281,7 +281,7 @@ const appContext = hoistCmp.factory({
 
 function createCatalog(opts: Partial<OpenUiLangFormatOptions> = {}): ChatUiCatalog {
     return new ChatUiCatalog({
-        components: [chatUiStackSpec(), chatUiTextSpec(), chatUiMetricsSpec(), chatUiCardSpec()],
+        components: [chatUiStackSpec(), chatUiTextSpec(), chatUiStatCardsSpec(), chatUiCardSpec()],
         textFormats: [openUiLangFormat({root: 'stack', ...opts})],
         modes: ['openui']
     });

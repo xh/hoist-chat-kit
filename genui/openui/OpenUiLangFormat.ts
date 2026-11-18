@@ -45,7 +45,7 @@ export interface OpenUiLangFormatOptions extends OpenUiLibraryOptions {
     /**
      * True to read programs in fenced code blocks tagged `openui-lang` or `openui`, with the text
      * around them as markdown. A text whose first line is `root = ...`, or a statement that calls
-     * a component, such as `rev = Metrics(...)`, is one bare program. A bare program that ends
+     * a component, such as `rev = StatCards(...)`, is one bare program. A bare program that ends
      * with no root statement stays markdown. While the reply streams, a closed fence is complete.
      * False to read the whole text as one program. Default true.
      */
@@ -188,8 +188,8 @@ export function isOpenUiDocumentSegment(
  *
  * ```
  * root = Stack([rev, mar], "column", "medium")
- * rev = Metrics([{label: "Revenue", value: 1250000}])
- * mar = Metrics([{label: "Margin", value: 0.184}])
+ * rev = StatCards([{label: "Revenue", value: 1250000}])
+ * mar = StatCards([{label: "Margin", value: 0.184}])
  * ```
  *
  * Each program becomes a `document` segment of catalog components, which renders element by

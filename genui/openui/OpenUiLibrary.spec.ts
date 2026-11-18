@@ -5,7 +5,7 @@ import {beforeAll, describe, expect, it} from 'vitest';
 import {
     chatUiCardSpec,
     chatUiChartSpec,
-    chatUiMetricsSpec,
+    chatUiStatCardsSpec,
     chatUiStackSpec,
     chatUiTextSpec
 } from '../../desktop/cmp/genui';
@@ -171,7 +171,7 @@ describe('toOpenUiLibrary', () => {
         const catalog = new ChatUiCatalog({
                 components: [
                     chatUiStackSpec(),
-                    chatUiMetricsSpec(),
+                    chatUiStatCardsSpec(),
                     chatUiChartSpec(),
                     chatUiCardSpec()
                 ]
@@ -179,8 +179,8 @@ describe('toOpenUiLibrary', () => {
             {components} = toOpenUiLibrary(catalog, {root: 'stack'}),
             formats = '"number" | "percent" | "currency" | "none"';
 
-        expect(components.Metrics.signature).toContain(
-            `Metrics(metrics: {label: string; value: number | string; format?: ${formats}; ` +
+        expect(components.StatCards.signature).toContain(
+            `StatCards(cards: {label: string; value: number | string; format?: ${formats}; ` +
                 'decimals?: number; delta?: number;'
         );
         expect(components.Chart.signature).toContain(
@@ -196,19 +196,19 @@ describe('toOpenUiLibrary', () => {
     });
 
     it('adds a Props line to the description, with the first line of each prop description', () => {
-        const catalog = new ChatUiCatalog({components: [chatUiStackSpec(), chatUiMetricsSpec()]}),
+        const catalog = new ChatUiCatalog({components: [chatUiStackSpec(), chatUiStatCardsSpec()]}),
             {components} = toOpenUiLibrary(catalog, {root: 'stack'}),
-            [description, props] = components.Metrics.description.split('\n');
+            [description, props] = components.StatCards.description.split('\n');
 
-        expect(description).toBe(chatUiMetricsSpec().description);
+        expect(description).toBe(chatUiStatCardsSpec().description);
         expect(props).toMatch(/^Props: /);
         expect(props).toContain(
-            'metrics[].value: A number, or short text shown as is. Send the full number - a ' +
+            'cards[].value: A number, or short text shown as is. Send the full number - a ' +
                 'large value is shown in a compact form, such as $48.5B.'
         );
-        expect(props).toContain('; metrics[].delta: Change in the value');
+        expect(props).toContain('; cards[].delta: Change in the value');
         // A prop with no description is left out.
-        expect(props).not.toContain('metrics[].label');
+        expect(props).not.toContain('cards[].label');
         expect(components.Stack.description).toContain(
             '\nProps: direction: Default "column".; gap: Space between children.'
         );

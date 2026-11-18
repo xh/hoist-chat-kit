@@ -6,7 +6,7 @@ import {beforeAll, beforeEach, describe, expect, it, vi} from 'vitest';
 import {
     chatUiCardSpec,
     chatUiChartSpec,
-    chatUiMetricsSpec,
+    chatUiStatCardsSpec,
     chatUiStackSpec,
     chatUiTextSpec
 } from '../../desktop/cmp/genui';
@@ -30,7 +30,7 @@ describe('OpenUI Lang streaming', () => {
     const PROGRAM =
         'root = Stack([lead, kpis, acme, trend], "column")\n' +
         'lead = Text("Q3 at a glance.")\n' +
-        'kpis = Metrics([{label: "P&L", value: -12656923, format: "currency"}, ' +
+        'kpis = StatCards([{label: "P&L", value: -12656923, format: "currency"}, ' +
         '{label: "Margin", value: 0.184, format: "percent", delta: -0.012}])\n' +
         'acme = Card("Acme Corp", "Tier 1", [{label: "Exposure", value: 4200000, ' +
         'format: "currency", decimals: 0}, {label: "Rating", value: "A+"}], ' +
@@ -108,7 +108,7 @@ function createCatalog(
         components: [
             chatUiStackSpec(),
             chatUiTextSpec(),
-            chatUiMetricsSpec(),
+            chatUiStatCardsSpec(),
             chatUiCardSpec(),
             chatUiChartSpec()
         ],

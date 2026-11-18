@@ -250,7 +250,7 @@ renderer.
 | `desktop/cmp/chat/` | Desktop | Panel, message list, composer, tool cards and the rest |
 | `desktop/cmp/threads/` | Desktop | The thread list |
 | `desktop/cmp/workspace/` | Desktop | The full-page workspace: sidebar, conversation and side panel |
-| `desktop/cmp/genui/` | Desktop | The built-in grid, chart, metrics and card components |
+| `desktop/cmp/genui/` | Desktop | The built-in grid, chart, stat cards and card components |
 | `desktop/impl/` | Desktop | Internal helpers that more than one desktop package needs |
 | `styles/` | Neutral | The `--xh-chat-*` CSS variables |
 

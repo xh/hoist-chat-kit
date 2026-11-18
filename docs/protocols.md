@@ -177,7 +177,7 @@ against the schema, and returns any problems to the model so it can correct them
 
 ```typescript
 const catalog = new ChatUiCatalog({
-    components: [chatUiMetricsSpec(), chatUiGridSpec({maxRows: 50}), chatUiChartSpec()]
+    components: [chatUiStatCardsSpec(), chatUiGridSpec({maxRows: 50}), chatUiChartSpec()]
 });
 
 new ChatModel({

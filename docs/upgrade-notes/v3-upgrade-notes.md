@@ -7,7 +7,7 @@
 Hoist Chat Kit v3 moves the kit to `@xh/hoist` v91. The kit's styles read Hoist's renamed CSS
 variables, and its code and docs pass child elements as `children`. The kit's own `--xh-chat-*`
 variables keep their names and their defaults. Its other required steps apply only to apps that
-write a `ChatUiAdapter`, that export a catalog for a server, that render or style the metrics
+write a `ChatUiAdapter`, that export a catalog for a server, that use the metrics component
 component themselves, or that set `state` on an `AgUiCodec`.
 
 - **Hoist v91 (required)** - upgrade the app to Hoist v91 first - see Prerequisites.
@@ -16,7 +16,7 @@ component themselves, or that set `state` on an `AgUiCodec`.
   not the catalog - see Step 2.
 - **Catalog exports with text formats (required if used)** - if you configure text formats,
   regenerate the export - see Step 3.
-- **Metrics component (required if rendered or styled directly)** - the metrics spec renders
+- **Metrics component (required if used)** - the metrics spec is now the stat cards spec, over
   Hoist's `StatCard`, and the kit's own `ChatUiMetrics` is gone - see Step 4.
 - **Segment switches (required if used)** - `ChatUiTextSegment` gained a `document` member, so an
   exhaustive `switch` over segments needs a case for it.
@@ -88,24 +88,30 @@ the default format, need no change.
   in one call. See
   [Export the catalog for a server](../../genui/README.md#export-the-catalog-for-a-server).
 
-### 4. Move Metrics Code to StatCard
+### 4. Move Metrics to the Stat Cards Spec
 
-`chatUiMetricsSpec()` now renders Hoist's `StatCardStrip`, with a `StatCard` per figure. The spec
-keeps its name, its tool `show_metrics` and its props, so catalogs, prompts and stored replies need
-no change. The kit's own `ChatUiMetrics` component, its `chatUiMetrics()` factory, the
-`ChatUiMetricsProps` type and the `xh-chat-ui-metrics__*` classes are gone. Apps that only list
-`chatUiMetricsSpec()` in a catalog need no change.
+`chatUiMetricsSpec()` is now `chatUiStatCardsSpec()`, named for the Hoist `StatCard` it renders.
+It renders Hoist's `StatCardStrip`, with a `StatCard` per figure. Its catalog name is now
+`statCards`, its tool `show_stat_cards`, and its `metrics` prop is now `cards`. The kit's own
+`ChatUiMetrics` component, its `chatUiMetrics()` factory, the `ChatUiMetricsProps` type and the
+`xh-chat-ui-metrics__*` classes are gone.
 
 **Find affected code:**
 
 ```bash
-grep -rnE "chatUiMetrics\(|ChatUiMetrics\b|ChatUiMetricsProps|xh-chat-ui-metrics__" client-app/src/
+grep -rnE "chatUiMetrics|ChatUiMetric|xh-chat-ui-metrics|show_metrics" client-app/src/
 ```
 
+- Rename `chatUiMetricsSpec()` to `chatUiStatCardsSpec()`. Rename the types `ChatUiMetric`,
+  `ChatUiMetricsSpecProps` and `ChatUiMetricsSpecOptions` to `ChatUiStatCard`,
+  `ChatUiStatCardsSpecProps` and `ChatUiStatCardsSpecOptions`.
+- Update prompts, documents and adapters that name the `metrics` component, the `show_metrics`
+  tool or the `metrics` prop. Use `statCards`, `show_stat_cards` and `cards`.
+- Regenerate a catalog export for a server, as the tool name changed - see Step 3.
 - Replace a direct `chatUiMetrics()` call with Hoist's `statCardStrip()` and `statCard()`, from
   `@xh/hoist/cmp/statcard`. Format each value with `fmtChatUiNumber()` to match the chat.
 - Move style overrides of the `xh-chat-ui-metrics__*` classes to Hoist's `--xh-stat-card-*`
-  variables, set under `.xh-chat-ui-metrics`. The `--xh-chat-tile-min-width` and
+  variables, set under `.xh-chat-ui-stat-cards`. The `--xh-chat-tile-min-width` and
   `--xh-chat-tile-value-font-size` variables still apply.
 
 **Before:**
@@ -177,7 +183,7 @@ See [Share state with an agent](../../core/README.md#share-state-with-an-agent).
 
 - [ ] The chat shows its usual spacing, frames and colors in light and dark themes.
 - [ ] `tsc` passes, and each `ChatUiAdapter` takes the context object.
-- [ ] A reply that shows metrics draws a row of Hoist stat cards, with deltas in color.
+- [ ] A reply that shows stat cards draws a row of Hoist `StatCard`s, with deltas in color.
 - [ ] If the catalog configures text formats, a server that loads its export reports no version
       drift for the current client.
 - [ ] If the app set `state` on an `AgUiCodec`, the agent still receives it, as the `state` of

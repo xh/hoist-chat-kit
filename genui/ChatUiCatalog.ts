@@ -195,7 +195,7 @@ export interface ChatUiCatalogConfig {
  * model with the system prompt:
  *
  * ```ts
- * const catalog = new ChatUiCatalog({components: [metricsSpec, positionsSpec]});
+ * const catalog = new ChatUiCatalog({components: [kpisSpec, positionsSpec]});
  *
  * const chatModel = new ChatModel({
  *     transport: new HoistChatTransport({

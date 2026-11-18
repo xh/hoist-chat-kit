@@ -18,7 +18,7 @@ import {
     chatUiDividerSpec,
     chatUiGridSpec,
     chatUiInputSpecs,
-    chatUiMetricsSpec,
+    chatUiStatCardsSpec,
     chatUiSectionSpec,
     chatUiStackSpec,
     chatUiTabsSpec,
@@ -205,7 +205,7 @@ describe('OpenUI Lang prompt for the built-in components', () => {
             expect(brief.split('\n').map(it => it.replace(/\(.*/, ''))).toEqual([
                 'root = Stack',
                 'text = Text',
-                'metrics = Metrics',
+                'statCards = StatCards',
                 'chart = Chart'
             ]);
             expect(view.split('\n')).toEqual([
@@ -276,10 +276,10 @@ describe('OpenUI Lang prompt for the built-in components', () => {
 
             // A brief only, with the first components that show data.
             expect(noState).toEqual([
-                expect.stringMatching(/^root = Stack\(\[text, metrics, grid\]/)
+                expect.stringMatching(/^root = Stack\(\[text, statCards, grid\]/)
             ]);
             expect(noInputs).toEqual([
-                expect.stringMatching(/^root = Stack\(\[text, metrics, grid\]/)
+                expect.stringMatching(/^root = Stack\(\[text, statCards, grid\]/)
             ]);
             // The input alone, with no component to read its variable.
             expect(onlyInputs).toEqual([
@@ -354,7 +354,7 @@ const SALES_TOOL = {
         .filter(it => it.stateProps?.length)
         .map(it => it.name),
     DISPLAY_NAMES = [
-        ...['text', 'metrics', 'grid', 'chart', 'card', 'tabs', 'section', 'callout'],
+        ...['text', 'statCards', 'grid', 'chart', 'card', 'tabs', 'section', 'callout'],
         ...['badges', 'divider', 'treemap']
     ],
     CONTEXT = {
@@ -381,7 +381,7 @@ function createCatalog(
     const components: ChatUiComponentSpec<any>[] = [
         chatUiStackSpec(),
         chatUiTextSpec(),
-        chatUiMetricsSpec(),
+        chatUiStatCardsSpec(),
         // Inline, the model writes the rows. By reference, it names an artifact.
         byReference ? chatUiGridSpec({byReference}) : chatUiGridSpec(),
         byReference ? chatUiChartSpec({byReference}) : chatUiChartSpec(),

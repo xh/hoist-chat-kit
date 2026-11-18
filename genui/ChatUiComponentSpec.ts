@@ -13,14 +13,14 @@ import type {ChatUiState} from './ChatUiState';
  * the catalog checks them against `props`, and the chat renders the component with `render`.
  *
  * ```ts
- * const kpis: ChatUiComponentSpec<{metrics: ChatUiMetric[]}> = {
+ * const kpis: ChatUiComponentSpec<{figures: {label: string; value: number}[]}> = {
  *     name: 'kpis',
  *     description: 'A row of KPI tiles, for a few headline numbers.',
  *     props: {
  *         type: 'object',
- *         required: ['metrics'],
+ *         required: ['figures'],
  *         properties: {
- *             metrics: {
+ *             figures: {
  *                 type: 'array',
  *                 maxItems: 6,
  *                 items: {
@@ -31,9 +31,9 @@ import type {ChatUiState} from './ChatUiState';
  *             }
  *         }
  *     },
- *     render: ({metrics}) =>
- *         statCardStrip(metrics.map(it => statCard({title: it.label, value: fmtNumber(it.value)}))),
- *     example: {metrics: [{label: 'Revenue', value: 1250000}]}
+ *     render: ({figures}) =>
+ *         statCardStrip(figures.map(it => statCard({title: it.label, value: fmtNumber(it.value)}))),
+ *     example: {figures: [{label: 'Revenue', value: 1250000}]}
  * };
  * ```
  */

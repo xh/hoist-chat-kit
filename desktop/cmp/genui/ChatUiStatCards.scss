@@ -1,5 +1,5 @@
 // Hoist StatCards, on the chat's surface and at its sizes.
-.xh-chat-ui-metrics {
+.xh-chat-ui-stat-cards {
   --xh-stat-card-bg: var(--xh-chat-bg);
   --xh-stat-card-border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
   --xh-stat-card-border-radius: var(--xh-chat-border-radius);
@@ -11,6 +11,6 @@
 
 // In a row of a stack, the strip keeps the height of its cards. A row stretches each child to its
 // tallest, such as a chart, and a stretched strip stretches its cards with it.
-.xh-chat-ui-stack.xh-hbox > .xh-chat-ui-metrics {
+.xh-chat-ui-stack.xh-hbox > .xh-chat-ui-stat-cards {
   align-self: flex-start;
 }

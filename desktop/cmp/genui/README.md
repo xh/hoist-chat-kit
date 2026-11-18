@@ -9,7 +9,7 @@
 | [Overview](#overview) | What the built-in components are, and the key features |
 | [Architecture](#architecture) | Factories, components, and how a call becomes a rendered component |
 | [Configuration Pattern](#configuration-pattern) | Adding the components to a `ChatUiCatalog` and a `ChatModel` |
-| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, metrics, cards, nested answers, tabs, sections, callouts, forms and inputs, and direct use |
+| [Common Usage Patterns](#common-usage-patterns) | Grids, charts, stat cards, cards, nested answers, tabs, sections, callouts, forms and inputs, and direct use |
 | [Properties/API Reference](#propertiesapi-reference) | Factory options and the props each component takes |
 | [Extension Points](#extension-points) | Renaming, describing, limiting, and writing your own |
 | [Common Pitfalls](#common-pitfalls) | Mistakes that compile but misbehave |
@@ -28,7 +28,7 @@ Import from `@xh/hoist-chat-kit/desktop/cmp/genui`.
 
 Key features:
 
-- **Factories that return specs** - `chatUiGridSpec()`, `chatUiChartSpec()`, `chatUiMetricsSpec()`,
+- **Factories that return specs** - `chatUiGridSpec()`, `chatUiChartSpec()`, `chatUiStatCardsSpec()`,
   `chatUiCardSpec()`, `chatUiStackSpec()` and `chatUiTextSpec()` each return a
   `ChatUiComponentSpec`, with a props schema, checks, a description for the model, and an example.
 - **Nested answers** - a stack lays out components in a column or a row, and a text component
@@ -64,7 +64,7 @@ Key features:
 ```
 chatUiGridSpec(opts)    → ChatUiComponentSpec<ChatUiGridSpecProps>    → ChatUiGrid  → ChatUiTableView
 chatUiChartSpec(opts)   → ChatUiComponentSpec<ChatUiChartSpecProps>   → ChatUiChart → ChatUiChartView
-chatUiMetricsSpec(opts) → ChatUiComponentSpec<ChatUiMetricsSpecProps> → StatCardStrip (Hoist)
+chatUiStatCardsSpec(opts) → ChatUiComponentSpec<ChatUiStatCardsSpecProps> → StatCardStrip (Hoist)
 chatUiCardSpec(opts)    → ChatUiComponentSpec<ChatUiCardSpecProps>    → ChatUiCard
 chatUiStackSpec(opts)   → ChatUiComponentSpec<ChatUiStackSpecProps>   → ChatUiStack
 chatUiTextSpec(opts)    → ChatUiComponentSpec<ChatUiTextSpecProps>    → ChatUiText
@@ -77,7 +77,7 @@ chatUiTreeMapSpec(opts) → ChatUiComponentSpec<ChatUiTreeMapSpecProps> → Chat
 ```
 
 Each factory returns a spec for a `ChatUiCatalog`. The catalog turns the spec into a tool named
-`show_<name>`: `show_grid`, `show_chart`, `show_metrics`, `show_card`, `show_callout` and
+`show_<name>`: `show_grid`, `show_chart`, `show_stat_cards`, `show_card`, `show_callout` and
 `show_treemap` by default. When the
 model calls the tool, the catalog checks the props against the spec's schema and its `validate`
 function. It then calls the spec's `render`, which returns the matching component.
@@ -94,7 +94,7 @@ short. The components handle this:
   The last row is left out until the props are complete, as it may still be missing values.
 - `ChatUiChart` waits until the chart type and axes are complete, creates its `ChartModel`, and
   passes the series to `setSeries()`. Hoist updates the points in place.
-- The metrics spec shows each stat card once its figure is complete.
+- The stat cards spec shows each card once its figure is complete.
 - `ChatUiCard` shows fields as they arrive, and its actions once the props are complete.
 - `ChatUiStack` shows each child as it arrives. The catalog draws a placeholder for a child still
   to come.
@@ -142,14 +142,14 @@ import {
     chatUiCardSpec,
     chatUiChartSpec,
     chatUiGridSpec,
-    chatUiMetricsSpec
+    chatUiStatCardsSpec
 } from '@xh/hoist-chat-kit/desktop/cmp/genui';
 import {ChatUiCatalog} from '@xh/hoist-chat-kit/genui';
 import {AnthropicCodec, HoistChatTransport} from '@xh/hoist-chat-kit/transport';
 
 const catalog = new ChatUiCatalog({
     components: [
-        chatUiMetricsSpec(),
+        chatUiStatCardsSpec(),
         chatUiGridSpec({maxRows: 50}),
         chatUiChartSpec(),
         chatUiCardSpec()
@@ -281,21 +281,21 @@ the `x` column and the numeric `y` columns, one series each, or one per value of
 The expanded chart switches between line, column, bar and area, and picks its x and y columns
 from the artifact. A change of type updates the series in place, so a zoom survives it.
 
-### Show metrics and a card
+### Show stat cards and a card
 
 ```json
-{"metrics": [
+{"cards": [
     {"label": "Revenue", "value": 1250000, "format": "currency", "decimals": 0},
     {"label": "Margin", "value": 0.184, "format": "percent", "delta": 0.012, "deltaLabel": "vs Q2"},
     {"label": "Open issues", "value": 7, "intent": "warning"}
 ]}
 ```
 
-The metrics spec renders Hoist's `StatCardStrip`, with a `StatCard` per figure. Cards are
+The stat cards spec renders Hoist's `StatCardStrip`, with a `StatCard` per figure. Cards are
 outlined, at least 150 px wide, and wrap to an even grid before a value is cut short. Style them
-through Hoist's `--xh-stat-card-*` variables, under `.xh-chat-ui-metrics`.
+through Hoist's `--xh-stat-card-*` variables, under `.xh-chat-ui-stat-cards`.
 A delta shows after the value with an arrow, in Hoist's positive color when up and its negative color when down.
-With `invert`, for a metric where up is bad, a rise shows in the negative color. It takes the
+With `invert`, for a figure where up is bad, a rise shows in the negative color. It takes the
 format and decimals of its value, unless the model sets `deltaFormat`. Its `deltaLabel` shows
 under the value. An `intent` colors the card's outline. A large `number` or `currency` value, from
 100,000 up, shows to three significant digits with a `K`, `M`, `B` or `T` suffix. Its tooltip
@@ -327,7 +327,7 @@ actions](../../../genui/README.md#run-actions) for each type and its checks.
 
 ### Lay out a nested answer
 
-A stack is the root of an answer made of several components, such as headline metrics over a
+A stack is the root of an answer made of several components, such as headline stat cards over a
 chart over a short note. The model writes it as a document, with the `show_ui` tool or a text
 format that writes documents:
 
@@ -336,7 +336,7 @@ format that writes documents:
     "root": "answer",
     "elements": {
         "answer": {"component": "stack", "props": {"title": "Q3 revenue"}, "children": ["kpis", "trend", "note"]},
-        "kpis": {"component": "metrics", "props": {"metrics": [{"label": "Revenue", "value": 1250000, "format": "currency"}]}},
+        "kpis": {"component": "statCards", "props": {"cards": [{"label": "Revenue", "value": 1250000, "format": "currency"}]}},
         "trend": {"component": "chart", "props": {"type": "line", "xAxis": {"categories": ["Jul", "Aug"]}, "series": [{"name": "Revenue", "data": [182000, 205000]}]}},
         "note": {"component": "text", "props": {"text": "Revenue **grew** in every region."}}
     }
@@ -362,7 +362,7 @@ Add both to the catalog with the components they lay out:
 
 ```typescript
 const catalog = new ChatUiCatalog({
-    components: [chatUiStackSpec(), chatUiTextSpec(), chatUiMetricsSpec(), chatUiChartSpec()],
+    components: [chatUiStackSpec(), chatUiTextSpec(), chatUiStatCardsSpec(), chatUiChartSpec()],
     modes: ['tools', 'document']
 });
 ```
@@ -538,7 +538,7 @@ does not fall back to sending its label.
 
 The components also work outside a catalog, for example in a data renderer or a custom tool
 renderer. Pass the props the model would write. A table by reference takes a `ChatDataHandle`,
-which the catalog loads for its own components. For metrics, render Hoist's `statCardStrip()` and
+which the catalog loads for its own components. For stat cards, render Hoist's `statCardStrip()` and
 `statCard()` from `@xh/hoist/cmp/statcard`:
 
 ```typescript
@@ -585,7 +585,7 @@ and `description`, the text that tells the model when to use the component.
 | | `maxRows` | `number` | Most rows of an artifact to chart, by reference. Default 5,000. |
 | | `height` | `number` | Chart body height, in pixels. Default the `--xh-chat-chart-height` variable. |
 | | `byReference` | `boolean` | Take an artifact and a chart view, not series. Default false. |
-| `chatUiMetricsSpec` | `maxItems` | `number` | Most figures. Default 4. |
+| `chatUiStatCardsSpec` | `maxItems` | `number` | Most figures. Default 4. |
 | `chatUiCardSpec` | `maxFields` | `number` | Most fields. Default 16. |
 | | `maxActions` | `number` | Most actions. Default 4. |
 | | `actionTypes` | `ChatUiActionType[]` | Kinds of action the model may put on the card. Default `['send']`. |

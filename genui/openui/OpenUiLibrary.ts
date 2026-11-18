@@ -356,7 +356,7 @@ const STEP_ACTION_TYPES: Record<string, string> = {
 };
 
 // A component's description, then a line that lists the guidance of its props, such as
-// `Props: metrics: The tiles.; metrics[].value: A number.`, cut at a prop to fit the cap.
+// `Props: cards: The figures.; cards[].value: A number.`, cut at a prop to fit the cap.
 function toDescription(spec: ChatUiComponentSpec): string {
     const props = describeProps(spec.props.properties);
     let length = PROPS_LABEL.length - PROPS_SEPARATOR.length;
@@ -370,7 +370,7 @@ function toDescription(spec: ChatUiComponentSpec): string {
 }
 
 // The first line of the description of each prop that has one, as `name: line`, with the fields
-// of an object or of a list of objects after it, such as `metrics[].value`.
+// of an object or of a list of objects after it, such as `cards[].value`.
 function describeProps(properties: PlainObject, prefix: string = '', depth: number = 0): string[] {
     if (!isPlainObject(properties) || depth > MAX_TYPE_DEPTH) return [];
     return Object.entries<PlainObject>(properties).flatMap(([key, schema]) => {

@@ -11,7 +11,7 @@ import {type ChatUiAction, ChatUiCatalog, type ChatUiRenderContext} from '../../
 import {ScriptedChatTransport} from '../../../transport';
 import {chatUiCard} from './ChatUiCard';
 import {chatUiChart, type ChatUiChartProps} from './ChatUiChart';
-import {chatUiMetricsSpec, type ChatUiMetricsSpecProps} from './ChatUiMetrics';
+import {chatUiStatCardsSpec, type ChatUiStatCardsSpecProps} from './ChatUiStatCards';
 import {chatUiStackSpec} from './ChatUiStack';
 import {chatUiTextSpec} from './ChatUiText';
 
@@ -56,23 +56,23 @@ describe('generative UI components', () => {
         });
     });
 
-    describe('chatUiMetricsSpec', () => {
-        const renderMetrics = (props: ChatUiMetricsSpecProps, isPartial = false) =>
+    describe('chatUiStatCardsSpec', () => {
+        const renderStatCards = (props: ChatUiStatCardsSpecProps, isPartial = false) =>
             render(
-                chatUiMetricsSpec().render(props, {
+                chatUiStatCardsSpec().render(props, {
                     isPartial
                 } as ChatUiRenderContext) as ReactElement
             );
 
         it('renders a Hoist StatCard for each figure, in a StatCardStrip', () => {
-            const {container} = renderMetrics({
-                metrics: [
+            const {container} = renderStatCards({
+                cards: [
                     {label: 'Revenue', value: 12},
                     {label: 'Status', value: 'On track', intent: 'success'}
                 ]
             });
 
-            const strip = container.querySelector('.xh-stat-card-strip.xh-chat-ui-metrics'),
+            const strip = container.querySelector('.xh-stat-card-strip.xh-chat-ui-stat-cards'),
                 cards = strip.querySelectorAll('.xh-stat-card');
             expect(cards).toHaveLength(2);
             expect(cards[0].querySelector('.xh-stat-card__title').textContent).toBe('Revenue');
@@ -83,17 +83,17 @@ describe('generative UI components', () => {
         });
 
         it('shows a large value in a compact form, with the full value in a tooltip', () => {
-            renderMetrics({
-                metrics: [{label: 'Market cap', value: 48500000000, format: 'currency'}]
+            renderStatCards({
+                cards: [{label: 'Market cap', value: 48500000000, format: 'currency'}]
             });
 
             expect(screen.getByText('$48.5B').getAttribute('title')).toBe('$48,500,000,000.00');
         });
 
         it('shows only complete figures while the props stream', () => {
-            renderMetrics(
+            renderStatCards(
                 {
-                    metrics: [
+                    cards: [
                         {label: 'Revenue', value: 12},
                         {label: 'Margin', value: 0.3}
                     ]
@@ -106,8 +106,8 @@ describe('generative UI components', () => {
         });
 
         it('colors only the delta, with an arrow, and flips the colors with invert', () => {
-            const {container} = renderMetrics({
-                metrics: [
+            const {container} = renderStatCards({
+                cards: [
                     {label: 'P&L', value: 4820000, delta: 1100000, deltaLabel: 'vs last week'},
                     {label: 'VaR', value: 6100000, delta: 400000, invert: true}
                 ]

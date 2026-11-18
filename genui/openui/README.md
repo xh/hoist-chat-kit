@@ -25,8 +25,8 @@ reply text or in a data part. The kit parses it as it arrives, turns it into a
 ```
 root = Stack([lead, rev, mar], "column", "medium")
 lead = Text("Q3 at a glance.")
-rev = Metrics([{label: "Revenue", value: 1250000}])
-mar = Metrics([{label: "Margin", value: 0.184}])
+rev = StatCards([{label: "Revenue", value: 1250000}])
+mar = StatCards([{label: "Margin", value: 0.184}])
 ```
 
 Each statement assigns a component call to a name. The root statement holds the rest by name.
@@ -84,7 +84,7 @@ The format works in four steps:
    comes first, as `children`, then its props in the order of its props schema, then its named
    slots. A slot is an array of the components it accepts. A prop typed with
    `chatUiActionSchema()` takes an OpenUI action expression. The description adds a `Props:` line
-   with the first line of each prop description, such as `metrics[].value: A number...`.
+   with the first line of each prop description, such as `cards[].value: A number...`.
 2. **Library to parser.** The gate checks the program - see
    [The gate and its limits](#the-gate-and-its-limits). lang-core's parser then reads it against
    the library schema, and returns an element tree with a statement id per element.
@@ -266,7 +266,7 @@ With `inline: true`, the default, the format reads fenced code blocks tagged `op
 markdown. The prompt tells the model to tag each fence `openui-lang`.
 
 A reply is one bare program, with no prose, when its first line is `root = ...` or a statement
-that calls a component of the library, such as `rev = Metrics(...)`. Prose such as
+that calls a component of the library, such as `rev = StatCards(...)`. Prose such as
 `Total = revenue - cost` stays markdown. While the reply streams, a first line that can still
 start a program, or a fence opener still being written, shows as a placeholder.
 
@@ -368,7 +368,7 @@ import {ChatModel} from '@xh/hoist-chat-kit/core';
 import {
     chatUiChartSpec,
     chatUiGridSpec,
-    chatUiMetricsSpec,
+    chatUiStatCardsSpec,
     chatUiStackSpec,
     chatUiTextSpec
 } from '@xh/hoist-chat-kit/desktop/cmp/genui';
@@ -382,7 +382,7 @@ export class AnalystModel extends HoistModel {
         components: [
             chatUiStackSpec(),
             chatUiTextSpec(),
-            chatUiMetricsSpec(),
+            chatUiStatCardsSpec(),
             chatUiGridSpec({maxRows: 50}),
             chatUiChartSpec()
         ],
@@ -503,13 +503,13 @@ are such components:
 ```typescript
 import {
     chatUiInputSpecs,
-    chatUiMetricsSpec,
+    chatUiStatCardsSpec,
     chatUiStackSpec,
     chatUiTextSpec
 } from '@xh/hoist-chat-kit/desktop/cmp/genui';
 
 const catalog = new ChatUiCatalog({
-    components: [chatUiStackSpec(), chatUiTextSpec(), chatUiMetricsSpec(), ...chatUiInputSpecs()],
+    components: [chatUiStackSpec(), chatUiTextSpec(), chatUiStatCardsSpec(), ...chatUiInputSpecs()],
     textFormats: [openUiLangFormat({root: 'stack', bindings: true})],
     modes: ['openui']
 });
@@ -579,7 +579,7 @@ root = Stack([region, total, refresh])
 $region = "emea"
 region = Select("region", ["emea", "apac"], "Region", null, null, null, $region)
 sales = Query("get_sales", {region: $region}, {total: 0})
-total = Metrics([{label: "Sales", value: sales.total, format: "currency"}])
+total = StatCards([{label: "Sales", value: sales.total, format: "currency"}])
 refresh = Button("Refresh", @Run(sales))
 ```
 
@@ -730,7 +730,7 @@ list only those:
 ```typescript
 openUiLangFormat({
     root: 'stack',
-    slotAccepts: {stack: {default: ['text', 'metrics', 'grid', 'chart']}}
+    slotAccepts: {stack: {default: ['text', 'statCards', 'grid', 'chart']}}
 });
 ```
 
@@ -779,11 +779,11 @@ const library = toOpenUiLibrary(catalog, {root: 'stack'}),
         root: 'root',
         elements: {
             root: {component: 'stack', props: {direction: 'column'}, children: ['rev']},
-            rev: {component: 'metrics', props: {metrics: [{label: 'Revenue', value: 1250000}]}}
+            rev: {component: 'statCards', props: {cards: [{label: 'Revenue', value: 1250000}]}}
         }
     });
 // root = Stack([rev], "column")
-// rev = Metrics([{label: "Revenue", value: 1250000}])
+// rev = StatCards([{label: "Revenue", value: 1250000}])
 
 const format = openUiLangFormat({root: 'stack', examples: [program]});
 ```

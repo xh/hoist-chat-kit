@@ -555,7 +555,7 @@ part. Both need the optional peer `@openuidev/lang-core`, with `zod`:
 
 ```typescript
 const catalog = new ChatUiCatalog({
-    components: [chatUiStackSpec(), chatUiTextSpec(), chatUiMetricsSpec(), chatUiGridSpec()],
+    components: [chatUiStackSpec(), chatUiTextSpec(), chatUiStatCardsSpec(), chatUiGridSpec()],
     textFormats: [openUiLangFormat({root: 'stack'})],
     modes: ['openui']
 });
@@ -638,7 +638,7 @@ a loaded range is cached for the life of the registry. Each row gets a synthetic
 `CHAT_DATA_ROW_ID`, the row's index in the whole result. Use it as a store's `idSpec`, so a result
 with duplicate values in its own `id` column cannot break the store.
 
-Inline data stays fine for small components, such as metric tiles and cards, under schema
+Inline data stays fine for small components, such as stat cards and cards, under schema
 `maxItems`.
 
 ### Slice data with a view
@@ -763,7 +763,7 @@ function toElement(c: PlainObject): ChatUiElement {
         case 'Column':
             return {component: 'stack', props: {}, children: c.childIds};
         case 'Stat':
-            return {component: 'metrics', props: {metrics: [{label: c.label, value: c.value}]}};
+            return {component: 'statCards', props: {cards: [{label: c.label, value: c.value}]}};
         default:
             return {component: c.type, props: {}}; // Renders as a fallback.
     }
@@ -1044,7 +1044,7 @@ in `elements.chart.props.rows[3].value`. See `impl/validateSchema.ts` for the de
   built-in `chatUiFrame`, `fmtChatUiNumber`, `CHAT_UI_NUMBER_FORMAT_SCHEMA` and
   `CHAT_UI_DECIMALS_SCHEMA` give your components the same look and number formats as the
   built-in ones.
-- **The built-in components** - `chatUiGridSpec()`, `chatUiChartSpec()`, `chatUiMetricsSpec()`,
+- **The built-in components** - `chatUiGridSpec()`, `chatUiChartSpec()`, `chatUiStatCardsSpec()`,
   `chatUiCardSpec()`, `chatUiStackSpec()`, `chatUiTextSpec()`, `chatUiTabsSpec()`,
   `chatUiSectionSpec()`, `chatUiCalloutSpec()`, `chatUiBadgesSpec()`, `chatUiDividerSpec()` and
   `chatUiTreeMapSpec()` return specs with options for names, descriptions and limits. See
@@ -1153,7 +1153,7 @@ prompt on the server, and send only `catalog.version` from the browser.
 ## Related Packages
 
 - [`/genui/openui/`](./openui/README.md) - the OpenUI Lang format and adapter
-- [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) - the built-in grid, chart, metrics,
+- [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) - the built-in grid, chart, stat cards,
   card, stack and text components, the form, button and inputs, and the frame and number formats
   for your own
 - [`/core/`](../core/README.md) - `ChatModel`, `ChatToolSpec` and data renderers

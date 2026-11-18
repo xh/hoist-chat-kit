@@ -6,7 +6,7 @@ import type {ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {ChatModel, type ChatTextPart} from '../../core';
-import {chatUiMetricsSpec, chatUiStackSpec, chatUiTextSpec} from '../../desktop/cmp/genui';
+import {chatUiStatCardsSpec, chatUiStackSpec, chatUiTextSpec} from '../../desktop/cmp/genui';
 import {type ChatEvent, ScriptedChatTransport, textEvents} from '../../transport';
 import {chatUiActionSchema} from '../ChatUiAction';
 import {ChatUiCatalog} from '../ChatUiCatalog';
@@ -66,15 +66,15 @@ describe('openUiLangFormat', () => {
             elements: {
                 root: {component: 'stack', children: ['lead', 'rev', 'mar']},
                 lead: {component: 'text', props: {text: 'Q3 at a glance.'}},
-                rev: {component: 'metrics', props: {metrics: [{label: 'Revenue', value: 1250000}]}},
-                mar: {component: 'metrics', props: {metrics: [{label: 'Margin', value: 0.184}]}}
+                rev: {component: 'statCards', props: {cards: [{label: 'Revenue', value: 1250000}]}},
+                mar: {component: 'statCards', props: {cards: [{label: 'Margin', value: 0.184}]}}
             }
         });
     });
 
     it('shows a fenced program with no root as a placeholder while it streams, and a fallback once done', () => {
         const catalog = createCatalog(),
-            program = 'rev = Metrics([{label: "Revenue", value: 12}])';
+            program = 'rev = StatCards([{label: "Revenue", value: 12}])';
 
         expect(catalog.parseText('root = St', {isStreaming: true})).toEqual([
             {type: 'placeholder', component: null, source: 'root = St'}
@@ -99,7 +99,7 @@ describe('openUiLangFormat', () => {
         onTestFinished(() => warn.mockRestore());
 
         const catalog = createCatalog(),
-            text = 'rev = Metrics([{label: "Revenue", value: 12}])',
+            text = 'rev = StatCards([{label: "Revenue", value: 12}])',
             opts = {messageId: 'm-no-root', partId: 'p1'};
 
         expect(catalog.parseText(text, {...opts, isStreaming: true})).toEqual([
@@ -187,7 +187,8 @@ describe('openUiLangFormat', () => {
 
     it('streams prose and two fenced programs as segments in order, the first complete before the second opens', () => {
         const catalog = createCatalog(),
-            second = 'root = Stack([mar], "row")\nmar = Metrics([{label: "Margin", value: 0.184}])',
+            second =
+                'root = Stack([mar], "row")\nmar = StatCards([{label: "Margin", value: 0.184}])',
             text = [
                 'Here is the quarter.',
                 '',
@@ -256,7 +257,7 @@ describe('openUiLangFormat', () => {
                 catalog.parseText(text, {isStreaming: true, messageId: 'm1', partId: 'p9'}),
             fenced =
                 '```openui-lang\nroot = Stack([rev], "column", "medium")\n' +
-                'rev = Metrics([{label: "Revenue"}])\n```\n\nRevenue is';
+                'rev = StatCards([{label: "Revenue"}])\n```\n\nRevenue is';
         parsed.count = 0;
 
         parse(fenced);
@@ -316,7 +317,7 @@ describe('openUiLangFormat', () => {
 
         // One example in a fence: the root with the components that show data.
         expect(prompt).toContain(
-            '```openui-lang\nroot = Stack([metrics, text], "column", "medium")\nmetrics = Metrics('
+            '```openui-lang\nroot = Stack([statCards, text], "column", "medium")\nstatCards = StatCards('
         );
         expect(prompt).toContain('\ntext = Text("Revenue **grew** in every region.")\n```');
         expect(prompt.match(/^root = /gm)).toHaveLength(1);
@@ -342,13 +343,13 @@ describe('openUiLangFormat', () => {
         const wholeReply = createCatalog({inline: false}).toPrompt();
         expect(wholeReply).not.toContain('fenced code block');
         expect(wholeReply).not.toContain('```');
-        expect(wholeReply).toContain('\n\nroot = Stack([metrics, text], "column", "medium")\n');
+        expect(wholeReply).toContain('\n\nroot = Stack([statCards, text], "column", "medium")\n');
         expect(wholeReply).toContain('- Do not use $variables');
 
         expect(format.toExport({catalog})).toEqual({
             root: 'Stack',
             schema: expect.objectContaining({$defs: expect.any(Object)}),
-            components: expect.objectContaining({Metrics: expect.any(Object)}),
+            components: expect.objectContaining({StatCards: expect.any(Object)}),
             prompt: expect.stringContaining('## Syntax Rules')
         });
     });
@@ -421,9 +422,9 @@ describe('openUiLangFormat', () => {
             chunks = [
                 'root = St',
                 'ack([lead, rev, mar], "column", "medium")\nlead = Te',
-                'xt("Q3 at a glance.")\nrev = Metrics([{label: "Rev',
-                'enue", value: 1250000}])\nmar = Met',
-                'rics([{label: "Margin", va',
+                'xt("Q3 at a glance.")\nrev = StatCards([{label: "Rev',
+                'enue", value: 1250000}])\nmar = Stat',
+                'Cards([{label: "Margin", va',
                 'lue: 0.184}])'
             ],
             events: ChatEvent[] = [
@@ -522,7 +523,7 @@ describe('openUiLangAdapter', () => {
         });
         expect(partial).toMatchObject({root: 'root', isPartial: true});
         expect(partial.elements.rev.props).toEqual({
-            metrics: [{label: 'Revenue', value: 1250000}]
+            cards: [{label: 'Revenue', value: 1250000}]
         });
     });
 });
@@ -533,13 +534,13 @@ describe('openUiLangAdapter', () => {
 const PROGRAM = [
     'root = Stack([lead, rev, mar], "column", "medium")',
     'lead = Text("Q3 at a glance.")',
-    'rev = Metrics([{label: "Revenue", value: 1250000}])',
-    'mar = Metrics([{label: "Margin", value: 0.184}])'
+    'rev = StatCards([{label: "Revenue", value: 1250000}])',
+    'mar = StatCards([{label: "Margin", value: 0.184}])'
 ].join('\n');
 
 function createCatalog(opts: Partial<OpenUiLangFormatOptions> = {}): ChatUiCatalog {
     return new ChatUiCatalog({
-        components: [chatUiStackSpec(), chatUiMetricsSpec(), chatUiTextSpec()],
+        components: [chatUiStackSpec(), chatUiStatCardsSpec(), chatUiTextSpec()],
         textFormats: [openUiLangFormat({root: 'stack', ...opts})],
         modes: ['openui']
     });

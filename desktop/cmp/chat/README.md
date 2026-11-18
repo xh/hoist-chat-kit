@@ -1549,7 +1549,7 @@ renderer.
 - [`/core/`](../../../core/README.md) - `ChatModel`, messages, parts, tools and the composer model
 - [`/cmp/markdown/`](../../../cmp/markdown/README.md) - the streaming markdown renderer
 - [`/genui/`](../../../genui/README.md) - the generative UI catalog, shown as inline tool calls
-- [`/desktop/cmp/genui/`](../genui/README.md) - the built-in grid, chart, metrics and card
+- [`/desktop/cmp/genui/`](../genui/README.md) - the built-in grid, chart, stat cards and card
 - [Protocols](../../../docs/protocols.md) - generative UI protocols and data parts
 - [`/transport/`](../../../transport/README.md) - transports and codecs
 - [Architecture](../../../docs/architecture.md) - layers, the flow of a turn, render performance
