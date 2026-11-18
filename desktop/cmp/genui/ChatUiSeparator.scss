@@ -1,5 +1,5 @@
 // A rule in the chat's border color. In a row, it stands as a vertical rule.
-.xh-chat-ui-divider {
+.xh-chat-ui-separator {
   align-self: stretch;
   border: none;
   border-top: var(--xh-border-width) solid var(--xh-chat-part-border-color);
@@ -8,7 +8,7 @@
   width: 100%;
 }
 
-.xh-chat-ui-stack.xh-hbox > .xh-chat-ui-divider {
+.xh-chat-ui-stack.xh-hbox > .xh-chat-ui-separator {
   border-left: var(--xh-border-width) solid var(--xh-chat-part-border-color);
   border-top: none;
   flex: none;

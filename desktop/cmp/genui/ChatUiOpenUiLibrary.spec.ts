@@ -7,7 +7,7 @@ import {ChatUiCatalog} from '../../../genui';
 import {openUiLangFormat, toOpenUiLibrary} from '../../../genui/openui';
 import {chatUiBadgesSpec} from './ChatUiBadges';
 import {chatUiCalloutSpec} from './ChatUiCallout';
-import {chatUiDividerSpec} from './ChatUiDivider';
+import {chatUiSeparatorSpec} from './ChatUiSeparator';
 import {chatUiSectionSpec} from './ChatUiSection';
 import {chatUiStackSpec} from './ChatUiStack';
 import {chatUiTabsSpec} from './ChatUiTabs';
@@ -24,7 +24,7 @@ describe('built-in specs as an OpenUI library', () => {
 
     const INTENT = '"none" | "primary" | "success" | "warning" | "danger"',
         FORMAT = '"number" | "percent" | "currency" | "none"',
-        CHILDREN = '(Stack | Text | Tabs | Section | Callout | Badges | Divider | Treemap)[]';
+        CHILDREN = '(Stack | Text | Tabs | Section | Callout | Badges | Separator | Treemap)[]';
 
     it('writes a signature per component, with a container taking its children first', () => {
         const {components} = toOpenUiLibrary(createCatalog(), {root: 'stack'});
@@ -40,7 +40,7 @@ describe('built-in specs as an OpenUI library', () => {
         expect(components.Badges.signature).toBe(
             `Badges(badges: {label: string; intent?: ${INTENT}}[])`
         );
-        expect(components.Divider.signature).toBe('Divider()');
+        expect(components.Separator.signature).toBe('Separator()');
         expect(components.Treemap.signature).toBe(
             'Treemap(title?: string, nodes: {label: string; value: number; heat?: number}[], ' +
                 `format?: ${FORMAT}, decimals?: number, heatLabel?: string, ` +
@@ -73,7 +73,7 @@ describe('built-in specs as an OpenUI library', () => {
                 props: {text: 'VaR is over its limit.', intent: 'warning', title: 'Limit breach'}
             },
             tags: {component: 'badges', props: {badges: [{label: 'Rates', intent: 'danger'}]}},
-            rule: {component: 'divider', props: {}},
+            rule: {component: 'separator', props: {}},
             views: {
                 component: 'tabs',
                 props: {titles: ['Exposure', 'Detail']},
@@ -153,7 +153,7 @@ const PROGRAM = [
     'root = Stack([note, tags, rule, views])',
     'note = Callout("warning", "Limit breach", "VaR is over its limit.")',
     'tags = Badges([{label: "Rates", intent: "danger"}])',
-    'rule = Divider()',
+    'rule = Separator()',
     'views = Tabs([map, detail], ["Exposure", "Detail"])',
     'map = Treemap("Exposure", [{label: "Rates", value: 42}])',
     'detail = Section([body], "By desk", null, true)',
@@ -169,7 +169,7 @@ function createCatalog(): ChatUiCatalog {
             chatUiSectionSpec(),
             chatUiCalloutSpec(),
             chatUiBadgesSpec(),
-            chatUiDividerSpec(),
+            chatUiSeparatorSpec(),
             chatUiTreeMapSpec()
         ],
         textFormats: [openUiLangFormat({root: 'stack'})],

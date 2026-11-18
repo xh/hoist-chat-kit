@@ -15,7 +15,7 @@ import {
     chatUiCalloutSpec,
     chatUiCardSpec,
     chatUiChartSpec,
-    chatUiDividerSpec,
+    chatUiSeparatorSpec,
     chatUiGridSpec,
     chatUiInputSpecs,
     chatUiStatCardsSpec,
@@ -217,12 +217,12 @@ describe('OpenUI Lang prompt for the built-in components', () => {
             ]);
         });
 
-        it('shows no program per component, and puts no divider in a root', () => {
+        it('shows no program per component, and puts no separator in a root', () => {
             const prompt = createPrompt(FORMATS.tool),
                 examples = section(prompt, 'Examples');
 
             expect(examplePrograms(prompt)).toHaveLength(2);
-            expect(examples).not.toContain('Divider()');
+            expect(examples).not.toContain('Separator()');
             ['Tabs', 'Section', 'Card', 'Button', 'Checkbox'].forEach(it =>
                 expect(examples).not.toContain(`${it}(`)
             );
@@ -355,7 +355,7 @@ const SALES_TOOL = {
         .map(it => it.name),
     DISPLAY_NAMES = [
         ...['text', 'statCards', 'grid', 'chart', 'card', 'tabs', 'section', 'callout'],
-        ...['badges', 'divider', 'treemap']
+        ...['badges', 'separator', 'treemap']
     ],
     CONTEXT = {
         chatModel: null as null,
@@ -390,7 +390,7 @@ function createCatalog(
         chatUiSectionSpec(),
         chatUiCalloutSpec(),
         chatUiBadgesSpec(),
-        chatUiDividerSpec(),
+        chatUiSeparatorSpec(),
         chatUiTreeMapSpec(),
         // The form, the button and each input.
         ...chatUiInputSpecs()

@@ -64,7 +64,7 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   its children under a title, and the user can collapse it. Neither is standalone.
 * Added `chatUiCalloutSpec()`, a note, success, warning or error message over Hoist's `Banner`,
   with the `show_callout` tool. Its text renders as chat markdown, which loads no image.
-* Added `chatUiBadgesSpec()`, a row of Hoist `Badge` labels, and `chatUiDividerSpec()`, a rule
+* Added `chatUiBadgesSpec()`, a row of Hoist `Badge` labels, and `chatUiSeparatorSpec()`, a rule
   between the parts of a nested answer. Neither is standalone.
 * Added `chatUiTreeMapSpec()`, boxes sized by one number and colored by another over Hoist's
   `TreeMap`, with the `show_treemap` tool. The app imports two Highcharts modules in its

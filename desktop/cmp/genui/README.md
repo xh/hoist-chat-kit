@@ -20,7 +20,7 @@
 The `/desktop/cmp/genui/` package holds ready-made components for generative UI. A model shows
 them inline in its reply: a result table, a Hoist chart, a row of stat cards, and a detail card. A
 stack and a text component lay these out in a nested answer. Tabs, sections, callouts, badges,
-dividers and a treemap add structure and emphasis, each a spec over a Hoist component. Add them to
+separators and a treemap add structure and emphasis, each a spec over a Hoist component. Add them to
 a `ChatUiCatalog` next to your own components. The model can then answer with real Hoist UI in
 place of long tables of text.
 
@@ -34,7 +34,7 @@ Key features:
 - **Nested answers** - a stack lays out components in a column or a row, and a text component
   holds the prose between them, as markdown.
 - **Hoist components for structure** - `chatUiTabsSpec()`, `chatUiSectionSpec()`,
-  `chatUiCalloutSpec()`, `chatUiBadgesSpec()`, `chatUiDividerSpec()` and `chatUiTreeMapSpec()` map
+  `chatUiCalloutSpec()`, `chatUiBadgesSpec()`, `chatUiSeparatorSpec()` and `chatUiTreeMapSpec()` map
   plain props to Hoist's `TabContainer`, `Card`, `Banner`, `Badge`, `hr` and `TreeMap`.
 - **Result tables in two tiers** - inline, a table is a light preview of its first rows and
   columns, with a footer that says what it leaves out. Expand opens one Hoist `Grid` over the
@@ -72,7 +72,7 @@ chatUiTabsSpec(opts)    → ChatUiComponentSpec<ChatUiTabsSpecProps>    → Chat
 chatUiSectionSpec(opts) → ChatUiComponentSpec<ChatUiSectionSpecProps> → Card (Hoist)
 chatUiCalloutSpec(opts) → ChatUiComponentSpec<ChatUiCalloutSpecProps> → Banner (Hoist)
 chatUiBadgesSpec(opts)  → ChatUiComponentSpec<ChatUiBadgesSpecProps>  → Badge (Hoist)
-chatUiDividerSpec(opts) → ChatUiComponentSpec<ChatUiDividerSpecProps> → hr (Hoist)
+chatUiSeparatorSpec(opts) → ChatUiComponentSpec<ChatUiSeparatorSpecProps> → hr (Hoist)
 chatUiTreeMapSpec(opts) → ChatUiComponentSpec<ChatUiTreeMapSpecProps> → ChatUiTreeMap → TreeMap (Hoist)
 ```
 
@@ -82,7 +82,7 @@ Each factory returns a spec for a `ChatUiCatalog`. The catalog turns the spec in
 model calls the tool, the catalog checks the props against the spec's schema and its `validate`
 function. It then calls the spec's `render`, which returns the matching component.
 
-The stack, text, tabs, section, badges and divider components set `standalone: false`, so they
+The stack, text, tabs, section, badges and separator components set `standalone: false`, so they
 have no tool or tag of their own. They show only inside a nested answer: a `show_ui` document, an
 `xh.chat.ui` data part, or a text format that writes documents.
 
@@ -400,7 +400,7 @@ Tabs and sections are containers, as the stack is. Each takes children, and nest
   `text` takes markdown bold, italics and links. It has a tool of its own, `show_callout`.
 - **Badges** render a Hoist `Badge` per label, each in the color of its `intent`, in a row that
   wraps.
-- **A divider** renders a rule. It takes no props. In a row stack it stands as a vertical rule.
+- **A separator** renders a rule. It takes no props. In a row stack it stands as a vertical rule.
 
 Style them through Hoist's own variables, such as `--xh-card-*` under `.xh-chat-ui-section` and
 `--xh-badge-*` under `.xh-chat-ui-badges`.
@@ -601,7 +601,7 @@ and `description`, the text that tells the model when to use the component.
 | `chatUiSectionSpec` | - | - | No options beyond `name` and `description`. |
 | `chatUiCalloutSpec` | `maxLength` | `number` | Most characters of text. Default 500. |
 | `chatUiBadgesSpec` | `maxItems` | `number` | Most badges. Default 12. |
-| `chatUiDividerSpec` | - | - | No options beyond `name` and `description`. |
+| `chatUiSeparatorSpec` | - | - | No options beyond `name` and `description`. |
 | `chatUiTreeMapSpec` | `maxNodes` | `number` | Most boxes. Default 60. |
 | | `height` | `number` | Treemap body height, in pixels. Default the `--xh-chat-chart-height` variable. |
 
@@ -637,7 +637,7 @@ ChatUiGrid.defaults.exportConfirmAbove = 50_000;
 | `ChatUiTabs` | `titles` | `children`, `isPartial` |
 | `ChatUiTreeMap` | `title`, `nodes`, `format`, `decimals`, `heatLabel`, `heatFormat` | `height`, `isPartial` |
 
-The section, callout, badges and divider specs render Hoist components, and have no component of
+The section, callout, badges and separator specs render Hoist components, and have no component of
 their own. Their props from the model:
 
 | Spec | Props from the model |
@@ -645,7 +645,7 @@ their own. Their props from the model:
 | `chatUiSectionSpec` | `title`, `intent`, `collapsible`, `collapsed` |
 | `chatUiCalloutSpec` | `intent`, `title`, `text` |
 | `chatUiBadgesSpec` | `badges`, each a `label` and an optional `intent` |
-| `chatUiDividerSpec` | None |
+| `chatUiSeparatorSpec` | None |
 
 See the TSDoc in each source file for the full shape of the props.
 

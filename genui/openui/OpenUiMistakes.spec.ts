@@ -7,7 +7,7 @@ import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     chatUiButtonSpec,
     chatUiCardSpec,
-    chatUiDividerSpec,
+    chatUiSeparatorSpec,
     chatUiInputSpecs,
     chatUiStatCardsSpec,
     chatUiSectionSpec,
@@ -224,7 +224,7 @@ describe('OpenUI Lang mistakes', () => {
             const text = prompt({
                 components: [
                     chatUiStackSpec(),
-                    chatUiDividerSpec(),
+                    chatUiSeparatorSpec(),
                     chatUiTabsSpec(),
                     chatUiSectionSpec(),
                     chatUiTextSpec(),
@@ -233,11 +233,11 @@ describe('OpenUI Lang mistakes', () => {
                 ]
             });
 
-            // The root holds no divider, no empty container and no input.
+            // The root holds no separator, no empty container and no input.
             expect(text.match(/^root = .*$/gm)).toEqual([
                 'root = Stack([text, statCards], "column", "medium")'
             ]);
-            expect(text).not.toMatch(/^\w+ = (Divider|Tabs|Section|Form|Button|TextInput)\(/m);
+            expect(text).not.toMatch(/^\w+ = (Separator|Tabs|Section|Form|Button|TextInput)\(/m);
         });
 
         it("puts the kit's rules with lang-core's rules, ahead of its final checks", () => {

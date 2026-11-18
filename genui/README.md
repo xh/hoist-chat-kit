@@ -155,7 +155,7 @@ server that sends a complete document mid-reply sees it render complete at once.
 A component with `standalone: false` shows only inside a nested answer: a document, or the
 program of a text format. The catalog gives it no tool and no tag of its own, but the document
 tool and the `document` prompt section keep it. The built-in stack, text, tabs, section, badges
-and divider components are not standalone.
+and separator components are not standalone.
 
 ### How a call becomes a component
 
@@ -1046,7 +1046,7 @@ in `elements.chart.props.rows[3].value`. See `impl/validateSchema.ts` for the de
   built-in ones.
 - **The built-in components** - `chatUiGridSpec()`, `chatUiChartSpec()`, `chatUiStatCardsSpec()`,
   `chatUiCardSpec()`, `chatUiStackSpec()`, `chatUiTextSpec()`, `chatUiTabsSpec()`,
-  `chatUiSectionSpec()`, `chatUiCalloutSpec()`, `chatUiBadgesSpec()`, `chatUiDividerSpec()` and
+  `chatUiSectionSpec()`, `chatUiCalloutSpec()`, `chatUiBadgesSpec()`, `chatUiSeparatorSpec()` and
   `chatUiTreeMapSpec()` return specs with options for names, descriptions and limits. See
   [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md).
 - **Text formats** - implement `ChatUiTextFormat` for a grammar of UI in the answer text, and add

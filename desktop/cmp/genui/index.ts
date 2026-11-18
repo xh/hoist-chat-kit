@@ -6,7 +6,7 @@ export * from './ChatUiChart';
 export * from './ChatUiChartView';
 export * from './ChatUiCheckbox';
 export * from './ChatUiDateInput';
-export * from './ChatUiDivider';
+export * from './ChatUiSeparator';
 export * from './ChatUiForm';
 export * from './ChatUiFormat';
 export * from './ChatUiFrame';

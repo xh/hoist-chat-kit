@@ -2,28 +2,28 @@ import {hr} from '@xh/hoist/cmp/layout';
 import type {ChatUiComponentSpec} from '../../../genui';
 import type {ChatUiSpecOptions} from './Types';
 import '../../../styles/vars.scss';
-import './ChatUiDivider.scss';
+import './ChatUiSeparator.scss';
 
-/** Props of a divider component. It takes none. */
-export type ChatUiDividerSpecProps = Record<string, never>;
+/** Props of a separator component. It takes none. */
+export type ChatUiSeparatorSpecProps = Record<string, never>;
 
 /**
- * A divider component for a {@link ChatUiCatalog}: a rule between two parts of a nested answer.
+ * A separator component for a {@link ChatUiCatalog}: a rule between two parts of a nested answer.
  * It renders Hoist's `hr` element, in the chat's border color. It adds no line to copied text.
  *
  * It has no tool or tag of its own. The model nests it in a document.
  */
-export function chatUiDividerSpec(
+export function chatUiSeparatorSpec(
     opts: ChatUiSpecOptions = {}
-): ChatUiComponentSpec<ChatUiDividerSpecProps> {
-    const {name = 'divider', description = DESCRIPTION} = opts;
+): ChatUiComponentSpec<ChatUiSeparatorSpecProps> {
+    const {name = 'separator', description = DESCRIPTION} = opts;
 
     return {
         name,
         description,
         props: {type: 'object', additionalProperties: false, properties: {}},
         standalone: false,
-        render: () => hr({className: 'xh-chat-ui-divider'}),
+        render: () => hr({className: 'xh-chat-ui-separator'}),
         result: () => '',
         example: {}
     };
