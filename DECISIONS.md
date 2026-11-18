@@ -145,12 +145,13 @@ still in force, with their amendments. Do not read the whole file.
 | [D121](#d121-reply-text-reaches-the-catalog-through-ui-formats) | Reply text reaches the catalog through UI formats | Accepted |
 | [D122](#d122-openui-lang-runs-on-thesyss-headless-core-with-the-kits-catalog) | OpenUI Lang runs on Thesys's headless core, with the kit's catalog | Amended by D127 |
 | [D123](#d123-adapters-render-partial-documents) | Adapters render partial documents | Amended by D126 |
-| [D124](#d124-built-in-generative-ui-components-render-hoist-components) | Built-in generative UI components render Hoist components | Accepted |
+| [D124](#d124-built-in-generative-ui-components-render-hoist-components) | Built-in generative UI components render Hoist components | Amended by D132 |
 | [D125](#d125-the-chat-holds-the-agents-shared-state-and-the-backend-owns-it) | The chat holds the agent's shared state, and the backend owns it | Accepted |
 | [D126](#d126-a-document-can-have-state-and-a-component-can-write-a-bound-prop) | A document can have state, and a component can write a bound prop | Accepted |
 | [D127](#d127-openui-lang-state-and-queries-run-on-lang-cores-runtime-and-a-program-cannot-change-data) | OpenUI Lang state and queries run on lang-core's runtime, and a program cannot change data | Accepted |
-| [D128](#d128-a-spec-gives-a-hoist-component-plain-data-safe-text-and-one-model) | A spec gives a Hoist component plain data, safe text and one model | Accepted |
+| [D128](#d128-a-spec-gives-a-hoist-component-plain-data-safe-text-and-one-model) | A spec gives a Hoist component plain data, safe text and one model | Amended by D132 |
 | [D129](#d129-each-built-in-input-owns-one-hoist-field-and-a-form-sends-within-the-caps-of-a-send) | Each built-in input owns one Hoist field, and a form sends within the caps of a send | Accepted |
+| [D132](#d132-a-spec-takes-the-name-of-the-hoist-component-it-renders) | A spec takes the name of the Hoist component it renders | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2590,7 +2591,7 @@ direct dependency. Every app would install it, even one that never uses the form
 
 ## D124. Built-in generative UI components render Hoist components
 
-**Status.** Accepted.
+**Status.** Accepted. Amended by D132.
 
 **Decision.** The kit holds chat components only. A built-in generative UI component is a spec over
 a hoist-react component: a props schema that a model can write, checks, a description, and a
@@ -2677,7 +2678,7 @@ replay. They give a state only if each run opens with a snapshot, which the kit 
 
 ## D128. A spec gives a Hoist component plain data, safe text and one model
 
-**Status.** Accepted.
+**Status.** Accepted. Amended by D132.
 
 **Decision.** The specs for tabs, sections, callouts, badges, dividers and treemaps follow D124:
 each renders a hoist-react component, and the kit adds no presentational component. They share
@@ -2961,3 +2962,29 @@ most direct use of Hoist, but it has no layout of its own, and an input outside 
 second vocabulary. Copy the signatures of OpenUI's own `Form`, `FormControl` and `Input`. D122
 keeps the argument order of the kit. Raise the cap for text that the user types. That needs a way
 to tell typed text from a default.
+
+## D132. A spec takes the name of the Hoist component it renders
+
+**Status.** Accepted. Amends D124 and D128.
+
+**Decision.** Each built-in spec takes the name of the hoist-react component it renders. Its
+factory, catalog name, tool, props and classes use that name, and the kit keeps no term of its own
+beside it. `chatUiMetricsSpec()` is now `chatUiStatCardsSpec()`, with the catalog name
+`statCards`, the tool `show_stat_cards`, the prop `cards` and the class `xh-chat-ui-stat-cards`.
+`chatUiDividerSpec()` is now `chatUiSeparatorSpec()`, with the catalog name `separator`. The
+`--xh-chat-tile-*` variables are gone, and apps style the cards through Hoist's `--xh-stat-card-*`
+variables. The badges, tabs, treemap and input specs already match. A tool name is in snake case,
+as `show_stat_cards`, where the catalog name is in camel case.
+
+Two specs wait. `section` renders `Card`, but `card` still names the record card. The record card
+will become a Hoist `Card` that holds a `KeyValueList`, with its actions in the card's footer, and
+`section` becomes `card` in that change. `callout` renders `Banner` until Hoist's own `Callout`
+ships, then moves onto it with no rename.
+
+**Why.** A developer or an agent that reads a catalog name finds the component in Hoist's docs
+under the same name. A second name for the same component is one more thing to learn and map, and
+the two drift apart as Hoist grows.
+
+**Alternatives.** Keep names that say what a component is for, as D124 and D128 had it. Each name
+then needs a map to its Hoist component. Keep `metrics` as an alias of `statCards`. Two names for
+one spec double the docs and the prompt.
