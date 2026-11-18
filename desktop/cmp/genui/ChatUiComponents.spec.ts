@@ -113,7 +113,9 @@ describe('generative UI components', () => {
                 ]
             });
 
-            const [pnl, risk] = container.querySelectorAll('.xh-stat-card__sub-value > span');
+            const [pnl, risk] = container.querySelectorAll(
+                '.xh-stat-card__sub-value [aria-hidden="true"] > span'
+            );
             expect(pnl.className).toContain('xh-pos-val');
             expect(risk.className).toContain('xh-neg-val');
             expect(pnl.textContent).toBe('▴1.1M');
@@ -121,6 +123,25 @@ describe('generative UI components', () => {
             expect(container.querySelector('.xh-stat-card__detail').textContent).toBe(
                 'vs last week'
             );
+        });
+
+        it('says which way each delta moved in words, for a screen reader', () => {
+            const {container} = renderStatCards({
+                cards: [
+                    {label: 'Revenue', value: 1250000, delta: 0.012, deltaFormat: 'percent'},
+                    {label: 'VaR', value: 6100000, delta: -400000, invert: true},
+                    {label: 'Desks', value: 6, delta: 0}
+                ]
+            });
+
+            const words = [...container.querySelectorAll('.xh-chat-ui-sr-only')].map(
+                it => it.textContent
+            );
+            expect(words).toEqual(['up 1.2%', 'down 400K', 'unchanged']);
+            // The glyph and number on screen are hidden from the screen reader.
+            expect(
+                container.querySelector('.xh-stat-card__sub-value [aria-hidden="true"]').textContent
+            ).toBe('▴1.2%');
         });
     });
 

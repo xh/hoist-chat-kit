@@ -1,5 +1,6 @@
 import {dropRight, isEmpty, isFinite, isPlainObject} from 'lodash';
 import type {ReactNode} from 'react';
+import {span} from '@xh/hoist/cmp/layout';
 import {statCard, statCardStrip} from '@xh/hoist/cmp/statcard';
 import type {ColorSpec} from '@xh/hoist/format';
 import type {ChatUiComponentSpec} from '../../../genui';
@@ -185,15 +186,35 @@ function toStatCard(card: ChatUiStatCard, idx: number): ReactNode {
         key: idx,
         title: label,
         value: isFinite(value) ? fmtValue(value as number, format, decimals) : String(value),
-        subValue: isFinite(delta)
-            ? fmtChatUiNumber(delta, deltaFormat, deltaDecimals, {
-                  compact: true,
-                  withSignGlyph: true,
-                  colorSpec: invert ? INVERTED_COLOR_SPEC : true
-              })
-            : null,
+        subValue: isFinite(delta) ? fmtDelta(delta, deltaFormat, deltaDecimals, invert) : null,
         detail: deltaLabel,
         intent: intent && intent !== 'none' ? intent : null
+    });
+}
+
+/**
+ * The delta in color, with an arrow glyph. A screen reader hears it in words instead, such as
+ * "up 1.2%", as the glyph alone does not say which way the value moved.
+ */
+function fmtDelta(
+    delta: number,
+    format: ChatUiNumberFormat,
+    decimals: number,
+    invert: boolean
+): ReactNode {
+    const shown = fmtChatUiNumber(delta, format, decimals, {
+            compact: true,
+            withSignGlyph: true,
+            colorSpec: invert ? INVERTED_COLOR_SPEC : true
+        }),
+        size = fmtChatUiNumber(Math.abs(delta), format, decimals, {compact: true, asHtml: true}),
+        words = delta > 0 ? `up ${size}` : delta < 0 ? `down ${size}` : 'unchanged';
+
+    return span({
+        children: [
+            span({key: 'shown', 'aria-hidden': true, children: shown}),
+            span({key: 'words', className: 'xh-chat-ui-sr-only', children: words})
+        ]
     });
 }
 

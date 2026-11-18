@@ -295,6 +295,8 @@ The stat cards spec renders Hoist's `StatCardStrip`, with a `StatCard` per figur
 outlined, at least 150 px wide, and wrap to an even grid before a value is cut short. Style them
 through Hoist's `--xh-stat-card-*` variables, under `.xh-chat-ui-stat-cards`.
 A delta shows after the value with an arrow, in Hoist's positive color when up and its negative color when down.
+A screen reader hears the delta in words, such as "up 1.2%", as the arrow alone does not say which
+way the value moved.
 With `invert`, for a figure where up is bad, a rise shows in the negative color. It takes the
 format and decimals of its value, unless the model sets `deltaFormat`. Its `deltaLabel` shows
 under the value. An `intent` colors the card's outline. A large `number` or `currency` value, from
