@@ -33,7 +33,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   with a `StatCard` per figure. Its catalog name is now `statCards`, its tool `show_stat_cards` and
   its `metrics` prop `cards`. Renamed `ChatUiMetric` and the spec's props and options types to
   match. Removed the `ChatUiMetrics` component, `chatUiMetrics()`, `ChatUiMetricsProps` and the
-  `xh-chat-ui-metrics__*` classes. See
+  `xh-chat-ui-metrics__*` classes, and the `--xh-chat-tile-min-width` and
+  `--xh-chat-tile-value-font-size` variables. Set Hoist's `--xh-stat-card-*` variables instead. See
   [Move Metrics to the Stat Cards Spec](docs/upgrade-notes/v3-upgrade-notes.md#4-move-metrics-to-the-stat-cards-spec).
 * Removed `AgUiCodecConfig.state`. The chat now holds the agent's state, and `AgUiCodec` sends it
   with each run. Move a codec `state` to `ChatModelConfig.prepareAgentState`. A backend that

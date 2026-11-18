@@ -3,9 +3,9 @@
   --xh-stat-card-bg: var(--xh-chat-bg);
   --xh-stat-card-border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
   --xh-stat-card-border-radius: var(--xh-chat-border-radius);
-  --xh-stat-card-min-content-width: var(--xh-chat-tile-min-width);
+  --xh-stat-card-min-content-width: 150px;
   --xh-stat-card-strip-gap: 8px;
-  --xh-stat-card-value-font-size: var(--xh-chat-tile-value-font-size);
+  --xh-stat-card-value-font-size: var(--xh-font-size-large);
   line-height: normal;
 }
 

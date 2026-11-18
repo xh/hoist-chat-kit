@@ -99,7 +99,7 @@ It renders Hoist's `StatCardStrip`, with a `StatCard` per figure. Its catalog na
 **Find affected code:**
 
 ```bash
-grep -rnE "chatUiMetrics|ChatUiMetric|xh-chat-ui-metrics|show_metrics" client-app/src/
+grep -rnE "chatUiMetrics|ChatUiMetric|xh-chat-ui-metrics|show_metrics|xh-chat-tile" client-app/src/
 ```
 
 - Rename `chatUiMetricsSpec()` to `chatUiStatCardsSpec()`. Rename the types `ChatUiMetric`,
@@ -111,8 +111,10 @@ grep -rnE "chatUiMetrics|ChatUiMetric|xh-chat-ui-metrics|show_metrics" client-ap
 - Replace a direct `chatUiMetrics()` call with Hoist's `statCardStrip()` and `statCard()`, from
   `@xh/hoist/cmp/statcard`. Format each value with `fmtChatUiNumber()` to match the chat.
 - Move style overrides of the `xh-chat-ui-metrics__*` classes to Hoist's `--xh-stat-card-*`
-  variables, set under `.xh-chat-ui-stat-cards`. The `--xh-chat-tile-min-width` and
-  `--xh-chat-tile-value-font-size` variables still apply.
+  variables, set under `.xh-chat-ui-stat-cards`.
+- Move an override of `--xh-chat-tile-min-width` or `--xh-chat-tile-value-font-size`, both
+  removed, to `--xh-stat-card-min-content-width` or `--xh-stat-card-value-font-size`, set under
+  `.xh-chat-ui-stat-cards`.
 
 **Before:**
 
