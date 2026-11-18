@@ -72,7 +72,7 @@ chatUiTabsSpec(opts)    → ChatUiComponentSpec<ChatUiTabsSpecProps>    → Chat
 chatUiSectionSpec(opts) → ChatUiComponentSpec<ChatUiSectionSpecProps> → Card (Hoist)
 chatUiCalloutSpec(opts) → ChatUiComponentSpec<ChatUiCalloutSpecProps> → Banner (Hoist)
 chatUiBadgesSpec(opts)  → ChatUiComponentSpec<ChatUiBadgesSpecProps>  → Badge (Hoist)
-chatUiSeparatorSpec(opts) → ChatUiComponentSpec<ChatUiSeparatorSpecProps> → hr (Hoist)
+chatUiSeparatorSpec(opts) → ChatUiComponentSpec<ChatUiSeparatorSpecProps> → Separator (Hoist)
 chatUiTreeMapSpec(opts) → ChatUiComponentSpec<ChatUiTreeMapSpecProps> → ChatUiTreeMap → TreeMap (Hoist)
 ```
 
@@ -401,7 +401,8 @@ Tabs and sections are containers, as the stack is. Each takes children, and nest
   renders `Banner` for now, and will move to Hoist's own `Callout` component once that ships.
 - **Badges** render a Hoist `Badge` per label, each in the color of its `intent`, in a row that
   wraps.
-- **A separator** renders a rule. It takes no props. In a row stack it stands as a vertical rule.
+- **A separator** renders Hoist's `Separator`: a rule, with an optional `label` within it. In a row
+  stack it stands as a vertical rule of its own width, with no label.
 
 Style them through Hoist's own variables, such as `--xh-card-*` under `.xh-chat-ui-section` and
 `--xh-badge-*` under `.xh-chat-ui-badges`.
@@ -646,7 +647,7 @@ their own. Their props from the model:
 | `chatUiSectionSpec` | `title`, `intent`, `collapsible`, `collapsed` |
 | `chatUiCalloutSpec` | `intent`, `title`, `text` |
 | `chatUiBadgesSpec` | `badges`, each a `label` and an optional `intent` |
-| `chatUiSeparatorSpec` | None |
+| `chatUiSeparatorSpec` | `label` |
 
 See the TSDoc in each source file for the full shape of the props.
 

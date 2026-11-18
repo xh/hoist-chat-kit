@@ -1,8 +1,10 @@
 import {hbox, vbox} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import classNames from 'classnames';
+import {createElement} from 'react';
 import type {ChatUiComponentSpec} from '../../../genui';
 import {chatUiFrame} from './ChatUiFrame';
+import {ChatUiStackDirection} from './impl/ChatUiStackDirection';
 import type {ChatUiSpecOptions} from './Types';
 import './ChatUiStack.scss';
 
@@ -77,7 +79,12 @@ export const [ChatUiStack, chatUiStack] = hoistCmp.withFactory<ChatUiStackProps>
                 children
             });
 
-        return title ? chatUiFrame({title, children: stack}) : stack;
+        // A child that draws itself to suit its stack, such as a separator, reads the direction.
+        return createElement(
+            ChatUiStackDirection.Provider,
+            {value: direction === 'row' ? 'row' : 'column'},
+            title ? chatUiFrame({title, children: stack}) : stack
+        );
     }
 });
 

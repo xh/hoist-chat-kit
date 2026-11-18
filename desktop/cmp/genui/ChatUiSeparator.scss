@@ -1,17 +1,10 @@
-// A rule in the chat's border color. In a row, it stands as a vertical rule.
+// A Hoist Separator in the chat's border color. The stack around it sets the space on each side.
 .xh-chat-ui-separator {
-  align-self: stretch;
-  border: none;
-  border-top: var(--xh-border-width) solid var(--xh-chat-part-border-color);
-  flex: none;
-  margin: 0;
-  width: 100%;
+  --xh-separator-border-color: var(--xh-chat-part-border-color);
 }
 
+// In a row, the rule takes only its own width, not a share of the row as the other children do.
 .xh-chat-ui-stack.xh-hbox > .xh-chat-ui-separator {
-  border-left: var(--xh-border-width) solid var(--xh-chat-part-border-color);
-  border-top: none;
   flex: none;
   min-width: 0;
-  width: 0;
 }
