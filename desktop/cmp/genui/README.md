@@ -397,7 +397,8 @@ Tabs and sections are containers, as the stack is. Each takes children, and nest
   collapses.
 - **A callout** renders Hoist's `Banner`, tinted and with the icon of its `intent`: `primary` for
   a note, `success`, `warning` or `danger`, and `none` for a neutral message with no icon. Its
-  `text` takes markdown bold, italics and links. It has a tool of its own, `show_callout`.
+  `text` takes markdown bold, italics and links. It has a tool of its own, `show_callout`. It
+  renders `Banner` for now, and will move to Hoist's own `Callout` component once that ships.
 - **Badges** render a Hoist `Badge` per label, each in the color of its `intent`, in a row that
   wraps.
 - **A separator** renders a rule. It takes no props. In a row stack it stands as a vertical rule.

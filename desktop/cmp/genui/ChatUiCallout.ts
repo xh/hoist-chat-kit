@@ -33,7 +33,8 @@ export interface ChatUiCalloutSpecOptions extends ChatUiSpecOptions {
 /**
  * A callout component for a {@link ChatUiCatalog}: a message that stands out from the answer, as
  * a note, a success, a warning or an error. It renders Hoist's `Banner`, tinted and with the icon
- * of its intent, so that color is never the only signal.
+ * of its intent, so that color is never the only signal. It renders `Banner` for now, and will
+ * move to Hoist's own `Callout` component once that ships.
  *
  * The spec passes the text to the banner as rendered chat markdown, never as a string. A string
  * goes through Hoist's own markdown, which loads images.
