@@ -106,23 +106,25 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
             meta = compact([spec?.summary?.(part), statusLabel]).join(' · '),
             rowItems = [
                 statusGlyph(part, spec, isDetached),
-                spec?.icon ? span({className: 'xh-chat-tool-call__icon', item: spec.icon}) : null,
-                span({className: 'xh-chat-tool-call__title', item: title}),
+                spec?.icon
+                    ? span({className: 'xh-chat-tool-call__icon', children: spec.icon})
+                    : null,
+                span({className: 'xh-chat-tool-call__title', children: title}),
                 title !== toolName
-                    ? span({className: 'xh-chat-tool-call__name', item: toolName})
+                    ? span({className: 'xh-chat-tool-call__name', children: toolName})
                     : null,
                 errorLine
                     ? span({
                           className: 'xh-chat-tool-call__detail',
                           title: errorLine,
-                          item: errorLine
+                          children: errorLine
                       })
                     : null,
-                span({className: 'xh-chat-tool-call__meta', item: meta}),
+                span({className: 'xh-chat-tool-call__meta', children: meta}),
                 hasBody
                     ? span({
                           className: 'xh-chat-tool-call__chevron',
-                          item: isExpanded ? Icon.groupRowExpanded() : Icon.groupRowCollapsed()
+                          children: isExpanded ? Icon.groupRowExpanded() : Icon.groupRowCollapsed()
                       })
                     : null
             ];
@@ -135,25 +137,25 @@ export const [ChatToolCall, chatToolCall] = hoistCmp.withFactory<ChatToolCallPro
                 `xh-chat-tool-call--${kind}`,
                 {'xh-chat-tool-call--expanded': isExpanded}
             ),
-            items: [
+            children: [
                 // A row with nothing to open is a plain row, not a button that does nothing.
                 hasBody
                     ? button({
                           className: 'xh-chat-tool-call__header',
-                          text: span({className: 'xh-chat-tool-call__row', items: rowItems}),
+                          text: span({className: 'xh-chat-tool-call__row', children: rowItems}),
                           'aria-expanded': isExpanded,
                           'aria-label': compact([title, statusLabel]).join(', '),
                           onClick: () => impl.setExpanded(!isExpanded)
                       })
                     : div({
                           className: 'xh-chat-tool-call__header xh-chat-tool-call__header--static',
-                          item: span({className: 'xh-chat-tool-call__row', items: rowItems})
+                          children: span({className: 'xh-chat-tool-call__row', children: rowItems})
                       }),
                 isApproval && chatModel ? chatToolApproval({part, spec, chatModel}) : null,
                 isExpanded
                     ? div({
                           className: 'xh-chat-tool-call__body',
-                          item: hasRenderer
+                          children: hasRenderer
                               ? toolCallBody({part, spec, context})
                               : defaultBody(part)
                       })
@@ -246,7 +248,7 @@ function inlineToolCall({
             'xh-chat-tool-call--inline',
             `xh-chat-tool-call--${state}`
         ),
-        items: [
+        children: [
             showsOutput
                 ? spec.renderer
                     ? toolCallBody({part, spec, context})
@@ -260,11 +262,11 @@ function inlineToolCall({
                 className: classNames('xh-chat-tool-call__caption', {
                     'xh-chat-tool-call__caption--quiet': !status && !isInputShown
                 }),
-                items: [
+                children: [
                     status
                         ? span({
                               className: `xh-chat-tool-call__caption-status xh-chat-tool-call__caption-status--${status.type}`,
-                              items: [inlineStatusIcon(status.type), status.label]
+                              children: [inlineStatusIcon(status.type), status.label]
                           })
                         : null,
                     hasDetails
@@ -283,13 +285,13 @@ function inlineToolCall({
             isInputShown
                 ? div({
                       className: 'xh-chat-tool-call__details',
-                      items: [
+                      children: [
                           (state === 'output-error' || part.cancelled) && errorText
                               ? div({
                                     className: part.cancelled
                                         ? 'xh-chat-tool-call__denied'
                                         : 'xh-chat-tool-call__error',
-                                    item: errorText
+                                    children: errorText
                                 })
                               : null,
                           !isEmpty(inputValue) ? jsonView({value: inputValue}) : null
@@ -303,7 +305,7 @@ function inlineToolCall({
 function outputView(output: unknown): ReactNode {
     return div({
         className: 'xh-chat-tool-call__output',
-        item: isString(output)
+        children: isString(output)
             ? chatMarkdown({content: output, components: CHAT_MARKDOWN_COMPONENTS})
             : jsonView({value: output})
     });
@@ -348,19 +350,22 @@ function defaultBody(part: ChatToolCallPart): ReactNode[] {
         cancelled
             ? section(
                   'Cancelled',
-                  div({className: 'xh-chat-tool-call__denied', item: errorText || 'Stopped.'})
+                  div({className: 'xh-chat-tool-call__denied', children: errorText || 'Stopped.'})
               )
             : null,
         !cancelled && state === 'output-error'
             ? section(
                   'Error',
-                  div({className: 'xh-chat-tool-call__error', item: errorText || 'Tool failed.'})
+                  div({
+                      className: 'xh-chat-tool-call__error',
+                      children: errorText || 'Tool failed.'
+                  })
               )
             : null,
         !cancelled && state === 'output-denied'
             ? section(
                   'Denied',
-                  div({className: 'xh-chat-tool-call__denied', item: errorText || 'Not run.'})
+                  div({className: 'xh-chat-tool-call__denied', children: errorText || 'Not run.'})
               )
             : null
     ]);
@@ -370,6 +375,6 @@ function section(label: string, content: ReactNode): ReactNode {
     return div({
         key: label,
         className: 'xh-chat-tool-call__section',
-        items: [div({className: 'xh-chat-tool-call__section-label', item: label}), content]
+        children: [div({className: 'xh-chat-tool-call__section-label', children: label}), content]
     });
 }

@@ -76,11 +76,11 @@ export function chatUiBadgesSpec(
             if (isEmpty(complete)) return null;
             return hbox({
                 className: 'xh-chat-ui-badges',
-                items: complete.map(({label, intent}, idx) =>
+                children: complete.map(({label, intent}, idx) =>
                     badge({
                         key: idx,
                         intent: intent && intent !== 'none' ? intent : null,
-                        item: label
+                        children: label
                     })
                 )
             });

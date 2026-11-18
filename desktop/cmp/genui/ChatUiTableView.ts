@@ -89,7 +89,7 @@ export const [ChatUiTableView, chatUiTableView] = hoistCmp.withFactory<ChatUiTab
                 })
             ],
             bbar: [
-                span({className: 'xh-chat-ui-table-view__count', item: impl.countText}),
+                span({className: 'xh-chat-ui-table-view__count', children: impl.countText}),
                 impl.hasMoreRows
                     ? button({
                           text: `Load Next ${fmtCount(impl.nextPageSize)}`,
@@ -98,10 +98,10 @@ export const [ChatUiTableView, chatUiTableView] = hoistCmp.withFactory<ChatUiTab
                       })
                     : null,
                 filler(),
-                span({className: 'xh-chat-ui-table-view__note', item: impl.noteText})
+                span({className: 'xh-chat-ui-table-view__note', children: impl.noteText})
             ],
             mask: impl.isLoaded ? null : impl.loadTask,
-            item:
+            children:
                 loadError && !impl.isLoaded
                     ? errorMessage({
                           error: loadError,

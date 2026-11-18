@@ -59,11 +59,11 @@ export const chatUiField = hoistCmp.factory<ChatUiFieldProps>({
         if (!formModel) return null;
         return form({
             model: formModel,
-            item: formField({
+            children: formField({
                 className,
                 field: VALUE,
                 label: hideLabel ? null : (label ?? null),
-                item: children
+                children
             })
         });
     }

@@ -335,7 +335,7 @@ describe('ChatTimeline', () => {
                 transport: new ScriptedChatTransport(),
                 tools: TOOLS,
                 textRenderer: part =>
-                    part.id === 'n1' ? span({className: 'app-narration', item: 'Drawn'}) : null
+                    part.id === 'n1' ? span({className: 'app-narration', children: 'Drawn'}) : null
             });
             onTestFinished(() => chatModel.destroy());
             setMessages(chatModel, [

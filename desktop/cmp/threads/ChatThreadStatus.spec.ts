@@ -106,7 +106,7 @@ function renderStatus(storeDelayMs: number = 0, threadNoun: string = null) {
         chatThreadStatus({
             model: threadsModel,
             threadNoun,
-            item: span('Conversation')
+            children: span('Conversation')
         })
     );
     return {...result, threadsModel, store};

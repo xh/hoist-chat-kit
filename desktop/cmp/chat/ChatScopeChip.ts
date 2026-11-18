@@ -232,14 +232,14 @@ const scopeList = hoistCmp.factory<HoistProps & ScopeListProps>({
             className: 'xh-chat-scope-chip__popover',
             role: 'dialog',
             'aria-label': upperFirst(plural),
-            items: [
+            children: [
                 topContent != null
-                    ? div({className: 'xh-chat-scope-chip__top', item: topContent})
+                    ? div({className: 'xh-chat-scope-chip__top', children: topContent})
                     : null,
                 options.length > searchThreshold
                     ? div({
                           className: 'xh-chat-scope-chip__search',
-                          item: textInput({
+                          children: textInput({
                               value: search,
                               onChange: v => setSearch(v ?? ''),
                               commitOnChange: true,
@@ -254,11 +254,11 @@ const scopeList = hoistCmp.factory<HoistProps & ScopeListProps>({
                     : null,
                 div({
                     className: 'xh-chat-scope-chip__list',
-                    items: isEmpty(shown)
+                    children: isEmpty(shown)
                         ? [
                               div({
                                   className: 'xh-chat-scope-chip__empty',
-                                  item: query
+                                  children: query
                                       ? `No ${plural} match '${search.trim()}'`
                                       : `No ${plural}`
                               })
@@ -273,18 +273,18 @@ const scopeList = hoistCmp.factory<HoistProps & ScopeListProps>({
                           )
                 }),
                 bottomContent != null
-                    ? div({className: 'xh-chat-scope-chip__bottom', item: bottomContent})
+                    ? div({className: 'xh-chat-scope-chip__bottom', children: bottomContent})
                     : null,
                 div({
                     className: 'xh-chat-scope-chip__footer',
-                    items: [
+                    children: [
                         span({
                             className: 'xh-chat-scope-chip__summary',
-                            item: `${count} of ${options.length}`
+                            children: `${count} of ${options.length}`
                         }),
                         span({
                             className: 'xh-chat-scope-chip__actions',
-                            items: [
+                            children: [
                                 button({
                                     text: 'Select All',
                                     minimal: true,
@@ -321,7 +321,7 @@ const scopeRow = hoistCmp.factory<HoistProps & ScopeRowProps>({
         const {name, icon, secondaryText, info, disabled} = option;
         return div({
             className: 'xh-chat-scope-chip__option',
-            items: [
+            children: [
                 checkbox({
                     className: 'xh-chat-scope-chip__check',
                     value: isChecked,
@@ -329,26 +329,29 @@ const scopeRow = hoistCmp.factory<HoistProps & ScopeRowProps>({
                     label: span({
                         className: 'xh-chat-scope-chip__option-label',
                         title: name,
-                        items: [
+                        children: [
                             icon ?? null,
-                            span({className: 'xh-chat-scope-chip__option-name', item: name})
+                            span({className: 'xh-chat-scope-chip__option-name', children: name})
                         ]
                     }),
                     onChange: (isOn: boolean) => onToggle(isOn)
                 }),
                 secondaryText != null
-                    ? span({className: 'xh-chat-scope-chip__option-secondary', item: secondaryText})
+                    ? span({
+                          className: 'xh-chat-scope-chip__option-secondary',
+                          children: secondaryText
+                      })
                     : null,
                 info != null
                     ? tooltip({
                           className: 'xh-chat-scope-chip__option-info',
                           content: info as ReactElement,
                           position: 'right',
-                          item: span({
+                          children: span({
                               tabIndex: 0,
                               role: 'img',
                               'aria-label': `About ${name}`,
-                              item: Icon.questionCircle()
+                              children: Icon.questionCircle()
                           })
                       })
                     : null

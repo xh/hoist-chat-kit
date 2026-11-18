@@ -181,10 +181,10 @@ export const [ChatUiTreeMap, chatUiTreeMap] = hoistCmp.withFactory<ChatUiTreeMap
             title,
             icon: Icon.treeList(),
             status: isBuilding && !title ? 'Building treemap…' : null,
-            item: div({
+            children: div({
                 className: 'xh-chat-ui-treemap__body',
                 style: height ? {height} : null,
-                item:
+                children:
                     isBuilding || isLoading
                         ? chatUiSkeleton(null)
                         : hasBoxes
@@ -192,7 +192,7 @@ export const [ChatUiTreeMap, chatUiTreeMap] = hoistCmp.withFactory<ChatUiTreeMap
                           : div({
                                 className: 'xh-chat-ui-center',
                                 role: 'note',
-                                item: 'No values to show.'
+                                children: 'No values to show.'
                             })
             })
         });

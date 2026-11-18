@@ -47,7 +47,7 @@ export function chatUiSwitchSpec(
                       value,
                       toInput: toBoolean,
                       setProp,
-                      item: switchInput({label})
+                      children: switchInput({label})
                   })
                 : null,
         result: ({label, name: field}) => label ?? field ?? '',

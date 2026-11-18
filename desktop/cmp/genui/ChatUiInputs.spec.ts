@@ -215,7 +215,7 @@ describe('built-in form components', () => {
                 view = (props: PlainObject) =>
                     chatHost({
                         model: null,
-                        item: catalog.renderDocument(
+                        children: catalog.renderDocument(
                             {root: 'top', elements: {top: {component: 'textInput', props}}},
                             context(null)
                         ) as ReactNode
@@ -581,7 +581,7 @@ class Values extends HoistBase implements ChatUiState {
 const chatHost = hoistCmp.factory<HoistProps<ChatModel>>({
     displayName: 'ChatHost',
     model: uses(ChatModel, {optional: true}),
-    render: ({children}) => fragment({items: children})
+    render: ({children}) => fragment({children})
 });
 
 function createCatalog(): ChatUiCatalog {
@@ -595,7 +595,7 @@ function renderDocument(doc: PlainObject, chatModel: ChatModel) {
     return render(
         chatHost({
             model: chatModel,
-            item: createCatalog().renderDocument(
+            children: createCatalog().renderDocument(
                 doc as ChatUiDocument,
                 context(chatModel)
             ) as ReactNode

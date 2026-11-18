@@ -91,7 +91,7 @@ export function chatUiSelectSpec(
                 toInput: multi ? toList : toOne,
                 fromInput: multi ? fromList : null,
                 setProp,
-                item: select({
+                children: select({
                     options,
                     placeholder,
                     enableMulti: !!multi,

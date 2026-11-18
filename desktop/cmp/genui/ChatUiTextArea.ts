@@ -68,7 +68,7 @@ export function chatUiTextAreaSpec(
                       value,
                       toInput: toText,
                       setProp,
-                      item: textArea({placeholder, height: 72})
+                      children: textArea({placeholder, height: 72})
                   })
                 : null,
         result: ({label, name: field}) => label ?? field ?? '',

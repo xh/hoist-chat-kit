@@ -87,7 +87,7 @@ export const chatInterrupts = hoistCmp.factory<ChatInterruptsProps>({
                 ? null
                 : div({
                       className: classNames(className, 'xh-chat-interrupts--record'),
-                      items: asked.map(it => recordLine(it, message))
+                      children: asked.map(it => recordLine(it, message))
                   });
         }
 
@@ -100,7 +100,7 @@ export const chatInterrupts = hoistCmp.factory<ChatInterruptsProps>({
             className,
             role: 'group',
             'aria-label': questions.length === 1 ? 'Question' : 'Questions',
-            items: impl.isReviewing || isEmpty(questions) ? reviewStep(impl) : questionStep(impl)
+            children: impl.isReviewing || isEmpty(questions) ? reviewStep(impl) : questionStep(impl)
         });
     }
 });
@@ -120,16 +120,16 @@ function questionStep(impl: InterruptsLocalModel): ReactNode[] {
             message,
             questions.length > 1 ? `${idx + 1} of ${questions.length}` : null
         ),
-        div({className: 'xh-chat-interrupts__question', item: questionText(interrupt)}),
+        div({className: 'xh-chat-interrupts__question', children: questionText(interrupt)}),
         isExpired
             ? div({
                   className: 'xh-chat-interrupts__note',
-                  item: 'This question expired. It goes back declined.'
+                  children: 'This question expired. It goes back declined.'
               })
             : answerControls(impl, interrupt, spec),
         div({
             className: 'xh-chat-interrupts__bar',
-            items: [
+            children: [
                 idx > 0
                     ? button({
                           text: 'Back',
@@ -175,21 +175,21 @@ function reviewStep(impl: InterruptsLocalModel): ReactNode[] {
         header(null, message, 'Review'),
         div({
             className: 'xh-chat-interrupts__review',
-            items: pending.map(it =>
+            children: pending.map(it =>
                 div({
                     key: it.id,
                     className: 'xh-chat-interrupts__review-row',
-                    items: [
+                    children: [
                         div({
                             className: 'xh-chat-interrupts__review-text',
-                            items: [
+                            children: [
                                 div({
                                     className: 'xh-chat-interrupts__review-question',
-                                    item: questionText(it)
+                                    children: questionText(it)
                                 }),
                                 div({
                                     className: 'xh-chat-interrupts__answer',
-                                    item: summarize(it, message, impl.isExpired(it))
+                                    children: summarize(it, message, impl.isExpired(it))
                                 })
                             ]
                         }),
@@ -200,10 +200,10 @@ function reviewStep(impl: InterruptsLocalModel): ReactNode[] {
                 })
             )
         }),
-        hasOpen ? div({className: 'xh-chat-interrupts__note', item: note}) : null,
+        hasOpen ? div({className: 'xh-chat-interrupts__note', children: note}) : null,
         div({
             className: 'xh-chat-interrupts__bar',
-            items: [
+            children: [
                 div({className: 'xh-chat-interrupts__spacer'}),
                 button({
                     text: 'Submit',
@@ -222,10 +222,10 @@ function header(interrupt: ChatInterrupt, message: ChatMessage, step: string): R
     const asker = interrupt ? getSubagentName(interrupt, message) : null;
     return div({
         className: 'xh-chat-interrupts__header',
-        items: [
+        children: [
             Icon.questionCircle({className: 'xh-chat-interrupts__icon'}),
-            span({className: 'xh-chat-interrupts__asker', item: asker ?? 'The assistant asks'}),
-            step ? span({className: 'xh-chat-interrupts__step', item: step}) : null
+            span({className: 'xh-chat-interrupts__asker', children: asker ?? 'The assistant asks'}),
+            step ? span({className: 'xh-chat-interrupts__step', children: step}) : null
         ]
     });
 }
@@ -243,7 +243,7 @@ function answerControls(
         case 'text':
             return div({
                 className: 'xh-chat-interrupts__text',
-                items: [
+                children: [
                     textArea({
                         model: impl,
                         bind: 'text',
@@ -268,7 +268,7 @@ function answerControls(
             if (options.length > 3) {
                 return div({
                     className: 'xh-chat-interrupts__text',
-                    items: [
+                    children: [
                         select({
                             model: impl,
                             bind: 'choice',
@@ -315,22 +315,22 @@ function answerControls(
             const formModel = impl.getFormModel(interrupt, spec.fields);
             return div({
                 className: 'xh-chat-interrupts__form',
-                items: [
+                children: [
                     form({
                         model: formModel,
                         fieldDefaults: {commitOnChange: true},
-                        items: spec.fields.map(field =>
+                        children: spec.fields.map(field =>
                             formField({
                                 key: field.name,
                                 field: field.name,
                                 label: field.label,
                                 info: field.description,
-                                item: inputFor(field)
+                                children: inputFor(field)
                             })
                         )
                     }),
                     impl.problem
-                        ? div({className: 'xh-chat-interrupts__problem', item: impl.problem})
+                        ? div({className: 'xh-chat-interrupts__problem', children: impl.problem})
                         : null
                 ]
             });
@@ -338,7 +338,7 @@ function answerControls(
         default:
             return div({
                 className: 'xh-chat-interrupts__note',
-                item: 'This question cannot be answered here.'
+                children: 'This question cannot be answered here.'
             });
     }
 }
@@ -354,7 +354,7 @@ function optionRows(
 ): ReactNode {
     return div({
         className: 'xh-chat-interrupts__options',
-        items: rows.map((row, idx) =>
+        children: rows.map((row, idx) =>
             button({
                 key: row.key,
                 className: classNames('xh-chat-interrupts__option', {
@@ -364,13 +364,16 @@ function optionRows(
                 outlined: true,
                 text: div({
                     className: 'xh-chat-interrupts__option-text',
-                    items: [
-                        span({className: 'xh-chat-interrupts__option-index', item: `${idx + 1}`}),
-                        span({className: 'xh-chat-interrupts__option-label', item: row.label}),
+                    children: [
+                        span({
+                            className: 'xh-chat-interrupts__option-index',
+                            children: `${idx + 1}`
+                        }),
+                        span({className: 'xh-chat-interrupts__option-label', children: row.label}),
                         row.description
                             ? span({
                                   className: 'xh-chat-interrupts__option-description',
-                                  item: row.description
+                                  children: row.description
                               })
                             : null
                     ]
@@ -414,12 +417,15 @@ function recordLine(interrupt: ChatInterrupt, message: ChatMessage): ReactNode {
     return div({
         key: `${interrupt.runId}:${interrupt.id}`,
         className: 'xh-chat-interrupts__record',
-        items: [
+        children: [
             Icon.questionCircle({className: 'xh-chat-interrupts__icon'}),
-            span({className: 'xh-chat-interrupts__record-question', item: questionText(interrupt)}),
+            span({
+                className: 'xh-chat-interrupts__record-question',
+                children: questionText(interrupt)
+            }),
             span({
                 className: 'xh-chat-interrupts__answer',
-                item: summarize(interrupt, message, false)
+                children: summarize(interrupt, message, false)
             })
         ]
     });

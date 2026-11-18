@@ -92,8 +92,11 @@ describe('Chat motion', () => {
         it('follows the browser, unless the app says otherwise on an ancestor', () => {
             const {container} = render(
                 div(
-                    div({className: 'xh-chat--motion', item: span({className: 'full'})}),
-                    div({className: 'xh-chat--reduced-motion', item: span({className: 'none'})}),
+                    div({className: 'xh-chat--motion', children: span({className: 'full'})}),
+                    div({
+                        className: 'xh-chat--reduced-motion',
+                        children: span({className: 'none'})
+                    }),
                     span({className: 'plain'})
                 )
             );

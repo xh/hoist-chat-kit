@@ -552,7 +552,7 @@ chatUiCard({
     chatModel,
     runActionAsync: action => catalog.runActionAsync(action, {chatModel, messageId})
 });
-chatUiTabs({titles: ['Chart', 'Data'], items: [chart, grid]});
+chatUiTabs({titles: ['Chart', 'Data'], children: [chart, grid]});
 chatUiTreeMap({nodes, format: 'currency'});
 ```
 

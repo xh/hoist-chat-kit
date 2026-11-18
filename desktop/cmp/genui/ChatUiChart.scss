@@ -8,7 +8,7 @@
     display: flex;
     flex-direction: column;
     height: var(--xh-chat-chart-height, 220px);
-    padding: var(--xh-pad-half-px) var(--xh-pad-half-px) 0;
+    padding: var(--xh-spacing-half) var(--xh-spacing-half) 0;
 
     > .xh-chat-ui-skeleton {
       flex: 1 1 auto;

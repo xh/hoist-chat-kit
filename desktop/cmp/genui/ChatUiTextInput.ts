@@ -69,7 +69,7 @@ export function chatUiTextInputSpec(
                       value,
                       toInput: toText,
                       setProp,
-                      item: textInput({placeholder})
+                      children: textInput({placeholder})
                   })
                 : null,
         result: ({label, name: field}) => label ?? field ?? '',

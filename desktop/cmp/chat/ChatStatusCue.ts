@@ -53,11 +53,11 @@ export const [ChatStatusCue, chatStatusCue] = hoistCmp.withFactory<ChatStatusCue
             iconEl = icon === 'spinner' ? (showSpinner ? chatSpinner() : null) : icon();
         return span({
             className: classNames(className, `xh-chat-status-cue--${intent}`),
-            items: [
-                iconEl ? span({className: 'xh-chat-status-cue__icon', item: iconEl}) : null,
+            children: [
+                iconEl ? span({className: 'xh-chat-status-cue__icon', children: iconEl}) : null,
                 span({
                     className: 'xh-chat-status-cue__text',
-                    item: label ?? getReplyStatusLabel(status, stalledMs)
+                    children: label ?? getReplyStatusLabel(status, stalledMs)
                 })
             ]
         });

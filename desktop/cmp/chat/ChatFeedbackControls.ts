@@ -38,8 +38,8 @@ export interface ChatFeedbackControlsProps extends HoistProps {
  * `ChatFeedbackSpec`. The controls show a new rating while it saves, and the saved one again if
  * the save fails.
  *
- * Pass the app's own actions, such as a copy button, as `items`. They lead the bar, split from the
- * thumbs as in the message view, and show even while the reply cannot be rated. Nothing else
+ * Pass the app's own actions, such as a copy button, as `children`. They lead the bar, split from
+ * the thumbs as in the message view, and show even while the reply cannot be rated. Nothing else
  * renders for a message the user cannot rate: a user message, or a reply that streams, waits on
  * the user or failed.
  */
@@ -62,12 +62,12 @@ export const [ChatFeedbackControls, chatFeedbackControls] =
 
             return div({
                 className,
-                items: [
+                children: [
                     div({
                         className: 'xh-chat-feedback-controls__bar',
                         role: 'group',
                         'aria-label': appItems.length ? 'Message actions' : 'Feedback',
-                        items: [
+                        children: [
                             ...appItems,
                             appItems.length && thumbs.length
                                 ? span({

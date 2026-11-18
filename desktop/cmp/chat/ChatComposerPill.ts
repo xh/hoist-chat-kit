@@ -121,10 +121,10 @@ export const [ChatComposerPill, chatComposerPill] = hoistCmp.withFactory<ChatCom
             icon,
             text: span({
                 className: 'xh-chat-composer-pill__body',
-                items: [
-                    span({className: 'xh-chat-composer-pill__text', item: text}),
+                children: [
+                    span({className: 'xh-chat-composer-pill__text', children: text}),
                     count != null
-                        ? span({className: 'xh-chat-composer-pill__count', item: count})
+                        ? span({className: 'xh-chat-composer-pill__count', children: count})
                         : null
                 ]
             }),
@@ -163,7 +163,7 @@ export const [ChatComposerPill, chatComposerPill] = hoistCmp.withFactory<ChatCom
             position: getPillPopoverPosition(isCentered, popoverAlign),
             minimal: true,
             popoverClassName: classNames('xh-chat-composer-pill__popover', popoverClassName),
-            item: pill,
+            children: pill,
             content: (menuItems
                 ? menu({menuItems})
                 : typeof content === 'function'

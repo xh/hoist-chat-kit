@@ -5,14 +5,14 @@
 .xh-chat-ui-card {
   display: flex;
   flex-direction: column;
-  gap: var(--xh-chat-part-gap, var(--xh-pad-px));
+  gap: var(--xh-chat-part-gap, var(--xh-spacing));
   min-width: 0;
 
   &__fields {
     display: grid;
-    gap: var(--xh-pad-px) calc(var(--xh-pad) * 2px);
+    gap: var(--xh-spacing) calc(var(--xh-spacing) * 2);
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    padding: var(--xh-chat-card-section-pad, var(--xh-pad-px)) 12px;
+    padding: var(--xh-chat-card-section-pad, var(--xh-spacing)) 12px;
 
     &:empty {
       display: none;

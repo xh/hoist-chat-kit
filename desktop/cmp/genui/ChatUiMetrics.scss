@@ -1,7 +1,7 @@
 // Hoist StatCards, on the chat's surface and at its sizes.
 .xh-chat-ui-metrics {
   --xh-stat-card-bg: var(--xh-chat-bg);
-  --xh-stat-card-border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  --xh-stat-card-border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
   --xh-stat-card-border-radius: var(--xh-chat-border-radius);
   --xh-stat-card-min-content-width: var(--xh-chat-tile-min-width);
   --xh-stat-card-strip-gap: 8px;

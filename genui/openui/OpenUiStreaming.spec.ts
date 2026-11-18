@@ -47,13 +47,13 @@ describe('OpenUI Lang streaming', () => {
             failures: string[] = [],
             view = (text: string, isStreaming: boolean) =>
                 appContext({
-                    items: catalog
+                    children: catalog
                         .parseText(text, {isStreaming, messageId: 'm1', partId: 'p1'})
                         .map((segment, idx) => {
                             if (segment.type === 'fallback') failures.push(text);
                             return fragment({
                                 key: idx,
-                                item: catalog.renderSegment(segment, CONTEXT)
+                                children: catalog.renderSegment(segment, CONTEXT)
                             });
                         })
                 }),

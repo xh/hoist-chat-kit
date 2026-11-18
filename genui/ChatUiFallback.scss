@@ -1,10 +1,10 @@
 .xh-chat-ui-fallback,
 .xh-chat-ui-placeholder {
-  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
   border-radius: var(--xh-chat-border-radius);
   color: var(--xh-chat-meta-text-color);
   font-size: var(--xh-chat-meta-font-size);
-  padding: var(--xh-pad-half-px) var(--xh-pad-px);
+  padding: var(--xh-spacing-half) var(--xh-spacing);
 }
 
 .xh-chat-ui-placeholder {
@@ -12,15 +12,15 @@
 }
 
 .xh-chat-ui-fallback__details {
-  margin-top: var(--xh-pad-half-px);
+  margin-top: var(--xh-spacing-half);
 
   summary {
     cursor: pointer;
   }
 
   ul {
-    margin: var(--xh-pad-half-px) 0;
-    padding-left: var(--xh-pad-double-px);
+    margin: var(--xh-spacing-half) 0;
+    padding-left: var(--xh-spacing-double);
   }
 
   pre {

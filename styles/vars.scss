@@ -8,12 +8,12 @@ body {
   //------------------------
   // Type
   //------------------------
-  --xh-chat-font-size: var(--xh-font-size-px);
+  --xh-chat-font-size: var(--xh-font-size);
   --xh-chat-line-height: 1.5;
   // Markdown H1 and H2 only. H3 and below stay at body size.
-  --xh-chat-heading-font-size: var(--xh-font-size-large-px);
-  --xh-chat-code-font-size: calc(var(--xh-font-size-px) - 1px);
-  --xh-chat-meta-font-size: calc(var(--xh-font-size-px) * 0.9);
+  --xh-chat-heading-font-size: var(--xh-font-size-large);
+  --xh-chat-code-font-size: calc(var(--xh-font-size) - 1px);
+  --xh-chat-meta-font-size: calc(var(--xh-font-size) * 0.9);
 
   //------------------------
   // Layout and rhythm
@@ -26,20 +26,20 @@ body {
   --xh-chat-prose-max-width: none;
   // Between markdown paragraphs and blocks.
   --xh-chat-paragraph-gap: 8px;
-  --xh-chat-side-pad: var(--xh-pad-double-px);
+  --xh-chat-side-pad: var(--xh-spacing-double);
   // Between messages. Equals the action bar's height, as the bar sits in this gap.
   --xh-chat-turn-gap: 24px;
   // The least height and width of each button in a bar of message actions, feedback thumbs
   // included.
   --xh-chat-action-button-size: 24px;
   // Between the parts of one reply. Process parts (reasoning, tool calls) use the tighter gap.
-  --xh-chat-part-gap: var(--xh-pad-px);
-  --xh-chat-process-gap: var(--xh-pad-half-px);
+  --xh-chat-part-gap: var(--xh-spacing);
+  --xh-chat-process-gap: var(--xh-spacing-half);
   --xh-chat-part-header-height: 28px;
   --xh-chat-user-max-width: 75%;
   --xh-chat-user-padding: 8px 12px;
   // One radius for the whole kit: bubbles, cards, tool rows and chips.
-  --xh-chat-border-radius: var(--xh-border-radius-px);
+  --xh-chat-border-radius: var(--xh-border-radius);
   // The user bubble's corners - one value, or four for a squared tail, as `16px 16px 4px 16px`.
   --xh-chat-user-border-radius: var(--xh-chat-border-radius);
 
@@ -56,7 +56,7 @@ body {
   --xh-chat-part-border-color: var(--xh-border-color);
   // Card header strips only. Card bodies use `--xh-chat-bg`.
   --xh-chat-part-header-bg: var(--xh-bg-alt);
-  --xh-chat-code-bg: var(--xh-grid-bg-odd);
+  --xh-chat-code-bg: var(--xh-grid-odd-row-bg);
   --xh-chat-busy-color: var(--xh-intent-primary-text-color);
   --xh-chat-caret-color: var(--xh-chat-busy-color);
   --xh-chat-attention-color: var(--xh-card-primary-color);
@@ -79,8 +79,8 @@ body {
   --xh-chat-timeline-narration-font-size: var(--xh-chat-code-font-size);
   --xh-chat-timeline-bg: var(--xh-chat-bg);
   --xh-chat-timeline-border-color: var(--xh-chat-part-border-color);
-  --xh-chat-timeline-row-hover-bg: var(--xh-grid-bg-hover);
-  --xh-chat-timeline-row-open-bg: var(--xh-grid-bg-odd);
+  --xh-chat-timeline-row-hover-bg: var(--xh-grid-row-hover-bg);
+  --xh-chat-timeline-row-open-bg: var(--xh-grid-odd-row-bg);
   --xh-chat-timeline-narration-color: var(--xh-chat-meta-text-color);
   --xh-chat-timeline-done-icon-color: var(--xh-chat-meta-text-color);
   --xh-chat-timeline-pane-bg: var(--xh-chat-code-bg);
@@ -89,7 +89,7 @@ body {
   //------------------------
   // Citations and sources
   //------------------------
-  --xh-chat-citation-font-size: var(--xh-font-size-small-px);
+  --xh-chat-citation-font-size: var(--xh-font-size-small);
   --xh-chat-citation-height: 14px;
   --xh-chat-citation-bg: var(--xh-intent-primary-trans1);
   --xh-chat-citation-hover-bg: var(--xh-intent-primary-trans2);
@@ -100,7 +100,7 @@ body {
   --xh-chat-passage-bg: var(--xh-intent-warning-trans2);
   --xh-chat-hovercard-width: 320px;
   --xh-chat-source-row-height: 24px;
-  --xh-chat-source-highlight-bg: var(--xh-grid-bg-hover);
+  --xh-chat-source-highlight-bg: var(--xh-grid-row-hover-bg);
   // A row's globe or plain file icon, in both layouts. Hoist's colored file types keep theirs.
   --xh-chat-source-icon-color: var(--xh-chat-text-color);
   // The roomy sources list - `compact: false` on ChatSources.
@@ -125,14 +125,14 @@ body {
   //------------------------
   --xh-chat-card-footer-height: 26px;
   // Vertical padding of the sections in a composite card.
-  --xh-chat-card-section-pad: var(--xh-pad-px);
+  --xh-chat-card-section-pad: var(--xh-spacing);
   --xh-chat-skeleton-bg: var(--xh-chat-part-header-bg);
   --xh-chat-table-row-height: 24px;
-  --xh-chat-table-font-size: var(--xh-grid-compact-font-size-px);
+  --xh-chat-table-font-size: var(--xh-grid-compact-font-size);
   // A fixed chart body, never sized to the data.
   --xh-chat-chart-height: 220px;
   --xh-chat-tile-min-width: 150px;
-  --xh-chat-tile-value-font-size: var(--xh-font-size-large-px);
+  --xh-chat-tile-value-font-size: var(--xh-font-size-large);
   --xh-chat-followup-height: 24px;
   --xh-chat-followup-text-color: var(--xh-intent-primary-text-color);
   --xh-chat-followup-hover-bg: var(--xh-intent-primary-trans1);
@@ -164,9 +164,9 @@ body {
   --xh-chat-composer-input-max-height: 168px;
   // Room around the typed text, and around the bar of pills and buttons under it.
   --xh-chat-composer-input-padding: 10px 12px 8px;
-  --xh-chat-composer-toolbar-padding: 4px var(--xh-pad-px) var(--xh-pad-px);
+  --xh-chat-composer-toolbar-padding: 4px var(--xh-spacing) var(--xh-spacing);
   // The room between the composer's box and the rows of items above and below it.
-  --xh-chat-composer-row-gap: var(--xh-pad-px);
+  --xh-chat-composer-row-gap: var(--xh-spacing);
   // The gap between the bar's pills and buttons, and the room around the inline layout's row.
   --xh-chat-composer-bar-gap: 6px;
   --xh-chat-composer-inline-padding: 0;
@@ -226,7 +226,7 @@ body {
 // Compact density, for narrow hosts such as a docked side panel. Each override sets a variable that
 // components read directly, as one derived on `body` keeps the value computed there.
 .xh-chat--compact {
-  --xh-chat-side-pad: var(--xh-pad-px);
+  --xh-chat-side-pad: var(--xh-spacing);
   --xh-chat-user-max-width: 85%;
   --xh-chat-chart-height: 160px;
 }

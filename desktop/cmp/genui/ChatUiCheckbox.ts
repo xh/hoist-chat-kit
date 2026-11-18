@@ -47,7 +47,7 @@ export function chatUiCheckboxSpec(
                       value,
                       toInput: toBoolean,
                       setProp,
-                      item: checkbox({label})
+                      children: checkbox({label})
                   })
                 : null,
         result: ({label, name: field}) => label ?? field ?? '',

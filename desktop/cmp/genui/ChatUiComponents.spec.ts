@@ -138,7 +138,7 @@ describe('generative UI components', () => {
             renderDoc = (props: object) =>
                 renderInChat(
                     fragment({
-                        item: catalog.renderDocument(doc(props), {
+                        children: catalog.renderDocument(doc(props), {
                             ...context,
                             part: {type: 'data', id: 'd1', dataType: 'xh.chat.ui', data: null},
                             isPartial: false
@@ -213,7 +213,7 @@ describe('generative UI components', () => {
 
         it('renders its text as markdown, streaming while partial', () => {
             const {container} = renderInChat(
-                fragment({item: spec.render({text: 'Some **bold**'}, context(true))})
+                fragment({children: spec.render({text: 'Some **bold**'}, context(true))})
             );
             expect(container.querySelector('.xh-chat-ui-text strong').textContent).toBe('bold');
             expect(container.querySelector('.xh-chat-markdown--streaming')).toBeTruthy();
@@ -355,12 +355,12 @@ class NoopResizeObserver {
 const chatHost = hoistCmp.factory<HoistProps<ChatModel>>({
     displayName: 'ChatHost',
     model: uses(ChatModel),
-    render: ({children}) => fragment({items: children})
+    render: ({children}) => fragment({children})
 });
 
 function renderInChat(content: ReactElement) {
     const model = createChatModel(),
-        inChat = (it: ReactElement) => chatHost({model, item: it}),
+        inChat = (it: ReactElement) => chatHost({model, children: it}),
         result = render(inChat(content));
     return {...result, rerender: (it: ReactElement) => result.rerender(inChat(it))};
 }

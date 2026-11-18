@@ -184,14 +184,14 @@ export const [ChatSources, chatSources] = hoistCmp.withFactory<
             ),
             role: 'region',
             'aria-label': title,
-            items: [
+            children: [
                 listHead(sources, title, isCollapsed, listId, impl),
                 isCollapsed
                     ? null
                     : ol({
                           id: listId,
                           className: 'xh-chat-sources__list',
-                          items: shown.map((source, idx) =>
+                          children: shown.map((source, idx) =>
                               sourceRow({
                                   key: source.id,
                                   source,
@@ -276,12 +276,12 @@ function listHead(
         className: 'xh-chat-sources__head',
         text: span({
             className: 'xh-chat-sources__head-line',
-            items: [
-                span({className: 'xh-chat-sources__heading', item: title}),
-                span({className: 'xh-chat-sources__count', item: `· ${count}`}),
+            children: [
+                span({className: 'xh-chat-sources__heading', children: title}),
+                span({className: 'xh-chat-sources__count', children: `· ${count}`}),
                 span({
                     className: 'xh-chat-sources__chevron',
-                    item: isCollapsed ? Icon.groupRowCollapsed() : Icon.groupRowExpanded()
+                    children: isCollapsed ? Icon.groupRowCollapsed() : Icon.groupRowExpanded()
                 })
             ]
         }),
@@ -326,7 +326,7 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
                     ? span({
                           className: 'xh-chat-sources__external',
                           'aria-hidden': true,
-                          item: Icon.openExternal()
+                          children: Icon.openExternal()
                       })
                     : null,
             // States that the side panel shows the source - not an action.
@@ -336,7 +336,7 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
 
         return li({
             className: 'xh-chat-sources__item',
-            items: [
+            children: [
                 div({
                     className: classNames('xh-chat-sources__row', {
                         'xh-chat-sources__row--expandable': !!excerpt,
@@ -354,25 +354,25 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
                     onMouseLeave: () => {
                         if (links.hoveredNumber === number) links.setHoveredNumber(null);
                     },
-                    items: [
+                    children: [
                         showNumber
                             ? span({
                                   className: 'xh-chat-sources__number',
                                   'aria-label': `Source ${number}`,
-                                  item: number
+                                  children: number
                               })
                             : null,
-                        span({className: 'xh-chat-sources__icon', item: sourceIcon(source)}),
+                        span({className: 'xh-chat-sources__icon', children: sourceIcon(source)}),
                         div({
                             className: 'xh-chat-sources__text',
-                            items: [
+                            children: [
                                 sourceTitle(source, number, links, isActive, opensInNewTab),
                                 compact ? externalIcon : null,
                                 meta || (!compact && externalIcon)
                                     ? span({
                                           className: 'xh-chat-sources__meta',
                                           title: meta || null,
-                                          items: [compact ? null : externalIcon, meta]
+                                          children: [compact ? null : externalIcon, meta]
                                       })
                                     : null
                             ]
@@ -394,7 +394,7 @@ const sourceRow = hoistCmp.factory<SourceRowProps>({
                 isExcerptOpen
                     ? div({
                           className: 'xh-chat-sources__excerpt',
-                          item: excerptText(excerpt, null, 'xh-chat-sources__excerpt-text')
+                          children: excerptText(excerpt, null, 'xh-chat-sources__excerpt-text')
                       })
                     : null
             ]
@@ -435,9 +435,9 @@ function sourceTitle(
                     opener: e.currentTarget,
                     newTab: e.ctrlKey || e.metaKey
                 }),
-            item: title
+            children: title
         });
     }
 
-    return span({className, title, item: title});
+    return span({className, title, children: title});
 }

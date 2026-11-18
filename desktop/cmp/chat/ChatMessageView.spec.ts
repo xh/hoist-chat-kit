@@ -345,7 +345,7 @@ describe('ChatMessageView', () => {
         it("shows the app's working cue from ChatKit.defaults, and none with a header", () => {
             const workingCue = ChatKit.defaults.workingCue;
             ChatKit.defaults.workingCue = ({message}) =>
-                span({className: 'app-ring', item: message.id});
+                span({className: 'app-ring', children: message.id});
             onTestFinished(() => {
                 ChatKit.defaults.workingCue = workingCue;
             });
@@ -647,7 +647,7 @@ describe('ChatMessageView', () => {
                     // A renderer may call hooks: it runs as the part's own component.
                     const [label] = useState('App');
                     return part.text.startsWith('root =')
-                        ? span({className: 'app-ui', item: `${label}: ${part.text}`})
+                        ? span({className: 'app-ui', children: `${label}: ${part.text}`})
                         : null;
                 }),
                 chatModel = createModel({textRenderer}, [
@@ -673,7 +673,7 @@ describe('ChatMessageView', () => {
         });
 
         it('re-renders only the part that changes as a reply streams', () => {
-            const textRenderer = vi.fn(part => span({item: part.text})),
+            const textRenderer = vi.fn(part => span({children: part.text})),
                 chatModel = createModel({textRenderer}, [
                     question(),
                     reply('a1', [text('t1', 'First'), text('t2', 'Sec')], {status: 'streaming'})
@@ -989,7 +989,7 @@ function renderList(chatModel: ChatModel, props: Partial<ChatMessageListProps> =
     return render(
         chatModel
             ? chatMessageList({model: chatModel, ...props})
-            : appContext({item: chatMessageList(props)})
+            : appContext({children: chatMessageList(props)})
     );
 }
 
@@ -1089,7 +1089,7 @@ function braceCatalog(): ChatUiCatalog {
                 name: 'metrics',
                 description: 'KPI tiles.',
                 props: {type: 'object', properties: {}},
-                render: () => span({className: 'test-metrics', item: 'Revenue tile'}),
+                render: () => span({className: 'test-metrics', children: 'Revenue tile'}),
                 result: () => 'Revenue is 12.'
             }
         ],

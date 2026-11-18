@@ -114,18 +114,14 @@ describe('chatUiTreeMapSpec', () => {
         expect(tooltips[1]).not.toContain('Day');
     });
 
-    it('holds its skeleton until the TreeMapModel has data, then mounts the TreeMap', async () => {
+    it('mounts the TreeMap with its data on the first render, with no empty box', () => {
         spyOnModels();
         const {container} = render(chatUiTreeMap({nodes: [{label: 'Rates', value: 42}]}));
 
-        // Hoist's TreeMapModel reads its store after a short delay. A TreeMap mounted before
-        // then draws an empty box, so the card waits.
-        expect(container.querySelector('.xh-chat-ui-skeleton')).toBeTruthy();
-        expect(container.textContent).not.toContain(NO_HIGHCHARTS);
-        expect(container.querySelector('.xh-placeholder')).toBeNull();
-
-        await vi.waitFor(() => expect(container.textContent).toContain(NO_HIGHCHARTS));
+        // Hoist's TreeMapModel reads the first records of its store at once.
+        expect(container.textContent).toContain(NO_HIGHCHARTS);
         expect(container.querySelector('.xh-chat-ui-skeleton')).toBeNull();
+        expect(container.querySelector('.xh-placeholder')).toBeNull();
     });
 
     it('says there is nothing to show when no complete box has a size', () => {

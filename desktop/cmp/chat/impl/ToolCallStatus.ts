@@ -74,7 +74,7 @@ export function statusGlyph(
     const kind = getToolCallStatusKind(part, spec, isDetached);
     return span({
         className: `xh-chat-tool-call__glyph xh-chat-tool-call__glyph--${kind}`,
-        item:
+        children:
             kind === 'busy'
                 ? chatSpinner()
                 : part.cancelled

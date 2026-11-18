@@ -5,7 +5,7 @@
 @mixin row-button {
   font-size: var(--xh-chat-font-size);
   justify-content: flex-start;
-  padding: 0 2px 0 var(--xh-pad-px);
+  padding: 0 2px 0 var(--xh-spacing);
   width: 100%;
 
   &:focus-visible {
@@ -17,7 +17,7 @@
 // output cards, and its absence is the hierarchy.
 .xh-chat-tool-call {
   background-color: var(--xh-chat-bg);
-  border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
   border-radius: var(--xh-chat-border-radius);
   display: flex;
   flex-direction: column;
@@ -43,7 +43,7 @@
     color: var(--xh-chat-text-color);
     display: flex;
     min-height: 26px;
-    padding: 0 2px 0 var(--xh-pad-px);
+    padding: 0 2px 0 var(--xh-spacing);
   }
 
   @include hoist-button('.xh-chat-tool-call__header') {
@@ -68,7 +68,7 @@
     align-items: center;
     display: flex;
     flex: 1;
-    gap: calc(var(--xh-pad) * 0.8px);
+    gap: calc(var(--xh-spacing) * 0.8);
     line-height: 18px;
     min-width: 0;
     white-space: nowrap;
@@ -158,11 +158,11 @@
   // The decision a call waits for, inside its attention-color frame: the prompt, then Allow, Deny
   // and the optional reason, affirmative first, left-aligned as in a form.
   &__approval {
-    border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border-top: var(--xh-border-width) solid var(--xh-chat-part-border-color);
     display: flex;
     flex-direction: column;
-    gap: var(--xh-pad-half-px);
-    padding: var(--xh-pad-half-px) var(--xh-pad-px) var(--xh-pad-px);
+    gap: var(--xh-spacing-half);
+    padding: var(--xh-spacing-half) var(--xh-spacing) var(--xh-spacing);
   }
 
   &__approval-text {
@@ -173,7 +173,7 @@
     align-items: center;
     display: flex;
     flex-wrap: wrap;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
   }
 
   @include hoist-button(null, '.xh-chat-tool-call__approval-bar') {
@@ -188,21 +188,21 @@
 
   &__preview {
     color: var(--xh-chat-meta-text-color);
-    margin-top: var(--xh-pad-half-px);
+    margin-top: var(--xh-spacing-half);
   }
 
   &__body {
-    border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border-top: var(--xh-border-width) solid var(--xh-chat-part-border-color);
     display: flex;
     flex-direction: column;
-    gap: var(--xh-pad-px);
-    padding: var(--xh-pad-px);
+    gap: var(--xh-spacing);
+    padding: var(--xh-spacing);
   }
 
   &__section {
     display: flex;
     flex-direction: column;
-    gap: calc(var(--xh-pad) * 0.4px);
+    gap: calc(var(--xh-spacing) * 0.4);
     min-width: 0;
   }
 
@@ -229,7 +229,7 @@
     background-color: transparent;
     border: none;
     border-radius: 0;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
     overflow: visible;
   }
 
@@ -240,7 +240,7 @@
     display: flex;
     flex-wrap: wrap;
     font-size: var(--xh-chat-meta-font-size);
-    gap: var(--xh-pad-px);
+    gap: var(--xh-spacing);
     line-height: normal;
     min-height: 18px;
     transition: opacity var(--xh-chat-motion-reveal) var(--xh-chat-motion-ease);
@@ -259,7 +259,7 @@
   &__caption-status {
     align-items: center;
     display: inline-flex;
-    gap: calc(var(--xh-pad) * 0.5px);
+    gap: calc(var(--xh-spacing) * 0.5);
 
     &--approval {
       color: var(--xh-chat-attention-color);
@@ -276,7 +276,7 @@
 
     background-color: transparent;
     font-size: var(--xh-chat-meta-font-size);
-    gap: calc(var(--xh-pad) * 0.3px);
+    gap: calc(var(--xh-spacing) * 0.3);
     min-height: 18px;
     padding: 0;
 
@@ -296,7 +296,7 @@
   &__details {
     display: flex;
     flex-direction: column;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
     min-width: 0;
   }
 }
@@ -320,7 +320,7 @@
 
     @include row-button;
 
-    border: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border: var(--xh-border-width) solid var(--xh-chat-part-border-color);
     border-radius: var(--xh-chat-border-radius);
     min-height: 28px;
 
@@ -341,7 +341,7 @@
     align-items: center;
     display: flex;
     flex: 1;
-    gap: calc(var(--xh-pad) * 0.8px);
+    gap: calc(var(--xh-spacing) * 0.8);
     line-height: 18px;
     min-width: 0;
     white-space: nowrap;
@@ -385,6 +385,6 @@
     flex-direction: column;
     gap: var(--xh-chat-process-gap);
     min-width: 0;
-    padding-left: calc(var(--xh-pad) * 2px);
+    padding-left: calc(var(--xh-spacing) * 2);
   }
 }

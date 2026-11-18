@@ -194,11 +194,11 @@ class NoopResizeObserver {
 const host = hoistCmp.factory<HoistProps<ChatSidePanelModel>>({
     displayName: 'Host',
     model: uses(ChatSidePanelModel),
-    render: ({children}) => fragment({items: children})
+    render: ({children}) => fragment({children})
 });
 
 function renderInHost(content: ReactElement) {
     const model = new ChatSidePanelModel();
     onTestFinished(() => model.destroy());
-    return render(host({model, item: content}));
+    return render(host({model, children: content}));
 }

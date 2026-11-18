@@ -174,7 +174,7 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<
             }),
             role: 'group',
             'aria-label': 'Activity',
-            items: [
+            children: [
                 button({
                     className: 'xh-chat-timeline__head',
                     'aria-expanded': isExpanded,
@@ -182,16 +182,16 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<
                     onClick: () => impl.toggle(),
                     text: span({
                         className: 'xh-chat-timeline__line',
-                        items: [
+                        children: [
                             span({
                                 className: 'xh-chat-timeline__head-icon',
-                                item: lineIcon(state)
+                                children: lineIcon(state)
                             }),
                             lineStage(state, summary, host, impl, now),
                             lineMeta(state, summary, message, impl, quietMs),
                             span({
                                 className: 'xh-chat-timeline__chevron',
-                                item: isExpanded
+                                children: isExpanded
                                     ? Icon.groupRowExpanded()
                                     : Icon.groupRowCollapsed()
                             })
@@ -217,7 +217,7 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<
                     ? div({
                           id: bodyId,
                           className: 'xh-chat-timeline__body',
-                          item: items.length
+                          children: items.length
                               ? ul({
                                     ref: impl.treeRef,
                                     className: 'xh-chat-timeline__tree',
@@ -225,7 +225,7 @@ export const [ChatTimeline, chatTimeline] = hoistCmp.withFactory<
                                     'aria-label': 'Steps',
                                     onKeyDown: impl.onTreeKeyDown,
                                     onFocus: impl.onTreeFocus,
-                                    items: timelineRows(items, rowCtx)
+                                    children: timelineRows(items, rowCtx)
                                 })
                               : null
                       })
@@ -249,16 +249,19 @@ function lineIcon(state: ChatTimelineState): ReactNode {
     switch (state) {
         case 'running':
         case 'quiet':
-            return span({className: 'xh-chat-timeline__icon--busy', item: chatSpinner()});
+            return span({className: 'xh-chat-timeline__icon--busy', children: chatSpinner()});
         case 'approval':
         case 'question':
-            return span({className: 'xh-chat-timeline__icon--attention', item: Icon.pauseCircle()});
+            return span({
+                className: 'xh-chat-timeline__icon--attention',
+                children: Icon.pauseCircle()
+            });
         case 'paused':
             return Icon.pauseCircle();
         case 'stopped':
             return Icon.stopCircle();
         case 'failed':
-            return span({className: 'xh-chat-timeline__icon--error', item: Icon.xCircle()});
+            return span({className: 'xh-chat-timeline__icon--error', children: Icon.xCircle()});
         default:
             // A detached reply's notice says it is still working, so its line shows no status.
             return Icon.tools();
@@ -279,7 +282,7 @@ function lineStage(
                     'xh-chat-timeline__stage--narration': isNarration
                 }),
                 title: text,
-                item: text
+                children: text
             });
 
     switch (state) {
@@ -382,13 +385,13 @@ function lineMeta(
             span({
                 key: 'fails',
                 className: 'xh-chat-timeline__fails',
-                items: [
+                children: [
                     Icon.warning(),
                     isNarrow
                         ? span({
                               title: `${failedCount} failed`,
                               'aria-label': `${failedCount} failed`,
-                              item: failedCount
+                              children: failedCount
                           })
                         : `${failedCount} failed${isAllRetried ? ', retried' : ''}`
                 ]
@@ -398,14 +401,14 @@ function lineMeta(
 
     return span({
         className: 'xh-chat-timeline__meta',
-        items: segments.flatMap((it, idx) =>
+        children: segments.flatMap((it, idx) =>
             idx
                 ? [
                       span({
                           key: `sep${idx}`,
                           className: 'xh-chat-timeline__sep',
                           'aria-hidden': true,
-                          item: ' · '
+                          children: ' · '
                       }),
                       it
                   ]
@@ -469,7 +472,10 @@ const timelineQuestion = hoistCmp.factory<TimelineQuestionProps>({
         return div({
             ref,
             className: 'xh-chat-timeline__ask',
-            item: chatErrorBoundary({resetKey: part.state, item: chatToolCall({part, context})})
+            children: chatErrorBoundary({
+                resetKey: part.state,
+                children: chatToolCall({part, context})
+            })
         });
     }
 });

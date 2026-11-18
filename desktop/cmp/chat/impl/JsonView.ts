@@ -20,7 +20,7 @@ export const jsonView = hoistCmp.factory<JsonViewProps>({
     className: 'xh-chat-json',
 
     render({className, value}) {
-        return pre({className, item: formatJson(value)});
+        return pre({className, children: formatJson(value)});
     }
 });
 

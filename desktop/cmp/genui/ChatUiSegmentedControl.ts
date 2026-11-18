@@ -69,7 +69,7 @@ export function chatUiSegmentedControlSpec(
                 toRules: toRequiredRules,
                 value,
                 setProp,
-                item: segmentedControl({options, fill: false})
+                children: segmentedControl({options, fill: false})
             });
         },
         result: ({label, name: field}) => label ?? field ?? '',

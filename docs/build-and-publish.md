@@ -77,15 +77,17 @@ be repeated once the configuration is fixed.
 ### Cut a release
 
 `develop` always holds the next major version as a snapshot, in the Maven style that all XH
-libraries use. After 1.0.0 ships, `package.json` reads `2.0.0-SNAPSHOT`. A release without
-breaking changes still goes out as the next minor or patch version, and `develop` stays on the
-same snapshot.
+libraries use. Each major release moves `develop` to the major after it. A release without
+breaking changes goes out as the next minor or patch version, and `develop` stays on the same
+snapshot. For example, once 1.0.0 ships, `package.json` reads `2.0.0-SNAPSHOT`. A later 1.1.0
+leaves it there, and 2.0.0 moves it to `3.0.0-SNAPSHOT`.
 
 1. Make sure `develop` is green in CI and holds everything the release needs.
 2. Pick the version. A release with breaking changes is the major version that `develop` holds.
    Any other release is the next minor or patch from the latest `v*` tag, such as `1.1.0`.
 3. On `develop`, set the topmost `CHANGELOG.md` heading to the release version and today's date,
-   as in `## 1.1.0 - 2026-11-20`. Commit and push.
+   as in `## 1.1.0 - 2026-11-20`. For a major release, also set the `Released` date in that
+   version's upgrade notes. Commit and push.
 4. Fast-forward `main` to `develop` and push it:
    ```bash
    git switch main && git merge --ff-only develop && git push
@@ -95,10 +97,10 @@ same snapshot.
    gh workflow run deployRelease.yml --ref main -f version=1.1.0 -f is-hotfix=false
    ```
 6. Back on `develop`, put a snapshot heading back on top of `CHANGELOG.md`, then push:
-   - After a major release, bump `package.json` to the next major, such as `3.0.0-SNAPSHOT`, and
-     add a matching `## 3.0.0-SNAPSHOT - unreleased` heading.
-   - After a minor or patch release, leave `package.json` as it is, and add back the
-     `## 2.0.0-SNAPSHOT - unreleased` heading above the new release entry.
+   - After a major release, bump `package.json` to the next major `-SNAPSHOT` version, and add a
+     matching `## {version} - unreleased` heading.
+   - After a minor or patch release, leave `package.json` as it is, and add back the heading for
+     the snapshot it holds, above the new release entry.
 
 ### Cut a hotfix
 

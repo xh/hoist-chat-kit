@@ -174,7 +174,7 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                 key: message.id,
                 subject: 'message',
                 resetKey: message.status,
-                item: chatMessageView({
+                children: chatMessageView({
                     message,
                     host,
                     isLast: idx === lastIdx,
@@ -201,7 +201,7 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
             onDragOver: refuseFileDrop,
             onDrop: refuseFileDrop,
             ...rest,
-            items: [
+            children: [
                 div({
                     ref: viewportRef,
                     className: 'xh-chat-message-list__viewport',
@@ -216,10 +216,10 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                     onClickCapture: impl.onClickCapture,
                     onLoadCapture: impl.onLoadCapture,
                     onKeyDown: impl.onKeyDown,
-                    item: div({
+                    children: div({
                         ref: contentRef,
                         className: 'xh-chat-message-list__content',
-                        items: isAwaiting
+                        children: isAwaiting
                             ? [...messages.map(renderMessage), awaitingReply()]
                             : !messages.length
                               ? [
@@ -237,7 +237,7 @@ export const [ChatMessageList, chatMessageList] = hoistCmp.withFactory<ChatMessa
                     ? null
                     : div({
                           className: 'xh-chat-message-list__scroll-button',
-                          item: button({
+                          children: button({
                               icon: Icon.arrowDown(),
                               tooltip: 'Scroll to bottom',
                               'aria-label': 'Scroll to bottom',
@@ -262,6 +262,6 @@ function awaitingReply(): ReactNode {
     return div({
         key: 'awaitingReply',
         className: 'xh-chat-message-list__awaiting-reply',
-        item: chatStatusCue({status: 'detached', label: 'Still working on the server'})
+        children: chatStatusCue({status: 'detached', label: 'Still working on the server'})
     });
 }

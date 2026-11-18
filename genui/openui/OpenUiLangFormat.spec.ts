@@ -555,7 +555,7 @@ function countTiles(html: string): number {
 }
 
 function markup(content: ReactNode): string {
-    return renderToStaticMarkup(appContext({items: content}));
+    return renderToStaticMarkup(appContext({children: content}));
 }
 
 class AppStandInModel extends HoistModel {}

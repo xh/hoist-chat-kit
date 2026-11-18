@@ -59,7 +59,7 @@ export const [ChatSuggestions, chatSuggestions] = hoistCmp.withFactory<ChatSugge
         return div({
             ref,
             className,
-            items: suggestions.map((it, idx) => {
+            children: suggestions.map((it, idx) => {
                 const suggestion: ChatSuggestion = isString(it) ? {text: it} : it;
                 return button({
                     key: `${idx}-${suggestion.text}`,
@@ -67,15 +67,15 @@ export const [ChatSuggestions, chatSuggestions] = hoistCmp.withFactory<ChatSugge
                     icon: suggestion.icon,
                     text: span({
                         className: 'xh-chat-suggestions__body',
-                        items: [
+                        children: [
                             span({
                                 className: 'xh-chat-suggestions__label',
-                                item: suggestion.text
+                                children: suggestion.text
                             }),
                             suggestion.description
                                 ? span({
                                       className: 'xh-chat-suggestions__description',
-                                      item: suggestion.description
+                                      children: suggestion.description
                                   })
                                 : null
                         ]

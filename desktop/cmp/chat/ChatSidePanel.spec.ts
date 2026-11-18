@@ -29,7 +29,7 @@ describe('ChatSidePanel', () => {
     });
 
     it("frames the app's viewer with the title and Close, and no Back", () => {
-        const renderer = vi.fn(() => div({className: 'app-viewer', item: 'PDF'})),
+        const renderer = vi.fn(() => div({className: 'app-viewer', children: 'PDF'})),
             model = panel(renderer);
         model.open(request(), opener());
         render(chatSidePanel({model}));
@@ -54,6 +54,8 @@ describe('ChatSidePanel', () => {
 
         setStatus(model, {state: 'located', page: 3});
         expect(pageLabel().textContent).toBe('Page 3');
+        // In a Hoist toolbar, which Panel builds only from an array of items.
+        expect(pageLabel().closest('.xh-toolbar')).toBeTruthy();
 
         setStatus(model, {state: 'located', page: 3, pageCount: 12});
         expect(pageLabel().textContent).toBe('Page 3 of 12');

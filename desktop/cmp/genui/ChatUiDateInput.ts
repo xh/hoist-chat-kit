@@ -57,7 +57,7 @@ export function chatUiDateInputSpec(
                       toInput: toLocalDate,
                       fromInput: toIsoString,
                       setProp,
-                      item: dateInput({
+                      children: dateInput({
                           valueType: 'localDate',
                           minDate: toLocalDate(rules?.min),
                           maxDate: toLocalDate(rules?.max),

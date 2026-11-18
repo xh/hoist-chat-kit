@@ -3,18 +3,18 @@
 // A server agent's questions, framed apart from the reply's text, after Claude Code's clarifying
 // questions: a header that names who asks, the question, then large rows to choose from.
 .xh-chat-interrupts {
-  border: var(--xh-border-width-px) solid var(--xh-chat-attention-color);
+  border: var(--xh-border-width) solid var(--xh-chat-attention-color);
   border-radius: var(--xh-chat-border-radius);
   display: flex;
   flex-direction: column;
-  gap: var(--xh-pad-px);
+  gap: var(--xh-spacing);
   margin-top: var(--xh-chat-part-gap);
   max-width: var(--xh-chat-prose-max-width);
-  padding: var(--xh-pad-px);
+  padding: var(--xh-spacing);
 
   &--record {
     border: none;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
     padding: 0;
   }
 
@@ -23,7 +23,7 @@
     color: var(--xh-chat-meta-text-color);
     display: flex;
     font-size: var(--xh-chat-meta-font-size);
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
   }
 
   &__icon {
@@ -43,13 +43,13 @@
   &__options {
     display: flex;
     flex-direction: column;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
   }
 
   @include hoist-button('.xh-chat-interrupts__option') {
     justify-content: flex-start;
     min-height: 40px;
-    padding: var(--xh-pad-half-px) var(--xh-pad-px);
+    padding: var(--xh-spacing-half) var(--xh-spacing);
     text-align: left;
     width: 100%;
   }
@@ -60,7 +60,7 @@
 
   &__option-text {
     display: grid;
-    gap: 0 var(--xh-pad-px);
+    gap: 0 var(--xh-spacing);
     grid-template-columns: auto 1fr;
   }
 
@@ -84,7 +84,7 @@
   &__text {
     align-items: flex-end;
     display: flex;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
 
     > :first-child {
       flex: 1 1 auto;
@@ -95,7 +95,7 @@
   &__bar {
     align-items: center;
     display: flex;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
   }
 
   &__spacer {
@@ -120,15 +120,15 @@
   &__review {
     display: flex;
     flex-direction: column;
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
   }
 
   &__review-row {
     align-items: center;
-    border-bottom: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+    border-bottom: var(--xh-border-width) solid var(--xh-chat-part-border-color);
     display: flex;
-    gap: var(--xh-pad-px);
-    padding-bottom: var(--xh-pad-half-px);
+    gap: var(--xh-spacing);
+    padding-bottom: var(--xh-spacing-half);
   }
 
   &__review-text {
@@ -140,7 +140,7 @@
     align-items: baseline;
     display: flex;
     font-size: var(--xh-chat-meta-font-size);
-    gap: var(--xh-pad-half-px);
+    gap: var(--xh-spacing-half);
   }
 
   &__record-question {

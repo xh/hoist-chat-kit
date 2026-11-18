@@ -51,7 +51,7 @@ export function chatUiStackSpec(
         },
         slots: ['default'],
         standalone: false,
-        render: (props, {children}) => chatUiStack({...props, items: children}),
+        render: (props, {children}) => chatUiStack({...props, children}),
         result: ({title}) => title ?? '',
         example: {direction: 'column', gap: 'medium'}
     };
@@ -74,10 +74,10 @@ export const [ChatUiStack, chatUiStack] = hoistCmp.withFactory<ChatUiStackProps>
         const layout = direction === 'row' ? hbox : vbox,
             stack = layout({
                 className: classNames(className, `xh-chat-ui-stack--${gap}`),
-                items: children
+                children
             });
 
-        return title ? chatUiFrame({title, item: stack}) : stack;
+        return title ? chatUiFrame({title, children: stack}) : stack;
     }
 });
 

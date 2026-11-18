@@ -20,7 +20,7 @@ describe('chatUiCalloutSpec', () => {
     const renderCallout = (props: Partial<ChatUiCalloutSpecProps>, isPartial = false) =>
         renderInChat(
             fragment({
-                item: chatUiCalloutSpec().render(
+                children: chatUiCalloutSpec().render(
                     props as ChatUiCalloutSpecProps,
                     {isPartial} as ChatUiRenderContext
                 )
@@ -105,11 +105,11 @@ describe('chatUiCalloutSpec', () => {
 const chatHost = hoistCmp.factory<HoistProps<ChatModel>>({
     displayName: 'ChatHost',
     model: uses(ChatModel),
-    render: ({children}) => fragment({items: children})
+    render: ({children}) => fragment({children})
 });
 
 function renderInChat(content: ReactElement) {
     const model = new ChatModel({transport: new ScriptedChatTransport()});
     onTestFinished(() => model.destroy());
-    return render(chatHost({model, item: content}));
+    return render(chatHost({model, children: content}));
 }

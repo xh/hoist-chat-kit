@@ -71,7 +71,7 @@ export function chatUiSectionSpec(
             // still being written. It writes the children first and `collapsed` last, so content
             // mounted now would show open, then collapse. The frame waits with a placeholder.
             if (isPartial && element?.isPartial === true) {
-                return card({key: 'writing', ...frame, item: chatUiSkeleton(SKELETON_HEIGHT)});
+                return card({key: 'writing', ...frame, children: chatUiSkeleton(SKELETON_HEIGHT)});
             }
 
             // The header is the only way to expand, so a section with no title never collapses.
@@ -88,7 +88,7 @@ export function chatUiSectionSpec(
                     defaultCollapsed: startCollapsed,
                     renderMode: 'lazy'
                 },
-                items: children
+                children
             });
         },
         result: ({title}) => title ?? '',

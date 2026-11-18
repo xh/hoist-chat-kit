@@ -204,7 +204,7 @@ const STACK: ChatUiComponentSpec = {
         props: {type: 'object', additionalProperties: false, properties: {}},
         slots: ['default'],
         standalone: false,
-        render: (_, {children}) => fragment({items: children})
+        render: (_, {children}) => fragment({children})
     },
     NOTE: ChatUiComponentSpec<{text: string}> = {
         name: 'note',
@@ -301,7 +301,7 @@ function renderProgram(
             fragment(
                 catalog
                     .parseText(source, {isStreaming: streaming, messageId: 'm1', partId: 'p1'})
-                    .map((it, idx) => div({key: idx, item: catalog.renderSegment(it, context)}))
+                    .map((it, idx) => div({key: idx, children: catalog.renderSegment(it, context)}))
             );
     onTestFinished(() => chatModel.destroy());
 

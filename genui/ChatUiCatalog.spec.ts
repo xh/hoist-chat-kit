@@ -345,7 +345,7 @@ describe('ChatUiCatalog', () => {
                 props: {type: 'object', required: ['title'], properties: {title: {type: 'string'}}},
                 slots: ['default'],
                 render: ({title}, {children}) =>
-                    fragment({items: [`[${title}: `, ...children, ']']})
+                    fragment({children: [`[${title}: `, ...children, ']']})
             },
             ADAPTER: ChatUiAdapter = {
                 dataType: 'test-ui',
@@ -1027,7 +1027,7 @@ const STACK: ChatUiComponentSpec = {
     props: {type: 'object', properties: {}},
     slots: ['default', 'header'],
     render: (_, {children, slots}) =>
-        fragment({items: ['[', ...(slots.header ?? []), ...children, ']']})
+        fragment({children: ['[', ...(slots.header ?? []), ...children, ']']})
 };
 
 const METRICS_DOC: ChatUiDocument = {
@@ -1162,5 +1162,5 @@ function dataPart(data: any): ChatDataPart {
 }
 
 function markup(content: ReactNode): string {
-    return renderToStaticMarkup(fragment({items: content}));
+    return renderToStaticMarkup(fragment({children: content}));
 }

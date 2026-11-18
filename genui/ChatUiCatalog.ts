@@ -1099,13 +1099,13 @@ export class ChatUiCatalog {
                     context,
                     id
                 ),
-            item: chatUiComponent({
+            children: chatUiComponent({
                 spec: component,
                 node,
                 context: {...context, isPartial: elementPartial},
                 catalog: this,
                 registry: this.getRegistry(context.chatModel),
-                children: renderIds(element.children),
+                childNodes: renderIds(element.children),
                 slots: mapValues(element.slots ?? {}, renderIds)
             })
         });
@@ -1114,7 +1114,7 @@ export class ChatUiCatalog {
     private renderPlaceholder(name: string, key?: string): ReactNode {
         return fragment({
             key,
-            item: this.placeholderRenderer({
+            children: this.placeholderRenderer({
                 component: name,
                 displayName: name ? genDisplayName(name) : null
             })
@@ -1130,7 +1130,7 @@ export class ChatUiCatalog {
             spec.caption,
             spec.errors.join('; ')
         ]);
-        return fragment({key, item: this.fallbackRenderer(spec)});
+        return fragment({key, children: this.fallbackRenderer(spec)});
     }
 
     private warnOnce(logKey: string, message: unknown[]) {
@@ -1323,7 +1323,8 @@ interface ChatUiComponentProps extends HoistProps {
     context: ChatUiDocumentContext;
     catalog: ChatUiCatalog;
     registry: ChatArtifactRegistry;
-    children: ReactNode[];
+    // Not `children`, which Hoist hands to React as child elements, not as an array.
+    childNodes: ReactNode[];
     slots: Record<string, ReactNode[]>;
 }
 
@@ -1336,7 +1337,7 @@ const chatUiComponent = hoistCmp.factory<ChatUiComponentProps>({
     displayName: 'ChatUiComponent',
     model: uses('*', {optional: true}),
 
-    render({spec, node, context, catalog, registry, children, slots}) {
+    render({spec, node, context, catalog, registry, childNodes, slots}) {
         // What the user set for state props that the document does not bind. A binding takes
         // the prop over, as the document then holds its value.
         const [localProps, setLocalProps] = useState<PlainObject>(null),
@@ -1368,7 +1369,7 @@ const chatUiComponent = hoistCmp.factory<ChatUiComponentProps>({
             ...context,
             catalog,
             element: node,
-            children,
+            children: childNodes,
             slots,
             data: handles,
             artifacts: registry,

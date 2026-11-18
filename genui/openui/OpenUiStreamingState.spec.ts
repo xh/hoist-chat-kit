@@ -64,7 +64,7 @@ describe('OpenUI Lang streaming with state', () => {
                         .map((it, idx) =>
                             div({
                                 key: idx,
-                                item: catalog.renderSegment(it, {
+                                children: catalog.renderSegment(it, {
                                     chatModel,
                                     messageId: 'm1',
                                     part: PART
@@ -125,7 +125,7 @@ const STACK: ChatUiComponentSpec = {
         },
         slots: ['default'],
         standalone: false,
-        render: (_, {children}) => fragment({items: children})
+        render: (_, {children}) => fragment({children})
     },
     // A table with a required list of rows, as the built-in grid has.
     GRID: ChatUiComponentSpec = {

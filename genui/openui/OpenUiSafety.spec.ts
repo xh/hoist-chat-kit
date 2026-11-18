@@ -758,7 +758,7 @@ describe('OpenUI Lang safety', () => {
                     null,
                     fragment(
                         segments.map((it, idx) =>
-                            div({key: idx, item: catalog.renderSegment(it, context(chatModel))})
+                            div({key: idx, children: catalog.renderSegment(it, context(chatModel))})
                         )
                     )
                 )
@@ -838,7 +838,7 @@ const STACK: ChatUiComponentSpec = {
         props: {type: 'object', additionalProperties: false, properties: {}},
         slots: ['default'],
         standalone: false,
-        render: (_, {children}) => fragment({items: children})
+        render: (_, {children}) => fragment({children})
     },
     NOTE: ChatUiComponentSpec<{text: string}> = {
         name: 'note',
@@ -996,7 +996,7 @@ function renderProgram(
                 catalog
                     .parseText(program, {messageId: 'm1', partId: 'p1'})
                     .map((it, idx) =>
-                        div({key: idx, item: catalog.renderSegment(it, context(chatModel))})
+                        div({key: idx, children: catalog.renderSegment(it, context(chatModel))})
                     )
             )
         );

@@ -2,11 +2,11 @@
 .xh-chat-ui-section {
   --xh-card-bg: var(--xh-chat-bg);
   --xh-card-border-color: var(--xh-chat-part-border-color);
-  --xh-card-border-radius-px: var(--xh-chat-border-radius);
-  --xh-card-header-font-size-px: var(--xh-chat-font-size, var(--xh-font-size-px));
+  --xh-card-border-radius: var(--xh-chat-border-radius);
+  --xh-card-header-font-size: var(--xh-chat-font-size, var(--xh-font-size));
 
   box-sizing: border-box;
-  font-size: var(--xh-chat-font-size, var(--xh-font-size-px));
+  font-size: var(--xh-chat-font-size, var(--xh-font-size));
   line-height: normal;
   margin: 0;
 
@@ -14,7 +14,7 @@
   min-width: 0;
 
   > .xh-card__content {
-    gap: var(--xh-chat-part-gap, var(--xh-pad-px));
+    gap: var(--xh-chat-part-gap, var(--xh-spacing));
     min-width: 0;
   }
 

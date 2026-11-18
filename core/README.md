@@ -605,7 +605,7 @@ const todoPanel = hoistCmp.factory<TodoPanelModel>(({model}) => {
     const todos = model.chatModel.agentState.todos ?? [];
     return panel({
         title: 'Plan',
-        items: todos.map(it => div({key: it.id, item: `${it.status} - ${it.content}`}))
+        children: todos.map(it => div({key: it.id, children: `${it.status} - ${it.content}`}))
     });
 });
 ```

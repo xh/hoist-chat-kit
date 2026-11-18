@@ -66,7 +66,7 @@ describe('ChatMessageList', () => {
                             required: ['label'],
                             properties: {label: {type: 'string'}}
                         },
-                        render: ({label}) => div({className: 'test-badge', item: label})
+                        render: ({label}) => div({className: 'test-badge', children: label})
                     }
                 ]
             }),
@@ -623,7 +623,7 @@ describe('ChatMessageList', () => {
                 getToolSpec: name =>
                     name === 'search_docs' ? {name, displayName: 'Searched documents'} : null
             },
-            {container} = render(appContext({item: chatMessageList({host})}));
+            {container} = render(appContext({children: chatMessageList({host})}));
 
         expect(container.querySelector('.xh-chat-tool-call__title').textContent).toBe(
             'Searched documents'
@@ -650,7 +650,7 @@ describe('ChatMessageList', () => {
                 getToolSpec: name =>
                     name === 'search_docs' ? {name, displayName: 'Searched documents'} : null
             },
-            {container} = render(appContext({item: chatMessageList({host})})),
+            {container} = render(appContext({children: chatMessageList({host})})),
             titles = Array.from(container.querySelectorAll('.xh-chat-tool-call__title')).map(
                 it => it.textContent
             );
@@ -687,7 +687,7 @@ describe('ChatMessageList', () => {
                 ],
                 dataRenderers: {'test.kpi': part => div(`KPI ${part.data.value}`)}
             },
-            {container} = render(appContext({item: chatMessageList({host})}));
+            {container} = render(appContext({children: chatMessageList({host})}));
 
         expect(screen.getByText('Add a note')).toBeTruthy();
         expect(container.querySelector('strong').textContent).toBe('one');
@@ -723,7 +723,7 @@ describe('ChatMessageList', () => {
                             required: ['label'],
                             properties: {label: {type: 'string'}}
                         },
-                        render: ({label}) => div({className: 'test-badge', item: label})
+                        render: ({label}) => div({className: 'test-badge', children: label})
                     }
                 ]
             }),
@@ -736,7 +736,7 @@ describe('ChatMessageList', () => {
                 messages: [new ChatMessage({id: 'a1', role: 'assistant', parts: [badgeCall]})],
                 catalog
             },
-            {container} = render(appContext({item: chatMessageList({host})}));
+            {container} = render(appContext({children: chatMessageList({host})}));
 
         expect(screen.getByText('Top seller', {selector: '.test-badge'})).toBeTruthy();
         expect(container.querySelector('.xh-chat-tool-call__header')).toBeNull();
@@ -754,7 +754,7 @@ describe('ChatMessageList', () => {
         it('render nothing over a transcript', () => {
             const {container} = render(
                 appContext({
-                    item: chatMessageList({host: {messages: []}, suggestions: ['Hi']})
+                    children: chatMessageList({host: {messages: []}, suggestions: ['Hi']})
                 })
             );
             expect(container.textContent).toContain('How can I help?');

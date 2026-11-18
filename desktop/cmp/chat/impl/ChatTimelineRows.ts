@@ -93,14 +93,14 @@ export function timelineRows(
                     depth,
                     ctx,
                     className: 'xh-chat-timeline__leaf',
-                    items: [
+                    children: [
                         div({
                             key: 'text',
                             className: 'xh-chat-timeline__narration',
                             // An app's renderer that fails takes down its row, not the block.
-                            item: chatErrorBoundary({
+                            children: chatErrorBoundary({
                                 resetKey: item.part.state,
-                                item: narrationText({
+                                children: narrationText({
                                     part: item.part,
                                     host: ctx.host,
                                     context: ctx.context
@@ -175,7 +175,7 @@ function callRow(
             state === 'question' ? null : input.text,
             rowStateLabel(state, {status, retry, took, deniedReason, isApproved})
         ]).join(', '),
-        items: [
+        children: [
             rowLine({
                 ctx,
                 id: part.id,
@@ -197,7 +197,7 @@ function callRow(
                 ? div({
                       key: 'reason',
                       className: 'xh-chat-timeline__reason',
-                      item: `You: “${deniedReason}”`
+                      children: `You: “${deniedReason}”`
                   })
                 : null,
             isOpen ? timelineDetails({key: 'details', part, spec, context: ctx.context}) : null
@@ -242,7 +242,7 @@ function batchRow(
             failed ? `${failed} failed` : null,
             isRunning ? 'running' : isUnfinished ? UNFINISHED_LABEL.toLowerCase() : null
         ]).join(', '),
-        items: [
+        children: [
             rowLine({
                 ctx,
                 id: item.id,
@@ -323,7 +323,7 @@ function agentRow(
                         ? 'waiting for you'
                         : null
         ]).join(', '),
-        items: [
+        children: [
             rowLine({
                 ctx,
                 id: item.id,
@@ -331,17 +331,20 @@ function agentRow(
                 isOpen,
                 hasDetails: true,
                 icon: isRunning
-                    ? span({className: 'xh-chat-timeline__icon--busy', item: chatSpinner()})
+                    ? span({className: 'xh-chat-timeline__icon--busy', children: chatSpinner()})
                     : isUnfinished
                       ? Icon.circle({title: UNFINISHED_LABEL})
                       : isFailed
-                        ? span({className: 'xh-chat-timeline__icon--error', item: Icon.xCircle()})
+                        ? span({
+                              className: 'xh-chat-timeline__icon--error',
+                              children: Icon.xCircle()
+                          })
                         : isCancelled
                           ? Icon.stopCircle()
                           : isWaiting
                             ? span({
                                   className: 'xh-chat-timeline__icon--attention',
-                                  item: Icon.pauseCircle()
+                                  children: Icon.pauseCircle()
                               })
                             : Icon.sparkles(),
                 title: depthTitle(name, depth, parentName),
@@ -406,7 +409,7 @@ function resultRow(
         isOpen,
         className: 'xh-chat-timeline__item--result',
         label: compact(['Result', isOpen ? null : summary]).join(', '),
-        items: [
+        children: [
             rowLine({
                 ctx,
                 id,
@@ -421,7 +424,7 @@ function resultRow(
                 ? div({
                       key: 'details',
                       className: 'xh-chat-timeline__detail',
-                      item: isString(result)
+                      children: isString(result)
                           ? prosePane('Result', text)
                           : pane('Result', null, result)
                   })
@@ -451,7 +454,7 @@ function activityRow(
         isOpen: hasDetails ? isOpen : null,
         className: 'xh-chat-timeline__item--activity',
         label: compact([title, summary]).join(', '),
-        items: [
+        children: [
             rowLine({
                 ctx,
                 id: part.id,
@@ -467,7 +470,7 @@ function activityRow(
                 ? chatErrorBoundary({
                       key: 'details',
                       resetKey: part,
-                      item: activityDetails({part, context: ctx.context, host})
+                      children: activityDetails({part, context: ctx.context, host})
                   })
                 : null
         ]
@@ -497,7 +500,7 @@ function reasoningRow(
         isOpen,
         className: 'xh-chat-timeline__item--reasoning',
         label: compact([title, firstLine]).join(', '),
-        items: [
+        children: [
             rowLine({
                 ctx,
                 id,
@@ -505,7 +508,7 @@ function reasoningRow(
                 isOpen,
                 hasDetails: true,
                 icon: isThinking
-                    ? span({className: 'xh-chat-timeline__icon--busy', item: chatSpinner()})
+                    ? span({className: 'xh-chat-timeline__icon--busy', children: chatSpinner()})
                     : Icon.ai(),
                 title,
                 input: firstLine,
@@ -519,9 +522,9 @@ function reasoningRow(
                 ? div({
                       key: 'details',
                       className: 'xh-chat-timeline__detail',
-                      item: div({
+                      children: div({
                           className: 'xh-chat-timeline__narration',
-                          item: chatMarkdown({
+                          children: chatMarkdown({
                               content: part.text,
                               isStreaming: isThinking,
                               components: CHAT_MARKDOWN_COMPONENTS
@@ -572,10 +575,10 @@ interface TreeItemArgs {
 
     /** Name for screen readers, as title, input, then state. Default its text. */
     label?: string;
-    items: ReactNode[];
+    children: ReactNode[];
 }
 
-function treeItem({key, id, depth, ctx, className, isOpen = null, label, items}: TreeItemArgs) {
+function treeItem({key, id, depth, ctx, className, isOpen = null, label, children}: TreeItemArgs) {
     return li({
         key: key ?? id,
         className: classNames('xh-chat-timeline__item', className),
@@ -587,7 +590,7 @@ function treeItem({key, id, depth, ctx, className, isOpen = null, label, items}:
         'aria-label': label,
         tabIndex: ctx.tabStopId === id ? 0 : -1,
         style: {'--xh-chat-timeline-depth': Math.min(depth, TIMELINE_MAX_DEPTH)} as CSSProperties,
-        items
+        children
     });
 }
 
@@ -622,26 +625,26 @@ function rowLine(args: RowLineArgs): ReactNode {
             ctx.impl.setFocusId(id);
             if (hasDetails) ctx.impl.setRowOpen(id, !isOpen);
         },
-        items: [
-            span({className: 'xh-chat-timeline__icon', item: icon}),
-            span({className: 'xh-chat-timeline__title', item: title}),
-            count != null ? span({className: 'xh-chat-timeline__count', item: count}) : null,
+        children: [
+            span({className: 'xh-chat-timeline__icon', children: icon}),
+            span({className: 'xh-chat-timeline__title', children: title}),
+            count != null ? span({className: 'xh-chat-timeline__count', children: count}) : null,
             status
-                ? span({className: 'xh-chat-timeline__status', title: status, item: status})
+                ? span({className: 'xh-chat-timeline__status', title: status, children: status})
                 : input
                   ? span({
                         className: classNames('xh-chat-timeline__input', {
                             'xh-chat-timeline__input--code': isCode
                         }),
                         title: isString(input) ? input : undefined,
-                        item: input
+                        children: input
                     })
                   : span({className: 'xh-chat-timeline__input'}),
-            tag ? span({className: 'xh-chat-timeline__tag', item: tag}) : null,
-            span({className: 'xh-chat-timeline__time', item: time ?? null}),
+            tag ? span({className: 'xh-chat-timeline__tag', children: tag}) : null,
+            span({className: 'xh-chat-timeline__time', children: time ?? null}),
             span({
                 className: 'xh-chat-timeline__chevron',
-                item: hasDetails
+                children: hasDetails
                     ? isOpen
                         ? Icon.groupRowExpanded()
                         : Icon.groupRowCollapsed()
@@ -652,14 +655,14 @@ function rowLine(args: RowLineArgs): ReactNode {
 }
 
 function group(items: ReactNode[]): ReactNode {
-    return ul({key: 'group', className: 'xh-chat-timeline__group', role: 'group', items});
+    return ul({key: 'group', className: 'xh-chat-timeline__group', role: 'group', children: items});
 }
 
 // Deeper than the indent goes, a row names its parent: "› Limits Checker  Read policy".
 function depthTitle(title: string, depth: number, parentName: string): ReactNode {
     if (depth <= TIMELINE_MAX_DEPTH || !parentName) return title;
     return [
-        span({key: 'p', className: 'xh-chat-timeline__parent', item: `› ${parentName} `}),
+        span({key: 'p', className: 'xh-chat-timeline__parent', children: `› ${parentName} `}),
         title
     ];
 }
@@ -667,12 +670,15 @@ function depthTitle(title: string, depth: number, parentName: string): ReactNode
 function callIcon(state: RowState, spec: ChatToolSpec): ReactNode {
     switch (state) {
         case 'running':
-            return span({className: 'xh-chat-timeline__icon--busy', item: chatSpinner()});
+            return span({className: 'xh-chat-timeline__icon--busy', children: chatSpinner()});
         case 'approval':
         case 'question':
-            return span({className: 'xh-chat-timeline__icon--attention', item: Icon.pauseCircle()});
+            return span({
+                className: 'xh-chat-timeline__icon--attention',
+                children: Icon.pauseCircle()
+            });
         case 'failed':
-            return span({className: 'xh-chat-timeline__icon--error', item: Icon.xCircle()});
+            return span({className: 'xh-chat-timeline__icon--error', children: Icon.xCircle()});
         case 'denied':
             return Icon.slashedCircle();
         case 'cancelled':
@@ -825,9 +831,9 @@ const timelineDetails = hoistCmp.factory<TimelineDetailsProps>({
             // as the call moves on, such as once its input is complete.
             return div({
                 className,
-                item: chatErrorBoundary({
+                children: chatErrorBoundary({
                     resetKey: part.state,
-                    item: timelineRenderer({part, spec, context})
+                    children: timelineRenderer({part, spec, context})
                 })
             });
         }
@@ -836,7 +842,7 @@ const timelineDetails = hoistCmp.factory<TimelineDetailsProps>({
             input = isEmpty(part.input) ? part.inputText : part.input;
         return div({
             className,
-            items: [
+            children: [
                 !isEmpty(input) ? pane('Input', toolName, input) : null,
                 state === 'output-available' && output != null
                     ? pane('Output', isString(output) ? 'text' : 'json', output)
@@ -879,7 +885,7 @@ const activityDetails = hoistCmp.factory<ActivityDetailsProps>({
         const renderer = getDataRenderer(host, part);
         return div({
             className,
-            item: renderer
+            children: renderer
                 ? (renderer(part, context) ?? null)
                 : pane('Data', part.dataType, part.data)
         });
@@ -897,7 +903,7 @@ function pane(label: string, sublabel: string, value: unknown): ReactNode {
         className: 'xh-chat-timeline__pane',
         role: 'group',
         'aria-label': label,
-        items: [paneHead(label, sublabel, text), paneBody(value)]
+        children: [paneHead(label, sublabel, text), paneBody(value)]
     });
 }
 
@@ -908,12 +914,12 @@ function prosePane(label: string, text: string): ReactNode {
         className: 'xh-chat-timeline__pane',
         role: 'group',
         'aria-label': label,
-        items: [
+        children: [
             paneHead(label, null, text),
             div({
                 className: 'xh-chat-timeline__pane-body xh-chat-timeline__pane-body--prose',
                 tabIndex: 0,
-                item: chatMarkdown({content: text, components: CHAT_MARKDOWN_COMPONENTS})
+                children: chatMarkdown({content: text, components: CHAT_MARKDOWN_COMPONENTS})
             })
         ]
     });
@@ -922,9 +928,9 @@ function prosePane(label: string, text: string): ReactNode {
 function paneHead(label: string, sublabel: string, text: string): ReactNode {
     return div({
         className: 'xh-chat-timeline__pane-head',
-        items: [
-            span({className: 'xh-chat-timeline__pane-label', item: label}),
-            sublabel ? span({className: 'xh-chat-timeline__pane-sub', item: sublabel}) : null,
+        children: [
+            span({className: 'xh-chat-timeline__pane-label', children: label}),
+            sublabel ? span({className: 'xh-chat-timeline__pane-sub', children: sublabel}) : null,
             span({className: 'xh-chat-timeline__pane-spacer'}),
             chatCopyButton({getCopyText: () => text, label: `Copy ${label.toLowerCase()}`})
         ]
@@ -940,13 +946,13 @@ function paneBody(value: unknown): ReactNode {
             key: 'body',
             className: 'xh-chat-timeline__pane-body',
             tabIndex: 0,
-            items: shown.map((line, idx) => div({key: idx, item: line || ' '}))
+            children: shown.map((line, idx) => div({key: idx, children: line || ' '}))
         }),
         lines.length > shown.length
             ? div({
                   key: 'more',
                   className: 'xh-chat-timeline__pane-more',
-                  item: `Showing ${shown.length} of ${lines.length} lines`
+                  children: `Showing ${shown.length} of ${lines.length} lines`
               })
             : null
     ];

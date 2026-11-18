@@ -2,14 +2,14 @@
 .xh-chat-ui-divider {
   align-self: stretch;
   border: none;
-  border-top: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border-top: var(--xh-border-width) solid var(--xh-chat-part-border-color);
   flex: none;
   margin: 0;
   width: 100%;
 }
 
 .xh-chat-ui-stack.xh-hbox > .xh-chat-ui-divider {
-  border-left: var(--xh-border-width-px) solid var(--xh-chat-part-border-color);
+  border-left: var(--xh-border-width) solid var(--xh-chat-part-border-color);
   border-top: none;
   flex: none;
   min-width: 0;

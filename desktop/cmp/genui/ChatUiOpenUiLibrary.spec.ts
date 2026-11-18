@@ -94,7 +94,7 @@ describe('built-in specs as an OpenUI library', () => {
 
         const {container} = render(
             fragment({
-                item: catalog.renderDocument(segment.document, {
+                children: catalog.renderDocument(segment.document, {
                     chatModel: null as ChatModel,
                     messageId: 'm1',
                     part: {type: 'text', id: 'p1', text: PROGRAM, state: 'done'},
@@ -125,7 +125,7 @@ describe('built-in specs as an OpenUI library', () => {
                 });
                 if (segment.type !== 'document') throw new Error(`Got a ${segment.type} segment`);
                 return fragment({
-                    item: catalog.renderDocument(segment.document, {
+                    children: catalog.renderDocument(segment.document, {
                         chatModel: null as ChatModel,
                         messageId: 'm1',
                         part: {type: 'text', id: 'p1', text, state: 'streaming'},

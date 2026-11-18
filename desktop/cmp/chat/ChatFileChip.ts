@@ -44,20 +44,20 @@ export const [ChatFileChip, chatFileChip] = hoistCmp.withFactory<ChatFileChipPro
             ref,
             className: classNames(className, {'xh-chat-file-chip--removable': !!onRemove}),
             title: name,
-            items: [
+            children: [
                 previewSrc
                     ? img({className: 'xh-chat-file-chip__thumb', src: previewSrc, alt: name})
                     : div({
                           className: 'xh-chat-file-chip__icon',
-                          item: Icon.fileIcon({filename: name})
+                          children: Icon.fileIcon({filename: name})
                       }),
                 div({
                     className: 'xh-chat-file-chip__text',
-                    items: [
-                        span({className: 'xh-chat-file-chip__name', item: name}),
+                    children: [
+                        span({className: 'xh-chat-file-chip__name', children: name}),
                         span({
                             className: 'xh-chat-file-chip__meta',
-                            item: formatFileSize(size) ?? formatMediaType(mediaType)
+                            children: formatFileSize(size) ?? formatMediaType(mediaType)
                         })
                     ]
                 }),

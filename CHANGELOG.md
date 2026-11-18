@@ -12,57 +12,33 @@
   3. Plain ASCII punctuation only. Use " - " for in-sentence breaks, never an em dash.
 -->
 
-## 2.0.0-SNAPSHOT - unreleased
+## 3.0.0-SNAPSHOT - unreleased
 
-Requires `@xh/hoist` 90.1 or later.
+Requires `@xh/hoist` 91 or later.
 
-### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - Hoist 90.1, drop busy-line settings, update adapters)
+### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - requires Hoist v91, update adapters)
 
-See [`docs/upgrade-notes/v2-upgrade-notes.md`](docs/upgrade-notes/v2-upgrade-notes.md) for
+See [`docs/upgrade-notes/v3-upgrade-notes.md`](docs/upgrade-notes/v3-upgrade-notes.md) for
 detailed, step-by-step upgrade instructions with before/after code examples.
 
-* `ChatStatusRegion` now shows only what stops a send or needs the user's action. A reply in
-  progress, or one waiting for the user's answer, shows no line, as the reply shows its progress.
-* Removed the busy line's settings: `showStopHint` and `assistantName` on `ChatStatusRegion`,
-  `ChatStatusRegion.defaults` with its `ChatStatusRegionDefaults` type, and
-  `ChatKit.defaults.busyIcon`. The Stop button names Esc in its tooltip.
-* Removed the `xh-chat-status-region__lead`, `xh-chat-status-region__hint`,
-  `xh-chat-status-region--busy` and `xh-chat-status-region--attention` classes, which the region no
-  longer renders.
+* The kit now requires `@xh/hoist` 91 or later. Its styles read Hoist's renamed CSS variables, such
+  as `--xh-spacing` in place of `--xh-pad-px`. The kit's own `--xh-chat-*` variables are unchanged.
+* The kit's components now take child elements as `children`, as Hoist 91's element factories do.
+  The docs and examples use `children` too. The legacy `item` and `items` keys still work in Hoist
+  91.
 * `ChatUiAdapter.translate()` now takes `{catalog, isPartial}` as its second argument, in place of
   the catalog. See
-  [Update Protocol Adapters](docs/upgrade-notes/v2-upgrade-notes.md#3-update-protocol-adapters).
+  [Update Protocol Adapters](docs/upgrade-notes/v3-upgrade-notes.md#2-update-protocol-adapters).
 * `chatUiMetricsSpec()` now renders Hoist's `StatCardStrip`, with a `StatCard` per figure. Removed
   the `ChatUiMetrics` component, `chatUiMetrics()`, `ChatUiMetricsProps` and the
   `xh-chat-ui-metrics__*` classes. The spec's name and props are unchanged. See
-  [Move Metrics Code to StatCard](docs/upgrade-notes/v2-upgrade-notes.md#5-move-metrics-code-to-statcard).
+  [Move Metrics Code to StatCard](docs/upgrade-notes/v3-upgrade-notes.md#4-move-metrics-code-to-statcard).
 * Removed `AgUiCodecConfig.state`. The chat now holds the agent's state, and `AgUiCodec` sends it
   with each run. Move a codec `state` to `ChatModelConfig.prepareAgentState`. A backend that
   emits `STATE_SNAPSHOT` now gets its state back with every run. See
-  [Move the Agent State to the Chat](docs/upgrade-notes/v2-upgrade-notes.md#6-move-the-agent-state-to-the-chat).
+  [Move the Agent State to the Chat](docs/upgrade-notes/v3-upgrade-notes.md#5-move-the-agent-state-to-the-chat).
 
 ### 🎁 New Features
-
-* `ChatThreadsModel` now blocks sends while the store lists a thread as running and its history has
-  no settled reply to that turn yet. The status region shows the block only with Refresh Status,
-  once the automatic checks below stop.
-
-* `ChatThreadsModel` now checks on a turn that runs on the server while its chat does not follow
-  it, and loads the reply once the thread list shows the run done. Set the interval with
-  `ChatKit.defaults.statusRefreshMs` or `ChatThreadsConfig.statusRefreshMs`, null for none.
-* Added `chatAnnouncer.withdraw()`, to take back an announcement whose news no longer holds. The
-  status region withdraws a status's announcement once it passes.
-* `ChatMessageList` now shows "Still working on the server" for such a turn with no reply saved
-  yet, in place of the empty state or after the user's question. The composer's start items breathe
-  while it runs.
-
-* Added `ChatThreadsModel.showThreadTitle()`, to show a title the backend already holds, such as
-  one it wrote in the background. The list and the workspace header show it at once, with no
-  store call and no list reload.
-* Added `ChatThreadsConfig.titleThreadAsync`, to give a thread the user starts a title of the app's
-  own, such as a summary that a model writes. The model calls it once per thread, as soon as the
-  backend has the thread, then saves the title through the store and shows it. A rename by the
-  user wins.
 
 * Added `ChatUiTextFormat`, a grammar for UI in reply text, and `ChatUiCatalogConfig.textFormats`.
   The tag grammar is now the first format, `chatUiTagFormat()`, and the default. `modes` take the
@@ -173,6 +149,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 
 ### 🐞 Bug Fixes
 
+* Fixed the side panel to show a document's page, as "Page 12 of 38", in a toolbar. It showed as a
+  bare line under the header.
 * Fixed `describeChatUiAction()` and `formatChatUiContext()` to show a character the user could
   not see, such as a zero-width space or a right-to-left override, as its code. The tooltip of a
   `send` action now shows its text and each context value as a JSON string, so text cannot pose
@@ -181,6 +159,82 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   slice and category names, axis titles, and the column labels and row text of a chart by
   reference. Highcharts reads such text as markup, so a model or a result could draw a link that
   skipped the chat's link checks, or an inline style that loads a URL.
+
+### ⚙️ Technical
+
+* Removed the install step that added the kit to `extraIncludePaths`. `configureRsbuild()` compiles
+  the kit's TypeScript without it, so apps can drop that entry.
+
+### ⚙️ Typescript API Adjustments
+
+* `ChatUiActionType` and `ChatUiAction` gained `state`. Add a case for it to a `switch` over
+  action types that must cover every type.
+* `ChatUiRenderContext` gained `setProp`. Add it to a render context built by hand, as in a spec
+  that calls a component's `render` directly.
+
+### ✨ Styles
+
+* `ChatWorkspace` lays out its sidebar and side panel for the 1px panel splitter of Hoist 90, in
+  place of the 8px splitter of Hoist 89.
+* Added the `xh-chat-ui-form`, `xh-chat-ui-field` and `xh-chat-ui-button` classes, on the form
+  components. They take their look from Hoist's `FormFieldSet`, `FormField` and `Button`.
+
+### 📚 Libraries
+
+* @openuidev/lang-core `1.1.0` - added as an optional peer dependency, at that exact
+  version. Apps that use `/genui/openui/` install it with `zod`. Other apps never load it.
+
+## 2.1.0 - 2026-11-16
+
+### ⚙️ Technical
+
+* Updated the kit to build and test against `@xh/hoist` 90.1. It still supports `@xh/hoist` 89.3.1
+  or later.
+* `chatMarkdown` with a table or a code fence, rendered on its own outside a chat, needs
+  `@xh/hoist` 90 or later. On 89 it shows "No model found", from a Hoist bug fixed in 90.
+
+## 2.0.0 - 2026-11-16
+
+### 💥 Breaking Changes (upgrade difficulty: 🟢 LOW - remove the busy-line settings)
+
+See [`docs/upgrade-notes/v2-upgrade-notes.md`](docs/upgrade-notes/v2-upgrade-notes.md) for
+detailed, step-by-step upgrade instructions with before/after code examples.
+
+* `ChatStatusRegion` now shows only what stops a send or needs the user's action. A reply in
+  progress, or one waiting for the user's answer, shows no line, as the reply shows its progress.
+* Removed the busy line's settings: `showStopHint` and `assistantName` on `ChatStatusRegion`,
+  `ChatStatusRegion.defaults` with its `ChatStatusRegionDefaults` type, and
+  `ChatKit.defaults.busyIcon`. The Stop button names Esc in its tooltip.
+* Removed the `xh-chat-status-region__lead`, `xh-chat-status-region__hint`,
+  `xh-chat-status-region--busy` and `xh-chat-status-region--attention` classes, which the region no
+  longer renders.
+
+### 🎁 New Features
+
+* `ChatThreadsModel` now checks on a turn that runs on the server while its chat does not follow
+  it, and loads the reply once the thread list shows the run done. Set the interval with
+  `ChatKit.defaults.statusRefreshMs` or `ChatThreadsConfig.statusRefreshMs`, null for none. The
+  checks stop after `statusRefreshTimeoutMs`, which both also take.
+* `ChatThreadsModel` now blocks sends while the store lists a thread as running and its history has
+  no settled reply to that turn yet. The status region shows the block only with Refresh Status,
+  once the automatic checks stop.
+* `ChatMessageList` now shows "Still working on the server" for such a turn with no reply saved
+  yet, in place of the empty state or after the user's question. The composer's start items breathe
+  while it runs.
+* `ChatModel.setStatusRefresher()` now takes `ChatStatusRefresherOptions`, for an app with a thread
+  layer of its own. They drive the new `ChatModel.isRunningOnServer` and
+  `ChatModel.isStatusRefreshAutomatic` getters.
+* Added `chatAnnouncer.withdraw()`, to take back an announcement whose news no longer holds. The
+  status region withdraws a status's announcement once it passes.
+* Added `ChatThreadsModel.showThreadTitle()`, to show a title the backend already holds, such as
+  one it wrote in the background. The list and the workspace header show it at once, with no
+  store call and no list reload.
+* Added `ChatThreadsConfig.titleThreadAsync`, to give a thread the user starts a title of the app's
+  own, such as a summary that a model writes. The model calls it once per thread, as soon as the
+  backend has the thread, then saves the title through the store and shows it. A rename by the
+  user wins.
+
+### 🐞 Bug Fixes
 
 * Fixed the thread list to stop showing a thread as working within one `statusRefreshMs` check
   of its run's end, whether the thread is open or not. While the list shows a thread as working
@@ -205,33 +259,22 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * `isChatRetrySafe` now takes `metadata.retrySafe: true` over the kit's own unsafe error codes.
   Before, only `false` decided.
 * Fixed `replayChatEvents` to record no times for events with no `timestamp`. Before, it timed
-  every tool call, sub-agent and reasoning part by the load, so each showed "<0.1s". The timeline,
-  its screen reader labels and the reasoning label now show no time for them. A backend that
-  stores events should stamp each one as the agent emits it.
+  every tool call, sub-agent and reasoning part by the load, so each showed "<0.1s". Such parts now
+  carry null `startedAt` and `endedAt`, and the timeline, its screen reader labels and the
+  reasoning label show no time for them. A backend that stores events should stamp each one as the
+  agent emits it.
 
-### ⚙️ Typescript API Adjustments
+### ⚙️ Technical
 
-* `ChatUiActionType` and `ChatUiAction` gained `state`. Add a case for it to a `switch` over
-  action types that must cover every type.
-* `ChatUiRenderContext` gained `setProp`. Add it to a render context built by hand, as in a spec
-  that calls a component's `render` directly.
+* Added Zod 4 as a dependency of the kit. AG-UI 1.0.4 takes Zod as a peer, so the kit supplies it.
+  Apps no longer need the `zod` override that the 1.0.0 README advised, and can remove it.
 
 ### ✨ Styles
 
-* `ChatWorkspace` lays out its sidebar and side panel for the 1px panel splitter of Hoist 90, in
-  place of the 8px splitter of Hoist 89.
 * Added the `xh-chat-timeline--detached`, `xh-chat-timeline__item--unfinished`,
   `xh-chat-tool-call--unfinished`, `xh-chat-tool-call__glyph--unfinished` and
   `xh-chat-message-list__awaiting-reply` classes. A detached
   reply's timeline no longer takes `xh-chat-timeline--stopped`.
-* Added the `xh-chat-ui-form`, `xh-chat-ui-field` and `xh-chat-ui-button` classes, on the form
-  components. They take their look from Hoist's `FormFieldSet`, `FormField` and `Button`.
-
-### 📚 Libraries
-
-* @xh/hoist `89.3 → 90.1`
-* @openuidev/lang-core `1.1.0` - added as an optional peer dependency, at that exact
-  version. Apps that use `/genui/openui/` install it with `zod`. Other apps never load it.
 
 ## 1.0.0 - 2026-11-02
 

@@ -37,7 +37,8 @@ describe('building blocks with no model in context', () => {
             }),
         ChatCodeBlock: () => chatCodeBlock({content: 'print(1)', language: 'python'}),
         ChatCopyButton: () => chatCopyButton({getCopyText: () => 'text'}),
-        ChatErrorBoundary: () => chatErrorBoundary({item: chatCopyButton({getCopyText: () => ''})}),
+        ChatErrorBoundary: () =>
+            chatErrorBoundary({children: chatCopyButton({getCopyText: () => ''})}),
         ChatReasoning: () =>
             chatReasoning({
                 part: {
@@ -68,6 +69,8 @@ describe('building blocks with no model in context', () => {
         });
     }
 
+    // Hoist's `Markdown`, which renders each block, looked up a model it did not need before
+    // hoist-react v90, so this case fails on v89.
     it('renders ChatMarkdown, with a long table and a code fence', () => {
         const rows = Array.from({length: 120}, (_, idx) => `| ${idx} | x |`).join('\n'),
             {container} = render(

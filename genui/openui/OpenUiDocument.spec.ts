@@ -480,7 +480,7 @@ const STACK: ChatUiComponentSpec = {
     props: {type: 'object', properties: {gap: {enum: ['small', 'large']}}},
     slots: ['default', 'footer'],
     render: (_, {children, slots}) =>
-        fragment({items: ['[', ...(slots.footer ?? []), ...children, ']']})
+        fragment({children: ['[', ...(slots.footer ?? []), ...children, ']']})
 };
 
 const METRIC: ChatUiComponentSpec = {
@@ -543,7 +543,7 @@ function render(
 }
 
 function markup(content: ReactNode): string {
-    return renderToStaticMarkup(fragment({items: content}))
+    return renderToStaticMarkup(fragment({children: content}))
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .replace(/&quot;/g, '"');

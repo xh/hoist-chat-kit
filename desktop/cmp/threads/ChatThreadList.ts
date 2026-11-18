@@ -176,11 +176,11 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
             className: classNames(className, compact && 'xh-chat-thread-list--compact'),
             testId,
             ...rest,
-            items: [
+            children: [
                 div({
                     className: 'xh-chat-thread-list__top',
                     omit: !enableNewChat && isEmpty(topItems),
-                    items: [
+                    children: [
                         enableNewChat
                             ? button({
                                   className: 'xh-chat-thread-list__new',
@@ -199,7 +199,7 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
                 enableSearch
                     ? div({
                           className: 'xh-chat-thread-list__search',
-                          item: textInput({
+                          children: textInput({
                               value: model.search,
                               onChange: v => impl.setSearch(v),
                               commitOnChange: true,
@@ -214,7 +214,7 @@ export const [ChatThreadList, chatThreadList] = hoistCmp.withFactory<ChatThreadL
                           })
                       })
                     : null,
-                div({className: 'xh-chat-thread-list__body', item: body(impl, view)})
+                div({className: 'xh-chat-thread-list__body', children: body(impl, view)})
             ]
         });
     }
@@ -241,7 +241,7 @@ function body(impl: ChatThreadListLocalModel, view: ListView): ReactNode {
         return div({
             className: 'xh-chat-thread-list__error',
             role: 'alert',
-            item: errorMessage({
+            children: errorMessage({
                 error: listError,
                 title: `Couldn't load ${labels.plural}`,
                 actionFn: () => impl.retryList(),
@@ -256,7 +256,7 @@ function body(impl: ChatThreadListLocalModel, view: ListView): ReactNode {
             role: 'treegrid',
             'aria-label': labels.titlePlural,
             'aria-busy': true,
-            items: times(SKELETON_ROWS, i =>
+            children: times(SKELETON_ROWS, i =>
                 div({key: i, className: 'xh-chat-thread-list__skeleton-row'})
             )
         });
@@ -272,7 +272,7 @@ function body(impl: ChatThreadListLocalModel, view: ListView): ReactNode {
                   key: 'error',
                   className: 'xh-chat-thread-list__refresh-error',
                   role: 'alert',
-                  items: [
+                  children: [
                       Icon.warningCircle(),
                       span(`Couldn't refresh ${labels.plural}.`),
                       button({text: 'Retry', minimal: true, onClick: () => impl.retryList()})
@@ -286,7 +286,7 @@ function body(impl: ChatThreadListLocalModel, view: ListView): ReactNode {
             'aria-label': labels.titlePlural,
             'aria-busy': model.listTask.isPending,
             onKeyDown: impl.onListKeyDown,
-            items: groups.map(group => threadGroup(impl, group, view))
+            children: groups.map(group => threadGroup(impl, group, view))
         })
     ];
 }
@@ -302,12 +302,12 @@ function threadGroup(
         className: 'xh-chat-thread-list__group',
         role: 'rowgroup',
         'aria-label': group.label ?? undefined,
-        items: [
+        children: [
             div({
                 omit: group.label == null,
                 className: 'xh-chat-thread-list__group-label',
                 'aria-hidden': true,
-                item: group.label
+                children: group.label
             }),
             ...group.threads.map(thread => threadRow(impl, thread, view, group.key))
         ]
@@ -350,7 +350,7 @@ function threadRow(
         onFocus: e => {
             if (e.target === e.currentTarget) impl.setFocusThreadId(id);
         },
-        items: isRenaming
+        children: isRenaming
             ? [renameInput(impl, view)]
             : [
                   // Laid out by the row: the cell only names the row's content for the grid.
@@ -358,7 +358,10 @@ function threadRow(
                       key: 'main',
                       className: 'xh-chat-thread-list__cell',
                       role: 'gridcell',
-                      items: [rowIcon(model, thread, status), rowText(impl, title, timeText, href)]
+                      children: [
+                          rowIcon(model, thread, status),
+                          rowText(impl, title, timeText, href)
+                      ]
                   }),
                   rowActions(impl, thread, view)
               ]
@@ -373,8 +376,8 @@ function rowText(
     href: string
 ): ReactNode {
     const items = [
-        span({className: 'xh-chat-thread-list__title', item: title}),
-        timeText != null ? span({className: 'xh-chat-thread-list__time', item: timeText}) : null
+        span({className: 'xh-chat-thread-list__title', children: title}),
+        timeText != null ? span({className: 'xh-chat-thread-list__time', children: timeText}) : null
     ];
     return href != null
         ? a({
@@ -384,26 +387,26 @@ function rowText(
               draggable: false,
               onMouseDown: e => e.preventDefault(),
               onClick: impl.onLinkClick,
-              items
+              children: items
           })
-        : span({className: 'xh-chat-thread-list__text', items});
+        : span({className: 'xh-chat-thread-list__text', children: items});
 }
 
 function rowIcon(model: ChatThreadsModel, thread: ChatThreadSummary, status: RowStatus): ReactNode {
     const className = 'xh-chat-thread-list__icon';
     switch (status) {
         case 'running':
-            return span({className, item: chatSpinner()});
+            return span({className, children: chatSpinner()});
         case 'awaiting':
-            return span({className, title: 'Waiting for you', item: Icon.pause()});
+            return span({className, title: 'Waiting for you', children: Icon.pause()});
         case 'new':
-            return span({className, item: span({className: 'xh-chat-thread-list__dot'})});
+            return span({className, children: span({className: 'xh-chat-thread-list__dot'})});
         case 'interrupted':
         case 'failed':
             return span({
                 className,
                 title: model.endedEarlyThreads[thread.id]?.reason ?? STATUS_TIPS[status],
-                item: Icon.warningCircle()
+                children: Icon.warningCircle()
             });
     }
     return span({className});
@@ -423,7 +426,7 @@ function rowActions(
         className: 'xh-chat-thread-list__actions',
         role: 'gridcell',
         onClick: e => e.stopPropagation(),
-        items: [
+        children: [
             canRename
                 ? button({
                       icon: Icon.edit(),
@@ -495,7 +498,7 @@ function renameInput(impl: ChatThreadListLocalModel, view: ListView): ReactNode 
         role: 'gridcell',
         onBlur: () => impl.saveRename(false),
         onClick: e => e.stopPropagation(),
-        item: textInput({
+        children: textInput({
             model: impl,
             bind: 'renameText',
             commitOnChange: true,
@@ -511,10 +514,10 @@ function renameInput(impl: ChatThreadListLocalModel, view: ListView): ReactNode 
 function emptyList(view: ListView): ReactNode {
     return div({
         className: 'xh-chat-thread-list__empty',
-        items: [
+        children: [
             div({
                 className: 'xh-chat-thread-list__empty-title',
-                item: `No ${view.labels.plural} yet`
+                children: `No ${view.labels.plural} yet`
             }),
             div('Your conversations will be listed here, newest first.')
         ]
@@ -525,7 +528,7 @@ function noResults(impl: ChatThreadListLocalModel, view: ListView): ReactNode {
     return div({
         className: 'xh-chat-thread-list__empty',
         role: 'status',
-        items: [
+        children: [
             div(`No ${view.labels.plural} match '${impl.searchQuery}'`),
             button({text: 'Clear', minimal: true, onClick: () => impl.setSearch(null)})
         ]

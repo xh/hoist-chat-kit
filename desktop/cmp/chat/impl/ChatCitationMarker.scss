@@ -28,7 +28,7 @@
 // text's wrapping, weight and color.
 .xh-chat-source-card {
   background-color: var(--xh-popup-bg);
-  border: var(--xh-border-width-px) solid var(--xh-popup-border-color);
+  border: var(--xh-border-width) solid var(--xh-popup-border-color);
   border-radius: var(--xh-chat-border-radius);
   box-shadow: var(--xh-popover-box-shadow);
   box-sizing: border-box;
@@ -125,7 +125,7 @@
 
   &__foot {
     align-items: center;
-    border-top: var(--xh-border-width-px) solid var(--xh-popup-border-color);
+    border-top: var(--xh-border-width) solid var(--xh-popup-border-color);
     display: flex;
     gap: 2px;
     margin: 0 -6px;

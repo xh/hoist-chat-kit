@@ -17,7 +17,7 @@ import {chatUiTabs, chatUiTabsSpec} from './ChatUiTabs';
 describe('chatUiTabsSpec', () => {
     beforeAll(() => initTestAppAsync());
 
-    const child = (text: string) => div({key: text, className: 'test-child', item: text}),
+    const child = (text: string) => div({key: text, className: 'test-child', children: text}),
         shownChildren = (container: HTMLElement) =>
             [...container.querySelectorAll('.test-child')].map(it => it.textContent),
         tabNames = () => screen.getAllByRole('tab').map(it => it.textContent),
@@ -25,7 +25,7 @@ describe('chatUiTabsSpec', () => {
 
     it('renders a Hoist TabContainer with a tab per child, and shows the first', () => {
         const {container} = render(
-            chatUiTabs({titles: ['Chart', 'Data'], items: [child('A chart'), child('A table')]})
+            chatUiTabs({titles: ['Chart', 'Data'], children: [child('A chart'), child('A table')]})
         );
 
         expect(container.querySelector('.xh-tab-container.xh-chat-ui-tabs')).toBeTruthy();
@@ -37,7 +37,7 @@ describe('chatUiTabsSpec', () => {
 
     it('shows the child of a tab the user clicks, and keeps the one it leaves', () => {
         const {container} = render(
-            chatUiTabs({titles: ['Chart', 'Data'], items: [child('A chart'), child('A table')]})
+            chatUiTabs({titles: ['Chart', 'Data'], children: [child('A chart'), child('A table')]})
         );
 
         fireEvent.click(screen.getByRole('tab', {name: 'Data'}));
@@ -51,7 +51,7 @@ describe('chatUiTabsSpec', () => {
         onTestFinished(() => destroy.mockRestore());
 
         const {container, rerender, unmount} = render(
-            chatUiTabs({titles: ['Ch'], isPartial: true, items: [child('First')]})
+            chatUiTabs({titles: ['Ch'], isPartial: true, children: [child('First')]})
         );
         expect(tabNames()).toEqual(['Ch']);
 
@@ -60,7 +60,7 @@ describe('chatUiTabsSpec', () => {
             chatUiTabs({
                 titles: ['Chart', 'Da'],
                 isPartial: true,
-                items: [child('First'), child('Second')]
+                children: [child('First'), child('Second')]
             })
         );
         expect(tabNames()).toEqual(['Chart', 'Da']);
@@ -69,7 +69,7 @@ describe('chatUiTabsSpec', () => {
         rerender(
             chatUiTabs({
                 titles: ['Chart', 'Data', 'Notes'],
-                items: [child('First'), child('Second now'), child('Third')]
+                children: [child('First'), child('Second now'), child('Third')]
             })
         );
         expect(tabNames()).toEqual(['Chart', 'Data', 'Notes']);
@@ -85,26 +85,26 @@ describe('chatUiTabsSpec', () => {
     it('shows no default name while titles are still to come, and one once the props are complete', () => {
         // OpenUI Lang writes the children before the titles.
         const items = [child('First'), child('Second')],
-            {container, rerender} = render(chatUiTabs({isPartial: true, items}));
+            {container, rerender} = render(chatUiTabs({isPartial: true, children: items}));
         expect(screen.queryAllByRole('tab')).toHaveLength(0);
         expect(container.querySelector('.xh-chat-ui-skeleton')).toBeTruthy();
 
-        rerender(chatUiTabs({titles: ['Chart'], isPartial: true, items}));
+        rerender(chatUiTabs({titles: ['Chart'], isPartial: true, children: items}));
         expect(tabNames()).toEqual(['Chart']);
 
-        rerender(chatUiTabs({titles: ['Chart'], items}));
+        rerender(chatUiTabs({titles: ['Chart'], children: items}));
         expect(tabNames()).toEqual(['Chart', 'Tab 2']);
     });
 
     it('removes the tabs of children that go away, and moves off a removed active tab', () => {
         const titles = ['Chart', 'Data', 'Notes'],
             {container, rerender} = render(
-                chatUiTabs({titles, items: [child('First'), child('Second'), child('Third')]})
+                chatUiTabs({titles, children: [child('First'), child('Second'), child('Third')]})
             );
         fireEvent.click(screen.getByRole('tab', {name: 'Notes'}));
         expect(shownChildren(container)).toEqual(['First', 'Third']);
 
-        rerender(chatUiTabs({titles, items: [child('First'), child('Second')]}));
+        rerender(chatUiTabs({titles, children: [child('First'), child('Second')]}));
 
         expect(tabNames()).toEqual(['Chart', 'Data']);
         expect(screen.getAllByRole('tab').filter(isSelected)).toHaveLength(1);
@@ -120,7 +120,7 @@ describe('chatUiTabsSpec', () => {
             }),
             renderDoc = (elements: object, isPartial: boolean) =>
                 fragment({
-                    item: catalog.renderDocument(
+                    children: catalog.renderDocument(
                         {
                             root: 'top',
                             elements: {

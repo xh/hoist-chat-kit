@@ -294,7 +294,7 @@ function parse(catalog: ChatUiCatalog, program: string): ChatUiDocumentSegment {
 }
 
 function markup(content: ReactNode): string {
-    return renderToStaticMarkup(appContext({items: content}));
+    return renderToStaticMarkup(appContext({children: content}));
 }
 
 function silenceWarnings() {

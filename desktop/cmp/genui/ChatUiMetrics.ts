@@ -146,7 +146,7 @@ export function chatUiMetricsSpec(
             if (isEmpty(complete)) return isPartial ? chatUiSkeleton(SKELETON_HEIGHT) : null;
             return statCardStrip({
                 className: 'xh-chat-ui-metrics',
-                items: complete.map(toStatCard)
+                children: complete.map(toStatCard)
             });
         },
         example: {

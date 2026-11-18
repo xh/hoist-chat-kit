@@ -59,8 +59,7 @@ export function chatUiTabsSpec(
         },
         slots: ['default'],
         standalone: false,
-        render: ({titles}, {children, isPartial}) =>
-            chatUiTabs({titles, isPartial, items: children}),
+        render: ({titles}, {children, isPartial}) => chatUiTabs({titles, isPartial, children}),
         result: ({titles}) => titles.join(' | '),
         example: {titles: ['Chart', 'Data']}
     };
@@ -177,6 +176,6 @@ const tabContent = hoistCmp.factory<TabContentProps>({
     model: false,
 
     render({tabsModel, idx}) {
-        return div({className: 'xh-chat-ui-tabs__content', item: tabsModel.items[idx]});
+        return div({className: 'xh-chat-ui-tabs__content', children: tabsModel.items[idx]});
     }
 });

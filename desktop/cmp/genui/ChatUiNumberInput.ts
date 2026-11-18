@@ -64,7 +64,7 @@ export function chatUiNumberInputSpec(
                       value,
                       toInput: toNumber,
                       setProp,
-                      item: numberInput({
+                      children: numberInput({
                           placeholder,
                           displayWithCommas: true,
                           enableShorthandUnits: true

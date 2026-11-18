@@ -334,7 +334,7 @@ export const positionCardSpec: ChatUiComponentSpec<PositionCardProps> = {
     validate: ({symbol}) =>
         XH.portfolioService.hasPosition(symbol) ? [] : [`symbol: no position in ${symbol}`],
     render: ({symbol, note}, {isPartial}) =>
-        isPartial ? null : chatUiFrame({title: symbol, item: positionDetail({symbol, note})}),
+        isPartial ? null : chatUiFrame({title: symbol, children: positionDetail({symbol, note})}),
     example: {symbol: 'NVDA', note: 'Largest detractor today.'}
 };
 ```
@@ -414,7 +414,7 @@ const groupSpec: ChatUiComponentSpec<{gap?: number}> = {
     description: 'A group of components, with an optional header over them.',
     props: {type: 'object', additionalProperties: false, properties: {gap: {type: 'integer', maximum: 32}}},
     slots: ['default', 'header'],
-    render: ({gap = 8}, {children, slots}) => vbox({style: {gap}, items: [...(slots.header ?? []), ...children]})
+    render: ({gap = 8}, {children, slots}) => vbox({style: {gap}, children: [...(slots.header ?? []), ...children]})
 };
 ```
 
@@ -438,7 +438,7 @@ const segments = catalog.parseText(part.text, {
 segments.map((segment, idx) =>
     segment.type === 'markdown'
         ? chatMarkdown({key: idx, content: segment.text})
-        : fragment({key: idx, item: catalog.renderSegment(segment, {chatModel, messageId, part})})
+        : fragment({key: idx, children: catalog.renderSegment(segment, {chatModel, messageId, part})})
 );
 ```
 

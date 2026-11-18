@@ -80,12 +80,12 @@ export function chatUiCalloutSpec(
                 // An intent cut short as it streams is not yet one of Hoist's.
                 intent: toHoistIntent(intent, 'primary'),
                 message: div({
-                    items: [
+                    children: [
                         title
                             ? div({
                                   key: 'title',
                                   className: 'xh-chat-ui-callout__title',
-                                  item: title
+                                  children: title
                               })
                             : null,
                         chatMarkdown({key: 'text', content: text ?? '', isStreaming: !!isPartial})

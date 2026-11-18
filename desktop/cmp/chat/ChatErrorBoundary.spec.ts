@@ -22,7 +22,7 @@ describe('ChatErrorBoundary', () => {
 
     it('shows a note in place of content that throws, with the app className on it', () => {
         const {container} = render(
-            chatErrorBoundary({className: 'app-note', subject: 'message', item: thrower()})
+            chatErrorBoundary({className: 'app-note', subject: 'message', children: thrower()})
         );
 
         expect(screen.getByText('This message could not be displayed.')).toBeTruthy();
@@ -39,7 +39,7 @@ describe('ChatErrorBoundary', () => {
                 return 'Loaded';
             }
         });
-        render(chatErrorBoundary({item: flaky()}));
+        render(chatErrorBoundary({children: flaky()}));
         expect(screen.getByText('This part could not be displayed.')).toBeTruthy();
 
         fails = false;

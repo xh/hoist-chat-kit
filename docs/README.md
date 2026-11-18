@@ -129,7 +129,7 @@ its tools.
 
 | Concept | Description | Key Topics |
 |---------|-------------|------------|
-| [Hoist Chat Kit](../README.md) | What the kit provides, a quick start that adds a chat to an app, and how to install the kit | features, quick start, installation, extraIncludePaths, peer dependencies |
+| [Hoist Chat Kit](../README.md) | What the kit provides, a quick start that adds a chat to an app, and how to install the kit | features, quick start, installation, peer dependencies |
 | [Architecture](./architecture.md) | The kit's layers, the flow of one turn, the two conversation shapes, render performance, extension seams and the platform split | layers, turn flow, conversation shapes, server mode, immutable messages, flush batching, memoization, extension points, desktop, mobile |
 | [Protocols](./protocols.md) | How AG-UI, Anthropic, OpenAI, A2UI, OpenUI, MCP Apps and the Vercel AI SDK relate to the kit, with the kit's AG-UI support by spec area | AG-UI, AG-UI support, conformance, @ag-ui/core, @ag-ui/client, Anthropic, OpenAI, A2UI, OpenUI, MCP Apps, generative UI, data parts, Vercel AI SDK, tool states |
 | [Request a Change](./requesting-changes.md) | How an app asks the kit's maintainers for a feature, an API change or a bug fix, and what the answer holds | feature request, bug report, API change, request template, workaround, theme contract |

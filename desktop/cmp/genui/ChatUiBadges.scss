@@ -1,6 +1,6 @@
 // A row of Hoist Badges, which wraps.
 .xh-chat-ui-badges {
   flex-wrap: wrap;
-  gap: calc(var(--xh-pad-px) / 2);
+  gap: calc(var(--xh-spacing) / 2);
   min-width: 0;
 }

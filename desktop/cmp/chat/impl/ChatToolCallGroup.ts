@@ -62,25 +62,25 @@ export const chatToolCallGroup = hoistCmp.factory<ChatToolCallGroupProps>({
                 'xh-chat-tool-call-group--running': isRunning,
                 'xh-chat-tool-call-group--failed': problems.failed > 0
             }),
-            items: [
+            children: [
                 button({
                     className: 'xh-chat-tool-call-group__header',
                     text: span({
                         className: 'xh-chat-tool-call-group__row',
-                        items: [
+                        children: [
                             groupGlyph(isRunning, isUnfinished, problems),
-                            span({className: 'xh-chat-tool-call-group__title', item: title}),
+                            span({className: 'xh-chat-tool-call-group__title', children: title}),
                             span({
                                 className: 'xh-chat-tool-call-group__summary',
-                                item: names.join(', ')
+                                children: names.join(', ')
                             }),
                             span({
                                 className: 'xh-chat-tool-call-group__meta',
-                                item: meta
+                                children: meta
                             }),
                             span({
                                 className: 'xh-chat-tool-call-group__chevron',
-                                item: isExpanded
+                                children: isExpanded
                                     ? Icon.groupRowExpanded()
                                     : Icon.groupRowCollapsed()
                             })
@@ -93,11 +93,11 @@ export const chatToolCallGroup = hoistCmp.factory<ChatToolCallGroupProps>({
                 isExpanded
                     ? div({
                           className: 'xh-chat-tool-call-group__items',
-                          items: parts.map(part =>
+                          children: parts.map(part =>
                               chatErrorBoundary({
                                   key: part.id,
                                   resetKey: part.state,
-                                  item: chatToolCall({
+                                  children: chatToolCall({
                                       className: 'xh-chat-tool-call--grouped',
                                       part,
                                       context
@@ -173,7 +173,7 @@ function groupGlyph(
               : 'success';
     return span({
         className: `xh-chat-tool-call__glyph xh-chat-tool-call__glyph--${kind}`,
-        item: isRunning
+        children: isRunning
             ? chatSpinner()
             : isUnfinished
               ? Icon.circle({title: UNFINISHED_LABEL})

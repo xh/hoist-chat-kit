@@ -26,7 +26,7 @@ describe('chatUiSectionSpec', () => {
         renderDoc = (props: object, isPartial = false) =>
             render(
                 fragment({
-                    item: catalog.renderDocument(doc(props), {
+                    children: catalog.renderDocument(doc(props), {
                         chatModel: null as ChatModel,
                         messageId: 'm1',
                         part: {type: 'data', id: 'd1', dataType: 'xh.chat.ui', data: null},
@@ -91,7 +91,7 @@ describe('chatUiSectionSpec', () => {
 
         rerender(
             fragment({
-                item: catalog.renderDocument(doc({title: 'Detail', collapsible: true}), {
+                children: catalog.renderDocument(doc({title: 'Detail', collapsible: true}), {
                     chatModel: null as ChatModel,
                     messageId: 'm1',
                     part: {type: 'data', id: 'd1', dataType: 'xh.chat.ui', data: null},
@@ -108,7 +108,7 @@ describe('chatUiSectionSpec', () => {
         // OpenUI Lang writes the children first and `collapsed` last, and marks each element.
         const render1 = (props: object, isElementPartial: boolean) =>
                 fragment({
-                    item: catalog.renderDocument(
+                    children: catalog.renderDocument(
                         {
                             root: 'top',
                             elements: {

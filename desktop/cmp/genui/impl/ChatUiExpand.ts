@@ -117,7 +117,7 @@ export const chatUiExpandDialog = hoistCmp.factory<
             isOpen: true,
             canOutsideClickClose: true,
             onClose,
-            item: isTable
+            children: isTable
                 ? chatUiTableView({request: request as ChatTableRequest})
                 : chatUiChartView({request: request as ChatChartRequest})
         });

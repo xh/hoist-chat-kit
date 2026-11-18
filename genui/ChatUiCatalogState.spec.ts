@@ -259,7 +259,7 @@ const STACK: ChatUiComponentSpec = {
         description: 'A vertical stack.',
         props: {type: 'object', additionalProperties: false, properties: {}},
         slots: ['default'],
-        render: (_, {children}) => fragment({items: children})
+        render: (_, {children}) => fragment({children})
     },
     NOTE: ChatUiComponentSpec<{text: string}> = {
         name: 'note',

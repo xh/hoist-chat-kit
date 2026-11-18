@@ -57,9 +57,9 @@ $fade-height: 12px;
   // of a minimal button transparent.
   &__scroll-button {
     background-color: var(--xh-chat-bg);
-    border: var(--xh-border-width-px) solid var(--xh-chat-composer-border-color);
+    border: var(--xh-border-width) solid var(--xh-chat-composer-border-color);
     border-radius: 50%;
-    bottom: var(--xh-pad-px);
+    bottom: var(--xh-spacing);
     left: 50%;
     position: absolute;
     transform: translateX(-50%);

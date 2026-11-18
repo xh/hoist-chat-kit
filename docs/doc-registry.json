@@ -47,7 +47,6 @@
         "add a chat",
         "install",
         "installation",
-        "extraIncludePaths",
         "rsbuild",
         "peer dependencies",
         "features",
@@ -848,6 +847,24 @@
         "ChatStatusRegion.defaults",
         "ChatStatusRegionDefaults",
         "status region"
+      ]
+    },
+    {
+      "id": "docs/upgrade-notes/v3-upgrade-notes.md",
+      "title": "v3 Upgrade Notes",
+      "mcpCategory": "upgrade",
+      "viewerCategory": "upgrade",
+      "description": "Upgrade guide from v2.x to v3.0.0. Low difficulty. Requires @xh/hoist v91, whose upgrade notes and codemods also cover an app's use of the kit.",
+      "keywords": [
+        "upgrade",
+        "migration",
+        "breaking changes",
+        "v3",
+        "v2",
+        "hoist v91",
+        "CSS variables",
+        "codemod",
+        "children"
       ]
     }
   ]

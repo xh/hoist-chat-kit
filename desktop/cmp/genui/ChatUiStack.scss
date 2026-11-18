@@ -7,15 +7,15 @@
   }
 
   &--small {
-    gap: calc(var(--xh-pad-px) / 2);
+    gap: calc(var(--xh-spacing) / 2);
   }
 
   &--medium {
-    gap: var(--xh-chat-part-gap, var(--xh-pad-px));
+    gap: var(--xh-chat-part-gap, var(--xh-spacing));
   }
 
   &--large {
-    gap: calc(var(--xh-pad-px) * 2);
+    gap: calc(var(--xh-spacing) * 2);
   }
 
   &.xh-hbox {

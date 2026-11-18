@@ -40,7 +40,7 @@ export function chatUiFormSpec(
         },
         slots: ['default'],
         standalone: false,
-        render: ({title}, {children}) => chatUiForm({title, items: children}),
+        render: ({title}, {children}) => chatUiForm({title, children}),
         result: ({title}) => title ?? '',
         example: {title: 'Contact details'}
     };
@@ -61,7 +61,7 @@ export const [ChatUiForm, chatUiForm] = hoistCmp.withFactory<ChatUiFormProps>({
     className: 'xh-chat-ui-form',
 
     render({className, title, children}) {
-        return formFieldSet({className, title, items: children});
+        return formFieldSet({className, title, children});
     }
 });
 

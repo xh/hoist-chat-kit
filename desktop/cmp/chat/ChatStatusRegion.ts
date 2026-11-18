@@ -73,14 +73,14 @@ export const [ChatStatusRegion, chatStatusRegion] = hoistCmp.withFactory<ChatSta
         return div({
             ref,
             className: classNames(className, `xh-chat-status-region--${display.intent}`),
-            items: [
+            children: [
                 display.icon
-                    ? span({className: 'xh-chat-status-region__icon', item: display.icon})
+                    ? span({className: 'xh-chat-status-region__icon', children: display.icon})
                     : null,
                 span({
                     className: 'xh-chat-status-region__text',
                     title: display.text,
-                    item: display.text
+                    children: display.text
                 }),
                 actionButton(status, impl)
             ]

@@ -46,7 +46,7 @@ export const chatReplyLiveStatus = hoistCmp.factory<ChatReplyLiveStatusProps>({
 
         return span({
             className,
-            items: [
+            children: [
                 chatStatusCue({
                     status,
                     stalledMs: lastActivityAt != null ? now - lastActivityAt : null,

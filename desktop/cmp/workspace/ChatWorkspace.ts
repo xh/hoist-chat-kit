@@ -149,17 +149,17 @@ export const [ChatWorkspace, chatWorkspace] = hoistCmp.withFactory<ChatWorkspace
             className: classNames(className, model.isCompact && 'xh-chat--compact'),
             testId,
             ...rest,
-            item: useHotkeys(
+            children: useHotkeys(
                 div({
                     ref: impl.bodyRef,
                     className: 'xh-chat-workspace__body',
                     style: shownWidths(model),
-                    items: [
+                    children: [
                         sidebar(model, impl, list, testId),
                         div({
                             className: 'xh-chat-workspace__main',
                             role: 'main',
-                            items: [
+                            children: [
                                 header === undefined
                                     ? defaultHeader(model, impl, headerItems, list)
                                     : header,
@@ -213,10 +213,10 @@ function sidebar(
         model: model.sidebarModel,
         className: 'xh-chat-workspace__sidebar',
         testId: getTestId(testId, 'sidebar'),
-        item: nav({
+        children: nav({
             className: 'xh-chat-workspace__nav',
             'aria-label': list.labels.titlePlural,
-            item: chatThreadList({
+            children: chatThreadList({
                 model: model.threadsModel,
                 searchInputRef: impl.searchInputRef,
                 topItems: [
@@ -258,7 +258,7 @@ function rail(
         key: 'rail',
         className: 'xh-chat-workspace__rail',
         'aria-label': labels.titlePlural,
-        items: [
+        children: [
             button({
                 icon: Icon.chevronRight(),
                 tooltip: 'Expand sidebar',
@@ -278,7 +278,7 @@ function rail(
                       role: 'img',
                       title: `A ${labels.singular} is working`,
                       'aria-label': `A ${labels.singular} is working`,
-                      item: chatSpinner()
+                      children: chatSpinner()
                   })
                 : null
         ]
@@ -314,13 +314,13 @@ function defaultHeader(
 
     return div({
         className: 'xh-chat-workspace__header',
-        items: [
+        children: [
             sidebarMode === 'hidden' ? historyButton(model, impl, list) : null,
             div({
                 className: 'xh-chat-workspace__title',
                 role: 'heading',
                 'aria-level': 2,
-                item: threadsModel.isThreadNotFound
+                children: threadsModel.isThreadNotFound
                     ? `${labels.title} not found`
                     : (summary?.title ?? 'New chat')
             }),
@@ -352,7 +352,7 @@ function historyButton(
         onInteraction: open => impl.setHistoryOpen(open),
         position: 'bottom-left',
         minimal: true,
-        item: button({
+        children: button({
             icon: Icon.history(),
             tooltip: labels.titlePlural,
             'aria-label': labels.titlePlural,
@@ -361,7 +361,7 @@ function historyButton(
         content: nav({
             className: 'xh-chat-workspace__history',
             'aria-label': labels.titlePlural,
-            item: chatThreadList({model: model.threadsModel, ...list.props})
+            children: chatThreadList({model: model.threadsModel, ...list.props})
         })
     });
 }
@@ -406,7 +406,7 @@ function noticeLine(notice: ReactNode): ReactNode {
     return div({
         className: 'xh-chat-workspace__notice',
         title: isString(notice) ? notice : undefined,
-        item: notice
+        children: notice
     });
 }
 
@@ -435,7 +435,7 @@ function conversation(
         return placeholder({
             className: 'xh-chat-workspace__loading',
             testId: getTestId(testId, 'loading'),
-            item: mask({bind: threadsModel.loadTask, spinner: true})
+            children: mask({bind: threadsModel.loadTask, spinner: true})
         });
     }
 
@@ -488,7 +488,7 @@ function appConversation(
             testId: getTestId(testId, 'conversation'),
             display: message ? 'none' : undefined,
             mask: threadsModel.loadTask,
-            item: isFunction(conversationView) ? conversationView() : conversationView
+            children: isFunction(conversationView) ? conversationView() : conversationView
         })
     ];
 }
@@ -540,7 +540,7 @@ function sidePanelView(
             role: 'complementary',
             onKeyDown: impl.onSidePanelKeyDown,
             'aria-label': isString(rest.title) ? rest.title : 'Side panel',
-            item: panel({
+            children: panel({
                 compactHeader: true,
                 ...rest,
                 headerItems: [
@@ -553,7 +553,7 @@ function sidePanelView(
                         onClick: () => model.closeSidePanel()
                     })
                 ],
-                item: isFunction(sidePanel) ? sidePanel() : sidePanel
+                children: isFunction(sidePanel) ? sidePanel() : sidePanel
             })
         });
     } else {
@@ -567,6 +567,6 @@ function sidePanelView(
         model: model.sidePanelModel,
         className: 'xh-chat-workspace__side-panel',
         testId: getTestId(testId, 'sidePanel'),
-        item
+        children: item
     });
 }

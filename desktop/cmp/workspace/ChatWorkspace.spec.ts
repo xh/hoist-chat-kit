@@ -221,6 +221,8 @@ describe('ChatWorkspace', () => {
             expect(sidebarEl.nextElementSibling).toBe(main);
             expect(sidePanelEl.previousElementSibling).toBe(main);
 
+            // Hoist's DraggerModel starts from the panel's offsetWidth less its splitter's, so a
+            // drag of N px grows the panel by N.
             act(() => dragPanel(sidebarEl, 40));
             expect(model.sidebarModel.size).toBe(300);
 
