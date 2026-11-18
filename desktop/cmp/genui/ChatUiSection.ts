@@ -2,6 +2,7 @@ import {card} from '@xh/hoist/cmp/card';
 import type {ChatUiComponentSpec} from '../../../genui';
 import {chatUiSkeleton} from './ChatUiFrame';
 import {CHAT_UI_INTENTS, toHoistIntent} from './impl/ChatUiIntents';
+import {inColumn} from './impl/ChatUiStackDirection';
 import type {ChatUiIntent, ChatUiSpecOptions} from './Types';
 import '../../../styles/vars.scss';
 import './ChatUiSection.scss';
@@ -77,19 +78,21 @@ export function chatUiSectionSpec(
             // The header is the only way to expand, so a section with no title never collapses.
             const canCollapse = (collapsible === true || collapsed === true) && !!title,
                 startCollapsed = canCollapse && collapsed === true;
-            return card({
-                // A Card reads its model config once. In a document with no state per element,
-                // these props may still arrive after the title, so a change remounts the card
-                // with a new model. Such a document writes props before children.
-                key: `${canCollapse}|${startCollapsed}`,
-                ...frame,
-                modelConfig: {
-                    collapsible: canCollapse,
-                    defaultCollapsed: startCollapsed,
-                    renderMode: 'lazy'
-                },
-                children
-            });
+            return inColumn(
+                card({
+                    // A Card reads its model config once. In a document with no state per element,
+                    // these props may still arrive after the title, so a change remounts the card
+                    // with a new model. Such a document writes props before children.
+                    key: `${canCollapse}|${startCollapsed}`,
+                    ...frame,
+                    modelConfig: {
+                        collapsible: canCollapse,
+                        defaultCollapsed: startCollapsed,
+                        renderMode: 'lazy'
+                    },
+                    children
+                })
+            );
         },
         result: ({title}) => title ?? '',
         example: {title: 'By desk', collapsible: true}

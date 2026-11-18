@@ -2,6 +2,7 @@ import {formFieldSet} from '@xh/hoist/cmp/form';
 import {creates, hoistCmp, type HoistProps} from '@xh/hoist/core';
 import type {ChatUiComponentSpec} from '../../../genui';
 import {ChatUiFormModel} from './impl/ChatUiFormModel';
+import {inColumn} from './impl/ChatUiStackDirection';
 import type {ChatUiSpecOptions} from './Types';
 import './ChatUiForm.scss';
 
@@ -40,7 +41,7 @@ export function chatUiFormSpec(
         },
         slots: ['default'],
         standalone: false,
-        render: ({title}, {children}) => chatUiForm({title, children}),
+        render: ({title}, {children}) => inColumn(chatUiForm({title, children})),
         result: ({title}) => title ?? '',
         example: {title: 'Contact details'}
     };

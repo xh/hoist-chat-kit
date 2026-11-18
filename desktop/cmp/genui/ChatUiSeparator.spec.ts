@@ -4,7 +4,10 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it} from 'vitest';
 import {ChatUiCatalog, type ChatUiRenderContext} from '../../../genui';
 import {chatUiSeparatorSpec} from './ChatUiSeparator';
+import {chatUiFormSpec} from './ChatUiForm';
+import {chatUiSectionSpec} from './ChatUiSection';
 import {chatUiStack, chatUiStackSpec} from './ChatUiStack';
+import {chatUiTabsSpec} from './ChatUiTabs';
 
 /**
  * The separator spec draws a rule between the parts of a nested answer, with Hoist's `Separator`.
@@ -69,5 +72,27 @@ describe('chatUiSeparatorSpec', () => {
         const horizontal = ruleIn('column');
         expect(horizontal.getAttribute('aria-orientation')).toBe('horizontal');
         expect(horizontal.textContent).toBe('More');
+    });
+
+    it.each([
+        ['section', () => chatUiSectionSpec(), {title: 'Detail'}],
+        ['form', () => chatUiFormSpec(), {title: 'Detail'}],
+        ['tabs', () => chatUiTabsSpec(), {titles: ['Detail']}]
+    ])('lies across a %s that sits in a row, with its label', (_, container, props) => {
+        const rule = chatUiSeparatorSpec().render({label: 'Middle'}, {} as ChatUiRenderContext),
+            inner = container().render(
+                props as any,
+                {
+                    children: [rule],
+                    isPartial: false,
+                    element: {component: 'x', props: {}}
+                } as unknown as ChatUiRenderContext
+            ),
+            separator = render(
+                chatUiStack({direction: 'row', children: [inner]})
+            ).container.querySelector('.xh-chat-ui-separator');
+
+        expect(separator.getAttribute('aria-orientation')).toBe('horizontal');
+        expect(separator.textContent).toBe('Middle');
     });
 });
