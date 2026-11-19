@@ -5,8 +5,7 @@ import {castArray, dropRightWhile, isArray, isFinite, isString, omit} from 'loda
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {toolbar} from '@xh/hoist/desktop/cmp/toolbar';
 import {Icon} from '@xh/hoist/icon';
-import {useOnUnmount} from '@xh/hoist/utils/react';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {
     type BlueprintDataProvider,
     BlueprintModel,
@@ -38,9 +37,20 @@ export const chatUiAnswer = hoistCmp.factory<ChatUiAnswerProps>({
     model: false,
     render(props) {
         // Owned here, not with useLocalModel(), as a document may render with no model context.
-        const [impl] = useState(() => new ChatUiAnswerModel(props as ChatUiAnswerProps));
-        useOnUnmount(() => XH.safeDestroy(impl));
-        useEffect(() => impl.update(props as ChatUiAnswerProps));
+        // React may unmount and mount it again, as StrictMode does, so the cleanup clears what it
+        // destroys, and a mount that finds no model renders again to make one.
+        const held = useRef<ChatUiAnswerModel>(null),
+            [, setMounts] = useState(0);
+        held.current ??= new ChatUiAnswerModel(props as ChatUiAnswerProps);
+        useEffect(() => {
+            if (!held.current) setMounts(it => it + 1);
+            return () => {
+                XH.safeDestroy(held.current);
+                held.current = null;
+            };
+        }, []);
+        useEffect(() => held.current?.update(props as ChatUiAnswerProps));
+        const impl = held.current;
         const root = impl.viewModel.renderElement(impl.blueprintModel.blueprint?.root);
         return impl.gate?.barState ? vbox(answerLoadBar({gate: impl.gate}), root) : root;
     }
@@ -265,10 +275,11 @@ class ChatUiAnswerModel extends HoistModel {
         context,
         partialIds,
         writingIds,
+        bindings,
         dataCatalog,
         artifacts
     }: ChatUiAnswerRenderProps) {
-        this.host.update(context, partialIds, writingIds);
+        this.host.update(context, partialIds, writingIds, bindings);
         const errors = this.blueprintModel
             .updateBlueprint(blueprint, {partialIds, catalog: dataCatalog, artifacts})
             .filter(it => it.severity === 'error');

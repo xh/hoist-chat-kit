@@ -1,8 +1,11 @@
+import {render as renderInDom, screen} from '@testing-library/react';
 import {fragment} from '@xh/hoist/cmp/layout';
+import {observable, runInAction} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
-import type {ReactNode} from 'react';
+import type {ReactElement, ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {beforeAll, beforeEach, describe, expect, it, onTestFinished} from 'vitest';
+import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
+import {BlueprintSource} from '../../blueprint';
 import {ChatModel} from '../../core';
 import {ScriptedChatTransport, textEvents} from '../../transport';
 import {
@@ -144,6 +147,43 @@ describe('documents as answer blueprints', () => {
         const html = render(withButton(false), true);
         expect(html).toContain('Ready');
         expect(html).toContain('could not be displayed');
+    });
+    it("reloads a program's grid in place as its state resolves again, with no new Cube", async () => {
+        const grids = new ChatUiCatalog({components: [chatUiGridSpec()]}),
+            box = observable({rows: [{sym: 'AAPL'}]}),
+            doc: ChatUiDocument = {
+                root: 'g',
+                elements: {},
+                state: {
+                    create: () => ({}),
+                    resolve: () => ({
+                        root: 'g',
+                        elements: {
+                            g: {
+                                component: 'grid',
+                                props: {title: 'Held', columns: [{field: 'sym'}], rows: box.rows}
+                            }
+                        }
+                    })
+                }
+            },
+            destroyed = vi.spyOn(BlueprintSource.prototype, 'destroy');
+        onTestFinished(() => destroyed.mockRestore());
+        renderInDom(
+            fragment({
+                children: grids.renderDocument(doc, {
+                    chatModel: createChatModel(),
+                    messageId: 'm1',
+                    part: {type: 'data', id: 'd1', dataType: 'xh.chat.ui', data: null},
+                    isPartial: false
+                })
+            }) as ReactElement
+        );
+        expect(await screen.findByText('AAPL')).toBeTruthy();
+
+        runInAction(() => (box.rows = [{sym: 'AAPL'}, {sym: 'MSFT'}]));
+        expect(await screen.findByText('MSFT')).toBeTruthy();
+        expect(destroyed).not.toHaveBeenCalled();
     });
 });
 

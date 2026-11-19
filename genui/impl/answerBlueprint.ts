@@ -1,8 +1,19 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {genDisplayName} from '@xh/hoist/data';
-import {dropRight, isArray, isEmpty, isFinite, isPlainObject, isString, mapKeys} from 'lodash';
+import {
+    dropRight,
+    isArray,
+    isEmpty,
+    isFinite,
+    isPlainObject,
+    isString,
+    mapKeys,
+    omit,
+    pick
+} from 'lodash';
 import type {Blueprint, BlueprintElement, ChildRef, SourceDecl} from '../../blueprint';
 import type {ChatUiDocument, ChatUiElement} from '../ChatUiDocument';
+import {type ChatUiBinding, isChatUiBindings} from '../ChatUiState';
 import {getOwn} from '../../impl/LangUtils';
 import {toWidgetName} from './specWidgets';
 
@@ -53,6 +64,31 @@ export interface ToAnswerBlueprintOptions {
     isValid?: (component: string, props: PlainObject, isPartial: boolean) => boolean;
 }
 
+/** The props of an element that a program's state holds, beside an answer's blueprint. */
+export interface ChatUiBoundProps {
+    /** Writes each prop to the program's state. */
+    bindings: Record<string, ChatUiBinding>;
+    /** The value of each prop, as the program's state resolved it. */
+    values: PlainObject;
+}
+
+/**
+ * The bound props of each element of a document, by answer ID, which an answer keeps beside its
+ * blueprint: their bindings hold functions, and their values are the program's to hold. Like the
+ * document path, nothing checks a bound value, as the user may be typing it.
+ */
+export function answerBindingsOf(doc: ChatUiDocument): Record<string, ChatUiBoundProps> {
+    if (!isPlainObject(doc?.elements)) return {};
+    return Object.fromEntries(
+        Object.entries(doc.elements)
+            .filter(([, el]) => isChatUiBindings(el?.bindings) && !isEmpty(el.bindings))
+            .map(([id, el]) => [
+                toAnswerId(id),
+                {bindings: el.bindings, values: pick(el.props ?? {}, Object.keys(el.bindings))}
+            ])
+    );
+}
+
 /**
  * An element ID as an answer can hold it. A document may use a name that reaches a prototype,
  * such as `constructor`, which a blueprint refuses, so it takes a suffix.
@@ -74,9 +110,11 @@ function toElement(el: ChatUiElement): BlueprintElement {
             )
         )
     ];
+    // A bound prop stays beside the blueprint, with its binding.
+    const bound = isChatUiBindings(el.bindings) ? Object.keys(el.bindings) : [];
     return {
         component: toWidgetName(el.component),
-        config: el.props ?? {},
+        config: omit(el.props ?? {}, bound),
         ...(refs.length ? {children: refs} : {})
     };
 }

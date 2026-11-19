@@ -24,6 +24,7 @@ import type {ChatArtifactRegistry} from '../ChatArtifactRegistry';
 import type {ChatUiCatalog} from '../ChatUiCatalog';
 import type {ChatUiComponentSpec, ChatUiDocumentContext} from '../ChatUiComponentSpec';
 import type {ChatUiNode} from '../ChatUiDocument';
+import type {ChatUiBoundProps} from './answerBlueprint';
 
 /**
  * The widget name of a catalog component in an answer: its own name, or `chatUi<Name>` where a
@@ -56,6 +57,8 @@ export interface ChatUiAnswerRenderProps {
     partialIds: string[];
     /** Elements a format says it is still writing, as OpenUI Lang marks each element. */
     writingIds: string[];
+    /** The bound props of the document's elements, by answer ID, which a program's state holds. */
+    bindings: Record<string, ChatUiBoundProps>;
 }
 
 /**
@@ -66,6 +69,7 @@ export class ChatUiAnswerHostContext extends HoistBase {
     @observableRef accessor context: ChatUiDocumentContext;
     @observableRef accessor partialIds: string[] = [];
     @observableRef accessor writingIds: string[] = [];
+    @observableRef accessor bindings: Record<string, ChatUiBoundProps> = {};
 
     constructor(context: ChatUiDocumentContext) {
         super();
@@ -73,10 +77,16 @@ export class ChatUiAnswerHostContext extends HoistBase {
     }
 
     @action
-    update(context: ChatUiDocumentContext, partialIds: string[], writingIds: string[]) {
+    update(
+        context: ChatUiDocumentContext,
+        partialIds: string[],
+        writingIds: string[],
+        bindings: Record<string, ChatUiBoundProps> = {}
+    ) {
         this.context = context;
         if (!isEqual(partialIds, this.partialIds)) this.partialIds = partialIds;
         if (!isEqual(writingIds, this.writingIds)) this.writingIds = writingIds;
+        this.bindings = bindings;
     }
 
     /** True while an element may be incomplete, as chat kit renders a streaming document. */
@@ -298,7 +308,12 @@ function specWidget(spec: ChatUiComponentSpec, catalog: ChatUiCatalog) {
                     ...(isEmpty(slotIds) ? {} : {slots: slotIds}),
                     ...(host.isPartial(id) && host.writingIds.includes(id) ? {isPartial: true} : {})
                 };
-            if (model.valueVariable) {
+            // A program's bound props write to its state, and its resolve gives their values.
+            const bound = host.bindings[id];
+            if (bound) {
+                Object.assign(props, bound.values);
+                node.bindings = bound.bindings;
+            } else if (model.valueVariable) {
                 props.value = model.value;
                 node.bindings = {value: {set: value => model.setValue(value)}};
             }

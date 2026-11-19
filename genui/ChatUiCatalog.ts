@@ -81,7 +81,13 @@ import {
 import {chatUiFallback, chatUiPlaceholder} from './ChatUiFallback';
 import {ChatUiRefusal} from './impl/ChatUiRefusal';
 import {chatUiTagFormat} from './formats/ChatUiTagFormat';
-import {fromAnswerId, toAnswerBlueprint, toAnswerId} from './impl/answerBlueprint';
+import {
+    answerBindingsOf,
+    type ChatUiBoundProps,
+    fromAnswerId,
+    toAnswerBlueprint,
+    toAnswerId
+} from './impl/answerBlueprint';
 import {answerDataFor} from './impl/answerData';
 import {
     answerBlueprintSchema,
@@ -687,10 +693,7 @@ export class ChatUiCatalog {
             );
         }
         if (repaired.root == null || repaired.elements == null) return this.renderPlaceholder(null);
-        // A document with state keeps the document path until answers take its bindings.
-        const hasState =
-            context.state || Object.values(repaired.elements).some(it => !isEmpty(it?.bindings));
-        if (ChatUiCatalog.answerBlueprints && ChatUiCatalog.answerRenderer && !hasState) {
+        if (ChatUiCatalog.answerBlueprints && ChatUiCatalog.answerRenderer) {
             return this.renderAnswer(repaired, context);
         }
         return this.renderElement(repaired, repaired.root, context);
@@ -1305,6 +1308,7 @@ export class ChatUiCatalog {
         return this.renderAnswerBlueprint(translated, context, {
             partialIds,
             writingIds,
+            bindings: answerBindingsOf(doc),
             trimInlineRows: false
         });
     }
@@ -1313,9 +1317,14 @@ export class ChatUiCatalog {
     private renderAnswerBlueprint(
         input: Blueprint,
         context: ChatUiDocumentContext,
-        opts: {partialIds: string[]; writingIds: string[]; trimInlineRows: boolean}
+        opts: {
+            partialIds: string[];
+            writingIds: string[];
+            bindings?: Record<string, ChatUiBoundProps>;
+            trimInlineRows: boolean;
+        }
     ): ReactNode {
-        const {partialIds, writingIds, trimInlineRows} = opts,
+        const {partialIds, writingIds, bindings = {}, trimInlineRows} = opts,
             registry = this.getRegistry(context.chatModel),
             {dataCatalog, artifacts} = answerDataFor(input, {
                 dataCatalog: this.answerDataCatalog,
@@ -1340,7 +1349,8 @@ export class ChatUiCatalog {
             dataProvider: this.answers?.dataProvider ?? null,
             context,
             partialIds,
-            writingIds
+            writingIds,
+            bindings
         });
     }
 
