@@ -28,7 +28,14 @@ import {
     without
 } from 'lodash';
 import {type ReactNode, useEffect, useState} from 'react';
-import {BlueprintRegistry, DataCatalog, degradeAnswer, type PresentationSpec} from '../blueprint';
+import {
+    type Blueprint,
+    type BlueprintDataProvider,
+    BlueprintRegistry,
+    DataCatalog,
+    degradeAnswer,
+    type PresentationSpec
+} from '../blueprint';
 import type {ChatDataRenderer, ChatModel, ChatPartRenderContext, ChatToolSpec} from '../core';
 import {ChatArtifactRegistry, type ChatDataHandle} from './ChatArtifactRegistry';
 import {
@@ -75,6 +82,13 @@ import {chatUiFallback, chatUiPlaceholder} from './ChatUiFallback';
 import {ChatUiRefusal} from './impl/ChatUiRefusal';
 import {chatUiTagFormat} from './formats/ChatUiTagFormat';
 import {fromAnswerId, toAnswerBlueprint, toAnswerId} from './impl/answerBlueprint';
+import {answerDataFor, chatArtifactProvider} from './impl/answerData';
+import {
+    answerBlueprintSchema,
+    answerToolDescription,
+    checkAnswer,
+    isDocumentShape
+} from './impl/answerTool';
 import {
     type ChatUiAnswerRenderProps,
     fromWidgetName,
@@ -183,6 +197,13 @@ export interface ChatUiCatalogConfig {
     urlAllowList?: string[] | ((url: URL) => boolean);
 
     /**
+     * The app's data, for answers that read it: the datasets their sources may name, and the
+     * provider that loads them. Each answer loads within its chat's bounds. Without it, an answer
+     * holds only data it carries inline and the chat's artifacts.
+     */
+    answers?: ChatUiAnswersConfig;
+
+    /**
      * Upgrades for documents written against older versions of the catalog, keyed by the
      * `catalogVersion` they upgrade from. Each returns the upgraded document, with its new
      * `catalogVersion`. Chains of upgrades run in turn.
@@ -229,6 +250,14 @@ export interface ChatUiCatalogConfig {
  * the component's limits - with the history on every later step. Keep row and point limits low,
  * and raise `maxSteps` for a chat that shows several components per reply.
  */
+/** The app's data for answers - see {@link ChatUiCatalogConfig.answers}. */
+export interface ChatUiAnswersConfig {
+    /** The datasets an answer's sources may name. */
+    dataCatalog?: DataCatalog;
+    /** Loads those datasets. Each answer loads through it within its chat's bounds. */
+    dataProvider?: BlueprintDataProvider;
+}
+
 export class ChatUiCatalog {
     //-----------------------
     // Immutable Properties
@@ -300,6 +329,7 @@ export class ChatUiCatalog {
             artifacts = null,
             actionHandlers = {},
             urlAllowList = null,
+            answers = null,
             migrations = {},
             fallback = chatUiFallback,
             placeholder = chatUiPlaceholder
@@ -340,6 +370,7 @@ export class ChatUiCatalog {
         this.getArtifacts = artifacts;
         this.actionHandlers = actionHandlers;
         this.urlAllowList = isArray(urlAllowList) ? urlAllowList.map(checkUrl) : urlAllowList;
+        this.answers = answers;
         this.migrations = migrations;
         this.fallbackRenderer = fallback;
         this.placeholderRenderer = placeholder;
@@ -1033,6 +1064,7 @@ export class ChatUiCatalog {
     private readonly getArtifacts: (chatModel: ChatModel) => ChatArtifactRegistry;
     private readonly actionHandlers: Record<string, ChatUiActionHandler>;
     private readonly urlAllowList: string[] | ((url: URL) => boolean);
+    private readonly answers: ChatUiAnswersConfig;
     private readonly migrations: Record<string, (doc: ChatUiDocument) => ChatUiDocument>;
     private readonly fallbackRenderer: (spec: ChatUiFallbackSpec) => ReactNode;
     private readonly placeholderRenderer: (spec: ChatUiPlaceholderSpec) => ReactNode;
@@ -1258,25 +1290,61 @@ export class ChatUiCatalog {
                 partialIds,
                 isValid: (name, props, isPartial) =>
                     isEmpty(this.validate(name, props, {isPartial}))
+            });
+        // The translation drops each streaming element's last item, as its spec does.
+        return this.renderAnswerBlueprint(translated, context, {
+            partialIds,
+            writingIds,
+            trimInlineRows: false
+        });
+    }
+
+    /** Render an answer blueprint, degraded to what it can show, with the app's and chat's data. */
+    private renderAnswerBlueprint(
+        input: Blueprint,
+        context: ChatUiDocumentContext,
+        opts: {partialIds: string[]; writingIds: string[]; trimInlineRows: boolean}
+    ): ReactNode {
+        const {partialIds, writingIds, trimInlineRows} = opts,
+            registry = this.getRegistry(context.chatModel),
+            {dataCatalog, artifacts} = answerDataFor(input, {
+                dataCatalog: this.answerDataCatalog,
+                registry
             }),
-            blueprint = degradeAnswer(translated, {
-                catalog: ANSWER_DATA_CATALOG,
+            blueprint = degradeAnswer(input, {
+                catalog: dataCatalog,
                 registry: this.registry,
+                artifacts,
                 isAnswer: true,
                 isComplete: !context.isPartial,
                 partialIds,
                 elementErrors: context.elementErrors,
-                // The translation drops each streaming element's last item, as its spec does.
-                trimInlineRows: false
+                trimInlineRows
             });
         return ChatUiCatalog.answerRenderer({
             blueprint,
             catalog: this,
-            dataCatalog: ANSWER_DATA_CATALOG,
+            dataCatalog,
+            artifacts,
+            artifactProvider: chatArtifactProvider(registry),
+            dataProvider: this.answers?.dataProvider ?? null,
             context,
             partialIds,
             writingIds
         });
+    }
+
+    /** Whether a complete answer from the model shows, and its issues, with its chat's data. */
+    private checkAnswerInput(input: unknown, chatModel: ChatModel) {
+        const {dataCatalog, artifacts} = answerDataFor(input as Blueprint, {
+            dataCatalog: this.answerDataCatalog,
+            registry: this.getRegistry(chatModel)
+        });
+        return checkAnswer(input, {catalog: dataCatalog, registry: this.registry, artifacts});
+    }
+
+    private get answerDataCatalog(): DataCatalog {
+        return this.answers?.dataCatalog ?? ANSWER_DATA_CATALOG;
     }
 
     /** The catalog name of a component, from its widget name in an answer. */
@@ -1453,6 +1521,12 @@ export class ChatUiCatalog {
     }
 
     private createDocumentTool(): ChatToolSpec {
+        return ChatUiCatalog.answerBlueprints && ChatUiCatalog.answerRenderer
+            ? this.createAnswerTool()
+            : this.createDocumentToolForDocuments();
+    }
+
+    private createDocumentToolForDocuments(): ChatToolSpec {
         return {
             name: this.documentToolName,
             displayName: 'UI',
@@ -1482,6 +1556,56 @@ export class ChatUiCatalog {
                     return null;
                 }
                 return this.renderDocument(doc, renderContext);
+            }
+        };
+    }
+
+    /**
+     * The document tool for answer blueprints. Input written as a catalog document, as a stored
+     * reply holds it, takes the document's path. An answer with errors shows nothing, and the
+     * model gets its issues back - see `checkAnswer()`.
+     */
+    private createAnswerTool(): ChatToolSpec {
+        const documentTool = this.createDocumentToolForDocuments();
+        return {
+            name: this.documentToolName,
+            displayName: 'UI',
+            description: `${answerToolDescription(this.registry)}\n\n${TOOL_NOTE}`,
+            parameters: answerBlueprintSchema(this.registry),
+            display: 'inline',
+            execute: (input, ctx) => {
+                if (isDocumentShape(input)) return documentTool.execute(input, ctx);
+                const {isShown, issues} = this.checkAnswerInput(input, ctx.chatModel);
+                if (!isShown) {
+                    throw invalidInputError(
+                        'answer',
+                        issues
+                            .filter(it => it.severity === 'error')
+                            .map(it => (it.path ? `${it.path}: ${it.message}` : it.message))
+                    );
+                }
+                const count = Object.keys((input as Blueprint).elements).length;
+                return `Rendered an answer of ${count} element${count === 1 ? '' : 's'} for the user.`;
+            },
+            renderer: (part, context) => {
+                if (isDocumentShape(part.input)) return documentTool.renderer(part, context);
+                const isPartial = part.state === 'input-streaming',
+                    input = part.input as Blueprint,
+                    renderContext = {...context, part, isPartial};
+                // A complete answer that fails renders nothing, unless its call has a result.
+                if (
+                    !isPartial &&
+                    part.state !== 'output-available' &&
+                    !this.checkAnswerInput(input, context.chatModel).isShown
+                ) {
+                    return null;
+                }
+                const ids = isPlainObject(input?.elements) ? Object.keys(input.elements) : [];
+                return this.renderAnswerBlueprint(input, renderContext, {
+                    partialIds: isPartial ? ids : [],
+                    writingIds: [],
+                    trimInlineRows: true
+                });
             }
         };
     }

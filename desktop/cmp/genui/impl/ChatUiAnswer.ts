@@ -226,17 +226,18 @@ class ChatUiAnswerModel extends HoistModel {
 
     constructor(props: ChatUiAnswerRenderProps) {
         super();
-        const {catalog, dataCatalog, context} = props,
-            {chatModel, messageId} = context;
+        const {catalog, dataCatalog, artifacts, artifactProvider, context} = props,
+            {chatModel, messageId} = context,
+            provider = props.dataProvider ?? NO_DATASETS;
         this.host = new ChatUiAnswerHostContext(context);
-        this.gate = chatModel
-            ? new AnswerLoadGate({provider: NO_DATASETS, chatModel, messageId})
-            : null;
+        this.gate = chatModel ? new AnswerLoadGate({provider, chatModel, messageId}) : null;
         // Opened empty, then updated, as the constructor checks a blueprint in full.
         this.blueprintModel = new BlueprintModel({
             catalog: dataCatalog,
+            artifacts,
+            artifactProvider,
             registry: catalog.registry,
-            dataProvider: this.gate ?? NO_DATASETS,
+            dataProvider: this.gate ?? provider,
             isAnswer: true,
             hostContext: this.host
         });
@@ -248,10 +249,17 @@ class ChatUiAnswerModel extends HoistModel {
         });
     }
 
-    update({blueprint, context, partialIds, writingIds}: ChatUiAnswerRenderProps) {
+    update({
+        blueprint,
+        context,
+        partialIds,
+        writingIds,
+        dataCatalog,
+        artifacts
+    }: ChatUiAnswerRenderProps) {
         this.host.update(context, partialIds, writingIds);
         const errors = this.blueprintModel
-            .updateBlueprint(blueprint, {partialIds})
+            .updateBlueprint(blueprint, {partialIds, catalog: dataCatalog, artifacts})
             .filter(it => it.severity === 'error');
         if (errors.length) this.logError('An answer that degraded still has errors', errors);
     }

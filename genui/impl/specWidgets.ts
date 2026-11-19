@@ -6,6 +6,8 @@ import type {ReactNode} from 'react';
 import {
     type ActionSpec,
     type Blueprint,
+    type BlueprintArtifactProvider,
+    type BlueprintDataProvider,
     type BlueprintIssue,
     BlueprintRegistry,
     BlueprintWidgetModel,
@@ -43,6 +45,12 @@ export interface ChatUiAnswerRenderProps {
     catalog: ChatUiCatalog;
     /** The datasets the answer's sources may read. */
     dataCatalog: DataCatalog;
+    /** The dataset behind each artifact the answer reads, by artifact id. */
+    artifacts: Record<string, string>;
+    /** The rows of those artifacts. */
+    artifactProvider: BlueprintArtifactProvider;
+    /** The app's provider of datasets, or null. The answer loads through it within the chat's bounds. */
+    dataProvider: BlueprintDataProvider;
     context: ChatUiDocumentContext;
     /** Elements still arriving: all those of a streaming answer that its format did not mark complete. */
     partialIds: string[];
