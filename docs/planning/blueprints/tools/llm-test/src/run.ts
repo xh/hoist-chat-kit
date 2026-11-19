@@ -13,7 +13,7 @@ import {loadBlueprint} from './load.ts';
 import {SYSTEM_PROMPT} from './prompt.ts';
 import {Scenario, SCENARIOS} from './scenarios.ts';
 import {Session, TOOLS} from './tools.ts';
-import {validate} from './validate.ts';
+import {validate} from './library.ts';
 
 const MODELS: Record<string, {id: string; input: number; output: number; cacheRead: number; cacheWrite: number}> = {
     opus: {id: 'claude-opus-5-5', input: 4, output: 20, cacheRead: 0.2, cacheWrite: 5},

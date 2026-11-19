@@ -1,9 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import {applyOps} from './engine.ts';
+import {applyOps, validate} from './library.ts';
 import {loadBlueprint, PLANNING_DIR} from './load.ts';
 import {SCENARIOS} from './scenarios.ts';
-import {validate} from './validate.ts';
 
 const ARTIFACTS = {art_7f2: 'positions', art_9c4: 'weather'};
 let failed = 0;
@@ -40,7 +39,7 @@ console.log(`${missed.length ? 'FAIL' : 'ok  '} broken copy caught: ${expected.j
 const arr = applyOps(p2, [{op: 'set', path: '/elements/dashboard/children/0/w', value: 3}]);
 console.log(`${arr.issue ? 'ok  ' : 'FAIL'} array index refused`);
 const ren = applyOps(p2, [{op: 'renameId', kind: 'element', from: 'posGrid', to: 'positionsGrid'}]);
-const renOk = ren.result && !validate(ren.result, {artifacts: ARTIFACTS}).length && ren.result.variables.selection.setBy.element === 'positionsGrid';
+const renOk = ren.result && !validate(ren.result, {artifacts: ARTIFACTS}).length && (ren.result.variables!.selection.setBy as any).element === 'positionsGrid';
 console.log(`${renOk ? 'ok  ' : 'FAIL'} renameId keeps the blueprint valid`);
 
 // The scenario checks pass on the hand-written answers.

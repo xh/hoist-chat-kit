@@ -1,8 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import {queryDataset} from './data.ts';
-import {applyOps, Issue} from './engine.ts';
+import {applyOps, Issue, validate} from './library.ts';
 import {Blueprint, catalogs, clone, datasets, registry} from './load.ts';
-import {validate} from './validate.ts';
 
 const str = {type: 'string'} as const;
 

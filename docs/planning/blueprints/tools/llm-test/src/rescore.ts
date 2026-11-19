@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {SCENARIOS} from './scenarios.ts';
-import {validate} from './validate.ts';
+import {validate} from './library.ts';
 
 for (const dir of process.argv.slice(2)) {
     for (const f of fs.readdirSync(dir).filter(f => f.endsWith('.json')).sort()) {

@@ -3,12 +3,14 @@
         "target": "ES2023",
         "module": "NodeNext",
         "moduleResolution": "NodeNext",
-        "strict": true,
+        "strict": false,
+        "jsx": "react",
         "noImplicitAny": false,
         "resolveJsonModule": true,
         "skipLibCheck": true,
         "noEmit": true,
-        "allowImportingTsExtensions": true
+        "allowImportingTsExtensions": true,
+        "paths": {"@xh/hoist/*": ["../../../../../../hoist-react/*"]}
     },
     "include": [
         "src"

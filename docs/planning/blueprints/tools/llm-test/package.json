@@ -9,8 +9,7 @@
         "rescore": "tsx src/rescore.ts"
     },
     "dependencies": {
-        "@anthropic-ai/sdk": "1.10.0",
-        "ajv": "8.20.0"
+        "@anthropic-ai/sdk": "1.10.0"
     },
     "devDependencies": {
         "@types/node": "24.3.0",
