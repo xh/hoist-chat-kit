@@ -59,7 +59,8 @@ export function answerToolDescription(registry: BlueprintRegistry): string {
         '',
         'A widget that shows data names a source in `config.source`. A source holds rows inline, ' +
             'reads a result a tool produced as `{"artifact": id}`, or reads a dataset. Values you ' +
-            'computed go inline. Never copy the rows of an artifact.',
+            'computed go inline. Never copy the rows of an artifact. A field a widget groups by ' +
+            'needs `isDimension: true`.',
         '',
         'Widgets:',
         ...widgetNames(registry).map(

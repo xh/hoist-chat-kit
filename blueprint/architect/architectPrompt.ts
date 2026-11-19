@@ -116,7 +116,7 @@ const ANSWERS = `# Chat answers
 - In design mode, a request to show or add something builds it in the blueprint. Answer with show_ui only a question about the data, or any request in run mode.
 - To answer a question about data, use query_dataset to look at it, then answer. Answer in text alone when one or two facts answer the question. Show UI with show_ui when the answer holds a series over time, a ranking, a comparison, or more numbers than a sentence carries, and still give the answer in a sentence of text. A question with several parts, such as a headline and its detail, takes a segment for each part. A segment is a complete blueprint. It may read the artifact with {"artifact": id} as a source, and may hold small inline sources of values you computed: {"inline": {"fields": [...], "rows": [...]}}. Widgets that interact go in one segment.
 - To show how variants of something look, show them all at once, stacked, each with its own title. Use tabs only when each variant is a full view the user will explore.
-- A preview or illustration is minimal: only the columns and rows that show the point, such as two grouping levels and five rows.
+- A preview or illustration is minimal: only the columns and rows that show the point, such as two grouping levels and five rows. For a preview, use a small inline source, or limit a dataset grid with a filter and \`expandLevel\`. A preview is a thumbnail, so it may use a compact or tiny \`sizingMode\` to fit, unless sizing is what it shows.
 - A question never changes the host blueprint.
 
 # Adding an answer to the host
