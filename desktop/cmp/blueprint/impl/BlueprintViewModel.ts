@@ -35,12 +35,14 @@ export class BlueprintViewModel extends HoistModel {
     constructor(blueprintModel: BlueprintModel) {
         super();
         this.blueprintModel = blueprintModel;
-        // Synced now, not by fireImmediately, which MobX defers inside a batch such as a render.
-        this.syncWidgets();
+        // Registered before the widgets are made, so that it runs ahead of their reactions and
+        // destroys a widget whose element is gone before the widget reacts to it.
         this.addReaction({
             track: () => this.blueprintModel.blueprint?.elements,
             run: () => this.syncWidgets()
         });
+        // Synced now, not by fireImmediately, which MobX defers inside a batch such as a render.
+        this.syncWidgets();
     }
 
     /** Render an element by ID, or nothing if the blueprint has no such element. */

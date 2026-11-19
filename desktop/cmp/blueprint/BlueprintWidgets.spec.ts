@@ -576,6 +576,15 @@ describe('blueprint desktop widgets', () => {
         expect(await screen.findByText('Card of posGrid')).toBeTruthy();
     });
 
+    it('replaces a blueprint with charts with another, without a widget outliving its source', async () => {
+        const model = open(loadBlueprint('p3-morning-report.json'));
+        render(blueprintView({model}));
+        expect(await screen.findByText('Columns')).toBeTruthy();
+        model.setBlueprint(loadBlueprint('p1-one-grid.json'));
+        await wait();
+        expect(model.blueprint.root).toBe('posGrid');
+    });
+
     it('renders a switch for each preset group, which switches the active preset', async () => {
         const model = open(loadBlueprint('p3-morning-report.json'));
         render(blueprintView({model}));

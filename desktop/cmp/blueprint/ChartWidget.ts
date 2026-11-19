@@ -83,7 +83,7 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
     }
 
     private updateChart() {
-        const props = this.view ? this.buildProps() : null,
+        const props = this.view && this.source ? this.buildProps() : null,
             {chartModel} = this;
         if (!props) {
             chartModel.setSeries([]);
@@ -121,7 +121,7 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
      * as the Cube groups it. Null until the source has a view.
      */
     getLayoutProps(): ChatUiChartLayoutProps {
-        return this.view ? this.buildProps() : null;
+        return this.view && this.source ? this.buildProps() : null;
     }
 
     private buildProps(): ChatUiChartLayoutProps {
