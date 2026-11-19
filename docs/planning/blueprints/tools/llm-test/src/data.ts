@@ -1,4 +1,4 @@
-import {DatasetDef, datasets, FieldDef} from './load.ts';
+import {DatasetDef, datasets} from './load.ts';
 
 /** Seeded generator, so a query returns the same rows on every run. */
 function rng(seed: string) {
@@ -108,55 +108,12 @@ function matches(row: Record<string, unknown>, f: any): boolean {
     }
 }
 
-function aggregate(rows: Record<string, unknown>[], f: FieldDef): unknown {
-    const vals = rows.map(r => r[f.name]).filter(v => v != null);
-    if (f.type === 'string' || f.type === 'localDate' || f.type === 'date') return new Set(vals).size === 1 ? vals[0] : null;
-    const nums = vals as number[];
-    if (!nums.length) return null;
-    const agg = typeof f.aggregator === 'string' ? f.aggregator : 'SUM';
-    if (agg === 'MAX') return Math.max(...nums);
-    if (agg === 'MIN') return Math.min(...nums);
-    if (agg === 'AVG' || typeof f.aggregator === 'object') return nums.reduce((a, b) => a + b, 0) / nums.length;
-    if (agg === 'UNIQUE') return new Set(nums).size === 1 ? nums[0] : null;
-    return nums.reduce((a, b) => a + b, 0);
-}
-
-let artifactSeq = 0;
-
-/** The query_dataset tool: fake rows from a dataset, shaped like a chat kit artifact. */
-export function queryDataset(input: any): {artifact?: any; error?: string} {
-    const ds = datasets[input?.dataset];
-    if (!ds) return {error: `unknown dataset '${input?.dataset}'. Datasets: ${Object.keys(datasets).join(', ')}`};
-    for (const [pn, pd] of Object.entries(ds.params)) if (pd.required && input.params?.[pn] == null) return {error: `${ds.name} requires parameter '${pn}'`};
-    const fieldNames: string[] = input.fields?.length ? input.fields : Object.keys(ds.fields).slice(0, 12);
-    const unknown = [...fieldNames, ...(input.groupBy ?? [])].filter(f => !ds.fields[f]);
-    if (unknown.length) return {error: `unknown fields: ${unknown.join(', ')}`};
-    const r = rng(JSON.stringify([ds.name, input.params])),
-        count = {positions: 160, orders: 90, prices: 64, hypotheticalPortfolio: 12, weather: 40, currentWeather: 1}[ds.name] ?? 50;
-    let rows = Array.from({length: count}, (_, i) => makeRow(ds, r, i, input.params)).filter(row => matches(row, input.filter));
-    const groupBy: string[] = input.groupBy ?? [];
-    if (groupBy.length) {
-        const groups = new Map<string, Record<string, unknown>[]>();
-        for (const row of rows) {
-            const key = JSON.stringify(groupBy.map(g => row[g]));
-            groups.set(key, [...(groups.get(key) ?? []), row]);
-        }
-        rows = [...groups.values()].map(g => Object.fromEntries(
-            [...groupBy, ...fieldNames.filter(f => !groupBy.includes(f))].map(f => [f, groupBy.includes(f) ? g[0][f] : aggregate(g, ds.fields[f])])
-        ));
-    } else {
-        rows = rows.map(row => Object.fromEntries(fieldNames.map(f => [f, row[f]])));
+/** The data provider the Architect's query_dataset tool reads: fake leaf rows, with every field. */
+export const fakeDataProvider = {
+    async loadAsync(req: {dataset: string; params: Record<string, unknown>; filter?: unknown}) {
+        const ds = datasets[req.dataset],
+            r = rng(JSON.stringify([ds.name, req.params])),
+            count = {positions: 160, orders: 90, prices: 64, hypotheticalPortfolio: 12, weather: 40, currentWeather: 1}[ds.name] ?? 50;
+        return {rows: Array.from({length: count}, (_, i) => makeRow(ds, r, i, req.params)).filter(row => matches(row, req.filter))};
     }
-    if (input.sortBy) {
-        const [f, dir] = String(input.sortBy).split('|');
-        rows.sort((a: any, b: any) => (a[f] > b[f] ? 1 : a[f] < b[f] ? -1 : 0) * (dir === 'desc' ? -1 : 1));
-    }
-    const totalRows = rows.length;
-    if (input.top) rows = rows.slice(0, input.top);
-    const columns = [...new Set([...groupBy, ...fieldNames])].map(n => {
-        const {name, label, type, kind} = ds.fields[n];
-        return {name, label, type, kind};
-    });
-    const id = `art_${(++artifactSeq).toString(16).padStart(3, '0')}`;
-    return {artifact: {id, dataset: ds.name, params: input.params ?? {}, columns, rows: rows.slice(0, 50), totalRows}};
-}
+};

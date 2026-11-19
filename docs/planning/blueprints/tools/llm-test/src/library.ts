@@ -4,14 +4,25 @@
  */
 import type {BlueprintIssue} from '../../../../../../blueprint/Blueprint.ts';
 import {DataCatalog} from '../../../../../../blueprint/DataCatalog.ts';
-import {BUILT_IN_WIDGETS} from '../../../../../../blueprint/impl/builtInWidgets.ts';
+import {
+    BUILT_IN_ACTIONS,
+    BUILT_IN_RENDERER_INFO,
+    BUILT_IN_RESOLVER_INFO,
+    BUILT_IN_WIDGETS
+} from '../../../../../../blueprint/impl/builtInWidgets.ts';
 import {validateBlueprint} from '../../../../../../blueprint/validateBlueprint.ts';
 import {Blueprint, catalogs, registry} from './load.ts';
 
 export {applyOps} from '../../../../../../blueprint/applyOps.ts';
+export {architectPrompt} from '../../../../../../blueprint/architect/architectPrompt.ts';
+export {
+    ArchitectToolError,
+    availableArchitectTools,
+    type ArchitectTarget
+} from '../../../../../../blueprint/architect/ArchitectTools.ts';
 export type Issue = BlueprintIssue;
 
-const libraryCatalogs = Object.values(catalogs).map(it => new DataCatalog(it));
+export const libraryCatalogs = Object.values(catalogs).map(it => new DataCatalog(it));
 
 /** Every catalog's datasets, as one catalog. */
 const catalog = {
@@ -19,17 +30,16 @@ const catalog = {
         libraryCatalogs.map(it => it.getDataset(name)).find(Boolean) ?? null
 };
 
-/** The library's built-in widgets, plus the app entries the scenarios use, from registry.json. */
-const named = (coll: string) =>
-    Object.fromEntries(Object.entries<any>(registry[coll]).map(([name, it]) => [name, {name, ...it}]));
-const libraryRegistry = {
-    widgets: {
-        ...named('widgets'),
-        ...Object.fromEntries(BUILT_IN_WIDGETS.map(it => [it.name, it]))
-    },
+/** The library's built-ins, plus the app's entries from registry.json. */
+const byName = (specs: any[]) => Object.fromEntries(specs.map(it => [it.name, it])),
+    named = (coll: string) =>
+        Object.fromEntries(Object.entries<any>(registry[coll]).map(([name, it]) => [name, {name, ...it}]));
+export const libraryRegistry = {
+    widgets: {...byName(BUILT_IN_WIDGETS), ...named('widgets')},
     variableTypes: named('variableTypes'),
-    resolvers: named('resolvers'),
-    actions: named('actions')
+    resolvers: {...byName(BUILT_IN_RESOLVER_INFO), ...named('resolvers')},
+    actions: {...byName(BUILT_IN_ACTIONS), ...named('actions')},
+    renderers: {...byName(BUILT_IN_RENDERER_INFO), ...named('renderers')}
 };
 
 export interface ValidateContext {

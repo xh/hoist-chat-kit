@@ -111,10 +111,11 @@ async function runScenario(model: string, s: Scenario) {
                 replies.push(res.content.filter((b): b is Anthropic.Beta.BetaTextBlock => b.type === 'text').map(b => b.text).join('\n'));
                 break;
             }
-            const results: Anthropic.Beta.BetaToolResultBlockParam[] = toolUses.map(t => {
-                const r = session.run(t.name, t.input);
-                return {type: 'tool_result', tool_use_id: t.id, content: r.content, is_error: r.isError};
-            });
+            const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
+            for (const t of toolUses) {
+                const r = await session.run(t.name, t.input);
+                results.push({type: 'tool_result', tool_use_id: t.id, content: r.content, is_error: r.isError});
+            }
             messages.push({role: 'user', content: results});
         }
     }
