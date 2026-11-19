@@ -92,6 +92,8 @@ export interface PresentationSpec {
     /** When to use it, for the Architect. */
     guidance: string;
     component: ElementFactory;
+    /** Config keys it does not draw, such as a grid's styles in a card. Default none. */
+    ignores?: string[];
 }
 
 export interface WidgetOutputSpec {
@@ -252,15 +254,32 @@ export class BlueprintRegistry {
             name === 'panel' || spec.presentations?.some(it => it.name === name),
             `Widget '${widget}' already has a presentation '${name}'.`
         );
-        const presentations = [...(spec.presentations ?? []), presentation];
+        const presentations = [...(spec.presentations ?? []), presentation],
+            ignores = presentation.ignores ?? [],
+            ignored = ignores.length ? ` It ignores ${ignores.join(', ')}.` : '';
         this.widgets[widget] = {
             ...spec,
             presentations,
-            guidance: `${spec.guidance} Presentation "${name}" (${presentation.label}): ${presentation.guidance}`,
+            guidance: `${spec.guidance} Presentation "${name}" (${presentation.label}): ${presentation.guidance}${ignored}`,
             config: {
                 ...spec.config,
                 properties: {
                     ...spec.config.properties,
+                    ...Object.fromEntries(
+                        ignores
+                            .filter(it => getOwn(spec.config.properties, it))
+                            .map(it => {
+                                const prop = spec.config.properties[it];
+                                return [
+                                    it,
+                                    {
+                                        ...prop,
+                                        description:
+                                            `${prop.description ?? ''} The ${name} presentation ignores it.`.trim()
+                                    }
+                                ];
+                            })
+                    ),
                     presentation: {
                         enum: ['panel', ...presentations.map(it => it.name)],
                         description: 'How the widget draws. Default "panel".'

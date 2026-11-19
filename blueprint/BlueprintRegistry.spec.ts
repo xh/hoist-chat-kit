@@ -48,6 +48,20 @@ describe('BlueprintRegistry presentations', () => {
         expect(describeGrid(chat).guidance).toContain('Draws the grid as a chat reply does.');
     });
 
+    it('says which config keys a presentation ignores, in its guidance and on each key', () => {
+        const registry = new BlueprintRegistry();
+        registry.addPresentation('cubeGrid', {...card, ignores: ['stripeRows', 'nope']});
+        const grid = describeGrid(registry);
+        expect(grid.guidance).toContain('It ignores stripeRows, nope.');
+        expect(grid.config.properties.stripeRows.description).toBe(
+            'Alternate the background of rows. Default on. The card presentation ignores it.'
+        );
+        expect(grid.config.properties.nope).toBeUndefined();
+        expect(describeGrid(new BlueprintRegistry()).config.properties.stripeRows.description).toBe(
+            'Alternate the background of rows. Default on.'
+        );
+    });
+
     it('refuses a presentation for an unknown widget, or one named panel', () => {
         const registry = new BlueprintRegistry();
         expect(() => registry.addPresentation('nope', card)).toThrow();
