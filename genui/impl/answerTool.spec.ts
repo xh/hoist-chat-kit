@@ -89,6 +89,14 @@ describe('show_ui with answer blueprints', () => {
         expect(line('cubeGrid')).not.toContain('Config:');
     });
 
+    it('lists the values of a short enum beside its key', () => {
+        const line = setup()
+            .catalog.documentTool.description.split('\n')
+            .find(it => it.startsWith('- stack:'));
+        expect(line).toContain('direction (column, row)');
+        expect(line).toContain('gap (none, small, medium, large)');
+    });
+
     it("offers the app's own widgets and types, beside chat kit's", () => {
         const app = scenarioRegistry(),
             catalog = new ChatUiCatalog({

@@ -140,11 +140,16 @@ function configKeys(widget: {config?: PlainObject}): string {
     const keys = Object.keys(widget.config?.properties ?? {}),
         required: string[] = widget.config?.required ?? [];
     if (!keys.length || keys.length > MAX_LISTED_KEYS) return '';
-    const listed = keys.map(it => (required.includes(it) ? `${it} (required)` : it));
+    const listed = keys.map(it => {
+        const values: unknown[] = widget.config.properties[it]?.enum,
+            named = values?.length <= MAX_LISTED_VALUES ? `${it} (${values.join(', ')})` : it;
+        return required.includes(it) ? `${named} (required)` : named;
+    });
     return ` Config: ${listed.join(', ')}.`;
 }
 
-const MAX_LISTED_KEYS = 8;
+const MAX_LISTED_KEYS = 8,
+    MAX_LISTED_VALUES = 6;
 
 function widgetNames(registry: BlueprintRegistry): string[] {
     return Object.keys(registry.widgets).filter(it => !registry.widgets[it].reserved);
