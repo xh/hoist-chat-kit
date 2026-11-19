@@ -400,6 +400,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         if (isArray(cfg.y)) cfg.y.forEach((y: string, i: number) => need(y, `${p}/y/${i}`));
         if (isArray(cfg.cards)) {
             cfg.cards.forEach((c: any, i: number) => {
+                if (c?.deltaField) need(c.deltaField, `${p}/cards/${i}/deltaField`);
                 if (c?.field) {
                     need(c.field, `${p}/cards/${i}/field`);
                 } else if (fields && c?.agg !== 'count') {

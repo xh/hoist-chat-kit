@@ -271,6 +271,30 @@ const STAT_CARD_STRIP_SCHEMA = {
                     },
                     agg: {
                         enum: ['count', 'SUM', 'AVG', 'MIN', 'MAX', 'UNIQUE']
+                    },
+                    deltaField: {
+                        type: 'string'
+                    },
+                    deltaFormat: {
+                        'x-format': true,
+                        anyOf: [
+                            {
+                                type: 'string'
+                            },
+                            {
+                                type: 'object'
+                            }
+                        ]
+                    },
+                    deltaLabel: {
+                        type: 'string',
+                        maxLength: 40
+                    },
+                    invert: {
+                        type: 'boolean'
+                    },
+                    intent: {
+                        enum: ['none', 'primary', 'success', 'warning', 'danger']
                     }
                 }
             }
@@ -579,7 +603,7 @@ const statCardStrip: WidgetSpec = {
     label: 'Stat cards',
     terms: ['stat cards', 'KPIs', 'headline numbers', 'metrics', 'tiles'],
     guidance:
-        'A row of headline numbers, each the total of a field over the source. A card with agg count and no field counts rows. Values always come from a source, never from config.',
+        'A row of headline numbers, each the total of a field over the source. A card with agg count and no field counts rows. Values always come from a source, never from config. A card shows a change from its deltaField, rolled up as its field is, with an arrow in color: green up, red down, or the reverse with invert for a figure where up is bad. deltaFormat formats it (default the card\'s format), and deltaLabel says what it compares against, such as "vs last month". intent outlines a card to flag it, such as danger for a breached limit.',
     category: 'data',
     config: STAT_CARD_STRIP_SCHEMA,
     size: {

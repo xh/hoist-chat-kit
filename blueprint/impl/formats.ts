@@ -71,7 +71,13 @@ export function formatValue(
                 ...(omit(rest, 'date', 'pattern') as NumberFormatOptions),
                 // As text, with none of the markup Hoist adds for colors, units and alignment.
                 ...(asText
-                    ? {asHtml: true, colorSpec: false, labelCls: null, forceLedgerAlign: false}
+                    ? {
+                          asHtml: true,
+                          colorSpec: false,
+                          labelCls: null,
+                          forceLedgerAlign: false,
+                          tooltip: false
+                      }
                     : {})
             };
         if (base === 'fraction') return fmtPercent(v, numOpts);

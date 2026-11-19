@@ -1,22 +1,30 @@
 import {statCard, statCardStrip} from '@xh/hoist/cmp/statcard';
-import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
+import {span} from '@xh/hoist/cmp/layout';
+import {hoistCmp, type Intent, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {View} from '@xh/hoist/data';
 import {fmtNumber} from '@xh/hoist/format';
 import {computed, observableRef} from '@xh/hoist/mobx';
-import {castArray, max, mean, min, sum, uniq} from 'lodash';
+import {castArray, isFinite, max, mean, min, sum, uniq} from 'lodash';
 import type {ReactNode} from 'react';
 import {
     BlueprintWidgetModel,
     type BlueprintWidgetConfig,
     type StatCardStripWidgetConfig
 } from '../../../blueprint';
+import {type FormatLike, formatValue, resolveFormat} from '../../../blueprint/impl/formats';
 import {fieldDisplay} from '../../../blueprint/impl/renderers';
+import type {FieldDef} from '../../../blueprint';
 
 /** One card of a stat card strip, as it shows. */
 export interface StatCardStripCard {
     key: string;
     title: ReactNode;
     value: ReactNode;
+    /** The change, with an arrow in color, said in words to a screen reader. */
+    subValue?: ReactNode;
+    /** What the change compares against. */
+    detail?: string;
+    intent?: Intent;
 }
 
 /**
@@ -65,22 +73,54 @@ export class StatCardStripWidgetModel extends BlueprintWidgetModel<StatCardStrip
                     value: fmtNumber(rows.length, {precision: 0})
                 };
             }
-            const value = card.agg
-                    ? aggregate(
-                          rows.map(it => it[def.name]),
-                          card.agg
-                      )
-                    : root[def.name],
-                display = fieldDisplay(def, {format: card.format}, {catalog, blueprint, registry});
+            const rollUp = (name: string) =>
+                    card.agg
+                        ? aggregate(
+                              rows.map(it => it[name]),
+                              card.agg
+                          )
+                        : root[name],
+                value = rollUp(def.name),
+                display = fieldDisplay(def, {format: card.format}, {catalog, blueprint, registry}),
+                deltaDef = source.fields[card.deltaField];
             return {
                 key,
                 title: card.label ?? source.fieldLabel(def.name),
                 value:
                     card.agg === 'count'
                         ? fmtNumber(value as number, {precision: 0})
-                        : display.render(value)
+                        : display.render(value),
+                subValue: deltaDef
+                    ? this.formatDelta(
+                          rollUp(deltaDef.name) as number,
+                          deltaDef,
+                          card.deltaFormat ?? card.format,
+                          card.invert
+                      )
+                    : null,
+                detail: card.deltaLabel ?? null,
+                intent: card.intent && card.intent !== 'none' ? card.intent : null
             };
         });
+    }
+
+    /**
+     * A change with an arrow in color - the reverse for a figure where up is bad - which a screen
+     * reader hears in words, such as "up 1.2%", as the arrow alone does not say which way it moved.
+     */
+    private formatDelta(delta: number, def: FieldDef, format: unknown, invert: boolean): ReactNode {
+        if (!isFinite(delta)) return null;
+        const {catalog, blueprint} = this.blueprintModel,
+            opts = resolveFormat(def, format ? [format as FormatLike] : [], {catalog, blueprint}),
+            shown = formatValue(
+                delta,
+                def,
+                {...opts, withSignGlyph: true, colorSpec: invert ? INVERTED_COLORS : true},
+                catalog
+            ),
+            size = formatValue(Math.abs(delta), def, opts, catalog, true),
+            words = delta > 0 ? `up ${size}` : delta < 0 ? `down ${size}` : 'unchanged';
+        return span({role: 'img', 'aria-label': words, children: shown});
     }
 }
 
@@ -91,7 +131,9 @@ export const [StatCardStripWidget, statCardStripWidget] = hoistCmp.withFactory({
     render({model, className}) {
         return statCardStrip({
             className,
-            children: model.cards.map(({key, title, value}) => statCard({key, title, value}))
+            children: model.cards.map(({key, title, value, subValue, detail, intent}) =>
+                statCard({key, title, value, subValue, detail, intent})
+            )
         });
     }
 });
@@ -99,6 +141,8 @@ export const [StatCardStripWidget, statCardStripWidget] = hoistCmp.withFactory({
 //------------------
 // Implementation
 //------------------
+const INVERTED_COLORS = {pos: 'xh-neg-val', neg: 'xh-pos-val', neutral: 'xh-neutral-val'};
+
 function aggregate(values: unknown[], agg: string): unknown {
     const present = values.filter(it => it != null),
         nums = present as number[];

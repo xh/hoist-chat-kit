@@ -121,6 +121,44 @@ describe('blueprint data widgets', () => {
         });
     });
 
+    describe('statCardStrip deltas', () => {
+        const withDelta = (card: object) => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.elements.headline.config.cards = [
+                {field: 'mktVal', deltaField: 'pnlDay', deltaFormat: {precision: 0}, ...card}
+            ];
+            return widget(StatCardStripWidgetModel, open(bp), 'headline');
+        };
+        const html = (node: unknown) => render(node as ReactElement).container.innerHTML;
+
+        it("shows a card's change with an arrow in color, said in words, and its label", async () => {
+            const cards = withDelta({deltaLabel: 'vs yesterday', intent: 'warning'});
+            await vi.waitFor(() => expect(cards.cards[0]?.subValue).toBeTruthy());
+            const [card] = cards.cards;
+            expect(text(card.subValue)).toMatch(/^▴\s?4/);
+            expect(html(card.subValue)).toContain('xh-pos-val');
+            expect(html(card.subValue)).toContain('aria-label="up 4"');
+            expect(card.detail).toBe('vs yesterday');
+            expect(card.intent).toBe('warning');
+        });
+
+        it('shows a rise in the negative color for a figure where up is bad', async () => {
+            const cards = withDelta({invert: true});
+            await vi.waitFor(() => expect(cards.cards[0]?.subValue).toBeTruthy());
+            expect(html(cards.cards[0].subValue)).toContain('xh-neg-val');
+        });
+
+        it('refuses a delta field the source lacks', () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.elements.headline.config.cards = [{field: 'mktVal', deltaField: 'nope'}];
+            expect(
+                open()
+                    .validate(bp)
+                    .map(it => it.path)
+            ).toContain('/elements/headline/config/cards/0/deltaField');
+        });
+    });
+
     describe('chart', () => {
         it('groups by a dimension x, with a series per y', async () => {
             const chart = widget(ChartWidgetModel, open(), 'sectorChart');
