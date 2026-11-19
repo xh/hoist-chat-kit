@@ -12,6 +12,11 @@ export interface DegradeAnswerContext extends ValidateBlueprintContext {
     maxPasses?: number;
     /** Problems found before translation, such as a parser's, by element ID. Each is an error. */
     elementErrors?: Record<string, string[]>;
+    /**
+     * False when the caller has already trimmed what may be cut short, as a translation that
+     * drops each streaming element's last item does. Default true.
+     */
+    trimInlineRows?: boolean;
 }
 
 /**
@@ -58,7 +63,7 @@ export function degradeAnswer(input: unknown, ctx: DegradeAnswerContext): Bluepr
 
     if (!isPlainObject(input)) return whole([notAnObject()]);
     const bp = cloneDeep(input) as Blueprint;
-    if (!isComplete) trimInlineRows(bp);
+    if (!isComplete && ctx.trimInlineRows !== false) trimInlineRows(bp);
     if (isPlainObject(bp.elements)) {
         Object.entries(bp.elements).forEach(([id, el]) => {
             const errors = [...(getOwn(ctx.elementErrors, id) ?? [])];

@@ -86,10 +86,18 @@ export class BlueprintSource extends HoistBase {
         this.builtFor = BlueprintSource.cubeKey(decl);
         this.context = context;
         this.fields = this.buildFields();
-        this.cube = new Cube({fields: Object.values(this.fields).map(toCubeField)});
+        // An inline source holds its rows from the start, and takes new ones in place.
+        this.cube = new Cube({
+            fields: Object.values(this.fields).map(toCubeField),
+            data: decl.inline ? withRowIds(decl.inline.rows) : []
+        });
 
         if (decl.inline) {
-            this.applyUpdateAsync({replace: decl.inline.rows.map((it, idx) => ({id: idx, ...it}))});
+            this.addReaction({
+                track: () => this.decl.inline?.rows,
+                run: rows => this.applyUpdateAsync({replace: withRowIds(rows)}),
+                equals: 'structural'
+            });
         } else if (decl.artifact) {
             this.loadArtifactAsync(decl.artifact);
         } else if (decl.dataset) {
@@ -149,7 +157,9 @@ export class BlueprintSource extends HoistBase {
      * new one. Its parameters and filter only change what it loads.
      */
     static cubeKey(decl: SourceDecl): PlainObject {
-        return pick(decl, 'dataset', 'fields', 'inline', 'artifact');
+        const ret: PlainObject = pick(decl, 'dataset', 'fields', 'artifact');
+        if (decl.inline) ret.inline = {fields: decl.inline.fields};
+        return ret;
     }
 
     /**
@@ -443,6 +453,10 @@ export class BlueprintSource extends HoistBase {
         });
         return ret;
     }
+}
+
+function withRowIds(rows: PlainObject[]): PlainObject[] {
+    return (rows ?? []).map((it, idx) => ({id: idx, ...it}));
 }
 
 function weightFieldOf(f: FieldDef): string {

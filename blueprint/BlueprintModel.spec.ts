@@ -685,6 +685,45 @@ describe('BlueprintModel', () => {
             view.destroy();
         });
 
+        describe('inline sources', () => {
+            const withInline = (rows: object[], extraField = false): Blueprint => {
+                const bp = p1();
+                bp.sources.stats = {
+                    inline: {
+                        fields: [
+                            {name: 'label', type: 'string'},
+                            {name: 'price', type: 'number'},
+                            ...(extraField ? [{name: 'qty', type: 'number'}] : [])
+                        ],
+                        rows
+                    }
+                } as any;
+                return bp;
+            };
+
+            it('holds its rows from the start, with no load to wait for', () => {
+                const model = open(withInline([{label: 'a', price: 1}]));
+                expect(model.getSource('stats').cube.records.map(it => it.data.price)).toEqual([1]);
+            });
+
+            it('takes new rows in place, keeping its Cube, and rebuilds only for new fields', async () => {
+                const model = open(withInline([{label: 'a', price: 1}])),
+                    source = model.getSource('stats');
+
+                model.updateBlueprint(
+                    withInline([
+                        {label: 'a', price: 1},
+                        {label: 'b', price: 2}
+                    ])
+                );
+                expect(model.getSource('stats')).toBe(source);
+                await vi.waitFor(() => expect(source.cube.records).toHaveLength(2));
+
+                model.updateBlueprint(withInline([{label: 'a', price: 1}], true));
+                expect(model.getSource('stats')).not.toBe(source);
+            });
+        });
+
         it('takes each Cube aggregator from the catalog, and rolls up no number without one', async () => {
             const bp = p1();
             bp.sources.stats = {

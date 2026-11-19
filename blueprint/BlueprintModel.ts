@@ -445,7 +445,7 @@ export class BlueprintModel extends HoistModel {
 
     /**
      * Keep each source whose Cube still fits its declaration, with its subscription and its
-     * widgets' state. A change to its parameters or filter reloads it in place.
+     * widgets' state. A change to its parameters, its filter or its inline rows reloads it in place.
      */
     private syncSources() {
         const decls = this.blueprint.sources ?? {},
