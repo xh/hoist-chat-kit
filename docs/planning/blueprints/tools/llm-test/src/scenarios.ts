@@ -31,6 +31,7 @@ const bound = (v: any, name?: string) => v?.$var && (!name || v.$var === name);
 const filterVarFrom = (bp: Blueprint, gridId: string) => vars(bp, v => v.type === 'filter' && [v.setBy].flat().some((w: any) => w?.element === gridId && w?.output === 'selection')).map(([n]) => n);
 const gridId = (bp: Blueprint, pred: (c: any) => unknown) => els(bp, 'cubeGrid').find(([, e]) => pred(e.config ?? {}))?.[0];
 const dataset = (bp: Blueprint, c: any) => src(bp, c.source).dataset;
+const segmentWidgets = (bp: Blueprint, component: string) => els(bp, component).map(([, e]) => e);
 
 /** Replace each {"$var": name} with that variable's default value. */
 const resolveVars = (bp: Blueprint, o: any): any =>
@@ -122,8 +123,8 @@ export const SCENARIOS: Scenario[] = [
         context: 'Mode: design. The user has write access. A chat is open beside the host blueprint below, which the user is looking at. Its asOf is today.',
         steps: [{prompt: 'Which traders lost the most in Technology today?'}, {prompt: 'Add that chart to my dashboard.'}],
         checks: [
-            ['answered with the losing traders, in text or a segment', o => o.segments.length >= 1 || /Klecko|Rohan|Hills|Trolley|Hellens|Falcon|Corn|Greer|Major/.test(o.replies[0] ?? '')],
-            ['any segment reads the query result', o => o.segments.every(s => Object.values<any>(s.sources ?? {}).some(x => x.artifact))],
+            ['answers with a chart segment over the query result', o => o.segments.some(s => segmentWidgets(s, 'chart').some(e => s.sources?.[e.config?.source]?.artifact))],
+            ['every segment reads the query result, and there is one', o => o.segments.length >= 1 && o.segments.every(s => Object.values<any>(s.sources ?? {}).some(x => x.artifact))],
             ['the host gains a chart filtered to Technology', o => cfg(o.blueprint, 'chart', c => techFilter(o.blueprint, c)).length],
             ['the new chart reuses the host positions source', o => cfg(o.blueprint, 'chart', c => techFilter(o.blueprint, c)).every(c => c.source === 'positions')],
             ['no artifact or inline source in the host', o => !Object.values<any>(o.blueprint.sources ?? {}).some(s => s.artifact || s.inline)]
@@ -185,7 +186,9 @@ export const SCENARIOS: Scenario[] = [
         context: 'Mode: design. The user has write access. A chat is open beside the host blueprint below. Today is 2026-11-18.',
         steps: [{prompt: 'Will I need an umbrella in Chicago tomorrow?'}],
         checks: [
-            ['every segment reads a query result or inline values', o => o.segments.every(s => Object.values<any>(s.sources ?? {}).every(x => x.artifact || x.inline))],
+            ['stat cards of inline values it computed', o => o.segments.some(s => segmentWidgets(s, 'statCardStrip').some(e => s.sources?.[e.config?.source]?.inline))],
+            ['a column chart of the chance of rain', o => o.segments.some(s => segmentWidgets(s, 'chart').some(e => e.config?.type === 'column'))],
+            ['every segment reads a query result or inline values, and there are two', o => o.segments.length >= 2 && o.segments.every(s => Object.values<any>(s.sources ?? {}).every(x => x.artifact || x.inline))],
             ['the host is unchanged', o => JSON.stringify(o.blueprint) === JSON.stringify(loadBlueprint('w2-two-cities.json'))]
         ]
     }
