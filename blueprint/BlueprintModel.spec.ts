@@ -342,6 +342,29 @@ describe('BlueprintModel', () => {
             model.setPreset('posViews', 'risk');
             expect(columnsOf(model)).toContain('var95');
         });
+
+        it('drops run-mode changes on entering design mode, or on replacing the blueprint', async () => {
+            const model = await opened(p3()),
+                path = '/elements/posGrid/config/sortBy',
+                sortOf = () => model.effective.elements.posGrid.config.sortBy;
+            model.setMode('run');
+            model.setTransientValue(path, 'mktVal');
+            expect(sortOf()).toBe('mktVal');
+            model.setMode('design');
+            expect(sortOf()).toEqual(model.blueprint.elements.posGrid.config.sortBy);
+
+            model.setAccess('read');
+            model.setTransientValue(path, 'mktVal');
+            model.setAccess('write');
+            expect(sortOf()).not.toBe('mktVal');
+
+            model.setMode('run');
+            model.setTransientValue(path, 'mktVal');
+            const other = p3();
+            other.elements.posGrid.config.title = 'Other';
+            expect(model.setBlueprint(other)).toEqual([]);
+            expect(sortOf()).not.toBe('mktVal');
+        });
     });
 
     describe('sources', () => {

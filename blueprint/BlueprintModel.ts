@@ -76,15 +76,20 @@ export class BlueprintModel extends HoistModel {
         return this.access === 'write' ? this.requestedMode : 'run';
     }
 
-    /** Switch mode. Design mode takes effect only with write access. */
+    /**
+     * Switch mode. Design mode takes effect only with write access, and drops the run-mode
+     * changes, so the designer sees the definition.
+     */
     @action
     setMode(mode: BlueprintMode) {
         this.requestedMode = mode;
+        if (this.mode === 'design') this.transientValues = {};
     }
 
     @action
     setAccess(access: BlueprintAccess) {
         this.access = access;
+        if (this.mode === 'design') this.transientValues = {};
     }
 
     /** The current blueprint's warnings. */
@@ -142,8 +147,9 @@ export class BlueprintModel extends HoistModel {
     }
 
     /**
-     * Replace the blueprint whole. With errors, nothing changes and the current blueprint stays. A
-     * blueprint equal to the current one changes nothing.
+     * Replace the blueprint whole, dropping run-mode changes made to the one before. With errors,
+     * nothing changes and the current blueprint stays. A blueprint equal to the current one
+     * changes nothing.
      *
      * @returns every issue found, errors and warnings.
      */
@@ -152,6 +158,7 @@ export class BlueprintModel extends HoistModel {
         if (isEqual(bp, this.blueprint)) return this.issues;
         const issues = this.validate(bp);
         if (!hasErrors(issues)) {
+            this.transientValues = {};
             this.commit(bp, issues);
             this.history = [];
         }
