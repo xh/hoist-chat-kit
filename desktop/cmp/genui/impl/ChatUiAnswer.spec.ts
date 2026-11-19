@@ -142,6 +142,46 @@ describe('a chart in an answer', () => {
         expect(card.title).toEqual(props.title);
     });
 
+    it("formats the y axis by its field's kind, through a kind the catalog bases on fraction", () => {
+        const withKinds = new DataCatalog({datasets: {}, kinds: {chance: {base: 'fraction'}}}),
+            model = new BlueprintModel({
+                blueprint: {
+                    sources: {
+                        rain: {
+                            inline: {
+                                fields: [
+                                    {name: 'hour', type: 'string', isDimension: true},
+                                    {name: 'p', type: 'number', kind: 'chance'}
+                                ],
+                                rows: [{hour: '9am', p: 0.4}]
+                            }
+                        }
+                    },
+                    root: 'c',
+                    elements: {
+                        c: {
+                            component: 'chart',
+                            config: {source: 'rain', type: 'column', x: 'hour', y: ['p']}
+                        }
+                    }
+                },
+                catalog: withKinds,
+                registry: catalog.registry,
+                dataProvider: null,
+                isAnswer: true
+            }),
+            chart = new ChartWidgetModel({
+                blueprintModel: model,
+                id: 'c',
+                renderElement: () => null
+            });
+        onTestFinished(() => {
+            chart.destroy();
+            model.destroy();
+        });
+        expect(toChatChartProps(chart).yAxis.format).toBe('percent');
+    });
+
     describe('the load bar', () => {
         const REQ = {dataset: 'positions', params: {}, fields: [], groupBy: []};
 

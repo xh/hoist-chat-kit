@@ -31,6 +31,11 @@ export interface BlueprintModelConfig {
     artifactProvider?: BlueprintArtifactProvider;
     /** What the host passes to its widgets, such as the chat that shows an answer. */
     hostContext?: unknown;
+    /**
+     * The presentation a widget draws in when its config names none, if the registry has it for
+     * that widget, such as the card a chat answer draws in. Default none: each widget's own.
+     */
+    defaultPresentation?: string;
     /** True for a chat answer, which may hold literal parameters, artifacts and inline sources. */
     isAnswer?: boolean;
     /** The user's mode. Default run. Design mode takes effect only with write access. */
@@ -63,6 +68,7 @@ export class BlueprintModel extends HoistModel {
     artifacts: Record<string, string>;
     readonly artifactProvider: BlueprintArtifactProvider;
     readonly hostContext: unknown;
+    readonly defaultPresentation: string;
     readonly isAnswer: boolean;
     readonly urlAllowList: string[];
 
@@ -140,6 +146,7 @@ export class BlueprintModel extends HoistModel {
         artifacts = {},
         artifactProvider = null,
         hostContext = null,
+        defaultPresentation = null,
         isAnswer = false,
         urlAllowList = [],
         mode = 'run',
@@ -152,6 +159,7 @@ export class BlueprintModel extends HoistModel {
         this.artifacts = artifacts;
         this.artifactProvider = artifactProvider;
         this.hostContext = hostContext;
+        this.defaultPresentation = defaultPresentation;
         this.isAnswer = isAnswer;
         const badUrl = urlAllowList.find(it => !parseWebUrl(it));
         throwIf(badUrl, `urlAllowList entries must be http or https URLs: '${badUrl}'`);

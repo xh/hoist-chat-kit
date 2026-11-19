@@ -110,6 +110,31 @@ describe('show_ui with answer blueprints', () => {
         );
     });
 
+    it('draws a widget in its chat card when the answer names no presentation', async () => {
+        const {catalog, chatModel} = setup(),
+            {container} = show(catalog, chatModel, {
+                sources: {
+                    pnl: {
+                        inline: {
+                            fields: [
+                                {name: 'x', type: 'string', isDimension: true},
+                                {name: 'v', type: 'number'}
+                            ],
+                            rows: [{x: 'a', v: 1}]
+                        }
+                    }
+                },
+                root: 'c',
+                elements: {
+                    c: {
+                        component: 'chart',
+                        config: {source: 'pnl', type: 'column', x: 'x', y: ['v']}
+                    }
+                }
+            });
+        await vi.waitFor(() => expect(container.querySelector('.xh-chat-ui-chart')).toBeTruthy());
+    });
+
     it('renders a reply stored as a catalog document as it always has', () => {
         const {catalog, chatModel} = setup();
         show(catalog, chatModel, {

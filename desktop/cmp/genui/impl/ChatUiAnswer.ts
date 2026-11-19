@@ -18,6 +18,7 @@ import {useEffect, useState} from 'react';
 import {
     type BlueprintDataProvider,
     BlueprintModel,
+    type DataCatalog,
     type FieldDef,
     runDatasetQueryAsync
 } from '../../../../blueprint';
@@ -118,7 +119,7 @@ const gridCard = hoistCmp.factory({
             columns = castArray(config.columnState ?? [])
                 .map(it => (isString(it) ? it : it?.field))
                 .filter(it => source.fields[it])
-                .map(it => toGridColumn(source.fields[it]));
+                .map(it => toGridColumn(source.fields[it], blueprintModel.catalog));
         return chatUiGrid({
             title: config.title,
             columns,
@@ -173,7 +174,7 @@ export function toChatChartProps(
         yAxis: {
             ...layout.yAxis,
             title: layout.yAxis?.title || null,
-            ...(yField ? toChatFormat(yField) : {})
+            ...(yField ? toChatFormat(yField, model.blueprintModel.catalog) : {})
         },
         series: (layout.series ?? []).map((it, idx, all) => ({
             ...it,
@@ -255,7 +256,9 @@ class ChatUiAnswerModel extends HoistModel {
             registry: catalog.registry,
             dataProvider: this.gate ?? provider,
             isAnswer: true,
-            hostContext: this.host
+            hostContext: this.host,
+            // An answer draws as a chat reply does, with no size to fill.
+            defaultPresentation: 'card'
         });
         this.update(props);
         this.viewModel = new BlueprintViewModel(this.blueprintModel);
@@ -282,13 +285,13 @@ class ChatUiAnswerModel extends HoistModel {
 }
 
 // A field as a chat grid column, the reverse of how an inline grid's columns become fields.
-function toGridColumn(def: FieldDef): ChatUiGridColumn {
+function toGridColumn(def: FieldDef, catalog: DataCatalog): ChatUiGridColumn {
     const ret: ChatUiGridColumn = {
         field: def.name,
         type: toChatType(def),
         ...(def.label ? {headerName: def.label} : {})
     };
-    return ret.type === 'number' ? {...ret, ...toChatFormat(def)} : ret;
+    return ret.type === 'number' ? {...ret, ...toChatFormat(def, catalog)} : ret;
 }
 
 function toChatType(def: FieldDef): ChatUiGridColumn['type'] {
@@ -298,11 +301,16 @@ function toChatType(def: FieldDef): ChatUiGridColumn['type'] {
 }
 
 // A number field's format as a chat number format, the reverse of how a chat format becomes one.
-function toChatFormat(def: FieldDef): {format: ChatUiNumberFormat; decimals?: number} {
-    const format = (isPlainObject(def.format) ? def.format : {}) as PlainObject;
+// A kind counts as its base, as a catalog's `chance` is a fraction.
+function toChatFormat(
+    def: FieldDef,
+    catalog: DataCatalog
+): {format: ChatUiNumberFormat; decimals?: number} {
+    const format = (isPlainObject(def.format) ? def.format : {}) as PlainObject,
+        base = catalog?.kinds[def.kind]?.base ?? def.kind;
     return {
         format:
-            def.kind === 'fraction'
+            base === 'fraction'
                 ? 'percent'
                 : format.prefix === '$'
                   ? 'currency'
