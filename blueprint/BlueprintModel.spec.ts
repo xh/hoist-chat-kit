@@ -701,6 +701,16 @@ describe('BlueprintModel', () => {
                 return bp;
             };
 
+            it('keeps rows whose own id column repeats', () => {
+                const model = open(
+                    withInline([
+                        {id: 1, label: 'a', price: 1},
+                        {id: 1, label: 'b', price: 2}
+                    ])
+                );
+                expect(model.getSource('stats').cube.records).toHaveLength(2);
+            });
+
             it('holds its rows from the start, with no load to wait for', () => {
                 const model = open(withInline([{label: 'a', price: 1}]));
                 expect(model.getSource('stats').cube.records.map(it => it.data.price)).toEqual([1]);

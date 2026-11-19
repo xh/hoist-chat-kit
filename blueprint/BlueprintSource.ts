@@ -89,7 +89,9 @@ export class BlueprintSource extends HoistBase {
         // An inline source holds its rows from the start, and takes new ones in place.
         this.cube = new Cube({
             fields: Object.values(this.fields).map(toCubeField),
-            data: decl.inline ? withRowIds(decl.inline.rows) : []
+            data: decl.inline ? withRowIds(decl.inline.rows) : [],
+            // An inline row's own id may repeat, so each takes one of its own.
+            ...(decl.inline ? {idSpec: INLINE_ROW_ID} : {})
         });
 
         if (decl.inline) {
@@ -455,8 +457,10 @@ export class BlueprintSource extends HoistBase {
     }
 }
 
+const INLINE_ROW_ID = 'xhInlineRowId';
+
 function withRowIds(rows: PlainObject[]): PlainObject[] {
-    return (rows ?? []).map((it, idx) => ({id: idx, ...it}));
+    return (rows ?? []).map((it, idx) => ({...it, [INLINE_ROW_ID]: idx}));
 }
 
 function weightFieldOf(f: FieldDef): string {
