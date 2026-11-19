@@ -1322,7 +1322,6 @@ export class ChatUiCatalog {
         });
     }
 
-    /** Render a document as an answer blueprint, through the platform's answer renderer. */
     /**
      * The answers in a reply, in order, as blueprints: each `show_ui` call, component call and UI
      * of its text. A program with state, such as OpenUI Lang's, gives its text, as its blueprint
@@ -1395,6 +1394,7 @@ export class ChatUiCatalog {
         return idx < 0 ? null : `${message.id}:${idx}`;
     }
 
+    /** Render a document as an answer blueprint, through the platform's answer renderer. */
     private renderAnswer(doc: ChatUiDocument, context: ChatUiDocumentContext): ReactNode {
         // An element may say it is complete inside a partial document, never the reverse.
         const idsWhere = (test: (el: ChatUiElement) => boolean) =>
