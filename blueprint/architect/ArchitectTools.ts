@@ -8,6 +8,7 @@ import type {DataCatalog, DatasetDef} from '../DataCatalog';
 import {applyOps} from '../applyOps';
 import {checkEditAllowed} from '../impl/access';
 import {checkFilter} from '../impl/configSchema';
+import {fieldUsages} from '../usages';
 import {getAt, getOwn} from '../impl/pointer';
 import {queryRows} from '../impl/queryRows';
 
@@ -332,7 +333,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
     {
         name: 'find_usages',
         description:
-            'Find every path in the blueprint that uses a field, a named format, a variable or a source. Give exactly one.',
+            'Find every path in the blueprint that uses a field, a named format, a variable or a source. Give exactly one. A field counts where a widget, a source or a variable names it, and where a widget with no source of its own, such as a grouping chooser, offers it to the widgets that read its variable. A field instance counts on its own name and on its base field.',
         parameters: {
             type: 'object',
             properties: {
@@ -342,9 +343,24 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
                 source: {type: 'string'}
             }
         },
-        run: (input, {blueprint}) => {
+        run: (input, {blueprint, catalogs}) => {
             const [kind, name] = Object.entries(input ?? {}).find(([, v]) => v) ?? [];
             if (!kind) throw new Error('give one of field, format, variable or source');
+            if (kind === 'field') {
+                const uses = catalogs.flatMap(cat =>
+                    Object.entries(fieldUsages(blueprint, cat)).flatMap(([ds, fields]) =>
+                        Object.entries(fields).flatMap(([field, list]) =>
+                            list
+                                .filter(it => field === name || it.instance === name)
+                                .map(it => ({dataset: ds, path: it.path}))
+                        )
+                    )
+                );
+                return {
+                    usages: uniq(uses.map(it => it.path)),
+                    datasets: uniq(uses.map(it => it.dataset))
+                };
+            }
             const hits: string[] = [],
                 walk = (o: any, path: string) => {
                     if (isArray(o)) return o.forEach((v, i) => walk(v, `${path}/${i}`));
@@ -355,16 +371,10 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
                                 isFormat =
                                     kind === 'format' &&
                                     k === 'format' &&
-                                    (v === name || (v as PlainObject)?.name === name),
-                                isField =
-                                    kind === 'field' &&
-                                    ['field', 'x', 'sortBy'].includes(k) &&
-                                    String(v).split('|')[0] === name;
-                            if (isSource || isFormat || isField) hits.push(`${path}/${k}`);
+                                    (v === name || (v as PlainObject)?.name === name);
+                            if (isSource || isFormat) hits.push(`${path}/${k}`);
                             walk(v, `${path}/${k}`);
                         }
-                    } else if (kind === 'field' && o === name) {
-                        hits.push(path);
                     }
                 };
             walk(blueprint, '');

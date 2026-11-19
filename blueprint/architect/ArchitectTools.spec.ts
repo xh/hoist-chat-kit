@@ -6,6 +6,7 @@ import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blue
 import {BlueprintModel} from '../BlueprintModel';
 import {BlueprintRegistry} from '../BlueprintRegistry';
 import {FakeBlueprintDataProvider} from '../FakeBlueprintDataProvider';
+import {fieldUsages} from '../usages';
 import {architectPrompt} from './architectPrompt';
 import type {ArchitectToolError} from './ArchitectTools';
 import {architectChatTools} from './architectChatTools';
@@ -348,8 +349,21 @@ describe('Architect tools', () => {
         expect(run('find_usages', {source: 'orders'}, model).usages).toEqual([
             '/elements/ordersGrid/config/source'
         ]);
-        expect(run('find_usages', {field: 'pnlDay'}, model).usages).toEqual(
-            expect.arrayContaining(['/elements/sectorChart/config/y/0'])
+        expect(run('find_usages', {field: 'pnlDay'}, model)).toEqual({
+            usages: expect.arrayContaining([
+                '/elements/headline/config/cards/2/field',
+                '/elements/posGrid/config/columnState/1',
+                '/elements/sectorChart/config/y/0'
+            ]),
+            datasets: ['positions']
+        });
+    });
+
+    it('finds the uses of a field that the Registry panel marks', () => {
+        const model = open(),
+            marked = fieldUsages(model.blueprint, portfolioCatalog).positions.strategy;
+        expect(run('find_usages', {field: 'strategy'}, model).usages).toEqual(
+            marked.map(it => it.path)
         );
     });
 
