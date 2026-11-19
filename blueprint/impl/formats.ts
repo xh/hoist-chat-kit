@@ -69,7 +69,10 @@ export function formatValue(
             {scale, ...rest} = opts,
             numOpts = {
                 ...(omit(rest, 'date', 'pattern') as NumberFormatOptions),
-                ...(asText ? {asHtml: true, colorSpec: false} : {})
+                // As text, with none of the markup Hoist adds for colors, units and alignment.
+                ...(asText
+                    ? {asHtml: true, colorSpec: false, labelCls: null, forceLedgerAlign: false}
+                    : {})
             };
         if (base === 'fraction') return fmtPercent(v, numOpts);
         if (base === 'bps') return fmtNumber(v == null ? v : v * 10000, {label: 'bp', ...numOpts});

@@ -32,7 +32,11 @@ export function scenarioRegistry(): BlueprintRegistry {
             args: it.args,
             resolve: () => null
         })),
-        actions: app('actions').map(([name, it]) => ({name, params: it.params})),
+        actions: app('actions').map(([name, it]) => ({
+            name,
+            params: it.params,
+            sideEffects: it.sideEffects
+        })),
         renderers: app('renderers').map(([name, it]) => ({name, appliesTo: it.appliesTo}))
     });
 }

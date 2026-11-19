@@ -24,6 +24,7 @@ import type {
     BlueprintDataUpdate
 } from './BlueprintDataProvider';
 import {BlueprintModel} from './BlueprintModel';
+import {BlueprintWidgetModel} from './BlueprintWidgetModel';
 import {FakeBlueprintDataProvider} from './FakeBlueprintDataProvider';
 
 /**
@@ -69,7 +70,9 @@ describe('BlueprintModel', () => {
             catalog: portfolioCatalog,
             registry: scenarioRegistry(),
             dataProvider,
-            artifacts: ARTIFACTS
+            artifacts: ARTIFACTS,
+            mode: 'design',
+            access: 'write'
         });
         onTestFinished(() => ret.destroy());
         return ret;
@@ -234,6 +237,89 @@ describe('BlueprintModel', () => {
         });
     });
 
+    describe('presets', () => {
+        const columnsOf = (model: BlueprintModel) =>
+            model.effective.elements.posGrid.config.columnState;
+
+        it("shows each group's active preset on the paths it controls, from its default", async () => {
+            const provider = new RecordingProvider(),
+                model = await opened(p3(), provider);
+            expect(model.getActivePreset('posViews')).toBe('pnl');
+            expect(columnsOf(model)).toEqual(['mktVal', 'pnlDay', 'pnlMtd', 'pnlYtd']);
+            expect(model.blueprint.elements.posGrid.config.columnState).toBeUndefined();
+
+            model.setPreset('posViews', 'risk');
+            expect(columnsOf(model)).toContain('var95');
+            const req = provider.subs
+                .filter(it => it.isOpen)
+                .find(it => it.req.dataset === 'positions').req;
+            expect(req.fields).toEqual(
+                expect.arrayContaining(['var95', expect.objectContaining({name: 'retYtd'})])
+            );
+        });
+
+        it('opens in run mode with read access, and enters design mode only with write access', () => {
+            const model = new BlueprintModel({
+                blueprint: p3(),
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: new RecordingProvider()
+            });
+            onTestFinished(() => model.destroy());
+            expect([model.mode, model.access]).toEqual(['run', 'read']);
+
+            model.setMode('design');
+            expect(model.mode).toBe('run');
+            model.setAccess('write');
+            expect(model.mode).toBe('design');
+        });
+
+        it('refuses every edit in run mode, from any author', async () => {
+            const model = await opened(p3());
+            model.setMode('run');
+            const {issues} = model.applyEdit({
+                ops: [{op: 'set', path: '/elements/posGrid/config/sortBy', value: 'mktVal'}]
+            });
+            expect(issues).toMatchObject([{code: 'edit.notAllowed'}]);
+            expect(model.version).toBe(1);
+        });
+
+        it('writes a design-mode change to a controlled path into the active preset', async () => {
+            const model = await opened(p3()),
+                grid = new BlueprintWidgetModel({
+                    blueprintModel: model,
+                    id: 'posGrid',
+                    renderElement: () => null
+                });
+            onTestFinished(() => grid.destroy());
+
+            expect(grid.setConfig('/columnState', ['mktVal'])).toBe(true);
+            expect(
+                model.blueprint.presets.posViews.items.pnl.set.elements.posGrid.config.columnState
+            ).toEqual(['mktVal']);
+            expect(model.blueprint.elements.posGrid.config.columnState).toBeUndefined();
+            expect(columnsOf(model)).toEqual(['mktVal']);
+        });
+
+        it('keeps a run-mode change to a controlled path transient, until the preset switches', async () => {
+            const model = await opened(p3()),
+                grid = new BlueprintWidgetModel({
+                    blueprintModel: model,
+                    id: 'posGrid',
+                    renderElement: () => null
+                });
+            onTestFinished(() => grid.destroy());
+            model.setMode('run');
+
+            expect(grid.setConfig('/columnState', ['mktVal'])).toBe(true);
+            expect(model.version).toBe(1);
+            expect(columnsOf(model)).toEqual(['mktVal']);
+
+            model.setPreset('posViews', 'risk');
+            expect(columnsOf(model)).toContain('var95');
+        });
+    });
+
     describe('sources', () => {
         it('merges its widgets demands into one request', async () => {
             const provider = new RecordingProvider();
@@ -382,6 +468,18 @@ describe('BlueprintModel', () => {
             bp.elements.posGrid.config.groupBy = ['symbol'];
             model.setBlueprint(bp);
             expect(provider.subs).toHaveLength(1);
+        });
+
+        it("waits for a grid's selected value that a source parameter binds, then loads it", async () => {
+            const provider = new RecordingProvider(),
+                model = await opened(p3(), provider),
+                prices = model.getSource('prices');
+            expect(prices.isWaiting).toBe(true);
+            expect(provider.subs.some(it => it.req.dataset === 'prices')).toBe(false);
+
+            model.setOutput('posGrid', 'selected', {sector: 'Technology', symbol: 'NVDA'});
+            expect(prices.isWaiting).toBe(false);
+            expect(provider.last.req).toMatchObject({dataset: 'prices', params: {symbol: 'NVDA'}});
         });
 
         it('subscribes again for a field it has not loaded', async () => {

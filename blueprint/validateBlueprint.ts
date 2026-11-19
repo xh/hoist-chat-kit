@@ -4,6 +4,7 @@ import type {Blueprint, BlueprintIssue} from './Blueprint';
 import type {BlueprintRegistry} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter} from './impl/configSchema';
+import {isForbiddenKey} from './impl/pointer';
 
 export interface ValidateBlueprintContext {
     catalog: Pick<DataCatalog, 'getDataset'>;
@@ -47,6 +48,15 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         err('structure.notObject', '', 'a blueprint is a JSON object');
         return issues;
     }
+
+    // A key that reaches a prototype is refused before anything else reads the blueprint.
+    walk(bp, (o, path) => {
+        if (!isPlainObject(o)) return;
+        Object.keys(o)
+            .filter(isForbiddenKey)
+            .forEach(k => err('path.forbidden', `${path}/${k}`, `'${k}' is forbidden as a key`));
+    });
+    if (issues.length) return issues;
 
     for (const k of Object.keys(bp)) {
         if (!TOP_LEVEL_KEYS.includes(k)) {
@@ -414,7 +424,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             );
         }
         walk(cfg, (o, path) => {
-            if (!isPlainObject(o) || !o.type || !path.endsWith('/action')) return;
+            if (!isPlainObject(o) || !o.type || !/\/action(\/\d+)?$/.test(path)) return;
             const spec = registry.actions[o.type];
             if (!spec) {
                 err(
@@ -424,8 +434,19 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 );
                 return;
             }
+            if (spec.sideEffects && isAnswer) {
+                err(
+                    'action.notInAnswer',
+                    `${p}${path}/type`,
+                    `${o.type} changes data, and a chat answer cannot change data`
+                );
+            }
             for (const k of Object.keys(o)) {
-                if (k !== 'type' && k !== 'confirm' && !(k in spec.params)) {
+                if (
+                    k !== 'type' &&
+                    k !== 'confirm' &&
+                    !Object.hasOwn(spec.params.properties ?? {}, k)
+                ) {
                     err('action.unknownParam', `${p}${path}/${k}`, `${o.type} takes no '${k}'`);
                 }
             }

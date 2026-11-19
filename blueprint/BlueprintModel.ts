@@ -1,8 +1,8 @@
-import {HoistModel, type LoadSpec} from '@xh/hoist/core';
+import {HoistModel, type LoadSpec, type PlainObject} from '@xh/hoist/core';
 import type {FilterSpec} from '@xh/hoist/data';
-import {action, observable, observableRef} from '@xh/hoist/mobx';
+import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
-import {isEqual} from 'lodash';
+import {cloneDeep, isEmpty, isEqual, omitBy, pickBy} from 'lodash';
 import type {Blueprint, BlueprintEdit, BlueprintIssue, ResolverCall} from './Blueprint';
 import type {BlueprintDataProvider} from './BlueprintDataProvider';
 import type {BlueprintRegistry} from './BlueprintRegistry';
@@ -10,8 +10,13 @@ import {BlueprintSource} from './BlueprintSource';
 import {BlueprintVariable} from './BlueprintVariable';
 import type {DataCatalog} from './DataCatalog';
 import {applyOps} from './applyOps';
+import {type ActionRunContext, describeAction, parseWebUrl, runActionsAsync} from './impl/actions';
 import {resolveBindings, resolveFilter} from './impl/bindings';
+import {getAt as valueAt, setAt} from './impl/pointer';
 import {validateBlueprint} from './validateBlueprint';
+import type {BlueprintAccess, BlueprintMode} from './architect/blueprintContextProvider';
+import {checkEditAllowed} from './impl/access';
+import {checkVariableValue} from './impl/variableValues';
 
 export interface BlueprintModelConfig {
     /** The blueprint to open. Default none. Throws if it has errors. */
@@ -23,6 +28,15 @@ export interface BlueprintModelConfig {
     artifacts?: Record<string, string>;
     /** True for a chat answer, which may hold literal parameters, artifacts and inline sources. */
     isAnswer?: boolean;
+    /** The user's mode. Default run. Design mode takes effect only with write access. */
+    mode?: BlueprintMode;
+    /** The user's access to the blueprint. Default read. */
+    access?: BlueprintAccess;
+    /**
+     * URLs the `openUrl` action may open, each an http or https origin with an optional path, such
+     * as `https://reports.example.com/daily`. Default none, so no URL opens.
+     */
+    urlAllowList?: string[];
 }
 
 /** The result of an edit: the new version, or the issues that refused it. */
@@ -42,6 +56,7 @@ export class BlueprintModel extends HoistModel {
     readonly dataProvider: BlueprintDataProvider;
     readonly artifacts: Record<string, string>;
     readonly isAnswer: boolean;
+    readonly urlAllowList: string[];
 
     /** The current blueprint. Always valid: it has no errors. */
     @observableRef accessor blueprint: Blueprint = null;
@@ -52,6 +67,26 @@ export class BlueprintModel extends HoistModel {
     /** Each edit applied since the blueprint was last replaced whole, oldest first. */
     @observableRef accessor history: (BlueprintEdit & {version: number})[] = [];
 
+    /**
+     * The user's mode: design only with write access, else run. In run mode, a change a user makes
+     * in a widget, such as a sort, stays transient, as personalizations do not exist yet, and every
+     * edit is refused. In design mode, a widget's change is an edit.
+     */
+    get mode(): BlueprintMode {
+        return this.access === 'write' ? this.requestedMode : 'run';
+    }
+
+    /** Switch mode. Design mode takes effect only with write access. */
+    @action
+    setMode(mode: BlueprintMode) {
+        this.requestedMode = mode;
+    }
+
+    @action
+    setAccess(access: BlueprintAccess) {
+        this.access = access;
+    }
+
     /** The current blueprint's warnings. */
     @observableRef accessor issues: BlueprintIssue[] = [];
 
@@ -61,13 +96,27 @@ export class BlueprintModel extends HoistModel {
     /** Each source, by name. */
     @observableRef accessor sources: Record<string, BlueprintSource> = {};
 
+    /** The user's access to the blueprint. Read by default, so nothing grants editing unasked. */
+    @observable accessor access: BlueprintAccess = 'read';
+
+    @observable private accessor requestedMode: BlueprintMode = 'run';
+
+    /** The preset the user chose in each group, by group name. Transient. */
+    @observableRef accessor activePresets: Record<string, string> = {};
+
+    // Values a widget set in run mode on paths that presets control, by path. Transient.
+    @observableRef private accessor transientValues: Record<string, unknown> = {};
+
     constructor({
         blueprint = null,
         catalog,
         registry,
         dataProvider,
         artifacts = {},
-        isAnswer = false
+        isAnswer = false,
+        urlAllowList = [],
+        mode = 'run',
+        access = 'read'
     }: BlueprintModelConfig) {
         super();
         this.catalog = catalog;
@@ -75,6 +124,11 @@ export class BlueprintModel extends HoistModel {
         this.dataProvider = dataProvider;
         this.artifacts = artifacts;
         this.isAnswer = isAnswer;
+        const badUrl = urlAllowList.find(it => !parseWebUrl(it));
+        throwIf(badUrl, `urlAllowList entries must be http or https URLs: '${badUrl}'`);
+        this.urlAllowList = urlAllowList;
+        this.requestedMode = mode;
+        this.access = access;
         if (blueprint) {
             const issues = this.setBlueprint(blueprint);
             throwIf(hasErrors(issues), `Invalid blueprint: ${issues[0]?.message}`);
@@ -105,7 +159,7 @@ export class BlueprintModel extends HoistModel {
     }
 
     /**
-     * Apply an edit as one unit. With errors, nothing applies. An edit that changes nothing leaves
+     * Apply an edit as one unit, in design mode only. With errors, nothing applies. An edit that changes nothing leaves
      * the version and history alone. An edit written against an older
      * version is refused for now: the slice does not yet merge edits that do not overlap.
      */
@@ -123,6 +177,8 @@ export class BlueprintModel extends HoistModel {
                 ]
             };
         }
+        const refused = checkEditAllowed(edit.ops, this.mode, this.access);
+        if (refused) return {issues: [refused]};
         const {result, issue} = applyOps(this.blueprint ?? {}, edit.ops);
         if (issue) return {issues: [issue]};
         if (isEqual(result, this.blueprint)) return {version: this.version, issues: this.issues};
@@ -133,6 +189,64 @@ export class BlueprintModel extends HoistModel {
         return {version: this.version, issues};
     }
 
+    /** The catalogs the blueprint reads, as the Architect's tools take them. */
+    get catalogs(): DataCatalog[] {
+        return [this.catalog];
+    }
+
+    /**
+     * The blueprint as widgets show it: the definition, with each path that a preset group
+     * controls set from the group's active preset, then any transient change made in run mode.
+     */
+    @computed
+    get effective(): Blueprint {
+        const {blueprint, transientValues} = this,
+            groups = Object.entries(blueprint?.presets ?? {});
+        if (!blueprint || (!groups.length && isEmpty(transientValues))) return blueprint;
+
+        const ret = cloneDeep(blueprint);
+        groups.forEach(([name, group]) => {
+            const item = group.items?.[this.getActivePreset(name)];
+            group.controls?.forEach(({path}) => {
+                const value = valueAt(item?.set, path);
+                if (value !== undefined) setAt(ret, path, value);
+            });
+        });
+        Object.entries(transientValues).forEach(([path, value]) => setAt(ret, path, value));
+        return ret;
+    }
+
+    /** The active preset of a group: the user's choice, or the group's default. */
+    getActivePreset(group: string): string {
+        const def = this.blueprint?.presets?.[group];
+        if (!def) return null;
+        return this.activePresets[group] ?? def.default ?? Object.keys(def.items ?? {})[0] ?? null;
+    }
+
+    /** Switch a group to one of its presets. Clears transient changes to the paths it controls. */
+    @action
+    setPreset(group: string, item: string) {
+        const def = this.blueprint?.presets?.[group];
+        throwIf(!def?.items?.[item], `No preset '${item}' in group '${group}'.`);
+        this.activePresets = {...this.activePresets, [group]: item};
+        const paths = def.controls.map(it => it.path);
+        this.transientValues = omitBy(this.transientValues, (_, path) => paths.includes(path));
+    }
+
+    /** The group and active preset that control a path, or null if no preset group does. */
+    getPresetControl(path: string): {group: string; item: string} {
+        const entry = Object.entries(this.blueprint?.presets ?? {}).find(([, it]) =>
+            it.controls?.some(c => c.path === path)
+        );
+        return entry ? {group: entry[0], item: this.getActivePreset(entry[0])} : null;
+    }
+
+    /** Hold a run-mode change a user made in a widget, without editing the blueprint. */
+    @action
+    setTransientValue(path: string, value: unknown) {
+        this.transientValues = {...this.transientValues, [path]: value};
+    }
+
     getVariable(name: string): BlueprintVariable {
         return this.variables.find(it => it.name === name) ?? null;
     }
@@ -141,11 +255,18 @@ export class BlueprintModel extends HoistModel {
         return this.sources[name] ?? null;
     }
 
-    /** Set a variable that a prompt, an action or the Architect may set. */
-    setVariable(name: string, value: unknown) {
+    /**
+     * Set a variable that a prompt, an action or the Architect may set. Throws for a value that
+     * does not match the variable's type or options.
+     * @returns its value once set.
+     */
+    setVariable(name: string, value: unknown): unknown {
         const v = this.getVariable(name);
         throwIf(!v, `Unknown variable '${name}'.`);
+        const problem = checkVariableValue(name, v.decl, value, this.registry);
+        throwIf(problem, problem);
         v.set(value);
+        return v.value;
     }
 
     /** Restore a variable's default. */
@@ -165,6 +286,24 @@ export class BlueprintModel extends HoistModel {
                 v.setOutputValue(idx, w.field ? ((value as any)?.[w.field] ?? null) : value);
             })
         );
+    }
+
+    /**
+     * Run an action, or a list of up to 8 as steps, as a button or a row action does. Every step
+     * is checked first, and a step that fails stops the rest. The user sees why.
+     *
+     * @returns true if every step ran.
+     */
+    runActionsAsync(
+        actions: PlainObject | PlainObject[],
+        ctx: ActionRunContext = {}
+    ): Promise<boolean> {
+        return runActionsAsync(this, actions, ctx);
+    }
+
+    /** An action's description, with its values as it would run now - for its tooltip. */
+    describeAction(action: PlainObject, ctx: ActionRunContext = {}): string {
+        return describeAction(this, action, ctx);
     }
 
     /** A copy of a value with each binding replaced by its variable's current value. */
@@ -204,6 +343,13 @@ export class BlueprintModel extends HoistModel {
     // Implementation
     //------------------
     private commit(bp: Blueprint, issues: BlueprintIssue[]) {
+        if (!isEqual(bp.presets, this.blueprint?.presets)) {
+            this.activePresets = pickBy(
+                this.activePresets,
+                (item, group) => !!bp.presets?.[group]?.items?.[item]
+            );
+            this.transientValues = {};
+        }
         this.blueprint = bp;
         this.issues = issues;
         this.version++;

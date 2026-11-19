@@ -83,9 +83,13 @@ function checkNode(value: unknown, schema: PlainObject, path: SchemaPath): Schem
             : fail('expected a renderer name, or an object with a name');
     }
     if (schema['x-action']) {
-        return isPlainObject(value) && isString((value as PlainObject).type)
+        const steps = isArray(value) ? value : [value],
+            isAction = (it: unknown) => isPlainObject(it) && isString((it as PlainObject).type);
+        if (!steps.length || steps.length > 8)
+            return fail('expected one action, or a list of 1 to 8');
+        return steps.every(isAction)
             ? []
-            : fail('expected an action with a type');
+            : fail('expected an action with a type, or a list of them');
     }
     return null;
 }

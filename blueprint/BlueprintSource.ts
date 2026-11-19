@@ -29,6 +29,8 @@ import {getWriters} from './validateBlueprint';
 /** The parts of a blueprint's runtime a source reads. */
 export interface BlueprintSourceContext {
     readonly blueprint: Blueprint;
+    /** The blueprint as widgets show it, with active presets applied. */
+    readonly effective: Blueprint;
     readonly catalog: DataCatalog;
     readonly registry: BlueprintRegistry;
     readonly dataProvider: BlueprintDataProvider;
@@ -249,7 +251,7 @@ export class BlueprintSource extends HoistBase {
      */
     private getBindingFields(): string[] {
         const {context} = this,
-            {blueprint} = context,
+            {effective: blueprint} = context,
             elements = blueprint?.elements ?? {},
             variables = blueprint?.variables ?? {},
             ret: string[] = [];
@@ -272,7 +274,7 @@ export class BlueprintSource extends HoistBase {
     }
 
     private getWidgets(): BlueprintElement[] {
-        return Object.values(this.context.blueprint?.elements ?? {}).filter(
+        return Object.values(this.context.effective?.elements ?? {}).filter(
             el => el.config?.source === this.name
         );
     }

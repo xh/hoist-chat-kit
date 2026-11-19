@@ -1,9 +1,10 @@
 import type {ElementFactory, PlainObject} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
-import {castArray, isEmpty} from 'lodash';
+import {castArray, isEmpty, isPlainObject} from 'lodash';
 import {findSchemaProblems} from '../impl/SchemaUtils';
 import type {ReactNode} from 'react';
 import type {Blueprint, BlueprintIssue} from './Blueprint';
+import type {BlueprintModel} from './BlueprintModel';
 import type {BlueprintVariable} from './BlueprintVariable';
 import type {BlueprintWidgetConfig, BlueprintWidgetModel} from './BlueprintWidgetModel';
 import type {FieldDef} from './DataCatalog';
@@ -121,12 +122,33 @@ export interface ResolverSpec {
 /** A type of action that a widget's action prop can run. */
 export interface ActionSpec {
     name: string;
-    /** Each parameter, with a description for the LLM. */
-    params: Record<string, string>;
+    /**
+     * An object schema for the action's parameters, which sit beside its `type`. Each step's
+     * values are checked against it, once resolved, before any step of a list runs.
+     */
+    params: PlainObject;
     guidance?: string;
     /** True if the action changes data. It always asks the user to confirm. */
     sideEffects?: boolean;
     app?: boolean;
+    /**
+     * The action's description, built from its resolved parameters, shown as its tooltip and in
+     * any confirmation. Default its type.
+     */
+    describe?: (params: PlainObject) => string;
+    /**
+     * Run an app action. Its parameters arrive resolved and checked against `params`, but treat
+     * them as untrusted all the same: a model, or a user's input, may have chosen them. Throw to
+     * stop the steps after it, with a message the user sees.
+     */
+    run?: (params: PlainObject, ctx: ActionContext) => unknown;
+}
+
+/** What an app action's `run` receives beside its parameters. */
+export interface ActionContext {
+    blueprintModel: BlueprintModel;
+    /** The row a row action was run on, if any. */
+    row?: PlainObject;
 }
 
 /** A renderer that draws a value as more than text. */
@@ -208,8 +230,19 @@ export class BlueprintRegistry {
         add(this.resolvers, specs);
     }
 
+    /** Add actions. Throws if one has no object schema for its parameters. */
     addActions(...specs: (ActionSpec | ActionSpec[])[]) {
-        add(this.actions, specs);
+        specs.flat().forEach(spec => {
+            const {params} = spec ?? ({} as ActionSpec),
+                problems = isPlainObject(params) ? findSchemaProblems(params) : [];
+            throwIf(
+                !isPlainObject(params) ||
+                    (params as PlainObject).type !== 'object' ||
+                    !isEmpty(problems),
+                `Action '${spec?.name}' needs an object schema for its params${problems.length ? `: ${problems.join(', ')}` : ''}`
+            );
+            this.actions[spec.name] = spec;
+        });
     }
 
     addRenderers(...specs: (RendererSpec | RendererSpec[])[]) {

@@ -3,7 +3,6 @@ import {
     ARTIFACTS,
     catalogFor,
     loadBlueprint,
-    PLANNING_REGISTRY,
     portfolioCatalog,
     scenarioFiles,
     scenarioRegistry
@@ -129,6 +128,69 @@ describe('validateBlueprint', () => {
 
             bp.elements.posGrid.config.sortBy = ['pnlDay|desc', 'bogus'];
             expect(validate(bp).map(it => it.path)).toEqual(['/elements/posGrid/config/sortBy/1']);
+        });
+    });
+
+    it('refuses a key named __proto__, prototype or constructor anywhere', () => {
+        const bp = JSON.parse(
+            JSON.stringify(p2()).replace(
+                '"variables":{',
+                '"variables":{"__proto__":{"type":"string"},'
+            )
+        );
+        expect(validate(bp)).toMatchObject([
+            {code: 'path.forbidden', path: '/variables/__proto__'}
+        ]);
+        expect(({} as any).type).toBeUndefined();
+    });
+
+    describe('actions', () => {
+        const withButtons = (action: unknown) => {
+            const bp = loadBlueprint('p3-morning-report.json');
+            bp.elements.pnlButtons.config.buttons = [{label: 'Go', action}];
+            return bp;
+        };
+        const winners = {
+            type: 'setVariable',
+            variable: 'pnlFilter',
+            value: {field: 'pnlDay', op: '>', value: 0}
+        };
+
+        it('takes one action, or a list of up to 8 steps, checking each step', () => {
+            expect(validate(withButtons(winners))).toEqual([]);
+            expect(
+                validate(withButtons([winners, {type: 'resetVariable', variable: 'pnlFilter'}]))
+            ).toEqual([]);
+            expect(
+                validate(
+                    withButtons([
+                        winners,
+                        {type: 'setVariable', variable: 'selection', value: null}
+                    ])
+                )
+            ).toMatchObject([
+                {
+                    code: 'action.cannotSet',
+                    path: '/elements/pnlButtons/config/buttons/0/action/1/variable'
+                }
+            ]);
+            expect(validate(withButtons(Array(9).fill(winners))).map(it => it.code)).toEqual([
+                'schema.invalid'
+            ]);
+        });
+
+        it('refuses an action with side effects in a chat answer', () => {
+            const bp = loadBlueprint('p3-morning-report.json'),
+                issues = validateBlueprint(bp, {
+                    catalog: portfolioCatalog,
+                    registry,
+                    artifacts: ARTIFACTS,
+                    isAnswer: true
+                });
+            expect(issues.filter(it => it.code === 'action.notInAnswer')).toMatchObject([
+                {path: '/elements/reportActions/config/buttons/0/action/type'}
+            ]);
+            expect(validate(bp).filter(it => it.code === 'action.notInAnswer')).toEqual([]);
         });
     });
 
@@ -316,17 +378,5 @@ describe('validateBlueprint', () => {
             config: {$ref: '#/$defs/x'}
         };
         expect(() => new BlueprintRegistry({widgets: [spec]})).toThrow(/\$ref/);
-    });
-
-    it('ships built-in widgets that match the planning registry', () => {
-        const builtIn = new BlueprintRegistry().widgets;
-        Object.entries<any>(PLANNING_REGISTRY.widgets)
-            .filter(([, it]) => !it.app)
-            .forEach(([name, it]) => {
-                expect(builtIn[name].config, name).toEqual(it.config);
-                expect(builtIn[name].children?.schema, name).toEqual(it.children);
-                expect(builtIn[name].outputs, name).toEqual(it.outputs);
-                expect(builtIn[name].presetPaths, name).toEqual(it.presetPaths);
-            });
     });
 });

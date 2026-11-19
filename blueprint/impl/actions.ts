@@ -1,0 +1,174 @@
+import {type PlainObject, XH} from '@xh/hoist/core';
+import {castArray, isArray, isPlainObject, isString, mapValues, omit} from 'lodash';
+import {findSchemaErrors} from '../../impl/SchemaUtils';
+import type {BlueprintModel} from '../BlueprintModel';
+import {checkVariableValue} from './variableValues';
+
+/** The most steps a list of actions can hold. */
+export const MAX_ACTION_STEPS = 8;
+
+/** What a run of actions can read beside variables: the row a row action was run on. */
+export interface ActionRunContext {
+    row?: PlainObject;
+}
+
+/**
+ * Run an action, or a list of up to 8 as steps. Every step is checked before the first runs. Each
+ * starts once the one before it finishes, after the user confirms it if it asks to. A step that
+ * fails stops the rest, and the user sees why.
+ *
+ * @returns true if every step ran.
+ */
+export async function runActionsAsync(
+    model: BlueprintModel,
+    actions: PlainObject | PlainObject[],
+    ctx: ActionRunContext = {}
+): Promise<boolean> {
+    const steps = castArray(actions).map(it => resolveAction(model, it, ctx)),
+        problem =
+            steps.length > MAX_ACTION_STEPS
+                ? `An action list holds at most ${MAX_ACTION_STEPS} steps.`
+                : steps.map(it => checkAction(model, it)).find(Boolean);
+    if (problem) {
+        XH.dangerToast(problem);
+        return false;
+    }
+
+    for (const step of steps) {
+        const spec = model.registry.actions[step.type],
+            description = describeResolved(model, step);
+        if ((spec.sideEffects || step.confirm) && !(await XH.confirm({message: description}))) {
+            return false;
+        }
+        try {
+            await runAction(model, step, ctx);
+        } catch (e) {
+            XH.dangerToast(`${description} failed: ${(e as Error)?.message ?? e}`);
+            return false;
+        }
+    }
+    return true;
+}
+
+/** An action's description, with its values resolved as it would run now. */
+export function describeAction(
+    model: BlueprintModel,
+    action: PlainObject,
+    ctx: ActionRunContext = {}
+): string {
+    return describeResolved(model, resolveAction(model, action, ctx));
+}
+
+/**
+ * True if a URL may open: it is http or https, and its origin and path fall under an entry of
+ * the allow list. Matched by parsed origin and path, never by string prefix.
+ */
+export function isAllowedUrl(url: string, allowList: string[]): boolean {
+    const target = parseWebUrl(url);
+    if (!target) return false;
+    return allowList.some(entry => {
+        const allowed = parseWebUrl(entry);
+        if (!allowed || allowed.origin !== target.origin) return false;
+        const base = allowed.pathname.endsWith('/') ? allowed.pathname : `${allowed.pathname}/`;
+        return target.pathname === allowed.pathname || target.pathname.startsWith(base);
+    });
+}
+
+//------------------
+// Implementation
+//------------------
+function resolveAction(
+    model: BlueprintModel,
+    action: PlainObject,
+    {row}: ActionRunContext
+): PlainObject {
+    const fromRow = (v: unknown): unknown => {
+        if (isArray(v)) return v.map(fromRow);
+        if (!isPlainObject(v)) return v;
+        const o = v as PlainObject;
+        return isString(o.$row) ? (row?.[o.$row] ?? null) : mapValues(o, fromRow);
+    };
+    return model.resolve(fromRow(action));
+}
+
+function describeResolved(model: BlueprintModel, step: PlainObject): string {
+    const spec = model.registry.actions[step.type];
+    return spec?.describe?.(paramsOf(step)) ?? spec?.name ?? String(step.type);
+}
+
+function paramsOf(step: PlainObject): PlainObject {
+    return omit(step, 'type', 'confirm');
+}
+
+/** Why a step cannot run, or null if it can. */
+function checkAction(model: BlueprintModel, step: PlainObject): string {
+    const spec = model.registry.actions[step?.type];
+    if (!spec) return `Unknown action '${step?.type}'.`;
+    const [problem] = findSchemaErrors(paramsOf(step), spec.params);
+    if (problem) {
+        const at = problem.path.length ? ` at ${problem.path.join('.')}` : '';
+        return `${spec.name} cannot run${at}: ${problem.message}.`;
+    }
+    switch (step.type) {
+        case 'setVariable':
+        case 'resetVariable': {
+            const v = model.getVariable(step.variable);
+            if (!v) return `Unknown variable '${step.variable}'.`;
+            if (!v.isSettable) return `An action cannot set '${step.variable}'.`;
+            return step.type === 'setVariable'
+                ? checkVariableValue(v.name, v.decl, step.value, model.registry)
+                : null;
+        }
+        case 'navigate':
+            return XH.hasRoute(step.route) ? null : `The app has no route '${step.route}'.`;
+        case 'openUrl':
+            return isAllowedUrl(step.url, model.urlAllowList)
+                ? null
+                : `'${step.url}' is not on the app's list of URLs that may open.`;
+        case 'refresh': {
+            const unknown = castArray(step.sources ?? []).find(it => !model.getSource(it));
+            return unknown ? `Unknown source '${unknown}'.` : null;
+        }
+        default:
+            return spec.run ? null : `The app cannot run '${step.type}'.`;
+    }
+}
+
+async function runAction(model: BlueprintModel, step: PlainObject, ctx: ActionRunContext) {
+    switch (step.type) {
+        case 'setVariable':
+            model.setVariable(step.variable, step.value);
+            return;
+        case 'resetVariable':
+            model.resetVariable(step.variable);
+            return;
+        case 'refresh': {
+            const names: string[] = step.sources?.length
+                ? castArray(step.sources)
+                : Object.keys(model.sources);
+            await Promise.all(names.map(it => model.getSource(it).reloadAsync()));
+            return;
+        }
+        case 'navigate':
+            XH.navigate(step.route, step.params ?? {});
+            return;
+        case 'openUrl':
+            window.open(step.url, '_blank', 'noopener');
+            return;
+        default:
+            await model.registry.actions[step.type].run(paramsOf(step), {
+                blueprintModel: model,
+                row: ctx.row
+            });
+    }
+}
+
+/** A URL that is http or https, or null for anything else, including one that does not parse. */
+export function parseWebUrl(url: string): URL {
+    try {
+        const ret = new URL(url);
+        return ret.protocol === 'http:' || ret.protocol === 'https:' ? ret : null;
+    } catch {
+        return null;
+    }
+}

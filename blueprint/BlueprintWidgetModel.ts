@@ -21,7 +21,7 @@ export interface BlueprintWidgetConfig {
  * the element's config, and reacts when the config changes. Changes the blueprint only through
  * edits, and publishes its outputs through the blueprint model.
  */
-export class BlueprintWidgetModel extends HoistModel {
+export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends HoistModel {
     readonly blueprintModel: BlueprintModel;
     readonly id: string;
     readonly renderElement: (id: string) => ReactNode;
@@ -37,12 +37,12 @@ export class BlueprintWidgetModel extends HoistModel {
 
     /** The element as the blueprint declares it, or null once it is gone. */
     get element(): BlueprintElement {
-        return this.blueprintModel.blueprint?.elements?.[this.id] ?? null;
+        return this.blueprintModel.effective?.elements?.[this.id] ?? null;
     }
 
     /** The element's config, with each binding replaced by its variable's current value. */
     @computed
-    get resolvedConfig(): PlainObject {
+    get resolvedConfig(): C {
         return this.blueprintModel.resolve(this.element?.config ?? {});
     }
 
@@ -52,21 +52,43 @@ export class BlueprintWidgetModel extends HoistModel {
     }
 
     /**
-     * Apply an edit made by a user's interaction with the widget. If the blueprint refuses it, the
-     * user sees why, and the caller returns the widget to the blueprint's state.
+     * Apply an edit made by a user's interaction with the widget. In run mode, the change stays
+     * transient instead, until personalizations exist. If the blueprint refuses an edit, the user
+     * sees why, and the caller returns the widget to the blueprint's state.
      *
      * @returns true if the edit applied.
      */
     applyUserEdit(ops: BlueprintOp[]): boolean {
-        const {issues} = this.blueprintModel.applyEdit({author: 'user', ops}),
+        const {blueprintModel} = this;
+        if (blueprintModel.mode === 'run') {
+            ops.forEach(
+                op => op.op === 'set' && blueprintModel.setTransientValue(op.path, op.value)
+            );
+            return true;
+        }
+        const {issues} = blueprintModel.applyEdit({author: 'user', ops}),
             error = issues.find(it => it.severity === 'error');
         if (error) XH.dangerToast(error.message);
         return !error;
     }
 
-    /** Set a value in the element's config, as {@link applyUserEdit}. `path` is inside the config. */
+    /**
+     * Set a value in the element's config, as {@link applyUserEdit}. `path` is inside the config.
+     * A path that a preset group controls changes its active preset instead.
+     */
     setConfig(path: string, value: unknown): boolean {
-        return this.applyUserEdit([{op: 'set', path: `/elements/${this.id}/config${path}`, value}]);
+        const {blueprintModel} = this,
+            full = `/elements/${this.id}/config${path}`,
+            control = blueprintModel.getPresetControl(full);
+        if (!control) return this.applyUserEdit([{op: 'set', path: full, value}]);
+
+        // In design mode, a path that presets control changes the active preset.
+        if (blueprintModel.mode === 'run')
+            return this.applyUserEdit([{op: 'set', path: full, value}]);
+        const {group, item} = control;
+        return this.applyUserEdit([
+            {op: 'set', path: `/presets/${group}/items/${item}/set${full}`, value}
+        ]);
     }
 
     /**
