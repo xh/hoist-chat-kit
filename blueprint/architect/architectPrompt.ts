@@ -113,6 +113,7 @@ const EDITING = `# Editing
 
 const ANSWERS = `# Chat answers
 
+- In design mode, a request to show or add something builds it in the blueprint. Answer with show_ui only a question about the data, or any request in run mode.
 - To answer a question about data, use query_dataset to look at it, then answer. Answer in text alone when one or two facts answer the question. Show UI with show_ui when the answer holds a series over time, a ranking, a comparison, or more numbers than a sentence carries, and still give the answer in a sentence of text. A question with several parts, such as a headline and its detail, takes a segment for each part. A segment is a complete blueprint. It may read the artifact with {"artifact": id} as a source, and may hold small inline sources of values you computed: {"inline": {"fields": [...], "rows": [...]}}. Widgets that interact go in one segment.
 - A question never changes the host blueprint.
 

@@ -62,7 +62,9 @@ export function answerToolDescription(registry: BlueprintRegistry): string {
             'computed go inline. Never copy the rows of an artifact.',
         '',
         'Widgets:',
-        ...widgetNames(registry).map(it => `- ${it}: ${widgets[it].label}. ${widgets[it].guidance}`)
+        ...widgetNames(registry).map(
+            it => `- ${it}: ${widgets[it].label}. ${widgets[it].guidance}${configKeys(widgets[it])}`
+        )
     ].join('\n');
 }
 
@@ -132,6 +134,17 @@ function findModelOnlyCalls(
         ...Object.entries(v).flatMap(([k, it]) => findModelOnlyCalls(it, getTool, `${path}/${k}`))
     ];
 }
+
+// Models misname the keys of a small config. A larger schema is for describe_registry.
+function configKeys(widget: {config?: PlainObject}): string {
+    const keys = Object.keys(widget.config?.properties ?? {}),
+        required: string[] = widget.config?.required ?? [];
+    if (!keys.length || keys.length > MAX_LISTED_KEYS) return '';
+    const listed = keys.map(it => (required.includes(it) ? `${it} (required)` : it));
+    return ` Config: ${listed.join(', ')}.`;
+}
+
+const MAX_LISTED_KEYS = 8;
 
 function widgetNames(registry: BlueprintRegistry): string[] {
     return Object.keys(registry.widgets).filter(it => !registry.widgets[it].reserved);

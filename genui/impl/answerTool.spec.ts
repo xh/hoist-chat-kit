@@ -81,6 +81,14 @@ describe('show_ui with answer blueprints', () => {
         expect(description).toContain('statCardStrip: Stat cards.');
     });
 
+    it('names the config keys of each widget with few, marking those it requires', () => {
+        const {description} = setup().catalog.documentTool,
+            line = (name: string) =>
+                description.split('\n').find(it => it.startsWith(`- ${name}:`));
+        expect(line('text')).toMatch(/ Config: text \(required\)\.$/);
+        expect(line('cubeGrid')).not.toContain('Config:');
+    });
+
     it("offers the app's own widgets and types, beside chat kit's", () => {
         const app = scenarioRegistry(),
             catalog = new ChatUiCatalog({
