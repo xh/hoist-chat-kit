@@ -12,7 +12,7 @@ import type {DataCatalog} from './DataCatalog';
 import {applyOps} from './applyOps';
 import {type ActionRunContext, describeAction, parseWebUrl, runActionsAsync} from './impl/actions';
 import {resolveBindings, resolveFilter} from './impl/bindings';
-import {getAt as valueAt, setAt} from './impl/pointer';
+import {getOwn, getAt as valueAt, setAt} from './impl/pointer';
 import {validateBlueprint} from './validateBlueprint';
 import type {BlueprintAccess, BlueprintMode} from './architect/blueprintContextProvider';
 import {checkEditAllowed} from './impl/access';
@@ -224,7 +224,7 @@ export class BlueprintModel extends HoistModel {
 
         const ret = cloneDeep(blueprint);
         groups.forEach(([name, group]) => {
-            const item = group.items?.[this.getActivePreset(name)];
+            const item = getOwn(group.items, this.getActivePreset(name));
             group.controls?.forEach(({path}) => {
                 const value = valueAt(item?.set, path);
                 if (value !== undefined) setAt(ret, path, value);
@@ -236,16 +236,21 @@ export class BlueprintModel extends HoistModel {
 
     /** The active preset of a group: the user's choice, or the group's default. */
     getActivePreset(group: string): string {
-        const def = this.blueprint?.presets?.[group];
+        const def = getOwn(this.blueprint?.presets, group);
         if (!def) return null;
-        return this.activePresets[group] ?? def.default ?? Object.keys(def.items ?? {})[0] ?? null;
+        return (
+            getOwn(this.activePresets, group) ??
+            def.default ??
+            Object.keys(def.items ?? {})[0] ??
+            null
+        );
     }
 
     /** Switch a group to one of its presets. Clears transient changes to the paths it controls. */
     @action
     setPreset(group: string, item: string) {
-        const def = this.blueprint?.presets?.[group];
-        throwIf(!def?.items?.[item], `No preset '${item}' in group '${group}'.`);
+        const def = getOwn(this.blueprint?.presets, group);
+        throwIf(!getOwn(def?.items, item), `No preset '${item}' in group '${group}'.`);
         this.activePresets = {...this.activePresets, [group]: item};
         const paths = def.controls.map(it => it.path);
         this.transientValues = omitBy(this.transientValues, (_, path) => paths.includes(path));
@@ -270,7 +275,7 @@ export class BlueprintModel extends HoistModel {
     }
 
     getSource(name: string): BlueprintSource {
-        return this.sources[name] ?? null;
+        return getOwn(this.sources, name);
     }
 
     /**
@@ -364,7 +369,7 @@ export class BlueprintModel extends HoistModel {
         if (!isEqual(bp.presets, this.blueprint?.presets)) {
             this.activePresets = pickBy(
                 this.activePresets,
-                (item, group) => !!bp.presets?.[group]?.items?.[item]
+                (item, group) => !!getOwn(getOwn(bp.presets, group)?.items, item)
             );
             this.transientValues = {};
         }

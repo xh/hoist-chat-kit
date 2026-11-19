@@ -1,5 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {isString, keyBy, pick, uniq} from 'lodash';
+import {toLookup} from './impl/pointer';
 
 /** Kinds every catalog has, beside `currency:<code>`. */
 export const BUILT_IN_KINDS = ['fraction', 'bps', 'shares'];
@@ -76,11 +77,11 @@ export class DataCatalog {
 
     constructor(json: DataCatalogJson) {
         this.json = json;
-        this.formats = json.formats ?? {};
-        this.kinds = json.kinds ?? {};
+        this.formats = toLookup(json.formats);
+        this.kinds = toLookup(json.kinds);
 
-        const shared = keyBy(json.fields ?? [], 'name');
-        this.datasets = {};
+        const shared = toLookup(keyBy(json.fields ?? [], 'name'));
+        this.datasets = toLookup({});
         const problems: string[] = [],
             checkKind = (kind: string, what: string) => {
                 if (kind != null && !this.isKnownKind(kind))
@@ -93,8 +94,8 @@ export class DataCatalog {
             this.datasets[name] = {
                 ...ds,
                 name,
-                params: ds.params ?? {},
-                fields: keyBy(fields, 'name')
+                params: toLookup(ds.params),
+                fields: toLookup(keyBy(fields, 'name'))
             };
             Object.entries(ds.params ?? {}).forEach(([pn, pd]) =>
                 checkKind(pd.kind, `parameter '${pn}' of dataset '${name}'`)

@@ -1,6 +1,7 @@
 import type {ElementFactory, PlainObject} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
 import {castArray, isEmpty, isPlainObject} from 'lodash';
+import {toLookup} from './impl/pointer';
 import {findSchemaProblems} from '../impl/SchemaUtils';
 import type {ReactNode} from 'react';
 import type {Blueprint, BlueprintIssue} from './Blueprint';
@@ -193,11 +194,11 @@ export interface BlueprintRegistryConfig {
  * with its own entries, or replaces by registering an entry under the same name.
  */
 export class BlueprintRegistry {
-    readonly widgets: Record<string, WidgetSpec> = {};
-    readonly variableTypes: Record<string, VariableTypeSpec> = {};
-    readonly resolvers: Record<string, ResolverSpec> = {};
-    readonly actions: Record<string, ActionSpec> = {};
-    readonly renderers: Record<string, RendererSpec> = {};
+    readonly widgets: Record<string, WidgetSpec> = toLookup({});
+    readonly variableTypes: Record<string, VariableTypeSpec> = toLookup({});
+    readonly resolvers: Record<string, ResolverSpec> = toLookup({});
+    readonly actions: Record<string, ActionSpec> = toLookup({});
+    readonly renderers: Record<string, RendererSpec> = toLookup({});
 
     constructor(config: BlueprintRegistryConfig = {}) {
         this.addWidgets(BUILT_IN_WIDGETS, config.widgets ?? []);

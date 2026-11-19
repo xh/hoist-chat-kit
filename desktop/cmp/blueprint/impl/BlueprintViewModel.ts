@@ -53,7 +53,8 @@ export class BlueprintViewModel extends HoistModel {
 
     /** The component factory of an element's widget, or null if this platform has none. */
     getComponent(id: string): ElementFactory {
-        const el = this.blueprintModel.blueprint?.elements?.[id];
+        const elements = this.blueprintModel.blueprint?.elements,
+            el = elements && Object.hasOwn(elements, id) ? elements[id] : null;
         return el ? (this.getSpec(el.component).component ?? null) : null;
     }
 

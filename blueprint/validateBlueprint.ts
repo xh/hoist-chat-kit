@@ -4,7 +4,7 @@ import type {Blueprint, BlueprintIssue} from './Blueprint';
 import type {BlueprintRegistry} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter} from './impl/configSchema';
-import {isForbiddenKey} from './impl/pointer';
+import {getOwn, isForbiddenKey, toLookup} from './impl/pointer';
 
 export interface ValidateBlueprintContext {
     catalog: Pick<DataCatalog, 'getDataset'>;
@@ -35,7 +35,8 @@ export const BUILT_IN_VARIABLE_TYPES = [
  * @returns every issue found, errors and warnings. Empty if the blueprint is valid.
  */
 export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext): BlueprintIssue[] {
-    const {catalog, registry, artifacts = {}, isAnswer = false} = ctx,
+    const {catalog, registry, isAnswer = false} = ctx,
+        artifacts = toLookup(ctx.artifacts),
         issues: BlueprintIssue[] = [],
         err = (code: string, path: string, message: string) =>
             issues.push({code, severity: 'error', path, message}),
@@ -68,9 +69,9 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         }
     }
 
-    const elements: Record<string, any> = bp.elements ?? {},
-        variables: Record<string, any> = bp.variables ?? {},
-        sources: Record<string, any> = bp.sources ?? {};
+    const elements: Record<string, any> = toLookup(bp.elements),
+        variables: Record<string, any> = toLookup(bp.variables),
+        sources: Record<string, any> = toLookup(bp.sources);
 
     // Structure.
     if (!bp.root) {
@@ -78,7 +79,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
     } else if (!elements[bp.root]) {
         err('structure.unknownRoot', '/root', `root '${bp.root}' is not an element`);
     }
-    const parent: Record<string, string> = {};
+    const parent: Record<string, string> = toLookup({});
     for (const [id, el] of Object.entries(elements)) {
         const p = `/elements/${id}`;
         for (const k of Object.keys(el)) {
@@ -246,7 +247,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
     });
 
     // Sources.
-    const sourceFields: Record<string, Record<string, FieldDef>> = {};
+    const sourceFields: Record<string, Record<string, FieldDef>> = toLookup({});
     for (const [sn, s] of Object.entries(sources)) {
         const p = `/sources/${sn}`;
         if (s.dataset) {
@@ -290,7 +291,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     );
                 }
             }
-            const fields = {...ds.fields};
+            const fields = toLookup(ds.fields);
             for (const [iname, inst] of Object.entries<any>(s.fields ?? {})) {
                 if (inst?.label != null && !isString(inst.label)) {
                     err('schema.invalid', `${p}/fields/${iname}/label`, 'a label is text');
@@ -329,8 +330,8 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     'outside a chat answer, inline data must not hold values computed from a source'
                 );
             }
-            sourceFields[sn] = Object.fromEntries(
-                (s.inline.fields ?? []).map((f: FieldDef) => [f.name, f])
+            sourceFields[sn] = toLookup(
+                Object.fromEntries((s.inline.fields ?? []).map((f: FieldDef) => [f.name, f]))
             );
         } else {
             err(
@@ -475,7 +476,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
     }
 
     // Presets: named groups, each controlling its own paths.
-    const owner: Record<string, string> = {};
+    const owner: Record<string, string> = toLookup({});
     for (const [gname, pre] of Object.entries<any>(bp.presets ?? {})) {
         const gp = `/presets/${gname}`;
         if (!isPlainObject(pre) || !isArray(pre.controls)) {
@@ -524,7 +525,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     `'${rel}' is not a preset path of ${el.component}. Preset paths: ${presetPaths.join(', ') || 'none'}`
                 );
             }
-            if (segs[3] in (el.config ?? {})) {
+            if (Object.hasOwn(el.config ?? {}, segs[3])) {
                 err(
                     'preset.stillInConfig',
                     path,
@@ -533,7 +534,12 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             }
             for (const [iname, item] of Object.entries<any>(pre.items ?? {})) {
                 let o = item?.set;
-                for (const seg of segs) o = o?.[seg];
+                for (const seg of segs) {
+                    o =
+                        o != null && typeof o === 'object' && Object.hasOwn(o, seg)
+                            ? o[seg]
+                            : undefined;
+                }
                 if (o === undefined) {
                     err(
                         'preset.missingPath',
@@ -543,7 +549,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 }
             }
         }
-        if (pre.default && !pre.items?.[pre.default]) {
+        if (pre.default && !getOwn(pre.items, pre.default)) {
             err('preset.unknownDefault', `${gp}/default`, `no preset '${pre.default}'`);
         }
     }
@@ -628,7 +634,7 @@ function checkResolverCycles(
             }
             return ret;
         },
-        state: Record<string, 'visiting' | 'done'> = {},
+        state: Record<string, 'visiting' | 'done'> = toLookup({}),
         reported = new Set<string>();
 
     const visit = (name: string, stack: string[]) => {

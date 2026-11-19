@@ -212,6 +212,17 @@ describe('BlueprintModel actions', () => {
         expect(others).not.toHaveBeenCalled();
     });
 
+    it('finds no source, action or preset named after an inherited member', async () => {
+        const toast = stubToasts(),
+            model = open();
+        expect(model.getSource('toString')).toBeNull();
+        expect(await model.runActionsAsync({type: 'refresh', sources: ['toString']})).toBe(false);
+        expect(await model.runActionsAsync({type: 'toString'})).toBe(false);
+        expect(toast).toHaveBeenCalledTimes(2);
+        expect(() => model.setPreset('toString', 'valueOf')).toThrow();
+        expect(model.getActivePreset('toString')).toBeNull();
+    });
+
     describe('parameter checks', () => {
         it('refuses a step whose resolved parameters fail its schema, before any step runs', async () => {
             const toast = stubToasts(),

@@ -8,6 +8,19 @@ export function isForbiddenKey(key: string): boolean {
     return FORBIDDEN_KEYS.includes(key);
 }
 
+/**
+ * A copy of an object's own entries, with no prototype. A lookup by any name, such as `toString`,
+ * finds only those entries.
+ */
+export function toLookup<T>(o: Record<string, T>): Record<string, T> {
+    return Object.assign(Object.create(null), o ?? {});
+}
+
+/** An object's own property, or null. Never a member it inherits. */
+export function getOwn<T>(o: Record<string, T>, key: unknown): T {
+    return o != null && typeof key === 'string' && Object.hasOwn(o, key) ? o[key] : null;
+}
+
 /** A JSON Pointer that cannot be followed: malformed, or through a forbidden name. */
 export class PointerError extends Error {
     readonly code: string;

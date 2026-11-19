@@ -131,6 +131,54 @@ describe('validateBlueprint', () => {
         });
     });
 
+    describe('references to names that objects inherit', () => {
+        it('finds no root named after an inherited member', () => {
+            expect(codes({root: 'toString', elements: {}})).toContain('structure.unknownRoot');
+        });
+
+        it('finds no source named after an inherited member', () => {
+            const bp = p2();
+            bp.elements.posGrid.config.source = 'toString';
+            expect(validate(bp)).toContainEqual(
+                expect.objectContaining({
+                    code: 'source.unknown',
+                    path: '/elements/posGrid/config/source'
+                })
+            );
+        });
+
+        it('finds no variable named after an inherited member, as a filter or a value', () => {
+            const bp = p2();
+            bp.elements.posGrid.config.filter = {$var: 'constructor'};
+            expect(codes(bp)).toContain('variable.unknown');
+
+            bp.elements.posGrid.config.filter = {
+                field: 'sector',
+                op: '=',
+                value: {$var: 'valueOf'}
+            };
+            expect(codes(bp)).toContain('variable.unknown');
+        });
+
+        it('finds no child, widget, dataset or preset named after an inherited member', () => {
+            const bp = p2();
+            bp.elements.dashboard.children.push({id: 'hasOwnProperty'} as any);
+            bp.elements.posGrid.component = 'toString';
+            bp.sources.positions.dataset = 'valueOf';
+            bp.presets = {
+                views: {controls: [], items: {a: {set: {}}}, default: 'toString'}
+            } as any;
+            expect(codes(bp)).toEqual(
+                expect.arrayContaining([
+                    'structure.unknownChild',
+                    'element.unknownComponent',
+                    'source.unknownDataset',
+                    'preset.unknownDefault'
+                ])
+            );
+        });
+    });
+
     it('refuses a key named __proto__, prototype or constructor anywhere', () => {
         const bp = JSON.parse(
             JSON.stringify(p2()).replace(
