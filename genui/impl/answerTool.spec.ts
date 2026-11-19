@@ -11,6 +11,7 @@ import {keepArtifactRows} from '../../impl/ArtifactRows';
 import {portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import {ChatArtifactRegistry} from '../ChatArtifactRegistry';
 import {ChatUiCatalog} from '../ChatUiCatalog';
+import {CubeGridWidgetModel} from '../../desktop/cmp/blueprint/CubeGridWidget';
 
 /**
  * `show_ui` takes an answer blueprint: it reads the app's datasets and the chat's artifacts, loads
@@ -252,6 +253,20 @@ describe('show_ui with answer blueprints', () => {
                 flexDirection: 'column'
             });
             expect(container.querySelector('.xh-chat-ui-grid')).toBeNull();
+        });
+
+        it('sizes to its content, up to its default height', async () => {
+            const height = vi.spyOn(CubeGridWidgetModel.prototype, 'contentHeight', 'get');
+            onTestFinished(() => height.mockRestore());
+            const panelHeight = async (content: number) => {
+                height.mockReturnValue(content);
+                const container = await drawn({groupBy: ['sector']});
+                return container.querySelector<HTMLElement>('.xh-blueprint-view__answer-panel')
+                    .style.height;
+            };
+            expect(await panelHeight(120)).toBe('120px');
+            expect(await panelHeight(900)).toBe('300px');
+            expect(await panelHeight(null)).toBe('300px');
         });
 
         it('fills the width of a stack and of a tab, as at the root', async () => {

@@ -40,6 +40,14 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
         return this.blueprintModel.effective?.elements?.[this.id] ?? null;
     }
 
+    /**
+     * The height in pixels that the widget's content needs, for a host that sizes it to fit, such
+     * as a chat answer. Null if the widget cannot say, as by default.
+     */
+    get contentHeight(): number {
+        return null;
+    }
+
     /** The element's config, with each binding replaced by its variable's current value. */
     @computed
     get resolvedConfig(): C {

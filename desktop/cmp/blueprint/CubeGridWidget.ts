@@ -1,3 +1,4 @@
+import {AgGrid} from '@xh/hoist/cmp/ag-grid';
 import {CubeGridModel, cubeGrid} from '@xh/hoist/cmp/cubegrid';
 import {type ColumnSpec, type ColumnState, GridModel} from '@xh/hoist/cmp/grid';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
@@ -22,6 +23,10 @@ import {type FieldDisplay, fieldDisplay} from '../../../blueprint/impl/renderers
 // GridModel takes these styles only as it is built. It changes the rest in place.
 const BUILT_STYLES = ['groupRowHeight', 'showGroupRowCounts'],
     LIVE_STYLES = without(CUBE_GRID_STYLES, ...BUILT_STYLES);
+
+// Hoist sets its row and header heights on AgGrid, untyped.
+const AG_GRID = AgGrid as any,
+    GRID_BORDERS = 2;
 
 // CubeGridModel's own defaults, over GridModel's, for a style an edit clears.
 const CUBE_GRID_DEFAULTS = {emptyText: 'No data', stripeRows: true, rowBorders: true};
@@ -112,6 +117,22 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                 fireImmediately: true
             }
         );
+    }
+
+    /**
+     * The header, the rows on display and any summary row, at the heights of the grid's sizing
+     * mode. Null until ag-Grid shows the source's rows, as only it knows which rows show.
+     */
+    override get contentHeight(): number {
+        const {gridModel} = this;
+        if (!gridModel?.isReady || !gridModel.isDataSynced) return null;
+        // Rows show and hide as nodes expand and collapse.
+        void gridModel.expandState;
+        const {sizingMode, hideHeaders} = gridModel,
+            rows =
+                gridModel.agApi.getDisplayedRowCount() + (this.resolvedConfig.summaryRow ? 1 : 0),
+            header = hideHeaders ? 0 : AG_GRID.getHeaderHeightForSizingMode(sizingMode);
+        return header + rows * AG_GRID.getRowHeightForSizingMode(sizingMode) + GRID_BORDERS;
     }
 
     //------------------

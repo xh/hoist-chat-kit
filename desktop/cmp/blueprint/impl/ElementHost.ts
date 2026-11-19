@@ -30,7 +30,8 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                 children: `${model.element.component} has no desktop component yet.`
             });
         }
-        // A widget that draws as a card in a reply has no height of its own as a panel there.
+        // A widget that draws as a card in a reply has no height of its own as a panel there. It
+        // takes the height of its content, up to that of its default size on a dashboard.
         const {blueprintModel} = model,
             spec = blueprintModel.registry.widgets[model.element.component],
             rows = spec?.size?.default?.h;
@@ -42,7 +43,7 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
         ) {
             return vbox({
                 className: 'xh-blueprint-view__answer-panel',
-                height: rows * ANSWER_ROW_HEIGHT,
+                height: Math.min(model.contentHeight ?? Infinity, rows * ANSWER_ROW_HEIGHT),
                 width: '100%',
                 flex: 'none',
                 children: component({model})

@@ -122,6 +122,51 @@ describe('blueprint desktop widgets', () => {
             });
         });
 
+        describe('content height', () => {
+            const ready = (grid: CubeGridWidgetModel, rows: number) => {
+                const gridModel = grid.cubeGridModel.innerGridModel;
+                vi.spyOn(gridModel, 'isReady', 'get').mockReturnValue(true);
+                vi.spyOn(gridModel, 'isDataSynced', 'get').mockReturnValue(true);
+                vi.spyOn(gridModel, 'agApi', 'get').mockReturnValue({
+                    getDisplayedRowCount: () => rows
+                } as any);
+                onTestFinished(() => {
+                    vi.restoreAllMocks();
+                });
+                return gridModel;
+            };
+
+            it('is unknown until ag-Grid is ready', () => {
+                const grid = widget(
+                    CubeGridWidgetModel,
+                    open(loadBlueprint('p2-linked-dashboard.json')),
+                    'posGrid'
+                );
+                expect(grid.contentHeight).toBeNull();
+            });
+
+            it("is the header and the displayed rows, at its sizing mode's heights, with any summary row", () => {
+                const model = open(loadBlueprint('p2-linked-dashboard.json')),
+                    grid = widget(CubeGridWidgetModel, model, 'posGrid');
+                model.applyEdit({
+                    ops: [
+                        {op: 'set', path: '/elements/posGrid/config/sizingMode', value: 'compact'}
+                    ]
+                });
+                ready(grid, 5);
+                // Compact: a 22px header, and five 24px rows, inside a 1px border.
+                expect(grid.contentHeight).toBe(22 + 5 * 24 + 2);
+
+                model.applyEdit({
+                    ops: [
+                        {op: 'set', path: '/elements/posGrid/config/summaryRow', value: true},
+                        {op: 'set', path: '/elements/posGrid/config/hideHeaders', value: true}
+                    ]
+                });
+                expect(grid.contentHeight).toBe(6 * 24 + 2);
+            });
+        });
+
         describe('style options', () => {
             const styled = (config: object) => {
                 const bp = loadBlueprint('p2-linked-dashboard.json');
