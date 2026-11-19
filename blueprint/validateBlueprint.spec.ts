@@ -109,6 +109,31 @@ describe('validateBlueprint', () => {
         expect(validate(bp, true).map(it => it.code)).toContain('source.reservedField');
     });
 
+    it('refuses an artifact outside a chat answer, and warns of inline rows there', () => {
+        const bp = p2();
+        bp.sources.fromChat = {artifact: 'art_7f2'};
+        bp.sources.computed = {inline: {fields: [{name: 'v', type: 'number'}], rows: [{v: 1}]}};
+        const issues = (isAnswer: boolean) =>
+            validate(bp, isAnswer).map(it => `${it.severity} ${it.code}`);
+        expect(issues(false)).toEqual(
+            expect.arrayContaining([
+                'error source.artifactOutsideAnswer',
+                'warning source.inlineOutsideAnswer'
+            ])
+        );
+        expect(issues(true)).toEqual([]);
+    });
+
+    it('refuses more inline rows outside a chat answer than a person would write by hand', () => {
+        const bp = p2(),
+            rows = (n: number) => Array.from({length: n}, (_, v) => ({v}));
+        bp.sources.computed = {inline: {fields: [{name: 'v', type: 'number'}], rows: rows(51)}};
+        expect(codes(bp)).toContain('source.tooManyInlineRows');
+        expect(validate(bp, true).map(it => it.code)).not.toContain('source.tooManyInlineRows');
+        bp.sources.computed.inline.rows = rows(50);
+        expect(codes(bp)).not.toContain('source.tooManyInlineRows');
+    });
+
     describe('elements still streaming', () => {
         const noteRegistry = new BlueprintRegistry({
                 widgets: [

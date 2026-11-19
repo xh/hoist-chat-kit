@@ -325,10 +325,10 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             sourceFields[sn] = fields;
         } else if (s.artifact) {
             if (!isAnswer) {
-                warn(
+                err(
                     'source.artifactOutsideAnswer',
                     p,
-                    'only a chat answer should read an artifact. Use a dataset source.'
+                    'only a chat answer can read an artifact. Use a dataset source.'
                 );
             }
             const ds = catalog.getDataset(artifacts[s.artifact]);
@@ -342,8 +342,15 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 warn(
                     'source.inlineOutsideAnswer',
                     p,
-                    'outside a chat answer, inline data must not hold values computed from a source'
+                    'outside a chat answer, inline rows are for short lists a person writes. Show a value computed from data with a widget over a dataset source.'
                 );
+                if ((s.inline.rows?.length ?? 0) > MAX_HOST_INLINE_ROWS) {
+                    err(
+                        'source.tooManyInlineRows',
+                        `${p}/inline/rows`,
+                        `outside a chat answer, an inline source holds at most ${MAX_HOST_INLINE_ROWS} rows. Use a dataset source.`
+                    );
+                }
             }
             // A value its field cannot hold would break the source's Cube as it loads.
             const typed = (s.inline.fields ?? []).filter(
@@ -615,6 +622,7 @@ export function isSettableFromOutside(decl: PlainObject): boolean {
 // Implementation
 //------------------
 // Names a grid's tree column in `columnState` and `sortBy`.
+const MAX_HOST_INLINE_ROWS = 50;
 const TREE_COLUMN = 'group';
 
 const TOP_LEVEL_KEYS = ['schema', 'formats', 'variables', 'sources', 'presets', 'root', 'elements'],
