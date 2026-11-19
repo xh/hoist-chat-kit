@@ -1,15 +1,26 @@
 import {statCard, statCardStrip} from '@xh/hoist/cmp/statcard';
-import {hoistCmp, HoistModel, type HoistProps, managed, uses, XH} from '@xh/hoist/core';
+import {
+    hoistCmp,
+    HoistModel,
+    type HoistProps,
+    managed,
+    type PlainObject,
+    uses,
+    XH
+} from '@xh/hoist/core';
+import {castArray, isFinite, isPlainObject, isString, omit} from 'lodash';
 import {useOnUnmount} from '@xh/hoist/utils/react';
 import {useEffect, useState} from 'react';
-import {type BlueprintDataProvider, BlueprintModel} from '../../../../blueprint';
+import {type BlueprintDataProvider, BlueprintModel, type FieldDef} from '../../../../blueprint';
 import {ChatUiCatalog} from '../../../../genui';
 import {
     ChatUiAnswerHostContext,
     type ChatUiAnswerRenderProps
 } from '../../../../genui/impl/specWidgets';
 import {BlueprintViewModel} from '../../blueprint/impl/BlueprintViewModel';
+import {CubeGridWidgetModel} from '../../blueprint/CubeGridWidget';
 import {StatCardStripWidgetModel} from '../../blueprint/StatCardStripWidget';
+import {chatUiGrid, type ChatUiGridColumn} from '../ChatUiGrid';
 
 interface ChatUiAnswerProps extends HoistProps, ChatUiAnswerRenderProps {}
 
@@ -39,6 +50,40 @@ const statCardsCard = hoistCmp.factory({
                 statCard({key: idx, title, value, subValue, detail, intent})
             )
         });
+    }
+});
+
+/** A cubeGrid drawn as chat kit's grid draws: a preview of its rows, and the full grid on Expand. */
+const gridCard = hoistCmp.factory({
+    displayName: 'ChatUiGridCard',
+    model: uses(CubeGridWidgetModel),
+    render({model}) {
+        const {source, resolvedConfig: config, blueprintModel, id} = model,
+            host = blueprintModel.hostContext as ChatUiAnswerHostContext;
+        if (!source) return null;
+        const columns = castArray(config.columnState ?? [])
+            .map(it => (isString(it) ? it : it?.field))
+            .filter(it => source.fields[it])
+            .map(it => toGridColumn(source.fields[it]));
+        return chatUiGrid({
+            title: config.title,
+            columns,
+            // Plain copies, without the key the source gives each row.
+            rows: source.cube.store.records.map(it => omit({...it.data}, 'id')),
+            sortBy: isString(config.sortBy) ? config.sortBy : null,
+            isPartial: !!host?.isPartial(id)
+        });
+    }
+});
+
+ChatUiCatalog.answerPresentations.push({
+    widget: 'cubeGrid',
+    presentation: {
+        name: 'card',
+        label: 'Card',
+        guidance:
+            'Draws the grid as a chat reply does: a preview of the first rows and columns, with the full grid on Expand.',
+        component: gridCard
     }
 });
 
@@ -83,6 +128,37 @@ class ChatUiAnswerModel extends HoistModel {
             .filter(it => it.severity === 'error');
         if (errors.length) this.logError('An answer that degraded still has errors', errors);
     }
+}
+
+// A field as a chat grid column, the reverse of how an inline grid's columns become fields.
+function toGridColumn(def: FieldDef): ChatUiGridColumn {
+    const type =
+            def.type === 'localDate' || def.type === 'date'
+                ? 'date'
+                : def.type === 'bool'
+                  ? 'boolean'
+                  : def.type === 'number' || def.type === 'int'
+                    ? 'number'
+                    : 'string',
+        ret: ChatUiGridColumn = {
+            field: def.name,
+            type,
+            ...(def.label ? {headerName: def.label} : {})
+        };
+    if (type !== 'number') return ret;
+    const format = (isPlainObject(def.format) ? def.format : {}) as PlainObject;
+    return {
+        ...ret,
+        format:
+            def.kind === 'fraction'
+                ? 'percent'
+                : format.prefix === '$'
+                  ? 'currency'
+                  : format.withCommas === false
+                    ? 'none'
+                    : 'number',
+        ...(isFinite(format.precision) ? {decimals: format.precision} : {})
+    };
 }
 
 const NO_DATASETS: BlueprintDataProvider = {

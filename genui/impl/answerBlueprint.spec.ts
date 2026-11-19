@@ -149,6 +149,75 @@ describe('toAnswerBlueprint', () => {
         });
     });
 
+    describe('grids', () => {
+        const props = {
+                title: 'Positions',
+                sortBy: 'pnl|desc',
+                columns: [
+                    {field: 'symbol', headerName: 'Symbol'},
+                    {field: 'pnl', type: 'number', format: 'currency', decimals: 0},
+                    {field: 'weight', type: 'number', format: 'percent'},
+                    {field: 'asOf', type: 'date'},
+                    {field: 'live', type: 'boolean'}
+                ],
+                rows: [
+                    {symbol: 'AAPL', pnl: 1200, weight: 0.1, asOf: '2026-11-19', live: true},
+                    {symbol: 'MSFT', pnl: -300, weight: 0.05, asOf: '2026-11-19', live: false}
+                ]
+            },
+            translate = (p: object, partialIds: string[] = []) =>
+                toAnswerBlueprint(
+                    {root: 'g', elements: {g: {component: 'grid', props: p}}} as any,
+                    {
+                        partialIds,
+                        isValid: (name, props, isPartial) =>
+                            catalog.validate(name, props, {isPartial}).length === 0
+                    }
+                );
+
+        it('translates an inline grid into a cubeGrid over an inline source', () => {
+            const bp = translate(props);
+            expect(bp.elements.g).toEqual({
+                component: 'cubeGrid',
+                config: {
+                    source: 'g',
+                    presentation: 'card',
+                    title: 'Positions',
+                    sortBy: 'pnl|desc',
+                    columnState: ['symbol', 'pnl', 'weight', 'asOf', 'live']
+                }
+            });
+            const {fields, rows} = bp.sources.g.inline;
+            expect(rows).toEqual(props.rows);
+            expect(fields).toEqual([
+                {name: 'symbol', label: 'Symbol', type: 'string'},
+                {name: 'pnl', type: 'number', format: {prefix: '$', precision: 0}},
+                {name: 'weight', type: 'number', kind: 'fraction', format: {precision: 1}},
+                {name: 'asOf', type: 'localDate'},
+                {name: 'live', type: 'bool'}
+            ]);
+        });
+
+        it("renames a column named id, which a source keeps for each row's key", () => {
+            const bp = translate({
+                columns: [{field: 'id', type: 'number'}, {field: 'id_'}],
+                rows: [{id: 7, id_: 'a'}]
+            });
+            expect(bp.elements.g.config.columnState).toEqual(['id__', 'id_']);
+            expect(bp.sources.g.inline.fields[0]).toMatchObject({name: 'id__', label: 'ID'});
+            expect(bp.sources.g.inline.rows).toEqual([{id__: 7, id_: 'a'}]);
+        });
+
+        it('keeps a streaming grid every row, as its card drops the one still arriving', () => {
+            expect(translate(props, ['g']).sources.g.inline.rows).toHaveLength(2);
+        });
+
+        it('leaves a grid by reference, and one that fails the catalog, as the spec', () => {
+            expect(translate({data: 'art_1'}).elements.g.component).toBe('grid');
+            expect(translate({columns: []}).elements.g.component).toBe('grid');
+        });
+    });
+
     it('turns children and named slots into child references', () => {
         const bp = toAnswerBlueprint({
             root: 'top',

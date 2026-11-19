@@ -7,6 +7,7 @@ import {ChatModel} from '../../core';
 import {ScriptedChatTransport, textEvents} from '../../transport';
 import {
     chatUiButtonSpec,
+    chatUiGridSpec,
     chatUiStackSpec,
     chatUiStatCardsSpec,
     chatUiTextSpec
@@ -86,6 +87,36 @@ describe('documents as answer blueprints', () => {
         expect(text(asSpec)).toContain('Revenue');
         expect(text(asSpec)).toContain('Open issues');
         expect(text(asAnswer)).toBe(text(asSpec));
+    });
+
+    it('renders an inline grid over a source as the spec draws it, complete or streaming', () => {
+        const grids = new ChatUiCatalog({components: [chatUiGridSpec()]}),
+            doc = {
+                root: 'g',
+                elements: {g: {component: 'grid', props: chatUiGridSpec().example}}
+            },
+            draw = (answerBlueprints: boolean, isPartial: boolean) => {
+                ChatUiCatalog.answerBlueprints = answerBlueprints;
+                return renderToStaticMarkup(
+                    fragment({
+                        children: grids.renderDocument(doc, {
+                            chatModel: createChatModel(),
+                            messageId: 'm1',
+                            part: {type: 'data', id: 'd1', dataType: 'xh.chat.ui', data: null},
+                            isPartial
+                        })
+                    })
+                );
+            },
+            text = (html: string) => html.replace(/<[^>]+>/g, '');
+
+        [false, true].forEach(isPartial => {
+            const asSpec = draw(false, isPartial),
+                asAnswer = draw(true, isPartial);
+            expect(asSpec).toContain('xh-chat-ui-grid');
+            expect(text(asSpec).length).toBeGreaterThan(20);
+            expect(text(asAnswer)).toBe(text(asSpec));
+        });
     });
 
     it('renders a component from its partial props while it streams, with its action disabled', () => {

@@ -1,7 +1,9 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {dropRight, isArray, isEmpty, isFinite, isPlainObject, isString} from 'lodash';
+import {genDisplayName} from '@xh/hoist/data';
+import {dropRight, isArray, isEmpty, isFinite, isPlainObject, isString, mapKeys} from 'lodash';
 import type {Blueprint, BlueprintElement, ChildRef, SourceDecl} from '../../blueprint';
 import type {ChatUiDocument, ChatUiElement} from '../ChatUiDocument';
+import {getOwn} from '../../impl/LangUtils';
 import {toWidgetName} from './specWidgets';
 
 /**
@@ -10,8 +12,10 @@ import {toWidgetName} from './specWidgets';
  * becomes its bridged widget, as `chart` becomes `chatUiChart`. Leaves what it cannot read for
  * `degradeAnswer()` to report, so a document with problems still translates.
  *
- * Stat cards whose props pass the catalog become a `statCardStrip` over an inline source, so that
- * their data lives in a source. While one streams, its last card, which may be cut short, waits.
+ * Stat cards and an inline grid whose props pass the catalog become a `statCardStrip` or a
+ * `cubeGrid` over an inline source, so that their data lives in a source. While stat cards
+ * stream, the last card, which may be cut short, waits. A grid's card leaves out its last row
+ * itself, as the spec always has. A grid by reference stays the spec: its artifact is its source.
  */
 export function toAnswerBlueprint(
     doc: ChatUiDocument,
@@ -25,10 +29,10 @@ export function toAnswerBlueprint(
                   Object.entries(doc.elements).map(([docId, el]) => {
                       const id = toAnswerId(docId),
                           isPartial = partialIds.includes(id),
+                          translate = getOwn(TRANSLATORS, el?.component),
                           translated =
-                              el?.component === 'statCards' &&
-                              isValid('statCards', el.props ?? {}, isPartial)
-                                  ? toStatCardStrip(id, el.props, isPartial)
+                              translate && isValid(el.component, el.props ?? {}, isPartial)
+                                  ? translate(id, el.props, isPartial)
                                   : null;
                       if (translated) sources[id] = translated.source;
                       return [id, translated?.element ?? toElement(el)];
@@ -84,11 +88,57 @@ export function fromAnswerId(id: string): string {
 
 const FORBIDDEN_IDS = ['__proto__', 'prototype', 'constructor'];
 
-function toStatCardStrip(
-    id: string,
-    props: PlainObject,
-    isPartial: boolean
-): {element: BlueprintElement; source: SourceDecl} {
+type Translation = {element: BlueprintElement; source: SourceDecl};
+
+function toCubeGrid(id: string, props: PlainObject): Translation {
+    if (props.data != null || !isArray(props.columns) || !isArray(props.rows)) return null;
+    const columns = props.columns.filter(isPlainObject),
+        // A source keeps `id` for each row's key, so a column of that name takes a free one.
+        names = new Map<string, string>(),
+        taken = new Set(columns.map(it => it.field));
+    columns.forEach(({field}) => {
+        let name = field;
+        while (name === 'id' || (name !== field && taken.has(name))) name = `${name}_`;
+        names.set(field, name);
+        taken.add(name);
+    });
+    const nameOf = (field: string) => names.get(field) ?? field,
+        fields = columns.map(col => {
+            const type = GRID_TYPES[col.type] ?? 'string',
+                label = col.headerName ?? (col.field === 'id' ? genDisplayName('id') : null);
+            return {
+                name: nameOf(col.field),
+                ...(label ? {label} : {}),
+                type,
+                ...(type === 'number' ? toFieldFormat(col.format, col.decimals, false) : {})
+            };
+        }),
+        rows = props.rows
+            .filter(isPlainObject)
+            .map((row: PlainObject) => mapKeys(row, (_, key) => nameOf(key)));
+    return {
+        element: {
+            component: 'cubeGrid',
+            config: {
+                source: id,
+                presentation: 'card',
+                ...(props.title ? {title: props.title} : {}),
+                ...(props.sortBy ? {sortBy: props.sortBy} : {}),
+                columnState: columns.map(it => nameOf(it.field))
+            }
+        },
+        source: {inline: {fields, rows}} as SourceDecl
+    };
+}
+
+const GRID_TYPES: Record<string, string> = {
+    string: 'string',
+    number: 'number',
+    date: 'localDate',
+    boolean: 'bool'
+};
+
+function toStatCardStrip(id: string, props: PlainObject, isPartial: boolean): Translation {
     const cards = (isPartial ? dropRight(props.cards) : props.cards).filter(isPlainObject);
     if (!cards.length) return null;
 
@@ -103,7 +153,7 @@ function toStatCardStrip(
                 label: card.label,
                 type: isNumber ? 'number' : 'string',
                 aggregator: 'UNIQUE',
-                ...(isNumber ? toFieldFormat(card.format, card.decimals) : {})
+                ...(isNumber ? toFieldFormat(card.format, card.decimals, true) : {})
             });
             row[value] = card.value;
 
@@ -114,7 +164,7 @@ function toStatCardStrip(
                     name: delta,
                     type: 'number',
                     aggregator: 'UNIQUE',
-                    ...toFieldFormat(format, format === card.format ? card.decimals : null)
+                    ...toFieldFormat(format, format === card.format ? card.decimals : null, true)
                 });
                 row[delta] = card.delta;
                 ret.deltaField = delta;
@@ -134,13 +184,13 @@ function toStatCardStrip(
 }
 
 /**
- * A chat number format as a field's kind and format. A number or currency shows in compact
- * form, such as `$48.5B`, as chat kit's headline figures do, and keeps its decimals only while
- * whole.
+ * A chat number format as a field's kind and format. With `isCompact`, a number or currency shows
+ * in compact form, such as `$48.5B`, as chat kit's headline figures do, and keeps its decimals
+ * only while whole.
  */
-function toFieldFormat(format: string, decimals: number): PlainObject {
+function toFieldFormat(format: string, decimals: number, isCompact: boolean): PlainObject {
     const precision = (fixed: unknown) => decimals ?? fixed,
-        compact = {scale: 'auto', labelCls: null};
+        compact = isCompact ? {scale: 'auto', labelCls: null} : {};
     switch (format) {
         case 'percent':
             return {kind: 'fraction', format: {precision: precision(1)}};
@@ -152,6 +202,14 @@ function toFieldFormat(format: string, decimals: number): PlainObject {
             return {format: {precision: precision('auto'), ...compact}};
     }
 }
+
+const TRANSLATORS: Record<
+    string,
+    (id: string, props: PlainObject, isPartial: boolean) => Translation
+> = {
+    statCards: toStatCardStrip,
+    grid: toCubeGrid
+};
 
 function ids(value: unknown): string[] {
     return isArray(value) ? value : [];
