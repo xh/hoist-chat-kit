@@ -310,14 +310,14 @@ describe('blueprint desktop widgets', () => {
                 chooser = widget(GroupingChooserWidgetModel, model, 'groupChooser'),
                 {chooserModel} = chooser;
 
-            expect(chooserModel.value).toEqual(['strategy', 'trader']);
+            expect(chooserModel.value).toEqual(['strategy', 'trader', 'symbol']);
             expect(chooserModel.dimensions.sector.displayName).toBe('Sector');
 
             chooserModel.setValue(['sector']);
             expect(model.getVariable('grouping').value).toEqual(['sector']);
 
             model.resetVariable('grouping');
-            expect(chooserModel.value).toEqual(['strategy', 'trader']);
+            expect(chooserModel.value).toEqual(['strategy', 'trader', 'symbol']);
         });
     });
 
