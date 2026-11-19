@@ -463,8 +463,11 @@ export class BlueprintSource extends HoistBase {
 
     private buildFields(): Record<string, FieldDef> {
         const {initialDecl: decl, context} = this;
+        // Inline values are computed literals, so a row that holds one rolls up to it.
         if (decl.inline) {
-            return Object.fromEntries(decl.inline.fields.map(it => [it.name, it as FieldDef]));
+            return Object.fromEntries(
+                decl.inline.fields.map(it => [it.name, {aggregator: 'UNIQUE', ...it} as FieldDef])
+            );
         }
         const ds = context.catalog.getDataset(
             decl.artifact ? getOwn(context.artifacts, decl.artifact) : decl.dataset

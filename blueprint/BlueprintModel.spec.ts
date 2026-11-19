@@ -785,7 +785,7 @@ describe('BlueprintModel', () => {
             });
         });
 
-        it('takes each Cube aggregator from the catalog, and rolls up no number without one', async () => {
+        it('takes each Cube aggregator from the catalog, and rolls an inline value up as itself', async () => {
             const bp = p1();
             bp.sources.stats = {
                 inline: {
@@ -802,7 +802,7 @@ describe('BlueprintModel', () => {
             expect(positions.getField('mktVal').aggregator).toBeInstanceOf(SumAggregator);
             expect(positions.getField('beta').aggregator).toBeInstanceOf(WeightedAverageAggregator);
             expect(positions.getField('var95').aggregator).toBeInstanceOf(SuppliedAggregator);
-            expect(stats.getField('price').aggregator).toBeNull();
+            expect(stats.getField('price').aggregator).toBeInstanceOf(UniqueAggregator);
             expect(stats.getField('label').aggregator).toBeInstanceOf(UniqueAggregator);
         });
 

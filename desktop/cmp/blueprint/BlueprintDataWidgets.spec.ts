@@ -121,6 +121,19 @@ describe('blueprint data widgets', () => {
         });
     });
 
+    it('shows the values of an inline source of one row, as computed', async () => {
+        const bp = loadBlueprint('p2-linked-dashboard.json');
+        bp.sources.tomorrow = {
+            inline: {
+                fields: [{name: 'maxChance', label: 'Highest Chance', type: 'number'}],
+                rows: [{maxChance: 0.8}]
+            }
+        } as any;
+        bp.elements.headline.config = {source: 'tomorrow', cards: [{field: 'maxChance'}]};
+        const cards = widget(StatCardStripWidgetModel, open(bp), 'headline');
+        await vi.waitFor(() => expect(text(cards.cards[0]?.value)).toMatch(/0\.8/));
+    });
+
     describe('statCardStrip deltas', () => {
         const withDelta = (card: object) => {
             const bp = loadBlueprint('p2-linked-dashboard.json');
