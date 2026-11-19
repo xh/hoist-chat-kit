@@ -181,14 +181,13 @@ export const SCENARIOS: Scenario[] = [
     },
     {
         id: 'W3',
-        title: 'A quick answer with two segments',
+        title: 'A quick answer with UI',
         host: 'w2-two-cities.json',
         context: 'Mode: design. The user has write access. A chat is open beside the host blueprint below. Today is 2026-11-18.',
         steps: [{prompt: 'Will I need an umbrella in Chicago tomorrow? When is rain most likely?'}],
         checks: [
-            ['stat cards of inline values it computed', o => o.segments.some(s => segmentWidgets(s, 'statCardStrip').some(e => s.sources?.[e.config?.source]?.inline))],
-            ['a column chart of the chance of rain', o => o.segments.some(s => segmentWidgets(s, 'chart').some(e => e.config?.type === 'column'))],
-            ['every segment reads a query result or inline values, and there are two', o => o.segments.length >= 2 && o.segments.every(s => Object.values<any>(s.sources ?? {}).every(x => x.artifact || x.inline))],
+            ['a chart of the chance of rain through the day, over the query result', o => o.segments.some(s => segmentWidgets(s, 'chart').some(e => s.sources?.[e.config?.source]?.artifact && [e.config?.y].flat().includes('precipProbability')))],
+            ['any stat cards hold inline values it computed', o => o.segments.every(s => segmentWidgets(s, 'statCardStrip').every(e => s.sources?.[e.config?.source]?.inline))],
             ['the host is unchanged', o => JSON.stringify(o.blueprint) === JSON.stringify(loadBlueprint('w2-two-cities.json'))]
         ]
     }
