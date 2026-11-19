@@ -209,6 +209,41 @@ describe('BlueprintModel', () => {
         });
     });
 
+    describe('user actions', () => {
+        it('notes when the user acts, but not when the blueprint updates', async () => {
+            const model = await opened(p3()),
+                grid = new BlueprintWidgetModel({
+                    blueprintModel: model,
+                    id: 'posGrid',
+                    renderElement: () => null
+                });
+            onTestFinished(() => grid.destroy());
+            model.setMode('run');
+            expect(model.userActedAt).toBeNull();
+
+            const next = cloneDeep(model.blueprint);
+            next.elements.posGrid.config.title = 'Positions';
+            model.updateBlueprint(next);
+            expect(model.userActedAt).toBeNull();
+
+            const acts: [string, () => unknown][] = [
+                ['a preset switch', () => model.setPreset('posViews', 'risk')],
+                ['a change in a widget', () => grid.setConfig('/sortBy', 'mktVal')],
+                ['a selection', () => model.setOutput('posGrid', 'selected', {symbol: 'AAPL'})],
+                ['an action', () => model.runActionsAsync({type: 'refresh'})]
+            ];
+            for (const [, act] of acts) {
+                runInAction(() => (model.userActedAt = null));
+                await act();
+                expect(model.userActedAt).toBeGreaterThan(0);
+            }
+
+            runInAction(() => (model.userActedAt = null));
+            model.setOutput('posGrid', 'selected', {symbol: 'AAPL'});
+            expect(model.userActedAt).toBeNull();
+        });
+    });
+
     describe('variables', () => {
         it('takes its default from a resolver until a prompt sets it', () => {
             const model = open(p1()),

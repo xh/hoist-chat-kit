@@ -99,6 +99,18 @@ export class BlueprintModel extends HoistModel {
         if (this.mode === 'design') this.transientValues = {};
     }
 
+    /**
+     * When the user last acted in the blueprint: set a variable, switched a preset, changed a
+     * widget in run mode, selected, or ran an action. Null until they do. An update never sets it.
+     */
+    @observable accessor userActedAt: number = null;
+
+    /** Note that the user acted, as each of their changes does. */
+    @action
+    noteUserAction() {
+        this.userActedAt = Date.now();
+    }
+
     /** The current blueprint's warnings. */
     @observableRef accessor issues: BlueprintIssue[] = [];
 
@@ -299,6 +311,7 @@ export class BlueprintModel extends HoistModel {
     /** Switch a group to one of its presets. Clears transient changes to the paths it controls. */
     @action
     setPreset(group: string, item: string) {
+        this.noteUserAction();
         const def = getOwn(this.blueprint?.presets, group);
         throwIf(!getOwn(def?.items, item), `No preset '${item}' in group '${group}'.`);
         this.activePresets = {...this.activePresets, [group]: item};
@@ -317,6 +330,7 @@ export class BlueprintModel extends HoistModel {
     /** Hold a run-mode change a user made in a widget, without editing the blueprint. */
     @action
     setTransientValue(path: string, value: unknown) {
+        this.noteUserAction();
         this.transientValues = {...this.transientValues, [path]: value};
     }
 
@@ -338,12 +352,14 @@ export class BlueprintModel extends HoistModel {
         throwIf(!v, `Unknown variable '${name}'.`);
         const problem = checkVariableValue(name, v.decl, value, this.registry);
         throwIf(problem, problem);
+        this.noteUserAction();
         v.set(value);
         return v.value;
     }
 
     /** Restore a variable's default. */
     resetVariable(name: string) {
+        this.noteUserAction();
         this.getVariable(name)?.reset();
     }
 
@@ -353,12 +369,16 @@ export class BlueprintModel extends HoistModel {
      */
     @action
     setOutput(element: string, output: string, value: unknown) {
+        let changed = false;
         this.variables.forEach(v =>
             v.writers.forEach((w, idx) => {
                 if (w.kind !== 'output' || w.element !== element || w.output !== output) return;
-                v.setOutputValue(idx, w.field ? ((value as any)?.[w.field] ?? null) : value);
+                const next = w.field ? ((value as any)?.[w.field] ?? null) : value;
+                changed = v.setOutputValue(idx, next) || changed;
             })
         );
+        // A widget may publish as it loads, so only a change counts as the user acting.
+        if (changed) this.noteUserAction();
     }
 
     /**
@@ -371,6 +391,7 @@ export class BlueprintModel extends HoistModel {
         actions: PlainObject | PlainObject[],
         ctx: ActionRunContext = {}
     ): Promise<boolean> {
+        this.noteUserAction();
         return runActionsAsync(this, actions, ctx);
     }
 

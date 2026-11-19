@@ -103,11 +103,13 @@ export class BlueprintVariable extends HoistBase {
 
     /** Take the value of the output at a writer index. */
     @action
-    setOutputValue(writerIdx: number, value: unknown) {
-        if (isEqual(this.outputValues[writerIdx] ?? null, value ?? null)) return;
+    /** @returns true if the value changed. */
+    setOutputValue(writerIdx: number, value: unknown): boolean {
+        if (isEqual(this.outputValues[writerIdx] ?? null, value ?? null)) return false;
         const next = [...this.outputValues];
         next[writerIdx] = value ?? null;
         this.outputValues = next;
+        return true;
     }
 
     private get hasOutputs(): boolean {

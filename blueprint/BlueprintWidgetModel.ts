@@ -132,6 +132,7 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
     setValue(value: unknown) {
         const variable = this.valueVariable;
         throwIf(!variable, `No variable is set by element '${this.id}'.`);
+        this.blueprintModel.noteUserAction();
         variable.set(value);
     }
 
