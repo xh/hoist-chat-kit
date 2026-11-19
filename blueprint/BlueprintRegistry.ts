@@ -48,6 +48,12 @@ export interface WidgetSpec {
      */
     reserved?: boolean;
     /**
+     * True for a widget that renders a config still arriving, as a chat kit component does. While
+     * its element streams, the validator checks its config only for what a growing value could
+     * not still satisfy, and skips `validate`. Every other widget gets complete configs only.
+     */
+    rendersPartial?: boolean;
+    /**
      * The data the widget needs from its source, given its config with bindings resolved. A
      * source merges every widget's demand into one request.
      */

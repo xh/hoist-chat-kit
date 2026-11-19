@@ -74,7 +74,7 @@ import {
 import {chatUiFallback, chatUiPlaceholder} from './ChatUiFallback';
 import {ChatUiRefusal} from './impl/ChatUiRefusal';
 import {chatUiTagFormat} from './formats/ChatUiTagFormat';
-import {fromAnswerId, toAnswerBlueprint} from './impl/answerBlueprint';
+import {fromAnswerId, toAnswerBlueprint, toAnswerId} from './impl/answerBlueprint';
 import {
     type ChatUiAnswerRenderProps,
     fromWidgetName,
@@ -1233,14 +1233,21 @@ export class ChatUiCatalog {
 
     /** Render a document as an answer blueprint, through the platform's answer renderer. */
     private renderAnswer(doc: ChatUiDocument, context: ChatUiDocumentContext): ReactNode {
-        const completeIds = Object.entries(doc.elements)
-                .filter(([, it]) => it?.isPartial === false)
-                .map(([id]) => id),
+        // An element may say it is complete inside a partial document, never the reverse.
+        const idsWhere = (test: (el: ChatUiElement) => boolean) =>
+                context.isPartial
+                    ? Object.entries(doc.elements)
+                          .filter(([, it]) => test(it))
+                          .map(([id]) => toAnswerId(id))
+                    : [],
+            partialIds = idsWhere(it => it?.isPartial !== false),
+            writingIds = idsWhere(it => it?.isPartial === true),
             blueprint = degradeAnswer(toAnswerBlueprint(doc), {
                 catalog: ANSWER_DATA_CATALOG,
                 registry: this.registry,
                 isAnswer: true,
                 isComplete: !context.isPartial,
+                partialIds,
                 elementErrors: context.elementErrors
             });
         return ChatUiCatalog.answerRenderer({
@@ -1248,7 +1255,8 @@ export class ChatUiCatalog {
             catalog: this,
             dataCatalog: ANSWER_DATA_CATALOG,
             context,
-            completeIds
+            partialIds,
+            writingIds
         });
     }
 

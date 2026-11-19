@@ -157,6 +157,23 @@ describe('degradeAnswer', () => {
         });
     });
 
+    describe('elements a format marks complete', () => {
+        it('falls back at once for an element known complete, while the rest stream', () => {
+            const bp = answer();
+            bp.elements.chartA.config.y = ['bogus'];
+            bp.elements.chartB.config.y = ['bogus'];
+            const ret = degradeAnswer(bp, {...ctx, isComplete: false, partialIds: ['chartB']});
+            expect(componentsOf(ret)).toMatchObject({chartA: 'fallback', chartB: 'placeholder'});
+        });
+
+        it('checks every element in full once the answer is complete, whatever partialIds says', () => {
+            const bp = answer();
+            bp.elements.chartB.config.y = ['bogus'];
+            const ret = degradeAnswer(bp, {...ctx, isComplete: true, partialIds: ['chartB']});
+            expect(ret.elements.chartB.component).toBe('fallback');
+        });
+    });
+
     describe('reserved widgets', () => {
         it('refuses a placeholder or a fallback in an authored blueprint', () => {
             const bp = answer();

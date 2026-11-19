@@ -35,10 +35,11 @@ export class BlueprintViewModel extends HoistModel {
     constructor(blueprintModel: BlueprintModel) {
         super();
         this.blueprintModel = blueprintModel;
+        // Synced now, not by fireImmediately, which MobX defers inside a batch such as a render.
+        this.syncWidgets();
         this.addReaction({
             track: () => this.blueprintModel.blueprint?.elements,
-            run: () => this.syncWidgets(),
-            fireImmediately: true
+            run: () => this.syncWidgets()
         });
     }
 

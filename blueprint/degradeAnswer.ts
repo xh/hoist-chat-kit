@@ -17,8 +17,9 @@ export interface DegradeAnswerContext extends ValidateBlueprintContext {
  * A chat answer that renders as far as it can. Checks the answer as strictly as any blueprint,
  * then stands in for each part with errors, and checks again, until it is valid:
  *
- *  - An element with errors, or one that has not arrived, becomes a `placeholder` while the answer
- *    streams, naming the component it will be, and a `fallback` once it is complete. A fallback lists the errors, and holds the
+ *  - An element with errors, or one that has not arrived, becomes a `placeholder` while it may
+ *    still be arriving, naming the component it will be, and a `fallback` once the answer is
+ *    complete. With `partialIds`, an element not listed is complete, and falls back at once. A fallback lists the errors, and holds the
  *    element as written as JSON text, which no later check reads.
  *  - A source or a variable with errors is removed, so the elements that read it are replaced.
  *  - An element that no container places is removed, as it never shows.
@@ -31,13 +32,18 @@ export interface DegradeAnswerContext extends ValidateBlueprintContext {
  */
 export function degradeAnswer(input: unknown, ctx: DegradeAnswerContext): Blueprint {
     const {isComplete, maxPasses = 5} = ctx,
-        standIn = (errors: string[], original: any) =>
-            isComplete
+        // Without partialIds, every element of a streaming answer may still be arriving.
+        isArriving = (id: string) =>
+            !isComplete && (id == null || !ctx.partialIds || ctx.partialIds.includes(id)),
+        standIn = (errors: string[], original: any, id: string = null) =>
+            !isArriving(id)
                 ? {component: 'fallback', config: {errors, input: toJson(original)}}
                 : {
                       component: 'placeholder',
                       config: isString(original?.component) ? {component: original.component} : {}
                   },
+        // Once complete, nothing is still arriving, so every element is checked in full.
+        checkCtx = {...ctx, allowReserved: true, partialIds: isComplete ? [] : ctx.partialIds},
         whole = (issues: BlueprintIssue[]): Blueprint => ({
             root: 'root',
             elements: {root: standIn(issues.map(describeIssue), input)}
@@ -54,14 +60,12 @@ export function degradeAnswer(input: unknown, ctx: DegradeAnswerContext): Bluepr
                     `/elements/${id}/component: '${el.component}' is for the kit's own use`
                 );
             }
-            if (errors.length) bp.elements[id] = standIn(errors, el);
+            if (errors.length) bp.elements[id] = standIn(errors, el, id);
         });
     }
 
     for (let pass = 0; pass < maxPasses; pass++) {
-        const errors = validateBlueprint(bp, {...ctx, allowReserved: true}).filter(
-            it => it.severity === 'error'
-        );
+        const errors = validateBlueprint(bp, checkCtx).filter(it => it.severity === 'error');
         if (!errors.length) return bp;
         if (!isPlainObject(bp.elements)) return whole(errors);
 
@@ -87,7 +91,7 @@ export function degradeAnswer(input: unknown, ctx: DegradeAnswerContext): Bluepr
             }
         }
         for (const [id, issues] of Object.entries(byElement)) {
-            bp.elements[id] = standIn(issues.map(describeIssue), bp.elements[id]);
+            bp.elements[id] = standIn(issues.map(describeIssue), bp.elements[id], id);
         }
         for (const id of missing) {
             if (typeof id !== 'string' || !id) return whole(errors);
@@ -95,7 +99,7 @@ export function degradeAnswer(input: unknown, ctx: DegradeAnswerContext): Bluepr
         }
         unplaced.forEach(id => delete bp.elements[id]);
     }
-    return whole(validateBlueprint(bp, {...ctx, allowReserved: true}));
+    return whole(validateBlueprint(bp, checkCtx));
 }
 
 //------------------

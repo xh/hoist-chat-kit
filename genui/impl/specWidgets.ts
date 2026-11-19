@@ -44,8 +44,10 @@ export interface ChatUiAnswerRenderProps {
     /** The datasets the answer's sources may read. */
     dataCatalog: DataCatalog;
     context: ChatUiDocumentContext;
-    /** Elements the format marked complete, which render as complete while the answer streams. */
-    completeIds: string[];
+    /** Elements still arriving: all those of a streaming answer that its format did not mark complete. */
+    partialIds: string[];
+    /** Elements a format says it is still writing, as OpenUI Lang marks each element. */
+    writingIds: string[];
 }
 
 /**
@@ -54,7 +56,8 @@ export interface ChatUiAnswerRenderProps {
  */
 export class ChatUiAnswerHostContext extends HoistBase {
     @observableRef accessor context: ChatUiDocumentContext;
-    @observableRef accessor completeIds: string[] = [];
+    @observableRef accessor partialIds: string[] = [];
+    @observableRef accessor writingIds: string[] = [];
 
     constructor(context: ChatUiDocumentContext) {
         super();
@@ -62,14 +65,15 @@ export class ChatUiAnswerHostContext extends HoistBase {
     }
 
     @action
-    update(context: ChatUiDocumentContext, completeIds: string[]) {
+    update(context: ChatUiDocumentContext, partialIds: string[], writingIds: string[]) {
         this.context = context;
-        if (!isEqual(completeIds, this.completeIds)) this.completeIds = completeIds;
+        if (!isEqual(partialIds, this.partialIds)) this.partialIds = partialIds;
+        if (!isEqual(writingIds, this.writingIds)) this.writingIds = writingIds;
     }
 
     /** True while an element may be incomplete, as chat kit renders a streaming document. */
     isPartial(id: string): boolean {
-        return this.context.isPartial && !this.completeIds.includes(id);
+        return this.partialIds.includes(id);
     }
 }
 
@@ -113,6 +117,7 @@ export function toWidgetSpec(spec: ChatUiComponentSpec, catalog: ChatUiCatalog):
                       }))
               }
             : {}),
+        rendersPartial: true,
         model: BlueprintWidgetModel,
         component: specWidget(spec, catalog)
     };
@@ -282,7 +287,8 @@ function specWidget(spec: ChatUiComponentSpec, catalog: ChatUiCatalog) {
                     component: spec.name,
                     props,
                     ...(childIds.length ? {children: childIds} : {}),
-                    ...(isEmpty(slotIds) ? {} : {slots: slotIds})
+                    ...(isEmpty(slotIds) ? {} : {slots: slotIds}),
+                    ...(host.isPartial(id) && host.writingIds.includes(id) ? {isPartial: true} : {})
                 };
             if (model.valueVariable) {
                 props.value = model.value;

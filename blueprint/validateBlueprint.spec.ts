@@ -76,6 +76,69 @@ describe('validateBlueprint', () => {
         ]);
     });
 
+    describe('elements still streaming', () => {
+        const noteRegistry = new BlueprintRegistry({
+                widgets: [
+                    {
+                        name: 'note',
+                        version: 1,
+                        label: 'Note',
+                        guidance: 'A note.',
+                        category: 'data',
+                        rendersPartial: true,
+                        config: {
+                            type: 'object',
+                            required: ['text'],
+                            additionalProperties: false,
+                            properties: {
+                                text: {type: 'string', minLength: 3},
+                                action: {type: 'object', 'x-action': true}
+                            }
+                        },
+                        validate: () => [
+                            {code: 'note.never', severity: 'error', path: '', message: 'never'}
+                        ]
+                    }
+                ]
+            }),
+            note = (config: object): Blueprint => ({
+                root: 'n',
+                elements: {n: {component: 'note', config}}
+            }),
+            check = (bp: Blueprint, partialIds?: string[]) =>
+                validateBlueprint(bp, {
+                    catalog: portfolioCatalog,
+                    registry: noteRegistry,
+                    isAnswer: true,
+                    partialIds
+                }).map(it => it.code);
+
+        it('checks a widget that renders partial configs only for what a growing value cannot fix', () => {
+            expect(check(note({text: 'h'}), ['n'])).toEqual([]);
+            expect(check(note({}), ['n'])).toEqual([]);
+            expect(check(note({text: 5}), ['n'])).toEqual(['schema.invalid']);
+            expect(check(note({text: 'h'}))).toEqual(['schema.invalid', 'note.never']);
+        });
+
+        it('still applies annotations and the forbidden-key walk to a partial element', () => {
+            expect(check(note({action: 'go'}), ['n'])).toEqual(['schema.invalid']);
+            const forbidden = JSON.parse('{"text": "hi", "__proto__": {}}');
+            expect(check(note(forbidden), ['n'])).toEqual(['path.forbidden']);
+        });
+
+        it('checks a widget that does not render partial configs in full, even while streaming', () => {
+            const bp = p2();
+            bp.elements.posGrid.config.groupBy = 'sec';
+            expect(
+                validateBlueprint(bp, {
+                    catalog: portfolioCatalog,
+                    registry,
+                    partialIds: ['posGrid']
+                }).map(it => it.code)
+            ).toContain('field.unknown');
+        });
+    });
+
     describe('widget config', () => {
         it('refuses a config that fails its schema, at the value at fault', () => {
             const bp = p2();

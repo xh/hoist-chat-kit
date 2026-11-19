@@ -16,6 +16,11 @@ export interface ValidateBlueprintContext {
     isAnswer?: boolean;
     /** True for an answer the kit degraded, which may hold its reserved widgets. */
     allowReserved?: boolean;
+    /**
+     * Elements still streaming. Each one whose widget `rendersPartial` is checked as a value still
+     * growing. Only the stream sets this, never what a model writes.
+     */
+    partialIds?: string[];
 }
 
 /** Hoist field types, plus `filter`, which every variable may take. */
@@ -102,11 +107,14 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             err('element.reserved', `${p}/component`, `'${el.component}' is for the kit's own use`);
             continue;
         }
-        for (const e of checkConfig(el.config ?? {}, spec.config)) {
+        const isPartial = !!spec.rendersPartial && !!ctx.partialIds?.includes(id);
+        for (const e of checkConfig(el.config ?? {}, spec.config, {isPartial})) {
             err('schema.invalid', `${p}/config${e.path}`, e.message);
         }
-        for (const it of spec.validate?.(el.config ?? {}, {blueprint: bp, id}) ?? []) {
-            issues.push({...it, path: `${p}/config${it.path}`});
+        if (!isPartial) {
+            for (const it of spec.validate?.(el.config ?? {}, {blueprint: bp, id}) ?? []) {
+                issues.push({...it, path: `${p}/config${it.path}`});
+            }
         }
         if (el.children && !spec.children) {
             err('element.notContainer', `${p}/children`, `${el.component} takes no children`);

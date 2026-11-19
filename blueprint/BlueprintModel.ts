@@ -151,8 +151,11 @@ export class BlueprintModel extends HoistModel {
         }
     }
 
-    /** Check a blueprint against the catalog and registry, without applying it. */
-    validate(bp: Blueprint): BlueprintIssue[] {
+    /**
+     * Check a blueprint against the catalog and registry, without applying it.
+     * @param opts - `partialIds`, the elements of a streaming answer still arriving.
+     */
+    validate(bp: Blueprint, opts: {partialIds?: string[]} = {}): BlueprintIssue[] {
         const {catalog, registry, artifacts, isAnswer} = this;
         // An answer renders degraded, so it may hold the reserved widgets degradeAnswer() places.
         return validateBlueprint(bp, {
@@ -160,7 +163,8 @@ export class BlueprintModel extends HoistModel {
             registry,
             artifacts,
             isAnswer,
-            allowReserved: isAnswer
+            allowReserved: isAnswer,
+            partialIds: opts.partialIds
         });
     }
 
@@ -188,12 +192,13 @@ export class BlueprintModel extends HoistModel {
      * the history, and the run-mode changes to elements that are still there. With errors,
      * nothing changes. A blueprint equal to the current one changes nothing.
      *
+     * @param opts - `partialIds`, the elements of a streaming answer still arriving.
      * @returns every issue found, errors and warnings.
      */
     @action
-    updateBlueprint(bp: Blueprint): BlueprintIssue[] {
+    updateBlueprint(bp: Blueprint, opts: {partialIds?: string[]} = {}): BlueprintIssue[] {
         if (isEqual(bp, this.blueprint)) return this.issues;
-        const issues = this.validate(bp);
+        const issues = this.validate(bp, opts);
         if (!hasErrors(issues)) {
             this.transientValues = pickBy(this.transientValues, (_, path) =>
                 Object.hasOwn(bp.elements ?? {}, path.split('/')[2])

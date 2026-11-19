@@ -28,9 +28,10 @@ export const FILTER_OPS = [
  */
 export function checkConfig(
     value: unknown,
-    schema: PlainObject
+    schema: PlainObject,
+    opts: {isPartial?: boolean} = {}
 ): {path: string; message: string}[] {
-    return findSchemaErrors(value, schema, {checkNode}).map(it => ({
+    return findSchemaErrors(value, schema, {checkNode, isPartial: opts.isPartial}).map(it => ({
         path: toPointer(it.path),
         message: it.message
     }));

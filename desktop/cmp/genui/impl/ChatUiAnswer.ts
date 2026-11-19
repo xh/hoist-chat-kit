@@ -34,24 +34,26 @@ class ChatUiAnswerModel extends HoistModel {
     @managed readonly blueprintModel: BlueprintModel;
     @managed readonly viewModel: BlueprintViewModel;
 
-    constructor({blueprint, catalog, dataCatalog, context}: ChatUiAnswerRenderProps) {
+    constructor(props: ChatUiAnswerRenderProps) {
         super();
+        const {catalog, dataCatalog, context} = props;
         this.host = new ChatUiAnswerHostContext(context);
+        // Opened empty, then updated, as the constructor checks a blueprint in full.
         this.blueprintModel = new BlueprintModel({
-            blueprint,
             catalog: dataCatalog,
             registry: catalog.registry,
             dataProvider: NO_DATASETS,
             isAnswer: true,
             hostContext: this.host
         });
+        this.update(props);
         this.viewModel = new BlueprintViewModel(this.blueprintModel);
     }
 
-    update({blueprint, context, completeIds}: ChatUiAnswerRenderProps) {
-        this.host.update(context, completeIds);
+    update({blueprint, context, partialIds, writingIds}: ChatUiAnswerRenderProps) {
+        this.host.update(context, partialIds, writingIds);
         const errors = this.blueprintModel
-            .updateBlueprint(blueprint)
+            .updateBlueprint(blueprint, {partialIds})
             .filter(it => it.severity === 'error');
         if (errors.length) this.logError('An answer that degraded still has errors', errors);
     }
