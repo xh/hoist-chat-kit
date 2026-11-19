@@ -79,6 +79,24 @@ describe('Architect tools', () => {
         expect(specs.cubeGrid.demand).toBeUndefined();
     });
 
+    it("describes a grid's style options, and to keep its default style", () => {
+        const {cubeGrid} = run('describe_registry', {kind: 'widget', names: ['cubeGrid']}, open()),
+            {properties} = cubeGrid.config;
+        expect(properties.treeStyle.enum).toEqual([
+            'highlights',
+            'colors',
+            'borders',
+            'highlightsAndBorders',
+            'colorsAndBorders',
+            'none'
+        ]);
+        expect(properties.sizingMode.enum).toEqual(['tiny', 'compact', 'standard', 'large']);
+        expect(properties.stripeRows.description).toBe(
+            'Alternate the background of rows. Default on.'
+        );
+        expect(cubeGrid.guidance).toMatch(/Keep the grid's default style unless the user asks/);
+    });
+
     it('applies an edit as the Architect, and refuses one with errors, returning its issues', () => {
         const model = open(),
             ok = run(

@@ -103,6 +103,31 @@ describe('validateBlueprint', () => {
         ]);
     });
 
+    it("takes a grid's Hoist style options, and refuses a value Hoist does not have", () => {
+        const bp = p2();
+        Object.assign(bp.elements.posGrid.config, {
+            treeStyle: 'highlightsAndBorders',
+            stripeRows: true,
+            rowBorders: true,
+            cellBorders: false,
+            showHover: true,
+            sizingMode: 'large',
+            showGroupRowCounts: false,
+            hideHeaders: false,
+            emptyText: 'No positions',
+            groupRowHeight: 36
+        });
+        expect(validate(bp)).toEqual([]);
+
+        Object.assign(bp.elements.posGrid.config, {treeStyle: 'stripes', sizingMode: 'huge'});
+        expect(validate(bp).map(it => it.path)).toEqual(
+            expect.arrayContaining([
+                '/elements/posGrid/config/treeStyle',
+                '/elements/posGrid/config/sizingMode'
+            ])
+        );
+    });
+
     it("refuses an inline field named id, which a source keeps for each row's key", () => {
         const bp = p2();
         bp.sources.stats = {inline: {fields: [{name: 'id', type: 'number'}], rows: []}} as any;

@@ -14,6 +14,7 @@ import {
 } from '../../../../blueprint';
 import {ChatUiCatalog} from '../../../../genui';
 import {AnswerLoadGate} from '../../../../genui/impl/AnswerLoadGate';
+import {CUBE_GRID_STYLES} from '../../../../blueprint/impl/builtInWidgets';
 import {resolveFormat} from '../../../../blueprint/impl/formats';
 import {chatArtifactProvider} from '../../../../genui/impl/answerData';
 import {getArtifactRows} from '../../../../impl/ArtifactRows';
@@ -243,7 +244,8 @@ ChatUiCatalog.answerPresentations.push({
         label: 'Card',
         guidance:
             'Draws the grid as a chat reply does: a preview of the first rows and columns, with the full grid on Expand.',
-        component: gridCard
+        component: gridCard,
+        ignores: [...CUBE_GRID_STYLES]
     }
 });
 

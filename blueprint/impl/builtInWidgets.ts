@@ -170,6 +170,58 @@ const CUBE_GRID_SCHEMA = {
         },
         summaryRow: {
             type: 'boolean'
+        },
+        treeStyle: {
+            enum: [
+                'highlights',
+                'colors',
+                'borders',
+                'highlightsAndBorders',
+                'colorsAndBorders',
+                'none'
+            ],
+            description:
+                'How group rows stand out: highlighted, colored, set off by borders, or both. Default highlights.'
+        },
+        stripeRows: {
+            type: 'boolean',
+            description: 'Alternate the background of rows. Default on.'
+        },
+        rowBorders: {
+            type: 'boolean',
+            description: 'Draw a border between rows. Default on.'
+        },
+        cellBorders: {
+            type: 'boolean',
+            description: 'Draw a border between cells. Default off.'
+        },
+        showHover: {
+            type: 'boolean',
+            description: 'Highlight the row under the pointer. Default off.'
+        },
+        sizingMode: {
+            enum: ['tiny', 'compact', 'standard', 'large'],
+            description: "The size of the grid's text and rows. Default the app's sizing mode."
+        },
+        showGroupRowCounts: {
+            type: 'boolean',
+            description: 'Show the count of rows in each group row. Default on.'
+        },
+        hideHeaders: {
+            type: 'boolean',
+            description: 'Hide the row of column headers. Default off.'
+        },
+        emptyText: {
+            type: 'string',
+            maxLength: 200,
+            description: 'Text to show when the grid has no rows. Default "No data".'
+        },
+        groupRowHeight: {
+            type: 'integer',
+            minimum: 16,
+            maximum: 100,
+            description:
+                'The height of a group row in pixels, in place of its sizing mode. Default by sizing mode.'
         }
     }
 } as const satisfies BlueprintSchema;
@@ -399,6 +451,20 @@ export type TabContainerWidgetConfig = FromExtendedSchema<
     typeof TAB_CONTAINER_SCHEMA
 >;
 
+/** The keys of a `cubeGrid` config that style the grid, each a `GridConfig` option of the same name. */
+export const CUBE_GRID_STYLES = [
+    'treeStyle',
+    'stripeRows',
+    'rowBorders',
+    'cellBorders',
+    'showHover',
+    'sizingMode',
+    'showGroupRowCounts',
+    'hideHeaders',
+    'emptyText',
+    'groupRowHeight'
+] as const;
+
 /** The config of a `cubeGrid` widget, with bindings resolved. */
 export type CubeGridWidgetConfig = FromExtendedSchema<
     BlueprintSchemaExtension,
@@ -536,7 +602,7 @@ const cubeGrid: WidgetSpec = {
     label: 'Grid',
     terms: ['grid', 'table', 'pivot', 'list of positions', 'blotter'],
     guidance:
-        "The one grid widget. Grouped into a tree with groupBy, or flat without it. Use it for positions, orders and any tabular data. Its selection is an output: a filter of the selected row's group path, or one field's value.",
+        "The one grid widget. Grouped into a tree with groupBy, or flat without it. Use it for positions, orders and any tabular data. Its selection is an output: a filter of the selected row's group path, or one field's value. Keep the grid's default style unless the user asks for one.",
     category: 'data',
     config: CUBE_GRID_SCHEMA,
     presetPaths: ['/columnState', '/sortBy'],

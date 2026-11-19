@@ -1,15 +1,16 @@
 import {CubeGridModel, cubeGrid} from '@xh/hoist/cmp/cubegrid';
-import type {ColumnSpec, ColumnState} from '@xh/hoist/cmp/grid';
+import {type ColumnSpec, type ColumnState, GridModel} from '@xh/hoist/cmp/grid';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {FilterSpec, StoreRecord} from '@xh/hoist/data';
-import {observableRef} from '@xh/hoist/mobx';
+import {observableRef, when} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
-import {castArray, isEmpty, isEqual, isString, pick, sortBy} from 'lodash';
+import {castArray, isEmpty, isEqual, isString, omitBy, pick, sortBy, without} from 'lodash';
 import {
     BlueprintWidgetModel,
     type BlueprintWidgetConfig,
     type CubeGridWidgetConfig
 } from '../../../blueprint';
+import {CUBE_GRID_STYLES} from '../../../blueprint/impl/builtInWidgets';
 import {type FieldDisplay, fieldDisplay} from '../../../blueprint/impl/renderers';
 
 /**
@@ -18,6 +19,13 @@ import {type FieldDisplay, fieldDisplay} from '../../../blueprint/impl/renderers
  * is the `selection` output, as a filter of the selected row's group path, and the `selected`
  * output, as the selected row's data.
  */
+// GridModel takes these styles only as it is built. It changes the rest in place.
+const BUILT_STYLES = ['groupRowHeight', 'showGroupRowCounts'],
+    LIVE_STYLES = without(CUBE_GRID_STYLES, ...BUILT_STYLES);
+
+// CubeGridModel's own defaults, over GridModel's, for a style an edit clears.
+const CUBE_GRID_DEFAULTS = {emptyText: 'No data', stripeRows: true, rowBorders: true};
+
 export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConfig> {
     @managed @observableRef accessor cubeGridModel: CubeGridModel = null;
 
@@ -63,6 +71,21 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
             {
                 track: () => !!this.resolvedConfig.summaryRow,
                 run: show => this.cubeGridModel?.setShowSummary(show)
+            },
+            {
+                track: () => pick(this.resolvedConfig, LIVE_STYLES),
+                run: () => this.applyLiveStyles(),
+                equals: 'structural'
+            },
+            {
+                // GridModel takes these only as it is built, and binds to the app's sizing mode
+                // only when built without one.
+                track: () => {
+                    const cfg = this.resolvedConfig;
+                    return [cfg.groupRowHeight, cfg.showGroupRowCounts, cfg.sizingMode == null];
+                },
+                run: () => this.rebuildGrid(),
+                equals: 'structural'
             },
             {
                 track: () => this.resolvedConfig.expandLevel,
@@ -112,6 +135,7 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
             columns: this.buildColumns(),
             labelColumn: this.buildLabelColumn(),
             gridConfig: {
+                ...omitBy(pick(cfg, CUBE_GRID_STYLES), it => it == null),
                 showSummary: !!cfg.summaryRow,
                 sortBy: toGridSort(cfg.sortBy),
                 autosizeOptions: {mode: 'managed'},
@@ -122,6 +146,38 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
         });
         this.registerView(this.cubeGridModel.view);
         this.applyColumnStateAsync();
+    }
+
+    /** Build the grid again, keeping the user's selection and expanded rows. */
+    private async rebuildGrid() {
+        const prev = this.gridModel;
+        if (!prev) return;
+        const {selectedIds, expandState} = prev;
+        this.buildGrid();
+        const {gridModel} = this;
+        await when(() => gridModel.store.count > 0, {timeout: 5_000}).catch(() => null);
+        if (gridModel !== this.gridModel) return;
+        if (selectedIds.length) await gridModel.selectAsync(selectedIds, {ensureVisible: false});
+        // Rows expand only once ag-Grid has drawn the new grid.
+        if ((await gridModel.whenReadyAsync()) && gridModel === this.gridModel) {
+            gridModel.setExpandState(expandState);
+        }
+    }
+
+    /** Set each style GridModel can change in place, or its default where the config sets none. */
+    private applyLiveStyles() {
+        const {gridModel} = this;
+        if (!gridModel) return;
+        const cfg = this.resolvedConfig,
+            defaults = GridModel.defaults;
+        gridModel.treeStyle = cfg.treeStyle ?? defaults.treeStyle;
+        gridModel.emptyText = cfg.emptyText ?? CUBE_GRID_DEFAULTS.emptyText;
+        gridModel.setStripeRows(cfg.stripeRows ?? CUBE_GRID_DEFAULTS.stripeRows);
+        gridModel.setRowBorders(cfg.rowBorders ?? CUBE_GRID_DEFAULTS.rowBorders);
+        gridModel.setCellBorders(cfg.cellBorders ?? defaults.cellBorders);
+        gridModel.setShowHover(cfg.showHover ?? defaults.showHover);
+        gridModel.setHideHeaders(cfg.hideHeaders ?? false);
+        if (cfg.sizingMode != null) gridModel.setSizingMode(cfg.sizingMode);
     }
 
     /** True for a grid with no grouping, whose tree column would only show row IDs. */

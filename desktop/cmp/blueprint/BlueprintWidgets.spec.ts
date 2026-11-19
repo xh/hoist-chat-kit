@@ -122,6 +122,123 @@ describe('blueprint desktop widgets', () => {
             });
         });
 
+        describe('style options', () => {
+            const styled = (config: object) => {
+                const bp = loadBlueprint('p2-linked-dashboard.json');
+                Object.assign(bp.elements.posGrid.config, config);
+                return bp;
+            };
+            // A null value clears the key, as the Architect's remove op does.
+            const setStyle = (model: BlueprintModel, key: string, value: unknown) => {
+                const path = `/elements/posGrid/config/${key}`,
+                    {issues} = model.applyEdit({
+                        ops: [value == null ? {op: 'remove', path} : {op: 'set', path, value}]
+                    });
+                expect(issues).toEqual([]);
+            };
+
+            it("keeps Hoist's cube grid defaults when the config sets no style", () => {
+                const gridModel = widget(
+                    CubeGridWidgetModel,
+                    open(loadBlueprint('p2-linked-dashboard.json')),
+                    'posGrid'
+                ).cubeGridModel.innerGridModel;
+                expect(gridModel).toMatchObject({
+                    treeStyle: 'highlights',
+                    stripeRows: true,
+                    rowBorders: true,
+                    cellBorders: false,
+                    showHover: false,
+                    showGroupRowCounts: true,
+                    hideHeaders: false,
+                    emptyText: 'No data'
+                });
+                expect(gridModel.sizingMode).toBe(XH.sizingMode);
+            });
+
+            it('passes each style in its config to the grid', () => {
+                const gridModel = widget(
+                    CubeGridWidgetModel,
+                    open(
+                        styled({
+                            treeStyle: 'colorsAndBorders',
+                            stripeRows: true,
+                            rowBorders: true,
+                            cellBorders: true,
+                            showHover: true,
+                            sizingMode: 'compact',
+                            showGroupRowCounts: false,
+                            hideHeaders: true,
+                            emptyText: 'No positions',
+                            groupRowHeight: 40
+                        })
+                    ),
+                    'posGrid'
+                ).cubeGridModel.innerGridModel;
+                expect(gridModel).toMatchObject({
+                    treeStyle: 'colorsAndBorders',
+                    stripeRows: true,
+                    rowBorders: true,
+                    cellBorders: true,
+                    showHover: true,
+                    sizingMode: 'compact',
+                    showGroupRowCounts: false,
+                    hideHeaders: true,
+                    emptyText: 'No positions',
+                    groupRowHeight: 40
+                });
+            });
+
+            it('applies an edit to a style in place, on the same grid, and its default once cleared', () => {
+                const model = open(styled({sizingMode: 'compact'})),
+                    grid = widget(CubeGridWidgetModel, model, 'posGrid'),
+                    gridModel = grid.cubeGridModel.innerGridModel;
+                const edits: [string, unknown][] = [
+                    ['treeStyle', 'borders'],
+                    ['stripeRows', true],
+                    ['rowBorders', true],
+                    ['cellBorders', true],
+                    ['showHover', true],
+                    ['sizingMode', 'tiny'],
+                    ['hideHeaders', true],
+                    ['emptyText', 'Nothing here']
+                ];
+                edits.forEach(([key, value]) => {
+                    setStyle(model, key, value);
+                    expect(grid.cubeGridModel.innerGridModel).toBe(gridModel);
+                    expect(gridModel[key]).toEqual(value);
+                });
+                setStyle(model, 'stripeRows', null);
+                setStyle(model, 'emptyText', null);
+                expect(gridModel).toMatchObject({stripeRows: true, emptyText: 'No data'});
+                expect(grid.cubeGridModel.innerGridModel).toBe(gridModel);
+            });
+
+            it('rebuilds the grid for a style it cannot change in place, keeping the selection', async () => {
+                const model = open(loadBlueprint('p2-linked-dashboard.json')),
+                    grid = widget(CubeGridWidgetModel, model, 'posGrid'),
+                    before = grid.cubeGridModel.innerGridModel;
+                await vi.waitFor(() => expect(before.store.count).toBeGreaterThan(0));
+                const trader = before.store.allRecords.find(
+                    it => it.data.cubeDimension === 'trader'
+                );
+                await before.selectAsync(trader);
+
+                setStyle(model, 'groupRowHeight', 44);
+                const after = grid.cubeGridModel.innerGridModel;
+                expect(after).not.toBe(before);
+                expect(after.groupRowHeight).toBe(44);
+                await vi.waitFor(() => expect(after.selectedIds).toEqual([trader.id]));
+
+                setStyle(model, 'showGroupRowCounts', false);
+                expect(grid.cubeGridModel.innerGridModel.showGroupRowCounts).toBe(false);
+                setStyle(model, 'sizingMode', 'large');
+                expect(grid.cubeGridModel.innerGridModel.sizingMode).toBe('large');
+                setStyle(model, 'sizingMode', null);
+                expect(grid.cubeGridModel.innerGridModel.sizingMode).toBe(XH.sizingMode);
+            });
+        });
+
         it("turns a user's sort into an edit of sortBy", async () => {
             const model = open(loadBlueprint('p1-one-grid.json')),
                 grid = widget(CubeGridWidgetModel, model, 'posGrid');
