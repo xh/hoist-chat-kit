@@ -68,7 +68,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D44](#d44-a-run-that-finishes-with-nothing-fails-coded-empty-response) | A run that finishes with nothing fails, coded `empty-response` | Amended by D64 |
 | [D45](#d45-the-thread-list-is-a-computed-overlay) | The thread list is a computed overlay | Accepted |
 | [D46](#d46-small-additions-to-the-thread-layer-spec) | Small additions to the thread layer spec | Accepted |
-| [D47](#d47-choices-in-the-generative-ui-core) | Choices in the generative UI core | Amended by D121 |
+| [D47](#d47-choices-in-the-generative-ui-core) | Choices in the generative UI core | Amended by D121, D133 |
 | [D48](#d48-only-the-latest-reply-with-changes-can-be-undone) | Only the latest reply with changes can be undone | Superseded by D92 |
 | [D49](#d49-choices-in-the-helper-agent-core-seams-and-chatcompletionscodec) | Choices in the helper agent core seams and `ChatCompletionsCodec` | Superseded in part by D52 |
 | [D50](#d50-chatservice-reads-chatconfig-and-its-prompt-is-static-text) | `ChatService` reads `chatConfig`, and its prompt is static text | Withdrawn by D81 |
@@ -152,6 +152,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D128](#d128-a-spec-gives-a-hoist-component-plain-data-safe-text-and-one-model) | A spec gives a Hoist component plain data, safe text and one model | Amended by D132 |
 | [D129](#d129-each-built-in-input-owns-one-hoist-field-and-a-form-sends-within-the-caps-of-a-send) | Each built-in input owns one Hoist field, and a form sends within the caps of a send | Accepted |
 | [D132](#d132-a-spec-takes-the-name-of-the-hoist-component-it-renders) | A spec takes the name of the Hoist component it renders | Accepted |
+| [D133](#d133-a-chat-answer-checks-urls-as-a-blueprint-does-and-keeps-calltool) | A chat answer checks URLs as a blueprint does, and keeps callTool | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -827,7 +828,9 @@ by one list covers that case, and a newer rename survives an older one that fail
 ## D47. Choices in the generative UI core
 
 **Status.** Amended by [D121](#d121-reply-text-reaches-the-catalog-through-ui-formats): the choices
-for tag attributes apply to the tag format, one of the catalog's text formats.
+for tag attributes apply to the tag format, one of the catalog's text formats. Amended by
+[D133](#d133-a-chat-answer-checks-urls-as-a-blueprint-does-and-keeps-calltool): an allow list entry
+matches by origin and path prefix.
 
 **Decision.** WP 7 step 1 builds the generative UI core, with these choices where the spec is open
 or differs from the kit's conventions:
@@ -2988,3 +2991,23 @@ the two drift apart as Hoist grows.
 **Alternatives.** Keep names that say what a component is for, as D124 and D128 had it. Each name
 then needs a map to its Hoist component. Keep `metrics` as an alias of `statCards`. Two names for
 one spec double the docs and the prompt.
+
+## D133. A chat answer checks URLs as a blueprint does, and keeps callTool
+
+**Status.** Accepted. Amends D47.
+
+**Decision.** `ChatUiCatalog.isUrlAllowed()` and a blueprint's `openUrl` share one matcher. An
+entry of `urlAllowList` matches by its parsed origin and path prefix, never by string prefix, and
+only `http` and `https` URLs pass. An entry with a path now limits the URLs it allows to that path.
+A function in `urlAllowList` still gets the parsed URL.
+
+A chat answer can still use `callTool`, within the caps of D17. Whether a call changes data depends
+on the tool it names, and a `ChatToolSpec` cannot yet say that its tool changes data. Once it can,
+an answer refuses `callTool` to such a tool, as it refuses any action with side effects.
+
+**Why.** Chat answers become blueprints, so the same allow list must permit the same URLs in a
+chat and on a dashboard. Refusing every `callTool` would take a working feature from today's
+answers to guard against tools that may never change data.
+
+**Alternatives.** Keep two matchers. They drift, and a URL a dashboard refuses could open from a
+chat. Refuse `callTool` in every answer. That breaks buttons that run read-only tools.

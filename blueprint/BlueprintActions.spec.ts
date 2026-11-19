@@ -10,7 +10,7 @@ import {
 import type {Blueprint} from './Blueprint';
 import type {BlueprintDataProvider} from './BlueprintDataProvider';
 import {BlueprintModel, type BlueprintModelConfig} from './BlueprintModel';
-import {isAllowedUrl} from './impl/actions';
+import {isAllowedUrl} from '../impl/UrlUtils';
 
 /**
  * Actions are typed and checked. A list runs as steps, all checked before the first runs, each

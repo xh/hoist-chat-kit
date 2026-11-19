@@ -1,6 +1,7 @@
 import {type PlainObject, XH} from '@xh/hoist/core';
 import {castArray, isArray, isPlainObject, isString, mapValues, omit} from 'lodash';
 import {findSchemaErrors} from '../../impl/SchemaUtils';
+import {isAllowedUrl} from '../../impl/UrlUtils';
 import type {BlueprintModel} from '../BlueprintModel';
 import {checkVariableValue} from './variableValues';
 
@@ -57,21 +58,6 @@ export function describeAction(
     ctx: ActionRunContext = {}
 ): string {
     return describeResolved(model, resolveAction(model, action, ctx));
-}
-
-/**
- * True if a URL may open: it is http or https, and its origin and path fall under an entry of
- * the allow list. Matched by parsed origin and path, never by string prefix.
- */
-export function isAllowedUrl(url: string, allowList: string[]): boolean {
-    const target = parseWebUrl(url);
-    if (!target) return false;
-    return allowList.some(entry => {
-        const allowed = parseWebUrl(entry);
-        if (!allowed || allowed.origin !== target.origin) return false;
-        const base = allowed.pathname.endsWith('/') ? allowed.pathname : `${allowed.pathname}/`;
-        return target.pathname === allowed.pathname || target.pathname.startsWith(base);
-    });
 }
 
 //------------------
@@ -160,15 +146,5 @@ async function runAction(model: BlueprintModel, step: PlainObject, ctx: ActionRu
                 blueprintModel: model,
                 row: ctx.row
             });
-    }
-}
-
-/** A URL that is http or https, or null for anything else, including one that does not parse. */
-export function parseWebUrl(url: string): URL {
-    try {
-        const ret = new URL(url);
-        return ret.protocol === 'http:' || ret.protocol === 'https:' ? ret : null;
-    } catch {
-        return null;
     }
 }

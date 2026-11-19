@@ -86,9 +86,10 @@ describe('ChatUiCatalog actions', () => {
             expect(createCatalog({urlAllowList}).isUrlAllowed(url)).toBe(allowed);
         });
 
-        it('takes each allow list entry as its origin, and refuses one that is not a URL', () => {
+        it('matches each allow list entry by origin and path prefix, and refuses one that is not a URL', () => {
             const catalog = createCatalog({urlAllowList: ['https://example.com/reports/']});
-            expect(catalog.isUrlAllowed('https://example.com/r?id=1')).toBe(true);
+            expect(catalog.isUrlAllowed('https://example.com/reports/q3?id=1')).toBe(true);
+            expect(catalog.isUrlAllowed('https://example.com/r?id=1')).toBe(false);
             expect(() => createCatalog({urlAllowList: ['example.com']})).toThrow('is not a URL');
         });
 

@@ -83,6 +83,7 @@ import {
     repairDocument
 } from './impl/documentStructure';
 import {getOwn} from '../impl/LangUtils';
+import {isAllowedUrl, parseWebUrl} from '../impl/UrlUtils';
 import {hashJson} from './impl/hash';
 import {
     findSchemaProblems,
@@ -166,9 +167,10 @@ export interface ChatUiCatalogConfig {
 
     /**
      * The URLs that `openUrl` actions, and the link props of components, may open - a list of
-     * origins, such as `https://example.com`, or a function of the parsed URL. Each entry counts as
-     * its origin, so a path in it is ignored. Only `http` and `https` URLs are ever allowed.
-     * Default none.
+     * URLs, such as `https://example.com` or `https://example.com/reports`, or a function of the
+     * parsed URL. An entry matches by its parsed origin and path prefix, never by string prefix,
+     * as a blueprint's allow list does. Only `http` and `https` URLs are ever allowed. Default
+     * none.
      */
     urlAllowList?: string[] | ((url: URL) => boolean);
 
@@ -329,7 +331,7 @@ export class ChatUiCatalog {
         this.limits = {...DEFAULT_LIMITS, ...limits};
         this.getArtifacts = artifacts;
         this.actionHandlers = actionHandlers;
-        this.urlAllowList = isArray(urlAllowList) ? urlAllowList.map(toOrigin) : urlAllowList;
+        this.urlAllowList = isArray(urlAllowList) ? urlAllowList.map(checkUrl) : urlAllowList;
         this.migrations = migrations;
         this.fallbackRenderer = fallback;
         this.placeholderRenderer = placeholder;
@@ -871,17 +873,11 @@ export class ChatUiCatalog {
      * links or load URLs the model wrote. Only absolute `http` and `https` URLs can pass.
      */
     isUrlAllowed(url: string): boolean {
-        let parsed: URL;
-        try {
-            parsed = new URL(url);
-        } catch (ignored) {
-            return false;
-        }
-        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
-
-        const {urlAllowList} = this;
+        const parsed = parseWebUrl(url),
+            {urlAllowList} = this;
+        if (!parsed) return false;
         if (isFunction(urlAllowList)) return !!urlAllowList(parsed);
-        return !!urlAllowList?.includes(parsed.origin);
+        return isAllowedUrl(url, urlAllowList);
     }
 
     //------------------------
@@ -1526,9 +1522,10 @@ function withoutProps(schema: PlainObject, names: string[]): PlainObject {
 }
 
 /** The origin of an allow list entry, so that `https://example.com/` matches as written. */
-function toOrigin(entry: string): string {
+function checkUrl(entry: string): string {
     try {
-        return new URL(entry).origin;
+        new URL(entry);
+        return entry;
     } catch (e) {
         throw new Error(`ChatUiCatalog urlAllowList entry '${entry}' is not a URL.`, {cause: e});
     }
