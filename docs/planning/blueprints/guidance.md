@@ -50,7 +50,7 @@ Enforced by:
 
 | Rule | Source | Enforced by |
 |---|---|---|
-| Look at the data with `query_dataset`, then answer in text. Show UI only when it helps. A text answer alone is fine. | W3: Sonnet answered the umbrella question in text, and Opus with a chart and a grid | Prompt |
+| Look at the data with `query_dataset`, then answer. Answer in text alone when one or two facts answer the question. Show UI when the answer holds a series over time, a ranking, a comparison, or more numbers than a sentence carries, and still say the answer in one sentence of text. A question with several parts, such as a headline and its detail, takes a segment for each part. | W3: Sonnet answered the umbrella question in text, and Opus with a chart and a grid. In Toolbox, three of four runs of W3 and P4 answered in prose alone, where a chart of rain through the day or a ranking of traders served the user better | Prompt |
 | Widgets that interact go in one segment. Segments never share variables. | Design: segments are isolated | Not yet |
 | A segment may hold literal parameters, artifacts and computed inline values. A dashboard may not. | Design: answers are fixed records | Validator, which warns on artifacts and inline sources outside an answer |
 | A question never changes the host blueprint. | W3: the host stayed unchanged on both models | Prompt |
@@ -62,6 +62,11 @@ Enforced by:
 Sonnet 5.5 at medium effort matched Opus 5.5 on every scenario so far, at about 40 percent of
 the cost. Opus spent more on reasoning, and wrote more careful notes on readings it chose. Test
 both again on harder scenarios before choosing a default.
+
+In Toolbox, through the real Architect on real data, both passed every check on P1, P2 and P3
+from empty, and Sonnet cost about half as much. Sonnet took more refused edits on P2 and
+recovered. Opus took fewer model calls on P2. P3's nine turns cost $0.23 on Sonnet and $0.46 on
+Opus. Sonnet 5.5 is now the default (decision 65).
 
 ## Designing a Data Catalog
 

@@ -260,24 +260,27 @@ city reloads only its own column. The units toggle reloads both.
 - Conditional styles in a grid, which come in plan step 13. The blueprint for this scenario
   marks them as pending.
 
-### W3. A quick answer with two segments
+### W3. A quick answer with UI
 
 **Who.** A user with a chat open beside the W2 dashboard.
 
-**Prompt.** "Will I need an umbrella in Chicago tomorrow?"
+**Prompt.** "Will I need an umbrella in Chicago tomorrow? When is rain most likely?"
 
-**Sees.** A text answer with two segments: stat cards for tomorrow's highest chance of rain and
-total rain, and a column chart of the chance of rain through the day. Chicago is not on the
-dashboard, so the answer does not change it. The numbers in the stat cards are inline values
-the LLM computed, which a chat answer allows.
+**Sees.** A text answer that says whether to take an umbrella, with a chart of the chance of rain
+through the day. The headline figures, such as the highest chance of rain, appear in the text
+or as stat cards of inline values the LLM computed, which a chat answer allows. The Architect
+chooses one segment or several. Chicago is not on the dashboard, so the answer does not change
+it.
 
 **Tests.**
 
-- Two segments in one reply, each its own blueprint.
-- Inline computed values, allowed in a chat answer only.
+- A chart of the chance of rain through the day, over the query result.
+- Any stat cards hold inline computed values, allowed in a chat answer only.
 - A question that does not touch the host, even with a host open.
 - If the user then says "add Chicago to my dashboard", the Architect adds a third city column
   and turns the computed numbers into widgets over a source.
+- Several segments in one reply, each its own blueprint, are covered by the library's tests and
+  a scripted conversation, not by this scenario.
 
 ## Follow-up
 

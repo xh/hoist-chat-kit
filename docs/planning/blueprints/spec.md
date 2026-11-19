@@ -462,6 +462,24 @@ Every filter in a blueprint is a Hoist `FilterSpec` as JSON: the form that `Filt
   them and wires them together.
 - The chat shell, meaning the message list and the composer, is chat kit's own UI. It is not a
   blueprint.
+- A segment degrades element by element. The validator stays strict. Before an answer reaches
+  its model, each element with errors becomes a placeholder while it is still arriving, and a
+  fallback once it is complete, even while the rest of the segment streams. A widget that renders
+  partial config, as chat kit's specs do by contract, renders while the element arrives if the
+  partial check passes. An element that fails even the partial check can never become valid, so
+  it falls back at once. Each child still to come becomes a placeholder. An issue on a
+  source, variable or binding replaces the elements that depend on it, and the whole segment
+  becomes a fallback only as a last resort. Streamed rows, series and cards drop their
+  incomplete tail, so data fills in as it streams. Updates while streaming keep transient state
+  and add nothing to history. Placeholders and fallbacks exist only in rendered answers, never in
+  an authored blueprint or the Architect's view.
+- Chat kit's data specs, such as grid, chart and stat cards, translate into a blueprint widget
+  over an inline source when their data sits in their props. A grid or chart that reads an
+  artifact by reference stays chat kit's own spec, which pages through the artifact. Adding it
+  to a host maps the artifact to a dataset source. An artifact source in a `show_ui` blueprint
+  does not load an artifact over chat kit's row cap, and shows chat kit's too-large notice, as a
+  truncated set would give wrong totals. Its presentational specs, such as callout and
+  badges, render as blueprint widgets through a bridge. Its input specs become value widgets.
 
 A chat can open beside a host blueprint. The Architect then gets the host's variables and their
 current values, its sources, a summary of its elements, and the user's mode and access level.
@@ -555,9 +573,11 @@ Chat kit's work on its `genui-building-blocks` and `genui-ui-formats` branches s
   not run, and the user sees why.
 - `openBlueprint` opens another blueprint in a popover or a dialog over the current one, and
   passes in variables that URL parameters could set. It comes after the proof of concept.
-- OpenUI Lang maps onto these types. `@Set` and `@Reset` become `setVariable` and
-  `resetVariable` on an `"action"` variable, `@Run` becomes `refresh`, `@ToAssistant` becomes
-  `send`, and `@OpenUrl` becomes `openUrl`.
+- OpenUI Lang maps onto these types. `@Run` becomes `refresh`, `@ToAssistant` becomes `send`,
+  and `@OpenUrl` becomes `openUrl`. `@Set` and `@Reset` change state in lang-core's runtime, not
+  in blueprint variables, so they become chat kit's `state` action, allowed only in an answer
+  with an OpenUI runtime. Adding such an answer to a host rewrites them as `setVariable` and
+  `resetVariable` on an `"action"` variable.
 
 ### Every change is an edit
 
@@ -988,7 +1008,8 @@ Reconsider TypeSpec only if schemas come from a server language. The toolchain m
 
 - Give each component its own schema with no `$ref`, so chat can send one tool per component.
 - Validate under a strict content security policy.
-- Validate partial config while an LLM streams it.
+- Validate partial config while an LLM streams it. Chat answers meet this element by element, in
+  the answer pipeline, so the validator itself stays strict.
 - Let apps extend Hoist's widgets and types with no fork.
 
 ### The Architect's tools
