@@ -3,12 +3,13 @@ import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {FilterSpec, View} from '@xh/hoist/data';
 import {observableRef} from '@xh/hoist/mobx';
 import {LocalDate} from '@xh/hoist/utils/datetime';
-import {castArray, compact, isEqual, orderBy, uniq} from 'lodash';
+import {castArray, compact, isArray, isEqual, isFinite, orderBy, uniq} from 'lodash';
 import {
     BlueprintWidgetModel,
     type BlueprintWidgetConfig,
     type ChartWidgetConfig
 } from '../../../blueprint';
+import {fmtChatUiNumber} from '../genui/ChatUiFormat';
 import {
     type ChatUiChartLayoutProps,
     toHighchartsConfig,
@@ -85,9 +86,31 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
             chartModel.setSeries([]);
             return;
         }
-        const config = toHighchartsConfig(props);
+        const config = this.withFractionAxis(toHighchartsConfig(props), props);
         if (!isEqual(config, chartModel.highchartsConfig)) chartModel.setHighchartsConfig(config);
         chartModel.setSeries(toSeries(props, false));
+    }
+
+    /** A percent axis over values that all lie in 0 to 1 runs 0% to 100%, in whole percents. */
+    private withFractionAxis(config: PlainObject, props: ChatUiChartLayoutProps): PlainObject {
+        if (props.yAxis.format !== 'percent' || props.stacking) return config;
+        const values = props.series
+            .flatMap(it => it.data.map(p => (isArray(p) ? p[1] : p)))
+            .filter(isFinite);
+        if (!values.length || values.some(v => v < 0 || v > 1)) return config;
+        return {
+            ...config,
+            yAxis: {
+                ...config.yAxis,
+                min: 0,
+                max: 1,
+                labels: {
+                    formatter: function (this: any) {
+                        return fmtChatUiNumber(this.value, 'percent', 0, {asHtml: true});
+                    }
+                }
+            }
+        };
     }
 
     private buildProps(): ChatUiChartLayoutProps {

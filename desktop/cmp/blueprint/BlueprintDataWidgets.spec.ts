@@ -247,7 +247,7 @@ describe('blueprint data widgets', () => {
         expect(cards.cards[0].title).toBe('Conditions');
     });
 
-    it("formats a chart's value axis by its field's kind, as a percent for a fraction", async () => {
+    it("formats a chart's value axis by its field's kind, as 0% to 100% for a fraction", async () => {
         const model = new BlueprintModel({
             blueprint: loadBlueprint('w2-two-cities.json'),
             catalog: weatherCatalog,
@@ -258,8 +258,9 @@ describe('blueprint data widgets', () => {
         const chart = widget(ChartWidgetModel, model, 'precipChartA');
         await vi.waitFor(() => expect(chart.chartModel.series[0]?.data.length).toBeGreaterThan(1));
 
-        const {formatter} = chart.chartModel.highchartsConfig.yAxis.labels;
-        expect(String(formatter.call({value: 0.5}))).toMatch(/^50(\.0+)?%$/);
+        const {yAxis} = chart.chartModel.highchartsConfig;
+        expect(yAxis).toMatchObject({min: 0, max: 1});
+        expect(String(yAxis.labels.formatter.call({value: 0.5}))).toBe('50%');
     });
 
     it('draws a cell with the renderer its field names, as a badge for an order direction', async () => {
