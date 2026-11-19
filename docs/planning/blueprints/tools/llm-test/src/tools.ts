@@ -3,6 +3,8 @@ import {fakeDataProvider} from './data.ts';
 import {
     type ArchitectTarget,
     ArchitectToolError,
+    answerBlueprintSchema,
+    answerToolDescription,
     applyOps,
     availableArchitectTools,
     hostSourceFor,
@@ -15,10 +17,11 @@ import {
 } from './library.ts';
 import {Blueprint, clone} from './load.ts';
 
+// The kit's own show_ui, over the harness's registry, which lacks chat kit's bridged widgets.
 const SHOW_UI: Anthropic.Tool = {
     name: 'show_ui',
-    description: 'Show UI in a chat answer: one segment, which is a complete blueprint. Use it to answer a question with UI. It never changes the host blueprint. Widgets that interact go in one segment.',
-    input_schema: {type: 'object', required: ['blueprint'], properties: {blueprint: {type: 'object'}}}
+    description: answerToolDescription(libraryRegistry as any),
+    input_schema: answerBlueprintSchema(libraryRegistry as any) as Anthropic.Tool.InputSchema
 };
 
 export interface Stats {
@@ -136,13 +139,13 @@ export class Session implements ArchitectTarget {
 
     private showUi(input: any): {content: string; isError?: boolean} {
         this.stats.segments++;
-        const issues = this.validate(input?.blueprint ?? {}, true);
+        const issues = this.validate(input ?? {}, true);
         this.count(issues);
         if (issues.some(i => i.severity === 'error')) {
             this.stats.segmentsRejected++;
             return {content: json({shown: false, issues}), isError: true};
         }
-        this.segments.push(clone(input.blueprint));
+        this.segments.push(clone(input));
         return {content: json({shown: true, warnings: issues})};
     }
 }

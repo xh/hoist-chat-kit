@@ -20,6 +20,7 @@ export {
     availableArchitectTools,
     type ArchitectTarget
 } from '../../../../../../blueprint/architect/ArchitectTools.ts';
+export {answerBlueprintSchema, answerToolDescription} from '../../../../../../genui/impl/answerTool.ts';
 export {hostSourceFor} from '../../../../../../blueprint/architect/hostSource.ts';
 export {READ_ANSWER_SPEC, REQUEST_DESIGN_MODE_SPEC} from '../../../../../../genui/architect/toolSpecs.ts';
 export type Issue = BlueprintIssue;

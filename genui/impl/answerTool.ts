@@ -1,12 +1,8 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {isPlainObject} from 'lodash';
-import {
-    type Blueprint,
-    type BlueprintIssue,
-    type BlueprintRegistry,
-    validateBlueprint,
-    type ValidateBlueprintContext
-} from '../../blueprint';
+import type {Blueprint, BlueprintIssue, BlueprintRegistry} from '../../blueprint';
+// From its own module, not the barrel, so the Node harness can load this file.
+import {validateBlueprint, type ValidateBlueprintContext} from '../../blueprint/validateBlueprint';
 
 /**
  * The input schema of `show_ui` for answer blueprints. An element's config stays an open object:
