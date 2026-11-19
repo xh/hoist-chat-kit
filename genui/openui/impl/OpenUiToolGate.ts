@@ -3,7 +3,7 @@ import {logDebug, throwIf} from '@xh/hoist/utils/js';
 import {isEmpty, isFunction, isPlainObject, isString} from 'lodash';
 import {type ChatModel, type ChatToolSpec, ChatToolResult} from '../../../core';
 import {findSchemaProblems, validateSchema} from '../../../impl/SchemaUtils';
-import type {OpenUiCallBudget} from './callBudget';
+import type {OpenUiCallBudget} from '../../impl/callBudget';
 
 /** A call that an OpenUI Lang program makes to a chat tool, with `Query()` - see `onToolCall`. */
 export interface OpenUiToolCall {

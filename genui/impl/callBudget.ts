@@ -1,4 +1,4 @@
-import type {ChatModel} from '../../../core';
+import type {ChatModel} from '../../core';
 
 /**
  * Bounds the tool calls that the OpenUI Lang programs of one chat make. A program has a cap of

@@ -36,7 +36,7 @@ import {toOpenUrlAction, toSendAction, type OpenUiStep} from '../OpenUiActions';
 import {toPlainText} from '../OpenUiDocument';
 import {isOpenUiActionProp, type OpenUiLibrary} from '../OpenUiLibrary';
 import {prepareActions} from './actionSyntax';
-import {getCallBudget, MAX_QUERY_PROGRAMS, type OpenUiCallBudget} from './callBudget';
+import {getCallBudget, MAX_QUERY_PROGRAMS, type OpenUiCallBudget} from '../../impl/callBudget';
 import {toSafeValue} from './heldValue';
 import {OpenUiToolGate, toJson, type OpenUiToolCall} from './OpenUiToolGate';
 import {
