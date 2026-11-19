@@ -234,12 +234,32 @@ describe('blueprint data widgets', () => {
 
         await vi.waitFor(() => expect(chart.chartModel.series[0]?.data.length).toBeGreaterThan(1));
         expect(chart.chartModel.highchartsConfig.xAxis.type).toBe('datetime');
-        const times = chart.chartModel.series[0].data.map(it => it[0]);
-        expect(times).toEqual([...times].sort((a, b) => a - b));
+        const times = chart.chartModel.series[0].data.map(it => it[0]),
+            {cube} = model.getSource('forecast'),
+            leafTimes = cube.records
+                .map(it => new Date(it.data.time).getTime())
+                .sort((a, b) => a - b);
+        expect(times).toEqual(leafTimes);
+        expect(times[0]).toBeGreaterThan(1e12);
         expect(chart.chartModel.series.map(it => it.name)).toEqual(['Temperature', 'Feels Like']);
 
         await vi.waitFor(() => expect(text(cards.cards[0].value)).toBeTruthy());
         expect(cards.cards[0].title).toBe('Conditions');
+    });
+
+    it("formats a chart's value axis by its field's kind, as a percent for a fraction", async () => {
+        const model = new BlueprintModel({
+            blueprint: loadBlueprint('w2-two-cities.json'),
+            catalog: weatherCatalog,
+            registry: scenarioRegistry(),
+            dataProvider: new FakeBlueprintDataProvider({catalog: weatherCatalog})
+        });
+        onTestFinished(() => model.destroy());
+        const chart = widget(ChartWidgetModel, model, 'precipChartA');
+        await vi.waitFor(() => expect(chart.chartModel.series[0]?.data.length).toBeGreaterThan(1));
+
+        const {formatter} = chart.chartModel.highchartsConfig.yAxis.labels;
+        expect(String(formatter.call({value: 0.5}))).toMatch(/^50(\.0+)?%$/);
     });
 
     it('draws a cell with the renderer its field names, as a badge for an order direction', async () => {

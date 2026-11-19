@@ -2,6 +2,7 @@ import {chart, ChartModel} from '@xh/hoist/cmp/chart';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {FilterSpec, View} from '@xh/hoist/data';
 import {observableRef} from '@xh/hoist/mobx';
+import {LocalDate} from '@xh/hoist/utils/datetime';
 import {castArray, compact, isEqual, orderBy, uniq} from 'lodash';
 import {
     BlueprintWidgetModel,
@@ -59,6 +60,12 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
         return [x, ...castArray(y ?? [])].map(it => this.source?.fieldLabel(it));
     }
 
+    /** True if a field's kind is a fraction, directly or through a catalog kind. */
+    private isFraction(name: string): boolean {
+        const kind = this.source?.fields[name]?.kind;
+        return (this.blueprintModel.catalog.kinds[kind]?.base ?? kind) === 'fraction';
+    }
+
     private get isGrouped(): boolean {
         return !!this.source?.fields[this.resolvedConfig.x]?.isDimension;
     }
@@ -90,7 +97,7 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
             label = (f: string) => (fields[f] ? this.source.fieldLabel(f) : f),
             yAxis = {
                 title: ys.length === 1 ? label(ys[0]) : null,
-                format: (fields[ys[0]]?.kind === 'fraction' ? 'percent' : 'number') as any
+                format: (this.isFraction(ys[0]) ? 'percent' : 'number') as any
             },
             base = {type: cfg.type ?? 'column', stacking: cfg.stacking, yAxis};
 
@@ -99,7 +106,10 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
             return {
                 ...base,
                 xAxis: {type: 'datetime', title: label(cfg.x)},
-                series: ys.map(y => ({name: label(y), data: leaves.map(r => [r[cfg.x], r[y]])}))
+                series: ys.map(y => ({
+                    name: label(y),
+                    data: leaves.map(r => [toTimestamp(r[cfg.x]), r[y]])
+                }))
             };
         }
 
@@ -145,3 +155,10 @@ export const [ChartWidget, chartWidget] = hoistCmp.withFactory({
         return chart({model: model.chartModel, className});
     }
 });
+
+/** A point's time as epoch milliseconds. The Cube holds a `date` as a Date, a `localDate` as a LocalDate. */
+function toTimestamp(value: unknown): number | string {
+    if (value instanceof Date) return value.getTime();
+    if (LocalDate.isLocalDate(value)) return (value as LocalDate).timestamp;
+    return value as number | string;
+}
