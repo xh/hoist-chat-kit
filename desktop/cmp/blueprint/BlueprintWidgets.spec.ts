@@ -20,7 +20,7 @@ import {BlueprintViewModel} from './impl/BlueprintViewModel';
 import {CubeGridWidgetModel} from './CubeGridWidget';
 import {DashCanvasWidgetModel} from './DashCanvasWidget';
 import {GroupingChooserWidgetModel} from './GroupingChooserWidget';
-import {TabContainerWidgetModel} from './TabContainerWidget';
+import {tabContainerWidget, TabContainerWidgetModel} from './TabContainerWidget';
 import {tabContainer} from '@xh/hoist/cmp/tab';
 
 /**
@@ -509,6 +509,18 @@ describe('blueprint desktop widgets', () => {
             ]);
             render(tabContainer({model: tabContainerModel}));
             expect(rendered).toContain('overview');
+        });
+
+        it('scrolls its tabs, with a menu for those that do not fit, as in a narrow chat', () => {
+            const model = open(p3()),
+                tabs = new TabContainerWidgetModel({
+                    blueprintModel: model,
+                    id: 'tabs',
+                    renderElement: id => div(id)
+                });
+            onTestFinished(() => tabs.destroy());
+            const {container} = render(tabContainerWidget({model: tabs}));
+            expect(container.querySelector('.xh-tab-switcher--overflow-enabled')).toBeTruthy();
         });
 
         it('follows edits to its children, keeping the active tab', () => {
