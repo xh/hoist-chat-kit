@@ -13,9 +13,9 @@ import {toWidgetName} from './specWidgets';
  * `degradeAnswer()` to report, so a document with problems still translates.
  *
  * Stat cards and an inline grid whose props pass the catalog become a `statCardStrip` or a
- * `cubeGrid` over an inline source, so that their data lives in a source. While stat cards
- * stream, the last card, which may be cut short, waits. A grid's card leaves out its last row
- * itself, as the spec always has. A grid by reference stays the spec: its artifact is its source.
+ * `cubeGrid` over an inline source, so that their data lives in a source. While one streams, its
+ * last card, row or point, which may be cut short, waits, so that no part-written value reaches a
+ * source. A grid or chart by reference stays the spec: its artifact is its source.
  */
 export function toAnswerBlueprint(
     doc: ChatUiDocument,
@@ -90,7 +90,7 @@ const FORBIDDEN_IDS = ['__proto__', 'prototype', 'constructor'];
 
 type Translation = {element: BlueprintElement; source: SourceDecl};
 
-function toCubeGrid(id: string, props: PlainObject): Translation {
+function toCubeGrid(id: string, props: PlainObject, isPartial: boolean): Translation {
     if (props.data != null || !isArray(props.columns) || !isArray(props.rows)) return null;
     const columns = props.columns.filter(isPlainObject),
         // A source keeps `id` for each row's key, so a column of that name takes a free one.
@@ -113,7 +113,7 @@ function toCubeGrid(id: string, props: PlainObject): Translation {
                 ...(type === 'number' ? toFieldFormat(col.format, col.decimals, false) : {})
             };
         }),
-        rows = props.rows
+        rows = (isPartial ? dropRight(props.rows) : props.rows)
             .filter(isPlainObject)
             .map((row: PlainObject) => mapKeys(row, (_, key) => nameOf(key)));
     return {
@@ -134,19 +134,26 @@ function toCubeGrid(id: string, props: PlainObject): Translation {
 /**
  * A chart over an inline source: a row per point of the x-axis, with the value of each series.
  * Plain values take their category, in order, and pairs their x. Categories keep their order
- * through `xOrder`, as the Cube groups them by name. Every point stays: the chart's card leaves
- * out the one still arriving itself.
+ * through `xOrder`, as the Cube groups them by name. While the chart streams, the point still
+ * arriving, which may be cut short, waits.
  */
-function toChart(id: string, props: PlainObject): Translation {
+function toChart(id: string, props: PlainObject, isPartial: boolean): Translation {
     if (props.data != null || !isArray(props.series)) return null;
     const series = props.series.filter(isPlainObject);
     if (!series.length || series.length > MAX_CHART_SERIES) return null;
+    // The point still arriving is the last of the last series, as chat kit's chart has it.
+    const lastIdx = series.length - 1;
 
     const isDatetime = props.xAxis?.type === 'datetime',
         categories: unknown[] = isArray(props.xAxis?.categories) ? props.xAxis.categories : [],
         rows = new Map<string, PlainObject>();
     series.forEach((it, idx) =>
-        (isArray(it.data) ? it.data : []).forEach((point: unknown, pointIdx: number) => {
+        (isArray(it.data)
+            ? isPartial && idx === lastIdx
+                ? dropRight(it.data)
+                : it.data
+            : []
+        ).forEach((point: unknown, pointIdx: number) => {
             const [x, value] = isArray(point)
                     ? point
                     : [categories[pointIdx] ?? String(pointIdx), point],

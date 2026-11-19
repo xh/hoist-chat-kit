@@ -1,4 +1,5 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
+import {isArray} from 'lodash';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {BlueprintModel, DataCatalog, degradeAnswer} from '../../../../blueprint';
 import {ChatUiCatalog} from '../../../../genui';
@@ -20,16 +21,23 @@ describe('a chart in an answer', () => {
     const catalog = new ChatUiCatalog({components: [chatUiChartSpec()]}),
         dataCatalog = new DataCatalog({datasets: {}});
 
-    function cardProps(props: object) {
-        const translated = toAnswerBlueprint(
+    function cardProps(props: object, isPartial = false) {
+        const partialIds = isPartial ? ['c'] : [],
+            translated = toAnswerBlueprint(
                 {root: 'c', elements: {c: {component: 'chart', props}}} as any,
-                {isValid: (name, p, isPartial) => !catalog.validate(name, p, {isPartial}).length}
+                {
+                    partialIds,
+                    isValid: (name, p, partial) =>
+                        !catalog.validate(name, p, {isPartial: partial}).length
+                }
             ),
             blueprint = degradeAnswer(translated, {
                 catalog: dataCatalog,
                 registry: catalog.registry,
                 isAnswer: true,
-                isComplete: true
+                isComplete: !isPartial,
+                partialIds,
+                trimInlineRows: false
             }),
             model = new BlueprintModel({
                 blueprint,
@@ -48,7 +56,7 @@ describe('a chart in an answer', () => {
             model.destroy();
         });
         expect(blueprint.elements.c.component).toBe('chart');
-        return toChatChartProps(chart);
+        return toChatChartProps(chart, isPartial);
     }
 
     // The config as JSON, with each label formatter's output for a few values in its place.
@@ -90,7 +98,10 @@ describe('a chart in an answer', () => {
                             ['2026-11-19', 0.15]
                         ]
                     },
-                    {name: 'B', data: [['2026-11-18', 0.3]]}
+                    {
+                        name: 'B',
+                        data: [['2026-11-18', 0.3]]
+                    }
                 ]
             }
         ],
@@ -111,6 +122,17 @@ describe('a chart in an answer', () => {
             }
         ]
     ])('hands chat kit the same series and axes for %s', (_, props: any) => {
+        // Mid-stream, the last point of the last series may be cut short, as a date can be.
+        const last = props.series.at(-1),
+            cut = isArray(last.data[0]) ? [String(last.data[0][0]).slice(0, 6), 1] : 1,
+            streamingProps = {
+                ...props,
+                series: [...props.series.slice(0, -1), {...last, data: [...last.data, cut]}]
+            };
+        expect(toSeries(cardProps(streamingProps, true), true)).toEqual(
+            toSeries(streamingProps, true)
+        );
+
         const card = cardProps(props);
         expect(toSeries(card, false)).toEqual(toSeries(props, false));
         expect(configOf(card)).toEqual(configOf(props));

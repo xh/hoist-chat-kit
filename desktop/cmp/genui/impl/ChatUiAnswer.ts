@@ -64,17 +64,22 @@ const gridCard = hoistCmp.factory({
         const {source, resolvedConfig: config, blueprintModel, id} = model,
             host = blueprintModel.hostContext as ChatUiAnswerHostContext;
         if (!source) return null;
-        const columns = castArray(config.columnState ?? [])
-            .map(it => (isString(it) ? it : it?.field))
-            .filter(it => source.fields[it])
-            .map(it => toGridColumn(source.fields[it]));
+        const isPartial = !!host?.isPartial(id),
+            columns = castArray(config.columnState ?? [])
+                .map(it => (isString(it) ? it : it?.field))
+                .filter(it => source.fields[it])
+                .map(it => toGridColumn(source.fields[it]));
         return chatUiGrid({
             title: config.title,
             columns,
             // Plain copies, without the key the source gives each row.
-            rows: source.cube.store.records.map(it => omit({...it.data}, 'id')),
+            rows: withStandIn(
+                source.cube.store.records.map(it => omit({...it.data}, 'id')),
+                {},
+                isPartial
+            ),
             sortBy: isString(config.sortBy) ? config.sortBy : null,
-            isPartial: !!host?.isPartial(id)
+            isPartial
         });
     }
 });
@@ -84,9 +89,10 @@ const chartCard = hoistCmp.factory({
     displayName: 'ChatUiChartCard',
     model: uses(ChartWidgetModel),
     render({model}) {
-        const props = toChatChartProps(model),
-            host = model.blueprintModel.hostContext as ChatUiAnswerHostContext;
-        return props ? chatUiChart({...props, isPartial: !!host?.isPartial(model.id)}) : null;
+        const host = model.blueprintModel.hostContext as ChatUiAnswerHostContext,
+            isPartial = !!host?.isPartial(model.id),
+            props = toChatChartProps(model, isPartial);
+        return props ? chatUiChart({...props, isPartial}) : null;
     }
 });
 
@@ -95,7 +101,10 @@ const chartCard = hoistCmp.factory({
  * chat number format, and the points a chat chart would not have, which the Cube fills in as null,
  * left out. Null until the chart's source has a view.
  */
-export function toChatChartProps(model: ChartWidgetModel): ChatUiChartSpecProps & {title?: string} {
+export function toChatChartProps(
+    model: ChartWidgetModel,
+    isPartial = false
+): ChatUiChartSpecProps & {title?: string} {
     const layout = model.getLayoutProps();
     if (!layout) return null;
     const {source, resolvedConfig: config} = model,
@@ -116,13 +125,17 @@ export function toChatChartProps(model: ChartWidgetModel): ChatUiChartSpecProps 
             title: layout.yAxis?.title || null,
             ...(yField ? toChatFormat(yField) : {})
         },
-        series: (layout.series ?? []).map(it => ({
+        series: (layout.series ?? []).map((it, idx, all) => ({
             ...it,
-            data: isDatetime
-                ? it.data.filter(point => isArray(point) && point[1] != null)
-                : isPie
-                  ? it.data.map((value, idx) => [categories[idx], value])
-                  : dropRightWhile(it.data, point => point == null)
+            data: withStandIn<unknown>(
+                isDatetime
+                    ? it.data.filter(point => isArray(point) && point[1] != null)
+                    : isPie
+                      ? it.data.map((value, pointIdx) => [categories[pointIdx], value])
+                      : dropRightWhile(it.data, point => point == null),
+                null,
+                isPartial && idx === all.length - 1
+            )
         }))
     } as ChatUiChartSpecProps & {title?: string};
 }
@@ -221,6 +234,14 @@ function toChatFormat(def: FieldDef): {format: ChatUiNumberFormat; decimals?: nu
                     : 'number',
         ...(isFinite(format.precision) ? {decimals: format.precision} : {})
     };
+}
+
+/**
+ * Items with one stand-in after them while the answer streams. Chat kit's grid and chart leave out
+ * their last item then, as it may be cut short. The translation already did, so they drop this.
+ */
+function withStandIn<T>(items: T[], standIn: T, isPartial: boolean): T[] {
+    return isPartial ? [...items, standIn] : items;
 }
 
 const NO_DATASETS: BlueprintDataProvider = {

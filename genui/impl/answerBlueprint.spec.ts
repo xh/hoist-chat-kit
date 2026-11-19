@@ -208,8 +208,8 @@ describe('toAnswerBlueprint', () => {
             expect(bp.sources.g.inline.rows).toEqual([{id__: 7, id_: 'a'}]);
         });
 
-        it('keeps a streaming grid every row, as its card drops the one still arriving', () => {
-            expect(translate(props, ['g']).sources.g.inline.rows).toHaveLength(2);
+        it('leaves out the row still arriving while a grid streams, as it may be cut short', () => {
+            expect(translate(props, ['g']).sources.g.inline.rows).toEqual([props.rows[0]]);
         });
 
         it('leaves a grid by reference, and one that fails the catalog, as the spec', () => {
@@ -297,6 +297,27 @@ describe('toAnswerBlueprint', () => {
                 {x: '2026-11-18', xOrder: 0, s0: 1},
                 {x: '2026-11-19', xOrder: 1, s0: 2, s1: 3}
             ]);
+        });
+
+        it('leaves out the point still arriving while a chart streams, such as a date cut short', () => {
+            const bp = translate(
+                {
+                    type: 'line',
+                    xAxis: {type: 'datetime'},
+                    series: [
+                        {name: 'A', data: [['2026-11-18', 1]]},
+                        {
+                            name: 'B',
+                            data: [
+                                ['2026-11-18', 2],
+                                ['2026--0-7-', 3]
+                            ]
+                        }
+                    ]
+                },
+                ['c']
+            );
+            expect(bp.sources.c.inline.rows).toEqual([{x: '2026-11-18', xOrder: 0, s0: 1, s1: 2}]);
         });
 
         it('takes the names of a pie from its pairs', () => {
