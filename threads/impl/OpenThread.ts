@@ -95,16 +95,21 @@ export class OpenThread extends HoistBase {
             }
         );
 
-        // A chat adopts the backend's id before its reply moves to streaming, in the same flush,
-        // so the thread is re-keyed before it counts as saved.
+        // A chat's thread is saved once its reply starts to stream, or records the run's id from
+        // `RUN_STARTED`, which a backend may send well before any content. The chat adopts the
+        // backend's id in the same flush, and this reaction runs after the one on the id, so the
+        // thread is re-keyed before it counts as saved. Only a running turn counts: a greeting
+        // loaded while idle also has content, and the backend has not seen it.
         // A conversation of the app's own reports it through `isSaved`. An id it adopts before,
         // or in the same action as, it turns saved is re-keyed before the route reacts to either.
         const {chatModel} = this;
         if (chatModel) {
+            const chat = conversation as ChatModelConversation;
             this.addReaction({
-                track: () => chatModel.status === 'streaming',
-                run: isStreaming => {
-                    if (isStreaming) this.setSaved(true);
+                track: () =>
+                    chatModel.status === 'streaming' || (chatModel.isBusy && chat.hasRunStarted),
+                run: isStarted => {
+                    if (isStarted) this.setSaved(true);
                 }
             });
         } else {

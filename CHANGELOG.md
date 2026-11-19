@@ -46,6 +46,10 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Fixed `ChatWorkspace` to size its sidebar and side panel for Hoist's 1px panel splitter. It still
   reserved 8px per splitter, the width before Hoist 90, so a narrow workspace cut the side panel
   7px more than it needed to.
+* Fixed `ChatThreadsModel` to count a new thread as saved once its reply records the run id from
+  `RUN_STARTED`. It waited for the reply's first content, so a backend that plans or sets up
+  tools before it answers held back the `titleThreadAsync` call and the route's thread id until
+  then.
 
 ### ⚙️ Technical
 
