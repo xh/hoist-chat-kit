@@ -103,7 +103,7 @@ describe('built-in specs as an OpenUI library', () => {
             })
         );
         expect(container.querySelector('.xh-chat-ui-fallback')).toBeNull();
-        expect(container.querySelector('.xh-banner.xh-banner--warning')).toBeTruthy();
+        expect(container.querySelector('.xh-callout.xh-callout--intent-warning')).toBeTruthy();
         expect(container.querySelector('.xh-badge.xh-bg-intent-danger').textContent).toBe('Rates');
         expect(container.querySelector('.xh-separator.xh-chat-ui-separator')).toBeTruthy();
         expect(container.querySelectorAll('.xh-tab-container [role="tab"]')).toHaveLength(2);

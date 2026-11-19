@@ -402,7 +402,7 @@ export class AnalystModel extends HoistModel {
 ```
 
 Every component of the catalog is a component of the program. For more variety, add the
-built-in specs over Hoist's `TabContainer`, `Card`, `Banner`, `Badge` and `TreeMap`: a program
+built-in specs over Hoist's `TabContainer`, `Card`, `Callout`, `Badge` and `TreeMap`: a program
 can then write `Tabs([chart, table], ["Chart", "Data"])` or `Callout("warning", "Limit breach", "VaR is over its limit.")`.
 See [`/desktop/cmp/genui/`](../../desktop/cmp/genui/README.md#group-tab-and-call-out-parts-of-an-answer).
 

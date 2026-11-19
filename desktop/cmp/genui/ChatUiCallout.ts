@@ -1,6 +1,5 @@
 import {isEmpty} from 'lodash';
-import {div} from '@xh/hoist/cmp/layout';
-import {banner} from '@xh/hoist/desktop/cmp/banner';
+import {callout} from '@xh/hoist/cmp/callout';
 import {chatMarkdown} from '../../../cmp/markdown';
 import type {ChatUiComponentSpec} from '../../../genui';
 import {chatUiSkeleton} from './ChatUiFrame';
@@ -9,7 +8,7 @@ import type {ChatUiIntent, ChatUiSpecOptions} from './Types';
 import '../../../styles/vars.scss';
 import './ChatUiCallout.scss';
 
-/** Props of a callout component, as written by the model. It shows as a Hoist `Banner`. */
+/** Props of a callout component, as written by the model. It shows as a Hoist `Callout`. */
 export interface ChatUiCalloutSpecProps {
     /**
      * What kind of message it is: `primary` for a note, `success`, `warning` or `danger`. Sets the
@@ -20,7 +19,7 @@ export interface ChatUiCalloutSpecProps {
     /** A short heading above the message. */
     title?: string;
 
-    /** The message, in markdown - for bold, italics and links. Keep it to a sentence or two. */
+    /** The message, in markdown. Keep it to a sentence or two. */
     text: string;
 }
 
@@ -32,12 +31,12 @@ export interface ChatUiCalloutSpecOptions extends ChatUiSpecOptions {
 
 /**
  * A callout component for a {@link ChatUiCatalog}: a message that stands out from the answer, as
- * a note, a success, a warning or an error. It renders Hoist's `Banner`, tinted and with the icon
- * of its intent, so that color is never the only signal. It renders `Banner` for now, and will
- * move to Hoist's own `Callout` component once that ships.
+ * a note, a success, a warning or an error. It renders Hoist's `Callout`, tinted and with the icon
+ * of its intent, so that color is never the only signal. In a `.xh-chat--compact` chat it takes
+ * the callout's compact size.
  *
- * The spec passes the text to the banner as rendered chat markdown, never as a string. A string
- * goes through Hoist's own markdown, which loads images.
+ * The spec passes the text to the callout as rendered chat markdown, never as a string. A string
+ * renders as plain text, and Hoist's own markdown loads images.
  *
  * The model writes the intent and the title before the text, so that a warning shows as one from
  * its first word.
@@ -68,7 +67,7 @@ export function chatUiCalloutSpec(
                     type: 'string',
                     minLength: 1,
                     maxLength,
-                    description: 'The message. Takes markdown bold, italics and links.'
+                    description: 'The message, in markdown.'
                 }
             }
         },
@@ -76,22 +75,15 @@ export function chatUiCalloutSpec(
             if (isEmpty(text) && isEmpty(title)) {
                 return isPartial ? chatUiSkeleton(SKELETON_HEIGHT) : null;
             }
-            return banner({
+            return callout({
                 className: 'xh-chat-ui-callout',
                 // An intent cut short as it streams is not yet one of Hoist's.
                 intent: toHoistIntent(intent, 'primary'),
-                message: div({
-                    children: [
-                        title
-                            ? div({
-                                  key: 'title',
-                                  className: 'xh-chat-ui-callout__title',
-                                  children: title
-                              })
-                            : null,
-                        chatMarkdown({key: 'text', content: text ?? '', isStreaming: !!isPartial})
-                    ]
-                })
+                title,
+                // A markdown element is never blank, so a callout with only its title has no body.
+                children: isEmpty(text)
+                    ? null
+                    : chatMarkdown({content: text, isStreaming: !!isPartial})
             });
         },
         result: ({title, text}) => (title ? `${title}: ${text}` : text),

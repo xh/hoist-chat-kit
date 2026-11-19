@@ -646,7 +646,7 @@
         "ChatUiTreeMap",
         "TabContainer",
         "Card",
-        "Banner",
+        "Callout",
         "Badge",
         "TreeMap",
         "tabs",

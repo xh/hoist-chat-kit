@@ -62,8 +62,9 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * Added `chatUiTabsSpec()` and `chatUiSectionSpec()`, containers for nested answers over Hoist's
   `TabContainer` and `Card`. Tabs show one child at a time, named by `titles`. A section groups
   its children under a title, and the user can collapse it. Neither is standalone.
-* Added `chatUiCalloutSpec()`, a note, success, warning or error message over Hoist's `Banner`,
-  with the `show_callout` tool. Its text renders as chat markdown, which loads no image.
+* Added `chatUiCalloutSpec()`, a note, success, warning or error message over Hoist's `Callout`,
+  with the `show_callout` tool. Its text renders as chat markdown, which loads no image. In a
+  `.xh-chat--compact` chat, it takes the callout's compact size.
 * Added `chatUiBadgesSpec()`, a row of Hoist `Badge` labels, and `chatUiSeparatorSpec()`, a Hoist
   `Separator` between the parts of a nested answer, with an optional label. Neither is standalone.
 * Added `chatUiTreeMapSpec()`, boxes sized by one number and colored by another over Hoist's
@@ -162,6 +163,9 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   slice and category names, axis titles, and the column labels and row text of a chart by
   reference. Highcharts reads such text as markup, so a model or a result could draw a link that
   skipped the chat's link checks, or an inline style that loads a URL.
+* Fixed `ChatWorkspace` to size its sidebar and side panel for Hoist's 1px panel splitter. It still
+  reserved 8px per splitter, the width before Hoist 90, so a narrow workspace cut the side panel
+  7px more than it needed to.
 
 ### ⚙️ Technical
 

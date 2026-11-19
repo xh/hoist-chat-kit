@@ -1,53 +1,13 @@
-// A Hoist Banner, at the chat's radius and font size, with a heading over its message.
+// A Hoist Callout, at the chat's radius and font size.
 .xh-chat-ui-callout {
-  border-radius: var(--xh-chat-border-radius);
-  box-sizing: border-box;
-  font-size: var(--xh-chat-font-size, var(--xh-font-size));
-  line-height: normal;
-  min-width: 0;
+  --xh-callout-border-radius: var(--xh-chat-border-radius);
+  --xh-callout-font-size: var(--xh-chat-font-size, var(--xh-font-size));
+}
 
-  // The banner centers its icon. Against a heading and a message, it reads from the top.
-  .xh-banner__content {
-    align-items: flex-start;
-
-    > .xh-icon {
-      margin-top: 2px;
-    }
-  }
-
-  .xh-banner__message {
-    overflow-wrap: anywhere;
-
-    // A banner message is one run of text: bold, italics and links, with no block markdown. Hoist's
-    // Banner says so with rules as specific as the chat markdown's own, so these decide it.
-    .xh-chat-markdown {
-      h1,
-      h2,
-      h3,
-      h4,
-      p,
-      ul,
-      ol,
-      li,
-      code {
-        color: inherit;
-        display: inline;
-        font-family: inherit;
-        font-size: inherit;
-        font-weight: inherit;
-        list-style: none;
-        margin: 0;
-        padding: 0;
-      }
-
-      a {
-        color: inherit;
-        text-decoration: underline;
-      }
-    }
-  }
-
-  &__title {
-    font-weight: 600;
-  }
+// A compact chat takes the callout's compact size, as `size: 'compact'` would.
+.xh-chat--compact .xh-chat-ui-callout {
+  --xh-callout-font-size: var(--xh-callout-compact-font-size);
+  --xh-callout-gap: var(--xh-callout-compact-gap);
+  --xh-callout-line-height: var(--xh-callout-compact-line-height);
+  --xh-callout-padding: var(--xh-callout-compact-padding);
 }

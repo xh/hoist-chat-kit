@@ -2688,8 +2688,8 @@ four rules, which a later built-in spec follows too.
   function, so the tabs spec takes a list of titles. The first title names the first child. A
   missing title gets a default, and a title with no child shows no tab.
 - **Model text is never markup.** A string prop that a Hoist component reads as markup takes an
-  element or escaped text. The callout passes `Banner` rendered chat markdown, as a string
-  `message` goes through Hoist's markdown, which loads images. The treemap and the chart escape
+  element or escaped text. The callout passes `Callout` rendered chat markdown, as Hoist's own
+  markdown loads images. The treemap and the chart escape
   each name and title, as Highcharts reads them as markup.
 - **One Hoist model for the life of the component.** A component that needs a Hoist model, such as
   a `TabContainerModel` or a `TreeMapModel`, creates it once and updates it as the props stream.
@@ -2697,7 +2697,7 @@ four rules, which a later built-in spec follows too.
   until a format says the element's props are complete. Where no format says so, it remounts the
   component when that config changes.
 - **A catalog name says what the component is for.** The spec over `Card` is `section`, as `card`
-  already names the record card. The spec over `Banner` is `callout`.
+  already names the record card. The spec over `Callout` is `callout`.
 
 `ChatUiFrame`, `ChatUiCard` and the frames of the grid, chart and treemap stay as they are. They
 move together or not at all, so that the cards of one reply look alike.
@@ -2976,10 +2976,10 @@ beside it. `chatUiMetricsSpec()` is now `chatUiStatCardsSpec()`, with the catalo
 variables. The badges, tabs, treemap and input specs already match. A tool name is in snake case,
 as `show_stat_cards`, where the catalog name is in camel case.
 
-Two specs wait. `section` renders `Card`, but `card` still names the record card. The record card
+One spec waits. `section` renders `Card`, but `card` still names the record card. The record card
 will become a Hoist `Card` that holds a `KeyValueList`, with its actions in the card's footer, and
-`section` becomes `card` in that change. `callout` renders `Banner` until Hoist's own `Callout`
-ships, then moves onto it with no rename.
+`section` becomes `card` in that change. `callout` rendered `Banner` until Hoist 91 shipped its own
+`Callout`, and then moved onto it with no rename.
 
 **Why.** A developer or an agent that reads a catalog name finds the component in Hoist's docs
 under the same name. A second name for the same component is one more thing to learn and map, and

@@ -35,7 +35,7 @@ Key features:
   holds the prose between them, as markdown.
 - **Hoist components for structure** - `chatUiTabsSpec()`, `chatUiSectionSpec()`,
   `chatUiCalloutSpec()`, `chatUiBadgesSpec()`, `chatUiSeparatorSpec()` and `chatUiTreeMapSpec()` map
-  plain props to Hoist's `TabContainer`, `Card`, `Banner`, `Badge`, `hr` and `TreeMap`.
+  plain props to Hoist's `TabContainer`, `Card`, `Callout`, `Badge`, `Separator` and `TreeMap`.
 - **Result tables in two tiers** - inline, a table is a light preview of its first rows and
   columns, with a footer that says what it leaves out. Expand opens one Hoist `Grid` over the
   whole result, in the chat's side panel or in a dialog.
@@ -70,7 +70,7 @@ chatUiStackSpec(opts)   → ChatUiComponentSpec<ChatUiStackSpecProps>   → Chat
 chatUiTextSpec(opts)    → ChatUiComponentSpec<ChatUiTextSpecProps>    → ChatUiText
 chatUiTabsSpec(opts)    → ChatUiComponentSpec<ChatUiTabsSpecProps>    → ChatUiTabs → TabContainer (Hoist)
 chatUiSectionSpec(opts) → ChatUiComponentSpec<ChatUiSectionSpecProps> → Card (Hoist)
-chatUiCalloutSpec(opts) → ChatUiComponentSpec<ChatUiCalloutSpecProps> → Banner (Hoist)
+chatUiCalloutSpec(opts) → ChatUiComponentSpec<ChatUiCalloutSpecProps> → Callout (Hoist)
 chatUiBadgesSpec(opts)  → ChatUiComponentSpec<ChatUiBadgesSpecProps>  → Badge (Hoist)
 chatUiSeparatorSpec(opts) → ChatUiComponentSpec<ChatUiSeparatorSpecProps> → Separator (Hoist)
 chatUiTreeMapSpec(opts) → ChatUiComponentSpec<ChatUiTreeMapSpecProps> → ChatUiTreeMap → TreeMap (Hoist)
@@ -395,10 +395,10 @@ Tabs and sections are containers, as the stack is. Each takes children, and nest
   collapses it. With `collapsed`, it starts collapsed and builds its children on first expand.
   Several collapsible sections in a column read as an accordion. A section with no title never
   collapses.
-- **A callout** renders Hoist's `Banner`, tinted and with the icon of its `intent`: `primary` for
+- **A callout** renders Hoist's `Callout`, tinted and with the icon of its `intent`: `primary` for
   a note, `success`, `warning` or `danger`, and `none` for a neutral message with no icon. Its
-  `text` takes markdown bold, italics and links. It has a tool of its own, `show_callout`. It
-  renders `Banner` for now, and will move to Hoist's own `Callout` component once that ships.
+  `text` takes markdown, lists and paragraphs included. It has a tool of its own, `show_callout`.
+  In a `.xh-chat--compact` chat, it takes the callout's compact size.
 - **Badges** render a Hoist `Badge` per label, each in the color of its `intent`, in a row that
   wraps.
 - **A separator** renders Hoist's `Separator`: a rule, with an optional `label` within it. In a row
@@ -559,7 +559,7 @@ chatUiTabs({titles: ['Chart', 'Data'], children: [chart, grid]});
 chatUiTreeMap({nodes, format: 'currency'});
 ```
 
-For a section, a callout or badges, render Hoist's `card()`, `banner()` and `badge()`.
+For a section, a callout or badges, render Hoist's `card()`, `callout()` and `badge()`.
 
 ## Properties/API Reference
 
@@ -731,7 +731,8 @@ does the same. With neither, the treemap draws, but every box takes one default 
 ### Passing model text to a Hoist prop that reads markup
 
 A Hoist component may read a string prop as markup. `Banner` renders a string `message` with
-Hoist's markdown, which loads images, and Highcharts reads a label as HTML. Model text may come
+Hoist's markdown, which loads images, and Highcharts reads a label as HTML. `Callout` renders a
+string body as plain text, so the callout spec passes rendered chat markdown to show markdown. Model text may come
 from a prompt injection. The built-in specs pass it as rendered chat markdown, or escape it. Do
 the same in a spec of your own.
 
@@ -759,8 +760,8 @@ footer, and the full grid stays on offer. Have the tool sort and filter on the s
 - [Protocols](../../../docs/protocols.md) - how generative UI protocols relate to the kit
 - hoist-react `/cmp/grid/` - `GridModel`, columns, and renderers
 - hoist-react `/cmp/tab/` - `TabContainer` and `TabContainerModel`
-- hoist-react `/cmp/card/`, `/cmp/badge/`, `/cmp/treemap/` and `/desktop/cmp/banner/` - `Card`,
-  `Badge`, `TreeMap` and `Banner`
+- hoist-react `/cmp/card/`, `/cmp/callout/`, `/cmp/badge/` and `/cmp/treemap/` - `Card`,
+  `Callout`, `Badge` and `TreeMap`
 - hoist-react `/cmp/chart/` - `ChartModel`, and installing Highcharts
 - hoist-react `/format/` - the number and date formatters
 - hoist-react `/cmp/form/` and `/cmp/input/` - `FormField`, `FieldModel`, validation rules, and
