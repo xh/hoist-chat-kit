@@ -162,6 +162,9 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   slice and category names, axis titles, and the column labels and row text of a chart by
   reference. Highcharts reads such text as markup, so a model or a result could draw a link that
   skipped the chat's link checks, or an inline style that loads a URL.
+* Fixed `ChatWorkspace` to size its sidebar and side panel for Hoist's 1px panel splitter. It still
+  reserved 8px per splitter, the width before Hoist 90, so a narrow workspace cut the side panel
+  7px more than it needed to.
 
 ### ⚙️ Technical
 
