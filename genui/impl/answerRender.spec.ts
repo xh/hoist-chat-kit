@@ -13,6 +13,7 @@ import {
     chatUiGridSpec,
     chatUiStackSpec,
     chatUiStatCardsSpec,
+    chatUiTabsSpec,
     chatUiTextSpec
 } from '../../desktop/cmp/genui';
 import {ChatUiCatalog} from '../ChatUiCatalog';
@@ -90,6 +91,35 @@ describe('documents as answer blueprints', () => {
         expect(text(asSpec)).toContain('Revenue');
         expect(text(asSpec)).toContain('Open issues');
         expect(text(asAnswer)).toBe(text(asSpec));
+    });
+
+    it('renders tabs with the titles their child references hold', () => {
+        const tabs = new ChatUiCatalog({components: [chatUiTabsSpec(), chatUiTextSpec()]}),
+            doc = {
+                root: 'tabs',
+                elements: {
+                    tabs: {
+                        component: 'tabs',
+                        props: {titles: ['Chart', 'Data']},
+                        children: ['a', 'b']
+                    },
+                    a: {component: 'text', props: {text: 'First'}},
+                    b: {component: 'text', props: {text: 'Second'}}
+                }
+            };
+        renderInDom(
+            fragment({
+                children: tabs.renderDocument(doc, {
+                    chatModel: createChatModel(),
+                    messageId: 'm1',
+                    part: {type: 'data', id: 'd1', dataType: 'xh.chat.ui', data: null},
+                    isPartial: false
+                })
+            }) as ReactElement
+        );
+        expect(screen.getByText('Chart')).toBeTruthy();
+        expect(screen.getByText('Data')).toBeTruthy();
+        expect(screen.queryByText(/could not be displayed/)).toBeNull();
     });
 
     it('renders an inline grid over a source as the spec draws it, complete or streaming', () => {

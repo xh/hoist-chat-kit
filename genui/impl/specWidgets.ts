@@ -24,6 +24,7 @@ import type {ChatArtifactRegistry} from '../ChatArtifactRegistry';
 import type {ChatUiCatalog} from '../ChatUiCatalog';
 import type {ChatUiComponentSpec, ChatUiDocumentContext} from '../ChatUiComponentSpec';
 import type {ChatUiNode} from '../ChatUiDocument';
+import {getOwn} from '../../impl/LangUtils';
 import type {ChatUiBoundProps} from './answerBlueprint';
 
 /**
@@ -96,20 +97,35 @@ export class ChatUiAnswerHostContext extends HoistBase {
 }
 
 /**
+ * Props a component takes per child, which an answer holds on each child's reference, as a
+ * `tabContainer` holds a tab's title. A host then reads them as its own.
+ */
+export const CHILD_REF_PROPS: Record<string, {prop: string; key: string}> = {
+    tabs: {prop: 'titles', key: 'title'}
+};
+
+/** The values a component takes per child, from its child references, in order. */
+export function toPerChild(refs: PlainObject[], key: string): unknown[] {
+    return (refs ?? []).filter(it => !it?.slot).map(it => it?.[key]);
+}
+
+/**
  * A catalog component as a blueprint widget. Its props are the widget's config, its slots take
  * child references, and it renders through the catalog as it always has. An input whose element
  * sets a variable shows and writes that variable's value.
  */
 export function toWidgetSpec(spec: ChatUiComponentSpec, catalog: ChatUiCatalog): WidgetSpec {
     const info = WIDGET_INFO[spec.name] ?? deriveInfo(spec),
-        name = toWidgetName(spec.name);
+        name = toWidgetName(spec.name),
+        perChild = getOwn(CHILD_REF_PROPS, spec.name),
+        config = perChild ? withoutProp(spec.props, perChild.prop) : spec.props;
     return {
         name,
         version: 1,
         guidance: spec.description,
-        config: spec.props,
+        config,
         ...info,
-        ...(spec.example ? {example: {component: name, config: spec.example}} : {}),
+        ...(spec.example ? {example: toExample(name, spec.example, perChild)} : {}),
         ...(spec.slots?.length
             ? {
                   children: {
@@ -118,7 +134,10 @@ export function toWidgetSpec(spec: ChatUiComponentSpec, catalog: ChatUiCatalog):
                           required: ['id'],
                           properties: {
                               id: {type: 'string'},
-                              slot: {enum: spec.slots.filter(it => it !== 'default')}
+                              slot: {enum: spec.slots.filter(it => it !== 'default')},
+                              ...(perChild
+                                  ? {[perChild.key]: spec.props.properties[perChild.prop].items}
+                                  : {})
                           }
                       }
                   }
@@ -299,7 +318,11 @@ function specWidget(spec: ChatUiComponentSpec, catalog: ChatUiCatalog) {
                 (slotIds[it.slot as string] ??= []).push(it.id);
             });
 
-            const props: PlainObject = {...model.resolvedConfig},
+            const perChild = getOwn(CHILD_REF_PROPS, spec.name),
+                props: PlainObject = {
+                    ...model.resolvedConfig,
+                    ...(perChild ? {[perChild.prop]: toPerChild(refs, perChild.key)} : {})
+                },
                 node: ChatUiNode = {
                     id,
                     component: spec.name,
@@ -328,4 +351,23 @@ function specWidget(spec: ChatUiComponentSpec, catalog: ChatUiCatalog) {
             });
         }
     });
+}
+
+// A per-child prop of the example moves onto child references, as an answer holds it.
+function toExample(name: string, example: PlainObject, perChild: {prop: string; key: string}) {
+    const values = perChild ? example[perChild.prop] : null;
+    if (!Array.isArray(values)) return {component: name, config: example};
+    return {
+        component: name,
+        config: omit(example, perChild.prop),
+        children: values.map((it, idx) => ({id: `child${idx + 1}`, [perChild.key]: it}))
+    };
+}
+
+function withoutProp(schema: PlainObject, prop: string): PlainObject {
+    return {
+        ...schema,
+        properties: omit(schema.properties, prop),
+        ...(schema.required ? {required: without(schema.required, prop)} : {})
+    };
 }

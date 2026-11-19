@@ -102,9 +102,11 @@ import {
     isDocumentShape
 } from './impl/answerTool';
 import {
+    CHILD_REF_PROPS,
     type ChatUiAnswerRenderProps,
     fromWidgetName,
     toActionSpecs,
+    toPerChild,
     toStandInWidgetSpecs,
     toWidgetSpec
 } from './impl/specWidgets';
@@ -1810,9 +1812,13 @@ function fromAnswerElement(el: PlainObject, toName: (widget: string) => string):
             ),
             it => it.map(ref => ref.id)
         );
+    const component = toName(el.component),
+        perChild = getOwn(CHILD_REF_PROPS, component);
     return {
-        component: toName(el.component),
-        props: el.config ?? {},
+        component,
+        props: perChild
+            ? {...el.config, [perChild.prop]: toPerChild(refs, perChild.key)}
+            : (el.config ?? {}),
         ...(children.length ? {children} : {}),
         ...(isEmpty(slots) ? {} : {slots})
     };

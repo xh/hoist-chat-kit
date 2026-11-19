@@ -15,7 +15,7 @@ import type {Blueprint, BlueprintElement, ChildRef, SourceDecl} from '../../blue
 import type {ChatUiDocument, ChatUiElement} from '../ChatUiDocument';
 import {type ChatUiBinding, isChatUiBindings} from '../ChatUiState';
 import {getOwn} from '../../impl/LangUtils';
-import {toWidgetName} from './specWidgets';
+import {CHILD_REF_PROPS, toWidgetName} from './specWidgets';
 
 /**
  * A document as an answer blueprint: each element's props become its config, and its children
@@ -111,10 +111,17 @@ function toElement(el: ChatUiElement): BlueprintElement {
         )
     ];
     // A bound prop stays beside the blueprint, with its binding.
-    const bound = isChatUiBindings(el.bindings) ? Object.keys(el.bindings) : [];
+    const bound = isChatUiBindings(el.bindings) ? Object.keys(el.bindings) : [],
+        perChild = getOwn(CHILD_REF_PROPS, el.component),
+        values = perChild ? el.props?.[perChild.prop] : null;
+    if (isArray(values)) {
+        refs.filter(it => !it.slot).forEach((it, idx) => {
+            if (idx < values.length) it[perChild.key] = values[idx];
+        });
+    }
     return {
         component: toWidgetName(el.component),
-        config: omit(el.props ?? {}, bound),
+        config: omit(el.props ?? {}, perChild ? [...bound, perChild.prop] : bound),
         ...(refs.length ? {children: refs} : {})
     };
 }

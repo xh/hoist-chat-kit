@@ -3032,6 +3032,8 @@ rows, the widget config its query set, and the target's sources that already giv
   The text declares each `$variable` with its initial value.
 - The chat integration of the Architect lives in `genui/architect`, so `blueprint/` imports no
   chat kit types.
+- In an answer, a `tabs` element holds each tab's title on its child reference, as a
+  `tabContainer` does, so a tab keeps its title when it moves to a host.
 
 **Why.** To add an answer to a host, the Architect needs the answer's blueprint and where its data
 came from. Mapping a query's request to a source is mechanical, and models get it wrong most

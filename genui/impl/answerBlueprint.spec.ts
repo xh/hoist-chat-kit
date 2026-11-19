@@ -1,3 +1,4 @@
+import {omit} from 'lodash';
 import {describe, expect, it} from 'vitest';
 import {DataCatalog, degradeAnswer} from '../../blueprint';
 import {
@@ -17,7 +18,7 @@ import {
 } from '../../desktop/cmp/genui';
 import {ChatUiCatalog} from '../ChatUiCatalog';
 import {toAnswerBlueprint} from './answerBlueprint';
-import {toWidgetName} from './specWidgets';
+import {CHILD_REF_PROPS, toWidgetName} from './specWidgets';
 
 /**
  * A document becomes an answer blueprint over the catalog's registry, where each catalog
@@ -86,7 +87,7 @@ describe('toAnswerBlueprint', () => {
             });
             expect(bp.elements.root).toEqual({
                 component: toWidgetName(name as string),
-                config: spec.example
+                config: omit(spec.example, CHILD_REF_PROPS[name as string]?.prop ?? [])
             });
             expect(degradeAnswer(bp, ctx)).toEqual(bp);
         }
@@ -354,6 +355,26 @@ describe('toAnswerBlueprint', () => {
             }
         });
         expect(bp.elements.top.children).toEqual([{id: 'a'}, {id: 'b'}]);
+        expect(degradeAnswer(bp, ctx)).toEqual(bp);
+    });
+
+    it("moves each tab's title onto its child reference, as a tab container holds it", () => {
+        const bp = toAnswerBlueprint({
+            root: 'tabs',
+            elements: {
+                tabs: {component: 'tabs', props: {titles: ['Chart', 'Data']}, children: ['a', 'b']},
+                a: {component: 'text', props: {text: 'First'}},
+                b: {component: 'text', props: {text: 'Second'}}
+            }
+        });
+        expect(bp.elements.tabs).toEqual({
+            component: 'tabs',
+            config: {},
+            children: [
+                {id: 'a', title: 'Chart'},
+                {id: 'b', title: 'Data'}
+            ]
+        });
         expect(degradeAnswer(bp, ctx)).toEqual(bp);
     });
 
