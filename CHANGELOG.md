@@ -27,6 +27,14 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   The docs and examples use `children` too. The legacy `item` and `items` keys still work in Hoist
   91.
 
+### 🎁 New Features
+
+* Added `ChatToolSpec.canAllowForConversation`, to let the user allow a tool for the rest of the
+  conversation. Its approval card offers Allow for this conversation, and later calls of the tool
+  run with no approval. `ChatModel.allowedTools` names the allowed tools, and
+  `resetAllowedTools()` forgets them. Clearing the chat or loading another thread asks again.
+  `approveToolCallAsync()` takes `{forConversation: true}` to do the same in code.
+
 ### 🐞 Bug Fixes
 
 * Fixed a data part whose renderer returns null to take no space in the reply. It left an empty

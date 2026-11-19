@@ -140,6 +140,9 @@ still in force, with their amendments. Do not read the whole file.
 | [D116](#d116-the-status-region-holds-only-actions-and-a-turn-running-on-the-server-blocks-sends) | The status region holds only actions, and a turn running on the server blocks sends | Amended by D117 |
 | [D117](#d117-the-thread-layer-checks-on-a-turn-running-on-the-server) | The thread layer checks on a turn running on the server | Amended by D118 |
 | [D118](#d118-the-thread-layer-checks-on-every-thread-the-list-shows-working) | The thread layer checks on every thread the list shows working | Accepted |
+| [D119](#d119-the-thread-layer-asks-the-app-to-title-a-new-thread) | The thread layer asks the app to title a new thread | Accepted |
+| [D120](#d120-a-replayed-failure-reads-as-the-same-failure-live) | A replayed failure reads as the same failure live | Accepted |
+| [D121](#d121-a-tool-opts-in-to-being-allowed-for-the-conversation) | A tool opts in to being allowed for the conversation | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2471,3 +2474,24 @@ server uses to mark a failure unsafe is the natural way for an app to mark one s
 Replies stored by an older version would then lose "Not sent". A new error code for a replayed
 reply with no end: it would mean the same as `incomplete-stream`, and every check of that code
 would need it too.
+
+## D121. A tool opts in to being allowed for the conversation
+
+**Status.** Accepted.
+
+**Decision.** `ChatToolSpec.canAllowForConversation` lets the user allow a tool for the rest of
+the conversation, from its approval card. It is off by default. `ChatModel.allowedTools` holds the
+choice, `resetAllowedTools()` forgets it, and clearing the chat or loading another thread empties
+it. A reload of the same thread keeps it. Allowing a tool also approves its other calls that wait
+in the same step. Server approvals, through interrupts, still ask call by call.
+
+**Why.** An app asked for it, so that frequent changes that are easy to undo need no click each
+time. The kit cannot tell such a tool from one that places an order. An app that adds approval
+today expects every call to ask, and a tool that asks only for some inputs, such as orders over a
+limit, would lose that check for the rest of the conversation after one click. So the app opts
+each tool in. A server agent decides its own approvals, and the chat cannot answer its interrupts
+on the user's behalf.
+
+**Alternatives.** On by default, with a setting to keep a tool asking. Less setup for an app with
+many tools, but every existing approval would gain the choice at once. Persist the choice with the
+thread. A reloaded conversation would then run calls the user may no longer remember allowing.

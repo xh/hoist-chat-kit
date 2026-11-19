@@ -13,7 +13,8 @@ import {
     maxBy,
     omit,
     pick,
-    pickBy
+    pickBy,
+    without
 } from 'lodash';
 import type {ReactNode} from 'react';
 import type {PlainObject, TrackOptions} from '@xh/hoist/core';
@@ -659,6 +660,13 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      */
     @observableRef accessor feedbackDrafts: Record<string, ChatFeedbackDraft> = {};
 
+    /**
+     * Names of the tools the user allowed for the rest of the conversation, from an approval card -
+     * see {@link ChatToolSpec.canAllowForConversation}. Their calls run with no approval. Empties
+     * when the chat clears or loads another thread. (observable)
+     */
+    @observableRef accessor allowedTools: string[] = [];
+
     constructor(config: ChatModelConfig) {
         super();
         const {
@@ -936,20 +944,50 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
      *
      * @param reason - the user's words with the approval, recorded on the call as
      *      `approvalReason`.
+     * @param opts.forConversation - true to also allow the call's tool for the rest of the
+     *      conversation, if its spec sets {@link ChatToolSpec.canAllowForConversation}. Other calls
+     *      of the tool that wait for approval in the same step are approved too. Ignored for a
+     *      server call, and for a tool that does not opt in, whose call is approved alone.
      */
-    async approveToolCallAsync(toolCallId: string, reason?: string): Promise<void> {
+    async approveToolCallAsync(
+        toolCallId: string,
+        reason?: string,
+        opts?: {forConversation?: boolean}
+    ): Promise<void> {
         if (this.isServerApproval(toolCallId)) {
             return this.respondToApprovalAsync(toolCallId, true, reason);
         }
         const turn = this.getPausedTurn(toolCallId, it => it.state === 'approval-requested');
         if (!turn) return;
 
-        turn.approvedIds.add(toolCallId);
-        this.updateToolCall(turn, toolCallId, {
-            state: 'input-available',
-            ...(reason?.trim() ? {approvalReason: reason.trim()} : {})
+        const toolName = this.lastMessage.toolCalls.find(it => it.id === toolCallId)?.toolName,
+            allowTool =
+                opts?.forConversation && !!this.getOwnToolSpec(toolName)?.canAllowForConversation;
+        if (allowTool) this.allowTool(toolName);
+
+        this.lastMessage.toolCalls.forEach(call => {
+            const isTarget = call.id === toolCallId;
+            if (!isTarget && !(allowTool && call.toolName === toolName)) return;
+            // A server call is the server's to approve, through its interrupt.
+            if (call.state !== 'approval-requested' || call.awaitsResume) return;
+            turn.approvedIds.add(call.id);
+            this.updateToolCall(turn, call.id, {
+                state: 'input-available',
+                ...(isTarget && reason?.trim() ? {approvalReason: reason.trim()} : {})
+            });
         });
         await this.resumeTurnAsync(turn);
+    }
+
+    /**
+     * Forget the tools the user allowed for the rest of the conversation - see
+     * {@link allowedTools}. Their calls ask for approval again.
+     *
+     * @param toolName - the one tool to forget. Default all.
+     */
+    @action
+    resetAllowedTools(toolName?: string) {
+        this.allowedTools = toolName ? without(this.allowedTools, toolName) : [];
     }
 
     /**
@@ -1285,6 +1323,18 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
         if (message && set) this.replaceMessage(writeInterrupts(message, set));
     }
 
+    @action
+    private allowTool(toolName: string) {
+        if (!this.allowedTools.includes(toolName)) {
+            this.allowedTools = [...this.allowedTools, toolName];
+        }
+    }
+
+    /** True if the user allowed the tool for the conversation, and its spec still lets them. */
+    private isToolAllowed(spec: ChatToolSpec): boolean {
+        return !!spec.canAllowForConversation && this.allowedTools.includes(spec.name);
+    }
+
     /** True if a call is a server call that an interrupt asks the user to approve. */
     private isServerApproval(toolCallId: string): boolean {
         return !!this.lastMessage?.toolCalls.find(it => it.id === toolCallId)?.awaitsResume;
@@ -1594,7 +1644,11 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
                     errorText: `No handler for tool '${call.toolName}'.`
                 });
             } else if (spec.execute) {
-                if (!turn.approvedIds.has(call.id) && needsApproval(spec, call)) {
+                if (
+                    !turn.approvedIds.has(call.id) &&
+                    !this.isToolAllowed(spec) &&
+                    needsApproval(spec, call)
+                ) {
                     this.updateToolCall(turn, call.id, {state: 'approval-requested'});
                 }
             } else if (!spec.interactive) {
@@ -1828,6 +1882,11 @@ export class ChatModel extends HoistModel implements ChatComposerHost, ChatTrans
     @action
     private replaceThread(specs: ChatMessageSpec[], threadId: string, reason: ChatAbortReason) {
         this.abortTurn(reason);
+        // A reload of the same thread, such as the thread layer's check on a server turn, is
+        // still the same conversation.
+        if (reason === 'clear' || threadId == null || threadId !== this._threadId) {
+            this.allowedTools = [];
+        }
         this._threadId = threadId ?? genChatId();
         this.isThreadIdProvisional = threadId == null || !hasHistory(specs);
         this.messages = this.restore(specs);

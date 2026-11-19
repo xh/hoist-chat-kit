@@ -48,6 +48,15 @@ export interface ChatToolSpec {
     needsApproval?: boolean | ((input: PlainObject) => boolean);
 
     /**
+     * True to let the user allow this tool for the rest of the conversation, from its approval
+     * card. Later calls of the tool then run with no approval, until the chat clears or loads
+     * another thread, or the app calls {@link ChatModel.resetAllowedTools}. An allowed tool skips
+     * `needsApproval` entirely, a function included. Use it for frequent changes that are easy to
+     * undo. Default false: each call that needs approval asks.
+     */
+    canAllowForConversation?: boolean;
+
+    /**
      * The question that asks the user to approve a call, in place of the generic "Allow this tool
      * to run?" - a string, or a function of the call's input, which may return rich content. Say
      * what the call will do in the user's terms, such as "Sell 2,000 NVDA at market?", and name any
