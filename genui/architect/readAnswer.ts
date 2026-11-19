@@ -3,6 +3,7 @@ import {isPlainObject, isString, mapValues, uniq} from 'lodash';
 import {type ArchitectTarget, type Blueprint, hostSourceFor} from '../../blueprint';
 import type {ChatMessage, ChatModel, ChatToolSpec} from '../../core';
 import type {ChatUiCatalog} from '../ChatUiCatalog';
+import {READ_ANSWER_SPEC} from './toolSpecs';
 
 /** Most rows `read_answer` returns of each inline source. */
 export const READ_ANSWER_MAX_ROWS = 20;
@@ -16,15 +17,7 @@ const LISTED_REPLIES = 5;
  */
 export function readAnswerTool(catalog: ChatUiCatalog, target: ArchitectTarget): ChatToolSpec {
     return {
-        name: 'read_answer',
-        description:
-            "Read an answer of this chat, to add it to the blueprint. With no answer, lists the answers of recent replies. With one, returns its blueprint, and for each artifact it reads, the dataset source that gives the artifact's rows, the widget config its query set, and the blueprint's sources that already give the same rows. A program with state returns its text.",
-        parameters: {
-            type: 'object',
-            properties: {
-                answer: {type: 'string', description: 'An answer ID from the list, as messageId:n.'}
-            }
-        },
+        ...READ_ANSWER_SPEC,
         execute: (input, ctx) => {
             const chatModel = ctx?.chatModel;
             if (!chatModel) throw new Error('read_answer runs only in a chat');

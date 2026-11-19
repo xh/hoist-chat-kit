@@ -66,7 +66,7 @@ function addUsage(u: Usage, model: string, usage: any) {
 }
 
 async function runScenario(model: string, s: Scenario) {
-    const session = new Session(s.host ? loadBlueprint(s.host) : null),
+    const session = new Session(s.host ? loadBlueprint(s.host) : null, s.mode),
         messages: Anthropic.Beta.BetaMessageParam[] = [],
         usage: Usage = {input: 0, cacheWrite: 0, cacheRead: 0, output: 0, cost: 0},
         replies: string[] = [],
@@ -120,7 +120,7 @@ async function runScenario(model: string, s: Scenario) {
         }
     }
 
-    const outcome = {blueprint: session.blueprint, segments: session.segments, replies},
+    const outcome = {blueprint: session.blueprint, segments: session.segments, replies, calls: session.calls},
         finalIssues = s.steps.length && Object.keys(session.blueprint.elements ?? {}).length ? validate(session.blueprint, {artifacts: session.artifacts}) : [],
         checks = s.checks.map(([name, fn]) => {
             let ok = false;
@@ -133,7 +133,7 @@ async function runScenario(model: string, s: Scenario) {
         });
     return {
         model, scenario: s.id, title: s.title, calls, fallbacks, seconds: Math.round((Date.now() - started) / 1000),
-        usage, stats: session.stats, checks, finalIssues, events, replies, blueprint: session.blueprint, segments: session.segments, messages
+        usage, stats: session.stats, checks, finalIssues, events, replies, toolOrder: session.calls, blueprint: session.blueprint, segments: session.segments, messages
     };
 }
 

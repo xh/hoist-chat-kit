@@ -5,9 +5,12 @@ import {
     ArchitectToolError,
     applyOps,
     availableArchitectTools,
+    hostSourceFor,
     Issue,
     libraryCatalogs,
     libraryRegistry,
+    READ_ANSWER_SPEC,
+    REQUEST_DESIGN_MODE_SPEC,
     validate
 } from './library.ts';
 import {Blueprint, clone} from './load.ts';
@@ -38,13 +41,29 @@ export class Session implements ArchitectTarget {
     readonly dataProvider = fakeDataProvider as ArchitectTarget['dataProvider'];
     readonly segments: Blueprint[] = [];
     readonly artifacts: Record<string, string> = {};
-    // The scenarios design blueprints, so the Architect may edit them.
-    readonly mode = 'design' as const;
+    // Each query's artifact, with its request, as the chat keeps it.
+    readonly queried: Record<string, any> = {};
+    // The tools the model called, in order.
+    readonly calls: string[] = [];
+    mode: 'run' | 'design';
     readonly access = 'write' as const;
     readonly stats: Stats = {toolCalls: {}, edits: 0, editsRejected: 0, issueCodes: {}, segments: 0, segmentsRejected: 0};
 
-    constructor(host: Blueprint | null) {
+    constructor(host: Blueprint | null, mode: 'run' | 'design' = 'design') {
         this.blueprint = host ? clone(host) : {elements: {}};
+        this.mode = mode;
+    }
+
+    setMode(mode: 'run' | 'design') {
+        this.mode = mode;
+    }
+
+    /** The host's variables at their defaults, with `today` as the harness's date. */
+    get variables() {
+        return Object.entries<any>(this.blueprint.variables ?? {}).map(([name, v]) => ({
+            name,
+            value: v.default?.value ?? (v.default?.resolver === 'today' ? HARNESS_TODAY : null)
+        }));
     }
 
     validate(bp: Blueprint, isAnswer = false): Issue[] {
@@ -70,13 +89,22 @@ export class Session implements ArchitectTarget {
 
     async run(name: string, input: any): Promise<{content: string; isError?: boolean}> {
         this.stats.toolCalls[name] = (this.stats.toolCalls[name] ?? 0) + 1;
+        this.calls.push(name);
         if (name === 'show_ui') return this.showUi(input);
+        if (name === READ_ANSWER_SPEC.name) return this.readAnswer(input);
+        // The harness's user approves every request.
+        if (name === REQUEST_DESIGN_MODE_SPEC.name) {
+            this.setMode('design');
+            return {content: json({mode: this.mode})};
+        }
 
         const tool = availableArchitectTools(this).find(it => it.name === name);
         if (!tool) return {content: `unknown tool '${name}'`, isError: true};
         if (name === 'edit_blueprint') this.stats.edits++;
         try {
-            const result: any = await tool.run(input, this);
+            const result: any = await tool.run(input, this, {
+                addArtifact: artifact => (this.queried[artifact.id] = artifact)
+            });
             if (name === 'edit_blueprint') this.count(result.warnings);
             return {content: typeof result === 'string' ? result : json(result)};
         } catch (e) {
@@ -87,6 +115,23 @@ export class Session implements ArchitectTarget {
             }
             return {content: json(e.result), isError: true};
         }
+    }
+
+    // As the kit's read_answer, over this run's segments, which are all from one reply.
+    private readAnswer(input: any): {content: string; isError?: boolean} {
+        const widgets = (bp: Blueprint) => [...new Set(Object.values<any>(bp.elements ?? {}).map(e => e.component))];
+        if (!input?.answer) {
+            return {content: json(this.segments.map((bp, n) => ({answer: `r1:${n}`, kind: 'show_ui', widgets: widgets(bp)})))};
+        }
+        const bp = this.segments[Number(String(input.answer).split(':')[1])];
+        if (!bp) return {content: `no answer '${input.answer}' in this chat`, isError: true};
+        const artifacts = Object.values<any>(bp.sources ?? {})
+            .map(s => this.queried[s?.artifact])
+            .filter(Boolean)
+            .map(({id, columns, totalRows, metadata}) => ({
+                id, columns, totalRows, request: metadata.request, host: hostSourceFor(metadata.request, this)
+            }));
+        return {content: json({answer: input.answer, kind: 'show_ui', blueprint: bp, artifacts})};
     }
 
     private showUi(input: any): {content: string; isError?: boolean} {
@@ -109,5 +154,13 @@ export const TOOLS: Anthropic.Tool[] = [
         description,
         input_schema: parameters as Anthropic.Tool.InputSchema
     })),
+    ...[READ_ANSWER_SPEC, REQUEST_DESIGN_MODE_SPEC].map(({name, description, parameters}) => ({
+        name,
+        description,
+        input_schema: parameters as Anthropic.Tool.InputSchema
+    })),
     SHOW_UI
 ];
+
+/** The date the harness resolves `today` to, which the scenarios' contexts give the model. */
+export const HARNESS_TODAY = '2026-11-19';

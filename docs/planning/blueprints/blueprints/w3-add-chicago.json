@@ -1,0 +1,33 @@
+{
+    "base": 0,
+    "description": "Add Chicago as a third city, with tomorrow's rain as cards over its forecast",
+    "ops": [
+        {"op": "set", "path": "/variables/cityC", "value": {"type": "string", "label": "City C", "setBy": "prompt", "default": {"value": "Chicago"}, "options": {"values": ["Chicago", "London", "New York", "Paris", "Sydney", "Tokyo"]}}},
+        {"op": "set", "path": "/variables/today", "value": {"type": "localDate", "setBy": "resolver", "compute": {"resolver": "today"}}},
+        {"op": "set", "path": "/variables/tomorrow", "value": {"type": "localDate", "setBy": "resolver", "compute": {"resolver": "dateOffset", "args": {"from": {"$var": "today"}, "days": 1}}}},
+        {"op": "set", "path": "/sources/currentC", "value": {"dataset": "currentWeather", "params": {"city": {"$var": "cityC"}, "units": {"$var": "units"}}}},
+        {"op": "set", "path": "/sources/forecastC", "value": {"dataset": "weather", "params": {"city": {"$var": "cityC"}, "units": {"$var": "units"}}}},
+        {"op": "set", "path": "/sources/tomorrowC", "value": {"dataset": "weather", "params": {"city": {"$var": "cityC"}, "units": {"$var": "units"}}, "filter": {"field": "day", "op": "=", "value": {"$var": "tomorrow"}}}},
+        {
+            "op": "addElement",
+            "id": "nowC",
+            "element": {"component": "statCardStrip", "config": {"source": "currentC", "title": {"$var": "cityC"}, "cards": [{"field": "conditions"}, {"field": "temp"}, {"field": "humidity"}]}},
+            "parent": "dashboard",
+            "child": {"x": 0, "y": 21, "w": 6, "h": 2}
+        },
+        {
+            "op": "addElement",
+            "id": "rainTomorrowC",
+            "element": {"component": "statCardStrip", "config": {"source": "tomorrowC", "title": "Rain Tomorrow", "cards": [{"field": "precipProbability", "agg": "MAX", "label": "Highest Chance of Rain"}, {"field": "precipVolume", "agg": "SUM", "label": "Total Rain"}]}},
+            "parent": "dashboard",
+            "child": {"x": 6, "y": 21, "w": 6, "h": 2}
+        },
+        {
+            "op": "addElement",
+            "id": "precipChartC",
+            "element": {"component": "chart", "config": {"source": "forecastC", "title": "Chance of Rain", "type": "column", "x": "time", "y": ["precipProbability"]}},
+            "parent": "dashboard",
+            "child": {"x": 0, "y": 23, "w": 12, "h": 4}
+        }
+    ]
+}

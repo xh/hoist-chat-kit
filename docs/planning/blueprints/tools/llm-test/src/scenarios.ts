@@ -8,6 +8,8 @@ export interface Outcome {
     blueprint: Blueprint;
     segments: Blueprint[];
     replies: string[];
+    /** The tools the model called, in order. */
+    calls: string[];
 }
 
 const OFFERS_PROMPT = /\b(prompts?|pickers?|inputs?|let (users|you|them) (choose|change|pick|switch))\b/i;
@@ -16,6 +18,8 @@ export interface Scenario {
     id: string;
     title: string;
     host?: string;
+    /** The user's mode as the run starts. Default design. */
+    mode?: 'run' | 'design';
     context: string;
     steps: Step[];
     checks: [string, (o: Outcome) => unknown][];
@@ -32,6 +36,12 @@ const filterVarFrom = (bp: Blueprint, gridId: string) => vars(bp, v => v.type ==
 const gridId = (bp: Blueprint, pred: (c: any) => unknown) => els(bp, 'cubeGrid').find(([, e]) => pred(e.config ?? {}))?.[0];
 const dataset = (bp: Blueprint, c: any) => src(bp, c.source).dataset;
 const segmentWidgets = (bp: Blueprint, component: string) => els(bp, component).map(([, e]) => e);
+/** Asked for design mode, and edited only after. */
+const askedFirst = (o: Outcome) => {
+    const ask = o.calls.indexOf('request_design_mode'), edit = o.calls.indexOf('edit_blueprint');
+    return ask >= 0 && edit > ask;
+};
+const noChatSources = (bp: Blueprint) => !Object.values<any>(bp.sources ?? {}).some(s => s.artifact || s.inline);
 
 /** Replace each {"$var": name} with that variable's default value. */
 const resolveVars = (bp: Blueprint, o: any): any =>
@@ -120,14 +130,16 @@ export const SCENARIOS: Scenario[] = [
         id: 'P4',
         title: 'A chat answer added to a dashboard',
         host: 'p2-linked-dashboard.json',
-        context: 'Mode: design. The user has write access. A chat is open beside the host blueprint below, which the user is looking at. Its asOf is today.',
+        mode: 'run',
+        context: 'Mode: run. The user has write access. A chat is open beside the host blueprint below, which the user is looking at. Its asOf is today, 2026-11-19.',
         steps: [{prompt: 'Which traders lost the most in Technology today?'}, {prompt: 'Add that chart to my dashboard.'}],
         checks: [
             ['answers with a chart segment over the query result', o => o.segments.some(s => segmentWidgets(s, 'chart').some(e => s.sources?.[e.config?.source]?.artifact))],
             ['every segment reads the query result, and there is one', o => o.segments.length >= 1 && o.segments.every(s => Object.values<any>(s.sources ?? {}).some(x => x.artifact))],
             ['the host gains a chart filtered to Technology', o => cfg(o.blueprint, 'chart', c => techFilter(o.blueprint, c)).length],
             ['the new chart reuses the host positions source', o => cfg(o.blueprint, 'chart', c => techFilter(o.blueprint, c)).every(c => c.source === 'positions')],
-            ['no artifact or inline source in the host', o => !Object.values<any>(o.blueprint.sources ?? {}).some(s => s.artifact || s.inline)]
+            ['no artifact or inline source in the host', o => noChatSources(o.blueprint)],
+            ['asks for design mode before it edits', askedFirst]
         ]
     },
     {
@@ -189,6 +201,25 @@ export const SCENARIOS: Scenario[] = [
             ['a chart of the chance of rain through the day, over the query result', o => o.segments.some(s => segmentWidgets(s, 'chart').some(e => s.sources?.[e.config?.source]?.artifact && [e.config?.y].flat().includes('precipProbability')))],
             ['any stat cards hold inline values it computed', o => o.segments.every(s => segmentWidgets(s, 'statCardStrip').every(e => s.sources?.[e.config?.source]?.inline))],
             ['the host is unchanged', o => JSON.stringify(o.blueprint) === JSON.stringify(loadBlueprint('w2-two-cities.json'))]
+        ]
+    },
+    {
+        id: 'W3b',
+        title: "W3's answer, then a third city added to the dashboard",
+        host: 'w2-two-cities.json',
+        mode: 'run',
+        context: 'Mode: run. The user has write access. A chat is open beside the host blueprint below. Today is 2026-11-19.',
+        steps: [{prompt: 'Will I need an umbrella in Chicago tomorrow? When is rain most likely?'}, {prompt: 'Add Chicago to my dashboard.'}],
+        checks: [
+            ['Chicago is a city variable', o => vars(o.blueprint, v => v.default?.value === 'Chicago').length],
+            ['current and forecast sources for Chicago, in the chosen units', o => {
+                const s = Object.values<any>(o.blueprint.sources ?? {}),
+                    chicago = (x: any) => x.params?.city?.$var && o.blueprint.variables?.[x.params.city.$var]?.default?.value === 'Chicago' && bound(x.params?.units, 'units');
+                return s.some(x => x.dataset === 'currentWeather' && chicago(x)) && s.some(x => x.dataset === 'weather' && chicago(x));
+            }],
+            ['every stat card reads a dataset source', o => cfg(o.blueprint, 'statCardStrip').every(c => dataset(o.blueprint, c))],
+            ['no artifact or inline source in the host', o => noChatSources(o.blueprint)],
+            ['asks for design mode before it edits', askedFirst]
         ]
     }
 ];

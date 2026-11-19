@@ -2,6 +2,7 @@ import {div} from '@xh/hoist/cmp/layout';
 import {isString, truncate} from 'lodash';
 import type {ArchitectTarget} from '../../blueprint';
 import type {ChatToolSpec} from '../../core';
+import {REQUEST_DESIGN_MODE_SPEC} from './toolSpecs';
 
 /** A target whose mode the Architect can ask to change. */
 export type DesignModeTarget = Pick<ArchitectTarget, 'mode' | 'access'> &
@@ -16,16 +17,8 @@ export type DesignModeTarget = Pick<ArchitectTarget, 'mode' | 'access'> &
 export function requestDesignModeTool(target: DesignModeTarget): ChatToolSpec {
     const canAsk = () => target.mode === 'run' && target.access === 'write';
     return {
-        name: 'request_design_mode',
+        ...REQUEST_DESIGN_MODE_SPEC,
         displayName: 'Design mode',
-        description:
-            'Ask the user to switch the blueprint to design mode, so that you can edit it. Call it before an edit in run mode. The user approves or declines on a card. Returns the mode that results: edit only if it is design.',
-        parameters: {
-            type: 'object',
-            properties: {
-                reason: {type: 'string', description: 'One sentence on what you will change.'}
-            }
-        },
         needsApproval: () => canAsk(),
         allowActions: false,
         approvalPrompt: input =>

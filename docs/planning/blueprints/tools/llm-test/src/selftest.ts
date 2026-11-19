@@ -19,7 +19,11 @@ for (const file of fs.readdirSync(path.join(PLANNING_DIR, 'blueprints')).sort())
 
 // The hand-written edits apply to their blueprints and keep them valid.
 const p2 = loadBlueprint('p2-linked-dashboard.json'),
-    p4 = applyOps(p2, loadBlueprint('p4-edit.json').ops);
+    p4 = applyOps(p2, loadBlueprint('p4-edit.json').ops),
+    w3b = applyOps(loadBlueprint('w2-two-cities.json'), loadBlueprint('w3-add-chicago.json').ops);
+const w3bIssues = w3b.result ? validate(w3b.result, {artifacts: ARTIFACTS}) : [w3b.issue!];
+console.log(`${w3bIssues.length ? 'FAIL' : 'ok  '} w3-add-chicago.json applied to w2`);
+w3bIssues.forEach(i => console.log(`     ${i.code} ${i.path}: ${i.message}`));
 const p4Issues = p4.result ? validate(p4.result, {artifacts: ARTIFACTS}) : [p4.issue!];
 console.log(`${p4Issues.length ? 'FAIL' : 'ok  '} p4-edit.json applied to p2`);
 p4Issues.forEach(i => console.log(`     ${i.code} ${i.path}: ${i.message}`));
@@ -47,11 +51,12 @@ const expected_: Record<string, any> = {
     P1: {blueprint: loadBlueprint('p1-one-grid.json'), segments: [], replies: ['I can make the city a prompt.']},
     P2: {blueprint: p2, segments: [], replies: ['I can make the city a prompt.']},
     P3: {blueprint: loadBlueprint('p3-morning-report.json'), segments: [], replies: ['I can make the city a prompt.']},
-    P4: {blueprint: p4.result, segments: [loadBlueprint('p4-answer.json')], replies: ['']},
+    P4: {blueprint: p4.result, segments: [loadBlueprint('p4-answer.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']},
     P5: {blueprint: loadBlueprint('p5-risk-report.json'), segments: [], replies: ['I can make the city a prompt.']},
     W1: {blueprint: loadBlueprint('w1-one-city.json'), segments: [], replies: ['I can make the city a prompt.']},
     W2: {blueprint: loadBlueprint('w2-two-cities.json'), segments: [], replies: ['I can make the city a prompt.']},
-    W3: {blueprint: loadBlueprint('w2-two-cities.json'), segments: [loadBlueprint('w3-segment-1.json'), loadBlueprint('w3-segment-2.json')], replies: ['']}
+    W3: {blueprint: loadBlueprint('w2-two-cities.json'), segments: [loadBlueprint('w3-segment-1.json'), loadBlueprint('w3-segment-2.json')], replies: ['']},
+    W3b: {blueprint: w3b.result, segments: [loadBlueprint('w3-segment-1.json'), loadBlueprint('w3-segment-2.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']}
 };
 let oracleFailed = 0;
 for (const s of SCENARIOS) {
@@ -60,4 +65,4 @@ for (const s of SCENARIOS) {
     oracleFailed += bad.length;
 }
 
-process.exit(oracleFailed || failed || missed.length || p4Issues.length || !arr.issue || !renOk ? 1 : 0);
+process.exit(oracleFailed || failed || missed.length || p4Issues.length || w3bIssues.length || !arr.issue || !renOk ? 1 : 0);
