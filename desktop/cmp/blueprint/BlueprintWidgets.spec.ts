@@ -1,6 +1,6 @@
 import {fireEvent, render, screen} from '@testing-library/react';
 import {div} from '@xh/hoist/cmp/layout';
-import {XH} from '@xh/hoist/core';
+import {hoistCmp, uses, XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -525,6 +525,23 @@ describe('blueprint desktop widgets', () => {
         // DashCanvasView passes its own model to the content as `viewModel`.
         render(elementFromContent(spec.content, {flex: 1, viewModel: canvas.canvasModel}));
         expect(await screen.findByText('Positions')).toBeTruthy();
+    });
+
+    it('renders an element with the presentation its config picks, over the same model', async () => {
+        const registry = scenarioRegistry();
+        registry.addPresentation('cubeGrid', {
+            name: 'card',
+            label: 'Card',
+            guidance: 'A card.',
+            component: hoistCmp.factory({
+                model: uses(CubeGridWidgetModel),
+                render: ({model}) => div(`Card of ${model.id}`)
+            })
+        });
+        const bp = loadBlueprint('p1-one-grid.json');
+        bp.elements.posGrid.config.presentation = 'card';
+        render(blueprintView({model: open(bp, registry)}));
+        expect(await screen.findByText('Card of posGrid')).toBeTruthy();
     });
 
     it('renders a switch for each preset group, which switches the active preset', async () => {

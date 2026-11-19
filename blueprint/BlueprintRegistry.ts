@@ -1,7 +1,7 @@
 import type {ElementFactory, PlainObject} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
 import {castArray, isEmpty, isPlainObject} from 'lodash';
-import {toLookup} from './impl/pointer';
+import {getOwn, toLookup} from './impl/pointer';
 import {findSchemaProblems} from '../impl/SchemaUtils';
 import type {ReactNode} from 'react';
 import type {Blueprint, BlueprintIssue} from './Blueprint';
@@ -54,6 +54,11 @@ export interface WidgetSpec {
      */
     rendersPartial?: boolean;
     /**
+     * Other ways to draw the widget, from the same config and model, beyond its own `panel`. An
+     * element picks one with its config's `presentation`. Added with `addPresentation()`.
+     */
+    presentations?: PresentationSpec[];
+    /**
      * The data the widget needs from its source, given its config with bindings resolved. A
      * source merges every widget's demand into one request.
      */
@@ -77,6 +82,16 @@ export interface WidgetValidateContext {
 export interface WidgetDemand {
     fields: string[];
     groupBy: string[];
+}
+
+/** Another way to draw a widget, from the same config and model - see `addPresentation()`. */
+export interface PresentationSpec {
+    /** Name an element's config picks it by. Never `panel`, the widget's own component. */
+    name: string;
+    label: string;
+    /** When to use it, for the Architect. */
+    guidance: string;
+    component: ElementFactory;
 }
 
 export interface WidgetOutputSpec {
@@ -217,6 +232,37 @@ export class BlueprintRegistry {
         this.addActions(BUILT_IN_ACTIONS, config.actions ?? []);
         this.addRenderers(BUILT_IN_RENDERERS, config.renderers ?? []);
         this.addVariableTypes(config.variableTypes ?? []);
+    }
+
+    /**
+     * Add a presentation to a widget: another way to draw it, from the same config and model. The
+     * widget's config then takes `presentation`, with `panel` for its own component, and its
+     * guidance says what each one is for. Throws for an unknown widget or a taken name.
+     */
+    addPresentation(widget: string, presentation: PresentationSpec) {
+        const spec = getOwn(this.widgets, widget),
+            {name} = presentation;
+        throwIf(!spec, `No widget '${widget}' to add presentation '${name}' to.`);
+        throwIf(
+            name === 'panel' || spec.presentations?.some(it => it.name === name),
+            `Widget '${widget}' already has a presentation '${name}'.`
+        );
+        const presentations = [...(spec.presentations ?? []), presentation];
+        this.widgets[widget] = {
+            ...spec,
+            presentations,
+            guidance: `${spec.guidance} Presentation "${name}" (${presentation.label}): ${presentation.guidance}`,
+            config: {
+                ...spec.config,
+                properties: {
+                    ...spec.config.properties,
+                    presentation: {
+                        enum: ['panel', ...presentations.map(it => it.name)],
+                        description: 'How the widget draws. Default "panel".'
+                    }
+                }
+            }
+        };
     }
 
     /** Add widgets. Throws if a config or children schema uses JSON Schema the validator lacks. */

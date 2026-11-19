@@ -56,7 +56,12 @@ export class BlueprintViewModel extends HoistModel {
     getComponent(id: string): ElementFactory {
         const elements = this.blueprintModel.blueprint?.elements,
             el = elements && Object.hasOwn(elements, id) ? elements[id] : null;
-        return el ? (this.getSpec(el.component).component ?? null) : null;
+        if (!el) return null;
+        const {presentation} = el.config ?? {},
+            drawn = this.blueprintModel.registry.widgets[el.component]?.presentations?.find(
+                it => it.name === presentation
+            );
+        return drawn?.component ?? this.getSpec(el.component).component ?? null;
     }
 
     override destroy() {
