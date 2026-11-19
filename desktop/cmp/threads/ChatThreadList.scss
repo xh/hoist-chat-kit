@@ -286,15 +286,3 @@
     margin: calc((var(--xh-chat-sidebar-row-height) - 12px) / 2) 0;
   }
 }
-
-// A row's More menu, portaled outside the list. It sits 4px clear of the button, toward whichever
-// side Hoist's popover placed it on, so that it does not cover the next row.
-.xh-chat-thread-list__row-menu {
-  &.xh-popover__content-wrapper--bottom {
-    translate: 0 4px;
-  }
-
-  &.xh-popover__content-wrapper--top {
-    translate: 0 -4px;
-  }
-}

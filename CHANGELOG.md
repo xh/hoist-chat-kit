@@ -28,7 +28,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   91.
 * The kit now runs on Hoist 91 without Blueprint. Its popovers, tooltips and the expanded table and
   chart dialog use Hoist's own `Popover`, `Tooltip` and `Dialog`. `ChatThreadListProps.rowMenuProps`
-  takes Hoist's `PopoverProps` in its `popoverProps`, so Popper.js `modifiers` no longer apply.
+  takes Hoist's `PopoverProps` in its `popoverProps` - set `offset` in place of Popper.js
+  `modifiers`.
 
 ### 🎁 New Features
 

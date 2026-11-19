@@ -445,12 +445,9 @@ function rowActions(
                 ...rowMenuProps,
                 menuItems: () => moreMenuItems(impl, thread),
                 popoverProps: {
+                    // Clear of the button, so that the menu does not cover the next row.
+                    offset: {mainAxis: 4},
                     ...rowMenuProps?.popoverProps,
-                    // Sets the menu clear of the button, so that it does not cover the next row.
-                    popoverClassName: classNames(
-                        'xh-chat-thread-list__row-menu',
-                        rowMenuProps?.popoverProps?.popoverClassName
-                    ),
                     onOpening: node => {
                         rowMenuProps?.popoverProps?.onOpening?.(node);
                         impl.setMenuThreadId(thread.id);
