@@ -9,6 +9,8 @@ export interface DegradeAnswerContext extends ValidateBlueprintContext {
     isComplete: boolean;
     /** Most passes of validating and replacing before the whole answer degrades. Default 5. */
     maxPasses?: number;
+    /** Problems found before translation, such as a parser's, by element ID. Each is an error. */
+    elementErrors?: Record<string, string[]>;
 }
 
 /**
@@ -41,9 +43,20 @@ export function degradeAnswer(input: unknown, ctx: DegradeAnswerContext): Bluepr
     if (!isPlainObject(input)) return whole([notAnObject()]);
     const bp = cloneDeep(input) as Blueprint;
     if (!isComplete) trimInlineRows(bp);
+    if (isPlainObject(bp.elements)) {
+        Object.entries(bp.elements).forEach(([id, el]) => {
+            const errors = [...(getOwn(ctx.elementErrors, id) ?? [])];
+            if (getOwn(ctx.registry.widgets, el?.component)?.reserved) {
+                errors.push(
+                    `/elements/${id}/component: '${el.component}' is for the kit's own use`
+                );
+            }
+            if (errors.length) bp.elements[id] = standIn(errors, el);
+        });
+    }
 
     for (let pass = 0; pass < maxPasses; pass++) {
-        const errors = validateBlueprint(bp, {...ctx, allowReserved: pass > 0}).filter(
+        const errors = validateBlueprint(bp, {...ctx, allowReserved: true}).filter(
             it => it.severity === 'error'
         );
         if (!errors.length) return bp;

@@ -92,6 +92,16 @@ describe('degradeAnswer', () => {
             expect(componentsOf(degrade(noRoot, false))).toEqual({tabs: 'placeholder'});
         });
 
+        it('stands in for an element that a parser reported, with its errors', () => {
+            const ret = degradeAnswer(answer(), {
+                ...ctx,
+                isComplete: true,
+                elementErrors: {chartA: ['line 3: unexpected token']}
+            });
+            expect(ret.elements.chartA.config.errors).toEqual(['line 3: unexpected token']);
+            expect(ret.elements.chartB.component).toBe('chart');
+        });
+
         it('drops the last row of an inline source while streaming, as it may be incomplete', () => {
             const bp = answer();
             expect(degrade(bp, false).sources.pnl.inline.rows).toEqual([
