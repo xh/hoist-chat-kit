@@ -1,17 +1,25 @@
-import {render, screen} from '@testing-library/react';
+import {fireEvent, render, screen} from '@testing-library/react';
 import {div} from '@xh/hoist/cmp/layout';
 import {XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
+import {
+    loadBlueprint,
+    portfolioCatalog,
+    scenarioRegistry,
+    weatherCatalog
+} from '../../../test/blueprintFixtures';
 import type {Blueprint, BlueprintDataProvider, BlueprintDataUpdate} from '../../../blueprint';
 import {BlueprintModel} from '../../../blueprint';
 import {elementFromContent} from '@xh/hoist/utils/react';
 import {blueprintView} from './BlueprintView';
+import {buttonGroupWidget, ButtonGroupWidgetModel} from './ButtonGroupWidget';
+import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from './ButtonGroupInputWidget';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
 import {CubeGridWidgetModel} from './CubeGridWidget';
 import {DashCanvasWidgetModel} from './DashCanvasWidget';
+import {GroupingChooserWidgetModel} from './GroupingChooserWidget';
 import {TabContainerWidgetModel} from './TabContainerWidget';
 import {tabContainer} from '@xh/hoist/cmp/tab';
 
@@ -39,6 +47,7 @@ describe('blueprint desktop widgets', () => {
         }
     };
 
+    /** Open a blueprint in design mode, where a user's change in a widget is an edit. */
     function open(blueprint: Blueprint, registry = scenarioRegistry()) {
         const ret = new BlueprintModel({
             blueprint,
@@ -46,6 +55,8 @@ describe('blueprint desktop widgets', () => {
             registry,
             dataProvider: provider
         });
+        ret.setAccess('write');
+        ret.setMode('design');
         onTestFinished(() => ret.destroy());
         return ret;
     }
@@ -122,25 +133,30 @@ describe('blueprint desktop widgets', () => {
         });
     });
 
-    it('snaps a refused sort back to the blueprint, and tells the user why', async () => {
-        const bp = loadBlueprint('p1-one-grid.json');
-        // A path that presets control must stay out of the config, so writing it is refused.
-        bp.presets = {
-            sorts: {
-                label: 'Sort',
-                controls: [{path: '/elements/posGrid/config/sortBy'}],
-                default: 'a',
-                items: {a: {label: 'A', set: {elements: {posGrid: {config: {sortBy: 'mktVal'}}}}}}
-            }
-        };
-        const toast = vi.spyOn(XH, 'dangerToast').mockReturnValue(null),
-            model = open(bp),
+    it("keeps a user's sort transient in run mode, with no edit", async () => {
+        const model = open(loadBlueprint('p1-one-grid.json')),
             gridModel = widget(CubeGridWidgetModel, model, 'posGrid').cubeGridModel.innerGridModel;
-        onTestFinished(() => toast.mockRestore());
+        model.setMode('run');
 
         gridModel.setSortBy('pnlDay|desc');
-        await vi.waitFor(() => expect(toast).toHaveBeenCalled());
+        await vi.waitFor(() =>
+            expect(model.effective.elements.posGrid.config.sortBy).toBe('pnlDay|desc')
+        );
         expect(model.version).toBe(1);
+        expect(model.blueprint.elements.posGrid.config.sortBy).toBeUndefined();
+    });
+
+    it('snaps a refused sort back to the blueprint, and tells the user why', async () => {
+        const toast = vi.spyOn(XH, 'dangerToast').mockReturnValue(null),
+            model = open(loadBlueprint('p1-one-grid.json')),
+            gridModel = widget(CubeGridWidgetModel, model, 'posGrid').cubeGridModel.innerGridModel;
+        onTestFinished(() => toast.mockRestore());
+        vi.spyOn(model, 'applyEdit').mockReturnValue({
+            issues: [{code: 'x.refused', severity: 'error', path: '', message: 'Refused.'}]
+        });
+
+        gridModel.setSortBy('pnlDay|desc');
+        await vi.waitFor(() => expect(toast).toHaveBeenCalledWith('Refused.'));
         expect(gridModel.sortBy).toEqual([]);
     });
 
@@ -286,6 +302,70 @@ describe('blueprint desktop widgets', () => {
                 'pnlDay'
             ])
         );
+    });
+
+    describe('groupingChooser', () => {
+        it('shows the value of the variable it sets, and sets it as the user chooses', () => {
+            const model = open(loadBlueprint('p3-morning-report.json')),
+                chooser = widget(GroupingChooserWidgetModel, model, 'groupChooser'),
+                {chooserModel} = chooser;
+
+            expect(chooserModel.value).toEqual(['strategy', 'trader']);
+            expect(chooserModel.dimensions.sector.displayName).toBe('Sector');
+
+            chooserModel.setValue(['sector']);
+            expect(model.getVariable('grouping').value).toEqual(['sector']);
+
+            model.resetVariable('grouping');
+            expect(chooserModel.value).toEqual(['strategy', 'trader']);
+        });
+    });
+
+    describe('buttonGroup', () => {
+        it('shows a button per action, described in its tooltip, that runs it', async () => {
+            const model = open(loadBlueprint('p3-morning-report.json'));
+            render(buttonGroupWidget({model: widget(ButtonGroupWidgetModel, model, 'pnlButtons')}));
+
+            const winners = await screen.findByText('Winners');
+            expect(winners.closest('button').title).toBe('Set pnlFilter to pnlDay > 0');
+            fireEvent.click(winners);
+            await vi.waitFor(() =>
+                expect(model.getVariable('pnlFilter').value).toEqual({
+                    field: 'pnlDay',
+                    op: '>',
+                    value: 0
+                })
+            );
+        });
+    });
+
+    describe('buttonGroupInput', () => {
+        it('shows the value of the variable it sets as the pressed option, and sets it', async () => {
+            const model = new BlueprintModel({
+                blueprint: loadBlueprint('w2-two-cities.json'),
+                catalog: weatherCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: provider
+            });
+            onTestFinished(() => model.destroy());
+            render(
+                buttonGroupInputWidget({
+                    model: widget(ButtonGroupInputWidgetModel, model, 'unitsToggle')
+                })
+            );
+
+            const fahrenheit = await screen.findByText('°F'),
+                celsius = await screen.findByText('°C');
+            expect(fahrenheit.closest('button').className).toMatch(/-active\b/);
+
+            fireEvent.click(celsius);
+            await vi.waitFor(() => expect(model.getVariable('units').value).toBe('metric'));
+            await vi.waitFor(async () =>
+                expect((await screen.findByText('°C')).closest('button').className).toMatch(
+                    /-active\b/
+                )
+            );
+        });
     });
 
     describe('tabContainer', () => {
@@ -445,6 +525,15 @@ describe('blueprint desktop widgets', () => {
         // DashCanvasView passes its own model to the content as `viewModel`.
         render(elementFromContent(spec.content, {flex: 1, viewModel: canvas.canvasModel}));
         expect(await screen.findByText('Positions')).toBeTruthy();
+    });
+
+    it('renders a switch for each preset group, which switches the active preset', async () => {
+        const model = open(loadBlueprint('p3-morning-report.json'));
+        render(blueprintView({model}));
+        expect(await screen.findByText('Columns')).toBeTruthy();
+        expect(await screen.findByText('P&L view')).toBeTruthy();
+        model.setPreset('posViews', 'risk');
+        expect(await screen.findByText('Risk view')).toBeTruthy();
     });
 
     it("renders an app variable type's own prompt input", async () => {

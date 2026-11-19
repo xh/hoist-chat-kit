@@ -3,7 +3,11 @@ import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {FilterSpec, View} from '@xh/hoist/data';
 import {observableRef} from '@xh/hoist/mobx';
 import {castArray, compact, isEqual, orderBy, uniq} from 'lodash';
-import {BlueprintWidgetModel, type BlueprintWidgetConfig} from '../../../blueprint';
+import {
+    BlueprintWidgetModel,
+    type BlueprintWidgetConfig,
+    type ChartWidgetConfig
+} from '../../../blueprint';
 import {
     type ChatUiChartLayoutProps,
     toHighchartsConfig,
@@ -16,7 +20,7 @@ import {
  * first `y`. If `x` is not a dimension, such as a date, it plots the rows as they are. Its `filter`
  * applies in the browser, so a filter bound to a selection updates it with no reload.
  */
-export class ChartWidgetModel extends BlueprintWidgetModel {
+export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
     @managed readonly chartModel = new ChartModel();
     @managed @observableRef accessor view: View = null;
 

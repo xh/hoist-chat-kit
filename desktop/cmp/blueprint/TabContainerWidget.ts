@@ -2,13 +2,18 @@ import {tabContainer, TabContainerModel, type TabConfig} from '@xh/hoist/cmp/tab
 import {hoistCmp, managed, uses} from '@xh/hoist/core';
 import {Icon} from '@xh/hoist/icon';
 import {pick} from 'lodash';
-import {BlueprintWidgetModel, type BlueprintWidgetConfig, type ChildRef} from '../../../blueprint';
+import {
+    BlueprintWidgetModel,
+    type BlueprintWidgetConfig,
+    type TabContainerWidgetConfig,
+    type ChildRef
+} from '../../../blueprint';
 
 /**
  * The `tabContainer` widget: a Hoist `TabContainer` with a tab per child, titled by its child
  * reference. The active tab is transient. A tab renders its child only once it is first shown.
  */
-export class TabContainerWidgetModel extends BlueprintWidgetModel {
+export class TabContainerWidgetModel extends BlueprintWidgetModel<TabContainerWidgetConfig> {
     @managed readonly tabContainerModel = new TabContainerModel({tabs: []});
 
     constructor(config: BlueprintWidgetConfig) {

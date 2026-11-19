@@ -5,7 +5,11 @@ import {fmtNumber} from '@xh/hoist/format';
 import {computed, observableRef} from '@xh/hoist/mobx';
 import {castArray, max, mean, min, sum, uniq} from 'lodash';
 import type {ReactNode} from 'react';
-import {BlueprintWidgetModel, type BlueprintWidgetConfig} from '../../../blueprint';
+import {
+    BlueprintWidgetModel,
+    type BlueprintWidgetConfig,
+    type StatCardStripWidgetConfig
+} from '../../../blueprint';
 import {fieldDisplay} from '../../../blueprint/impl/renderers';
 
 /** One card of a stat card strip, as it shows. */
@@ -20,7 +24,7 @@ export interface StatCardStripCard {
  * with no `agg` shows the field's total as the Cube rolls it up. A card with an `agg` computes it
  * over the source's rows, and `count` with no field counts them.
  */
-export class StatCardStripWidgetModel extends BlueprintWidgetModel {
+export class StatCardStripWidgetModel extends BlueprintWidgetModel<StatCardStripWidgetConfig> {
     @managed @observableRef accessor view: View = null;
 
     constructor(config: BlueprintWidgetConfig) {

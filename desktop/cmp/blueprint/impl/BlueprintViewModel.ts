@@ -1,18 +1,24 @@
 import {HoistModel, XH, type ElementFactory} from '@xh/hoist/core';
 import type {ReactNode} from 'react';
 import {BlueprintWidgetModel, type BlueprintModel, type WidgetSpec} from '../../../../blueprint';
+import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from '../ButtonGroupInputWidget';
+import {buttonGroupWidget, ButtonGroupWidgetModel} from '../ButtonGroupWidget';
 import {chartWidget, ChartWidgetModel} from '../ChartWidget';
 import {cubeGridWidget, CubeGridWidgetModel} from '../CubeGridWidget';
 import {dashCanvasWidget, DashCanvasWidgetModel} from '../DashCanvasWidget';
+import {groupingChooserWidget, GroupingChooserWidgetModel} from '../GroupingChooserWidget';
 import {statCardStripWidget, StatCardStripWidgetModel} from '../StatCardStripWidget';
 import {tabContainerWidget, TabContainerWidgetModel} from '../TabContainerWidget';
 import {elementHost} from './ElementHost';
 
 /** The desktop model and component of each built-in widget, for specs that name neither. */
 const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> = {
+    buttonGroup: {model: ButtonGroupWidgetModel, component: buttonGroupWidget},
+    buttonGroupInput: {model: ButtonGroupInputWidgetModel, component: buttonGroupInputWidget},
     chart: {model: ChartWidgetModel, component: chartWidget},
     cubeGrid: {model: CubeGridWidgetModel, component: cubeGridWidget},
     dashCanvas: {model: DashCanvasWidgetModel, component: dashCanvasWidget},
+    groupingChooser: {model: GroupingChooserWidgetModel, component: groupingChooserWidget},
     statCardStrip: {model: StatCardStripWidgetModel, component: statCardStripWidget},
     tabContainer: {model: TabContainerWidgetModel, component: tabContainerWidget}
 };

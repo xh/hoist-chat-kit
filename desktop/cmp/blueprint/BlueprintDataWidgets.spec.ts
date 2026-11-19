@@ -2,9 +2,14 @@ import {render} from '@testing-library/react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
-import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
+import {
+    loadBlueprint,
+    portfolioCatalog,
+    scenarioRegistry,
+    weatherCatalog
+} from '../../../test/blueprintFixtures';
 import type {Blueprint, BlueprintDataProvider, BlueprintDataUpdate} from '../../../blueprint';
-import {BlueprintModel} from '../../../blueprint';
+import {BlueprintModel, FakeBlueprintDataProvider} from '../../../blueprint';
 import {ChartWidgetModel} from './ChartWidget';
 import {CubeGridWidgetModel} from './CubeGridWidget';
 import {StatCardStripWidgetModel} from './StatCardStripWidget';
@@ -214,6 +219,27 @@ describe('blueprint data widgets', () => {
             ),
             gridModel = widget(CubeGridWidgetModel, model, id).cubeGridModel.innerGridModel;
         expect(gridModel.getColumn('shockDown10').displayName).toBe('Shocked P&L (-10%)');
+    });
+
+    it("runs W1 on the fake provider: a time chart's rows by time, and current conditions", async () => {
+        const model = new BlueprintModel({
+            blueprint: loadBlueprint('w1-one-city.json'),
+            catalog: weatherCatalog,
+            registry: scenarioRegistry(),
+            dataProvider: new FakeBlueprintDataProvider({catalog: weatherCatalog})
+        });
+        onTestFinished(() => model.destroy());
+        const chart = widget(ChartWidgetModel, model, 'tempChart'),
+            cards = widget(StatCardStripWidgetModel, model, 'now');
+
+        await vi.waitFor(() => expect(chart.chartModel.series[0]?.data.length).toBeGreaterThan(1));
+        expect(chart.chartModel.highchartsConfig.xAxis.type).toBe('datetime');
+        const times = chart.chartModel.series[0].data.map(it => it[0]);
+        expect(times).toEqual([...times].sort((a, b) => a - b));
+        expect(chart.chartModel.series.map(it => it.name)).toEqual(['Temperature', 'Feels Like']);
+
+        await vi.waitFor(() => expect(text(cards.cards[0].value)).toBeTruthy());
+        expect(cards.cards[0].title).toBe('Conditions');
     });
 
     it('draws a cell with the renderer its field names, as a badge for an order direction', async () => {

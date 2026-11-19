@@ -5,7 +5,11 @@ import type {FilterSpec, StoreRecord} from '@xh/hoist/data';
 import {observableRef} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {castArray, isEmpty, isEqual, isString, pick, sortBy} from 'lodash';
-import {BlueprintWidgetModel, type BlueprintWidgetConfig} from '../../../blueprint';
+import {
+    BlueprintWidgetModel,
+    type BlueprintWidgetConfig,
+    type CubeGridWidgetConfig
+} from '../../../blueprint';
 import {type FieldDisplay, fieldDisplay} from '../../../blueprint/impl/renderers';
 
 /**
@@ -14,7 +18,7 @@ import {type FieldDisplay, fieldDisplay} from '../../../blueprint/impl/renderers
  * is the `selection` output, as a filter of the selected row's group path, and the `selected`
  * output, as the selected row's data.
  */
-export class CubeGridWidgetModel extends BlueprintWidgetModel {
+export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConfig> {
     @managed @observableRef accessor cubeGridModel: CubeGridModel = null;
 
     // The grid's column state just after it applied the config's, to tell a user's change apart.

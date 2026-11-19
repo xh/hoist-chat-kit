@@ -6,14 +6,19 @@ import {
     type DashCanvasViewSpec
 } from '@xh/hoist/desktop/cmp/dash';
 import {isEqual, pick, sortBy} from 'lodash';
-import {BlueprintWidgetModel, type BlueprintWidgetConfig, type ChildRef} from '../../../blueprint';
+import {
+    BlueprintWidgetModel,
+    type BlueprintWidgetConfig,
+    type DashCanvasWidgetConfig,
+    type ChildRef
+} from '../../../blueprint';
 
 /**
  * The `dashCanvas` widget: a Hoist `DashCanvas` that places each child at the `x`, `y`, `w` and `h`
  * of its child reference. It places children as written, never compacting them. A drag or resize
  * becomes one edit of the children, in reading order.
  */
-export class DashCanvasWidgetModel extends BlueprintWidgetModel {
+export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidgetConfig> {
     @managed readonly canvasModel: DashCanvasModel;
 
     constructor(config: BlueprintWidgetConfig) {

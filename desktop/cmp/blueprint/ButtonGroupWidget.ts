@@ -1,0 +1,48 @@
+import {hoistCmp, type PlainObject, uses} from '@xh/hoist/core';
+import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
+import {Icon} from '@xh/hoist/icon';
+import {castArray} from 'lodash';
+import {BlueprintWidgetModel, type ButtonGroupWidgetConfig} from '../../../blueprint';
+
+/**
+ * The `buttonGroup` widget: a row of Hoist buttons, each running its action, or its list of
+ * actions as steps. A button's tooltip describes what it will do, with the values it would run
+ * with now.
+ */
+export class ButtonGroupWidgetModel extends BlueprintWidgetModel<ButtonGroupWidgetConfig> {
+    /** The definition of each button, with its action as the element declares it. */
+    get buttons() {
+        return castArray(this.element?.config?.buttons ?? []);
+    }
+
+    /** What a button's action, or each of its steps, will do. */
+    describe(action: unknown): string {
+        return castArray(action)
+            .map(it => this.blueprintModel.describeAction(it))
+            .join(', then ');
+    }
+
+    runAsync(action: PlainObject | PlainObject[]) {
+        return this.blueprintModel.runActionsAsync(action);
+    }
+}
+
+export const [ButtonGroupWidget, buttonGroupWidget] = hoistCmp.withFactory({
+    displayName: 'ButtonGroupWidget',
+    className: 'xh-blueprint-button-group',
+    model: uses(ButtonGroupWidgetModel),
+    render({model, className}) {
+        return buttonGroup({
+            className,
+            children: model.buttons.map((it, idx) =>
+                button({
+                    key: idx,
+                    text: it.label,
+                    icon: it.icon ? Icon.icon({faName: it.icon}) : null,
+                    title: model.describe(it.action),
+                    onClick: () => model.runAsync(it.action).catchDefault()
+                })
+            )
+        });
+    }
+});
