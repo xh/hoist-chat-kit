@@ -1,0 +1,125 @@
+import type {PlainObject} from '@xh/hoist/core';
+import {
+    fmtBillions,
+    fmtDate,
+    fmtDateTime,
+    fmtMillions,
+    fmtNumber,
+    fmtPercent,
+    fmtThousands,
+    fmtTime,
+    fmtCompactDate,
+    type NumberFormatOptions
+} from '@xh/hoist/format';
+import {LocalDate} from '@xh/hoist/utils/datetime';
+import {isPlainObject, isString, omit} from 'lodash';
+import type {ReactNode} from 'react';
+import type {Blueprint} from '../Blueprint';
+import type {DataCatalog, FieldDef} from '../DataCatalog';
+
+/** A format, as a blueprint or catalog writes it: a name, an object, or a name with changes. */
+export type FormatLike = string | PlainObject;
+
+/**
+ * The options of a field's format, merged option by option from the kind's built-in default, the
+ * kind's named format, the field's own format, and then each override given, such as a widget's.
+ * A name resolves in the blueprint's `formats` first, then the catalog's.
+ */
+export function resolveFormat(
+    field: FieldDef,
+    overrides: FormatLike[],
+    ctx: {catalog: DataCatalog; blueprint: Blueprint}
+): PlainObject {
+    const {catalog, blueprint} = ctx,
+        kind = catalog.kinds[field.kind],
+        base = kind?.base ?? field.kind,
+        expand = (f: FormatLike): PlainObject => {
+            if (f == null) return {};
+            if (isString(f)) return blueprint?.formats?.[f] ?? catalog.formats[f] ?? {};
+            return isString(f.name) ? {...expand(f.name), ...omit(f, 'name')} : f;
+        },
+        fieldFormat = field.format !== kind?.format ? field.format : null;
+
+    return [
+        builtInDefault(base),
+        expand(kind?.format),
+        expand(fieldFormat),
+        ...overrides.map(expand)
+    ]
+        .filter(isPlainObject)
+        .reduce((ret, it) => ({...ret, ...it}), {});
+}
+
+/**
+ * Format a value of a field with resolved format options, as Hoist's formatters do. With
+ * `asText`, return plain text, as for a label.
+ */
+export function formatValue(
+    value: unknown,
+    field: FieldDef,
+    opts: PlainObject,
+    catalog: DataCatalog,
+    asText = false
+): ReactNode {
+    const {type} = field,
+        base = catalog.kinds[field.kind]?.base ?? field.kind;
+
+    if (type === 'number' || type === 'int') {
+        const v = value as number,
+            {scale, ...rest} = opts,
+            numOpts = {
+                ...(omit(rest, 'date', 'pattern') as NumberFormatOptions),
+                ...(asText ? {asHtml: true, colorSpec: false} : {})
+            };
+        if (base === 'fraction') return fmtPercent(v, numOpts);
+        if (base === 'bps') return fmtNumber(v == null ? v : v * 10000, {label: 'bp', ...numOpts});
+        switch (scale) {
+            // A scale sets its label, unless the format names its own.
+            case 'thousands':
+                return fmtThousands(v, {label: true, ...numOpts});
+            case 'millions':
+                return fmtMillions(v, {label: true, ...numOpts});
+            case 'billions':
+                return fmtBillions(v, {label: true, ...numOpts});
+            case 'auto':
+                return fmtAuto(v, {label: true, ...numOpts});
+            default:
+                return fmtNumber(v, numOpts);
+        }
+    }
+    if (type === 'localDate' || type === 'date') {
+        const v = type === 'localDate' && isString(value) ? LocalDate.get(value) : value,
+            dateOpts = {
+                ...(opts.pattern ? {fmt: opts.pattern} : {}),
+                ...(asText ? {asHtml: true} : {})
+            };
+        switch (opts.date) {
+            case 'dateTime':
+                return fmtDateTime(v as any, dateOpts);
+            case 'time':
+                return fmtTime(v as any, dateOpts);
+            case 'compact':
+                return fmtCompactDate(v as any, asText ? ({asHtml: true} as any) : undefined);
+            default:
+                return fmtDate(v as any, dateOpts);
+        }
+    }
+    return value == null ? (opts.nullDisplay ?? null) : String(value);
+}
+
+//------------------
+// Implementation
+//------------------
+function builtInDefault(base: string): PlainObject {
+    if (base === 'shares') return {precision: 0};
+    if (base?.startsWith('currency:')) return {precision: 2};
+    return {};
+}
+
+function fmtAuto(v: number, opts: NumberFormatOptions): ReactNode {
+    const abs = Math.abs(v ?? 0);
+    if (abs >= 1e9) return fmtBillions(v, opts);
+    if (abs >= 1e6) return fmtMillions(v, opts);
+    if (abs >= 1e3) return fmtThousands(v, opts);
+    return fmtNumber(v, opts);
+}
