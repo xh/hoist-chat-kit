@@ -18,6 +18,6 @@ export function checkEditAllowed(
         message =
             access !== 'write'
                 ? `You have read access only, so '${path}' cannot change. Offer the user a copy of the blueprint to edit.`
-                : `'${path}' cannot change in run mode. Offer to switch to design mode.`;
+                : `'${path}' cannot change in run mode. Ask for design mode with request_design_mode.`;
     return {code: 'edit.notAllowed', severity: 'error', path, message, op: 0};
 }

@@ -44,7 +44,7 @@ Enforced by:
 | If a request needs something the widgets cannot do, say so plainly, build the closest workaround, and say what it is. | W2: both models said the grid cannot highlight rows, and added a filtered grid of rainy steps | Prompt |
 | Offer to send a feature request for a missing capability, and send it only with the user's consent. | Design: plan step 14, `request_feature` | Not yet |
 | In design mode, if it is unclear whether a change belongs in the definition or in a preset, ask. | Design: access and modes | Not yet |
-| In run mode, a change that needs the definition is refused. Offer design mode to a user with write access, and a copy to one without. | Design: access and modes | Not yet |
+| In run mode, a change that needs the definition is refused. Ask for design mode with `request_design_mode` from a user with write access, and edit only if it returns design mode. Offer a copy to a user without it. | Design: access and modes. Decision 83: the approval card's words are the kit's own | Prompt. The edit tools refuse, and the tool rechecks access |
 
 ### Chat answers
 
@@ -52,10 +52,13 @@ Enforced by:
 |---|---|---|
 | Look at the data with `query_dataset`, then answer. Answer in text alone when one or two facts answer the question. Show UI when the answer holds a series over time, a ranking, a comparison, or more numbers than a sentence carries, and still say the answer in one sentence of text. A question with several parts, such as a headline and its detail, takes a segment for each part. | W3: Sonnet answered the umbrella question in text, and Opus with a chart and a grid. In Toolbox, three of four runs of W3 and P4 answered in prose alone, where a chart of rain through the day or a ranking of traders served the user better | Prompt |
 | Widgets that interact go in one segment. Segments never share variables. | Design: segments are isolated | Not yet |
-| A segment may hold literal parameters, artifacts and computed inline values. A dashboard may not. | Design: answers are fixed records | Validator, which warns on artifacts and inline sources outside an answer |
+| A segment may hold literal parameters, artifacts and computed inline values. A dashboard may not. | Design: answers are fixed records. Decision 83: a person may author a short inline list | Validator: an artifact outside an answer is an error, and an inline source a warning, an error over 50 rows |
 | A question never changes the host blueprint. | W3: the host stayed unchanged on both models | Prompt |
-| To add an answer to the host, translate it. Reuse the host's source, turn an artifact into a dataset source, keep the answer's filter, and place each new widget. | P4: both models added the chart over the host's existing source | Prompt |
+| To add an answer to the host, read it with `read_answer`, then translate it. Reuse a host source that gives the artifact's rows, else add the source `read_answer` gives. Keep the query's filter, grouping and sort, and give each new widget a child reference. | P4: both models added the chart over the host's existing source | Prompt. `read_answer` maps each artifact to its source and widget config, and finds matching host sources |
+| Bind a literal parameter to a host variable only when it means the same thing, not when it merely holds the same value today. A date that means today, or one relative to it, becomes the host's variable or a resolver. | Decision 83 | Prompt |
 | A computed number in an answer becomes a widget over a source when it moves into a dashboard. | Design: dashboards are fetched each time they open | Prompt |
+| A widget allowed only in answers maps to a host widget, such as `tabs` to `tabContainer`, or the Architect asks. | Design: chat kit's specs are answer-only | Validator: the host's registry lacks them |
+| An OpenUI Lang `$variable` becomes a host variable that defaults to the value the program declares, not the user's current one, set by the host widget that writes it. `@Set` and `@Reset` become `setVariable` and `resetVariable`. | Decision 83: a current value is one user's transient choice | Prompt |
 
 ### Model choice
 

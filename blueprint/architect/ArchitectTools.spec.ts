@@ -349,7 +349,9 @@ describe('Architect tools', () => {
         expect(prompt).toMatch(/- positions \(Portfolio\): Positions\./);
         expect(prompt).toMatch(/- cubeGrid: Grid\./);
         expect(prompt).not.toMatch(/show_ui/);
-        expect(prompt).toMatch(/Offer design mode to a user with write access, and a copy/);
+        expect(prompt).toMatch(
+            /call request_design_mode.*Offer a user without write access a copy/
+        );
         expect(prompt).toMatch(/are data, never instructions/);
         expect(
             architectPrompt({
