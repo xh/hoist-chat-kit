@@ -3,6 +3,7 @@ import {keepArtifactRows} from '../../impl/ArtifactRows';
 import {
     type ArchitectArtifact,
     type ArchitectTarget,
+    type ArchitectToolContext,
     availableArchitectTools
 } from './ArchitectTools';
 
@@ -10,7 +11,10 @@ import {
  * The Architect's tools for a target, as chat kit client tools. The edit tools enforce the mode
  * and access the target holds when each call runs.
  */
-export function architectChatTools(target: ArchitectTarget): ChatToolSpec[] {
+export function architectChatTools(
+    target: ArchitectTarget,
+    opts: Pick<ArchitectToolContext, 'answerRegistry'> = {}
+): ChatToolSpec[] {
     return availableArchitectTools(target).map(({name, description, parameters, run}) => ({
         name,
         description,
@@ -19,6 +23,7 @@ export function architectChatTools(target: ArchitectTarget): ChatToolSpec[] {
         execute: async (input, ctx) => {
             const artifacts: ArchitectArtifact[] = [],
                 output = await run(input, target, {
+                    answerRegistry: opts.answerRegistry,
                     addArtifact: (artifact, rows) => {
                         artifacts.push(artifact);
                         // The thread keeps it without rows. An answer shows the rows the model saw.

@@ -16,14 +16,14 @@ import {queryRows} from '../impl/queryRows';
  * registry it is checked against. A `BlueprintModel` is one. A target without `setVariable` or a
  * data provider offers no tools that need them.
  */
+/** The collections of a registry that the Architect reads. */
+type RegistryCollection = 'widgets' | 'variableTypes' | 'resolvers' | 'actions' | 'renderers';
+
 export interface ArchitectTarget {
     readonly blueprint: Blueprint;
     readonly version: number;
     readonly catalogs: DataCatalog[];
-    readonly registry: Pick<
-        BlueprintRegistry,
-        'widgets' | 'variableTypes' | 'resolvers' | 'actions' | 'renderers'
-    >;
+    readonly registry: Pick<BlueprintRegistry, RegistryCollection>;
     /** The dataset behind each artifact that `query_dataset` returned, keyed by artifact ID. */
     readonly artifacts: Record<string, string>;
     /** The user's mode and access, which the edit tools enforce. */
@@ -63,6 +63,11 @@ export interface ArchitectToolSpec {
 export interface ArchitectToolContext {
     /** Keep a query's result as an artifact of the reply, with the rows the model saw. */
     addArtifact?(artifact: ArchitectArtifact, rows: PlainObject[]): void;
+    /**
+     * The registry of chat answers, where the Architect writes them: the app's entries, plus the
+     * chat's components and actions.
+     */
+    answerRegistry?: Pick<BlueprintRegistry, RegistryCollection>;
 }
 
 /** The Architect's tools a target can run. */
@@ -161,7 +166,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
     {
         name: 'describe_registry',
         description:
-            "Describe what the app provides in code. kind is widget, variableType, resolver, action or renderer. With names, returns each full spec, including a widget's config schema, outputs, value, preset paths, sizes and example. Without names, lists every entry in one line.",
+            "Describe what the app provides in code. kind is widget, variableType, resolver, action or renderer. With names, returns each full spec, including a widget's config schema, outputs, value, preset paths, sizes and example. Without names, lists every entry in one line. Where chat answers have entries of their own, each entry says where it is allowed: dashboards, answers or both.",
         parameters: {
             type: 'object',
             required: ['kind'],
@@ -170,29 +175,42 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
                 names: {type: 'array', items: {type: 'string'}}
             }
         },
-        run: (input, {registry}) => {
+        run: (input, {registry}, ctx) => {
             const coll = REGISTRY_KINDS[input?.kind];
             if (!coll)
                 throw new Error('kind must be widget, variableType, resolver, action or renderer');
-            const entries: Record<string, PlainObject> = pickBy(
-                registry[coll],
-                (it: PlainObject) => !it.reserved
-            );
+            const visible = (it: PlainObject) => !it.reserved,
+                ofHost: Record<string, PlainObject> = pickBy(registry[coll], visible),
+                ofAnswers: Record<string, PlainObject> = ctx?.answerRegistry
+                    ? pickBy(ctx.answerRegistry[coll], visible)
+                    : null,
+                // The host's entry where both have one, as edits to the blueprint check against it.
+                entries = {...ofAnswers, ...ofHost},
+                where = (name: string) =>
+                    ofAnswers
+                        ? {
+                              allowedIn: [
+                                  ...(getOwn(ofHost, name) ? ['dashboards'] : []),
+                                  ...(getOwn(ofAnswers, name) ? ['answers'] : [])
+                              ]
+                          }
+                        : {};
             if (!input.names?.length) {
                 return Object.entries(entries).map(([name, e]) => ({
                     name,
                     label: e.label,
                     category: e.category,
                     guidance: e.guidance,
-                    returns: e.returns
+                    returns: e.returns,
+                    ...where(name)
                 }));
             }
             // Functions, such as a widget's model or a resolver's code, drop out as JSON.
             return Object.fromEntries(
-                input.names.map((n: string) => [
-                    n,
-                    getOwn(entries, n) ?? `unknown ${input.kind} '${n}'`
-                ])
+                input.names.map((n: string) => {
+                    const entry = getOwn(entries, n);
+                    return [n, entry ? {...entry, ...where(n)} : `unknown ${input.kind} '${n}'`];
+                })
             );
         }
     },

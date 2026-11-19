@@ -4,6 +4,7 @@ import {ChatToolResult} from '../../core';
 import {getArtifactRows} from '../../impl/ArtifactRows';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import {BlueprintModel} from '../BlueprintModel';
+import {BlueprintRegistry} from '../BlueprintRegistry';
 import {FakeBlueprintDataProvider} from '../FakeBlueprintDataProvider';
 import {architectPrompt} from './architectPrompt';
 import type {ArchitectToolError} from './ArchitectTools';
@@ -285,6 +286,57 @@ describe('Architect tools', () => {
             again = await runDatasetQueryAsync(request, model);
         expect(again.rows).toEqual(art.rows);
         expect(again.rows).toHaveLength(3);
+    });
+
+    describe('with an answer registry', () => {
+        const answers = () => {
+                const ret = new BlueprintRegistry({
+                    widgets: [
+                        ...Object.values(scenarioRegistry().widgets),
+                        {
+                            name: 'stack',
+                            version: 1,
+                            label: 'Stack',
+                            guidance: 'Lays out its children.',
+                            category: 'container',
+                            config: {type: 'object', properties: {gap: {type: 'string'}}}
+                        }
+                    ]
+                });
+                return ret;
+            },
+            describe = (model: BlueprintModel, input: object) =>
+                architectChatTools(model, {answerRegistry: answers()})
+                    .find(it => it.name === 'describe_registry')
+                    .execute(input, {chatModel: {}} as any);
+
+        it('describes the widgets an answer may use, and says where each is allowed', async () => {
+            const model = open(),
+                list: any[] = await describe(model, {kind: 'widget'});
+            expect(list.find(it => it.name === 'stack')).toMatchObject({allowedIn: ['answers']});
+            expect(list.find(it => it.name === 'cubeGrid')).toMatchObject({
+                allowedIn: ['dashboards', 'answers']
+            });
+            const {stack} = await describe(model, {kind: 'widget', names: ['stack']});
+            expect(stack).toMatchObject({name: 'stack', allowedIn: ['answers']});
+            expect(stack.config.properties.gap).toBeTruthy();
+        });
+
+        it('refuses a widget allowed only in answers in an edit of the blueprint', () => {
+            const model = open(),
+                {issues} = model.applyEdit({
+                    ops: [
+                        {
+                            op: 'addElement',
+                            id: 'note',
+                            element: {component: 'stack', config: {}},
+                            parent: 'dashboard',
+                            child: {x: 0, y: 30, w: 4, h: 2}
+                        }
+                    ]
+                });
+            expect(issues.map(it => it.code)).toContain('element.unknownComponent');
+        });
     });
 
     it('finds every path that uses a field, a variable or a source', () => {
