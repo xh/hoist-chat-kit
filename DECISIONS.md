@@ -2443,8 +2443,8 @@ before the request.
 **Why.** An app asked for model-written titles. It could build them from `isNew` and
 `showThreadTitle()`, but each app would rebuild the same parts: when the backend first has the
 thread, which only the kit tracks for a `ChatModel`, a rename made while the title was on its way,
-and a single call per thread. The title starts while the first reply streams, so a long run does
-not delay it.
+and a single call per thread. The title starts once the first reply records its run id or starts
+to stream, so a long run does not delay it, nor does a backend that plans before it answers.
 
 **Alternatives.** Call it when the first turn ends. Simpler, but a long agent run would show the
 provisional title for its whole length. Let the app's function save the title, and only show it.

@@ -73,8 +73,9 @@ export interface ChatThreadsConfig {
 
     /**
      * Write a title for a thread the user started on this page, such as a summary from a model.
-     * The model calls it once for each such thread, as soon as the backend has the thread, while
-     * the first reply streams. A conversation of the app's own that leaves out `isSaved` counts
+     * The model calls it once for each such thread, as soon as the backend has the thread: when
+     * the first reply records its run id or starts to stream, whichever comes first. The reply
+     * never waits for the title. A conversation of the app's own that leaves out `isSaved` counts
      * as saved when its first turn ends, so the model calls it then. It saves the title through
      * the store's `renameThreadAsync`, which this option requires, and the list and the
      * workspace header show it at once.
