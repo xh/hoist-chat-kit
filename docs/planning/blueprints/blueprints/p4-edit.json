@@ -1,0 +1,25 @@
+{
+    "base": 12,
+    "description": "Add the Technology P&L by trader chart from the chat",
+    "ops": [
+        {
+            "op": "addElement",
+            "id": "techTraderChart",
+            "element": {
+                "component": "chart",
+                "config": {
+                    "source": "positions",
+                    "title": "Technology Day P&L by Trader",
+                    "type": "bar",
+                    "x": "trader",
+                    "y": ["pnlDay"],
+                    "filter": {"field": "sector", "op": "=", "value": "Technology"},
+                    "sortBy": "pnlDay|asc",
+                    "top": 10
+                }
+            },
+            "parent": "dashboard",
+            "child": {"x": 0, "y": 14, "w": 6, "h": 6}
+        }
+    ]
+}

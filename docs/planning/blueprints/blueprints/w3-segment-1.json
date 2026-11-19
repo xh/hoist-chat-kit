@@ -1,0 +1,25 @@
+{
+    "schema": {"blueprint": 1, "widgets": {"statCardStrip": 1}},
+    "sources": {
+        "tomorrow": {
+            "inline": {
+                "fields": [
+                    {"name": "maxChance", "label": "Highest Chance of Rain", "type": "number", "kind": "chance"},
+                    {"name": "totalRain", "label": "Total Rain", "type": "number", "kind": "rain"}
+                ],
+                "rows": [{"maxChance": 0.8, "totalRain": 6.4}]
+            }
+        }
+    },
+    "root": "umbrella",
+    "elements": {
+        "umbrella": {
+            "component": "statCardStrip",
+            "config": {
+                "source": "tomorrow",
+                "title": "Chicago Tomorrow",
+                "cards": [{"field": "maxChance"}, {"field": "totalRain"}]
+            }
+        }
+    }
+}

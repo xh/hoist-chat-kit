@@ -18,5 +18,5 @@
   // the installed @xh/hoist, the same version CI and the release build check.
   "references": [{"path": "./node_modules/@xh/hoist"}],
   "include": ["./**/*"],
-  "exclude": ["node_modules", "build", ".*/**"]
+  "exclude": ["node_modules", "build", ".*/**", "docs/planning"]
 }

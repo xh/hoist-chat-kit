@@ -1,0 +1,20 @@
+{
+    "name": "blueprints-llm-test",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "selftest": "tsx src/selftest.ts",
+        "test": "tsx src/run.ts",
+        "typecheck": "tsc --noEmit",
+        "rescore": "tsx src/rescore.ts"
+    },
+    "dependencies": {
+        "@anthropic-ai/sdk": "1.10.0",
+        "ajv": "8.20.0"
+    },
+    "devDependencies": {
+        "@types/node": "24.3.0",
+        "tsx": "4.23.15",
+        "typescript": "5.9.3"
+    }
+}

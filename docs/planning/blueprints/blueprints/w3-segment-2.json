@@ -1,0 +1,18 @@
+{
+    "schema": {"blueprint": 1, "widgets": {"chart": 1}},
+    "sources": {"chicago": {"artifact": "art_9c4"}},
+    "root": "rainChart",
+    "elements": {
+        "rainChart": {
+            "component": "chart",
+            "config": {
+                "source": "chicago",
+                "title": "Chance of Rain in Chicago Tomorrow",
+                "type": "column",
+                "x": "time",
+                "y": ["precipProbability"],
+                "filter": {"field": "day", "op": "=", "value": "2026-11-19"}
+            }
+        }
+    }
+}

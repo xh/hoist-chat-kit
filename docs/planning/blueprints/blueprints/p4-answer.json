@@ -1,0 +1,19 @@
+{
+    "schema": {"blueprint": 1, "widgets": {"chart": 1}},
+    "sources": {"techPnl": {"artifact": "art_7f2"}},
+    "root": "traderChart",
+    "elements": {
+        "traderChart": {
+            "component": "chart",
+            "config": {
+                "source": "techPnl",
+                "title": "Technology Day P&L by Trader",
+                "type": "bar",
+                "x": "trader",
+                "y": ["pnlDay"],
+                "sortBy": "pnlDay|asc",
+                "top": 10
+            }
+        }
+    }
+}

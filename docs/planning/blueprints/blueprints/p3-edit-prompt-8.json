@@ -1,0 +1,29 @@
+{
+    "base": 7,
+    "description": "Show market values in full dollars and Greeks in thousands, and add YTD return to the Risk view",
+    "ops": [
+        {"op": "set", "path": "/formats/mv", "value": {"precision": 0, "ledger": true}},
+        {"op": "set", "path": "/formats/greek", "value": {"scale": "thousands", "precision": 0, "ledger": true}},
+        {
+            "op": "set",
+            "path": "/variables/yearStart",
+            "value": {
+                "type": "localDate",
+                "setBy": "resolver",
+                "compute": {"resolver": "yearStart", "args": {"from": {"$var": "asOf"}}}
+            }
+        },
+        {
+            "op": "set",
+            "path": "/sources/positions/fields",
+            "value": {
+                "retYtd": {"field": "return", "params": {"start": {"$var": "yearStart"}, "end": {"$var": "asOf"}}}
+            }
+        },
+        {
+            "op": "set",
+            "path": "/presets/posViews/items/risk/set/elements/posGrid/config/columnState",
+            "value": ["grossExposure", "netExposure", "betaAdjExposure", "beta", "var95", "pctNav", "retYtd"]
+        }
+    ]
+}
