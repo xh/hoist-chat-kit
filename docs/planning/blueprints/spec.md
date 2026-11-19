@@ -545,8 +545,11 @@ Chat kit's work on its `genui-building-blocks` and `genui-ui-formats` branches s
   an action runs with are the values its description showed. An action can add `confirm`.
 - An action type that changes data declares `sideEffects: true`. It always asks the user to
   confirm, and a chat answer cannot use it.
-- `openUrl` opens only URLs that the allow list permits. An app's handler treats its parameters
+- `openUrl` opens only http and https URLs that the allow list permits. The app sets the list, and it is empty
+  by default. An entry matches by parsed origin and path prefix, never by string prefix, so
+  `https://a.com` does not allow `https://a.com.evil.com`. An app's handler treats its parameters
   as untrusted.
+- Every action prop takes one action or a list of steps.
 - A list of actions runs as steps, at most 8. The foundation checks every step before the first
   runs. Each step starts once the one before it finishes. If a step fails, the steps after it do
   not run, and the user sees why.
@@ -681,6 +684,12 @@ Two places declare what can vary:
 - Presets can control a variable's default, for example to switch between approved funds.
 - The UI marks each value that a personalization replaces, and offers a reset to the value
   beneath it. A prompted variable shows the mark on its input in the toolbar.
+- The active preset of each group is transient until personalizations exist, and starts at the
+  group's `default`. Widgets render the definition with each active preset applied.
+- In design mode, a user's change to a controlled path, such as a column resize, is an edit to
+  the active preset. In run mode, every change a user makes in a widget, such as a sort, a resize
+  or a drag, stays transient, with no edit and no history, until step 11 makes it a
+  personalization where the path is personalizable.
 
 ### Versions and migrations
 
@@ -766,6 +775,14 @@ Two places declare what can vary:
 - If a user without write access wants an authored change, the user saves a copy of the
   document and edits the copy.
 - The edit tools enforce mode and access. The prompt does not.
+- A blueprint's model holds its mode and the user's access, and is their one source. It opens in
+  run mode with read access unless the app says otherwise. Design mode needs write access.
+- A path segment or an ID is never `__proto__`, `prototype` or `constructor`.
+- `edit_blueprint` refuses an edit it may not make with `edit.notAllowed`, at the first path that
+  is not allowed. The message names the mode or access, and says to offer design mode or a copy.
+  In run mode it accepts only personalizable paths, so until personalizations exist it refuses
+  every edit. Without write access it refuses every edit in any mode. `set_variable` still sets
+  any variable a user may set.
 
 The LLM follows these rules:
 
@@ -963,7 +980,11 @@ interface RendererSpec<C> {
 
 ### The toolchain follows the design
 
-The design comes first. The schema toolchain is chosen after the first vertical slice. It must:
+Widget schemas are hand-written JSON Schema, checked by chat kit's `SchemaUtils`. Each built-in
+schema is a TypeScript constant written `as const satisfies JsonSchema`, and its widget's config
+type comes from it through `json-schema-to-ts`'s `FromSchema`, at the type level only. Zod and
+TypeSpec were rejected: each adds a second form of every schema and still needs the checker.
+Reconsider TypeSpec only if schemas come from a server language. The toolchain must:
 
 - Give each component its own schema with no `$ref`, so chat can send one tool per component.
 - Validate under a strict content security policy.
@@ -1029,8 +1050,9 @@ features that the spec already settles, in the order we choose.
    - W1 and W2: the weather datasets on Toolbox's server, from Weather V2, the toggle, and the
      `weatherIcon` app renderer.
 6. Choose the schema toolchain, as [The toolchain follows the design](#the-toolchain-follows-the-design)
-   requires, before step 5 adds many more widgets. Today `registry.json` is hand-written JSON
-   Schema. Decide whether it stays that way, or comes from Zod or TypeSpec.
+   requires, before step 5 adds many more widgets. Done: hand-written JSON Schema, with config
+   types derived from it. The built-in schemas move from `registry.json` into the library, and
+   `registry.json` keeps only the app's entries.
 7. Let the Architect edit a blueprint in Toolbox. This can start once the slice works, beside
    step 5. A chat kit `ChatModel` sits beside the blueprint, and calls Claude through Toolbox's
    role-gated LLM relay. The Architect's tools run in the browser as chat kit client tools,
