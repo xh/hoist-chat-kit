@@ -36,7 +36,8 @@ export function checkVariableValue(
 //------------------
 // Implementation
 //------------------
-function matchesType(value: unknown, type: string): boolean {
+/** True if a value fits a Hoist field type, or a type it cannot check, such as an app's. */
+export function matchesType(value: unknown, type: string): boolean {
     switch (type) {
         case 'string':
             return isString(value);

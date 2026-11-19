@@ -76,6 +76,33 @@ describe('validateBlueprint', () => {
         ]);
     });
 
+    it("refuses an inline value that its field's type cannot hold", () => {
+        const bp = p2();
+        bp.sources.stats = {
+            inline: {
+                fields: [
+                    {name: 'day', type: 'localDate'},
+                    {name: 'qty', type: 'number'},
+                    {name: 'live', type: 'bool'}
+                ],
+                rows: [
+                    {day: '2026-11-19', qty: 1, live: true},
+                    {day: '2026--0-7-', qty: 'x', live: 'yes'},
+                    {day: null, qty: null}
+                ]
+            }
+        } as any;
+        expect(
+            validate(bp, true)
+                .filter(it => it.code === 'source.badValue')
+                .map(it => it.path)
+        ).toEqual([
+            '/sources/stats/inline/rows/1/day',
+            '/sources/stats/inline/rows/1/qty',
+            '/sources/stats/inline/rows/1/live'
+        ]);
+    });
+
     it("refuses an inline field named id, which a source keeps for each row's key", () => {
         const bp = p2();
         bp.sources.stats = {inline: {fields: [{name: 'id', type: 'number'}], rows: []}} as any;

@@ -5,6 +5,7 @@ import type {BlueprintRegistry} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter} from './impl/configSchema';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
+import {matchesType} from './impl/variableValues';
 
 export interface ValidateBlueprintContext {
     catalog: Pick<DataCatalog, 'getDataset'>;
@@ -344,6 +345,22 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     'outside a chat answer, inline data must not hold values computed from a source'
                 );
             }
+            // A value its field cannot hold would break the source's Cube as it loads.
+            const typed = (s.inline.fields ?? []).filter(
+                (f: FieldDef) => isString(f?.name) && f.type !== 'string'
+            );
+            (isArray(s.inline.rows) ? s.inline.rows : []).forEach((row: PlainObject, i: number) =>
+                typed.forEach((f: FieldDef) => {
+                    const v = row?.[f.name];
+                    if (v != null && !matchesType(v, f.type)) {
+                        err(
+                            'source.badValue',
+                            `${p}/inline/rows/${i}/${f.name}`,
+                            `${JSON.stringify(v)} is not a ${f.type}`
+                        );
+                    }
+                })
+            );
             (s.inline.fields ?? []).forEach((f: FieldDef, i: number) => {
                 if (f?.name === 'id') {
                     err(
