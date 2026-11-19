@@ -166,6 +166,20 @@ describe('degradeAnswer', () => {
             expect(componentsOf(ret)).toMatchObject({chartA: 'fallback', chartB: 'placeholder'});
         });
 
+        it('falls back at once for an arriving element that more input cannot make valid', () => {
+            const bp = answer();
+            bp.elements.chartB.config.type = 'zzz';
+            const ret = degradeAnswer(bp, {...ctx, isComplete: false, partialIds: ['chartB']});
+            expect(ret.elements.chartB.component).toBe('fallback');
+        });
+
+        it('stands in a placeholder for an arriving element that more input could make valid', () => {
+            const bp = answer();
+            delete bp.elements.chartB.config.type;
+            const ret = degradeAnswer(bp, {...ctx, isComplete: false, partialIds: ['chartB']});
+            expect(ret.elements.chartB.component).toBe('placeholder');
+        });
+
         it('checks every element in full once the answer is complete, whatever partialIds says', () => {
             const bp = answer();
             bp.elements.chartB.config.y = ['bogus'];

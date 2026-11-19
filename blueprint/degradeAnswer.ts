@@ -1,6 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {cloneDeep, isArray, isPlainObject, isString} from 'lodash';
+import {cloneDeep, isArray, isEmpty, isPlainObject, isString} from 'lodash';
 import type {Blueprint, BlueprintIssue} from './Blueprint';
+import {checkConfig} from './impl/configSchema';
 import {decodePointer, getOwn, toLookup} from './impl/pointer';
 import {validateBlueprint, type ValidateBlueprintContext} from './validateBlueprint';
 
@@ -19,7 +20,8 @@ export interface DegradeAnswerContext extends ValidateBlueprintContext {
  *
  *  - An element with errors, or one that has not arrived, becomes a `placeholder` while it may
  *    still be arriving, naming the component it will be, and a `fallback` once the answer is
- *    complete. With `partialIds`, an element not listed is complete, and falls back at once. A fallback lists the errors, and holds the
+ *    complete. With `partialIds`, an element not listed is complete, and falls back at once, as
+ *    does an arriving element whose config has an error that more input cannot fix. A fallback lists the errors, and holds the
  *    element as written as JSON text, which no later check reads.
  *  - A source or a variable with errors is removed, so the elements that read it are replaced.
  *  - An element that no container places is removed, as it never shows.
@@ -35,8 +37,13 @@ export function degradeAnswer(input: unknown, ctx: DegradeAnswerContext): Bluepr
         // Without partialIds, every element of a streaming answer may still be arriving.
         isArriving = (id: string) =>
             !isComplete && (id == null || !ctx.partialIds || ctx.partialIds.includes(id)),
-        standIn = (errors: string[], original: any, id: string = null) =>
-            !isArriving(id)
+        // An error that the partial check still finds is one that more input cannot fix.
+        canStillBeValid = (el: any) => {
+            const spec = getOwn(ctx.registry.widgets, el?.component);
+            return !spec || isEmpty(checkConfig(el.config ?? {}, spec.config, {isPartial: true}));
+        },
+        standIn = (errors: string[], original: any, id: string = null, canGrow = true) =>
+            !isArriving(id) || !canGrow
                 ? {component: 'fallback', config: {errors, input: toJson(original)}}
                 : {
                       component: 'placeholder',
@@ -91,7 +98,8 @@ export function degradeAnswer(input: unknown, ctx: DegradeAnswerContext): Bluepr
             }
         }
         for (const [id, issues] of Object.entries(byElement)) {
-            bp.elements[id] = standIn(issues.map(describeIssue), bp.elements[id], id);
+            const el = bp.elements[id];
+            bp.elements[id] = standIn(issues.map(describeIssue), el, id, canStillBeValid(el));
         }
         for (const id of missing) {
             if (typeof id !== 'string' || !id) return whole(errors);

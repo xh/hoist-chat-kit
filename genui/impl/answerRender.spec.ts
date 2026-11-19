@@ -61,6 +61,14 @@ describe('documents as answer blueprints', () => {
         expect(html).not.toContain('could not be displayed');
     });
 
+    it('falls back at once for an arriving element that more input cannot make valid', () => {
+        const doc = withButton();
+        doc.elements.b.props.action = {type: 'openUrl'};
+        const html = render(doc, true);
+        expect(html).toContain('Ready');
+        expect(html).toContain('could not be displayed');
+    });
+
     it('checks every element in full once the answer is complete', () => {
         const html = render(withButton(), false);
         expect(html).toContain('Ready');
