@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 import type {Blueprint} from '../../blueprint';
 import {portfolioCatalog} from '../../test/blueprintFixtures';
 import {ChatArtifactRegistry} from '../ChatArtifactRegistry';
@@ -63,12 +63,47 @@ describe('answer data', () => {
     });
 
     it("loads an artifact's rows, or none and its size when it holds more than the cap", async () => {
-        const provider = chatArtifactProvider(registry);
+        const provider = chatArtifactProvider(registry, {});
         expect(await provider.loadArtifactAsync('art_t')).toEqual({
             rows: [{day: '2026-11-19', fills: 3, px: 101.5, live: true}],
             totalRows: 1
         });
         expect(await provider.loadArtifactAsync('art_big')).toEqual({rows: [], totalRows: 9000});
-        await expect(provider.loadArtifactAsync('art_nope')).rejects.toThrow('art_nope');
+        expect(await provider.loadArtifactAsync('art_nope')).toBeNull();
+    });
+
+    describe('an artifact kept without its rows', () => {
+        const kept = new ChatArtifactRegistry(),
+            request = {dataset: 'positions', params: {asOf: '2026-11-19'}, top: 2};
+        kept.add([
+            {
+                id: 'art_q',
+                columns: [{name: 'mktVal', type: 'number'}],
+                totalRows: 2,
+                metadata: {dataset: 'positions', request}
+            },
+            {id: 'art_app', columns: [{name: 'v', type: 'number'}], totalRows: 3}
+        ]);
+
+        it('runs the request of its query again, as of now', async () => {
+            const query = vi.fn(async () => ({rows: [{mktVal: 1}, {mktVal: 2}], totalRows: 9})),
+                provider = chatArtifactProvider(kept, {query});
+            expect(await provider.loadArtifactAsync('art_q')).toEqual({
+                rows: [{mktVal: 1}, {mktVal: 2}],
+                totalRows: 2
+            });
+            expect(query).toHaveBeenCalledWith(request);
+        });
+
+        it('refuses a run of its query that gives more rows than the cap', async () => {
+            const query = async () => ({rows: [{}, {}, {}], totalRows: 3}),
+                provider = chatArtifactProvider(kept, {query, maxRows: 2});
+            expect(await provider.loadArtifactAsync('art_q')).toEqual({rows: [], totalRows: 3});
+        });
+
+        it('is no longer available with no request to run and no source of its own', async () => {
+            const provider = chatArtifactProvider(kept, {query: vi.fn()});
+            expect(await provider.loadArtifactAsync('art_app')).toBeNull();
+        });
     });
 });

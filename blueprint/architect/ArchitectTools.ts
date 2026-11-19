@@ -1,11 +1,10 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {castArray, isArray, isPlainObject, pickBy, uniq} from 'lodash';
-import type {ChatToolSpec} from '../../core';
 import type {Blueprint, BlueprintEdit, BlueprintIssue, BlueprintOp} from '../Blueprint';
 import type {BlueprintDataProvider} from '../BlueprintDataProvider';
 import type {BlueprintAccess, BlueprintMode} from './blueprintContextProvider';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
-import type {DataCatalog} from '../DataCatalog';
+import type {DataCatalog, DatasetDef} from '../DataCatalog';
 import {applyOps} from '../applyOps';
 import {checkEditAllowed} from '../impl/access';
 import {checkFilter} from '../impl/configSchema';
@@ -35,19 +34,16 @@ export interface ArchitectTarget {
     validate(bp: Blueprint): BlueprintIssue[];
     /** Set a variable that a prompt, an action or the Architect may set, and return its value. */
     setVariable?(name: string, value: unknown): unknown;
-    /**
-     * Keep the result of a query as an artifact of the chat, for an answer to read as a source.
-     * Its metadata names the dataset and the request, so the Architect can turn it into a dataset
-     * source when the user adds the answer to a blueprint.
-     */
-    addArtifact?(artifact: ArchitectArtifact): void;
 }
 
-/** A query's result, as a chat keeps an artifact - see `ArchitectTarget.addArtifact()`. */
+/**
+ * A query's result, as the chat keeps it with the reply: its columns, its size, and the dataset
+ * and request that give its rows. The rows stay out, so the thread stays small, and an answer
+ * that reads the artifact runs the request again - see `runDatasetQueryAsync()`.
+ */
 export interface ArchitectArtifact {
     id: string;
     columns: {name: string; label?: string; type: string}[];
-    rows: PlainObject[];
     totalRows: number;
     metadata: {dataset: string; request: PlainObject};
 }
@@ -65,25 +61,8 @@ export interface ArchitectToolSpec {
 
 /** What a tool may use beyond its target, such as the chat that runs it. */
 export interface ArchitectToolContext {
-    /** Keep a query's result as an artifact, where the target keeps none of its own. */
+    /** Keep a query's result as an artifact of the reply. */
     addArtifact?(artifact: ArchitectArtifact): void;
-}
-
-/**
- * The Architect's tools for a target, as chat kit client tools. The edit tools enforce the mode
- * and access the target holds when each call runs.
- */
-export function architectChatTools(target: ArchitectTarget): ChatToolSpec[] {
-    return availableArchitectTools(target).map(({name, description, parameters, run}) => ({
-        name,
-        description,
-        parameters,
-        // A query's result becomes an artifact of the chat that runs the tool.
-        execute: (input, ctx) =>
-            run(input, target, {
-                addArtifact: artifact => ctx?.chatModel?.artifacts?.add(artifact as any)
-            })
-    }));
 }
 
 /** The Architect's tools a target can run. */
@@ -299,67 +278,29 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
         },
         isAvailable: target => !!target.dataProvider,
         run: async (input, target, ctx) => {
-            const cat = target.catalogs.find(it => it.getDataset(input?.dataset)),
-                ds = cat?.getDataset(input?.dataset);
-            if (!ds) {
-                const names = target.catalogs.flatMap(it => Object.keys(it.datasets));
-                throw new Error(
-                    `unknown dataset '${input?.dataset}'. Datasets: ${names.join(', ')}`
-                );
-            }
-            const params = input.params ?? {},
-                missing = Object.entries(ds.params).find(
-                    ([n, p]) => p.required && params[n] == null
-                );
-            if (missing) throw new Error(`${ds.name} requires parameter '${missing[0]}'`);
-
-            const fields: string[] = input.fields?.length
-                    ? input.fields
-                    : Object.keys(ds.fields).slice(0, 12),
-                groupBy: string[] = input.groupBy ?? [],
-                unknown = [...fields, ...groupBy].filter(f => !ds.fields[f]);
-            if (unknown.length) throw new Error(`unknown fields: ${unknown.join(', ')}`);
-            const [badFilter] = input.filter == null ? [] : checkFilter(input.filter);
-            if (badFilter) throw new Error(`filter: ${badFilter.message}`);
-
-            const requested = uniq([...groupBy, ...fields]),
-                {rows} = await target.dataProvider.loadAsync({
-                    dataset: ds.name,
-                    params,
-                    fields: requested,
-                    groupBy: [],
-                    ...(isPlainObject(input.filter) ? {filter: input.filter} : {})
-                }),
-                shaped = queryRows(rows, ds.fields, {
-                    fields: requested,
-                    groupBy,
-                    sortBy: input.sortBy,
-                    top: input.top
-                }),
+            const {dataset, requested, rows, totalRows} = await runDatasetQueryAsync(input, target),
                 id = `art_${(++artifactSeq).toString(16).padStart(3, '0')}`;
-            target.artifacts[id] = ds.name;
-            const addArtifact = target.addArtifact?.bind(target) ?? ctx?.addArtifact;
-            addArtifact?.({
+            target.artifacts[id] = dataset.name;
+            ctx?.addArtifact?.({
                 id,
                 columns: requested.map(n => {
-                    const {name, label, type} = ds.fields[n];
+                    const {name, label, type} = dataset.fields[n];
                     return {name, ...(label ? {label} : {}), type: COLUMN_TYPES[type] ?? 'string'};
                 }),
-                // The artifact holds the result as cut by `top`, every row of it.
-                rows: shaped.rows,
-                totalRows: shaped.rows.length,
-                metadata: {dataset: ds.name, request: input}
+                // The artifact is the result as cut by `top`, every row of it.
+                totalRows: rows.length,
+                metadata: {dataset: dataset.name, request: input}
             });
             return {
                 id,
-                dataset: ds.name,
-                params,
+                dataset: dataset.name,
+                params: input.params ?? {},
                 columns: requested.map(n => {
-                    const {name, label, type, kind} = ds.fields[n];
+                    const {name, label, type, kind} = dataset.fields[n];
                     return {name, label, type, kind};
                 }),
-                rows: shaped.rows.slice(0, 50),
-                totalRows: shaped.totalRows
+                rows: rows.slice(0, 50),
+                totalRows
             };
         }
     },
@@ -415,6 +356,54 @@ export class ArchitectToolError extends Error {
         super(JSON.stringify(result));
         this.result = result;
     }
+}
+
+/**
+ * Run a query as `query_dataset` takes it: a dataset, its params, and the fields, grouping, filter,
+ * sort and top to apply. An answer runs the request of a query's artifact again with it, so the
+ * rows match what the query returned, as of now. Throws for a request the catalogs cannot serve.
+ *
+ * @returns the dataset, the fields the rows hold, the rows as cut by `top`, and the size of the
+ *      whole result before `top`.
+ */
+export async function runDatasetQueryAsync(
+    input: PlainObject,
+    target: Pick<ArchitectTarget, 'catalogs' | 'dataProvider'>
+): Promise<{dataset: DatasetDef; requested: string[]; rows: PlainObject[]; totalRows: number}> {
+    const cat = target.catalogs.find(it => it.getDataset(input?.dataset)),
+        ds = cat?.getDataset(input?.dataset);
+    if (!ds) {
+        const names = target.catalogs.flatMap(it => Object.keys(it.datasets));
+        throw new Error(`unknown dataset '${input?.dataset}'. Datasets: ${names.join(', ')}`);
+    }
+    const params = input.params ?? {},
+        missing = Object.entries(ds.params).find(([n, p]) => p.required && params[n] == null);
+    if (missing) throw new Error(`${ds.name} requires parameter '${missing[0]}'`);
+
+    const fields: string[] = input.fields?.length
+            ? input.fields
+            : Object.keys(ds.fields).slice(0, 12),
+        groupBy: string[] = input.groupBy ?? [],
+        unknown = [...fields, ...groupBy].filter(f => !ds.fields[f]);
+    if (unknown.length) throw new Error(`unknown fields: ${unknown.join(', ')}`);
+    const [badFilter] = input.filter == null ? [] : checkFilter(input.filter);
+    if (badFilter) throw new Error(`filter: ${badFilter.message}`);
+
+    const requested = uniq([...groupBy, ...fields]),
+        {rows} = await target.dataProvider.loadAsync({
+            dataset: ds.name,
+            params,
+            fields: requested,
+            groupBy: [],
+            ...(isPlainObject(input.filter) ? {filter: input.filter} : {})
+        }),
+        shaped = queryRows(rows, ds.fields, {
+            fields: requested,
+            groupBy,
+            sortBy: input.sortBy,
+            top: input.top
+        });
+    return {dataset: ds, requested, rows: shaped.rows, totalRows: shaped.totalRows};
 }
 
 //------------------

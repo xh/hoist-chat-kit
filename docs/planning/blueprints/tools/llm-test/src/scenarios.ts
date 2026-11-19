@@ -184,7 +184,7 @@ export const SCENARIOS: Scenario[] = [
         title: 'A quick answer with two segments',
         host: 'w2-two-cities.json',
         context: 'Mode: design. The user has write access. A chat is open beside the host blueprint below. Today is 2026-11-18.',
-        steps: [{prompt: 'Will I need an umbrella in Chicago tomorrow?'}],
+        steps: [{prompt: 'Will I need an umbrella in Chicago tomorrow? When is rain most likely?'}],
         checks: [
             ['stat cards of inline values it computed', o => o.segments.some(s => segmentWidgets(s, 'statCardStrip').some(e => s.sources?.[e.config?.source]?.inline))],
             ['a column chart of the chance of rain', o => o.segments.some(s => segmentWidgets(s, 'chart').some(e => e.config?.type === 'column'))],

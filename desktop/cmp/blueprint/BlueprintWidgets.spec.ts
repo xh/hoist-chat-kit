@@ -542,6 +542,23 @@ describe('blueprint desktop widgets', () => {
         expect(await screen.findByText('This result has too many rows to show here.')).toBeTruthy();
     });
 
+    it('says the data of an answer is no longer available, in place of the widget over it', async () => {
+        const model = new BlueprintModel({
+            blueprint: loadBlueprint('p4-answer.json'),
+            catalog: portfolioCatalog,
+            registry: scenarioRegistry(),
+            dataProvider: provider,
+            artifacts: {art_7f2: 'positions'},
+            artifactProvider: {loadArtifactAsync: async () => null},
+            isAnswer: true
+        });
+        onTestFinished(() => model.destroy());
+        render(blueprintView({model}));
+        expect(
+            await screen.findByText('The data for this answer is no longer available.')
+        ).toBeTruthy();
+    });
+
     it('renders an element with the presentation its config picks, over the same model', async () => {
         const registry = scenarioRegistry();
         registry.addPresentation('cubeGrid', {

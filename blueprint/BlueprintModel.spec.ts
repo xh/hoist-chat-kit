@@ -850,6 +850,22 @@ describe('BlueprintModel', () => {
             expect(source.cube.records).toHaveLength(0);
         });
 
+        it('says an artifact is no longer available when its provider has no rows for it', async () => {
+            const model = new BlueprintModel({
+                blueprint: loadBlueprint('p4-answer.json'),
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: new RecordingProvider(),
+                artifacts: ARTIFACTS,
+                artifactProvider: {loadArtifactAsync: async () => null},
+                isAnswer: true
+            });
+            onTestFinished(() => model.destroy());
+            const source = model.getSource('techPnl');
+            await vi.waitFor(() => expect(source.isUnavailable).toBe(true));
+            expect(source.isLoading).toBe(false);
+        });
+
         it('reports an artifact source with no artifact provider as failed to load', async () => {
             const model = new BlueprintModel({
                 blueprint: loadBlueprint('p4-answer.json'),

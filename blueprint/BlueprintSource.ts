@@ -66,6 +66,9 @@ export class BlueprintSource extends HoistBase {
     /** True for an artifact with more rows than its provider delivers, which shows none. */
     @observable accessor isTooLarge: boolean = false;
 
+    /** True for an artifact whose rows are no longer available, such as after a reload. */
+    @observable accessor isUnavailable: boolean = false;
+
     @observableRef accessor lastError: unknown = null;
 
     /** The Views of the source's widgets, each with the fields its widget shows. */
@@ -428,8 +431,16 @@ export class BlueprintSource extends HoistBase {
         }
         runInAction(() => (this.isLoading = true));
         try {
-            const {rows, totalRows} = await artifactProvider.loadArtifactAsync(id);
+            const result = await artifactProvider.loadArtifactAsync(id);
             if (this.isDestroyed) return;
+            if (!result) {
+                runInAction(() => {
+                    this.isUnavailable = true;
+                    this.isLoading = false;
+                });
+                return;
+            }
+            const {rows, totalRows} = result;
             // Part of a result would give wrong totals, so a result too large to deliver shows none.
             if (totalRows > rows.length) {
                 runInAction(() => {

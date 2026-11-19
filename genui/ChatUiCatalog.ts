@@ -82,7 +82,7 @@ import {chatUiFallback, chatUiPlaceholder} from './ChatUiFallback';
 import {ChatUiRefusal} from './impl/ChatUiRefusal';
 import {chatUiTagFormat} from './formats/ChatUiTagFormat';
 import {fromAnswerId, toAnswerBlueprint, toAnswerId} from './impl/answerBlueprint';
-import {answerDataFor, chatArtifactProvider} from './impl/answerData';
+import {answerDataFor} from './impl/answerData';
 import {
     answerBlueprintSchema,
     answerToolDescription,
@@ -1336,7 +1336,7 @@ export class ChatUiCatalog {
             catalog: this,
             dataCatalog,
             artifacts,
-            artifactProvider: chatArtifactProvider(registry),
+            artifactRegistry: registry,
             dataProvider: this.answers?.dataProvider ?? null,
             context,
             partialIds,

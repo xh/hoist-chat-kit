@@ -1,5 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {omit} from 'lodash';
+import {isPlainObject, omit} from 'lodash';
 import {
     type Blueprint,
     type BlueprintArtifactProvider,
@@ -17,19 +17,46 @@ import {toFieldFormat} from './answerBlueprint';
  */
 export const ANSWER_MAX_ARTIFACT_ROWS = 5_000;
 
-/** The rows of the chat's artifacts, for an answer's artifact sources. */
+/**
+ * The rows of the chat's artifacts, for an answer's artifact sources. An artifact the chat holds
+ * whole loads from its registry. One kept without its rows, as a query's result is, runs the
+ * query's request again through `query`, so its rows are current. Any other that the registry
+ * cannot load, or one the chat no longer holds, is no longer available. A result of more than
+ * `maxRows` rows loads none, and shows as too large.
+ */
 export function chatArtifactProvider(
     registry: ChatArtifactRegistry,
-    maxRows: number = ANSWER_MAX_ARTIFACT_ROWS
+    opts: {
+        query?: (request: PlainObject) => Promise<{rows: PlainObject[]}>;
+        maxRows?: number;
+    }
 ): BlueprintArtifactProvider {
+    const {query, maxRows = ANSWER_MAX_ARTIFACT_ROWS} = opts;
     return {
         async loadArtifactAsync(id: string) {
             const artifact = registry.get(id);
-            if (!artifact) throw new Error(`No artifact '${id}' in this chat.`);
-            const {totalRows} = artifact;
-            if (totalRows > maxRows) return {rows: [], totalRows};
-            const {rows} = await registry.loadRangeAsync(id, 0, totalRows);
-            return {rows: rows.map(it => omit(it, CHAT_DATA_ROW_ID)), totalRows};
+            if (!artifact) return null;
+            if (artifact.totalRows > maxRows) return {rows: [], totalRows: artifact.totalRows};
+
+            const isWhole = (artifact.rows?.length ?? 0) >= artifact.totalRows,
+                request = artifact.metadata?.request;
+            if (!isWhole && isPlainObject(request) && query) {
+                const {rows} = await query(request);
+                return rows.length > maxRows
+                    ? {rows: [], totalRows: rows.length}
+                    : {rows, totalRows: rows.length};
+            }
+            try {
+                const {rows} = await registry.loadRangeAsync(id, 0, artifact.totalRows);
+                // A registry with no source of its own for the rows gives fewer than it holds.
+                if (rows.length < artifact.totalRows) return null;
+                return {
+                    rows: rows.map(it => omit(it, CHAT_DATA_ROW_ID)),
+                    totalRows: artifact.totalRows
+                };
+            } catch {
+                return null;
+            }
         }
     };
 }

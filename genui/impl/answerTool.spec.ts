@@ -151,4 +151,53 @@ describe('show_ui with answer blueprints', () => {
             expect(container.querySelector('.xh-stat-card__value')?.textContent).toMatch(/\d/)
         );
     });
+
+    describe("a query's artifact kept without its rows, as after a reload", () => {
+        const keep = (artifacts: ChatArtifactRegistry) =>
+            artifacts.add({
+                id: 'art_2',
+                columns: [{name: 'mktVal', type: 'number'}],
+                totalRows: 2,
+                metadata: {
+                    dataset: 'positions',
+                    request: {
+                        dataset: 'positions',
+                        params: {asOf: '2026-11-19'},
+                        fields: ['mktVal']
+                    }
+                }
+            });
+
+        it("runs its request again through the app's provider", async () => {
+            const {catalog, provider, artifacts, chatModel} = setup();
+            keep(artifacts);
+            show(catalog, chatModel, answer({artifact: 'art_2'}));
+            await vi.waitFor(() =>
+                expect(provider.loadAsync).toHaveBeenCalledWith(
+                    expect.objectContaining({dataset: 'positions', fields: ['mktVal']}),
+                    undefined
+                )
+            );
+        });
+
+        it('waits in an earlier reply until the user asks for current data', async () => {
+            const {catalog, provider, artifacts, chatModel} = setup({isLatest: false});
+            keep(artifacts);
+            show(catalog, chatModel, answer({artifact: 'art_2'}));
+            expect(await screen.findByText('Data from an earlier reply.')).toBeTruthy();
+            expect(provider.loadAsync).not.toHaveBeenCalled();
+
+            fireEvent.click(screen.getByText('Load current data'));
+            await vi.waitFor(() => expect(provider.loadAsync).toHaveBeenCalledOnce());
+        });
+
+        it('says it is no longer available, with no request to run', async () => {
+            const {catalog, artifacts, chatModel} = setup();
+            artifacts.add({id: 'art_3', columns: [{name: 'mktVal', type: 'number'}], totalRows: 2});
+            show(catalog, chatModel, answer({artifact: 'art_3'}));
+            expect(
+                await screen.findByText('The data for this answer is no longer available.')
+            ).toBeTruthy();
+        });
+    });
 });

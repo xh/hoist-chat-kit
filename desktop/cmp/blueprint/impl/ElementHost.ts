@@ -16,12 +16,13 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
         const model = viewModel.getWidgetModel(id),
             component = viewModel.getComponent(id);
         if (!model) return null;
-        if (model.source?.isTooLarge) {
-            return div({
-                className: 'xh-blueprint-view__too-large',
-                role: 'note',
-                children: 'This result has too many rows to show here.'
-            });
+        const notice = model.source?.isTooLarge
+            ? 'This result has too many rows to show here.'
+            : model.source?.isUnavailable
+              ? 'The data for this answer is no longer available.'
+              : null;
+        if (notice) {
+            return div({className: 'xh-blueprint-view__notice', role: 'note', children: notice});
         }
         if (!component) {
             return div({

@@ -15,9 +15,15 @@ import {toolbar} from '@xh/hoist/desktop/cmp/toolbar';
 import {Icon} from '@xh/hoist/icon';
 import {useOnUnmount} from '@xh/hoist/utils/react';
 import {useEffect, useState} from 'react';
-import {type BlueprintDataProvider, BlueprintModel, type FieldDef} from '../../../../blueprint';
+import {
+    type BlueprintDataProvider,
+    BlueprintModel,
+    type FieldDef,
+    runDatasetQueryAsync
+} from '../../../../blueprint';
 import {ChatUiCatalog} from '../../../../genui';
 import {AnswerLoadGate} from '../../../../genui/impl/AnswerLoadGate';
+import {chatArtifactProvider} from '../../../../genui/impl/answerData';
 import {
     ChatUiAnswerHostContext,
     type ChatUiAnswerRenderProps
@@ -226,7 +232,7 @@ class ChatUiAnswerModel extends HoistModel {
 
     constructor(props: ChatUiAnswerRenderProps) {
         super();
-        const {catalog, dataCatalog, artifacts, artifactProvider, context} = props,
+        const {catalog, dataCatalog, artifacts, artifactRegistry, context} = props,
             {chatModel, messageId} = context,
             provider = props.dataProvider ?? NO_DATASETS;
         this.host = new ChatUiAnswerHostContext(context);
@@ -235,7 +241,14 @@ class ChatUiAnswerModel extends HoistModel {
         this.blueprintModel = new BlueprintModel({
             catalog: dataCatalog,
             artifacts,
-            artifactProvider,
+            // A query's artifact, kept without its rows, runs its request again within the bounds.
+            artifactProvider: chatArtifactProvider(artifactRegistry, {
+                query: request =>
+                    runDatasetQueryAsync(request, {
+                        catalogs: [this.blueprintModel.catalog],
+                        dataProvider: this.gate ?? provider
+                    })
+            }),
             registry: catalog.registry,
             dataProvider: this.gate ?? provider,
             isAnswer: true,

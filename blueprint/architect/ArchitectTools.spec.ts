@@ -1,13 +1,15 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
-import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
+import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {ChatToolResult} from '../../core';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import {BlueprintModel} from '../BlueprintModel';
 import {FakeBlueprintDataProvider} from '../FakeBlueprintDataProvider';
 import {architectPrompt} from './architectPrompt';
 import type {ArchitectToolError} from './ArchitectTools';
+import {architectChatTools} from './architectChatTools';
 import {
     ARCHITECT_TOOLS,
-    architectChatTools,
+    runDatasetQueryAsync,
     type ArchitectTarget,
     availableArchitectTools
 } from './ArchitectTools';
@@ -241,10 +243,9 @@ describe('Architect tools', () => {
         ).rejects.toThrow(/requires parameter 'asOf'/);
     });
 
-    it("adds a query's result to the chat as an artifact, which names its dataset and request", async () => {
+    it("returns a query's result as an artifact of the reply: its dataset and request, no rows", async () => {
         const model = open(),
-            addArtifact = vi.fn(),
-            target = Object.assign(model, {addArtifact}),
+            tool = architectChatTools(model).find(it => it.name === 'query_dataset'),
             input = {
                 dataset: 'positions',
                 params: {asOf: '2026-07-01'},
@@ -253,34 +254,34 @@ describe('Architect tools', () => {
                 filter: {field: 'sector', op: '!=', value: 'Energy'},
                 top: 2
             },
-            art = await run('query_dataset', input, target);
-        const [artifact] = addArtifact.mock.calls[0];
-        expect(artifact).toMatchObject({
-            id: art.id,
-            rows: art.rows,
-            totalRows: 2,
+            result = await tool.execute(input, {chatModel: {}} as any);
+        expect(result).toBeInstanceOf(ChatToolResult);
+        const [artifact] = result.artifacts;
+        expect(artifact).toEqual({
+            id: result.output.id,
             columns: [
-                {name: 'sector', type: 'string'},
-                {name: 'mktVal', type: 'number'}
+                {name: 'sector', label: 'Sector', type: 'string'},
+                {name: 'mktVal', label: 'Market Value', type: 'number'}
             ],
+            totalRows: 2,
             metadata: {dataset: 'positions', request: input}
         });
     });
 
-    it("adds a query's result to the chat's own artifacts, as a chat tool", async () => {
+    it("runs a query's request again to the same rows, as an answer does for its artifact", async () => {
         const model = open(),
-            add = vi.fn(),
-            tool = architectChatTools(model).find(it => it.name === 'query_dataset');
-        await tool.execute(
-            {dataset: 'positions', params: {asOf: '2026-07-01'}, fields: ['mktVal'], top: 3},
-            {chatModel: {artifacts: {add}}} as any
-        );
-        expect(add).toHaveBeenCalledWith(
-            expect.objectContaining({
-                totalRows: 3,
-                metadata: expect.objectContaining({dataset: 'positions'})
-            })
-        );
+            request = {
+                dataset: 'positions',
+                params: {asOf: '2026-07-01'},
+                fields: ['mktVal'],
+                groupBy: ['sector'],
+                sortBy: 'mktVal|desc',
+                top: 3
+            },
+            art = await run('query_dataset', request, model),
+            again = await runDatasetQueryAsync(request, model);
+        expect(again.rows).toEqual(art.rows);
+        expect(again.rows).toHaveLength(3);
     });
 
     it('finds every path that uses a field, a variable or a source', () => {

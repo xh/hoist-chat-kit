@@ -6,7 +6,6 @@ import type {ReactNode} from 'react';
 import {
     type ActionSpec,
     type Blueprint,
-    type BlueprintArtifactProvider,
     type BlueprintDataProvider,
     type BlueprintIssue,
     BlueprintRegistry,
@@ -21,6 +20,7 @@ import {
     chatUiActionSchema,
     describeChatUiAction
 } from '../ChatUiAction';
+import type {ChatArtifactRegistry} from '../ChatArtifactRegistry';
 import type {ChatUiCatalog} from '../ChatUiCatalog';
 import type {ChatUiComponentSpec, ChatUiDocumentContext} from '../ChatUiComponentSpec';
 import type {ChatUiNode} from '../ChatUiDocument';
@@ -47,8 +47,8 @@ export interface ChatUiAnswerRenderProps {
     dataCatalog: DataCatalog;
     /** The dataset behind each artifact the answer reads, by artifact id. */
     artifacts: Record<string, string>;
-    /** The rows of those artifacts. */
-    artifactProvider: BlueprintArtifactProvider;
+    /** The chat's artifacts, which the answer's artifact sources read. */
+    artifactRegistry: ChatArtifactRegistry;
     /** The app's provider of datasets, or null. The answer loads through it within the chat's bounds. */
     dataProvider: BlueprintDataProvider;
     context: ChatUiDocumentContext;
