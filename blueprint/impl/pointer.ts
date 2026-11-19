@@ -31,12 +31,20 @@ export class PointerError extends Error {
     }
 }
 
+/** The segments of a JSON Pointer path that starts with '/', with `~1` and `~0` decoded. */
+export function decodePointer(path: string): string[] {
+    return path
+        .slice(1)
+        .split('/')
+        .map(it => it.replaceAll('~1', '/').replaceAll('~0', '~'));
+}
+
 /** The segments of a JSON Pointer. Throws for a malformed path, or one with a forbidden name. */
 export function parsePointer(path: string): string[] {
     if (typeof path !== 'string' || !path.startsWith('/')) {
         throw new PointerError(`path '${path}' must start with '/'`, 'edit.badOp');
     }
-    const ret = path.slice(1).split('/'),
+    const ret = decodePointer(path),
         forbidden = ret.find(isForbiddenKey);
     if (forbidden) {
         throw new PointerError(`'${forbidden}' is forbidden in a path`, 'path.forbidden');

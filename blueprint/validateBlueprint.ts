@@ -4,7 +4,7 @@ import type {Blueprint, BlueprintIssue} from './Blueprint';
 import type {BlueprintRegistry} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter} from './impl/configSchema';
-import {getOwn, isForbiddenKey, toLookup} from './impl/pointer';
+import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
 
 export interface ValidateBlueprintContext {
     catalog: Pick<DataCatalog, 'getDataset'>;
@@ -497,8 +497,8 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             }
         }
         for (const [i, c] of pre.controls.entries()) {
-            const path = c?.path,
-                segs = String(path).split('/').slice(1);
+            const path = String(c?.path),
+                segs = path.startsWith('/') ? decodePointer(path) : [];
             if (segs[0] !== 'elements' || segs[2] !== 'config' || !elements[segs[1]]) {
                 err(
                     'preset.badPath',

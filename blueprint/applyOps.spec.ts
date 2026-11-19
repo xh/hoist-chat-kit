@@ -40,6 +40,16 @@ describe('applyOps', () => {
         expect(JSON.stringify(bp)).toBe(before);
     });
 
+    it('decodes the escapes of a JSON Pointer, ~1 to / and then ~0 to ~', () => {
+        const {result, issue} = apply([
+            {op: 'set', path: '/elements/posGrid/config/a~1b', value: 1},
+            {op: 'set', path: '/elements/posGrid/config/c~01', value: 2}
+        ]);
+        expect(issue).toBeUndefined();
+        expect(result.elements.posGrid.config['a/b']).toBe(1);
+        expect(result.elements.posGrid.config['c~1']).toBe(2);
+    });
+
     it('refuses a path that indexes into an array', () => {
         const {issue} = apply([{op: 'set', path: '/elements/dashboard/children/0/w', value: 3}]);
         expect(issue).toMatchObject({code: 'edit.badOp', op: 0});
