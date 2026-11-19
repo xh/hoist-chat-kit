@@ -817,6 +817,23 @@ describe('BlueprintModel', () => {
             );
         });
 
+        it('refuses an artifact larger than its provider delivers, rather than show part of it', async () => {
+            const model = new BlueprintModel({
+                blueprint: loadBlueprint('p4-answer.json'),
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: new RecordingProvider(),
+                artifacts: ARTIFACTS,
+                artifactProvider: {loadArtifactAsync: async () => ({rows: [], totalRows: 6000})},
+                isAnswer: true
+            });
+            onTestFinished(() => model.destroy());
+            const source = model.getSource('techPnl');
+            await vi.waitFor(() => expect(source.isTooLarge).toBe(true));
+            expect(source.isLoading).toBe(false);
+            expect(source.cube.records).toHaveLength(0);
+        });
+
         it('reports an artifact source with no artifact provider as failed to load', async () => {
             const model = new BlueprintModel({
                 blueprint: loadBlueprint('p4-answer.json'),

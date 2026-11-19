@@ -16,6 +16,13 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
         const model = viewModel.getWidgetModel(id),
             component = viewModel.getComponent(id);
         if (!model) return null;
+        if (model.source?.isTooLarge) {
+            return div({
+                className: 'xh-blueprint-view__too-large',
+                role: 'note',
+                children: 'This result has too many rows to show here.'
+            });
+        }
         if (!component) {
             return div({
                 className: 'xh-blueprint-view__missing',

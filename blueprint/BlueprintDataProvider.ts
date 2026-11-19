@@ -49,7 +49,11 @@ export interface BlueprintDataResult {
  * The chat that holds the answer supplies it.
  */
 export interface BlueprintArtifactProvider {
-    /** An artifact's rows, keyed by the field names of its dataset, and the size of the result. */
+    /**
+     * An artifact's rows, keyed by the field names of its dataset, and the size of the result. A
+     * provider that caps what it delivers returns fewer rows than `totalRows`, and the source then
+     * shows the result as too large.
+     */
     loadArtifactAsync(id: string): Promise<{rows: PlainObject[]; totalRows: number}>;
 }
 

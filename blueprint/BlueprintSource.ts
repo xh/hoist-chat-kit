@@ -63,6 +63,9 @@ export class BlueprintSource extends HoistBase {
     /** True until the first rows of the current request arrive. */
     @observable accessor isLoading: boolean = false;
 
+    /** True for an artifact with more rows than its provider delivers, which shows none. */
+    @observable accessor isTooLarge: boolean = false;
+
     @observableRef accessor lastError: unknown = null;
 
     /** The Views of the source's widgets, each with the fields its widget shows. */
@@ -425,8 +428,16 @@ export class BlueprintSource extends HoistBase {
         }
         runInAction(() => (this.isLoading = true));
         try {
-            const {rows} = await artifactProvider.loadArtifactAsync(id);
+            const {rows, totalRows} = await artifactProvider.loadArtifactAsync(id);
             if (this.isDestroyed) return;
+            // Part of a result would give wrong totals, so a result too large to deliver shows none.
+            if (totalRows > rows.length) {
+                runInAction(() => {
+                    this.isTooLarge = true;
+                    this.isLoading = false;
+                });
+                return;
+            }
             await this.applyUpdateAsync({replace: rows.map((it, idx) => ({id: idx, ...it}))});
         } catch (e) {
             if (!this.isDestroyed) this.fail(e);
