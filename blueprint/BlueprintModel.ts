@@ -171,6 +171,26 @@ export class BlueprintModel extends HoistModel {
     }
 
     /**
+     * Replace the blueprint in place, as a streaming answer or a program's new state does: keep
+     * the history, and the run-mode changes to elements that are still there. With errors,
+     * nothing changes. A blueprint equal to the current one changes nothing.
+     *
+     * @returns every issue found, errors and warnings.
+     */
+    @action
+    updateBlueprint(bp: Blueprint): BlueprintIssue[] {
+        if (isEqual(bp, this.blueprint)) return this.issues;
+        const issues = this.validate(bp);
+        if (!hasErrors(issues)) {
+            this.transientValues = pickBy(this.transientValues, (_, path) =>
+                Object.hasOwn(bp.elements ?? {}, path.split('/')[2])
+            );
+            this.commit(bp, issues);
+        }
+        return issues;
+    }
+
+    /**
      * Return to no blueprint, at version 0, with no history. Closes every source and drops every
      * variable, preset choice and transient change. {@link setBlueprint} opens another from here.
      */

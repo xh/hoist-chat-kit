@@ -10,6 +10,7 @@ import {runInAction} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {LocalDate} from '@xh/hoist/utils/datetime';
+import {cloneDeep} from 'lodash';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     ARTIFACTS,
@@ -169,6 +170,28 @@ describe('BlueprintModel', () => {
             expect(model.getActivePreset('posViews')).toBe('pnl');
             await wait();
             expect(provider.last.isOpen).toBe(true);
+        });
+
+        it('updates in place, keeping its history and the run-mode changes to elements still there', async () => {
+            const model = await opened(p3()),
+                path = '/elements/posGrid/config/sortBy',
+                sortOf = () => model.effective.elements.posGrid.config.sortBy;
+            model.applyEdit({ops: [{op: 'remove', path: '/variables/asOf/label'}]});
+            const {history} = model;
+            model.setMode('run');
+            model.setTransientValue(path, 'mktVal');
+
+            const next = cloneDeep(model.blueprint);
+            next.elements.posGrid.config.title = 'Positions';
+            expect(model.updateBlueprint(next)).toEqual([]);
+            expect(model.blueprint.elements.posGrid.config.title).toBe('Positions');
+            expect(sortOf()).toBe('mktVal');
+            expect(model.history).toBe(history);
+
+            const bad = cloneDeep(next);
+            bad.elements.posGrid.config.source = 'nope';
+            expect(model.updateBlueprint(bad).map(it => it.code)).toContain('source.unknown');
+            expect(model.blueprint).toEqual(next);
         });
 
         it('refuses an edit whose result has errors, or that is based on an old version', () => {
