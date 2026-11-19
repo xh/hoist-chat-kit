@@ -76,6 +76,12 @@ describe('validateBlueprint', () => {
         ]);
     });
 
+    it("refuses an inline field named id, which a source keeps for each row's key", () => {
+        const bp = p2();
+        bp.sources.stats = {inline: {fields: [{name: 'id', type: 'number'}], rows: []}} as any;
+        expect(validate(bp, true).map(it => it.code)).toContain('source.reservedField');
+    });
+
     describe('elements still streaming', () => {
         const noteRegistry = new BlueprintRegistry({
                 widgets: [

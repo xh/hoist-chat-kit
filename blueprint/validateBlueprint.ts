@@ -344,6 +344,15 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     'outside a chat answer, inline data must not hold values computed from a source'
                 );
             }
+            (s.inline.fields ?? []).forEach((f: FieldDef, i: number) => {
+                if (f?.name === 'id') {
+                    err(
+                        'source.reservedField',
+                        `${p}/inline/fields/${i}/name`,
+                        "'id' is the key of each row of a source. Name the field otherwise."
+                    );
+                }
+            });
             sourceFields[sn] = toLookup(
                 Object.fromEntries((s.inline.fields ?? []).map((f: FieldDef) => [f.name, f]))
             );
