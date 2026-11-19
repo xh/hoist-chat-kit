@@ -8,6 +8,10 @@ Hoist Chat Kit v3 moves the kit to `@xh/hoist` v91. The kit's styles read Hoist'
 variables, and its code and docs pass child elements as `children`. The kit's own `--xh-chat-*`
 variables keep their names and their defaults.
 
+The kit no longer uses Blueprint, which Hoist v91 removes. Its popovers, tooltips and dialogs are
+Hoist's own. An app that passes `popoverProps` in `ChatThreadListProps.rowMenuProps` passes Hoist
+`PopoverProps`, with no Popper.js `modifiers`.
+
 - **Hoist v91 (required)** - upgrade the app to Hoist v91 first - see Prerequisites.
 - **The kit version (required)** - see Step 1.
 

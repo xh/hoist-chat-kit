@@ -2228,7 +2228,7 @@ set a field for this one purpose.
 
 **Decision.** A `ChatComposerPill` opens its menu upward, and downward while `ChatPanel` shows the
 composer centered. `ChatPanel` tells the pill through a React context inside the kit. The pill has
-no placement prop. Blueprint's popover still flips a menu with no room on its side.
+no placement prop. Hoist's popover still flips a menu with no room on its side.
 
 **Why.** Upward suits a composer docked at the foot of the chat. In the centered empty state,
 upward covers the composer itself, for a pill in the bar or in `bottomItems`. `ChatPanel` decides
@@ -2239,7 +2239,7 @@ have to bind it to `chatModel.isEmpty`.
 
 **Horizontal alignment** is the app's call, through `popoverAlign: 'start' | 'end'`. The kit cannot
 tell that a pill sits at the end of its row without measuring the layout, and the app placed it
-there. Blueprint keeps a popover inside the viewport, not inside the composer.
+there. Hoist's popover keeps itself inside the viewport, not inside the composer.
 
 ## D113. The scope chip chooses any kind of option, and its selection is literal
 

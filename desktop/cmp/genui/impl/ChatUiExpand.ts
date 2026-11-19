@@ -1,7 +1,7 @@
 import type {ReactNode} from 'react';
 import {hoistCmp, HoistModel, type HoistProps, XH} from '@xh/hoist/core';
+import {dialog} from '@xh/hoist/desktop/cmp/dialog';
 import {Icon} from '@xh/hoist/icon';
-import {dialog} from '@xh/hoist/kit/blueprint';
 import {action, observableRef, untracked} from '@xh/hoist/mobx';
 import {
     type ChatChartRequest,
