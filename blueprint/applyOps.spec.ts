@@ -59,6 +59,31 @@ describe('applyOps', () => {
         expect(apply([]).issue.code).toBe('edit.noOps');
     });
 
+    it("refuses a key an op does not define, at the op's path, so a misspelling is never ignored", () => {
+        expect(
+            apply([{op: 'set', 'path/': '', path: '/variables/x', value: 1}]).issue
+        ).toMatchObject({
+            code: 'edit.unknownProperty',
+            path: '/variables/x',
+            op: 0,
+            message: expect.stringContaining("'path/'")
+        });
+        expect(
+            apply([
+                {
+                    op: 'addElement',
+                    id: 'note',
+                    element: {component: 'stack', config: {}},
+                    parent: 'dashboard',
+                    idx: 0
+                }
+            ]).issue
+        ).toMatchObject({code: 'edit.unknownProperty', message: expect.stringContaining("'idx'")});
+        expect(apply([{op: 'removeElement', id: 'x', path: '/elements/x'}]).issue?.code).toBe(
+            'edit.unknownProperty'
+        );
+    });
+
     it('refuses an unknown op', () => {
         expect(apply([{op: 'patch', path: '/root'}]).issue.message).toMatch(/unknown op 'patch'/);
     });

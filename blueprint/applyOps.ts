@@ -1,7 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {cloneDeep, isArray, isEmpty, isPlainObject, isString} from 'lodash';
 import type {Blueprint, BlueprintIssue, BlueprintOp} from './Blueprint';
-import {isForbiddenKey, parsePointer, PointerError} from './impl/pointer';
+import {getOwn, isForbiddenKey, parsePointer, PointerError} from './impl/pointer';
 
 /** Characters an element, variable or source ID may use, so a path never needs escaping. */
 export const ID_RE = /^[A-Za-z0-9_-]+$/;
@@ -63,6 +63,14 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
     for (const id of [op?.id, op?.parent, op?.from, op?.to]) {
         if (isString(id) && isForbiddenKey(id))
             throw new OpError(`'${id}' is forbidden as an ID`, 'path.forbidden');
+    }
+    const keys = getOwn(OP_KEYS, op?.op),
+        extra = keys && Object.keys(op).find(it => !keys.includes(it));
+    if (extra) {
+        throw new OpError(
+            `'${extra}' is not a property of ${op.op}. It takes ${keys.join(', ')}.`,
+            'edit.unknownProperty'
+        );
     }
     switch (op?.op) {
         case 'set':
@@ -143,6 +151,15 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
             );
     }
 }
+
+const OP_KEYS: Record<string, string[]> = {
+    set: ['op', 'path', 'value'],
+    remove: ['op', 'path'],
+    addElement: ['op', 'id', 'element', 'parent', 'child', 'index'],
+    removeElement: ['op', 'id'],
+    moveElement: ['op', 'id', 'parent', 'child', 'index'],
+    renameId: ['op', 'kind', 'from', 'to']
+};
 
 function ownElement(bp: Blueprint, id: string) {
     return bp.elements && Object.hasOwn(bp.elements, id) ? bp.elements[id] : null;
