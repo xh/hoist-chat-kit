@@ -179,4 +179,39 @@ describe('applyOps', () => {
             ).toBeDefined();
         });
     });
+
+    describe('forbidden names', () => {
+        const isClean = () => expect(({} as any).x).toBeUndefined();
+
+        it.each([
+            ['a path through __proto__', {op: 'set', path: '/__proto__/x', value: 1}],
+            [
+                'a path through constructor',
+                {op: 'set', path: '/elements/posGrid/constructor/prototype/x', value: 1}
+            ],
+            [
+                'a path ending in prototype',
+                {op: 'set', path: '/elements/posGrid/prototype', value: {x: 1}}
+            ],
+            ['removing through __proto__', {op: 'remove', path: '/__proto__/x'}],
+            [
+                'an element called __proto__',
+                {
+                    op: 'addElement',
+                    id: '__proto__',
+                    element: {component: 'chart'},
+                    parent: 'dashboard'
+                }
+            ],
+            [
+                'renaming to constructor',
+                {op: 'renameId', kind: 'variable', from: 'asOf', to: 'constructor'}
+            ]
+        ])('refuses %s, leaving Object.prototype alone', (_, op) => {
+            const {result, issue} = apply([op]);
+            expect(result).toBeUndefined();
+            expect(issue.code).toBe('path.forbidden');
+            isClean();
+        });
+    });
 });

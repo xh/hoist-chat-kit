@@ -1,6 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {cloneDeep, isArray, isEmpty, isPlainObject} from 'lodash';
+import {cloneDeep, isArray, isEmpty, isPlainObject, isString} from 'lodash';
 import type {Blueprint, BlueprintIssue, BlueprintOp} from './Blueprint';
+import {isForbiddenKey, parsePointer, PointerError} from './impl/pointer';
 
 /** Characters an element, variable or source ID may use, so a path never needs escaping. */
 export const ID_RE = /^[A-Za-z0-9_-]+$/;
@@ -30,10 +31,10 @@ export function applyOps(
         try {
             next = applyOp(next, ops[i]);
         } catch (e) {
-            if (!(e instanceof OpError)) throw e;
+            if (!(e instanceof OpError) && !(e instanceof PointerError)) throw e;
             return {
                 issue: {
-                    code: 'edit.badOp',
+                    code: e.code,
                     severity: 'error',
                     path: (ops[i] as PlainObject)?.path ?? '',
                     message: e.message,
@@ -48,9 +49,21 @@ export function applyOps(
 //------------------
 // Implementation
 //------------------
-class OpError extends Error {}
+class OpError extends Error {
+    readonly code: string;
+
+    constructor(message: string, code = 'edit.badOp') {
+        super(message);
+        this.code = code;
+    }
+}
 
 function applyOp(bp: Blueprint, op: any): Blueprint {
+    // Every ID an op names keys an object, so none may reach a prototype.
+    for (const id of [op?.id, op?.parent, op?.from, op?.to]) {
+        if (isString(id) && isForbiddenKey(id))
+            throw new OpError(`'${id}' is forbidden as an ID`, 'path.forbidden');
+    }
     switch (op?.op) {
         case 'set':
             setPath(bp, op.path, op.value);
@@ -61,7 +74,9 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
         case 'addElement': {
             checkId(op.id);
             bp.elements ??= {};
-            if (bp.elements[op.id]) throw new OpError(`element '${op.id}' already exists`);
+            if (Object.hasOwn(bp.elements, op.id)) {
+                throw new OpError(`element '${op.id}' already exists`);
+            }
             bp.elements[op.id] = cloneDeep(op.element);
             if (op.parent) {
                 placeChild(bp, op.parent, op.id, op.child, op.index);
@@ -75,7 +90,7 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
             return bp;
         }
         case 'removeElement': {
-            const el = bp.elements?.[op.id];
+            const el = ownElement(bp, op.id);
             if (!el) throw new OpError(`element '${op.id}' does not exist`);
             if (el.children?.length) {
                 throw new OpError(
@@ -89,7 +104,7 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
             return bp;
         }
         case 'moveElement': {
-            if (!bp.elements?.[op.id]) throw new OpError(`element '${op.id}' does not exist`);
+            if (!ownElement(bp, op.id)) throw new OpError(`element '${op.id}' does not exist`);
             const p = parentOf(bp, op.id);
             let old: PlainObject = {};
             if (p) {
@@ -110,8 +125,11 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
             const coll = {element: 'elements', variable: 'variables', source: 'sources'}[op.kind];
             if (!coll) throw new OpError(`kind must be element, variable or source`);
             checkId(op.to);
-            if (!bp[coll]?.[op.from]) throw new OpError(`${op.kind} '${op.from}' does not exist`);
-            if (bp[coll][op.to]) throw new OpError(`${op.kind} '${op.to}' already exists`);
+            if (!bp[coll] || !Object.hasOwn(bp[coll], op.from)) {
+                throw new OpError(`${op.kind} '${op.from}' does not exist`);
+            }
+            if (Object.hasOwn(bp[coll], op.to))
+                throw new OpError(`${op.kind} '${op.to}' already exists`);
             const next = renameRefs(bp, op.kind, op.from, op.to);
             next[coll] = Object.fromEntries(
                 Object.entries(next[coll]).map(([k, v]) => [k === op.from ? op.to : k, v])
@@ -126,16 +144,17 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
     }
 }
 
+function ownElement(bp: Blueprint, id: string) {
+    return bp.elements && Object.hasOwn(bp.elements, id) ? bp.elements[id] : null;
+}
+
 function checkId(id: string) {
     if (!ID_RE.test(id ?? ''))
         throw new OpError(`id '${id}' may use only letters, digits, _ and -`);
 }
 
 function segments(path: string): string[] {
-    if (typeof path !== 'string' || !path.startsWith('/')) {
-        throw new OpError(`path '${path}' must start with '/'`);
-    }
-    return path.slice(1).split('/');
+    return parsePointer(path);
 }
 
 function walkTo(doc: PlainObject, segs: string[], create: boolean): PlainObject {
@@ -146,7 +165,7 @@ function walkTo(doc: PlainObject, segs: string[], create: boolean): PlainObject 
                 `a path cannot index into an array (at '${s}'). Replace the whole array.`
             );
         }
-        if (o[s] == null || typeof o[s] !== 'object') {
+        if (!Object.hasOwn(o, s) || o[s] == null || typeof o[s] !== 'object') {
             if (!create) throw new OpError(`no value at '${s}'`);
             o[s] = {};
         }
@@ -169,7 +188,7 @@ function removePath(doc: PlainObject, path: string) {
     const segs = segments(path),
         last = segs.pop(),
         parent = walkTo(doc, segs, false);
-    if (!(last in parent)) throw new OpError(`no value at '${path}'`);
+    if (!Object.hasOwn(parent, last)) throw new OpError(`no value at '${path}'`);
     delete parent[last];
 }
 
@@ -181,7 +200,7 @@ function parentOf(bp: Blueprint, id: string): string {
 }
 
 function placeChild(bp: Blueprint, parent: string, id: string, child: PlainObject, index: number) {
-    const p = bp.elements?.[parent];
+    const p = ownElement(bp, parent);
     if (!p) throw new OpError(`parent '${parent}' does not exist`);
     p.children ??= [];
     const ref = {...(child ?? {}), id};
