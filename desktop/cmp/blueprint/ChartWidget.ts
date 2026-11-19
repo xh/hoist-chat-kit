@@ -1,6 +1,6 @@
 import {chart, ChartModel} from '@xh/hoist/cmp/chart';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
-import type {FilterSpec, View} from '@xh/hoist/data';
+import type {Cube, FilterSpec, View} from '@xh/hoist/data';
 import {observableRef} from '@xh/hoist/mobx';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {castArray, compact, isArray, isEqual, isFinite, orderBy, uniq} from 'lodash';
@@ -28,16 +28,12 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
 
     constructor(config: BlueprintWidgetConfig) {
         super(config);
+        // Built now, not by fireImmediately, which MobX defers inside a batch such as a render.
+        this.setCube(this.source?.cube);
         this.addReaction(
             {
                 track: () => this.source?.cube,
-                run: cube => {
-                    this.registerView(null);
-                    this.view?.destroy();
-                    this.view = cube ? cube.createView({query: this.query, connect: true}) : null;
-                    this.registerView(this.view);
-                },
-                fireImmediately: true
+                run: cube => this.setCube(cube)
             },
             {
                 track: () => this.query,
@@ -55,6 +51,13 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
     //------------------
     // Implementation
     //------------------
+    private setCube(cube: Cube) {
+        this.registerView(null);
+        this.view?.destroy();
+        this.view = cube ? cube.createView({query: this.query, connect: true}) : null;
+        this.registerView(this.view);
+    }
+
     /** The labels of the fields the chart shows, which can follow variables. */
     private get labels(): string[] {
         const {x, y} = this.resolvedConfig;
@@ -113,13 +116,22 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
         };
     }
 
+    /**
+     * The chart as chat kit's chart layout takes it: its type, axes and series, from the source
+     * as the Cube groups it. Null until the source has a view.
+     */
+    getLayoutProps(): ChatUiChartLayoutProps {
+        return this.view ? this.buildProps() : null;
+    }
+
     private buildProps(): ChatUiChartLayoutProps {
         const cfg = this.resolvedConfig,
             {fields} = this.source,
             ys: string[] = castArray(cfg.y ?? []).filter(it => fields[it]),
             label = (f: string) => (fields[f] ? this.source.fieldLabel(f) : f),
+            xTitle = cfg.xTitle ?? label(cfg.x),
             yAxis = {
-                title: ys.length === 1 ? label(ys[0]) : null,
+                title: cfg.yTitle ?? (ys.length === 1 ? label(ys[0]) : null),
                 format: (this.isFraction(ys[0]) ? 'percent' : 'number') as any
             },
             base = {type: cfg.type ?? 'column', stacking: cfg.stacking, yAxis};
@@ -128,7 +140,7 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
             const leaves = orderBy(this.view.result.rows[0]?.children ?? [], cfg.x);
             return {
                 ...base,
-                xAxis: {type: 'datetime', title: label(cfg.x)},
+                xAxis: {type: 'datetime', title: xTitle},
                 series: ys.map(y => ({
                     name: label(y),
                     data: leaves.map(r => [toTimestamp(r[cfg.x]), r[y]])
@@ -153,7 +165,7 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
                 values = uniq(rows.flatMap(r => (r.children ?? []).map(c => String(c.cubeLabel))));
             return {
                 ...base,
-                xAxis: {categories, title: label(cfg.x)},
+                xAxis: {categories, title: xTitle},
                 series: values.map(v => ({
                     name: v,
                     data: rows.map(
@@ -164,7 +176,7 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
         }
         return {
             ...base,
-            xAxis: {categories, title: label(cfg.x)},
+            xAxis: {categories, title: xTitle},
             series: ys.map(y => ({name: label(y), data: rows.map(r => r[y] ?? null)}))
         };
     }

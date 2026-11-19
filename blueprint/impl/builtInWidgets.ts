@@ -191,6 +191,18 @@ const CHART_SCHEMA = {
         type: {
             enum: ['line', 'column', 'bar', 'area', 'pie', 'scatter']
         },
+        xTitle: {
+            type: 'string',
+            maxLength: 100,
+            'x-binding': true,
+            description: "Title of the x-axis. Default the x field's label."
+        },
+        yTitle: {
+            type: 'string',
+            maxLength: 100,
+            'x-binding': true,
+            description: "Title of the y-axis. Default the y field's label, if there is one y."
+        },
         x: {
             type: 'string',
             'x-field': 'any'

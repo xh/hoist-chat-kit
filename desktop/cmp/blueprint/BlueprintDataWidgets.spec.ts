@@ -171,6 +171,16 @@ describe('blueprint data widgets', () => {
             expect(chart.chartModel.series[0].data).toEqual([-1, 5]);
         });
 
+        it('titles its axes from xTitle and yTitle, in place of the field labels', async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            Object.assign(bp.elements.sectorChart.config, {xTitle: 'Sector', yTitle: 'USD'});
+            const chart = widget(ChartWidgetModel, open(bp), 'sectorChart');
+            await vi.waitFor(() => expect(chart.chartModel.series[0]?.data).toHaveLength(2));
+            const {xAxis, yAxis} = chart.chartModel.highchartsConfig;
+            expect(xAxis.title.text).toBe('Sector');
+            expect(yAxis.title.text).toBe('USD');
+        });
+
         it('follows a selection through its bound filter, with no reload', async () => {
             const model = open(),
                 chart = widget(ChartWidgetModel, model, 'sectorChart');
