@@ -31,6 +31,8 @@ export interface ArchitectTarget {
     readonly mode: BlueprintMode;
     readonly access: BlueprintAccess;
     readonly dataProvider?: BlueprintDataProvider;
+    /** Each variable's current value. */
+    readonly variables?: {name: string; value: unknown}[];
     applyEdit(edit: BlueprintEdit): {version?: number; issues: BlueprintIssue[]};
     validate(bp: Blueprint): BlueprintIssue[];
     /** Set a variable that a prompt, an action or the Architect may set, and return its value. */

@@ -36,7 +36,13 @@ import {
     degradeAnswer,
     type PresentationSpec
 } from '../blueprint';
-import type {ChatDataRenderer, ChatModel, ChatPartRenderContext, ChatToolSpec} from '../core';
+import type {
+    ChatDataRenderer,
+    ChatMessage,
+    ChatModel,
+    ChatPartRenderContext,
+    ChatToolSpec
+} from '../core';
 import {ChatArtifactRegistry, type ChatDataHandle} from './ChatArtifactRegistry';
 import {
     CHAT_UI_ACTION_TYPES,
@@ -267,6 +273,19 @@ export interface ChatUiAnswersConfig {
     dataCatalog?: DataCatalog;
     /** Loads those datasets. Each answer loads through it within its chat's bounds. */
     dataProvider?: BlueprintDataProvider;
+}
+
+/**
+ * One answer of a reply, from {@link ChatUiCatalog.answersOf}: its blueprint, or for a program
+ * with state, its text.
+ * @internal
+ */
+export interface ChatUiAnswerOf {
+    /** Where the answer came from: a `show_ui` call, a component call, or the reply's text. */
+    kind: 'show_ui' | 'component' | 'text' | 'program';
+    blueprint?: Blueprint;
+    /** The text of a program with state. */
+    source?: string;
 }
 
 export class ChatUiCatalog {
@@ -1289,6 +1308,51 @@ export class ChatUiCatalog {
     }
 
     /** Render a document as an answer blueprint, through the platform's answer renderer. */
+    /**
+     * The answers in a reply, in order, as blueprints: each `show_ui` call, component call and UI
+     * of its text. A program with state, such as OpenUI Lang's, gives its text, as its blueprint
+     * exists only while it runs. An adapter's data part gives nothing, as the model may not have
+     * seen its data. For the Architect's `read_answer`.
+     * @internal
+     */
+    answersOf(message: ChatMessage): ChatUiAnswerOf[] {
+        const toolComponents = new Map(this.components.map(it => [getToolName(it), it.name])),
+            fromDoc = (doc: ChatUiDocument, kind: ChatUiAnswerOf['kind']): ChatUiAnswerOf => ({
+                kind,
+                blueprint: toAnswerBlueprint(this.repairDocument(doc), {
+                    partialIds: [],
+                    isValid: (name, props) => isEmpty(this.validate(name, props))
+                })
+            });
+        return (message?.parts ?? []).flatMap((part): ChatUiAnswerOf[] => {
+            if (part.type === 'toolCall') {
+                const input = part.input ?? {};
+                if (part.toolName === this.documentToolName) {
+                    return [
+                        isDocumentShape(input)
+                            ? fromDoc(input as ChatUiDocument, 'show_ui')
+                            : {kind: 'show_ui', blueprint: input as Blueprint}
+                    ];
+                }
+                const component = toolComponents.get(part.toolName);
+                return component ? [fromDoc(toChatUiDocument(component, input), 'component')] : [];
+            }
+            if (part.type !== 'text') return [];
+            return this.parseText(part.text, {messageId: message.id, partId: part.id}).flatMap(
+                (it): ChatUiAnswerOf[] => {
+                    if (it.type === 'component') {
+                        const {component, props} = it.element;
+                        return [fromDoc(toChatUiDocument(component, props), 'text')];
+                    }
+                    if (it.type !== 'document') return [];
+                    return isChatUiStateSpec(it.document?.state)
+                        ? [{kind: 'program', source: it.source}]
+                        : [fromDoc(it.document, 'text')];
+                }
+            );
+        });
+    }
+
     private renderAnswer(doc: ChatUiDocument, context: ChatUiDocumentContext): ReactNode {
         // An element may say it is complete inside a partial document, never the reverse.
         const idsWhere = (test: (el: ChatUiElement) => boolean) =>

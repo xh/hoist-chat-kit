@@ -2,7 +2,9 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {BlueprintModel, FakeBlueprintDataProvider} from '../../blueprint';
 import {ChatToolResult} from '../../core';
+import {chatUiTextSpec} from '../../desktop/cmp/genui';
 import {getArtifactRows} from '../../impl/ArtifactRows';
+import {ChatUiCatalog} from '../ChatUiCatalog';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import {architectChatTools} from './architectChatTools';
 import {blueprintContextProvider} from './blueprintContextProvider';
@@ -28,6 +30,13 @@ describe('Architect chat tools', () => {
         onTestFinished(() => ret.destroy());
         return ret;
     }
+
+    it("adds read_answer with the chat's catalog", () => {
+        const names = (tools: {name: string}[]) => tools.map(it => it.name),
+            catalog = new ChatUiCatalog({components: [chatUiTextSpec()]});
+        expect(names(architectChatTools(open()))).not.toContain('read_answer');
+        expect(names(architectChatTools(open(), {catalog}))).toContain('read_answer');
+    });
 
     it('offers the tools a target can run as chat kit client tools', async () => {
         const model = open(),

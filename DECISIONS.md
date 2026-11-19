@@ -153,6 +153,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D129](#d129-each-built-in-input-owns-one-hoist-field-and-a-form-sends-within-the-caps-of-a-send) | Each built-in input owns one Hoist field, and a form sends within the caps of a send | Accepted |
 | [D132](#d132-a-spec-takes-the-name-of-the-hoist-component-it-renders) | A spec takes the name of the Hoist component it renders | Accepted |
 | [D133](#d133-a-chat-answer-checks-urls-as-a-blueprint-does-and-keeps-calltool) | A chat answer checks URLs as a blueprint does, and keeps callTool | Accepted |
+| [D134](#d134-the-architect-reads-a-chat-answer-to-add-it-to-its-host) | The Architect reads a chat answer to add it to its host | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -3011,3 +3012,32 @@ answers to guard against tools that may never change data.
 
 **Alternatives.** Keep two matchers. They drift, and a URL a dashboard refuses could open from a
 chat. Refuse `callTool` in every answer. That breaks buttons that run read-only tools.
+
+## D134. The Architect reads a chat answer to add it to its host
+
+**Status.** Accepted.
+
+**Decision.** With the chat's catalog, `architectChatTools(target, {catalog})` adds a
+`read_answer` tool. With no ID, it lists the answers of the chat's recent replies, each as
+`messageId:n`. With an ID, it returns that answer's blueprint, as the catalog translates the
+reply's `show_ui` call, component call or text. For each artifact the answer reads, it returns the
+artifact's columns, size and request, and from `hostSourceFor()`: the dataset source that gives its
+rows, the widget config its query set, and the target's sources that already give the same rows.
+
+- It reads only assistant replies of the chat it runs in.
+- It never returns an artifact's rows. It returns at most 20 rows of an inline source, with their
+  count.
+- An adapter's data part gives no answer, as the model may not have seen its data.
+- An OpenUI Lang program with state gives its text, as its blueprint exists only while it runs.
+  The text declares each `$variable` with its initial value.
+- The chat integration of the Architect lives in `genui/architect`, so `blueprint/` imports no
+  chat kit types.
+
+**Why.** To add an answer to a host, the Architect needs the answer's blueprint and where its data
+came from. Mapping a query's request to a source is mechanical, and models get it wrong most
+often. Rows the model did not write could carry data an app kept from the model, and would fill
+its context.
+
+**Alternatives.** Keep a registry of rendered answers. It would hold an OpenUI program's current
+state, but only for answers on screen, and it couples the tool to rendering. Return the program's
+current state through lang-core's runtime. That reads the runtime's internals.
