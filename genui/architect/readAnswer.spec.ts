@@ -151,7 +151,9 @@ describe('read_answer', () => {
                 role: 'assistant',
                 parts: [{id: 'p1', type: 'text', text: program, state: 'done'} as ChatPart]
             });
-        expect(withPrograms.answersOf(message)).toEqual([{kind: 'program', source: program}]);
+        expect(withPrograms.answersOf(message)).toEqual([
+            {kind: 'program', partId: 'p1', source: program}
+        ]);
     });
 
     it("reads only this chat's replies", () => {

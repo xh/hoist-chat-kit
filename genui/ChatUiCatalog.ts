@@ -275,6 +275,18 @@ export interface ChatUiAnswersConfig {
     dataCatalog?: DataCatalog;
     /** Loads those datasets. Each answer loads through it within its chat's bounds. */
     dataProvider?: BlueprintDataProvider;
+    /** Adds an answer to the app's host, such as a dashboard, from a button on the answer. */
+    addToHost?: ChatUiAddToHost;
+}
+
+/** Adds a chat answer to the app's host - see {@link ChatUiAnswersConfig.addToHost}. */
+export interface ChatUiAddToHost {
+    /** Label of the button on each complete answer. Default `Add to dashboard`. */
+    label?: string;
+    /** True while the user may add an answer, such as with write access to the host. Observed. */
+    isAvailable(): boolean;
+    /** Add the answer with this ID, as the Architect's `read_answer` names it. */
+    add(answerId: string, chatModel: ChatModel): void;
 }
 
 /**
@@ -285,6 +297,8 @@ export interface ChatUiAnswersConfig {
 export interface ChatUiAnswerOf {
     /** Where the answer came from: a `show_ui` call, a component call, or the reply's text. */
     kind: 'show_ui' | 'component' | 'text' | 'program';
+    /** The part of the reply that holds the answer. */
+    partId: string;
     blueprint?: Blueprint;
     /** The text of a program with state. */
     source?: string;
@@ -1323,8 +1337,13 @@ export class ChatUiCatalog {
      */
     answersOf(message: ChatMessage): ChatUiAnswerOf[] {
         const toolComponents = new Map(this.components.map(it => [getToolName(it), it.name])),
-            fromDoc = (doc: ChatUiDocument, kind: ChatUiAnswerOf['kind']): ChatUiAnswerOf => ({
+            fromDoc = (
+                doc: ChatUiDocument,
+                kind: ChatUiAnswerOf['kind'],
+                partId: string
+            ): ChatUiAnswerOf => ({
                 kind,
+                partId,
                 blueprint: toAnswerBlueprint(this.repairDocument(doc), {
                     partialIds: [],
                     isValid: (name, props) => isEmpty(this.validate(name, props))
@@ -1336,27 +1355,49 @@ export class ChatUiCatalog {
                 if (part.toolName === this.documentToolName) {
                     return [
                         isDocumentShape(input)
-                            ? fromDoc(input as ChatUiDocument, 'show_ui')
-                            : {kind: 'show_ui', blueprint: input as Blueprint}
+                            ? fromDoc(input as ChatUiDocument, 'show_ui', part.id)
+                            : {kind: 'show_ui', partId: part.id, blueprint: input as Blueprint}
                     ];
                 }
                 const component = toolComponents.get(part.toolName);
-                return component ? [fromDoc(toChatUiDocument(component, input), 'component')] : [];
+                return component
+                    ? [fromDoc(toChatUiDocument(component, input), 'component', part.id)]
+                    : [];
             }
             if (part.type !== 'text') return [];
             return this.parseText(part.text, {messageId: message.id, partId: part.id}).flatMap(
                 (it): ChatUiAnswerOf[] => {
                     if (it.type === 'component') {
                         const {component, props} = it.element;
-                        return [fromDoc(toChatUiDocument(component, props), 'text')];
+                        return [fromDoc(toChatUiDocument(component, props), 'text', part.id)];
                     }
                     if (it.type !== 'document') return [];
                     return isChatUiStateSpec(it.document?.state)
-                        ? [{kind: 'program', source: it.source}]
-                        : [fromDoc(it.document, 'text')];
+                        ? [{kind: 'program', partId: part.id, source: it.source}]
+                        : [fromDoc(it.document, 'text', part.id)];
                 }
             );
         });
+    }
+
+    /** How the app adds an answer to its host, or null. @internal */
+    get addToHost(): ChatUiAddToHost {
+        return this.answers?.addToHost ?? null;
+    }
+
+    /**
+     * The ID by which `read_answer` names an answer that renders in this context: its reply's ID
+     * and its place among the reply's answers. Null if the reply no longer holds it.
+     * @internal
+     */
+    answerIdOf(context: ChatPartRenderContext & {part?: {id: string}}, root: string): string {
+        const message = context.chatModel?.getMessage(context.messageId),
+            answers = message ? this.answersOf(message) : [],
+            inPart = answers.filter(it => it.partId === context.part?.id),
+            match =
+                inPart.length === 1 ? inPart[0] : inPart.find(it => it.blueprint?.root === root),
+            idx = answers.indexOf(match);
+        return idx < 0 ? null : `${message.id}:${idx}`;
     }
 
     private renderAnswer(doc: ChatUiDocument, context: ChatUiDocumentContext): ReactNode {

@@ -3042,6 +3042,12 @@ write access, rechecks access as it runs, and returns the mode that results. A `
 with `allowActions: false`, as this tool has, refuses calls from a generative UI `callTool`
 action, so a button the model wrote cannot frame the approval falsely.
 
+`ChatUiAnswersConfig.addToHost` puts an "Add to dashboard" button on each complete answer, while
+its `isAvailable()` is true. A click calls its `add()` with the answer's ID. `addToBlueprint(model)`
+provides it for a `BlueprintModel`: available only with write access, its click switches to design
+mode as the user's consent and asks the Architect to add the answer. Design mode ends with that
+turn, unless the user had it on, so the consent covers the add alone.
+
 **Why.** To add an answer to a host, the Architect needs the answer's blueprint and where its data
 came from. Mapping a query's request to a source is mechanical, and models get it wrong most
 often. Rows the model did not write could carry data an app kept from the model, and would fill

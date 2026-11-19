@@ -50,9 +50,42 @@ export const chatUiAnswer = hoistCmp.factory<ChatUiAnswerProps>({
             };
         }, []);
         useEffect(() => held.current?.update(props as ChatUiAnswerProps));
-        const impl = held.current;
-        const root = impl.viewModel.renderElement(impl.blueprintModel.blueprint?.root);
-        return impl.gate?.barState ? vbox(answerLoadBar({gate: impl.gate}), root) : root;
+        const impl = held.current,
+            root = impl.viewModel.renderElement(impl.blueprintModel.blueprint?.root),
+            {catalog, context} = props as ChatUiAnswerProps,
+            canAdd =
+                !context.isPartial && !!context.chatModel && !!catalog.addToHost?.isAvailable(),
+            addBar = canAdd ? answerAddBar({answer: props as ChatUiAnswerProps}) : null,
+            bar = impl.gate?.barState ? answerLoadBar({gate: impl.gate}) : null;
+        return bar || addBar ? vbox(bar, root, addBar) : root;
+    }
+});
+
+/** Adds a complete answer to the app's host. */
+const answerAddBar = hoistCmp.factory<{answer: ChatUiAnswerProps} & HoistProps>({
+    displayName: 'ChatUiAnswerAddBar',
+    model: false,
+    render({answer}) {
+        const {catalog, context, blueprint} = answer,
+            {addToHost} = catalog,
+            {chatModel} = context;
+        return toolbar({
+            className: 'xh-chat-ui-answer-add-bar',
+            compact: true,
+            items: [
+                filler(),
+                button({
+                    text: addToHost.label ?? 'Add to dashboard',
+                    icon: Icon.add(),
+                    minimal: true,
+                    disabled: chatModel.isBusy,
+                    onClick: () => {
+                        const id = catalog.answerIdOf(context, blueprint?.root);
+                        if (id) addToHost.add(id, chatModel);
+                    }
+                })
+            ]
+        });
     }
 });
 

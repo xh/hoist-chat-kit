@@ -4,7 +4,7 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import type {Blueprint, BlueprintDataProvider} from '../../blueprint';
-import type {ChatModel, ChatToolCallPart} from '../../core';
+import {ChatMessage, type ChatModel, type ChatToolCallPart} from '../../core';
 import {chatUiStackSpec, chatUiStatCardsSpec, chatUiTextSpec} from '../../desktop/cmp/genui';
 import {keepArtifactRows} from '../../impl/ArtifactRows';
 import {portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
@@ -179,6 +179,52 @@ describe('show_ui with answer blueprints', () => {
         await vi.waitFor(() =>
             expect(container.querySelector('.xh-stat-card__value')?.textContent).toMatch(/\d/)
         );
+    });
+
+    describe('adding an answer to the host', () => {
+        function withHost(isAvailable: boolean) {
+            const {chatModel} = setup(),
+                add = vi.fn(),
+                catalog = new ChatUiCatalog({
+                    components: [chatUiStackSpec(), chatUiTextSpec(), chatUiStatCardsSpec()],
+                    answers: {
+                        dataCatalog: portfolioCatalog,
+                        dataProvider: {loadAsync: async () => ({rows: ROWS})},
+                        addToHost: {isAvailable: () => isAvailable, add}
+                    }
+                }),
+                input = answer(DATASET),
+                message = new ChatMessage({
+                    id: 'm1',
+                    role: 'assistant',
+                    parts: [
+                        {id: 'p0', type: 'text', text: 'Here.', state: 'done'},
+                        {
+                            id: 't1',
+                            type: 'toolCall',
+                            toolName: 'show_ui',
+                            state: 'output-available',
+                            input
+                        } as any
+                    ]
+                });
+            (chatModel as any).getMessage = (id: string) => (id === 'm1' ? message : null);
+            return {catalog, chatModel, add, input};
+        }
+
+        it('offers a button that adds the answer by its ID, once the answer is complete', async () => {
+            const {catalog, chatModel, add, input} = withHost(true);
+            show(catalog, chatModel, input);
+            fireEvent.click(await screen.findByText('Add to dashboard'));
+            expect(add).toHaveBeenCalledWith('m1:0', chatModel);
+        });
+
+        it('offers no button while the app says the user may not add', async () => {
+            const {catalog, chatModel, input} = withHost(false);
+            show(catalog, chatModel, input);
+            expect(await screen.findByText('Market Value')).toBeTruthy();
+            expect(screen.queryByText('Add to dashboard')).toBeNull();
+        });
     });
 
     describe("a query's artifact kept without its rows, as after a reload", () => {
