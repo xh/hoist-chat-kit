@@ -683,6 +683,46 @@ describe('BlueprintModel', () => {
             expect(stats.getField('label').aggregator).toBeInstanceOf(UniqueAggregator);
         });
 
+        it("loads an artifact source's rows from the artifact provider, with its dataset's fields", async () => {
+            const loadArtifactAsync = vi.fn(async () => ({
+                    rows: [
+                        {trader: 'Ann', pnlDay: -5},
+                        {trader: 'Bo', pnlDay: 3}
+                    ],
+                    totalRows: 2
+                })),
+                model = new BlueprintModel({
+                    blueprint: loadBlueprint('p4-answer.json'),
+                    catalog: portfolioCatalog,
+                    registry: scenarioRegistry(),
+                    dataProvider: new RecordingProvider(),
+                    artifacts: ARTIFACTS,
+                    artifactProvider: {loadArtifactAsync},
+                    isAnswer: true
+                });
+            onTestFinished(() => model.destroy());
+            const source = model.getSource('techPnl');
+
+            await vi.waitFor(() => expect(source.cube.records.length).toBe(2));
+            expect(loadArtifactAsync).toHaveBeenCalledWith('art_7f2');
+            expect(source.fields.pnlDay.label).toBe(
+                portfolioCatalog.getDataset('positions').fields.pnlDay.label
+            );
+        });
+
+        it('reports an artifact source with no artifact provider as failed to load', async () => {
+            const model = new BlueprintModel({
+                blueprint: loadBlueprint('p4-answer.json'),
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: new RecordingProvider(),
+                artifacts: ARTIFACTS,
+                isAnswer: true
+            });
+            onTestFinished(() => model.destroy());
+            expect(String(model.getSource('techPnl').lastError)).toMatch(/artifact provider/);
+        });
+
         it('ends its subscription when the blueprint closes', async () => {
             const provider = new RecordingProvider(),
                 model = new BlueprintModel({

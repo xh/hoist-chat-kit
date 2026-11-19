@@ -17,6 +17,7 @@ import {
 } from 'lodash';
 import type {Blueprint, BlueprintElement, SourceDecl} from './Blueprint';
 import type {
+    BlueprintArtifactProvider,
     BlueprintDataProvider,
     BlueprintDataRequest,
     BlueprintDataUpdate
@@ -24,6 +25,7 @@ import type {
 import type {BlueprintRegistry} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {formatValue, resolveFormat} from './impl/formats';
+import {getOwn} from './impl/pointer';
 import {getWriters} from './validateBlueprint';
 
 /** The parts of a blueprint's runtime a source reads. */
@@ -34,6 +36,8 @@ export interface BlueprintSourceContext {
     readonly catalog: DataCatalog;
     readonly registry: BlueprintRegistry;
     readonly dataProvider: BlueprintDataProvider;
+    readonly artifacts: Record<string, string>;
+    readonly artifactProvider: BlueprintArtifactProvider;
     resolve(value: unknown): any;
     resolveFilter(filter: unknown): FilterSpec;
 }
@@ -86,6 +90,8 @@ export class BlueprintSource extends HoistBase {
 
         if (decl.inline) {
             this.applyUpdateAsync({replace: decl.inline.rows.map((it, idx) => ({id: idx, ...it}))});
+        } else if (decl.artifact) {
+            this.loadArtifactAsync(decl.artifact);
         } else if (decl.dataset) {
             // Start once the widgets built with the source have registered their Views, so the
             // first request carries their grouping sets.
@@ -399,6 +405,22 @@ export class BlueprintSource extends HoistBase {
     }
 
     @action
+    private async loadArtifactAsync(id: string) {
+        const {artifactProvider} = this.context;
+        if (!artifactProvider) {
+            this.fail(new Error(`No artifact provider to load artifact '${id}'`));
+            return;
+        }
+        runInAction(() => (this.isLoading = true));
+        try {
+            const {rows} = await artifactProvider.loadArtifactAsync(id);
+            if (this.isDestroyed) return;
+            await this.applyUpdateAsync({replace: rows.map((it, idx) => ({id: idx, ...it}))});
+        } catch (e) {
+            if (!this.isDestroyed) this.fail(e);
+        }
+    }
+
     private fail(e: unknown) {
         this.isLoading = false;
         this.lastError = e;
@@ -410,7 +432,9 @@ export class BlueprintSource extends HoistBase {
         if (decl.inline) {
             return Object.fromEntries(decl.inline.fields.map(it => [it.name, it as FieldDef]));
         }
-        const ds = context.catalog.getDataset(decl.dataset);
+        const ds = context.catalog.getDataset(
+            decl.artifact ? getOwn(context.artifacts, decl.artifact) : decl.dataset
+        );
         if (!ds) return {};
         const ret = {...ds.fields};
         Object.entries(decl.fields ?? {}).forEach(([name, inst]) => {

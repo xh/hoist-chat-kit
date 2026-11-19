@@ -4,7 +4,7 @@ import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
 import {cloneDeep, isEmpty, isEqual, omitBy, pickBy} from 'lodash';
 import type {Blueprint, BlueprintEdit, BlueprintIssue, ResolverCall} from './Blueprint';
-import type {BlueprintDataProvider} from './BlueprintDataProvider';
+import type {BlueprintArtifactProvider, BlueprintDataProvider} from './BlueprintDataProvider';
 import type {BlueprintRegistry} from './BlueprintRegistry';
 import {BlueprintSource} from './BlueprintSource';
 import {BlueprintVariable} from './BlueprintVariable';
@@ -26,6 +26,8 @@ export interface BlueprintModelConfig {
     dataProvider: BlueprintDataProvider;
     /** The dataset behind each artifact a chat answer can name, keyed by artifact ID. */
     artifacts?: Record<string, string>;
+    /** The rows of those artifacts. Required for a blueprint with an artifact source. */
+    artifactProvider?: BlueprintArtifactProvider;
     /** True for a chat answer, which may hold literal parameters, artifacts and inline sources. */
     isAnswer?: boolean;
     /** The user's mode. Default run. Design mode takes effect only with write access. */
@@ -55,6 +57,7 @@ export class BlueprintModel extends HoistModel {
     readonly registry: BlueprintRegistry;
     readonly dataProvider: BlueprintDataProvider;
     readonly artifacts: Record<string, string>;
+    readonly artifactProvider: BlueprintArtifactProvider;
     readonly isAnswer: boolean;
     readonly urlAllowList: string[];
 
@@ -118,6 +121,7 @@ export class BlueprintModel extends HoistModel {
         registry,
         dataProvider,
         artifacts = {},
+        artifactProvider = null,
         isAnswer = false,
         urlAllowList = [],
         mode = 'run',
@@ -128,6 +132,7 @@ export class BlueprintModel extends HoistModel {
         this.registry = registry;
         this.dataProvider = dataProvider;
         this.artifacts = artifacts;
+        this.artifactProvider = artifactProvider;
         this.isAnswer = isAnswer;
         const badUrl = urlAllowList.find(it => !parseWebUrl(it));
         throwIf(badUrl, `urlAllowList entries must be http or https URLs: '${badUrl}'`);

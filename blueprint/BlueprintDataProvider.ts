@@ -45,6 +45,15 @@ export interface BlueprintDataResult {
 }
 
 /**
+ * The rows of the artifacts a chat answer reads, such as the results of the Architect's queries.
+ * The chat that holds the answer supplies it.
+ */
+export interface BlueprintArtifactProvider {
+    /** An artifact's rows, keyed by the field names of its dataset, and the size of the result. */
+    loadArtifactAsync(id: string): Promise<{rows: PlainObject[]; totalRows: number}>;
+}
+
+/**
  * The app's data layer, as blueprint sources see it. Everything behind a dataset belongs to the
  * app: queries, joins, server aggregation and caching.
  */
