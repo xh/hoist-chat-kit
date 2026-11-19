@@ -1,5 +1,11 @@
-// The frame fills the height its panel takes for its content.
+// The frame and its body fill the height its panel takes for its content. A card's body sizes to
+// its content instead, which a widget like a grid does not have.
 .xh-chat-ui-answer-panel > .xh-chat-ui-frame {
   flex: 1 1 auto;
   min-height: 0;
+
+  > .xh-chat-ui-frame__body {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
 }
