@@ -1,6 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {
     fmtBillions,
+    fmtCompact,
     fmtDate,
     fmtDateTime,
     fmtMillions,
@@ -90,8 +91,15 @@ export function formatValue(
                 return fmtMillions(v, {label: true, ...numOpts});
             case 'billions':
                 return fmtBillions(v, {label: true, ...numOpts});
-            case 'auto':
-                return fmtAuto(v, {label: true, ...numOpts});
+            case 'auto': {
+                // Compact past 100K, such as 48.5B, with the full value in a tooltip.
+                const compact = fmtCompact(v, {...numOpts, asHtml: true}),
+                    full = fmtNumber(v, {...numOpts, asHtml: true});
+                return fmtCompact(v, {
+                    ...numOpts,
+                    tooltip: asText || compact === full ? null : () => full as string
+                });
+            }
             default:
                 return fmtNumber(v, numOpts);
         }
@@ -123,12 +131,4 @@ function builtInDefault(base: string): PlainObject {
     if (base === 'shares') return {precision: 0};
     if (base?.startsWith('currency:')) return {precision: 2};
     return {};
-}
-
-function fmtAuto(v: number, opts: NumberFormatOptions): ReactNode {
-    const abs = Math.abs(v ?? 0);
-    if (abs >= 1e9) return fmtBillions(v, opts);
-    if (abs >= 1e6) return fmtMillions(v, opts);
-    if (abs >= 1e3) return fmtThousands(v, opts);
-    return fmtNumber(v, opts);
 }
