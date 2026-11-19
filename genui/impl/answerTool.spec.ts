@@ -202,6 +202,58 @@ describe('show_ui with answer blueprints', () => {
         await vi.waitFor(() => expect(container.querySelector('.xh-chat-ui-chart')).toBeTruthy());
     });
 
+    describe('a grid in an answer', () => {
+        const grid = (config: object) => ({
+            sources: {
+                pnl: {
+                    inline: {
+                        fields: [
+                            {name: 'sector', type: 'string', isDimension: true},
+                            {name: 'v', type: 'number'}
+                        ],
+                        rows: [
+                            {sector: 'a', v: 1},
+                            {sector: 'b', v: 2}
+                        ]
+                    }
+                }
+            },
+            root: 'g',
+            elements: {
+                g: {component: 'cubeGrid', config: {source: 'pnl', columnState: ['v'], ...config}}
+            }
+        });
+        const drawn = async (config: object) => {
+            const {catalog, chatModel} = setup(),
+                {container} = show(catalog, chatModel, grid(config));
+            await vi.waitFor(() =>
+                expect(
+                    container.querySelector('.xh-chat-ui-grid, .xh-blueprint-cube-grid')
+                ).toBeTruthy()
+            );
+            return container;
+        };
+
+        it('draws in its chat card when flat and unstyled', async () => {
+            const container = await drawn({});
+            expect(container.querySelector('.xh-chat-ui-grid')).toBeTruthy();
+            expect(container.querySelector('.xh-blueprint-cube-grid')).toBeNull();
+        });
+
+        it('draws as a grid panel of its default height when grouped, as the card draws flat', async () => {
+            const container = await drawn({groupBy: ['sector']}),
+                panel = container.querySelector<HTMLElement>('.xh-blueprint-view__answer-panel');
+            expect(panel.querySelector('.xh-blueprint-cube-grid')).toBeTruthy();
+            expect(panel.style.height).toBe('300px');
+            expect(container.querySelector('.xh-chat-ui-grid')).toBeNull();
+        });
+
+        it('draws as a grid panel when styled, as the card ignores styles', async () => {
+            const container = await drawn({treeStyle: 'colors'});
+            expect(container.querySelector('.xh-blueprint-cube-grid')).toBeTruthy();
+        });
+    });
+
     it('renders a reply stored as a catalog document as it always has', () => {
         const {catalog, chatModel} = setup();
         show(catalog, chatModel, {

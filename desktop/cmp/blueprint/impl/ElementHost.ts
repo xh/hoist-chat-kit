@@ -30,6 +30,25 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
                 children: `${model.element.component} has no desktop component yet.`
             });
         }
+        // A widget that draws as a card in a reply has no height of its own as a panel there.
+        const {blueprintModel} = model,
+            spec = blueprintModel.registry.widgets[model.element.component],
+            rows = spec?.size?.default?.h;
+        if (
+            blueprintModel.isAnswer &&
+            spec?.presentations?.length &&
+            rows &&
+            blueprintModel.presentationOf(id) === 'panel'
+        ) {
+            return div({
+                className: 'xh-blueprint-view__answer-panel',
+                style: {height: rows * ANSWER_ROW_HEIGHT},
+                children: component({model})
+            });
+        }
         return component({model});
     }
 });
+
+// The height of a dashboard row, so a panel in a reply is as tall as its default size there.
+const ANSWER_ROW_HEIGHT = 50;

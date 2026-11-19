@@ -59,7 +59,7 @@ export class BlueprintViewModel extends HoistModel {
         const elements = this.blueprintModel.blueprint?.elements,
             el = elements && Object.hasOwn(elements, id) ? elements[id] : null;
         if (!el) return null;
-        const presentation = el.config?.presentation ?? this.blueprintModel.defaultPresentation,
+        const presentation = this.blueprintModel.presentationOf(id),
             drawn = this.blueprintModel.registry.widgets[el.component]?.presentations?.find(
                 it => it.name === presentation
             );

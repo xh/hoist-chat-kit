@@ -602,7 +602,7 @@ const cubeGrid: WidgetSpec = {
     label: 'Grid',
     terms: ['grid', 'table', 'pivot', 'list of positions', 'blotter'],
     guidance:
-        "The one grid widget. Grouped into a tree with groupBy, or flat without it. Use it for positions, orders and any tabular data. Its selection is an output: a filter of the selected row's group path, or one field's value. Keep the grid's default style unless the user asks for one.",
+        "The one grid widget. Grouped into a tree with groupBy, or flat without it. Use it for positions, orders and any tabular data. Its selection is an output: a filter of the selected row's group path, or one field's value. A grid with groupBy is a tree: its dimensions become parent rows. treeStyle styles that tree, so a grid without groupBy shows no tree style. Keep the grid's default style unless the user asks for one.",
     category: 'data',
     config: CUBE_GRID_SCHEMA,
     presetPaths: ['/columnState', '/sortBy'],

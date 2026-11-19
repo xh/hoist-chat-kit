@@ -86,6 +86,24 @@ export class BlueprintModel extends HoistModel {
      * in a widget, such as a sort, stays transient, as personalizations do not exist yet, and every
      * edit is refused. In design mode, a widget's change is an edit.
      */
+    /**
+     * The presentation an element draws in: the one its config names, else the model's
+     * `defaultPresentation` if its widget has it and draws all of the config, else `panel`. A
+     * config that sets a key the default presentation `ignores` draws as `panel`. Null for no
+     * such element.
+     */
+    presentationOf(id: string): string {
+        const el = getOwn(this.blueprint?.elements, id);
+        if (!el) return null;
+        const config: PlainObject = el.config ?? {};
+        if (config.presentation) return config.presentation;
+        const drawn = getOwn(this.registry.widgets, el.component)?.presentations?.find(
+            it => it.name === this.defaultPresentation
+        );
+        if (!drawn) return 'panel';
+        return drawn.ignores?.some(it => isSet(config[it])) ? 'panel' : drawn.name;
+    }
+
     get mode(): BlueprintMode {
         return this.access === 'write' ? this.requestedMode : 'run';
     }
@@ -512,4 +530,9 @@ export class BlueprintModel extends HoistModel {
 
 function hasErrors(issues: BlueprintIssue[]): boolean {
     return issues.some(it => it.severity === 'error');
+}
+
+// A config value that asks for something: not absent, and not an empty list.
+function isSet(value: unknown): boolean {
+    return value != null && !(Array.isArray(value) && value.length === 0);
 }
