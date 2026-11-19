@@ -43,9 +43,9 @@ function index(
                 return `- ${d.name} (${cat.json.label}): ${d.label}. ${d.guidance ?? d.description ?? ''} Params: ${params}.`;
             })
         ),
-        widgets = Object.entries(registry.widgets).map(
-            ([n, w]) => `- ${n}: ${w.label}${w.app ? ' (app)' : ''}. ${w.guidance}`
-        );
+        widgets = Object.entries(registry.widgets)
+            .filter(([, w]) => !w.reserved)
+            .map(([n, w]) => `- ${n}: ${w.label}${w.app ? ' (app)' : ''}. ${w.guidance}`);
     return [
         `Datasets:\n${datasets.join('\n')}`,
         `Widgets:\n${widgets.join('\n')}`,

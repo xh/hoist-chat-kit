@@ -1,5 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {castArray, isArray, isPlainObject, uniq} from 'lodash';
+import {castArray, isArray, isPlainObject, pickBy, uniq} from 'lodash';
 import type {ChatToolSpec} from '../../core';
 import type {Blueprint, BlueprintEdit, BlueprintIssue, BlueprintOp} from '../Blueprint';
 import type {BlueprintDataProvider} from '../BlueprintDataProvider';
@@ -9,7 +9,7 @@ import type {DataCatalog} from '../DataCatalog';
 import {applyOps} from '../applyOps';
 import {checkEditAllowed} from '../impl/access';
 import {checkFilter} from '../impl/configSchema';
-import {getAt} from '../impl/pointer';
+import {getAt, getOwn} from '../impl/pointer';
 import {queryRows} from '../impl/queryRows';
 
 /**
@@ -170,7 +170,10 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
             const coll = REGISTRY_KINDS[input?.kind];
             if (!coll)
                 throw new Error('kind must be widget, variableType, resolver, action or renderer');
-            const entries: Record<string, PlainObject> = registry[coll];
+            const entries: Record<string, PlainObject> = pickBy(
+                registry[coll],
+                (it: PlainObject) => !it.reserved
+            );
             if (!input.names?.length) {
                 return Object.entries(entries).map(([name, e]) => ({
                     name,
@@ -182,7 +185,10 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
             }
             // Functions, such as a widget's model or a resolver's code, drop out as JSON.
             return Object.fromEntries(
-                input.names.map((n: string) => [n, entries[n] ?? `unknown ${input.kind} '${n}'`])
+                input.names.map((n: string) => [
+                    n,
+                    getOwn(entries, n) ?? `unknown ${input.kind} '${n}'`
+                ])
             );
         }
     },

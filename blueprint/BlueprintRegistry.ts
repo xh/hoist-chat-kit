@@ -43,6 +43,11 @@ export interface WidgetSpec {
     /** True for a widget the app provides. */
     app?: boolean;
     /**
+     * True for a widget that only the kit places, when it degrades a chat answer. An authored
+     * blueprint cannot use it, and the Architect never sees it.
+     */
+    reserved?: boolean;
+    /**
      * The data the widget needs from its source, given its config with bindings resolved. A
      * source merges every widget's demand into one request.
      */

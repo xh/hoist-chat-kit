@@ -698,7 +698,33 @@ const buttonGroupInput: WidgetSpec = {
     }
 };
 
+const placeholder: WidgetSpec = {
+    name: 'placeholder',
+    version: 1,
+    label: 'Placeholder',
+    guidance: 'Stands in for an element of a chat answer that is still arriving.',
+    category: 'data',
+    reserved: true,
+    config: {type: 'object', additionalProperties: false, properties: {}}
+};
+
+const fallback: WidgetSpec = {
+    name: 'fallback',
+    version: 1,
+    label: 'Fallback',
+    guidance: 'Stands in for an element of a chat answer that has errors, and lists them.',
+    category: 'data',
+    reserved: true,
+    config: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {errors: {type: 'array', items: {type: 'string'}}, input: {type: 'string'}}
+    }
+};
+
 const WIDGET_SPECS: WidgetSpec[] = [
+    placeholder,
+    fallback,
     dashCanvas,
     tabContainer,
     cubeGrid,

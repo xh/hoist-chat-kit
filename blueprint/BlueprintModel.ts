@@ -148,7 +148,14 @@ export class BlueprintModel extends HoistModel {
     /** Check a blueprint against the catalog and registry, without applying it. */
     validate(bp: Blueprint): BlueprintIssue[] {
         const {catalog, registry, artifacts, isAnswer} = this;
-        return validateBlueprint(bp, {catalog, registry, artifacts, isAnswer});
+        // An answer renders degraded, so it may hold the reserved widgets degradeAnswer() places.
+        return validateBlueprint(bp, {
+            catalog,
+            registry,
+            artifacts,
+            isAnswer,
+            allowReserved: isAnswer
+        });
     }
 
     /**

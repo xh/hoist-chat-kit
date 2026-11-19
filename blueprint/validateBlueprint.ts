@@ -14,6 +14,8 @@ export interface ValidateBlueprintContext {
     artifacts?: Record<string, string>;
     /** True for a chat answer, which may hold literal parameters, artifacts and inline sources. */
     isAnswer?: boolean;
+    /** True for an answer the kit degraded, which may hold its reserved widgets. */
+    allowReserved?: boolean;
 }
 
 /** Hoist field types, plus `filter`, which every variable may take. */
@@ -35,7 +37,7 @@ export const BUILT_IN_VARIABLE_TYPES = [
  * @returns every issue found, errors and warnings. Empty if the blueprint is valid.
  */
 export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext): BlueprintIssue[] {
-    const {catalog, registry, isAnswer = false} = ctx,
+    const {catalog, registry, isAnswer = false, allowReserved = false} = ctx,
         artifacts = toLookup(ctx.artifacts),
         issues: BlueprintIssue[] = [],
         err = (code: string, path: string, message: string) =>
@@ -94,6 +96,10 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 `${p}/component`,
                 `unknown component '${el.component}'. Use describe_registry to list widgets.`
             );
+            continue;
+        }
+        if (spec.reserved && !allowReserved) {
+            err('element.reserved', `${p}/component`, `'${el.component}' is for the kit's own use`);
             continue;
         }
         for (const e of checkConfig(el.config ?? {}, spec.config)) {
