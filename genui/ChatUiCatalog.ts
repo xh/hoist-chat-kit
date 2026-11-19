@@ -13,6 +13,7 @@ import {logError, logWarn, throwIf} from '@xh/hoist/utils/js';
 import {
     castArray,
     compact,
+    groupBy,
     isArray,
     isEmpty,
     isEqual,
@@ -27,7 +28,7 @@ import {
     without
 } from 'lodash';
 import {type ReactNode, useEffect, useState} from 'react';
-import {BlueprintRegistry} from '../blueprint';
+import {BlueprintRegistry, DataCatalog, degradeAnswer} from '../blueprint';
 import type {ChatDataRenderer, ChatModel, ChatPartRenderContext, ChatToolSpec} from '../core';
 import {ChatArtifactRegistry, type ChatDataHandle} from './ChatArtifactRegistry';
 import {
@@ -73,7 +74,14 @@ import {
 import {chatUiFallback, chatUiPlaceholder} from './ChatUiFallback';
 import {ChatUiRefusal} from './impl/ChatUiRefusal';
 import {chatUiTagFormat} from './formats/ChatUiTagFormat';
-import {toActionSpecs, toWidgetSpec} from './impl/specWidgets';
+import {fromAnswerId, toAnswerBlueprint} from './impl/answerBlueprint';
+import {
+    type ChatUiAnswerRenderProps,
+    fromWidgetName,
+    toActionSpecs,
+    toStandInWidgetSpecs,
+    toWidgetSpec
+} from './impl/specWidgets';
 import {chatUiElementBoundary} from './impl/ChatUiElementBoundary';
 import {chatUiLiveDocument} from './impl/ChatUiLiveDocument';
 import {
@@ -374,11 +382,24 @@ export class ChatUiCatalog {
      */
     get registry(): BlueprintRegistry {
         this._registry ??= new BlueprintRegistry({
-            widgets: this.components.map(it => toWidgetSpec(it, this)),
+            widgets: [
+                ...this.components.map(it => toWidgetSpec(it, this)),
+                ...toStandInWidgetSpecs(this)
+            ],
             actions: toActionSpecs(this)
         });
         return this._registry;
     }
+
+    /**
+     * True to render documents as answer blueprints. Read once from `localStorage`, at the key
+     * `xh.chat.answerBlueprints`, while the blueprint path is built beside the old one.
+     * @internal
+     */
+    static answerBlueprints: boolean = readAnswerBlueprintsToggle();
+
+    /** The platform's renderer for an answer blueprint, set when its package loads. @internal */
+    static answerRenderer: (props: ChatUiAnswerRenderProps) => ReactNode = null;
 
     /**
      * Render one component for an element of an answer blueprint, as {@link renderDocument}
@@ -393,7 +414,7 @@ export class ChatUiCatalog {
     ): ReactNode {
         return chatUiElementBoundary({
             key: `${node.id}|${spec.name}`,
-            resetKey: false,
+            resetKey: context.isPartial,
             renderError: e =>
                 this.renderFallback(
                     {
@@ -408,13 +429,57 @@ export class ChatUiCatalog {
             children: chatUiComponent({
                 spec,
                 node,
-                context: {...context, isPartial: false},
+                context,
                 catalog: this,
                 registry: this.getRegistry(context.chatModel),
                 childNodes: rendered.children,
                 slots: rendered.slots
             })
         });
+    }
+
+    /**
+     * Render the placeholder or the fallback that stands in for an element of an answer blueprint,
+     * with the catalog's own renderers.
+     * @internal
+     */
+    renderStandIn(
+        standIn: {component: string; config?: PlainObject},
+        context: ChatUiDocumentContext,
+        id: string
+    ): ReactNode {
+        if (standIn.component === 'placeholder') {
+            const name = this.toComponentName(standIn.config?.component);
+            return this.renderPlaceholder(this.getComponent(name) ? name : null, id);
+        }
+        const docId = fromAnswerId(id),
+            parsed = parseJson(standIn.config?.input),
+            isElement = isPlainObject(parsed) && !('elements' in parsed),
+            input = isElement
+                ? fromAnswerElement(parsed, name => this.toComponentName(name))
+                : parsed,
+            name = isElement ? (this.getComponent(input.component)?.name ?? null) : null,
+            // The catalog's own words for an element's problems, as a document's fallback has.
+            ownErrors = isElement
+                ? [
+                      ...this.findElementProblems(docId, input as ChatUiElement, false),
+                      ...(getOwn(context.elementErrors, docId) ?? [])
+                  ]
+                : parsed == null && id
+                  ? [formatError(elementPath(docId), 'missing')]
+                  : [];
+        return this.renderFallback(
+            {
+                component: name,
+                caption: name ? this.getCaption(name) : CAPTION,
+                errors: ownErrors.length
+                    ? ownErrors
+                    : (standIn.config?.errors ?? []).map(toDocumentError),
+                input
+            },
+            context,
+            id
+        );
     }
 
     /** The spec for a component, by name, or null. */
@@ -569,6 +634,12 @@ export class ChatUiCatalog {
             );
         }
         if (repaired.root == null || repaired.elements == null) return this.renderPlaceholder(null);
+        // A document with state keeps the document path until answers take its bindings.
+        const hasState =
+            context.state || Object.values(repaired.elements).some(it => !isEmpty(it?.bindings));
+        if (ChatUiCatalog.answerBlueprints && ChatUiCatalog.answerRenderer && !hasState) {
+            return this.renderAnswer(repaired, context);
+        }
         return this.renderElement(repaired, repaired.root, context);
     }
 
@@ -1160,6 +1231,32 @@ export class ChatUiCatalog {
         });
     }
 
+    /** Render a document as an answer blueprint, through the platform's answer renderer. */
+    private renderAnswer(doc: ChatUiDocument, context: ChatUiDocumentContext): ReactNode {
+        const completeIds = Object.entries(doc.elements)
+                .filter(([, it]) => it?.isPartial === false)
+                .map(([id]) => id),
+            blueprint = degradeAnswer(toAnswerBlueprint(doc), {
+                catalog: ANSWER_DATA_CATALOG,
+                registry: this.registry,
+                isAnswer: true,
+                isComplete: !context.isPartial,
+                elementErrors: context.elementErrors
+            });
+        return ChatUiCatalog.answerRenderer({
+            blueprint,
+            catalog: this,
+            dataCatalog: ANSWER_DATA_CATALOG,
+            context,
+            completeIds
+        });
+    }
+
+    /** The catalog name of a component, from its widget name in an answer. */
+    private toComponentName(widgetName: unknown): string {
+        return isString(widgetName) ? fromWidgetName(widgetName) : null;
+    }
+
     private renderPlaceholder(name: string, key?: string): ReactNode {
         return fragment({
             key,
@@ -1457,6 +1554,53 @@ const DEFAULT_LIMITS: Required<ChatUiLimits> = {
     CAPTION = 'This content could not be displayed.',
     TOOL_NOTE = 'Calling this tool shows the component to the user, inline in the chat.',
     ACTION_SCHEMA = chatUiActionSchema({types: CHAT_UI_ACTION_TYPES});
+
+function parseJson(text: string): PlainObject {
+    try {
+        return JSON.parse(text ?? 'null');
+    } catch {
+        return null;
+    }
+}
+
+// An answer element as the document element it came from, as a fallback shows its input.
+function fromAnswerElement(el: PlainObject, toName: (widget: string) => string): PlainObject {
+    if (!isPlainObject(el)) return null;
+    const refs: PlainObject[] = isArray(el.children) ? el.children : [],
+        children = refs.filter(it => !it?.slot).map(it => it?.id),
+        slots = mapValues(
+            groupBy(
+                refs.filter(it => it?.slot),
+                it => it.slot
+            ),
+            it => it.map(ref => ref.id)
+        );
+    return {
+        component: toName(el.component),
+        props: el.config ?? {},
+        ...(children.length ? {children} : {}),
+        ...(isEmpty(slots) ? {} : {slots})
+    };
+}
+
+// A blueprint issue as the catalog writes a problem, such as `elements.b.props.text: ...`.
+function toDocumentError(error: string): string {
+    const match = /^\/elements\/([^/]+)\/config(\/[^:]*)?: (.*)$/s.exec(error);
+    if (!match) return error;
+    const [, id, path = '', message] = match;
+    return `elements.${id}.props${path.replaceAll('/', '.')}: ${message}`;
+}
+
+// The datasets of an answer: none yet, until the app's catalog and its artifacts reach answers.
+const ANSWER_DATA_CATALOG = new DataCatalog({datasets: {}});
+
+function readAnswerBlueprintsToggle(): boolean {
+    try {
+        return globalThis.localStorage?.getItem('xh.chat.answerBlueprints') === 'true';
+    } catch {
+        return false;
+    }
+}
 
 // Resolves reference props for a catalog with no `artifacts` config - every one is waiting or
 // missing.

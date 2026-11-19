@@ -26,3 +26,6 @@ export * from './ChatUiTextArea';
 export * from './ChatUiTextInput';
 export * from './ChatUiTreeMap';
 export type * from './Types';
+
+// Registers the renderer for answer blueprints with ChatUiCatalog.
+import './impl/ChatUiAnswer';

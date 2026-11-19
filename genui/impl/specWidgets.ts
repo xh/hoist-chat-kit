@@ -1,13 +1,16 @@
-import {hoistCmp, type PlainObject, uses} from '@xh/hoist/core';
+import {HoistBase, hoistCmp, type PlainObject, uses} from '@xh/hoist/core';
+import {action, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
-import {omit, startCase, upperFirst, without} from 'lodash';
+import {isEmpty, isEqual, lowerFirst, omit, startCase, upperFirst, without} from 'lodash';
 import type {ReactNode} from 'react';
 import {
     type ActionSpec,
+    type Blueprint,
     type BlueprintIssue,
     BlueprintRegistry,
     BlueprintWidgetModel,
     type ChildRef,
+    type DataCatalog,
     type WidgetSpec
 } from '../../blueprint';
 import {
@@ -28,9 +31,46 @@ export function toWidgetName(component: string): string {
     return BUILT_IN_WIDGET_NAMES.includes(component) ? `chatUi${upperFirst(component)}` : component;
 }
 
-/** What a bridged widget reads from the answer model's `hostContext`. */
-export interface ChatUiAnswerHostContext {
+/** The component name of a widget in an answer, undoing {@link toWidgetName}. */
+export function fromWidgetName(widget: string): string {
+    const name = /^chatUi[A-Z]/.test(widget) ? lowerFirst(widget.slice(6)) : null;
+    return name && BUILT_IN_WIDGET_NAMES.includes(name) ? name : widget;
+}
+
+/** What the catalog passes to the platform's renderer of an answer blueprint. */
+export interface ChatUiAnswerRenderProps {
+    blueprint: Blueprint;
+    catalog: ChatUiCatalog;
+    /** The datasets the answer's sources may read. */
+    dataCatalog: DataCatalog;
     context: ChatUiDocumentContext;
+    /** Elements the format marked complete, which render as complete while the answer streams. */
+    completeIds: string[];
+}
+
+/**
+ * The answer model's `hostContext`: where the answer shows, kept current as the reply streams,
+ * so that bridged widgets render again when it changes.
+ */
+export class ChatUiAnswerHostContext extends HoistBase {
+    @observableRef accessor context: ChatUiDocumentContext;
+    @observableRef accessor completeIds: string[] = [];
+
+    constructor(context: ChatUiDocumentContext) {
+        super();
+        this.context = context;
+    }
+
+    @action
+    update(context: ChatUiDocumentContext, completeIds: string[]) {
+        this.context = context;
+        if (!isEqual(completeIds, this.completeIds)) this.completeIds = completeIds;
+    }
+
+    /** True while an element may be incomplete, as chat kit renders a streaming document. */
+    isPartial(id: string): boolean {
+        return this.context.isPartial && !this.completeIds.includes(id);
+    }
 }
 
 /**
@@ -76,6 +116,27 @@ export function toWidgetSpec(spec: ChatUiComponentSpec, catalog: ChatUiCatalog):
         model: BlueprintWidgetModel,
         component: specWidget(spec, catalog)
     };
+}
+
+/**
+ * The reserved `placeholder` and `fallback` widgets, drawn with the catalog's own renderers, so
+ * that an answer's stand-ins look as a document's always have.
+ */
+export function toStandInWidgetSpecs(catalog: ChatUiCatalog): WidgetSpec[] {
+    const {widgets} = new BlueprintRegistry();
+    return [widgets.placeholder, widgets.fallback].map(spec => ({
+        ...spec,
+        component: hoistCmp.factory({
+            displayName: 'ChatUiStandInWidget',
+            model: uses(BlueprintWidgetModel),
+            render({model}) {
+                const host = model.blueprintModel.hostContext as ChatUiAnswerHostContext;
+                return model.element && host
+                    ? catalog.renderStandIn(model.element, host.context, model.id)
+                    : null;
+            }
+        })
+    }));
 }
 
 /**
@@ -216,14 +277,21 @@ function specWidget(spec: ChatUiComponentSpec, catalog: ChatUiCatalog) {
             });
 
             const props: PlainObject = {...model.resolvedConfig},
-                node: ChatUiNode = {id, component: spec.name, props};
+                node: ChatUiNode = {
+                    id,
+                    component: spec.name,
+                    props,
+                    ...(childIds.length ? {children: childIds} : {}),
+                    ...(isEmpty(slotIds) ? {} : {slots: slotIds})
+                };
             if (model.valueVariable) {
                 props.value = model.value;
                 node.bindings = {value: {set: value => model.setValue(value)}};
             }
 
-            const render = (ids: string[]): ReactNode[] => ids.map(it => model.renderElement(it));
-            return catalog.renderAnswerComponent(spec, node, host.context, {
+            const render = (ids: string[]): ReactNode[] => ids.map(it => model.renderElement(it)),
+                context = {...host.context, isPartial: host.isPartial(id)};
+            return catalog.renderAnswerComponent(spec, node, context, {
                 children: render(childIds),
                 slots: Object.fromEntries(
                     Object.entries(slotIds).map(([name, ids]) => [name, render(ids)])

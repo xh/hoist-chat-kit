@@ -705,7 +705,7 @@ const placeholder: WidgetSpec = {
     guidance: 'Stands in for an element of a chat answer that is still arriving.',
     category: 'data',
     reserved: true,
-    config: {type: 'object', additionalProperties: false, properties: {}}
+    config: {type: 'object', additionalProperties: false, properties: {component: {type: 'string'}}}
 };
 
 const fallback: WidgetSpec = {
