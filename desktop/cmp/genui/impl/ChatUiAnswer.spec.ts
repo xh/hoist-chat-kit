@@ -142,8 +142,11 @@ describe('a chart in an answer', () => {
         expect(card.title).toEqual(props.title);
     });
 
-    it("formats the y axis by its field's kind, through a kind the catalog bases on fraction", () => {
-        const withKinds = new DataCatalog({datasets: {}, kinds: {chance: {base: 'fraction'}}}),
+    it("formats the y axis by its field's kind, with the kind's base and its decimals", () => {
+        const withKinds = new DataCatalog({
+                datasets: {},
+                kinds: {chance: {base: 'fraction', format: {precision: 0}}}
+            }),
             model = new BlueprintModel({
                 blueprint: {
                     sources: {
@@ -179,7 +182,7 @@ describe('a chart in an answer', () => {
             chart.destroy();
             model.destroy();
         });
-        expect(toChatChartProps(chart).yAxis.format).toBe('percent');
+        expect(toChatChartProps(chart).yAxis).toMatchObject({format: 'percent', decimals: 0});
     });
 
     describe('the load bar', () => {

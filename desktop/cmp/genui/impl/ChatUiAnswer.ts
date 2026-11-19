@@ -1,15 +1,7 @@
 import {filler, span, vbox} from '@xh/hoist/cmp/layout';
 import {statCard, statCardStrip} from '@xh/hoist/cmp/statcard';
-import {
-    hoistCmp,
-    HoistModel,
-    type HoistProps,
-    managed,
-    type PlainObject,
-    uses,
-    XH
-} from '@xh/hoist/core';
-import {castArray, dropRightWhile, isArray, isFinite, isPlainObject, isString, omit} from 'lodash';
+import {hoistCmp, HoistModel, type HoistProps, managed, uses, XH} from '@xh/hoist/core';
+import {castArray, dropRightWhile, isArray, isFinite, isString, omit} from 'lodash';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {toolbar} from '@xh/hoist/desktop/cmp/toolbar';
 import {Icon} from '@xh/hoist/icon';
@@ -18,12 +10,12 @@ import {useEffect, useState} from 'react';
 import {
     type BlueprintDataProvider,
     BlueprintModel,
-    type DataCatalog,
     type FieldDef,
     runDatasetQueryAsync
 } from '../../../../blueprint';
 import {ChatUiCatalog} from '../../../../genui';
 import {AnswerLoadGate} from '../../../../genui/impl/AnswerLoadGate';
+import {resolveFormat} from '../../../../blueprint/impl/formats';
 import {chatArtifactProvider} from '../../../../genui/impl/answerData';
 import {getArtifactRows} from '../../../../impl/ArtifactRows';
 import {
@@ -119,7 +111,7 @@ const gridCard = hoistCmp.factory({
             columns = castArray(config.columnState ?? [])
                 .map(it => (isString(it) ? it : it?.field))
                 .filter(it => source.fields[it])
-                .map(it => toGridColumn(source.fields[it], blueprintModel.catalog));
+                .map(it => toGridColumn(source.fields[it], blueprintModel));
         return chatUiGrid({
             title: config.title,
             columns,
@@ -174,7 +166,7 @@ export function toChatChartProps(
         yAxis: {
             ...layout.yAxis,
             title: layout.yAxis?.title || null,
-            ...(yField ? toChatFormat(yField, model.blueprintModel.catalog) : {})
+            ...(yField ? toChatFormat(yField, model.blueprintModel) : {})
         },
         series: (layout.series ?? []).map((it, idx, all) => ({
             ...it,
@@ -285,13 +277,13 @@ class ChatUiAnswerModel extends HoistModel {
 }
 
 // A field as a chat grid column, the reverse of how an inline grid's columns become fields.
-function toGridColumn(def: FieldDef, catalog: DataCatalog): ChatUiGridColumn {
+function toGridColumn(def: FieldDef, blueprintModel: BlueprintModel): ChatUiGridColumn {
     const ret: ChatUiGridColumn = {
         field: def.name,
         type: toChatType(def),
         ...(def.label ? {headerName: def.label} : {})
     };
-    return ret.type === 'number' ? {...ret, ...toChatFormat(def, catalog)} : ret;
+    return ret.type === 'number' ? {...ret, ...toChatFormat(def, blueprintModel)} : ret;
 }
 
 function toChatType(def: FieldDef): ChatUiGridColumn['type'] {
@@ -301,12 +293,12 @@ function toChatType(def: FieldDef): ChatUiGridColumn['type'] {
 }
 
 // A number field's format as a chat number format, the reverse of how a chat format becomes one.
-// A kind counts as its base, as a catalog's `chance` is a fraction.
+// Reads the format the field shows with, through its kind, as a catalog's `chance` is a fraction.
 function toChatFormat(
     def: FieldDef,
-    catalog: DataCatalog
+    {catalog, blueprint}: BlueprintModel
 ): {format: ChatUiNumberFormat; decimals?: number} {
-    const format = (isPlainObject(def.format) ? def.format : {}) as PlainObject,
+    const format = resolveFormat(def, [], {catalog, blueprint}),
         base = catalog?.kinds[def.kind]?.base ?? def.kind;
     return {
         format:
