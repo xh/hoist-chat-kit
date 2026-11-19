@@ -1,6 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {describe, expect, it} from 'vitest';
-import {validateSchema} from './SchemaUtils';
+import {findSchemaErrors, validateSchema} from './SchemaUtils';
 
 /**
  * The JSON Schema subset checker behind generative UI. Its messages go back to the model when a
@@ -164,5 +164,47 @@ describe('validateSchema', () => {
         ])('still rejects %s', (_, schema, value, errors) => {
             expect(validateSchema(value, schema, {isPartial: true})).toEqual(errors);
         });
+    });
+});
+
+/**
+ * The structured form of the same checks, for callers that report paths in their own form, such
+ * as a blueprint's JSON Pointers, and that check annotations of their own on the way.
+ */
+describe('findSchemaErrors', () => {
+    const SCHEMA: PlainObject = {
+        type: 'object',
+        properties: {
+            rows: {
+                type: 'array',
+                items: {type: 'object', properties: {'first-name': {type: 'string'}}}
+            },
+            when: {type: 'string', 'x-date': true}
+        }
+    };
+
+    it('reports each path as property names and array indexes', () => {
+        expect(findSchemaErrors({rows: [{}, {'first-name': 3}]}, SCHEMA)).toEqual([
+            {path: ['rows', 1, 'first-name'], message: 'expected string, got number'}
+        ]);
+    });
+
+    it('lets checkNode replace the standard checks of a schema, or defer to them', () => {
+        const checkNode = (value: unknown, schema: PlainObject, path: (string | number)[]) =>
+            schema['x-date'] ? (value === 'today' ? [] : [{path, message: 'not a date'}]) : null;
+
+        expect(findSchemaErrors({when: 'today'}, SCHEMA, {checkNode})).toEqual([]);
+        expect(findSchemaErrors({when: 7}, SCHEMA, {checkNode})).toEqual([
+            {path: ['when'], message: 'not a date'}
+        ]);
+        expect(findSchemaErrors({rows: 'x'}, SCHEMA, {checkNode})).toEqual([
+            {path: ['rows'], message: 'expected array, got string'}
+        ]);
+    });
+
+    it('formats the same problems as validateSchema does', () => {
+        expect(validateSchema({rows: [{}, {'first-name': 3}]}, SCHEMA)).toEqual([
+            'rows[1]["first-name"]: expected string, got number'
+        ]);
     });
 });
