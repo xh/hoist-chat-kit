@@ -123,7 +123,7 @@ export function toWidgetSpec(spec: ChatUiComponentSpec, catalog: ChatUiCatalog):
     return {
         name,
         version: 1,
-        guidance: spec.description,
+        guidance: [spec.description, getOwn(EXTRA_GUIDANCE, spec.name)].filter(Boolean).join(' '),
         config,
         ...info,
         ...(spec.example ? {example: toExample(name, spec.example, perChild)} : {}),
@@ -232,6 +232,11 @@ const size = (w: number, h: number) => ({default: {w, h}}),
         value: {type},
         size: size(w, h)
     });
+
+// The bridge's own guidance for the Architect, after a spec's description.
+const EXTRA_GUIDANCE: Record<string, string> = {
+    tabs: 'Keep tab titles to one or two words. Use the label a person would say, not a raw value.'
+};
 
 const WIDGET_INFO: Record<string, WidgetInfo> = {
     text: {

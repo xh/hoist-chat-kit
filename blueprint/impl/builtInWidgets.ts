@@ -558,7 +558,7 @@ const tabContainer: WidgetSpec = {
     label: 'Tabs',
     terms: ['tabs', 'tab', 'pages'],
     guidance:
-        "Shows one child at a time, under a row of tabs. Each child reference gives the tab's title. Children are usually dashCanvas elements.",
+        "Shows one child at a time, under a row of tabs. Each child reference gives the tab's title. Children are usually dashCanvas elements. Keep tab titles to one or two words. Use the label a person would say, not a raw value.",
     category: 'container',
     config: TAB_CONTAINER_SCHEMA,
     children: {

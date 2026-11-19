@@ -62,6 +62,12 @@ describe('toAnswerBlueprint', () => {
         expect(widgets.grid.label).toBe('Grid');
     });
 
+    it("tells the Architect to keep tab titles short, after the tabs spec's own description", () => {
+        const {tabs} = catalog.registry.widgets;
+        expect(tabs.guidance.startsWith(chatUiTabsSpec().description)).toBe(true);
+        expect(tabs.guidance).toMatch(/Keep tab titles to one or two words\./);
+    });
+
     it('translates a component a built-in shares its name with into its bridged widget', () => {
         const bp = toAnswerBlueprint({
             root: 'c',
