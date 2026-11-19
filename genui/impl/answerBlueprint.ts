@@ -262,7 +262,7 @@ function toStatCardStrip(id: string, props: PlainObject, isPartial: boolean): Tr
  * in compact form, such as `$48.5B`, as chat kit's headline figures do, and keeps its decimals
  * only while whole.
  */
-function toFieldFormat(format: string, decimals: number, isCompact: boolean): PlainObject {
+export function toFieldFormat(format: string, decimals: number, isCompact: boolean): PlainObject {
     const precision = (fixed: unknown) => decimals ?? fixed,
         compact = isCompact ? {scale: 'auto', labelCls: null} : {};
     switch (format) {

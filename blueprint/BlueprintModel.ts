@@ -56,10 +56,11 @@ export interface BlueprintEditResult {
  * {@link setBlueprint} or {@link applyEdit}, which refuse a result with errors.
  */
 export class BlueprintModel extends HoistModel {
-    readonly catalog: DataCatalog;
+    /** The datasets the blueprint reads. An update may bring new ones, as artifacts arrive. */
+    catalog: DataCatalog;
     readonly registry: BlueprintRegistry;
     readonly dataProvider: BlueprintDataProvider;
-    readonly artifacts: Record<string, string>;
+    artifacts: Record<string, string>;
     readonly artifactProvider: BlueprintArtifactProvider;
     readonly hostContext: unknown;
     readonly isAnswer: boolean;
@@ -204,12 +205,27 @@ export class BlueprintModel extends HoistModel {
      * the history, and the run-mode changes to elements that are still there. With errors,
      * nothing changes. A blueprint equal to the current one changes nothing.
      *
-     * @param opts - `partialIds`, the elements of a streaming answer still arriving.
+     * @param opts - `partialIds`, the elements of a streaming answer still arriving. `catalog` and
+     *      `artifacts`, the datasets and artifacts the blueprint now reads, as an answer meets
+     *      artifacts that arrive in its chat.
      * @returns every issue found, errors and warnings.
      */
     @action
-    updateBlueprint(bp: Blueprint, opts: {partialIds?: string[]} = {}): BlueprintIssue[] {
-        if (isEqual(bp, this.blueprint)) return this.issues;
+    updateBlueprint(
+        bp: Blueprint,
+        opts: {
+            partialIds?: string[];
+            catalog?: DataCatalog;
+            artifacts?: Record<string, string>;
+        } = {}
+    ): BlueprintIssue[] {
+        const {catalog, artifacts} = opts,
+            isNewData =
+                (catalog && catalog !== this.catalog) ||
+                (artifacts && !isEqual(artifacts, this.artifacts));
+        if (catalog) this.catalog = catalog;
+        if (artifacts) this.artifacts = artifacts;
+        if (!isNewData && isEqual(bp, this.blueprint)) return this.issues;
         const issues = this.validate(bp, opts);
         if (!hasErrors(issues)) {
             this.transientValues = pickBy(this.transientValues, (_, path) =>

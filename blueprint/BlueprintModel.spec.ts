@@ -194,6 +194,22 @@ describe('BlueprintModel', () => {
             expect(model.blueprint).toEqual(next);
         });
 
+        it('takes new datasets and artifacts with an update, as an answer meets artifacts that arrive', () => {
+            const model = new BlueprintModel({
+                    catalog: portfolioCatalog,
+                    registry: scenarioRegistry(),
+                    dataProvider: new RecordingProvider(),
+                    isAnswer: true
+                }),
+                answer = loadBlueprint('p4-answer.json');
+            onTestFinished(() => model.destroy());
+            expect(model.updateBlueprint(answer).map(it => it.code)).toContain(
+                'source.unknownArtifact'
+            );
+            expect(model.updateBlueprint(answer, {artifacts: ARTIFACTS})).toEqual([]);
+            expect(model.artifacts).toEqual(ARTIFACTS);
+        });
+
         it('refuses an edit whose result has errors, or that is based on an old version', () => {
             const model = open(p1());
             expect(
