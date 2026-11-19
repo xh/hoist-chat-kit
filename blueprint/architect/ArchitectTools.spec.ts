@@ -1,5 +1,5 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
-import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import {BlueprintModel} from '../BlueprintModel';
 import {FakeBlueprintDataProvider} from '../FakeBlueprintDataProvider';
@@ -239,6 +239,32 @@ describe('Architect tools', () => {
         await expect(
             run('query_dataset', {dataset: 'positions', params: {}}, model)
         ).rejects.toThrow(/requires parameter 'asOf'/);
+    });
+
+    it("adds a query's result to the chat as an artifact, which names its dataset and request", async () => {
+        const model = open(),
+            addArtifact = vi.fn(),
+            target = Object.assign(model, {addArtifact}),
+            input = {
+                dataset: 'positions',
+                params: {asOf: '2026-07-01'},
+                fields: ['mktVal'],
+                groupBy: ['sector'],
+                filter: {field: 'sector', op: '!=', value: 'Energy'},
+                top: 2
+            },
+            art = await run('query_dataset', input, target);
+        const [artifact] = addArtifact.mock.calls[0];
+        expect(artifact).toMatchObject({
+            id: art.id,
+            rows: art.rows,
+            totalRows: 2,
+            columns: [
+                {name: 'sector', type: 'string'},
+                {name: 'mktVal', type: 'number'}
+            ],
+            metadata: {dataset: 'positions', request: input}
+        });
     });
 
     it('finds every path that uses a field, a variable or a source', () => {

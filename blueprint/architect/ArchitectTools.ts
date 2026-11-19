@@ -35,6 +35,21 @@ export interface ArchitectTarget {
     validate(bp: Blueprint): BlueprintIssue[];
     /** Set a variable that a prompt, an action or the Architect may set, and return its value. */
     setVariable?(name: string, value: unknown): unknown;
+    /**
+     * Keep the result of a query as an artifact of the chat, for an answer to read as a source.
+     * Its metadata names the dataset and the request, so the Architect can turn it into a dataset
+     * source when the user adds the answer to a blueprint.
+     */
+    addArtifact?(artifact: ArchitectArtifact): void;
+}
+
+/** A query's result, as a chat keeps an artifact - see `ArchitectTarget.addArtifact()`. */
+export interface ArchitectArtifact {
+    id: string;
+    columns: {name: string; label?: string; type: string}[];
+    rows: PlainObject[];
+    totalRows: number;
+    metadata: {dataset: string; request: PlainObject};
 }
 
 /** One of the Architect's tools: its spec for the model, and how it runs against a target. */
@@ -313,6 +328,17 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
                 }),
                 id = `art_${(++artifactSeq).toString(16).padStart(3, '0')}`;
             target.artifacts[id] = ds.name;
+            target.addArtifact?.({
+                id,
+                columns: requested.map(n => {
+                    const {name, label, type} = ds.fields[n];
+                    return {name, ...(label ? {label} : {}), type: COLUMN_TYPES[type] ?? 'string'};
+                }),
+                // The artifact holds the result as cut by `top`, every row of it.
+                rows: shaped.rows,
+                totalRows: shaped.rows.length,
+                metadata: {dataset: ds.name, request: input}
+            });
             return {
                 id,
                 dataset: ds.name,
@@ -392,3 +418,13 @@ const REGISTRY_KINDS: Record<string, keyof ArchitectTarget['registry']> = {
 };
 
 let artifactSeq = 0;
+
+// A field type as a chat data column's type.
+const COLUMN_TYPES: Record<string, string> = {
+    string: 'string',
+    number: 'number',
+    int: 'integer',
+    localDate: 'date',
+    date: 'datetime',
+    bool: 'boolean'
+};
