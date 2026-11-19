@@ -1,0 +1,52 @@
+import {tabContainer, TabContainerModel, type TabConfig} from '@xh/hoist/cmp/tab';
+import {hoistCmp, managed, uses} from '@xh/hoist/core';
+import {Icon} from '@xh/hoist/icon';
+import {pick} from 'lodash';
+import {BlueprintWidgetModel, type BlueprintWidgetConfig, type ChildRef} from '../../../blueprint';
+
+/**
+ * The `tabContainer` widget: a Hoist `TabContainer` with a tab per child, titled by its child
+ * reference. The active tab is transient. A tab renders its child only once it is first shown.
+ */
+export class TabContainerWidgetModel extends BlueprintWidgetModel {
+    @managed readonly tabContainerModel = new TabContainerModel({tabs: []});
+
+    constructor(config: BlueprintWidgetConfig) {
+        super(config);
+        this.addReaction({
+            track: () => this.children.map(it => pick(it, 'id', 'title', 'icon')),
+            run: children => this.loadTabs(children),
+            equals: 'structural',
+            fireImmediately: true
+        });
+    }
+
+    get children(): ChildRef[] {
+        return this.element?.children ?? [];
+    }
+
+    //------------------
+    // Implementation
+    //------------------
+    private loadTabs(children: ChildRef[]) {
+        const {tabContainerModel} = this,
+            activeTabId = tabContainerModel.activeTabId,
+            tabs: TabConfig[] = children.map(({id, title, icon}) => ({
+                id,
+                title: (title as string) ?? id,
+                icon: icon ? Icon.icon({faName: icon as any}) : null,
+                content: () => this.renderElement(id)
+            }));
+        tabContainerModel.setTabs(tabs);
+        if (children.some(it => it.id === activeTabId)) tabContainerModel.activateTab(activeTabId);
+    }
+}
+
+export const [TabContainerWidget, tabContainerWidget] = hoistCmp.withFactory({
+    displayName: 'TabContainerWidget',
+    className: 'xh-blueprint-tab-container',
+    model: uses(TabContainerWidgetModel),
+    render({model, className}) {
+        return tabContainer({model: model.tabContainerModel, className});
+    }
+});

@@ -1,0 +1,25 @@
+.xh-blueprint-view {
+  &__toolbar label {
+    margin-left: var(--xh-pad-px);
+  }
+
+  &__missing {
+    padding: var(--xh-pad-px);
+    color: var(--xh-text-color-muted);
+  }
+}
+
+.xh-blueprint-bar {
+  position: relative;
+  width: 100%;
+
+  &__fill {
+    position: absolute;
+    inset: 2px auto 2px 0;
+    background-color: var(--xh-intent-primary-trans2);
+  }
+
+  &__text {
+    position: relative;
+  }
+}
