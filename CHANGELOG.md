@@ -40,8 +40,27 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   with each run. Move a codec `state` to `ChatModelConfig.prepareAgentState`. A backend that
   emits `STATE_SNAPSHOT` now gets its state back with every run. See
   [Move the Agent State to the Chat](docs/upgrade-notes/v3-upgrade-notes.md#5-move-the-agent-state-to-the-chat).
+* `ChatUiCatalogConfig.urlAllowList` now matches each entry by its parsed origin and path, not as
+  a string prefix. An entry with a path now allows only URLs under that path, and only http and
+  https URLs open. Check any entry with a path, and widen it to its origin if needed.
 
 ### 🎁 New Features
+
+* Added Hoist Blueprints, in `@xh/hoist-chat-kit/blueprint`: JSON definitions of dashboards and
+  reports over an app's `DataCatalog`, opened by a `BlueprintModel` and drawn with the widgets in
+  `@xh/hoist-chat-kit/desktop/cmp/blueprint`. See [`/blueprint/`](blueprint/README.md).
+* Answers now render as blueprint answers, with the same look, once the desktop components load.
+  `show_ui` takes an answer blueprint and still reads input written as a document.
+* Added `ChatUiCatalogConfig.answers`, so that answers can read the app's datasets through its
+  `dataProvider`, and use widgets from its `registry`. Only the latest reply loads at once, and
+  loads draw on the chat's budget for the minute.
+* Added the Architect's chat tools in `@xh/hoist-chat-kit/genui/architect`:
+  `architectChatTools()` and `blueprintContextProvider()` let an LLM build and edit a blueprint in
+  a chat. `read_answer` and `request_design_mode` let it add a chat answer to that blueprint.
+* Added `ChatUiAnswersConfig.addToHost` and `addToBlueprint()`, for an "Add to dashboard" button on
+  each complete answer. The click switches to design mode for that turn only.
+* Added `ChatToolSpec.allowActions`. Set it to `false` for a tool that only the model may call. A
+  UI action that names the tool fails before it asks the user, and `show_ui` refuses the answer.
 
 * Added `ChatUiTextFormat`, a grammar for UI in reply text, and `ChatUiCatalogConfig.textFormats`.
   The tag grammar is now the first format, `chatUiTagFormat()`, and the default. `modes` take the

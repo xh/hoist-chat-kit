@@ -52,6 +52,9 @@ Key features:
   a server agent can register it.
 - **Fallbacks** - an element that fails its checks, or throws, renders as a caption with a "View
   input" disclosure. The rest of the answer still renders.
+- **Answers as blueprints** - with the desktop components loaded, each answer renders as a
+  [Hoist Blueprints](../blueprint/README.md) answer. `show_ui` takes an answer blueprint, which
+  can read the app's datasets and the chat's artifacts, and a user can add it to a dashboard.
 - **Protocol adapters** - a `ChatUiAdapter` translates the UI payload of a protocol, such as
   OpenUI or A2UI, into a document. The protocol's UI then draws with Hoist components, and
   renders as it streams.
@@ -568,6 +571,42 @@ default.
 See [`/genui/openui/`](./openui/README.md) for the install, the prompt, the export, name
 mapping, state, queries and the parts of OpenUI Lang the kit does not run.
 
+### Answer with blueprints
+
+With the desktop components loaded, the catalog renders each answer as a
+[Hoist Blueprints](../blueprint/README.md) answer. It translates a document into a blueprint, in
+which each component is a widget. Stat cards, and a grid or chart with its rows in its props,
+become blueprint widgets over a source. Answers look as they did, and stored replies render as
+before.
+
+`show_ui` takes an answer blueprint: `sources`, `root`, and `elements`, each with its `component`,
+`config` and child references. A source holds rows inline, reads an artifact with
+`{"artifact": id}`, or reads one of the app's datasets. `show_ui` still reads input written as a
+document, as a stored reply holds it.
+
+Give the catalog the app's data, so that answers can read its datasets:
+
+```typescript
+const catalog = new ChatUiCatalog({
+    components,
+    modes: ['document'],
+    answers: {registry: appRegistry, dataCatalog, dataProvider}
+});
+```
+
+An answer loads within the chat's bounds:
+
+- Only the latest reply loads at once, and subscribes to live data. An older reply shows a "Load
+  current data" bar, and loads once the user clicks it.
+- Every load draws on the chat's budget for the minute, which OpenUI Lang programs share.
+- An artifact of more than 5,000 rows does not load. Its widgets show that it is too large, as
+  part of it would give wrong totals.
+- An artifact that a query made, kept without its rows after a reload, runs its query again.
+
+An answer with any error shows nothing, and the model gets the issues to fix. To let a user add
+an answer to a dashboard, set `answers.addToHost`. See
+[Add a chat answer to a blueprint](../blueprint/README.md#add-a-chat-answer-to-a-blueprint).
+
 ### Show data by reference
 
 A server tool stores its result and returns an artifact: an id, the columns, the total row count,
@@ -872,7 +911,8 @@ with the reason as its tooltip.
 | `limits` | `ChatUiLimits` | Caps on elements, depth and inline rows. |
 | `artifacts` | `(chatModel) => ChatArtifactRegistry` | The artifact registry of a chat, for reference props. Default `chatModel.artifacts`. |
 | `actionHandlers` | `Record<string, ChatUiActionHandler>` | Handlers for `app` actions, by name. |
-| `urlAllowList` | `string[] \| (url: URL) => boolean` | Origins, or a check, for URLs that actions and components may open. Default none. |
+| `urlAllowList` | `string[] \| (url: URL) => boolean` | Origins, each with an optional path, or a check, for URLs that actions and components may open. An entry with a path allows only URLs under that path. Only http and https URLs open. Default none. |
+| `answers` | `ChatUiAnswersConfig` | The app's data for answers: `registry` for its own widgets, `dataCatalog` and `dataProvider` for its datasets, and `addToHost` for an "Add to dashboard" button. See [Answer with blueprints](#answer-with-blueprints). |
 | `migrations` | `Record<string, (doc) => ChatUiDocument>` | Upgrades for stored documents, keyed by the version they upgrade from. |
 | `fallback` | `(spec: ChatUiFallbackSpec) => ReactNode` | Renders an element that cannot render. Default `chatUiFallback`, a caption with a "View input" disclosure, which a custom fallback can call for the cases it does not handle. |
 | `placeholder` | `(spec: ChatUiPlaceholderSpec) => ReactNode` | Renders an element still streaming in. Default "Building chart…". |
