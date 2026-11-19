@@ -975,6 +975,10 @@ export class ChatUiCatalog {
                 const tool = chatModel.getToolSpec(action.name),
                     input = action.input ?? {};
                 throwIf(!tool?.execute, `No client tool named '${action.name}'.`);
+                throwIf(
+                    tool.allowActions === false,
+                    `Tool '${action.name}' runs only when the model calls it.`
+                );
                 throwIf(chatModel.isBusy, 'Wait for the reply to finish.');
                 // The check must cover the whole schema, or invalid input would reach the tool.
                 const schemaProblems = tool.parameters ? findSchemaProblems(tool.parameters) : [];

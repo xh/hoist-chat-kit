@@ -56,6 +56,13 @@ export interface ChatToolSpec {
     approvalPrompt?: string | ((input: PlainObject) => ReactNode);
 
     /**
+     * False to refuse calls from a generative UI `callTool` action, so that only the model calls
+     * the tool, under its own approval. For a tool that changes what the user may do, where a
+     * button the model wrote could frame the approval falsely. Default true.
+     */
+    allowActions?: boolean;
+
+    /**
      * What a call will do, shown on its approval card while it waits for approval. A function of
      * the call's input, which may return rich content - such as "Will hide 3 columns: Id, Seller
      * and Region." Or true, for a tool with `display: 'inline'`, to render the call's own output

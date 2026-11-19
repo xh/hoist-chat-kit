@@ -3035,6 +3035,13 @@ rows, the widget config its query set, and the target's sources that already giv
 - In an answer, a `tabs` element holds each tab's title on its child reference, as a
   `tabContainer` does, so a tab keeps its title when it moves to a host.
 
+`architectChatTools()` also adds `request_design_mode` for a target that can change its mode. It
+asks the user on the chat's approval card to switch to design mode. The card's question is the
+kit's own, and the model's reason shows only as a quote beneath it. It asks only in run mode with
+write access, rechecks access as it runs, and returns the mode that results. A `ChatToolSpec`
+with `allowActions: false`, as this tool has, refuses calls from a generative UI `callTool`
+action, so a button the model wrote cannot frame the approval falsely.
+
 **Why.** To add an answer to a host, the Architect needs the answer's blueprint and where its data
 came from. Mapping a query's request to a source is mechanical, and models get it wrong most
 often. Rows the model did not write could carry data an app kept from the model, and would fill

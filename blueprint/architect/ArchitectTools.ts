@@ -35,6 +35,8 @@ export interface ArchitectTarget {
     readonly variables?: {name: string; value: unknown}[];
     applyEdit(edit: BlueprintEdit): {version?: number; issues: BlueprintIssue[]};
     validate(bp: Blueprint): BlueprintIssue[];
+    /** Switch the user's mode. Design mode takes effect only with write access. */
+    setMode?(mode: BlueprintMode): void;
     /** Set a variable that a prompt, an action or the Architect may set, and return its value. */
     setVariable?(name: string, value: unknown): unknown;
 }

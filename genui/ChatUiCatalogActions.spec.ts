@@ -195,6 +195,19 @@ describe('ChatUiCatalog actions', () => {
             );
         });
 
+        it('refuses a tool that only the model may call, before it asks the user', async () => {
+            const confirm = mockConfirm(true),
+                execute = vi.fn(),
+                chatModel = createChatModel([
+                    {name: 'unlock', execute, needsApproval: true, allowActions: false}
+                ]);
+            await expect(runAsync({type: 'callTool', name: 'unlock'}, {chatModel})).rejects.toThrow(
+                "Tool 'unlock' runs only when the model calls it."
+            );
+            expect(confirm).not.toHaveBeenCalled();
+            expect(execute).not.toHaveBeenCalled();
+        });
+
         it('refuses while the chat is busy', async () => {
             const chatModel = createChatModel([{name: 'go', execute: () => 'Ran.'}]),
                 sent = chatModel.sendAsync('Hi');

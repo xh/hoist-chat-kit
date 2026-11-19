@@ -35,6 +35,7 @@ describe('Architect chat tools', () => {
         const names = (tools: {name: string}[]) => tools.map(it => it.name),
             catalog = new ChatUiCatalog({components: [chatUiTextSpec()]});
         expect(names(architectChatTools(open()))).not.toContain('read_answer');
+        expect(names(architectChatTools(open()))).toContain('request_design_mode');
         expect(names(architectChatTools(open(), {catalog}))).toContain('read_answer');
     });
 

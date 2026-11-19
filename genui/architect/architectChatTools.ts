@@ -7,6 +7,7 @@ import {
 } from '../../blueprint';
 import type {ChatUiCatalog} from '../ChatUiCatalog';
 import {readAnswerTool} from './readAnswer';
+import {type DesignModeTarget, requestDesignModeTool} from './requestDesignMode';
 
 /**
  * The Architect's tools for a target, as chat kit client tools. The edit tools enforce the mode
@@ -38,5 +39,9 @@ export function architectChatTools(
                     : output;
             }
         }));
-    return catalog ? [...tools, readAnswerTool(catalog, target)] : tools;
+    return [
+        ...tools,
+        ...(target.setMode ? [requestDesignModeTool(target as DesignModeTarget)] : []),
+        ...(catalog ? [readAnswerTool(catalog, target)] : [])
+    ];
 }
