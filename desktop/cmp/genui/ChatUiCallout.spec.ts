@@ -10,7 +10,7 @@ import {ScriptedChatTransport} from '../../../transport';
 import {chatUiCalloutSpec, type ChatUiCalloutSpecProps} from './ChatUiCallout';
 
 /**
- * The callout spec shows a model-written message as Hoist's Banner. Apps rely on the banner's
+ * The callout spec shows a model-written message as Hoist's Callout. Apps rely on the callout's
  * intent tint and icon, on text that renders as chat markdown and so loads no image, and on a
  * message that reads as words when copied.
  */
@@ -27,55 +27,64 @@ describe('chatUiCalloutSpec', () => {
             })
         );
 
-    it('renders a Hoist Banner with the tint and icon of its intent, a title and the text', () => {
+    it('renders a Hoist Callout with the tint and icon of its intent, a title and the text', () => {
         const {container} = renderCallout({
                 text: 'VaR is **12% over** its limit.',
                 intent: 'warning',
                 title: 'Limit breach'
             }),
-            banner = container.querySelector('.xh-banner.xh-chat-ui-callout');
+            callout = container.querySelector('.xh-callout.xh-chat-ui-callout');
 
-        expect(banner.className).toContain('xh-banner--warning');
-        expect(banner.querySelector('.xh-banner__content > .xh-icon')).toBeTruthy();
-        expect(banner.querySelector('.xh-chat-ui-callout__title').textContent).toBe('Limit breach');
-        expect(banner.querySelector('.xh-banner__message strong').textContent).toBe('12% over');
+        expect(callout.className).toContain('xh-callout--intent-warning');
+        expect(callout.querySelector('.xh-callout__icon .xh-icon')).toBeTruthy();
+        expect(callout.querySelector('.xh-callout__title').textContent).toBe('Limit breach');
+        expect(callout.querySelector('.xh-callout__body strong').textContent).toBe('12% over');
     });
 
     it('is a note by default, and neutral with no icon for the intent none', () => {
         const note = renderCallout({text: 'Prices are as of the close.'});
-        expect(note.container.querySelector('.xh-banner').className).toContain(
-            'xh-banner--primary'
+        expect(note.container.querySelector('.xh-callout').className).toContain(
+            'xh-callout--intent-primary'
         );
         note.unmount();
 
         const {container} = renderCallout({text: 'Prices are as of the close.', intent: 'none'});
-        expect(container.querySelector('.xh-banner').className).toContain('xh-banner--none');
-        expect(container.querySelector('.xh-banner__content > .xh-icon')).toBeNull();
+        expect(container.querySelector('.xh-callout').className).not.toContain(
+            'xh-callout--intent'
+        );
+        expect(container.querySelector('.xh-callout__icon')).toBeNull();
     });
 
-    it('renders the text as chat markdown, which loads no image', () => {
-        const {container} = renderCallout({text: 'See ![chart](https://example.com/leak.png)'});
+    it('renders the text as chat markdown, with blocks such as lists, and loads no image', () => {
+        const {container} = renderCallout({
+            text: 'See ![chart](https://example.com/leak.png)\n\n- Rates\n- Credit'
+        });
 
-        expect(container.querySelector('.xh-chat-markdown')).toBeTruthy();
+        expect(container.querySelector('.xh-callout__body .xh-chat-markdown')).toBeTruthy();
+        expect(container.querySelectorAll('.xh-callout__body li')).toHaveLength(2);
         expect(container.querySelector('img')).toBeNull();
     });
 
     it('shows a placeholder until its title or text begins, then its intent at once', () => {
         const waiting = renderCallout({intent: 'danger'}, true);
         expect(waiting.container.querySelector('.xh-chat-ui-skeleton')).toBeTruthy();
-        expect(waiting.container.querySelector('.xh-banner')).toBeNull();
+        expect(waiting.container.querySelector('.xh-callout')).toBeNull();
         waiting.unmount();
 
         // The intent and the title arrive before the text, so a warning shows as one at once.
+        // With no text yet, the callout has no empty body under its title.
         const early = renderCallout({intent: 'danger', title: 'Limit br'}, true);
-        expect(early.container.querySelector('.xh-banner').className).toContain(
-            'xh-banner--danger'
+        expect(early.container.querySelector('.xh-callout').className).toContain(
+            'xh-callout--intent-danger'
         );
+        expect(early.container.querySelector('.xh-callout__body')).toBeNull();
         early.unmount();
 
         // An intent cut short as it streams falls back to a note.
         const {container} = renderCallout({text: 'Desk limit', intent: 'warn' as any}, true);
-        expect(container.querySelector('.xh-banner').className).toContain('xh-banner--primary');
+        expect(container.querySelector('.xh-callout').className).toContain(
+            'xh-callout--intent-primary'
+        );
         expect(container.querySelector('.xh-chat-markdown--streaming')).toBeTruthy();
     });
 
