@@ -9,7 +9,7 @@ import {fmtDateTime} from '@xh/hoist/format';
 import {Icon} from '@xh/hoist/icon';
 import {action, bindable, observable} from '@xh/hoist/mobx';
 import {pluralize} from '@xh/hoist/utils/js';
-import {createObservableRef, useCached, useComposedRefs} from '@xh/hoist/utils/react';
+import {createObservableRef, isBlankNode, useCached, useComposedRefs} from '@xh/hoist/utils/react';
 import {
     type ChatImagePolicy,
     type ChatMarkdownCitations,
@@ -1141,7 +1141,11 @@ const dataPart = hoistCmp.factory<DataPartProps>({
 
     render({className, part, context, host, onEditQuestion}) {
         const renderer = getOwn(host.dataRenderers ?? {}, part.dataType);
-        if (renderer) return div({className, children: renderer(part, context)});
+        if (renderer) {
+            // A part that shows nothing takes no space, nor a gap in the message's layout.
+            const content = renderer(part, context);
+            return isBlankNode(content) ? null : div({className, children: content});
+        }
 
         // The built-in template, unless the app registers its own renderer for the type.
         if (part.dataType === CHAT_NO_ANSWER_DATA_TYPE) {

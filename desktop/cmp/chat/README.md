@@ -1035,6 +1035,19 @@ new ChatModel({
 });
 ```
 
+A renderer that returns null takes no space in the reply. For a type that never shows, such as
+state a codec reads back on the next request, give it an activity spec with `display: 'hidden'`
+in place of a renderer. The part then stays in the conversation and never renders:
+
+```typescript
+new ChatModel({
+    transport,
+    activities: [{dataType: 'app.state', display: 'hidden'}]
+});
+```
+
+See [`/core/`](../../../core/README.md#show-an-agents-activities) for activity specs.
+
 ### Render reply text yourself
 
 A model may write its reply in another language, such as OpenUI Lang, that the app draws with

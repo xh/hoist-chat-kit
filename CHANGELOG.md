@@ -29,6 +29,10 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 
 ### 🐞 Bug Fixes
 
+* Fixed a data part whose renderer returns null to take no space in the reply. It left an empty
+  wrapper, and each one added a gap between the parts around it. A renderer's component that
+  renders nothing now takes no gap either. For a type that never shows, set `display: 'hidden'` in
+  its activity spec.
 * Fixed the side panel to show a document's page, as "Page 12 of 38", in a toolbar. It showed as a
   bare line under the header.
 * Fixed `ChatWorkspace` to size its sidebar and side panel for Hoist's 1px panel splitter. It still

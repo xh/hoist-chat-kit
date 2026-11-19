@@ -616,6 +616,28 @@ describe('ChatMessageView', () => {
             });
         });
 
+        it('renders no wrapper for a data part whose renderer returns null', () => {
+            const host: ChatTranscript = {
+                messages: [
+                    new ChatMessage({
+                        id: 'a1',
+                        role: 'assistant',
+                        parts: [
+                            {type: 'data', id: 'd1', dataType: 'app.state', data: {}},
+                            text('t1', 'Answer'),
+                            {type: 'data', id: 'd2', dataType: 'app.card', data: {}}
+                        ]
+                    })
+                ],
+                dataRenderers: {'app.state': () => null, 'app.card': () => 'Card'}
+            };
+            const {container} = renderList(null, {host});
+
+            const wrappers = container.querySelectorAll('.xh-chat-message__data');
+            expect(wrappers).toHaveLength(1);
+            expect(wrappers[0].textContent).toBe('Card');
+        });
+
         it('moves between messages on Up and Down', () => {
             const host: ChatTranscript = {
                 messages: [
