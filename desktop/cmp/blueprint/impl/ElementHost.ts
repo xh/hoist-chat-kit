@@ -45,6 +45,13 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             const height = Math.min(model.contentHeight ?? Infinity, rows * ANSWER_ROW_HEIGHT),
                 title = blueprintModel.resolve(model.element.config?.title),
                 hasTitle = title != null && title !== '';
+            if (viewModel.framePanel) {
+                return viewModel.framePanel({
+                    title: hasTitle ? String(title) : null,
+                    contentHeight: height,
+                    children: component({model})
+                });
+            }
             // A title draws in a header, as a dashboard's cell draws it, above the content.
             return panel({
                 className: 'xh-blueprint-view__answer-panel',

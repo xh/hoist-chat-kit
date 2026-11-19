@@ -28,13 +28,27 @@ const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> =
  * its config changes. Creates and destroys models as elements come and go, outside of rendering,
  * so a render only looks them up.
  */
+/**
+ * Draws a widget that sizes to its content outside a dashboard, as in a chat answer: its title, if
+ * any, its content, and the height in pixels that the content takes. The host's own chrome, such as
+ * a border and a header, adds to that height.
+ */
+export type BlueprintPanelFrame = (props: {
+    title: string;
+    contentHeight: number;
+    children: ReactNode;
+}) => ReactNode;
+
 export class BlueprintViewModel extends HoistModel {
     readonly blueprintModel: BlueprintModel;
+    /** How the host frames a panel in an answer. Null for a Hoist panel. */
+    readonly framePanel: BlueprintPanelFrame;
     private readonly widgets = new Map<string, {component: string; model: BlueprintWidgetModel}>();
 
-    constructor(blueprintModel: BlueprintModel) {
+    constructor(blueprintModel: BlueprintModel, opts: {framePanel?: BlueprintPanelFrame} = {}) {
         super();
         this.blueprintModel = blueprintModel;
+        this.framePanel = opts.framePanel ?? null;
         // Registered before the widgets are made, so that it runs ahead of their reactions and
         // destroys a widget whose element is gone before the widget reacts to it.
         this.addReaction({

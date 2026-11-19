@@ -1,0 +1,5 @@
+// The frame fills the height its panel takes for its content.
+.xh-chat-ui-answer-panel > .xh-chat-ui-frame {
+  flex: 1 1 auto;
+  min-height: 0;
+}

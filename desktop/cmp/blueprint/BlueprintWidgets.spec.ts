@@ -1,5 +1,6 @@
 import {fireEvent, render, screen} from '@testing-library/react';
-import {div} from '@xh/hoist/cmp/layout';
+import {div, fragment} from '@xh/hoist/cmp/layout';
+import type {ReactElement} from 'react';
 import {hoistCmp, uses, XH} from '@xh/hoist/core';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
@@ -692,6 +693,36 @@ describe('blueprint desktop widgets', () => {
         const model = open(loadBlueprint('p1-one-grid.json'));
         render(blueprintView({model}));
         expect(await screen.findByText('As of')).toBeTruthy();
+    });
+
+    it('draws a titled answer panel in a Hoist panel when its host gives no frame', () => {
+        const registry = scenarioRegistry();
+        registry.addPresentation('cubeGrid', {
+            name: 'card',
+            label: 'Card',
+            guidance: 'A flat preview.',
+            component: (() => null) as any,
+            ignores: ['groupBy']
+        });
+        const bp = loadBlueprint('p1-one-grid.json');
+        bp.elements.posGrid.config.title = 'Positions';
+        const model = new BlueprintModel({
+                blueprint: bp,
+                catalog: portfolioCatalog,
+                registry,
+                dataProvider: provider,
+                isAnswer: true,
+                defaultPresentation: 'card'
+            }),
+            viewModel = new BlueprintViewModel(model);
+        onTestFinished(() => {
+            viewModel.destroy();
+            model.destroy();
+        });
+        const {container} = render(fragment(viewModel.renderElement('posGrid')) as ReactElement),
+            panel = container.querySelector<HTMLElement>('.xh-blueprint-view__answer-panel');
+        expect(panel.querySelector('.xh-panel-header')?.textContent).toContain('Positions');
+        expect(panel.style.height).toBe('calc(300px + var(--xh-title-compact-height))');
     });
 
     it('renders a dashCanvas child as DashCanvasView renders view content', async () => {

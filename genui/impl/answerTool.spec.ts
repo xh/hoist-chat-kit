@@ -243,22 +243,28 @@ describe('show_ui with answer blueprints', () => {
 
         it('draws as a grid panel of its default height when grouped, as the card draws flat', async () => {
             const container = await drawn({groupBy: ['sector']}),
-                panel = container.querySelector<HTMLElement>('.xh-blueprint-view__answer-panel');
+                panel = container.querySelector<HTMLElement>('.xh-chat-ui-answer-panel');
             expect(panel.querySelector('.xh-blueprint-cube-grid')).toBeTruthy();
-            // A Hoist panel, a flex column of full width, so the grid fills it in a stack or a tab.
-            expect(panel.classList).toContain('xh-panel');
-            expect(panel.style).toMatchObject({height: '300px', width: '100%', display: 'flex'});
+            // In chat kit's card frame, at full width, so the grid fills it in a stack or a tab.
+            expect(panel.querySelector('.xh-chat-ui-frame .xh-blueprint-cube-grid')).toBeTruthy();
+            expect(panel.style).toMatchObject({
+                height: 'calc(300px + 2 * var(--xh-border-width))',
+                width: '100%',
+                display: 'flex'
+            });
             expect(container.querySelector('.xh-chat-ui-grid')).toBeNull();
         });
 
-        it('draws its title in a panel header, above the height of its content', async () => {
+        it('draws its title in the header strip of its frame, above the height of its content', async () => {
             const height = vi.spyOn(CubeGridWidgetModel.prototype, 'contentHeight', 'get');
             onTestFinished(() => height.mockRestore());
             height.mockReturnValue(120);
             const container = await drawn({groupBy: ['sector'], title: 'By sector'}),
-                panel = container.querySelector<HTMLElement>('.xh-blueprint-view__answer-panel');
-            expect(panel.querySelector('.xh-panel-header')?.textContent).toContain('By sector');
-            expect(panel.style.height).toBe('calc(120px + var(--xh-title-compact-height))');
+                panel = container.querySelector<HTMLElement>('.xh-chat-ui-answer-panel');
+            expect(panel.querySelector('.xh-chat-ui-frame__title')?.textContent).toBe('By sector');
+            expect(panel.style.height).toBe(
+                'calc(120px + 2 * var(--xh-border-width) + var(--xh-chat-part-header-height, 28px))'
+            );
         });
 
         it('sizes to its content, up to its default height', async () => {
@@ -267,12 +273,12 @@ describe('show_ui with answer blueprints', () => {
             const panelHeight = async (content: number) => {
                 height.mockReturnValue(content);
                 const container = await drawn({groupBy: ['sector']});
-                return container.querySelector<HTMLElement>('.xh-blueprint-view__answer-panel')
-                    .style.height;
+                return container.querySelector<HTMLElement>('.xh-chat-ui-answer-panel').style
+                    .height;
             };
-            expect(await panelHeight(120)).toBe('120px');
-            expect(await panelHeight(900)).toBe('300px');
-            expect(await panelHeight(null)).toBe('300px');
+            expect(await panelHeight(120)).toBe('calc(120px + 2 * var(--xh-border-width))');
+            expect(await panelHeight(900)).toBe('calc(300px + 2 * var(--xh-border-width))');
+            expect(await panelHeight(null)).toBe('calc(300px + 2 * var(--xh-border-width))');
         });
 
         it('fills the width of a stack and of a tab, as at the root', async () => {
@@ -296,18 +302,16 @@ describe('show_ui with answer blueprints', () => {
                     }
                 });
             await vi.waitFor(() =>
-                expect(container.querySelector('.xh-blueprint-view__answer-panel')).toBeTruthy()
+                expect(container.querySelector('.xh-chat-ui-answer-panel')).toBeTruthy()
             );
-            container
-                .querySelectorAll<HTMLElement>('.xh-blueprint-view__answer-panel')
-                .forEach(panel => {
-                    expect(panel.classList).toContain('xh-panel');
-                    expect(panel.style).toMatchObject({
-                        height: '300px',
-                        width: '100%',
-                        display: 'flex'
-                    });
+            container.querySelectorAll<HTMLElement>('.xh-chat-ui-answer-panel').forEach(panel => {
+                expect(panel.querySelector('.xh-chat-ui-frame')).toBeTruthy();
+                expect(panel.style).toMatchObject({
+                    height: 'calc(300px + 2 * var(--xh-border-width))',
+                    width: '100%',
+                    display: 'flex'
                 });
+            });
         });
 
         it('draws as a grid panel when styled, as the card ignores styles', async () => {

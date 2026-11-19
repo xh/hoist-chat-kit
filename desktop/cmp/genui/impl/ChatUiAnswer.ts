@@ -22,7 +22,12 @@ import {
     ChatUiAnswerHostContext,
     type ChatUiAnswerRenderProps
 } from '../../../../genui/impl/specWidgets';
-import {BlueprintViewModel} from '../../blueprint/impl/BlueprintViewModel';
+import {
+    type BlueprintPanelFrame,
+    BlueprintViewModel
+} from '../../blueprint/impl/BlueprintViewModel';
+import {chatUiFrame} from '../ChatUiFrame';
+import './ChatUiAnswer.scss';
 import {ChartWidgetModel} from '../../blueprint/ChartWidget';
 import {CubeGridWidgetModel} from '../../blueprint/CubeGridWidget';
 import {StatCardStripWidgetModel} from '../../blueprint/StatCardStripWidget';
@@ -61,6 +66,21 @@ export const chatUiAnswer = hoistCmp.factory<ChatUiAnswerProps>({
         return bar || addBar ? vbox(bar, root, addBar) : root;
     }
 });
+
+/**
+ * A widget drawn as a panel in an answer, in the frame of chat kit's other cards: as tall as its
+ * content, its frame's border and, with a title, its header strip.
+ */
+const answerFrame: BlueprintPanelFrame = ({title, contentHeight, children}) =>
+    vbox({
+        className: 'xh-chat-ui-answer-panel',
+        height: `calc(${contentHeight}px + 2 * var(--xh-border-width)${
+            title ? ' + var(--xh-chat-part-header-height, 28px)' : ''
+        })`,
+        width: '100%',
+        flex: 'none',
+        children: chatUiFrame({title, children})
+    });
 
 /** Adds a complete answer to the app's host. */
 const answerAddBar = hoistCmp.factory<{answer: ChatUiAnswerProps} & HoistProps>({
@@ -299,7 +319,7 @@ class ChatUiAnswerModel extends HoistModel {
             defaultPresentation: 'card'
         });
         this.update(props);
-        this.viewModel = new BlueprintViewModel(this.blueprintModel);
+        this.viewModel = new BlueprintViewModel(this.blueprintModel, {framePanel: answerFrame});
         this.addReaction({
             track: () => this.blueprintModel.userActedAt,
             run: () => this.gate?.noteUserAction()
