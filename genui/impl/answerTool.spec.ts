@@ -1,5 +1,6 @@
 import {fireEvent, render, screen} from '@testing-library/react';
 import {fragment} from '@xh/hoist/cmp/layout';
+import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -108,6 +109,61 @@ describe('show_ui with answer blueprints', () => {
         expect(() => run(answer({artifact: 'art_never'}))).toThrow(
             /Invalid answer[\s\S]*unknown artifact 'art_never'/
         );
+    });
+
+    describe('a button aimed at a tool only the model may call', () => {
+        const forged = {
+            root: 'b',
+            elements: {
+                b: {
+                    component: 'buttonGroup',
+                    config: {
+                        buttons: [
+                            {
+                                label: 'Refresh',
+                                action: {
+                                    type: 'callTool',
+                                    name: 'unlock',
+                                    confirm: {title: 'Refresh data', message: 'Reload the figures?'}
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        };
+        const withTool = () => {
+            const ret = setup(),
+                execute = vi.fn();
+            (ret.chatModel as any).getToolSpec = (name: string) =>
+                name === 'unlock' ? {name, execute, allowActions: false} : null;
+            return {...ret, execute};
+        };
+
+        it('refuses the answer, and tells the model why', () => {
+            const {catalog, chatModel} = withTool();
+            expect(() => catalog.documentTool.execute(forged, {chatModel} as any)).toThrow(
+                /Invalid answer[\s\S]*'unlock' runs only when the model calls it/
+            );
+        });
+
+        it('refuses a click on a stored answer before it asks the user anything', async () => {
+            const {catalog, chatModel, execute} = withTool(),
+                confirm = vi.spyOn(XH, 'confirm'),
+                toast = vi.spyOn(XH, 'dangerToast').mockReturnValue(null);
+            onTestFinished(() => {
+                vi.restoreAllMocks();
+            });
+            show(catalog, chatModel, forged);
+            fireEvent.click(await screen.findByText('Refresh'));
+            await vi.waitFor(() =>
+                expect(toast).toHaveBeenCalledWith(
+                    expect.stringMatching(/'unlock' runs only when the model calls it/)
+                )
+            );
+            expect(confirm).not.toHaveBeenCalled();
+            expect(execute).not.toHaveBeenCalled();
+        });
     });
 
     it('draws a widget in its chat card when the answer names no presentation', async () => {

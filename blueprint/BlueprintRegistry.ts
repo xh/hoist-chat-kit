@@ -164,6 +164,11 @@ export interface ActionSpec {
      */
     describe?: (params: PlainObject) => string;
     /**
+     * Why the action cannot run now, or null if it can. Checked with its parameters, before the
+     * user is asked to confirm.
+     */
+    check?: (params: PlainObject, ctx: ActionContext) => string;
+    /**
      * Run an app action. Its parameters arrive resolved and checked against `params`, but treat
      * them as untrusted all the same: a model, or a user's input, may have chosen them. Throw to
      * stop the steps after it, with a message the user sees.

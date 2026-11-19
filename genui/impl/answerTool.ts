@@ -1,6 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {isPlainObject} from 'lodash';
+import {isArray, isPlainObject, isString} from 'lodash';
 import type {Blueprint, BlueprintIssue, BlueprintRegistry} from '../../blueprint';
+import type {ChatToolSpec} from '../../core';
 // From its own module, not the barrel, so the Node harness can load this file.
 import {validateBlueprint, type ValidateBlueprintContext} from '../../blueprint/validateBlueprint';
 
@@ -68,17 +69,31 @@ export function answerToolDescription(registry: BlueprintRegistry): string {
 /**
  * Whether a complete answer shows, and the issues the model gets back. An answer with any error
  * shows nothing, and the model is asked to fix it. This is the one place that decides it.
+ *
+ * @param ctx - with `getTool`, the chat's client tool of a name, so that an answer cannot call a
+ *      tool that only the model may call.
  */
 export function checkAnswer(
     input: unknown,
-    ctx: ValidateBlueprintContext
+    ctx: ValidateBlueprintContext & {getTool?: (name: string) => ChatToolSpec}
 ): {isShown: boolean; issues: BlueprintIssue[]} {
-    const issues = validateBlueprint(input as Blueprint, {
-        ...ctx,
-        isAnswer: true,
-        allowReserved: false
-    });
+    const {getTool, ...rest} = ctx,
+        issues = [
+            ...validateBlueprint(input as Blueprint, {
+                ...rest,
+                isAnswer: true,
+                allowReserved: false
+            }),
+            ...(getTool ? findModelOnlyCalls(input, getTool) : [])
+        ];
     return {isShown: !issues.some(it => it.severity === 'error'), issues};
+}
+
+/** Why a UI action cannot call this tool, or null if it can. */
+export function refuseActionCall(tool: ChatToolSpec, name: string): string {
+    return tool?.allowActions === false
+        ? `Tool '${name}' runs only when the model calls it.`
+        : null;
 }
 
 /**
@@ -96,6 +111,28 @@ export function isDocumentShape(input: unknown): boolean {
 //------------------
 // Implementation
 //------------------
+function findModelOnlyCalls(
+    value: unknown,
+    getTool: (name: string) => ChatToolSpec,
+    path = ''
+): BlueprintIssue[] {
+    if (isArray(value))
+        return value.flatMap((it, i) => findModelOnlyCalls(it, getTool, `${path}/${i}`));
+    if (!isPlainObject(value)) return [];
+    const v = value as PlainObject,
+        refused =
+            v.type === 'callTool' && isString(v.name)
+                ? refuseActionCall(getTool(v.name), v.name)
+                : null,
+        own: BlueprintIssue[] = refused
+            ? [{code: 'action.modelOnlyTool', severity: 'error', path, message: refused}]
+            : [];
+    return [
+        ...own,
+        ...Object.entries(v).flatMap(([k, it]) => findModelOnlyCalls(it, getTool, `${path}/${k}`))
+    ];
+}
+
 function widgetNames(registry: BlueprintRegistry): string[] {
     return Object.keys(registry.widgets).filter(it => !registry.widgets[it].reserved);
 }

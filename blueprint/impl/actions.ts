@@ -95,6 +95,8 @@ function checkAction(model: BlueprintModel, step: PlainObject): string {
         const at = problem.path.length ? ` at ${problem.path.join('.')}` : '';
         return `${spec.name} cannot run${at}: ${problem.message}.`;
     }
+    const refused = spec.check?.(paramsOf(step), {blueprintModel: model});
+    if (refused) return refused;
     switch (step.type) {
         case 'setVariable':
         case 'resetVariable': {

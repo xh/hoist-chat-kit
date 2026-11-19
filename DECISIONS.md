@@ -3040,7 +3040,9 @@ asks the user on the chat's approval card to switch to design mode. The card's q
 kit's own, and the model's reason shows only as a quote beneath it. It asks only in run mode with
 write access, rechecks access as it runs, and returns the mode that results. A `ChatToolSpec`
 with `allowActions: false`, as this tool has, refuses calls from a generative UI `callTool`
-action, so a button the model wrote cannot frame the approval falsely.
+action, so a button the model wrote cannot frame the approval falsely. `show_ui` refuses an answer
+whose `callTool` names such a tool, and a click on a stored one fails before the user is asked to
+confirm. A blueprint `ActionSpec` can `check` its parameters before that confirmation.
 
 `ChatUiAnswersConfig.addToHost` puts an "Add to dashboard" button on each complete answer, while
 its `isAvailable()` is true. A click calls its `add()` with the answer's ID. `addToBlueprint(model)`

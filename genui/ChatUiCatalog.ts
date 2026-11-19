@@ -99,7 +99,8 @@ import {
     answerBlueprintSchema,
     answerToolDescription,
     checkAnswer,
-    isDocumentShape
+    isDocumentShape,
+    refuseActionCall
 } from './impl/answerTool';
 import {
     CHILD_REF_PROPS,
@@ -989,10 +990,8 @@ export class ChatUiCatalog {
                 const tool = chatModel.getToolSpec(action.name),
                     input = action.input ?? {};
                 throwIf(!tool?.execute, `No client tool named '${action.name}'.`);
-                throwIf(
-                    tool.allowActions === false,
-                    `Tool '${action.name}' runs only when the model calls it.`
-                );
+                const refused = refuseActionCall(tool, action.name);
+                throwIf(refused, refused);
                 throwIf(chatModel.isBusy, 'Wait for the reply to finish.');
                 // The check must cover the whole schema, or invalid input would reach the tool.
                 const schemaProblems = tool.parameters ? findSchemaProblems(tool.parameters) : [];
@@ -1471,7 +1470,12 @@ export class ChatUiCatalog {
             dataCatalog: this.answerDataCatalog,
             registry: this.getRegistry(chatModel)
         });
-        return checkAnswer(input, {catalog: dataCatalog, registry: this.registry, artifacts});
+        return checkAnswer(input, {
+            catalog: dataCatalog,
+            registry: this.registry,
+            artifacts,
+            getTool: name => chatModel?.getToolSpec(name)
+        });
     }
 
     private get answerDataCatalog(): DataCatalog {

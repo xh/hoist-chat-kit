@@ -25,6 +25,7 @@ import type {ChatUiCatalog} from '../ChatUiCatalog';
 import type {ChatUiComponentSpec, ChatUiDocumentContext} from '../ChatUiComponentSpec';
 import type {ChatUiNode} from '../ChatUiDocument';
 import {getOwn} from '../../impl/LangUtils';
+import {refuseActionCall} from './answerTool';
 import type {ChatUiBoundProps} from './answerBlueprint';
 
 /**
@@ -198,6 +199,15 @@ export function toActionSpecs(catalog: ChatUiCatalog): ActionSpec[] {
                 properties: omit(properties, 'type', 'confirm')
             },
             describe: params => describeChatUiAction({type, ...params} as ChatUiAction),
+            // Refused before the runner asks the user to confirm.
+            check: (params, {blueprintModel}) => {
+                if (type !== 'callTool') return null;
+                const host = blueprintModel.hostContext as ChatUiAnswerHostContext;
+                return refuseActionCall(
+                    host?.context.chatModel?.getToolSpec(params.name),
+                    params.name
+                );
+            },
             run: (params, {blueprintModel}) => {
                 const host = blueprintModel.hostContext as ChatUiAnswerHostContext;
                 throwIf(!host, `A '${type}' action runs only in a chat answer.`);
