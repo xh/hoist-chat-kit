@@ -218,6 +218,111 @@ describe('toAnswerBlueprint', () => {
         });
     });
 
+    describe('charts', () => {
+        const translate = (props: object, partialIds: string[] = []) =>
+            toAnswerBlueprint({root: 'c', elements: {c: {component: 'chart', props}}} as any, {
+                partialIds,
+                isValid: (name, props, isPartial) =>
+                    catalog.validate(name, props, {isPartial}).length === 0
+            });
+
+        it('translates a category chart into a chart over an inline source, in category order', () => {
+            const bp = translate({
+                title: 'Monthly revenue',
+                type: 'column',
+                xAxis: {categories: ['Mar', 'Jan']},
+                yAxis: {title: 'USD', format: 'currency', decimals: 0},
+                series: [
+                    {name: 'Revenue', data: [231000, 182000]},
+                    {name: 'Cost', data: [90000]}
+                ]
+            });
+            expect(bp.elements.c).toEqual({
+                component: 'chart',
+                config: {
+                    source: 'c',
+                    presentation: 'card',
+                    type: 'column',
+                    x: 'x',
+                    y: ['s0', 's1'],
+                    sortBy: 'xOrder|asc',
+                    title: 'Monthly revenue',
+                    xTitle: '',
+                    yTitle: 'USD'
+                }
+            });
+            const {fields, rows} = bp.sources.c.inline;
+            expect(rows).toEqual([
+                {x: 'Mar', xOrder: 0, s0: 231000, s1: 90000},
+                {x: 'Jan', xOrder: 1, s0: 182000}
+            ]);
+            expect(fields).toEqual([
+                {name: 'x', type: 'string', isDimension: true},
+                {name: 'xOrder', type: 'number', aggregator: 'MIN'},
+                {
+                    name: 's0',
+                    label: 'Revenue',
+                    type: 'number',
+                    aggregator: 'SUM',
+                    format: {prefix: '$', precision: 0}
+                },
+                {
+                    name: 's1',
+                    label: 'Cost',
+                    type: 'number',
+                    aggregator: 'SUM',
+                    format: {prefix: '$', precision: 0}
+                }
+            ]);
+        });
+
+        it('merges the points of a datetime chart by date, with no category order', () => {
+            const bp = translate({
+                type: 'line',
+                xAxis: {type: 'datetime'},
+                series: [
+                    {
+                        name: 'A',
+                        data: [
+                            ['2026-11-18', 1],
+                            ['2026-11-19', 2]
+                        ]
+                    },
+                    {name: 'B', data: [['2026-11-19', 3]]}
+                ]
+            });
+            expect(bp.elements.c.config.sortBy).toBeUndefined();
+            expect(bp.sources.c.inline.fields[0]).toEqual({name: 'x', type: 'localDate'});
+            expect(bp.sources.c.inline.rows).toEqual([
+                {x: '2026-11-18', xOrder: 0, s0: 1},
+                {x: '2026-11-19', xOrder: 1, s0: 2, s1: 3}
+            ]);
+        });
+
+        it('takes the names of a pie from its pairs', () => {
+            const bp = translate({
+                type: 'pie',
+                series: [
+                    {
+                        name: 'Share',
+                        data: [
+                            ['Equities', 60],
+                            ['Bonds', 40]
+                        ]
+                    }
+                ]
+            });
+            expect(bp.sources.c.inline.rows.map(it => it.x)).toEqual(['Equities', 'Bonds']);
+        });
+
+        it('leaves a chart by reference, and one that fails the catalog, as the spec', () => {
+            expect(
+                translate({data: 'art_1', type: 'line', x: 'd', y: ['v']}).elements.c.component
+            ).toBe('chatUiChart');
+            expect(translate({type: 'nope', series: []}).elements.c.component).toBe('chatUiChart');
+        });
+    });
+
     it('turns children and named slots into child references', () => {
         const bp = toAnswerBlueprint({
             root: 'top',

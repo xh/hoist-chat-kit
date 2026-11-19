@@ -131,6 +131,73 @@ function toCubeGrid(id: string, props: PlainObject): Translation {
     };
 }
 
+/**
+ * A chart over an inline source: a row per point of the x-axis, with the value of each series.
+ * Plain values take their category, in order, and pairs their x. Categories keep their order
+ * through `xOrder`, as the Cube groups them by name. Every point stays: the chart's card leaves
+ * out the one still arriving itself.
+ */
+function toChart(id: string, props: PlainObject): Translation {
+    if (props.data != null || !isArray(props.series)) return null;
+    const series = props.series.filter(isPlainObject);
+    if (!series.length || series.length > MAX_CHART_SERIES) return null;
+
+    const isDatetime = props.xAxis?.type === 'datetime',
+        categories: unknown[] = isArray(props.xAxis?.categories) ? props.xAxis.categories : [],
+        rows = new Map<string, PlainObject>();
+    series.forEach((it, idx) =>
+        (isArray(it.data) ? it.data : []).forEach((point: unknown, pointIdx: number) => {
+            const [x, value] = isArray(point)
+                    ? point
+                    : [categories[pointIdx] ?? String(pointIdx), point],
+                key = String(x),
+                row = rows.get(key) ?? {x, xOrder: rows.size};
+            row[`s${idx}`] = value;
+            rows.set(key, row);
+        })
+    );
+    const xs = [...rows.values()].map(it => it.x),
+        xField = isDatetime
+            ? {name: 'x', type: xs.every(isString) ? 'localDate' : 'date'}
+            : {name: 'x', type: 'string', isDimension: true},
+        yFormat = toFieldFormat(props.yAxis?.format, props.yAxis?.decimals, false);
+    return {
+        element: {
+            component: 'chart',
+            config: {
+                source: id,
+                presentation: 'card',
+                type: props.type,
+                x: 'x',
+                y: series.map((_, idx) => `s${idx}`),
+                ...(isDatetime ? {} : {sortBy: 'xOrder|asc'}),
+                ...(props.title ? {title: props.title} : {}),
+                xTitle: props.xAxis?.title ?? '',
+                yTitle: props.yAxis?.title ?? ''
+            }
+        },
+        source: {
+            inline: {
+                fields: [
+                    xField,
+                    {name: 'xOrder', type: 'number', aggregator: 'MIN'},
+                    ...series.map((it, idx) => ({
+                        name: `s${idx}`,
+                        ...(it.name ? {label: it.name} : {}),
+                        type: 'number',
+                        aggregator: 'SUM',
+                        ...yFormat
+                    }))
+                ],
+                rows: [...rows.values()]
+            }
+        } as SourceDecl
+    };
+}
+
+// The most series a blueprint chart takes. A chart with more stays the spec.
+const MAX_CHART_SERIES = 8;
+
 const GRID_TYPES: Record<string, string> = {
     string: 'string',
     number: 'number',
@@ -208,7 +275,8 @@ const TRANSLATORS: Record<
     (id: string, props: PlainObject, isPartial: boolean) => Translation
 > = {
     statCards: toStatCardStrip,
-    grid: toCubeGrid
+    grid: toCubeGrid,
+    chart: toChart
 };
 
 function ids(value: unknown): string[] {

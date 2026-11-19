@@ -8,7 +8,7 @@ import {
     uses,
     XH
 } from '@xh/hoist/core';
-import {castArray, isFinite, isPlainObject, isString, omit} from 'lodash';
+import {castArray, dropRightWhile, isArray, isFinite, isPlainObject, isString, omit} from 'lodash';
 import {useOnUnmount} from '@xh/hoist/utils/react';
 import {useEffect, useState} from 'react';
 import {type BlueprintDataProvider, BlueprintModel, type FieldDef} from '../../../../blueprint';
@@ -18,9 +18,12 @@ import {
     type ChatUiAnswerRenderProps
 } from '../../../../genui/impl/specWidgets';
 import {BlueprintViewModel} from '../../blueprint/impl/BlueprintViewModel';
+import {ChartWidgetModel} from '../../blueprint/ChartWidget';
 import {CubeGridWidgetModel} from '../../blueprint/CubeGridWidget';
 import {StatCardStripWidgetModel} from '../../blueprint/StatCardStripWidget';
+import {chatUiChart, type ChatUiChartSpecProps} from '../ChatUiChart';
 import {chatUiGrid, type ChatUiGridColumn} from '../ChatUiGrid';
+import type {ChatUiNumberFormat} from '../Types';
 
 interface ChatUiAnswerProps extends HoistProps, ChatUiAnswerRenderProps {}
 
@@ -73,6 +76,64 @@ const gridCard = hoistCmp.factory({
             sortBy: isString(config.sortBy) ? config.sortBy : null,
             isPartial: !!host?.isPartial(id)
         });
+    }
+});
+
+/** A chart drawn as chat kit's chart draws, with its menu, Expand and export. */
+const chartCard = hoistCmp.factory({
+    displayName: 'ChatUiChartCard',
+    model: uses(ChartWidgetModel),
+    render({model}) {
+        const props = toChatChartProps(model),
+            host = model.blueprintModel.hostContext as ChatUiAnswerHostContext;
+        return props ? chatUiChart({...props, isPartial: !!host?.isPartial(model.id)}) : null;
+    }
+});
+
+/**
+ * A chart's props as chat kit's chart takes them: the chart's own layout, with its y format as a
+ * chat number format, and the points a chat chart would not have, which the Cube fills in as null,
+ * left out. Null until the chart's source has a view.
+ */
+export function toChatChartProps(model: ChartWidgetModel): ChatUiChartSpecProps & {title?: string} {
+    const layout = model.getLayoutProps();
+    if (!layout) return null;
+    const {source, resolvedConfig: config} = model,
+        yField = source.fields[castArray(config.y ?? [])[0]],
+        isDatetime = layout.xAxis?.type === 'datetime';
+    // A pie names its slices in pairs, as a model writes them, where other charts take categories.
+    const categories: string[] = layout.xAxis?.categories ?? [],
+        isPie = layout.type === 'pie',
+        // An axis with no title takes none, where the translation wrote it as empty text.
+        xAxis = {...layout.xAxis, title: layout.xAxis?.title || null};
+    if (isPie) delete xAxis.categories;
+    return {
+        ...(config.title ? {title: config.title} : {}),
+        type: layout.type as ChatUiChartSpecProps['type'],
+        xAxis: xAxis as ChatUiChartSpecProps['xAxis'],
+        yAxis: {
+            ...layout.yAxis,
+            title: layout.yAxis?.title || null,
+            ...(yField ? toChatFormat(yField) : {})
+        },
+        series: (layout.series ?? []).map(it => ({
+            ...it,
+            data: isDatetime
+                ? it.data.filter(point => isArray(point) && point[1] != null)
+                : isPie
+                  ? it.data.map((value, idx) => [categories[idx], value])
+                  : dropRightWhile(it.data, point => point == null)
+        }))
+    } as ChatUiChartSpecProps & {title?: string};
+}
+
+ChatUiCatalog.answerPresentations.push({
+    widget: 'chart',
+    presentation: {
+        name: 'card',
+        label: 'Card',
+        guidance: 'Draws the chart as a chat reply does, with its menu, Expand and export.',
+        component: chartCard
     }
 });
 
@@ -132,23 +193,24 @@ class ChatUiAnswerModel extends HoistModel {
 
 // A field as a chat grid column, the reverse of how an inline grid's columns become fields.
 function toGridColumn(def: FieldDef): ChatUiGridColumn {
-    const type =
-            def.type === 'localDate' || def.type === 'date'
-                ? 'date'
-                : def.type === 'bool'
-                  ? 'boolean'
-                  : def.type === 'number' || def.type === 'int'
-                    ? 'number'
-                    : 'string',
-        ret: ChatUiGridColumn = {
-            field: def.name,
-            type,
-            ...(def.label ? {headerName: def.label} : {})
-        };
-    if (type !== 'number') return ret;
+    const ret: ChatUiGridColumn = {
+        field: def.name,
+        type: toChatType(def),
+        ...(def.label ? {headerName: def.label} : {})
+    };
+    return ret.type === 'number' ? {...ret, ...toChatFormat(def)} : ret;
+}
+
+function toChatType(def: FieldDef): ChatUiGridColumn['type'] {
+    if (def.type === 'localDate' || def.type === 'date') return 'date';
+    if (def.type === 'bool') return 'boolean';
+    return def.type === 'number' || def.type === 'int' ? 'number' : 'string';
+}
+
+// A number field's format as a chat number format, the reverse of how a chat format becomes one.
+function toChatFormat(def: FieldDef): {format: ChatUiNumberFormat; decimals?: number} {
     const format = (isPlainObject(def.format) ? def.format : {}) as PlainObject;
     return {
-        ...ret,
         format:
             def.kind === 'fraction'
                 ? 'percent'
