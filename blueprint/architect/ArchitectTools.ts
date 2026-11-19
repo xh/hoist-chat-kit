@@ -60,7 +60,13 @@ export interface ArchitectToolSpec {
     /** True if a target can run the tool. Default true. */
     isAvailable?: (target: ArchitectTarget) => boolean;
     /** Run the tool. Throws for a call the model should fix, with a message that says how. */
-    run: (input: PlainObject, target: ArchitectTarget) => unknown;
+    run: (input: PlainObject, target: ArchitectTarget, ctx?: ArchitectToolContext) => unknown;
+}
+
+/** What a tool may use beyond its target, such as the chat that runs it. */
+export interface ArchitectToolContext {
+    /** Keep a query's result as an artifact, where the target keeps none of its own. */
+    addArtifact?(artifact: ArchitectArtifact): void;
 }
 
 /**
@@ -72,7 +78,11 @@ export function architectChatTools(target: ArchitectTarget): ChatToolSpec[] {
         name,
         description,
         parameters,
-        execute: input => run(input, target)
+        // A query's result becomes an artifact of the chat that runs the tool.
+        execute: (input, ctx) =>
+            run(input, target, {
+                addArtifact: artifact => ctx?.chatModel?.artifacts?.add(artifact as any)
+            })
     }));
 }
 
@@ -288,7 +298,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
             }
         },
         isAvailable: target => !!target.dataProvider,
-        run: async (input, target) => {
+        run: async (input, target, ctx) => {
             const cat = target.catalogs.find(it => it.getDataset(input?.dataset)),
                 ds = cat?.getDataset(input?.dataset);
             if (!ds) {
@@ -328,7 +338,8 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
                 }),
                 id = `art_${(++artifactSeq).toString(16).padStart(3, '0')}`;
             target.artifacts[id] = ds.name;
-            target.addArtifact?.({
+            const addArtifact = target.addArtifact?.bind(target) ?? ctx?.addArtifact;
+            addArtifact?.({
                 id,
                 columns: requested.map(n => {
                     const {name, label, type} = ds.fields[n];

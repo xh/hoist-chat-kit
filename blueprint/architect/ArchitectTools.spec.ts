@@ -267,6 +267,22 @@ describe('Architect tools', () => {
         });
     });
 
+    it("adds a query's result to the chat's own artifacts, as a chat tool", async () => {
+        const model = open(),
+            add = vi.fn(),
+            tool = architectChatTools(model).find(it => it.name === 'query_dataset');
+        await tool.execute(
+            {dataset: 'positions', params: {asOf: '2026-07-01'}, fields: ['mktVal'], top: 3},
+            {chatModel: {artifacts: {add}}} as any
+        );
+        expect(add).toHaveBeenCalledWith(
+            expect.objectContaining({
+                totalRows: 3,
+                metadata: expect.objectContaining({dataset: 'positions'})
+            })
+        );
+    });
+
     it('finds every path that uses a field, a variable or a source', () => {
         const model = open();
         expect(run('find_usages', {variable: 'selection'}, model).usages).toEqual([
