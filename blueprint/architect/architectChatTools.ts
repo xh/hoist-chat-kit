@@ -1,4 +1,5 @@
 import {chatToolResult, type ChatToolSpec} from '../../core';
+import {keepArtifactRows} from '../../impl/ArtifactRows';
 import {
     type ArchitectArtifact,
     type ArchitectTarget,
@@ -15,9 +16,15 @@ export function architectChatTools(target: ArchitectTarget): ChatToolSpec[] {
         description,
         parameters,
         // A query's result becomes an artifact of the reply, which the chat records and keeps.
-        execute: async input => {
+        execute: async (input, ctx) => {
             const artifacts: ArchitectArtifact[] = [],
-                output = await run(input, target, {addArtifact: it => artifacts.push(it)});
+                output = await run(input, target, {
+                    addArtifact: (artifact, rows) => {
+                        artifacts.push(artifact);
+                        // The thread keeps it without rows. An answer shows the rows the model saw.
+                        if (ctx?.chatModel) keepArtifactRows(ctx.chatModel, artifact.id, rows);
+                    }
+                });
             return artifacts.length
                 ? chatToolResult(output, {artifacts: artifacts as any})
                 : output;

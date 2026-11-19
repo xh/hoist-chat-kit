@@ -1,6 +1,7 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {ChatToolResult} from '../../core';
+import {getArtifactRows} from '../../impl/ArtifactRows';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import {BlueprintModel} from '../BlueprintModel';
 import {FakeBlueprintDataProvider} from '../FakeBlueprintDataProvider';
@@ -254,8 +255,10 @@ describe('Architect tools', () => {
                 filter: {field: 'sector', op: '!=', value: 'Energy'},
                 top: 2
             },
-            result = await tool.execute(input, {chatModel: {}} as any);
+            chatModel = {},
+            result = await tool.execute(input, {chatModel} as any);
         expect(result).toBeInstanceOf(ChatToolResult);
+        expect(getArtifactRows(chatModel, result.output.id)).toEqual(result.output.rows);
         const [artifact] = result.artifacts;
         expect(artifact).toEqual({
             id: result.output.id,

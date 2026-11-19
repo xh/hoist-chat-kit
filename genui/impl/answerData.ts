@@ -18,25 +18,32 @@ import {toFieldFormat} from './answerBlueprint';
 export const ANSWER_MAX_ARTIFACT_ROWS = 5_000;
 
 /**
- * The rows of the chat's artifacts, for an answer's artifact sources. An artifact the chat holds
- * whole loads from its registry. One kept without its rows, as a query's result is, runs the
- * query's request again through `query`, so its rows are current. Any other that the registry
+ * The rows of the chat's artifacts, for an answer's artifact sources: the rows the model saw, while
+ * this session's chat holds them, or the registry's, for an artifact it holds whole. One kept
+ * without its rows, as a query's result is after a reload, runs the query's request again
+ * through `query`, so its rows are current. Any other that the registry
  * cannot load, or one the chat no longer holds, is no longer available. A result of more than
  * `maxRows` rows loads none, and shows as too large.
  */
 export function chatArtifactProvider(
     registry: ChatArtifactRegistry,
     opts: {
+        /** The rows the model saw of an artifact this session's chat made, or null. */
+        rowsOf?: (id: string) => PlainObject[];
         query?: (request: PlainObject) => Promise<{rows: PlainObject[]}>;
         maxRows?: number;
     }
 ): BlueprintArtifactProvider {
-    const {query, maxRows = ANSWER_MAX_ARTIFACT_ROWS} = opts;
+    const {rowsOf, query, maxRows = ANSWER_MAX_ARTIFACT_ROWS} = opts;
     return {
         async loadArtifactAsync(id: string) {
             const artifact = registry.get(id);
             if (!artifact) return null;
             if (artifact.totalRows > maxRows) return {rows: [], totalRows: artifact.totalRows};
+
+            // An answer is a record of what the model looked at, so it shows the rows it saw.
+            const kept = rowsOf?.(id);
+            if (kept) return {rows: kept, totalRows: kept.length};
 
             const isWhole = (artifact.rows?.length ?? 0) >= artifact.totalRows,
                 request = artifact.metadata?.request;

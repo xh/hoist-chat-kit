@@ -61,8 +61,8 @@ export interface ArchitectToolSpec {
 
 /** What a tool may use beyond its target, such as the chat that runs it. */
 export interface ArchitectToolContext {
-    /** Keep a query's result as an artifact of the reply. */
-    addArtifact?(artifact: ArchitectArtifact): void;
+    /** Keep a query's result as an artifact of the reply, with the rows the model saw. */
+    addArtifact?(artifact: ArchitectArtifact, rows: PlainObject[]): void;
 }
 
 /** The Architect's tools a target can run. */
@@ -281,16 +281,23 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
             const {dataset, requested, rows, totalRows} = await runDatasetQueryAsync(input, target),
                 id = `art_${(++artifactSeq).toString(16).padStart(3, '0')}`;
             target.artifacts[id] = dataset.name;
-            ctx?.addArtifact?.({
-                id,
-                columns: requested.map(n => {
-                    const {name, label, type} = dataset.fields[n];
-                    return {name, ...(label ? {label} : {}), type: COLUMN_TYPES[type] ?? 'string'};
-                }),
-                // The artifact is the result as cut by `top`, every row of it.
-                totalRows: rows.length,
-                metadata: {dataset: dataset.name, request: input}
-            });
+            ctx?.addArtifact?.(
+                {
+                    id,
+                    columns: requested.map(n => {
+                        const {name, label, type} = dataset.fields[n];
+                        return {
+                            name,
+                            ...(label ? {label} : {}),
+                            type: COLUMN_TYPES[type] ?? 'string'
+                        };
+                    }),
+                    // The artifact is the result as cut by `top`, every row of it.
+                    totalRows: rows.length,
+                    metadata: {dataset: dataset.name, request: input}
+                },
+                rows
+            );
             return {
                 id,
                 dataset: dataset.name,

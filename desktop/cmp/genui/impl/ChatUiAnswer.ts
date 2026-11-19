@@ -24,6 +24,7 @@ import {
 import {ChatUiCatalog} from '../../../../genui';
 import {AnswerLoadGate} from '../../../../genui/impl/AnswerLoadGate';
 import {chatArtifactProvider} from '../../../../genui/impl/answerData';
+import {getArtifactRows} from '../../../../impl/ArtifactRows';
 import {
     ChatUiAnswerHostContext,
     type ChatUiAnswerRenderProps
@@ -241,8 +242,10 @@ class ChatUiAnswerModel extends HoistModel {
         this.blueprintModel = new BlueprintModel({
             catalog: dataCatalog,
             artifacts,
-            // A query's artifact, kept without its rows, runs its request again within the bounds.
+            // A query's artifact shows the rows the model saw, or once they are gone, as after a
+            // reload, runs its request again within the bounds.
             artifactProvider: chatArtifactProvider(artifactRegistry, {
+                rowsOf: id => getArtifactRows(chatModel, id),
                 query: request =>
                     runDatasetQueryAsync(request, {
                         catalogs: [this.blueprintModel.catalog],

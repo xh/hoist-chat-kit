@@ -6,6 +6,7 @@ import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import type {Blueprint, BlueprintDataProvider} from '../../blueprint';
 import type {ChatModel, ChatToolCallPart} from '../../core';
 import {chatUiStackSpec, chatUiStatCardsSpec, chatUiTextSpec} from '../../desktop/cmp/genui';
+import {keepArtifactRows} from '../../impl/ArtifactRows';
 import {portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import {ChatArtifactRegistry} from '../ChatArtifactRegistry';
 import {ChatUiCatalog} from '../ChatUiCatalog';
@@ -104,6 +105,9 @@ describe('show_ui with answer blueprints', () => {
             run = (input: object) => catalog.documentTool.execute(input, {chatModel} as any);
         expect(await run(answer(DATASET))).toContain('Rendered an answer of 1 element');
         expect(() => run(answer({dataset: 'nope'}))).toThrow(/Invalid answer[\s\S]*nope/);
+        expect(() => run(answer({artifact: 'art_never'}))).toThrow(
+            /Invalid answer[\s\S]*unknown artifact 'art_never'/
+        );
     });
 
     it('renders a reply stored as a catalog document as it always has', () => {
@@ -168,7 +172,18 @@ describe('show_ui with answer blueprints', () => {
                 }
             });
 
-        it("runs its request again through the app's provider", async () => {
+        it('shows the rows the model saw while the chat holds them, with no query', async () => {
+            const {catalog, provider, artifacts, chatModel} = setup();
+            keep(artifacts);
+            keepArtifactRows(chatModel, 'art_2', [{mktVal: 100}, {mktVal: 250}]);
+            const {container} = show(catalog, chatModel, answer({artifact: 'art_2'}));
+            await vi.waitFor(() =>
+                expect(container.querySelector('.xh-stat-card__value')?.textContent).toMatch(/\d/)
+            );
+            expect(provider.loadAsync).not.toHaveBeenCalled();
+        });
+
+        it("runs its request again through the app's provider once its rows are gone", async () => {
             const {catalog, provider, artifacts, chatModel} = setup();
             keep(artifacts);
             show(catalog, chatModel, answer({artifact: 'art_2'}));

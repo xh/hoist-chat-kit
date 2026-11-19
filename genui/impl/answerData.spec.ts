@@ -85,7 +85,20 @@ describe('answer data', () => {
             {id: 'art_app', columns: [{name: 'v', type: 'number'}], totalRows: 3}
         ]);
 
-        it('runs the request of its query again, as of now', async () => {
+        it('shows the rows the model saw while the chat still holds them', async () => {
+            const query = vi.fn(),
+                provider = chatArtifactProvider(kept, {
+                    query,
+                    rowsOf: () => [{mktVal: 7}, {mktVal: 8}]
+                });
+            expect(await provider.loadArtifactAsync('art_q')).toEqual({
+                rows: [{mktVal: 7}, {mktVal: 8}],
+                totalRows: 2
+            });
+            expect(query).not.toHaveBeenCalled();
+        });
+
+        it('runs the request of its query again once its rows are gone, as of now', async () => {
             const query = vi.fn(async () => ({rows: [{mktVal: 1}, {mktVal: 2}], totalRows: 9})),
                 provider = chatArtifactProvider(kept, {query});
             expect(await provider.loadArtifactAsync('art_q')).toEqual({
