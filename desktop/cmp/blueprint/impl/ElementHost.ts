@@ -1,4 +1,4 @@
-import {div} from '@xh/hoist/cmp/layout';
+import {div, vbox} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import type {BlueprintViewModel} from './BlueprintViewModel';
 
@@ -40,9 +40,11 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             rows &&
             blueprintModel.presentationOf(id) === 'panel'
         ) {
-            return div({
+            return vbox({
                 className: 'xh-blueprint-view__answer-panel',
-                style: {height: rows * ANSWER_ROW_HEIGHT},
+                height: rows * ANSWER_ROW_HEIGHT,
+                width: '100%',
+                flex: 'none',
                 children: component({model})
             });
         }

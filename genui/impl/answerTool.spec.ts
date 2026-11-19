@@ -244,8 +244,49 @@ describe('show_ui with answer blueprints', () => {
             const container = await drawn({groupBy: ['sector']}),
                 panel = container.querySelector<HTMLElement>('.xh-blueprint-view__answer-panel');
             expect(panel.querySelector('.xh-blueprint-cube-grid')).toBeTruthy();
-            expect(panel.style.height).toBe('300px');
+            // A flex column of full width, so the grid fills it in a stack or a tab.
+            expect(panel.style).toMatchObject({
+                height: '300px',
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column'
+            });
             expect(container.querySelector('.xh-chat-ui-grid')).toBeNull();
+        });
+
+        it('fills the width of a stack and of a tab, as at the root', async () => {
+            const {catalog, chatModel} = setup(),
+                {sources, elements} = grid({groupBy: ['sector']}),
+                {container} = show(catalog, chatModel, {
+                    sources,
+                    root: 'tabs',
+                    elements: {
+                        tabs: {
+                            component: 'tabContainer',
+                            config: {},
+                            children: [
+                                {id: 'g', title: 'Grid'},
+                                {id: 'col', title: 'Stack'}
+                            ]
+                        },
+                        col: {component: 'stack', config: {}, children: [{id: 'g2'}]},
+                        g: elements.g,
+                        g2: elements.g
+                    }
+                });
+            await vi.waitFor(() =>
+                expect(container.querySelector('.xh-blueprint-view__answer-panel')).toBeTruthy()
+            );
+            container
+                .querySelectorAll<HTMLElement>('.xh-blueprint-view__answer-panel')
+                .forEach(panel =>
+                    expect(panel.style).toMatchObject({
+                        height: '300px',
+                        width: '100%',
+                        display: 'flex',
+                        flexDirection: 'column'
+                    })
+                );
         });
 
         it('draws as a grid panel when styled, as the card ignores styles', async () => {
