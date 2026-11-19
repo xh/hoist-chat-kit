@@ -1,12 +1,15 @@
+import {act, fireEvent, render, screen} from '@testing-library/react';
+import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {isArray} from 'lodash';
-import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {BlueprintModel, DataCatalog, degradeAnswer} from '../../../../blueprint';
 import {ChatUiCatalog} from '../../../../genui';
+import {AnswerLoadGate} from '../../../../genui/impl/AnswerLoadGate';
 import {toAnswerBlueprint} from '../../../../genui/impl/answerBlueprint';
 import {ChartWidgetModel} from '../../blueprint/ChartWidget';
 import {chatUiChartSpec} from '../ChatUiChart';
-import {toChatChartProps} from './ChatUiAnswer';
+import {answerLoadBar, toChatChartProps} from './ChatUiAnswer';
 import {toHighchartsConfig, toSeries} from './ChatUiChartData';
 
 /**
@@ -137,5 +140,56 @@ describe('a chart in an answer', () => {
         expect(toSeries(card, false)).toEqual(toSeries(props, false));
         expect(configOf(card)).toEqual(configOf(props));
         expect(card.title).toEqual(props.title);
+    });
+
+    describe('the load bar', () => {
+        const REQ = {dataset: 'positions', params: {}, fields: [], groupBy: []};
+
+        function gateFor(isLatest: boolean, maxLoadsPerMinute = 60) {
+            const loadAsync = vi.fn(async () => ({rows: []})),
+                chatModel = {
+                    messages: [
+                        {id: 'a1', role: 'assistant'},
+                        ...(isLatest ? [] : [{id: 'a2', role: 'assistant'}])
+                    ]
+                } as any,
+                gate = new AnswerLoadGate({
+                    provider: {loadAsync},
+                    chatModel,
+                    messageId: 'a1',
+                    maxLoadsPerMinute
+                });
+            onTestFinished(() => gate.destroy());
+            return {gate, loadAsync};
+        }
+
+        it('says that an earlier reply waits, and loads it when the user asks', async () => {
+            const {gate, loadAsync} = gateFor(false);
+            gate.loadAsync(REQ);
+            await wait();
+            render(answerLoadBar({gate}));
+            expect(screen.getByText('Data from an earlier reply.')).toBeTruthy();
+
+            fireEvent.click(screen.getByText('Load current data'));
+            await vi.waitFor(() => expect(loadAsync).toHaveBeenCalledOnce());
+        });
+
+        it('says that the chat is past its loads for the minute, and retries once it is up', async () => {
+            vi.useFakeTimers({now: 0, toFake: ['setTimeout', 'Date']});
+            onTestFinished(() => {
+                vi.useRealTimers();
+            });
+            const {gate, loadAsync} = gateFor(true, 1);
+            gate.loadAsync(REQ);
+            gate.loadAsync(REQ);
+            render(answerLoadBar({gate}));
+            const retry = screen.getByText('Retry').closest('button');
+            expect(retry.disabled).toBe(true);
+
+            act(() => vi.advanceTimersByTime(60_000));
+            expect(retry.disabled).toBe(false);
+            fireEvent.click(retry);
+            expect(loadAsync).toHaveBeenCalledTimes(2);
+        });
     });
 });

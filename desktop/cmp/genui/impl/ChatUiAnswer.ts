@@ -1,3 +1,4 @@
+import {filler, span, vbox} from '@xh/hoist/cmp/layout';
 import {statCard, statCardStrip} from '@xh/hoist/cmp/statcard';
 import {
     hoistCmp,
@@ -9,10 +10,14 @@ import {
     XH
 } from '@xh/hoist/core';
 import {castArray, dropRightWhile, isArray, isFinite, isPlainObject, isString, omit} from 'lodash';
+import {button} from '@xh/hoist/desktop/cmp/button';
+import {toolbar} from '@xh/hoist/desktop/cmp/toolbar';
+import {Icon} from '@xh/hoist/icon';
 import {useOnUnmount} from '@xh/hoist/utils/react';
 import {useEffect, useState} from 'react';
 import {type BlueprintDataProvider, BlueprintModel, type FieldDef} from '../../../../blueprint';
 import {ChatUiCatalog} from '../../../../genui';
+import {AnswerLoadGate} from '../../../../genui/impl/AnswerLoadGate';
 import {
     ChatUiAnswerHostContext,
     type ChatUiAnswerRenderProps
@@ -36,7 +41,45 @@ export const chatUiAnswer = hoistCmp.factory<ChatUiAnswerProps>({
         const [impl] = useState(() => new ChatUiAnswerModel(props as ChatUiAnswerProps));
         useOnUnmount(() => XH.safeDestroy(impl));
         useEffect(() => impl.update(props as ChatUiAnswerProps));
-        return impl.viewModel.renderElement(impl.blueprintModel.blueprint?.root);
+        const root = impl.viewModel.renderElement(impl.blueprintModel.blueprint?.root);
+        return impl.gate?.barState ? vbox(answerLoadBar({gate: impl.gate}), root) : root;
+    }
+});
+
+/**
+ * Says why an answer's data waits, with the way on: an earlier reply loads once the user asks,
+ * and a chat past its loads for the minute retries once the minute is up.
+ */
+export const answerLoadBar = hoistCmp.factory<{gate: AnswerLoadGate} & HoistProps>({
+    displayName: 'ChatUiAnswerLoadBar',
+    model: false,
+    className: 'xh-chat-ui-answer-load-bar',
+    render({gate, className}) {
+        const isHeld = gate.barState === 'held';
+        return toolbar({
+            className,
+            compact: true,
+            items: [
+                span(
+                    isHeld
+                        ? 'Data from an earlier reply.'
+                        : 'This chat has loaded as much data as it may for a minute.'
+                ),
+                filler(),
+                isHeld
+                    ? button({
+                          text: 'Load current data',
+                          icon: Icon.refresh(),
+                          onClick: () => gate.noteUserAction()
+                      })
+                    : button({
+                          text: 'Retry',
+                          icon: Icon.refresh(),
+                          disabled: !gate.canRetry,
+                          onClick: () => gate.retry()
+                      })
+            ]
+        });
     }
 });
 
@@ -176,23 +219,33 @@ ChatUiCatalog.answerPresentations.push({
 //------------------
 class ChatUiAnswerModel extends HoistModel {
     @managed readonly host: ChatUiAnswerHostContext;
+    /** Bounds the answer's loads within its chat. Null for an answer shown outside a chat. */
+    @managed readonly gate: AnswerLoadGate;
     @managed readonly blueprintModel: BlueprintModel;
     @managed readonly viewModel: BlueprintViewModel;
 
     constructor(props: ChatUiAnswerRenderProps) {
         super();
-        const {catalog, dataCatalog, context} = props;
+        const {catalog, dataCatalog, context} = props,
+            {chatModel, messageId} = context;
         this.host = new ChatUiAnswerHostContext(context);
+        this.gate = chatModel
+            ? new AnswerLoadGate({provider: NO_DATASETS, chatModel, messageId})
+            : null;
         // Opened empty, then updated, as the constructor checks a blueprint in full.
         this.blueprintModel = new BlueprintModel({
             catalog: dataCatalog,
             registry: catalog.registry,
-            dataProvider: NO_DATASETS,
+            dataProvider: this.gate ?? NO_DATASETS,
             isAnswer: true,
             hostContext: this.host
         });
         this.update(props);
         this.viewModel = new BlueprintViewModel(this.blueprintModel);
+        this.addReaction({
+            track: () => this.blueprintModel.userActedAt,
+            run: () => this.gate?.noteUserAction()
+        });
     }
 
     update({blueprint, context, partialIds, writingIds}: ChatUiAnswerRenderProps) {
