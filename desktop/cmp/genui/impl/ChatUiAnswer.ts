@@ -1,4 +1,5 @@
-import {hoistCmp, HoistModel, type HoistProps, managed, XH} from '@xh/hoist/core';
+import {statCard, statCardStrip} from '@xh/hoist/cmp/statcard';
+import {hoistCmp, HoistModel, type HoistProps, managed, uses, XH} from '@xh/hoist/core';
 import {useOnUnmount} from '@xh/hoist/utils/react';
 import {useEffect, useState} from 'react';
 import {type BlueprintDataProvider, BlueprintModel} from '../../../../blueprint';
@@ -8,6 +9,7 @@ import {
     type ChatUiAnswerRenderProps
 } from '../../../../genui/impl/specWidgets';
 import {BlueprintViewModel} from '../../blueprint/impl/BlueprintViewModel';
+import {StatCardStripWidgetModel} from '../../blueprint/StatCardStripWidget';
 
 interface ChatUiAnswerProps extends HoistProps, ChatUiAnswerRenderProps {}
 
@@ -25,6 +27,30 @@ export const chatUiAnswer = hoistCmp.factory<ChatUiAnswerProps>({
 });
 
 ChatUiCatalog.answerRenderer = props => chatUiAnswer(props);
+
+/** A statCardStrip drawn as chat kit's stat cards draw, on the chat's surface. */
+const statCardsCard = hoistCmp.factory({
+    displayName: 'ChatUiStatCardsCard',
+    model: uses(StatCardStripWidgetModel),
+    render({model}) {
+        return statCardStrip({
+            className: 'xh-chat-ui-stat-cards',
+            children: model.cards.map(({title, value, subValue, detail, intent}, idx) =>
+                statCard({key: idx, title, value, subValue, detail, intent})
+            )
+        });
+    }
+});
+
+ChatUiCatalog.answerPresentations.push({
+    widget: 'statCardStrip',
+    presentation: {
+        name: 'card',
+        label: 'Card',
+        guidance: 'Draws the cards as a chat reply does, on the surface of the chat.',
+        component: statCardsCard
+    }
+});
 
 //------------------
 // Implementation

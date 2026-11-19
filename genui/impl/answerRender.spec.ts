@@ -5,7 +5,12 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished} from 'vitest';
 import {ChatModel} from '../../core';
 import {ScriptedChatTransport, textEvents} from '../../transport';
-import {chatUiButtonSpec, chatUiStackSpec, chatUiTextSpec} from '../../desktop/cmp/genui';
+import {
+    chatUiButtonSpec,
+    chatUiStackSpec,
+    chatUiStatCardsSpec,
+    chatUiTextSpec
+} from '../../desktop/cmp/genui';
 import {ChatUiCatalog} from '../ChatUiCatalog';
 import type {ChatUiDocument} from '../ChatUiDocument';
 
@@ -53,6 +58,35 @@ describe('documents as answer blueprints', () => {
                 }
             }
         });
+
+    it('renders stat cards over a source as the spec draws them', () => {
+        const cards = new ChatUiCatalog({components: [chatUiStatCardsSpec()]}),
+            doc = {
+                root: 'kpis',
+                elements: {kpis: {component: 'statCards', props: chatUiStatCardsSpec().example}}
+            },
+            draw = (answerBlueprints: boolean) => {
+                ChatUiCatalog.answerBlueprints = answerBlueprints;
+                return renderToStaticMarkup(
+                    fragment({
+                        children: cards.renderDocument(doc, {
+                            chatModel: createChatModel(),
+                            messageId: 'm1',
+                            part: {type: 'data', id: 'd1', dataType: 'xh.chat.ui', data: null},
+                            isPartial: false
+                        })
+                    })
+                );
+            },
+            text = (html: string) => html.replace(/<[^>]+>/g, '');
+
+        const asSpec = draw(false),
+            asAnswer = draw(true);
+        expect(asAnswer).toContain('xh-chat-ui-stat-cards');
+        expect(text(asSpec)).toContain('Revenue');
+        expect(text(asSpec)).toContain('Open issues');
+        expect(text(asAnswer)).toBe(text(asSpec));
+    });
 
     it('renders a component from its partial props while it streams, with its action disabled', () => {
         const html = render(withButton(), true);

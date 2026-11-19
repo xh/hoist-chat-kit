@@ -28,7 +28,7 @@ import {
     without
 } from 'lodash';
 import {type ReactNode, useEffect, useState} from 'react';
-import {BlueprintRegistry, DataCatalog, degradeAnswer} from '../blueprint';
+import {BlueprintRegistry, DataCatalog, degradeAnswer, type PresentationSpec} from '../blueprint';
 import type {ChatDataRenderer, ChatModel, ChatPartRenderContext, ChatToolSpec} from '../core';
 import {ChatArtifactRegistry, type ChatDataHandle} from './ChatArtifactRegistry';
 import {
@@ -381,13 +381,19 @@ export class ChatUiCatalog {
      * built-in has, such as `chart`, is the widget `chatUiChart`.
      */
     get registry(): BlueprintRegistry {
-        this._registry ??= new BlueprintRegistry({
-            widgets: [
-                ...this.components.map(it => toWidgetSpec(it, this)),
-                ...toStandInWidgetSpecs(this)
-            ],
-            actions: toActionSpecs(this)
-        });
+        if (!this._registry) {
+            const ret = new BlueprintRegistry({
+                widgets: [
+                    ...this.components.map(it => toWidgetSpec(it, this)),
+                    ...toStandInWidgetSpecs(this)
+                ],
+                actions: toActionSpecs(this)
+            });
+            ChatUiCatalog.answerPresentations.forEach(({widget, presentation}) =>
+                ret.addPresentation(widget, presentation)
+            );
+            this._registry = ret;
+        }
         return this._registry;
     }
 
@@ -400,6 +406,12 @@ export class ChatUiCatalog {
 
     /** The platform's renderer for an answer blueprint, set when its package loads. @internal */
     static answerRenderer: (props: ChatUiAnswerRenderProps) => ReactNode = null;
+
+    /**
+     * The presentations a chat adds to blueprint widgets, such as the card a grid takes in a reply,
+     * set when the platform's package loads. @internal
+     */
+    static answerPresentations: {widget: string; presentation: PresentationSpec}[] = [];
 
     /**
      * Render one component for an element of an answer blueprint, as {@link renderDocument}
@@ -1242,13 +1254,20 @@ export class ChatUiCatalog {
                     : [],
             partialIds = idsWhere(it => it?.isPartial !== false),
             writingIds = idsWhere(it => it?.isPartial === true),
-            blueprint = degradeAnswer(toAnswerBlueprint(doc), {
+            translated = toAnswerBlueprint(doc, {
+                partialIds,
+                isValid: (name, props, isPartial) =>
+                    isEmpty(this.validate(name, props, {isPartial}))
+            }),
+            blueprint = degradeAnswer(translated, {
                 catalog: ANSWER_DATA_CATALOG,
                 registry: this.registry,
                 isAnswer: true,
                 isComplete: !context.isPartial,
                 partialIds,
-                elementErrors: context.elementErrors
+                elementErrors: context.elementErrors,
+                // The translation drops each streaming element's last item, as its spec does.
+                trimInlineRows: false
             });
         return ChatUiCatalog.answerRenderer({
             blueprint,

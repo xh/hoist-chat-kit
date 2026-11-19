@@ -1,7 +1,7 @@
 import {statCard, statCardStrip} from '@xh/hoist/cmp/statcard';
 import {span} from '@xh/hoist/cmp/layout';
 import {hoistCmp, type Intent, managed, type PlainObject, uses} from '@xh/hoist/core';
-import type {View} from '@xh/hoist/data';
+import type {Cube, View} from '@xh/hoist/data';
 import {fmtNumber} from '@xh/hoist/format';
 import {computed, observableRef} from '@xh/hoist/mobx';
 import {castArray, isFinite, max, mean, min, sum, uniq} from 'lodash';
@@ -37,18 +37,18 @@ export class StatCardStripWidgetModel extends BlueprintWidgetModel<StatCardStrip
 
     constructor(config: BlueprintWidgetConfig) {
         super(config);
-        this.addReaction({
-            track: () => this.source?.cube,
-            run: cube => {
-                this.registerView(null);
-                this.view?.destroy();
-                this.view = cube
-                    ? cube.createView({query: {dimensions: [], includeRoot: true}, connect: true})
-                    : null;
-                this.registerView(this.view);
-            },
-            fireImmediately: true
-        });
+        // Built now, not by fireImmediately, which MobX defers inside a batch such as a render.
+        this.setCube(this.source?.cube);
+        this.addReaction({track: () => this.source?.cube, run: cube => this.setCube(cube)});
+    }
+
+    private setCube(cube: Cube) {
+        this.registerView(null);
+        this.view?.destroy();
+        this.view = cube
+            ? cube.createView({query: {dimensions: [], includeRoot: true}, connect: true})
+            : null;
+        this.registerView(this.view);
     }
 
     @computed

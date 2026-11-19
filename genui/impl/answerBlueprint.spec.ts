@@ -92,6 +92,63 @@ describe('toAnswerBlueprint', () => {
         }
     );
 
+    describe('stat cards', () => {
+        const cards = [
+                {label: 'Revenue', value: 1250000, format: 'currency', decimals: 0},
+                {label: 'Margin', value: 0.184, format: 'percent', delta: 0.012},
+                {label: 'Status', value: 'On track', intent: 'success'},
+                {label: 'VaR', value: 9, delta: 2, deltaLabel: 'vs Q2', invert: true}
+            ],
+            translate = (props: object, partialIds: string[] = []) =>
+                toAnswerBlueprint(
+                    {root: 'kpis', elements: {kpis: {component: 'statCards', props}}} as any,
+                    {
+                        partialIds,
+                        isValid: (name, props, isPartial) =>
+                            catalog.validate(name, props, {isPartial}).length === 0
+                    }
+                );
+
+        it('translates into a statCardStrip over an inline source, card by card', () => {
+            const bp = translate({cards});
+            expect(bp.elements.kpis).toEqual({
+                component: 'statCardStrip',
+                config: {
+                    source: 'kpis',
+                    presentation: 'card',
+                    cards: [
+                        {field: 'v0'},
+                        {field: 'v1', deltaField: 'd1'},
+                        {field: 'v2', intent: 'success'},
+                        {field: 'v3', deltaField: 'd3', deltaLabel: 'vs Q2', invert: true}
+                    ]
+                }
+            });
+            const {fields, rows} = bp.sources.kpis.inline;
+            expect(rows).toEqual([
+                {v0: 1250000, v1: 0.184, d1: 0.012, v2: 'On track', v3: 9, d3: 2}
+            ]);
+            expect(fields.find(it => it.name === 'v0')).toMatchObject({
+                label: 'Revenue',
+                type: 'number',
+                format: {prefix: '$', precision: 0, scale: 'auto'}
+            });
+            expect(fields.find(it => it.name === 'v1')).toMatchObject({kind: 'fraction'});
+            expect(fields.find(it => it.name === 'v2')).toMatchObject({type: 'string'});
+        });
+
+        it('drops the last card while it streams, and stays the spec until a card is complete', () => {
+            expect(translate({cards}, ['kpis']).elements.kpis.config.cards).toHaveLength(3);
+            expect(translate({cards: cards.slice(0, 1)}, ['kpis']).elements.kpis.component).toBe(
+                'statCards'
+            );
+        });
+
+        it('stays the spec when its props fail the catalog, so its fallback reads as one', () => {
+            expect(translate({cards: [{label: 'x'}]}).elements.kpis.component).toBe('statCards');
+        });
+    });
+
     it('turns children and named slots into child references', () => {
         const bp = toAnswerBlueprint({
             root: 'top',
