@@ -15,7 +15,7 @@ import {type ActionRunContext, describeAction, runActionsAsync} from './impl/act
 import {resolveBindings, resolveFilter} from './impl/bindings';
 import {getOwn, getAt as valueAt, setAt} from './impl/pointer';
 import {validateBlueprint} from './validateBlueprint';
-import type {BlueprintAccess, BlueprintMode} from './architect/blueprintContextProvider';
+import type {BlueprintAccess, BlueprintMode} from './Blueprint';
 import {checkEditAllowed} from './impl/access';
 import {checkVariableValue} from './impl/variableValues';
 

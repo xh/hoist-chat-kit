@@ -140,3 +140,9 @@ export interface BlueprintEdit {
 export function isVarBinding(v: unknown): v is VarBinding {
     return v != null && typeof v === 'object' && typeof (v as PlainObject).$var === 'string';
 }
+
+/** Run mode runs the published blueprint. Design mode edits its definition. */
+export type BlueprintMode = 'run' | 'design';
+
+/** Whether the user can change the blueprint's definition. */
+export type BlueprintAccess = 'read' | 'write';

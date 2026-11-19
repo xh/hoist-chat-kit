@@ -1,11 +1,5 @@
 import type {ChatContextProvider} from '../../core';
-import type {BlueprintModel} from '../BlueprintModel';
-
-/** Run mode runs the published blueprint. Design mode edits its definition. */
-export type BlueprintMode = 'run' | 'design';
-
-/** Whether the user can change the blueprint's definition. */
-export type BlueprintAccess = 'read' | 'write';
+import type {BlueprintModel} from '../../blueprint';
 
 /**
  * Sends the Architect, at every step, what it needs to edit a blueprint safely: the version its

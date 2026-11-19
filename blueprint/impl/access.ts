@@ -1,6 +1,6 @@
 import {isArray} from 'lodash';
 import type {BlueprintIssue} from '../Blueprint';
-import type {BlueprintAccess, BlueprintMode} from '../architect/blueprintContextProvider';
+import type {BlueprintAccess, BlueprintMode} from '../Blueprint';
 
 /**
  * The issue for the first op of an edit the user may not make, or null if they may make them

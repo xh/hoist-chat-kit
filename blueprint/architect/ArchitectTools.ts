@@ -2,7 +2,7 @@ import type {PlainObject} from '@xh/hoist/core';
 import {castArray, isArray, isPlainObject, pickBy, uniq} from 'lodash';
 import type {Blueprint, BlueprintEdit, BlueprintIssue, BlueprintOp} from '../Blueprint';
 import type {BlueprintDataProvider} from '../BlueprintDataProvider';
-import type {BlueprintAccess, BlueprintMode} from './blueprintContextProvider';
+import type {BlueprintAccess, BlueprintMode} from '../Blueprint';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
 import type {DataCatalog, DatasetDef} from '../DataCatalog';
 import {applyOps} from '../applyOps';

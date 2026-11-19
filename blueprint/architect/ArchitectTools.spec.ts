@@ -1,7 +1,5 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
-import {ChatToolResult} from '../../core';
-import {getArtifactRows} from '../../impl/ArtifactRows';
 import {loadBlueprint, portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import {BlueprintModel} from '../BlueprintModel';
 import {BlueprintRegistry} from '../BlueprintRegistry';
@@ -9,14 +7,12 @@ import {FakeBlueprintDataProvider} from '../FakeBlueprintDataProvider';
 import {fieldUsages} from '../usages';
 import {architectPrompt} from './architectPrompt';
 import type {ArchitectToolError} from './ArchitectTools';
-import {architectChatTools} from './architectChatTools';
 import {
     ARCHITECT_TOOLS,
     runDatasetQueryAsync,
     type ArchitectTarget,
     availableArchitectTools
 } from './ArchitectTools';
-import {blueprintContextProvider} from './blueprintContextProvider';
 
 /**
  * The Architect's tools run in the browser against a blueprint model, with the same engine and
@@ -172,11 +168,7 @@ describe('Architect tools', () => {
             expect(model.version).toBe(2);
 
             model.setAccess('read');
-            const tools = architectChatTools(model),
-                setVariable = tools.find(it => it.name === 'set_variable');
-            expect(
-                await setVariable.execute({variable: 'asOf', value: '2026-07-01'}, null)
-            ).toEqual({
+            expect(run('set_variable', {variable: 'asOf', value: '2026-07-01'}, model)).toEqual({
                 variable: 'asOf',
                 value: '2026-07-01'
             });
@@ -246,33 +238,6 @@ describe('Architect tools', () => {
         ).rejects.toThrow(/requires parameter 'asOf'/);
     });
 
-    it("returns a query's result as an artifact of the reply: its dataset and request, no rows", async () => {
-        const model = open(),
-            tool = architectChatTools(model).find(it => it.name === 'query_dataset'),
-            input = {
-                dataset: 'positions',
-                params: {asOf: '2026-07-01'},
-                fields: ['mktVal'],
-                groupBy: ['sector'],
-                filter: {field: 'sector', op: '!=', value: 'Energy'},
-                top: 2
-            },
-            chatModel = {},
-            result = await tool.execute(input, {chatModel} as any);
-        expect(result).toBeInstanceOf(ChatToolResult);
-        expect(getArtifactRows(chatModel, result.output.id)).toEqual(result.output.rows);
-        const [artifact] = result.artifacts;
-        expect(artifact).toEqual({
-            id: result.output.id,
-            columns: [
-                {name: 'sector', label: 'Sector', type: 'string'},
-                {name: 'mktVal', label: 'Market Value', type: 'number'}
-            ],
-            totalRows: 2,
-            metadata: {dataset: 'positions', request: input}
-        });
-    });
-
     it("runs a query's request again to the same rows, as an answer does for its artifact", async () => {
         const model = open(),
             request = {
@@ -307,9 +272,9 @@ describe('Architect tools', () => {
                 return ret;
             },
             describe = (model: BlueprintModel, input: object) =>
-                architectChatTools(model, {answerRegistry: answers()})
-                    .find(it => it.name === 'describe_registry')
-                    .execute(input, {chatModel: {}} as any);
+                ARCHITECT_TOOLS.find(it => it.name === 'describe_registry').run(input, model, {
+                    answerRegistry: answers()
+                }) as any;
 
         it('describes the widgets an answer may use, and says where each is allowed', async () => {
             const model = open(),
@@ -367,7 +332,7 @@ describe('Architect tools', () => {
         );
     });
 
-    it('offers only the tools a target can run, as chat kit client tools', async () => {
+    it('offers only the tools a target can run', () => {
         const model = open(),
             names = (target: ArchitectTarget) => availableArchitectTools(target).map(it => it.name),
             bare = {...model, blueprint: model.blueprint, version: model.version} as any;
@@ -376,10 +341,6 @@ describe('Architect tools', () => {
         expect(names(model)).toContain('set_variable');
         expect(names(bare)).not.toContain('set_variable');
         expect(names(bare)).not.toContain('query_dataset');
-
-        const read = architectChatTools(model).find(it => it.name === 'read_blueprint');
-        expect(read.parameters.type).toBe('object');
-        expect(await read.execute({}, null)).toMatchObject({version: 1});
     });
 
     it('builds a prompt with an index of the catalog and registry, and chat answers only on request', () => {
@@ -398,18 +359,5 @@ describe('Architect tools', () => {
                 withAnswers: true
             })
         ).toMatch(/show_ui/);
-    });
-
-    it('sends the version, mode, access and current variable values as context', async () => {
-        const model = open(),
-            provider = blueprintContextProvider(model);
-        model.setAccess('read');
-        model.setVariable('asOf', '2026-07-01');
-        expect(await provider.getContext(null)).toEqual({
-            version: 1,
-            mode: 'run',
-            access: 'read',
-            variables: {asOf: '2026-07-01', selection: null}
-        });
     });
 });

@@ -5,7 +5,7 @@ import {
     type ArchitectTarget,
     type ArchitectToolContext,
     availableArchitectTools
-} from './ArchitectTools';
+} from '../../blueprint';
 
 /**
  * The Architect's tools for a target, as chat kit client tools. The edit tools enforce the mode
