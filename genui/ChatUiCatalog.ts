@@ -481,13 +481,9 @@ export class ChatUiCatalog {
     }
 
     /**
-     * True to render documents as answer blueprints. Read once from `localStorage`, at the key
-     * `xh.chat.answerBlueprints`, while the blueprint path is built beside the old one.
-     * @internal
+     * The platform's renderer for an answer blueprint, set when its package loads. Documents render
+     * as answer blueprints through it. Without one, they render element by element. @internal
      */
-    static answerBlueprints: boolean = readAnswerBlueprintsToggle();
-
-    /** The platform's renderer for an answer blueprint, set when its package loads. @internal */
     static answerRenderer: (props: ChatUiAnswerRenderProps) => ReactNode = null;
 
     /**
@@ -729,7 +725,7 @@ export class ChatUiCatalog {
             );
         }
         if (repaired.root == null || repaired.elements == null) return this.renderPlaceholder(null);
-        if (ChatUiCatalog.answerBlueprints && ChatUiCatalog.answerRenderer) {
+        if (ChatUiCatalog.answerRenderer) {
             return this.renderAnswer(repaired, context);
         }
         return this.renderElement(repaired, repaired.root, context);
@@ -1656,7 +1652,7 @@ export class ChatUiCatalog {
     }
 
     private createDocumentTool(): ChatToolSpec {
-        return ChatUiCatalog.answerBlueprints && ChatUiCatalog.answerRenderer
+        return ChatUiCatalog.answerRenderer
             ? this.createAnswerTool()
             : this.createDocumentToolForDocuments();
     }
@@ -1883,14 +1879,6 @@ function toDocumentError(error: string): string {
 
 // The datasets of an answer: none yet, until the app's catalog and its artifacts reach answers.
 const ANSWER_DATA_CATALOG = new DataCatalog({datasets: {}});
-
-function readAnswerBlueprintsToggle(): boolean {
-    try {
-        return globalThis.localStorage?.getItem('xh.chat.answerBlueprints') === 'true';
-    } catch {
-        return false;
-    }
-}
 
 // Resolves reference props for a catalog with no `artifacts` config - every one is waiting or
 // missing.

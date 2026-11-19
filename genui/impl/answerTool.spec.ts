@@ -27,11 +27,6 @@ describe('show_ui with answer blueprints', () => {
     ];
 
     function setup(opts: {isLatest?: boolean} = {}) {
-        const was = ChatUiCatalog.answerBlueprints;
-        ChatUiCatalog.answerBlueprints = true;
-        onTestFinished(() => {
-            ChatUiCatalog.answerBlueprints = was;
-        });
         const provider = {
                 loadAsync: vi.fn(async () => ({rows: ROWS}))
             } satisfies BlueprintDataProvider,

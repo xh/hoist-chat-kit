@@ -4,7 +4,7 @@ import {observable, runInAction} from '@xh/hoist/mobx';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement, ReactNode} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {BlueprintSource} from '../../blueprint';
 import {ChatModel} from '../../core';
 import {ScriptedChatTransport, textEvents} from '../../transport';
@@ -29,13 +29,14 @@ describe('documents as answer blueprints', () => {
         await initTestAppAsync();
     });
 
-    beforeEach(() => {
-        const was = ChatUiCatalog.answerBlueprints;
-        ChatUiCatalog.answerBlueprints = true;
-        onTestFinished(() => {
-            ChatUiCatalog.answerBlueprints = was;
-        });
-    });
+    // Draw a document as an answer blueprint, or element by element, as with no answer renderer.
+    const asAnswer = ChatUiCatalog.answerRenderer,
+        withAnswers = (answerBlueprints: boolean) => {
+            ChatUiCatalog.answerRenderer = answerBlueprints ? asAnswer : null;
+            onTestFinished(() => {
+                ChatUiCatalog.answerRenderer = asAnswer;
+            });
+        };
 
     const catalog = new ChatUiCatalog({
             components: [chatUiStackSpec(), chatUiTextSpec(), chatUiButtonSpec()],
@@ -71,7 +72,7 @@ describe('documents as answer blueprints', () => {
                 elements: {kpis: {component: 'statCards', props: chatUiStatCardsSpec().example}}
             },
             draw = (answerBlueprints: boolean) => {
-                ChatUiCatalog.answerBlueprints = answerBlueprints;
+                withAnswers(answerBlueprints);
                 return renderToStaticMarkup(
                     fragment({
                         children: cards.renderDocument(doc, {
@@ -129,7 +130,7 @@ describe('documents as answer blueprints', () => {
                 elements: {g: {component: 'grid', props: chatUiGridSpec().example}}
             },
             draw = (answerBlueprints: boolean, isPartial: boolean) => {
-                ChatUiCatalog.answerBlueprints = answerBlueprints;
+                withAnswers(answerBlueprints);
                 return renderToStaticMarkup(
                     fragment({
                         children: grids.renderDocument(doc, {
