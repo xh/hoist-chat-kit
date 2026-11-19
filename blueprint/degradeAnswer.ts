@@ -1,7 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {cloneDeep, isArray, isPlainObject} from 'lodash';
+import {cloneDeep, isArray, isPlainObject, isString} from 'lodash';
 import type {Blueprint, BlueprintIssue} from './Blueprint';
-import {decodePointer, getOwn} from './impl/pointer';
+import {decodePointer, getOwn, toLookup} from './impl/pointer';
 import {validateBlueprint, type ValidateBlueprintContext} from './validateBlueprint';
 
 export interface DegradeAnswerContext extends ValidateBlueprintContext {
@@ -18,7 +18,7 @@ export interface DegradeAnswerContext extends ValidateBlueprintContext {
  * then stands in for each part with errors, and checks again, until it is valid:
  *
  *  - An element with errors, or one that has not arrived, becomes a `placeholder` while the answer
- *    streams, and a `fallback` once it is complete. A fallback lists the errors, and holds the
+ *    streams, naming the component it will be, and a `fallback` once it is complete. A fallback lists the errors, and holds the
  *    element as written as JSON text, which no later check reads.
  *  - A source or a variable with errors is removed, so the elements that read it are replaced.
  *  - An element that no container places is removed, as it never shows.
@@ -31,10 +31,13 @@ export interface DegradeAnswerContext extends ValidateBlueprintContext {
  */
 export function degradeAnswer(input: unknown, ctx: DegradeAnswerContext): Blueprint {
     const {isComplete, maxPasses = 5} = ctx,
-        standIn = (errors: string[], original: unknown) =>
+        standIn = (errors: string[], original: any) =>
             isComplete
                 ? {component: 'fallback', config: {errors, input: toJson(original)}}
-                : {component: 'placeholder', config: {}},
+                : {
+                      component: 'placeholder',
+                      config: isString(original?.component) ? {component: original.component} : {}
+                  },
         whole = (issues: BlueprintIssue[]): Blueprint => ({
             root: 'root',
             elements: {root: standIn(issues.map(describeIssue), input)}
@@ -62,7 +65,7 @@ export function degradeAnswer(input: unknown, ctx: DegradeAnswerContext): Bluepr
         if (!errors.length) return bp;
         if (!isPlainObject(bp.elements)) return whole(errors);
 
-        const byElement: Record<string, BlueprintIssue[]> = {},
+        const byElement: Record<string, BlueprintIssue[]> = toLookup({}),
             missing = new Set<string>(),
             unplaced = new Set<string>();
         for (const issue of errors) {
