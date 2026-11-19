@@ -5,7 +5,12 @@
  * hoist-core. See the "Unit Tests in an App" section of hoist-react's `docs/unit-testing.md`.
  */
 import configureVitest from '@xh/hoist-dev-utils/configureVitest';
+import {fileURLToPath} from 'node:url';
 import {configDefaults, defineConfig, mergeConfig} from 'vitest/config';
+
+// Blueprints branches only: the sibling hoist-react worktree, for `inlineHoist` below. The preset's
+// default path assumes an app's `client-app` folder. Remove before merging to develop.
+process.env.XH_HOIST_REACT_PATH ??= fileURLToPath(new URL('../hoist-react', import.meta.url));
 
 export default defineConfig(
     mergeConfig(
@@ -14,6 +19,9 @@ export default defineConfig(
             appName: 'Hoist Chat Kit',
             appVersion: '1.0.0',
             appBuild: 'test',
+            // Blueprints branches only: test against the sibling hoist-react worktree, as tsconfig
+            // type-checks against it. Remove before merging to develop.
+            inlineHoist: true,
             include: ['**/*.spec.{ts,tsx}']
         }),
         {

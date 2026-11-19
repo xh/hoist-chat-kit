@@ -12,7 +12,11 @@
     "skipLibCheck": true,
     "strict": false,
     "target": "ES2022",
-    "useDefineForClassFields": true
+    "useDefineForClassFields": true,
+
+    // Blueprints branches only: type-check against the sibling hoist-react worktree, for APIs not
+    // yet in a published snapshot. Remove before merging to develop.
+    "paths": {"@xh/hoist/*": ["../hoist-react/*"]}
   },
   // Reference hoist-react as a composite build, as consuming apps do. Type-checking runs against
   // the installed @xh/hoist, the same version CI and the release build check.
