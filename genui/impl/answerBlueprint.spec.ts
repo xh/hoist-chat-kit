@@ -4,16 +4,20 @@ import {
     chatUiBadgesSpec,
     chatUiCalloutSpec,
     chatUiCardSpec,
+    chatUiChartSpec,
+    chatUiGridSpec,
     chatUiInputSpecs,
     chatUiSectionSpec,
     chatUiSeparatorSpec,
     chatUiStackSpec,
+    chatUiStatCardsSpec,
     chatUiTabsSpec,
     chatUiTextSpec,
     chatUiTreeMapSpec
 } from '../../desktop/cmp/genui';
 import {ChatUiCatalog} from '../ChatUiCatalog';
 import {toAnswerBlueprint} from './answerBlueprint';
+import {toWidgetName} from './specWidgets';
 
 /**
  * A document becomes an answer blueprint over the catalog's registry, where each catalog
@@ -24,9 +28,12 @@ describe('toAnswerBlueprint', () => {
             chatUiBadgesSpec(),
             chatUiCalloutSpec(),
             chatUiCardSpec(),
+            chatUiChartSpec(),
+            chatUiGridSpec(),
             chatUiSectionSpec(),
             chatUiSeparatorSpec(),
             chatUiStackSpec(),
+            chatUiStatCardsSpec(),
             chatUiTabsSpec(),
             chatUiTextSpec(),
             chatUiTreeMapSpec(),
@@ -49,8 +56,18 @@ describe('toAnswerBlueprint', () => {
         });
         expect(widgets.stack).toMatchObject({category: 'container', children: {}});
         expect(widgets.text.size.default).toEqual({w: 12, h: 2});
-        expect(widgets.chart.label).toBe('Chart');
-        expect(widgets.chart.config).not.toBe(undefined);
+        expect(widgets.chart.config.properties).toHaveProperty('source');
+        expect(widgets.chatUiChart.label).toBe('Chart');
+        expect(widgets.grid.label).toBe('Grid');
+    });
+
+    it('translates a component a built-in shares its name with into its bridged widget', () => {
+        const bp = toAnswerBlueprint({
+            root: 'c',
+            elements: {c: {component: 'chart', props: chatUiChartSpec().example}}
+        });
+        expect(bp.elements.c.component).toBe('chatUiChart');
+        expect(degradeAnswer(bp, ctx)).toEqual(bp);
     });
 
     it("registers chat kit's action types, in place of the built-ins of the same name", () => {
@@ -67,7 +84,10 @@ describe('toAnswerBlueprint', () => {
                 root: 'root',
                 elements: {root: {component: name as string, props: spec.example}}
             });
-            expect(bp.elements.root).toEqual({component: name, config: spec.example});
+            expect(bp.elements.root).toEqual({
+                component: toWidgetName(name as string),
+                config: spec.example
+            });
             expect(degradeAnswer(bp, ctx)).toEqual(bp);
         }
     );

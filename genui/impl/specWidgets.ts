@@ -1,10 +1,11 @@
 import {hoistCmp, type PlainObject, uses} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
-import {omit, startCase, without} from 'lodash';
+import {omit, startCase, upperFirst, without} from 'lodash';
 import type {ReactNode} from 'react';
 import {
     type ActionSpec,
     type BlueprintIssue,
+    BlueprintRegistry,
     BlueprintWidgetModel,
     type ChildRef,
     type WidgetSpec
@@ -19,8 +20,13 @@ import type {ChatUiCatalog} from '../ChatUiCatalog';
 import type {ChatUiComponentSpec, ChatUiDocumentContext} from '../ChatUiComponentSpec';
 import type {ChatUiNode} from '../ChatUiDocument';
 
-/** Data specs that an answer translates into blueprint widgets over a source, not a bridge. */
-export const SOURCE_SPEC_NAMES = ['grid', 'chart', 'statCards'];
+/**
+ * The widget name of a catalog component in an answer: its own name, or `chatUi<Name>` where a
+ * blueprint built-in already has it, as `chart` does.
+ */
+export function toWidgetName(component: string): string {
+    return BUILT_IN_WIDGET_NAMES.includes(component) ? `chatUi${upperFirst(component)}` : component;
+}
 
 /** What a bridged widget reads from the answer model's `hostContext`. */
 export interface ChatUiAnswerHostContext {
@@ -33,14 +39,15 @@ export interface ChatUiAnswerHostContext {
  * sets a variable shows and writes that variable's value.
  */
 export function toWidgetSpec(spec: ChatUiComponentSpec, catalog: ChatUiCatalog): WidgetSpec {
-    const info = WIDGET_INFO[spec.name] ?? deriveInfo(spec);
+    const info = WIDGET_INFO[spec.name] ?? deriveInfo(spec),
+        name = toWidgetName(spec.name);
     return {
-        name: spec.name,
+        name,
         version: 1,
         guidance: spec.description,
         config: spec.props,
         ...info,
-        ...(spec.example ? {example: {component: spec.name, config: spec.example}} : {}),
+        ...(spec.example ? {example: {component: name, config: spec.example}} : {}),
         ...(spec.slots?.length
             ? {
                   children: {
@@ -100,6 +107,8 @@ export function toActionSpecs(catalog: ChatUiCatalog): ActionSpec[] {
 //------------------
 // Implementation
 //------------------
+const BUILT_IN_WIDGET_NAMES = Object.keys(new BlueprintRegistry().widgets);
+
 type WidgetInfo = Pick<WidgetSpec, 'label' | 'terms' | 'category' | 'size' | 'value'>;
 
 const size = (w: number, h: number) => ({default: {w, h}}),
@@ -137,6 +146,19 @@ const WIDGET_INFO: Record<string, WidgetInfo> = {
         size: size(6, 1)
     },
     card: {label: 'Card', terms: ['card', 'panel', 'summary'], category: 'data', size: size(6, 4)},
+    grid: {label: 'Grid', terms: ['grid', 'table', 'rows'], category: 'data', size: size(12, 6)},
+    chart: {
+        label: 'Chart',
+        terms: ['chart', 'graph', 'plot', 'trend'],
+        category: 'data',
+        size: size(6, 6)
+    },
+    statCards: {
+        label: 'Stat Cards',
+        terms: ['stat cards', 'kpis', 'figures', 'metrics'],
+        category: 'data',
+        size: size(12, 2)
+    },
     treemap: {
         label: 'Tree Map',
         terms: ['treemap', 'tree map', 'heat map'],

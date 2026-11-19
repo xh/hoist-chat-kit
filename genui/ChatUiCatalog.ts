@@ -73,7 +73,7 @@ import {
 import {chatUiFallback, chatUiPlaceholder} from './ChatUiFallback';
 import {ChatUiRefusal} from './impl/ChatUiRefusal';
 import {chatUiTagFormat} from './formats/ChatUiTagFormat';
-import {SOURCE_SPEC_NAMES, toActionSpecs, toWidgetSpec} from './impl/specWidgets';
+import {toActionSpecs, toWidgetSpec} from './impl/specWidgets';
 import {chatUiElementBoundary} from './impl/ChatUiElementBoundary';
 import {chatUiLiveDocument} from './impl/ChatUiLiveDocument';
 import {
@@ -369,14 +369,12 @@ export class ChatUiCatalog {
 
     /**
      * The catalog as a blueprint registry, for chat answers: the blueprint built-ins, plus each
-     * component as a widget and each chat action type as an action. The grid, chart and stat
-     * cards translate into the built-ins instead.
+     * component as a widget and each chat action type as an action. A component whose name a
+     * built-in has, such as `chart`, is the widget `chatUiChart`.
      */
     get registry(): BlueprintRegistry {
         this._registry ??= new BlueprintRegistry({
-            widgets: this.components
-                .filter(it => !SOURCE_SPEC_NAMES.includes(it.name))
-                .map(it => toWidgetSpec(it, this)),
+            widgets: this.components.map(it => toWidgetSpec(it, this)),
             actions: toActionSpecs(this)
         });
         return this._registry;

@@ -394,7 +394,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             cfg.cards.forEach((c: any, i: number) => {
                 if (c?.field) {
                     need(c.field, `${p}/cards/${i}/field`);
-                } else if (c?.agg !== 'count') {
+                } else if (fields && c?.agg !== 'count') {
                     err(
                         'schema.invalid',
                         `${p}/cards/${i}`,

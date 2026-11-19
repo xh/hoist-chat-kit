@@ -1,10 +1,12 @@
 import {isArray, isPlainObject} from 'lodash';
 import type {Blueprint, BlueprintElement, ChildRef} from '../../blueprint';
 import type {ChatUiDocument, ChatUiElement} from '../ChatUiDocument';
+import {toWidgetName} from './specWidgets';
 
 /**
  * A document as an answer blueprint: each element's props become its config, and its children
- * and named slots become child references. Leaves what it cannot read for `degradeAnswer()` to
+ * and named slots become child references. A component a blueprint built-in shares its name with
+ * becomes its bridged widget, as `chart` becomes `chatUiChart`. Leaves what it cannot read for `degradeAnswer()` to
  * report, so a document with problems still translates.
  */
 export function toAnswerBlueprint(doc: ChatUiDocument): Blueprint {
@@ -27,7 +29,7 @@ function toElement(el: ChatUiElement): BlueprintElement {
         )
     ];
     return {
-        component: el.component,
+        component: toWidgetName(el.component),
         config: el.props ?? {},
         ...(refs.length ? {children: refs} : {})
     };
