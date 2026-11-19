@@ -28,6 +28,8 @@ export interface BlueprintModelConfig {
     artifacts?: Record<string, string>;
     /** The rows of those artifacts. Required for a blueprint with an artifact source. */
     artifactProvider?: BlueprintArtifactProvider;
+    /** What the host passes to its widgets, such as the chat that shows an answer. */
+    hostContext?: unknown;
     /** True for a chat answer, which may hold literal parameters, artifacts and inline sources. */
     isAnswer?: boolean;
     /** The user's mode. Default run. Design mode takes effect only with write access. */
@@ -58,6 +60,7 @@ export class BlueprintModel extends HoistModel {
     readonly dataProvider: BlueprintDataProvider;
     readonly artifacts: Record<string, string>;
     readonly artifactProvider: BlueprintArtifactProvider;
+    readonly hostContext: unknown;
     readonly isAnswer: boolean;
     readonly urlAllowList: string[];
 
@@ -122,6 +125,7 @@ export class BlueprintModel extends HoistModel {
         dataProvider,
         artifacts = {},
         artifactProvider = null,
+        hostContext = null,
         isAnswer = false,
         urlAllowList = [],
         mode = 'run',
@@ -133,6 +137,7 @@ export class BlueprintModel extends HoistModel {
         this.dataProvider = dataProvider;
         this.artifacts = artifacts;
         this.artifactProvider = artifactProvider;
+        this.hostContext = hostContext;
         this.isAnswer = isAnswer;
         const badUrl = urlAllowList.find(it => !parseWebUrl(it));
         throwIf(badUrl, `urlAllowList entries must be http or https URLs: '${badUrl}'`);

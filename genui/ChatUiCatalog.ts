@@ -27,6 +27,7 @@ import {
     without
 } from 'lodash';
 import {type ReactNode, useEffect, useState} from 'react';
+import {BlueprintRegistry} from '../blueprint';
 import type {ChatDataRenderer, ChatModel, ChatPartRenderContext, ChatToolSpec} from '../core';
 import {ChatArtifactRegistry, type ChatDataHandle} from './ChatArtifactRegistry';
 import {
@@ -72,6 +73,7 @@ import {
 import {chatUiFallback, chatUiPlaceholder} from './ChatUiFallback';
 import {ChatUiRefusal} from './impl/ChatUiRefusal';
 import {chatUiTagFormat} from './formats/ChatUiTagFormat';
+import {SOURCE_SPEC_NAMES, toActionSpecs, toWidgetSpec} from './impl/specWidgets';
 import {chatUiElementBoundary} from './impl/ChatUiElementBoundary';
 import {chatUiLiveDocument} from './impl/ChatUiLiveDocument';
 import {
@@ -360,6 +362,58 @@ export class ChatUiCatalog {
             tagPrefix,
             documentToolName,
             limits: this.limits
+        });
+    }
+
+    /**
+     * The catalog as a blueprint registry, for chat answers: the blueprint built-ins, plus each
+     * component as a widget and each chat action type as an action. The grid, chart and stat
+     * cards translate into the built-ins instead.
+     */
+    get registry(): BlueprintRegistry {
+        this._registry ??= new BlueprintRegistry({
+            widgets: this.components
+                .filter(it => !SOURCE_SPEC_NAMES.includes(it.name))
+                .map(it => toWidgetSpec(it, this)),
+            actions: toActionSpecs(this)
+        });
+        return this._registry;
+    }
+
+    /**
+     * Render one component for an element of an answer blueprint, as {@link renderDocument}
+     * renders an element of a document, inside an error boundary.
+     * @internal
+     */
+    renderAnswerComponent(
+        spec: ChatUiComponentSpec,
+        node: ChatUiNode,
+        context: ChatUiDocumentContext,
+        rendered: {children: ReactNode[]; slots: Record<string, ReactNode[]>}
+    ): ReactNode {
+        return chatUiElementBoundary({
+            key: `${node.id}|${spec.name}`,
+            resetKey: false,
+            renderError: e =>
+                this.renderFallback(
+                    {
+                        component: spec.name,
+                        caption: this.getCaption(spec.name),
+                        errors: [(e as Error)?.message ?? String(e)],
+                        input: node
+                    },
+                    context,
+                    node.id
+                ),
+            children: chatUiComponent({
+                spec,
+                node,
+                context: {...context, isPartial: false},
+                catalog: this,
+                registry: this.getRegistry(context.chatModel),
+                childNodes: rendered.children,
+                slots: rendered.slots
+            })
         });
     }
 
@@ -909,6 +963,7 @@ export class ChatUiCatalog {
     // Fallbacks and format errors already logged, so that each logs once, however often it
     // renders. Bounded, as a catalog lives as long as the app.
     private readonly loggedFallbacks = new Set<string>();
+    private _registry: BlueprintRegistry = null;
 
     // Component segments by format and source, most recent last - see `cacheSegment()`.
     private readonly segmentCache = new Map<string, ChatUiComponentSegment>();
