@@ -1,4 +1,5 @@
-import {div, vbox} from '@xh/hoist/cmp/layout';
+import {div} from '@xh/hoist/cmp/layout';
+import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import type {BlueprintViewModel} from './BlueprintViewModel';
 
@@ -41,9 +42,15 @@ export const [ElementHost, elementHost] = hoistCmp.withFactory<ElementHostProps>
             rows &&
             blueprintModel.presentationOf(id) === 'panel'
         ) {
-            return vbox({
+            const height = Math.min(model.contentHeight ?? Infinity, rows * ANSWER_ROW_HEIGHT),
+                title = blueprintModel.resolve(model.element.config?.title),
+                hasTitle = title != null && title !== '';
+            // A title draws in a header, as a dashboard's cell draws it, above the content.
+            return panel({
                 className: 'xh-blueprint-view__answer-panel',
-                height: Math.min(model.contentHeight ?? Infinity, rows * ANSWER_ROW_HEIGHT),
+                title: hasTitle ? String(title) : null,
+                compactHeader: true,
+                height: hasTitle ? `calc(${height}px + var(--xh-title-compact-height))` : height,
                 width: '100%',
                 flex: 'none',
                 children: component({model})

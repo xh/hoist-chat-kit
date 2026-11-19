@@ -3,7 +3,8 @@ import {CubeGridModel, cubeGrid} from '@xh/hoist/cmp/cubegrid';
 import {type ColumnSpec, type ColumnState, GridModel} from '@xh/hoist/cmp/grid';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {FilterSpec, StoreRecord} from '@xh/hoist/data';
-import {observableRef, when} from '@xh/hoist/mobx';
+import {action, observable, observableRef, when} from '@xh/hoist/mobx';
+import {useEffect, useRef} from 'react';
 import {wait} from '@xh/hoist/promise';
 import {castArray, isEmpty, isEqual, isString, omitBy, pick, sortBy, without} from 'lodash';
 import {
@@ -33,6 +34,9 @@ const CUBE_GRID_DEFAULTS = {emptyText: 'No data', stripeRows: true, rowBorders: 
 
 export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConfig> {
     @managed @observableRef accessor cubeGridModel: CubeGridModel = null;
+
+    /** The height of the grid's horizontal scrollbar while it shows, as its component measures it. */
+    @observable accessor horizontalScrollHeight = 0;
 
     // The grid's column state just after it applied the config's, to tell a user's change apart.
     private appliedColumnState: ColumnState[] = [];
@@ -132,7 +136,17 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
             rows =
                 gridModel.agApi.getDisplayedRowCount() + (this.resolvedConfig.summaryRow ? 1 : 0),
             header = hideHeaders ? 0 : AG_GRID.getHeaderHeightForSizingMode(sizingMode);
-        return header + rows * AG_GRID.getRowHeightForSizingMode(sizingMode) + GRID_BORDERS;
+        return (
+            header +
+            rows * AG_GRID.getRowHeightForSizingMode(sizingMode) +
+            this.horizontalScrollHeight +
+            GRID_BORDERS
+        );
+    }
+
+    @action
+    setHorizontalScrollHeight(height: number) {
+        this.horizontalScrollHeight = height;
     }
 
     //------------------
@@ -382,8 +396,20 @@ export const [CubeGridWidget, cubeGridWidget] = hoistCmp.withFactory({
     className: 'xh-blueprint-cube-grid',
     model: uses(CubeGridWidgetModel),
     render({model, className}) {
-        const {cubeGridModel} = model;
-        return cubeGridModel ? cubeGrid({model: cubeGridModel, className}) : null;
+        const {cubeGridModel} = model,
+            isReady = !!cubeGridModel?.innerGridModel.isReady,
+            ref = useRef<HTMLElement>(null);
+        // ag-Grid shows its horizontal scrollbar only while the columns overflow.
+        useEffect(() => {
+            const bar = ref.current?.querySelector<HTMLElement>('.ag-body-horizontal-scroll');
+            if (!isReady || !bar || typeof ResizeObserver === 'undefined') return;
+            const measure = () => model.setHorizontalScrollHeight(bar.offsetHeight),
+                observer = new ResizeObserver(measure);
+            observer.observe(bar);
+            measure();
+            return () => observer.disconnect();
+        }, [model, cubeGridModel, isReady]);
+        return cubeGridModel ? cubeGrid({model: cubeGridModel, className, ref}) : null;
     }
 });
 

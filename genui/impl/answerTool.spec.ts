@@ -245,14 +245,20 @@ describe('show_ui with answer blueprints', () => {
             const container = await drawn({groupBy: ['sector']}),
                 panel = container.querySelector<HTMLElement>('.xh-blueprint-view__answer-panel');
             expect(panel.querySelector('.xh-blueprint-cube-grid')).toBeTruthy();
-            // A flex column of full width, so the grid fills it in a stack or a tab.
-            expect(panel.style).toMatchObject({
-                height: '300px',
-                width: '100%',
-                display: 'flex',
-                flexDirection: 'column'
-            });
+            // A Hoist panel, a flex column of full width, so the grid fills it in a stack or a tab.
+            expect(panel.classList).toContain('xh-panel');
+            expect(panel.style).toMatchObject({height: '300px', width: '100%', display: 'flex'});
             expect(container.querySelector('.xh-chat-ui-grid')).toBeNull();
+        });
+
+        it('draws its title in a panel header, above the height of its content', async () => {
+            const height = vi.spyOn(CubeGridWidgetModel.prototype, 'contentHeight', 'get');
+            onTestFinished(() => height.mockRestore());
+            height.mockReturnValue(120);
+            const container = await drawn({groupBy: ['sector'], title: 'By sector'}),
+                panel = container.querySelector<HTMLElement>('.xh-blueprint-view__answer-panel');
+            expect(panel.querySelector('.xh-panel-header')?.textContent).toContain('By sector');
+            expect(panel.style.height).toBe('calc(120px + var(--xh-title-compact-height))');
         });
 
         it('sizes to its content, up to its default height', async () => {
@@ -294,14 +300,14 @@ describe('show_ui with answer blueprints', () => {
             );
             container
                 .querySelectorAll<HTMLElement>('.xh-blueprint-view__answer-panel')
-                .forEach(panel =>
+                .forEach(panel => {
+                    expect(panel.classList).toContain('xh-panel');
                     expect(panel.style).toMatchObject({
                         height: '300px',
                         width: '100%',
-                        display: 'flex',
-                        flexDirection: 'column'
-                    })
-                );
+                        display: 'flex'
+                    });
+                });
         });
 
         it('draws as a grid panel when styled, as the card ignores styles', async () => {

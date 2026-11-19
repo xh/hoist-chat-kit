@@ -164,6 +164,10 @@ describe('blueprint desktop widgets', () => {
                     ]
                 });
                 expect(grid.contentHeight).toBe(6 * 24 + 2);
+
+                // A horizontal scrollbar, as the component measures it, adds its height.
+                grid.setHorizontalScrollHeight(9);
+                expect(grid.contentHeight).toBe(6 * 24 + 9 + 2);
             });
         });
 
