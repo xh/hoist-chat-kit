@@ -6,7 +6,7 @@ import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import type {Blueprint, BlueprintDataProvider} from '../../blueprint';
 import type {ChatModel, ChatToolCallPart} from '../../core';
 import {chatUiStackSpec, chatUiStatCardsSpec, chatUiTextSpec} from '../../desktop/cmp/genui';
-import {portfolioCatalog} from '../../test/blueprintFixtures';
+import {portfolioCatalog, scenarioRegistry} from '../../test/blueprintFixtures';
 import {ChatArtifactRegistry} from '../ChatArtifactRegistry';
 import {ChatUiCatalog} from '../ChatUiCatalog';
 
@@ -82,6 +82,21 @@ describe('show_ui with answer blueprints', () => {
         expect(names).toEqual(expect.arrayContaining(['statCardStrip', 'cubeGrid', 'text']));
         expect(names).not.toContain('fallback');
         expect(description).toContain('statCardStrip: Stat cards.');
+    });
+
+    it("offers the app's own widgets and types, beside chat kit's", () => {
+        const app = scenarioRegistry(),
+            catalog = new ChatUiCatalog({
+                components: [chatUiTextSpec()],
+                answers: {registry: app}
+            }),
+            {registry} = catalog;
+        Object.keys(app.widgets).forEach(it => expect(registry.widgets[it]).toBeTruthy());
+        Object.keys(app.variableTypes).forEach(it =>
+            expect(registry.variableTypes[it]).toBeTruthy()
+        );
+        expect(registry.widgets.text).toBeTruthy();
+        expect(registry.actions.send).toBeTruthy();
     });
 
     it('shows nothing for an answer with errors, and gives the model its issues', async () => {

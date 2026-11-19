@@ -252,6 +252,11 @@ export interface ChatUiCatalogConfig {
  */
 /** The app's data for answers - see {@link ChatUiCatalogConfig.answers}. */
 export interface ChatUiAnswersConfig {
+    /**
+     * The app's own registry, whose widgets, variable types, resolvers, actions and renderers an
+     * answer may use beside the catalog's components and chat actions.
+     */
+    registry?: BlueprintRegistry;
     /** The datasets an answer's sources may name. */
     dataCatalog?: DataCatalog;
     /** Loads those datasets. Each answer loads through it within its chat's bounds. */
@@ -413,13 +418,18 @@ export class ChatUiCatalog {
      */
     get registry(): BlueprintRegistry {
         if (!this._registry) {
-            const ret = new BlueprintRegistry({
-                widgets: [
-                    ...this.components.map(it => toWidgetSpec(it, this)),
-                    ...toStandInWidgetSpecs(this)
-                ],
-                actions: toActionSpecs(this)
-            });
+            const app = this.answers?.registry,
+                ret = new BlueprintRegistry({
+                    widgets: [
+                        ...Object.values(app?.widgets ?? {}),
+                        ...this.components.map(it => toWidgetSpec(it, this)),
+                        ...toStandInWidgetSpecs(this)
+                    ],
+                    variableTypes: Object.values(app?.variableTypes ?? {}),
+                    resolvers: Object.values(app?.resolvers ?? {}),
+                    actions: [...Object.values(app?.actions ?? {}), ...toActionSpecs(this)],
+                    renderers: Object.values(app?.renderers ?? {})
+                });
             ChatUiCatalog.answerPresentations.forEach(({widget, presentation}) =>
                 ret.addPresentation(widget, presentation)
             );
