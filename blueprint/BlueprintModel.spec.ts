@@ -147,6 +147,30 @@ describe('BlueprintModel', () => {
             expect(model.history).toEqual([]);
         });
 
+        it('clears to no blueprint, closing its sources, and opens another from there', async () => {
+            const provider = new RecordingProvider(),
+                model = await opened(p3(), provider),
+                [variable] = model.variables;
+            model.setPreset('posViews', 'risk');
+            model.applyEdit({ops: [{op: 'remove', path: '/variables/asOf/label'}]});
+
+            model.clear();
+            expect(model.blueprint).toBeNull();
+            expect(model.version).toBe(0);
+            expect(model.history).toEqual([]);
+            expect(model.issues).toEqual([]);
+            expect(model.variables).toEqual([]);
+            expect(model.sources).toEqual({});
+            expect(variable.isDestroyed).toBe(true);
+            expect(provider.subs.every(it => !it.isOpen)).toBe(true);
+
+            expect(model.setBlueprint(p3())).toEqual([]);
+            expect(model.version).toBe(1);
+            expect(model.getActivePreset('posViews')).toBe('pnl');
+            await wait();
+            expect(provider.last.isOpen).toBe(true);
+        });
+
         it('refuses an edit whose result has errors, or that is based on an old version', () => {
             const model = open(p1());
             expect(

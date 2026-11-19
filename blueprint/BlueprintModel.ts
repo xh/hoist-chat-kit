@@ -159,6 +159,24 @@ export class BlueprintModel extends HoistModel {
     }
 
     /**
+     * Return to no blueprint, at version 0, with no history. Closes every source and drops every
+     * variable, preset choice and transient change. {@link setBlueprint} opens another from here.
+     */
+    @action
+    clear() {
+        Object.values(this.sources).forEach(it => it.destroy());
+        this.variables.forEach(it => it.destroy());
+        this.blueprint = null;
+        this.version = 0;
+        this.history = [];
+        this.issues = [];
+        this.variables = [];
+        this.sources = {};
+        this.activePresets = {};
+        this.transientValues = {};
+    }
+
+    /**
      * Apply an edit as one unit, in design mode only. With errors, nothing applies. An edit that changes nothing leaves
      * the version and history alone. An edit written against an older
      * version is refused for now: the slice does not yet merge edits that do not overlap.
