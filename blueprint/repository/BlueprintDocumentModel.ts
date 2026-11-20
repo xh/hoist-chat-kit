@@ -6,35 +6,32 @@ import type {Blueprint, BlueprintAccess, BlueprintIssue} from '../Blueprint';
 import type {BlueprintModel} from '../BlueprintModel';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
 import {
-    type BlueprintAccessProvider,
+    type BlueprintAccessSpec,
     type BlueprintOpenOptions,
     type BlueprintPublish,
     type BlueprintRecord,
     type BlueprintRename,
-    type BlueprintStore,
+    type BlueprintRepository,
     staleBaseIssue
-} from './BlueprintStore';
+} from './BlueprintRepository';
 
 /** The opened version of a blueprint, without the blueprint, which its model holds. */
 export type BlueprintDocument = Omit<BlueprintRecord, 'blueprint'>;
 
 /**
  * A stored blueprint, open in a `BlueprintModel`: opening a version, saving the draft, publishing,
- * copying and deleting, through the app's {@link BlueprintStore}, as the app's
- * {@link BlueprintAccessProvider} allows. Readers open the latest publish. A draft, an older
- * publish, saving, publishing and deleting are for writers.
+ * copying, sharing and deleting, through the app's {@link BlueprintRepository}, as its records
+ * allow. Readers open the latest publish. A draft, an older publish, saving, sharing and deleting
+ * are for writers, and publishing for those the repository lets publish.
  */
 export class BlueprintDocumentModel extends HoistModel {
     readonly blueprintModel: BlueprintModel;
-    readonly store: BlueprintStore;
-    readonly accessProvider: BlueprintAccessProvider;
+    readonly repository: BlueprintRepository;
     /** Upgrades a blueprint an older version of the library saved. Default none. */
     readonly migrate: (blueprint: Blueprint) => Blueprint;
 
     /** The version open, or null. */
     @observableRef accessor document: BlueprintDocument = null;
-    /** True if the user may publish the blueprint open. */
-    @observable accessor canPublish = false;
 
     // The blueprint model's version when the draft was last opened or saved.
     @observable private accessor savedVersion = 0;
@@ -44,17 +41,20 @@ export class BlueprintDocumentModel extends HoistModel {
 
     constructor(config: {
         blueprintModel: BlueprintModel;
-        store: BlueprintStore;
-        accessProvider: BlueprintAccessProvider;
+        repository: BlueprintRepository;
         migrate?: (blueprint: Blueprint) => Blueprint;
     }) {
         super();
-        const {blueprintModel, store, accessProvider, migrate = null} = config;
-        throwIf(!accessProvider, 'A BlueprintDocumentModel needs an access provider.');
+        const {blueprintModel, repository, migrate = null} = config;
+        throwIf(!repository, 'A BlueprintDocumentModel needs a repository.');
         this.blueprintModel = blueprintModel;
-        this.store = store;
-        this.accessProvider = accessProvider;
+        this.repository = repository;
         this.migrate = migrate;
+    }
+
+    /** True if the user may publish the blueprint open, as its repository says. */
+    get canPublish(): boolean {
+        return this.document?.canPublish === true;
     }
 
     /** True if the draft open has edits not yet saved. */
@@ -72,24 +72,23 @@ export class BlueprintDocumentModel extends HoistModel {
 
     /**
      * Open a blueprint: its latest publish, in run mode, by default. A draft opens in design mode.
-     * A draft, or a publish by number, needs write access.
+     * A draft, or a publish by number, needs write access, which the repository's record grants.
      */
     async openAsync(
         id: string,
         opts: BlueprintOpenOptions = {as: 'publish'}
     ): Promise<BlueprintIssue[]> {
-        const {access, canPublish} = await this.accessProvider.accessAsync(id),
-            isWriter = access === 'write',
-            needsWrite = opts.as === 'draft' || (opts.as === 'publish' && opts.version != null);
-        if (needsWrite && !isWriter) {
+        const record = await this.repository.openAsync(id, opts);
+        if (!record)
+            return [refusal(`There is no ${opts.as} of this blueprint that you may open.`)];
+        const access: BlueprintAccess = record.access === 'write' ? 'write' : 'read';
+        if (needsWrite(opts) && access !== 'write') {
             return [
                 refusal(
                     `You have read access only, so you can open the latest publish, not ${opts.as === 'draft' ? 'the draft' : 'an older one'}.`
                 )
             ];
         }
-        const record = await this.store.openAsync(id, opts);
-        if (!record) return [refusal(`There is no ${opts.as} of this blueprint.`)];
 
         const {blueprintModel} = this,
             blueprint = this.migrate ? this.migrate(record.blueprint) : record.blueprint;
@@ -97,15 +96,16 @@ export class BlueprintDocumentModel extends HoistModel {
         blueprintModel.setMode(record.kind === 'draft' ? 'design' : 'run');
         const issues = blueprintModel.setBlueprint(blueprint);
         if (issues.some(it => it.severity === 'error')) return issues;
-        this.opened(record, access, canPublish ?? isWriter);
+        this.opened(record, access);
         return issues;
     }
 
     /** Create a blueprint from the one the model holds, and open its draft. */
     async createAsync(name: string, description?: string): Promise<BlueprintIssue[]> {
-        const {access} = await this.accessProvider.accessAsync(null);
-        if (access !== 'write') return [refusal('You may not create a blueprint.')];
-        const record = await this.store.createAsync({
+        if (!(await this.repository.canCreateAsync())) {
+            return [refusal('You may not create a blueprint.')];
+        }
+        const record = await this.repository.createAsync({
             name,
             description,
             blueprint: this.withSchema(this.blueprintModel.blueprint ?? {})
@@ -114,17 +114,17 @@ export class BlueprintDocumentModel extends HoistModel {
     }
 
     /**
-     * Save the draft open. A store that does not check the draft's version itself is checked
+     * Save the draft open. A repository that does not check the draft's version itself is checked
      * first, which narrows the race between two writers but does not close it.
      */
     async saveDraftAsync(): Promise<BlueprintIssue[]> {
-        const {document, store} = this;
+        const {document, repository} = this;
         if (document?.kind !== 'draft' || document.access !== 'write') {
             return [refusal('Only a writer can save a draft, once one is open.')];
         }
         const stale = await this.staleIssueAsync();
         if (stale) return [stale];
-        const {version, issues} = await store.saveDraftAsync(document.id, {
+        const {version, issues} = await repository.saveDraftAsync(document.id, {
             blueprint: this.withSchema(this.blueprintModel.blueprint),
             base: document.version,
             renames: this.pendingRenames
@@ -135,7 +135,7 @@ export class BlueprintDocumentModel extends HoistModel {
 
     /** Publish the saved draft as the next number. A draft with unsaved edits saves first. */
     async publishAsync(note?: string): Promise<BlueprintIssue[]> {
-        const {document, store} = this;
+        const {document, repository} = this;
         if (document?.kind !== 'draft' || !this.canPublish) {
             return [refusal('You may not publish this blueprint.')];
         }
@@ -145,7 +145,7 @@ export class BlueprintDocumentModel extends HoistModel {
         }
         const stale = await this.staleIssueAsync();
         if (stale) return [stale];
-        const {publish, issues} = await store.publishAsync(document.id, {
+        const {publish, issues} = await repository.publishAsync(document.id, {
             base: this.document.version,
             note
         });
@@ -160,28 +160,39 @@ export class BlueprintDocumentModel extends HoistModel {
     async copyAsync(name: string, from?: BlueprintOpenOptions): Promise<BlueprintRecord> {
         const {document} = this;
         throwIf(!document, 'Open a blueprint to copy it.');
-        const needsWrite = from?.as === 'draft' || (from?.as === 'publish' && from.version != null);
-        throwIf(needsWrite && document.access !== 'write', 'You may copy only the latest publish.');
-        return this.store.copyAsync(document.id, {name, ...(from ? {from} : {})});
+        throwIf(
+            from && needsWrite(from) && document.access !== 'write',
+            'You may copy only the latest publish.'
+        );
+        return this.repository.copyAsync(document.id, {name, ...(from ? {from} : {})});
     }
 
     /** Delete the blueprint open, with its publishes and personalizations. Needs write access. */
     async deleteAsync() {
         const {document} = this;
         throwIf(document?.access !== 'write', 'Only a writer can delete a blueprint.');
-        await this.store.deleteAsync(document.id);
+        await this.repository.deleteAsync(document.id);
         this.closed();
+    }
+
+    /** True if the user may share the blueprint open: a writer, with a repository that shares. */
+    get canShare(): boolean {
+        return this.document?.access === 'write' && !!this.repository.updateAccessAsync;
+    }
+
+    /** Set who may write and who may read the blueprint open. */
+    async updateAccessAsync(spec: BlueprintAccessSpec) {
+        throwIf(!this.canShare, 'You may not share this blueprint.');
+        await this.repository.updateAccessAsync(this.document.id, spec);
     }
 
     //------------------
     // Implementation
     //------------------
     @action
-    private opened(record: BlueprintRecord, access: BlueprintAccess, canPublish: boolean) {
-        // The provider decides access, not the store's summary.
+    private opened(record: BlueprintRecord, access: BlueprintAccess) {
         const {blueprint: _bp, ...document} = record;
-        this.document = {...document, access};
-        this.canPublish = canPublish;
+        this.document = {...document, access, canPublish: record.canPublish === true};
         this.savedVersion = this.blueprintModel.version;
         this.openRenames = record.pendingRenames ?? [];
         this.renamesFrom = this.blueprintModel.history.length;
@@ -208,15 +219,14 @@ export class BlueprintDocumentModel extends HoistModel {
     @action
     private closed() {
         this.document = null;
-        this.canPublish = false;
         this.blueprintModel.clear();
     }
 
-    // The library's own check, for a store that cannot check on its server.
+    // The library's own check, for a repository that cannot check on its server.
     private async staleIssueAsync(): Promise<BlueprintIssue> {
-        const {document, store} = this;
-        if (store.enforcesBase) return null;
-        const current = await store.openAsync(document.id, {as: 'draft'});
+        const {document, repository} = this;
+        if (repository.enforcesBase) return null;
+        const current = await repository.openAsync(document.id, {as: 'draft'});
         return current && current.version !== document.version
             ? staleBaseIssue(document.version, current.version)
             : null;
@@ -245,6 +255,10 @@ export function schemaMapOf(blueprint: Blueprint, registry: Pick<BlueprintRegist
 // Implementation
 //------------------
 const BLUEPRINT_FORMAT_VERSION = 1;
+
+function needsWrite(opts: BlueprintOpenOptions): boolean {
+    return opts.as === 'draft' || (opts.as === 'publish' && opts.version != null);
+}
 
 function refusal(message: string): BlueprintIssue {
     return {code: 'edit.notAllowed', severity: 'error', path: '', message};

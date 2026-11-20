@@ -1,34 +1,40 @@
 import type {Blueprint, BlueprintAccess, BlueprintIssue, BlueprintOp} from '../Blueprint';
 
 /**
- * Where blueprints persist, as the app implements it: a draft per blueprint, numbered publishes
- * that never change, and each user's personalizations. The library defines what a store must do,
- * and the app decides how, such as with Hoist's JsonBlobs or its own server.
+ * Where blueprints persist, as the app implements it: one shared draft per blueprint, numbered
+ * publishes that never change, and each user's personalizations. The library defines what a
+ * repository must do, and the app decides how, such as with Hoist's JsonBlobs or its own server.
  *
- * - A store acts for its signed-in user. It lists only the blueprints that user may read, and its
- *   personalization methods reach only that user's personalizations.
- * - Readers run the latest publish. A draft, and an older publish, are for writers, which
- *   {@link BlueprintDocumentModel} checks through the app's access provider. The store does not
- *   check access itself: a server behind it must, as only a server is a security boundary. A
- *   store that cannot keep a draft from readers says so in its own docs.
+ * - A repository acts for its signed-in user. It lists only the blueprints that user may read, and
+ *   its personalization methods reach only that user's personalizations.
+ * - It is the only source of access. Each summary and record says what the user may do, and
+ *   {@link canCreateAsync} says whether they may create one. Nothing grants access otherwise.
+ * - Readers run the latest publish. A draft, and an older publish, are for writers. A server
+ *   behind the repository must refuse them to readers, as only a server is a security boundary.
+ *   {@link BlueprintDocumentModel} also refuses them. A repository that cannot keep a draft from
+ *   readers says so in its own docs.
  * - Saving a draft or publishing takes the draft version it was based on, and refuses a stale one
- *   with `edit.staleBase`. A store that cannot check this on its server sets `enforcesBase` false.
- *   The library then checks first, which narrows the race but does not close it, and the store
- *   should read the draft again after it saves, to warn if another save landed in between.
+ *   with `edit.staleBase`. A repository that cannot check this on its server sets `enforcesBase`
+ *   false. The library then checks first, which narrows the race but does not close it, and the
+ *   repository should read the draft again after it saves, to warn if another save landed in
+ *   between.
  * - Each publish takes the next number, created only if absent, so two publishers can never take
  *   the same one.
- * - Deleting a blueprint deletes its publishes and its personalizations. A store without
+ * - Deleting a blueprint deletes its publishes and its personalizations. A repository without
  *   referential integrity does this in code, and ignores and cleans up orphans it finds.
  */
-export interface BlueprintStore {
+export interface BlueprintRepository {
     /**
-     * True if the store refuses a stale `base` itself, atomically on its server. False, and the
-     * library reads the draft's version before each save and publish.
+     * True if the repository refuses a stale `base` itself, atomically on its server. False, and
+     * the library reads the draft's version before each save and publish.
      */
     readonly enforcesBase: boolean;
 
     /** The blueprints the signed-in user may read. The app filters them further as it needs. */
     listAsync(): Promise<BlueprintSummary[]>;
+
+    /** True if the signed-in user may create a blueprint. */
+    canCreateAsync(): Promise<boolean>;
 
     /**
      * Open a blueprint: its draft, its latest publish, or a publish by number. Null if there is
@@ -83,12 +89,24 @@ export interface BlueprintStore {
      * preset.
      */
     savePersonalizationAsync(p: BlueprintPersonalization): Promise<void>;
+
+    /**
+     * Set who may write and who may read a blueprint, by the user or role names the repository
+     * knows. Optional: the library offers sharing only when a repository implements it.
+     */
+    updateAccessAsync?(id: string, spec: BlueprintAccessSpec): Promise<void>;
+}
+
+/** Who may write and who may read a blueprint. Writers may also read. */
+export interface BlueprintAccessSpec {
+    writers: string[];
+    readers: string[];
 }
 
 /** Which version of a blueprint to open: its draft, or a publish, the latest by default. */
 export type BlueprintOpenOptions = {as: 'draft'} | {as: 'publish'; version?: number};
 
-/** A blueprint as a store lists it. */
+/** A blueprint as a repository lists it. */
 export interface BlueprintSummary {
     id: string;
     name: string;
@@ -99,6 +117,8 @@ export interface BlueprintSummary {
     publishedVersion: number;
     /** The signed-in user's access to the blueprint. */
     access: BlueprintAccess;
+    /** True if the signed-in user may publish the blueprint. */
+    canPublish: boolean;
     /** Epoch millis of the last save or publish. */
     updated: number;
     updatedBy?: string;
@@ -157,19 +177,7 @@ export interface BlueprintPublishResult {
     issues: BlueprintIssue[];
 }
 
-/**
- * Who may do what to a blueprint, which the app decides. Required: there is no default, so a
- * missing provider fails loudly rather than leaving every user at read access.
- */
-export interface BlueprintAccessProvider {
-    /**
-     * The signed-in user's access to a blueprint, or to a new one, with a null ID. `canPublish`
-     * defaults to write access.
-     */
-    accessAsync(id: string): Promise<{access: BlueprintAccess; canPublish?: boolean}>;
-}
-
-/** The issue a store returns for a save or publish based on a draft version no longer current. */
+/** The issue a repository returns for a save or publish based on a draft version no longer current. */
 export function staleBaseIssue(base: number, current: number): BlueprintIssue {
     return {
         code: 'edit.staleBase',

@@ -35,6 +35,6 @@ export {
 } from './impl/formats';
 export * from './design/BlueprintDesignModel';
 export * from './design/editorSpec';
-export * from './store/BlueprintStore';
-export * from './store/BlueprintDocumentModel';
-export * from './store/InMemoryBlueprintStore';
+export * from './repository/BlueprintRepository';
+export * from './repository/BlueprintDocumentModel';
+export * from './repository/InMemoryBlueprintRepository';

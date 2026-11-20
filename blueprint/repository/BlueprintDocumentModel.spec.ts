@@ -5,29 +5,32 @@ import type {BlueprintAccess} from '../Blueprint';
 import {BlueprintModel} from '../BlueprintModel';
 import {FakeBlueprintDataProvider} from '../FakeBlueprintDataProvider';
 import {BlueprintDocumentModel} from './BlueprintDocumentModel';
-import type {BlueprintAccessProvider} from './BlueprintStore';
-import {InMemoryBlueprintStore} from './InMemoryBlueprintStore';
+import type {BlueprintRecord} from './BlueprintRepository';
+import {InMemoryBlueprintRepository} from './InMemoryBlueprintRepository';
 
 /**
- * A stored blueprint: one draft for writers, numbered publishes that never change for everyone,
- * and a version check on every save, whether the store's server makes it or the library does.
+ * A stored blueprint: one shared draft for writers, numbered publishes that never change for
+ * everyone, and a version check on every save, whether the repository's server makes it or the
+ * library does. The repository alone says what the user may do.
  */
 describe('BlueprintDocumentModel', () => {
     beforeAll(async () => {
         await initTestAppAsync();
     });
 
-    const access = (level: BlueprintAccess, canPublish?: boolean): BlueprintAccessProvider => ({
-        accessAsync: async () => ({access: level, ...(canPublish != null ? {canPublish} : {})})
-    });
+    // The access the repository grants, which a test changes as it goes.
+    interface Grant {
+        access: BlueprintAccess;
+        canPublish: boolean;
+    }
 
-    function session(store: InMemoryBlueprintStore, provider = access('write')) {
+    function session(repository: InMemoryBlueprintRepository) {
         const blueprintModel = new BlueprintModel({
                 catalog: portfolioCatalog,
                 registry: scenarioRegistry(),
                 dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog})
             }),
-            doc = new BlueprintDocumentModel({blueprintModel, store, accessProvider: provider});
+            doc = new BlueprintDocumentModel({blueprintModel, repository});
         onTestFinished(() => {
             doc.destroy();
             blueprintModel.destroy();
@@ -35,12 +38,22 @@ describe('BlueprintDocumentModel', () => {
         return {blueprintModel, doc};
     }
 
-    async function created(store = new InMemoryBlueprintStore()) {
-        const {id} = await store.createAsync({
-            name: 'Positions',
-            blueprint: loadBlueprint('p3-morning-report.json')
-        });
-        return {store, id};
+    // A blueprint the repository holds, with the access a test grants to it. The user writes
+    // any blueprint they create or copy.
+    async function created(config: {enforcesBase?: boolean} = {}) {
+        const grant: Grant = {access: 'write', canPublish: true},
+            owned: Grant = {access: 'write', canPublish: true};
+        let shared: string = null;
+        const repository = new InMemoryBlueprintRepository({
+                ...config,
+                accessOf: it => ({...(it === shared ? grant : owned)})
+            }),
+            {id} = await repository.createAsync({
+                name: 'Positions',
+                blueprint: loadBlueprint('p3-morning-report.json')
+            });
+        shared = id;
+        return {repository, grant, id};
     }
 
     const errors = (issues: {severity: string; code: string}[]) =>
@@ -48,20 +61,15 @@ describe('BlueprintDocumentModel', () => {
     const title = (m: BlueprintModel, t: string) =>
         m.applyEdit({ops: [{op: 'set', path: '/elements/posGrid/config/title', value: t}]});
 
-    it('needs an access provider', () => {
-        expect(
-            () =>
-                new BlueprintDocumentModel({
-                    blueprintModel: null,
-                    store: new InMemoryBlueprintStore(),
-                    accessProvider: null
-                })
-        ).toThrow(/needs an access provider/);
+    it('needs a repository', () => {
+        expect(() => new BlueprintDocumentModel({blueprintModel: null, repository: null})).toThrow(
+            /needs a repository/
+        );
     });
 
     it('opens the draft in design mode, saves it, and tracks unsaved edits', async () => {
-        const {store, id} = await created(),
-            {blueprintModel, doc} = session(store);
+        const {repository, id} = await created(),
+            {blueprintModel, doc} = session(repository);
         expect(await doc.openAsync(id, {as: 'draft'})).toEqual([]);
         expect(blueprintModel.mode).toBe('design');
         expect(doc.document).toMatchObject({kind: 'draft', version: 1});
@@ -72,35 +80,38 @@ describe('BlueprintDocumentModel', () => {
         expect(doc.isDirty).toBe(false);
         expect(doc.document.version).toBe(2);
 
-        const saved = await store.openAsync(id, {as: 'draft'});
+        const saved = await repository.openAsync(id, {as: 'draft'});
         expect(saved.blueprint.elements.posGrid.config.title).toBe('Mine');
         expect(saved.blueprint.schema).toMatchObject({blueprint: 1, widgets: {cubeGrid: 1}});
     });
 
     it('publishes the draft as the next number, saving it first, and leaves the draft', async () => {
-        const {store, id} = await created(),
-            {blueprintModel, doc} = session(store);
+        const {repository, id} = await created(),
+            {blueprintModel, doc} = session(repository);
         await doc.openAsync(id, {as: 'draft'});
         title(blueprintModel, 'First');
         expect(await doc.publishAsync('Ready')).toEqual([]);
         expect(doc.document.publishedVersion).toBe(1);
-        expect(await store.listPublishesAsync(id)).toMatchObject([{version: 1, note: 'Ready'}]);
+        expect(await repository.listPublishesAsync(id)).toMatchObject([
+            {version: 1, note: 'Ready'}
+        ]);
 
         title(blueprintModel, 'Second');
         await doc.publishAsync();
-        const latest = await store.openAsync(id, {as: 'publish'}),
-            first = await store.openAsync(id, {as: 'publish', version: 1});
+        const latest = await repository.openAsync(id, {as: 'publish'}),
+            first = await repository.openAsync(id, {as: 'publish', version: 1});
         expect(latest.blueprint.elements.posGrid.config.title).toBe('Second');
         expect(first.blueprint.elements.posGrid.config.title).toBe('First');
         expect(
-            (await store.openAsync(id, {as: 'draft'})).blueprint.elements.posGrid.config.title
+            (await repository.openAsync(id, {as: 'draft'})).blueprint.elements.posGrid.config.title
         ).toBe('Second');
     });
 
     it('opens only the latest publish for a reader, who may copy it but not delete', async () => {
-        const {store, id} = await created();
-        await store.publishAsync(id, {base: 1});
-        const {blueprintModel, doc} = session(store, access('read'));
+        const {repository, grant, id} = await created();
+        await repository.publishAsync(id, {base: 1});
+        Object.assign(grant, {access: 'read', canPublish: false});
+        const {blueprintModel, doc} = session(repository);
 
         expect(errors(await doc.openAsync(id, {as: 'draft'}))).toEqual(['edit.notAllowed']);
         expect(errors(await doc.openAsync(id, {as: 'publish', version: 1}))).toEqual([
@@ -121,20 +132,68 @@ describe('BlueprintDocumentModel', () => {
         await expect(doc.deleteAsync()).rejects.toThrow(/Only a writer/);
     });
 
-    it('lets a writer publish by default, unless the provider says otherwise', async () => {
-        const {store, id} = await created(),
-            {doc} = session(store, access('write', false));
+    it('publishes only as the repository allows', async () => {
+        const {repository, grant, id} = await created(),
+            {doc} = session(repository);
+        grant.canPublish = false;
         await doc.openAsync(id, {as: 'draft'});
         expect(doc.canPublish).toBe(false);
         expect(errors(await doc.publishAsync())).toEqual(['edit.notAllowed']);
     });
 
+    it('fails closed: a record that names no access opens for reading only', async () => {
+        class Silent extends InMemoryBlueprintRepository {
+            override async openAsync(
+                ...args: Parameters<InMemoryBlueprintRepository['openAsync']>
+            ) {
+                const {access: _a, canPublish: _p, ...rest} = await super.openAsync(...args);
+                return rest as BlueprintRecord;
+            }
+        }
+        const repository = new Silent(),
+            {id} = await repository.createAsync({
+                name: 'Positions',
+                blueprint: loadBlueprint('p3-morning-report.json')
+            }),
+            {blueprintModel, doc} = session(repository);
+        expect(errors(await doc.openAsync(id, {as: 'draft'}))).toEqual(['edit.notAllowed']);
+        await repository.publishAsync(id, {base: 1});
+        expect(await doc.openAsync(id)).toEqual([]);
+        expect([blueprintModel.access, doc.canPublish, doc.canShare]).toEqual([
+            'read',
+            false,
+            false
+        ]);
+    });
+
+    it('creates only where the repository allows', async () => {
+        const {blueprintModel, doc} = session(new InMemoryBlueprintRepository({canCreate: false}));
+        blueprintModel.setBlueprint(loadBlueprint('p2-linked-dashboard.json'));
+        expect(errors(await doc.createAsync('New'))).toEqual(['edit.notAllowed']);
+    });
+
+    it('shares a blueprint for a writer, where the repository can share', async () => {
+        const {repository, grant, id} = await created(),
+            {doc} = session(repository);
+        await doc.openAsync(id, {as: 'draft'});
+        expect(doc.canShare).toBe(true);
+        await doc.updateAccessAsync({writers: ['ann'], readers: ['traders']});
+        expect(repository.sharingOf(id)).toEqual({writers: ['ann'], readers: ['traders']});
+
+        Object.assign(repository, {updateAccessAsync: undefined});
+        expect(doc.canShare).toBe(false);
+        grant.access = 'read';
+        await repository.publishAsync(id, {base: 1});
+        await doc.openAsync(id);
+        expect(doc.canShare).toBe(false);
+    });
+
     it.each([true, false])(
         'refuses a save based on a stale draft, with enforcesBase %s',
         async enforcesBase => {
-            const {store, id} = await created(new InMemoryBlueprintStore({enforcesBase})),
-                a = session(store),
-                b = session(store);
+            const {repository, id} = await created({enforcesBase}),
+                a = session(repository),
+                b = session(repository);
             await a.doc.openAsync(id, {as: 'draft'});
             await b.doc.openAsync(id, {as: 'draft'});
             title(a.blueprintModel, 'A');
@@ -143,22 +202,23 @@ describe('BlueprintDocumentModel', () => {
             expect(errors(await b.doc.saveDraftAsync())).toEqual(['edit.staleBase']);
             expect(errors(await b.doc.publishAsync())).toEqual(['edit.staleBase']);
             expect(
-                (await store.openAsync(id, {as: 'draft'})).blueprint.elements.posGrid.config.title
+                (await repository.openAsync(id, {as: 'draft'})).blueprint.elements.posGrid.config
+                    .title
             ).toBe('A');
         }
     );
 
     it('keeps renames with the draft across sessions until a publish takes them, undo included', async () => {
-        const {store, id} = await created();
+        const {repository, id} = await created();
 
-        const first = session(store);
+        const first = session(repository);
         await first.doc.openAsync(id, {as: 'draft'});
         first.blueprintModel.applyEdit({
             ops: [{op: 'renameId', kind: 'element', from: 'posGrid', to: 'positionsGrid'}]
         });
         await first.doc.saveDraftAsync();
 
-        const second = session(store);
+        const second = session(repository);
         await second.doc.openAsync(id, {as: 'draft'});
         expect(second.doc.pendingRenames).toEqual([
             {kind: 'element', from: 'posGrid', to: 'positionsGrid'}
@@ -174,37 +234,37 @@ describe('BlueprintDocumentModel', () => {
         second.blueprintModel.redo();
         expect(await second.doc.publishAsync()).toEqual([]);
 
-        const [publish] = await store.listPublishesAsync(id);
+        const [publish] = await repository.listPublishesAsync(id);
         expect(publish.renames).toEqual([
             {kind: 'element', from: 'posGrid', to: 'positionsGrid'},
             {kind: 'element', from: 'priceChart', to: 'prices'}
         ]);
         expect(second.doc.pendingRenames).toEqual([]);
-        expect((await store.openAsync(id, {as: 'draft'})).pendingRenames).toEqual([]);
+        expect((await repository.openAsync(id, {as: 'draft'})).pendingRenames).toEqual([]);
     });
 
     it('creates a blueprint from the one open, and deletes it with its personalizations', async () => {
-        const store = new InMemoryBlueprintStore(),
-            {blueprintModel, doc} = session(store);
+        const repository = new InMemoryBlueprintRepository(),
+            {blueprintModel, doc} = session(repository);
         blueprintModel.setBlueprint(loadBlueprint('p2-linked-dashboard.json'));
         expect(await doc.createAsync('New')).toEqual([]);
         const {id} = doc.document;
-        await store.savePersonalizationAsync({
+        await repository.savePersonalizationAsync({
             blueprintId: id,
             preset: null,
             ops: [],
             publishVersion: 1
         });
-        expect(await store.loadPersonalizationsAsync(id)).toHaveLength(1);
+        expect(await repository.loadPersonalizationsAsync(id)).toHaveLength(1);
 
         await doc.deleteAsync();
-        expect(await store.listAsync()).toEqual([]);
-        expect(await store.loadPersonalizationsAsync(id)).toEqual([]);
+        expect(await repository.listAsync()).toEqual([]);
+        expect(await repository.loadPersonalizationsAsync(id)).toEqual([]);
         expect(blueprintModel.blueprint).toBeNull();
     });
 
     it('upgrades a blueprint through migrate as it opens', async () => {
-        const {store, id} = await created(),
+        const {repository, id} = await created(),
             migrate = vi.fn(bp => ({...bp, root: bp.root})),
             blueprintModel = new BlueprintModel({
                 catalog: portfolioCatalog,
@@ -213,8 +273,7 @@ describe('BlueprintDocumentModel', () => {
             }),
             doc = new BlueprintDocumentModel({
                 blueprintModel,
-                store,
-                accessProvider: access('write'),
+                repository,
                 migrate
             });
         onTestFinished(() => blueprintModel.destroy());
