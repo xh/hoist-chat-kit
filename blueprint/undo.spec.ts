@@ -90,12 +90,14 @@ describe('undo and redo', () => {
         expect(model.redo().issues).toMatchObject([{code: 'edit.nothingToRedo'}]);
     });
 
-    it('refuses to undo in run mode, as any edit, and keeps the stacks', () => {
+    it('can undo only while edits are allowed, and refuses in run mode, keeping the stacks', () => {
         const model = open('p2-linked-dashboard.json');
         titled(model, 'A');
         model.setMode('run');
+        expect(model.canUndo).toBe(false);
         expect(model.undo().issues).toMatchObject([{code: 'edit.notAllowed'}]);
         expect(model.blueprint.elements.posGrid.config.title).toBe('A');
+        model.setMode('design');
         expect(model.canUndo).toBe(true);
     });
 
@@ -125,6 +127,8 @@ describe('undo and redo', () => {
         expect(model.undoDescription).toBe('Group by sector');
         model.undo();
         expect(model.blueprint).toEqual(original);
+        // The user undid it, not the Architect.
+        expect(model.history.map(it => it.author)).toEqual(['architect', 'user']);
     });
 
     it('starts over when another blueprint opens, or the model clears', () => {

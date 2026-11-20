@@ -308,14 +308,14 @@ export class BlueprintModel extends HoistModel {
         });
     }
 
-    /** True if an edit can be undone. See {@link undo}. */
+    /** True if an edit can be undone now: there is one, and the user may edit. See {@link undo}. */
     get canUndo(): boolean {
-        return this.undoStack.length > 0;
+        return this.mode === 'design' && this.undoStack.length > 0;
     }
 
-    /** True if an undone edit can be applied again. See {@link redo}. */
+    /** True if an undone edit can be applied again now. See {@link redo}. */
     get canRedo(): boolean {
-        return this.redoStack.length > 0;
+        return this.mode === 'design' && this.redoStack.length > 0;
     }
 
     /** The description of the edit {@link undo} would revert, or null. */
@@ -339,7 +339,7 @@ export class BlueprintModel extends HoistModel {
         if (!entry) return nothingTo('undo');
         return this.commitEdit(
             {
-                author: entry.author,
+                author: 'user',
                 description: `Undo: ${entry.description}`,
                 ops: diffOps(this.blueprint ?? {}, entry.before ?? {})
             },
@@ -359,7 +359,7 @@ export class BlueprintModel extends HoistModel {
         const entry = last(this.redoStack);
         if (!entry) return nothingTo('redo');
         return this.commitEdit(
-            {author: entry.author, description: `Redo: ${entry.description}`, ops: entry.ops},
+            {author: 'user', description: `Redo: ${entry.description}`, ops: entry.ops},
             done => {
                 this.redoStack = dropRight(this.redoStack);
                 this.undoStack = takeRight(
