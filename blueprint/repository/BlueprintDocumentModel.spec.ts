@@ -111,6 +111,140 @@ describe('BlueprintDocumentModel', () => {
         ).toBe('Second');
     });
 
+    describe('saving one at a time', () => {
+        // A repository whose saves and publishes wait until the test releases them, recording saves.
+        class Gated extends InMemoryBlueprintRepository {
+            calls: {base: number; title: string}[] = [];
+            private gates: (() => void)[] = [];
+
+            override async saveDraftAsync(
+                ...args: Parameters<InMemoryBlueprintRepository['saveDraftAsync']>
+            ) {
+                const [, draft] = args;
+                this.calls.push({
+                    base: draft.base,
+                    title: draft.blueprint.elements.posGrid.config.title
+                });
+                await new Promise<void>(resolve => this.gates.push(resolve));
+                return super.saveDraftAsync(...args);
+            }
+
+            override async publishAsync(
+                ...args: Parameters<InMemoryBlueprintRepository['publishAsync']>
+            ) {
+                await new Promise<void>(resolve => this.gates.push(resolve));
+                return super.publishAsync(...args);
+            }
+
+            get gateCount() {
+                return this.gates.length;
+            }
+
+            async releaseAsync() {
+                await vi.waitFor(() => expect(this.gates.length).toBeGreaterThan(0));
+                this.gates.shift()();
+            }
+        }
+
+        async function gated() {
+            const repository = new Gated({canCreate: true, accessOf: () => ({...OWNER})}),
+                {id} = await repository.createAsync({
+                    name: 'Positions',
+                    blueprint: loadBlueprint('p3-morning-report.json')
+                }),
+                s = session(repository);
+            await s.doc.openAsync(id, {as: 'draft'});
+            return {repository, id, ...s};
+        }
+
+        it('coalesces saves asked for while one runs into one save of the latest blueprint', async () => {
+            const {repository, blueprintModel, doc} = await gated();
+            title(blueprintModel, 'One');
+            const first = doc.saveDraftAsync();
+            await vi.waitFor(() => expect(repository.calls).toHaveLength(1));
+            title(blueprintModel, 'Two');
+            const second = doc.saveDraftAsync();
+            title(blueprintModel, 'Three');
+            const third = doc.saveDraftAsync();
+            expect(third).toBe(second);
+
+            await repository.releaseAsync();
+            expect(await first).toEqual([]);
+            await repository.releaseAsync();
+            expect(await second).toEqual([]);
+            expect(repository.calls).toEqual([
+                {base: 1, title: 'One'},
+                {base: 2, title: 'Three'}
+            ]);
+            expect(doc.isDirty).toBe(false);
+        });
+
+        it('publishes only once a save in flight has landed, from its version, keeping later edits', async () => {
+            const {repository, blueprintModel, doc, id} = await gated();
+            title(blueprintModel, 'One');
+            const saving = doc.saveDraftAsync(),
+                publishing = doc.publishAsync();
+            await repository.releaseAsync();
+            expect(await saving).toEqual([]);
+            await vi.waitFor(() => expect(repository.gateCount).toBe(1));
+            blueprintModel.applyEdit({
+                ops: [{op: 'renameId', kind: 'element', from: 'priceChart', to: 'prices'}]
+            });
+            await repository.releaseAsync();
+            expect(await publishing).toEqual([]);
+            expect(repository.calls).toHaveLength(1);
+            const [publish] = await repository.listPublishesAsync(id);
+            expect(publish.version).toBe(1);
+            expect(doc.document).toMatchObject({publishedVersion: 1, version: 3});
+            // A rename made while the publish ran was not saved, so it waits for the next one.
+            expect(publish.renames).toEqual([]);
+            expect(doc.pendingRenames).toEqual([
+                {kind: 'element', from: 'priceChart', to: 'prices'}
+            ]);
+            expect(doc.isDirty).toBe(true);
+        });
+    });
+
+    it('goes stale on a stale save: keeps the edits, refuses more saves, and reloads or copies', async () => {
+        const {repository, id} = await created(),
+            a = session(repository),
+            b = session(repository);
+        await a.doc.openAsync(id, {as: 'draft'});
+        await b.doc.openAsync(id, {as: 'draft'});
+        title(a.blueprintModel, 'A');
+        await a.doc.saveDraftAsync();
+        title(b.blueprintModel, 'B');
+        expect(errors(await b.doc.saveDraftAsync())).toEqual(['edit.staleBase']);
+        expect(b.doc.isStale).toBe(true);
+        expect(b.blueprintModel.blueprint.elements.posGrid.config.title).toBe('B');
+
+        const save = vi.spyOn(repository, 'saveDraftAsync'),
+            publish = vi.spyOn(repository, 'publishAsync');
+        expect(errors(await b.doc.saveDraftAsync())).toEqual(['edit.staleBase']);
+        expect(errors(await b.doc.publishAsync())).toEqual(['edit.staleBase']);
+        expect(save).not.toHaveBeenCalled();
+        expect(publish).not.toHaveBeenCalled();
+
+        expect(await b.doc.createAsync('Mine')).toEqual([]);
+        expect(b.doc.document.id).not.toBe(id);
+        expect(b.blueprintModel.blueprint.elements.posGrid.config.title).toBe('B');
+        expect(b.doc.isStale).toBe(false);
+
+        await b.doc.openAsync(id, {as: 'draft'});
+        title(b.blueprintModel, 'Again');
+        await repository.saveDraftAsync(id, {
+            blueprint: a.blueprintModel.blueprint,
+            base: 2,
+            renames: []
+        });
+        await b.doc.saveDraftAsync();
+        expect(b.doc.isStale).toBe(true);
+        expect(await b.doc.reloadAsync()).toEqual([]);
+        expect(b.doc.isStale).toBe(false);
+        expect(b.doc.isDirty).toBe(false);
+        expect(b.blueprintModel.blueprint.elements.posGrid.config.title).toBe('A');
+    });
+
     it('bumps the draft version on publish, so a draft opened before it saves as stale', async () => {
         const {repository, id} = await created(),
             publisher = session(repository),

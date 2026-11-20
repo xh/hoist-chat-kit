@@ -33,11 +33,25 @@ export class BlueprintDocumentModel extends HoistModel {
     /** The version open, or null. */
     @observableRef accessor document: BlueprintDocument = null;
 
+    /**
+     * True once a save or publish of the draft open found another save had landed first. The
+     * model keeps its unsaved edits, and saving and publishing are refused until the app reloads
+     * the draft with {@link reloadAsync}, discarding them, or saves them as a new blueprint with
+     * {@link createAsync}.
+     */
+    @observable accessor isStale = false;
+
     // The blueprint model's version when the draft was last opened or saved.
     @observable private accessor savedVersion = 0;
     // The renames the draft held when opened, and where in the history new renames start.
     private openRenames: BlueprintRename[] = [];
     private renamesFrom = 0;
+    // Where in the history the last save, or the open, took the draft's renames up to.
+    private savedHistoryLength = 0;
+    // Saves, publishes and copies run one at a time, in order, so no two write from one base.
+    private writes: Promise<unknown> = Promise.resolve();
+    // A save asked for while another runs, which later asks join.
+    private queuedSave: Promise<BlueprintIssue[]> = null;
 
     constructor(config: {
         blueprintModel: BlueprintModel;
@@ -117,58 +131,71 @@ export class BlueprintDocumentModel extends HoistModel {
     }
 
     /**
-     * Save the draft open. A repository that does not check the draft's version itself is checked
-     * first, which narrows the race between two writers but does not close it.
+     * Save the draft open, if it has unsaved edits. Saves run one at a time: one asked for while
+     * another runs waits for it, then saves the blueprint as it is by then, and further asks in
+     * the meantime join that one. A repository that does not check the draft's version itself is
+     * checked first, which narrows the race between two writers but does not close it.
      */
-    async saveDraftAsync(): Promise<BlueprintIssue[]> {
-        const {document, repository} = this;
-        if (document?.kind !== 'draft' || document.access !== 'write') {
-            return [refusal('Only a writer can save a draft, once one is open.')];
-        }
-        const stale = await this.staleIssueAsync();
-        if (stale) return [stale];
-        const {version, issues} = await repository.saveDraftAsync(document.id, {
-            blueprint: this.withSchema(this.blueprintModel.blueprint),
-            base: document.version,
-            renames: this.pendingRenames
+    saveDraftAsync(): Promise<BlueprintIssue[]> {
+        if (this.queuedSave) return this.queuedSave;
+        const save = this.inTurnAsync(() => {
+            this.queuedSave = null;
+            return this.doSaveDraftAsync();
         });
-        if (version != null) this.saved(version);
-        return issues;
+        this.queuedSave = save;
+        return save;
     }
 
-    /** Publish the saved draft as the next number. A draft with unsaved edits saves first. */
-    async publishAsync(note?: string): Promise<BlueprintIssue[]> {
-        const {document, repository} = this;
-        if (document?.kind !== 'draft' || !this.canPublish) {
-            return [refusal('You may not publish this blueprint.')];
-        }
-        if (this.isDirty) {
-            const issues = await this.saveDraftAsync();
-            if (issues.some(it => it.severity === 'error')) return issues;
-        }
-        const stale = await this.staleIssueAsync();
-        if (stale) return [stale];
-        const {publish, draftVersion, issues} = await repository.publishAsync(document.id, {
-            base: this.document.version,
-            note
+    /**
+     * Publish the saved draft as the next number, once any save in flight has landed. A draft
+     * with unsaved edits saves first.
+     */
+    publishAsync(note?: string): Promise<BlueprintIssue[]> {
+        return this.inTurnAsync(async () => {
+            const {document, repository} = this;
+            if (document?.kind !== 'draft' || !this.canPublish) {
+                return [refusal('You may not publish this blueprint.')];
+            }
+            if (this.isStale) return [staleRefusal()];
+            if (this.isDirty) {
+                const issues = await this.doSaveDraftAsync();
+                if (issues.some(it => it.severity === 'error')) return issues;
+            }
+            const stale = await this.staleIssueAsync();
+            if (stale) return this.wentStale([stale]);
+            const {publish, draftVersion, issues} = await repository.publishAsync(document.id, {
+                base: this.document.version,
+                note
+            });
+            if (publish) this.published(publish, draftVersion);
+            return this.wentStale(issues);
         });
-        if (publish) this.published(publish, draftVersion);
-        return issues;
+    }
+
+    /** Open the draft again as it is stored, discarding unsaved edits, as after going stale. */
+    reloadAsync(): Promise<BlueprintIssue[]> {
+        return this.inTurnAsync(() => {
+            const {document} = this;
+            throwIf(document?.kind !== 'draft', 'Open a draft to reload it.');
+            return this.openAsync(document.id, {as: 'draft'});
+        });
     }
 
     /**
      * Copy the blueprint open into a new one, from its latest publish by default. Copying needs
      * the right to create, and copying a draft, or an older publish, needs write access.
      */
-    async copyAsync(name: string, from?: BlueprintOpenOptions): Promise<BlueprintRecord> {
-        const {document} = this;
-        throwIf(!document, 'Open a blueprint to copy it.');
-        throwIf(
-            from && needsWrite(from) && document.access !== 'write',
-            'You may copy only the latest publish.'
-        );
-        throwIf(!(await this.repository.canCreateAsync()), 'You may not create a blueprint.');
-        return this.repository.copyAsync(document.id, {name, ...(from ? {from} : {})});
+    copyAsync(name: string, from?: BlueprintOpenOptions): Promise<BlueprintRecord> {
+        return this.inTurnAsync(async () => {
+            const {document} = this;
+            throwIf(!document, 'Open a blueprint to copy it.');
+            throwIf(
+                from && needsWrite(from) && document.access !== 'write',
+                'You may copy only the latest publish.'
+            );
+            throwIf(!(await this.repository.canCreateAsync()), 'You may not create a blueprint.');
+            return this.repository.copyAsync(document.id, {name, ...(from ? {from} : {})});
+        });
     }
 
     /** Delete the blueprint open, with its publishes and personalizations. Needs write access. */
@@ -194,24 +221,67 @@ export class BlueprintDocumentModel extends HoistModel {
     //------------------
     // Implementation
     //------------------
+    private async doSaveDraftAsync(): Promise<BlueprintIssue[]> {
+        const {document, repository} = this;
+        if (document?.kind !== 'draft' || document.access !== 'write') {
+            return [refusal('Only a writer can save a draft, once one is open.')];
+        }
+        if (this.isStale) return [staleRefusal()];
+        if (!this.isDirty) return [];
+        const stale = await this.staleIssueAsync();
+        if (stale) return this.wentStale([stale]);
+        const {blueprintModel} = this,
+            sent = {
+                modelVersion: blueprintModel.version,
+                historyLength: blueprintModel.history.length,
+                renames: this.pendingRenames
+            },
+            {version, issues} = await repository.saveDraftAsync(document.id, {
+                blueprint: this.withSchema(this.blueprintModel.blueprint),
+                base: document.version,
+                renames: sent.renames
+            });
+        if (version != null) this.saved(version, sent);
+        return this.wentStale(issues);
+    }
+
+    // Run a write after those before it, whether they succeeded or failed.
+    private inTurnAsync<T>(fn: () => Promise<T>): Promise<T> {
+        const ret = this.writes.then(fn, fn);
+        this.writes = ret.catch(() => null);
+        return ret;
+    }
+
+    @action
+    private wentStale(issues: BlueprintIssue[]): BlueprintIssue[] {
+        if (issues.some(it => it.code === 'edit.staleBase')) this.isStale = true;
+        return issues;
+    }
+
     @action
     private opened(record: BlueprintRecord, access: BlueprintAccess) {
         const {blueprint: _bp, ...document} = record;
         this.document = {...document, access, canPublish: record.canPublish === true};
+        this.isStale = false;
         this.savedVersion = this.blueprintModel.version;
         this.openRenames = record.pendingRenames ?? [];
-        this.renamesFrom = this.blueprintModel.history.length;
+        this.renamesFrom = this.savedHistoryLength = this.blueprintModel.history.length;
     }
 
     @action
-    private saved(version: number) {
+    // As of the model version the save sent, so edits made while it ran stay unsaved.
+    private saved(
+        version: number,
+        sent: {modelVersion: number; historyLength: number; renames: BlueprintRename[]}
+    ) {
         this.document = {
             ...this.document,
             version,
             draftVersion: version,
-            pendingRenames: this.pendingRenames
+            pendingRenames: sent.renames
         };
-        this.savedVersion = this.blueprintModel.version;
+        this.savedVersion = sent.modelVersion;
+        this.savedHistoryLength = sent.historyLength;
     }
 
     @action
@@ -223,7 +293,8 @@ export class BlueprintDocumentModel extends HoistModel {
             ...(draftVersion != null ? {version: draftVersion, draftVersion} : {})
         };
         this.openRenames = [];
-        this.renamesFrom = this.blueprintModel.history.length;
+        // The publish took the renames saved, so those made since the last save stay pending.
+        this.renamesFrom = this.savedHistoryLength;
     }
 
     @action
@@ -273,6 +344,16 @@ const BLUEPRINT_FORMAT_VERSION = 1;
 
 function needsWrite(opts: BlueprintOpenOptions): boolean {
     return opts.as === 'draft' || (opts.as === 'publish' && opts.version != null);
+}
+
+function staleRefusal(): BlueprintIssue {
+    return {
+        code: 'edit.staleBase',
+        severity: 'error',
+        path: '',
+        message:
+            'Another save landed after you opened this draft. Reload it, or save your edits as a new blueprint.'
+    };
 }
 
 function refusal(message: string): BlueprintIssue {
