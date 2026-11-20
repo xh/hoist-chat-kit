@@ -201,6 +201,34 @@ describe('input widgets', () => {
         expect(picker.pickerModel.anchorDate.isoString).toBe('2026-03-05');
     });
 
+    it("anchors a prompted date range's picker on its asOf", () => {
+        const model = new BlueprintModel({
+            blueprint: {
+                schema: {blueprint: 1},
+                variables: {
+                    asOf: {type: 'localDate', setBy: 'prompt', default: {value: '2026-03-02'}},
+                    range: {
+                        type: 'dateRange',
+                        setBy: 'prompt',
+                        default: {value: 'mtd'},
+                        asOf: {$var: 'asOf'}
+                    }
+                },
+                root: 'note',
+                elements: {note: {component: 'markdown', config: {text: 'x'}}}
+            },
+            catalog: portfolioCatalog,
+            registry: scenarioRegistry(),
+            dataProvider: null,
+            mode: 'run'
+        });
+        onTestFinished(() => model.destroy());
+        const {container} = render(blueprintView({model})),
+            picker = container.querySelector('.xh-blueprint-view__toolbar .xh-date-range-picker');
+        expect(picker.textContent).toContain('2026-03-01');
+        expect(picker.textContent).toContain('2026-03-02');
+    });
+
     it('prompts for a date range with a picker, and for a period as text', async () => {
         const model = new BlueprintModel({
             blueprint: {

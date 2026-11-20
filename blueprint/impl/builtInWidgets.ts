@@ -581,7 +581,7 @@ const CHART_SCHEMA = {
 const TREEMAP_SCHEMA = {
     type: 'object',
     additionalProperties: false,
-    required: ['source', 'groupBy', 'value'],
+    required: ['source', 'value'],
     properties: {
         source: {type: 'string', 'x-source': true},
         title: {type: 'string', maxLength: 100, 'x-binding': true},
@@ -1648,6 +1648,22 @@ function depthOf(value: unknown): number {
 
 const VALIDATORS: Record<string, WidgetSpec['validate']> = {
     chart: cfg => (cfg.highchartsConfig ? checkHighchartsConfig(cfg.highchartsConfig) : []),
+    // groupBy may come from a preset group, which takes it out of the config.
+    treemap: (cfg, {blueprint, id}) => {
+        const path = `/elements/${id}/config/groupBy`,
+            isPreset = Object.values(blueprint.presets ?? {}).some(it =>
+                it.controls?.some(c => c.path === path)
+            );
+        if (!isEmpty(cfg.groupBy) || isPreset) return [];
+        return [
+            {
+                code: 'treemap.noGroupBy',
+                severity: 'error',
+                path: '/groupBy',
+                message: 'a treemap needs groupBy, in its config or from a preset group'
+            }
+        ];
+    },
     separator: (cfg, {blueprint, id}) => {
         const elements = blueprint.elements ?? {};
         if (!cfg.label || elements[parentOf(elements, id)]?.component !== 'toolbar') return [];

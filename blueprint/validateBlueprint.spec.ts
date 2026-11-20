@@ -783,6 +783,13 @@ describe('validateBlueprint', () => {
             expect(check({kind: 'era'})).toEqual(['variable.badValue']);
         });
 
+        it("takes a date range's asOf as a binding to a localDate variable", () => {
+            const ok = withVariable({type: 'dateRange', asOf: {$var: 'asOf'}}),
+                bad = withVariable({type: 'dateRange', asOf: '2026-01-02'});
+            expect(codes(ok)).toEqual([]);
+            expect(codes(bad)).toEqual(['variable.badAsOf']);
+        });
+
         it("refuses a picker's preset that the registry lacks", () => {
             const bp = withVariable({type: 'dateRange', setBy: {element: 'pick'}});
             bp.elements.pick = {component: 'dateRangePicker', config: {presets: ['mtd', 'bogus']}};
@@ -826,6 +833,30 @@ describe('validateBlueprint', () => {
             bp.variables.start = start('business') as any;
             expect(codes(bp)).toEqual(['resolver.calendarMismatch']);
         });
+    });
+
+    it("lets a preset group control a treemap's groupBy, and refuses a treemap with neither", () => {
+        const bp = p2();
+        bp.elements.map = {
+            component: 'treemap',
+            config: {source: 'positions', value: 'mktVal'}
+        };
+        (bp.elements.dashboard.children as PlainObject[]).push({
+            id: 'map',
+            x: 0,
+            y: 14,
+            w: 6,
+            h: 4
+        });
+        expect(codes(bp)).toEqual(['treemap.noGroupBy']);
+        bp.presets = {
+            views: {
+                controls: [{path: '/elements/map/config/groupBy'}],
+                default: 'a',
+                items: {a: {set: {elements: {map: {config: {groupBy: ['sector']}}}}}}
+            }
+        };
+        expect(codes(bp)).toEqual([]);
     });
 
     describe("a chart's highchartsConfig", () => {

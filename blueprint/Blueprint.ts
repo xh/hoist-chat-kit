@@ -53,6 +53,8 @@ export interface VariableDecl {
     options?: VariableOptions;
     /** For a `period`: count business days (the default) or calendar days. */
     calendar?: 'business' | 'calendar';
+    /** For a `dateRange`: the `localDate` variable its ranges run to, which its picker shows. */
+    asOf?: VarBinding;
 }
 
 export type VariableSetBy = 'prompt' | 'resolver' | 'action' | ElementWriter | ElementWriter[];

@@ -79,7 +79,9 @@ export class TreemapWidgetModel extends BlueprintWidgetModel<TreemapWidgetConfig
                 'cubeLabelValue',
                 ...compact([value, heat]).map(name => ({name, type: 'number' as const}))
             ],
-            loadTreeData: true
+            loadTreeData: true,
+            // The View's rows are its own, already parsed.
+            projectionOnly: true
         });
         this.view = cube.createView({
             query: {dimensions: groupBy, filter: this.filter, includeRoot: false},

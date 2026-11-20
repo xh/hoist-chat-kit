@@ -148,7 +148,8 @@ class DateRangePromptModel extends HoistModel {
             registry: blueprintModel.registry,
             presets: null,
             getValue: () => variable.value,
-            setValue: value => blueprintModel.setVariable(variable.name, value)
+            setValue: value => blueprintModel.setVariable(variable.name, value),
+            getAsOf: () => blueprintModel.resolve(variable.decl.asOf) as string
         });
     }
 }

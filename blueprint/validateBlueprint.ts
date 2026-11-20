@@ -266,6 +266,9 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             const problem = checkVariableValue(vn, v, v.default.value, registry);
             if (problem) err('variable.badValue', `${p}/default/value`, problem);
         }
+        if (v.asOf != null && variables[v.asOf?.$var]?.type !== 'localDate') {
+            err('variable.badAsOf', `${p}/asOf`, 'asOf is a binding to a localDate variable');
+        }
         if (v.calendar != null && !['business', 'calendar'].includes(v.calendar)) {
             err('variable.badCalendar', `${p}/calendar`, "calendar is 'business' or 'calendar'");
         }
