@@ -1,7 +1,7 @@
 /**
  * Runs the scenarios against Claude models with the Architect's tools, and reports how each did.
  *
- * Usage: pnpm test [--models opus,sonnet] [--scenarios P1,P2] [--effort medium] [--budget 20] [--dry]
+ * Usage: pnpm test [--models opus,sonnet] [--scenarios P1,P2] [--repeat 1] [--effort medium] [--budget 20] [--dry]
  * Reads the API key from XH_ANTHROPIC_API_KEY. Writes results to results/<timestamp>/.
  * --dry counts the prompt's tokens and makes no billed call.
  */
@@ -29,8 +29,9 @@ const models = arg('models', 'opus,sonnet')!.split(','),
     scenarioIds = arg('scenarios')?.split(','),
     effort = arg('effort', 'medium') as 'low' | 'medium' | 'high' | 'xhigh' | 'max',
     budget = Number(arg('budget', '20')),
+    repeat = Number(arg('repeat', '1')),
     dry = process.argv.includes('--dry');
-const scenarios = SCENARIOS.filter(s => !scenarioIds || scenarioIds.includes(s.id));
+const scenarios = SCENARIOS.filter(s => !scenarioIds || scenarioIds.includes(s.id)).flatMap(s => Array(repeat).fill(s));
 
 const apiKey = process.env.XH_ANTHROPIC_API_KEY;
 if (!apiKey) throw new Error('Set XH_ANTHROPIC_API_KEY');
@@ -149,13 +150,14 @@ async function main() {
     fs.mkdirSync(dir, {recursive: true});
     const runs: any[] = [];
     await Promise.all(models.map(async m => {
-        for (const s of scenarios) {
+        for (const [i, s] of scenarios.entries()) {
             if (spent > budget || halted) break;
             console.log(`start ${m} ${s.id}`);
             try {
                 const r = await runScenario(m, s);
                 runs.push(r);
-                fs.writeFileSync(path.join(dir, `${m}-${s.id}.json`), JSON.stringify(r, null, 2));
+                const run = repeat > 1 ? `-${(i % repeat) + 1}` : '';
+                fs.writeFileSync(path.join(dir, `${m}-${s.id}${run}.json`), JSON.stringify(r, null, 2));
                 console.log(`done  ${m} ${s.id}: ${r.checks.filter(c => c.ok).length}/${r.checks.length} checks, ${r.finalIssues.length} issues, $${r.usage.cost.toFixed(3)}`);
             } catch (e) {
                 if (!(e instanceof Anthropic.APIError)) throw e;

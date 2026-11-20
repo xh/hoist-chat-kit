@@ -82,6 +82,12 @@ const computedBy = (bp: Blueprint, name: string, resolver: string) => bp.variabl
 /** The text of a template with its references taken out. */
 const literalText = (t: unknown) => String(t ?? '').replace(/\{[^}]*\}/g, '');
 
+/** Set by the user: a prompt, or an input widget. */
+const userSet = (v: any) => v.setBy === 'prompt' || (v.setBy?.element && !v.setBy.output);
+/** The sources whose fund param or filter binds a variable that defaults to Oak Mount. */
+const oakSources = (bp: Blueprint) => Object.entries<any>(bp.sources ?? {})
+    .filter(([, s]) => [s.params?.fund, ...[s.filter].flat().filter((f: any) => f?.field === 'fund').map((f: any) => f.value)].some(v => bp.variables?.[varOf(v)!]?.default?.value === 'Oak Mount'))
+    .map(([name]) => name);
 const BUILD = 'Mode: design. The user has write access. Build a new blueprint: it starts empty, at version 0.';
 
 export const SCENARIOS: Scenario[] = [
@@ -108,7 +114,8 @@ export const SCENARIOS: Scenario[] = [
             prompt: 'Build me a P&L dashboard. Put headline numbers across the top, positions by strategy and trader below, and a chart of P&L by sector that follows whatever I select in the grid. Under the positions, show the orders for whatever I select.'
         }],
         checks: [
-            ['root is a dashCanvas', o => o.blueprint.elements?.[o.blueprint.root]?.component === 'dashCanvas'],
+            // The canvas may sit under a box with a toolbar of inputs, since step 11.
+            ['a dashCanvas lays out the widgets', o => els(o.blueprint, 'dashCanvas').length],
             ['stat cards over positions, at least three', o => cfg(o.blueprint, 'statCard', c => dataset(o.blueprint, c) === 'positions').length >= 3],
             ['a grid grouped by strategy, then trader', o => gridId(o.blueprint, c => c.groupBy?.[0] === 'strategy' && c.groupBy?.[1] === 'trader')],
             ['its selection sets a filter variable', o => filterVarFrom(o.blueprint, gridId(o.blueprint, c => c.groupBy?.[0] === 'strategy')!).length],
@@ -139,8 +146,9 @@ export const SCENARIOS: Scenario[] = [
             {prompt: 'Add a button that publishes this report to the PM pack.'}
         ],
         checks: [
-            ['fund prompt of type toolbox.fund, defaulting to toolbox.userFund', o => vars(o.blueprint, v => v.type === 'toolbox.fund' && v.setBy === 'prompt' && v.default?.resolver === 'toolbox.userFund').length],
-            ['as-of prompt defaulting to previousBusinessDay', o => vars(o.blueprint, v => v.type === 'localDate' && v.setBy === 'prompt' && v.default?.resolver === 'previousBusinessDay').length],
+            // A prompt or, since step 11, an input widget.
+            ['a user-set fund of type toolbox.fund, defaulting to toolbox.userFund', o => vars(o.blueprint, v => v.type === 'toolbox.fund' && userSet(v) && v.default?.resolver === 'toolbox.userFund').length],
+            ['a user-set as-of defaulting to previousBusinessDay', o => vars(o.blueprint, v => v.type === 'localDate' && userSet(v) && v.default?.resolver === 'previousBusinessDay').length],
             ['a tabContainer with three tabs', o => els(o.blueprint, 'tabContainer').some(([, e]) => e.children?.length === 3)],
             ['a groupingChooser sets a string[] bound to a grid groupBy', o => {
                 const v = vars(o.blueprint, v => v.type === 'string[]' && els(o.blueprint, 'groupingChooser').some(([id]) => v.setBy?.element === id)).map(([n]) => n)[0];
@@ -353,8 +361,9 @@ export const SCENARIOS: Scenario[] = [
         steps: [{prompt: 'How is Oak Mount doing today? Show me its headline numbers.'}, {prompt: 'Put those numbers on my dashboard, with a note on the day.'}],
         checks: [
             ['answers with stat cards', o => o.segments.some(s => segmentWidgets(s, 'statCard').length)],
-            ['the host gains a fundSummary source whose fund binds a variable for Oak Mount', o => sourcesOf(o.blueprint, 'fundSummary').some(([, s]) => o.blueprint.variables?.[varOf(s.params?.fund)!]?.default?.value === 'Oak Mount')],
-            ['stat cards over that source, at least two', o => cfg(o.blueprint, 'statCard', c => dataset(o.blueprint, c) === 'fundSummary').length >= 2],
+            // By its param or its filter, over whichever dataset the answer read.
+            ['the host gains a source whose fund binds a variable for Oak Mount', o => oakSources(o.blueprint).length],
+            ['stat cards over that source, at least two', o => cfg(o.blueprint, 'statCard', c => oakSources(o.blueprint).includes(c.source)).length >= 2],
             ['a callout whose text holds no number of its own', o => {
                 const notes = cfg(o.blueprint, 'callout');
                 return notes.length && notes.every(c => !/\d/.test(literalText(c.text)));
@@ -373,8 +382,9 @@ export const SCENARIOS: Scenario[] = [
         checks: [
             ['answers with stat cards', o => o.segments.some(s => segmentWidgets(s, 'statCard').length)],
             ['answers with a callout', o => o.segments.some(s => segmentWidgets(s, 'callout').length)],
-            ['the host gains a fundSummary source whose fund binds a variable for Oak Mount', o => sourcesOf(o.blueprint, 'fundSummary').some(([, s]) => o.blueprint.variables?.[varOf(s.params?.fund)!]?.default?.value === 'Oak Mount')],
-            ['stat cards over that source, at least two', o => cfg(o.blueprint, 'statCard', c => dataset(o.blueprint, c) === 'fundSummary').length >= 2],
+            // By its param or its filter, over whichever dataset the answer read.
+            ['the host gains a source whose fund binds a variable for Oak Mount', o => oakSources(o.blueprint).length],
+            ['stat cards over that source, at least two', o => cfg(o.blueprint, 'statCard', c => oakSources(o.blueprint).includes(c.source)).length >= 2],
             ['a callout whose text holds no number of its own', o => {
                 const notes = cfg(o.blueprint, 'callout');
                 return notes.length && notes.every(c => !/\d/.test(literalText(c.text)));
