@@ -7,3 +7,4 @@ export * from './DashCanvasWidget';
 export * from './GroupingChooserWidget';
 export * from './StatCardStripWidget';
 export * from './TabContainerWidget';
+export * from './design';

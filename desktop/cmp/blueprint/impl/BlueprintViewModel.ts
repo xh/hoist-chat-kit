@@ -1,6 +1,11 @@
 import {HoistModel, XH, type ElementFactory} from '@xh/hoist/core';
 import type {ReactNode} from 'react';
-import {BlueprintWidgetModel, type BlueprintModel, type WidgetSpec} from '../../../../blueprint';
+import {
+    type BlueprintDesignModel,
+    BlueprintWidgetModel,
+    type BlueprintModel,
+    type WidgetSpec
+} from '../../../../blueprint';
 import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from '../ButtonGroupInputWidget';
 import {buttonGroupWidget, ButtonGroupWidgetModel} from '../ButtonGroupWidget';
 import {chartWidget, ChartWidgetModel} from '../ChartWidget';
@@ -43,11 +48,17 @@ export class BlueprintViewModel extends HoistModel {
     readonly blueprintModel: BlueprintModel;
     /** How the host frames a panel in an answer. Null for a Hoist panel. */
     readonly framePanel: BlueprintPanelFrame;
+    /** The designer's selection and changes, for an element to show and take in design mode. */
+    readonly designModel: BlueprintDesignModel;
     private readonly widgets = new Map<string, {component: string; model: BlueprintWidgetModel}>();
 
-    constructor(blueprintModel: BlueprintModel, opts: {framePanel?: BlueprintPanelFrame} = {}) {
+    constructor(
+        blueprintModel: BlueprintModel,
+        opts: {framePanel?: BlueprintPanelFrame; designModel?: BlueprintDesignModel} = {}
+    ) {
         super();
         this.blueprintModel = blueprintModel;
+        this.designModel = opts.designModel ?? null;
         this.framePanel = opts.framePanel ?? null;
         // Registered before the widgets are made, so that it runs ahead of their reactions and
         // destroys a widget whose element is gone before the widget reacts to it.

@@ -85,18 +85,9 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
      * A path that a preset group controls changes its active preset instead.
      */
     setConfig(path: string, value: unknown): boolean {
-        const {blueprintModel} = this,
-            full = `/elements/${this.id}/config${path}`,
-            control = blueprintModel.getPresetControl(full);
-        if (!control) return this.applyUserEdit([{op: 'set', path: full, value}]);
-
         // In design mode, a path that presets control changes the active preset.
-        if (blueprintModel.mode === 'run')
-            return this.applyUserEdit([{op: 'set', path: full, value}]);
-        const {group, item} = control;
-        return this.applyUserEdit([
-            {op: 'set', path: `/presets/${group}/items/${item}/set${full}`, value}
-        ]);
+        const target = this.blueprintModel.writePathFor(`/elements/${this.id}/config${path}`);
+        return this.applyUserEdit([{op: 'set', path: target, value}]);
     }
 
     /**

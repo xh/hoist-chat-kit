@@ -1,21 +1,29 @@
-import {hoistCmp, useLocalModel, uses} from '@xh/hoist/core';
+import {hoistCmp, type HoistProps, useLocalModel, uses} from '@xh/hoist/core';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
-import {BlueprintModel} from '../../../blueprint';
+import {type BlueprintDesignModel, BlueprintModel} from '../../../blueprint';
 import {blueprintToolbar} from './impl/BlueprintToolbar';
 import {BlueprintViewModel} from './impl/BlueprintViewModel';
 import './BlueprintView.scss';
+
+export interface BlueprintViewProps extends HoistProps<BlueprintModel> {
+    /**
+     * The designer's model. In design mode, a click on an element selects it in this model, and
+     * the selected element shows an outline.
+     */
+    designModel?: BlueprintDesignModel;
+}
 
 /**
  * Renders a blueprint: a toolbar with an input for each prompted variable, over the blueprint's
  * root element. Each element renders with its widget's desktop component, and keeps its widget
  * model for its life.
  */
-export const [BlueprintView, blueprintView] = hoistCmp.withFactory({
+export const [BlueprintView, blueprintView] = hoistCmp.withFactory<BlueprintViewProps>({
     displayName: 'BlueprintView',
     className: 'xh-blueprint-view',
     model: uses(BlueprintModel),
-    render({model, className}) {
-        const impl = useLocalModel(() => new BlueprintViewModel(model));
+    render({model, className, designModel}) {
+        const impl = useLocalModel(() => new BlueprintViewModel(model, {designModel}));
         return panel({
             className,
             tbar: blueprintToolbar({blueprintModel: model}),

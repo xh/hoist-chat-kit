@@ -33,3 +33,4 @@ export {
     resolveFormat,
     type ResolvedFieldDisplay
 } from './impl/formats';
+export * from './design/BlueprintDesignModel';

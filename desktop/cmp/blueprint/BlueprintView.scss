@@ -7,6 +7,20 @@
     padding: var(--xh-pad-px);
     color: var(--xh-text-color-muted);
   }
+
+  // In design mode, each element fills its place as it would without this wrapper.
+  &__design-element {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+
+    &--selected {
+      outline: 2px solid var(--xh-intent-primary);
+      outline-offset: -2px;
+    }
+  }
 }
 
 .xh-blueprint-bar {

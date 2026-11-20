@@ -428,6 +428,16 @@ export class BlueprintModel extends HoistModel {
         return entry ? {group: entry[0], item: this.getActivePreset(entry[0])} : null;
     }
 
+    /**
+     * Where an edit to a path goes: in design mode, a path that presets control goes to the
+     * active preset's value for it. Any other path, or any path in run mode, is itself.
+     */
+    writePathFor(path: string): string {
+        const control = this.getPresetControl(path);
+        if (!control || this.mode === 'run') return path;
+        return `/presets/${control.group}/items/${control.item}/set${path}`;
+    }
+
     /** Hold a run-mode change a user made in a widget, without editing the blueprint. */
     @action
     setTransientValue(path: string, value: unknown) {

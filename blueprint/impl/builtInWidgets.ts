@@ -382,7 +382,8 @@ const STAT_CARD_STRIP_SCHEMA = {
                 additionalProperties: false,
                 properties: {
                     field: {
-                        type: 'string'
+                        type: 'string',
+                        'x-field': 'measure'
                     },
                     label: {
                         type: 'string',
