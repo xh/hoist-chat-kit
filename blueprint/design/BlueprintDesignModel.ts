@@ -205,7 +205,7 @@ export class BlueprintDesignModel extends HoistModel {
         const children = this.blueprintModel.blueprint.elements[parent].children,
             index = children.findIndex(it => it.id === id),
             {id: _id, ...placement} = children[index];
-        return this.edit(`Retitle ${id}`, [
+        return this.edit(`Retitle ${this.elementSpec(id)?.label ?? id}`, [
             {op: 'moveElement', id, parent, child: {...placement, title}, index}
         ]);
     }

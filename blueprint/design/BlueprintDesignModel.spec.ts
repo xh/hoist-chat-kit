@@ -102,6 +102,16 @@ describe('BlueprintDesignModel', () => {
         );
     });
 
+    it('gives a container placed on a canvas room for widgets of its own', () => {
+        const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+            place = (component: string) => {
+                const {id} = design.addWidget(component, 'dashboard');
+                return model.blueprint.elements.dashboard.children.find(it => it.id === id);
+            };
+        expect(place('dashCanvas')).toMatchObject({w: 12, h: 8});
+        expect(place('tabContainer')).toMatchObject({w: 12, h: 8});
+    });
+
     it('adds into the selected container, a tab with a title', () => {
         const {model, design} = open(loadBlueprint('p3-morning-report.json'));
         design.select({kind: 'element', id: 'tabs'});
@@ -125,7 +135,7 @@ describe('BlueprintDesignModel', () => {
             [first, second] = tabs();
         design.setChildTitle(second.id, 'Book');
         expect(tabs()[1]).toEqual({...second, title: 'Book'});
-        expect(model.history.at(-1).description).toBe(`Retitle ${second.id}`);
+        expect(model.history.at(-1).description).toBe('Retitle Dashboard');
 
         design.moveElement(second.id, 'tabs', {index: 0});
         expect(

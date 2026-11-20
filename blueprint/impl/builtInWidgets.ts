@@ -614,6 +614,17 @@ const dashCanvas: WidgetSpec = {
             }
         }
     },
+    // Room for widgets of its own, where it sits on another canvas.
+    size: {
+        default: {
+            w: 12,
+            h: 8
+        },
+        min: {
+            w: 3,
+            h: 3
+        }
+    },
     example: {
         component: 'dashCanvas',
         children: [
@@ -655,6 +666,17 @@ const tabContainer: WidgetSpec = {
                     maxLength: 40
                 }
             }
+        }
+    },
+    // Room for widgets of its own, where it sits on another canvas.
+    size: {
+        default: {
+            w: 12,
+            h: 8
+        },
+        min: {
+            w: 3,
+            h: 3
         }
     },
     example: {
