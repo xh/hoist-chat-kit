@@ -19,7 +19,7 @@ import {
 } from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {action, observableRef} from '@xh/hoist/mobx';
-import {isEmpty, isEqual, isNumber, isString, omit} from 'lodash';
+import {castArray, isEmpty, isEqual, isNumber, isString, omit, uniq} from 'lodash';
 import {
     type BlueprintDesignModel,
     type BlueprintIssue,
@@ -27,7 +27,7 @@ import {
     isVarBinding,
     toEditorSpec
 } from '../../../../blueprint';
-import {starterValue} from '../../../../blueprint/design/starterConfig';
+import {fieldHasRole, starterValue} from '../../../../blueprint/design/starterConfig';
 import type {ReactElement} from 'react';
 import './ElementInspector.scss';
 
@@ -113,10 +113,47 @@ export class ElementInspectorModel extends HoistModel {
         return refusal?.key === key ? [...refusal.issues, ...standing] : standing;
     }
 
-    /** A value a new item can start with, its fields from the element's source. */
+    /** A value a new item can start with, from fields of the element's source it does not use. */
     newValue(schema: PlainObject): unknown {
-        const {blueprint, catalog} = this.designModel.blueprintModel;
-        return starterValue(schema, {blueprint, catalog, source: this.values.source});
+        const {blueprint, catalog} = this.designModel.blueprintModel,
+            {values} = this,
+            fields = this.designModel.blueprintModel.getSource(values.source)?.fields ?? {},
+            used = new Set<string>();
+        walkStrings(values, it => Object.hasOwn(fields, it) && used.add(it));
+        return starterValue(schema, {blueprint, catalog, source: values.source, used: [...used]});
+    }
+
+    /** The blueprint's sources, for an `x-source` property. */
+    get sourceOptions(): Option[] {
+        const sources = this.designModel.blueprintModel.blueprint?.sources ?? {};
+        return Object.keys(sources).map(it => ({value: it, label: it}));
+    }
+
+    /** The fields of the element's source that can fill a role, with their labels. */
+    fieldOptions(role: string): Option[] {
+        const source = this.designModel.blueprintModel.getSource(this.values.source);
+        if (!source) return [];
+        return Object.values(source.fields)
+            .filter(it => fieldHasRole(it, role))
+            .map(it => ({value: it.name, label: source.fieldLabel(it.name)}));
+    }
+
+    /** The variables a property can bind, by the type its schema takes. */
+    variablesFor(node: EditorNode): string[] {
+        const {blueprint, registry} = this.designModel.blueprintModel,
+            want = variableTypeOf(node.schema),
+            fits = (type: string) =>
+                type === want ||
+                registry.variableTypes[type]?.matches === want ||
+                (want === 'number' && type === 'int');
+        return Object.entries(blueprint?.variables ?? {})
+            .filter(([, it]) => !want || fits(it.type))
+            .map(([name]) => name);
+    }
+
+    /** The value a property takes when unbound: none if optional, else one to start from. */
+    unboundValue(node: EditorNode): unknown {
+        return node.required ? this.newValue(node.schema) : undefined;
     }
 
     private get element() {
@@ -140,6 +177,11 @@ export class ElementInspectorModel extends HoistModel {
 // Implementation
 //------------------
 const CLS = 'xh-blueprint-element-inspector';
+
+interface Option {
+    value: string;
+    label: string;
+}
 
 // Publishes the inspector's model, as Hoist inputs look one up even when controlled.
 const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
@@ -209,6 +251,7 @@ function editorFor(
 ): ReactElement {
     const disabled = ctx.impl.readOnly,
         optional = (v: unknown) => (v == null || v === '' ? undefined : v);
+    if (node.bindable) return bindableEditor(node, value, commit, ctx);
     if (isVarBinding(value) && node.kind !== 'json') {
         return div({className: `${CLS}__binding`, item: `Bound to variable ${value.$var}`});
     }
@@ -241,6 +284,35 @@ function editorFor(
                 width: '100%',
                 onCommit: v => commit(optional(v))
             });
+        case 'source':
+            return select({
+                value: value ?? null,
+                options: ctx.impl.sourceOptions,
+                enableClear: !node.required,
+                disabled,
+                width: '100%',
+                onCommit: v => commit(optional(v))
+            });
+        case 'field': {
+            const options = withCurrent(ctx.impl.fieldOptions(node.role), value);
+            return node.multiple
+                ? select({
+                      value: (value as string[]) ?? [],
+                      options,
+                      enableMulti: true,
+                      disabled,
+                      width: '100%',
+                      onCommit: v => commit(isEmpty(v) && !node.required ? undefined : v)
+                  })
+                : select({
+                      value: value ?? null,
+                      options,
+                      enableClear: !node.required,
+                      disabled,
+                      width: '100%',
+                      onCommit: v => commit(optional(v))
+                  });
+        }
         case 'stringList':
             return select({
                 value: (value as string[]) ?? [],
@@ -298,6 +370,45 @@ function editorFor(
         default:
             return jsonEditor(value, commit, ctx);
     }
+}
+
+// A property that takes a value or a variable, with a switch between them.
+function bindableEditor(
+    node: EditorNode,
+    value: unknown,
+    commit: (value: unknown) => void,
+    ctx: EditorContext
+) {
+    const {impl} = ctx,
+        disabled = impl.readOnly,
+        variables = impl.variablesFor(node),
+        bound = isVarBinding(value) ? value.$var : null;
+    return hbox({
+        className: `${CLS}__bindable`,
+        items: [
+            bound != null
+                ? select({
+                      className: `${CLS}__bound`,
+                      value: bound,
+                      options: uniq([bound, ...variables]),
+                      disabled,
+                      flex: 1,
+                      onCommit: (v: string) => commit({$var: v})
+                  })
+                : div({
+                      className: `${CLS}__value`,
+                      item: editorFor({...node, bindable: false}, value, commit, ctx)
+                  }),
+            button({
+                icon: bound != null ? Icon.unlink() : Icon.link(),
+                title: bound != null ? 'Use a value' : 'Bind to a variable',
+                minimal: true,
+                disabled: disabled || (bound == null && !variables.length),
+                onClick: () =>
+                    commit(bound != null ? impl.unboundValue(node) : {$var: variables[0]})
+            })
+        ]
+    });
 }
 
 function listEditor(
@@ -435,6 +546,29 @@ function jsonEditor(value: unknown, commit: (value: unknown) => void, ctx: Edito
             if (!isEqual(parsed, value)) commit(parsed);
         }
     });
+}
+
+function walkStrings(value: unknown, fn: (s: string) => void) {
+    if (isString(value)) return fn(value);
+    if (value != null && typeof value === 'object')
+        Object.values(value).forEach(it => walkStrings(it, fn));
+}
+
+// The options, plus any current value they lack, so a select still shows it.
+function withCurrent(options: Option[], value: unknown): Option[] {
+    const missing = castArray(value ?? []).filter(
+        (v): v is string => isString(v) && !options.some(it => it.value === v)
+    );
+    return [...options, ...missing.map(it => ({value: it, label: it}))];
+}
+
+// The variable type a schema takes: a filter, a plain type, or a list of strings.
+function variableTypeOf(schema: PlainObject): string {
+    if (schema['x-filter']) return 'filter';
+    if (schema.type === 'array') return schema.items?.type === 'string' ? 'string[]' : null;
+    return (
+        {string: 'string', number: 'number', integer: 'int', boolean: 'bool'}[schema.type] ?? null
+    );
 }
 
 // True if a value is of the kind a variant edits.

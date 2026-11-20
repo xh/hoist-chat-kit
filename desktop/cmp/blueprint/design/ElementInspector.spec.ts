@@ -83,11 +83,15 @@ describe('ElementInspector', () => {
         expect(inspector.issuesFor('columns')).toEqual([]);
     });
 
-    it('starts a new list item from the schema, with fields of the widget source', () => {
+    it('starts a new list item from the schema, with fields of the widget source not yet used', () => {
         const {inspector} = open('p2-linked-dashboard.json', 'headline'),
             cards = inspector.nodes.find(it => it.key === 'cards'),
             item = cards.kind === 'list' ? cards.item : null;
-        expect(inspector.newValue(item.schema)).toMatchObject({field: expect.any(String)});
+        inspector.commit('cards', [{field: 'mktVal'}]);
+        const used = inspector.values.cards.map(it => it.field),
+            added = inspector.newValue(item.schema) as {field: string};
+        expect(added.field).toEqual(expect.any(String));
+        expect(used).not.toContain(added.field);
     });
 
     it('is read-only outside design mode', () => {
@@ -95,6 +99,58 @@ describe('ElementInspector', () => {
         expect(inspector.readOnly).toBe(false);
         model.setMode('run');
         expect(inspector.readOnly).toBe(true);
+    });
+
+    describe('sources, fields and bindings', () => {
+        const nodeOf = (inspector: ElementInspectorModel, key: string) =>
+            inspector.nodes.find(it => it.key === key);
+
+        it("offers the blueprint's sources", () => {
+            const {inspector} = open('p2-linked-dashboard.json', 'headline');
+            expect(inspector.sourceOptions.map(it => it.value)).toEqual(['positions', 'orders']);
+        });
+
+        it("offers the element source's fields of the role asked, with their labels", () => {
+            const {model, inspector} = open('p2-linked-dashboard.json', 'headline'),
+                fields = model.getSource('positions').fields,
+                dims = inspector.fieldOptions('dimension'),
+                measures = inspector.fieldOptions('measure');
+            expect(dims.length).toBeGreaterThan(0);
+            dims.forEach(it => expect(fields[it.value].isDimension).toBe(true));
+            measures.forEach(it => expect(fields[it.value].isDimension).toBeFalsy());
+            expect(measures.find(it => it.value === 'mktVal').label).toBe('Market Value');
+            expect(inspector.fieldOptions('any').length).toBe(Object.keys(fields).length);
+        });
+
+        it('offers the variables whose type the property takes', () => {
+            const {inspector} = open();
+            expect(inspector.variablesFor(nodeOf(inspector, 'groupBy'))).toEqual(['grouping']);
+            expect(inspector.variablesFor(nodeOf(inspector, 'filter'))).toEqual([
+                'pnlFilter',
+                'selection'
+            ]);
+            expect(inspector.variablesFor(nodeOf(inspector, 'title'))).toEqual(
+                expect.arrayContaining(['symbol', 'fund'])
+            );
+            expect(inspector.variablesFor(nodeOf(inspector, 'title'))).not.toContain('asOf');
+        });
+
+        it('binds a property to a variable, and back to a value', () => {
+            const {model, inspector} = open();
+            inspector.commit('title', {$var: 'symbol'});
+            expect(model.blueprint.elements.posGrid.config.title).toEqual({$var: 'symbol'});
+            inspector.commit('groupBy', inspector.unboundValue(nodeOf(inspector, 'groupBy')));
+            expect(model.blueprint.elements.posGrid.config).not.toHaveProperty('groupBy');
+        });
+
+        it('draws a variable picker for a bound property, and a field picker for a field', () => {
+            const {design} = open(),
+                {container} = render(elementInspector({designModel: design}) as ReactElement);
+            expect(container.textContent).not.toContain('Bound to variable');
+            expect(
+                container.querySelectorAll('.xh-blueprint-element-inspector__bound').length
+            ).toBe(2);
+        });
     });
 
     it('draws a labelled editor per property, and JSON for what the schema cannot express', () => {

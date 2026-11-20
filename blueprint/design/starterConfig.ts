@@ -24,13 +24,21 @@ export function starterConfig(
 /**
  * A value a part of a config can start with, such as a new item of a list, filled as
  * {@link starterConfig} fills a config. Its fields come from the source named, else the
- * blueprint's first dataset source.
+ * blueprint's first dataset source, and are none of those named in `used`.
  */
 export function starterValue(
     schema: PlainObject,
-    ctx: {blueprint: Blueprint; catalog: DataCatalog; source?: string}
+    ctx: {blueprint: Blueprint; catalog: DataCatalog; source?: string; used?: string[]}
 ): unknown {
     return fill(schema ?? {}, '', fillContext(ctx));
+}
+
+/** True if a field can fill an `x-field` role: a dimension, a measure (a number), or any. */
+export function fieldHasRole(field: FieldDef, role: string): boolean {
+    if (role === 'dimension') return !!field.isDimension;
+    if (role === 'measure')
+        return (field.type === 'number' || field.type === 'int') && !field.isDimension;
+    return true;
 }
 
 //------------------
@@ -48,6 +56,7 @@ function fillContext(ctx: {
     blueprint: Blueprint;
     catalog: DataCatalog;
     source?: string;
+    used?: string[];
 }): FillContext {
     const {blueprint, catalog} = ctx,
         sources = Object.entries(blueprint?.sources ?? {}).filter(
@@ -57,7 +66,12 @@ function fillContext(ctx: {
         fields = decl
             ? Object.values(catalog.getDataset(decl.dataset).fields).filter(it => !it.params)
             : [];
-    return {source, fields, state: {missingSource: false, used: new Set()}, suffix: ''};
+    return {
+        source,
+        fields,
+        state: {missingSource: false, used: new Set(ctx.used)},
+        suffix: ''
+    };
 }
 
 function fill(schema: PlainObject, key: string, ctx: FillContext): unknown {
@@ -110,13 +124,15 @@ function fill(schema: PlainObject, key: string, ctx: FillContext): unknown {
 }
 
 function fieldsFor(role: string, fields: FieldDef[], isList: boolean): FieldDef[] {
-    const isMeasure = (f: FieldDef) => (f.type === 'number' || f.type === 'int') && !f.isDimension,
-        // UNIQUE is blank wherever values differ, so it shows no total.
-        totals = (f: FieldDef) => f.aggregator != null && f.aggregator !== 'UNIQUE',
-        measures = sortBy(fields.filter(isMeasure), it => (totals(it) ? 0 : 1));
-    if (role === 'dimension') return fields.filter(it => it.isDimension);
+    // UNIQUE is blank wherever values differ, so it shows no total.
+    const totals = (f: FieldDef) => f.aggregator != null && f.aggregator !== 'UNIQUE',
+        measures = sortBy(
+            fields.filter(it => fieldHasRole(it, 'measure')),
+            it => (totals(it) ? 0 : 1)
+        );
     if (role === 'measure') return measures;
-    return isList ? uniq([...measures, ...fields]) : fields;
+    if (role === 'any' && isList) return uniq([...measures, ...fields]);
+    return fields.filter(it => fieldHasRole(it, role));
 }
 
 function startCase(key: string): string {

@@ -60,4 +60,14 @@
   &__item-label {
     font-weight: bold;
   }
+
+  &__bindable {
+    align-items: flex-start;
+    gap: var(--xh-spacing-half);
+  }
+
+  &__value {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
 }
