@@ -45,6 +45,7 @@ describe('joins', () => {
                     params: asOf,
                     fields: [
                         dim('fund'),
+                        dim('style'),
                         {name: 'manager', type: 'string'},
                         {name: 'nav', type: 'number', aggregator: 'SUM'},
                         {name: 'mktVal', type: 'number', aggregator: 'SUM'}
@@ -257,8 +258,8 @@ describe('joins', () => {
                 {id: 'c1', fund: 'C', symbol: 'Z', sector: 'Tech', mktVal: 40}
             ],
             funds: [
-                {id: 'A', fund: 'A', nav: 100, manager: 'Ann'},
-                {id: 'B', fund: 'B', nav: 200, manager: 'Bob'}
+                {id: 'A', fund: 'A', nav: 100, manager: 'Ann', style: 'Macro'},
+                {id: 'B', fund: 'B', nav: 200, manager: 'Bob', style: 'Macro'}
             ],
             instruments: [
                 {id: 'X', symbol: 'X', issuer: 'Xco'},
@@ -393,6 +394,25 @@ describe('joins', () => {
             });
             expect(view(['sector']).children.every(it => it.fundNav == null)).toBe(true);
             expect(view([], {field: 'sector', op: '=', value: 'Energy'}).fundNav).toBe(100);
+        });
+
+        it('totals a coarser measure once per key on rows grouped by dimensions of the same join', async () => {
+            const {dataProvider, view} = open(
+                [{source: 'funds', on: {fund: 'fund'}, fields: ['nav', 'style']}],
+                ['nav'],
+                ['style', 'fund']
+            );
+            await dataProvider.send('positions');
+            await dataProvider.send('funds');
+            await vi.waitFor(() => expect(view([]).nav).toBe(300));
+            const byStyle = view(['style']).children;
+            expect(Object.fromEntries(byStyle.map(it => [String(it.cubeLabel), it.nav]))).toEqual({
+                Macro: 300,
+                null: null
+            });
+            expect(view(['style', 'sector']).children[0].children.every(it => it.nav == null)).toBe(
+                true
+            );
         });
 
         it("reduces a finer secondary to the key, by each field's aggregator, before it joins", async () => {

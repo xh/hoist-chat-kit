@@ -857,7 +857,8 @@ export class BlueprintSource extends HoistBase {
         return ret;
     }
 
-    // A joined measure from a coarser source shows only where a row pins the join's key.
+    // A joined measure from a coarser source shows only where a row pins the join's key, or where
+    // it groups by the key and dimensions of the same secondary row alone.
     private toCubeField(f: FieldDef): CubeFieldSpec {
         const ret = toCubeField(f),
             spec = this.joins.find(it =>
@@ -871,6 +872,9 @@ export class BlueprintSource extends HoistBase {
             ...ret,
             aggregator: new KeyedAggregator({
                 keyFields: Object.keys(spec.join.on),
+                keyAttributes: spec.fields
+                    .filter(it => it.mode === 'row' && !it.reduce && it.def.isDimension)
+                    .map(it => it.name),
                 rootAggregator: root
             })
         };
