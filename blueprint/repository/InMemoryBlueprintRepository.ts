@@ -19,13 +19,13 @@ import {
  * single-threaded, it checks a stale `base` truthfully. Construct it with `enforcesBase: false` to
  * test the library's own check, as for a repository whose server cannot.
  *
- * Not for production: it keeps nothing, and by default grants every blueprint's write access,
- * publishing and creating, which a real repository's server decides.
+ * Not for production: it keeps nothing, and its access is what its config grants, by default
+ * read only, with no creating, publishing or sharing.
  */
 export class InMemoryBlueprintRepository implements BlueprintRepository {
     readonly enforcesBase: boolean;
     private readonly userId: string;
-    private readonly accessOf: (id: string) => {access: BlueprintAccess; canPublish: boolean};
+    private readonly accessOf: (id: string) => Grant;
     private readonly canCreate: boolean;
     private readonly items = new Map<string, Item>();
     private readonly personalizations = new Map<string, BlueprintPersonalization>();
@@ -36,16 +36,16 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
             enforcesBase?: boolean;
             /** The signed-in user the repository acts for. Default `user`. */
             userId?: string;
-            /** The user's access to each blueprint. Default write, with publish. */
-            accessOf?: (id: string) => {access: BlueprintAccess; canPublish: boolean};
-            /** True if the user may create blueprints. Default true. */
+            /** The user's access to each blueprint. Default read, with no publishing or sharing. */
+            accessOf?: (id: string) => Grant;
+            /** True if the user may create blueprints. Default false. */
             canCreate?: boolean;
         } = {}
     ) {
         this.enforcesBase = config.enforcesBase ?? true;
         this.userId = config.userId ?? 'user';
-        this.accessOf = config.accessOf ?? (() => ({access: 'write', canPublish: true}));
-        this.canCreate = config.canCreate ?? true;
+        this.accessOf = config.accessOf ?? (() => ({access: 'read', canPublish: false}));
+        this.canCreate = config.canCreate ?? false;
     }
 
     async canCreateAsync(): Promise<boolean> {
@@ -187,13 +187,19 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
 
     async updateAccessAsync(id: string, spec: BlueprintAccessSpec): Promise<void> {
         const item = this.items.get(id);
-        if (!item || !this.isWriter(id)) throw new Error('Only a writer can share a blueprint.');
+        if (!item || !this.accessOf(id).canShare)
+            throw new Error('You may not share this blueprint.');
         item.sharing = clone(spec);
     }
 
     //------------------
     // Implementation
     //------------------
+    private grantOf(id: string): Grant {
+        const {access, canPublish, canShare = false} = this.accessOf(id);
+        return {access, canPublish, canShare};
+    }
+
     private isWriter(id: string): boolean {
         return this.accessOf(id).access === 'write';
     }
@@ -205,13 +211,19 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
             ...(item.description ? {description: item.description} : {}),
             draftVersion: item.draftVersion,
             publishedVersion: item.publishes.at(-1)?.info.version ?? null,
-            ...this.accessOf(item.id),
+            ...this.grantOf(item.id),
             updated: item.updated,
             updatedBy: item.updatedBy,
             ...(item.copiedFrom ? {copiedFrom: item.copiedFrom} : {}),
-            ...(item.sharing && this.isWriter(item.id) ? {sharing: item.sharing} : {})
+            ...(item.sharing && this.accessOf(item.id).canShare ? {sharing: item.sharing} : {})
         };
     }
+}
+
+interface Grant {
+    access: BlueprintAccess;
+    canPublish: boolean;
+    canShare?: boolean;
 }
 
 interface Item {

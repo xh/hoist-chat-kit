@@ -3,6 +3,17 @@ import {loadBlueprint} from '../../test/blueprintFixtures';
 import {InMemoryBlueprintRepository} from './InMemoryBlueprintRepository';
 
 describe('InMemoryBlueprintRepository', () => {
+    const OWNER = {
+        canCreate: true,
+        accessOf: () => ({access: 'write' as const, canPublish: true, canShare: true})
+    };
+
+    it('fails closed by default: no creating, and read access only', async () => {
+        const repository = new InMemoryBlueprintRepository();
+        expect(await repository.canCreateAsync()).toBe(false);
+        await expect(create(repository)).rejects.toThrow(/may not create/);
+    });
+
     const create = (repository: InMemoryBlueprintRepository) =>
         repository.createAsync({
             name: 'Positions',
@@ -10,7 +21,7 @@ describe('InMemoryBlueprintRepository', () => {
         });
 
     it('holds copies, so no caller can change what it holds', async () => {
-        const repository = new InMemoryBlueprintRepository(),
+        const repository = new InMemoryBlueprintRepository(OWNER),
             record = await create(repository);
         record.blueprint.elements.posGrid.config.title = 'Changed';
         const opened = await repository.openAsync(record.id, {as: 'draft'});
@@ -18,7 +29,7 @@ describe('InMemoryBlueprintRepository', () => {
     });
 
     it('numbers publishes in order, each unchanged by later saves, and bumps the draft', async () => {
-        const repository = new InMemoryBlueprintRepository(),
+        const repository = new InMemoryBlueprintRepository(OWNER),
             {id, blueprint} = await create(repository);
         expect(await repository.publishAsync(id, {base: 1})).toMatchObject({
             publish: {version: 1},
@@ -37,13 +48,13 @@ describe('InMemoryBlueprintRepository', () => {
     });
 
     it('opens no publish of a blueprint never published', async () => {
-        const repository = new InMemoryBlueprintRepository(),
+        const repository = new InMemoryBlueprintRepository(OWNER),
             {id} = await create(repository);
         expect(await repository.openAsync(id, {as: 'publish'})).toBeNull();
     });
 
     it('accepts a stale base when it does not enforce one', async () => {
-        const repository = new InMemoryBlueprintRepository({enforcesBase: false}),
+        const repository = new InMemoryBlueprintRepository({...OWNER, enforcesBase: false}),
             {id, blueprint} = await create(repository);
         expect(
             (await repository.saveDraftAsync(id, {blueprint, base: 0, renames: []})).issues
@@ -52,6 +63,7 @@ describe('InMemoryBlueprintRepository', () => {
 
     it("lists each blueprint with the user's access to it", async () => {
         const repository = new InMemoryBlueprintRepository({
+            canCreate: true,
             accessOf: () => ({access: 'read', canPublish: false})
         });
         await create(repository);
@@ -62,7 +74,7 @@ describe('InMemoryBlueprintRepository', () => {
     });
 
     it('keeps one personalization per blueprint and preset', async () => {
-        const repository = new InMemoryBlueprintRepository(),
+        const repository = new InMemoryBlueprintRepository(OWNER),
             {id} = await create(repository),
             base = {blueprintId: id, ops: [], publishVersion: 1};
         await repository.savePersonalizationAsync({...base, preset: null});

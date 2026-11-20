@@ -73,7 +73,8 @@ export interface BlueprintRepository {
 
     /**
      * Copy a blueprint into a new one, whose draft is the source's latest publish, or the version
-     * given. The copy records where it came from, and has no publish of its own.
+     * given. The copy records where it came from, and has no publish of its own. Copying needs
+     * access to open the source's version, and the right to create, as a copy is a new blueprint.
      */
     copyAsync(
         id: string,
@@ -93,8 +94,8 @@ export interface BlueprintRepository {
     savePersonalizationAsync(p: BlueprintPersonalization): Promise<void>;
 
     /**
-     * Set who may write and who may read a blueprint. Optional: the library offers sharing only
-     * when a repository implements it.
+     * Set who may write and who may read a blueprint, for a user it allows with `canShare`.
+     * Optional: the library offers sharing only when a repository implements it.
      */
     updateAccessAsync?(id: string, spec: BlueprintAccessSpec): Promise<void>;
 }
@@ -124,12 +125,14 @@ export interface BlueprintSummary {
     access: BlueprintAccess;
     /** True if the signed-in user may publish the blueprint. */
     canPublish: boolean;
+    /** True if the signed-in user may change who the blueprint is shared with. Default false. */
+    canShare?: boolean;
     /** Epoch millis of the last save or publish. */
     updated: number;
     updatedBy?: string;
     /** The blueprint and version a copy came from. */
     copiedFrom?: {id: string; version: number; as: 'draft' | 'publish'};
-    /** Who the blueprint is shared with, only for a user who may manage its access. */
+    /** Who the blueprint is shared with, only for a user who may share it. */
     sharing?: BlueprintAccessSpec;
 }
 

@@ -160,8 +160,8 @@ export class BlueprintDocumentModel extends HoistModel {
     }
 
     /**
-     * Copy the blueprint open into a new one, from its latest publish by default. Copying a draft,
-     * or an older publish, needs write access.
+     * Copy the blueprint open into a new one, from its latest publish by default. Copying needs
+     * the right to create, and copying a draft, or an older publish, needs write access.
      */
     async copyAsync(name: string, from?: BlueprintOpenOptions): Promise<BlueprintRecord> {
         const {document} = this;
@@ -170,6 +170,7 @@ export class BlueprintDocumentModel extends HoistModel {
             from && needsWrite(from) && document.access !== 'write',
             'You may copy only the latest publish.'
         );
+        throwIf(!(await this.repository.canCreateAsync()), 'You may not create a blueprint.');
         return this.repository.copyAsync(document.id, {name, ...(from ? {from} : {})});
     }
 
@@ -181,9 +182,9 @@ export class BlueprintDocumentModel extends HoistModel {
         this.closed();
     }
 
-    /** True if the user may share the blueprint open: a writer, with a repository that shares. */
+    /** True if the user may share the blueprint open, as its repository says, and it can share. */
     get canShare(): boolean {
-        return this.document?.access === 'write' && !!this.repository.updateAccessAsync;
+        return this.document?.canShare === true && !!this.repository.updateAccessAsync;
     }
 
     /** Set who may write and who may read the blueprint open. */

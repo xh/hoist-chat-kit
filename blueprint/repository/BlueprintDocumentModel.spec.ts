@@ -22,7 +22,11 @@ describe('BlueprintDocumentModel', () => {
     interface Grant {
         access: BlueprintAccess;
         canPublish: boolean;
+        canShare?: boolean;
     }
+
+    // What a blueprint's owner may do.
+    const OWNER: Grant = {access: 'write', canPublish: true, canShare: true};
 
     function session(repository: InMemoryBlueprintRepository) {
         const blueprintModel = new BlueprintModel({
@@ -41,12 +45,12 @@ describe('BlueprintDocumentModel', () => {
     // A blueprint the repository holds, with the access a test grants to it. The user writes
     // any blueprint they create or copy.
     async function created(config: {enforcesBase?: boolean} = {}) {
-        const grant: Grant = {access: 'write', canPublish: true},
-            owned: Grant = {access: 'write', canPublish: true};
+        const grant: Grant = {...OWNER};
         let shared: string = null;
         const repository = new InMemoryBlueprintRepository({
                 ...config,
-                accessOf: it => ({...(it === shared ? grant : owned)})
+                canCreate: true,
+                accessOf: it => ({...(it === shared ? grant : OWNER)})
             }),
             {id} = await repository.createAsync({
                 name: 'Positions',
@@ -183,11 +187,16 @@ describe('BlueprintDocumentModel', () => {
             override async openAsync(
                 ...args: Parameters<InMemoryBlueprintRepository['openAsync']>
             ) {
-                const {access: _a, canPublish: _p, ...rest} = await super.openAsync(...args);
+                const {
+                    access: _a,
+                    canPublish: _p,
+                    canShare: _s,
+                    ...rest
+                } = await super.openAsync(...args);
                 return rest as BlueprintRecord;
             }
         }
-        const repository = new Silent(),
+        const repository = new Silent({canCreate: true, accessOf: () => ({...OWNER})}),
             {id} = await repository.createAsync({
                 name: 'Positions',
                 blueprint: loadBlueprint('p3-morning-report.json')
@@ -209,7 +218,7 @@ describe('BlueprintDocumentModel', () => {
         expect(errors(await doc.createAsync('New'))).toEqual(['edit.notAllowed']);
     });
 
-    it('shares a blueprint for a writer, where the repository can share', async () => {
+    it('shares a blueprint only as the repository allows, and only where it can share', async () => {
         const {repository, grant, id} = await created(),
             {doc} = session(repository);
         await doc.openAsync(id, {as: 'draft'});
@@ -219,13 +228,16 @@ describe('BlueprintDocumentModel', () => {
         expect(doc.document.sharing).toEqual(sharing);
         expect((await repository.listAsync())[0].sharing).toEqual(sharing);
 
-        Object.assign(repository, {updateAccessAsync: undefined});
-        expect(doc.canShare).toBe(false);
-        grant.access = 'read';
-        await repository.publishAsync(id, {base: 1});
-        await doc.openAsync(id);
+        // A writer the repository does not let share sees neither the control nor the sharing.
+        grant.canShare = false;
+        await doc.openAsync(id, {as: 'draft'});
         expect(doc.canShare).toBe(false);
         expect(doc.document).not.toHaveProperty('sharing');
+
+        grant.canShare = true;
+        await doc.openAsync(id, {as: 'draft'});
+        Object.assign(repository, {updateAccessAsync: undefined});
+        expect(doc.canShare).toBe(false);
     });
 
     it.each([true, false])(
@@ -284,7 +296,10 @@ describe('BlueprintDocumentModel', () => {
     });
 
     it('creates a blueprint from the one open, and deletes it with its personalizations', async () => {
-        const repository = new InMemoryBlueprintRepository(),
+        const repository = new InMemoryBlueprintRepository({
+                canCreate: true,
+                accessOf: () => ({...OWNER})
+            }),
             {blueprintModel, doc} = session(repository);
         blueprintModel.setBlueprint(loadBlueprint('p2-linked-dashboard.json'));
         expect(await doc.createAsync('New')).toEqual([]);
