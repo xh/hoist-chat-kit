@@ -59,7 +59,7 @@ Look before you judge. Each of these has changed an answer before.
   the busy line was split into spans for an app to style apart, and the tooltip kept the whole
   line. Fix the gap in the earlier answer. Do not add a
   parallel feature. Also check that the new answer does not contradict an old one.
-- **Hoist precedent.** Use the hoist-react MCP tools. If Hoist solves the same problem, follow it.
+- **Hoist precedent.** Use the Hoist Docs MCP tools (`hoist-docs`). If Hoist solves the same problem, follow it.
 
 ### 3. Choose the shape
 
