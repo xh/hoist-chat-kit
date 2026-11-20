@@ -1,7 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {castArray, isArray, isPlainObject, isString, omit} from 'lodash';
 import {type Blueprint, type BlueprintIssue, isFieldInstance} from './Blueprint';
-import type {BlueprintRegistry} from './BlueprintRegistry';
+import type {BlueprintRegistry, WidgetSpec} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter} from './impl/configSchema';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
@@ -173,6 +173,14 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 );
             } else {
                 parent[ch.id] = id;
+                const childSpec = registry.widgets[elements[ch.id].component];
+                if (childSpec && !accepts(spec, childSpec)) {
+                    err(
+                        'element.notAccepted',
+                        `${p}/children/${i}/id`,
+                        `${el.component} cannot hold '${ch.id}', a ${childSpec.name}. It takes ${describeAccepts(spec)}.`
+                    );
+                }
             }
         }
     }
@@ -810,6 +818,17 @@ function checkResolverCycles(
         state[name] = 'done';
     };
     Object.keys(variables).forEach(it => visit(it, []));
+}
+
+function accepts(container: WidgetSpec, child: WidgetSpec): boolean {
+    const {categories, widgets} = container.children?.accepts ?? {};
+    if (!categories && !widgets) return true;
+    return !!categories?.includes(child.category) || !!widgets?.includes(child.name);
+}
+
+function describeAccepts(container: WidgetSpec): string {
+    const {categories = [], widgets = []} = container.children.accepts;
+    return [...categories.map(it => `${it} widgets`), ...widgets].join(', ');
 }
 
 /** A canvas places children freely, so they must not overlap or pass the last column. */

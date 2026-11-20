@@ -6,24 +6,32 @@ import {
     type BlueprintModel,
     type WidgetSpec
 } from '../../../../blueprint';
+import {boxWidget, BoxWidgetModel} from '../BoxWidget';
 import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from '../ButtonGroupInputWidget';
 import {buttonGroupWidget, ButtonGroupWidgetModel} from '../ButtonGroupWidget';
 import {chartWidget, ChartWidgetModel} from '../ChartWidget';
 import {cubeGridWidget, CubeGridWidgetModel} from '../CubeGridWidget';
 import {dashCanvasWidget, DashCanvasWidgetModel} from '../DashCanvasWidget';
 import {groupingChooserWidget, GroupingChooserWidgetModel} from '../GroupingChooserWidget';
+import {panelWidget, PanelWidgetModel} from '../PanelWidget';
+import {separatorWidget, SeparatorWidgetModel} from '../SeparatorWidget';
+import {spacerWidget, SpacerWidgetModel} from '../SpacerWidget';
 import {statCardStripWidget, StatCardStripWidgetModel} from '../StatCardStripWidget';
 import {tabContainerWidget, TabContainerWidgetModel} from '../TabContainerWidget';
 import {elementHost} from './ElementHost';
 
 /** The desktop model and component of each built-in widget, for specs that name neither. */
 const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> = {
+    box: {model: BoxWidgetModel, component: boxWidget},
     buttonGroup: {model: ButtonGroupWidgetModel, component: buttonGroupWidget},
     buttonGroupInput: {model: ButtonGroupInputWidgetModel, component: buttonGroupInputWidget},
     chart: {model: ChartWidgetModel, component: chartWidget},
     cubeGrid: {model: CubeGridWidgetModel, component: cubeGridWidget},
     dashCanvas: {model: DashCanvasWidgetModel, component: dashCanvasWidget},
     groupingChooser: {model: GroupingChooserWidgetModel, component: groupingChooserWidget},
+    panel: {model: PanelWidgetModel, component: panelWidget},
+    separator: {model: SeparatorWidgetModel, component: separatorWidget},
+    spacer: {model: SpacerWidgetModel, component: spacerWidget},
     statCardStrip: {model: StatCardStripWidgetModel, component: statCardStripWidget},
     tabContainer: {model: TabContainerWidgetModel, component: tabContainerWidget}
 };

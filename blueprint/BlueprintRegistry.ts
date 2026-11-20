@@ -21,6 +21,12 @@ import {BUILT_IN_ACTIONS, BUILT_IN_WIDGETS} from './impl/builtInWidgets';
  * validator ignores it, design mode shows it, and the widget applies it - see
  * `BlueprintWidgetModel.configDefault()`. State a default there, not in the description.
  */
+/**
+ * What a widget is, for the palette and for a container's `accepts`. A `container` has chrome,
+ * and a `layout` widget only arranges or divides its siblings.
+ */
+export type WidgetCategory = 'container' | 'layout' | 'content' | 'data' | 'input' | 'action';
+
 export interface WidgetSpec {
     /** Registry key, the Hoist factory name of the component it renders, such as `cubeGrid`. */
     name: string;
@@ -32,7 +38,7 @@ export interface WidgetSpec {
     description?: string;
     /** For the LLM: when to choose it, and over what. */
     guidance: string;
-    category: 'container' | 'data' | 'input' | 'action';
+    category: WidgetCategory;
     config: PlainObject;
     example?: PlainObject;
     /** Paths inside the config that a preset can set, such as `/columnState`. */
@@ -40,8 +46,11 @@ export interface WidgetSpec {
     outputs?: WidgetOutputSpec[];
     /** The type of value the widget shows and sets, for a variable whose `setBy` names it. */
     value?: {type: string};
-    /** For a container, the schema of its child references. */
-    children?: {schema: PlainObject; accepts?: string[]};
+    /**
+     * For a container, the schema of its child references, and the widgets it accepts as
+     * children: those of any category listed, plus any widget named. Default any widget.
+     */
+    children?: {schema: PlainObject; accepts?: {categories?: WidgetCategory[]; widgets?: string[]}};
     size?: {default: WidgetSize; min?: WidgetSize; max?: WidgetSize};
     /** True for a widget the app provides. */
     app?: boolean;

@@ -659,6 +659,45 @@ describe('validateBlueprint', () => {
         });
     });
 
+    it('refuses a child whose widget its container does not accept, by category or by name', () => {
+        const reg = scenarioRegistry();
+        reg.addWidgets({
+            name: 'acme.strip',
+            version: 1,
+            label: 'Strip',
+            guidance: 'Lays out cards.',
+            category: 'container',
+            config: {type: 'object'},
+            children: {
+                schema: {type: 'object', required: ['id'], properties: {id: {type: 'string'}}},
+                accepts: {categories: ['data'], widgets: ['separator']}
+            }
+        });
+        const bp: Blueprint = {
+                schema: {blueprint: 1},
+                variables: {
+                    asOf: {type: 'localDate', setBy: 'prompt', default: {resolver: 'today'}}
+                },
+                sources: {positions: {dataset: 'positions', params: {asOf: {$var: 'asOf'}}}},
+                root: 'strip',
+                elements: {
+                    strip: {
+                        component: 'acme.strip',
+                        children: [{id: 'grid'}, {id: 'rule'}, {id: 'inner'}]
+                    },
+                    grid: {component: 'cubeGrid', config: {source: 'positions'}},
+                    rule: {component: 'separator', config: {}},
+                    inner: {component: 'box', config: {}, children: []}
+                }
+            },
+            issues = validateBlueprint(bp, {catalog: portfolioCatalog, registry: reg}).filter(
+                it => it.severity === 'error'
+            );
+        expect(issues.map(it => [it.code, it.path])).toEqual([
+            ['element.notAccepted', '/elements/strip/children/2/id']
+        ]);
+    });
+
     it('refuses a widget whose schema uses JSON Schema the validator lacks', () => {
         const spec = {
             name: 'acme.bad',

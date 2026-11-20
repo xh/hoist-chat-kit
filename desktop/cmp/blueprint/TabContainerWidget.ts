@@ -8,6 +8,7 @@ import {
     type TabContainerWidgetConfig,
     type ChildRef
 } from '../../../blueprint';
+import {emptyContent} from './impl/layout';
 
 /**
  * The `tabContainer` widget: a Hoist `TabContainer` with a tab per child, titled by its child
@@ -24,10 +25,6 @@ export class TabContainerWidgetModel extends BlueprintWidgetModel<TabContainerWi
             equals: 'structural',
             fireImmediately: true
         });
-    }
-
-    get children(): ChildRef[] {
-        return this.element?.children ?? [];
     }
 
     //------------------
@@ -52,11 +49,14 @@ export const [TabContainerWidget, tabContainerWidget] = hoistCmp.withFactory({
     className: 'xh-blueprint-tab-container',
     model: uses(TabContainerWidgetModel),
     render({model, className}) {
-        return tabContainer({
-            model: model.tabContainerModel,
-            className,
-            // Tabs that do not fit scroll, and show in a menu, as in a narrow chat.
-            switcher: {enableOverflow: true}
-        });
+        return (
+            emptyContent(model) ??
+            tabContainer({
+                model: model.tabContainerModel,
+                className,
+                // Tabs that do not fit scroll, and show in a menu, as in a narrow chat.
+                switcher: {enableOverflow: true}
+            })
+        );
     }
 });

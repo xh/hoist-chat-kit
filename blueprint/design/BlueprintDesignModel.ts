@@ -6,6 +6,7 @@ import type {BlueprintElement, BlueprintOp, ChildRef, PresetGroup} from '../Blue
 import {applyOps} from '../applyOps';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
 import type {WidgetSpec} from '../BlueprintRegistry';
+import {parentOf} from '../impl/elements';
 import {decodePointer, getAt, getOwn, setAt} from '../impl/pointer';
 import {variableTypeMatches} from '../validateBlueprint';
 import {labelOf} from './editorSpec';
@@ -668,13 +669,6 @@ const isError = (it: {severity: string}) => it.severity === 'error';
 
 function refused(message: string): BlueprintEditResult & {id?: string} {
     return {issues: [{code: 'edit.refused', severity: 'error', path: '', message}]};
-}
-
-function parentOf(elements: Record<string, BlueprintElement>, id: string): string {
-    return (
-        Object.entries(elements ?? {}).find(([, el]) => el.children?.some(c => c.id === id))?.[0] ??
-        null
-    );
 }
 
 // The element a path under /elements names, or null.

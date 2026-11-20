@@ -14,12 +14,16 @@ export * from './architect/architectPrompt';
 export * from './architect/ArchitectTools';
 export * from './architect/hostSource';
 export type {
+    BoxWidgetConfig,
     ButtonGroupWidgetConfig,
     ButtonGroupInputWidgetConfig,
     ChartWidgetConfig,
     CubeGridWidgetConfig,
     DashCanvasWidgetConfig,
     GroupingChooserWidgetConfig,
+    PanelWidgetConfig,
+    SeparatorWidgetConfig,
+    SpacerWidgetConfig,
     StatCardStripWidgetConfig,
     TabContainerWidgetConfig
 } from './impl/builtInWidgets';

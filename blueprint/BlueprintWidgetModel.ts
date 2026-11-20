@@ -3,10 +3,11 @@ import type {View} from '@xh/hoist/data';
 import {computed} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
 import type {ReactNode} from 'react';
-import type {BlueprintElement, BlueprintOp} from './Blueprint';
+import type {BlueprintElement, BlueprintOp, ChildRef} from './Blueprint';
 import type {BlueprintModel} from './BlueprintModel';
 import type {BlueprintSource} from './BlueprintSource';
 import type {BlueprintVariable} from './BlueprintVariable';
+import {parentOf} from './impl/elements';
 
 export interface BlueprintWidgetConfig {
     blueprintModel: BlueprintModel;
@@ -38,6 +39,17 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
     /** The element as the blueprint declares it, or null once it is gone. */
     get element(): BlueprintElement {
         return this.blueprintModel.effective?.elements?.[this.id] ?? null;
+    }
+
+    /** The element's child references, in order. Empty for a widget that is not a container. */
+    get children(): ChildRef[] {
+        return this.element?.children ?? [];
+    }
+
+    /** The container that holds the element, or null for the root. */
+    get parentElement(): BlueprintElement {
+        const elements = this.blueprintModel.effective?.elements;
+        return elements?.[parentOf(elements, this.id)] ?? null;
     }
 
     /**

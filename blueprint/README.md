@@ -368,8 +368,10 @@ An app names each entry it registers with a dotted prefix, such as `acme.fund`, 
 clash with a built-in. `BlueprintRegistry` refuses an undotted app name.
 
 - **Widgets.** Register a `WidgetSpec` with a config schema, guidance for the Architect, and a
-  desktop component. `addPresentation()` adds another way to draw an existing widget, as chat kit
-  adds the `card` that grids and charts take in a reply.
+  desktop component. Its `category` places it in the palette. A container's `children.accepts`
+  lists the categories and widgets it takes as children, and the validator refuses any other.
+  `addPresentation()` adds another way to draw an existing widget, as chat kit adds the `card`
+  that grids and charts take in a reply.
 - **Variable types, resolvers, actions and renderers.** Register each in `BlueprintRegistry`. An
   action declares a parameter schema, and the runner checks its parameters before it runs. Give
   an action with side effects `sideEffects: true`, so that it always asks the user to confirm.

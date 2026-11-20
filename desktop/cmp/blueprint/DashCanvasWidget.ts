@@ -12,6 +12,7 @@ import {
     type DashCanvasWidgetConfig,
     type ChildRef
 } from '../../../blueprint';
+import {emptyContent} from './impl/layout';
 
 /**
  * The `dashCanvas` widget: a Hoist `DashCanvas` that places each child at the `x`, `y`, `w` and `h`
@@ -57,10 +58,6 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
                 equals: 'structural'
             }
         );
-    }
-
-    get children(): ChildRef[] {
-        return this.element?.children ?? [];
     }
 
     /** Each child's title, by ID, with bindings resolved. Null for a child with none. */
@@ -137,7 +134,7 @@ export const [DashCanvasWidget, dashCanvasWidget] = hoistCmp.withFactory({
     className: 'xh-blueprint-dash-canvas',
     model: uses(DashCanvasWidgetModel),
     render({model, className}) {
-        return dashCanvas({model: model.canvasModel, className});
+        return emptyContent(model) ?? dashCanvas({model: model.canvasModel, className});
     }
 });
 

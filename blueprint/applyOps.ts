@@ -1,6 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {cloneDeep, isArray, isEmpty, isPlainObject, isString} from 'lodash';
 import type {Blueprint, BlueprintIssue, BlueprintOp} from './Blueprint';
+import {parentOf} from './impl/elements';
 import {getOwn, isForbiddenKey, parsePointer, PointerError} from './impl/pointer';
 
 /** Characters an element, variable or source ID may use, so a path never needs escaping. */
@@ -105,7 +106,7 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
                     `element '${op.id}' still has children. Remove or move them first.`
                 );
             }
-            const p = parentOf(bp, op.id);
+            const p = parentOf(bp.elements, op.id);
             if (p) bp.elements[p].children = bp.elements[p].children.filter(c => c.id !== op.id);
             if (bp.root === op.id) delete bp.root;
             delete bp.elements[op.id];
@@ -113,7 +114,7 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
         }
         case 'moveElement': {
             if (!ownElement(bp, op.id)) throw new OpError(`element '${op.id}' does not exist`);
-            const p = parentOf(bp, op.id);
+            const p = parentOf(bp.elements, op.id);
             let old: PlainObject = {};
             if (p) {
                 old = bp.elements[p].children.find(c => c.id === op.id);
@@ -207,13 +208,6 @@ function removePath(doc: PlainObject, path: string) {
         parent = walkTo(doc, segs, false);
     if (!Object.hasOwn(parent, last)) throw new OpError(`no value at '${path}'`);
     delete parent[last];
-}
-
-function parentOf(bp: Blueprint, id: string): string {
-    const entry = Object.entries(bp.elements ?? {}).find(([, el]) =>
-        (el.children ?? []).some(c => c.id === id)
-    );
-    return entry?.[0] ?? null;
 }
 
 function placeChild(bp: Blueprint, parent: string, id: string, child: PlainObject, index: number) {

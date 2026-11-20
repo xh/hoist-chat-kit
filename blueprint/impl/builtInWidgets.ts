@@ -27,10 +27,17 @@ const ACTION_PROP = {
     anyOf: [ACTION, {type: 'array', minItems: 1, maxItems: 8, items: ACTION}]
 } as const satisfies BlueprintSchema;
 
+const EMPTY_TEXT = {
+    type: 'string',
+    maxLength: 200,
+    description: 'Text shown while the container has no children.'
+} as const satisfies BlueprintSchema;
+
 const DASH_CANVAS_SCHEMA = {
     type: 'object',
     additionalProperties: false,
     properties: {
+        emptyText: EMPTY_TEXT,
         columns: {
             type: 'integer',
             minimum: 1,
@@ -49,7 +56,65 @@ const DASH_CANVAS_SCHEMA = {
 const TAB_CONTAINER_SCHEMA = {
     type: 'object',
     additionalProperties: false,
-    properties: {}
+    properties: {emptyText: EMPTY_TEXT}
+} as const satisfies BlueprintSchema;
+
+const PANEL_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+        title: {type: 'string', maxLength: 100, 'x-binding': true},
+        icon: {type: 'string', maxLength: 40, description: 'A Font Awesome icon name.'},
+        style: {
+            type: 'string',
+            enum: ['plain', 'card'],
+            default: 'plain',
+            description: 'plain draws a panel with a header. card draws a bordered group.'
+        },
+        collapsible: {type: 'boolean', default: false},
+        collapsed: {type: 'boolean', default: false},
+        compactHeader: {type: 'boolean', default: false},
+        emptyText: EMPTY_TEXT
+    }
+} as const satisfies BlueprintSchema;
+
+const BOX_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+        direction: {type: 'string', enum: ['column', 'row'], default: 'column'},
+        fill: {
+            type: 'boolean',
+            default: true,
+            description: 'True to fill its parent. False to take the size of its children.'
+        },
+        gap: {type: 'integer', minimum: 0, maximum: 64, description: 'Pixels between children.'},
+        align: {
+            type: 'string',
+            enum: ['stretch', 'start', 'center', 'end'],
+            default: 'stretch',
+            description: 'Where children sit across the direction.'
+        }
+    }
+} as const satisfies BlueprintSchema;
+
+const SEPARATOR_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {label: {type: 'string', maxLength: 60}}
+} as const satisfies BlueprintSchema;
+
+const SPACER_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+        size: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 400,
+            description: 'Pixels along its parent. Leave unset to take all the room left.'
+        }
+    }
 } as const satisfies BlueprintSchema;
 
 const CUBE_GRID_SCHEMA = {
@@ -522,6 +587,17 @@ export type DashCanvasWidgetConfig = FromExtendedSchema<
 >;
 
 /** The config of a `tabContainer` widget, with bindings resolved. */
+export type PanelWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof PANEL_SCHEMA>;
+
+export type BoxWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof BOX_SCHEMA>;
+
+export type SeparatorWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof SEPARATOR_SCHEMA
+>;
+
+export type SpacerWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof SPACER_SCHEMA>;
+
 export type TabContainerWidgetConfig = FromExtendedSchema<
     BlueprintSchemaExtension,
     typeof TAB_CONTAINER_SCHEMA
@@ -577,6 +653,13 @@ export type ButtonGroupInputWidgetConfig = FromExtendedSchema<
 //------------------
 // Widgets
 //------------------
+const CHILD_ID_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['id'],
+    properties: {id: {type: 'string'}}
+} as const satisfies BlueprintSchema;
+
 const dashCanvas: WidgetSpec = {
     name: 'dashCanvas',
     version: 1,
@@ -692,6 +775,81 @@ const tabContainer: WidgetSpec = {
             }
         ]
     }
+};
+
+const panel: WidgetSpec = {
+    name: 'panel',
+    version: 1,
+    label: 'Panel',
+    terms: ['panel', 'section', 'group', 'card'],
+    guidance:
+        'A titled section that stacks its children top to bottom. style card draws a bordered group in place of a header. Use it to title a group of widgets, or to let a user collapse one. Each child takes an equal share of its height. Put a row box inside it to place children side by side.',
+    category: 'container',
+    config: PANEL_SCHEMA,
+    presetPaths: ['/collapsed'],
+    children: {schema: CHILD_ID_SCHEMA},
+    size: {default: {w: 6, h: 6}, min: {w: 2, h: 2}},
+    example: {
+        component: 'panel',
+        config: {title: 'Exposure', style: 'card'},
+        children: [{id: 'exposureGrid'}]
+    }
+};
+
+const box: WidgetSpec = {
+    name: 'box',
+    version: 1,
+    label: 'Box',
+    terms: ['row', 'column', 'side by side', 'stack', 'layout'],
+    guidance:
+        'Arranges its children in a row or a column, with no chrome. Each child reference may give flex, a share of the room left, or a fixed width or height in pixels. A child with neither takes an equal share. Use a separator to divide children, and a spacer to push them apart.',
+    category: 'layout',
+    config: BOX_SCHEMA,
+    children: {
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['id'],
+            properties: {
+                id: {type: 'string'},
+                flex: {type: 'number', minimum: 0, maximum: 12},
+                width: {type: 'integer', minimum: 1, maximum: 4000},
+                height: {type: 'integer', minimum: 1, maximum: 4000}
+            }
+        }
+    },
+    size: {default: {w: 12, h: 6}, min: {w: 2, h: 1}},
+    example: {
+        component: 'box',
+        config: {direction: 'row', gap: 8},
+        children: [{id: 'posGrid', flex: 2}, {id: 'divider'}, {id: 'sectorChart', flex: 1}]
+    }
+};
+
+const separator: WidgetSpec = {
+    name: 'separator',
+    version: 1,
+    label: 'Separator',
+    terms: ['separator', 'divider', 'rule', 'line'],
+    guidance:
+        'A rule between its siblings: vertical in a row, horizontal in a column. A label names the section after it, or says a short word such as "or".',
+    category: 'layout',
+    config: SEPARATOR_SCHEMA,
+    size: {default: {w: 12, h: 1}, min: {w: 1, h: 1}},
+    example: {component: 'separator', config: {label: 'Detail'}}
+};
+
+const spacer: WidgetSpec = {
+    name: 'spacer',
+    version: 1,
+    label: 'Spacer',
+    terms: ['spacer', 'gap', 'filler'],
+    guidance:
+        'Empty room between its siblings, along its parent. With no size it takes all the room left, which pushes the siblings after it to the far end.',
+    category: 'layout',
+    config: SPACER_SCHEMA,
+    size: {default: {w: 12, h: 1}, min: {w: 1, h: 1}},
+    example: {component: 'spacer', config: {size: 16}}
 };
 
 const cubeGrid: WidgetSpec = {
@@ -927,6 +1085,10 @@ const WIDGET_SPECS: WidgetSpec[] = [
     fallback,
     dashCanvas,
     tabContainer,
+    panel,
+    box,
+    separator,
+    spacer,
     cubeGrid,
     chart,
     statCardStrip,

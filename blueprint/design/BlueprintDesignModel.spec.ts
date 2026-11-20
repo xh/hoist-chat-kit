@@ -119,6 +119,19 @@ describe('BlueprintDesignModel', () => {
         expect(model.blueprint.elements.tabs.children.at(-1)).toEqual({id, title: 'Dashboard'});
     });
 
+    it('adds into a selected box or panel, by its ID alone, and a box into a panel', () => {
+        const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+            panel = design.addWidget('panel', 'dashboard').id;
+        design.select({kind: 'element', id: panel});
+        const row = design.addWidget('box').id;
+        design.select({kind: 'element', id: row});
+        const rule = design.addWidget('separator').id,
+            {elements} = model.blueprint;
+        expect(elements[panel].children).toEqual([{id: row}]);
+        expect(elements[row].children).toEqual([{id: rule}]);
+        expect(elements[rule]).toEqual({component: 'separator', config: {}});
+    });
+
     it('makes the first widget of an empty blueprint its root', () => {
         const {model, design} = open(undefined),
             result = design.addWidget('dashCanvas');
