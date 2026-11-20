@@ -7,7 +7,12 @@ import {checkConfig, checkFilter} from './impl/configSchema';
 import {joinFields} from './impl/joins';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
 import {parseTemplate, templateRefs} from './impl/template';
-import {boundPeriodCalendar, checkVariableValue, matchesType} from './impl/variableValues';
+import {
+    boundPeriodCalendar,
+    checkVariableValue,
+    matchesType,
+    withInlineType
+} from './impl/variableValues';
 
 export interface ValidateBlueprintContext {
     catalog: Pick<DataCatalog, 'getDataset'>;
@@ -473,7 +478,12 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 }
             });
             sourceFields[sn] = toLookup(
-                Object.fromEntries((s.inline.fields ?? []).map((f: FieldDef) => [f.name, f]))
+                Object.fromEntries(
+                    (s.inline.fields ?? []).map((f: FieldDef) => [
+                        f.name,
+                        withInlineType(f, s.inline.rows)
+                    ])
+                )
             );
         } else {
             err(

@@ -101,3 +101,23 @@ function presetToken(value: unknown): string {
     const v = value as {kind?: string; token?: string};
     return v?.kind === 'preset' ? v.token : null;
 }
+
+/**
+ * An inline field with its type, from its values where it gives none: `number` if every value is
+ * a number, `bool` if every one is a boolean, else `string`.
+ */
+export function withInlineType<F extends {name: string; type?: string}>(
+    field: F,
+    rows: Record<string, unknown>[]
+): F {
+    if (field.type) return field;
+    const values = (rows ?? []).map(it => it?.[field.name]).filter(it => it != null),
+        type = !values.length
+            ? 'string'
+            : values.every(it => isFinite(it))
+              ? 'number'
+              : values.every(isBoolean)
+                ? 'bool'
+                : 'string';
+    return {...field, type};
+}

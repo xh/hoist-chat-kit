@@ -52,6 +52,7 @@ import {
 } from './impl/formats';
 import {joinFields, type JoinField} from './impl/joins';
 import {getOwn} from './impl/pointer';
+import {withInlineType} from './impl/variableValues';
 import {getWriters} from './validateBlueprint';
 
 /** The parts of a blueprint's runtime a source reads. */
@@ -847,7 +848,13 @@ export class BlueprintSource extends HoistBase {
         // Inline values are computed literals, so a row that holds one rolls up to it.
         if (decl.inline) {
             return Object.fromEntries(
-                decl.inline.fields.map(it => [it.name, {aggregator: 'UNIQUE', ...it} as FieldDef])
+                decl.inline.fields.map(it => [
+                    it.name,
+                    {
+                        aggregator: 'UNIQUE',
+                        ...withInlineType(it as FieldDef, decl.inline.rows)
+                    } as FieldDef
+                ])
             );
         }
         const ds = context.catalog.getDataset(

@@ -234,6 +234,20 @@ describe('blueprint data widgets', () => {
             expect(inBox.textContent).toContain('Fund snapshot');
         });
 
+        it("takes an inline field's type from its values, where it gives none", async () => {
+            const bp = withTable({
+                source: 'snap',
+                fields: [{field: 'nav', format: {scale: 'millions', precision: 1, label: true}}]
+            });
+            bp.sources.snap = {
+                inline: {fields: [{name: 'nav', kind: 'number'}], rows: [{nav: 3754900000}]}
+            } as any;
+            const model = open(bp),
+                table = widget(PropertyTableWidgetModel, model, 'props');
+            expect(model.getSource('snap').fields.nav.type).toBe('number');
+            await vi.waitFor(() => expect(text(table.entries[0]?.value)).toBe('3,754.9m'));
+        });
+
         it('refuses a field its source lacks', () => {
             expect(
                 open()
