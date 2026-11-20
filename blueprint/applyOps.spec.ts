@@ -148,6 +148,28 @@ describe('applyOps', () => {
             });
         });
 
+        it('takes the place a parent already lists for the element, rather than add it twice', () => {
+            const {result, issue} = applyOps({}, [
+                {
+                    op: 'addElement',
+                    id: 'root',
+                    element: {
+                        component: 'dashCanvas',
+                        children: [{id: 'a', x: 0, y: 0, w: 6, h: 2}]
+                    }
+                },
+                {
+                    op: 'addElement',
+                    id: 'a',
+                    element: {component: 'chart'},
+                    parent: 'root',
+                    child: {x: 0, y: 0, w: 4, h: 3}
+                }
+            ]);
+            expect(issue).toBeUndefined();
+            expect(result.elements.root.children).toEqual([{id: 'a', x: 0, y: 0, w: 4, h: 3}]);
+        });
+
         it('refuses an ID with characters a path would need to escape', () => {
             expect(
                 apply([{op: 'addElement', id: 'a/b', element: {}, parent: 'dashboard'}]).issue

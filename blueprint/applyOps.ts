@@ -215,7 +215,14 @@ function placeChild(bp: Blueprint, parent: string, id: string, child: PlainObjec
     const p = ownElement(bp, parent);
     if (!p) throw new OpError(`parent '${parent}' does not exist`);
     p.children ??= [];
-    const ref = {...(child ?? {}), id};
+    const ref = {...(child ?? {}), id},
+        listed = p.children.findIndex(it => it.id === id);
+    // A parent added with its children listed already holds a place for this one: take it.
+    if (listed >= 0 && index == null) {
+        p.children[listed] = {...p.children[listed], ...ref};
+        return;
+    }
+    if (listed >= 0) p.children.splice(listed, 1);
     if (index == null || index >= p.children.length) {
         p.children.push(ref);
     } else {
