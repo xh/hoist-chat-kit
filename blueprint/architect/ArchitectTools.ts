@@ -236,7 +236,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
             }
         },
         run: (input, target) => {
-            const refused = checkEditAllowed(input?.ops, target.mode, target.access);
+            const refused = checkEditAllowed(input?.ops, target.mode, target.access, true);
             if (refused) {
                 throw new ArchitectToolError({
                     applied: false,

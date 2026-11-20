@@ -378,8 +378,22 @@ describe('BlueprintModel', () => {
             const {issues} = model.applyEdit({
                 ops: [{op: 'set', path: '/elements/posGrid/config/sortBy', value: 'mktVal'}]
             });
-            expect(issues).toMatchObject([{code: 'edit.notAllowed'}]);
+            expect(issues).toMatchObject([
+                {
+                    code: 'edit.notAllowed',
+                    message:
+                        "'/elements/posGrid/config/sortBy' cannot change in run mode. Switch to design mode to change it."
+                }
+            ]);
             expect(model.version).toBe(1);
+
+            model.setAccess('read');
+            expect(
+                model.applyEdit({ops: [{op: 'remove', path: '/elements/posGrid/config/sortBy'}]})
+                    .issues[0].message
+            ).toBe(
+                "You have read access only, so '/elements/posGrid/config/sortBy' cannot change. Make a copy of the blueprint to change it."
+            );
         });
 
         it('writes a design-mode change to a controlled path into the active preset', async () => {
