@@ -62,10 +62,10 @@ export interface WidgetSpec {
      */
     presentations?: PresentationSpec[];
     /**
-     * The data the widget needs from its source, given its config with bindings resolved. A
-     * source merges every widget's demand into one request.
+     * The data the widget needs from each source it reads, by source name, given its config with
+     * bindings resolved. A source merges every widget's demand on it into one request.
      */
-    demand?: (config: PlainObject) => WidgetDemand;
+    demand?: (config: PlainObject) => Record<string, WidgetDemand>;
     /** The widget's model class. Default the platform's built-in model, or `BlueprintWidgetModel`. */
     model?: new (config: BlueprintWidgetConfig) => BlueprintWidgetModel;
     /** The widget's component factory, rendered with its model. Default the platform's built-in one. */

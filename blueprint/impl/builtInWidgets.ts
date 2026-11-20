@@ -1,6 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import type {FromExtendedSchema} from 'json-schema-to-ts';
-import {castArray, compact, isEmpty, isString, uniq} from 'lodash';
+import {castArray, compact, isEmpty, isString, mapValues, uniq} from 'lodash';
 import type {BlueprintSchema, BlueprintSchemaExtension} from '../BlueprintSchema';
 import type {
     ActionSpec,
@@ -941,7 +941,7 @@ const WIDGET_SPECS: WidgetSpec[] = [
 // Names a grid's tree column in `columnState` and `sortBy`.
 const TREE_COLUMN = 'group';
 
-const DEMANDS: Record<string, (config: PlainObject) => WidgetDemand> = {
+const SOURCE_DEMANDS: Record<string, (config: PlainObject) => WidgetDemand> = {
     cubeGrid: cfg => ({
         fields: fieldNames([
             ...castArray(cfg.columnState ?? []).map(it => (isString(it) ? it : it?.field)),
@@ -966,6 +966,14 @@ const DEMANDS: Record<string, (config: PlainObject) => WidgetDemand> = {
         groupBy: []
     })
 };
+
+// A widget over one source demands only from its `source`.
+const DEMANDS = mapValues(
+    SOURCE_DEMANDS,
+    demand =>
+        (cfg: PlainObject): Record<string, WidgetDemand> =>
+            cfg.source ? {[cfg.source]: demand(cfg)} : {}
+);
 
 function fieldNames(names: unknown[]): string[] {
     return uniq(names.filter(it => isString(it) && it !== TREE_COLUMN)) as string[];

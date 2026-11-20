@@ -512,7 +512,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             if (isPlainObject(o) && 'field' in o && 'op' in o)
                 need(o.field, `${p}/filter${path}/field`);
         });
-        const shown = registry.widgets[el.component]?.demand?.(cfg)?.fields ?? [];
+        const shown = registry.widgets[el.component]?.demand?.(cfg)?.[cfg.source]?.fields ?? [];
         if (
             cfg.filter &&
             fields &&

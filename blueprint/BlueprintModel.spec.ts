@@ -498,6 +498,45 @@ describe('BlueprintModel', () => {
             expect(req.groupBy).toEqual([]);
         });
 
+        it("requests a widget's demand from each source it names", async () => {
+            const provider = new RecordingProvider(),
+                registry = scenarioRegistry(),
+                bp = p2();
+            registry.addWidgets({
+                name: 'acme.summary',
+                version: 1,
+                label: 'Summary',
+                guidance: 'Totals over two sources.',
+                category: 'data',
+                config: {type: 'object'},
+                demand: () => ({
+                    positions: {fields: ['pnlYtd'], groupBy: []},
+                    orders: {fields: ['commission'], groupBy: []}
+                })
+            });
+            bp.elements.summary = {component: 'acme.summary', config: {}};
+            (bp.elements.dashboard.children as PlainObject[]).push({
+                id: 'summary',
+                x: 0,
+                y: 14,
+                w: 12,
+                h: 2
+            });
+            const model = new BlueprintModel({
+                blueprint: bp,
+                catalog: portfolioCatalog,
+                registry,
+                dataProvider: provider,
+                mode: 'run'
+            });
+            onTestFinished(() => model.destroy());
+            await wait();
+            const fieldsOf = (dataset: string) =>
+                provider.subs.filter(it => it.req.dataset === dataset).at(-1).req.fields;
+            expect(fieldsOf('positions')).toContain('pnlYtd');
+            expect(fieldsOf('orders')).toContain('commission');
+        });
+
         it('requests every field its Cube needs, including the dimensions it groups by', async () => {
             const provider = new RecordingProvider();
             await opened(p1(), provider);

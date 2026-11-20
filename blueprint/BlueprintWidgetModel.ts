@@ -108,7 +108,7 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
     /** The fields of its source that the widget shows, from its demand. */
     get shownFields(): string[] {
         const spec = this.blueprintModel.registry.widgets[this.element?.component];
-        return spec?.demand?.(this.resolvedConfig).fields ?? [];
+        return spec?.demand?.(this.resolvedConfig)[this.element.config.source]?.fields ?? [];
     }
 
     override destroy() {

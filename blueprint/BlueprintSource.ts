@@ -31,7 +31,7 @@ import type {
     BlueprintDataRequest,
     BlueprintDataUpdate
 } from './BlueprintDataProvider';
-import type {BlueprintRegistry} from './BlueprintRegistry';
+import type {BlueprintRegistry, WidgetDemand} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {
     type FieldDisplayLayer,
@@ -280,17 +280,19 @@ export class BlueprintSource extends HoistBase {
     // Implementation
     //------------------
     /**
-     * Each widget's demand. A widget's filter stays unresolved, so that a filter bound to a
-     * selection changes no request: {@link getBindingFields} covers the fields it can name.
+     * The demand on this source of each widget, whichever source it shows. A widget's filter stays
+     * unresolved, so that a filter bound to a selection changes no request: {@link getBindingFields}
+     * covers the fields it can name.
      */
-    private getDemands() {
+    private getDemands(): WidgetDemand[] {
         const {context} = this;
-        return this.getWidgets()
-            .map(el =>
-                context.registry.widgets[el.component]?.demand?.({
-                    ...context.resolve(el.config),
-                    filter: el.config.filter
-                })
+        return Object.values(context.effective?.elements ?? {})
+            .map(
+                el =>
+                    context.registry.widgets[el.component]?.demand?.({
+                        ...context.resolve(el.config),
+                        filter: el.config?.filter
+                    })?.[this.name]
             )
             .filter(Boolean);
     }
