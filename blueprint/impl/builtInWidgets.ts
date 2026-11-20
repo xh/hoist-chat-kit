@@ -62,6 +62,25 @@ const TAB_CONTAINER_SCHEMA = {
     properties: {emptyText: EMPTY_TEXT}
 } as const satisfies BlueprintSchema;
 
+// A GoldenLayout item, to a fixed depth as schemas here take no $ref. Only the keys a blueprint
+// keeps: GoldenLayout sets a title as HTML.
+function dashLayoutItem(depth: number): BlueprintSchema {
+    return {
+        type: 'object',
+        additionalProperties: false,
+        required: ['type'],
+        properties: {
+            type: {type: 'string', enum: ['row', 'column', 'stack', 'view']},
+            id: {type: 'string'},
+            width: {type: 'number', minimum: 0, maximum: 100},
+            height: {type: 'number', minimum: 0, maximum: 100},
+            ...(depth > 1
+                ? {content: {type: 'array', maxItems: 20, items: dashLayoutItem(depth - 1)}}
+                : {})
+        }
+    };
+}
+
 const DASH_CONTAINER_SCHEMA = {
     type: 'object',
     additionalProperties: false,
@@ -69,7 +88,7 @@ const DASH_CONTAINER_SCHEMA = {
         layout: {
             type: 'array',
             maxItems: 20,
-            items: {type: 'object'},
+            items: dashLayoutItem(6),
             description:
                 "GoldenLayout's rows, columns, stacks and views: [{type: 'row', content: [{type: 'view', id: 'grid'}, ...]}]. Each view names a child. Default one stack, a tab per child."
         },
@@ -1821,11 +1840,20 @@ function filterFields(filter: unknown): string[] {
 //------------------
 // Highcharts sanitizes text, but still allows links and styles in labels and format templates, so
 // no string may hold markup. renderTo would draw into another element of the page.
-const HIGHCHARTS_REFUSED = ['renderTo', 'useHTML', 'events', 'series', 'data'],
+// plotBackgroundImage and a style's url() load from a URL.
+const HIGHCHARTS_REFUSED = [
+        'renderTo',
+        'useHTML',
+        'events',
+        'series',
+        'data',
+        'plotBackgroundImage'
+    ],
     HIGHCHARTS_MAX_LENGTH = 20000,
     HIGHCHARTS_MAX_DEPTH = 10;
 
-function checkHighchartsConfig(config: PlainObject): BlueprintIssue[] {
+/** Problems with a chart's `highchartsConfig`: refused options, markup, URLs and bindings. */
+export function checkHighchartsConfig(config: PlainObject): BlueprintIssue[] {
     const ret: BlueprintIssue[] = [],
         fail = (path: string, message: string) =>
             ret.push({
@@ -1847,6 +1875,11 @@ function checkHighchartsConfig(config: PlainObject): BlueprintIssue[] {
     const walk = (value: unknown, path: string, top: string) => {
         if (isString(value) && value.includes('<')) {
             fail(path, 'holds markup, which a chart may not show');
+        } else if (isString(value) && /url\s*\(/i.test(value)) {
+            fail(path, 'loads from a URL, which a chart may not');
+        } else if (value && typeof value === 'object' && '$var' in value) {
+            // A bound value would reach the chart unchecked.
+            fail(path, 'takes no binding: write a value');
         } else if (Array.isArray(value)) {
             value.forEach((it, idx) => walk(it, `${path}/${idx}`, top));
         } else if (value && typeof value === 'object') {

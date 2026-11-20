@@ -55,11 +55,10 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
 
     /** The layout as the config gives it, or one stack with a tab per child. */
     get layout(): PlainObject[] {
-        return (
-            (this.resolvedConfig.layout as PlainObject[]) ?? [
-                {type: 'stack', content: this.children.map(it => ({type: 'view', id: it.id}))}
-            ]
-        );
+        const {layout} = this.resolvedConfig;
+        return layout
+            ? toLayout(layout as DashContainerViewState[])
+            : [{type: 'stack', content: this.children.map(it => ({type: 'view', id: it.id}))}];
     }
 
     /** Write a layout a user made back to the config, as one edit, or transient in run mode. */
@@ -76,9 +75,10 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
             elements = blueprintModel.effective?.elements ?? {};
         return this.children.map(ref => ({
             id: ref.id,
-            title:
+            title: plainTitle(
                 (ref.title as string) ??
-                ((blueprintModel.resolve(elements[ref.id]?.config?.title) as string) || ref.id),
+                    ((blueprintModel.resolve(elements[ref.id]?.config?.title) as string) || ref.id)
+            ),
             content: () => this.renderElement(ref.id),
             unique: true,
             allowAdd: false,
@@ -86,6 +86,14 @@ export class DashContainerWidgetModel extends BlueprintWidgetModel<DashContainer
             allowRename: false
         }));
     }
+}
+
+// GoldenLayout sets a tab's title as HTML, and Hoist resets it to text only after, so no title may
+// hold a tag. Entities stay harmless, so P&L stays as written.
+function plainTitle(title: string): string {
+    return String(title ?? '')
+        .replace(/</g, '‹')
+        .replace(/>/g, '›');
 }
 
 // The parts of GoldenLayout's state a blueprint keeps: its shape, sizes and views.

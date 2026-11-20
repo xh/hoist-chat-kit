@@ -1,4 +1,5 @@
 import {render, screen} from '@testing-library/react';
+import type {PlainObject} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
@@ -272,6 +273,45 @@ describe('layout and container widgets', () => {
             widget.noteLayout(next);
             expect(model.effective.elements.tabs.config.layout).toEqual(next);
             expect(model.blueprint.elements.tabs.config.layout).toBeUndefined();
+        });
+
+        it('keeps only the shape, sizes and views of a layout, never a title', () => {
+            const {widget} = open(container());
+            widget.noteLayout([
+                {
+                    type: 'stack',
+                    title: '<img src=x>',
+                    content: [{type: 'view', id: 'a', title: '<img src=x>', width: 50}]
+                }
+            ]);
+            expect(widget.layout).toEqual([
+                {type: 'stack', content: [{type: 'view', id: 'a', width: 50}]}
+            ]);
+        });
+
+        it('gives GoldenLayout titles that hold no markup, as it sets them as HTML', () => {
+            const elements = container();
+            (elements.tabs.children as PlainObject[])[0].title = '<img src=x onerror=alert(1)>';
+            elements.b.config.title = 'P&L <b>bold</b>';
+            const titles = open(elements).widget.containerModel.viewSpecs.map(it => it.title);
+            expect(titles.every(it => !/[<>]/.test(it))).toBe(true);
+            expect(titles[1]).toContain('P&L');
+        });
+
+        it('refuses a layout item with a key GoldenLayout state may hold but a blueprint may not', () => {
+            const issues = validateBlueprint(
+                {
+                    schema: {blueprint: 1},
+                    root: 'tabs',
+                    elements: container([
+                        {type: 'stack', content: [{type: 'view', id: 'a', title: 'x'}]}
+                    ])
+                },
+                {catalog: portfolioCatalog, registry: scenarioRegistry()}
+            );
+            expect(issues.map(it => it.path)).toContain(
+                '/elements/tabs/config/layout/0/content/0/title'
+            );
         });
 
         it('refuses a layout view that names no child', () => {

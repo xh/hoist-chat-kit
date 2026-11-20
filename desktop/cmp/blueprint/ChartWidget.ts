@@ -10,6 +10,7 @@ import {
     type BlueprintWidgetConfig,
     type ChartWidgetConfig
 } from '../../../blueprint';
+import {checkHighchartsConfig} from '../../../blueprint/impl/builtInWidgets';
 import {fmtChatUiNumber} from '../genui/ChatUiFormat';
 import {
     type ChatUiChartLayoutProps,
@@ -121,7 +122,7 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
             {},
             this.withSecondAxis(this.withFractionAxis(toHighchartsConfig(props), props)),
             {plotOptions: {series: {point: {events: {click: this.onPointClick}}}}},
-            this.resolvedConfig.highchartsConfig ?? {}
+            this.checkedHighchartsConfig
         );
         if (!isEqual(config, chartModel.highchartsConfig)) chartModel.setHighchartsConfig(config);
         // The series of y2 follow those of y, on the second axis.
@@ -133,6 +134,16 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
                 this.hasY2 && idx >= firstY2 ? {...it, yAxis: 1} : it
             )
         );
+    }
+
+    // Checked again once resolved, in case a value reaches it past the validator.
+    private get checkedHighchartsConfig(): PlainObject {
+        const config = this.resolvedConfig.highchartsConfig;
+        if (!config) return {};
+        const issues = checkHighchartsConfig(config);
+        if (!issues.length) return config;
+        this.logWarn('Dropped highchartsConfig', issues[0].message);
+        return {};
     }
 
     private get y2(): string[] {

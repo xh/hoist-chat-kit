@@ -432,6 +432,26 @@ describe('blueprint data widgets', () => {
             ]);
         });
 
+        it('escapes its labels and series name, which Highcharts reads as markup', async () => {
+            const bp = withHeatmap({source: 'inl', x: 'a', y: 'b', value: 'v'});
+            bp.sources.inl = {
+                inline: {
+                    fields: [
+                        {name: 'a', type: 'string', isDimension: true},
+                        {name: 'b', type: 'string', isDimension: true},
+                        {name: 'v', label: '<i>Value</i>', type: 'number', aggregator: 'SUM'}
+                    ],
+                    rows: [{a: '<b>X</b>', b: 'P&L', v: 1}]
+                }
+            } as any;
+            const heat = widget(HeatmapWidgetModel, open(bp), 'heat');
+            await vi.waitFor(() => expect(heat.chartModel.series[0]?.data.length).toBe(1));
+            const {xAxis, yAxis} = heat.chartModel.highchartsConfig;
+            expect(xAxis.categories).toEqual(['&lt;b&gt;X&lt;/b&gt;']);
+            expect(yAxis.categories).toEqual(['P&amp;L']);
+            expect(heat.chartModel.series[0].name).toBe('&lt;i&gt;Value&lt;/i&gt;');
+        });
+
         it('publishes the cell clicked as its selection, and clears it on a second click', async () => {
             const model = open(withHeatmap()),
                 heat = widget(HeatmapWidgetModel, model, 'heat');
@@ -577,6 +597,22 @@ describe('blueprint data widgets', () => {
             expect(config.title.text).toBe('Sector P&L');
             expect(config.legend.enabled).toBe(false);
             expect(config.xAxis.categories).toEqual(['Energy', 'Technology']);
+        });
+
+        it('drops a highchartsConfig that fails its checks once resolved', async () => {
+            const chart = widget(
+                    ChartWidgetModel,
+                    open(loadBlueprint('p2-linked-dashboard.json')),
+                    'sectorChart'
+                ),
+                {resolvedConfig} = chart;
+            vi.spyOn(chart, 'resolvedConfig', 'get').mockReturnValue({
+                ...resolvedConfig,
+                highchartsConfig: {title: {text: '<img src=x onerror=alert(1)>'}}
+            });
+            await vi.waitFor(() => expect(chart.chartModel.series[0]?.data).toHaveLength(2));
+            (chart as any).updateChart();
+            expect(JSON.stringify(chart.chartModel.highchartsConfig)).not.toContain('<img');
         });
 
         it('publishes the point clicked as its selection, and clears it on a second click', async () => {

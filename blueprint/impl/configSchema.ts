@@ -72,8 +72,10 @@ export function toPointer(path: SchemaPath): string {
 function checkNode(value: unknown, schema: PlainObject, path: SchemaPath): SchemaProblem[] {
     const fail = (message: string) => [{path, message}];
     if (schema['x-filter']) return checkFilter(value, path);
-    if (schema['x-binding'] && isPlainObject(value) && '$var' in (value as PlainObject)) {
-        return checkBinding(value as PlainObject, path);
+    if (isPlainObject(value) && '$var' in (value as PlainObject)) {
+        return schema['x-binding']
+            ? checkBinding(value as PlainObject, path)
+            : fail('takes no binding: write a value');
     }
     if (schema['x-format']) {
         return isString(value) || isPlainObject(value) ? [] : fail('expected a format');

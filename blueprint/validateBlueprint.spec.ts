@@ -879,6 +879,16 @@ describe('validateBlueprint', () => {
         expect(codes(bp)).toContain('binding.typeMismatch');
     });
 
+    it('refuses a binding where the schema allows none', () => {
+        const bp = p2();
+        bp.elements.sectorChart.config.sortBy = {$var: 'asOf'};
+        (bp.elements.dashboard.children as PlainObject[])[0].w = {$var: 'asOf'};
+        expect(validate(bp).map(it => [it.code, it.path, /binding/.test(it.message)])).toEqual([
+            ['schema.invalid', '/elements/dashboard/children/0/w', true],
+            ['schema.invalid', '/elements/sectorChart/config/sortBy', true]
+        ]);
+    });
+
     describe("a chart's highchartsConfig", () => {
         const chartWith = (highchartsConfig: object) => {
             const bp = p2();
@@ -938,6 +948,23 @@ describe('validateBlueprint', () => {
             expect(codes(chartWith({chart: root}))).toEqual(['chart.highchartsConfig']);
             expect(codes(chartWith({title: {text: 'x'.repeat(20001)}}))).toEqual([
                 'chart.highchartsConfig'
+            ]);
+        });
+
+        it('refuses a binding anywhere in it, and options that load from a URL', () => {
+            const at = '/elements/sectorChart/config/highchartsConfig';
+            expect(
+                validate(
+                    chartWith({
+                        title: {text: {$var: 'asOf'}},
+                        chart: {plotBackgroundImage: 'https://evil.example/x.png'},
+                        subtitle: {style: {background: 'url(https://evil.example/x.png)'}}
+                    })
+                ).map(it => [it.code, it.path])
+            ).toEqual([
+                ['chart.highchartsConfig', `${at}/title/text`],
+                ['chart.highchartsConfig', `${at}/chart/plotBackgroundImage`],
+                ['chart.highchartsConfig', `${at}/subtitle/style/background`]
             ]);
         });
     });
