@@ -99,6 +99,13 @@ describe('SourcesEditor', () => {
         expect(fields.length).toBeGreaterThan(0);
         editor.addInstance(fields[0]);
         expect(count()).toBe(before + 1);
+
+        editor.addInstance('return');
+        const added = Object.values(editor.values.fields).at(-1) as any;
+        expect(added).toEqual({
+            field: 'return',
+            params: {start: {$var: 'asOf'}, end: {$var: 'asOf'}}
+        });
     });
 
     it('draws the declaration of the selected source', () => {

@@ -9,7 +9,8 @@ import {BUILT_IN_RENDERER_INFO, BUILT_IN_RESOLVER_INFO} from './builtInWidgets';
 // Resolvers
 //------------------
 // Dates travel as `YYYY-MM-DD`, as in the blueprint and the data request.
-const date = (v: unknown): LocalDate => (v == null ? null : LocalDate.get(v as string)),
+const date = (v: unknown): LocalDate =>
+        typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? LocalDate.get(v) : null,
     iso = (d: LocalDate): string => d?.isoString ?? null;
 
 const RESOLVE: Record<string, ResolverSpec['resolve']> = {

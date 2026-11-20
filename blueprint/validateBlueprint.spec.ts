@@ -324,6 +324,23 @@ describe('validateBlueprint', () => {
             expect(codes(bp)).toContain('variable.unknown');
         });
 
+        it("checks a field instance's params: each known, bound to a variable, or of its type", () => {
+            const bp = loadBlueprint('p3-morning-report.json'),
+                codes = (params: object) => {
+                    bp.sources.positions.fields = {r: {field: 'return', params}};
+                    return validate(bp).map(it => it.code);
+                };
+            expect(codes({start: {$var: 'yearStart'}, end: '2026-11-20'})).toEqual([]);
+            expect(codes({start: '', end: {$var: 'asOf'}})).toEqual(['source.badParam']);
+            expect(codes({start: {$var: 'nope'}, end: {$var: 'asOf'}})).toEqual([
+                'variable.unknown'
+            ]);
+            expect(codes({end: {$var: 'asOf'}})).toEqual(['source.missingParam']);
+            expect(codes({start: {$var: 'asOf'}, end: {$var: 'asOf'}, x: 1})).toEqual([
+                'source.unknownParam'
+            ]);
+        });
+
         it("lets presets control a variable's default, once it leaves the declaration", () => {
             const bp = loadBlueprint('p3-morning-report.json'),
                 codes = () => validate(bp).map(it => it.code);

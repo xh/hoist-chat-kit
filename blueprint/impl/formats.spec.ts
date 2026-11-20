@@ -25,6 +25,12 @@ describe('formats', () => {
                 )
             );
 
+    it('shows a date that does not parse as its text, rather than throwing', () => {
+        const day = {name: 'd', type: 'localDate'};
+        expect(formatValue('', day, {}, portfolioCatalog)).toBe('');
+        expect(formatValue('soon', day, {}, portfolioCatalog)).toBe('soon');
+    });
+
     it("takes the catalog's named format through the field's kind", () => {
         expect(text({})).toBe('1.2m');
     });

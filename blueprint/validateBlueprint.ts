@@ -60,7 +60,28 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         warn = (code: string, path: string, message: string) =>
             issues.push({code, severity: 'warning', path, message}),
         typeMatches = (varType: string, want: string) =>
-            variableTypeMatches(registry, varType, want);
+            variableTypeMatches(registry, varType, want),
+        // A field instance's params: each one the field takes, a value of its type or a binding,
+        // which the walk of bindings checks, with every required one given.
+        checkInstanceParams = (p: string, params: PlainObject, defs: PlainObject) => {
+            for (const [pn, pv] of Object.entries(params)) {
+                const pd = defs[pn];
+                if (!pd) {
+                    err(
+                        'source.unknownParam',
+                        `${p}/${pn}`,
+                        `the field takes no parameter '${pn}'`
+                    );
+                } else if (!(isPlainObject(pv) && '$var' in pv) && !matchesType(pv, pd.type)) {
+                    err('source.badParam', `${p}/${pn}`, `parameter '${pn}' takes a ${pd.type}`);
+                }
+            }
+            for (const [pn, pd] of Object.entries<PlainObject>(defs)) {
+                if (pd.required && !Object.hasOwn(params, pn)) {
+                    err('source.missingParam', p, `the field requires parameter '${pn}'`);
+                }
+            }
+        };
 
     if (!isPlainObject(bp)) {
         err('structure.notObject', '', 'a blueprint is a JSON object');
@@ -342,6 +363,11 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     );
                 } else {
                     fields[iname] = base;
+                    checkInstanceParams(
+                        `${p}/fields/${iname}/params`,
+                        inst.params ?? {},
+                        base.params
+                    );
                 }
             }
             sourceFields[sn] = fields;

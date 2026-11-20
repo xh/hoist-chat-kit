@@ -149,11 +149,15 @@ export class SourceEditorModel extends ConfigEditorModel {
         const fields = this.values.fields ?? {};
         let n = 1;
         while (Object.hasOwn(fields, `${field}${n}`)) n++;
+        // Each param bound to a variable of its type, the one of the same name first, or unset.
         const params = Object.fromEntries(
-            this.fieldParams(field).map(([pn, pd]) => [
-                pn,
-                this.newValue(this.valueSchema(pd.type))
-            ])
+            this.fieldParams(field)
+                .map(([pn, pd]) => {
+                    const fitting = this.paramVariables(pd.type);
+                    return [pn, fitting.includes(pn) ? pn : fitting[0]];
+                })
+                .filter(([, v]) => v)
+                .map(([pn, v]) => [pn, {$var: v}])
         );
         this.commit('fields', {
             ...fields,

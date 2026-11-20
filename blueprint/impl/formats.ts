@@ -148,6 +148,7 @@ export function formatValue(
         }
     }
     if (type === 'localDate' || type === 'date') {
+        if (type === 'localDate' && isString(value) && !ISO_DATE.test(value)) return value;
         const v = type === 'localDate' && isString(value) ? LocalDate.get(value) : value,
             dateOpts = {
                 ...(opts.pattern ? {fmt: opts.pattern} : {}),
@@ -170,6 +171,9 @@ export function formatValue(
 //------------------
 // Implementation
 //------------------
+// A local date as text, which a value that does not match only shows, not parses.
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 function builtInDefault(base: string): PlainObject {
     if (base === 'shares') return {precision: 0};
     if (base?.startsWith('currency:')) return {precision: 2};
