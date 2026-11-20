@@ -682,6 +682,20 @@ describe('BlueprintModel', () => {
             expect(provider.last.req).toMatchObject({dataset: 'prices', params: {symbol: 'NVDA'}});
         });
 
+        it('names the selecting widget by the title of the panel that holds it', async () => {
+            const bp = p3(),
+                canvas = bp.elements.positions,
+                placed = canvas.children.find(it => it.id === 'posGrid');
+            placed.id = 'posPanel';
+            bp.elements.posPanel = {
+                component: 'panel',
+                config: {title: 'Positions by sector'},
+                children: [{id: 'posGrid'}]
+            };
+            const prices = (await opened(bp, new RecordingProvider())).getSource('prices');
+            expect(prices.selectionWait).toBe('Select a row in Positions by sector to see this.');
+        });
+
         it('loads with an optional parameter a prompt leaves empty, meaning all', async () => {
             const provider = new RecordingProvider(),
                 bp = p3();

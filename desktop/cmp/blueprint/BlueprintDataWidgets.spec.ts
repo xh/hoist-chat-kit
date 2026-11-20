@@ -201,6 +201,22 @@ describe('blueprint data widgets', () => {
             expect(text(table.entries[1].value)).toBe('Fred Corn');
         });
 
+        it('shows a dimension where every row its filter leaves shares one value', async () => {
+            const table = widget(
+                PropertyTableWidgetModel,
+                open(
+                    withTable({
+                        fields: ['sector', 'strategy', 'trader'],
+                        filter: {field: 'sector', op: '=', value: 'Energy'}
+                    })
+                ),
+                'props'
+            );
+            await vi.waitFor(() => expect(text(table.entries[0]?.value)).toBe('Energy'));
+            expect(text(table.entries[1].value)).toBe('Credit');
+            expect(text(table.entries[2].value)).not.toMatch(/Fred|Susan/);
+        });
+
         it('formats each field by its own format, over an inline source too', async () => {
             const bp = withTable({
                 source: 'fund',
@@ -286,6 +302,24 @@ describe('blueprint data widgets', () => {
             await vi.waitFor(() => expect(gm().store.allRecords.length).toBeGreaterThan(1));
             const credit = gm().store.allRecords.find(it => it.data.cubeLabel === 'Credit');
             expect(credit.data.pnlHistory).toEqual([-2, 6]);
+        });
+
+        it('shows a dimension it does not group by on a group row whose rows share it', async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            Object.assign(bp.elements.posGrid.config, {
+                groupBy: ['strategy'],
+                columnState: ['sector', 'trader']
+            });
+            const grid = widget(CubeGridWidgetModel, open(bp), 'posGrid'),
+                gm = () => grid.cubeGridModel.innerGridModel,
+                group = (label: string) =>
+                    gm().store.allRecords.find(it => it.data.cubeLabel === label)?.data;
+            await vi.waitFor(() => expect(group('Credit')).toBeTruthy());
+            expect(group('Credit')).toMatchObject({sector: 'Energy', trader: null});
+            expect(group('Global Macro')).toMatchObject({
+                sector: 'Technology',
+                trader: 'Fred Corn'
+            });
         });
 
         it("draws a stat card's trend under its figure, from its source's one row", async () => {

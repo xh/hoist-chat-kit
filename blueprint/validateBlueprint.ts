@@ -647,7 +647,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 warn(
                     'template.dimension',
                     path,
-                    `'{${ref}}' is a dimension, which has no total, so it shows blank`
+                    `'{${ref}}' is a dimension, which shows only where every row shares one value`
                 );
             } else if (
                 field?.aggregator === 'UNIQUE' &&

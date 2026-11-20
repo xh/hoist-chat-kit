@@ -53,6 +53,7 @@ import {
 import {rendererFields} from './impl/builtInWidgets';
 import {joinFields, type JoinField} from './impl/joins';
 import {getOwn} from './impl/pointer';
+import {parentOf} from './impl/elements';
 import {withInlineType} from './impl/variableValues';
 import {getWriters} from './validateBlueprint';
 
@@ -310,9 +311,18 @@ export class BlueprintSource extends HoistBase {
                 .flatMap(name => getWriters(getOwn(blueprint?.variables, name)))
                 .find(w => w.output);
         if (!waiting) return null;
-        const el = getOwn(blueprint?.elements, waiting.element),
-            title = this.context.resolve(el?.config?.title);
-        return `Select ${SELECTION_NOUNS[el?.component] ?? 'a value'} in ${title || waiting.element} to see this.`;
+        const el = getOwn(blueprint?.elements, waiting.element);
+        return `Select ${SELECTION_NOUNS[el?.component] ?? 'a value'} in ${this.titleOf(waiting.element)} to see this.`;
+    }
+
+    // An element's title, else the title of the nearest container that has one, else its ID.
+    private titleOf(id: string): string {
+        const elements = this.context.blueprint?.elements;
+        for (let it = id; it; it = parentOf(elements, it)) {
+            const title = this.context.resolve(getOwn(elements, it)?.config?.title);
+            if (title) return title;
+        }
+        return id;
     }
 
     /**
@@ -953,7 +963,7 @@ function weightFieldOf(f: FieldDef): string {
 
 /**
  * A catalog field as a Cube field. A number with no aggregator does not roll up, so group rows show
- * it blank, and any other type shows its value where it is unique. A `"server"` measure shows the
+ * it blank. A dimension, and any other type, shows its value where it is unique. A `"server"` measure shows the
  * values the server supplies for each group.
  */
 function toCubeField(f: FieldDef): CubeFieldSpec {
@@ -985,7 +995,7 @@ function toAggregator(f: FieldDef): CubeFieldSpec['aggregator'] {
         if (aggType === 'first' && orderField) return new FirstAggregator({orderField});
         return null;
     }
-    if (isDimension) return null;
+    if (isDimension) return 'UNIQUE';
     return ['number', 'int', 'number[]'].includes(type) ? null : 'UNIQUE';
 }
 
