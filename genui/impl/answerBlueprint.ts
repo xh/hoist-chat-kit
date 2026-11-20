@@ -310,7 +310,7 @@ function toStatCards(id: string, props: PlainObject, isPartial: boolean): Transl
     return {
         element: {
             component: 'tileFrame',
-            config: {presentation: 'card'},
+            config: {},
             children: Object.keys(children).map(it => ({id: it}))
         },
         source: {inline: {fields, rows: [row]}} as SourceDecl,

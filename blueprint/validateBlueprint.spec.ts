@@ -697,6 +697,7 @@ describe('validateBlueprint', () => {
         expect(issues.map(it => [it.code, it.path])).toEqual([
             ['element.notAccepted', '/elements/strip/children/2/id']
         ]);
+        expect(issues[0].message).toMatch(/It takes data widgets and separator\.$/);
     });
 
     describe('templates', () => {

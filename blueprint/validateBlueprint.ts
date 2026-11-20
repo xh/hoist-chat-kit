@@ -863,9 +863,15 @@ function accepts(container: WidgetSpec, child: WidgetSpec): boolean {
     return !!categories?.includes(child.category) || !!widgets?.includes(child.name);
 }
 
+// Such as "input widgets, separator and spacer".
 function describeAccepts(container: WidgetSpec): string {
-    const {categories = [], widgets = []} = container.children.accepts;
-    return [...categories.map(it => `${it} widgets`), ...widgets].join(', ');
+    const {categories = [], widgets = []} = container.children.accepts,
+        items = [...(categories.length ? [`${joinAnd(categories)} widgets`] : []), ...widgets];
+    return joinAnd(items);
+}
+
+function joinAnd(items: string[]): string {
+    return items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}` : items[0];
 }
 
 /** A panel draws a toolbar, and only a toolbar, in each of its tbar and bbar slots. */

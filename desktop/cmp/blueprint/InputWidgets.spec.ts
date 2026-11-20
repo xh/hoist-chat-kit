@@ -218,7 +218,9 @@ describe('input widgets', () => {
                     bar: {component: 'toolbar', config: {}, children: [{id: 'note'}]},
                     note: {component: 'markdown', config: {text: 'x'}}
                 })
-            ).toThrow(/toolbar cannot hold 'note'/);
+            ).toThrow(
+                /toolbar cannot hold 'note'.* It takes input widgets, separator and spacer\./
+            );
         });
 
         it("draws in a panel's top or bottom bar, and only a toolbar may", () => {

@@ -1,6 +1,6 @@
 import {omit} from 'lodash';
 import {describe, expect, it} from 'vitest';
-import {DataCatalog, degradeAnswer} from '../../blueprint';
+import {BlueprintRegistry, DataCatalog, degradeAnswer, validateBlueprint} from '../../blueprint';
 import {
     chatUiBadgesSpec,
     chatUiCalloutSpec,
@@ -121,7 +121,7 @@ describe('toAnswerBlueprint', () => {
             const bp = translate({cards});
             expect(bp.elements.kpis).toEqual({
                 component: 'tileFrame',
-                config: {presentation: 'card'},
+                config: {},
                 children: [1, 2, 3, 4].map(n => ({id: `kpis-card${n}`}))
             });
             expect([1, 2, 3, 4].map(n => bp.elements[`kpis-card${n}`])).toEqual([
@@ -150,6 +150,14 @@ describe('toAnswerBlueprint', () => {
             });
             expect(fields.find(it => it.name === 'v1')).toMatchObject({kind: 'fraction'});
             expect(fields.find(it => it.name === 'v2')).toMatchObject({type: 'string'});
+        });
+
+        it('carries into a dashboard as it is, as a plain tileFrame takes no presentation', () => {
+            const issues = validateBlueprint(translate({cards}), {
+                catalog: new DataCatalog({datasets: {}}),
+                registry: new BlueprintRegistry()
+            });
+            expect(issues.filter(it => it.severity === 'error')).toEqual([]);
         });
 
         it('drops the last card while it streams, and stays the spec until a card is complete', () => {
