@@ -1,4 +1,4 @@
-import {render, screen} from '@testing-library/react';
+import {render, screen, waitFor} from '@testing-library/react';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {LocalDate} from '@xh/hoist/utils/datetime';
@@ -227,6 +227,34 @@ describe('input widgets', () => {
             picker = container.querySelector('.xh-blueprint-view__toolbar .xh-date-range-picker');
         expect(picker.textContent).toContain('2026-03-01');
         expect(picker.textContent).toContain('2026-03-02');
+    });
+
+    it('follows an asOf its date range gains once its picker is built', async () => {
+        const model = new BlueprintModel({
+            blueprint: {
+                schema: {blueprint: 1},
+                variables: {
+                    asOf: {type: 'localDate', setBy: 'prompt', default: {value: '2026-03-02'}},
+                    range: {type: 'dateRange', setBy: 'prompt', default: {value: 'mtd'}}
+                },
+                root: 'note',
+                elements: {note: {component: 'markdown', config: {text: 'x'}}}
+            },
+            catalog: portfolioCatalog,
+            registry: scenarioRegistry(),
+            dataProvider: null,
+            mode: 'design',
+            access: 'write'
+        });
+        onTestFinished(() => model.destroy());
+        const {container} = render(blueprintView({model})),
+            text = () =>
+                container.querySelector('.xh-blueprint-view__toolbar .xh-date-range-picker')
+                    .textContent;
+        model.applyEdit({
+            ops: [{op: 'set', path: '/variables/range/asOf', value: {$var: 'asOf'}}]
+        });
+        await waitFor(() => expect(text()).toContain('2026-03-02'));
     });
 
     it('prompts for a date range with a picker, and for a period as text', async () => {

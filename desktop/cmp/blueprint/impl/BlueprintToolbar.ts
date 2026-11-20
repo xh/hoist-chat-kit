@@ -142,14 +142,16 @@ const dateRangePrompt = hoistCmp.factory<DateRangePromptProps>({
 class DateRangePromptModel extends HoistModel {
     @managed readonly binding: DateRangeBinding;
 
-    constructor(variable: BlueprintVariable, blueprintModel: BlueprintModel) {
+    // Read by name, as an edit of the declaration makes the variable anew.
+    constructor({name}: BlueprintVariable, blueprintModel: BlueprintModel) {
         super();
+        const variable = () => blueprintModel.getVariable(name);
         this.binding = new DateRangeBinding({
             registry: blueprintModel.registry,
             presets: null,
-            getValue: () => variable.value,
-            setValue: value => blueprintModel.setVariable(variable.name, value),
-            getAsOf: () => blueprintModel.resolve(variable.decl.asOf) as string
+            getValue: () => variable()?.value,
+            setValue: value => blueprintModel.setVariable(name, value),
+            getAsOf: () => blueprintModel.resolve(variable()?.decl.asOf) as string
         });
     }
 }
