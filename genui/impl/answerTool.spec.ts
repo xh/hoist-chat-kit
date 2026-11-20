@@ -78,9 +78,12 @@ describe('show_ui with answer blueprints', () => {
             {parameters, description} = catalog.documentTool,
             names = parameters.properties.elements.additionalProperties.properties.component.enum;
         expect(names).toEqual(
-            expect.arrayContaining(['statCard', 'tileFrame', 'cubeGrid', 'text'])
+            expect.arrayContaining(['statCard', 'tileFrame', 'cubeGrid', 'markdown', 'box'])
         );
-        expect(names).not.toContain('fallback');
+        // A translated component's bridge is the kit's to place, never the model's.
+        ['fallback', 'text', 'stack', 'chatUiCallout', 'section'].forEach(it =>
+            expect(names).not.toContain(it)
+        );
         expect(description).toContain('statCard: Stat card.');
     });
 
@@ -88,16 +91,16 @@ describe('show_ui with answer blueprints', () => {
         const {description} = setup().catalog.documentTool,
             line = (name: string) =>
                 description.split('\n').find(it => it.startsWith(`- ${name}:`));
-        expect(line('text')).toMatch(/ Config: text \(required\)\.$/);
+        expect(line('markdown')).toMatch(/ Config: .*text \(required\)\.$/);
         expect(line('cubeGrid')).not.toContain('Config:');
     });
 
     it('lists the values of a short enum beside its key', () => {
         const line = setup()
             .catalog.documentTool.description.split('\n')
-            .find(it => it.startsWith('- stack:'));
+            .find(it => it.startsWith('- box:'));
         expect(line).toContain('direction (column, row)');
-        expect(line).toContain('gap (none, small, medium, large)');
+        expect(line).toContain('align (stretch, start, center, end)');
     });
 
     it("offers the app's own widgets and types, beside chat kit's", () => {

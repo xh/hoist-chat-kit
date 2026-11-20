@@ -85,20 +85,27 @@ describe('toAnswerBlueprint', () => {
         expect(actions.setVariable).toBeTruthy();
     });
 
-    it.each(components.filter(it => it.example).map(it => [it.name, it]))(
-        "translates the example of '%s' into a valid answer",
-        (name, spec) => {
-            const bp = toAnswerBlueprint({
-                root: 'root',
-                elements: {root: {component: name as string, props: spec.example}}
-            });
-            expect(bp.elements.root).toEqual({
-                component: toWidgetName(name as string),
-                config: omit(spec.example, CHILD_REF_PROPS[name as string]?.prop ?? [])
-            });
-            expect(degradeAnswer(bp, ctx)).toEqual(bp);
-        }
-    );
+    const kitOptions = {
+        isValid: (name: string, props: object, isPartial: boolean) =>
+            catalog.validate(name, props as any, {isPartial}).length === 0,
+        kitComponentOf: (name: string) => catalog.getComponent(name)?.kitComponent
+    };
+
+    it.each(
+        components
+            .filter(it => it.example && !catalog.registry.widgets[toWidgetName(it.name)].reserved)
+            .map(it => [it.name, it])
+    )("translates the example of '%s' into a valid answer", (name, spec) => {
+        const bp = toAnswerBlueprint({
+            root: 'root',
+            elements: {root: {component: name as string, props: spec.example}}
+        });
+        expect(bp.elements.root).toEqual({
+            component: toWidgetName(name as string),
+            config: omit(spec.example, CHILD_REF_PROPS[name as string]?.prop ?? [])
+        });
+        expect(degradeAnswer(bp, ctx)).toEqual(bp);
+    });
 
     describe('stat cards', () => {
         const cards = [
@@ -476,15 +483,31 @@ describe('toAnswerBlueprint', () => {
         });
     });
 
+    it.each(
+        components
+            .filter(it => it.example && catalog.registry.widgets[toWidgetName(it.name)].reserved)
+            .map(it => [it.name, it])
+    )("translates the example of '%s' into a dashboard widget, never its bridge", (name, spec) => {
+        const bp = toAnswerBlueprint(
+            {root: 'root', elements: {root: {component: name as string, props: spec.example}}},
+            kitOptions
+        );
+        expect(bp.elements.root.component).not.toBe(toWidgetName(name as string));
+        expect(degradeAnswer(bp, ctx)).toEqual(bp);
+    });
+
     it('turns children and named slots into child references', () => {
-        const bp = toAnswerBlueprint({
-            root: 'top',
-            elements: {
-                top: {component: 'stack', props: {}, children: ['a'], slots: {default: ['b']}},
-                a: {component: 'text', props: {text: 'First'}},
-                b: {component: 'text', props: {text: 'Second'}}
-            }
-        });
+        const bp = toAnswerBlueprint(
+            {
+                root: 'top',
+                elements: {
+                    top: {component: 'stack', props: {}, children: ['a'], slots: {default: ['b']}},
+                    a: {component: 'text', props: {text: 'First'}},
+                    b: {component: 'text', props: {text: 'Second'}}
+                }
+            },
+            kitOptions
+        );
         expect(bp.elements.top.children).toEqual([{id: 'a'}, {id: 'b'}]);
         expect(degradeAnswer(bp, ctx)).toEqual(bp);
     });
@@ -494,8 +517,8 @@ describe('toAnswerBlueprint', () => {
             root: 'tabs',
             elements: {
                 tabs: {component: 'tabs', props: {titles: ['Chart', 'Data']}, children: ['a', 'b']},
-                a: {component: 'text', props: {text: 'First'}},
-                b: {component: 'text', props: {text: 'Second'}}
+                a: {component: 'separator', props: {}},
+                b: {component: 'separator', props: {}}
             }
         });
         expect(bp.elements.tabs).toEqual({
@@ -510,14 +533,17 @@ describe('toAnswerBlueprint', () => {
     });
 
     it('leaves an element with problems for degradeAnswer to replace', () => {
-        const bp = toAnswerBlueprint({
-            root: 'top',
-            elements: {
-                top: {component: 'stack', props: {}, children: ['a', 'b']},
-                a: {component: 'text', props: {text: 5}},
-                b: {component: 'nope', props: {}}
-            }
-        } as any);
+        const bp = toAnswerBlueprint(
+            {
+                root: 'top',
+                elements: {
+                    top: {component: 'stack', props: {}, children: ['a', 'b']},
+                    a: {component: 'text', props: {text: 5}},
+                    b: {component: 'nope', props: {}}
+                }
+            } as any,
+            kitOptions
+        );
         const ret = degradeAnswer(bp, ctx);
         expect(ret.elements.top).toEqual(bp.elements.top);
         expect(ret.elements.a.component).toBe('fallback');
