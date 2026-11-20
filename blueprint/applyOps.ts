@@ -229,13 +229,19 @@ function placeChild(bp: Blueprint, parent: string, id: string, child: PlainObjec
 }
 
 /** Rename every reference to an ID, including paths that name it. */
-function renameRefs(o: any, kind: string, from: string, to: string): any {
+function renameRefs(o: any, kind: string, from: string, to: string, parentKey?: string): any {
     if (isArray(o)) return o.map(v => renameRefs(v, kind, from, to));
     if (isPlainObject(o)) {
         const ret: PlainObject = {};
         for (const [k, v] of Object.entries(o)) {
-            const nk = kind === 'element' ? renamePath(k, 'elements', from, to) : k;
-            let nv = renameRefs(v, kind, from, to);
+            // A preset's values have the blueprint's shape, so the ID is a key there too.
+            const nk =
+                parentKey === `${kind}s` && k === from
+                    ? to
+                    : kind === 'element'
+                      ? renamePath(k, 'elements', from, to)
+                      : k;
+            let nv = renameRefs(v, kind, from, to, k);
             if (v === from) {
                 if (kind === 'element' && (k === 'id' || k === 'element')) nv = to;
                 if (kind === 'variable' && (k === '$var' || k === 'variable')) nv = to;

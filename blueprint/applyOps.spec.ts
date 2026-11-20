@@ -84,6 +84,28 @@ describe('applyOps', () => {
         );
     });
 
+    it("renames an element in each preset's values, where its ID is a key", () => {
+        const bp = loadBlueprint('p3-morning-report.json'),
+            {result, issue} = applyOps(bp, [
+                {op: 'renameId', kind: 'element', from: 'posGrid', to: 'positionsGrid'}
+            ]);
+        expect(issue).toBeUndefined();
+        expect(result.presets.posViews.controls[0].path).toBe(
+            '/elements/positionsGrid/config/columnState'
+        );
+        Object.values(result.presets.posViews.items).forEach(it => {
+            expect(it.set.elements.positionsGrid).toBeDefined();
+            expect(it.set.elements.posGrid).toBeUndefined();
+        });
+        expect(
+            validateBlueprint(result, {
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                artifacts: ARTIFACTS
+            })
+        ).toEqual([]);
+    });
+
     it('refuses an unknown op', () => {
         expect(apply([{op: 'patch', path: '/root'}]).issue.message).toMatch(/unknown op 'patch'/);
     });
