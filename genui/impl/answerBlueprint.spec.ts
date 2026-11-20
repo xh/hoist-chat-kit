@@ -17,7 +17,7 @@ import {
     chatUiTreeMapSpec
 } from '../../desktop/cmp/genui';
 import {ChatUiCatalog} from '../ChatUiCatalog';
-import {toAnswerBlueprint} from './answerBlueprint';
+import {toAnswerBlueprint, upgradeBridges} from './answerBlueprint';
 import {CHILD_REF_PROPS, toWidgetName} from './specWidgets';
 
 /**
@@ -468,6 +468,38 @@ describe('toAnswerBlueprint', () => {
                 });
             expect(bp.elements.top.component).toBe('box');
             expect(bp.elements.mine.component).toBe('stack');
+        });
+
+        it('upgrades the bridges an answer saved before the translations holds', () => {
+            const bp = upgradeBridges(
+                {
+                    root: 'top',
+                    elements: {
+                        top: {
+                            component: 'stack',
+                            config: {direction: 'row'},
+                            children: [{id: 'a'}, {id: 'b'}]
+                        },
+                        a: {component: 'text', config: {text: 'Hi {there}'}},
+                        b: {
+                            component: 'chatUiCallout',
+                            config: {intent: 'warning', text: 'Careful'}
+                        }
+                    }
+                },
+                kitOptions
+            );
+            expect(bp.elements.top).toEqual({
+                component: 'box',
+                config: {direction: 'row', gap: 8, fill: false},
+                children: [{id: 'a'}, {id: 'b'}]
+            });
+            expect(bp.elements.a).toEqual({
+                component: 'markdown',
+                config: {text: 'Hi {{there}}'}
+            });
+            expect(bp.elements.b.component).toBe('callout');
+            expect(degradeAnswer(bp, ctx)).toEqual(bp);
         });
 
         it('keeps a chat input on its bridge, as decision 135 has it', () => {

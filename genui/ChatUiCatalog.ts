@@ -92,7 +92,8 @@ import {
     type ChatUiBoundProps,
     fromAnswerId,
     toAnswerBlueprint,
-    toAnswerId
+    toAnswerId,
+    upgradeBridges
 } from './impl/answerBlueprint';
 import {answerDataFor} from './impl/answerData';
 import {
@@ -1351,7 +1352,11 @@ export class ChatUiCatalog {
                     return [
                         isDocumentShape(input)
                             ? fromDoc(input as ChatUiDocument, 'show_ui', part.id)
-                            : {kind: 'show_ui', partId: part.id, blueprint: input as Blueprint}
+                            : {
+                                  kind: 'show_ui',
+                                  partId: part.id,
+                                  blueprint: this.upgradeAnswer(input as Blueprint)
+                              }
                     ];
                 }
                 const component = toolComponents.get(part.toolName);
@@ -1423,6 +1428,14 @@ export class ChatUiCatalog {
     }
 
     /** Render an answer blueprint, degraded to what it can show, with the app's and chat's data. */
+    // An answer saved before the kit's components translated holds their bridges.
+    private upgradeAnswer(bp: Blueprint): Blueprint {
+        return upgradeBridges(bp, {
+            isValid: (name, props) => isEmpty(this.validate(name, props)),
+            kitComponentOf: name => this.getComponent(name)?.kitComponent ?? null
+        });
+    }
+
     private renderAnswerBlueprint(
         input: Blueprint,
         context: ChatUiDocumentContext,
@@ -1724,7 +1737,7 @@ export class ChatUiCatalog {
             renderer: (part, context) => {
                 if (isDocumentShape(part.input)) return documentTool.renderer(part, context);
                 const isPartial = part.state === 'input-streaming',
-                    input = part.input as Blueprint,
+                    input = this.upgradeAnswer(part.input as Blueprint),
                     renderContext = {...context, part, isPartial};
                 // A complete answer that fails renders nothing, unless its call has a result.
                 if (

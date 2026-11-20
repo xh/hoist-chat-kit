@@ -127,7 +127,7 @@ export function toWidgetSpec(spec: ChatUiComponentSpec, catalog: ChatUiCatalog):
         config,
         ...info,
         // An answer holds the dashboard widget a kit component translates into, never its bridge.
-        ...(TRANSLATED.includes(spec.kitComponent) ? {reserved: true} : {}),
+        ...(TRANSLATED_COMPONENTS.includes(spec.kitComponent) ? {reserved: true} : {}),
         ...(spec.example ? {example: toExample(name, spec.example, perChild)} : {}),
         ...(spec.slots?.length
             ? {
@@ -226,8 +226,11 @@ const BUILT_IN_WIDGET_NAMES = Object.keys(new BlueprintRegistry().widgets);
 
 type WidgetInfo = Pick<WidgetSpec, 'label' | 'terms' | 'category' | 'size' | 'value'>;
 
-// The kit's components that an answer translates into a dashboard widget - see answerBlueprint.
-const TRANSLATED = ['text', 'callout', 'section', 'stack', 'card'];
+/**
+ * The kit's components that an answer translates into dashboard widgets, whose bridges only the
+ * kit places - see `toAnswerBlueprint()`.
+ */
+export const TRANSLATED_COMPONENTS = ['text', 'callout', 'section', 'stack', 'card'];
 
 const size = (w: number, h: number) => ({default: {w, h}}),
     input = (label: string, terms: string[], type: string, w = 4, h = 1): WidgetInfo => ({

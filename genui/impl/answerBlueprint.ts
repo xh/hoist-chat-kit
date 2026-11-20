@@ -17,7 +17,7 @@ import type {Blueprint, BlueprintElement, ChildRef, SourceDecl} from '../../blue
 import type {ChatUiDocument, ChatUiElement} from '../ChatUiDocument';
 import {type ChatUiBinding, isChatUiBindings} from '../ChatUiState';
 import {getOwn} from '../../impl/LangUtils';
-import {CHILD_REF_PROPS, toWidgetName} from './specWidgets';
+import {CHILD_REF_PROPS, fromWidgetName, toWidgetName, TRANSLATED_COMPONENTS} from './specWidgets';
 
 /**
  * A document as an answer blueprint: each element's props become its config, and its children
@@ -142,6 +142,45 @@ function toElement(el: ChatUiElement): BlueprintElement {
         config: omit(el.props ?? {}, perChild ? [...bound, perChild.prop] : bound),
         ...(refs.length ? {children: refs} : {})
     };
+}
+
+/**
+ * An answer with each bridge of a translated component turned into its dashboard widgets, as an
+ * answer saved before the translation holds them. Leaves a bridge whose props fail the catalog.
+ */
+export function upgradeBridges(
+    bp: Blueprint,
+    opts: Pick<ToAnswerBlueprintOptions, 'isValid' | 'kitComponentOf'>
+): Blueprint {
+    if (!isPlainObject(bp?.elements)) return bp;
+    const {isValid = () => false, kitComponentOf = (it: string) => it} = opts,
+        elements: Record<string, BlueprintElement> = {},
+        sources: Record<string, SourceDecl> = {...bp.sources};
+    let changed = false;
+    Object.entries(bp.elements).forEach(([id, el]) => {
+        const name = fromWidgetName(el?.component),
+            kind = kitComponentOf(name),
+            translate = TRANSLATED_COMPONENTS.includes(kind) ? getOwn(TRANSLATORS, kind) : null,
+            props = el?.config ?? {},
+            refs = el?.children ?? [],
+            translated =
+                translate && isValid(name, props, false, fromAnswerId(id))
+                    ? translate(id, props, false, {
+                          component: name,
+                          props,
+                          children: refs.filter(it => !it.slot).map(it => fromAnswerId(it.id))
+                      } as ChatUiElement)
+                    : null;
+        if (!translated) {
+            elements[id] = el;
+            return;
+        }
+        changed = true;
+        elements[id] = translated.element;
+        Object.assign(elements, translated.children ?? {});
+        if (translated.source) sources[id] = translated.source;
+    });
+    return changed ? {...bp, ...(isEmpty(sources) ? {} : {sources}), elements} : bp;
 }
 
 /** The document's ID for an element of an answer, undoing {@link toAnswerId}. */
