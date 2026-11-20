@@ -6,7 +6,7 @@ import {hoistCmp, type HoistProps, uses} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {checkbox, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
-import {tooltip} from '@xh/hoist/kit/blueprint';
+import {tooltip} from '@xh/hoist/cmp/tooltip';
 import {pluralize, throwIf} from '@xh/hoist/utils/js';
 import {ChatModel} from '../../../core';
 import '../../../styles/vars.scss';

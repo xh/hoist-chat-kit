@@ -17,7 +17,7 @@ import {menuButton} from '@xh/hoist/desktop/cmp/menu';
 import {useHotkeys} from '@xh/hoist/desktop/hooks';
 import {panel, type PanelProps} from '@xh/hoist/desktop/cmp/panel';
 import {Icon} from '@xh/hoist/icon';
-import {popover} from '@xh/hoist/kit/blueprint';
+import {popover} from '@xh/hoist/cmp/popover';
 import {wait} from '@xh/hoist/promise';
 import {getTestId, throwIf} from '@xh/hoist/utils/js';
 import {useComposedRefs} from '@xh/hoist/utils/react';
