@@ -187,6 +187,78 @@ describe('ElementInspector', () => {
         });
     });
 
+    describe('formats, renderers and actions', () => {
+        it("offers the catalog's named formats, and marks those the blueprint redefines", () => {
+            const {inspector} = open(),
+                byValue = Object.fromEntries(
+                    inspector.formatOptions.map(it => [it.value, it.label])
+                );
+            expect(byValue.pnl).toBe('pnl');
+            expect(byValue.mv).toBe('mv (redefined here)');
+        });
+
+        it("offers the registry's renderers and actions, with each one's options", () => {
+            const {inspector} = open();
+            expect(inspector.rendererOptions.map(it => it.value)).toEqual(
+                expect.arrayContaining(['bar', 'badge', 'delta'])
+            );
+            expect(inspector.actionOptions.map(it => it.value)).toEqual(
+                expect.arrayContaining(['refresh', 'setVariable', 'publishToPmPack'])
+            );
+            expect(inspector.actionSpec('publishToPmPack').params.required).toEqual([
+                'fund',
+                'asOf'
+            ]);
+        });
+
+        it('locks confirm on for an action that changes data', () => {
+            const {inspector} = open();
+            expect(inspector.confirmLocked('publishToPmPack')).toBe(true);
+            expect(inspector.confirmLocked('refresh')).toBe(false);
+        });
+
+        it('describes a step as its tooltip will', () => {
+            const {inspector} = open();
+            expect(inspector.describeStep({type: 'refresh'})).toEqual(expect.any(String));
+            expect(inspector.describeStep({type: 'nope'})).toEqual(expect.any(String));
+        });
+
+        it('draws a format picker, a renderer picker and an action editor', () => {
+            const {model, design} = open('p2-linked-dashboard.json', 'posGrid');
+            design.setConfig('posGrid', '/columns', {
+                mktVal: {format: {name: 'mv', precision: 2}, renderer: 'bar'}
+            });
+            const {container} = render(elementInspector({designModel: design}) as ReactElement);
+            expect(
+                container.querySelectorAll('.xh-blueprint-element-inspector__format').length
+            ).toBe(1);
+            expect(
+                container.querySelectorAll('.xh-blueprint-element-inspector__renderer').length
+            ).toBe(1);
+
+            const buttons = design.addWidget('buttonGroup');
+            design.select({kind: 'element', id: buttons.id});
+            const again = render(elementInspector({designModel: design}) as ReactElement);
+            expect(
+                again.container.querySelectorAll('.xh-blueprint-element-inspector__step').length
+            ).toBeGreaterThan(0);
+            expect(model.blueprint.elements[buttons.id].config.buttons[0].action).toEqual({
+                type: 'refresh'
+            });
+
+            design.setConfig(buttons.id, '/buttons', [
+                {label: 'Publish', action: {type: 'publishToPmPack', fund: 'A', asOf: '2026-11-20'}}
+            ]);
+            const locked = render(elementInspector({designModel: design}) as ReactElement),
+                confirm = [
+                    ...locked.container.querySelectorAll('.xh-blueprint-element-inspector__row')
+                ]
+                    .find(it => it.firstElementChild?.textContent === 'Confirm')
+                    .querySelector('input');
+            expect([confirm.checked, confirm.disabled]).toEqual([true, true]);
+        });
+    });
+
     it('shows an unset property at its default, without writing it', () => {
         const {model, design} = open(),
             before = model.blueprint,

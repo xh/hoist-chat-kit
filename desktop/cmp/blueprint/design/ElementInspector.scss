@@ -130,4 +130,18 @@
       margin-top: 0;
     }
   }
+
+  &__format,
+  &__renderer,
+  &__step {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-spacing-half);
+  }
+
+  &__description {
+    font-size: var(--xh-font-size-small);
+    font-style: italic;
+    color: var(--xh-text-color-muted);
+  }
 }

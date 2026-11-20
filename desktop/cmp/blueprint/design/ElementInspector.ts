@@ -12,6 +12,7 @@ import type {FieldType} from '@xh/hoist/data';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {isString, sortBy, uniq} from 'lodash';
 import {
+    type ActionSpec,
     type BlueprintDesignModel,
     type BlueprintIssue,
     type EditorNode,
@@ -170,6 +171,57 @@ export class ElementInspectorModel extends HoistModel {
         }));
     }
 
+    /**
+     * The named formats a format can use: the catalogs', then the blueprint's own. A name the
+     * blueprint redefines, or adds, says so.
+     */
+    get formatOptions(): Option[] {
+        const {blueprint, catalogs} = this.designModel.blueprintModel,
+            own = blueprint?.formats ?? {},
+            shared = new Set(catalogs.flatMap(it => Object.keys(it.formats ?? {})));
+        return uniq([...shared, ...Object.keys(own)]).map(name => ({
+            value: name,
+            label: !Object.hasOwn(own, name)
+                ? name
+                : shared.has(name)
+                  ? `${name} (redefined here)`
+                  : `${name} (this blueprint)`
+        }));
+    }
+
+    /** The registry's renderers. */
+    get rendererOptions(): Option[] {
+        return visibleOptions(this.designModel.blueprintModel.registry.renderers);
+    }
+
+    /** A renderer's options schema, or null. */
+    rendererConfig(name: string): PlainObject {
+        return this.designModel.blueprintModel.registry.renderers[name]?.config ?? null;
+    }
+
+    /** The registry's action types. */
+    get actionOptions(): Option[] {
+        return visibleOptions(this.designModel.blueprintModel.registry.actions);
+    }
+
+    actionSpec(type: string): ActionSpec {
+        return this.designModel.blueprintModel.registry.actions[type] ?? null;
+    }
+
+    /** True if an action type always asks the user to confirm, as one that changes data does. */
+    confirmLocked(type: string): boolean {
+        return !!this.actionSpec(type)?.sideEffects;
+    }
+
+    /** A step's description, as its tooltip and any confirmation show it, or null. */
+    describeStep(step: PlainObject): string {
+        try {
+            return this.designModel.blueprintModel.describeAction(step);
+        } catch {
+            return null;
+        }
+    }
+
     /** The value a property takes when unbound: none if optional, else one to start from. */
     unboundValue(node: EditorNode): unknown {
         return node.required ? this.newValue(node.schema) : undefined;
@@ -238,4 +290,10 @@ function variableTypeOf(schema: PlainObject): string {
     return (
         {string: 'string', number: 'number', integer: 'int', boolean: 'bool'}[schema.type] ?? null
     );
+}
+
+function visibleOptions(specs: Record<string, {name: string; reserved?: boolean}>): Option[] {
+    return Object.values(specs)
+        .filter(it => !it.reserved)
+        .map(it => ({value: it.name, label: it.name}));
 }

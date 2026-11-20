@@ -13,12 +13,48 @@ import {
 import {Icon} from '@xh/hoist/icon';
 import {castArray, isEmpty, isEqual, isNumber, isString, omit, uniq} from 'lodash';
 import type {ReactElement} from 'react';
-import {type BlueprintIssue, type EditorNode, isVarBinding} from '../../../../../blueprint';
+import {
+    type BlueprintIssue,
+    type EditorNode,
+    isVarBinding,
+    toEditorSpec
+} from '../../../../../blueprint';
+import {
+    joinNamed,
+    joinSteps,
+    splitNamed,
+    stepsOf
+} from '../../../../../blueprint/design/configValues';
 import type {ElementInspectorModel} from '../ElementInspector';
 import {filterEditor, groupingEditor} from './ChooserEditors';
 
 /** The block class of the element inspector, which its editors' elements extend. */
 export const CLS = 'xh-blueprint-element-inspector';
+
+const MAX_STEPS = 8;
+
+// The options of a Hoist number or date format that the editor shows. It keeps any others.
+const FORMAT_OPTIONS = toEditorSpec({
+    type: 'object',
+    properties: {
+        precision: {type: 'integer', minimum: 0, maximum: 12, description: 'Decimal places.'},
+        scale: {
+            enum: ['thousands', 'millions', 'billions', 'auto'],
+            description: 'Show in thousands, millions or billions with a label, or compact.'
+        },
+        ledger: {type: 'boolean', description: 'Show a negative number in parentheses.'},
+        colorSpec: {type: 'boolean', description: 'Color a number by its sign.'},
+        label: {type: 'string', maxLength: 20, description: 'A unit after the number.'},
+        date: {enum: ['date', 'dateTime', 'time', 'compact'], description: 'How a date shows.'},
+        pattern: {type: 'string', maxLength: 40, description: 'A date pattern, such as MMM D.'},
+        nullDisplay: {type: 'string', maxLength: 20, description: 'The text for no value.'}
+    }
+});
+
+const CONFIRM_NODE = toEditorSpec({
+    type: 'object',
+    properties: {confirm: {type: 'boolean', description: 'Ask the user before it runs.'}}
+})[0];
 
 /** A choice in a select, by value and label. */
 export interface Option {
@@ -29,6 +65,8 @@ export interface Option {
 /** What every editor reads beside its value. */
 export interface EditorContext {
     impl: ElementInspectorModel;
+    // True to show the value without letting it change, as for a confirm an action requires.
+    locked?: boolean;
     // The top-level property, which a refusal names.
     key: string;
 }
@@ -67,7 +105,7 @@ function editorFor(
     commit: (value: unknown) => void,
     ctx: EditorContext
 ): ReactElement {
-    const disabled = ctx.impl.readOnly,
+    const disabled = ctx.impl.readOnly || !!ctx.locked,
         optional = (v: unknown) => (v == null || v === '' ? undefined : v),
         placeholder = node.default !== undefined ? `Default (${node.default})` : undefined;
     if (node.bindable) return bindableEditor(node, value, commit, ctx);
@@ -215,6 +253,12 @@ function editorFor(
                 ]
             });
         }
+        case 'format':
+            return formatEditor(value, commit, ctx);
+        case 'renderer':
+            return rendererEditor(value, commit, ctx);
+        case 'action':
+            return actionEditor(node, value, commit, ctx);
         default:
             return jsonEditor(value, commit, ctx);
     }
@@ -497,6 +541,191 @@ function mapKeyLabel(key: string, label: string) {
     return div({
         className: `${CLS}__item-label`,
         items: label === key ? [key] : [label, span({className: `${CLS}__key`, item: key})]
+    });
+}
+
+// A named format, a custom one, or a name with changes: the name, then the options it sets.
+function formatEditor(value: unknown, commit: (value: unknown) => void, ctx: EditorContext) {
+    const {name, options} = splitNamed(value);
+    return div({
+        className: `${CLS}__format`,
+        items: [
+            select({
+                value: name,
+                options: withCurrent(ctx.impl.formatOptions, name),
+                enableClear: true,
+                placeholder: isEmpty(options) ? 'Default' : 'Custom',
+                disabled: ctx.impl.readOnly,
+                width: '100%',
+                onCommit: (it: string) => commit(joinNamed(it, options))
+            }),
+            optionsGroup(FORMAT_OPTIONS, options, it => commit(joinNamed(name, it)), ctx)
+        ]
+    });
+}
+
+// A renderer from the registry, with the options its spec takes.
+function rendererEditor(value: unknown, commit: (value: unknown) => void, ctx: EditorContext) {
+    const {name, options} = splitNamed(value),
+        schema = name ? ctx.impl.rendererConfig(name) : null;
+    return div({
+        className: `${CLS}__renderer`,
+        items: [
+            select({
+                value: name,
+                options: withCurrent(ctx.impl.rendererOptions, name),
+                enableClear: true,
+                placeholder: 'None',
+                disabled: ctx.impl.readOnly,
+                width: '100%',
+                // Another renderer's options mean nothing to this one.
+                onCommit: (it: string) => commit(joinNamed(it, {}))
+            }),
+            schema?.properties
+                ? optionsGroup(
+                      toEditorSpec(schema),
+                      options,
+                      it => commit(joinNamed(name, it)),
+                      ctx
+                  )
+                : null
+        ]
+    });
+}
+
+// The editors for an object's options, which keep any options they do not show.
+function optionsGroup(
+    nodes: EditorNode[],
+    options: PlainObject,
+    commit: (options: PlainObject) => void,
+    ctx: EditorContext
+) {
+    return div({
+        className: `${CLS}__group`,
+        items: nodes.map(node =>
+            propertyRow({
+                key: node.key,
+                node,
+                value: options[node.key],
+                commit: v =>
+                    commit(v === undefined ? omit(options, node.key) : {...options, [node.key]: v}),
+                ctx
+            })
+        )
+    });
+}
+
+// One action, or steps run in order: each a type from the registry, its parameters, and whether
+// it asks the user to confirm.
+function actionEditor(
+    node: EditorNode,
+    value: unknown,
+    commit: (value: unknown) => void,
+    ctx: EditorContext
+) {
+    const {impl} = ctx,
+        disabled = impl.readOnly,
+        steps = stepsOf(value),
+        commitSteps = (list: PlainObject[]) => commit(joinSteps(list)),
+        replace = (i: number, step: PlainObject) =>
+            commitSteps(steps.map((it, j) => (j === i ? step : it))),
+        startOf = (type: string): PlainObject => ({
+            type,
+            ...((impl.newValue(impl.actionSpec(type)?.params ?? {}) as PlainObject) ?? {})
+        }),
+        moved = (from: number, to: number) => {
+            const ret = [...steps];
+            ret.splice(to, 0, ...ret.splice(from, 1));
+            return ret;
+        };
+    return div({
+        className: `${CLS}__list`,
+        items: [
+            ...steps.map((step, i) => {
+                const spec = impl.actionSpec(step.type),
+                    locked = impl.confirmLocked(step.type),
+                    params = spec ? toEditorSpec(spec.params) : [];
+                return div({
+                    key: i,
+                    className: `${CLS}__step`,
+                    items: [
+                        hbox({
+                            className: `${CLS}__item-header`,
+                            items: [
+                                select({
+                                    value: step.type,
+                                    options: withCurrent(impl.actionOptions, step.type),
+                                    disabled,
+                                    flex: 1,
+                                    onCommit: (type: string) =>
+                                        type !== step.type &&
+                                        replace(i, {
+                                            ...startOf(type),
+                                            ...(step.confirm ? {confirm: true} : {})
+                                        })
+                                }),
+                                buttonGroup({
+                                    items: [
+                                        button({
+                                            icon: Icon.arrowUp(),
+                                            title: 'Move up',
+                                            disabled: disabled || i === 0,
+                                            onClick: () => commitSteps(moved(i, i - 1))
+                                        }),
+                                        button({
+                                            icon: Icon.arrowDown(),
+                                            title: 'Move down',
+                                            disabled: disabled || i === steps.length - 1,
+                                            onClick: () => commitSteps(moved(i, i + 1))
+                                        }),
+                                        button({
+                                            icon: Icon.delete(),
+                                            title: 'Remove',
+                                            disabled:
+                                                disabled || (node.required && steps.length === 1),
+                                            onClick: () =>
+                                                commitSteps(steps.filter((_, j) => j !== i))
+                                        })
+                                    ]
+                                })
+                            ]
+                        }),
+                        div({className: `${CLS}__description`, item: impl.describeStep(step)}),
+                        // An action's values are literals or variables.
+                        ...params.map(param =>
+                            propertyRow({
+                                key: param.key,
+                                node: {...param, bindable: true},
+                                value: step[param.key],
+                                commit: v =>
+                                    replace(
+                                        i,
+                                        v === undefined
+                                            ? omit(step, param.key)
+                                            : {...step, [param.key]: v}
+                                    ),
+                                ctx
+                            })
+                        ),
+                        propertyRow({
+                            key: 'confirm',
+                            node: CONFIRM_NODE,
+                            value: locked || !!step.confirm,
+                            commit: v =>
+                                replace(i, v ? {...step, confirm: true} : omit(step, 'confirm')),
+                            ctx: locked ? {...ctx, locked: true} : ctx
+                        })
+                    ]
+                });
+            }),
+            button({
+                icon: Icon.add(),
+                text: steps.length ? 'Add a step' : 'Add an action',
+                minimal: true,
+                disabled: disabled || steps.length >= MAX_STEPS || !impl.actionOptions.length,
+                onClick: () => commitSteps([...steps, startOf(impl.actionOptions[0].value)])
+            })
+        ]
     });
 }
 
