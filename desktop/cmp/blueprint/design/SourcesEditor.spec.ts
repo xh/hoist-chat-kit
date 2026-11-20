@@ -55,6 +55,41 @@ describe('SourcesEditor', () => {
         expect(model.blueprint.sources).not.toHaveProperty('book');
     });
 
+    describe('joins', () => {
+        it("joins another dataset source on the key fields they share, and shows each field's mode", () => {
+            const {model, editor} = open();
+            expect(editor.joinSourceOptions).toEqual(['orders', 'prices']);
+            editor.addJoin('prices');
+            expect(model.blueprint.sources.positions.joins).toEqual([
+                {source: 'prices', on: {symbol: 'symbol'}, fields: []}
+            ]);
+            editor.setJoin(0, {fields: ['close', 'volume'], as: {close: 'lastClose'}});
+            expect(editor.joinModes(0)).toEqual([
+                {name: 'lastClose', field: 'close', mode: 'row', reduce: true},
+                {name: 'volume', field: 'volume', mode: 'keyed', reduce: true}
+            ]);
+            expect(editor.joinFieldOptions(0).map(it => it.value)).toContain('high');
+            editor.removeJoin(0);
+            expect(model.blueprint.sources.positions.joins).toBeUndefined();
+        });
+
+        it('pairs only dimensions of the same type', () => {
+            const {editor} = open();
+            editor.addJoin('prices');
+            expect(editor.onOptions(0, 'symbol')).toEqual([{value: 'symbol', label: 'Symbol'}]);
+        });
+
+        it('removes the joins that name a source it removes', () => {
+            const {model, design, editor} = open(null);
+            editor.add();
+            design.select({kind: 'source', id: 'positions'});
+            editor.addJoin('positions1');
+            expect(model.blueprint.sources.positions.joins).toHaveLength(1);
+            expect(design.removeSource('positions1').issues).toEqual([]);
+            expect(model.blueprint.sources.positions.joins).toBeUndefined();
+        });
+    });
+
     it('offers, for each parameter, the variables of its type', () => {
         const {editor} = open();
         expect(editor.paramVariables('localDate')).toEqual(

@@ -380,6 +380,10 @@ clash with a built-in. `BlueprintRegistry` refuses an undotted app name.
   the validator checks the name, and the editor offers only the variables an action may set.
 - **Date range presets.** A `dateRange` variable names Hoist's presets, such as `mtd`. Register
   the app's own with `dateRangePresets`, each under a dotted token, and the validator accepts it.
+- **Dataset keys.** Give each catalog dataset a `key`, the fields that identify one of its rows. A
+  source can then join it: a join's grain, from the two keys, decides whether each joined field
+  copies onto rows, shows only where a row pins the key, or reduces to the key first. A wrong key
+  gives wrong numbers without an error.
 - **Data.** Implement `BlueprintDataProvider` over the app's services. Add
   `loadAggregatesAsync()` when the server can roll up groups the browser cannot.
 - **Storage.** Implement `BlueprintRepository` over another store. See

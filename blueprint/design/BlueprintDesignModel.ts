@@ -311,9 +311,17 @@ export class BlueprintDesignModel extends HoistModel {
         return this.updateEntry('sources', 'Source', name, changes);
     }
 
-    /** Remove a source, as one edit. Refused while a widget reads it. */
+    /** Remove a source, and the joins that name it, as one edit. Refused while a widget reads it. */
     removeSource(name: string): BlueprintEditResult {
-        return this.removeEntry('sources', 'source', name);
+        const unjoins = Object.entries(this.blueprintModel.blueprint?.sources ?? {})
+            .filter(([, it]) => (it.joins ?? []).some(j => j.source === name))
+            .map(([sn, it]): BlueprintOp => {
+                const kept = it.joins.filter(j => j.source !== name);
+                return kept.length
+                    ? {op: 'set', path: `/sources/${sn}/joins`, value: kept}
+                    : {op: 'remove', path: `/sources/${sn}/joins`};
+            });
+        return this.removeEntry('sources', 'source', name, unjoins);
     }
 
     /**

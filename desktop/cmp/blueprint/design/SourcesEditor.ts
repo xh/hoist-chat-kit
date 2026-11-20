@@ -3,16 +3,19 @@ import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses, XH} fr
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
-import {isEmpty, omit, pickBy} from 'lodash';
+import {isEmpty, isPlainObject, omit, omitBy, pick, pickBy} from 'lodash';
 import {
     type BlueprintDesignModel,
     FIELD_OVERRIDE_SCHEMA,
+    type DatasetDef,
     type FieldInstance,
     isFieldInstance,
+    type JoinDecl,
     type SourceDecl,
     variableTypeMatches
 } from '../../../../blueprint';
 import './ElementInspector.scss';
+import {joinFields, type JoinField} from '../../../../blueprint/impl/joins';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
 import {
     CLS,
@@ -165,6 +168,86 @@ export class SourceEditorModel extends ConfigEditorModel {
         });
     }
 
+    /** The dataset sources this one can join: any other that neither joins nor is joined. */
+    get joinSourceOptions(): string[] {
+        const sources = this.designModel.blueprintModel.blueprint?.sources ?? {},
+            joined = Object.values(sources).flatMap(it => (it.joins ?? []).map(j => j.source));
+        return Object.keys(sources).filter(
+            it =>
+                it !== this.name &&
+                sources[it].dataset &&
+                isEmpty(sources[it].joins) &&
+                (!joined.includes(it) || (this.values.joins ?? []).some(j => j.source === it))
+        );
+    }
+
+    /** Join another source, on the fields of its key that this source has, of the same type. */
+    addJoin(source: string) {
+        const own = this.dataset,
+            other = this.datasetOf(source),
+            on = Object.fromEntries(
+                (other?.key ?? [])
+                    .filter(it => own?.fields[it]?.type === other.fields[it]?.type)
+                    .map(it => [it, it])
+            );
+        this.commit('joins', [...(this.values.joins ?? []), {source, on, fields: []}]);
+    }
+
+    /** Change keys of a join, removing each given as null or empty. */
+    setJoin(idx: number, changes: Partial<JoinDecl>) {
+        this.commit(
+            'joins',
+            (this.values.joins ?? []).map((it, i) =>
+                i === idx
+                    ? (omitBy(
+                          {...it, ...changes},
+                          v => v == null || (isPlainObject(v) && isEmpty(v))
+                      ) as unknown as JoinDecl)
+                    : it
+            )
+        );
+    }
+
+    removeJoin(idx: number) {
+        const next = (this.values.joins ?? []).filter((_, i) => i !== idx);
+        this.commit('joins', next.length ? next : undefined);
+    }
+
+    /** Each field a join brings, with how it reaches this source's rows. */
+    joinModes(idx: number): Pick<JoinField, 'name' | 'field' | 'mode' | 'reduce'>[] {
+        const join = this.values.joins?.[idx];
+        if (!join) return [];
+        return joinFields(join, this.dataset, this.datasetOf(join.source)).map(it =>
+            pick(it, 'name', 'field', 'mode', 'reduce')
+        );
+    }
+
+    /** The joined source's fields a join can bring: any it does not join on. */
+    joinFieldOptions(idx: number): Option[] {
+        const join = this.values.joins?.[idx],
+            other = this.datasetOf(join?.source),
+            on = Object.values(join?.on ?? {});
+        return Object.values(other?.fields ?? {})
+            .filter(it => !on.includes(it.name))
+            .map(it => ({value: it.name, label: it.label ?? it.name}));
+    }
+
+    /** The joined source's dimensions a field of this source can pair with: those of its type. */
+    onOptions(idx: number, field: string): Option[] {
+        const other = this.datasetOf(this.values.joins?.[idx]?.source),
+            type = this.dataset?.fields[field]?.type;
+        return Object.values(other?.fields ?? {})
+            .filter(it => it.isDimension && it.type === type)
+            .map(it => ({value: it.name, label: it.label ?? it.name}));
+    }
+
+    /** This source's dimensions, to join on. */
+    get onFieldOptions(): Option[] {
+        return Object.values(this.dataset?.fields ?? {})
+            .filter(it => it.isDimension)
+            .map(it => ({value: it.name, label: it.label ?? it.name}));
+    }
+
     protected pathOf(key: string): string {
         return `/sources/${this.name}/${key}`;
     }
@@ -179,7 +262,11 @@ export class SourceEditorModel extends ConfigEditorModel {
     }
 
     private get dataset() {
-        const name = this.values?.dataset;
+        return this.datasetOf(this.name);
+    }
+
+    private datasetOf(source: string): DatasetDef {
+        const name = this.designModel.blueprintModel.blueprint?.sources?.[source]?.dataset;
         return name
             ? this.designModel.blueprintModel.catalogs.map(it => it.getDataset(name)).find(Boolean)
             : null;
@@ -315,8 +402,99 @@ function declaration(impl: SourceEditorModel) {
             ctx: {impl, key: 'fields'},
             issues: impl.issuesFor('fields')
         }),
-        labelled('Field instances', instancesEditor(impl, instances, overrides, commitFields))
+        labelled('Field instances', instancesEditor(impl, instances, overrides, commitFields)),
+        labelled('Joins', joinsEditor(impl), impl.issuesFor('joins'))
     ];
+}
+
+// Each join: its source, the fields it pairs, the fields it brings with their names and modes.
+function joinsEditor(impl: SourceEditorModel) {
+    const disabled = impl.readOnly,
+        joins = impl.values.joins ?? [];
+    return div({
+        className: `${CLS}__list`,
+        children: [
+            ...joins.map((join, idx) =>
+                div({
+                    key: `${idx}:${join.source}`,
+                    className: `${CLS}__item`,
+                    children: [
+                        hbox({
+                            className: `${CLS}__item-header`,
+                            children: [
+                                div({className: `${CLS}__item-label`, children: join.source}),
+                                button({
+                                    icon: Icon.delete(),
+                                    title: 'Remove the join',
+                                    disabled,
+                                    onClick: () => impl.removeJoin(idx)
+                                })
+                            ]
+                        }),
+                        ...Object.entries(join.on ?? {}).map(([own, other]) =>
+                            hbox({
+                                key: own,
+                                children: [
+                                    select({
+                                        value: own,
+                                        options: impl.onFieldOptions,
+                                        disabled,
+                                        flex: 1,
+                                        onCommit: (f: string) =>
+                                            impl.setJoin(idx, {
+                                                on: {...omit(join.on, own), [f]: other}
+                                            })
+                                    }),
+                                    select({
+                                        value: other,
+                                        options: impl.onOptions(idx, own),
+                                        disabled,
+                                        flex: 1,
+                                        onCommit: (f: string) =>
+                                            impl.setJoin(idx, {on: {...join.on, [own]: f}})
+                                    })
+                                ]
+                            })
+                        ),
+                        select({
+                            value: join.fields ?? [],
+                            options: impl.joinFieldOptions(idx),
+                            enableMulti: true,
+                            placeholder: 'Fields to bring…',
+                            disabled,
+                            width: '100%',
+                            onCommit: (fields: string[]) => impl.setJoin(idx, {fields})
+                        }),
+                        ...impl.joinModes(idx).map(it =>
+                            labelled(
+                                `${it.field}: ${it.mode}${it.reduce ? ', reduced' : ''}`,
+                                textInput({
+                                    value: join.as?.[it.field] ?? '',
+                                    placeholder: 'Name it here as…',
+                                    disabled,
+                                    width: '100%',
+                                    onCommit: (name: string) =>
+                                        impl.setJoin(idx, {
+                                            as: name
+                                                ? {...join.as, [it.field]: name}
+                                                : omit(join.as, it.field)
+                                        })
+                                })
+                            )
+                        )
+                    ]
+                })
+            ),
+            select({
+                value: null,
+                options: impl.joinSourceOptions.filter(it => !joins.some(j => j.source === it)),
+                placeholder: 'Join a source…',
+                disabled,
+                width: '100%',
+                onCommit: (source: string) => source && impl.addJoin(source)
+            })
+        ]
+    });
 }
 
 // Instances of the dataset's parameterized fields: each its field and parameters, plus a way to add one.
