@@ -623,6 +623,25 @@ describe('validateBlueprint', () => {
             expect(issues[0].message).toMatch(/a -> b -> a/);
         });
 
+        it("takes options from a list or a source's field, and refuses any other form", () => {
+            const check = (options: object) => {
+                const bp = p2();
+                bp.variables.sector = {type: 'string', setBy: 'prompt', options} as any;
+                return validate(bp).map(it => [it.code, it.path]);
+            };
+            expect(check({values: ['Energy']})).toEqual([]);
+            expect(check({source: 'positions', field: 'sector'})).toEqual([]);
+            expect(check({source: 'nope', field: 'sector'})).toEqual([
+                ['source.unknown', '/variables/sector/options/source']
+            ]);
+            expect(check({source: 'positions', field: 'nope'})).toEqual([
+                ['field.unknown', '/variables/sector/options/field']
+            ]);
+            expect(check({dataset: 'positions', field: 'sector'})).toEqual([
+                ['variable.badOptions', '/variables/sector/options']
+            ]);
+        });
+
         it('accepts resolver arguments that read other variables without a cycle', () => {
             const bp = loadBlueprint('p3-morning-report.json');
             expect(validate(bp).filter(it => it.code === 'variable.cycle')).toEqual([]);

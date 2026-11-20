@@ -494,6 +494,28 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         }
     }
 
+    for (const [vn, v] of Object.entries(variables)) {
+        const options = v.options as PlainObject,
+            p = `/variables/${vn}/options`;
+        if (options == null) continue;
+        if (isArray(options.values)) continue;
+        if (!isString(options.source) || !isString(options.field)) {
+            err(
+                'variable.badOptions',
+                p,
+                'options are {"values": [...]} or {"source": ..., "field": ...}'
+            );
+        } else if (!sources[options.source]) {
+            err('source.unknown', `${p}/source`, `unknown source '${options.source}'`);
+        } else if (sourceFields[options.source] && !sourceFields[options.source][options.field]) {
+            err(
+                'field.unknown',
+                `${p}/field`,
+                `'${options.field}' is not a field of source '${options.source}'`
+            );
+        }
+    }
+
     function checkJoin(sn: string, s: PlainObject, join: JoinDecl, p: string) {
         const other = sources[join?.source];
         if (!other) {
