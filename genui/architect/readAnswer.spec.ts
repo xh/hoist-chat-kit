@@ -93,7 +93,7 @@ describe('read_answer', () => {
         } as any);
         expect(run({})).toEqual([
             {answer: 'm1:0', kind: 'show_ui', widgets: ['chart']},
-            {answer: 'm2:0', kind: 'component', widgets: ['statCardStrip']}
+            {answer: 'm2:0', kind: 'component', widgets: ['tileFrame', 'statCard']}
         ]);
     });
 

@@ -50,7 +50,7 @@ describe('diffOps', () => {
     it('adds and removes an element with its child reference', () => {
         const from = loadBlueprint('p2-linked-dashboard.json'),
             to = structuredClone(from);
-        to.elements.note = {component: 'statCardStrip', config: {source: 'positions', cards: []}};
+        to.elements.note = {component: 'statCard', config: {source: 'positions', field: 'mktVal'}};
         to.elements.dashboard.children = [
             ...to.elements.dashboard.children.filter(it => it.id !== 'ordersGrid'),
             {id: 'note', x: 0, y: 20, w: 4, h: 2}

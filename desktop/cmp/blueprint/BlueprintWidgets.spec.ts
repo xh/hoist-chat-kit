@@ -864,8 +864,10 @@ describe('blueprint desktop widgets', () => {
         onTestFinished(() => viewModel.destroy());
 
         // DashCanvasView passes its own model to the content as `viewModel`.
-        render(elementFromContent(spec.content, {flex: 1, viewModel: canvas.canvasModel}));
-        expect(await screen.findByText('Positions')).toBeTruthy();
+        const {container} = render(
+            elementFromContent(spec.content, {flex: 1, viewModel: canvas.canvasModel})
+        );
+        expect(container.querySelector('.xh-blueprint-tile-frame')).toBeTruthy();
     });
 
     it('says a result is too large to show, in place of the widget over it', async () => {

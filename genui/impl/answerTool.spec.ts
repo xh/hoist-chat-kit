@@ -52,7 +52,7 @@ describe('show_ui with answer blueprints', () => {
         sources: {pos: source},
         root: 'cards',
         elements: {
-            cards: {component: 'statCardStrip', config: {source: 'pos', cards: [{field: 'mktVal'}]}}
+            cards: {component: 'statCard', config: {source: 'pos', field: 'mktVal'}}
         }
     });
     const DATASET = {dataset: 'positions', params: {asOf: '2026-11-19'}};
@@ -77,9 +77,11 @@ describe('show_ui with answer blueprints', () => {
         const {catalog} = setup(),
             {parameters, description} = catalog.documentTool,
             names = parameters.properties.elements.additionalProperties.properties.component.enum;
-        expect(names).toEqual(expect.arrayContaining(['statCardStrip', 'cubeGrid', 'text']));
+        expect(names).toEqual(
+            expect.arrayContaining(['statCard', 'tileFrame', 'cubeGrid', 'text'])
+        );
         expect(names).not.toContain('fallback');
-        expect(description).toContain('statCardStrip: Stat cards.');
+        expect(description).toContain('statCard: Stat card.');
     });
 
     it('names the config keys of each widget with few, marking those it requires', () => {

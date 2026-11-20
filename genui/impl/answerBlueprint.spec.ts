@@ -116,21 +116,28 @@ describe('toAnswerBlueprint', () => {
                     }
                 );
 
-        it('translates into a statCardStrip over an inline source, card by card', () => {
+        it('translates into a tileFrame of statCards over an inline source, card by card', () => {
             const bp = translate({cards});
             expect(bp.elements.kpis).toEqual({
-                component: 'statCardStrip',
-                config: {
-                    source: 'kpis',
-                    presentation: 'card',
-                    cards: [
-                        {field: 'v0'},
-                        {field: 'v1', deltaField: 'd1'},
-                        {field: 'v2', intent: 'success'},
-                        {field: 'v3', deltaField: 'd3', deltaLabel: 'vs Q2', invert: true}
-                    ]
-                }
+                component: 'tileFrame',
+                config: {presentation: 'card'},
+                children: [1, 2, 3, 4].map(n => ({id: `kpis-card${n}`}))
             });
+            expect([1, 2, 3, 4].map(n => bp.elements[`kpis-card${n}`])).toEqual([
+                {component: 'statCard', config: {source: 'kpis', field: 'v0'}},
+                {component: 'statCard', config: {source: 'kpis', field: 'v1', deltaField: 'd1'}},
+                {component: 'statCard', config: {source: 'kpis', field: 'v2', intent: 'success'}},
+                {
+                    component: 'statCard',
+                    config: {
+                        source: 'kpis',
+                        field: 'v3',
+                        deltaField: 'd3',
+                        deltaLabel: 'vs Q2',
+                        invert: true
+                    }
+                }
+            ]);
             const {fields, rows} = bp.sources.kpis.inline;
             expect(rows).toEqual([
                 {v0: 1250000, v1: 0.184, d1: 0.012, v2: 'On track', v3: 9, d3: 2}
@@ -145,7 +152,7 @@ describe('toAnswerBlueprint', () => {
         });
 
         it('drops the last card while it streams, and stays the spec until a card is complete', () => {
-            expect(translate({cards}, ['kpis']).elements.kpis.config.cards).toHaveLength(3);
+            expect(translate({cards}, ['kpis']).elements.kpis.children).toHaveLength(3);
             expect(translate({cards: cards.slice(0, 1)}, ['kpis']).elements.kpis.component).toBe(
                 'statCards'
             );

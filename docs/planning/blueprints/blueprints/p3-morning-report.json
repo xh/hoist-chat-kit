@@ -4,7 +4,7 @@
         "widgets": {
             "tabContainer": 1,
             "dashCanvas": 1,
-            "statCardStrip": 1,
+            "tileFrame": 1, "statCard": 1,
             "chart": 1,
             "groupingChooser": 1,
             "buttonGroup": 1,
@@ -112,13 +112,11 @@
                 ]
             }
         },
-        "headline": {
-            "component": "statCardStrip",
-            "config": {
-                "source": "positions",
-                "cards": [{"field": "mktVal"}, {"field": "pnlDay"}, {"field": "pnlMtd"}, {"field": "pnlYtd"}]
-            }
-        },
+        "headline": {"component": "tileFrame", "config": {}, "children": [{"id": "headlineMktVal"}, {"id": "headlinePnlDay"}, {"id": "headlinePnlMtd"}, {"id": "headlinePnlYtd"}]},
+        "headlineMktVal": {"component": "statCard", "config": {"source": "positions", "field": "mktVal"}},
+        "headlinePnlDay": {"component": "statCard", "config": {"source": "positions", "field": "pnlDay"}},
+        "headlinePnlMtd": {"component": "statCard", "config": {"source": "positions", "field": "pnlMtd"}},
+        "headlinePnlYtd": {"component": "statCard", "config": {"source": "positions", "field": "pnlYtd"}},
         "sectorChart": {
             "component": "chart",
             "config": {"source": "positions", "title": "Day P&L by Sector", "type": "column", "x": "sector", "y": ["pnlDay"]}

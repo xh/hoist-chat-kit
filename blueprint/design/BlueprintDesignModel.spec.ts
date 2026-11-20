@@ -44,12 +44,13 @@ describe('BlueprintDesignModel', () => {
     it.each([
         'cubeGrid',
         'chart',
-        'statCardStrip',
+        'statCard',
         'groupingChooser',
         'buttonGroup',
         'buttonGroupInput',
         'dashCanvas',
-        'tabContainer'
+        'tabContainer',
+        'tileFrame'
     ])('adds a %s that starts valid, on the first free place of the root canvas', component => {
         const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
             result = design.addWidget(component);
@@ -84,7 +85,7 @@ describe('BlueprintDesignModel', () => {
         expect(chart.groupBy).not.toBe(chart.x);
         expect(totals(chart.y[0])).toBe(true);
 
-        expect(totals(config('statCardStrip').cards[0].field)).toBe(true);
+        expect(totals(config('statCard').field)).toBe(true);
     });
 
     it('places a widget where it fits, and names it after its widget', () => {

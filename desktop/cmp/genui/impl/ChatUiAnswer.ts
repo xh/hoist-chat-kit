@@ -1,5 +1,5 @@
 import {filler, span, vbox} from '@xh/hoist/cmp/layout';
-import {statCard, statCardStrip} from '@xh/hoist/cmp/statcard';
+import {statCardStrip} from '@xh/hoist/cmp/statcard';
 import {hoistCmp, HoistModel, type HoistProps, managed, uses, XH} from '@xh/hoist/core';
 import {castArray, dropRightWhile, isArray, isFinite, isString, omit} from 'lodash';
 import {button} from '@xh/hoist/desktop/cmp/button';
@@ -30,7 +30,7 @@ import {chatUiFrame} from '../ChatUiFrame';
 import './ChatUiAnswer.scss';
 import {ChartWidgetModel} from '../../blueprint/ChartWidget';
 import {CubeGridWidgetModel} from '../../blueprint/CubeGridWidget';
-import {StatCardStripWidgetModel} from '../../blueprint/StatCardStripWidget';
+import {TileFrameWidgetModel} from '../../blueprint/TileFrameWidget';
 import {chatUiChart, type ChatUiChartSpecProps} from '../ChatUiChart';
 import {chatUiGrid, type ChatUiGridColumn} from '../ChatUiGrid';
 import type {ChatUiNumberFormat} from '../Types';
@@ -149,16 +149,14 @@ export const answerLoadBar = hoistCmp.factory<{gate: AnswerLoadGate} & HoistProp
 
 ChatUiCatalog.answerRenderer = props => chatUiAnswer(props);
 
-/** A statCardStrip drawn as chat kit's stat cards draw, on the chat's surface. */
-const statCardsCard = hoistCmp.factory({
-    displayName: 'ChatUiStatCardsCard',
-    model: uses(StatCardStripWidgetModel),
+/** A tileFrame drawn as chat kit's stat cards draw: a strip on the chat's surface. */
+const tilesCard = hoistCmp.factory({
+    displayName: 'ChatUiTilesCard',
+    model: uses(TileFrameWidgetModel),
     render({model}) {
         return statCardStrip({
             className: 'xh-chat-ui-stat-cards',
-            children: model.cards.map(({title, value, subValue, detail, intent}, idx) =>
-                statCard({key: idx, title, value, subValue, detail, intent})
-            )
+            children: model.children.map(it => model.renderElement(it.id))
         });
     }
 });
@@ -277,12 +275,12 @@ ChatUiCatalog.answerPresentations.push({
 });
 
 ChatUiCatalog.answerPresentations.push({
-    widget: 'statCardStrip',
+    widget: 'tileFrame',
     presentation: {
         name: 'card',
         label: 'Card',
-        guidance: 'Draws the cards as a chat reply does, on the surface of the chat.',
-        component: statCardsCard
+        guidance: 'Draws its tiles as a row of stat cards, as a chat reply does.',
+        component: tilesCard
     }
 });
 

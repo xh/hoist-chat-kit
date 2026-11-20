@@ -26,8 +26,9 @@ export type {
     PanelWidgetConfig,
     SeparatorWidgetConfig,
     SpacerWidgetConfig,
-    StatCardStripWidgetConfig,
-    TabContainerWidgetConfig
+    StatCardWidgetConfig,
+    TabContainerWidgetConfig,
+    TileFrameWidgetConfig
 } from './impl/builtInWidgets';
 export type * from './BlueprintSchema';
 export * from './degradeAnswer';

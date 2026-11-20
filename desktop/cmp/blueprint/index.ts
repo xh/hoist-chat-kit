@@ -11,6 +11,7 @@ export * from './MarkdownWidget';
 export * from './PanelWidget';
 export * from './SeparatorWidget';
 export * from './SpacerWidget';
-export * from './StatCardStripWidget';
+export * from './StatCardWidget';
 export * from './TabContainerWidget';
+export * from './TileFrameWidget';
 export * from './design';

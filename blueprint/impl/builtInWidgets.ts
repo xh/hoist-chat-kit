@@ -464,77 +464,47 @@ const CHART_SCHEMA = {
     }
 } as const satisfies BlueprintSchema;
 
-const STAT_CARD_STRIP_SCHEMA = {
+const FORMAT_PROP = {
+    'x-format': true,
+    anyOf: [{type: 'string'}, {type: 'object'}]
+} as const satisfies BlueprintSchema;
+
+const STAT_CARD_SCHEMA = {
     type: 'object',
     additionalProperties: false,
-    required: ['source', 'cards'],
+    required: ['source'],
     properties: {
-        source: {
-            type: 'string',
-            'x-source': true
+        source: {type: 'string', 'x-source': true},
+        field: {type: 'string', 'x-field': 'measure'},
+        label: {type: 'string', maxLength: 40},
+        format: FORMAT_PROP,
+        agg: {enum: ['count', 'SUM', 'AVG', 'MIN', 'MAX', 'UNIQUE']},
+        deltaField: {type: 'string', 'x-field': 'measure'},
+        deltaFormat: FORMAT_PROP,
+        deltaLabel: {type: 'string', maxLength: 40},
+        invert: {type: 'boolean'},
+        intent: {enum: ['none', 'primary', 'success', 'warning', 'danger']}
+    }
+} as const satisfies BlueprintSchema;
+
+const TILE_FRAME_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+        title: {type: 'string', maxLength: 100, 'x-binding': true},
+        minTileWidth: {type: 'integer', minimum: 20, maximum: 2000},
+        maxTileWidth: {type: 'integer', minimum: 20, maximum: 2000},
+        minTileHeight: {type: 'integer', minimum: 20, maximum: 2000},
+        maxTileHeight: {type: 'integer', minimum: 20, maximum: 2000},
+        desiredRatio: {
+            type: 'number',
+            minimum: 0.1,
+            maximum: 10,
+            default: 1,
+            description: 'Tile width over height.'
         },
-        title: {
-            type: 'string',
-            maxLength: 100,
-            'x-binding': true
-        },
-        cards: {
-            type: 'array',
-            minItems: 1,
-            maxItems: 8,
-            items: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                    field: {
-                        type: 'string',
-                        'x-field': 'measure'
-                    },
-                    label: {
-                        type: 'string',
-                        maxLength: 40
-                    },
-                    format: {
-                        'x-format': true,
-                        anyOf: [
-                            {
-                                type: 'string'
-                            },
-                            {
-                                type: 'object'
-                            }
-                        ]
-                    },
-                    agg: {
-                        enum: ['count', 'SUM', 'AVG', 'MIN', 'MAX', 'UNIQUE']
-                    },
-                    deltaField: {
-                        type: 'string'
-                    },
-                    deltaFormat: {
-                        'x-format': true,
-                        anyOf: [
-                            {
-                                type: 'string'
-                            },
-                            {
-                                type: 'object'
-                            }
-                        ]
-                    },
-                    deltaLabel: {
-                        type: 'string',
-                        maxLength: 40
-                    },
-                    invert: {
-                        type: 'boolean'
-                    },
-                    intent: {
-                        enum: ['none', 'primary', 'success', 'warning', 'danger']
-                    }
-                }
-            }
-        }
+        spacing: {type: 'integer', minimum: 0, maximum: 64, default: 0},
+        emptyText: EMPTY_TEXT
     }
 } as const satisfies BlueprintSchema;
 
@@ -667,10 +637,14 @@ export type CubeGridWidgetConfig = FromExtendedSchema<
 /** The config of a `chart` widget, with bindings resolved. */
 export type ChartWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof CHART_SCHEMA>;
 
-/** The config of a `statCardStrip` widget, with bindings resolved. */
-export type StatCardStripWidgetConfig = FromExtendedSchema<
+export type StatCardWidgetConfig = FromExtendedSchema<
     BlueprintSchemaExtension,
-    typeof STAT_CARD_STRIP_SCHEMA
+    typeof STAT_CARD_SCHEMA
+>;
+
+export type TileFrameWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof TILE_FRAME_SCHEMA
 >;
 
 /** The config of a `groupingChooser` widget, with bindings resolved. */
@@ -1005,39 +979,34 @@ const chart: WidgetSpec = {
     }
 };
 
-const statCardStrip: WidgetSpec = {
-    name: 'statCardStrip',
+const statCard: WidgetSpec = {
+    name: 'statCard',
     version: 1,
-    label: 'Stat cards',
-    terms: ['stat cards', 'KPIs', 'headline numbers', 'metrics', 'tiles'],
+    label: 'Stat card',
+    terms: ['stat card', 'KPI', 'headline number', 'metric', 'tile', 'figure'],
     guidance:
-        'A row of headline numbers, each the total of a field over the source. A card with agg count and no field counts rows. Values always come from a source, never from config. A card shows a change from its deltaField, rolled up as its field is, with an arrow in color: green up, red down, or the reverse with invert for a figure where up is bad. deltaFormat formats it (default the card\'s format), and deltaLabel says what it compares against, such as "vs last month". intent outlines a card to flag it, such as danger for a breached limit.',
+        'One headline number: the total of a field over the source. With agg count and no field, it counts rows. Its value always comes from a source, never from config. It shows a change from its deltaField, rolled up as its field is, with an arrow in color: green up, red down, or the reverse with invert for a figure where up is bad. deltaFormat formats it (default its format), and deltaLabel says what it compares against, such as "vs last month". intent outlines it to flag it, such as danger for a breached limit. Lay cards out in a tileFrame, or in a row box.',
     category: 'data',
-    config: STAT_CARD_STRIP_SCHEMA,
-    size: {
-        default: {
-            w: 12,
-            h: 2
-        },
-        min: {
-            w: 3,
-            h: 2
-        }
-    },
+    config: STAT_CARD_SCHEMA,
+    size: {default: {w: 3, h: 2}, min: {w: 2, h: 2}},
+    example: {component: 'statCard', config: {source: 'positions', field: 'mktVal'}}
+};
+
+const tileFrame: WidgetSpec = {
+    name: 'tileFrame',
+    version: 1,
+    label: 'Tiles',
+    terms: ['tiles', 'stat cards', 'KPIs', 'headline numbers'],
+    guidance:
+        'Lays out its children as equal tiles that fill it, wrapping to more rows as needed. Use it for a set of stat cards, or for small charts or notes side by side. It holds content and data widgets only. Its title heads its cell on a dashboard.',
+    category: 'container',
+    config: TILE_FRAME_SCHEMA,
+    children: {schema: CHILD_ID_SCHEMA, accepts: {categories: ['content', 'data']}},
+    size: {default: {w: 12, h: 2}, min: {w: 3, h: 2}},
     example: {
-        component: 'statCardStrip',
-        config: {
-            source: 'positions',
-            cards: [
-                {
-                    field: 'mktVal'
-                },
-                {
-                    agg: 'count',
-                    label: 'Positions'
-                }
-            ]
-        }
+        component: 'tileFrame',
+        config: {maxTileHeight: 100},
+        children: [{id: 'mktValCard'}, {id: 'pnlDayCard'}]
     }
 };
 
@@ -1167,7 +1136,8 @@ const WIDGET_SPECS: WidgetSpec[] = [
     callout,
     cubeGrid,
     chart,
-    statCardStrip,
+    tileFrame,
+    statCard,
     groupingChooser,
     buttonGroup,
     buttonGroupInput
@@ -1199,8 +1169,8 @@ const SOURCE_DEMANDS: Record<string, (config: PlainObject) => WidgetDemand> = {
         ]),
         groupBy: compact([cfg.x, cfg.groupBy])
     }),
-    statCardStrip: cfg => ({
-        fields: fieldNames(castArray(cfg.cards ?? []).map(it => it?.field)),
+    statCard: cfg => ({
+        fields: fieldNames([cfg.field, cfg.deltaField]),
         groupBy: []
     })
 };
@@ -1242,6 +1212,17 @@ function filterFields(filter: unknown): string[] {
 // Widget checks
 //------------------
 const VALIDATORS: Record<string, WidgetSpec['validate']> = {
+    statCard: cfg =>
+        cfg.field || cfg.agg === 'count'
+            ? []
+            : [
+                  {
+                      code: 'statCard.noField',
+                      severity: 'error',
+                      path: '',
+                      message: 'a stat card needs a field, unless its agg is count'
+                  }
+              ],
     cubeGrid: (cfg, {blueprint, id}) => {
         const path = `/elements/${id}/config/columnState`,
             isPreset = Object.values(blueprint.presets ?? {}).some(it =>

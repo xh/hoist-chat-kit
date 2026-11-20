@@ -47,9 +47,9 @@ describe('toEditorSpec', () => {
     });
 
     it('makes lists of objects into item editors, with each item a group', () => {
-        const cards = byKey(toEditorSpec(configOf('statCardStrip'))).cards;
-        expect(cards.kind).toBe('list');
-        const item = cards.kind === 'list' ? cards.item : null;
+        const buttons = byKey(toEditorSpec(configOf('buttonGroup'))).buttons;
+        expect(buttons.kind).toBe('list');
+        const item = buttons.kind === 'list' ? buttons.item : null;
         expect(item.kind).toBe('group');
         expect(item.kind === 'group' && byKey(item.children).label.kind).toBe('text');
     });

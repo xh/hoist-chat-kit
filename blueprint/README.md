@@ -421,4 +421,4 @@ against the action's schema, but an app action's `run` must still treat them as 
 - [`/genui/`](../genui/README.md) - chat kit's catalog, which renders chat answers as blueprints.
 - [`/desktop/cmp/genui/`](../desktop/cmp/genui/README.md) - the components that answers draw with.
 - [`/core/`](../core/README.md) - `ChatModel`, which runs the Architect's tools.
-- hoist-react's Cube and `StatCardStrip`, which blueprint sources and widgets build on.
+- hoist-react's Cube, layout and `StatCard`, which blueprint sources and widgets build on.

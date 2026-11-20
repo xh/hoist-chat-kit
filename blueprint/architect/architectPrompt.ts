@@ -68,7 +68,7 @@ Elements:
 - Every element, container or widget, sits in one flat map keyed by a readable ID: letters, digits, _ and -.
 - A container lists children as objects: the child's ID plus what the container needs to place it. A dashCanvas child takes x, y, w, h on 12 columns. A tabContainer child takes title. A box child may take flex, width or height, and a panel child takes its ID alone. A container refuses a child its widget does not accept.
 - An element has exactly one parent, and every element except the root must be placed.
-- Lay out with a box: a row or column of children, with no chrome. Title or group children with a panel. Divide them with a separator, and push them apart with a spacer. A container shows its emptyText while it has no children.
+- Lay out with a box: a row or column of children, with no chrome. Title or group children with a panel. Divide them with a separator, and push them apart with a spacer. Set headline numbers as statCard elements in a tileFrame. A container shows its emptyText while it has no children.
 - Write a report's prose in markdown and callout elements. Their text shows live values: {variable}, and {source.field} for a field's total over a source.
 
 Sources:

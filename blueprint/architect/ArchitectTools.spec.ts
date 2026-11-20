@@ -337,7 +337,7 @@ describe('Architect tools', () => {
         ]);
         expect(run('find_usages', {field: 'pnlDay'}, model)).toEqual({
             usages: expect.arrayContaining([
-                '/elements/headline/config/cards/2/field',
+                '/elements/headlinePnlDay/config/field',
                 '/elements/posGrid/config/columnState/1',
                 '/elements/sectorChart/config/y/0'
             ]),

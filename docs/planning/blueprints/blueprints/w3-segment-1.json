@@ -1,5 +1,5 @@
 {
-    "schema": {"blueprint": 1, "widgets": {"statCardStrip": 1}},
+    "schema": {"blueprint": 1, "widgets": {"tileFrame": 1, "statCard": 1}},
     "sources": {
         "tomorrow": {
             "inline": {
@@ -13,13 +13,8 @@
     },
     "root": "umbrella",
     "elements": {
-        "umbrella": {
-            "component": "statCardStrip",
-            "config": {
-                "source": "tomorrow",
-                "title": "Chicago Tomorrow",
-                "cards": [{"field": "maxChance"}, {"field": "totalRain"}]
-            }
-        }
+        "umbrella": {"component": "tileFrame", "config": {"title": "Chicago Tomorrow"}, "children": [{"id": "umbrellaMaxChance"}, {"id": "umbrellaTotalRain"}]},
+        "umbrellaMaxChance": {"component": "statCard", "config": {"source": "tomorrow", "field": "maxChance"}},
+        "umbrellaTotalRain": {"component": "statCard", "config": {"source": "tomorrow", "field": "totalRain"}}
     }
 }

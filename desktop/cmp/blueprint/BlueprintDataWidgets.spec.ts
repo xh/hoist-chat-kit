@@ -12,7 +12,7 @@ import type {Blueprint, BlueprintDataProvider, BlueprintDataUpdate} from '../../
 import {BlueprintModel, FakeBlueprintDataProvider} from '../../../blueprint';
 import {ChartWidgetModel} from './ChartWidget';
 import {CubeGridWidgetModel} from './CubeGridWidget';
-import {StatCardStripWidgetModel} from './StatCardStripWidget';
+import {statCardWidget, StatCardWidgetModel} from './StatCardWidget';
 
 /**
  * The P2 data widgets: stat cards and a chart over a source, and grid cells drawn by registry
@@ -96,58 +96,80 @@ describe('blueprint data widgets', () => {
 
     const text = (node: unknown) => render(node as ReactElement).container.textContent;
 
-    describe('statCardStrip', () => {
-        it('shows each field rolled up by the Cube, with its format, and counts rows', async () => {
-            const cards = widget(StatCardStripWidgetModel, open(), 'headline');
-            await vi.waitFor(() => expect(text(cards.cards[3].value)).toBe('3'));
+    describe('statCard', () => {
+        const card = (model: BlueprintModel, id: string) =>
+            widget(StatCardWidgetModel, model, id).card;
 
-            expect(cards.cards.map(it => it.title)).toEqual([
+        it('shows its field rolled up by the Cube, with its format, or counts rows', async () => {
+            const model = open(),
+                gross = widget(StatCardWidgetModel, model, 'headlineGrossExposure'),
+                pnl = widget(StatCardWidgetModel, model, 'headlinePnlDay'),
+                count = widget(StatCardWidgetModel, model, 'headlinePositions');
+            await vi.waitFor(() => expect(text(count.card.value)).toBe('3'));
+
+            expect([gross, pnl, count].map(it => it.card.title)).toEqual([
                 'Gross Exposure',
-                'Net Exposure',
                 'Day P&L',
                 'Positions'
             ]);
             // A ledger format keeps a hidden ')' after a positive value, to align it.
-            expect(text(cards.cards[0].value)).toMatch(/^0\.0m/);
-            expect(text(cards.cards[2].value)).toMatch(/^4/);
-            expect(text(cards.cards[3].value)).toBe('3');
+            expect(text(gross.card.value)).toMatch(/^0\.0m/);
+            expect(text(pnl.card.value)).toMatch(/^4/);
         });
 
-        it('computes an agg a card names over the rows', async () => {
+        it('computes an agg it names over the rows', async () => {
             const bp = loadBlueprint('p2-linked-dashboard.json');
-            bp.elements.headline.config.cards = [{field: 'pnlDay', agg: 'MIN', label: 'Worst'}];
-            const cards = widget(StatCardStripWidgetModel, open(bp), 'headline');
-            await vi.waitFor(() => expect(text(cards.cards[0].value)).toBe('(2)'));
+            bp.elements.headlinePnlDay.config = {
+                source: 'positions',
+                field: 'pnlDay',
+                agg: 'MIN',
+                label: 'Worst'
+            };
+            const model = open(bp);
+            await vi.waitFor(() => expect(text(card(model, 'headlinePnlDay').value)).toBe('(2)'));
+        });
+
+        it('shows the value of an inline source of one row, as computed', async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.sources.tomorrow = {
+                inline: {
+                    fields: [{name: 'maxChance', label: 'Highest Chance', type: 'number'}],
+                    rows: [{maxChance: 0.8}]
+                }
+            } as any;
+            bp.elements.headlinePnlDay.config = {source: 'tomorrow', field: 'maxChance'};
+            const model = open(bp);
+            await vi.waitFor(() =>
+                expect(text(card(model, 'headlinePnlDay').value)).toMatch(/0\.8/)
+            );
+        });
+
+        it('fills its tile, so a tileFrame lays cards out', () => {
+            const {container} = render(
+                statCardWidget({model: widget(StatCardWidgetModel, open(), 'headlinePnlDay')})
+            );
+            expect(container.querySelector('.xh-stat-card')).toBeTruthy();
         });
     });
 
-    it('shows the values of an inline source of one row, as computed', async () => {
-        const bp = loadBlueprint('p2-linked-dashboard.json');
-        bp.sources.tomorrow = {
-            inline: {
-                fields: [{name: 'maxChance', label: 'Highest Chance', type: 'number'}],
-                rows: [{maxChance: 0.8}]
-            }
-        } as any;
-        bp.elements.headline.config = {source: 'tomorrow', cards: [{field: 'maxChance'}]};
-        const cards = widget(StatCardStripWidgetModel, open(bp), 'headline');
-        await vi.waitFor(() => expect(text(cards.cards[0]?.value)).toMatch(/0\.8/));
-    });
-
-    describe('statCardStrip deltas', () => {
-        const withDelta = (card: object) => {
+    describe('statCard deltas', () => {
+        const withDelta = (config: object) => {
             const bp = loadBlueprint('p2-linked-dashboard.json');
-            bp.elements.headline.config.cards = [
-                {field: 'mktVal', deltaField: 'pnlDay', deltaFormat: {precision: 0}, ...card}
-            ];
-            return widget(StatCardStripWidgetModel, open(bp), 'headline');
+            bp.elements.headlinePnlDay.config = {
+                source: 'positions',
+                field: 'mktVal',
+                deltaField: 'pnlDay',
+                deltaFormat: {precision: 0},
+                ...config
+            };
+            return widget(StatCardWidgetModel, open(bp), 'headlinePnlDay');
         };
         const html = (node: unknown) => render(node as ReactElement).container.innerHTML;
 
-        it("shows a card's change with an arrow in color, said in words, and its label", async () => {
-            const cards = withDelta({deltaLabel: 'vs yesterday', intent: 'warning'});
-            await vi.waitFor(() => expect(cards.cards[0]?.subValue).toBeTruthy());
-            const [card] = cards.cards;
+        it('shows its change with an arrow in color, said in words, and its label', async () => {
+            const model = withDelta({deltaLabel: 'vs yesterday', intent: 'warning'});
+            await vi.waitFor(() => expect(model.card.subValue).toBeTruthy());
+            const {card} = model;
             expect(text(card.subValue)).toMatch(/^▴\s?4/);
             expect(html(card.subValue)).toContain('xh-pos-val');
             expect(html(card.subValue)).toContain('aria-label="up 4"');
@@ -156,19 +178,33 @@ describe('blueprint data widgets', () => {
         });
 
         it('shows a rise in the negative color for a figure where up is bad', async () => {
-            const cards = withDelta({invert: true});
-            await vi.waitFor(() => expect(cards.cards[0]?.subValue).toBeTruthy());
-            expect(html(cards.cards[0].subValue)).toContain('xh-neg-val');
+            const model = withDelta({invert: true});
+            await vi.waitFor(() => expect(model.card.subValue).toBeTruthy());
+            expect(html(model.card.subValue)).toContain('xh-neg-val');
         });
 
         it('refuses a delta field the source lacks', () => {
             const bp = loadBlueprint('p2-linked-dashboard.json');
-            bp.elements.headline.config.cards = [{field: 'mktVal', deltaField: 'nope'}];
+            bp.elements.headlinePnlDay.config = {
+                source: 'positions',
+                field: 'mktVal',
+                deltaField: 'nope'
+            };
             expect(
                 open()
                     .validate(bp)
                     .map(it => it.path)
-            ).toContain('/elements/headline/config/cards/0/deltaField');
+            ).toContain('/elements/headlinePnlDay/config/deltaField');
+        });
+
+        it('refuses a card with no field, unless it counts', () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.elements.headlinePnlDay.config = {source: 'positions'};
+            expect(
+                open()
+                    .validate(bp)
+                    .map(it => it.code)
+            ).toContain('statCard.noField');
         });
     });
 
@@ -278,14 +314,13 @@ describe('blueprint data widgets', () => {
         };
         const model = open(bp),
             gridModel = widget(CubeGridWidgetModel, model, 'posGrid').cubeGridModel.innerGridModel,
-            cards = widget(StatCardStripWidgetModel, model, 'headline');
+            pnl = widget(StatCardWidgetModel, model, 'headlinePnlDay');
         expect(gridModel.getColumn('pnlDay')).toMatchObject({
             headerName: 'Today',
             headerTooltip: 'P&L since the open.',
             align: 'center'
         });
-        await vi.waitFor(() => expect(cards.cards.length).toBeGreaterThan(2));
-        expect(cards.cards[2].title).toBe('Today');
+        expect(pnl.card.title).toBe('Today');
     });
 
     it("names a field instance's column by its label", () => {
@@ -308,7 +343,7 @@ describe('blueprint data widgets', () => {
         });
         onTestFinished(() => model.destroy());
         const chart = widget(ChartWidgetModel, model, 'tempChart'),
-            cards = widget(StatCardStripWidgetModel, model, 'now');
+            conditions = widget(StatCardWidgetModel, model, 'nowConditions');
 
         await vi.waitFor(() => expect(chart.chartModel.series[0]?.data.length).toBeGreaterThan(1));
         expect(chart.chartModel.highchartsConfig.xAxis.type).toBe('datetime');
@@ -321,8 +356,8 @@ describe('blueprint data widgets', () => {
         expect(times[0]).toBeGreaterThan(1e12);
         expect(chart.chartModel.series.map(it => it.name)).toEqual(['Temperature', 'Feels Like']);
 
-        await vi.waitFor(() => expect(text(cards.cards[0].value)).toBeTruthy());
-        expect(cards.cards[0].title).toBe('Conditions');
+        await vi.waitFor(() => expect(text(conditions.card.value)).toBeTruthy());
+        expect(conditions.card.title).toBe('Conditions');
     });
 
     it("formats a chart's value axis by its field's kind, as 0% to 100% for a fraction", async () => {

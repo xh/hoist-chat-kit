@@ -529,20 +529,9 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         }
         if (cfg.x) need(cfg.x, `${p}/x`);
         if (isArray(cfg.y)) cfg.y.forEach((y: string, i: number) => need(y, `${p}/y/${i}`));
-        if (isArray(cfg.cards)) {
-            cfg.cards.forEach((c: any, i: number) => {
-                if (c?.deltaField) need(c.deltaField, `${p}/cards/${i}/deltaField`);
-                if (c?.field) {
-                    need(c.field, `${p}/cards/${i}/field`);
-                } else if (fields && c?.agg !== 'count') {
-                    err(
-                        'schema.invalid',
-                        `${p}/cards/${i}`,
-                        'a card needs a field, unless its agg is count'
-                    );
-                }
-            });
-        }
+        ['field', 'deltaField'].forEach(key => {
+            if (isString(cfg[key])) need(cfg[key], `${p}/${key}`);
+        });
         castArray(cfg.sortBy ?? []).forEach((sb, i) => {
             const f = isString(sb) ? sb.split('|')[0] : null;
             if (f && f !== TREE_COLUMN)

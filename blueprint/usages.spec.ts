@@ -45,7 +45,7 @@ describe('usages', () => {
         it('records every place a field is used', () => {
             expect(usages.positions.pnlDay.map(it => it.path)).toEqual(
                 expect.arrayContaining([
-                    '/elements/headline/config/cards/1/field',
+                    '/elements/headlinePnlDay/config/field',
                     '/elements/sectorChart/config/y/0'
                 ])
             );
@@ -105,7 +105,7 @@ describe('usages', () => {
             usages = registryUsages(p3, registry, portfolioCatalog);
 
         it('marks the widgets each element is', () => {
-            expect(usages['widget:statCardStrip']).toEqual(['/elements/headline/component']);
+            expect(usages['widget:tileFrame']).toEqual(['/elements/headline/component']);
             expect(Object.keys(usages).filter(it => it.startsWith('widget:'))).toEqual(
                 expect.arrayContaining(['widget:cubeGrid', 'widget:chart', 'widget:tabContainer'])
             );

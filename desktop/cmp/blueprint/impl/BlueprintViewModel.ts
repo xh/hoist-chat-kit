@@ -18,8 +18,9 @@ import {markdownWidget, MarkdownWidgetModel} from '../MarkdownWidget';
 import {panelWidget, PanelWidgetModel} from '../PanelWidget';
 import {separatorWidget, SeparatorWidgetModel} from '../SeparatorWidget';
 import {spacerWidget, SpacerWidgetModel} from '../SpacerWidget';
-import {statCardStripWidget, StatCardStripWidgetModel} from '../StatCardStripWidget';
+import {statCardWidget, StatCardWidgetModel} from '../StatCardWidget';
 import {tabContainerWidget, TabContainerWidgetModel} from '../TabContainerWidget';
+import {tileFrameWidget, TileFrameWidgetModel} from '../TileFrameWidget';
 import {elementHost} from './ElementHost';
 
 /** The desktop model and component of each built-in widget, for specs that name neither. */
@@ -36,8 +37,9 @@ const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> =
     panel: {model: PanelWidgetModel, component: panelWidget},
     separator: {model: SeparatorWidgetModel, component: separatorWidget},
     spacer: {model: SpacerWidgetModel, component: spacerWidget},
-    statCardStrip: {model: StatCardStripWidgetModel, component: statCardStripWidget},
-    tabContainer: {model: TabContainerWidgetModel, component: tabContainerWidget}
+    statCard: {model: StatCardWidgetModel, component: statCardWidget},
+    tabContainer: {model: TabContainerWidgetModel, component: tabContainerWidget},
+    tileFrame: {model: TileFrameWidgetModel, component: tileFrameWidget}
 };
 
 /**

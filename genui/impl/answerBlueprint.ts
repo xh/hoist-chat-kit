@@ -23,8 +23,8 @@ import {CHILD_REF_PROPS, toWidgetName} from './specWidgets';
  * becomes its bridged widget, as `chart` becomes `chatUiChart`. Leaves what it cannot read for
  * `degradeAnswer()` to report, so a document with problems still translates.
  *
- * Stat cards and an inline grid whose props pass the catalog become a `statCardStrip` or a
- * `cubeGrid` over an inline source, so that their data lives in a source. While one streams, its
+ * Stat cards and an inline grid whose props pass the catalog become a `tileFrame` of `statCard`s or
+ * a `cubeGrid` over an inline source, so that their data lives in a source. While one streams, its
  * last card, row or point, which may be cut short, waits, so that no part-written value reaches a
  * source. A grid or chart by reference stays the spec: its artifact is its source.
  */
@@ -37,7 +37,7 @@ export function toAnswerBlueprint(
         sources: Record<string, SourceDecl> = {},
         elements = isPlainObject(doc.elements)
             ? Object.fromEntries(
-                  Object.entries(doc.elements).map(([docId, el]) => {
+                  Object.entries(doc.elements).flatMap(([docId, el]) => {
                       const id = toAnswerId(docId),
                           isPartial = partialIds.includes(id),
                           translate = getOwn(TRANSLATORS, el?.component),
@@ -46,7 +46,10 @@ export function toAnswerBlueprint(
                                   ? translate(id, el.props, isPartial)
                                   : null;
                       if (translated) sources[id] = translated.source;
-                      return [id, translated?.element ?? toElement(el)];
+                      return [
+                          [id, translated?.element ?? toElement(el)],
+                          ...Object.entries(translated?.children ?? {})
+                      ];
                   })
               )
             : doc.elements;
@@ -133,7 +136,12 @@ export function fromAnswerId(id: string): string {
 
 const FORBIDDEN_IDS = ['__proto__', 'prototype', 'constructor'];
 
-type Translation = {element: BlueprintElement; source: SourceDecl};
+/** A chat component as an element over a source, with any elements it holds. */
+type Translation = {
+    element: BlueprintElement;
+    source: SourceDecl;
+    children?: Record<string, BlueprintElement>;
+};
 
 function toCubeGrid(id: string, props: PlainObject, isPartial: boolean): Translation {
     if (props.data != null || !isArray(props.columns) || !isArray(props.rows)) return null;
@@ -257,7 +265,7 @@ const GRID_TYPES: Record<string, string> = {
     boolean: 'bool'
 };
 
-function toStatCardStrip(id: string, props: PlainObject, isPartial: boolean): Translation {
+function toStatCards(id: string, props: PlainObject, isPartial: boolean): Translation {
     const cards = (isPartial ? dropRight(props.cards) : props.cards).filter(isPlainObject);
     if (!cards.length) return null;
 
@@ -276,7 +284,7 @@ function toStatCardStrip(id: string, props: PlainObject, isPartial: boolean): Tr
             });
             row[value] = card.value;
 
-            const ret: PlainObject = {field: value};
+            const ret: PlainObject = {source: id, field: value};
             if (isFinite(card.delta)) {
                 const format = card.deltaFormat ?? card.format;
                 fields.push({
@@ -293,12 +301,20 @@ function toStatCardStrip(id: string, props: PlainObject, isPartial: boolean): Tr
             if (card.intent && card.intent !== 'none') ret.intent = card.intent;
             return ret;
         });
+    const children = Object.fromEntries(
+        configs.map((config, idx) => [
+            `${id}-card${idx + 1}`,
+            {component: 'statCard', config} as BlueprintElement
+        ])
+    );
     return {
         element: {
-            component: 'statCardStrip',
-            config: {source: id, presentation: 'card', cards: configs}
+            component: 'tileFrame',
+            config: {presentation: 'card'},
+            children: Object.keys(children).map(it => ({id: it}))
         },
-        source: {inline: {fields, rows: [row]}} as SourceDecl
+        source: {inline: {fields, rows: [row]}} as SourceDecl,
+        children
     };
 }
 
@@ -326,7 +342,7 @@ const TRANSLATORS: Record<
     string,
     (id: string, props: PlainObject, isPartial: boolean) => Translation
 > = {
-    statCards: toStatCardStrip,
+    statCards: toStatCards,
     grid: toCubeGrid,
     chart: toChart
 };

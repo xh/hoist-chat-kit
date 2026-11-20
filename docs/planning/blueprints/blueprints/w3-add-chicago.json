@@ -11,16 +11,31 @@
         {
             "op": "addElement",
             "id": "nowC",
-            "element": {"component": "statCardStrip", "config": {"source": "currentC", "title": {"$var": "cityC"}, "cards": [{"field": "conditions"}, {"field": "temp"}, {"field": "humidity"}]}},
+            "element": {"component": "tileFrame", "config": {"title": {"$var": "cityC"}}},
             "parent": "dashboard",
             "child": {"x": 0, "y": 21, "w": 6, "h": 2}
         },
+        {"op": "addElement", "id": "nowCConditions", "element": {"component": "statCard", "config": {"source": "currentC", "field": "conditions"}}, "parent": "nowC"},
+        {"op": "addElement", "id": "nowCTemp", "element": {"component": "statCard", "config": {"source": "currentC", "field": "temp"}}, "parent": "nowC"},
+        {"op": "addElement", "id": "nowCHumidity", "element": {"component": "statCard", "config": {"source": "currentC", "field": "humidity"}}, "parent": "nowC"},
         {
             "op": "addElement",
             "id": "rainTomorrowC",
-            "element": {"component": "statCardStrip", "config": {"source": "tomorrowC", "title": "Rain Tomorrow", "cards": [{"field": "precipProbability", "agg": "MAX", "label": "Highest Chance of Rain"}, {"field": "precipVolume", "agg": "SUM", "label": "Total Rain"}]}},
+            "element": {"component": "tileFrame", "config": {"title": "Rain Tomorrow"}},
             "parent": "dashboard",
             "child": {"x": 6, "y": 21, "w": 6, "h": 2}
+        },
+        {
+            "op": "addElement",
+            "id": "rainTomorrowCChance",
+            "element": {"component": "statCard", "config": {"source": "tomorrowC", "field": "precipProbability", "agg": "MAX", "label": "Highest Chance of Rain"}},
+            "parent": "rainTomorrowC"
+        },
+        {
+            "op": "addElement",
+            "id": "rainTomorrowCTotal",
+            "element": {"component": "statCard", "config": {"source": "tomorrowC", "field": "precipVolume", "agg": "SUM", "label": "Total Rain"}},
+            "parent": "rainTomorrowC"
         },
         {
             "op": "addElement",

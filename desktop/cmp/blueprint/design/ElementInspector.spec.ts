@@ -98,12 +98,15 @@ describe('ElementInspector', () => {
     });
 
     it('starts a new list item from the schema, with fields of the widget source not yet used', () => {
-        const {inspector} = open('p2-linked-dashboard.json', 'headline'),
-            cards = inspector.nodes.find(it => it.key === 'cards'),
-            item = cards.kind === 'list' ? cards.item : null;
-        inspector.commit('cards', [{field: 'mktVal'}]);
-        const used = inspector.values.cards.map(it => it.field),
-            added = inspector.newValue(item.schema) as {field: string};
+        const {inspector} = open('p2-linked-dashboard.json', 'posGrid'),
+            item = {
+                type: 'object',
+                required: ['field'],
+                properties: {field: {type: 'string', 'x-field': 'measure'}}
+            },
+            used: string[] = [];
+        JSON.stringify(inspector.values, (_, v) => (typeof v === 'string' && used.push(v), v));
+        const added = inspector.newValue(item) as {field: string};
         expect(added.field).toEqual(expect.any(String));
         expect(used).not.toContain(added.field);
     });
@@ -125,7 +128,7 @@ describe('ElementInspector', () => {
         });
 
         it("offers the element source's fields of the role asked, with their labels", () => {
-            const {model, inspector} = open('p2-linked-dashboard.json', 'headline'),
+            const {model, inspector} = open('p2-linked-dashboard.json', 'headlinePnlDay'),
                 fields = model.getSource('positions').fields,
                 dims = inspector.fieldOptions('dimension'),
                 measures = inspector.fieldOptions('measure');

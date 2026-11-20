@@ -169,6 +169,31 @@ describe('layout and container widgets', () => {
         });
     });
 
+    describe('tileFrame', () => {
+        it('draws a Hoist TileFrame', () => {
+            const {container} = show('tiles', {
+                tiles: {
+                    component: 'tileFrame',
+                    config: {minTileWidth: 100},
+                    children: [{id: 'a'}, {id: 'b'}]
+                },
+                a: {component: 'markdown', config: {text: 'One'}},
+                b: {component: 'markdown', config: {text: 'Two'}}
+            });
+            // TileFrame draws its tiles once it has a size, which jsdom never gives it.
+            expect(container.querySelector('.xh-tile-frame')).toBeTruthy();
+        });
+
+        it('refuses a layout widget or a container as a tile', () => {
+            expect(() =>
+                show('tiles', {
+                    tiles: {component: 'tileFrame', config: {}, children: [{id: 'inner'}]},
+                    inner: emptyPanel('Inner')
+                })
+            ).toThrow(/tileFrame cannot hold 'inner'/);
+        });
+    });
+
     describe('emptyText', () => {
         it('shows in a container with no children', () => {
             show('page', {

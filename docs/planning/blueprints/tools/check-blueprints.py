@@ -14,7 +14,7 @@ for c in cats.values():
 # Spec-level registries used by the scenarios.
 WIDGETS = {
     'dashCanvas': {}, 'tabContainer': {}, 'panel': {}, 'box': {}, 'separator': {}, 'spacer': {}, 'markdown': {}, 'callout': {}, 'cubeGrid': {'outputs': {'selection', 'selected'}}, 'chart': {},
-    'statCardStrip': {}, 'groupingChooser': {'value': True}, 'buttonGroup': {}, 'buttonGroupInput': {'value': True},
+    'tileFrame': {}, 'statCard': {}, 'groupingChooser': {'value': True}, 'buttonGroup': {}, 'buttonGroupInput': {'value': True},
     'toolbox.portfolioBuilder': {'value': True}
 }
 ACTIONS = {'setVariable', 'resetVariable', 'refresh', 'navigate', 'openUrl', 'toolbox.publishToPmPack'}
@@ -134,9 +134,9 @@ def check(f, bp, artifacts):
             need(cfg['x'], 'x')
         for y in cfg.get('y', []):
             need(y, 'y')
-        for card in cfg.get('cards', []):
-            if 'field' in card:
-                need(card['field'], 'card')
+        for key in ('field', 'deltaField'):
+            if key in cfg:
+                need(cfg[key], key)
         if isinstance(cfg.get('sortBy'), str):
             need(cfg['sortBy'].split('|')[0], 'sortBy')
 

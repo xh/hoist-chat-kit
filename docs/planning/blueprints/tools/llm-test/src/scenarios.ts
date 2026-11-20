@@ -82,7 +82,7 @@ export const SCENARIOS: Scenario[] = [
         }],
         checks: [
             ['root is a dashCanvas', o => o.blueprint.elements?.[o.blueprint.root]?.component === 'dashCanvas'],
-            ['stat cards over positions, at least three', o => cfg(o.blueprint, 'statCardStrip', c => dataset(o.blueprint, c) === 'positions' && c.cards?.length >= 3).length],
+            ['stat cards over positions, at least three', o => cfg(o.blueprint, 'statCard', c => dataset(o.blueprint, c) === 'positions').length >= 3],
             ['a grid grouped by strategy, then trader', o => gridId(o.blueprint, c => c.groupBy?.[0] === 'strategy' && c.groupBy?.[1] === 'trader')],
             ['its selection sets a filter variable', o => filterVarFrom(o.blueprint, gridId(o.blueprint, c => c.groupBy?.[0] === 'strategy')!).length],
             ['a sector chart filtered by that variable', o => {
@@ -177,7 +177,7 @@ export const SCENARIOS: Scenario[] = [
                     london = (p: any) => p === 'London' || o.blueprint.variables?.[p?.$var]?.default?.value === 'London';
                 return s.some(x => x.dataset === 'currentWeather' && london(x.params?.city)) && s.some(x => x.dataset === 'weather' && london(x.params?.city));
             }],
-            ['stat cards over current weather', o => cfg(o.blueprint, 'statCardStrip', c => dataset(o.blueprint, c) === 'currentWeather').length],
+            ['stat cards over current weather', o => cfg(o.blueprint, 'statCard', c => dataset(o.blueprint, c) === 'currentWeather').length],
             ['a chart over time', o => cfg(o.blueprint, 'chart', c => c.x === 'time').length]
         ]
     },
@@ -205,7 +205,7 @@ export const SCENARIOS: Scenario[] = [
         steps: [{prompt: 'Will I need an umbrella in Chicago tomorrow? When is rain most likely?'}],
         checks: [
             ['a chart of the chance of rain through the day, over the query result', o => o.segments.some(s => segmentWidgets(s, 'chart').some(e => s.sources?.[e.config?.source]?.artifact && [e.config?.y].flat().includes('precipProbability')))],
-            ['any stat cards hold inline values it computed', o => o.segments.every(s => segmentWidgets(s, 'statCardStrip').every(e => s.sources?.[e.config?.source]?.inline))],
+            ['any stat cards hold inline values it computed', o => o.segments.every(s => segmentWidgets(s, 'statCard').every(e => s.sources?.[e.config?.source]?.inline))],
             ['the host is unchanged', o => JSON.stringify(o.blueprint) === JSON.stringify(loadBlueprint('w2-two-cities.json'))]
         ]
     },
@@ -223,7 +223,7 @@ export const SCENARIOS: Scenario[] = [
                     chicago = (x: any) => x.params?.city?.$var && o.blueprint.variables?.[x.params.city.$var]?.default?.value === 'Chicago' && bound(x.params?.units, 'units');
                 return s.some(x => x.dataset === 'currentWeather' && chicago(x)) && s.some(x => x.dataset === 'weather' && chicago(x));
             }],
-            ['every stat card reads a dataset source', o => cfg(o.blueprint, 'statCardStrip').every(c => dataset(o.blueprint, c))],
+            ['every stat card reads a dataset source', o => cfg(o.blueprint, 'statCard').every(c => dataset(o.blueprint, c))],
             ['no artifact or inline source in the host', o => noChatSources(o.blueprint)],
             ['asks for design mode before it edits', askedFirst]
         ]
