@@ -55,6 +55,8 @@ export interface DatasetDef {
     description?: string;
     guidance?: string;
     params: Record<string, ParamDef>;
+    /** The fields that identify a row, which give a join its grain. */
+    key?: string[];
     /** Every field, keyed by name, with shared fields and kind defaults resolved. */
     fields: Record<string, FieldDef>;
 }

@@ -116,6 +116,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
                         label: d.label,
                         guidance: d.guidance ?? d.description,
                         params: d.params,
+                        ...(d.key ? {key: d.key} : {}),
                         fieldCount: Object.keys(d.fields).length,
                         categories: uniq(
                             Object.values(d.fields).map(f => JSON.stringify(f.category ?? null))
@@ -148,6 +149,7 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
             return {
                 dataset: d.name,
                 params: d.params,
+                ...(d.key ? {key: d.key} : {}),
                 kinds: cat.kinds,
                 formats: cat.formats,
                 fields: fields.map(f => ({

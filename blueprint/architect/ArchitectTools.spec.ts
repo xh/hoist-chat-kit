@@ -55,8 +55,9 @@ describe('Architect tools', () => {
         const model = open(),
             list = run('describe_catalog', {}, model);
         expect(list.map(it => it.dataset)).toContain('positions');
+        expect(list.find(it => it.dataset === 'fundSummary').key).toEqual(['fund']);
 
-        const {fields, params} = run(
+        const {fields, params, key} = run(
             'describe_catalog',
             {dataset: 'positions', search: 'shock'},
             model
@@ -64,6 +65,7 @@ describe('Architect tools', () => {
         expect(fields.map(it => it.name)).toEqual(['shockedPnl']);
         expect(fields[0].params.shock.kind).toBe('shock');
         expect(params.asOf.required).toBe(true);
+        expect(key).toContain('symbol');
         expect(() => run('describe_catalog', {dataset: 'nope'}, model)).toThrow(/unknown dataset/);
     });
 

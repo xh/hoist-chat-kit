@@ -1,9 +1,10 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {castArray, isArray, isPlainObject, isString, omit} from 'lodash';
-import {type Blueprint, type BlueprintIssue, isFieldInstance} from './Blueprint';
+import {castArray, isArray, isEqual, isPlainObject, isString, omit} from 'lodash';
+import {type Blueprint, type BlueprintIssue, isFieldInstance, type JoinDecl} from './Blueprint';
 import type {BlueprintRegistry, WidgetSpec} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter} from './impl/configSchema';
+import {joinFields} from './impl/joins';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
 import {parseTemplate, templateRefs} from './impl/template';
 import {boundPeriodCalendar, checkVariableValue, matchesType} from './impl/variableValues';
@@ -478,6 +479,128 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 'a source is {"dataset": ...}, {"artifact": ...} or {"inline": ...}'
             );
         }
+    }
+
+    function checkJoin(sn: string, s: PlainObject, join: JoinDecl, p: string) {
+        const other = sources[join?.source];
+        if (!other) {
+            err('join.unknownSource', `${p}/source`, `unknown source '${join?.source}'`);
+            return;
+        }
+        if (join.source === sn) {
+            err('join.self', `${p}/source`, 'a source cannot join itself');
+            return;
+        }
+        const joinedBy = Object.keys(sources).find(
+            n =>
+                n !== sn &&
+                castArray(sources[n].joins ?? []).some((j: JoinDecl) => j?.source === sn)
+        );
+        if (joinedBy) {
+            err(
+                'join.chained',
+                p,
+                `'${joinedBy}' joins '${sn}', so '${sn}' cannot join another: joins are one level deep`
+            );
+            return;
+        }
+        const primary = catalog.getDataset(s.dataset),
+            secondary = catalog.getDataset(other.dataset);
+        if (!primary || !secondary) {
+            err('join.noKey', `${p}/source`, 'a join is between two dataset sources');
+            return;
+        }
+        for (const [pf, sf] of Object.entries(join.on ?? {})) {
+            const a = primary.fields[pf],
+                b = secondary.fields[sf];
+            if (!a || !b) {
+                err(
+                    'join.unknownField',
+                    `${p}/on/${pf}`,
+                    `'${a ? sf : pf}' is not a field of ${a ? other.dataset : s.dataset}`
+                );
+            } else if (a.type !== b.type) {
+                err(
+                    'join.typeMismatch',
+                    `${p}/on/${pf}`,
+                    `'${pf}' is a ${a.type}, but '${sf}' is a ${b.type}`
+                );
+            }
+        }
+        const names = new Set(Object.keys(primary.fields));
+        Object.values(sourceFields[sn] ?? {}).forEach(it => names.add(it.name));
+        castArray(join.fields ?? []).forEach((f: string, i: number) => {
+            const name = join.as?.[f] ?? f;
+            if (!secondary.fields[f]) {
+                err(
+                    'join.unknownField',
+                    `${p}/fields/${i}`,
+                    `'${f}' is not a field of ${other.dataset}`
+                );
+            } else if (names.has(name)) {
+                err(
+                    'join.fieldCollision',
+                    `${p}/fields/${i}`,
+                    `'${name}' is taken on '${sn}'. Name it with as.`
+                );
+            }
+            names.add(name);
+        });
+        if (!primary.key?.length || !secondary.key?.length) {
+            err(
+                'join.noKey',
+                `${p}/source`,
+                `${primary.key?.length ? other.dataset : s.dataset} declares no key, so the join has no grain`
+            );
+            return;
+        }
+        const fields = joinFields(join, primary, secondary);
+        fields.forEach(jf => {
+            const at = `${p}/fields/${join.fields.indexOf(jf.field)}`,
+                agg = jf.def.aggregator as PlainObject | string;
+            if (jf.reduce && agg == null) {
+                err(
+                    'join.noReduction',
+                    at,
+                    `'${jf.field}' has no aggregator, so its rows cannot reduce to the join's key`
+                );
+            } else if (
+                jf.reduce &&
+                isPlainObject(agg) &&
+                ['last', 'first'].includes((agg as PlainObject).type) &&
+                !(agg as PlainObject).orderField
+            ) {
+                err(
+                    'join.lastNeedsOrder',
+                    at,
+                    `'${jf.field}' reduces by ${(agg as PlainObject).type}, which needs an orderField`
+                );
+            }
+        });
+        Object.keys(s.params ?? {})
+            .filter(
+                pn =>
+                    Object.hasOwn(other.params ?? {}, pn) &&
+                    !isEqual(s.params[pn], other.params[pn])
+            )
+            .forEach(pn =>
+                warn(
+                    'join.paramMismatch',
+                    `${p}/source`,
+                    `'${sn}' and '${join.source}' bind '${pn}' differently`
+                )
+            );
+        sourceFields[sn] ??= toLookup({});
+        fields.forEach(jf => {
+            if (!primary.fields[jf.name]) sourceFields[sn][jf.name] = jf.def;
+        });
+    }
+
+    // Joins, each bringing another dataset source's fields onto this source's rows.
+    for (const [sn, s] of Object.entries(sources)) {
+        castArray(s.joins ?? []).forEach((join: JoinDecl, i: number) =>
+            checkJoin(sn, s, join, `/sources/${sn}/joins/${i}`)
+        );
     }
 
     // A template's references, each to a variable, a field of its source, or a source's field.

@@ -85,6 +85,20 @@ export interface SourceDecl {
     filter?: PlainObject;
     artifact?: string;
     inline?: {fields: PlainObject[]; rows: PlainObject[]};
+    /** Other sources whose fields this one takes, keyed on fields they share. Left joins. */
+    joins?: JoinDecl[];
+}
+
+/** A join of one dataset source onto another - see `joins-design.md` in the planning docs. */
+export interface JoinDecl {
+    /** The source joined. */
+    source: string;
+    /** Each field of this source, mapped to the joined source's field it matches. */
+    on: Record<string, string>;
+    /** The joined source's fields to bring. */
+    fields: string[];
+    /** A name on this source for a joined field, where its own name is taken. */
+    as?: Record<string, string>;
 }
 
 /** A parameterized field with its parameters set. It takes the display settings of an override. */
