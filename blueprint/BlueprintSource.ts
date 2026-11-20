@@ -5,6 +5,7 @@ import {
     FirstAggregator,
     KeyedAggregator,
     LastAggregator,
+    parseFilter,
     type View,
     WeightedAverageAggregator
 } from '@xh/hoist/data';
@@ -270,6 +271,10 @@ export class BlueprintSource extends HoistBase {
             return null;
         }
 
+        const plan = this.filterPlan;
+        if (plan.pushdown === 'waiting') return null;
+        const filter = andOf([plan.server, ...plan.pushdown]) as FilterSpec;
+
         const fields = this.requestedFields.map(it => {
             const inst = this.instanceOf(it);
             if (!inst) return it;
@@ -285,8 +290,64 @@ export class BlueprintSource extends HoistBase {
             params,
             fields,
             groupBy: this.groupingSets,
-            ...(decl.filter ? {filter: context.resolveFilter(decl.filter)} : {})
+            ...(filter ? {filter} : {})
         };
+    }
+
+    /**
+     * The source filter, split for joins: clauses on the source's own fields go to the server,
+     * and clauses on joined fields run in the browser, on rows with their joined values. Each
+     * joined clause also goes to the server as the keys its joined source matches, once that has
+     * loaded, unless they number more than {@link PUSHDOWN_CAP}.
+     */
+    @computed
+    private get filterPlan(): {
+        server: PlainObject;
+        browser: PlainObject;
+        pushdown: PlainObject[] | 'waiting';
+    } {
+        const resolved: PlainObject = this.decl.filter
+            ? this.context.resolveFilter(this.decl.filter)
+            : null;
+        if (!resolved || isEmpty(this.joins))
+            return {server: resolved, browser: null, pushdown: []};
+        const joined = this.joins.flatMap(it => it.fields.map(f => f.name)),
+            clauses: PlainObject[] =
+                String(resolved.op).toUpperCase() === 'AND' && isArray(resolved.filters)
+                    ? resolved.filters
+                    : [resolved],
+            isJoined = (c: PlainObject) => filterFieldsOf(c).some(f => joined.includes(f)),
+            server = andOf(clauses.filter(it => !isJoined(it))),
+            browserClauses = clauses.filter(isJoined),
+            browser = andOf(browserClauses),
+            pushdown: PlainObject[] = [];
+        for (const spec of this.joins) {
+            const names = spec.fields.map(f => f.name),
+                own = browserClauses.filter(c => filterFieldsOf(c).every(f => names.includes(f)));
+            if (!own.length) continue;
+            const secondary = this.context.getSource(spec.join.source);
+            if (!secondary?.hasLoaded) return {server, browser, pushdown: 'waiting'};
+            // Read, so the plan follows the joined source's changes.
+            void secondary.cube.store.lastUpdated;
+            const test = parseFilter(andOf(own) as any).getTestFn(),
+                keys: unknown[][] = [];
+            this.joinValues(spec).forEach((values, key) => {
+                const row = Object.fromEntries(
+                    spec.fields.map(f => [f.name, values[f.field] ?? null])
+                );
+                if (test(row as any)) keys.push(JSON.parse(key));
+            });
+            if (keys.length > PUSHDOWN_CAP) {
+                this.logInfo(
+                    `join.pushdownTooLarge: ${keys.length} keys of '${spec.join.source}' match, past ${PUSHDOWN_CAP}, so the filter runs in the browser alone`
+                );
+                continue;
+            }
+            Object.keys(spec.join.on).forEach((field, i) =>
+                pushdown.push({field, op: '=', value: uniq(keys.map(k => k[i]))})
+            );
+        }
+        return {server, browser, pushdown};
     }
 
     /** The names of every field the source's widgets need, with weight fields, sorted. */
@@ -498,11 +559,17 @@ export class BlueprintSource extends HoistBase {
     }: BlueprintDataUpdate) {
         try {
             if (!isEmpty(this.joins)) {
-                if (replace) this.rawRows.clear();
-                remove?.forEach(id => this.rawRows.delete(id));
-                [replace, add, update] = [replace, add, update].map(rows =>
-                    rows ? this.withJoins(rows) : rows
-                );
+                if (replace) {
+                    this.rawRows.clear();
+                    const test = this.browserTest;
+                    replace = this.withJoins(replace).filter(it => !test || test(it));
+                } else if (add || update || remove) {
+                    remove?.forEach(id => this.rawRows.delete(String(id)));
+                    ({add, update, remove} = this.diffJoined(
+                        this.withJoins([...(add ?? []), ...(update ?? [])]),
+                        remove
+                    ));
+                }
             }
             if (replace) {
                 await this.cube.loadDataAsync(replace, {}, aggregates ?? null);
@@ -606,12 +673,40 @@ export class BlueprintSource extends HoistBase {
             if (this.isDestroyed || !this.rawRows.size) return;
             const {store} = this.cube,
                 names = this.joins.flatMap(it => it.fields.map(f => f.name)),
-                update = this.withJoins([...this.rawRows.values()]).filter(it => {
+                {add, update, remove} = this.diffJoined(this.withJoins([...this.rawRows.values()])),
+                changed = update.filter(it => {
                     const data = store.getById(it.id)?.data;
-                    return data && names.some(n => !isEqual(data[n] ?? null, it[n]));
+                    return names.some(n => !isEqual(data?.[n] ?? null, it[n]));
                 });
-            if (update.length) this.cube.updateDataAsync({update}).catch(e => this.fail(e));
+            if (add.length || changed.length || remove.length) {
+                this.cube.updateDataAsync({add, update: changed, remove}).catch(e => this.fail(e));
+            }
         });
+    }
+
+    // The browser's part of the source filter, as a test of a row with its joined values.
+    private get browserTest(): (row: PlainObject) => boolean {
+        const {browser} = this.filterPlan;
+        return browser ? (parseFilter(browser as any).getTestFn() as any) : null;
+    }
+
+    /** Rows with joined values, as the Cube's adds, updates and removes, by the browser filter. */
+    private diffJoined(
+        rows: PlainObject[],
+        removed: unknown[] = []
+    ): {add: PlainObject[]; update: PlainObject[]; remove: string[]} {
+        const test = this.browserTest,
+            {store} = this.cube,
+            ret = {add: [], update: [], remove: removed.map(String)};
+        rows.forEach(row => {
+            const present = !!store.getById(row.id);
+            if (!test || test(row)) {
+                (present ? ret.update : ret.add).push(row);
+            } else if (present) {
+                ret.remove.push(String(row.id));
+            }
+        });
+        return ret;
     }
 
     /**
@@ -710,6 +805,21 @@ const INLINE_ROW_ID = 'xhInlineRowId';
 
 // The catalog aggregators a keyed field's root can apply once per key.
 const ROOT_AGGREGATORS = ['SUM', 'AVG', 'MIN', 'MAX', 'UNIQUE'];
+
+// The most keys a joined source's filter sends to the server: past it, the filter runs in the browser.
+const PUSHDOWN_CAP = 2000;
+
+// Clauses as one filter: null for none, the clause alone for one.
+function andOf(clauses: PlainObject[]): PlainObject {
+    const present = clauses.filter(Boolean);
+    return present.length > 1 ? {op: 'AND', filters: present} : (present[0] ?? null);
+}
+
+// The fields a filter names, at any depth.
+function filterFieldsOf(filter: PlainObject): string[] {
+    if (isArray(filter?.filters)) return filter.filters.flatMap(filterFieldsOf);
+    return isString(filter?.field) ? [filter.field] : [];
+}
 
 // A join's key for a row, as its values of the fields given, in order.
 function keyOf(row: PlainObject, fields: string[]): string {

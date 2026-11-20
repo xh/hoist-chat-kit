@@ -283,7 +283,12 @@ describe('joins', () => {
             };
         }
 
-        function open(joins: JoinDecl[], columns: string[], groupBy: string[] = ['sector']) {
+        function open(
+            joins: JoinDecl[],
+            columns: string[],
+            groupBy: string[] = ['sector'],
+            filter: PlainObject = null
+        ) {
             const dataProvider = provider(),
                 model = new BlueprintModel({
                     blueprint: {
@@ -299,7 +304,8 @@ describe('joins', () => {
                             positions: {
                                 dataset: 'positions',
                                 params: {asOf: {$var: 'asOf'}},
-                                joins
+                                joins,
+                                ...(filter ? {filter} : {})
                             },
                             funds: {dataset: 'funds', params: {asOf: {$var: 'asOf'}}},
                             instruments: {dataset: 'instruments'},
@@ -405,6 +411,50 @@ describe('joins', () => {
                 add: [{id: 'b2', fund: 'B', symbol: 'Y', sector: 'Energy', mktVal: 5}]
             });
             await vi.waitFor(() => expect(leaf('b2')?.fundNav).toBe(200));
+        });
+
+        describe('a source filter on a joined field', () => {
+            const ANN = {field: 'manager', op: '=', value: 'Ann'};
+
+            it('waits for the joined source, then asks for its matching keys only, and filters in the browser', async () => {
+                const {dataProvider, leaf} = open([fundJoin], ['mktVal'], ['sector'], ANN);
+                await wait();
+                expect(dataProvider.subs.positions).toBeUndefined();
+
+                await dataProvider.send('funds');
+                await vi.waitFor(() => expect(dataProvider.subs.positions).toBeTruthy());
+                expect(dataProvider.subs.positions.req.filter).toEqual({
+                    field: 'fund',
+                    op: '=',
+                    value: ['A']
+                });
+
+                await dataProvider.send('positions');
+                await vi.waitFor(() => expect(leaf('a1')).toBeTruthy());
+                expect(leaf('a2')).toBeTruthy();
+                expect(leaf('b1')).toBeUndefined();
+
+                await dataProvider.send('funds', {
+                    update: [{id: 'B', fund: 'B', nav: 200, manager: 'Ann'}]
+                });
+                await vi.waitFor(() => expect(leaf('b1')?.manager).toBe('Ann'));
+            });
+
+            it('filters in the browser alone, past its cap of keys', async () => {
+                const {dataProvider, leaf} = open([fundJoin], ['mktVal'], ['sector'], ANN);
+                const many = Array.from({length: 2001}, (_, n) => ({
+                    id: `F${n}`,
+                    fund: `F${n}`,
+                    nav: 1,
+                    manager: 'Ann'
+                }));
+                await dataProvider.send('funds', {replace: [...many, ...ROWS.funds]});
+                await vi.waitFor(() => expect(dataProvider.subs.positions).toBeTruthy());
+                expect(dataProvider.subs.positions.req.filter).toBeUndefined();
+                await dataProvider.send('positions');
+                await vi.waitFor(() => expect(leaf('a1')).toBeTruthy());
+                expect(leaf('b1')).toBeUndefined();
+            });
         });
     });
 });
