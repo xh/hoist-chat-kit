@@ -629,6 +629,31 @@ describe('blueprint desktop widgets', () => {
                 })
             );
         });
+
+        it('disables a button whose action cannot run now, with the reason as its tooltip', async () => {
+            const registry = scenarioRegistry();
+            let busy = true;
+            registry.addBuiltIns({
+                actions: [
+                    {
+                        name: 'ask',
+                        params: {type: 'object', properties: {}},
+                        check: () => (busy ? 'The chat is busy.' : null),
+                        run: () => {}
+                    }
+                ]
+            });
+            const bp = loadBlueprint('p3-morning-report.json');
+            bp.elements.pnlButtons.config.buttons = [{label: 'Ask', action: {type: 'ask'}}];
+            const model = open(bp, registry),
+                button = widget(ButtonGroupWidgetModel, model, 'pnlButtons');
+            expect(button.blockedReason({type: 'ask'})).toBe('The chat is busy.');
+            const el = render(buttonGroupWidget({model: button})).container.querySelector('button');
+            expect(el.disabled).toBe(true);
+            expect(el.title).toBe('The chat is busy.');
+            busy = false;
+            expect(button.blockedReason({type: 'ask'})).toBeNull();
+        });
     });
 
     describe('buttonGroupInput', () => {

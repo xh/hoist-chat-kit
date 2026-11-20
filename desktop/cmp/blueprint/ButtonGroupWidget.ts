@@ -22,6 +22,11 @@ export class ButtonGroupWidgetModel extends BlueprintWidgetModel<ButtonGroupWidg
             .join(', then ');
     }
 
+    /** Why a button's action cannot run now, such as a busy chat, or null if it can. */
+    blockedReason(action: PlainObject | PlainObject[]): string {
+        return this.blueprintModel.actionBlockedReason(action);
+    }
+
     runAsync(action: PlainObject | PlainObject[]) {
         return this.blueprintModel.runActionsAsync(action);
     }
@@ -34,15 +39,17 @@ export const [ButtonGroupWidget, buttonGroupWidget] = hoistCmp.withFactory({
     render({model, className}) {
         return buttonGroup({
             className,
-            children: model.buttons.map((it, idx) =>
-                button({
+            children: model.buttons.map((it, idx) => {
+                const blocked = model.blockedReason(it.action);
+                return button({
                     key: idx,
                     text: it.label,
                     icon: it.icon ? Icon.icon({faName: it.icon}) : null,
-                    title: model.describe(it.action),
+                    title: blocked ?? model.describe(it.action),
+                    disabled: !!blocked,
                     onClick: () => model.runAsync(it.action).catchDefault()
-                })
-            )
+                });
+            })
         });
     }
 });

@@ -203,12 +203,15 @@ export function toActionSpecs(catalog: ChatUiCatalog): ActionSpec[] {
             describe: params => describeChatUiAction({type, ...params} as ChatUiAction),
             // Refused before the runner asks the user to confirm.
             check: (params, {blueprintModel}) => {
-                if (type !== 'callTool') return null;
-                const host = blueprintModel.hostContext as ChatUiAnswerHostContext;
-                return refuseActionCall(
-                    host?.context.chatModel?.getToolSpec(params.name),
-                    params.name
-                );
+                if (type !== 'send' && type !== 'callTool') return null;
+                const chatModel = (blueprintModel.hostContext as ChatUiAnswerHostContext)?.context
+                    .chatModel;
+                // As ChatUiCard does, a message waits while the chat is busy or blocked.
+                if (chatModel?.isBusy) return 'The chat is busy.';
+                if (chatModel?.sendBlockedReason) return chatModel.sendBlockedReason;
+                return type === 'callTool'
+                    ? refuseActionCall(chatModel?.getToolSpec(params.name), params.name)
+                    : null;
             },
             run: (params, {blueprintModel}) => {
                 const host = blueprintModel.hostContext as ChatUiAnswerHostContext;

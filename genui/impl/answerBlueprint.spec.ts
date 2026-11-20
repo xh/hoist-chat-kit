@@ -85,6 +85,17 @@ describe('toAnswerBlueprint', () => {
         expect(actions.setVariable).toBeTruthy();
     });
 
+    it('holds a message to the chat while the chat is busy or blocked, as the chat card does', () => {
+        const {send} = catalog.registry.actions,
+            check = (chatModel: object) =>
+                send.check({text: 'Hi'}, {
+                    blueprintModel: {hostContext: {context: {chatModel}}}
+                } as any);
+        expect(check({isBusy: true})).toBe('The chat is busy.');
+        expect(check({isBusy: false, sendBlockedReason: 'Sign in first.'})).toBe('Sign in first.');
+        expect(check({isBusy: false, sendBlockedReason: null})).toBeNull();
+    });
+
     const kitOptions = {
         isValid: (name: string, props: object, isPartial: boolean) =>
             catalog.validate(name, props as any, {isPartial}).length === 0,

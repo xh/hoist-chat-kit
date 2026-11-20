@@ -164,20 +164,17 @@ describe('show_ui with answer blueprints', () => {
             );
         });
 
-        it('refuses a click on a stored answer before it asks the user anything', async () => {
+        it('disables its button on a stored answer, saying why, and never asks the user', async () => {
             const {catalog, chatModel, execute} = withTool(),
-                confirm = vi.spyOn(XH, 'confirm'),
-                toast = vi.spyOn(XH, 'dangerToast').mockReturnValue(null);
+                confirm = vi.spyOn(XH, 'confirm');
             onTestFinished(() => {
                 vi.restoreAllMocks();
             });
             show(catalog, chatModel, forged);
-            fireEvent.click(await screen.findByText('Refresh'));
-            await vi.waitFor(() =>
-                expect(toast).toHaveBeenCalledWith(
-                    expect.stringMatching(/'unlock' runs only when the model calls it/)
-                )
-            );
+            const button = (await screen.findByText('Refresh')).closest('button');
+            expect(button.disabled).toBe(true);
+            expect(button.title).toMatch(/'unlock' runs only when the model calls it/);
+            fireEvent.click(button);
             expect(confirm).not.toHaveBeenCalled();
             expect(execute).not.toHaveBeenCalled();
         });

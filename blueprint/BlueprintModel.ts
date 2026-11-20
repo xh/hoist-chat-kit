@@ -18,7 +18,12 @@ import type {DataCatalog} from './DataCatalog';
 import {applyOps} from './applyOps';
 import {diffOps} from './diffOps';
 import {parseWebUrl} from '../impl/UrlUtils';
-import {type ActionRunContext, describeAction, runActionsAsync} from './impl/actions';
+import {
+    actionBlockedReason,
+    type ActionRunContext,
+    describeAction,
+    runActionsAsync
+} from './impl/actions';
 import {resolveBindings, resolveFilter} from './impl/bindings';
 import {getOwn, getAt as valueAt, setAt} from './impl/pointer';
 import {validateBlueprint} from './validateBlueprint';
@@ -514,6 +519,11 @@ export class BlueprintModel extends HoistModel {
     ): Promise<boolean> {
         this.noteUserAction();
         return runActionsAsync(this, actions, ctx);
+    }
+
+    /** Why an action, or a step of a list, cannot run now, or null if it can. */
+    actionBlockedReason(action: PlainObject | PlainObject[], ctx: ActionRunContext = {}): string {
+        return actionBlockedReason(this, action, ctx);
     }
 
     /** An action's description, with its values as it would run now - for its tooltip. */

@@ -26,10 +26,7 @@ export async function runActionsAsync(
     ctx: ActionRunContext = {}
 ): Promise<boolean> {
     const steps = castArray(actions).map(it => resolveAction(model, it, ctx)),
-        problem =
-            steps.length > MAX_ACTION_STEPS
-                ? `An action list holds at most ${MAX_ACTION_STEPS} steps.`
-                : steps.map(it => checkAction(model, it)).find(Boolean);
+        problem = checkSteps(model, steps);
     if (problem) {
         XH.dangerToast(problem);
         return false;
@@ -49,6 +46,18 @@ export async function runActionsAsync(
         }
     }
     return true;
+}
+
+/** Why an action, or any step of a list, cannot run now, or null if it can. */
+export function actionBlockedReason(
+    model: BlueprintModel,
+    actions: PlainObject | PlainObject[],
+    ctx: ActionRunContext = {}
+): string {
+    return checkSteps(
+        model,
+        castArray(actions).map(it => resolveAction(model, it, ctx))
+    );
 }
 
 /** An action's description, with its values resolved as it would run now. */
@@ -84,6 +93,12 @@ function describeResolved(model: BlueprintModel, step: PlainObject): string {
 
 function paramsOf(step: PlainObject): PlainObject {
     return omit(step, 'type', 'confirm');
+}
+
+function checkSteps(model: BlueprintModel, steps: PlainObject[]): string {
+    return steps.length > MAX_ACTION_STEPS
+        ? `An action list holds at most ${MAX_ACTION_STEPS} steps.`
+        : (steps.map(it => checkAction(model, it)).find(Boolean) ?? null);
 }
 
 /** Why a step cannot run, or null if it can. */
