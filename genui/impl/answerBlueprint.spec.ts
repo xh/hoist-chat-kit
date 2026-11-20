@@ -568,6 +568,26 @@ describe('toAnswerBlueprint', () => {
             });
             expect(degradeAnswer(bp, ctx)).toEqual(bp);
         });
+
+        it('shows no actions on a card until it is complete, as the chat card does', () => {
+            const card = {
+                    component: 'card',
+                    props: {
+                        title: 'Acme',
+                        fields: [
+                            {label: 'Rating', value: 'A+'},
+                            {label: 'Tier', value: '1'}
+                        ],
+                        actions: [
+                            {type: 'send', label: 'Trades', text: 'Show trades.'},
+                            {type: 'send', label: 'Orders', text: 'Show orders.'}
+                        ]
+                    }
+                },
+                streaming = translate({c: card}, 'c', ['c']);
+            expect(streaming.elements['c-actions']).toBeUndefined();
+            expect(translate({c: card}, 'c').elements['c-actions']).toBeTruthy();
+        });
     });
 
     it.each(

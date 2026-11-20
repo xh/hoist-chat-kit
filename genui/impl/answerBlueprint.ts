@@ -428,9 +428,8 @@ function toCard(id: string, props: PlainObject, isPartial: boolean): Translation
     const fields = (isPartial ? dropRight(props.fields) : (props.fields ?? [])).filter(
             isPlainObject
         ),
-        actions = (isPartial ? dropRight(props.actions) : (props.actions ?? [])).filter(
-            isPlainObject
-        );
+        // As ChatUiCard does, no action shows until the card is complete.
+        actions = (isPartial ? [] : (props.actions ?? [])).filter(isPlainObject);
     if (!fields.length) return null;
     const row: PlainObject = {},
         inline = fields.map((f, idx) => {
