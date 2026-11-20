@@ -92,16 +92,13 @@ export class BlueprintDocumentModel extends HoistModel {
 
         const {blueprintModel} = this,
             blueprint = this.migrate ? this.migrate(record.blueprint) : record.blueprint,
-            was = {access: blueprintModel.access, mode: blueprintModel.mode};
+            checked = blueprintModel.validate(blueprint);
+        // Checked before the model changes, so a refused blueprint leaves the open one as it was.
+        if (checked.some(it => it.severity === 'error')) return checked;
         blueprintModel.setAccess(access);
         blueprintModel.setMode(record.kind === 'draft' ? 'design' : 'run');
         const issues = blueprintModel.setBlueprint(blueprint);
-        if (issues.some(it => it.severity === 'error')) {
-            // The model keeps the blueprint it had, so it keeps that one's access and mode too.
-            blueprintModel.setAccess(was.access);
-            blueprintModel.setMode(was.mode);
-            return issues;
-        }
+        if (issues.some(it => it.severity === 'error')) return issues;
         this.opened(record, access);
         return issues;
     }

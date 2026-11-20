@@ -155,17 +155,19 @@ describe('BlueprintDocumentModel', () => {
         await expect(doc.deleteAsync()).rejects.toThrow(/Only a writer/);
     });
 
-    it('keeps the open blueprint, its access and its mode when another fails to open', async () => {
+    it('keeps the open blueprint, its access, mode and run-mode changes when another fails to open', async () => {
         const {repository, grant, id} = await created();
         await repository.publishAsync(id, {base: 1});
         grant.access = 'read';
         const {blueprintModel, doc} = session(repository);
         await doc.openAsync(id);
+        blueprintModel.setTransientValue('/elements/posGrid/config/title', 'Mine');
         const before = blueprintModel.blueprint,
             broken = await repository.createAsync({name: 'Broken', blueprint: {root: 'nowhere'}});
 
         expect(errors(await doc.openAsync(broken.id, {as: 'draft'})).length).toBeGreaterThan(0);
         expect(blueprintModel.blueprint).toBe(before);
+        expect(blueprintModel.effective.elements.posGrid.config.title).toBe('Mine');
         expect([blueprintModel.mode, blueprintModel.access, doc.document.id]).toEqual([
             'run',
             'read',
