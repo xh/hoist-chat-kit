@@ -50,6 +50,7 @@ import {
     resolveFormat,
     type ResolvedFieldDisplay
 } from './impl/formats';
+import {rendererFields} from './impl/builtInWidgets';
 import {joinFields, type JoinField} from './impl/joins';
 import {getOwn} from './impl/pointer';
 import {withInlineType} from './impl/variableValues';
@@ -390,8 +391,11 @@ export class BlueprintSource extends HoistBase {
     @computed
     private get requestedFields(): string[] {
         const joined = this.joins.flatMap(it => it.fields.map(f => f.name)),
+            demanded = this.demandedNames,
             names = uniq([
-                ...this.demandedNames.filter(it => !joined.includes(it)),
+                ...demanded.filter(it => !joined.includes(it)),
+                // A catalog renderer may read other fields of a row, such as a progress bar's max.
+                ...demanded.flatMap(it => rendererFields(this.displayOf(it).renderer)),
                 ...this.joins.flatMap(it => Object.keys(it.join.on ?? {})),
                 ...this.joinDemand
             ]).filter(it => this.fields[it]),

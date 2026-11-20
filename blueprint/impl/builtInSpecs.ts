@@ -9,6 +9,7 @@ import {
     resolveDateRange,
     shiftByPeriod
 } from '@xh/hoist/cmp/daterange';
+import {progressBar} from '@xh/hoist/cmp/progressbar';
 import {sparkline, type SparklineColorBy, type SparklineType} from '@xh/hoist/cmp/sparkline';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import type {BlueprintRegistry, RendererSpec, ResolverSpec} from '../BlueprintRegistry';
@@ -92,6 +93,18 @@ const RENDER: Record<string, RendererSpec['render']> = {
         return badge({
             children: formatValue(value),
             intent: intent && intent !== 'none' ? intent : null
+        });
+    },
+    progress: (value, {config, record, formatValue}) => {
+        if (value == null) return null;
+        const fromRow = (key: string) => (config[key] ? record?.[config[key] as string] : null),
+            max = (fromRow('maxField') ?? config.max ?? 1) as number,
+            target = (fromRow('targetField') ?? config.target) as number;
+        return progressBar({
+            value: value as number,
+            max,
+            ...(target != null ? {target} : {}),
+            valueRenderer: (v: number) => formatValue(v)
         });
     },
     sparkline: (value, {config, isAggregate, columnRange}) => {

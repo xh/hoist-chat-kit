@@ -1660,6 +1660,9 @@ const TREE_COLUMN = 'group';
 const SOURCE_DEMANDS: Record<string, (config: PlainObject) => WidgetDemand> = {
     cubeGrid: cfg => ({
         fields: fieldNames([
+            ...Object.values<PlainObject>(cfg.columns ?? {}).flatMap(it =>
+                rendererFields(it?.renderer)
+            ),
             ...castArray(cfg.columnState ?? []).map(it => (isString(it) ? it : it?.field)),
             ...Object.keys(cfg.columns ?? {}),
             ...castArray(cfg.sortBy ?? []).map(it => String(it).split('|')[0]),
@@ -1724,6 +1727,13 @@ function mergeDemands(
     return mergeWith({...a}, b, (x: WidgetDemand, y: WidgetDemand) =>
         x && y ? {fields: uniq([...x.fields, ...y.fields]), groupBy: []} : undefined
     );
+}
+
+/** The fields of a row a renderer's config reads beside its own, such as a progress bar's max. */
+export function rendererFields(renderer: unknown): string[] {
+    if (!renderer || typeof renderer !== 'object') return [];
+    const r = renderer as PlainObject;
+    return [r.maxField, r.targetField].filter(isString);
 }
 
 function fieldNames(names: unknown[]): string[] {
@@ -2079,6 +2089,18 @@ export const BUILT_IN_RENDERER_INFO: Omit<RendererSpec, 'render' | 'exportValue'
             types: ['number', 'int']
         },
         config: {}
+    },
+    {
+        name: 'progress',
+        appliesTo: {types: ['number', 'int']},
+        config: {
+            max: 'number, the value that fills the bar. Default 1',
+            maxField: 'a field of the row whose value fills the bar, such as a limit',
+            target: 'number, where to mark a goal on the bar',
+            targetField: 'a field of the row whose value marks the goal'
+        },
+        guidance:
+            'Draws a value as a bar filled to its share of a max, with its formatted value, such as usage against a limit.'
     },
     {
         name: 'sparkline',
