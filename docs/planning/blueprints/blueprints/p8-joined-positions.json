@@ -1,0 +1,32 @@
+{
+    "schema": {
+        "blueprint": 1,
+        "widgets": {"dashCanvas": 1, "cubeGrid": 1},
+        "resolvers": {"previousBusinessDay": 1}
+    },
+    "variables": {
+        "asOf": {"type": "localDate", "label": "As of", "setBy": "prompt", "default": {"resolver": "previousBusinessDay"}}
+    },
+    "sources": {
+        "positions": {
+            "dataset": "positions",
+            "params": {"asOf": {"$var": "asOf"}},
+            "joins": [{"source": "funds", "on": {"fund": "fund"}, "fields": ["manager", "style", "nav"]}],
+            "filter": {"field": "style", "op": "=", "value": ["Macro", "Credit"]}
+        },
+        "funds": {"dataset": "fundSummary", "params": {"asOf": {"$var": "asOf"}}}
+    },
+    "root": "dashboard",
+    "elements": {
+        "dashboard": {"component": "dashCanvas", "children": [{"id": "posGrid", "x": 0, "y": 0, "w": 12, "h": 10}]},
+        "posGrid": {
+            "component": "cubeGrid",
+            "config": {
+                "source": "positions",
+                "title": "Macro and Credit Positions by Manager",
+                "groupBy": ["manager", "style", "fund"],
+                "columnState": ["nav", "mktVal", "pnlDay"]
+            }
+        }
+    }
+}

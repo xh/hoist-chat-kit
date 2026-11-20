@@ -1,0 +1,47 @@
+{
+    "base": 12,
+    "description": "Add a lookback prompt with a return over it, then a date range picker for the price chart",
+    "ops": [
+        {"op": "set", "path": "/variables/lookback", "value": {"type": "period", "label": "Lookback", "setBy": "prompt", "default": {"value": "3M"}}},
+        {
+            "op": "set",
+            "path": "/variables/lookbackStart",
+            "value": {"type": "localDate", "setBy": "resolver", "compute": {"resolver": "periodStart", "args": {"asOf": {"$var": "asOf"}, "period": {"$var": "lookback"}}}}
+        },
+        {
+            "op": "set",
+            "path": "/sources/positions/fields/retLookback",
+            "value": {"field": "return", "label": "Lookback Return", "params": {"start": {"$var": "lookbackStart"}, "end": {"$var": "asOf"}}}
+        },
+        {"op": "set", "path": "/presets/posViews/items/pnl/set/elements/posGrid/config/columnState", "value": ["mktVal", "pnlDay", "pnlMtd", "pnlYtd", "retLookback"]},
+        {
+            "op": "set",
+            "path": "/presets/posViews/items/risk/set/elements/posGrid/config/columnState",
+            "value": ["grossExposure", "netExposure", "betaAdjExposure", "beta", "var95", "pctNav", "retYtd", "retLookback", "delta", "vega"]
+        },
+        {
+            "op": "set",
+            "path": "/variables/priceRange",
+            "value": {"type": "dateRange", "label": "Price dates", "setBy": {"element": "priceRangePicker"}, "default": {"value": {"kind": "relative", "count": 3, "unit": "months"}}}
+        },
+        {
+            "op": "set",
+            "path": "/variables/priceStart",
+            "value": {"type": "localDate", "setBy": "resolver", "compute": {"resolver": "rangeStart", "args": {"range": {"$var": "priceRange"}, "asOf": {"$var": "asOf"}}}}
+        },
+        {
+            "op": "set",
+            "path": "/variables/priceEnd",
+            "value": {"type": "localDate", "setBy": "resolver", "compute": {"resolver": "rangeEnd", "args": {"range": {"$var": "priceRange"}, "asOf": {"$var": "asOf"}}}}
+        },
+        {"op": "set", "path": "/sources/prices/params/end", "value": {"$var": "priceEnd"}},
+        {"op": "set", "path": "/elements/priceChart/config/title", "value": "Price"},
+        {
+            "op": "addElement",
+            "id": "priceRangePicker",
+            "element": {"component": "dateRangePicker", "config": {}},
+            "parent": "positions",
+            "child": {"x": 8, "y": 0, "w": 4, "h": 1}
+        }
+    ]
+}

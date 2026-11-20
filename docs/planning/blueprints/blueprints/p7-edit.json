@@ -1,0 +1,8 @@
+{
+    "base": 12,
+    "description": "Add a P&L history sparkline and percent of NAV as a bar to the positions grid",
+    "ops": [
+        {"op": "set", "path": "/elements/posGrid/config/columnState", "value": ["mktVal", "pnlDay", "pnlHistory", "pctNav", "grossExposure", "netExposure"]},
+        {"op": "set", "path": "/elements/posGrid/config/columns", "value": {"pctNav": {"renderer": "progress"}}}
+    ]
+}

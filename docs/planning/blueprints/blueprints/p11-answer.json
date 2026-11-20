@@ -1,0 +1,16 @@
+{
+    "schema": {"blueprint": 1, "widgets": {"box": 1, "tileFrame": 1, "statCard": 1, "callout": 1}},
+    "sources": {"oakMount": {"artifact": "art_3b8"}},
+    "root": "oakAnswer",
+    "elements": {
+        "oakAnswer": {"component": "box", "config": {"direction": "column"}, "children": [{"id": "oakCards"}, {"id": "oakNote"}]},
+        "oakCards": {"component": "tileFrame", "config": {"title": "Oak Mount Today"}, "children": [{"id": "oakNav"}, {"id": "oakPnlDay"}, {"id": "oakPnlMtd"}]},
+        "oakNav": {"component": "statCard", "config": {"source": "oakMount", "field": "nav"}},
+        "oakPnlDay": {"component": "statCard", "config": {"source": "oakMount", "field": "pnlDay", "trend": "pnlHistory"}},
+        "oakPnlMtd": {"component": "statCard", "config": {"source": "oakMount", "field": "pnlMtd"}},
+        "oakNote": {
+            "component": "callout",
+            "config": {"intent": "primary", "title": "Today", "text": "Oak Mount made {oakMount.pnlDay} today, which takes its month to {oakMount.pnlMtd}."}
+        }
+    }
+}

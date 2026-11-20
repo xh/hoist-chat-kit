@@ -4,8 +4,9 @@
 > what they see and do, and what the scenario tests in [`spec.md`](./spec.md). The next step
 > writes the Data Catalog for each domain and the blueprint JSON for each scenario.
 
-The scenarios run from simple to complex. Five use portfolio data and three use Weather V2.
-Three more wait until the rest work: see [Follow-up](#follow-up).
+The scenarios run from simple to complex. P1 to P5 and W1 to W3b test the core format. P6 to
+P11 and W4 test step 11's widgets and the joins. Three more wait until the rest work: see
+[Follow-up](#follow-up).
 The portfolio scenarios run against an extended position dataset, closer to what client apps
 hold. Its Data Catalog is also the starting point for extending Toolbox's position generator.
 The weather scenarios are simpler than client data, and show that the system works outside
@@ -20,7 +21,8 @@ finance.
 | `positions` | `asOf` (`localDate`) | One row per position. Updates live for the current day |
 | `orders` | `asOf` | One row per order. Updates live as orders arrive |
 | `hypotheticalPortfolio` | `portfolio`, `asOf` | The position fields, for a hypothetical portfolio |
-| `prices` | `symbol`, `start`, `end` | One row per day: `open`, `high`, `low`, `close` and `volume` |
+| `fundSummary` | `asOf`, `fund` | One row per fund: `manager`, `style`, `nav`, `pnlDay`, `pnlMtd`, `pnlYtd`, and the series `pnlHistory`, `cumPnlHistory` and `drawdownHistory`. Keyed by `fund`, so positions can join it |
+| `prices` | `symbol`, `start`, `end` | One row per day: `open`, `high`, `low`, `close` and `volume`. Keyed by `symbol` and `day` |
 
 The `positions` dataset extends Toolbox's current data:
 
@@ -33,6 +35,7 @@ The `positions` dataset extends Toolbox's current data:
 | Greeks | `delta`, `gamma`, `vega`, `theta`, on options only |
 | Fixed income | `duration`, `dv01`, `yield`, on bonds only |
 | Risk | `beta`, `var95`, `var99` |
+| Series | `closeHistory` and `pnlHistory`, recent values as number arrays. `pnlHistory` sums at group rows |
 | Parameterized | `return(start, end)`, and `shockedPnl(shock)` for an equity shock as a fraction |
 
 The `orders` dataset carries the position dimensions, so a selection in a positions grid
@@ -221,6 +224,117 @@ weights, and run the same stress on it."
 - An app widget, `portfolioBuilder`, sets an app-type variable, `portfolio`, that a source binds.
 - Two datasets with the same fields, `positions` and `hypotheticalPortfolio`, used by sources side by side.
 
+### P6. A fund overview from one request
+
+**Who.** A PM, in design mode, on an empty blueprint. This is the "whole dashboard from one
+request" scenario.
+
+**Prompt.** "Build me a fund overview. Headline NAV and today's, MTD and YTD P&L, each with its
+trend. Positions by sector and symbol, with a sparkline of each one's recent closes. And where
+today's P&L sits by sector and strategy."
+
+**Sees.**
+
+- Fund and as-of prompts in the blueprint's toolbar.
+- A row of four stat cards over `fundSummary`, each with a trend line under its figure.
+- A grid of positions grouped by sector, then symbol, with a sparkline column of recent closes.
+- A heatmap of day P&L, with sectors across and strategies down.
+
+**Tests.**
+
+- Two sources whose `asOf` and `fund` parameters bind the same variables.
+- A statCard `trend`, a series field drawn as a sparkline, and a heatmap whose axes are
+  dimensions.
+- The grid and the heatmap share one source.
+
+### P7. Sparklines in a grid
+
+**Who.** The P2 PM, on the P2 dashboard, in design mode.
+
+**Prompt.** "Add a sparkline of each position's P&L history to the positions grid, and show
+percent of NAV as a bar."
+
+**Sees.** Two new columns. Group rows draw the summed P&L history on their own scale.
+
+**Tests.**
+
+- An edit to the grid alone, with no new source.
+- A series column, and the `progress` renderer on `pctNav`.
+
+### P8. Fund details joined onto positions
+
+**Who.** A PM, in design mode, on an empty blueprint.
+
+**Prompt.** "Show positions grouped by fund manager and style, with each fund's NAV beside its
+positions. Only Macro and Credit funds."
+
+**Sees.** A grid of positions grouped by manager, then style, then fund, with a NAV column.
+NAV shows on fund rows and at the total.
+
+**Tests.**
+
+- A join on `fundSummary` by `fund`, bringing `manager`, `style` and `nav`.
+- Grouping by joined dimensions, and a filter on a joined field.
+- Both sources bind `asOf` to the same variable.
+
+### P9. A heatmap that drives a grid
+
+**Who.** A risk manager, in design mode, on an empty blueprint.
+
+**Prompt.** "Show today's P&L by sector and strategy as a heatmap. When I click a cell, list
+its positions below."
+
+**Sees.** A heatmap over a grid. Clicking a cell filters the grid to its sector and strategy.
+Clearing it shows every position.
+
+**Tests.**
+
+- The heatmap's `selection` output sets a filter variable, and the grid binds it.
+- One positions source for both.
+
+### P10. A lookback and a date range
+
+**Who.** The P3 designer, on the P3 report.
+
+**Prompts.**
+
+1. "Add a lookback prompt, default 3M, and show each symbol's return over it."
+2. "Let me pick the price chart's dates."
+
+**Sees.**
+
+1. A lookback prompt in the toolbar, and a return column in the positions grid.
+2. A date range picker for the price chart, which still waits for a selected symbol.
+
+**Tests.**
+
+- A `period` variable that the user sets, with default `3M`.
+- A `return` instance whose `start` is a `periodStart` resolver over the period and `asOf`.
+- A column added through the grid's presets, where a preset controls its column state.
+- A `dateRange` variable, bound to `prices` through `rangeStart` and `rangeEnd`.
+
+### P11. An answer's cards and note added to a dashboard
+
+**Who.** The P2 PM, with a chat beside the dashboard, in run mode.
+
+**Prompts.**
+
+1. "How is Oak Mount doing today?"
+2. "Put those numbers and the note on my dashboard."
+
+**Sees.**
+
+1. An answer with stat cards and a callout over the query result.
+2. The Architect asks for design mode, then adds a `fundSummary` source, a row of stat cards
+   and the callout to the dashboard. The fund becomes a prompt that defaults to Oak Mount.
+
+**Tests.**
+
+- An answer's stat cards and callout added to a host.
+- A literal parameter becomes a host variable (decision 135).
+- The callout's text reads `{source.field}`, never a number the model computed.
+- Design mode is asked for before any edit.
+
 ## Weather
 
 ### W1. Weather for one city
@@ -281,6 +395,18 @@ it.
   and turns the computed numbers into widgets over a source.
 - Several segments in one reply, each its own blueprint, are covered by the library's tests and
   a scripted conversation, not by this scenario.
+
+### W4. One city's day on two axes
+
+**Who.** A weather user, in design mode, on an empty blueprint.
+
+**Prompt.** "London today: temperature and chance of rain on one chart, each on its own axis,
+with headline numbers above."
+
+**Sees.** Stat cards over current weather, and a chart of temperature on the left axis and
+chance of rain on the right.
+
+**Tests.** A chart's `y2` on a second axis, outside finance.
 
 ## Follow-up
 

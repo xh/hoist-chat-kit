@@ -1,0 +1,34 @@
+{
+    "schema": {"blueprint": 1, "widgets": {"dashCanvas": 1, "tileFrame": 1, "statCard": 1, "chart": 1}},
+    "variables": {
+        "city": {"type": "string", "label": "City", "default": {"value": "London"}},
+        "units": {"type": "string", "label": "Units", "default": {"value": "metric"}}
+    },
+    "sources": {
+        "current": {"dataset": "currentWeather", "params": {"city": {"$var": "city"}, "units": {"$var": "units"}}},
+        "forecast": {"dataset": "weather", "params": {"city": {"$var": "city"}, "units": {"$var": "units"}}}
+    },
+    "root": "dashboard",
+    "elements": {
+        "dashboard": {
+            "component": "dashCanvas",
+            "children": [{"id": "now", "x": 0, "y": 0, "w": 12, "h": 2}, {"id": "dayChart", "x": 0, "y": 2, "w": 12, "h": 6}]
+        },
+        "now": {"component": "tileFrame", "config": {"title": {"$var": "city"}}, "children": [{"id": "nowConditions"}, {"id": "nowTemp"}, {"id": "nowHumidity"}, {"id": "nowWindSpeed"}]},
+        "nowConditions": {"component": "statCard", "config": {"source": "current", "field": "conditions"}},
+        "nowTemp": {"component": "statCard", "config": {"source": "current", "field": "temp"}},
+        "nowHumidity": {"component": "statCard", "config": {"source": "current", "field": "humidity"}},
+        "nowWindSpeed": {"component": "statCard", "config": {"source": "current", "field": "windSpeed"}},
+        "dayChart": {
+            "component": "chart",
+            "config": {
+                "source": "forecast",
+                "title": "Temperature and Chance of Rain",
+                "type": "line",
+                "x": "time",
+                "y": ["temp"],
+                "y2": ["precipProbability"]
+            }
+        }
+    }
+}

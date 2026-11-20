@@ -85,21 +85,20 @@ position.
 **Prompts.**
 
 1. "Add a lookback prompt, default 3M, and show each symbol's return over it."
-2. "Under the grid, chart the selected symbol's closes. Let me pick the chart's dates."
+2. "Let me pick the price chart's dates."
 
 **Sees.**
 
-1. A lookback prompt in the toolbar, and a return column whose header names the period.
-2. A chart of `prices` with its own date range picker. It asks for a symbol until one is
-   selected.
+1. A lookback prompt in the toolbar, and a return column in the positions grid.
+2. A date range picker for P3's price chart, which still waits for a selected symbol.
 
 **Tests.**
 
-- A `period` variable, set by a prompt, with default `3M`.
+- A `period` variable, set by the user, with default `3M`.
 - A `return` instance whose `start` binds `periodStart` over the period and `asOf`.
-- A `dateRange` variable set by a `dateRangePicker`, bound to `prices` through `rangeStart` and
-  `rangeEnd`.
-- A `symbol` param bound to the grid's selection, which waits while it is empty (decision 140).
+- A `dateRange` variable bound to `prices` through `rangeStart` and `rangeEnd`.
+- The `symbol` param stays bound to the grid's selection, which waits while it is empty
+  (decision 140).
 
 ### P11. An answer's cards and note added to a dashboard
 
@@ -127,12 +126,13 @@ position.
 
 **Who.** A weather user, in design mode, on an empty blueprint.
 
-**Prompt.** "London today: temperature as a line and chance of rain as columns on one chart,
+**Prompt.** "London today: temperature and chance of rain on one chart, each on its own axis,
 with headline numbers above."
 
 **Sees.** A tileFrame of statCards over current weather, and a chart with `y2` on a second axis.
 
-**Tests.** A chart with `y2` and its own chart type, outside finance.
+**Tests.** A chart's `y2` on a second axis, outside finance. A chart has one type for all its
+series, so the prompt does not ask for columns.
 
 ## Scoring
 

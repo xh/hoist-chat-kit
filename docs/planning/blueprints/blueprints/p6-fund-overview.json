@@ -1,0 +1,50 @@
+{
+    "schema": {
+        "blueprint": 1,
+        "widgets": {"dashCanvas": 1, "tileFrame": 1, "statCard": 1, "cubeGrid": 1, "heatmap": 1},
+        "variableTypes": {"toolbox.fund": 1},
+        "resolvers": {"toolbox.userFund": 1, "previousBusinessDay": 1}
+    },
+    "variables": {
+        "fund": {"type": "toolbox.fund", "label": "Fund", "setBy": "prompt", "default": {"resolver": "toolbox.userFund"}},
+        "asOf": {"type": "localDate", "label": "As of", "setBy": "prompt", "default": {"resolver": "previousBusinessDay"}}
+    },
+    "sources": {
+        "fund": {"dataset": "fundSummary", "params": {"asOf": {"$var": "asOf"}, "fund": {"$var": "fund"}}},
+        "positions": {"dataset": "positions", "params": {"asOf": {"$var": "asOf"}, "fund": {"$var": "fund"}}}
+    },
+    "root": "dashboard",
+    "elements": {
+        "dashboard": {
+            "component": "dashCanvas",
+            "children": [
+                {"id": "headline", "x": 0, "y": 0, "w": 12, "h": 2},
+                {"id": "posGrid", "x": 0, "y": 2, "w": 7, "h": 8},
+                {"id": "pnlHeatmap", "x": 7, "y": 2, "w": 5, "h": 8}
+            ]
+        },
+        "headline": {
+            "component": "tileFrame",
+            "config": {},
+            "children": [{"id": "headlineNav"}, {"id": "headlinePnlDay"}, {"id": "headlinePnlMtd"}, {"id": "headlinePnlYtd"}]
+        },
+        "headlineNav": {"component": "statCard", "config": {"source": "fund", "field": "nav", "trend": "cumPnlHistory"}},
+        "headlinePnlDay": {"component": "statCard", "config": {"source": "fund", "field": "pnlDay", "trend": "pnlHistory"}},
+        "headlinePnlMtd": {"component": "statCard", "config": {"source": "fund", "field": "pnlMtd", "trend": "cumPnlHistory"}},
+        "headlinePnlYtd": {"component": "statCard", "config": {"source": "fund", "field": "pnlYtd", "trend": "cumPnlHistory"}},
+        "posGrid": {
+            "component": "cubeGrid",
+            "config": {
+                "source": "positions",
+                "title": "Positions by Sector",
+                "groupBy": ["sector", "symbol"],
+                "columnState": ["mktVal", "pnlDay", "closeHistory"],
+                "sortBy": "mktVal|desc"
+            }
+        },
+        "pnlHeatmap": {
+            "component": "heatmap",
+            "config": {"source": "positions", "title": "Day P&L by Sector and Strategy", "x": "sector", "y": "strategy", "value": "pnlDay"}
+        }
+    }
+}

@@ -1,0 +1,35 @@
+{
+    "schema": {
+        "blueprint": 1,
+        "widgets": {"dashCanvas": 1, "heatmap": 1, "cubeGrid": 1},
+        "resolvers": {"previousBusinessDay": 1}
+    },
+    "variables": {
+        "asOf": {"type": "localDate", "label": "As of", "setBy": "prompt", "default": {"resolver": "previousBusinessDay"}},
+        "cell": {"type": "filter", "setBy": {"element": "pnlHeatmap", "output": "selection"}}
+    },
+    "sources": {
+        "positions": {"dataset": "positions", "params": {"asOf": {"$var": "asOf"}}}
+    },
+    "root": "dashboard",
+    "elements": {
+        "dashboard": {
+            "component": "dashCanvas",
+            "children": [{"id": "pnlHeatmap", "x": 0, "y": 0, "w": 12, "h": 6}, {"id": "cellGrid", "x": 0, "y": 6, "w": 12, "h": 6}]
+        },
+        "pnlHeatmap": {
+            "component": "heatmap",
+            "config": {"source": "positions", "title": "Day P&L by Sector and Strategy", "x": "sector", "y": "strategy", "value": "pnlDay"}
+        },
+        "cellGrid": {
+            "component": "cubeGrid",
+            "config": {
+                "source": "positions",
+                "title": "Positions",
+                "columnState": ["symbol", "sector", "strategy", "trader", "mktVal", "pnlDay"],
+                "sortBy": "pnlDay|asc",
+                "filter": {"$var": "cell"}
+            }
+        }
+    }
+}

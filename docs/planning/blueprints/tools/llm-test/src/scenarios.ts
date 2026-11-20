@@ -55,6 +55,33 @@ const resolveVars = (bp: Blueprint, o: any): any =>
 /** A filter that names Technology, directly or through variables. */
 const techFilter = (bp: Blueprint, c: any) => JSON.stringify(resolveVars(bp, c.filter ?? {}) ?? {}).includes('Technology');
 
+/** The sources over a dataset. */
+const sourcesOf = (bp: Blueprint, ds: string) => Object.entries<any>(bp.sources ?? {}).filter(([, s]) => s.dataset === ds);
+/** The variable a value binds, or null. */
+const varOf = (v: any): string | null => v?.$var ?? null;
+/** True if every source over these datasets binds asOf to one variable. */
+const sharedAsOf = (bp: Blueprint, ...ds: string[]) => {
+    const names = ds.flatMap(d => sourcesOf(bp, d)).map(([, s]) => varOf(s.params?.asOf));
+    return names.length >= ds.length && names.every(n => n && n === names[0]);
+};
+/** The heatmaps of a value by sector and strategy, either way round. */
+const pnlHeatmaps = (bp: Blueprint) => els(bp, 'heatmap').filter(([, e]) => {
+    const c = e.config ?? {};
+    return c.value === 'pnlDay' && [c.x, c.y].sort().join() === 'sector,strategy';
+});
+/** Each join on a source, with the names its fields take there. */
+const joinsOf = (s: any) => (s?.joins ?? []).map((j: any) => ({...j, names: (j.fields ?? []).map((f: string) => j.as?.[f] ?? f)}));
+/** A grid shows a field: in its column state, its columns, or a preset's column state for it. */
+const gridShows = (bp: Blueprint, id: string, field: string) => {
+    const c = bp.elements?.[id]?.config ?? {},
+        presetStates = Object.values<any>(bp.presets ?? {}).flatMap(g => Object.values<any>(g.items ?? {}).map(it => it.set?.elements?.[id]?.config?.columnState));
+    return [c.columnState, ...presetStates].some(st => fieldsOf([st ?? []].flat()).includes(field)) || !!c.columns?.[field];
+};
+/** A variable computed by a resolver. */
+const computedBy = (bp: Blueprint, name: string, resolver: string) => bp.variables?.[name]?.compute?.resolver === resolver;
+/** The text of a template with its references taken out. */
+const literalText = (t: unknown) => String(t ?? '').replace(/\{[^}]*\}/g, '');
+
 const BUILD = 'Mode: design. The user has write access. Build a new blueprint: it starts empty, at version 0.';
 
 export const SCENARIOS: Scenario[] = [
@@ -226,6 +253,123 @@ export const SCENARIOS: Scenario[] = [
             ['every stat card reads a dataset source', o => cfg(o.blueprint, 'statCard').every(c => dataset(o.blueprint, c))],
             ['no artifact or inline source in the host', o => noChatSources(o.blueprint)],
             ['asks for design mode before it edits', askedFirst]
+        ]
+    },
+    {
+        id: 'P6',
+        title: 'A fund overview from one request',
+        context: BUILD,
+        steps: [{
+            prompt: "Build me a fund overview. Headline NAV and today's, MTD and YTD P&L, each with its trend. Positions by sector and symbol, with a sparkline of each one's recent closes. And where today's P&L sits by sector and strategy."
+        }],
+        checks: [
+            ['stat cards over fundSummary, at least three, each with a trend', o => cfg(o.blueprint, 'statCard', c => dataset(o.blueprint, c) === 'fundSummary' && c.trend).length >= 3],
+            ['a positions grid grouped by sector, then symbol', o => gridId(o.blueprint, c => dataset(o.blueprint, c) === 'positions' && c.groupBy?.[0] === 'sector' && c.groupBy?.[1] === 'symbol')],
+            ['that grid shows closeHistory', o => gridShows(o.blueprint, gridId(o.blueprint, c => dataset(o.blueprint, c) === 'positions')!, 'closeHistory')],
+            ['a heatmap of day P&L by sector and strategy', o => pnlHeatmaps(o.blueprint).length],
+            ['the grid and the heatmap share one positions source', o => sourcesOf(o.blueprint, 'positions').length === 1],
+            ['fundSummary and positions bind asOf to one variable', o => sharedAsOf(o.blueprint, 'fundSummary', 'positions')]
+        ]
+    },
+    {
+        id: 'P7',
+        title: 'Sparklines in a grid',
+        host: 'p2-linked-dashboard.json',
+        context: 'Mode: design. The user has write access. They are editing the host blueprint below.',
+        steps: [{prompt: "Add a sparkline of each position's P&L history to the positions grid, and show percent of NAV as a bar."}],
+        checks: [
+            ['the positions grid shows pnlHistory', o => gridShows(o.blueprint, 'posGrid', 'pnlHistory')],
+            ['pctNav draws as a progress bar', o => {
+                const r = o.blueprint.elements?.posGrid?.config?.columns?.pctNav?.renderer ?? o.blueprint.sources?.positions?.fields?.pctNav?.renderer;
+                return gridShows(o.blueprint, 'posGrid', 'pctNav') && (r === 'progress' || r?.name === 'progress');
+            }],
+            ['no new source', o => Object.keys(o.blueprint.sources ?? {}).length === 2]
+        ]
+    },
+    {
+        id: 'P8',
+        title: 'Fund details joined onto positions',
+        context: BUILD,
+        steps: [{prompt: "Show positions grouped by fund manager and style, with each fund's NAV beside its positions. Only Macro and Credit funds."}],
+        checks: [
+            ['positions join fundSummary on fund', o => sourcesOf(o.blueprint, 'positions').some(([, s]) => joinsOf(s).some((j: any) => o.blueprint.sources?.[j.source]?.dataset === 'fundSummary' && j.on?.fund === 'fund'))],
+            ['the join brings manager, style and nav', o => sourcesOf(o.blueprint, 'positions').some(([, s]) => joinsOf(s).some((j: any) => has(j.fields, 'manager', 'style', 'nav')))],
+            ['a grid grouped by the joined manager and style', o => sourcesOf(o.blueprint, 'positions').some(([name, s]) => {
+                const names = joinsOf(s).flatMap((j: any) => j.names),
+                    mgr = names.find((n: string) => /manager/i.test(n)), style = names.find((n: string) => /style/i.test(n));
+                return cfg(o.blueprint, 'cubeGrid', c => c.source === name && has([c.groupBy].flat(), mgr, style)).length;
+            })],
+            ['a filter on style naming Macro and Credit', o => [...Object.values<any>(o.blueprint.sources ?? {}).map(s => s.filter), ...cfg(o.blueprint, 'cubeGrid').map(c => c.filter)].some(f => {
+                const t = JSON.stringify(resolveVars(o.blueprint, f ?? {}) ?? {});
+                return /style/i.test(t) && t.includes('Macro') && t.includes('Credit');
+            })],
+            ['fundSummary and positions bind asOf to one variable', o => sharedAsOf(o.blueprint, 'fundSummary', 'positions')]
+        ]
+    },
+    {
+        id: 'P9',
+        title: 'A heatmap that drives a grid',
+        context: BUILD,
+        steps: [{prompt: "Show today's P&L by sector and strategy as a heatmap. When I click a cell, list its positions below."}],
+        checks: [
+            ['a heatmap of day P&L by sector and strategy', o => pnlHeatmaps(o.blueprint).length],
+            ['its selection sets a filter variable', o => vars(o.blueprint, v => v.type === 'filter' && [v.setBy].flat().some((w: any) => w?.output === 'selection' && pnlHeatmaps(o.blueprint).some(([id]) => id === w.element))).length],
+            ['a positions grid filtered by that variable', o => vars(o.blueprint, v => v.type === 'filter' && [v.setBy].flat().some((w: any) => w?.output === 'selection')).some(([n]) => cfg(o.blueprint, 'cubeGrid', c => dataset(o.blueprint, c) === 'positions' && JSON.stringify(c.filter ?? {}).includes(`"${n}"`)).length)],
+            ['one positions source', o => sourcesOf(o.blueprint, 'positions').length === 1]
+        ]
+    },
+    {
+        id: 'P10',
+        title: 'A lookback and a date range',
+        host: 'p3-morning-report.json',
+        context: 'Mode: design. The user has write access. They are editing the host blueprint below.',
+        steps: [
+            {prompt: "Add a lookback prompt, default 3M, and show each symbol's return over it."},
+            {prompt: "Let me pick the price chart's dates."}
+        ],
+        checks: [
+            ['a period variable defaulting to 3M, set by the user', o => vars(o.blueprint, v => v.type === 'period' && String(v.default?.value).toUpperCase() === '3M' && v.setBy && v.setBy !== 'resolver').length],
+            ['a return instance starting at periodStart over that period', o => Object.values<any>(o.blueprint.sources ?? {}).some(s => Object.values<any>(s.fields ?? {}).some(f => {
+                const start = varOf(f.params?.start), period = varOf(o.blueprint.variables?.[start!]?.compute?.args?.period);
+                return f.field === 'return' && computedBy(o.blueprint, start!, 'periodStart') && o.blueprint.variables?.[period!]?.type === 'period';
+            }))],
+            ['the positions grid shows that return', o => Object.entries<any>(o.blueprint.sources?.positions?.fields ?? {}).some(([n, f]) => f.field === 'return' && computedBy(o.blueprint, varOf(f.params?.start)!, 'periodStart') && gridShows(o.blueprint, 'posGrid', n))],
+            ['prices start and end come from rangeStart and rangeEnd over a dateRange', o => sourcesOf(o.blueprint, 'prices').some(([, s]) => {
+                const start = varOf(s.params?.start)!, end = varOf(s.params?.end)!, range = varOf(o.blueprint.variables?.[start]?.compute?.args?.range)!;
+                return computedBy(o.blueprint, start, 'rangeStart') && computedBy(o.blueprint, end, 'rangeEnd') && o.blueprint.variables?.[range]?.type === 'dateRange';
+            })],
+            ['the date range is set by a dateRangePicker or a prompt', o => vars(o.blueprint, v => v.type === 'dateRange' && (v.setBy === 'prompt' || els(o.blueprint, 'dateRangePicker').some(([id]) => v.setBy?.element === id))).length],
+            ['prices still reads the selected symbol', o => sourcesOf(o.blueprint, 'prices').some(([, s]) => o.blueprint.variables?.[varOf(s.params?.symbol)!]?.setBy?.output === 'selected')]
+        ]
+    },
+    {
+        id: 'P11',
+        title: "An answer's cards and note added to a dashboard",
+        host: 'p2-linked-dashboard.json',
+        mode: 'run',
+        context: 'Mode: run. The user has write access. A chat is open beside the host blueprint below, which the user is looking at. Its asOf is today, 2026-11-19.',
+        steps: [{prompt: 'How is Oak Mount doing today?'}, {prompt: 'Put those numbers and the note on my dashboard.'}],
+        checks: [
+            ['answers with stat cards and a callout', o => o.segments.some(s => segmentWidgets(s, 'statCard').length && segmentWidgets(s, 'callout').length)],
+            ['the host gains a fundSummary source whose fund binds a variable for Oak Mount', o => sourcesOf(o.blueprint, 'fundSummary').some(([, s]) => o.blueprint.variables?.[varOf(s.params?.fund)!]?.default?.value === 'Oak Mount')],
+            ['stat cards over that source, at least two', o => cfg(o.blueprint, 'statCard', c => dataset(o.blueprint, c) === 'fundSummary').length >= 2],
+            ['a callout whose text holds no number of its own', o => {
+                const notes = cfg(o.blueprint, 'callout');
+                return notes.length && notes.every(c => !/\d/.test(literalText(c.text)));
+            }],
+            ['no artifact or inline source in the host', o => noChatSources(o.blueprint)],
+            ['asks for design mode before it edits', askedFirst]
+        ]
+    },
+    {
+        id: 'W4',
+        title: "One city's day on two axes",
+        context: BUILD,
+        steps: [{prompt: 'London today: temperature and chance of rain on one chart, each on its own axis, with headline numbers above.'}],
+        checks: [
+            ['stat cards over current weather', o => cfg(o.blueprint, 'statCard', c => dataset(o.blueprint, c) === 'currentWeather').length],
+            ['a chart over time with temperature on y and chance of rain on y2', o => cfg(o.blueprint, 'chart', c => c.x === 'time' && [c.y].flat().includes('temp') && [c.y2].flat().includes('precipProbability')).length],
+            ['London is a city variable', o => vars(o.blueprint, v => v.default?.value === 'London').length]
         ]
     }
 ];
