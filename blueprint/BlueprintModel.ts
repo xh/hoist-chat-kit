@@ -2,14 +2,21 @@ import {HoistModel, type LoadSpec, type PlainObject} from '@xh/hoist/core';
 import type {FilterSpec} from '@xh/hoist/data';
 import {action, computed, observable, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
-import {cloneDeep, isEmpty, isEqual, omitBy, pickBy} from 'lodash';
-import type {Blueprint, BlueprintEdit, BlueprintIssue, ResolverCall} from './Blueprint';
+import {cloneDeep, dropRight, isEmpty, isEqual, last, omitBy, pickBy, takeRight} from 'lodash';
+import type {
+    Blueprint,
+    BlueprintEdit,
+    BlueprintIssue,
+    BlueprintOp,
+    ResolverCall
+} from './Blueprint';
 import type {BlueprintArtifactProvider, BlueprintDataProvider} from './BlueprintDataProvider';
 import type {BlueprintRegistry} from './BlueprintRegistry';
 import {BlueprintSource} from './BlueprintSource';
 import {BlueprintVariable} from './BlueprintVariable';
 import type {DataCatalog} from './DataCatalog';
 import {applyOps} from './applyOps';
+import {diffOps} from './diffOps';
 import {parseWebUrl} from '../impl/UrlUtils';
 import {type ActionRunContext, describeAction, runActionsAsync} from './impl/actions';
 import {resolveBindings, resolveFilter} from './impl/bindings';
@@ -80,6 +87,10 @@ export class BlueprintModel extends HoistModel {
 
     /** Each edit applied since the blueprint was last replaced whole, oldest first. */
     @observableRef accessor history: (BlueprintEdit & {version: number})[] = [];
+
+    // The edits that undo and redo act on, latest last, each with the blueprint around it.
+    @observableRef private accessor undoStack: UndoEntry[] = [];
+    @observableRef private accessor redoStack: UndoEntry[] = [];
 
     /**
      * The user's mode: design only with write access, else run. In run mode, a change a user makes
@@ -222,6 +233,8 @@ export class BlueprintModel extends HoistModel {
             this.transientValues = {};
             this.commit(bp, issues);
             this.history = [];
+            this.undoStack = [];
+            this.redoStack = [];
         }
         return issues;
     }
@@ -273,6 +286,8 @@ export class BlueprintModel extends HoistModel {
         this.blueprint = null;
         this.version = 0;
         this.history = [];
+        this.undoStack = [];
+        this.redoStack = [];
         this.issues = [];
         this.variables = [];
         this.sources = {};
@@ -287,28 +302,72 @@ export class BlueprintModel extends HoistModel {
      */
     @action
     applyEdit(edit: BlueprintEdit): BlueprintEditResult {
-        if (edit.base != null && edit.base !== this.version) {
-            return {
-                issues: [
-                    {
-                        code: 'edit.staleBase',
-                        severity: 'error',
-                        path: '',
-                        message: `the edit is based on version ${edit.base}, but the blueprint is at ${this.version}. Read it again.`
-                    }
-                ]
-            };
-        }
-        const refused = checkEditAllowed(edit.ops, this.mode, this.access);
-        if (refused) return {issues: [refused]};
-        const {result, issue} = applyOps(this.blueprint ?? {}, edit.ops);
-        if (issue) return {issues: [issue]};
-        if (isEqual(result, this.blueprint)) return {version: this.version, issues: this.issues};
-        const issues = this.validate(result);
-        if (hasErrors(issues)) return {issues};
-        this.commit(result, issues);
-        this.history = [...this.history, {...edit, version: this.version}];
-        return {version: this.version, issues};
+        return this.commitEdit(edit, entry => {
+            this.undoStack = takeRight([...this.undoStack, entry], MAX_UNDO);
+            this.redoStack = [];
+        });
+    }
+
+    /** True if an edit can be undone. See {@link undo}. */
+    get canUndo(): boolean {
+        return this.undoStack.length > 0;
+    }
+
+    /** True if an undone edit can be applied again. See {@link redo}. */
+    get canRedo(): boolean {
+        return this.redoStack.length > 0;
+    }
+
+    /** The description of the edit {@link undo} would revert, or null. */
+    get undoDescription(): string {
+        return last(this.undoStack)?.description ?? null;
+    }
+
+    /** The description of the edit {@link redo} would apply again, or null. */
+    get redoDescription(): string {
+        return last(this.redoStack)?.description ?? null;
+    }
+
+    /**
+     * Revert the latest edit not yet undone, as a new edit, `Undo: <description>`: it takes a new
+     * version and a history entry, and mode, access and validation apply as for any edit. The last
+     * 50 edits can be undone, in turn.
+     */
+    @action
+    undo(): BlueprintEditResult {
+        const entry = last(this.undoStack);
+        if (!entry) return nothingTo('undo');
+        return this.commitEdit(
+            {
+                author: entry.author,
+                description: `Undo: ${entry.description}`,
+                ops: diffOps(this.blueprint ?? {}, entry.before ?? {})
+            },
+            () => {
+                this.undoStack = dropRight(this.undoStack);
+                this.redoStack = [...this.redoStack, entry];
+            }
+        );
+    }
+
+    /**
+     * Apply the latest undone edit again, as a new edit, `Redo: <description>`. A new edit that
+     * is neither an undo nor a redo leaves nothing to redo.
+     */
+    @action
+    redo(): BlueprintEditResult {
+        const entry = last(this.redoStack);
+        if (!entry) return nothingTo('redo');
+        return this.commitEdit(
+            {author: entry.author, description: `Redo: ${entry.description}`, ops: entry.ops},
+            done => {
+                this.redoStack = dropRight(this.redoStack);
+                this.undoStack = takeRight(
+                    [...this.undoStack, {...entry, before: done.before, after: done.after}],
+                    MAX_UNDO
+                );
+            }
+        );
     }
 
     /** The catalogs the blueprint reads, as the Architect's tools take them. */
@@ -478,6 +537,43 @@ export class BlueprintModel extends HoistModel {
     //------------------
     // Implementation
     //------------------
+    // Apply an edit, and on success, hand `onDone` what an undo of it needs.
+    private commitEdit(
+        edit: BlueprintEdit,
+        onDone: (entry: UndoEntry) => void
+    ): BlueprintEditResult {
+        if (edit.base != null && edit.base !== this.version) {
+            return {
+                issues: [
+                    {
+                        code: 'edit.staleBase',
+                        severity: 'error',
+                        path: '',
+                        message: `the edit is based on version ${edit.base}, but the blueprint is at ${this.version}. Read it again.`
+                    }
+                ]
+            };
+        }
+        const refused = checkEditAllowed(edit.ops, this.mode, this.access);
+        if (refused) return {issues: [refused]};
+        const {result, issue} = applyOps(this.blueprint ?? {}, edit.ops);
+        if (issue) return {issues: [issue]};
+        if (isEqual(result, this.blueprint)) return {version: this.version, issues: this.issues};
+        const issues = this.validate(result);
+        if (hasErrors(issues)) return {issues};
+        const before = this.blueprint;
+        this.commit(result, issues);
+        this.history = [...this.history, {...edit, version: this.version}];
+        onDone({
+            author: edit.author,
+            description: edit.description ?? 'Edit',
+            ops: edit.ops,
+            before,
+            after: result
+        });
+        return {version: this.version, issues};
+    }
+
     private commit(bp: Blueprint, issues: BlueprintIssue[]) {
         if (!isEqual(bp.presets, this.blueprint?.presets)) {
             this.activePresets = pickBy(
@@ -535,4 +631,29 @@ function hasErrors(issues: BlueprintIssue[]): boolean {
 // A config value that asks for something: not absent, and not an empty list.
 function isSet(value: unknown): boolean {
     return value != null && !(Array.isArray(value) && value.length === 0);
+}
+
+// An edit as undo and redo keep it, with the blueprint from before and after it.
+interface UndoEntry {
+    author: string;
+    description: string;
+    ops: BlueprintOp[];
+    before: Blueprint;
+    after: Blueprint;
+}
+
+// Undo keeps the blueprint around each of the last edits, so memory stays flat.
+const MAX_UNDO = 50;
+
+function nothingTo(action: 'undo' | 'redo'): BlueprintEditResult {
+    return {
+        issues: [
+            {
+                code: action === 'undo' ? 'edit.nothingToUndo' : 'edit.nothingToRedo',
+                severity: 'error',
+                path: '',
+                message: `There is no edit to ${action}.`
+            }
+        ]
+    };
 }
