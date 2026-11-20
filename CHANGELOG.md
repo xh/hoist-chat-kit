@@ -61,6 +61,20 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   each complete answer. The click switches to design mode for that turn only.
 * Added `ChatToolSpec.allowActions`. Set it to `false` for a tool that only the model may call. A
   UI action that names the tool fails before it asks the user, and `show_ui` refuses the answer.
+* Added design mode for people: `BlueprintDesignModel`, and the placeable components
+  `elementOutline`, `elementInspector`, `widgetPalette`, `variablesEditor`, `sourcesEditor` and
+  `presetsEditor`. Each change is one edit by the user, so undo and history apply. See
+  [Build a designer for people](blueprint/README.md#build-a-designer-for-people).
+* Added `toEditorSpec()`, which turns a widget's config schema into editors, so the inspector
+  edits a new widget's config from its schema alone.
+* Added JSON Schema's `default` to widget config schemas. Design mode shows an unset property at
+  its default, and `BlueprintWidgetModel.configDefault()` applies it.
+* Added `ActionSpec.allowedIn`. The validator refuses an action outside the blueprints it names.
+* Added stored blueprints: the `BlueprintRepository` contract, with one shared draft per blueprint
+  and numbered publishes, and `BlueprintDocumentModel`, which opens, saves, publishes, copies,
+  shares and deletes them. Added `HoistCoreBlueprintRepository`, over hoist-core's `xhBlueprint`
+  endpoints, and `InMemoryBlueprintRepository`, for tests. See
+  [Save, open and publish blueprints](blueprint/README.md#save-open-and-publish-blueprints).
 
 * Added `ChatUiTextFormat`, a grammar for UI in reply text, and `ChatUiCatalogConfig.textFormats`.
   The tag grammar is now the first format, `chatUiTagFormat()`, and the default. `modes` take the

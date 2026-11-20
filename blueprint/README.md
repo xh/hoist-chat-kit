@@ -19,6 +19,10 @@ Key features:
   unit. With any error, nothing applies.
 - **Modes and access.** Run mode runs the blueprint. Design mode, which needs write access,
   changes its definition.
+- **Design mode for people.** Placeable components edit a blueprint's elements, config,
+  variables, sources and presets. Each change is one edit, so undo and history work.
+- **Stored blueprints.** A repository that the app provides keeps one shared draft per blueprint
+  and numbered publishes, and checks the draft's version on every save.
 - **The Architect.** An LLM builds and edits blueprints through tools that read the catalog and
   the registry, and edit through the same engine.
 - **Chat answers.** A UI answer in a chat is a blueprint too, so a user can add it to a dashboard.
@@ -39,6 +43,27 @@ BlueprintModel
     ├── setVariable()             # Set a variable that a prompt, action or the Architect sets
     ├── setMode()                 # Switch mode. Design mode needs write access
     └── runActionsAsync()         # Run an action, or a list of up to 8 as steps
+```
+
+Design mode and storage each add a model over a `BlueprintModel`:
+
+```
+BlueprintDesignModel                  # Design mode for people
+├── selection: BlueprintSelection     # An element, variable, source or preset group
+└── Methods:
+    ├── addWidget() / removeElement() / moveElement() / setConfig() / setChildTitle()
+    ├── addVariable() / updateVariableDecl() / removeVariable()
+    ├── addSource() / changeSourceDataset() / updateSourceDecl() / removeSource()
+    ├── addPresetGroup() / addPresetControl() / duplicatePreset() / removePresetGroup()
+    └── renameId()                    # Rename an element, variable or source everywhere
+
+BlueprintDocumentModel                # A stored blueprint, open in the BlueprintModel
+├── document: BlueprintDocument       # The version open, with the user's access
+├── isDirty / isStale
+└── Methods:
+    ├── openAsync() / createAsync() / reloadAsync()
+    ├── saveDraftAsync() / publishAsync()
+    └── copyAsync() / deleteAsync() / updateAccessAsync()
 ```
 
 A blueprint holds these top-level keys:
@@ -175,6 +200,127 @@ sources and variables, and turns a computed value into a widget over a source.
 A user can also ask in their own words. In run mode, the Architect then calls
 `request_design_mode`, and edits only if the user approves.
 
+### Build a designer for people
+
+Give a `BlueprintDesignModel` to the view and to the design components. Each component fills its
+container, and all of them share the design model's selection:
+
+```typescript
+import {hframe, vframe} from '@xh/hoist/cmp/layout';
+import {panel} from '@xh/hoist/desktop/cmp/panel';
+import {BlueprintDesignModel} from '@xh/hoist-chat-kit/blueprint';
+import {
+    blueprintView,
+    elementInspector,
+    elementOutline,
+    widgetPalette
+} from '@xh/hoist-chat-kit/desktop/cmp/blueprint';
+
+const designModel = new BlueprintDesignModel({blueprintModel: model});
+
+hframe(
+    panel({title: 'Add', width: 180, item: widgetPalette({designModel})}),
+    blueprintView({model, designModel, flex: 1}),
+    vframe({
+        width: 440,
+        items: [
+            panel({title: 'Outline', height: 220, item: elementOutline({designModel})}),
+            panel({title: 'Config', flex: 1, item: elementInspector({designModel})})
+        ]
+    })
+);
+```
+
+| Component | What a designer does with it |
+|-----------|------------------------------|
+| `elementOutline` | See the element tree, and select an element |
+| `elementInspector` | Edit the selected element's config, remove the element, and edit a tab container's tabs |
+| `widgetPalette` | Add a widget, into the selected container or the root |
+| `variablesEditor` | Add, rename and remove variables, and set each one's type, writers, default and options |
+| `sourcesEditor` | Add, rename and remove sources, and set each one's dataset, parameters, filter and fields |
+| `presetsEditor` | Make groups of presets over widgets' preset paths, and edit their presets |
+
+Each change is one edit by the user, with a description, so undo, redo and history apply. Text
+commits on blur or Enter. A refused edit leaves the blueprint as it was, and shows its issues at
+the property. A property that presets control shows a badge, and an edit of it changes the active
+preset. Design mode needs write access, and a chat answer has none.
+
+### Generate a config editor from a schema
+
+`toEditorSpec(schema)` turns a widget's config schema into a tree of `EditorNode`s, one per
+property. The registry's annotations pick an editor: a source select for `x-source`, a field
+picker or a `GroupingChooser` for `x-field`, a `FilterChooser` for `x-filter`, and pickers for
+`x-format`, `x-renderer` and `x-action`. A property marked `x-binding` can take a variable in
+place of a value. A shape with no editor falls back to JSON, so every value stays editable. The
+inspector draws these nodes, so a new widget gets an editor from its schema alone.
+
+### Give a config property a default
+
+Give the property JSON Schema's `default`, not a sentence in its description:
+
+```typescript
+stripeRows: {type: 'boolean', default: true, description: 'Alternate the background of rows.'}
+```
+
+The validator ignores `default`. Design mode shows an unset property at its default, and writes
+nothing until the user changes it. The widget applies it, with `configDefault(key)` on
+`BlueprintWidgetModel`.
+
+### Save, open and publish blueprints
+
+A `BlueprintDocumentModel` opens a stored blueprint in a `BlueprintModel`, through the app's
+repository:
+
+```typescript
+import {BlueprintDocumentModel, HoistCoreBlueprintRepository} from '@xh/hoist-chat-kit/blueprint';
+
+const doc = new BlueprintDocumentModel({
+    blueprintModel: model,
+    repository: new HoistCoreBlueprintRepository()
+});
+
+await doc.openAsync(id); // The latest publish, in run mode
+await doc.openAsync(id, {as: 'draft'}); // The draft, in design mode, for a writer
+await doc.saveDraftAsync();
+await doc.publishAsync('Adds the risk view');
+```
+
+- **One shared draft, numbered publishes.** Writers edit the draft. A publish copies it as the
+  next number and never changes. Readers open only the latest publish.
+- **The repository decides access.** Each record carries `access`, `canPublish` and `canShare`.
+  A record that does not grant write access opens read-only.
+- **One write at a time.** Saves, publishes and copies run in order. A save asked for while
+  another runs joins one follow-up save of the latest blueprint.
+- **Stale drafts.** If another save landed first, the document turns `isStale`. It keeps the
+  user's edits and refuses further saves. Offer `reloadAsync()`, which discards the edits, or
+  `createAsync(name)`, which saves them as a new blueprint.
+- **Renames for personalizations.** The draft keeps the renames of elements, variables and sources
+  since the last publish, and each publish records them.
+
+### Choose a repository
+
+| Repository | Use it for |
+|------------|------------|
+| `HoistCoreBlueprintRepository` | Blueprints in hoist-core's database, through its `xhBlueprint` endpoints. Enable them in hoist-core with the `xhBlueprintConfig` config |
+| `InMemoryBlueprintRepository` | Tests and demos. It keeps nothing, and grants only what its config says: by default, read access |
+| Your own | Another store. Implement `BlueprintRepository`, as below |
+
+### Write a repository
+
+Implement `BlueprintRepository`. Its doc comment states the contract in full. The essentials:
+
+- Act for the signed-in user. List only the blueprints that user may read, and fill each record's
+  `access`, `canPublish` and `canShare`. Only a server is a security boundary, so refuse drafts
+  and older publishes to readers there.
+- Refuse a save or publish whose `base` is not the draft's version, with `edit.staleBase`. If the
+  server cannot check this atomically, set `enforcesBase` to false, and the library checks first.
+- Number each publish as the next one, created only if absent. Publishing increments the draft's
+  version, and returns the new version as `draftVersion`.
+- Report a refused save or publish as an issue. Return null from `openAsync` or `copyAsync` for a
+  blueprint that is missing or that the user may not open. Reject from any other call.
+- Implement `updateAccessAsync` only if the store can share. The library offers sharing only
+  then.
+
 ### Mark the fields and entries a blueprint uses
 
 `fieldUsages(blueprint, catalog)` returns each field a blueprint uses, by dataset, with each path
@@ -200,6 +346,14 @@ reads the same function, so a panel and the Architect agree.
 | `artifactProvider` | `BlueprintArtifactProvider` | The rows of those artifacts |
 | `defaultPresentation` | `string` | The presentation a widget draws in when its config names none, such as a chat's `card` |
 
+### BlueprintDocumentModel config
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `blueprintModel` | `BlueprintModel` | The model that holds the blueprint open |
+| `repository` | `BlueprintRepository` | Where blueprints persist. Required |
+| `migrate` | `(blueprint) => Blueprint` | Upgrades a blueprint that an older library saved, as it opens. Default none |
+
 ## Extension Points
 
 - **Widgets.** Register a `WidgetSpec` with a config schema, guidance for the Architect, and a
@@ -208,8 +362,14 @@ reads the same function, so a panel and the Architect agree.
 - **Variable types, resolvers, actions and renderers.** Register each in `BlueprintRegistry`. An
   action declares a parameter schema, and the runner checks its parameters before it runs. Give
   an action with side effects `sideEffects: true`, so that it always asks the user to confirm.
+  Give an action for chat answers only `allowedIn: ['answers']`, so the validator refuses it in a
+  dashboard.
 - **Data.** Implement `BlueprintDataProvider` over the app's services. Add
   `loadAggregatesAsync()` when the server can roll up groups the browser cannot.
+- **Storage.** Implement `BlueprintRepository` over another store. See
+  [Write a repository](#write-a-repository).
+- **Design components.** Each design component takes the design model and nothing else, so an app
+  can place it anywhere, or replace it with its own over the same `BlueprintDesignModel`.
 
 ## Common Pitfalls
 
@@ -225,6 +385,17 @@ over a source.
 A model opens in run mode with read access unless the app says otherwise. Open design mode only
 for a user who designs, with write access. In run mode, a change a user makes in a widget stays
 transient.
+
+### Keeping drafts from readers in the browser only
+
+`BlueprintDocumentModel` refuses a draft to a reader, but a browser is not a security boundary.
+A repository must refuse drafts to readers on its server, or say in its docs that it cannot.
+
+### Saving over a stale draft
+
+After `isStale`, the document refuses to save, so a second writer cannot overwrite the first.
+Do not retry the save. Offer the user a reload, which discards their edits, or a new blueprint
+that keeps them.
 
 ### Trusting the parameters of an action
 

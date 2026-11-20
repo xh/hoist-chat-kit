@@ -412,7 +412,7 @@
       "title": "Hoist Blueprints",
       "mcpCategory": "package",
       "viewerCategory": "core",
-      "description": "Hoist Blueprints: JSON definitions of dashboards and reports over an app's Data Catalog, rendered with Hoist widgets, edited by people and by the Architect, and used for chat answers that a user can add to a dashboard.",
+      "description": "Hoist Blueprints: JSON definitions of dashboards and reports over an app's Data Catalog, rendered with Hoist widgets, edited by people in design mode and by the Architect, stored as drafts and publishes, and used for chat answers that a user can add to a dashboard.",
       "keywords": [
         "BlueprintModel",
         "Blueprint",
@@ -448,7 +448,25 @@
         "artifact source",
         "inline source",
         "Architect",
-        "blueprintView"
+        "blueprintView",
+        "BlueprintDesignModel",
+        "elementInspector",
+        "elementOutline",
+        "widgetPalette",
+        "variablesEditor",
+        "sourcesEditor",
+        "presetsEditor",
+        "toEditorSpec",
+        "EditorNode",
+        "BlueprintDocumentModel",
+        "BlueprintRepository",
+        "HoistCoreBlueprintRepository",
+        "InMemoryBlueprintRepository",
+        "designer",
+        "draft",
+        "publish",
+        "repository",
+        "configDefault"
       ]
     },
     {
