@@ -38,7 +38,8 @@ export interface BlueprintRepository {
 
     /**
      * Open a blueprint: its draft, its latest publish, or a publish by number. Null if there is
-     * none, such as a blueprint never published.
+     * none, such as a blueprint never published, or if the user may not open it, such as a
+     * blueprint they may not read, or a draft for a reader.
      */
     openAsync(id: string, opts: BlueprintOpenOptions): Promise<BlueprintRecord>;
 

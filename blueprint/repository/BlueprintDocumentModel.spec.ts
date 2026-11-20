@@ -151,6 +151,24 @@ describe('BlueprintDocumentModel', () => {
         await expect(doc.deleteAsync()).rejects.toThrow(/Only a writer/);
     });
 
+    it('keeps the open blueprint, its access and its mode when another fails to open', async () => {
+        const {repository, grant, id} = await created();
+        await repository.publishAsync(id, {base: 1});
+        grant.access = 'read';
+        const {blueprintModel, doc} = session(repository);
+        await doc.openAsync(id);
+        const before = blueprintModel.blueprint,
+            broken = await repository.createAsync({name: 'Broken', blueprint: {root: 'nowhere'}});
+
+        expect(errors(await doc.openAsync(broken.id, {as: 'draft'})).length).toBeGreaterThan(0);
+        expect(blueprintModel.blueprint).toBe(before);
+        expect([blueprintModel.mode, blueprintModel.access, doc.document.id]).toEqual([
+            'run',
+            'read',
+            id
+        ]);
+    });
+
     it('publishes only as the repository allows', async () => {
         const {repository, grant, id} = await created(),
             {doc} = session(repository);

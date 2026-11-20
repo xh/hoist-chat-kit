@@ -18,6 +18,9 @@ import {
  * no caller can change what it holds, and it refuses readers as a server should. Being
  * single-threaded, it checks a stale `base` truthfully. Construct it with `enforcesBase: false` to
  * test the library's own check, as for a repository whose server cannot.
+ *
+ * Not for production: it keeps nothing, and by default grants every blueprint's write access,
+ * publishing and creating, which a real repository's server decides.
  */
 export class InMemoryBlueprintRepository implements BlueprintRepository {
     readonly enforcesBase: boolean;
