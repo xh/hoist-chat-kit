@@ -181,7 +181,7 @@ describe('validateBlueprint', () => {
         const noteRegistry = new BlueprintRegistry({
                 widgets: [
                     {
-                        name: 'note',
+                        name: 'acme.note',
                         version: 1,
                         label: 'Note',
                         guidance: 'A note.',
@@ -204,7 +204,7 @@ describe('validateBlueprint', () => {
             }),
             note = (config: object): Blueprint => ({
                 root: 'n',
-                elements: {n: {component: 'note', config}}
+                elements: {n: {component: 'acme.note', config}}
             }),
             check = (bp: Blueprint, partialIds?: string[]) =>
                 validateBlueprint(bp, {
@@ -429,9 +429,9 @@ describe('validateBlueprint', () => {
 
         it('refuses an action type where its allowedIn does not reach, whatever registry holds it', () => {
             const reg = scenarioRegistry();
-            reg.addActions({name: 'send', params: {type: 'object'}, allowedIn: ['answers']});
+            reg.addActions({name: 'acme.send', params: {type: 'object'}, allowedIn: ['answers']});
             const bp = loadBlueprint('p3-morning-report.json');
-            bp.elements.pnlButtons.config.buttons[0].action = {type: 'send'};
+            bp.elements.pnlButtons.config.buttons[0].action = {type: 'acme.send'};
             const check = (isAnswer: boolean) =>
                 validateBlueprint(bp, {
                     catalog: portfolioCatalog,
@@ -448,7 +448,7 @@ describe('validateBlueprint', () => {
         it('checks a param marked x-variable as the name of a variable an action may set', () => {
             const reg = scenarioRegistry();
             reg.addActions({
-                name: 'pick',
+                name: 'acme.pick',
                 params: {
                     type: 'object',
                     required: ['target'],
@@ -457,7 +457,7 @@ describe('validateBlueprint', () => {
             });
             const codes = (target: unknown) => {
                 const bp = loadBlueprint('p3-morning-report.json');
-                bp.elements.pnlButtons.config.buttons[0].action = {type: 'pick', target};
+                bp.elements.pnlButtons.config.buttons[0].action = {type: 'acme.pick', target};
                 return validateBlueprint(bp, {
                     catalog: portfolioCatalog,
                     registry: reg,
@@ -546,11 +546,11 @@ describe('validateBlueprint', () => {
             const reg = scenarioRegistry();
             reg.addWidgets({
                 ...reg.widgets.cubeGrid,
-                name: 'multiGrid',
+                name: 'acme.multiGrid',
                 outputs: [{name: 'selection', type: 'filter'}]
             });
             const bp = varChart({$var: 'selection'});
-            bp.elements.posGrid.component = 'multiGrid';
+            bp.elements.posGrid.component = 'acme.multiGrid';
             expect(foldIssues(bp, reg)).toHaveLength(1);
         });
 
@@ -661,7 +661,7 @@ describe('validateBlueprint', () => {
 
     it('refuses a widget whose schema uses JSON Schema the validator lacks', () => {
         const spec = {
-            name: 'bad',
+            name: 'acme.bad',
             version: 1,
             label: 'Bad',
             guidance: '',

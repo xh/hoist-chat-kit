@@ -364,6 +364,9 @@ reads the same function, so a panel and the Architect agree.
 
 ## Extension Points
 
+An app names each entry it registers with a dotted prefix, such as `acme.fund`, so it cannot
+clash with a built-in. `BlueprintRegistry` refuses an undotted app name.
+
 - **Widgets.** Register a `WidgetSpec` with a config schema, guidance for the Architect, and a
   desktop component. `addPresentation()` adds another way to draw an existing widget, as chat kit
   adds the `card` that grids and charts take in a reply.

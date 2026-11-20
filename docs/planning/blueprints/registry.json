@@ -1,6 +1,6 @@
 {
     "widgets": {
-        "portfolioBuilder": {
+        "toolbox.portfolioBuilder": {
             "label": "Portfolio builder",
             "terms": [
                 "portfolio builder",
@@ -23,7 +23,7 @@
                 }
             },
             "value": {
-                "type": "portfolio"
+                "type": "toolbox.portfolio"
             },
             "size": {
                 "default": {
@@ -32,7 +32,7 @@
                 }
             },
             "example": {
-                "component": "portfolioBuilder",
+                "component": "toolbox.portfolioBuilder",
                 "config": {
                     "maxHoldings": 50
                 }
@@ -40,27 +40,27 @@
         }
     },
     "variableTypes": {
-        "fund": {
+        "toolbox.fund": {
             "app": true,
             "matches": "string",
             "guidance": "A fund's identifier, which in Toolbox is its name, such as 'Oak Mount'. Its prompt input shows each fund's name and AUM, and supplies its own choices."
         },
-        "portfolio": {
+        "toolbox.portfolio": {
             "app": true,
-            "matches": "portfolio",
+            "matches": "toolbox.portfolio",
             "guidance": "A hypothetical portfolio: {\"holdings\": [{\"symbol\": \"AAPL\", \"weight\": 0.5}]}."
         }
     },
     "resolvers": {
-        "userFund": {
-            "returns": "fund",
+        "toolbox.userFund": {
+            "returns": "toolbox.fund",
             "app": true,
             "args": {},
             "guidance": "The current user's own fund."
         }
     },
     "actions": {
-        "publishToPmPack": {
+        "toolbox.publishToPmPack": {
             "app": true,
             "sideEffects": true,
             "params": {
@@ -84,7 +84,7 @@
         }
     },
     "renderers": {
-        "ticker": {
+        "toolbox.ticker": {
             "app": true,
             "appliesTo": {
                 "kinds": [
@@ -93,7 +93,7 @@
             },
             "config": {}
         },
-        "weatherIcon": {
+        "toolbox.weatherIcon": {
             "app": true,
             "appliesTo": {
                 "kinds": [

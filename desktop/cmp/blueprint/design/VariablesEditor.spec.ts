@@ -70,7 +70,14 @@ describe('VariablesEditor', () => {
     it('offers the built-in types, the app types, and lists of each but filter', () => {
         const {editor} = open();
         expect(editor.typeOptions).toEqual(
-            expect.arrayContaining(['string', 'localDate', 'filter', 'fund', 'string[]', 'fund[]'])
+            expect.arrayContaining([
+                'string',
+                'localDate',
+                'filter',
+                'toolbox.fund',
+                'string[]',
+                'toolbox.fund[]'
+            ])
         );
         expect(editor.typeOptions).not.toContain('filter[]');
     });
@@ -103,7 +110,7 @@ describe('VariablesEditor', () => {
         const {editor} = open();
         expect(editor.valueSchema('string')).toEqual({type: 'string'});
         expect(editor.valueSchema('int')).toEqual({type: 'integer'});
-        expect(editor.valueSchema('fund')).toEqual({type: 'string'});
+        expect(editor.valueSchema('toolbox.fund')).toEqual({type: 'string'});
         expect(editor.valueSchema('string[]')).toEqual({type: 'array', items: {type: 'string'}});
     });
 
@@ -118,7 +125,7 @@ describe('VariablesEditor', () => {
         const {design, editor} = open('fund');
         design.addPresetGroup('/variables/fund/default');
         design.select({kind: 'variable', id: 'fund'});
-        expect(editor.values.default).toEqual({resolver: 'userFund'});
+        expect(editor.values.default).toEqual({resolver: 'toolbox.userFund'});
         expect(editor.badgeFor('default')).toBe('Preset: Default › Preset 1');
     });
 

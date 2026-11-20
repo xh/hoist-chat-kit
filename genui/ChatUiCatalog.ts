@@ -460,21 +460,21 @@ export class ChatUiCatalog {
      */
     get registry(): BlueprintRegistry {
         if (!this._registry) {
+            // The app's registry checked its own names, and the catalog's entries are the kit's.
             const app = this.answers?.registry,
-                ret = new BlueprintRegistry({
-                    widgets: [
-                        ...Object.values(app?.widgets ?? {}),
-                        ...this.components.map(it => toWidgetSpec(it, this)),
-                        ...toStandInWidgetSpecs(this)
-                    ],
-                    variableTypes: Object.values(app?.variableTypes ?? {}),
-                    resolvers: Object.values(app?.resolvers ?? {}),
-                    actions: [...Object.values(app?.actions ?? {}), ...toActionSpecs(this)],
-                    renderers: Object.values(app?.renderers ?? {})
-                });
-            ChatUiCatalog.answerPresentations.forEach(({widget, presentation}) =>
-                ret.addPresentation(widget, presentation)
-            );
+                ret = new BlueprintRegistry();
+            ret.addBuiltIns({
+                widgets: [
+                    ...Object.values(app?.widgets ?? {}),
+                    ...this.components.map(it => toWidgetSpec(it, this)),
+                    ...toStandInWidgetSpecs(this)
+                ],
+                variableTypes: Object.values(app?.variableTypes ?? {}),
+                resolvers: Object.values(app?.resolvers ?? {}),
+                actions: [...Object.values(app?.actions ?? {}), ...toActionSpecs(this)],
+                renderers: Object.values(app?.renderers ?? {}),
+                presentations: ChatUiCatalog.answerPresentations
+            });
             this._registry = ret;
         }
         return this._registry;

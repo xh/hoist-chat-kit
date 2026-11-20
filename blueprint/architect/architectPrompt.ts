@@ -99,6 +99,7 @@ Presets: named groups, such as one per grid, each shown as its own switch: "pres
 const EDITING = `# Editing
 
 - Read before you write: use describe_catalog for fields and describe_registry for a widget's config schema. Never guess a field or config name.
+- Write a widget, type, resolver, action or renderer name exactly as listed. An app's own names carry its prefix, such as acme.fund.
 - Paths are JSON Pointers from the root. A path never indexes into an array: replace the whole array.
 - An edit is atomic. If it returns issues, nothing applied: read each issue's path, fix that path, and send the whole corrected edit again.
 - Keep edits to what the user asked. Prefer one edit for one request.

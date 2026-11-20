@@ -99,15 +99,17 @@ describe('usages', () => {
         });
 
         it('marks resolvers, actions and variable types', () => {
-            expect(usages['resolver:userFund']).toEqual(['/variables/fund/default/resolver']);
-            expect(usages['variableType:fund']).toEqual(['/variables/fund/type']);
+            expect(usages['resolver:toolbox.userFund']).toEqual([
+                '/variables/fund/default/resolver'
+            ]);
+            expect(usages['variableType:toolbox.fund']).toEqual(['/variables/fund/type']);
             expect(Object.keys(usages).some(it => it.startsWith('action:'))).toBe(true);
             expect(usages['action:openUrl']).toBeUndefined();
         });
 
         it('marks a renderer through the fields that use it', () => {
             const weather = registryUsages(w2, registry, weatherCatalog);
-            expect(weather['renderer:weatherIcon']).toEqual(
+            expect(weather['renderer:toolbox.weatherIcon']).toEqual(
                 expect.arrayContaining(['weather.conditions'])
             );
         });

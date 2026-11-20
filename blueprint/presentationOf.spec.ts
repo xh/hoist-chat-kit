@@ -16,12 +16,19 @@ describe('presentationOf', () => {
 
     function open(grids: Record<string, object>, defaultPresentation = 'card') {
         const registry = new BlueprintRegistry();
-        registry.addPresentation('cubeGrid', {
-            name: 'card',
-            label: 'Card',
-            guidance: 'A flat preview.',
-            component: (() => null) as any,
-            ignores: ['groupBy', 'treeStyle']
+        registry.addBuiltIns({
+            presentations: [
+                {
+                    widget: 'cubeGrid',
+                    presentation: {
+                        name: 'card',
+                        label: 'Card',
+                        guidance: 'A flat preview.',
+                        component: (() => null) as any,
+                        ignores: ['groupBy', 'treeStyle']
+                    }
+                }
+            ]
         });
         const blueprint: Blueprint = {
                 sources: {

@@ -112,7 +112,7 @@ export const SCENARIOS: Scenario[] = [
             {prompt: 'Add a button that publishes this report to the PM pack.'}
         ],
         checks: [
-            ['fund prompt of type fund, defaulting to userFund', o => vars(o.blueprint, v => v.type === 'fund' && v.setBy === 'prompt' && v.default?.resolver === 'userFund').length],
+            ['fund prompt of type toolbox.fund, defaulting to toolbox.userFund', o => vars(o.blueprint, v => v.type === 'toolbox.fund' && v.setBy === 'prompt' && v.default?.resolver === 'toolbox.userFund').length],
             ['as-of prompt defaulting to previousBusinessDay', o => vars(o.blueprint, v => v.type === 'localDate' && v.setBy === 'prompt' && v.default?.resolver === 'previousBusinessDay').length],
             ['a tabContainer with three tabs', o => els(o.blueprint, 'tabContainer').some(([, e]) => e.children?.length === 3)],
             ['a groupingChooser sets a string[] bound to a grid groupBy', o => {
@@ -129,7 +129,7 @@ export const SCENARIOS: Scenario[] = [
             ['Greeks redefined in thousands', o => o.blueprint.formats?.greek?.scale === 'thousands'],
             ['market value in full dollars, by redefining mv, per column or on the source', o => o.blueprint.formats?.mv || mktValFormats(o.blueprint).some(f => f?.precision === 0)],
             ['a return instance on the positions source', o => Object.values<any>(o.blueprint.sources ?? {}).some(s => Object.values<any>(s.fields ?? {}).some(f => f.field === 'return'))],
-            ['a publishToPmPack button', o => JSON.stringify(o.blueprint.elements).includes('"publishToPmPack"')]
+            ['a toolbox.publishToPmPack button', o => JSON.stringify(o.blueprint.elements).includes('"toolbox.publishToPmPack"')]
         ]
     },
     {
@@ -160,7 +160,7 @@ export const SCENARIOS: Scenario[] = [
             ['a tabContainer with four tabs', o => els(o.blueprint, 'tabContainer').some(([, e]) => e.children?.length === 4)],
             ['an options grid grouped by underlying', o => cfg(o.blueprint, 'cubeGrid', c => JSON.stringify(c.filter ?? {}).includes('Option') && c.groupBy?.[0] === 'underlying').length],
             ['a bonds grid grouped by issuer', o => cfg(o.blueprint, 'cubeGrid', c => JSON.stringify(c.filter ?? {}).includes('Bond') && c.groupBy?.[0] === 'issuer').length],
-            ['a portfolioBuilder sets a portfolio variable', o => vars(o.blueprint, v => v.type === 'portfolio' && els(o.blueprint, 'portfolioBuilder').some(([id]) => v.setBy?.element === id)).length],
+            ['a toolbox.portfolioBuilder sets a toolbox.portfolio variable', o => vars(o.blueprint, v => v.type === 'toolbox.portfolio' && els(o.blueprint, 'toolbox.portfolioBuilder').some(([id]) => v.setBy?.element === id)).length],
             ['hypotheticalPortfolio binds that variable', o => Object.values<any>(o.blueprint.sources ?? {}).some(s => s.dataset === 'hypotheticalPortfolio' && s.params?.portfolio?.$var)]
         ]
     },

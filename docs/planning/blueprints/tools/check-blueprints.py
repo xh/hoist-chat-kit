@@ -15,9 +15,9 @@ for c in cats.values():
 WIDGETS = {
     'dashCanvas': {}, 'tabContainer': {}, 'cubeGrid': {'outputs': {'selection', 'selected'}}, 'chart': {},
     'statCardStrip': {}, 'groupingChooser': {'value': True}, 'buttonGroup': {}, 'buttonGroupInput': {'value': True},
-    'portfolioBuilder': {'value': True}
+    'toolbox.portfolioBuilder': {'value': True}
 }
-ACTIONS = {'setVariable', 'resetVariable', 'refresh', 'navigate', 'openUrl', 'publishToPmPack'}
+ACTIONS = {'setVariable', 'resetVariable', 'refresh', 'navigate', 'openUrl', 'toolbox.publishToPmPack'}
 issues = []
 
 
@@ -149,29 +149,30 @@ def check(f, bp, artifacts):
             if b['action']['type'] not in ACTIONS:
                 issue(f, f'unknown action {b["action"]["type"]}')
 
-    # Presets: controlled paths name an element, and leave its config.
-    pre = bp.get('presets')
-    if pre:
-        for c in pre['controls']:
+    # Presets: each group's element paths name an element, and leave its config.
+    for gname, group in (bp.get('presets') or {}).items():
+        for c in group['controls']:
             parts = c['path'].strip('/').split('/')
+            if parts[0] != 'elements':
+                continue
             el = elements.get(parts[1])
             if not el:
                 issue(f, f'preset path {c["path"]} names no element')
-            elif parts[3] in el.get('config', {}):
+                continue
+            if parts[3] in el.get('config', {}):
                 issue(f, f'preset path {c["path"]} is still in the element config')
-            for iname, item in pre['items'].items():
+            for iname, item in group['items'].items():
                 o = item['set']
                 for p in parts:
                     o = o.get(p) if isinstance(o, dict) else None
                 if o is None:
-                    issue(f, f'preset {iname} does not set {c["path"]}')
-                else:
+                    issue(f, f'preset {gname}.{iname} does not set {c["path"]}')
+                elif isinstance(o, list):
                     for col in o:
-                        n = col if isinstance(col, str) else col['field']
+                        n = col if isinstance(col, str) else col.get('colId', col.get('field'))
                         src = el['config']['source']
                         if n not in source_fields[src]:
-                            issue(f, f'preset {iname}: column {n} not in source {src}')
-
+                            issue(f, f'preset {gname}.{iname}: column {n} not in source {src}')
 
 ARTIFACTS = {'art_7f2': 'positions', 'art_9c4': 'weather'}
 for f in sorted(glob.glob(BASE + 'blueprints/*.json')):

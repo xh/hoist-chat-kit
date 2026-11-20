@@ -29,7 +29,7 @@ describe('BlueprintRegistry presentations', () => {
     it('takes a presentation only once one is registered, and only a registered one', () => {
         const plain = new BlueprintRegistry(),
             chat = new BlueprintRegistry();
-        chat.addPresentation('cubeGrid', card);
+        chat.addBuiltIns({presentations: [{widget: 'cubeGrid', presentation: card}]});
 
         expect(withPresentation(plain, 'card')).toContain('schema.invalid');
         expect(withPresentation(chat, 'card')).toEqual([]);
@@ -40,7 +40,7 @@ describe('BlueprintRegistry presentations', () => {
     it('shows only the registered presentations to the Architect', () => {
         const plain = new BlueprintRegistry(),
             chat = new BlueprintRegistry();
-        chat.addPresentation('cubeGrid', card);
+        chat.addBuiltIns({presentations: [{widget: 'cubeGrid', presentation: card}]});
 
         expect(describeGrid(plain).config.properties.presentation).toBeUndefined();
         expect(describeGrid(plain).guidance).not.toMatch(/presentation/i);
@@ -50,7 +50,11 @@ describe('BlueprintRegistry presentations', () => {
 
     it('says which config keys a presentation ignores, in its guidance and on each key', () => {
         const registry = new BlueprintRegistry();
-        registry.addPresentation('cubeGrid', {...card, ignores: ['stripeRows', 'nope']});
+        registry.addBuiltIns({
+            presentations: [
+                {widget: 'cubeGrid', presentation: {...card, ignores: ['stripeRows', 'nope']}}
+            ]
+        });
         const grid = describeGrid(registry);
         expect(grid.guidance).toContain('It ignores stripeRows, nope.');
         expect(grid.config.properties.stripeRows.description).toBe(
@@ -62,18 +66,41 @@ describe('BlueprintRegistry presentations', () => {
         );
     });
 
+    it('takes app entries only under dotted names, beside bare built-ins', () => {
+        const registry = new BlueprintRegistry(),
+            action = (name: string) => ({name, params: {type: 'object', properties: {}}});
+        expect(registry.actions.refresh).toBeDefined();
+        expect(() => registry.addActions(action('publish'))).toThrow(/dotted name/);
+        expect(() =>
+            registry.addResolvers({
+                name: 'userFund',
+                returns: 'string',
+                args: {},
+                resolve: () => null
+            })
+        ).toThrow(/dotted name/);
+        expect(() => new BlueprintRegistry({renderers: [{name: 'ticker', appliesTo: {}}]})).toThrow(
+            /dotted name/
+        );
+        registry.addActions(action('acme.publish'));
+        expect(registry.actions['acme.publish']).toBeDefined();
+        expect(() => registry.addPresentation('cubeGrid', {...card, name: 'tile'})).toThrow(
+            /dotted name/
+        );
+    });
+
     it('refuses an action param that both names a variable and takes a binding', () => {
         const registry = new BlueprintRegistry(),
             params = (prop: object) => ({type: 'object', properties: {target: prop}});
         expect(() =>
             registry.addActions({
-                name: 'pick',
+                name: 'acme.pick',
                 params: params({type: 'string', 'x-variable': true, 'x-binding': true})
             })
         ).toThrow(/x-variable/);
         expect(() =>
             registry.addActions({
-                name: 'pick',
+                name: 'acme.pick',
                 params: params({type: 'string', 'x-variable': true})
             })
         ).not.toThrow();
@@ -81,7 +108,11 @@ describe('BlueprintRegistry presentations', () => {
 
     it('refuses a presentation for an unknown widget, or one named panel', () => {
         const registry = new BlueprintRegistry();
-        expect(() => registry.addPresentation('nope', card)).toThrow();
-        expect(() => registry.addPresentation('cubeGrid', {...card, name: 'panel'})).toThrow();
+        expect(() => registry.addPresentation('nope', {...card, name: 'acme.card'})).toThrow();
+        expect(() =>
+            registry.addBuiltIns({
+                presentations: [{widget: 'cubeGrid', presentation: {...card, name: 'panel'}}]
+            })
+        ).toThrow();
     });
 });

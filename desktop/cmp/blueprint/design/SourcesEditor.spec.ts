@@ -60,7 +60,7 @@ describe('SourcesEditor', () => {
         expect(editor.paramVariables('localDate')).toEqual(
             expect.arrayContaining(['asOf', 'priceStart', 'yearStart'])
         );
-        expect(editor.paramVariables('fund')).toEqual(['fund']);
+        expect(editor.paramVariables('toolbox.fund')).toEqual(['fund']);
     });
 
     it('changes the dataset with its required parameters bound again, in one edit', async () => {

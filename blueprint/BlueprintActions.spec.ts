@@ -160,7 +160,7 @@ describe('BlueprintModel actions', () => {
             confirm = vi.spyOn(XH, 'confirm').mockResolvedValue(true);
         onTestFinished(() => confirm.mockRestore());
         model.registry.addActions({
-            name: 'publishToPmPack',
+            name: 'toolbox.publishToPmPack',
             params: {
                 type: 'object',
                 properties: {fund: {type: ['string', 'null']}, asOf: {type: 'string'}}
@@ -171,7 +171,11 @@ describe('BlueprintModel actions', () => {
         });
         model.setVariable('asOf', '2026-07-01');
 
-        const action = {type: 'publishToPmPack', fund: {$var: 'fund'}, asOf: {$var: 'asOf'}};
+        const action = {
+            type: 'toolbox.publishToPmPack',
+            fund: {$var: 'fund'},
+            asOf: {$var: 'asOf'}
+        };
         expect(await model.runActionsAsync(action)).toBe(true);
         expect(confirm).toHaveBeenCalledWith(
             expect.objectContaining({message: 'Publish null for 2026-07-01'})
@@ -259,7 +263,7 @@ describe('BlueprintModel actions', () => {
             const model = open(),
                 run = vi.fn();
             model.registry.addActions({
-                name: 'publishToPmPack',
+                name: 'toolbox.publishToPmPack',
                 params: {
                     type: 'object',
                     required: ['fund', 'asOf'],
@@ -269,7 +273,7 @@ describe('BlueprintModel actions', () => {
             });
             expect(
                 await model.runActionsAsync({
-                    type: 'publishToPmPack',
+                    type: 'toolbox.publishToPmPack',
                     fund: {$var: 'fund'},
                     asOf: {$var: 'asOf'}
                 })
@@ -279,9 +283,9 @@ describe('BlueprintModel actions', () => {
 
         it('refuses to register an action with no parameter schema', () => {
             const model = open();
-            expect(() => model.registry.addActions({name: 'bad', params: null} as any)).toThrow(
-                /schema/
-            );
+            expect(() =>
+                model.registry.addActions({name: 'acme.bad', params: null} as any)
+            ).toThrow(/schema/);
         });
     });
 });

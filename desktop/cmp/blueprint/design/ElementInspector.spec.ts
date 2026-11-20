@@ -217,9 +217,9 @@ describe('ElementInspector', () => {
                 expect.arrayContaining(['bar', 'badge', 'delta'])
             );
             expect(inspector.actionOptions.map(it => it.value)).toEqual(
-                expect.arrayContaining(['refresh', 'setVariable', 'publishToPmPack'])
+                expect.arrayContaining(['refresh', 'setVariable', 'toolbox.publishToPmPack'])
             );
-            expect(inspector.actionSpec('publishToPmPack').params.required).toEqual([
+            expect(inspector.actionSpec('toolbox.publishToPmPack').params.required).toEqual([
                 'fund',
                 'asOf'
             ]);
@@ -228,17 +228,17 @@ describe('ElementInspector', () => {
         it('leaves out actions for chat answers only', () => {
             const {model, inspector} = open();
             model.registry.addActions({
-                name: 'send',
+                name: 'acme.send',
                 params: {type: 'object'},
                 allowedIn: ['answers']
             });
-            expect(inspector.actionOptions.map(it => it.value)).not.toContain('send');
+            expect(inspector.actionOptions.map(it => it.value)).not.toContain('acme.send');
         });
 
         it('starts a step with no placeholders: required params bound to fitting variables', () => {
             const {model, inspector} = open();
             model.registry.addActions({
-                name: 'publishDated',
+                name: 'acme.publishDated',
                 params: {
                     type: 'object',
                     required: ['asOf', 'note'],
@@ -249,8 +249,8 @@ describe('ElementInspector', () => {
                     }
                 }
             });
-            expect(inspector.stepStart('publishDated')).toEqual({
-                type: 'publishDated',
+            expect(inspector.stepStart('acme.publishDated')).toEqual({
+                type: 'acme.publishDated',
                 asOf: {$var: 'asOf'},
                 note: {$var: 'fund'}
             });
@@ -269,7 +269,7 @@ describe('ElementInspector', () => {
 
         it('locks confirm on for an action that changes data', () => {
             const {inspector} = open();
-            expect(inspector.confirmLocked('publishToPmPack')).toBe(true);
+            expect(inspector.confirmLocked('toolbox.publishToPmPack')).toBe(true);
             expect(inspector.confirmLocked('refresh')).toBe(false);
         });
 
@@ -303,7 +303,10 @@ describe('ElementInspector', () => {
             });
 
             design.setConfig(buttons.id, '/buttons', [
-                {label: 'Publish', action: {type: 'publishToPmPack', fund: 'A', asOf: '2026-11-20'}}
+                {
+                    label: 'Publish',
+                    action: {type: 'toolbox.publishToPmPack', fund: 'A', asOf: '2026-11-20'}
+                }
             ]);
             const locked = render(elementInspector({designModel: design}) as ReactElement),
                 confirm = [

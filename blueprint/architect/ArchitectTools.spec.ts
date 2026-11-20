@@ -276,7 +276,8 @@ describe('Architect tools', () => {
 
     describe('with an answer registry', () => {
         const answers = () => {
-                const ret = new BlueprintRegistry({
+                const ret = new BlueprintRegistry();
+                ret.addBuiltIns({
                     widgets: [
                         ...Object.values(scenarioRegistry().widgets),
                         {

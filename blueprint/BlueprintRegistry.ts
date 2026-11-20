@@ -237,8 +237,9 @@ export interface BlueprintRegistryConfig {
 
 /**
  * The things an app provides in code for blueprints to configure: widget types, variable types,
- * resolvers, actions and renderers. Starts with Hoist Blueprints' built-ins, which an app extends
- * with its own entries, or replaces by registering an entry under the same name.
+ * resolvers, actions and renderers. Starts with Hoist Blueprints' built-ins, under bare names such
+ * as `refresh`. An app adds its own under dotted names, such as `acme.publish`, so they never clash
+ * with a built-in, and every `add` method refuses an app entry whose name has no dot.
  */
 export class BlueprintRegistry {
     readonly widgets: Record<string, WidgetSpec> = toLookup({});
@@ -247,12 +248,44 @@ export class BlueprintRegistry {
     readonly actions: Record<string, ActionSpec> = toLookup({});
     readonly renderers: Record<string, RendererSpec> = toLookup({});
 
+    // True while adding entries that keep bare names: the built-ins, and an XH library's own.
+    private trusted = false;
+
     constructor(config: BlueprintRegistryConfig = {}) {
-        this.addWidgets(BUILT_IN_WIDGETS, config.widgets ?? []);
-        this.addResolvers(BUILT_IN_RESOLVERS, config.resolvers ?? []);
-        this.addActions(BUILT_IN_ACTIONS, config.actions ?? []);
-        this.addRenderers(BUILT_IN_RENDERERS, config.renderers ?? []);
+        this.addBuiltIns({
+            widgets: BUILT_IN_WIDGETS,
+            resolvers: BUILT_IN_RESOLVERS,
+            actions: BUILT_IN_ACTIONS,
+            renderers: BUILT_IN_RENDERERS
+        });
+        this.addWidgets(config.widgets ?? []);
+        this.addResolvers(config.resolvers ?? []);
+        this.addActions(config.actions ?? []);
+        this.addRenderers(config.renderers ?? []);
         this.addVariableTypes(config.variableTypes ?? []);
+    }
+
+    /**
+     * Add entries under bare names: the built-ins, and an XH library's own, as chat kit's catalog
+     * adds its components. Not for an app, whose entries take dotted names.
+     * @internal
+     */
+    addBuiltIns(
+        config: BlueprintRegistryConfig & {
+            presentations?: {widget: string; presentation: PresentationSpec}[];
+        }
+    ) {
+        this.trusted = true;
+        try {
+            this.addWidgets(config.widgets ?? []);
+            this.addResolvers(config.resolvers ?? []);
+            this.addActions(config.actions ?? []);
+            this.addRenderers(config.renderers ?? []);
+            this.addVariableTypes(config.variableTypes ?? []);
+            config.presentations?.forEach(it => this.addPresentation(it.widget, it.presentation));
+        } finally {
+            this.trusted = false;
+        }
     }
 
     /**
@@ -263,6 +296,7 @@ export class BlueprintRegistry {
     addPresentation(widget: string, presentation: PresentationSpec) {
         const spec = getOwn(this.widgets, widget),
             {name} = presentation;
+        this.checkName('presentation', name);
         throwIf(!spec, `No widget '${widget}' to add presentation '${name}' to.`);
         throwIf(
             name === 'panel' || spec.presentations?.some(it => it.name === name),
@@ -306,6 +340,7 @@ export class BlueprintRegistry {
     /** Add widgets. Throws if a config or children schema uses JSON Schema the validator lacks. */
     addWidgets(...specs: (WidgetSpec | WidgetSpec[])[]) {
         specs.flat().forEach(spec => {
+            this.checkName('widget', spec.name);
             const problems = [
                 ...findSchemaProblems(spec.config),
                 ...findSchemaProblems(spec.children?.schema)
@@ -319,16 +354,17 @@ export class BlueprintRegistry {
     }
 
     addVariableTypes(...specs: (VariableTypeSpec | VariableTypeSpec[])[]) {
-        add(this.variableTypes, specs);
+        this.add('variable type', this.variableTypes, specs);
     }
 
     addResolvers(...specs: (ResolverSpec | ResolverSpec[])[]) {
-        add(this.resolvers, specs);
+        this.add('resolver', this.resolvers, specs);
     }
 
     /** Add actions. Throws if one has no object schema for its parameters. */
     addActions(...specs: (ActionSpec | ActionSpec[])[]) {
         specs.flat().forEach(spec => {
+            this.checkName('action', spec?.name);
             const {params} = spec ?? ({} as ActionSpec),
                 problems = isPlainObject(params) ? findSchemaProblems(params) : [],
                 // A param that names a variable takes the name, never a binding to one.
@@ -347,10 +383,32 @@ export class BlueprintRegistry {
     }
 
     addRenderers(...specs: (RendererSpec | RendererSpec[])[]) {
-        add(this.renderers, specs);
+        this.add('renderer', this.renderers, specs);
+    }
+
+    //------------------
+    // Implementation
+    //------------------
+    private add<T extends {name: string}>(
+        kind: string,
+        target: Record<string, T>,
+        specs: (T | T[])[]
+    ) {
+        specs
+            .flatMap(it => castArray(it))
+            .forEach(it => {
+                this.checkName(kind, it.name);
+                target[it.name] = it;
+            });
+    }
+
+    private checkName(kind: string, name: string) {
+        throwIf(
+            !this.trusted && !APP_NAME.test(name ?? ''),
+            `App ${kind} '${name}' needs a dotted name, such as 'acme.${name}', so it cannot clash with a built-in.`
+        );
     }
 }
 
-function add<T extends {name: string}>(target: Record<string, T>, specs: (T | T[])[]) {
-    specs.flatMap(it => castArray(it)).forEach(it => (target[it.name] = it));
-}
+// An app's entry name: a namespace and a name, joined by a dot, such as `acme.publish`.
+const APP_NAME = /^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z][A-Za-z0-9_-]*)+$/;

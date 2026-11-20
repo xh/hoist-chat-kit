@@ -822,12 +822,19 @@ describe('blueprint desktop widgets', () => {
 
     it('draws a titled answer panel in a Hoist panel when its host gives no frame', () => {
         const registry = scenarioRegistry();
-        registry.addPresentation('cubeGrid', {
-            name: 'card',
-            label: 'Card',
-            guidance: 'A flat preview.',
-            component: (() => null) as any,
-            ignores: ['groupBy']
+        registry.addBuiltIns({
+            presentations: [
+                {
+                    widget: 'cubeGrid',
+                    presentation: {
+                        name: 'card',
+                        label: 'Card',
+                        guidance: 'A flat preview.',
+                        component: (() => null) as any,
+                        ignores: ['groupBy']
+                    }
+                }
+            ]
         });
         const bp = loadBlueprint('p1-one-grid.json');
         bp.elements.posGrid.config.title = 'Positions';
@@ -895,14 +902,21 @@ describe('blueprint desktop widgets', () => {
 
     it('renders an element with the presentation its config picks, over the same model', async () => {
         const registry = scenarioRegistry();
-        registry.addPresentation('cubeGrid', {
-            name: 'card',
-            label: 'Card',
-            guidance: 'A card.',
-            component: hoistCmp.factory({
-                model: uses(CubeGridWidgetModel),
-                render: ({model}) => div(`Card of ${model.id}`)
-            })
+        registry.addBuiltIns({
+            presentations: [
+                {
+                    widget: 'cubeGrid',
+                    presentation: {
+                        name: 'card',
+                        label: 'Card',
+                        guidance: 'A card.',
+                        component: hoistCmp.factory({
+                            model: uses(CubeGridWidgetModel),
+                            render: ({model}) => div(`Card of ${model.id}`)
+                        })
+                    }
+                }
+            ]
         });
         const bp = loadBlueprint('p1-one-grid.json');
         bp.elements.posGrid.config.presentation = 'card';
@@ -932,12 +946,12 @@ describe('blueprint desktop widgets', () => {
         const registry = scenarioRegistry(),
             bp = loadBlueprint('p1-one-grid.json');
         registry.addVariableTypes({
-            name: 'fund',
+            name: 'toolbox.fund',
             matches: 'string',
             input: ({value}) => div(`Fund input: ${value}`)
         });
         bp.variables.fund = {
-            type: 'fund',
+            type: 'toolbox.fund',
             label: 'Fund',
             setBy: 'prompt',
             default: {value: 'Oak Mount'}
