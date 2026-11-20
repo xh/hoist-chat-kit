@@ -1840,14 +1840,18 @@ function filterFields(filter: unknown): string[] {
 //------------------
 // Highcharts sanitizes text, but still allows links and styles in labels and format templates, so
 // no string may hold markup. renderTo would draw into another element of the page.
-// plotBackgroundImage and a style's url() load from a URL.
+// plotBackgroundImage, a style's url() and the URL-named keys load from or link to a URL.
 const HIGHCHARTS_REFUSED = [
         'renderTo',
         'useHTML',
         'events',
         'series',
         'data',
-        'plotBackgroundImage'
+        'plotBackgroundImage',
+        'href',
+        'url',
+        'libURL',
+        'src'
     ],
     HIGHCHARTS_MAX_LENGTH = 20000,
     HIGHCHARTS_MAX_DEPTH = 10;
@@ -1877,6 +1881,9 @@ export function checkHighchartsConfig(config: PlainObject): BlueprintIssue[] {
             fail(path, 'holds markup, which a chart may not show');
         } else if (isString(value) && /url\s*\(/i.test(value)) {
             fail(path, 'loads from a URL, which a chart may not');
+        } else if (isString(value) && value.includes('\\') && path.includes('/style/')) {
+            // A CSS escape could spell url( past the check above.
+            fail(path, 'holds a backslash, which a style may not');
         } else if (value && typeof value === 'object' && '$var' in value) {
             // A bound value would reach the chart unchecked.
             fail(path, 'takes no binding: write a value');

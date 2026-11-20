@@ -951,6 +951,29 @@ describe('validateBlueprint', () => {
             ]);
         });
 
+        it('refuses exporting and credits, and a key that names a URL at any depth', () => {
+            const at = '/elements/sectorChart/config/highchartsConfig';
+            expect(
+                validate(
+                    chartWith({
+                        exporting: {
+                            enabled: true,
+                            libURL: 'https://evil.example/',
+                            buttons: {contextButton: {menuItems: ['downloadPDF']}}
+                        },
+                        credits: {enabled: true, href: 'https://evil.example', text: 'Source'},
+                        plotOptions: {series: {point: {url: 'https://evil.example'}}},
+                        title: {style: {background: '\\75 rl(https://evil.example/x.png)'}}
+                    })
+                ).map(it => [it.code, it.path])
+            ).toEqual([
+                ['chart.highchartsConfig', `${at}/exporting`],
+                ['chart.highchartsConfig', `${at}/credits`],
+                ['chart.highchartsConfig', `${at}/plotOptions/series/point/url`],
+                ['chart.highchartsConfig', `${at}/title/style/background`]
+            ]);
+        });
+
         it('refuses a binding anywhere in it, and options that load from a URL', () => {
             const at = '/elements/sectorChart/config/highchartsConfig';
             expect(
