@@ -50,7 +50,8 @@ describe('toAnswerBlueprint', () => {
 
     it('registers each component as a widget, with its schema, category and size', () => {
         const {widgets} = catalog.registry;
-        expect(widgets.textInput).toMatchObject({
+        // A chat component a built-in shares its name with registers as its bridge.
+        expect(widgets.chatUiTextInput).toMatchObject({
             category: 'input',
             value: {type: 'string'},
             config: chatUiInputSpecs().find(it => it.name === 'textInput').props

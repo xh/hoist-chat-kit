@@ -23,6 +23,21 @@
   }
 }
 
+// In a toolbar, a child takes its own width, but a spacer with no size fills the room left.
+.xh-toolbar > .xh-blueprint-view__design-element {
+  flex: none;
+  flex-direction: row;
+  align-items: center;
+
+  &:has(> .xh-blueprint-spacer--fill) {
+    flex: 1 1 auto;
+  }
+}
+
+.xh-blueprint-input {
+  gap: var(--xh-spacing);
+}
+
 // In a box, a child runs along the box's direction, so a vertical separator spans a row.
 .xh-blueprint-box__item > .xh-blueprint-view__design-element {
   flex-direction: inherit;

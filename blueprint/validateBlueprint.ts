@@ -152,6 +152,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             err('element.notContainer', `${p}/children`, `${el.component} takes no children`);
         }
         if (el.component === 'dashCanvas') checkCanvasLayout(el, p, err);
+        if (el.component === 'panel') checkPanelSlots(el, elements, p, err);
         for (const [i, ch] of (el.children ?? []).entries()) {
             if (spec.children) {
                 for (const e of checkConfig(ch, spec.children.schema)) {
@@ -268,11 +269,11 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     wp,
                     `${el.component} cannot show and set a value. Name one of its outputs, or use a different writer.`
                 );
-            } else if (spec.value.type !== v.type && !typeMatches(v.type, spec.value.type)) {
+            } else if (!castArray(spec.value.type).some(it => typeMatches(v.type, it))) {
                 err(
                     'variable.typeMismatch',
                     `${p}/type`,
-                    `${el.component} sets a ${spec.value.type}, but the variable is a ${v.type}`
+                    `${el.component} sets a ${castArray(spec.value.type).join(' or ')}, but the variable is a ${v.type}`
                 );
             }
         }
@@ -865,6 +866,27 @@ function accepts(container: WidgetSpec, child: WidgetSpec): boolean {
 function describeAccepts(container: WidgetSpec): string {
     const {categories = [], widgets = []} = container.children.accepts;
     return [...categories.map(it => `${it} widgets`), ...widgets].join(', ');
+}
+
+/** A panel draws a toolbar, and only a toolbar, in each of its tbar and bbar slots. */
+function checkPanelSlots(
+    el: PlainObject,
+    elements: Record<string, any>,
+    path: string,
+    err: (code: string, path: string, message: string) => void
+) {
+    const seen = new Set<string>();
+    (el.children ?? []).forEach((ch: PlainObject, i: number) => {
+        if (!ch.slot) return;
+        const at = `${path}/children/${i}`,
+            child = elements[ch.id];
+        if (child && child.component !== 'toolbar') {
+            err('panel.slotNotToolbar', at, `only a toolbar can go in ${ch.slot}`);
+        } else if (seen.has(ch.slot)) {
+            err('panel.slotTaken', at, `${ch.slot} already holds a toolbar`);
+        }
+        seen.add(ch.slot);
+    });
 }
 
 /** A canvas places children freely, so they must not overlap or pass the last column. */

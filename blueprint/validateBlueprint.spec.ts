@@ -734,6 +734,28 @@ describe('validateBlueprint', () => {
         });
     });
 
+    it('warns of a separator label in a toolbar, which cannot show one', () => {
+        const bp: Blueprint = {
+            schema: {blueprint: 1},
+            root: 'bar',
+            elements: {
+                bar: {component: 'toolbar', config: {}, children: [{id: 'rule'}]},
+                rule: {component: 'separator', config: {label: 'or'}}
+            }
+        };
+        expect(codes(bp)).toEqual(['separator.labelIgnored']);
+    });
+
+    it('refuses an input for a variable of a type it cannot set', () => {
+        const bp: Blueprint = {
+            schema: {blueprint: 1},
+            variables: {n: {type: 'number', setBy: {element: 'pick'}}},
+            root: 'pick',
+            elements: {pick: {component: 'select', config: {}}}
+        };
+        expect(codes(bp)).toEqual(['variable.typeMismatch']);
+    });
+
     it('refuses a widget whose schema uses JSON Schema the validator lacks', () => {
         const spec = {
             name: 'acme.bad',

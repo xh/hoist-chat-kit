@@ -9,6 +9,7 @@ import type {
     WidgetDemand,
     WidgetSpec
 } from '../BlueprintRegistry';
+import {parentOf} from './elements';
 import {templateDemand} from './template';
 
 // Plain data and pure functions only, so a validator under plain Node can load these.
@@ -127,6 +128,69 @@ const CALLOUT_SCHEMA = {
         title: {type: 'string', maxLength: 200, 'x-template': true},
         text: MARKDOWN_SCHEMA.properties.text
     }
+} as const satisfies BlueprintSchema;
+
+const LABEL = {type: 'string', maxLength: 40, description: 'Shown beside the input.'} as const;
+
+const SELECT_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {label: LABEL, placeholder: {type: 'string', maxLength: 60}}
+} as const satisfies BlueprintSchema;
+
+const DATE_INPUT_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {label: LABEL}
+} as const satisfies BlueprintSchema;
+
+const NUMBER_INPUT_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+        label: LABEL,
+        min: {type: 'number'},
+        max: {type: 'number'},
+        precision: {type: 'integer', minimum: 0, maximum: 8}
+    }
+} as const satisfies BlueprintSchema;
+
+const TEXT_INPUT_SCHEMA = SELECT_SCHEMA;
+
+const SWITCH_INPUT_SCHEMA = DATE_INPUT_SCHEMA;
+
+const SLIDER_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['min', 'max'],
+    properties: {
+        label: LABEL,
+        min: {type: 'number'},
+        max: {type: 'number'},
+        step: {type: 'number', minimum: 0.000001, default: 1}
+    }
+} as const satisfies BlueprintSchema;
+
+const FILTER_CHOOSER_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['source'],
+    properties: {
+        source: {type: 'string', 'x-source': true},
+        label: LABEL,
+        fields: {
+            type: 'array',
+            items: {type: 'string'},
+            'x-field': 'dimension',
+            description: "The dimensions to offer. Default all of the source's."
+        }
+    }
+} as const satisfies BlueprintSchema;
+
+const TOOLBAR_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {vertical: {type: 'boolean', default: false}}
 } as const satisfies BlueprintSchema;
 
 const SEPARATOR_SCHEMA = {
@@ -602,6 +666,34 @@ export type CalloutWidgetConfig = FromExtendedSchema<
     typeof CALLOUT_SCHEMA
 >;
 
+export type SelectWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof SELECT_SCHEMA>;
+
+export type DateInputWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof DATE_INPUT_SCHEMA
+>;
+
+export type NumberInputWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof NUMBER_INPUT_SCHEMA
+>;
+
+export type TextInputWidgetConfig = SelectWidgetConfig;
+
+export type SwitchInputWidgetConfig = DateInputWidgetConfig;
+
+export type SliderWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof SLIDER_SCHEMA>;
+
+export type FilterChooserWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof FILTER_CHOOSER_SCHEMA
+>;
+
+export type ToolbarWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof TOOLBAR_SCHEMA
+>;
+
 export type SeparatorWidgetConfig = FromExtendedSchema<
     BlueprintSchemaExtension,
     typeof SEPARATOR_SCHEMA
@@ -798,11 +890,24 @@ const panel: WidgetSpec = {
     label: 'Panel',
     terms: ['panel', 'section', 'group', 'card'],
     guidance:
-        'A titled section that stacks its children top to bottom. style card draws a bordered group in place of a header. Use it to title a group of widgets, or to let a user collapse one. Each child takes an equal share of its height. Put a row box inside it to place children side by side.',
+        'A titled section that stacks its children top to bottom. style card draws a bordered group in place of a header. Use it to title a group of widgets, or to let a user collapse one. Each child takes an equal share of its height. Put a row box inside it to place children side by side. A child reference with slot tbar or bbar draws a toolbar above or below the content.',
     category: 'container',
     config: PANEL_SCHEMA,
     presetPaths: ['/collapsed'],
-    children: {schema: CHILD_ID_SCHEMA},
+    children: {
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['id'],
+            properties: {
+                id: {type: 'string'},
+                slot: {
+                    enum: ['tbar', 'bbar'],
+                    description: 'Draws the child, a toolbar, above or below the content.'
+                }
+            }
+        }
+    },
     size: {default: {w: 6, h: 6}, min: {w: 2, h: 2}},
     example: {
         component: 'panel',
@@ -898,6 +1003,100 @@ const callout: WidgetSpec = {
         component: 'callout',
         config: {intent: 'warning', title: 'Stale prices', text: 'Prices are as of {asOf}.'}
     }
+};
+
+const INPUT_SIZE = {default: {w: 3, h: 1}, min: {w: 2, h: 1}};
+
+const inputSpec = (
+    spec: Pick<WidgetSpec, 'name' | 'label' | 'terms' | 'guidance' | 'config' | 'value'>
+): WidgetSpec => ({
+    version: 1,
+    category: 'input',
+    size: INPUT_SIZE,
+    ...spec,
+    guidance: `${spec.guidance} It shows and sets the variable whose setBy names it.`,
+    example: {component: spec.name, config: {label: spec.label}}
+});
+
+const select = inputSpec({
+    name: 'select',
+    label: 'Select',
+    terms: ['select', 'dropdown', 'picker', 'choose'],
+    guidance: "A dropdown of its variable's options list. A string[] variable picks several.",
+    config: SELECT_SCHEMA,
+    value: {type: ['string', 'string[]']}
+});
+
+const dateInput = inputSpec({
+    name: 'dateInput',
+    label: 'Date',
+    terms: ['date', 'as of', 'calendar'],
+    guidance: 'A date picker for a localDate variable.',
+    config: DATE_INPUT_SCHEMA,
+    value: {type: 'localDate'}
+});
+
+const numberInput = inputSpec({
+    name: 'numberInput',
+    label: 'Number',
+    terms: ['number', 'amount', 'threshold', 'limit'],
+    guidance: 'A number field, within min and max.',
+    config: NUMBER_INPUT_SCHEMA,
+    value: {type: ['number', 'int']}
+});
+
+const textInput = inputSpec({
+    name: 'textInput',
+    label: 'Text',
+    terms: ['text', 'search', 'name'],
+    guidance: 'A one-line text field.',
+    config: TEXT_INPUT_SCHEMA,
+    value: {type: 'string'}
+});
+
+const switchInput = inputSpec({
+    name: 'switchInput',
+    label: 'Switch',
+    terms: ['switch', 'toggle', 'on off', 'checkbox'],
+    guidance: 'An on/off switch for a bool variable.',
+    config: SWITCH_INPUT_SCHEMA,
+    value: {type: 'bool'}
+});
+
+const slider = inputSpec({
+    name: 'slider',
+    label: 'Slider',
+    terms: ['slider', 'range', 'scale'],
+    guidance: 'A slider from min to max, by step. It sets its variable when the user lets go.',
+    config: SLIDER_SCHEMA,
+    value: {type: ['number', 'int']}
+});
+
+const filterChooser = inputSpec({
+    name: 'filterChooser',
+    label: 'Filter',
+    terms: ['filter', 'search', 'narrow'],
+    guidance:
+        "A box that builds a filter from values of its source's dimensions, or of the fields it lists. Bind its filter variable as a widget's or a source's filter.",
+    config: FILTER_CHOOSER_SCHEMA,
+    value: {type: 'filter'}
+});
+
+const toolbar: WidgetSpec = {
+    name: 'toolbar',
+    version: 1,
+    label: 'Toolbar',
+    terms: ['toolbar', 'controls', 'bar', 'filters'],
+    guidance:
+        "A row of inputs, divided by separators and pushed apart by spacers. Put it in a panel's tbar or bbar slot to head or foot the panel, or place it on its own.",
+    category: 'container',
+    config: TOOLBAR_SCHEMA,
+    children: {
+        schema: CHILD_ID_SCHEMA,
+        accepts: {categories: ['input'], widgets: ['separator', 'spacer']}
+    },
+    size: {default: {w: 12, h: 1}, min: {w: 2, h: 1}},
+    example: {component: 'toolbar', children: [{id: 'regionSelect'}, {id: 'asOfInput'}]}
 };
 
 const cubeGrid: WidgetSpec = {
@@ -1134,6 +1333,14 @@ const WIDGET_SPECS: WidgetSpec[] = [
     spacer,
     markdown,
     callout,
+    toolbar,
+    select,
+    dateInput,
+    numberInput,
+    textInput,
+    switchInput,
+    slider,
+    filterChooser,
     cubeGrid,
     chart,
     tileFrame,
@@ -1211,7 +1418,20 @@ function filterFields(filter: unknown): string[] {
 //------------------
 // Widget checks
 //------------------
+
 const VALIDATORS: Record<string, WidgetSpec['validate']> = {
+    separator: (cfg, {blueprint, id}) => {
+        const elements = blueprint.elements ?? {};
+        if (!cfg.label || elements[parentOf(elements, id)]?.component !== 'toolbar') return [];
+        return [
+            {
+                code: 'separator.labelIgnored',
+                severity: 'warning',
+                path: '/label',
+                message: 'a toolbar shows no separator label'
+            }
+        ];
+    },
     statCard: cfg =>
         cfg.field || cfg.agg === 'count'
             ? []

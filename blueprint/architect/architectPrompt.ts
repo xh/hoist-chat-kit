@@ -69,6 +69,7 @@ Elements:
 - A container lists children as objects: the child's ID plus what the container needs to place it. A dashCanvas child takes x, y, w, h on 12 columns. A tabContainer child takes title. A box child may take flex, width or height, and a panel child takes its ID alone. A container refuses a child its widget does not accept.
 - An element has exactly one parent, and every element except the root must be placed.
 - Lay out with a box: a row or column of children, with no chrome. Title or group children with a panel. Divide them with a separator, and push them apart with a spacer. Set headline numbers as statCard elements in a tileFrame. A container shows its emptyText while it has no children.
+- An input widget, such as select, dateInput or filterChooser, shows and sets the variable whose setBy names it: {"setBy": {"element": "<input id>"}}. Gather inputs in a toolbar, or put the toolbar in a panel's tbar slot: {"id": "<toolbar id>", "slot": "tbar"}.
 - Write a report's prose in markdown and callout elements. Their text shows live values: {variable}, and {source.field} for a field's total over a source.
 
 Sources:

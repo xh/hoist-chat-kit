@@ -46,8 +46,11 @@ export interface WidgetSpec {
     /** Paths inside the config that a preset can set, such as `/columnState`. */
     presetPaths?: string[];
     outputs?: WidgetOutputSpec[];
-    /** The type of value the widget shows and sets, for a variable whose `setBy` names it. */
-    value?: {type: string};
+    /**
+     * The type of value the widget shows and sets, for a variable whose `setBy` names it, or each
+     * type it can show and set.
+     */
+    value?: {type: string | string[]};
     /**
      * For a container, the schema of its child references, and the widgets it accepts as
      * children: those of any category listed, plus any widget named. Default any widget.

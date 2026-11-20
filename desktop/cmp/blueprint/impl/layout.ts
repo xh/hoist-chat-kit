@@ -1,11 +1,14 @@
 import {box, placeholder} from '@xh/hoist/cmp/layout';
 import type {ReactNode} from 'react';
-import type {BlueprintWidgetModel} from '../../../../blueprint';
+import type {BlueprintWidgetModel, ChildRef} from '../../../../blueprint';
 
 /** The container's `emptyText` while it has no children, or null. */
-export function emptyContent(model: BlueprintWidgetModel): ReactNode {
+export function emptyContent(
+    model: BlueprintWidgetModel,
+    children: ChildRef[] = model.children
+): ReactNode {
     const text = model.resolvedConfig.emptyText;
-    return !model.children.length && text ? placeholder(String(text)) : null;
+    return !children.length && text ? placeholder(String(text)) : null;
 }
 
 /**
@@ -15,11 +18,12 @@ export function emptyContent(model: BlueprintWidgetModel): ReactNode {
  */
 export function layoutChildren(
     model: BlueprintWidgetModel,
-    direction: 'row' | 'column'
+    direction: 'row' | 'column',
+    children: ChildRef[] = model.children
 ): ReactNode[] {
     const elements = model.blueprintModel.effective?.elements ?? {},
         along = direction === 'row' ? 'width' : 'height';
-    return model.children.map(ref => {
+    return children.map(ref => {
         const el = elements[ref.id],
             size = {
                 width: ref.width as number,

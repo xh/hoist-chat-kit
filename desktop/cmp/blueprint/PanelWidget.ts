@@ -12,7 +12,7 @@ import {emptyContent, layoutChildren} from './impl/layout';
 
 /**
  * The `panel` widget: a Hoist `Panel`, or a `Card` for its card style, over its children in a
- * column. Its collapsed state follows `collapsed` in its config, and a user's collapse writes it
+ * column, with a toolbar child in its `tbar` or `bbar` slot. Its collapsed state follows `collapsed` in its config, and a user's collapse writes it
  * back, so it stays transient in run mode.
  */
 export class PanelWidgetModel extends BlueprintWidgetModel<PanelWidgetConfig> {
@@ -74,14 +74,31 @@ export const [PanelWidget, panelWidget] = hoistCmp.withFactory({
     model: uses(PanelWidgetModel),
     render({model, className}) {
         const {title, icon, style, compactHeader} = model.resolvedConfig,
+            content = model.children.filter(it => !it.slot),
+            slot = (name: string) => {
+                const ref = model.children.find(it => it.slot === name);
+                return ref ? model.renderElement(ref.id) : null;
+            },
             props = {
                 className,
                 title: title || null,
-                icon: icon ? Icon.icon({faName: icon as any}) : null,
-                children: emptyContent(model) ?? layoutChildren(model, 'column')
-            };
+                icon: icon ? Icon.icon({faName: icon as any}) : null
+            },
+            body = emptyContent(model, content) ?? layoutChildren(model, 'column', content);
         return style === 'card'
-            ? card({...props, model: model.cardModel, flex: 'auto'})
-            : panel({...props, model: model.panelModel, compactHeader});
+            ? card({
+                  ...props,
+                  model: model.cardModel,
+                  flex: 'auto',
+                  children: [slot('tbar'), body, slot('bbar')]
+              })
+            : panel({
+                  ...props,
+                  model: model.panelModel,
+                  compactHeader,
+                  tbar: slot('tbar'),
+                  bbar: slot('bbar'),
+                  children: body
+              });
     }
 });

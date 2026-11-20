@@ -166,7 +166,7 @@ value of its own. Its `category` is `input`, so a `toolbar` accepts it.
 
 | Widget | Wraps (`desktop/cmp/input`) | Main config | Value |
 |--------|-----------------------------|-------------|-------|
-| `select` | `select` | `label`, `placeholder`, `multiple`; options from the variable's `options` list | `string`, or `string[]` |
+| `select` | `select` | `label`, `placeholder`; options from the variable's `options` list, and several for a `string[]` variable | `string`, or `string[]` |
 | `dateInput` | `dateInput` | `label` | `localDate` |
 | `dateRangePicker` | `dateRangePicker` (`desktop/cmp/daterange`) | `label`, `presets` | `dateRange` |
 | `numberInput` | `numberInput` | `label`, `min`, `max`, `precision` | `number` |

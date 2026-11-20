@@ -1,0 +1,247 @@
+import {render, screen} from '@testing-library/react';
+import {wait} from '@xh/hoist/promise';
+import {initTestAppAsync} from '@xh/hoist/test-support';
+import {LocalDate} from '@xh/hoist/utils/datetime';
+import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {
+    type Blueprint,
+    type BlueprintElement,
+    BlueprintModel,
+    type BlueprintWidgetModel,
+    FakeBlueprintDataProvider,
+    type VariableDecl
+} from '../../../blueprint';
+import {portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
+import {blueprintView} from './BlueprintView';
+import {
+    DateInputWidgetModel,
+    FilterChooserWidgetModel,
+    NumberInputWidgetModel,
+    SelectWidgetModel,
+    SliderWidgetModel,
+    SwitchInputWidgetModel,
+    TextInputWidgetModel
+} from './InputWidgets';
+
+/**
+ * Each input shows the value of the variable whose `setBy` names it, and sets that variable as a
+ * user changes it. It holds no value of its own. A toolbar holds inputs, separators and spacers.
+ */
+describe('input widgets', () => {
+    beforeAll(async () => {
+        await initTestAppAsync();
+    });
+
+    function open(variable: VariableDecl, el: BlueprintElement, extra: Partial<Blueprint> = {}) {
+        const blueprint: Blueprint = {
+                schema: {blueprint: 1},
+                ...extra,
+                variables: {...extra.variables, v: {...variable, setBy: {element: 'input'}}},
+                root: 'input',
+                elements: {input: el}
+            },
+            model = new BlueprintModel({
+                blueprint,
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
+                mode: 'run'
+            });
+        onTestFinished(() => model.destroy());
+        return model;
+    }
+
+    function widget<T extends BlueprintWidgetModel>(
+        Cls: new (c: any) => T,
+        model: BlueprintModel
+    ): T {
+        const ret = new Cls({blueprintModel: model, id: 'input', renderElement: () => null});
+        onTestFinished(() => ret.destroy());
+        return ret;
+    }
+
+    const valueOf = (model: BlueprintModel) => model.getVariable('v').value;
+
+    it('selects one option of its variable, or several for a list variable', () => {
+        const one = open(
+                {type: 'string', options: {values: ['EU', 'US']}, default: {value: 'EU'}},
+                {component: 'select', config: {label: 'Region'}}
+            ),
+            single = widget(SelectWidgetModel, one);
+        expect(single.inputProps).toMatchObject({
+            options: ['EU', 'US'],
+            value: 'EU',
+            enableMulti: false
+        });
+        single.inputProps.onChange('US');
+        expect(valueOf(one)).toBe('US');
+
+        const many = open(
+                {type: 'string[]', options: {values: ['EU', 'US']}, default: {value: []}},
+                {component: 'select', config: {}}
+            ),
+            multi = widget(SelectWidgetModel, many);
+        expect(multi.inputProps.enableMulti).toBe(true);
+        multi.inputProps.onChange(['EU', 'US']);
+        expect(valueOf(many)).toEqual(['EU', 'US']);
+    });
+
+    it('edits a local date as its ISO string', () => {
+        const model = open(
+                {type: 'localDate', default: {value: '2026-03-02'}},
+                {component: 'dateInput', config: {}}
+            ),
+            input = widget(DateInputWidgetModel, model);
+        expect((input.inputProps.value as LocalDate).isoString).toBe('2026-03-02');
+        input.inputProps.onCommit(LocalDate.get('2026-03-05'));
+        expect(valueOf(model)).toBe('2026-03-05');
+        input.inputProps.onCommit(null);
+        expect(valueOf(model)).toBeNull();
+    });
+
+    it('edits a number within its bounds, a text and a switch', () => {
+        const num = open(
+                {type: 'number', default: {value: 5}},
+                {component: 'numberInput', config: {min: 0, max: 10, precision: 1}}
+            ),
+            numInput = widget(NumberInputWidgetModel, num);
+        expect(numInput.inputProps).toMatchObject({value: 5, min: 0, max: 10, precision: 1});
+        numInput.inputProps.onCommit(7);
+        expect(valueOf(num)).toBe(7);
+
+        const text = open({type: 'string'}, {component: 'textInput', config: {}}),
+            textInput = widget(TextInputWidgetModel, text);
+        textInput.inputProps.onCommit('Oak');
+        expect(valueOf(text)).toBe('Oak');
+
+        const flag = open({type: 'bool', default: {value: false}}, {component: 'switchInput'}),
+            switchInput = widget(SwitchInputWidgetModel, flag);
+        switchInput.inputProps.onChange(true);
+        expect(valueOf(flag)).toBe(true);
+    });
+
+    it('slides without setting its variable, and sets it on release', () => {
+        const model = open(
+                {type: 'number', default: {value: 2}},
+                {component: 'slider', config: {min: 0, max: 10, step: 1}}
+            ),
+            slider = widget(SliderWidgetModel, model);
+        slider.inputProps.onChange(6);
+        expect(slider.inputProps.value).toBe(6);
+        expect(valueOf(model)).toBe(2);
+        slider.release();
+        expect(valueOf(model)).toBe(6);
+        expect(slider.inputProps.value).toBe(6);
+    });
+
+    it("chooses a filter over its source's dimensions, and sets its variable to the filter", async () => {
+        const model = open(
+                {type: 'filter'},
+                {component: 'filterChooser', config: {source: 'positions'}},
+                {
+                    variables: {asOf: {type: 'localDate', default: {value: '2026-03-02'}}},
+                    sources: {positions: {dataset: 'positions', params: {asOf: {$var: 'asOf'}}}}
+                }
+            ),
+            chooser = widget(FilterChooserWidgetModel, model),
+            fields = chooser.chooserModel.fieldSpecs.map(it => it.field);
+        expect(fields).toContain('sector');
+        expect(fields).not.toContain('mktVal');
+
+        chooser.chooserModel.setValue({field: 'sector', op: '=', value: 'Energy'});
+        await wait();
+        expect(valueOf(model)).toEqual({field: 'sector', op: '=', value: 'Energy'});
+
+        model.setVariable('v', {field: 'region', op: '=', value: 'EU'});
+        await wait();
+        expect(chooser.chooserModel.value?.toJSON()).toEqual({
+            field: 'region',
+            op: '=',
+            value: 'EU'
+        });
+    });
+
+    it('draws its label beside its input', () => {
+        const model = open(
+            {type: 'string', options: {values: ['EU', 'US']}},
+            {component: 'select', config: {label: 'Region'}}
+        );
+        render(blueprintView({model}));
+        expect(screen.getByText('Region')).toBeTruthy();
+    });
+
+    describe('toolbar', () => {
+        function show(elements: Record<string, BlueprintElement>, variables = {}) {
+            const model = new BlueprintModel({
+                blueprint: {schema: {blueprint: 1}, variables, root: 'bar', elements},
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: null,
+                mode: 'run'
+            });
+            onTestFinished(() => model.destroy());
+            return {model, ...render(blueprintView({model}))};
+        }
+
+        it('lays out its inputs in a row, with a toolbar separator and a filler', () => {
+            const {container} = show(
+                {
+                    bar: {
+                        component: 'toolbar',
+                        config: {},
+                        children: [{id: 'region'}, {id: 'rule'}, {id: 'gap'}, {id: 'flag'}]
+                    },
+                    region: {component: 'select', config: {label: 'Region'}},
+                    rule: {component: 'separator', config: {}},
+                    gap: {component: 'spacer', config: {}},
+                    flag: {component: 'switchInput', config: {label: 'Live'}}
+                },
+                {
+                    region: {
+                        type: 'string',
+                        options: {values: ['EU']},
+                        setBy: {element: 'region'}
+                    },
+                    live: {type: 'bool', setBy: {element: 'flag'}}
+                }
+            );
+            const bar = container.querySelector('.xh-toolbar');
+            expect(bar).toBeTruthy();
+            expect(bar.querySelector('.xh-toolbar__separator')).toBeTruthy();
+            expect(bar.querySelector('.xh-blueprint-spacer--fill')).toBeTruthy();
+            expect(screen.getByText('Live')).toBeTruthy();
+        });
+
+        it('refuses a widget that is not an input, separator or spacer', () => {
+            expect(() =>
+                show({
+                    bar: {component: 'toolbar', config: {}, children: [{id: 'note'}]},
+                    note: {component: 'markdown', config: {text: 'x'}}
+                })
+            ).toThrow(/toolbar cannot hold 'note'/);
+        });
+
+        it("draws in a panel's top or bottom bar, and only a toolbar may", () => {
+            show({
+                bar: {
+                    component: 'panel',
+                    config: {title: 'Page'},
+                    children: [{id: 'top', slot: 'tbar'}, {id: 'body'}]
+                },
+                top: {component: 'toolbar', config: {}, children: [{id: 'flag'}]},
+                flag: {component: 'switchInput', config: {label: 'Live'}},
+                body: {component: 'markdown', config: {text: 'Body'}}
+            });
+            const tbar = document.querySelector('.xh-panel .xh-toolbar');
+            expect(tbar?.textContent).toContain('Live');
+            expect(screen.getByText('Body')).toBeTruthy();
+
+            expect(() =>
+                show({
+                    bar: {component: 'panel', config: {}, children: [{id: 'top', slot: 'tbar'}]},
+                    top: {component: 'markdown', config: {text: 'x'}}
+                })
+            ).toThrow(/only a toolbar/);
+        });
+    });
+});

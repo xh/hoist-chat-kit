@@ -21,6 +21,23 @@ import {spacerWidget, SpacerWidgetModel} from '../SpacerWidget';
 import {statCardWidget, StatCardWidgetModel} from '../StatCardWidget';
 import {tabContainerWidget, TabContainerWidgetModel} from '../TabContainerWidget';
 import {tileFrameWidget, TileFrameWidgetModel} from '../TileFrameWidget';
+import {toolbarWidget, ToolbarWidgetModel} from '../ToolbarWidget';
+import {
+    dateInputWidget,
+    DateInputWidgetModel,
+    filterChooserWidget,
+    FilterChooserWidgetModel,
+    numberInputWidget,
+    NumberInputWidgetModel,
+    selectWidget,
+    SelectWidgetModel,
+    sliderWidget,
+    SliderWidgetModel,
+    switchInputWidget,
+    SwitchInputWidgetModel,
+    textInputWidget,
+    TextInputWidgetModel
+} from '../InputWidgets';
 import {elementHost} from './ElementHost';
 
 /** The desktop model and component of each built-in widget, for specs that name neither. */
@@ -39,7 +56,15 @@ const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> =
     spacer: {model: SpacerWidgetModel, component: spacerWidget},
     statCard: {model: StatCardWidgetModel, component: statCardWidget},
     tabContainer: {model: TabContainerWidgetModel, component: tabContainerWidget},
-    tileFrame: {model: TileFrameWidgetModel, component: tileFrameWidget}
+    tileFrame: {model: TileFrameWidgetModel, component: tileFrameWidget},
+    toolbar: {model: ToolbarWidgetModel, component: toolbarWidget},
+    select: {model: SelectWidgetModel, component: selectWidget},
+    dateInput: {model: DateInputWidgetModel, component: dateInputWidget},
+    numberInput: {model: NumberInputWidgetModel, component: numberInputWidget},
+    textInput: {model: TextInputWidgetModel, component: textInputWidget},
+    switchInput: {model: SwitchInputWidgetModel, component: switchInputWidget},
+    slider: {model: SliderWidgetModel, component: sliderWidget},
+    filterChooser: {model: FilterChooserWidgetModel, component: filterChooserWidget}
 };
 
 /**

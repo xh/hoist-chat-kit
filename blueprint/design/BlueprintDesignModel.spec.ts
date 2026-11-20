@@ -50,7 +50,15 @@ describe('BlueprintDesignModel', () => {
         'buttonGroupInput',
         'dashCanvas',
         'tabContainer',
-        'tileFrame'
+        'tileFrame',
+        'toolbar',
+        'select',
+        'dateInput',
+        'numberInput',
+        'textInput',
+        'switchInput',
+        'slider',
+        'filterChooser'
     ])('adds a %s that starts valid, on the first free place of the root canvas', component => {
         const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
             result = design.addWidget(component);
