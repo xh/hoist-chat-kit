@@ -107,6 +107,14 @@ def check(f, bp, artifacts):
         elif 'inline' in s:
             source_fields[sn] = {x['name']: x for x in s['inline']['fields']}
 
+    # A join adds the secondary's fields to the primary, by alias.
+    for sn, s in sources.items():
+        for j in s.get('joins', []):
+            other = source_fields.get(j.get('source'), {})
+            for name in j.get('fields', []):
+                if name in other:
+                    source_fields[sn][j.get('as', {}).get(name, name)] = other[name]
+
     # Field references in widget config.
     for eid, el in elements.items():
         cfg = el.get('config', {})
@@ -132,8 +140,9 @@ def check(f, bp, artifacts):
             need(c if isinstance(c, str) else c['field'], 'column')
         if 'x' in cfg:
             need(cfg['x'], 'x')
-        for y in cfg.get('y', []):
-            need(y, 'y')
+        y = cfg.get('y', [])
+        for name in [y] if isinstance(y, str) else y:
+            need(name, 'y')
         for key in ('field', 'deltaField'):
             if key in cfg:
                 need(cfg[key], key)
@@ -174,7 +183,7 @@ def check(f, bp, artifacts):
                         if n not in source_fields[src]:
                             issue(f, f'preset {gname}.{iname}: column {n} not in source {src}')
 
-ARTIFACTS = {'art_7f2': 'positions', 'art_9c4': 'weather'}
+ARTIFACTS = {'art_7f2': 'positions', 'art_9c4': 'weather', 'art_3b8': 'fundSummary'}
 for f in sorted(glob.glob(BASE + 'blueprints/*.json')):
     bp = json.load(open(f))
     if 'elements' in bp:
