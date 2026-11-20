@@ -227,7 +227,7 @@ const BUILT_IN_WIDGET_NAMES = Object.keys(new BlueprintRegistry().widgets);
 type WidgetInfo = Pick<WidgetSpec, 'label' | 'terms' | 'category' | 'size' | 'value'>;
 
 // The kit's components that an answer translates into a dashboard widget - see answerBlueprint.
-const TRANSLATED = ['text', 'callout', 'section', 'stack'];
+const TRANSLATED = ['text', 'callout', 'section', 'stack', 'card'];
 
 const size = (w: number, h: number) => ({default: {w, h}}),
     input = (label: string, terms: string[], type: string, w = 4, h = 1): WidgetInfo => ({

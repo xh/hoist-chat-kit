@@ -92,6 +92,7 @@ export function chatUiCardSpec(
 
     return {
         name,
+        kitComponent: 'card',
         description,
         props: {
             type: 'object',

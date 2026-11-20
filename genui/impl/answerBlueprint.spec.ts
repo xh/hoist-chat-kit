@@ -470,16 +470,71 @@ describe('toAnswerBlueprint', () => {
             expect(bp.elements.mine.component).toBe('stack');
         });
 
-        it('keeps a chat input on its bridge, and its card, as decision 135 has it', () => {
-            const bp = translate({
-                top: {component: 'textInput', props: {label: 'Name'}},
-                c: {
-                    component: 'card',
-                    props: {title: 'Acme', fields: [{label: 'Rating', value: 'A+'}]}
+        it('keeps a chat input on its bridge, as decision 135 has it', () => {
+            const bp = translate({top: {component: 'textInput', props: {label: 'Name'}}});
+            expect(bp.elements.top.component).toBe('chatUiTextInput');
+        });
+
+        it('translates a card into a card panel of its fields as properties, and its actions as buttons', () => {
+            const bp = translate(
+                {
+                    c: {
+                        component: 'card',
+                        props: {
+                            title: 'Acme',
+                            subtitle: 'Tier {1}',
+                            fields: [
+                                {
+                                    label: 'Exposure',
+                                    value: 4200000,
+                                    format: 'currency',
+                                    decimals: 0
+                                },
+                                {label: 'Rating', value: 'A+'}
+                            ],
+                            actions: [
+                                {
+                                    type: 'send',
+                                    label: 'Trades',
+                                    text: 'Show trades.',
+                                    confirm: {message: 'Sure?'}
+                                }
+                            ]
+                        }
+                    }
+                },
+                'c'
+            );
+            expect(bp.elements.c).toEqual({
+                component: 'panel',
+                config: {style: 'card', title: 'Acme'},
+                children: [{id: 'c-subtitle'}, {id: 'c-fields'}, {id: 'c-actions'}]
+            });
+            expect(bp.elements['c-subtitle']).toEqual({
+                component: 'markdown',
+                config: {text: 'Tier {{1}}'}
+            });
+            expect(bp.elements['c-fields']).toEqual({
+                component: 'propertyTable',
+                config: {source: 'c', fields: ['v0', 'v1']}
+            });
+            expect(bp.elements['c-actions']).toEqual({
+                component: 'buttonGroup',
+                config: {
+                    buttons: [
+                        {
+                            label: 'Trades',
+                            action: {type: 'send', text: 'Show trades.', confirm: true}
+                        }
+                    ]
                 }
             });
-            expect(bp.elements.top.component).toBe('chatUiTextInput');
-            expect(bp.elements.c.component).toBe('card');
+            expect(bp.sources.c.inline.rows).toEqual([{v0: 4200000, v1: 'A+'}]);
+            expect(bp.sources.c.inline.fields[0]).toMatchObject({
+                label: 'Exposure',
+                type: 'number'
+            });
+            expect(degradeAnswer(bp, ctx)).toEqual(bp);
         });
     });
 

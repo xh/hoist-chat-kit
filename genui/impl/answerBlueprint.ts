@@ -26,8 +26,9 @@ import {CHILD_REF_PROPS, toWidgetName} from './specWidgets';
  * `degradeAnswer()` to report, so a document with problems still translates.
  *
  * Text, a callout, a section and a stack whose props pass the catalog become the dashboard's
- * `markdown`, `callout`, `panel` and `box`, so an answer holds the widgets a host does. A chat
- * input stays on its bridge, as its state lives in the chat.
+ * `markdown`, `callout`, `panel` and `box`, and a card a card `panel` of a `propertyTable` and a
+ * `buttonGroup`, so an answer holds the widgets a host does. A chat input stays on its bridge, as
+ * its state lives in the chat.
  *
  * Stat cards and an inline grid whose props pass the catalog become a `tileFrame` of `statCard`s or
  * a `cubeGrid` over an inline source, so that their data lives in a source. While one streams, its
@@ -383,6 +384,61 @@ function toPanel(id: string, props: PlainObject, _: boolean, el: ChatUiElement):
     };
 }
 
+// A card's fields become properties over an inline source of one row, and its actions buttons.
+function toCard(id: string, props: PlainObject, isPartial: boolean): Translation {
+    const fields = (isPartial ? dropRight(props.fields) : (props.fields ?? [])).filter(
+            isPlainObject
+        ),
+        actions = (isPartial ? dropRight(props.actions) : (props.actions ?? [])).filter(
+            isPlainObject
+        );
+    if (!fields.length) return null;
+    const row: PlainObject = {},
+        inline = fields.map((f, idx) => {
+            const name = `v${idx}`,
+                isNumber = isFinite(f.value);
+            row[name] = f.value;
+            return {
+                name,
+                label: f.label,
+                type: isNumber ? 'number' : 'string',
+                aggregator: 'UNIQUE',
+                ...(isNumber ? toFieldFormat(f.format, f.decimals, false) : {})
+            };
+        }),
+        children: Record<string, BlueprintElement> = {};
+    if (props.subtitle) {
+        children[`${id}-subtitle`] = {
+            component: 'markdown',
+            config: {text: asTemplate(props.subtitle)}
+        };
+    }
+    children[`${id}-fields`] = {
+        component: 'propertyTable',
+        config: {source: id, fields: inline.map(it => it.name)}
+    };
+    if (actions.length) {
+        children[`${id}-actions`] = {
+            component: 'buttonGroup',
+            config: {
+                buttons: actions.map(({label, confirm, ...action}) => ({
+                    label,
+                    action: {...action, ...(confirm ? {confirm: true} : {})}
+                }))
+            }
+        };
+    }
+    return {
+        element: {
+            component: 'panel',
+            config: {style: 'card', title: props.title},
+            children: Object.keys(children).map(it => ({id: it}))
+        },
+        source: {inline: {fields: inline, rows: [row]}} as SourceDecl,
+        children
+    };
+}
+
 // A titled stack draws a frame, as a card panel around its box.
 function toBox(id: string, props: PlainObject, _: boolean, el: ChatUiElement): Translation {
     const {children} = toElement(el),
@@ -417,7 +473,8 @@ const TRANSLATORS: Record<
     text: toMarkdown,
     callout: toCallout,
     section: toPanel,
-    stack: toBox
+    stack: toBox,
+    card: toCard
 };
 
 function ids(value: unknown): string[] {
