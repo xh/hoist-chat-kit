@@ -271,6 +271,7 @@ export class BlueprintSource extends HoistBase {
         if (Object.entries(ds.params).some(([k, p]) => p.required && params[k] == null)) {
             return null;
         }
+        if (this.selectionWait) return null;
 
         const plan = this.filterPlan;
         if (plan.pushdown === 'waiting') return null;
@@ -293,6 +294,24 @@ export class BlueprintSource extends HoistBase {
             groupBy: this.groupingSets,
             ...(filter ? {filter} : {})
         };
+    }
+
+    /**
+     * Why the source waits for a user's selection, as a user reads it, or null. A parameter
+     * bound to a variable a widget's output sets waits while it has no value, as nothing selected
+     * means nothing to show. A variable a prompt or a resolver sets, left empty, means all.
+     */
+    get selectionWait(): string {
+        const {blueprint} = this.context,
+            waiting = Object.values(this.decl.params ?? {})
+                .map(it => (it as PlainObject)?.$var as string)
+                .filter(name => name && this.context.resolve({$var: name}) == null)
+                .flatMap(name => getWriters(getOwn(blueprint?.variables, name)))
+                .find(w => w.output);
+        if (!waiting) return null;
+        const el = getOwn(blueprint?.elements, waiting.element),
+            title = this.context.resolve(el?.config?.title);
+        return `Select ${SELECTION_NOUNS[el?.component] ?? 'a value'} in ${title || waiting.element} to see this.`;
     }
 
     /**
@@ -880,6 +899,14 @@ export class BlueprintSource extends HoistBase {
 }
 
 const INLINE_ROW_ID = 'xhInlineRowId';
+
+// What a user selects in each widget with a selection, for a source that waits on it.
+const SELECTION_NOUNS: Record<string, string> = {
+    cubeGrid: 'a row',
+    chart: 'a point',
+    treemap: 'a node',
+    heatmap: 'a cell'
+};
 
 // The catalog aggregators a keyed field's root can apply once per key.
 const ROOT_AGGREGATORS = ['SUM', 'AVG', 'MIN', 'MAX', 'UNIQUE'];

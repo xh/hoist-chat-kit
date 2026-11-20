@@ -52,7 +52,7 @@ function renderContent(id: string, viewModel: BlueprintViewModel) {
               ? 'This result has too many rows to show here.'
               : model.source?.isUnavailable
                 ? 'The data for this answer is no longer available.'
-                : (model.source?.joinWait ?? null);
+                : (model.source?.joinWait ?? model.source?.selectionWait ?? null);
     if (notice) {
         return div({className: 'xh-blueprint-view__notice', role: 'note', children: notice});
     }

@@ -674,9 +674,22 @@ describe('BlueprintModel', () => {
             expect(prices.isWaiting).toBe(true);
             expect(provider.subs.some(it => it.req.dataset === 'prices')).toBe(false);
 
+            expect(prices.selectionWait).toBe('Select a row in posGrid to see this.');
+
             model.setOutput('posGrid', 'selected', {sector: 'Technology', symbol: 'NVDA'});
             expect(prices.isWaiting).toBe(false);
+            expect(prices.selectionWait).toBeNull();
             expect(provider.last.req).toMatchObject({dataset: 'prices', params: {symbol: 'NVDA'}});
+        });
+
+        it('loads with an optional parameter a prompt leaves empty, meaning all', async () => {
+            const provider = new RecordingProvider(),
+                bp = p3();
+            bp.variables.symbol = {type: 'string', label: 'Symbol', setBy: 'prompt'};
+            const model = await opened(bp, provider),
+                prices = model.getSource('prices');
+            expect(prices.isWaiting).toBe(false);
+            expect(provider.subs.some(it => it.req.dataset === 'prices')).toBe(true);
         });
 
         it('subscribes again for a field it has not loaded', async () => {
