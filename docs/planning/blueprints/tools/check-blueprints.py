@@ -13,7 +13,7 @@ for c in cats.values():
 
 # Spec-level registries used by the scenarios.
 WIDGETS = {
-    'dashCanvas': {}, 'tabContainer': {}, 'panel': {}, 'box': {}, 'separator': {}, 'spacer': {}, 'markdown': {}, 'callout': {}, 'toolbar': {}, 'select': {'value': True}, 'dateInput': {'value': True}, 'dateRangePicker': {'value': True}, 'numberInput': {'value': True}, 'textInput': {'value': True}, 'switchInput': {'value': True}, 'slider': {'value': True}, 'filterChooser': {'value': True}, 'cubeGrid': {'outputs': {'selection', 'selected'}}, 'chart': {'outputs': {'selection'}}, 'treemap': {'outputs': {'selection'}}, 'propertyTable': {}, 'heatmap': {'outputs': {'selection'}},
+    'dashCanvas': {}, 'tabContainer': {}, 'dashContainer': {}, 'panel': {}, 'box': {}, 'separator': {}, 'spacer': {}, 'markdown': {}, 'callout': {}, 'toolbar': {}, 'select': {'value': True}, 'dateInput': {'value': True}, 'dateRangePicker': {'value': True}, 'numberInput': {'value': True}, 'textInput': {'value': True}, 'switchInput': {'value': True}, 'slider': {'value': True}, 'filterChooser': {'value': True}, 'cubeGrid': {'outputs': {'selection', 'selected'}}, 'chart': {'outputs': {'selection'}}, 'treemap': {'outputs': {'selection'}}, 'propertyTable': {}, 'heatmap': {'outputs': {'selection'}},
     'tileFrame': {}, 'statCard': {}, 'groupingChooser': {'value': True}, 'buttonGroup': {}, 'buttonGroupInput': {'value': True},
     'toolbox.portfolioBuilder': {'value': True}
 }

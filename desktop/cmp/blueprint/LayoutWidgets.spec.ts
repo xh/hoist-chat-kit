@@ -2,8 +2,14 @@ import {render, screen} from '@testing-library/react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
 import {portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixtures';
-import {type Blueprint, type BlueprintElement, BlueprintModel} from '../../../blueprint';
+import {
+    type Blueprint,
+    type BlueprintElement,
+    BlueprintModel,
+    validateBlueprint
+} from '../../../blueprint';
 import {blueprintView} from './BlueprintView';
+import {DashContainerWidgetModel} from './DashContainerWidget';
 import {PanelWidgetModel} from './PanelWidget';
 
 /**
@@ -191,6 +197,93 @@ describe('layout and container widgets', () => {
                     inner: emptyPanel('Inner')
                 })
             ).toThrow(/tileFrame cannot hold 'inner'/);
+        });
+    });
+
+    describe('dashContainer', () => {
+        const container = (layout?: object[]) => ({
+                tabs: {
+                    component: 'dashContainer',
+                    config: layout ? {layout} : {},
+                    children: [{id: 'a', title: 'First'}, {id: 'b'}]
+                },
+                a: emptyPanel('A'),
+                b: {component: 'panel', config: {title: 'Second', emptyText: 'B'}}
+            }),
+            open = (elements: Record<string, BlueprintElement>) => {
+                const model = new BlueprintModel({
+                    blueprint: {schema: {blueprint: 1}, root: 'tabs', elements},
+                    catalog: portfolioCatalog,
+                    registry: scenarioRegistry(),
+                    dataProvider: null,
+                    mode: 'run'
+                });
+                onTestFinished(() => model.destroy());
+                const ret = new DashContainerWidgetModel({
+                    blueprintModel: model,
+                    id: 'tabs',
+                    renderElement: () => null
+                });
+                onTestFinished(() => ret.destroy());
+                return {model, widget: ret};
+            };
+
+        it('offers a view per child, titled by its reference or its title', () => {
+            const {widget} = open(container());
+            expect(widget.containerModel.viewSpecs.map(it => [it.id, it.title])).toEqual([
+                ['a', 'First'],
+                ['b', 'Second']
+            ]);
+        });
+
+        it('lays its children out as its layout says, or as tabs of one stack', () => {
+            const layout = [
+                {
+                    type: 'row',
+                    content: [
+                        {type: 'view', id: 'a'},
+                        {type: 'view', id: 'b'}
+                    ]
+                }
+            ];
+            expect(open(container(layout)).widget.layout).toEqual(layout);
+            expect(open(container()).widget.layout).toEqual([
+                {
+                    type: 'stack',
+                    content: [
+                        {type: 'view', id: 'a'},
+                        {type: 'view', id: 'b'}
+                    ]
+                }
+            ]);
+        });
+
+        it("keeps a user's rearrangement transient in run mode", () => {
+            const {model, widget} = open(container()),
+                next = [
+                    {
+                        type: 'column',
+                        content: [
+                            {type: 'view', id: 'b'},
+                            {type: 'view', id: 'a'}
+                        ]
+                    }
+                ];
+            widget.noteLayout(next);
+            expect(model.effective.elements.tabs.config.layout).toEqual(next);
+            expect(model.blueprint.elements.tabs.config.layout).toBeUndefined();
+        });
+
+        it('refuses a layout view that names no child', () => {
+            const issues = validateBlueprint(
+                {
+                    schema: {blueprint: 1},
+                    root: 'tabs',
+                    elements: container([{type: 'stack', content: [{type: 'view', id: 'nope'}]}])
+                },
+                {catalog: portfolioCatalog, registry: scenarioRegistry()}
+            );
+            expect(issues.map(it => it.code)).toContain('dashContainer.unknownView');
         });
     });
 

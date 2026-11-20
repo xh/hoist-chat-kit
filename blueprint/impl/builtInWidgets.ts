@@ -62,6 +62,21 @@ const TAB_CONTAINER_SCHEMA = {
     properties: {emptyText: EMPTY_TEXT}
 } as const satisfies BlueprintSchema;
 
+const DASH_CONTAINER_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+        layout: {
+            type: 'array',
+            maxItems: 20,
+            items: {type: 'object'},
+            description:
+                "GoldenLayout's rows, columns, stacks and views: [{type: 'row', content: [{type: 'view', id: 'grid'}, ...]}]. Each view names a child. Default one stack, a tab per child."
+        },
+        emptyText: EMPTY_TEXT
+    }
+} as const satisfies BlueprintSchema;
+
 const PANEL_SCHEMA = {
     type: 'object',
     additionalProperties: false,
@@ -827,6 +842,11 @@ export type DashCanvasWidgetConfig = FromExtendedSchema<
 /** The config of a `tabContainer` widget, with bindings resolved. */
 export type PanelWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof PANEL_SCHEMA>;
 
+export type DashContainerWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof DASH_CONTAINER_SCHEMA
+>;
+
 export type BoxWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof BOX_SCHEMA>;
 
 export type MarkdownWidgetConfig = FromExtendedSchema<
@@ -1074,6 +1094,42 @@ const tabContainer: WidgetSpec = {
                 title: 'Detail'
             }
         ]
+    }
+};
+
+const dashContainer: WidgetSpec = {
+    name: 'dashContainer',
+    version: 1,
+    label: 'Dash container',
+    terms: ['dock', 'golden layout', 'stacks', 'rearrange', 'tabs and splits'],
+    guidance:
+        "Views a user can drag into tabs, stacks, rows and columns, and resize. Each child reference may give the title of its tab. Its layout is GoldenLayout's own: rows and columns of stacks of views, each view naming a child. Use tabContainer for plain tabs, and this only where users rearrange.",
+    category: 'container',
+    config: DASH_CONTAINER_SCHEMA,
+    presetPaths: ['/layout'],
+    children: {
+        schema: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['id'],
+            properties: {id: {type: 'string'}, title: {type: 'string', maxLength: 60}}
+        }
+    },
+    size: {default: {w: 12, h: 8}, min: {w: 3, h: 3}},
+    example: {
+        component: 'dashContainer',
+        config: {
+            layout: [
+                {
+                    type: 'row',
+                    content: [
+                        {type: 'view', id: 'posGrid'},
+                        {type: 'view', id: 'chart'}
+                    ]
+                }
+            ]
+        },
+        children: [{id: 'posGrid'}, {id: 'chart'}]
     }
 };
 
@@ -1624,6 +1680,7 @@ const WIDGET_SPECS: WidgetSpec[] = [
     fallback,
     dashCanvas,
     tabContainer,
+    dashContainer,
     panel,
     box,
     separator,
@@ -1829,6 +1886,43 @@ const VALIDATORS: Record<string, WidgetSpec['validate']> = {
               ]
             : [])
     ],
+    // A layout is GoldenLayout's own state, so it takes a size cap, and each view names a child.
+    dashContainer: (cfg, {blueprint, id}) => {
+        if (!cfg.layout) return [];
+        const children = (blueprint.elements?.[id]?.children ?? []).map(it => it.id),
+            issue = (code: string, path: string, message: string): BlueprintIssue => ({
+                code,
+                severity: 'error',
+                path,
+                message
+            });
+        if (JSON.stringify(cfg.layout).length > 20000) {
+            return [
+                issue(
+                    'dashContainer.layoutTooLarge',
+                    '/layout',
+                    'the layout is past 20,000 characters'
+                )
+            ];
+        }
+        const ret: BlueprintIssue[] = [],
+            walk = (items: unknown, path: string) =>
+                castArray(items ?? []).forEach((it: PlainObject, idx) => {
+                    const at = `${path}/${idx}`;
+                    if (it?.type === 'view' && !children.includes(it.id)) {
+                        ret.push(
+                            issue(
+                                'dashContainer.unknownView',
+                                `${at}/id`,
+                                `'${it.id}' is not a child`
+                            )
+                        );
+                    }
+                    walk(it?.content, `${at}/content`);
+                });
+        walk(cfg.layout, '/layout');
+        return ret;
+    },
     // groupBy may come from a preset group, which takes it out of the config.
     treemap: (cfg, {blueprint, id}) => {
         const path = `/elements/${id}/config/groupBy`,
