@@ -34,19 +34,16 @@ export interface FieldDisplay {
 }
 
 /**
- * The display of a field in a widget, from the catalog and the widget's own `format` and
- * `renderer` for the field.
+ * The display of a field in a widget, from the catalog, then each format given over its own, most
+ * specific last, and the renderer given, if any. See `resolveFieldDisplay()` for the layers.
  */
 export function fieldDisplay(
     field: FieldDef,
-    overrides: {format?: FormatLike; renderer?: RendererLike},
+    overrides: {formats?: FormatLike[]; renderer?: RendererLike},
     ctx: {catalog: DataCatalog; blueprint: Blueprint; registry: BlueprintRegistry}
 ): FieldDisplay {
     const {catalog, blueprint, registry} = ctx,
-        format = resolveFormat(field, overrides.format ? [overrides.format] : [], {
-            catalog,
-            blueprint
-        }),
+        format = resolveFormat(field, overrides.formats ?? [], {catalog, blueprint}),
         fmt = (v: unknown) => formatValue(v, field, format, catalog),
         resolved = resolveRenderer(field, overrides.renderer, registry),
         rendererCtx = (record: PlainObject, isAggregate: boolean): RendererContext => ({

@@ -15,7 +15,7 @@ import {
 import {ChatUiCatalog} from '../../../../genui';
 import {AnswerLoadGate} from '../../../../genui/impl/AnswerLoadGate';
 import {CUBE_GRID_STYLES} from '../../../../blueprint/impl/builtInWidgets';
-import {resolveFormat} from '../../../../blueprint/impl/formats';
+import {type FormatLike, resolveFormat} from '../../../../blueprint/impl/formats';
 import {chatArtifactProvider} from '../../../../genui/impl/answerData';
 import {getArtifactRows} from '../../../../impl/ArtifactRows';
 import {
@@ -175,7 +175,7 @@ const gridCard = hoistCmp.factory({
             columns = castArray(config.columnState ?? [])
                 .map(it => (isString(it) ? it : it?.field))
                 .filter(it => source.fields[it])
-                .map(it => toGridColumn(source.fields[it], blueprintModel));
+                .map(it => toGridColumn(it, model));
         return chatUiGrid({
             title: config.title,
             columns,
@@ -230,7 +230,13 @@ export function toChatChartProps(
         yAxis: {
             ...layout.yAxis,
             title: layout.yAxis?.title || null,
-            ...(yField ? toChatFormat(yField, model.blueprintModel) : {})
+            ...(yField
+                ? toChatFormat(
+                      yField,
+                      model.blueprintModel,
+                      model.source.displayOf(yField.name).formats
+                  )
+                : {})
         },
         series: (layout.series ?? []).map((it, idx, all) => ({
             ...it,
@@ -344,13 +350,19 @@ class ChatUiAnswerModel extends HoistModel {
 }
 
 // A field as a chat grid column, the reverse of how an inline grid's columns become fields.
-function toGridColumn(def: FieldDef, blueprintModel: BlueprintModel): ChatUiGridColumn {
-    const ret: ChatUiGridColumn = {
-        field: def.name,
-        type: toChatType(def),
-        ...(def.label ? {headerName: def.label} : {})
-    };
-    return ret.type === 'number' ? {...ret, ...toChatFormat(def, blueprintModel)} : ret;
+function toGridColumn(name: string, model: CubeGridWidgetModel): ChatUiGridColumn {
+    const {source, blueprintModel} = model,
+        def = source.fields[name],
+        label = source.fieldLabel(name),
+        // With no label, chat kit's grid names the column from its field, as it always has.
+        ret: ChatUiGridColumn = {
+            field: name,
+            type: toChatType(def),
+            ...(label !== name ? {headerName: label} : {})
+        };
+    return ret.type === 'number'
+        ? {...ret, ...toChatFormat(def, blueprintModel, source.displayOf(name).formats)}
+        : ret;
 }
 
 function toChatType(def: FieldDef): ChatUiGridColumn['type'] {
@@ -363,9 +375,10 @@ function toChatType(def: FieldDef): ChatUiGridColumn['type'] {
 // Reads the format the field shows with, through its kind, as a catalog's `chance` is a fraction.
 function toChatFormat(
     def: FieldDef,
-    {catalog, blueprint}: BlueprintModel
+    {catalog, blueprint}: BlueprintModel,
+    formats: FormatLike[] = []
 ): {format: ChatUiNumberFormat; decimals?: number} {
-    const format = resolveFormat(def, [], {catalog, blueprint}),
+    const format = resolveFormat(def, formats, {catalog, blueprint}),
         base = catalog?.kinds[def.kind]?.base ?? def.kind;
     return {
         format:

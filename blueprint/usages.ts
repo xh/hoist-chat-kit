@@ -1,6 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {isArray, isEmpty, isPlainObject, isString, omit, uniq} from 'lodash';
-import type {Blueprint} from './Blueprint';
+import {type Blueprint, fieldInstances, isFieldInstance} from './Blueprint';
 import type {BlueprintRegistry} from './BlueprintRegistry';
 import type {DataCatalog} from './DataCatalog';
 import {getOwn} from './impl/pointer';
@@ -58,7 +58,7 @@ export function fieldUsages(blueprint: Blueprint, catalog: DataCatalog): FieldUs
                     // A name may be an instance a source declares over the dataset.
                     inst = Object.values(sources)
                         .filter(s => s.dataset === ds)
-                        .map(s => getOwn(s.fields, name))
+                        .map(s => getOwn(fieldInstances(s), name))
                         .find(Boolean),
                     field = inst?.field ?? name;
                 if (!getOwn(fields, field)) return;
@@ -72,11 +72,17 @@ export function fieldUsages(blueprint: Blueprint, catalog: DataCatalog): FieldUs
             return found.length ? found : allDatasets;
         };
 
-    // Sources: their field instances, and their filters.
+    // Sources: their field instances and overrides, and their filters.
     Object.entries(sources).forEach(([id, src]) => {
         if (!src.dataset) return;
-        Object.entries(src.fields ?? {}).forEach(([inst, def]) => {
-            if (!getOwn(catalog.getDataset(src.dataset)?.fields, def.field)) return;
+        const dsFields = catalog.getDataset(src.dataset)?.fields;
+        Object.entries(src.fields ?? {}).forEach(([name, entry]) => {
+            if (!isFieldInstance(entry) && getOwn(dsFields, name)) {
+                use(src.dataset, name, {path: `/sources/${id}/fields/${name}`});
+            }
+        });
+        Object.entries(fieldInstances(src)).forEach(([inst, def]) => {
+            if (!getOwn(dsFields, def.field)) return;
             const it: FieldUse = {path: `/sources/${id}/fields/${inst}`, instance: inst};
             if (!isEmpty(def.params)) it.params = def.params;
             use(src.dataset, def.field, it);

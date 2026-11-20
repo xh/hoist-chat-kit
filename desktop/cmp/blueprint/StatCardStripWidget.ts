@@ -81,7 +81,11 @@ export class StatCardStripWidgetModel extends BlueprintWidgetModel<StatCardStrip
                           )
                         : root[name],
                 value = rollUp(def.name),
-                display = fieldDisplay(def, {format: card.format}, {catalog, blueprint, registry}),
+                display = fieldDisplay(def, source.displayOf(def.name, {format: card.format}), {
+                    catalog,
+                    blueprint,
+                    registry
+                }),
                 deltaDef = source.fields[card.deltaField];
             return {
                 key,
@@ -94,7 +98,8 @@ export class StatCardStripWidgetModel extends BlueprintWidgetModel<StatCardStrip
                     ? this.formatDelta(
                           rollUp(deltaDef.name) as number,
                           deltaDef,
-                          card.deltaFormat ?? card.format,
+                          source.displayOf(deltaDef.name, {format: card.deltaFormat ?? card.format})
+                              .formats,
                           card.invert
                       )
                     : null,
@@ -108,10 +113,15 @@ export class StatCardStripWidgetModel extends BlueprintWidgetModel<StatCardStrip
      * A change with an arrow in color - the reverse for a figure where up is bad - which a screen
      * reader hears in words, such as "up 1.2%", as the arrow alone does not say which way it moved.
      */
-    private formatDelta(delta: number, def: FieldDef, format: unknown, invert: boolean): ReactNode {
+    private formatDelta(
+        delta: number,
+        def: FieldDef,
+        formats: FormatLike[],
+        invert: boolean
+    ): ReactNode {
         if (!isFinite(delta)) return null;
         const {catalog, blueprint} = this.blueprintModel,
-            opts = resolveFormat(def, format ? [format as FormatLike] : [], {catalog, blueprint}),
+            opts = resolveFormat(def, formats, {catalog, blueprint}),
             shown = formatValue(
                 delta,
                 def,

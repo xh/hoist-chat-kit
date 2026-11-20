@@ -6,6 +6,7 @@ import {wait} from '@xh/hoist/promise';
 import {
     castArray,
     isArray,
+    isEmpty,
     isEqual,
     isPlainObject,
     isString,
@@ -15,7 +16,15 @@ import {
     uniq,
     uniqWith
 } from 'lodash';
-import type {Blueprint, BlueprintElement, SourceDecl} from './Blueprint';
+import {
+    type Blueprint,
+    type BlueprintElement,
+    type FieldInstance,
+    type FieldOverride,
+    fieldInstances,
+    isFieldInstance,
+    type SourceDecl
+} from './Blueprint';
 import type {
     BlueprintArtifactProvider,
     BlueprintDataProvider,
@@ -24,7 +33,13 @@ import type {
 } from './BlueprintDataProvider';
 import type {BlueprintRegistry} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
-import {formatValue, resolveFormat} from './impl/formats';
+import {
+    type FieldDisplayLayer,
+    formatValue,
+    resolveFieldDisplay,
+    resolveFormat,
+    type ResolvedFieldDisplay
+} from './impl/formats';
 import {getOwn} from './impl/pointer';
 import {getWriters} from './validateBlueprint';
 
@@ -165,7 +180,10 @@ export class BlueprintSource extends HoistBase {
      * new one. Its parameters and filter only change what it loads.
      */
     static cubeKey(decl: SourceDecl): PlainObject {
-        const ret: PlainObject = pick(decl, 'dataset', 'fields', 'artifact');
+        // An override only changes how a field shows.
+        const ret: PlainObject = pick(decl, 'dataset', 'artifact'),
+            instances = fieldInstances(decl);
+        if (!isEmpty(instances)) ret.fields = instances;
         if (decl.inline) ret.inline = {fields: decl.inline.fields};
         return ret;
     }
@@ -176,9 +194,9 @@ export class BlueprintSource extends HoistBase {
      */
     fieldLabel(name: string): string {
         const field = this.fields[name],
-            inst = this.decl.fields?.[name];
+            inst = this.instanceOf(name);
         if (!field) return name;
-        if (!inst) return field.label ?? name;
+        if (!inst) return this.displayOf(name).label ?? name;
         if (inst.label) return inst.label;
 
         const {catalog, blueprint} = this.context,
@@ -193,6 +211,14 @@ export class BlueprintSource extends HoistBase {
                 return String(formatValue(value, param, opts, catalog, true));
             });
         return `${base?.label ?? inst.field} (${values.join(', ')})`;
+    }
+
+    /**
+     * How a field of the source shows: its catalog field, then the source's override of it, then
+     * each layer given, such as a widget's own entry for it.
+     */
+    displayOf(name: string, ...layers: FieldDisplayLayer[]): ResolvedFieldDisplay {
+        return resolveFieldDisplay(this.fields[name], this.overrideOf(name), ...layers);
     }
 
     /** Load the source again, as on a refresh. */
@@ -216,7 +242,7 @@ export class BlueprintSource extends HoistBase {
         }
 
         const fields = this.requestedFields.map(it => {
-            const inst = decl.fields?.[it];
+            const inst = this.instanceOf(it);
             if (!inst) return it;
             return {
                 name: it,
@@ -461,6 +487,16 @@ export class BlueprintSource extends HoistBase {
         this.logError(`Source '${this.name}' failed to load`, e);
     }
 
+    private instanceOf(name: string): FieldInstance {
+        const entry = getOwn(this.decl.fields, name);
+        return isFieldInstance(entry) ? entry : null;
+    }
+
+    private overrideOf(name: string): FieldOverride {
+        const entry = getOwn(this.decl.fields, name);
+        return entry && !isFieldInstance(entry) ? entry : null;
+    }
+
     private buildFields(): Record<string, FieldDef> {
         const {initialDecl: decl, context} = this;
         // Inline values are computed literals, so a row that holds one rolls up to it.
@@ -474,7 +510,7 @@ export class BlueprintSource extends HoistBase {
         );
         if (!ds) return {};
         const ret = {...ds.fields};
-        Object.entries(decl.fields ?? {}).forEach(([name, inst]) => {
+        Object.entries(fieldInstances(decl)).forEach(([name, inst]) => {
             const base = ds.fields[inst.field];
             if (base) ret[name] = {...base, name};
         });

@@ -232,15 +232,19 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
             .map(({field, format, renderer}) => {
                 const def = source.fields[field],
                     label = source.fieldLabel(field),
-                    display = fieldDisplay(def, {format, renderer}, {catalog, blueprint, registry}),
+                    shown = source.displayOf(field, {format, renderer}),
+                    display = fieldDisplay(def, shown, {catalog, blueprint, registry}),
                     isNum = def.type === 'number' || def.type === 'int',
                     isAggregate = (record: StoreRecord) => record?.data.cubeRowType !== 'leaf';
                 return {
                     field: {name: field, type: def.type as any, displayName: label},
                     displayName: label,
                     headerName: label,
+                    ...(shown.description ? {headerTooltip: shown.description} : {}),
+                    ...(shown.width ? {width: shown.width} : {}),
+                    ...(def.category ? {chooserGroup: castArray(def.category).join(' › ')} : {}),
                     absSort: isNum,
-                    align: isNum ? 'right' : null,
+                    align: shown.align ?? (isNum ? 'right' : null),
                     renderer: (v, {record}) => display.render(v, record?.data, isAggregate(record)),
                     exportValue: (v, {record}) =>
                         display.exportValue(v, record?.data, isAggregate(record))
@@ -268,7 +272,13 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                     const def = source.fields[dim];
                     displays.set(
                         dim,
-                        def ? fieldDisplay(def, {}, {catalog, blueprint, registry}) : null
+                        def
+                            ? fieldDisplay(def, source.displayOf(dim), {
+                                  catalog,
+                                  blueprint,
+                                  registry
+                              })
+                            : null
                     );
                 }
                 return displays.get(dim);

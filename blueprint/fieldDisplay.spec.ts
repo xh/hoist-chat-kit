@@ -1,0 +1,129 @@
+import {initTestAppAsync} from '@xh/hoist/test-support';
+import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {
+    ARTIFACTS,
+    loadBlueprint,
+    portfolioCatalog,
+    scenarioRegistry
+} from '../test/blueprintFixtures';
+import type {Blueprint} from './Blueprint';
+import {BlueprintModel} from './BlueprintModel';
+import {BlueprintSource} from './BlueprintSource';
+import {FakeBlueprintDataProvider} from './FakeBlueprintDataProvider';
+import {resolveFieldDisplay} from './impl/formats';
+import {fieldUsages} from './usages';
+import {validateBlueprint} from './validateBlueprint';
+
+/**
+ * How a field shows, in layers: the catalog's field, then a source's override of it, then a
+ * widget's own entry. An override changes only how the field shows, for every widget over the
+ * source.
+ */
+describe('field display', () => {
+    beforeAll(async () => {
+        await initTestAppAsync();
+    });
+
+    const withOverride = (override: object): Blueprint => {
+        const bp = loadBlueprint('p2-linked-dashboard.json');
+        bp.sources.positions.fields = {mktVal: override as any};
+        return bp;
+    };
+
+    it('takes each setting from the most specific layer, and merges formats in order', () => {
+        const field = {
+            name: 'v',
+            type: 'number',
+            label: 'Value',
+            description: 'From the catalog.',
+            align: 'left' as const,
+            width: 90
+        };
+        expect(
+            resolveFieldDisplay(
+                field,
+                {label: 'Source', align: 'center', format: {precision: 1}},
+                {label: 'Column', format: 'thousands'}
+            )
+        ).toEqual({
+            label: 'Column',
+            description: 'From the catalog.',
+            align: 'center',
+            width: 90,
+            formats: [{precision: 1}, 'thousands'],
+            renderer: null
+        });
+        expect(resolveFieldDisplay(field).label).toBe('Value');
+    });
+
+    describe('a source override', () => {
+        const validate = (bp: Blueprint) =>
+            validateBlueprint(bp, {
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                artifacts: ARTIFACTS
+            });
+
+        it('takes the display settings of a field the dataset has', () => {
+            expect(
+                validate(
+                    withOverride({
+                        label: 'Value',
+                        description: 'At the close.',
+                        align: 'center',
+                        width: 120,
+                        format: {precision: 0},
+                        renderer: 'bar'
+                    })
+                )
+            ).toEqual([]);
+        });
+
+        it('refuses a field the dataset does not have, and any setting but display', () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.sources.positions.fields = {
+                nope: {label: 'Nope'},
+                mktVal: {label: 'Value', aggregator: 'MAX'} as any
+            };
+            expect(validate(bp).map(it => [it.code, it.path])).toEqual(
+                expect.arrayContaining([
+                    ['source.unknownField', '/sources/positions/fields/nope'],
+                    ['source.badOverride', '/sources/positions/fields/mktVal/aggregator']
+                ])
+            );
+        });
+
+        it("names the field for every widget, and leaves the source's data and Cube as they are", () => {
+            const model = new BlueprintModel({
+                blueprint: withOverride({label: 'Value', align: 'center'}),
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
+                mode: 'design',
+                access: 'write'
+            });
+            onTestFinished(() => model.destroy());
+            const source = model.getSource('positions');
+            expect(source.fieldLabel('mktVal')).toBe('Value');
+            expect(source.displayOf('mktVal')).toMatchObject({
+                label: 'Value',
+                align: 'center',
+                description: 'Value at the close of the as-of date.'
+            });
+            expect(source.fields.mktVal.label).toBe('Market Value');
+            expect(
+                BlueprintSource.cubeKey(withOverride({label: 'Value'}).sources.positions)
+            ).toEqual(
+                BlueprintSource.cubeKey(loadBlueprint('p2-linked-dashboard.json').sources.positions)
+            );
+        });
+
+        it('counts as a use of its field', () => {
+            expect(
+                fieldUsages(withOverride({label: 'Value'}), portfolioCatalog).positions.mktVal.map(
+                    it => it.path
+                )
+            ).toContain('/sources/positions/fields/mktVal');
+        });
+    });
+});

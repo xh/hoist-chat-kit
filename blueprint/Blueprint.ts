@@ -75,8 +75,11 @@ export type VariableOptions = {values: unknown[]} | {dataset: string; field: str
 export interface SourceDecl {
     dataset?: string;
     params?: PlainObject;
-    /** Instances of parameterized fields, keyed by the name widgets use for them. */
-    fields?: Record<string, FieldInstance>;
+    /**
+     * Instances of parameterized fields, keyed by the name widgets use for them, and display
+     * overrides of the dataset's own fields, keyed by the field's name.
+     */
+    fields?: Record<string, FieldInstance | FieldOverride>;
     filter?: PlainObject;
     artifact?: string;
     inline?: {fields: PlainObject[]; rows: PlainObject[]};
@@ -87,6 +90,32 @@ export interface FieldInstance {
     params?: PlainObject;
     /** The instance's label. Default the field's label and its parameter values. */
     label?: string;
+}
+
+/**
+ * How every widget over a source shows one of its dataset's fields, over the catalog's defaults.
+ * Display only: it changes no data.
+ */
+export interface FieldOverride {
+    label?: string;
+    description?: string;
+    align?: 'left' | 'center' | 'right';
+    /** A grid column's width in pixels, until a user sizes it. */
+    width?: number;
+    format?: PlainObject | string;
+    renderer?: PlainObject | string;
+}
+
+/** True for an entry of a source's `fields` that makes an instance, rather than an override. */
+export function isFieldInstance(entry: unknown): entry is FieldInstance {
+    return typeof (entry as FieldInstance)?.field === 'string';
+}
+
+/** The field instances of a source, by name, without its overrides. */
+export function fieldInstances(decl: SourceDecl): Record<string, FieldInstance> {
+    return Object.fromEntries(
+        Object.entries(decl?.fields ?? {}).filter(([, it]) => isFieldInstance(it))
+    ) as Record<string, FieldInstance>;
 }
 
 export interface PresetGroup {

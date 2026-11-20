@@ -51,6 +51,49 @@ export function resolveFormat(
         .reduce((ret, it) => ({...ret, ...it}), {});
 }
 
+/** One layer of how a field shows: a source's override, or a widget's own entry for it. */
+export interface FieldDisplayLayer {
+    label?: string;
+    description?: string;
+    align?: 'left' | 'center' | 'right';
+    width?: number;
+    format?: FormatLike;
+    renderer?: string | PlainObject;
+}
+
+/** How a field shows, its layers resolved. See {@link resolveFieldDisplay}. */
+export interface ResolvedFieldDisplay {
+    label: string;
+    description: string;
+    align: 'left' | 'center' | 'right';
+    width: number;
+    /** Formats over the field's own, most specific last, for {@link resolveFormat}. */
+    formats: FormatLike[];
+    renderer: string | PlainObject;
+}
+
+/**
+ * How a field shows, from the catalog's field, then each layer given, such as a source's override
+ * and then a widget's own entry. A later layer's label, description, alignment, width and
+ * renderer replace an earlier one's. Its format merges over theirs, option by option.
+ */
+export function resolveFieldDisplay(
+    field: FieldDef,
+    ...layers: FieldDisplayLayer[]
+): ResolvedFieldDisplay {
+    const all = [field ?? {}, ...layers.filter(Boolean)] as FieldDisplayLayer[],
+        last = <K extends keyof FieldDisplayLayer>(key: K) =>
+            all.reduce((ret, it) => it[key] ?? ret, null as FieldDisplayLayer[K]);
+    return {
+        label: last('label'),
+        description: last('description'),
+        align: last('align'),
+        width: last('width'),
+        formats: layers.map(it => it?.format).filter(it => it != null),
+        renderer: last('renderer')
+    };
+}
+
 /**
  * Format a value of a field with resolved format options, as Hoist's formatters do. With
  * `asText`, return plain text, as for a label.

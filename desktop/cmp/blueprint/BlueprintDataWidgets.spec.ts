@@ -271,6 +271,23 @@ describe('blueprint data widgets', () => {
         expect(container.querySelector('.xh-badge')?.textContent).toBe('Buy');
     });
 
+    it("shows a source's override of a field in every widget over the source", async () => {
+        const bp = loadBlueprint('p2-linked-dashboard.json');
+        bp.sources.positions.fields = {
+            pnlDay: {label: 'Today', align: 'center', description: 'P&L since the open.'}
+        };
+        const model = open(bp),
+            gridModel = widget(CubeGridWidgetModel, model, 'posGrid').cubeGridModel.innerGridModel,
+            cards = widget(StatCardStripWidgetModel, model, 'headline');
+        expect(gridModel.getColumn('pnlDay')).toMatchObject({
+            headerName: 'Today',
+            headerTooltip: 'P&L since the open.',
+            align: 'center'
+        });
+        await vi.waitFor(() => expect(cards.cards.length).toBeGreaterThan(2));
+        expect(cards.cards[2].title).toBe('Today');
+    });
+
     it("names a field instance's column by its label", () => {
         const bp = loadBlueprint('p5-risk-report.json'),
             model = open(bp),

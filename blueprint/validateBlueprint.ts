@@ -1,6 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {castArray, isArray, isPlainObject, isString} from 'lodash';
-import type {Blueprint, BlueprintIssue} from './Blueprint';
+import {type Blueprint, type BlueprintIssue, isFieldInstance} from './Blueprint';
 import type {BlueprintRegistry} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter} from './impl/configSchema';
@@ -308,6 +308,19 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             }
             const fields = toLookup(ds.fields);
             for (const [iname, inst] of Object.entries<any>(s.fields ?? {})) {
+                if (!isFieldInstance(inst)) {
+                    if (!getOwn(ds.fields, iname)) {
+                        err(
+                            'source.unknownField',
+                            `${p}/fields/${iname}`,
+                            `'${iname}' is not a field of ${s.dataset}, so there is nothing to override. An instance names its field in field.`
+                        );
+                    }
+                    checkConfig(inst, FIELD_OVERRIDE_SCHEMA).forEach(it =>
+                        err('source.badOverride', `${p}/fields/${iname}${it.path}`, it.message)
+                    );
+                    continue;
+                }
                 if (inst?.label != null && !isString(inst.label)) {
                     err('schema.invalid', `${p}/fields/${iname}/label`, 'a label is text');
                 }
@@ -624,6 +637,20 @@ export function isSettableFromOutside(decl: PlainObject): boolean {
 // Names a grid's tree column in `columnState` and `sortBy`.
 const MAX_HOST_INLINE_ROWS = 50;
 const TREE_COLUMN = 'group';
+
+// How a source shows one of its dataset's fields. Display only.
+const FIELD_OVERRIDE_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+        label: {type: 'string', maxLength: 100},
+        description: {type: 'string', maxLength: 500},
+        align: {enum: ['left', 'center', 'right']},
+        width: {type: 'integer', minimum: 30, maximum: 800},
+        format: {'x-format': true},
+        renderer: {'x-renderer': true}
+    }
+};
 
 const TOP_LEVEL_KEYS = ['schema', 'formats', 'variables', 'sources', 'presets', 'root', 'elements'],
     ELEMENT_KEYS = ['component', 'config', 'children', 'personalizable'],

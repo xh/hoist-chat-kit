@@ -25,4 +25,10 @@ export type {
 export type * from './BlueprintSchema';
 export * from './degradeAnswer';
 export * from './usages';
-export {type FormatLike, resolveFormat} from './impl/formats';
+export {
+    type FieldDisplayLayer,
+    type FormatLike,
+    resolveFieldDisplay,
+    resolveFormat,
+    type ResolvedFieldDisplay
+} from './impl/formats';

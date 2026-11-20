@@ -22,6 +22,10 @@ export interface FieldDef {
     aggregator?: string | PlainObject;
     format?: string | PlainObject;
     renderer?: string | PlainObject;
+    /** How a grid aligns the field's column. Default right for a number, else left. */
+    align?: 'left' | 'center' | 'right';
+    /** A grid column's width in pixels, until a user sizes it. */
+    width?: number;
     params?: Record<string, ParamDef>;
     deprecated?: boolean;
     replacedBy?: string;
