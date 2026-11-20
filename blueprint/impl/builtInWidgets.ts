@@ -628,7 +628,8 @@ const HEATMAP_SCHEMA = {
         colorMode: {
             enum: ['diverging', 'sequential'],
             default: 'diverging',
-            description: 'diverging colors below zero red and above green, as for P&L.'
+            description:
+                'diverging colors below zero red and above green, as for P&L. Use sequential only for a measure that is never negative.'
         },
         filter: {'x-filter': true, 'x-binding': true, type: 'object'}
     }
@@ -1395,6 +1396,7 @@ const heatmap: WidgetSpec = {
         'A grid of cells, one per pair of x and y values, each colored by the total of value over its rows, such as P&L by sector and strategy. Its selection is an output: a filter of the cell clicked.',
     category: 'data',
     config: HEATMAP_SCHEMA,
+    modules: ['heatmap'],
     outputs: [
         {
             name: 'selection',
@@ -1420,6 +1422,8 @@ const treemap: WidgetSpec = {
         'Nested boxes, one per group of groupBy, each sized by value and colored by heat. Use it to show where exposure or P&L sits, such as positions by sector and symbol. Its selection is an output: a filter of the node clicked.',
     category: 'data',
     config: TREEMAP_SCHEMA,
+    // Its colors come from the color axis, which the heatmap module brings.
+    modules: ['treemap', 'heatmap'],
     presetPaths: ['/groupBy', '/colorMode'],
     outputs: [
         {

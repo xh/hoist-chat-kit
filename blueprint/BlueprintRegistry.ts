@@ -81,6 +81,12 @@ export interface WidgetSpec {
      * bindings resolved. A source merges every widget's demand on it into one request.
      */
     demand?: (config: PlainObject) => Record<string, WidgetDemand>;
+    /**
+     * The Highcharts modules the widget needs, such as `heatmap` or `highcharts-more`, or a
+     * function of its config that gives them. Where the app has not loaded one, the widget draws
+     * a notice in its place.
+     */
+    modules?: string[] | ((config: PlainObject) => string[]);
     /** The widget's model class. Default the platform's built-in model, or `BlueprintWidgetModel`. */
     model?: new (config: BlueprintWidgetConfig) => BlueprintWidgetModel;
     /** The widget's component factory, rendered with its model. Default the platform's built-in one. */

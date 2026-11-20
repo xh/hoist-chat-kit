@@ -3,6 +3,10 @@ import {div} from '@xh/hoist/cmp/layout';
 import {panel} from '@xh/hoist/desktop/cmp/panel';
 import {hoistCmp, type HoistProps} from '@xh/hoist/core';
 import type {BlueprintViewModel} from './BlueprintViewModel';
+import {missingModules} from './highchartsModules';
+
+const listOf = (items: string[]) =>
+    items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}` : items[0];
 
 interface ElementHostProps extends HoistProps {
     id: string;
@@ -40,11 +44,15 @@ function renderContent(id: string, viewModel: BlueprintViewModel) {
     const model = viewModel.getWidgetModel(id),
         component = viewModel.getComponent(id);
     if (!model) return null;
-    const notice = model.source?.isTooLarge
-        ? 'This result has too many rows to show here.'
-        : model.source?.isUnavailable
-          ? 'The data for this answer is no longer available.'
-          : (model.source?.joinWait ?? null);
+    const spec = model.blueprintModel.registry.widgets[model.element.component],
+        missing = missingModules(spec, model.resolvedConfig),
+        notice = missing.length
+            ? `This needs Highcharts' ${listOf(missing)} module${missing.length > 1 ? 's' : ''}, which this app does not load.`
+            : model.source?.isTooLarge
+              ? 'This result has too many rows to show here.'
+              : model.source?.isUnavailable
+                ? 'The data for this answer is no longer available.'
+                : (model.source?.joinWait ?? null);
     if (notice) {
         return div({className: 'xh-blueprint-view__notice', role: 'note', children: notice});
     }
@@ -57,7 +65,6 @@ function renderContent(id: string, viewModel: BlueprintViewModel) {
     // A widget that draws as a card in a reply has no height of its own as a panel there. It
     // takes the height of its content, up to that of its default size on a dashboard.
     const {blueprintModel} = model,
-        spec = blueprintModel.registry.widgets[model.element.component],
         rows = spec?.size?.default?.h;
     if (
         blueprintModel.isAnswer &&

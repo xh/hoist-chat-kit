@@ -370,6 +370,8 @@ clash with a built-in. `BlueprintRegistry` refuses an undotted app name.
 - **Widgets.** Register a `WidgetSpec` with a config schema, guidance for the Architect, and a
   desktop component. Its `category` places it in the palette. A container's `children.accepts`
   lists the categories and widgets it takes as children, and the validator refuses any other.
+  `modules` names the Highcharts modules a widget needs, such as `heatmap`. The app loads them,
+  and a widget whose module is missing draws a notice in its place.
   `addPresentation()` adds another way to draw an existing widget, as chat kit adds the `card`
   that grids and charts take in a reply.
 - **Variable types, resolvers, actions and renderers.** Register each in `BlueprintRegistry`. An
