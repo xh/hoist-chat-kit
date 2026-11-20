@@ -70,4 +70,34 @@
     flex: 1 1 auto;
     min-width: 0;
   }
+
+  &__column {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-spacing-half);
+  }
+
+  &__settings {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--xh-spacing-half);
+  }
+
+  &__filter {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-spacing-half);
+  }
+
+  &__chip-row {
+    align-items: center;
+    gap: var(--xh-spacing-half);
+  }
+
+  &__chip {
+    padding: 2px var(--xh-spacing-half);
+    border: var(--xh-border-solid);
+    border-radius: var(--xh-border-radius);
+    background-color: var(--xh-bg-alt);
+  }
 }

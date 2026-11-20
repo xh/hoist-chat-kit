@@ -45,6 +45,14 @@ describe('toEditorSpec', () => {
         expect(columns.kind === 'map' && columns.value.kind).toBe('group');
     });
 
+    it("makes a list of fields with settings into a field list, as for the grid's column state", () => {
+        const grid = byKey(toEditorSpec(configOf('cubeGrid')));
+        expect(grid.columnState).toMatchObject({kind: 'fieldList', role: 'any'});
+        const settings = grid.columnState.kind === 'fieldList' ? grid.columnState.settings : [];
+        expect(settings.map(it => it.key)).toEqual(['width', 'hidden', 'pinned']);
+        expect(grid.columns).toMatchObject({kind: 'map', keyRole: 'any'});
+    });
+
     it('switches between simple variants, and falls back to JSON for structured ones', () => {
         const nodes = toEditorSpec({
             type: 'object',

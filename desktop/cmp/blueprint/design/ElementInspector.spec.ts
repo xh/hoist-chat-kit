@@ -153,14 +153,47 @@ describe('ElementInspector', () => {
         });
     });
 
-    it('draws a labelled editor per property, and JSON for what the schema cannot express', () => {
+    describe('grouping, filters and columns', () => {
+        it("offers a filter each field of the element's source, with values for dimensions", async () => {
+            const {model, inspector} = open();
+            await model.loadAsync();
+            const specs = inspector.filterFieldSpecs(),
+                region = specs.find(it => it.field === 'region'),
+                mktVal = specs.find(it => it.field === 'mktVal');
+            expect(region.displayName).toBe('Region');
+            expect(region.values.length).toBeGreaterThan(0);
+            expect(region.values.length).toBeLessThanOrEqual(1000);
+            expect(mktVal.values).toBeUndefined();
+        });
+
+        it('draws a grouping chooser, a filter chooser with bound clauses as chips, and a column list', () => {
+            const {design, inspector} = open();
+            inspector.commit('groupBy', ['region']);
+            inspector.commit('filter', {
+                op: 'AND',
+                filters: [
+                    {field: 'fund', op: '=', value: {$var: 'fund'}},
+                    {field: 'region', op: '=', value: 'EMEA'}
+                ]
+            });
+            const {container} = render(elementInspector({designModel: design}) as ReactElement),
+                chips = container.querySelectorAll('.xh-blueprint-element-inspector__chip');
+            expect(container.querySelector('.xh-grouping-chooser')).not.toBeNull();
+            expect(container.querySelector('.xh-filter-chooser')).not.toBeNull();
+            expect([...chips].map(it => it.textContent)).toEqual(['Fund = fund']);
+            expect(
+                container.querySelectorAll('.xh-blueprint-element-inspector__column').length
+            ).toBe(4);
+        });
+    });
+
+    it('draws a labelled editor per property', () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),
             labels = [...container.querySelectorAll('.xh-blueprint-element-inspector__label')].map(
                 it => it.textContent
             );
         expect(labels).toEqual(expect.arrayContaining(['Source *', 'Title', 'Sizing mode']));
-        expect(container.querySelector('.xh-json-input')).not.toBeNull();
         expect(container.textContent).not.toContain('No model found');
     });
 });

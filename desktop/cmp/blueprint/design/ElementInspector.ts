@@ -19,7 +19,9 @@ import {
 } from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
 import {action, observableRef} from '@xh/hoist/mobx';
-import {castArray, isEmpty, isEqual, isNumber, isString, omit, uniq} from 'lodash';
+import type {FilterChooserFieldSpecConfig} from '@xh/hoist/cmp/filter';
+import type {FieldType} from '@xh/hoist/data';
+import {castArray, isEmpty, isEqual, isNumber, isString, omit, sortBy, uniq} from 'lodash';
 import {
     type BlueprintDesignModel,
     type BlueprintIssue,
@@ -30,6 +32,7 @@ import {
 import {fieldHasRole, starterValue} from '../../../../blueprint/design/starterConfig';
 import type {ReactElement} from 'react';
 import './ElementInspector.scss';
+import {filterEditor, groupingEditor} from './impl/ChooserEditors';
 
 export interface ElementInspectorProps extends HoistProps {
     designModel: BlueprintDesignModel;
@@ -151,6 +154,35 @@ export class ElementInspectorModel extends HoistModel {
             .map(([name]) => name);
     }
 
+    /** A field's label, through the element's source. */
+    fieldLabel(name: string): string {
+        return (
+            this.designModel.blueprintModel.getSource(this.values.source)?.fieldLabel(name) ?? name
+        );
+    }
+
+    /**
+     * The fields a filter chooser offers, from the element's source. A dimension also offers its
+     * values, a snapshot of the source's rows, at most 1,000.
+     */
+    filterFieldSpecs(): FilterChooserFieldSpecConfig[] {
+        const source = this.designModel.blueprintModel.getSource(this.values.source);
+        if (!source) return [];
+        const records = source.cube.store.allRecords;
+        return Object.values(source.fields).map(it => ({
+            field: it.name,
+            displayName: source.fieldLabel(it.name),
+            fieldType: (FILTER_FIELD_TYPES.includes(it.type) ? it.type : 'auto') as FieldType,
+            ...(it.isDimension
+                ? {
+                      values: sortBy(
+                          uniq(records.map(r => r.data[it.name]).filter(v => v != null))
+                      ).slice(0, MAX_FILTER_VALUES)
+                  }
+                : {})
+        }));
+    }
+
     /** The value a property takes when unbound: none if optional, else one to start from. */
     unboundValue(node: EditorNode): unknown {
         return node.required ? this.newValue(node.schema) : undefined;
@@ -176,7 +208,9 @@ export class ElementInspectorModel extends HoistModel {
 //------------------
 // Implementation
 //------------------
-const CLS = 'xh-blueprint-element-inspector';
+const CLS = 'xh-blueprint-element-inspector',
+    MAX_FILTER_VALUES = 1000,
+    FILTER_FIELD_TYPES = ['string', 'number', 'int', 'bool', 'date', 'localDate'];
 
 interface Option {
     value: string;
@@ -295,6 +329,14 @@ function editorFor(
             });
         case 'field': {
             const options = withCurrent(ctx.impl.fieldOptions(node.role), value);
+            if (node.multiple && node.role === 'dimension') {
+                return groupingEditor({
+                    value: (value as string[]) ?? [],
+                    dimensions: options,
+                    disabled,
+                    onCommit: v => commit(isEmpty(v) && !node.required ? undefined : v)
+                });
+            }
             return node.multiple
                 ? select({
                       value: (value as string[]) ?? [],
@@ -343,6 +385,17 @@ function editorFor(
         }
         case 'list':
             return listEditor(node, (value as unknown[]) ?? [], commit, ctx);
+        case 'filter':
+            return filterEditor({
+                key: ctx.impl.values.source,
+                value: value as PlainObject,
+                fieldSpecs: () => ctx.impl.filterFieldSpecs(),
+                labelOf: it => ctx.impl.fieldLabel(it),
+                disabled,
+                onCommit: commit
+            });
+        case 'fieldList':
+            return fieldListEditor(node, (value as unknown[]) ?? [], commit, ctx);
         case 'map':
             return mapEditor(node, (value as PlainObject) ?? {}, commit, ctx);
         case 'oneOf': {
@@ -490,7 +543,11 @@ function mapEditor(
 ) {
     const disabled = ctx.impl.readOnly,
         entries = Object.entries(map),
-        commitMap = (obj: PlainObject) => commit(isEmpty(obj) && !node.required ? undefined : obj);
+        commitMap = (obj: PlainObject) => commit(isEmpty(obj) && !node.required ? undefined : obj),
+        addKey = (key: string) => {
+            if (!key || Object.hasOwn(map, key)) return;
+            commitMap({...map, [key]: ctx.impl.newValue(node.value.schema)});
+        };
     return div({
         className: `${CLS}__list`,
         items: [
@@ -515,15 +572,126 @@ function mapEditor(
                     ]
                 })
             ),
-            textInput({
+            node.keyRole
+                ? select({
+                      key: entries.length,
+                      placeholder: 'Add a field…',
+                      options: ctx.impl
+                          .fieldOptions(node.keyRole)
+                          .filter(it => !Object.hasOwn(map, it.value)),
+                      disabled,
+                      width: '100%',
+                      onCommit: addKey
+                  })
+                : textInput({
+                      key: entries.length,
+                      placeholder: 'Add key…',
+                      disabled,
+                      width: '100%',
+                      onCommit: addKey
+                  })
+        ]
+    });
+}
+
+// Fields in order, each a name, or an object with its field and settings when it has any.
+function fieldListEditor(
+    node: Extract<EditorNode, {kind: 'fieldList'}>,
+    items: unknown[],
+    commit: (value: unknown) => void,
+    ctx: EditorContext
+) {
+    const {impl} = ctx,
+        disabled = impl.readOnly,
+        entries = items.map(it => (isString(it) ? {field: it} : (it as PlainObject))),
+        fieldsOf = entries.map(it => it.field),
+        options = withCurrent(impl.fieldOptions(node.role), fieldsOf),
+        commitList = (list: PlainObject[]) => {
+            const ret = list.map(it => (Object.keys(it).length === 1 ? it.field : it));
+            commit(isEmpty(ret) && !node.required ? undefined : ret);
+        },
+        moved = (from: number, to: number) => {
+            const ret = [...entries];
+            ret.splice(to, 0, ...ret.splice(from, 1));
+            return ret;
+        };
+    return div({
+        className: `${CLS}__list`,
+        items: [
+            ...entries.map((entry, i) =>
+                div({
+                    key: `${i}:${entry.field}`,
+                    className: `${CLS}__column`,
+                    items: [
+                        hbox({
+                            className: `${CLS}__item-header`,
+                            items: [
+                                select({
+                                    value: entry.field,
+                                    options,
+                                    disabled,
+                                    flex: 1,
+                                    onCommit: (field: string) =>
+                                        commitList(
+                                            entries.map((it, j) => (j === i ? {...it, field} : it))
+                                        )
+                                }),
+                                buttonGroup({
+                                    items: [
+                                        button({
+                                            icon: Icon.arrowUp(),
+                                            title: 'Move up',
+                                            disabled: disabled || i === 0,
+                                            onClick: () => commitList(moved(i, i - 1))
+                                        }),
+                                        button({
+                                            icon: Icon.arrowDown(),
+                                            title: 'Move down',
+                                            disabled: disabled || i === entries.length - 1,
+                                            onClick: () => commitList(moved(i, i + 1))
+                                        }),
+                                        button({
+                                            icon: Icon.delete(),
+                                            title: 'Remove',
+                                            disabled,
+                                            onClick: () =>
+                                                commitList(entries.filter((_, j) => j !== i))
+                                        })
+                                    ]
+                                })
+                            ]
+                        }),
+                        div({
+                            className: `${CLS}__settings`,
+                            items: node.settings.map(setting =>
+                                propertyRow({
+                                    key: setting.key,
+                                    node: setting,
+                                    value: entry[setting.key],
+                                    commit: v =>
+                                        commitList(
+                                            entries.map((it, j) =>
+                                                j !== i
+                                                    ? it
+                                                    : v === undefined
+                                                      ? omit(it, setting.key)
+                                                      : {...it, [setting.key]: v}
+                                            )
+                                        ),
+                                    ctx
+                                })
+                            )
+                        })
+                    ]
+                })
+            ),
+            select({
                 key: entries.length,
-                placeholder: 'Add key…',
+                placeholder: 'Add a field…',
+                options: options.filter(it => !fieldsOf.includes(it.value)),
                 disabled,
                 width: '100%',
-                onCommit: (key: string) => {
-                    if (!key || Object.hasOwn(map, key)) return;
-                    commitMap({...map, [key]: ctx.impl.newValue(node.value.schema)});
-                }
+                onCommit: (field: string) => field && commitList([...entries, {field}])
             })
         ]
     });

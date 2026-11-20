@@ -14,16 +14,20 @@ export type EditorNode = EditorBase &
         | {kind: 'group'; children: EditorNode[]}
         | {kind: 'stringList'; options?: unknown[]}
         | {kind: 'list'; item: EditorNode}
-        | {kind: 'map'; value: EditorNode}
+        | {kind: 'map'; value: EditorNode; keyRole?: FieldRole}
+        | {kind: 'fieldList'; role: FieldRole; settings: EditorNode[]}
         | {kind: 'oneOf'; options: EditorNode[]}
         | {kind: 'source'}
-        | {kind: 'field'; role: 'any' | 'dimension' | 'measure'; multiple: boolean}
+        | {kind: 'field'; role: FieldRole; multiple: boolean}
         | {kind: 'filter'}
         | {kind: 'format'}
         | {kind: 'renderer'}
         | {kind: 'action'}
         | {kind: 'json'}
     );
+
+/** The fields an `x-field` value takes: dimensions, measures (numbers), or any. */
+export type FieldRole = 'any' | 'dimension' | 'measure';
 
 /** What every {@link EditorNode} holds. */
 export interface EditorBase {
@@ -41,7 +45,9 @@ export interface EditorBase {
 /**
  * The editors for a widget's config, one per property of its schema, in the schema's order. The
  * registry's annotations pick a kind: `x-source`, `x-field`, `x-filter`, `x-format`, `x-renderer`
- * and `x-action`. Any shape the kit has no editor for is `json`, so every value can be edited.
+ * and `x-action`. A list of fields whose items may also be objects with settings, such as a grid's
+ * columns, is a `fieldList`, and an object keyed freely by field a `map` with a `keyRole`. Any
+ * shape the kit has no editor for is `json`, so every value can be edited.
  */
 export function toEditorSpec(schema: PlainObject): EditorNode[] {
     const props: PlainObject = schema?.properties ?? {},
@@ -69,6 +75,11 @@ function toNode(schema: PlainObject, key: string, required: boolean): EditorNode
     const role = schema['x-field'];
     if (role && (schema.type === 'string' || isStringArray(schema))) {
         return {...base, kind: 'field', role, multiple: schema.type === 'array'};
+    }
+    const withSettings = role && schema.type === 'array' ? fieldSettingsOf(schema.items) : null;
+    if (withSettings) {
+        const settings = toEditorSpec(withSettings).filter(it => it.key !== 'field');
+        return {...base, kind: 'fieldList', role, settings};
     }
     if (schema.enum) return {...base, kind: 'choice', options: schema.enum};
     if (schema.const !== undefined) return {...base, kind: 'choice', options: [schema.const]};
@@ -103,7 +114,8 @@ function toNode(schema: PlainObject, key: string, required: boolean): EditorNode
                 return {
                     ...base,
                     kind: 'map',
-                    value: toNode(schema.additionalProperties, null, false)
+                    value: toNode(schema.additionalProperties, null, false),
+                    ...(role ? {keyRole: role} : {})
                 };
             }
             return schema.properties
@@ -121,6 +133,13 @@ function toNode(schema: PlainObject, key: string, required: boolean): EditorNode
         default:
             return {...base, kind: 'json'};
     }
+}
+
+// The object variant of a list item that is a field name, or an object with a field and settings.
+function fieldSettingsOf(items: PlainObject): PlainObject {
+    const variants: PlainObject[] = items?.anyOf ?? items?.oneOf ?? [];
+    if (!variants.some(it => it.type === 'string')) return null;
+    return variants.find(it => it.type === 'object' && it.properties?.field) ?? null;
 }
 
 function isStringArray(schema: PlainObject): boolean {
