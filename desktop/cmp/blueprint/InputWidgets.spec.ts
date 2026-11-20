@@ -87,6 +87,24 @@ describe('input widgets', () => {
         expect(valueOf(many)).toEqual(['EU', 'US']);
     });
 
+    it("offers the values of a source's field, loaded with that source's params", async () => {
+        const model = open(
+                {type: 'string', options: {source: 'funds', field: 'fund'}},
+                {component: 'select', config: {}},
+                {
+                    variables: {
+                        asOf: {type: 'localDate', setBy: 'prompt', default: {value: '2026-03-02'}}
+                    },
+                    sources: {funds: {dataset: 'fundSummary', params: {asOf: {$var: 'asOf'}}}}
+                }
+            ),
+            input = widget(SelectWidgetModel, model);
+        await vi.waitFor(() => expect(input.inputProps.options.length).toBeGreaterThan(1));
+        const {options} = input.inputProps;
+        expect(options).toEqual([...new Set(options)].sort());
+        expect(options.every((it: unknown) => typeof it === 'string')).toBe(true);
+    });
+
     it('edits a local date as its ISO string', () => {
         const model = open(
                 {type: 'localDate', default: {value: '2026-03-02'}},

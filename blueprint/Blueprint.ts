@@ -73,7 +73,8 @@ export interface ResolverCall {
     args?: PlainObject;
 }
 
-export type VariableOptions = {values: unknown[]} | {dataset: string; field: string};
+/** A variable's allowed values: a list, or the values of a field over the rows a source loads. */
+export type VariableOptions = {values: unknown[]} | {source: string; field: string};
 
 /** A dataset, artifact or inline source. Exactly one of the three keys is set. */
 export interface SourceDecl {

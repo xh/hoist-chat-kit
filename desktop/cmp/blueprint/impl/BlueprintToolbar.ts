@@ -66,10 +66,10 @@ function promptInput(
             children: appInput({variable: v, value: v.value, onCommit: set})
         });
 
-    if (options && 'values' in options) {
+    if (options) {
         return select({
             ...common,
-            options: options.values as any[],
+            options: v.options as any[],
             value: v.value,
             onChange: set
         });

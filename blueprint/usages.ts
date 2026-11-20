@@ -121,8 +121,9 @@ export function fieldUsages(blueprint: Blueprint, catalog: DataCatalog): FieldUs
         fieldRefs(value, `${path}/default/value`).forEach(r => mark(datasets, r.name, r.path));
 
         const options = decl.options as PlainObject;
-        if (options?.dataset && options.field) {
-            mark([options.dataset], options.field, `${path}/options/field`);
+        if (options?.source && options.field) {
+            const ds = datasetOf(options.source);
+            mark(ds ? [ds] : datasets, options.field, `${path}/options/field`);
         }
         const writers = [decl.setBy].flat().filter(isPlainObject) as PlainObject[];
         writers.forEach((w, i) => {

@@ -531,6 +531,11 @@ export class BlueprintModel extends HoistModel {
         return resolveFilter(filter, name => this.getVariable(name)?.value);
     }
 
+    /** The distinct values of a field over a source's loaded rows, sorted. Empty until it loads. */
+    sourceValues(source: string, field: string): unknown[] {
+        return this.getSource(source)?.fieldValues(field) ?? [];
+    }
+
     /** Compute a resolver call, with its arguments resolved. Null if the resolver fails. */
     runResolver(call: ResolverCall): unknown {
         const spec = this.registry.resolvers[call?.resolver];

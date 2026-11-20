@@ -159,19 +159,11 @@ export class VariableEditorModel extends ConfigEditorModel {
         return this.designModel.blueprintModel.registry.resolvers[name]?.args ?? {};
     }
 
-    get datasetOptions(): Option[] {
-        return this.designModel.blueprintModel.catalogs.flatMap(it =>
-            Object.keys(it.datasets).map(name => ({value: name, label: name}))
-        );
-    }
-
-    datasetFieldOptions(dataset: string): Option[] {
-        const ds = this.designModel.blueprintModel.catalogs
-            .map(it => it.getDataset(dataset))
-            .find(Boolean);
-        return Object.values(ds?.fields ?? {}).map(it => ({
+    sourceFieldOptions(name: string): Option[] {
+        const source = this.designModel.blueprintModel.getSource(name);
+        return Object.values(source?.fields ?? {}).map(it => ({
             value: it.name,
-            label: it.label ?? it.name
+            label: source.fieldLabel(it.name)
         }));
     }
 
@@ -460,10 +452,10 @@ function defaultEditor(impl: VariableEditorModel) {
     });
 }
 
-// The values a variable may take: a list, or a dataset field's values.
+// The values a variable may take: a list, or a source field's values.
 function optionsEditor(impl: VariableEditorModel) {
     const options = (impl.values.options ?? null) as PlainObject,
-        kind = options == null ? 'none' : 'dataset' in options ? 'dataset' : 'values',
+        kind = options == null ? 'none' : 'source' in options ? 'source' : 'values',
         commit = (it: unknown) => impl.commit('options', it),
         disabled = impl.readOnly,
         listNode = nodeOf('values', {type: 'array', items: impl.valueSchema(impl.values.type)});
@@ -475,7 +467,7 @@ function optionsEditor(impl: VariableEditorModel) {
                 options: [
                     {value: 'none', label: 'Any value'},
                     {value: 'values', label: 'A list'},
-                    {value: 'dataset', label: "A dataset field's values"}
+                    {value: 'source', label: "A source field's values"}
                 ],
                 disabled,
                 width: '100%',
@@ -486,7 +478,7 @@ function optionsEditor(impl: VariableEditorModel) {
                             ? undefined
                             : it === 'values'
                               ? {values: []}
-                              : {dataset: impl.datasetOptions[0]?.value, field: null}
+                              : {source: impl.sourceOptions[0]?.value, field: null}
                     )
             }),
             kind === 'values'
@@ -498,20 +490,20 @@ function optionsEditor(impl: VariableEditorModel) {
                       ctx: {impl, key: 'options'}
                   })
                 : null,
-            kind === 'dataset'
+            kind === 'source'
                 ? hbox({
                       className: `${CLS}__tab`,
                       children: [
                           select({
-                              value: options.dataset,
-                              options: impl.datasetOptions,
+                              value: options.source,
+                              options: impl.sourceOptions,
                               disabled,
                               flex: 1,
-                              onCommit: (dataset: string) => commit({dataset, field: null})
+                              onCommit: (source: string) => commit({source, field: null})
                           }),
                           select({
                               value: options.field,
-                              options: impl.datasetFieldOptions(options.dataset),
+                              options: impl.sourceFieldOptions(options.source),
                               placeholder: 'Field…',
                               disabled,
                               flex: 1,

@@ -17,6 +17,8 @@ export interface BlueprintVariableWriter {
 /** The parts of a blueprint's runtime a variable reads. */
 export interface BlueprintVariableContext {
     runResolver(call: ResolverCall): unknown;
+    /** The distinct values of a field over a source's rows, sorted. */
+    sourceValues(source: string, field: string): unknown[];
 }
 
 /**
@@ -59,6 +61,16 @@ export class BlueprintVariable extends HoistBase {
             return this.setValue;
         }
         return this.defaultValue;
+    }
+
+    /** The values its `options` allow, or null if it allows any. */
+    @computed
+    get options(): unknown[] {
+        const {options} = this.decl;
+        if (!options) return null;
+        return 'values' in options
+            ? options.values
+            : this.context.sourceValues(options.source, options.field);
     }
 
     /** True once a writer has set the value, so the default no longer applies. */

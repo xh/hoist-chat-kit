@@ -413,6 +413,12 @@ export class BlueprintSource extends HoistBase {
         return uniq([...names, ...weights]).sort();
     }
 
+    /** The distinct values of a field over the rows the source has loaded, sorted. */
+    fieldValues(field: string): unknown[] {
+        const values = this.cube?.store.records.map(it => it.data[field]) ?? [];
+        return sortBy(uniq(values.filter(it => it != null)));
+    }
+
     /** The names of the fields the source's widgets and bindings read, joined fields included. */
     @computed
     get demandedNames(): string[] {
@@ -478,8 +484,9 @@ export class BlueprintSource extends HoistBase {
     }
 
     /**
-     * Fields that bindings on this source's widgets can read: a `selected` field argument, and the
-     * group dimensions of each grid whose selection sets a filter a widget here binds.
+     * Fields that bindings on this source's widgets can read: a variable's options field, a
+     * `selected` field argument, and the group dimensions of each grid whose selection sets a
+     * filter a widget here binds.
      */
     private getBindingFields(): string[] {
         const {context} = this,
@@ -488,6 +495,10 @@ export class BlueprintSource extends HoistBase {
             variables = blueprint?.variables ?? {},
             ret: string[] = [];
 
+        Object.values(variables).forEach(v => {
+            const options = v.options as PlainObject;
+            if (options?.source === this.name && options.field) ret.push(options.field);
+        });
         Object.values(variables).forEach(v =>
             getWriters(v).forEach(w => {
                 if (w.field && elements[w.element]?.config?.source === this.name) ret.push(w.field);

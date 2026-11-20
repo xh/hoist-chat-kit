@@ -50,7 +50,7 @@ export abstract class InputWidgetModel<
 export class SelectWidgetModel extends InputWidgetModel<SelectWidgetConfig> {
     get inputProps(): PlainObject {
         const decl = this.valueVariable?.decl,
-            options = decl?.options && 'values' in decl.options ? decl.options.values : [],
+            options = this.valueVariable?.options ?? [],
             enableMulti = !!decl?.type?.endsWith('[]');
         return {
             options,
