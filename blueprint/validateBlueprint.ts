@@ -1,6 +1,12 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {castArray, isArray, isEqual, isPlainObject, isString, omit} from 'lodash';
-import {type Blueprint, type BlueprintIssue, isFieldInstance, type JoinDecl} from './Blueprint';
+import {castArray, isArray, isEqual, isNumber, isPlainObject, isString, omit} from 'lodash';
+import {
+    type Blueprint,
+    type BlueprintIssue,
+    isFieldInstance,
+    type JoinDecl,
+    type VariableDecl
+} from './Blueprint';
 import type {BlueprintRegistry, WidgetSpec} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter} from './impl/configSchema';
@@ -724,6 +730,15 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     `${p}/${key}`,
                     `${key} takes a ${want.join(' or ')}, but '${cfg[key].$var}' is a ${bound.type}`
                 );
+            } else if (want) {
+                const bad = boundValues(bound).find(it => !fitsProp(it, prop));
+                if (bad !== undefined) {
+                    err(
+                        'binding.outOfRange',
+                        `${p}/${key}`,
+                        `'${cfg[key].$var}' may hold ${JSON.stringify(bad)}, which ${key} does not take`
+                    );
+                }
             }
             if (prop?.['x-template'] && isString(cfg[key])) {
                 checkTemplate(cfg[key], `${p}/${key}`, cfg.source);
@@ -1170,4 +1185,24 @@ function walk(o: any, fn: (v: any, path: string) => void, path = '') {
     } else if (isPlainObject(o)) {
         for (const [k, v] of Object.entries(o)) walk(v, fn, `${path}/${k}`);
     }
+}
+
+// The values a variable is known to take: its options list and its literal default.
+function boundValues(v: VariableDecl): unknown[] {
+    const options = v.options as PlainObject,
+        def = v.default as PlainObject;
+    return [
+        ...(isArray(options?.values) ? options.values : []),
+        ...(def && 'value' in def && def.value != null ? [def.value] : [])
+    ];
+}
+
+/** True if a value falls within a config prop's enum and range, where it has them. */
+export function fitsProp(value: unknown, prop: PlainObject): boolean {
+    if (isArray(prop.enum) && !prop.enum.includes(value)) return false;
+    if (isNumber(value)) {
+        if (prop.minimum != null && value < prop.minimum) return false;
+        if (prop.maximum != null && value > prop.maximum) return false;
+    }
+    return true;
 }

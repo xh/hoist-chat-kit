@@ -8,6 +8,7 @@ import type {BlueprintModel} from './BlueprintModel';
 import type {BlueprintSource} from './BlueprintSource';
 import type {BlueprintVariable} from './BlueprintVariable';
 import {parentOf} from './impl/elements';
+import {fitsProp} from './validateBlueprint';
 
 export interface BlueprintWidgetConfig {
     blueprintModel: BlueprintModel;
@@ -63,7 +64,18 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
     /** The element's config, with each binding replaced by its variable's current value. */
     @computed
     get resolvedConfig(): C {
-        return this.blueprintModel.resolve(this.element?.config ?? {});
+        const config = this.element?.config ?? {},
+            props = this.blueprintModel.registry.widgets[this.element?.component]?.config
+                ?.properties as PlainObject,
+            ret = this.blueprintModel.resolve(config);
+        // A variable set from outside, such as by a URL parameter, may hold a value the prop
+        // refuses: leave it out, so the widget takes its default.
+        Object.keys(config).forEach(key => {
+            if (config[key]?.$var && props?.[key] && !fitsProp(ret[key], props[key])) {
+                delete ret[key];
+            }
+        });
+        return ret;
     }
 
     /** The source the config names, if any. */

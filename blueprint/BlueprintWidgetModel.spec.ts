@@ -47,6 +47,45 @@ describe('BlueprintWidgetModel', () => {
         return ret;
     };
 
+    it("leaves out a bound value that falls outside its prop's enum or range", () => {
+        const model = open();
+        model.setBlueprint({
+            ...model.blueprint,
+            variables: {
+                ...model.blueprint.variables,
+                chartType: {type: 'string', setBy: 'prompt'},
+                depth: {type: 'int', setBy: 'prompt'}
+            },
+            elements: {
+                ...model.blueprint.elements,
+                sectorChart: {
+                    ...model.blueprint.elements.sectorChart,
+                    config: {
+                        ...model.blueprint.elements.sectorChart.config,
+                        type: {$var: 'chartType'}
+                    }
+                },
+                posGrid: {
+                    ...model.blueprint.elements.posGrid,
+                    config: {
+                        ...model.blueprint.elements.posGrid.config,
+                        expandLevel: {$var: 'depth'}
+                    }
+                }
+            }
+        });
+        const chart = widget(model, 'sectorChart'),
+            grid = widget(model, 'posGrid');
+        model.setVariable('chartType', 'spiral');
+        model.setVariable('depth', 9);
+        expect(chart.resolvedConfig).not.toHaveProperty('type');
+        expect(grid.resolvedConfig).not.toHaveProperty('expandLevel');
+        model.setVariable('chartType', 'line');
+        model.setVariable('depth', 2);
+        expect(chart.resolvedConfig.type).toBe('line');
+        expect(grid.resolvedConfig.expandLevel).toBe(2);
+    });
+
     it('shows the value of the variable its element sets, and sets it', () => {
         const model = open(),
             chooser = widget(model, 'chooser'),

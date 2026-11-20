@@ -898,6 +898,23 @@ describe('validateBlueprint', () => {
         expect(codes(bp)).toContain('binding.typeMismatch');
     });
 
+    it("refuses a bound variable whose options or default fall outside its prop's enum or range", () => {
+        const bp = p2();
+        bp.variables.chartType = {
+            type: 'string',
+            setBy: 'prompt',
+            options: {values: ['line', 'spiral']},
+            default: {value: 'line'}
+        };
+        bp.variables.depth = {type: 'int', setBy: 'prompt', default: {value: 9}};
+        bp.elements.sectorChart.config.type = {$var: 'chartType'};
+        bp.elements.posGrid.config.expandLevel = {$var: 'depth'};
+        expect(validate(bp).map(it => [it.code, it.path])).toEqual([
+            ['binding.outOfRange', '/elements/posGrid/config/expandLevel'],
+            ['binding.outOfRange', '/elements/sectorChart/config/type']
+        ]);
+    });
+
     it('refuses a binding where the schema allows none', () => {
         const bp = p2();
         bp.elements.sectorChart.config.sortBy = {$var: 'asOf'};
