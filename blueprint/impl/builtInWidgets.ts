@@ -692,7 +692,7 @@ const STAT_CARD_SCHEMA = {
             type: 'string',
             'x-field': 'any',
             description:
-                'A series field to draw as a sparkline under the figure, where the source has one row.'
+                "A series field to draw as a sparkline under the figure: the source's one row, or the sum of its rows where the series sums."
         }
     }
 } as const satisfies BlueprintSchema;
@@ -2045,6 +2045,6 @@ export const BUILT_IN_RENDERER_INFO: Omit<RendererSpec, 'render' | 'exportValue'
             colorBy: "'intent' (default), 'trend' for up or down overall, or 'sign' for each point"
         },
         guidance:
-            "Draws a series as a small line, on its column's scale. A series field draws as one by default."
+            "Draws a series as a small line, on its column's scale. A series field draws as one by default. A group row sums a series whose kind sums, such as daily P&L, point by point, and draws it on its own scale. Other series are blank on group rows."
     }
 ];

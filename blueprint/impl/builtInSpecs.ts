@@ -95,13 +95,14 @@ const RENDER: Record<string, RendererSpec['render']> = {
         });
     },
     sparkline: (value, {config, isAggregate, columnRange}) => {
-        if (isAggregate || !Array.isArray(value)) return null;
+        if (!Array.isArray(value)) return null;
         return sparkline({
             data: value as number[],
             type: (config.type as SparklineType) ?? 'line',
             colorBy: (config.colorBy as SparklineColorBy) ?? 'intent',
             width: '100%',
-            ...(columnRange?.() ?? {})
+            // A group's total does not compare with its rows, so it takes its own scale.
+            ...(isAggregate ? {} : (columnRange?.() ?? {}))
         });
     },
     delta: (value, {formatValue}) => {

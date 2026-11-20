@@ -107,9 +107,11 @@ blueprint. The optional `source` key names a default, so `{pnlDay}` can stand fo
 
 ### Sparklines
 
-- **A catalog field type `number[]`,** such as a fund's daily returns, oldest first. It never
-  rolls up: a group row shows it blank. Its `kind` says what each point means, such as `pnl`, so
-  the points format as the kind's values do.
+- **A catalog field type `number[]`,** such as a fund's daily returns, oldest first. A series
+  whose kind sums, such as daily P&L, rolls up point by point at each group through hoist-react's
+  `SeriesSumAggregator`, aligned from the end (decision 139). Any other series shows blank on a
+  group row. Its `kind` says what each point means, such as `pnl`, so the points format as the
+  kind's values do.
 - **A `sparkline` grid renderer** over Hoist's `Sparkline`. It scales every row of a column to the
   same `min` and `max`, so the rows compare, as Hoist's README requires. It has no sort or export
   value, so the column turns both off.

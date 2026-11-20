@@ -98,11 +98,14 @@ export class StatCardWidgetModel extends BlueprintWidgetModel<StatCardWidgetConf
     //------------------
     // Implementation
     //------------------
-    // A series rolls up to nothing, so a trend draws from a source of one row only.
+    // A trend draws its source's one row, or the root's sum where the series sums.
     private withTrend(detail: ReactNode): ReactNode {
         const {trend} = this.resolvedConfig,
             records = trend ? this.source?.cube.store.records : null,
-            data = records?.length === 1 ? records[0].data[trend] : null;
+            data =
+                records?.length === 1
+                    ? records[0].data[trend]
+                    : (this.view?.result.rows[0] as PlainObject)?.[trend];
         if (!Array.isArray(data)) return detail;
         return fragment(detail, sparkline({data, colorBy: 'trend', width: '100%'}));
     }

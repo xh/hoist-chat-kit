@@ -275,6 +275,19 @@ describe('blueprint data widgets', () => {
             expect(el.props).toMatchObject({min: -3, max: 6});
         });
 
+        it('sums an additive series point by point at each group, aligned from its end', async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            Object.assign(bp.elements.posGrid.config, {
+                groupBy: ['strategy'],
+                columnState: ['pnlHistory']
+            });
+            const grid = widget(CubeGridWidgetModel, open(bp), 'posGrid'),
+                gm = () => grid.cubeGridModel.innerGridModel;
+            await vi.waitFor(() => expect(gm().store.allRecords.length).toBeGreaterThan(1));
+            const credit = gm().store.allRecords.find(it => it.data.cubeLabel === 'Credit');
+            expect(credit.data.pnlHistory).toEqual([-2, 6]);
+        });
+
         it("draws a stat card's trend under its figure, from its source's one row", async () => {
             const bp = loadBlueprint('p2-linked-dashboard.json');
             bp.sources.fund = {

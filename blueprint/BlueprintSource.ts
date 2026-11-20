@@ -968,6 +968,8 @@ function toCubeField(f: FieldDef): CubeFieldSpec {
 
 function toAggregator(f: FieldDef): CubeFieldSpec['aggregator'] {
     const {aggregator: agg, type, isDimension} = f;
+    // A series sums point by point where its kind sums, as daily P&L does. Others never roll up.
+    if (type === 'number[]') return agg === 'SUM' ? 'SERIES_SUM' : null;
     if (agg === 'server') return 'SUPPLIED';
     if (isString(agg)) return agg as CubeFieldSpec['aggregator'];
     if (isPlainObject(agg)) {

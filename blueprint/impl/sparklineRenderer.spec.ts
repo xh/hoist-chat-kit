@@ -40,9 +40,13 @@ describe('sparkline renderer', () => {
         expect(el.props).toMatchObject({type: 'bar', colorBy: 'sign'});
     });
 
-    it('draws nothing on a group row, or for no series', () => {
-        const display = fieldDisplay(field, {}, ctx);
-        expect(display.render([1, 2], null, true)).toBeNull();
-        expect(display.render(null)).toBeNull();
+    it('draws a group row on its own scale, as a total does not compare with its rows', () => {
+        const el = fieldDisplay(field, {}, ctx).render([1, 2], null, true) as ReactElement<any>;
+        expect(el.props.min).toBeUndefined();
+        expect(el.props.max).toBeUndefined();
+    });
+
+    it('draws nothing for no series', () => {
+        expect(fieldDisplay(field, {}, ctx).render(null)).toBeNull();
     });
 });
