@@ -73,7 +73,7 @@ A blueprint holds these top-level keys:
 | `variables` | Values that widgets share, by name, each with a type and what sets it |
 | `sources` | Data by name: a dataset with parameters, an artifact, or inline rows |
 | `formats` | Named number and date formats |
-| `presets` | Named groups of settings, such as column sets, that a user switches between |
+| `presets` | Named groups of settings, such as column sets or a variable's default, that a user switches between |
 | `root` | The ID of the top element |
 | `elements` | Each element by ID: its widget, its config, and for a container, its child references |
 
@@ -238,7 +238,7 @@ hframe(
 | `widgetPalette` | Add a widget, into the selected container or the root |
 | `variablesEditor` | Add, rename and remove variables, and set each one's type, writers, default and options |
 | `sourcesEditor` | Add, rename and remove sources, and set each one's dataset, parameters, filter and fields |
-| `presetsEditor` | Make groups of presets over widgets' preset paths, and edit their presets |
+| `presetsEditor` | Make groups of presets over widgets' preset paths and variables' defaults, and edit their presets |
 
 Each change is one edit by the user, with a description, so undo, redo and history apply. Text
 commits on blur or Enter. A refused edit leaves the blueprint as it was, and shows its issues at

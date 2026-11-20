@@ -55,8 +55,9 @@ export class VariableEditorModel extends ConfigEditorModel {
             : null;
     }
 
+    /** The declaration as it shows, with any default that the active preset sets. */
     get values(): VariableDecl {
-        return this.name ? this.designModel.blueprintModel.blueprint.variables[this.name] : null;
+        return this.name ? this.designModel.blueprintModel.effective.variables[this.name] : null;
     }
 
     get sourceName(): string {
@@ -304,7 +305,12 @@ function declaration(impl: VariableEditorModel) {
                   impl.issuesFor('compute')
               )
             : null,
-        labelled('Default', defaultEditor(impl), impl.issuesFor('default')),
+        labelled(
+            'Default',
+            defaultEditor(impl),
+            impl.issuesFor('default'),
+            impl.badgeFor('default')
+        ),
         labelled('Options', optionsEditor(impl), impl.issuesFor('options'))
     ];
 }

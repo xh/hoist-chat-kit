@@ -324,6 +324,25 @@ describe('validateBlueprint', () => {
             expect(codes(bp)).toContain('variable.unknown');
         });
 
+        it("lets presets control a variable's default, once it leaves the declaration", () => {
+            const bp = loadBlueprint('p3-morning-report.json'),
+                codes = () => validate(bp).map(it => it.code);
+            bp.variables.symbol = {type: 'string', setBy: 'prompt'};
+            bp.presets.tickers = {
+                controls: [{path: '/variables/symbol/default'}],
+                items: {apple: {set: {variables: {symbol: {default: {value: 'AAPL'}}}}}}
+            };
+            expect(codes()).toEqual([]);
+
+            bp.variables.symbol.default = {value: 'IBM'};
+            expect(codes()).toEqual(['preset.stillInConfig']);
+            delete bp.variables.symbol.default;
+            bp.presets.tickers.controls = [{path: '/variables/nope/default'}];
+            expect(codes()).toContain('preset.badPath');
+            bp.presets.tickers.controls = [{path: '/variables/symbol/label'}];
+            expect(codes()).toContain('preset.badPath');
+        });
+
         it('finds no child, widget, dataset or preset named after an inherited member', () => {
             const bp = p2();
             bp.elements.dashboard.children.push({id: 'hasOwnProperty'} as any);

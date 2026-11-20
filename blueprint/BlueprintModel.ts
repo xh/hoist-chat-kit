@@ -427,6 +427,7 @@ export class BlueprintModel extends HoistModel {
         this.activePresets = {...this.activePresets, [group]: item};
         const paths = def.controls.map(it => it.path);
         this.transientValues = omitBy(this.transientValues, (_, path) => paths.includes(path));
+        if (paths.some(it => it.startsWith('/variables/'))) this.syncVariables();
     }
 
     /** The group and active preset that control a path, or null if no preset group does. */
@@ -609,9 +610,12 @@ export class BlueprintModel extends HoistModel {
         this.syncSources();
     }
 
-    /** Keep each variable whose declaration did not change, with its value. */
+    /**
+     * Keep each variable whose declaration did not change, with its value. A declaration is as
+     * the active presets make it, as a preset can set a variable's default.
+     */
     private syncVariables() {
-        const decls = this.blueprint.variables ?? {},
+        const decls = this.effective?.variables ?? {},
             prev = this.variables;
         this.variables = Object.entries(decls).map(([name, decl]) => {
             const existing = prev.find(it => it.name === name);

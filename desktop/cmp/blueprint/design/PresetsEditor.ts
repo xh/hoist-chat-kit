@@ -62,15 +62,20 @@ export class PresetsEditorModel extends HoistModel {
         );
     }
 
-    /** Each widget's preset paths that no group controls yet. */
+    /** Each widget's preset paths, and each variable's default, that no group controls yet. */
     get candidatePaths(): Option[] {
-        const {blueprint, registry} = this.designModel.blueprintModel;
-        return Object.entries(blueprint?.elements ?? {}).flatMap(([id, el]) =>
-            (registry.widgets[el.component]?.presetPaths ?? [])
-                .map(rel => `/elements/${id}/config${rel}`)
-                .filter(path => !this.designModel.blueprintModel.getPresetControl(path))
-                .map(path => ({value: path, label: pathLabel(path)}))
-        );
+        const {blueprint, registry} = this.designModel.blueprintModel,
+            widgetPaths = Object.entries(blueprint?.elements ?? {}).flatMap(([id, el]) =>
+                (registry.widgets[el.component]?.presetPaths ?? []).map(
+                    rel => `/elements/${id}/config${rel}`
+                )
+            ),
+            defaultPaths = Object.entries(blueprint?.variables ?? {})
+                .filter(([, decl]) => Object.hasOwn(decl, 'default'))
+                .map(([name]) => `/variables/${name}/default`);
+        return [...widgetPaths, ...defaultPaths]
+            .filter(path => !this.designModel.blueprintModel.getPresetControl(path))
+            .map(path => ({value: path, label: pathLabel(path)}));
     }
 
     /** The paths the selected group controls. */
@@ -297,7 +302,7 @@ function group(impl: PresetsEditorModel) {
     ];
 }
 
-// A controlled path as its element and property, such as "posGrid › Column state".
+// A controlled path as its element or variable and property, such as "posGrid › Column state".
 function pathLabel(path: string): string {
     const segs = path.split('/');
     return `${segs[2]} › ${labelOf(segs.at(-1))}`;

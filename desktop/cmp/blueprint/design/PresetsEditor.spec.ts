@@ -44,13 +44,16 @@ describe('PresetsEditor', () => {
         return {model, design, editor};
     }
 
-    it('offers the preset paths of each widget that no group controls yet', () => {
+    it("offers each widget's preset paths, and each variable's default, that no group controls yet", () => {
         const {editor} = open(),
             paths = editor.candidatePaths.map(it => it.value);
         expect(paths).toContain('/elements/posGrid/config/sortBy');
         expect(paths).not.toContain('/elements/posGrid/config/columnState');
         expect(editor.candidatePaths.find(it => it.value.endsWith('sortBy')).label).toBe(
             'posGrid › Sort by'
+        );
+        expect(editor.candidatePaths.find(it => it.value === '/variables/fund/default').label).toBe(
+            'fund › Default'
         );
     });
 

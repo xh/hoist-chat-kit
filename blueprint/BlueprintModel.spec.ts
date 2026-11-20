@@ -339,6 +339,29 @@ describe('BlueprintModel', () => {
         const columnsOf = (model: BlueprintModel) =>
             model.effective.elements.posGrid.config.columnState;
 
+        // P3 with a group that switches the symbol variable's default between two tickers.
+        const withSymbolPresets = () => {
+            const bp = p3();
+            bp.variables.symbol = {type: 'string', setBy: 'prompt'};
+            bp.presets.tickers = {
+                label: 'Tickers',
+                controls: [{path: '/variables/symbol/default'}],
+                default: 'apple',
+                items: {
+                    apple: {set: {variables: {symbol: {default: {value: 'AAPL'}}}}},
+                    msft: {set: {variables: {symbol: {default: {value: 'MSFT'}}}}}
+                }
+            };
+            return bp;
+        };
+
+        it("gives a variable the default its group's active preset sets", () => {
+            const model = open(withSymbolPresets());
+            expect(model.getVariable('symbol').value).toBe('AAPL');
+            model.setPreset('tickers', 'msft');
+            expect(model.getVariable('symbol').value).toBe('MSFT');
+        });
+
         it("shows each group's active preset on the paths it controls, from its default", async () => {
             const provider = new RecordingProvider(),
                 model = await opened(p3(), provider);

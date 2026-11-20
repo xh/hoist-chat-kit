@@ -107,6 +107,14 @@ describe('VariablesEditor', () => {
         expect(editor.valueSchema('string[]')).toEqual({type: 'array', items: {type: 'string'}});
     });
 
+    it('shows a default that presets control, and badges it with the active preset', () => {
+        const {design, editor} = open('fund');
+        design.addPresetGroup('/variables/fund/default');
+        design.select({kind: 'variable', id: 'fund'});
+        expect(editor.values.default).toEqual({resolver: 'userFund'});
+        expect(editor.badgeFor('default')).toBe('Preset: Default › Preset 1');
+    });
+
     it('draws the declaration of the selected variable', () => {
         const {design} = open('priceStart'),
             {container} = render(variablesEditor({designModel: design}) as ReactElement),

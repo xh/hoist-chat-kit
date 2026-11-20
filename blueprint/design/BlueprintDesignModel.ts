@@ -121,7 +121,10 @@ export class BlueprintDesignModel extends HoistModel {
         const presetPaths = Object.values(blueprint.presets ?? {})
             .flatMap(it => it.controls ?? [])
             .map(it => it.path)
-            .filter(path => gone.has(elementOfPath(path)));
+            .filter(
+                path =>
+                    gone.has(elementOfPath(path)) || removedVariables.includes(variableOfPath(path))
+            );
         return {elements, removedVariables, unboundVariables, presetPaths};
     }
 
@@ -181,28 +184,8 @@ export class BlueprintDesignModel extends HoistModel {
                     : {op: 'remove', path: `/variables/${name}/setBy`}
             );
         });
-        Object.entries(blueprint.presets ?? {}).forEach(([group, def]) => {
-            const controls = def.controls ?? [],
-                kept = controls.filter(it => !gone.has(elementOfPath(it.path)));
-            if (kept.length === controls.length) return;
-            if (!kept.length) {
-                ops.push({op: 'remove', path: `/presets/${group}`});
-                return;
-            }
-            ops.push({op: 'set', path: `/presets/${group}/controls`, value: kept});
-            Object.entries(def.items ?? {}).forEach(([item, it]) => {
-                controls
-                    .filter(c => !kept.includes(c))
-                    .forEach(c => {
-                        if (getAt(it.set, c.path) !== undefined) {
-                            ops.push({
-                                op: 'remove',
-                                path: `/presets/${group}/items/${item}/set${c.path}`
-                            });
-                        }
-                    });
-            });
-        });
+        const released = new Set(removal.presetPaths);
+        ops.push(...this.releaseOps(path => released.has(path)));
         return ops;
     }
 
@@ -252,7 +235,9 @@ export class BlueprintDesignModel extends HoistModel {
 
     /** Remove a variable, as one edit. Refused while anything reads it. */
     removeVariable(name: string): BlueprintEditResult {
-        return this.removeEntry('variables', 'variable', name);
+        return this.removeEntry('variables', 'variable', name, [
+            ...this.releaseOps(path => variableOfPath(path) === name)
+        ]);
     }
 
     /**
@@ -489,6 +474,33 @@ export class BlueprintDesignModel extends HoistModel {
         ].filter(Boolean) as BlueprintOp[];
     }
 
+    // The operations that stop preset groups controlling the paths given, dropping their values,
+    // and a group left with none.
+    private releaseOps(isReleased: (path: string) => boolean): BlueprintOp[] {
+        const ops: BlueprintOp[] = [];
+        Object.entries(this.blueprintModel.blueprint?.presets ?? {}).forEach(([group, def]) => {
+            const controls = def.controls ?? [],
+                kept = controls.filter(it => !isReleased(it.path));
+            if (kept.length === controls.length) return;
+            if (!kept.length) {
+                ops.push({op: 'remove', path: `/presets/${group}`});
+                return;
+            }
+            ops.push({op: 'set', path: `/presets/${group}/controls`, value: kept});
+            Object.entries(def.items ?? {}).forEach(([item, it]) => {
+                controls
+                    .filter(c => !kept.includes(c) && getAt(it.set, c.path) !== undefined)
+                    .forEach(c =>
+                        ops.push({
+                            op: 'remove',
+                            path: `/presets/${group}/items/${item}/set${c.path}`
+                        })
+                    );
+            });
+        });
+        return ops;
+    }
+
     // Each required parameter of a dataset bound to the first variable of its type.
     private boundParams(
         dataset: string
@@ -520,7 +532,8 @@ export class BlueprintDesignModel extends HoistModel {
         const ops: BlueprintOp[] = Object.entries(changes)
             .filter(([key, value]) => value !== undefined || Object.hasOwn(decl, key))
             .map(([key, value]) => {
-                const path = `/${coll}/${name}/${key}`;
+                // A key presets control, such as a variable's default, changes the active preset.
+                const path = this.blueprintModel.writePathFor(`/${coll}/${name}/${key}`);
                 return value === undefined ? {op: 'remove', path} : {op: 'set', path, value};
             });
         return this.edit(`${noun} ${name}: ${Object.keys(changes).join(', ')}`, ops);
@@ -529,12 +542,16 @@ export class BlueprintDesignModel extends HoistModel {
     private removeEntry(
         coll: 'variables' | 'sources',
         noun: string,
-        name: string
+        name: string,
+        alsoOps: BlueprintOp[] = []
     ): BlueprintEditResult {
         if (!getOwn<PlainObject>(this.blueprintModel.blueprint?.[coll], name)) {
             return refused(`There is no ${noun} '${name}'.`);
         }
-        return this.edit(`Remove ${noun} ${name}`, [{op: 'remove', path: `/${coll}/${name}`}]);
+        return this.edit(`Remove ${noun} ${name}`, [
+            ...alsoOps,
+            {op: 'remove', path: `/${coll}/${name}`}
+        ]);
     }
 
     private edit(description: string, ops: BlueprintOp[]): BlueprintEditResult {
@@ -634,6 +651,11 @@ function parentOf(elements: Record<string, BlueprintElement>, id: string): strin
 }
 
 // The element a path under /elements names, or null.
+function variableOfPath(path: string): string {
+    const [, coll, name] = path.split('/');
+    return coll === 'variables' ? name : null;
+}
+
 function elementOfPath(path: string): string {
     const [, coll, id] = path.split('/');
     return coll === 'elements' ? id : null;

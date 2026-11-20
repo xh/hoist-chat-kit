@@ -288,6 +288,34 @@ describe('BlueprintDesignModel', () => {
             expect(errors(design.removePreset('posViews', 'risk')).length).toBeGreaterThan(0);
         });
 
+        it("makes presets of a variable's default, which edits, renames and removal follow", () => {
+            const {model, design} = open(loadBlueprint('p3-morning-report.json')),
+                FUND = '/variables/fund/default';
+            design.addVariable();
+            design.setVariableDecl('variable1', 'default', {value: 'A'});
+            const {id} = design.addPresetGroup('/variables/variable1/default');
+            expect(model.blueprint.variables.variable1).not.toHaveProperty('default');
+            expect(model.blueprint.presets[id].items.preset1.set).toEqual({
+                variables: {variable1: {default: {value: 'A'}}}
+            });
+
+            design.setVariableDecl('variable1', 'default', {value: 'B'});
+            expect(
+                model.blueprint.presets[id].items.preset1.set.variables.variable1.default
+            ).toEqual({
+                value: 'B'
+            });
+
+            design.renameId('variable', 'variable1', 'book');
+            expect(model.blueprint.presets[id].controls).toEqual([
+                {path: '/variables/book/default'}
+            ]);
+            expect(errors(design.removeVariable('book'))).toEqual([]);
+            expect(model.blueprint.presets ?? {}).not.toHaveProperty(id);
+
+            expect(errors(design.addPresetGroup(FUND))).toEqual([]);
+        });
+
         it('removes a group, giving its paths back to the config at the active preset', () => {
             const {model, design} = open(loadBlueprint('p3-morning-report.json'));
             model.setPreset('posViews', 'risk');

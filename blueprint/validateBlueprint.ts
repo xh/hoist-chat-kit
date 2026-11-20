@@ -579,14 +579,37 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 );
             }
         }
+        const checkPresetItems = (path: string, segs: string[]) => {
+            for (const [iname, item] of Object.entries<any>(pre.items ?? {})) {
+                let o = item?.set;
+                for (const seg of segs) {
+                    o =
+                        o != null && typeof o === 'object' && Object.hasOwn(o, seg)
+                            ? o[seg]
+                            : undefined;
+                }
+                if (o === undefined) {
+                    err(
+                        'preset.missingPath',
+                        `${gp}/items/${iname}/set`,
+                        `preset '${iname}' does not set ${path}`
+                    );
+                }
+            }
+        };
         for (const [i, c] of pre.controls.entries()) {
             const path = String(c?.path),
                 segs = path.startsWith('/') ? decodePointer(path) : [];
-            if (segs[0] !== 'elements' || segs[2] !== 'config' || !elements[segs[1]]) {
+            const isVariableDefault =
+                segs[0] === 'variables' && segs[2] === 'default' && segs.length === 3;
+            if (
+                !(isVariableDefault && variables[segs[1]]) &&
+                (segs[0] !== 'elements' || segs[2] !== 'config' || !elements[segs[1]])
+            ) {
                 err(
                     'preset.badPath',
                     `${gp}/controls/${i}/path`,
-                    `'${path}' must name a config path of an element, such as /elements/grid/config/columnState`
+                    `'${path}' must name a config path of an element, such as /elements/grid/config/columnState, or a variable's default, such as /variables/fund/default`
                 );
                 continue;
             }
@@ -598,6 +621,17 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 );
             }
             owner[path] = gname;
+            if (isVariableDefault) {
+                if (Object.hasOwn(variables[segs[1]], 'default')) {
+                    err(
+                        'preset.stillInConfig',
+                        path,
+                        'a default that presets control must leave the variable declaration'
+                    );
+                }
+                checkPresetItems(path, segs);
+                continue;
+            }
             const el = elements[segs[1]],
                 presetPaths = registry.widgets[el.component]?.presetPaths ?? [],
                 rel = '/' + segs.slice(3).join('/');
@@ -615,22 +649,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     'a path that presets control must leave the element config'
                 );
             }
-            for (const [iname, item] of Object.entries<any>(pre.items ?? {})) {
-                let o = item?.set;
-                for (const seg of segs) {
-                    o =
-                        o != null && typeof o === 'object' && Object.hasOwn(o, seg)
-                            ? o[seg]
-                            : undefined;
-                }
-                if (o === undefined) {
-                    err(
-                        'preset.missingPath',
-                        `${gp}/items/${iname}/set`,
-                        `preset '${iname}' does not set ${path}`
-                    );
-                }
-            }
+            checkPresetItems(path, segs);
         }
         if (pre.default && !getOwn(pre.items, pre.default)) {
             err('preset.unknownDefault', `${gp}/default`, `no preset '${pre.default}'`);

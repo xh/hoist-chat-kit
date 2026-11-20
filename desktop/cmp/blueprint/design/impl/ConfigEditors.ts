@@ -752,12 +752,18 @@ function jsonEditor(value: unknown, commit: (value: unknown) => void, ctx: Edito
 }
 
 /** A row of a label, an editor, and the issues under them. */
-export function labelled(label: string, editor: unknown, rowIssues: {message: string}[] = []) {
+export function labelled(
+    label: string,
+    editor: unknown,
+    rowIssues: {message: string}[] = [],
+    badge: string = null
+) {
     return div({
         key: label,
         className: `${CLS}__row`,
         children: [
             div({className: `${CLS}__label`, children: label}),
+            badge ? div({className: `${CLS}__badge`, children: badge}) : null,
             editor as any,
             ...rowIssues.map((it, idx) =>
                 div({key: idx, className: `${CLS}__issue`, children: it.message})
