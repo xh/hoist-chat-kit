@@ -2,7 +2,7 @@ import {chart, ChartModel} from '@xh/hoist/cmp/chart';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {Cube, View} from '@xh/hoist/data';
 import {observableRef} from '@xh/hoist/mobx';
-import {isEqual, isFinite, sortBy, uniqBy} from 'lodash';
+import {escape, isEqual, isFinite, sortBy, uniqBy} from 'lodash';
 import {
     BlueprintWidgetModel,
     type BlueprintWidgetConfig,
@@ -114,8 +114,9 @@ export class HeatmapWidgetModel extends BlueprintWidgetModel<HeatmapWidgetConfig
             chart: {type: 'heatmap'},
             title: {text: null},
             legend: {enabled: true},
-            xAxis: {categories: xRows.map(it => String(it.cubeLabel))},
-            yAxis: {categories: yRows.map(it => String(it.cubeLabel)), title: {text: null}},
+            // Highcharts reads labels as markup.
+            xAxis: {categories: xRows.map(it => escape(String(it.cubeLabel)))},
+            yAxis: {categories: yRows.map(it => escape(String(it.cubeLabel))), title: {text: null}},
             colorAxis:
                 colorMode === 'diverging'
                     ? {
@@ -135,7 +136,9 @@ export class HeatmapWidgetModel extends BlueprintWidgetModel<HeatmapWidgetConfig
             },
             plotOptions: {series: {point: {events: {click: this.onCellClick}}}}
         });
-        chartModel.setSeries([{type: 'heatmap', name: source.fieldLabel(value), data} as any]);
+        chartModel.setSeries([
+            {type: 'heatmap', name: escape(source.fieldLabel(value)), data} as any
+        ]);
     }
 }
 
