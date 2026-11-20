@@ -78,8 +78,9 @@ forward plan step 19, and extends it to source values. A template may name any s
 blueprint. The optional `source` key names a default, so `{pnlDay}` can stand for
 `{positions.pnlDay}`.
 
-- **Every substituted value is escaped as markdown,** variables included. Otherwise a data string
-  such as `[Log in](https://evil.example)` would become a link in the report.
+- **Every substituted value goes in as text, after the markdown is parsed,** variables included.
+  Otherwise a data string such as `[Log in](https://evil.example)` would become a link in the
+  report. Escaping is not enough: GFM links a bare URL with the escapes in it.
 - **A template reads root aggregates only,** and shows a placeholder until each source it names
   has loaded. `WidgetSpec.demand()` returns a demand per source (decision 130, built in a362e59),
   so a template's demand names every source it reads. A template never joins sources.

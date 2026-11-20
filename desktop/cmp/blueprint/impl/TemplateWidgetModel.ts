@@ -1,0 +1,120 @@
+import type {PlainObject} from '@xh/hoist/core';
+import type {View} from '@xh/hoist/data';
+import {fmtDate, fmtNumber} from '@xh/hoist/format';
+import {observableRef} from '@xh/hoist/mobx';
+import {LocalDate} from '@xh/hoist/utils/datetime';
+import {
+    type BlueprintSource,
+    type BlueprintWidgetConfig,
+    BlueprintWidgetModel
+} from '../../../../blueprint';
+import {describeValue} from '../../../../blueprint/impl/builtInWidgets';
+import {formatValue, resolveFormat} from '../../../../blueprint/impl/formats';
+import type {ChatMarkdownProps} from '../../../../cmp/markdown';
+import {
+    fillTemplate,
+    markdownTemplate,
+    type TemplateRef
+} from '../../../../blueprint/impl/template';
+import {rehypeTemplateValues} from './rehypeTemplateValues';
+
+/**
+ * A widget whose config holds templates, such as `markdown`. It reads the root aggregates of each
+ * source its templates name, through a View of its own over each one.
+ */
+export class TemplateWidgetModel<
+    C extends PlainObject = PlainObject
+> extends BlueprintWidgetModel<C> {
+    @observableRef private accessor views: Record<string, View> = {};
+    private removeViews: (() => void)[] = [];
+
+    constructor(config: BlueprintWidgetConfig) {
+        super(config);
+        // Each source's Cube lives as long as the source, so a new source means new Views.
+        this.addReaction({
+            track: () => this.demandedSources(),
+            run: () => this.syncViews(),
+            equals: 'shallow',
+            fireImmediately: true
+        });
+    }
+
+    /** A plain text template from the config, with each reference replaced by its value. */
+    fillText(text: string): string {
+        return fillTemplate(text, ref => this.refValue(ref));
+    }
+
+    /** The props for `chatMarkdown` that render a markdown template from the config. */
+    markdownProps(text: string): Pick<ChatMarkdownProps, 'content' | 'markdownPlugins'> {
+        const {content, values} = markdownTemplate(text, ref => this.refValue(ref));
+        return {content, markdownPlugins: {rehype: [[rehypeTemplateValues, {values}]]}};
+    }
+
+    override destroy() {
+        this.clearViews();
+        super.destroy();
+    }
+
+    //------------------
+    // Implementation
+    //------------------
+    private get demand() {
+        const spec = this.blueprintModel.registry.widgets[this.element?.component];
+        return spec?.demand?.(this.resolvedConfig) ?? {};
+    }
+
+    private demandedSources(): BlueprintSource[] {
+        return Object.keys(this.demand)
+            .map(it => this.blueprintModel.getSource(it))
+            .filter(Boolean);
+    }
+
+    private syncViews() {
+        this.clearViews();
+        const views: Record<string, View> = {};
+        this.demandedSources().forEach(source => {
+            const view = source.cube.createView({
+                query: {dimensions: [], includeRoot: true},
+                connect: true
+            });
+            views[source.name] = view;
+            this.removeViews.push(
+                source.addView(view, () => this.demand[source.name]?.fields ?? []),
+                () => view.destroy()
+            );
+        });
+        this.views = views;
+    }
+
+    private clearViews() {
+        this.removeViews.forEach(it => it());
+        this.removeViews = [];
+    }
+
+    private refValue({source, name}: TemplateRef): string {
+        const {blueprintModel} = this;
+        if (!source) {
+            const variable = blueprintModel.getVariable(name);
+            if (variable) return formatVariable(variable.value, variable.decl.type);
+        }
+        const sourceName = source ?? this.resolvedConfig.source,
+            src = blueprintModel.getSource(sourceName),
+            view = this.views[sourceName],
+            def = src?.fields[name];
+        if (!def || !view) return '';
+        if (src.isWaiting || !src.hasLoaded) return '…';
+        const {catalog, blueprint} = blueprintModel,
+            value = (view.result.rows[0] as PlainObject)?.[name],
+            opts = resolveFormat(def, src.displayOf(name).formats, {catalog, blueprint});
+        return String(formatValue(value, def, opts, catalog, true) ?? '');
+    }
+}
+
+function formatVariable(value: unknown, type: string): string {
+    if (value == null) return '';
+    if (type === 'localDate' && typeof value === 'string') {
+        return fmtDate(LocalDate.get(value), {asHtml: true}) as string;
+    }
+    if (typeof value === 'number') return fmtNumber(value, {asHtml: true}) as string;
+    return describeValue(value);
+}

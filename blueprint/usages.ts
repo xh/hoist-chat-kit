@@ -1,9 +1,10 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {isArray, isEmpty, isPlainObject, isString, omit, uniq} from 'lodash';
+import {compact, isArray, isEmpty, isPlainObject, isString, omit, uniq} from 'lodash';
 import {type Blueprint, fieldInstances, isFieldInstance} from './Blueprint';
 import type {BlueprintRegistry} from './BlueprintRegistry';
 import type {DataCatalog} from './DataCatalog';
 import {getOwn} from './impl/pointer';
+import {type TemplateRef, templateRefs} from './impl/template';
 
 /** One place a blueprint uses a field: a JSON Pointer, and the instance it goes through, if any. */
 export interface FieldUse {
@@ -94,6 +95,11 @@ export function fieldUsages(blueprint: Blueprint, catalog: DataCatalog): FieldUs
 
     // Widgets: on their source's dataset, or through the variables they write.
     Object.entries(elements).forEach(([id, el]) => {
+        templateFieldRefs(el.config, `/elements/${id}/config`).forEach(({source, name, path}) => {
+            if (source || !getOwn(variables, name)) {
+                mark(compact([datasetOf(source ?? el.config?.source)]), name, path);
+            }
+        });
         const ds = datasetOf(el.config?.source),
             refs = fieldRefs(omit(el.config, 'source'), `/elements/${id}/config`);
         if (!refs.length) return;
@@ -191,6 +197,18 @@ export function registryUsages(
 const FIELD_KEYS = ['field', 'x', 'sortBy', 'colId'],
     FIELD_LIST_KEYS = ['y', 'columnState', 'groupBy', 'dimensions', 'fields'],
     FIELD_MAP_KEYS = ['columns'];
+
+// The references of every string in a config that reads as a template, with its path.
+function templateFieldRefs(o: unknown, path: string): (TemplateRef & {path: string})[] {
+    if (isString(o)) return templateRefs(o).map(it => ({...it, path}));
+    if (isArray(o)) return o.flatMap((it, i) => templateFieldRefs(it, `${path}/${i}`));
+    if (isPlainObject(o)) {
+        return Object.entries(o as PlainObject).flatMap(([k, v]) =>
+            templateFieldRefs(v, `${path}/${k}`)
+        );
+    }
+    return [];
+}
 
 function fieldRefs(o: unknown, path: string): {name: string; path: string}[] {
     const ret: {name: string; path: string}[] = [],

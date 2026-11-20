@@ -9,10 +9,12 @@ import {
 import {boxWidget, BoxWidgetModel} from '../BoxWidget';
 import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from '../ButtonGroupInputWidget';
 import {buttonGroupWidget, ButtonGroupWidgetModel} from '../ButtonGroupWidget';
+import {calloutWidget, CalloutWidgetModel} from '../CalloutWidget';
 import {chartWidget, ChartWidgetModel} from '../ChartWidget';
 import {cubeGridWidget, CubeGridWidgetModel} from '../CubeGridWidget';
 import {dashCanvasWidget, DashCanvasWidgetModel} from '../DashCanvasWidget';
 import {groupingChooserWidget, GroupingChooserWidgetModel} from '../GroupingChooserWidget';
+import {markdownWidget, MarkdownWidgetModel} from '../MarkdownWidget';
 import {panelWidget, PanelWidgetModel} from '../PanelWidget';
 import {separatorWidget, SeparatorWidgetModel} from '../SeparatorWidget';
 import {spacerWidget, SpacerWidgetModel} from '../SpacerWidget';
@@ -25,10 +27,12 @@ const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> =
     box: {model: BoxWidgetModel, component: boxWidget},
     buttonGroup: {model: ButtonGroupWidgetModel, component: buttonGroupWidget},
     buttonGroupInput: {model: ButtonGroupInputWidgetModel, component: buttonGroupInputWidget},
+    callout: {model: CalloutWidgetModel, component: calloutWidget},
     chart: {model: ChartWidgetModel, component: chartWidget},
     cubeGrid: {model: CubeGridWidgetModel, component: cubeGridWidget},
     dashCanvas: {model: DashCanvasWidgetModel, component: dashCanvasWidget},
     groupingChooser: {model: GroupingChooserWidgetModel, component: groupingChooserWidget},
+    markdown: {model: MarkdownWidgetModel, component: markdownWidget},
     panel: {model: PanelWidgetModel, component: panelWidget},
     separator: {model: SeparatorWidgetModel, component: separatorWidget},
     spacer: {model: SpacerWidgetModel, component: spacerWidget},

@@ -1,6 +1,6 @@
 import type {PlainObject} from '@xh/hoist/core';
 import type {FromExtendedSchema} from 'json-schema-to-ts';
-import {castArray, compact, isEmpty, isString, mapValues, uniq} from 'lodash';
+import {castArray, compact, isEmpty, isString, mapValues, mergeWith, uniq} from 'lodash';
 import type {BlueprintSchema, BlueprintSchemaExtension} from '../BlueprintSchema';
 import type {
     ActionSpec,
@@ -9,6 +9,7 @@ import type {
     WidgetDemand,
     WidgetSpec
 } from '../BlueprintRegistry';
+import {templateDemand} from './template';
 
 // Plain data and pure functions only, so a validator under plain Node can load these.
 
@@ -95,6 +96,36 @@ const BOX_SCHEMA = {
             default: 'stretch',
             description: 'Where children sit across the direction.'
         }
+    }
+} as const satisfies BlueprintSchema;
+
+const MARKDOWN_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['text'],
+    properties: {
+        source: {
+            type: 'string',
+            'x-source': true,
+            description: 'The source an undotted reference reads a field of.'
+        },
+        text: {type: 'string', maxLength: 10000, 'x-template': true}
+    }
+} as const satisfies BlueprintSchema;
+
+const CALLOUT_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['text'],
+    properties: {
+        source: MARKDOWN_SCHEMA.properties.source,
+        intent: {
+            type: 'string',
+            enum: ['primary', 'success', 'warning', 'danger'],
+            default: 'primary'
+        },
+        title: {type: 'string', maxLength: 200, 'x-template': true},
+        text: MARKDOWN_SCHEMA.properties.text
     }
 } as const satisfies BlueprintSchema;
 
@@ -591,6 +622,16 @@ export type PanelWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typ
 
 export type BoxWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof BOX_SCHEMA>;
 
+export type MarkdownWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof MARKDOWN_SCHEMA
+>;
+
+export type CalloutWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof CALLOUT_SCHEMA
+>;
+
 export type SeparatorWidgetConfig = FromExtendedSchema<
     BlueprintSchemaExtension,
     typeof SEPARATOR_SCHEMA
@@ -852,6 +893,39 @@ const spacer: WidgetSpec = {
     example: {component: 'spacer', config: {size: 16}}
 };
 
+const TEMPLATE_GUIDANCE =
+    "Its text reads {variable} for a variable, and {source.field} for the total of a field over a source, by the field's aggregator and format. With a source set, {field} reads a field of it. A dimension has no total, so it reads blank. Write {{ for a brace. Values cannot carry markdown of their own.";
+
+const markdown: WidgetSpec = {
+    name: 'markdown',
+    version: 1,
+    label: 'Text',
+    terms: ['text', 'markdown', 'note', 'commentary', 'heading', 'summary'],
+    guidance: `Markdown text, such as a heading, a note or a summary with live figures. ${TEMPLATE_GUIDANCE}`,
+    category: 'content',
+    config: MARKDOWN_SCHEMA,
+    size: {default: {w: 6, h: 3}, min: {w: 2, h: 1}},
+    example: {
+        component: 'markdown',
+        config: {source: 'positions', text: '## {fund}\nP&L today: **{pnlDay}**'}
+    }
+};
+
+const callout: WidgetSpec = {
+    name: 'callout',
+    version: 1,
+    label: 'Callout',
+    terms: ['callout', 'alert', 'warning', 'note', 'highlight'],
+    guidance: `A note set off by an icon and a tinted background, for a caveat, a warning or a key takeaway. intent sets its color. Its title and text are templates. ${TEMPLATE_GUIDANCE}`,
+    category: 'content',
+    config: CALLOUT_SCHEMA,
+    size: {default: {w: 6, h: 2}, min: {w: 2, h: 1}},
+    example: {
+        component: 'callout',
+        config: {intent: 'warning', title: 'Stale prices', text: 'Prices are as of {asOf}.'}
+    }
+};
+
 const cubeGrid: WidgetSpec = {
     name: 'cubeGrid',
     version: 1,
@@ -1089,6 +1163,8 @@ const WIDGET_SPECS: WidgetSpec[] = [
     box,
     separator,
     spacer,
+    markdown,
+    callout,
     cubeGrid,
     chart,
     statCardStrip,
@@ -1130,12 +1206,26 @@ const SOURCE_DEMANDS: Record<string, (config: PlainObject) => WidgetDemand> = {
 };
 
 // A widget over one source demands only from its `source`.
-const DEMANDS = mapValues(
-    SOURCE_DEMANDS,
-    demand =>
-        (cfg: PlainObject): Record<string, WidgetDemand> =>
-            cfg.source ? {[cfg.source]: demand(cfg)} : {}
-);
+const DEMANDS: Record<string, (config: PlainObject) => Record<string, WidgetDemand>> = {
+    ...mapValues(
+        SOURCE_DEMANDS,
+        demand =>
+            (cfg: PlainObject): Record<string, WidgetDemand> =>
+                cfg.source ? {[cfg.source]: demand(cfg)} : {}
+    ),
+    markdown: cfg => templateDemand(cfg.text, cfg.source),
+    callout: cfg =>
+        mergeDemands(templateDemand(cfg.title, cfg.source), templateDemand(cfg.text, cfg.source))
+};
+
+function mergeDemands(
+    a: Record<string, WidgetDemand>,
+    b: Record<string, WidgetDemand>
+): Record<string, WidgetDemand> {
+    return mergeWith({...a}, b, (x: WidgetDemand, y: WidgetDemand) =>
+        x && y ? {fields: uniq([...x.fields, ...y.fields]), groupBy: []} : undefined
+    );
+}
 
 function fieldNames(names: unknown[]): string[] {
     return uniq(names.filter(it => isString(it) && it !== TREE_COLUMN)) as string[];

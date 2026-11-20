@@ -29,6 +29,19 @@ describe('usages', () => {
             expect(usedNames(usages, 'prices')).toEqual(['close', 'day']);
         });
 
+        it('marks the fields a template reads, on the dataset of each source it names', () => {
+            const bp = loadBlueprint('p3-morning-report.json');
+            bp.elements.note = {
+                component: 'markdown',
+                config: {source: 'positions', text: 'Total {mktVal}, closing at {prices.close}'}
+            };
+            const usages = fieldUsages(bp, portfolioCatalog);
+            expect(usages.positions.mktVal.map(it => it.path)).toContain(
+                '/elements/note/config/text'
+            );
+            expect(usages.prices.close.map(it => it.path)).toContain('/elements/note/config/text');
+        });
+
         it('records every place a field is used', () => {
             expect(usages.positions.pnlDay.map(it => it.path)).toEqual(
                 expect.arrayContaining([

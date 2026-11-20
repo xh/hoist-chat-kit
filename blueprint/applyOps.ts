@@ -2,6 +2,7 @@ import type {PlainObject} from '@xh/hoist/core';
 import {cloneDeep, isArray, isEmpty, isPlainObject, isString} from 'lodash';
 import type {Blueprint, BlueprintIssue, BlueprintOp} from './Blueprint';
 import {parentOf} from './impl/elements';
+import {renameTemplateRefs} from './impl/template';
 import {getOwn, isForbiddenKey, parsePointer, PointerError} from './impl/pointer';
 
 /** Characters an element, variable or source ID may use, so a path never needs escaping. */
@@ -245,7 +246,12 @@ function renameRefs(o: any, kind: string, from: string, to: string, parentKey?: 
         }
         return ret;
     }
-    if (typeof o === 'string') return renamePath(o, `${kind}s`, from, to);
+    if (typeof o === 'string') {
+        const renamed = renamePath(o, `${kind}s`, from, to);
+        return kind === 'variable' || kind === 'source'
+            ? renameTemplateRefs(renamed, kind, from, to)
+            : renamed;
+    }
     return o;
 }
 

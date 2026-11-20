@@ -217,6 +217,26 @@ describe('applyOps', () => {
             expect(result.elements.ordersGrid.config.source).toBe('trades');
         });
 
+        it("renames a variable's and a source's references in templates, and nothing else", () => {
+            const note = (text: string): BlueprintOp => ({
+                    op: 'addElement',
+                    id: 'note',
+                    element: {component: 'markdown', config: {source: 'orders', text}},
+                    parent: 'dashboard',
+                    child: {x: 0, y: 14, w: 12, h: 2}
+                }),
+                text = '{selection} {{selection} {orders.qty} {ordersX.qty} {selectionX}',
+                {result} = apply([
+                    note(text),
+                    {op: 'renameId', kind: 'variable', from: 'selection', to: 'sel'},
+                    {op: 'renameId', kind: 'source', from: 'orders', to: 'trades'}
+                ]);
+            expect(result.elements.note.config).toEqual({
+                source: 'trades',
+                text: '{sel} {{selection} {trades.qty} {ordersX.qty} {selectionX}'
+            });
+        });
+
         it('renames paths that name an element, as in presets', () => {
             const bp = loadBlueprint('p3-morning-report.json'),
                 [group] = Object.keys(bp.presets),

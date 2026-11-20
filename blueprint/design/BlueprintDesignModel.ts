@@ -7,6 +7,7 @@ import {applyOps} from '../applyOps';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
 import type {WidgetSpec} from '../BlueprintRegistry';
 import {parentOf} from '../impl/elements';
+import {readsInTemplates} from '../impl/template';
 import {decodePointer, getAt, getOwn, setAt} from '../impl/pointer';
 import {variableTypeMatches} from '../validateBlueprint';
 import {labelOf} from './editorSpec';
@@ -637,7 +638,9 @@ export class BlueprintDesignModel extends HoistModel {
     private readersOf(name: string): string[] {
         const bp = this.blueprintModel.blueprint ?? {},
             binding = `{"$var":${JSON.stringify(name)}}`,
-            binds = (o: unknown) => JSON.stringify(o ?? null).includes(binding);
+            binds = (o: unknown) =>
+                JSON.stringify(o ?? null).includes(binding) ||
+                readsInTemplates(o, 'variable', name);
         const entries: [string, unknown][] = [
             ...Object.entries(bp.elements ?? {}),
             ...Object.entries(bp.sources ?? {}),
@@ -661,7 +664,10 @@ export class BlueprintDesignModel extends HoistModel {
                     Object.entries(bp.elements ?? {}).filter(([id]) => !gone.has(id))
                 )
             };
-        return JSON.stringify(others).includes(`{"$var":${JSON.stringify(name)}}`);
+        return (
+            JSON.stringify(others).includes(`{"$var":${JSON.stringify(name)}}`) ||
+            readsInTemplates(others.elements, 'variable', name)
+        );
     }
 }
 

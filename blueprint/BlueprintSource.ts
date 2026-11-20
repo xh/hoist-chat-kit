@@ -78,6 +78,9 @@ export class BlueprintSource extends HoistBase {
     /** True until the first rows of the current request arrive. */
     @observable accessor isLoading: boolean = false;
 
+    /** True once any rows have arrived, as an inline source's have from the start. */
+    @observable accessor hasLoaded: boolean = false;
+
     /** True for an artifact with more rows than its provider delivers, which shows none. */
     @observable accessor isTooLarge: boolean = false;
 
@@ -108,6 +111,7 @@ export class BlueprintSource extends HoistBase {
         this.context = context;
         this.fields = this.buildFields();
         // An inline source holds its rows from the start, and takes new ones in place.
+        this.hasLoaded = !!decl.inline;
         this.cube = new Cube({
             fields: Object.values(this.fields).map(toCubeField),
             data: decl.inline ? withRowIds(decl.inline.rows) : [],
@@ -435,7 +439,10 @@ export class BlueprintSource extends HoistBase {
         try {
             if (replace) {
                 await this.cube.loadDataAsync(replace, {}, aggregates ?? null);
-                runInAction(() => (this.isLoading = false));
+                runInAction(() => {
+                    this.isLoading = false;
+                    this.hasLoaded = true;
+                });
                 // A snapshot replaces every supplied value, but carries only the sets subscribed
                 // with, so fetch any others again, unless a fetch for them is still on its way.
                 this.loadedSets = [...(this.loadedRequest?.groupBy ?? []), ...this.pendingSets];

@@ -5,6 +5,7 @@ import type {BlueprintRegistry, WidgetSpec} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter} from './impl/configSchema';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
+import {parseTemplate, templateRefs} from './impl/template';
 import {matchesType} from './impl/variableValues';
 
 export interface ValidateBlueprintContext {
@@ -445,6 +446,36 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         }
     }
 
+    // A template's references, each to a variable, a field of its source, or a source's field.
+    const checkTemplate = (text: string, path: string, defaultSource: string) => {
+        templateRefs(text).forEach(({ref, source, name}) => {
+            if (!source && variables[name]) return;
+            const from = source ?? defaultSource,
+                field = sourceFields[from]?.[name];
+            if (!source && !field) {
+                const orField = defaultSource ? ` or field of source '${defaultSource}'` : '';
+                err('template.unknownRef', path, `'{${ref}}' names no variable${orField}`);
+            } else if (!sources[from]) {
+                err('source.unknown', path, `'{${ref}}' names unknown source '${source}'`);
+            } else if (sourceFields[from] && !field) {
+                err('field.unknown', path, `'${name}' is not a field of source '${source}'`);
+            } else if (field?.isDimension) {
+                warn(
+                    'template.dimension',
+                    path,
+                    `'{${ref}}' is a dimension, which has no total, so it shows blank`
+                );
+            }
+        });
+        parseTemplate(text).badRefs.forEach(raw =>
+            err(
+                'template.badRef',
+                path,
+                `'${raw}' is not a reference. Write {variable} or {source.field}, and {{ for a brace.`
+            )
+        );
+    };
+
     // Field references and actions.
     for (const [id, el] of Object.entries(elements)) {
         const cfg = el.config ?? {},
@@ -473,6 +504,12 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     );
                 }
             };
+        const props: PlainObject = registry.widgets[el.component]?.config?.properties ?? {};
+        Object.entries(props).forEach(([key, prop]) => {
+            if (prop?.['x-template'] && isString(cfg[key])) {
+                checkTemplate(cfg[key], `${p}/${key}`, cfg.source);
+            }
+        });
         if (isArray(cfg.groupBy)) {
             cfg.groupBy.forEach((g: string, i: number) =>
                 need(g, `${p}/groupBy/${i}`, 'dimension')

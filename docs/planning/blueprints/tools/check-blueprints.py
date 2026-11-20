@@ -13,7 +13,7 @@ for c in cats.values():
 
 # Spec-level registries used by the scenarios.
 WIDGETS = {
-    'dashCanvas': {}, 'tabContainer': {}, 'panel': {}, 'box': {}, 'separator': {}, 'spacer': {}, 'cubeGrid': {'outputs': {'selection', 'selected'}}, 'chart': {},
+    'dashCanvas': {}, 'tabContainer': {}, 'panel': {}, 'box': {}, 'separator': {}, 'spacer': {}, 'markdown': {}, 'callout': {}, 'cubeGrid': {'outputs': {'selection', 'selected'}}, 'chart': {},
     'statCardStrip': {}, 'groupingChooser': {'value': True}, 'buttonGroup': {}, 'buttonGroupInput': {'value': True},
     'toolbox.portfolioBuilder': {'value': True}
 }

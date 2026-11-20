@@ -1,3 +1,4 @@
+import type {PlainObject} from '@xh/hoist/core';
 import {describe, expect, it} from 'vitest';
 import {
     ARTIFACTS,
@@ -696,6 +697,40 @@ describe('validateBlueprint', () => {
         expect(issues.map(it => [it.code, it.path])).toEqual([
             ['element.notAccepted', '/elements/strip/children/2/id']
         ]);
+    });
+
+    describe('templates', () => {
+        const report = (text: string): Blueprint => {
+            const bp = p2();
+            bp.elements.note = {component: 'markdown', config: {source: 'positions', text}};
+            (bp.elements.dashboard.children as PlainObject[]).push({
+                id: 'note',
+                x: 0,
+                y: 14,
+                w: 12,
+                h: 2
+            });
+            return bp;
+        };
+
+        it('reads variables, fields of its own source, and fields of any source', () => {
+            expect(
+                codes(report('As of {asOf}: {mktVal}, with {orders.quantity}. {{literal}'))
+            ).toEqual([]);
+            expect(codes(report('{sector}'))).toEqual(['template.dimension']);
+        });
+
+        it('refuses a reference to no variable, source or field, at the text', () => {
+            const issues = validate(
+                report('{nothing} {nowhere.mktVal} {orders.nope} {bad ref}')
+            ).map(it => [it.code, it.path]);
+            expect(issues).toEqual([
+                ['template.unknownRef', '/elements/note/config/text'],
+                ['source.unknown', '/elements/note/config/text'],
+                ['field.unknown', '/elements/note/config/text'],
+                ['template.badRef', '/elements/note/config/text']
+            ]);
+        });
     });
 
     it('refuses a widget whose schema uses JSON Schema the validator lacks', () => {

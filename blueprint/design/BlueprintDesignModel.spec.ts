@@ -199,6 +199,16 @@ describe('BlueprintDesignModel', () => {
             expect(errors(design.removeVariable('variable1'))).toEqual([]);
             expect(model.blueprint.variables).not.toHaveProperty('variable1');
         });
+
+        it('refuses to remove a variable that a template reads', () => {
+            const {design} = open(loadBlueprint('p3-morning-report.json'));
+            design.addVariable();
+            const {id} = design.addWidget('markdown', 'overview');
+            design.setConfig(id, '/text', 'Picked: {variable1}');
+            expect(errors(design.removeVariable('variable1'))).toMatchObject([
+                {message: `${id} uses variable1. Change it first.`}
+            ]);
+        });
     });
 
     describe('sources', () => {
