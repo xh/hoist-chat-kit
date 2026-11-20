@@ -25,7 +25,7 @@ import {
     splitNamed,
     stepsOf
 } from '../../../../../blueprint/design/configValues';
-import type {ElementInspectorModel} from '../ElementInspector';
+import type {ConfigEditorModel} from './ConfigEditorModel';
 import {filterEditor, groupingEditor} from './ChooserEditors';
 
 /** The block class of the element inspector, which its editors' elements extend. */
@@ -64,7 +64,7 @@ export interface Option {
 
 /** What every editor reads beside its value. */
 export interface EditorContext {
-    impl: ElementInspectorModel;
+    impl: ConfigEditorModel;
     // True to show the value without letting it change, as for a confirm an action requires.
     locked?: boolean;
     // The top-level property, which a refusal names.
