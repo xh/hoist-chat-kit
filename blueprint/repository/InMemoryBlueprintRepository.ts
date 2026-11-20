@@ -83,6 +83,7 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
 
     async createAsync(spec: BlueprintCreateSpec): Promise<BlueprintRecord> {
         if (!this.canCreate) throw new Error('You may not create a blueprint.');
+        if (spec.copiedFrom) this.checkSource(spec.copiedFrom);
         const id = `bp${this.nextId++}`;
         this.items.set(id, {
             id,
@@ -197,6 +198,21 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
         return {access, canPublish, canShare};
     }
 
+    // A source a copy records must be open to the user, as the version it names. Refused as
+    // hoist-core refuses it: 404 if missing or unreadable, 403 if the version needs write, 400 if
+    // there is no such version.
+    private checkSource({id, version, as}: BlueprintSummary['copiedFrom']) {
+        const item = this.items.get(id),
+            latest = item?.publishes.at(-1)?.info.version;
+        if (!item) throw httpError(404, `Blueprint '${id}' not found`);
+        const exists = as === 'draft' ? version <= item.draftVersion : version <= (latest ?? 0);
+        if (!exists) throw httpError(400, `'${id}' has no ${as} version ${version}`);
+        const needsWrite = as === 'draft' || version !== latest;
+        if (needsWrite && !this.isWriter(id)) {
+            throw httpError(403, `You may not open that version of '${id}'`);
+        }
+    }
+
     private isWriter(id: string): boolean {
         return this.accessOf(id).access === 'write';
     }
@@ -261,4 +277,8 @@ function missing(id: string) {
         path: '',
         message: `There is no blueprint '${id}'.`
     };
+}
+
+function httpError(httpStatus: number, message: string): Error {
+    return Object.assign(new Error(message), {httpStatus});
 }

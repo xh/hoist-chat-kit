@@ -46,7 +46,12 @@ export interface BlueprintRepository {
      */
     openAsync(id: string, opts: BlueprintOpenOptions): Promise<BlueprintRecord>;
 
-    /** Create a blueprint, with the blueprint given as its first draft and no publish. */
+    /**
+     * Create a blueprint, with the blueprint given as its first draft and no publish. A
+     * `copiedFrom` must name a version the user may open, as `openAsync` would. Otherwise the
+     * create rejects with an `httpStatus` of 404 (missing or unreadable), 403 (not open at that
+     * version) or 400 (no such version).
+     */
     createAsync(spec: BlueprintCreateSpec): Promise<BlueprintRecord>;
 
     /**

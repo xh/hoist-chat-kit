@@ -293,7 +293,9 @@ await doc.publishAsync('Adds the risk view');
   another runs joins one follow-up save of the latest blueprint.
 - **Stale drafts.** If another save landed first, the document turns `isStale`. It keeps the
   user's edits and refuses further saves. Offer `reloadAsync()`, which discards the edits, or
-  `createAsync(name)`, which saves them as a new blueprint that records the draft it copies.
+  `createAsync(name)`, which saves them as a new blueprint that records the draft it copies. If
+  the user has lost access to that draft, the new blueprint is created without the record, so the
+  edits are not lost.
 - **Renames for personalizations.** The draft keeps the renames of elements, variables and sources
   since the last publish, and each publish records them.
 
@@ -316,6 +318,9 @@ Implement `BlueprintRepository`. Its doc comment states the contract in full. Th
   server cannot check this atomically, set `enforcesBase` to false, and the library checks first.
 - Number each publish as the next one, created only if absent. Publishing increments the draft's
   version, and returns the new version as `draftVersion`.
+- Accept a create's `copiedFrom` only if the user may open that version, as `openAsync` would.
+  Refuse it with an `httpStatus` of 404, 403 or 400, and the library creates the blueprint
+  without it.
 - Report a refused save or publish as an issue. Return null from `openAsync` or `copyAsync` for a
   blueprint that is missing or that the user may not open. Reject from any other call.
 - Implement `updateAccessAsync` only if the store can share. The library offers sharing only

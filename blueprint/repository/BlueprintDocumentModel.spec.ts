@@ -247,6 +247,19 @@ describe('BlueprintDocumentModel', () => {
         expect(b.blueprintModel.blueprint.elements.posGrid.config.title).toBe('A');
     });
 
+    it('saves as new without the copy record when the source is no longer open to the user', async () => {
+        const {repository, grant, id} = await created(),
+            {blueprintModel, doc} = session(repository);
+        await doc.openAsync(id, {as: 'draft'});
+        title(blueprintModel, 'Mine');
+        grant.access = 'read';
+
+        expect(await doc.createAsync('Kept')).toEqual([]);
+        expect(doc.document.id).not.toBe(id);
+        expect(doc.document).not.toHaveProperty('copiedFrom');
+        expect(blueprintModel.blueprint.elements.posGrid.config.title).toBe('Mine');
+    });
+
     it('bumps the draft version on publish, so a draft opened before it saves as stale', async () => {
         const {repository, id} = await created(),
             publisher = session(repository),

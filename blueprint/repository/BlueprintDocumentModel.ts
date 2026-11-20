@@ -7,6 +7,7 @@ import type {BlueprintModel} from '../BlueprintModel';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
 import {
     type BlueprintAccessSpec,
+    type BlueprintCreateSpec,
     type BlueprintOpenOptions,
     type BlueprintPublish,
     type BlueprintRecord,
@@ -119,21 +120,39 @@ export class BlueprintDocumentModel extends HoistModel {
 
     /**
      * Create a blueprint from the one the model holds, and open its draft. With a blueprint open,
-     * as when a stale draft's edits save as new, the new one records it as what it copies.
+     * as when a stale draft's edits save as new, the new one records it as what it copies. If the
+     * repository refuses that source, as for a user who has lost access to it, the blueprint is
+     * created without the record, so the edits are not lost.
      */
     async createAsync(name: string, description?: string): Promise<BlueprintIssue[]> {
         if (!(await this.repository.canCreateAsync())) {
             return [refusal('You may not create a blueprint.')];
         }
-        const {document} = this,
-            record = await this.repository.createAsync({
+        const {document, repository} = this,
+            spec: BlueprintCreateSpec = {
                 name,
                 description,
-                blueprint: this.withSchema(this.blueprintModel.blueprint ?? {}),
-                ...(document
-                    ? {copiedFrom: {id: document.id, version: document.version, as: document.kind}}
-                    : {})
-            });
+                blueprint: this.withSchema(this.blueprintModel.blueprint ?? {})
+            };
+        let record: BlueprintRecord;
+        try {
+            record = await repository.createAsync(
+                document
+                    ? {
+                          ...spec,
+                          copiedFrom: {
+                              id: document.id,
+                              version: document.version,
+                              as: document.kind
+                          }
+                      }
+                    : spec
+            );
+        } catch (e) {
+            // The user may have lost access to the source since opening it: keep their edits.
+            if (!document || !REFUSED_SOURCE.includes(Number(e?.httpStatus))) throw e;
+            record = await repository.createAsync(spec);
+        }
         return this.openAsync(record.id, {as: 'draft'});
     }
 
@@ -348,6 +367,10 @@ export function schemaMapOf(blueprint: Blueprint, registry: Pick<BlueprintRegist
 // Implementation
 //------------------
 const BLUEPRINT_FORMAT_VERSION = 1;
+
+// The statuses with which a repository refuses a create's copiedFrom: missing or unreadable,
+// not open at that version, or no such version.
+const REFUSED_SOURCE = [404, 403, 400];
 
 function needsWrite(opts: BlueprintOpenOptions): boolean {
     return opts.as === 'draft' || (opts.as === 'publish' && opts.version != null);

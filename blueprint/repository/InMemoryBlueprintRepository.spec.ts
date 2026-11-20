@@ -49,13 +49,35 @@ describe('InMemoryBlueprintRepository', () => {
 
     it('records where a new blueprint was copied from, when given', async () => {
         const repository = new InMemoryBlueprintRepository(OWNER),
-            copiedFrom = {id: 'bp9', version: 4, as: 'draft' as const},
+            source = await create(repository),
+            copiedFrom = {id: source.id, version: 1, as: 'draft' as const},
             record = await repository.createAsync({
                 name: 'Mine',
                 blueprint: loadBlueprint('p3-morning-report.json'),
                 copiedFrom
             });
         expect(record.copiedFrom).toEqual(copiedFrom);
+    });
+
+    it('refuses to record a copy of a version the user may not open', async () => {
+        const grant = {access: 'write' as 'read' | 'write', canPublish: true},
+            repository = new InMemoryBlueprintRepository({canCreate: true, accessOf: () => grant});
+        const {id} = await create(repository);
+        grant.access = 'read';
+        await expect(
+            repository.createAsync({
+                name: 'Mine',
+                blueprint: {},
+                copiedFrom: {id, version: 1, as: 'draft'}
+            })
+        ).rejects.toMatchObject({httpStatus: 403});
+        await expect(
+            repository.createAsync({
+                name: 'Mine',
+                blueprint: {},
+                copiedFrom: {id: 'gone', version: 1, as: 'publish'}
+            })
+        ).rejects.toMatchObject({httpStatus: 404});
     });
 
     it('opens no publish of a blueprint never published', async () => {
