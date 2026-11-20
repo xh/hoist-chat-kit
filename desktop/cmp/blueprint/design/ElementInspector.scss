@@ -113,11 +113,11 @@
     min-width: 0;
   }
 
-  // As tall as an input, so a switch lines up with the inputs beside it.
+  // Fills the height its row's inputs set, so a switch centers on their line.
   &__switch {
     display: flex;
+    flex: 1 1 auto;
     align-items: center;
-    min-height: var(--xh-input-height);
 
     // Blueprint offsets the indicator up 3px for a text label, which a switch here has none of.
     .bp6-switch {

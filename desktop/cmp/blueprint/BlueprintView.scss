@@ -37,8 +37,3 @@
     position: relative;
   }
 }
-
-// A canvas cell is a fixed height, so a strip holds more cards on a row before it wraps.
-.xh-blueprint-stat-cards {
-  --xh-stat-card-min-content-width: 100px;
-}
