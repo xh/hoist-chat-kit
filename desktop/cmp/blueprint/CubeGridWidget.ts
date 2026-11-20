@@ -13,6 +13,8 @@ import {
     type CubeGridWidgetConfig
 } from '../../../blueprint';
 import {CUBE_GRID_STYLES} from '../../../blueprint/impl/builtInWidgets';
+import type {FieldDisplayLayer} from '../../../blueprint/impl/formats';
+import {getOwn} from '../../../blueprint/impl/pointer';
 import {type FieldDisplay, fieldDisplay} from '../../../blueprint/impl/renderers';
 
 /**
@@ -28,6 +30,33 @@ const BUILT_STYLES = ['groupRowHeight', 'showGroupRowCounts'],
 // Hoist sets its row and header heights on AgGrid, untyped.
 const AG_GRID = AgGrid as any,
     GRID_BORDERS = 2;
+
+// The keys of a column's config that pass to its Hoist column as they are.
+const COLUMN_KEYS = [
+    'headerTooltip',
+    'headerAlign',
+    'align',
+    'tooltip',
+    'highlightOnChange',
+    'minWidth',
+    'maxWidth',
+    'flex',
+    'chooserName',
+    'chooserGroup',
+    'chooserDescription',
+    'exportName'
+];
+
+/** A column's config as a layer of its field's display, over the source's. */
+function toDisplayLayer(column: PlainObject): FieldDisplayLayer {
+    return {
+        label: column.headerName,
+        description: column.headerTooltip,
+        align: column.align,
+        format: column.format,
+        renderer: column.renderer
+    };
+}
 
 // CubeGridModel's own defaults, over GridModel's, for a style an edit clears.
 const CUBE_GRID_DEFAULTS = {emptyText: 'No data', stripeRows: true, rowBorders: true};
@@ -65,8 +94,10 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
             {
                 track: () => [
                     this.resolvedConfig.columnState,
+                    this.resolvedConfig.columns,
                     this.isFlat,
                     this.blueprintModel.blueprint?.formats,
+                    this.source?.decl.fields,
                     this.columnLabels
                 ],
                 run: () => this.applyColumnStateAsync(),
@@ -229,10 +260,11 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
             {catalog, blueprint, registry} = blueprintModel;
         return columnEntries(this.resolvedConfig.columnState)
             .filter(it => it.field !== TREE_COLUMN && source.fields[it.field])
-            .map(({field, format, renderer}) => {
+            .map(({field}) => {
                 const def = source.fields[field],
-                    label = source.fieldLabel(field),
-                    shown = source.displayOf(field, {format, renderer}),
+                    column = this.columnConfig(field),
+                    shown = source.displayOf(field, toDisplayLayer(column)),
+                    label = column.headerName ?? source.fieldLabel(field),
                     display = fieldDisplay(def, shown, {catalog, blueprint, registry}),
                     isNum = def.type === 'number' || def.type === 'int',
                     isAggregate = (record: StoreRecord) => record?.data.cubeRowType !== 'leaf';
@@ -245,11 +277,17 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                     ...(def.category ? {chooserGroup: castArray(def.category).join(' › ')} : {}),
                     absSort: isNum,
                     align: shown.align ?? (isNum ? 'right' : null),
+                    ...pick(column, COLUMN_KEYS),
                     renderer: (v, {record}) => display.render(v, record?.data, isAggregate(record)),
                     exportValue: (v, {record}) =>
                         display.exportValue(v, record?.data, isAggregate(record))
                 };
             });
+    }
+
+    /** The config of a field's column, or of the tree column, from `columns`. */
+    private columnConfig(field: string): PlainObject {
+        return getOwn(this.resolvedConfig.columns, field) ?? {};
     }
 
     /** The label of each column's field, which can follow variables. */
@@ -283,7 +321,11 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                 }
                 return displays.get(dim);
             };
+        // Each group row draws with its own dimension's display, so the column takes no format.
+        const column = this.columnConfig(TREE_COLUMN);
         return {
+            ...(column.headerName ? {headerName: column.headerName} : {}),
+            ...pick(column, COLUMN_KEYS),
             renderer: (v, {record}) => {
                 const {cubeRowType, cubeDimension, cubeLabelValue} = record?.data ?? {},
                     display = cubeRowType === 'aggregate' ? displayOf(cubeDimension) : null;
@@ -376,8 +418,6 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                         if (it.manuallySized && it.width != null) entry.width = it.width;
                         if (it.pinned) entry.pinned = it.pinned;
                     }
-                    if (prev.format) entry.format = prev.format;
-                    if (prev.renderer) entry.renderer = prev.renderer;
                     return entry;
                 });
         if (isEqual(byPinRegion(next), byPinRegion(current))) return;

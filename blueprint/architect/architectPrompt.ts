@@ -73,6 +73,7 @@ Sources:
 - A source names a dataset from the Data Catalog and binds its parameters: {"dataset": "positions", "params": {"asOf": {"$var": "asOf"}}}. Bind every required parameter.
 - A widget names one source in config.source. Widgets that share a source share one request, so reuse a source rather than repeat it.
 - A parameterized field, such as a return over a window, is declared once on the source as an instance, and widgets name the instance like a field: "fields": {"retMtd": {"field": "return", "params": {"start": {"$var": "monthStart"}, "end": {"$var": "asOf"}}}}. An instance can take a "label".
+- The same map can override how one of the dataset's own fields shows, for every widget over the source: "fields": {"pnlDay": {"label": "Today", "align": "center"}}. An override takes label, description, align, width, format and renderer, and changes no data. Keep the catalog's defaults unless the user asks.
 - A blueprint that is not a chat answer never holds data or values you computed. A number to show is a widget over a source.
 
 Variables:
@@ -91,7 +92,7 @@ Filters are Hoist filters: {"field": f, "op": "=", "value": v}, or {"op": "AND",
 
 Actions sit on props a widget declares, such as a button's action: {"type": "setVariable", "variable": "v", "value": ...}. Parameters sit beside type. An action can set only a variable whose setBy is "prompt", "action", or a widget without an output. To clear a variable, use resetVariable, not setVariable with null.
 
-Formats: a field's kind sets its default format. A widget can override per column: {"field": "mktVal", "format": {"scale": "millions", "precision": 1}}. A format is a named format, an object of Hoist number options (precision, scale, ledger, colorSpec, label...), or {"name": "pnl", ...changes}. Redefine a named format for this blueprint with "formats": {"pnl": {...}}, which changes every field whose kind uses it.
+Formats: a field's kind sets its default format. A grid sets a column's format in its columns: "columns": {"mktVal": {"format": {"scale": "millions", "precision": 1}}}. columnState holds only order, width, hidden and pinned. A format is a named format, an object of Hoist number options (precision, scale, ledger, colorSpec, label...), or {"name": "pnl", ...changes}. Redefine a named format for this blueprint with "formats": {"pnl": {...}}, which changes every field whose kind uses it.
 
 Presets: named groups, such as one per grid, each shown as its own switch: "presets": {"gridViews": {"label": "Columns", "controls": [{"path": "/elements/grid/config/columnState"}], "default": "a", "items": {"a": {"label": "...", "set": {"elements": {"grid": {"config": {"columnState": [...]}}}}}}}}. A controlled path must be a preset path of its widget, must leave the element's config, belongs to one group, and every preset in the group sets it.`;
 

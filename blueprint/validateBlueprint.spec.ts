@@ -103,6 +103,24 @@ describe('validateBlueprint', () => {
         ]);
     });
 
+    it("takes a grid's column config by field, and keeps columnState to state", () => {
+        const bp = p2();
+        bp.elements.posGrid.config.columns = {
+            mktVal: {headerName: 'MV', align: 'center', flex: 1, format: {precision: 0}},
+            group: {headerName: 'Book'}
+        };
+        expect(validate(bp)).toEqual([]);
+
+        bp.elements.posGrid.config.columns.nope = {headerName: 'Nope'};
+        expect(codes(bp)).toContain('field.unknown');
+
+        const stated = p2();
+        stated.elements.posGrid.config.columnState = [{field: 'mktVal', format: {precision: 0}}];
+        expect(validate(stated).map(it => [it.code, it.path])).toEqual([
+            ['schema.invalid', '/elements/posGrid/config/columnState/0/format']
+        ]);
+    });
+
     it("takes a grid's Hoist style options, and refuses a value Hoist does not have", () => {
         const bp = p2();
         Object.assign(bp.elements.posGrid.config, {

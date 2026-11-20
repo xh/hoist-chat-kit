@@ -41,6 +41,12 @@ const askedFirst = (o: Outcome) => {
     const ask = o.calls.indexOf('request_design_mode'), edit = o.calls.indexOf('edit_blueprint');
     return ask >= 0 && edit > ask;
 };
+/** Every format the blueprint gives mktVal: in a grid's columns, on a source, or in a column's state as older runs wrote it. */
+const mktValFormats = (bp: Blueprint): any[] => [
+    ...cfg(bp, 'cubeGrid').map(c => c.columns?.mktVal?.format),
+    ...Object.values<any>(bp.sources ?? {}).map(s => s.fields?.mktVal?.format),
+    ...cfg(bp, 'cubeGrid').flatMap(c => [c.columnState].flat().filter((it: any) => it?.field === 'mktVal').map((it: any) => it.format))
+];
 const noChatSources = (bp: Blueprint) => !Object.values<any>(bp.sources ?? {}).some(s => s.artifact || s.inline);
 
 /** Replace each {"$var": name} with that variable's default value. */
@@ -121,7 +127,7 @@ export const SCENARIOS: Scenario[] = [
             }],
             ['an orders grid filtered by the positions selection', o => vars(o.blueprint, v => v.type === 'filter' && [v.setBy].flat().some((w: any) => w?.output === 'selection')).some(([n]) => cfg(o.blueprint, 'cubeGrid', c => dataset(o.blueprint, c) === 'orders' && bound(c.filter, n)).length)],
             ['Greeks redefined in thousands', o => o.blueprint.formats?.greek?.scale === 'thousands'],
-            ['market value in full dollars, by redefining mv or per column', o => o.blueprint.formats?.mv || JSON.stringify(o.blueprint).match(/"field":"mktVal","format":\{[^}]*"precision":0/)],
+            ['market value in full dollars, by redefining mv, per column or on the source', o => o.blueprint.formats?.mv || mktValFormats(o.blueprint).some(f => f?.precision === 0)],
             ['a return instance on the positions source', o => Object.values<any>(o.blueprint.sources ?? {}).some(s => Object.values<any>(s.fields ?? {}).some(f => f.field === 'return'))],
             ['a publishToPmPack button', o => JSON.stringify(o.blueprint.elements).includes('"publishToPmPack"')]
         ]

@@ -57,6 +57,14 @@ describe('usages', () => {
             ]);
         });
 
+        it("marks the fields a grid's columns config names", () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.elements.posGrid.config.columns = {pnlMtd: {headerName: 'MTD'}};
+            expect(fieldUsages(bp, portfolioCatalog).positions.pnlMtd.map(it => it.path)).toEqual([
+                '/elements/posGrid/config/columns/pnlMtd'
+            ]);
+        });
+
         it('marks fields across sources over the same dataset', () => {
             const weather = fieldUsages(w2, weatherCatalog);
             expect(usedNames(weather, 'weather')).toEqual(

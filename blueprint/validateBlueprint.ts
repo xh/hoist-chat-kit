@@ -442,6 +442,11 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 if (f !== TREE_COLUMN) need(f, `${p}/columnState/${i}`);
             });
         }
+        if (isPlainObject(cfg.columns)) {
+            Object.keys(cfg.columns).forEach(f => {
+                if (f !== TREE_COLUMN) need(f, `${p}/columns/${f}`);
+            });
+        }
         if (cfg.x) need(cfg.x, `${p}/x`);
         if (isArray(cfg.y)) cfg.y.forEach((y: string, i: number) => need(y, `${p}/y/${i}`));
         if (isArray(cfg.cards)) {

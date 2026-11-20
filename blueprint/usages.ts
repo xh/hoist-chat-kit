@@ -189,7 +189,8 @@ export function registryUsages(
 //------------------
 // Keys whose string value names a field, and keys whose array holds field names.
 const FIELD_KEYS = ['field', 'x', 'sortBy', 'colId'],
-    FIELD_LIST_KEYS = ['y', 'columnState', 'groupBy', 'dimensions', 'fields'];
+    FIELD_LIST_KEYS = ['y', 'columnState', 'groupBy', 'dimensions', 'fields'],
+    FIELD_MAP_KEYS = ['columns'];
 
 function fieldRefs(o: unknown, path: string): {name: string; path: string}[] {
     const ret: {name: string; path: string}[] = [],
@@ -198,7 +199,10 @@ function fieldRefs(o: unknown, path: string): {name: string; path: string}[] {
             if (!isPlainObject(v)) return;
             Object.entries(v as PlainObject).forEach(([k, val]) => {
                 const at = `${p}/${k}`;
-                if (FIELD_KEYS.includes(k) && isString(val)) {
+                if (FIELD_MAP_KEYS.includes(k) && isPlainObject(val)) {
+                    // Keyed by field, as a grid's columns are.
+                    Object.keys(val).forEach(name => ret.push({name, path: `${at}/${name}`}));
+                } else if (FIELD_KEYS.includes(k) && isString(val)) {
                     ret.push({name: val.split('|')[0], path: at});
                 } else if (FIELD_LIST_KEYS.includes(k) && isArray(val)) {
                     val.forEach((it, i) =>

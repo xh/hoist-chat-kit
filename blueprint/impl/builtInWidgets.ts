@@ -81,7 +81,7 @@ const CUBE_GRID_SCHEMA = {
             maxItems: 60,
             'x-field': 'any',
             description:
-                'Columns in display order: a field name, or an object with field and optional width, hidden, pinned, format and renderer. The field group names the tree column.',
+                'Columns in display order: a field name, or an object with field and optional width, hidden and pinned. Only state: how a column shows goes in columns. The field group names the tree column.',
             items: {
                 anyOf: [
                     {
@@ -103,40 +103,106 @@ const CUBE_GRID_SCHEMA = {
                             hidden: {
                                 type: 'boolean'
                             },
-                            format: {
-                                'x-format': true,
-                                anyOf: [
-                                    {
-                                        type: 'string'
-                                    },
-                                    {
-                                        type: 'object'
-                                    }
-                                ]
-                            },
-                            renderer: {
-                                'x-renderer': true,
-                                anyOf: [
-                                    {
-                                        type: 'string'
-                                    },
-                                    {
-                                        type: 'object',
-                                        required: ['name'],
-                                        properties: {
-                                            name: {
-                                                type: 'string'
-                                            }
-                                        }
-                                    }
-                                ]
-                            },
                             pinned: {
                                 enum: ['left', 'right']
                             }
                         }
                     }
                 ]
+            }
+        },
+        columns: {
+            type: 'object',
+            'x-field': 'any',
+            description:
+                'How each column shows, keyed by field, or group for the tree column. Keep the defaults unless the user asks.',
+            additionalProperties: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                    headerName: {
+                        type: 'string',
+                        maxLength: 100,
+                        description: 'The header text. Default the field label.'
+                    },
+                    headerTooltip: {
+                        type: 'string',
+                        maxLength: 500,
+                        description: 'The header tooltip. Default the field description.'
+                    },
+                    headerAlign: {
+                        enum: ['left', 'center', 'right'],
+                        description: 'How the header aligns. Default as its cells.'
+                    },
+                    align: {
+                        enum: ['left', 'center', 'right'],
+                        description: 'How the cells align. Default right for a number, else left.'
+                    },
+                    tooltip: {
+                        type: 'boolean',
+                        description: 'Show the value on hover, for a column too narrow for it.'
+                    },
+                    highlightOnChange: {
+                        type: 'boolean',
+                        description: 'Flash a cell when its value changes, as in a live grid.'
+                    },
+                    minWidth: {
+                        type: 'integer',
+                        minimum: 20,
+                        maximum: 800,
+                        description: 'The narrowest a user or a flex column may make it, in pixels.'
+                    },
+                    maxWidth: {
+                        type: 'integer',
+                        minimum: 20,
+                        maximum: 2000,
+                        description: 'The widest a user or a flex column may make it, in pixels.'
+                    },
+                    flex: {
+                        anyOf: [{type: 'boolean'}, {type: 'number', minimum: 0, maximum: 10}],
+                        description:
+                            'Stretch to fill the grid, sharing the width with other flex columns in proportion.'
+                    },
+                    chooserName: {
+                        type: 'string',
+                        maxLength: 100,
+                        description: "The column's name in the column chooser. Default its header."
+                    },
+                    chooserGroup: {
+                        type: 'string',
+                        maxLength: 100,
+                        description:
+                            "The column chooser's group for it. Default the field's category."
+                    },
+                    chooserDescription: {
+                        type: 'string',
+                        maxLength: 500,
+                        description:
+                            'The text the column chooser shows for it. Default the field description.'
+                    },
+                    exportName: {
+                        type: 'string',
+                        maxLength: 100,
+                        description: 'Its header in an export. Default its header.'
+                    },
+                    format: {
+                        'x-format': true,
+                        anyOf: [{type: 'string'}, {type: 'object'}],
+                        description: "Its number or date format, over the field's own."
+                    },
+                    renderer: {
+                        'x-renderer': true,
+                        anyOf: [
+                            {type: 'string'},
+                            {
+                                type: 'object',
+                                required: ['name'],
+                                properties: {name: {type: 'string'}}
+                            }
+                        ],
+                        description: "How its cells draw, in place of the field's renderer."
+                    }
+                }
             }
         },
         sortBy: {
@@ -602,7 +668,7 @@ const cubeGrid: WidgetSpec = {
     label: 'Grid',
     terms: ['grid', 'table', 'pivot', 'list of positions', 'blotter'],
     guidance:
-        "The one grid widget. Grouped into a tree with groupBy, or flat without it. Use it for positions, orders and any tabular data. Its selection is an output: a filter of the selected row's group path, or one field's value. A grid with groupBy is a tree: its dimensions become parent rows. treeStyle styles that tree, so a grid without groupBy shows no tree style. Keep the grid's default style unless the user asks for one, or it's a preview. Name it with its title, not a text element beside it.",
+        "The one grid widget. Grouped into a tree with groupBy, or flat without it. Use it for positions, orders and any tabular data. Its selection is an output: a filter of the selected row's group path, or one field's value. A grid with groupBy is a tree: its dimensions become parent rows. treeStyle styles that tree, so a grid without groupBy shows no tree style. Keep the grid's default style unless the user asks for one, or it's a preview. Rename or align a column in columns, and rename a field across the whole blueprint on its source. Name it with its title, not a text element beside it.",
     category: 'data',
     config: CUBE_GRID_SCHEMA,
     presetPaths: ['/columnState', '/sortBy'],
@@ -847,6 +913,7 @@ const DEMANDS: Record<string, (config: PlainObject) => WidgetDemand> = {
     cubeGrid: cfg => ({
         fields: fieldNames([
             ...castArray(cfg.columnState ?? []).map(it => (isString(it) ? it : it?.field)),
+            ...Object.keys(cfg.columns ?? {}),
             ...castArray(cfg.sortBy ?? []).map(it => String(it).split('|')[0]),
             ...filterFields(cfg.filter),
             ...castArray(cfg.groupBy ?? [])

@@ -123,6 +123,115 @@ describe('blueprint desktop widgets', () => {
             });
         });
 
+        describe('columns', () => {
+            const withColumns = (columns: object, sourceFields?: object) => {
+                const bp = loadBlueprint('p2-linked-dashboard.json');
+                bp.elements.posGrid.config.columns = columns;
+                if (sourceFields) bp.sources.positions.fields = sourceFields as any;
+                return bp;
+            };
+
+            it("sets each column's Hoist config, over its source's and its catalog's", () => {
+                const gridModel = widget(
+                    CubeGridWidgetModel,
+                    open(
+                        withColumns(
+                            {
+                                mktVal: {
+                                    headerName: 'MV',
+                                    headerAlign: 'center',
+                                    tooltip: true,
+                                    highlightOnChange: true,
+                                    minWidth: 60,
+                                    maxWidth: 200,
+                                    flex: 2,
+                                    chooserName: 'Market value',
+                                    chooserGroup: 'Key',
+                                    chooserDescription: 'The close.',
+                                    exportName: 'Market Value'
+                                },
+                                pnlDay: {align: 'left'},
+                                group: {headerName: 'Book'}
+                            },
+                            {mktVal: {label: 'Value', align: 'center'}, pnlDay: {label: 'Today'}}
+                        )
+                    ),
+                    'posGrid'
+                ).cubeGridModel.innerGridModel;
+                expect(gridModel.getColumn('mktVal')).toMatchObject({
+                    headerName: 'MV',
+                    headerAlign: 'center',
+                    align: 'center',
+                    tooltip: true,
+                    highlightOnChange: true,
+                    minWidth: 60,
+                    maxWidth: 200,
+                    flex: 2,
+                    chooserName: 'Market value',
+                    chooserGroup: 'Key',
+                    chooserDescription: 'The close.',
+                    exportName: 'Market Value'
+                });
+                expect(gridModel.getColumn('pnlDay')).toMatchObject({
+                    headerName: 'Today',
+                    align: 'left'
+                });
+                expect(gridModel.getColumn('pnlDay').chooserGroup).toBe('P&L');
+                expect(gridModel.columns.find(it => (it as any).isTreeColumn)?.['headerName']).toBe(
+                    'Book'
+                );
+            });
+
+            it("writes a user's resize to columnState alone, leaving columns as they are", async () => {
+                const columns = {mktVal: {headerName: 'MV', format: {precision: 0}}},
+                    model = open(withColumns(columns)),
+                    grid = widget(CubeGridWidgetModel, model, 'posGrid');
+                await columnsApplied(grid);
+                const gridModel = grid.cubeGridModel.innerGridModel;
+                await vi.waitFor(() => expect(gridModel.store.count).toBeGreaterThan(0));
+                await wait(100);
+                gridModel.noteColumnManuallySized('mktVal', 150);
+                await vi.waitFor(() =>
+                    expect(model.blueprint.elements.posGrid.config.columnState).toEqual(
+                        expect.arrayContaining([{field: 'mktVal', width: 150}])
+                    )
+                );
+                expect(model.blueprint.elements.posGrid.config.columns).toEqual(columns);
+            });
+
+            it('follows an edit to columns or to its source, on the same grid', async () => {
+                const model = open(withColumns({})),
+                    grid = widget(CubeGridWidgetModel, model, 'posGrid');
+                await columnsApplied(grid);
+                const gridModel = grid.cubeGridModel.innerGridModel;
+                model.applyEdit({
+                    ops: [
+                        {
+                            op: 'set',
+                            path: '/sources/positions/fields',
+                            value: {pnlDay: {label: 'Today'}}
+                        }
+                    ]
+                });
+                await vi.waitFor(() =>
+                    expect(gridModel.getColumn('pnlDay').headerName).toBe('Today')
+                );
+                model.applyEdit({
+                    ops: [
+                        {
+                            op: 'set',
+                            path: '/elements/posGrid/config/columns',
+                            value: {pnlDay: {headerName: 'P&L'}}
+                        }
+                    ]
+                });
+                await vi.waitFor(() =>
+                    expect(gridModel.getColumn('pnlDay').headerName).toBe('P&L')
+                );
+                expect(grid.cubeGridModel.innerGridModel).toBe(gridModel);
+            });
+        });
+
         describe('content height', () => {
             const ready = (grid: CubeGridWidgetModel, rows: number) => {
                 const gridModel = grid.cubeGridModel.innerGridModel;
