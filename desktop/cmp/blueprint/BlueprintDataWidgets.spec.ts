@@ -13,7 +13,7 @@ import type {Blueprint, BlueprintDataProvider, BlueprintDataUpdate} from '../../
 import {BlueprintModel, FakeBlueprintDataProvider} from '../../../blueprint';
 import {ChartWidgetModel} from './ChartWidget';
 import {HeatmapWidgetModel} from './HeatmapWidget';
-import {PropertyTableWidgetModel} from './PropertyTableWidget';
+import {propertyTableWidget, PropertyTableWidgetModel} from './PropertyTableWidget';
 import {TreemapWidgetModel} from './TreemapWidget';
 import {CubeGridWidgetModel} from './CubeGridWidget';
 import {statCardWidget, StatCardWidgetModel} from './StatCardWidget';
@@ -199,6 +199,39 @@ describe('blueprint data widgets', () => {
             );
             await vi.waitFor(() => expect(text(table.entries[0]?.value)).toBe('Global Macro'));
             expect(text(table.entries[1].value)).toBe('Fred Corn');
+        });
+
+        it('formats each field by its own format, over an inline source too', async () => {
+            const bp = withTable({
+                source: 'fund',
+                fields: [{field: 'nav', format: {scale: 'millions', precision: 1, label: true}}]
+            });
+            bp.sources.fund = {
+                inline: {
+                    fields: [{name: 'nav', label: 'NAV', type: 'number', kind: 'number'}],
+                    rows: [{nav: 3754900000}]
+                }
+            } as any;
+            const table = widget(PropertyTableWidgetModel, open(bp), 'props');
+            await vi.waitFor(() => expect(text(table.entries[0]?.value)).toBe('3,754.9m'));
+        });
+
+        it('draws its title over its values, outside a canvas, which heads its cell itself', () => {
+            const bp = withTable({title: 'Fund snapshot', fields: ['mktVal']}),
+                model = open(bp),
+                onCanvas = render(
+                    propertyTableWidget({model: widget(PropertyTableWidgetModel, model, 'props')})
+                ).container;
+            expect(onCanvas.textContent).not.toContain('Fund snapshot');
+
+            bp.elements.box = {component: 'box', config: {}, children: [{id: 'props'}]};
+            bp.elements.dashboard.children = bp.elements.dashboard.children.map(it =>
+                it.id === 'props' ? {...it, id: 'box'} : it
+            );
+            const inBox = render(
+                propertyTableWidget({model: widget(PropertyTableWidgetModel, open(bp), 'props')})
+            ).container;
+            expect(inBox.textContent).toContain('Fund snapshot');
         });
 
         it('refuses a field its source lacks', () => {

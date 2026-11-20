@@ -42,9 +42,10 @@ export class DateRangeBinding extends HoistBase {
             },
             {
                 track: getValue,
+                // The picker keeps its value while the variable has none, as on a teardown.
                 run: value => {
-                    if (!isEqual(value ?? null, this.pickerModel.value)) {
-                        this.pickerModel.setValue((value as any) ?? null);
+                    if (value != null && !isEqual(value, this.pickerModel.value)) {
+                        this.pickerModel.setValue(value as any);
                     }
                 },
                 equals: 'structural'

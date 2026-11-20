@@ -34,6 +34,11 @@
   }
 }
 
+.xh-blueprint-property-table__title {
+  font-weight: bold;
+  padding-bottom: var(--xh-spacing);
+}
+
 // A narrow tile clips a card, rather than let it run into its neighbor.
 .xh-blueprint-stat-card {
   min-width: 0;

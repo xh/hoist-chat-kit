@@ -2,7 +2,7 @@ import {render, screen, waitFor} from '@testing-library/react';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {LocalDate} from '@xh/hoist/utils/datetime';
-import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     type Blueprint,
     type BlueprintElement,
@@ -181,6 +181,12 @@ describe('input widgets', () => {
         await wait();
         expect(picker.pickerModel.value).toMatchObject({kind: 'relative', count: 3});
         expect(() => model.setVariable('v', 'nope')).toThrow();
+
+        // Its picker keeps its value when the variable has none, as when a blueprint is replaced.
+        const warn = vi.spyOn(console, 'warn');
+        model.setVariable('v', null);
+        await wait();
+        expect(warn.mock.calls.flat().join(' ')).not.toContain('invalid value');
     });
 
     it("offers its variable's preset too, and ranges as of its asOf", () => {

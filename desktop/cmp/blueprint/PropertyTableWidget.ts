@@ -1,4 +1,5 @@
 import {propertyTable, type PropertyTableEntry} from '@xh/hoist/cmp/propertytable';
+import {div, vbox} from '@xh/hoist/cmp/layout';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {Cube, View} from '@xh/hoist/data';
 import {computed, observableRef} from '@xh/hoist/mobx';
@@ -81,7 +82,17 @@ export const [PropertyTableWidget, propertyTableWidget] = hoistCmp.withFactory({
     className: 'xh-blueprint-property-table',
     model: uses(PropertyTableWidgetModel),
     render({model, className}) {
-        const {columns, labelSide} = model.resolvedConfig;
-        return propertyTable({className, entries: model.entries, columns, labelSide});
+        const {columns, labelSide, title} = model.resolvedConfig,
+            table = propertyTable({entries: model.entries, columns, labelSide});
+        // A canvas heads its cell with the title itself.
+        return title && model.parentElement?.component !== 'dashCanvas'
+            ? vbox({
+                  className,
+                  children: [
+                      div({className: `${className}__title`, children: String(title)}),
+                      table
+                  ]
+              })
+            : vbox({className, children: table});
     }
 });
