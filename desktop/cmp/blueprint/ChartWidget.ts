@@ -4,7 +4,7 @@ import type {Cube, FilterSpec, View} from '@xh/hoist/data';
 import {observableRef} from '@xh/hoist/mobx';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {mergeDeep} from '@xh/hoist/utils/js';
-import {castArray, compact, isArray, isEqual, isFinite, orderBy, uniq} from 'lodash';
+import {castArray, compact, escape, isArray, isEqual, isFinite, orderBy, uniq} from 'lodash';
 import {
     BlueprintWidgetModel,
     type BlueprintWidgetConfig,
@@ -119,12 +119,44 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
         }
         const config = mergeDeep(
             {},
-            this.withFractionAxis(toHighchartsConfig(props), props),
+            this.withSecondAxis(this.withFractionAxis(toHighchartsConfig(props), props)),
             {plotOptions: {series: {point: {events: {click: this.onPointClick}}}}},
             this.resolvedConfig.highchartsConfig ?? {}
         );
         if (!isEqual(config, chartModel.highchartsConfig)) chartModel.setHighchartsConfig(config);
-        chartModel.setSeries(toSeries(props, false));
+        // The series of y2 follow those of y, on the second axis.
+        const firstY2 = castArray(this.resolvedConfig.y ?? []).filter(
+            it => this.source.fields[it]
+        ).length;
+        chartModel.setSeries(
+            toSeries(props, false).map((it, idx) =>
+                this.hasY2 && idx >= firstY2 ? {...it, yAxis: 1} : it
+            )
+        );
+    }
+
+    private get y2(): string[] {
+        return castArray(this.resolvedConfig.y2 ?? []).filter(it => this.source?.fields[it]);
+    }
+
+    private get hasY2(): boolean {
+        return !this.resolvedConfig.groupBy && this.y2.length > 0;
+    }
+
+    /** A second axis on the right for the measures of y2, with labels formatted as their own. */
+    private withSecondAxis(config: PlainObject): PlainObject {
+        if (!this.hasY2) return config;
+        const [first] = this.y2,
+            {y2Title} = this.resolvedConfig,
+            title = y2Title ?? (this.y2.length === 1 ? this.source.fieldLabel(first) : null);
+        return {
+            ...config,
+            // Highcharts reads a title as markup.
+            yAxis: [
+                config.yAxis,
+                {...config.yAxis, opposite: true, title: {text: title ? escape(title) : null}}
+            ]
+        };
     }
 
     /** A percent axis over values that all lie in 0 to 1 runs 0% to 100%, in whole percents. */
@@ -160,14 +192,18 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
     private buildProps(): ChatUiChartLayoutProps {
         const cfg = this.resolvedConfig,
             {fields} = this.source,
-            ys: string[] = castArray(cfg.y ?? []).filter(it => fields[it]),
+            ys: string[] = [
+                ...castArray(cfg.y ?? []),
+                ...(cfg.groupBy ? [] : castArray(cfg.y2 ?? []))
+            ].filter(it => fields[it]),
             label = (f: string) => (fields[f] ? this.source.fieldLabel(f) : f),
+            primary = castArray(cfg.y ?? []).filter(it => fields[it]),
             xTitle = cfg.xTitle ?? label(cfg.x),
             yAxis = {
-                title: cfg.yTitle ?? (ys.length === 1 ? label(ys[0]) : null),
+                title: cfg.yTitle ?? (primary.length === 1 ? label(primary[0]) : null),
                 format: (this.isFraction(ys[0]) ? 'percent' : 'number') as any
             },
-            base = {type: cfg.type ?? 'column', stacking: cfg.stacking, yAxis};
+            base = {type: (cfg.type ?? 'column') as any, stacking: cfg.stacking, yAxis};
 
         this.pointKeys = null;
         if (!this.isGrouped) {

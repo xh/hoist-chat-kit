@@ -65,4 +65,13 @@ describe('Highcharts modules', () => {
         });
         expect(show(treemap)).toContain("needs Highcharts' treemap module");
     });
+
+    it("asks for a chart's module by its type", () => {
+        const chart = (type: string) => ({
+            component: 'chart',
+            config: {source: 'positions', type, x: 'sector', y: ['pnlDay']}
+        });
+        expect(show(chart('waterfall'))).toContain("needs Highcharts' highcharts-more module");
+        expect(show(chart('areaspline'))).not.toContain('needs Highcharts');
+    });
 });

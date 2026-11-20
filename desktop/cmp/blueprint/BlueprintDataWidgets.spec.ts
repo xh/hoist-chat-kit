@@ -503,6 +503,34 @@ describe('blueprint data widgets', () => {
             expect(yAxis.title.text).toBe('USD');
         });
 
+        it('draws the measures of y2 on a second axis, on the right', async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            Object.assign(bp.elements.sectorChart.config, {
+                type: 'spline',
+                y: ['pnlDay'],
+                y2: ['mktVal'],
+                y2Title: 'Value'
+            });
+            const chart = widget(ChartWidgetModel, open(bp), 'sectorChart');
+            await vi.waitFor(() => expect(chart.chartModel.series).toHaveLength(2));
+            const {yAxis, chart: chartConfig} = chart.chartModel.highchartsConfig;
+            expect(chartConfig.type).toBe('spline');
+            expect(yAxis).toHaveLength(2);
+            expect(yAxis[0].title.text).toBe('Day P&amp;L');
+            expect(yAxis[1]).toMatchObject({opposite: true, title: {text: 'Value'}});
+            expect(chart.chartModel.series.map(it => it.yAxis ?? 0)).toEqual([0, 1]);
+        });
+
+        it('refuses y2 beside a groupBy, which splits its first y only', () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            Object.assign(bp.elements.sectorChart.config, {groupBy: 'strategy', y2: ['mktVal']});
+            expect(
+                open()
+                    .validate(bp)
+                    .map(it => it.code)
+            ).toContain('chart.y2WithGroupBy');
+        });
+
         it('merges its highchartsConfig over the config it builds', async () => {
             const bp = loadBlueprint('p2-linked-dashboard.json');
             bp.elements.sectorChart.config.highchartsConfig = {

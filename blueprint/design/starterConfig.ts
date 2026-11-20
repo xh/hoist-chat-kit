@@ -101,7 +101,11 @@ function fill(schema: PlainObject, key: string, ctx: FillContext): unknown {
                 required: string[] = schema.required ?? [],
                 // An item's field is filled even when optional, as a card or a series needs one.
                 keys = Object.keys(props).filter(
-                    k => required.includes(k) || (props[k]['x-field'] && props[k].type !== 'object')
+                    k =>
+                        required.includes(k) ||
+                        (props[k]['x-field'] &&
+                            props[k].type !== 'object' &&
+                            props[k]['x-starter'] !== false)
                 );
             return Object.fromEntries(
                 keys.map(k => [k, fill(props[k], k, ctx)]).filter(([, v]) => v !== undefined)

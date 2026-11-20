@@ -726,6 +726,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         if (cfg.x) need(cfg.x, `${p}/x`, axisRole);
         if (isString(cfg.y)) need(cfg.y, `${p}/y`, axisRole);
         if (isArray(cfg.y)) cfg.y.forEach((y: string, i: number) => need(y, `${p}/y/${i}`));
+        if (isArray(cfg.y2)) cfg.y2.forEach((y: string, i: number) => need(y, `${p}/y2/${i}`));
         if (isArray(cfg.fields)) {
             cfg.fields.forEach((it: unknown, i: number) =>
                 isString(it)

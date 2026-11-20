@@ -522,7 +522,19 @@ const CHART_SCHEMA = {
             'x-binding': true
         },
         type: {
-            enum: ['line', 'column', 'bar', 'area', 'pie', 'scatter']
+            enum: [
+                'line',
+                'spline',
+                'column',
+                'bar',
+                'area',
+                'areaspline',
+                'pie',
+                'scatter',
+                'waterfall'
+            ],
+            description:
+                'waterfall shows each y as a step from the one before, as for P&L attribution.'
         },
         xTitle: {
             type: 'string',
@@ -548,6 +560,21 @@ const CHART_SCHEMA = {
             minItems: 1,
             maxItems: 8,
             'x-field': 'measure'
+        },
+        y2: {
+            type: 'array',
+            items: {type: 'string'},
+            maxItems: 4,
+            'x-field': 'measure',
+            'x-starter': false,
+            description:
+                'Measures on a second axis, on the right, where their scale differs from y.'
+        },
+        y2Title: {
+            type: 'string',
+            maxLength: 100,
+            'x-binding': true,
+            description: "Title of the second axis. Default the y2 field's label, if there is one."
         },
         groupBy: {
             type: 'string',
@@ -1335,6 +1362,8 @@ const chart: WidgetSpec = {
     guidance:
         'A Hoist chart. If x is a dimension, the chart aggregates its source by x. If x is a date or time field, it plots rows as they are, for a time series. Name it with its title, not a text element beside it.',
     category: 'data',
+    // A waterfall comes with highcharts-more.
+    modules: cfg => (cfg.type === 'waterfall' ? ['highcharts-more'] : []),
     config: CHART_SCHEMA,
     outputs: [
         {
@@ -1643,6 +1672,7 @@ const SOURCE_DEMANDS: Record<string, (config: PlainObject) => WidgetDemand> = {
         fields: fieldNames([
             cfg.x,
             ...castArray(cfg.y ?? []),
+            ...castArray(cfg.y2 ?? []),
             cfg.groupBy,
             ...filterFields(cfg.filter)
         ]),
@@ -1775,7 +1805,20 @@ function depthOf(value: unknown): number {
 }
 
 const VALIDATORS: Record<string, WidgetSpec['validate']> = {
-    chart: cfg => (cfg.highchartsConfig ? checkHighchartsConfig(cfg.highchartsConfig) : []),
+    chart: cfg => [
+        ...(cfg.highchartsConfig ? checkHighchartsConfig(cfg.highchartsConfig) : []),
+        ...(cfg.groupBy && !isEmpty(cfg.y2)
+            ? [
+                  {
+                      code: 'chart.y2WithGroupBy',
+                      severity: 'error' as const,
+                      path: '/y2',
+                      message:
+                          'groupBy splits the first y alone, so a chart with groupBy takes no y2'
+                  }
+              ]
+            : [])
+    ],
     // groupBy may come from a preset group, which takes it out of the config.
     treemap: (cfg, {blueprint, id}) => {
         const path = `/elements/${id}/config/groupBy`,
