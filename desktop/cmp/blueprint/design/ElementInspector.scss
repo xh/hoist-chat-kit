@@ -100,4 +100,16 @@
     border-radius: var(--xh-border-radius);
     background-color: var(--xh-bg-alt);
   }
+
+  &__key {
+    margin-left: var(--xh-spacing-half);
+    font-weight: normal;
+    color: var(--xh-text-color-muted);
+  }
+
+  // Blueprint's numeric input keeps its inner group at a fixed width, so it ignores ours.
+  .xh-number-input .bp6-input-group {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
 }

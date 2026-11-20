@@ -1,4 +1,4 @@
-import {div, hbox, placeholder} from '@xh/hoist/cmp/layout';
+import {div, hbox, placeholder, span} from '@xh/hoist/cmp/layout';
 import {
     hoistCmp,
     HoistModel,
@@ -559,7 +559,7 @@ function mapEditor(
                         hbox({
                             className: `${CLS}__item-header`,
                             items: [
-                                div({className: `${CLS}__item-label`, item: key}),
+                                mapKeyLabel(key, node.keyRole ? ctx.impl.fieldLabel(key) : key),
                                 button({
                                     icon: Icon.delete(),
                                     title: 'Remove',
@@ -694,6 +694,14 @@ function fieldListEditor(
                 onCommit: (field: string) => field && commitList([...entries, {field}])
             })
         ]
+    });
+}
+
+// A map entry's key, by its field label where it names a field, with the key itself beside.
+function mapKeyLabel(key: string, label: string) {
+    return div({
+        className: `${CLS}__item-label`,
+        items: label === key ? [key] : [label, span({className: `${CLS}__key`, item: key})]
     });
 }
 
