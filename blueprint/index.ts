@@ -38,3 +38,4 @@ export * from './design/editorSpec';
 export * from './repository/BlueprintRepository';
 export * from './repository/BlueprintDocumentModel';
 export * from './repository/InMemoryBlueprintRepository';
+export * from './repository/HoistCoreBlueprintRepository';
