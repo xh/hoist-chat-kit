@@ -741,6 +741,19 @@ describe('validateBlueprint', () => {
             expect(codes(report('{orders.quantity}'))).toEqual(['template.unique']);
         });
 
+        it('warns of a figure written into report text, which goes stale, outside an answer', () => {
+            for (const text of [
+                'It made +$168,090 of the day.',
+                'Up 12.5% since Monday.',
+                'NAV is 3,754,900.'
+            ]) {
+                expect(codes(report(text))).toEqual(['template.literalFigure']);
+            }
+            for (const text of ['Top 10 holdings, as of {asOf}.', 'Q3 review: {mktVal}.']) {
+                expect(codes(report(text))).toEqual([]);
+            }
+        });
+
         it('refuses a reference to no variable, source or field, at the text', () => {
             const issues = validate(
                 report('{nothing} {nowhere.mktVal} {orders.nope} {bad ref}')

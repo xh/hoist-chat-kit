@@ -660,6 +660,14 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
 
     // A template's references, each to a variable, a field of its source, or a source's field.
     const checkTemplate = (text: string, path: string, defaultSource: string) => {
+        const literal = parseTemplate(text).parts.filter(isString).join(' ');
+        if (!isAnswer && LITERAL_FIGURE.test(literal)) {
+            warn(
+                'template.literalFigure',
+                path,
+                'holds a figure, which goes stale as the data moves: read it with {source.field}, and put analysis in your reply'
+            );
+        }
         templateRefs(text).forEach(({ref, source, name}) => {
             if (!source && variables[name]) return;
             const from = source ?? defaultSource,
@@ -1206,3 +1214,6 @@ export function fitsProp(value: unknown, prop: PlainObject): boolean {
     }
     return true;
 }
+
+// An amount, a percent, a decimal or a number with thousands separators: a figure from the data.
+const LITERAL_FIGURE = /[$€£¥]\s?\d|\d[\d,]*\.\d|\b\d{1,3}(,\d{3})+\b|\d\s?%/;
