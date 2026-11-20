@@ -718,7 +718,7 @@ describe('validateBlueprint', () => {
             expect(
                 codes(report('As of {asOf}: {mktVal}, with {orders.commission}. {{literal}}'))
             ).toEqual([]);
-            expect(codes(report('{sector}'))).toEqual(['template.dimension']);
+            expect(codes(report('{sector}'))).toEqual([]);
             expect(codes(report('{orders.quantity}'))).toEqual(['template.unique']);
         });
 

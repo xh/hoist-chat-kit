@@ -643,12 +643,6 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 err('source.unknown', path, `'{${ref}}' names unknown source '${source}'`);
             } else if (sourceFields[from] && !field) {
                 err('field.unknown', path, `'${name}' is not a field of source '${source}'`);
-            } else if (field?.isDimension) {
-                warn(
-                    'template.dimension',
-                    path,
-                    `'{${ref}}' is a dimension, which shows only where every row shares one value`
-                );
             } else if (
                 field?.aggregator === 'UNIQUE' &&
                 ['number', 'int'].includes(field.type) &&
