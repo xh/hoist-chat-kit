@@ -1,6 +1,7 @@
 import type {Blueprint, BlueprintAccess} from '../Blueprint';
 import {
     type BlueprintAccessSpec,
+    type BlueprintCreateSpec,
     type BlueprintOpenOptions,
     type BlueprintPersonalization,
     type BlueprintPublish,
@@ -80,11 +81,7 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
         });
     }
 
-    async createAsync(spec: {
-        name: string;
-        description?: string;
-        blueprint: Blueprint;
-    }): Promise<BlueprintRecord> {
+    async createAsync(spec: BlueprintCreateSpec): Promise<BlueprintRecord> {
         if (!this.canCreate) throw new Error('You may not create a blueprint.');
         const id = `bp${this.nextId++}`;
         this.items.set(id, {
@@ -96,7 +93,8 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
             pendingRenames: [],
             publishes: [],
             updated: Date.now(),
-            updatedBy: this.userId
+            updatedBy: this.userId,
+            ...(spec.copiedFrom ? {copiedFrom: clone(spec.copiedFrom)} : {})
         });
         return this.openAsync(id, {as: 'draft'});
     }
@@ -156,13 +154,12 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
         const from = opts.from ?? {as: 'publish'},
             source = await this.openAsync(id, from);
         if (!source) return null;
-        const copy = await this.createAsync({
+        return this.createAsync({
             name: opts.name,
             description: source.description,
-            blueprint: source.blueprint
+            blueprint: source.blueprint,
+            copiedFrom: {id, version: source.version, as: source.kind}
         });
-        this.items.get(copy.id).copiedFrom = {id, version: source.version, as: source.kind};
-        return this.openAsync(copy.id, {as: 'draft'});
     }
 
     async deleteAsync(id: string): Promise<void> {

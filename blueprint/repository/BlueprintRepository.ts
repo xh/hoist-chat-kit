@@ -47,11 +47,7 @@ export interface BlueprintRepository {
     openAsync(id: string, opts: BlueprintOpenOptions): Promise<BlueprintRecord>;
 
     /** Create a blueprint, with the blueprint given as its first draft and no publish. */
-    createAsync(spec: {
-        name: string;
-        description?: string;
-        blueprint: Blueprint;
-    }): Promise<BlueprintRecord>;
+    createAsync(spec: BlueprintCreateSpec): Promise<BlueprintRecord>;
 
     /**
      * Save the draft. Refused with `edit.staleBase` if the draft is no longer at `base`.
@@ -110,6 +106,15 @@ export interface BlueprintRepository {
 export interface BlueprintAccessSpec {
     writers: string[];
     readers: string[];
+}
+
+/** A new blueprint: its name, its first draft, and what it is a copy of, if anything. */
+export interface BlueprintCreateSpec {
+    name: string;
+    description?: string;
+    blueprint: Blueprint;
+    /** The blueprint and version it copies, as when a stale draft's edits save as new. */
+    copiedFrom?: BlueprintSummary['copiedFrom'];
 }
 
 /** Which version of a blueprint to open: its draft, or a publish, the latest by default. */

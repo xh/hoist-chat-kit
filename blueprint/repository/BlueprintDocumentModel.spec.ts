@@ -225,8 +225,10 @@ describe('BlueprintDocumentModel', () => {
         expect(save).not.toHaveBeenCalled();
         expect(publish).not.toHaveBeenCalled();
 
+        const staleVersion = b.doc.document.version;
         expect(await b.doc.createAsync('Mine')).toEqual([]);
         expect(b.doc.document.id).not.toBe(id);
+        expect(b.doc.document.copiedFrom).toEqual({id, version: staleVersion, as: 'draft'});
         expect(b.blueprintModel.blueprint.elements.posGrid.config.title).toBe('B');
         expect(b.doc.isStale).toBe(false);
 

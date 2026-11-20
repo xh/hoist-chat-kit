@@ -2,6 +2,7 @@ import {XH} from '@xh/hoist/core';
 import type {Blueprint, BlueprintIssue} from '../Blueprint';
 import type {
     BlueprintAccessSpec,
+    BlueprintCreateSpec,
     BlueprintOpenOptions,
     BlueprintPersonalization,
     BlueprintPublish,
@@ -48,11 +49,7 @@ export class HoistCoreBlueprintRepository implements BlueprintRepository {
         });
     }
 
-    createAsync(spec: {
-        name: string;
-        description?: string;
-        blueprint: Blueprint;
-    }): Promise<BlueprintRecord> {
+    createAsync(spec: BlueprintCreateSpec): Promise<BlueprintRecord> {
         return XH.postJson({url: this.url('create'), body: spec});
     }
 

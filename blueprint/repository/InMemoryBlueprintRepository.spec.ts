@@ -47,6 +47,17 @@ describe('InMemoryBlueprintRepository', () => {
         });
     });
 
+    it('records where a new blueprint was copied from, when given', async () => {
+        const repository = new InMemoryBlueprintRepository(OWNER),
+            copiedFrom = {id: 'bp9', version: 4, as: 'draft' as const},
+            record = await repository.createAsync({
+                name: 'Mine',
+                blueprint: loadBlueprint('p3-morning-report.json'),
+                copiedFrom
+            });
+        expect(record.copiedFrom).toEqual(copiedFrom);
+    });
+
     it('opens no publish of a blueprint never published', async () => {
         const repository = new InMemoryBlueprintRepository(OWNER),
             {id} = await create(repository);

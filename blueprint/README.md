@@ -293,7 +293,7 @@ await doc.publishAsync('Adds the risk view');
   another runs joins one follow-up save of the latest blueprint.
 - **Stale drafts.** If another save landed first, the document turns `isStale`. It keeps the
   user's edits and refuses further saves. Offer `reloadAsync()`, which discards the edits, or
-  `createAsync(name)`, which saves them as a new blueprint.
+  `createAsync(name)`, which saves them as a new blueprint that records the draft it copies.
 - **Renames for personalizations.** The draft keeps the renames of elements, variables and sources
   since the last publish, and each publish records them.
 

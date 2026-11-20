@@ -81,8 +81,17 @@ describe('HoistCoreBlueprintRepository', () => {
         hoistCore.route('POST', 'xhBlueprint/delete', () => noContent());
         hoistCore.route('POST', 'xhBlueprint/updateAccess', () => noContent());
 
-        expect(await repository.createAsync({name: 'New', blueprint: {root: 'x'}})).toMatchObject({
-            name: 'New'
+        expect(
+            await repository.createAsync({
+                name: 'New',
+                blueprint: {root: 'x'},
+                copiedFrom: {id: 'bp1', version: 2, as: 'draft'}
+            })
+        ).toMatchObject({name: 'New'});
+        expect(hoistCore.requestsTo('xhBlueprint/create')[0].json.copiedFrom).toEqual({
+            id: 'bp1',
+            version: 2,
+            as: 'draft'
         });
         expect(
             await repository.copyAsync('bp1', {name: 'Mine', from: {as: 'publish', version: 1}})

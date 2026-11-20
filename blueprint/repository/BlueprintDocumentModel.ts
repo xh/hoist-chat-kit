@@ -117,16 +117,23 @@ export class BlueprintDocumentModel extends HoistModel {
         return issues;
     }
 
-    /** Create a blueprint from the one the model holds, and open its draft. */
+    /**
+     * Create a blueprint from the one the model holds, and open its draft. With a blueprint open,
+     * as when a stale draft's edits save as new, the new one records it as what it copies.
+     */
     async createAsync(name: string, description?: string): Promise<BlueprintIssue[]> {
         if (!(await this.repository.canCreateAsync())) {
             return [refusal('You may not create a blueprint.')];
         }
-        const record = await this.repository.createAsync({
-            name,
-            description,
-            blueprint: this.withSchema(this.blueprintModel.blueprint ?? {})
-        });
+        const {document} = this,
+            record = await this.repository.createAsync({
+                name,
+                description,
+                blueprint: this.withSchema(this.blueprintModel.blueprint ?? {}),
+                ...(document
+                    ? {copiedFrom: {id: document.id, version: document.version, as: document.kind}}
+                    : {})
+            });
         return this.openAsync(record.id, {as: 'draft'});
     }
 
