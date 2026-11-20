@@ -20,8 +20,8 @@ import type {
  *
  * Grantees for sharing are a username, `role:<ROLE>`, or `*` for everyone. The server answers
  * 404 for a blueprint that is missing or that the user may not read, and 403 for an action the
- * user's access does not allow. A refused save or publish comes back as an issue, and any other
- * refused call rejects.
+ * user's access does not allow. These map to the contract's refusals: an issue from a save or
+ * publish, null from an open or a copy, and a rejection from any other call.
  */
 export class HoistCoreBlueprintRepository implements BlueprintRepository {
     readonly enforcesBase = true;
@@ -71,11 +71,16 @@ export class HoistCoreBlueprintRepository implements BlueprintRepository {
         return XH.fetchJson({url: this.url('listPublishes'), params: {id}});
     }
 
-    copyAsync(
+    async copyAsync(
         id: string,
         opts: {name: string; from?: BlueprintOpenOptions}
     ): Promise<BlueprintRecord> {
-        return XH.postJson({url: this.url('copy', id), body: opts});
+        try {
+            return await XH.postJson({url: this.url('copy', id), body: opts});
+        } catch (e) {
+            if (Number(e?.httpStatus) === 404) return null;
+            throw e;
+        }
     }
 
     async deleteAsync(id: string): Promise<void> {

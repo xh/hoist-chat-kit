@@ -69,6 +69,11 @@ describe('HoistCoreBlueprintRepository', () => {
         expect(publish.issues.map(it => it.code)).toEqual(['edit.notAllowed']);
     });
 
+    it('copies nothing from a source that is missing or that the user may not read', async () => {
+        hoistCore.route('POST', 'xhBlueprint/copy', () => hoistError(404, {message: 'Not found'}));
+        expect(await repository.copyAsync('gone', {name: 'Mine'})).toBeNull();
+    });
+
     it('creates, copies, lists publishes, deletes and shares', async () => {
         hoistCore.route('POST', 'xhBlueprint/create', req => ({...record, name: req.json.name}));
         hoistCore.route('POST', 'xhBlueprint/copy', req => ({...record, name: req.json.name}));

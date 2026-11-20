@@ -22,6 +22,9 @@ import type {Blueprint, BlueprintAccess, BlueprintIssue, BlueprintOp} from '../B
  *   the same one.
  * - Deleting a blueprint deletes its publishes and its personalizations. A repository without
  *   referential integrity does this in code, and ignores and cleans up orphans it finds.
+ * - Refusals: `saveDraftAsync` and `publishAsync` report one as an issue. `openAsync` and
+ *   `copyAsync` return null for a blueprint that is missing or that the user may not open. Every
+ *   other call rejects.
  */
 export interface BlueprintRepository {
     /**
