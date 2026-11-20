@@ -23,6 +23,17 @@
   }
 }
 
+// A card panel's content fills it, below its legend.
+.xh-blueprint-panel.xh-card {
+  display: flex;
+  flex-direction: column;
+
+  > .xh-card__content {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}
+
 // A narrow tile clips a card, rather than let it run into its neighbor.
 .xh-blueprint-stat-card {
   min-width: 0;

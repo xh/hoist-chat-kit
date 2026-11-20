@@ -1,11 +1,14 @@
 import {
     DEFAULT_DATE_RANGE_PRESETS,
+    type DateRangeAnchorDay,
     type DateRangePreset,
     DateRangePickerModel,
-    dateRangePresets
+    dateRangePresets,
+    type DateRangeSelection
 } from '@xh/hoist/cmp/daterange';
+import {LocalDate} from '@xh/hoist/utils/datetime';
 import {HoistBase, managed} from '@xh/hoist/core';
-import {isEqual} from 'lodash';
+import {isEqual, isString, uniq} from 'lodash';
 import type {BlueprintRegistry} from '../../../../blueprint';
 
 /**
@@ -20,15 +23,23 @@ export class DateRangeBinding extends HoistBase {
         presets: string[];
         getValue: () => unknown;
         setValue: (value: unknown) => void;
+        /** The date its ranges run to, as `YYYY-MM-DD`. Default today. */
+        getAsOf?: () => string;
     }) {
         super();
-        const {registry, getValue, setValue} = opts;
+        const {registry, getValue, setValue, getAsOf = () => null} = opts,
+            value = getValue() as DateRangeSelection | string;
         this.pickerModel = new DateRangePickerModel({
-            presets: presetsOf(registry, opts.presets),
-            initialValue: (getValue() as any) ?? null,
+            presets: presetsOf(registry, opts.presets, value),
+            initialValue: value ?? null,
+            anchorDay: anchorOf(getAsOf()),
             commitOnChange: true
         });
         this.addReaction(
+            {
+                track: getAsOf,
+                run: asOf => this.pickerModel.setAnchorDay(anchorOf(asOf))
+            },
             {
                 track: getValue,
                 run: value => {
@@ -49,9 +60,20 @@ export class DateRangeBinding extends HoistBase {
     }
 }
 
-function presetsOf(registry: BlueprintRegistry, tokens: string[]): DateRangePreset[] {
-    const appTokens = Object.keys(registry.dateRangePresets).filter(it => !dateRangePresets[it]);
-    return (tokens?.length ? tokens : [...DEFAULT_DATE_RANGE_PRESETS, ...appTokens])
+// The presets named, else Hoist's usual set and the app's, with the value's preset in any case.
+function presetsOf(
+    registry: BlueprintRegistry,
+    tokens: string[],
+    value: DateRangeSelection | string
+): DateRangePreset[] {
+    const appTokens = Object.keys(registry.dateRangePresets).filter(it => !dateRangePresets[it]),
+        offered = tokens?.length ? tokens : [...DEFAULT_DATE_RANGE_PRESETS, ...appTokens],
+        current = isString(value) ? value : value?.kind === 'preset' ? value.token : null;
+    return uniq([...offered, ...(current ? [current] : [])])
         .map(it => registry.dateRangePresets[it])
         .filter(Boolean);
+}
+
+function anchorOf(asOf: string): DateRangeAnchorDay {
+    return asOf && /^\d{4}-\d{2}-\d{2}$/.test(asOf) ? LocalDate.get(asOf) : 'localDay';
 }

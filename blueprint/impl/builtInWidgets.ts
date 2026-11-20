@@ -155,7 +155,12 @@ const DATE_RANGE_PICKER_SCHEMA = {
             items: {type: 'string'},
             maxItems: 20,
             description:
-                "The preset tokens to offer, such as mtd and ytd. Default Hoist's usual set."
+                "The preset tokens to offer, such as mtd and ytd. Default Hoist's usual set. Its variable's preset is offered too."
+        },
+        asOf: {
+            type: 'string',
+            'x-binding': true,
+            description: 'The date, as YYYY-MM-DD, that its ranges run to. Default today.'
         }
     }
 } as const satisfies BlueprintSchema;

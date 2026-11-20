@@ -11,7 +11,8 @@ import {boundPeriodCalendar, checkVariableValue, matchesType} from './impl/varia
 export interface ValidateBlueprintContext {
     catalog: Pick<DataCatalog, 'getDataset'>;
     /** A `BlueprintRegistry`, or plain data of the same shape. */
-    registry: Pick<BlueprintRegistry, 'widgets' | 'variableTypes' | 'resolvers' | 'actions'>;
+    registry: Pick<BlueprintRegistry, 'widgets' | 'variableTypes' | 'resolvers' | 'actions'> &
+        Partial<Pick<BlueprintRegistry, 'dateRangePresets'>>;
     /** The dataset behind each artifact a chat answer can name, keyed by artifact ID. */
     artifacts?: Record<string, string>;
     /** True for a chat answer, which may hold literal parameters, artifacts and inline sources. */
@@ -155,6 +156,17 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         }
         if (el.component === 'dashCanvas') checkCanvasLayout(el, p, err);
         if (el.component === 'panel') checkPanelSlots(el, elements, p, err);
+        if (el.component === 'dateRangePicker' && registry.dateRangePresets) {
+            castArray(el.config?.presets ?? []).forEach((token: string, i: number) => {
+                if (!registry.dateRangePresets[token]) {
+                    err(
+                        'dateRangePicker.unknownPreset',
+                        `${p}/config/presets/${i}`,
+                        `there is no date range preset '${token}'`
+                    );
+                }
+            });
+        }
         for (const [i, ch] of (el.children ?? []).entries()) {
             if (spec.children) {
                 for (const e of checkConfig(ch, spec.children.schema)) {

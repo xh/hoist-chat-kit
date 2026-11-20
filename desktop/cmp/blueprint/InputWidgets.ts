@@ -90,7 +90,8 @@ export class DateRangePickerWidgetModel extends InputWidgetModel<DateRangePicker
                     registry: this.blueprintModel.registry,
                     presets,
                     getValue: () => this.value,
-                    setValue: value => this.commit(value)
+                    setValue: value => this.commit(value),
+                    getAsOf: () => this.resolvedConfig.asOf as string
                 });
             },
             equals: 'structural',

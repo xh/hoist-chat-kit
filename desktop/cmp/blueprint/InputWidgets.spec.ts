@@ -183,6 +183,24 @@ describe('input widgets', () => {
         expect(() => model.setVariable('v', 'nope')).toThrow();
     });
 
+    it("offers its variable's preset too, and ranges as of its asOf", () => {
+        const model = open(
+                {type: 'dateRange', default: {value: 'ytd'}},
+                {component: 'dateRangePicker', config: {presets: ['mtd'], asOf: {$var: 'asOf'}}},
+                {
+                    variables: {
+                        asOf: {type: 'localDate', setBy: 'prompt', default: {value: '2026-03-02'}}
+                    }
+                }
+            ),
+            picker = widget(DateRangePickerWidgetModel, model);
+        expect(picker.pickerModel.presets.map(it => it.token)).toEqual(['mtd', 'ytd']);
+        expect(picker.pickerModel.value).toEqual({kind: 'preset', token: 'ytd'});
+        expect(picker.pickerModel.anchorDate.isoString).toBe('2026-03-02');
+        model.setVariable('asOf', '2026-03-05');
+        expect(picker.pickerModel.anchorDate.isoString).toBe('2026-03-05');
+    });
+
     it('prompts for a date range with a picker, and for a period as text', async () => {
         const model = new BlueprintModel({
             blueprint: {

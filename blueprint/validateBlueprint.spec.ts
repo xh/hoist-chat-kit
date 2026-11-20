@@ -783,6 +783,21 @@ describe('validateBlueprint', () => {
             expect(check({kind: 'era'})).toEqual(['variable.badValue']);
         });
 
+        it("refuses a picker's preset that the registry lacks", () => {
+            const bp = withVariable({type: 'dateRange', setBy: {element: 'pick'}});
+            bp.elements.pick = {component: 'dateRangePicker', config: {presets: ['mtd', 'bogus']}};
+            (bp.elements.dashboard.children as PlainObject[]).push({
+                id: 'pick',
+                x: 0,
+                y: 14,
+                w: 3,
+                h: 1
+            });
+            expect(validate(bp).map(it => [it.code, it.path])).toEqual([
+                ['dateRangePicker.unknownPreset', '/elements/pick/config/presets/1']
+            ]);
+        });
+
         it('takes a period as a count and a unit, back or forward, with its calendar', () => {
             const check = (decl: object) => codes(withVariable({type: 'period', ...decl}));
             expect(check({default: {value: '3M'}})).toEqual([]);
