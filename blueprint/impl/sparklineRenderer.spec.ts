@@ -40,6 +40,15 @@ describe('sparkline renderer', () => {
         expect(el.props).toMatchObject({type: 'bar', colorBy: 'sign'});
     });
 
+    it('takes its defaults for a type or a color it does not know', () => {
+        const el = fieldDisplay(
+            field,
+            {renderer: {name: 'sparkline', type: 'pie', colorBy: '<b>'}},
+            ctx
+        ).render([1, -2]) as ReactElement<any>;
+        expect(el.props).toMatchObject({type: 'line', colorBy: 'intent'});
+    });
+
     it('draws a group row on its own scale, as a total does not compare with its rows', () => {
         const el = fieldDisplay(field, {}, ctx).render([1, 2], null, true) as ReactElement<any>;
         expect(el.props.min).toBeUndefined();

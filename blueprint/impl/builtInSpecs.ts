@@ -111,8 +111,8 @@ const RENDER: Record<string, RendererSpec['render']> = {
         if (!Array.isArray(value)) return null;
         return sparkline({
             data: value as number[],
-            type: (config.type as SparklineType) ?? 'line',
-            colorBy: (config.colorBy as SparklineColorBy) ?? 'intent',
+            type: oneOf<SparklineType>(config.type, ['line', 'area', 'bar'], 'line'),
+            colorBy: oneOf<SparklineColorBy>(config.colorBy, ['intent', 'trend', 'sign'], 'intent'),
             width: '100%',
             // A group's total does not compare with its rows, so it takes its own scale.
             ...(isAggregate ? {} : (columnRange?.() ?? {}))
@@ -130,3 +130,8 @@ export const BUILT_IN_RENDERERS: RendererSpec[] = BUILT_IN_RENDERER_INFO.map(it 
     ...it,
     render: RENDER[it.name]
 }));
+
+// A renderer's config arrives unchecked, so a value outside its choices takes the default.
+function oneOf<T>(value: unknown, choices: T[], dflt: T): T {
+    return choices.includes(value as T) ? (value as T) : dflt;
+}
