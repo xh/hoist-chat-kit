@@ -138,6 +138,44 @@ describe('BlueprintDesignModel', () => {
         expect(tabs()[1]).toEqual(second);
     });
 
+    describe('variables', () => {
+        it('adds a variable with a name of its own, and selects it', () => {
+            const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+                {id, issues} = design.addVariable();
+            expect(errors({issues})).toEqual([]);
+            expect(id).toBe('variable1');
+            expect(model.blueprint.variables.variable1).toEqual({type: 'string', setBy: 'prompt'});
+            expect(design.selection).toEqual({kind: 'variable', id: 'variable1'});
+            expect(model.history.at(-1).description).toBe('Add variable variable1');
+            expect(design.addVariable().id).toBe('variable2');
+        });
+
+        it('sets or removes one key of a declaration as one edit', () => {
+            const {model, design} = open(loadBlueprint('p3-morning-report.json'));
+            design.setVariableDecl('symbol', 'label', 'Ticker');
+            expect(model.blueprint.variables.symbol.label).toBe('Ticker');
+            expect(model.history.at(-1).description).toBe('Variable symbol: label');
+            design.setVariableDecl('symbol', 'label', undefined);
+            expect(model.blueprint.variables.symbol).not.toHaveProperty('label');
+
+            const compute = {resolver: 'today'};
+            expect(
+                errors(design.updateVariableDecl('symbol', {setBy: 'resolver', compute}))
+            ).toEqual([]);
+            expect(model.blueprint.variables.symbol).toMatchObject({setBy: 'resolver', compute});
+            expect(model.history.at(-1).description).toBe('Variable symbol: setBy, compute');
+        });
+
+        it('removes a variable nothing reads, and refuses one a widget reads', () => {
+            const {model, design} = open(loadBlueprint('p3-morning-report.json'));
+            expect(errors(design.removeVariable('grouping')).length).toBeGreaterThan(0);
+            expect(model.blueprint.variables).toHaveProperty('grouping');
+            design.addVariable();
+            expect(errors(design.removeVariable('variable1'))).toEqual([]);
+            expect(model.blueprint.variables).not.toHaveProperty('variable1');
+        });
+    });
+
     describe('removing an element', () => {
         it('removes everything inside it, and what names it, in one edit that undoes', () => {
             const {model, design} = open(loadBlueprint('p3-morning-report.json')),

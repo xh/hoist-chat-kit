@@ -194,6 +194,48 @@ export class BlueprintDesignModel extends HoistModel {
         ]);
     }
 
+    /** Add a variable the user sets, a string by default, with a name of its own, and select it. */
+    addVariable(type: string = 'string'): BlueprintEditResult & {id?: string} {
+        const taken = this.blueprintModel.blueprint?.variables ?? {};
+        let n = 1;
+        while (Object.hasOwn(taken, `variable${n}`)) n++;
+        const id = `variable${n}`,
+            ret = this.edit(`Add variable ${id}`, [
+                {op: 'set', path: `/variables/${id}`, value: {type, setBy: 'prompt'}}
+            ]);
+        if (!ret.issues.some(isError)) this.select({kind: 'variable', id});
+        return {...ret, id};
+    }
+
+    /** Set one key of a variable's declaration, or remove it with `undefined`, as one edit. */
+    setVariableDecl(name: string, key: string, value: unknown): BlueprintEditResult {
+        return this.updateVariableDecl(name, {[key]: value});
+    }
+
+    /**
+     * Set keys of a variable's declaration together, removing each given as `undefined`, as one
+     * edit, such as `setBy` with the `compute` it needs.
+     */
+    updateVariableDecl(name: string, changes: PlainObject): BlueprintEditResult {
+        const decl = getOwn(this.blueprintModel.blueprint?.variables, name);
+        if (!decl) return refused(`There is no variable '${name}'.`);
+        const ops: BlueprintOp[] = Object.entries(changes)
+            .filter(([key, value]) => value !== undefined || Object.hasOwn(decl, key))
+            .map(([key, value]) => {
+                const path = `/variables/${name}/${key}`;
+                return value === undefined ? {op: 'remove', path} : {op: 'set', path, value};
+            });
+        return this.edit(`Variable ${name}: ${Object.keys(changes).join(', ')}`, ops);
+    }
+
+    /** Remove a variable, as one edit. Refused while anything reads it. */
+    removeVariable(name: string): BlueprintEditResult {
+        if (!getOwn(this.blueprintModel.blueprint?.variables, name)) {
+            return refused(`There is no variable '${name}'.`);
+        }
+        return this.edit(`Remove variable ${name}`, [{op: 'remove', path: `/variables/${name}`}]);
+    }
+
     /** Rename an element, variable or source, and every reference to it, as one edit. */
     renameId(kind: 'element' | 'variable' | 'source', from: string, to: string) {
         const wasSelected = this.selection?.kind === kind && this.selection.id === from,
