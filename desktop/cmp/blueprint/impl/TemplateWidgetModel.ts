@@ -102,7 +102,7 @@ export class TemplateWidgetModel<
             view = this.views[sourceName],
             def = src?.fields[name];
         if (!def || !view) return '';
-        if (src.isWaiting || !src.hasLoaded) return '…';
+        if (src.isWaiting || src.isLoading || !src.hasLoaded) return '…';
         const {catalog, blueprint} = blueprintModel,
             value = (view.result.rows[0] as PlainObject)?.[name],
             opts = resolveFormat(def, src.displayOf(name).formats, {catalog, blueprint});

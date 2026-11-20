@@ -12,7 +12,7 @@ export interface TemplateRef {
 export type TemplatePart = string | TemplateRef;
 
 /**
- * Split a template into its literal text and its references. `{{` writes a literal brace. A
+ * Split a template into its literal text and its references. `{{` and `}}` write a literal brace. A
  * reference that is not a name or `source.name`, or a brace never closed, is a bad reference,
  * which stays in the text as written.
  */
@@ -23,12 +23,12 @@ export function parseTemplate(text: string): {parts: TemplatePart[]; badRefs: st
         i = 0;
     while (i < text.length) {
         const c = text[i];
-        if (c !== '{') {
+        if ((c === '{' || c === '}') && text[i + 1] === c) {
+            literal += c;
+            i += 2;
+        } else if (c !== '{') {
             literal += c;
             i++;
-        } else if (text[i + 1] === '{') {
-            literal += '{';
-            i += 2;
         } else {
             const end = text.indexOf('}', i),
                 raw = end < 0 ? text.slice(i) : text.slice(i, end + 1),

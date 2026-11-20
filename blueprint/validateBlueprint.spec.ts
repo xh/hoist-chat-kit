@@ -715,9 +715,10 @@ describe('validateBlueprint', () => {
 
         it('reads variables, fields of its own source, and fields of any source', () => {
             expect(
-                codes(report('As of {asOf}: {mktVal}, with {orders.quantity}. {{literal}'))
+                codes(report('As of {asOf}: {mktVal}, with {orders.commission}. {{literal}}'))
             ).toEqual([]);
             expect(codes(report('{sector}'))).toEqual(['template.dimension']);
+            expect(codes(report('{orders.quantity}'))).toEqual(['template.unique']);
         });
 
         it('refuses a reference to no variable, source or field, at the text', () => {

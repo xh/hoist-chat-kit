@@ -868,7 +868,7 @@ const spacer: WidgetSpec = {
 };
 
 const TEMPLATE_GUIDANCE =
-    "Its text reads {variable} for a variable, and {source.field} for the total of a field over a source, by the field's aggregator and format. With a source set, {field} reads a field of it. A dimension has no total, so it reads blank. Write {{ for a brace. Values cannot carry markdown of their own.";
+    "Its text reads {variable} for a variable, and {source.field} for the total of a field over a source, by the field's aggregator and format. With a source set, {field} reads a field of it. A dimension has no total, so it reads blank. Write {{ and }} for braces. Values cannot carry markdown of their own.";
 
 const markdown: WidgetSpec = {
     name: 'markdown',

@@ -465,13 +465,23 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     path,
                     `'{${ref}}' is a dimension, which has no total, so it shows blank`
                 );
+            } else if (
+                field?.aggregator === 'UNIQUE' &&
+                ['number', 'int'].includes(field.type) &&
+                !sources[from]?.inline
+            ) {
+                warn(
+                    'template.unique',
+                    path,
+                    `'{${ref}}' totals only where every row agrees, so it often shows blank`
+                );
             }
         });
         parseTemplate(text).badRefs.forEach(raw =>
             err(
                 'template.badRef',
                 path,
-                `'${raw}' is not a reference. Write {variable} or {source.field}, and {{ for a brace.`
+                `'${raw}' is not a reference. Write {variable} or {source.field}, and {{ or }} for a brace.`
             )
         );
     };

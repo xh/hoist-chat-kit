@@ -70,7 +70,7 @@ Their text reads variables and source values, such as `P&L for {fund}: {position
 - `{name}` is a variable's value, formatted by its type.
 - `{source.field}` is the field's aggregate over the source's rows, by the field's aggregator,
   formatted by the field's format. The rows are those the source's filter leaves.
-- `{{` writes a literal brace.
+- `{{` and `}}` write literal braces.
 
 The validator checks each reference: a known variable, or a known source and field. The widget
 reads the aggregate from the root of a View over the source, as `statCard` does. This pulls

@@ -101,6 +101,19 @@ describe('template widgets', () => {
         expect(textOf(container)).toMatch(/across 7 shares\.$/);
     });
 
+    it('shows … again while its source loads for a new request', async () => {
+        const {model, container, dataProvider} = show({
+            component: 'markdown',
+            config: {source: 'positions', text: 'Total {mktVal}'}
+        });
+        await dataProvider.send('positions');
+        await waitFor(() => expect(textOf(container)).toBe('Total 3.5m'));
+        model.setVariable('asOf', '2026-03-03');
+        await waitFor(() => expect(textOf(container)).toBe('Total …'));
+        await dataProvider.send('positions');
+        await waitFor(() => expect(textOf(container)).toBe('Total 3.5m'));
+    });
+
     it('renders markdown around the values, and each value as text, never as markdown', () => {
         const {container} = show({
             component: 'markdown',

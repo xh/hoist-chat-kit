@@ -19,8 +19,13 @@ describe('templates', () => {
         });
     });
 
-    it('writes {{ as a literal brace, and leaves a lone closing brace as it is', () => {
-        expect(parseTemplate('a {{b} c').parts).toEqual(['a {b} c']);
+    it('writes {{ and }} as literal braces, and leaves a lone closing brace as it is', () => {
+        expect(parseTemplate('a {{b}} c}').parts).toEqual(['a {b} c}']);
+        expect(parseTemplate('{{b} {x}}}').parts).toEqual([
+            '{b} ',
+            {ref: 'x', source: null, name: 'x'},
+            '}'
+        ]);
     });
 
     it('reports a reference it cannot read, and an unclosed brace', () => {
