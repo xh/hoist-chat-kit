@@ -1,7 +1,7 @@
 import {chart, ChartModel} from '@xh/hoist/cmp/chart';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {Cube, View} from '@xh/hoist/data';
-import {observableRef} from '@xh/hoist/mobx';
+import {action, observableRef} from '@xh/hoist/mobx';
 import {escape, isEqual, isFinite, sortBy, uniqBy} from 'lodash';
 import {
     BlueprintWidgetModel,
@@ -29,7 +29,7 @@ export class HeatmapWidgetModel extends BlueprintWidgetModel<HeatmapWidgetConfig
                 equals: 'structural'
             },
             {
-                track: () => [this.view?.result, this.resolvedConfig],
+                track: () => [this.view?.result, this.resolvedConfig, this.selection],
                 run: () => this.updateChart(),
                 fireImmediately: true
             }
@@ -37,6 +37,7 @@ export class HeatmapWidgetModel extends BlueprintWidgetModel<HeatmapWidgetConfig
     }
 
     /** Publish a cell as the `selection` output, by its x and y index. Selecting it again clears it. */
+    @action
     selectCell(x: number, y: number) {
         const keys = this.cellKeys;
         if (!keys || x >= keys.x.length || y >= keys.y.length) return;
@@ -55,7 +56,7 @@ export class HeatmapWidgetModel extends BlueprintWidgetModel<HeatmapWidgetConfig
     //------------------
     // Implementation
     //------------------
-    private selection: PlainObject = null;
+    @observableRef private accessor selection: PlainObject = null;
 
     // The x and y value of each column and row of cells.
     private cellKeys: {x: unknown[]; y: unknown[]} = null;
@@ -94,11 +95,15 @@ export class HeatmapWidgetModel extends BlueprintWidgetModel<HeatmapWidgetConfig
                 'cubeLabel'
             ),
             yIndex = new Map(yRows.map((it, idx) => [it.cubeLabelValue, idx])),
+            selected = this.selection?.filters?.map(it => it.value),
             data = xRows.flatMap((row, x) =>
                 (row.children ?? []).map(cell => ({
                     x,
                     y: yIndex.get(cell.cubeLabelValue),
-                    value: cell[value] ?? null
+                    value: cell[value] ?? null,
+                    ...(isEqual(selected, [row.cubeLabelValue, cell.cubeLabelValue])
+                        ? {borderWidth: 2, borderColor: SELECTED}
+                        : {})
                 }))
             ),
             values = data.map(it => it.value).filter(isFinite) as number[],
@@ -130,8 +135,12 @@ export class HeatmapWidgetModel extends BlueprintWidgetModel<HeatmapWidgetConfig
                       }
                     : {minColor: MID, maxColor: POS},
             tooltip: {
+                // The categories are escaped already.
                 pointFormatter: function (this: any) {
-                    return String(formatValue(this.value, def, opts, catalog, true) ?? '');
+                    const xLabel = this.series.xAxis.categories[this.x],
+                        yLabel = this.series.yAxis.categories[this.y],
+                        formatted = formatValue(this.value, def, opts, catalog, true) ?? '';
+                    return `${xLabel}, ${yLabel}: ${formatted}`;
                 }
             },
             plotOptions: {series: {point: {events: {click: this.onCellClick}}}}
@@ -153,4 +162,5 @@ export const [HeatmapWidget, heatmapWidget] = hoistCmp.withFactory({
 
 const NEG = '#d9534f',
     MID = '#f7f7f7',
-    POS = '#5cb85c';
+    POS = '#5cb85c',
+    SELECTED = '#333333';

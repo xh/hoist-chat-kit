@@ -468,6 +468,25 @@ describe('blueprint data widgets', () => {
             expect(model.getVariable('picked').value).toBeNull();
         });
 
+        it('outlines the cell selected, and names its x and y in its tooltip', async () => {
+            const heat = widget(HeatmapWidgetModel, open(withHeatmap()), 'heat'),
+                cell = (x: number, y: number) =>
+                    heat.chartModel.series[0].data.find((it: any) => it.x === x && it.y === y);
+            await vi.waitFor(() => expect(heat.chartModel.series[0]?.data.length).toBe(2));
+            heat.selectCell(0, 0);
+            await vi.waitFor(() => expect(cell(0, 0).borderWidth).toBeGreaterThan(0));
+            expect(cell(1, 1).borderWidth).toBeFalsy();
+
+            const {pointFormatter} = heat.chartModel.highchartsConfig.tooltip,
+                point = {
+                    x: 0,
+                    y: 0,
+                    value: -1,
+                    series: {xAxis: {categories: ['Energy']}, yAxis: {categories: ['Credit']}}
+                };
+            expect(pointFormatter.call(point)).toMatch(/^Energy, Credit: /);
+        });
+
         it('refuses an x or y that is not a dimension', () => {
             expect(
                 open()
