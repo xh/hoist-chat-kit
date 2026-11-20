@@ -164,6 +164,10 @@ export interface BlueprintEdit {
     /** Who made the edit, such as `user` for an interaction in a widget, or `architect`. */
     author?: string;
     ops: BlueprintOp[];
+    /** For an undo, the version of the edit it reverts. */
+    undoes?: number;
+    /** For a redo, the version of the edit it applies again. */
+    redoes?: number;
 }
 
 /** True if a value is a `{"$var": name}` binding. */

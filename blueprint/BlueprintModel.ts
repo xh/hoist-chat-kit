@@ -341,6 +341,7 @@ export class BlueprintModel extends HoistModel {
             {
                 author: 'user',
                 description: `Undo: ${entry.description}`,
+                undoes: entry.version,
                 ops: diffOps(this.blueprint ?? {}, entry.before ?? {})
             },
             () => {
@@ -359,11 +360,19 @@ export class BlueprintModel extends HoistModel {
         const entry = last(this.redoStack);
         if (!entry) return nothingTo('redo');
         return this.commitEdit(
-            {author: 'user', description: `Redo: ${entry.description}`, ops: entry.ops},
+            {
+                author: 'user',
+                description: `Redo: ${entry.description}`,
+                redoes: entry.version,
+                ops: entry.ops
+            },
             done => {
                 this.redoStack = dropRight(this.redoStack);
                 this.undoStack = takeRight(
-                    [...this.undoStack, {...entry, before: done.before, after: done.after}],
+                    [
+                        ...this.undoStack,
+                        {...entry, version: done.version, before: done.before, after: done.after}
+                    ],
                     MAX_UNDO
                 );
             }
@@ -578,6 +587,7 @@ export class BlueprintModel extends HoistModel {
             author: edit.author,
             description: edit.description ?? 'Edit',
             ops: edit.ops,
+            version: this.version,
             before,
             after: result
         });
@@ -648,6 +658,8 @@ interface UndoEntry {
     author: string;
     description: string;
     ops: BlueprintOp[];
+    /** The version the edit made, which an undo or redo of it names. */
+    version: number;
     before: Blueprint;
     after: Blueprint;
 }
