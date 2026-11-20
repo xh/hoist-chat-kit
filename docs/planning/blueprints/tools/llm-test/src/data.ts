@@ -13,6 +13,8 @@ function rng(seed: string) {
 
 const POOLS: Record<string, string[]> = {
     fund: ['Oak Mount', 'Black Crescent', 'Winter Star', 'Red River', 'Hudson Bay'],
+    manager: ['Ana Reyes', 'Marcus Oyelaran', 'Priya Natarajan', 'Tom Becker', 'Lena Holm'],
+    style: ['Long/Short', 'Macro', 'Credit', 'Multi-Strategy', 'Macro'],
     strategy: ['Merger Arb', 'Long/Short Equity', 'Global Macro', 'Credit', 'Event Driven'],
     book: ['Core', 'Tactical', 'Hedge'],
     trader: ['Freda Klecko', 'London Rohan', 'Kennedy Hills', 'Linnea Trolley', 'Pearl Hellens', 'Jimmy Falcon', 'Fred Corn', 'Robert Greer', 'Susan Major'],
@@ -74,7 +76,13 @@ function makeRow(ds: DatasetDef, r: () => number, i: number, params: any): Recor
     };
     const row: Record<string, unknown> = {};
     for (const f of Object.values(ds.fields)) {
-        row[f.name] = f.name in ctx ? ctx[f.name] : POOLS[f.name] ? pick(r, POOLS[f.name]) : f.type === 'string' ? `${f.name}-${i % 7}` : Math.round(1000 * r());
+        row[f.name] = f.name in ctx ? ctx[f.name] : POOLS[f.name] ? pick(r, POOLS[f.name]) : f.type === 'string' ? `${f.name}-${i % 7}`
+            : f.type === 'number[]' ? Array.from({length: 20}, () => Math.round(normal(r) * 1e5)) : Math.round(1000 * r());
+    }
+    // One row per fund, keyed by it, with the fund's own manager and style.
+    if (ds.name === 'fundSummary') {
+        const idx = POOLS.fund.indexOf(params?.fund) >= 0 ? POOLS.fund.indexOf(params.fund) : i;
+        Object.assign(row, {fund: POOLS.fund[idx], manager: POOLS.manager[idx], style: POOLS.style[idx], nav: 5e8 + idx * 7.5e8});
     }
     if (ds.name === 'weather' || ds.name === 'prices') {
         const start = Date.parse(`${params?.start ?? '2026-11-19'}T00:00:00Z`);
@@ -113,7 +121,7 @@ export const fakeDataProvider = {
     async loadAsync(req: {dataset: string; params: Record<string, unknown>; filter?: unknown}) {
         const ds = datasets[req.dataset],
             r = rng(JSON.stringify([ds.name, req.params])),
-            count = {positions: 160, orders: 90, prices: 64, hypotheticalPortfolio: 12, weather: 40, currentWeather: 1}[ds.name] ?? 50;
+            count = {positions: 160, orders: 90, prices: 64, hypotheticalPortfolio: 12, weather: 40, currentWeather: 1, fundSummary: req.params?.fund ? 1 : POOLS.fund.length}[ds.name] ?? 50;
         return {rows: Array.from({length: count}, (_, i) => makeRow(ds, r, i, req.params)).filter(row => matches(row, req.filter))};
     }
 };

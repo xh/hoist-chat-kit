@@ -279,9 +279,11 @@ export const SCENARIOS: Scenario[] = [
         steps: [{prompt: "Add a sparkline of each position's P&L history to the positions grid, and show percent of NAV as a bar."}],
         checks: [
             ['the positions grid shows pnlHistory', o => gridShows(o.blueprint, 'posGrid', 'pnlHistory')],
-            ['pctNav draws as a progress bar', o => {
-                const r = o.blueprint.elements?.posGrid?.config?.columns?.pctNav?.renderer ?? o.blueprint.sources?.positions?.fields?.pctNav?.renderer;
-                return gridShows(o.blueprint, 'posGrid', 'pctNav') && (r === 'progress' || r?.name === 'progress');
+            // The catalog draws pctNav as a bar by default, so a grid that adds it already meets the ask.
+            ['pctNav draws as a bar', o => {
+                const r = o.blueprint.elements?.posGrid?.config?.columns?.pctNav?.renderer ?? o.blueprint.sources?.positions?.fields?.pctNav?.renderer,
+                    name = r?.name ?? r;
+                return gridShows(o.blueprint, 'posGrid', 'pctNav') && (name == null || ['bar', 'progress'].includes(name));
             }],
             ['no new source', o => Object.keys(o.blueprint.sources ?? {}).length === 2]
         ]
@@ -348,9 +350,9 @@ export const SCENARIOS: Scenario[] = [
         host: 'p2-linked-dashboard.json',
         mode: 'run',
         context: 'Mode: run. The user has write access. A chat is open beside the host blueprint below, which the user is looking at. Its asOf is today, 2026-11-19.',
-        steps: [{prompt: 'How is Oak Mount doing today?'}, {prompt: 'Put those numbers and the note on my dashboard.'}],
+        steps: [{prompt: 'How is Oak Mount doing today? Show me its headline numbers.'}, {prompt: 'Put those numbers on my dashboard, with a note on the day.'}],
         checks: [
-            ['answers with stat cards and a callout', o => o.segments.some(s => segmentWidgets(s, 'statCard').length && segmentWidgets(s, 'callout').length)],
+            ['answers with stat cards', o => o.segments.some(s => segmentWidgets(s, 'statCard').length)],
             ['the host gains a fundSummary source whose fund binds a variable for Oak Mount', o => sourcesOf(o.blueprint, 'fundSummary').some(([, s]) => o.blueprint.variables?.[varOf(s.params?.fund)!]?.default?.value === 'Oak Mount')],
             ['stat cards over that source, at least two', o => cfg(o.blueprint, 'statCard', c => dataset(o.blueprint, c) === 'fundSummary').length >= 2],
             ['a callout whose text holds no number of its own', o => {

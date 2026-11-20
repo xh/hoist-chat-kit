@@ -319,18 +319,18 @@ Clearing it shows every position.
 
 **Prompts.**
 
-1. "How is Oak Mount doing today?"
-2. "Put those numbers and the note on my dashboard."
+1. "How is Oak Mount doing today? Show me its headline numbers."
+2. "Put those numbers on my dashboard, with a note on the day."
 
 **Sees.**
 
-1. An answer with stat cards and a callout over the query result.
+1. An answer with stat cards over the query result.
 2. The Architect asks for design mode, then adds a `fundSummary` source, a row of stat cards
    and the callout to the dashboard. The fund becomes a prompt that defaults to Oak Mount.
 
 **Tests.**
 
-- An answer's stat cards and callout added to a host.
+- An answer's stat cards added to a host, with a callout over its new source.
 - A literal parameter becomes a host variable (decision 135).
 - The callout's text reads `{source.field}`, never a number the model computed.
 - Design mode is asked for before any edit.
