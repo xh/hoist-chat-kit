@@ -1,8 +1,9 @@
-import {HoistModel} from '@xh/hoist/core';
+import {HoistModel, XH} from '@xh/hoist/core';
 import {action, observable, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
 import {isEqual} from 'lodash';
 import type {Blueprint, BlueprintAccess, BlueprintIssue} from '../Blueprint';
+import {type BlueprintLinkParams, parseBlueprintLink} from '../BlueprintLink';
 import type {BlueprintModel} from '../BlueprintModel';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
 import {
@@ -111,13 +112,53 @@ export class BlueprintDocumentModel extends HoistModel {
             blueprint = this.migrate ? this.migrate(record.blueprint) : record.blueprint,
             checked = blueprintModel.validate(blueprint);
         // Checked before the model changes, so a refused blueprint leaves the open one as it was.
-        if (checked.some(it => it.severity === 'error')) return checked;
+        if (hasErrors(checked)) return checked;
         blueprintModel.setAccess(access);
         blueprintModel.setMode(record.kind === 'draft' ? 'design' : 'run');
         const issues = blueprintModel.setBlueprint(blueprint);
-        if (issues.some(it => it.severity === 'error')) return issues;
+        if (hasErrors(issues)) return issues;
         this.opened(record, access);
         return issues;
+    }
+
+    /**
+     * Open the blueprint a link names, with its presets and variable values. A link to the draft
+     * or an older publish that the user may not open opens the latest publish instead, with a
+     * notice. Values the link could not apply show in the same notice. See
+     * {@link parseBlueprintLink}.
+     *
+     * @param params - the link's route params, such as `XH.routerState.params`.
+     * @returns the open's issues, with a refusal if nothing opened, and the link's problems.
+     */
+    async openLinkAsync(
+        params: BlueprintLinkParams
+    ): Promise<{issues: BlueprintIssue[]; problems: string[]}> {
+        const {id, open} = parseBlueprintLink(params);
+        if (!id) return {issues: [refusal('The link names no blueprint.')], problems: []};
+        let issues = await this.openAsync(id, open),
+            isFallback = false;
+        if (hasErrors(issues) && needsWrite(open)) {
+            const latest = await this.openAsync(id, {as: 'publish'});
+            if (!hasErrors(latest)) {
+                issues = latest;
+                isFallback = true;
+            }
+        }
+        if (hasErrors(issues)) return {issues, problems: []};
+
+        // Applied in the same tick as the open, before the model's sources start.
+        const {blueprintModel: model} = this,
+            problems = model.applyLinkState(
+                parseBlueprintLink(params, model.blueprint, model.registry)
+            ),
+            notice = [
+                isFallback
+                    ? 'Showing the latest published version, as the link names one you may not open.'
+                    : null,
+                problems.length ? `Some link values were ignored: ${problems.join(' ')}` : null
+            ].filter(Boolean);
+        if (notice.length) XH.warningToast({message: notice.join(' ')});
+        return {issues, problems};
     }
 
     /**
@@ -187,7 +228,7 @@ export class BlueprintDocumentModel extends HoistModel {
             if (this.isStale) return [staleRefusal()];
             if (this.isDirty) {
                 const issues = await this.doSaveDraftAsync();
-                if (issues.some(it => it.severity === 'error')) return issues;
+                if (hasErrors(issues)) return issues;
             }
             const stale = await this.staleIssueAsync();
             if (stale) return this.wentStale([stale]);
@@ -409,6 +450,10 @@ function staleRefusal(): BlueprintIssue {
         message:
             'Another save landed after you opened this draft. Reload it, or save your edits as a new blueprint.'
     };
+}
+
+function hasErrors(issues: BlueprintIssue[]): boolean {
+    return issues.some(it => it.severity === 'error');
 }
 
 function refusal(message: string): BlueprintIssue {

@@ -16,6 +16,7 @@ import {BlueprintSource} from './BlueprintSource';
 import {BlueprintVariable} from './BlueprintVariable';
 import type {DataCatalog} from './DataCatalog';
 import {applyOps} from './applyOps';
+import type {BlueprintLinkState} from './BlueprintLink';
 import {diffOps} from './diffOps';
 import {parseWebUrl} from '../impl/UrlUtils';
 import {
@@ -427,12 +428,32 @@ export class BlueprintModel extends HoistModel {
     @action
     setPreset(group: string, item: string) {
         this.noteUserAction();
-        const def = getOwn(this.blueprint?.presets, group);
-        throwIf(!getOwn(def?.items, item), `No preset '${item}' in group '${group}'.`);
-        this.activePresets = {...this.activePresets, [group]: item};
-        const paths = def.controls.map(it => it.path);
-        this.transientValues = omitBy(this.transientValues, (_, path) => paths.includes(path));
-        if (paths.some(it => it.startsWith('/variables/'))) this.syncVariables();
+        this.choosePreset(group, item);
+    }
+
+    /**
+     * Apply a link's presets, then its values, as transient state: not a user action, and never
+     * saved. Call it as the blueprint opens, before its sources start, so each loads once.
+     * See {@link parseBlueprintLink}.
+     *
+     * @returns the link's problems, with any value that no longer fits once its presets apply.
+     */
+    @action
+    applyLinkState(state: BlueprintLinkState): string[] {
+        const problems = [...state.problems];
+        Object.entries(state.presets).forEach(([group, item]) => this.choosePreset(group, item));
+        Object.entries(state.values).forEach(([name, value]) => {
+            const v = this.getVariable(name),
+                problem = v?.isSettable
+                    ? checkVariableValue(name, v.decl, value, this.registry)
+                    : `A link cannot set '${name}'.`;
+            if (problem) {
+                problems.push(problem);
+            } else {
+                v.set(value);
+            }
+        });
+        return problems;
     }
 
     /** The group and active preset that control a path, or null if no preset group does. */
@@ -575,6 +596,15 @@ export class BlueprintModel extends HoistModel {
     //------------------
     // Implementation
     //------------------
+    private choosePreset(group: string, item: string) {
+        const def = getOwn(this.blueprint?.presets, group);
+        throwIf(!getOwn(def?.items, item), `No preset '${item}' in group '${group}'.`);
+        this.activePresets = {...this.activePresets, [group]: item};
+        const paths = def.controls.map(it => it.path);
+        this.transientValues = omitBy(this.transientValues, (_, path) => paths.includes(path));
+        if (paths.some(it => it.startsWith('/variables/'))) this.syncVariables();
+    }
+
     // Apply an edit, and on success, hand `onDone` what an undo of it needs.
     private commitEdit(
         edit: BlueprintEdit,

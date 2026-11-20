@@ -7,6 +7,7 @@ import {
     type JoinDecl,
     type VariableDecl
 } from './Blueprint';
+import {BLUEPRINT_LINK_RESERVED} from './BlueprintLink';
 import type {BlueprintRegistry, WidgetSpec} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter} from './impl/configSchema';
@@ -229,6 +230,13 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             baseType = String(v.type ?? '').replace(/\[\]$/, '');
         if (!BUILT_IN_VARIABLE_TYPES.includes(baseType) && !registry.variableTypes[baseType]) {
             err('variable.unknownType', `${p}/type`, `unknown type '${v.type}'`);
+        }
+        if (BLUEPRINT_LINK_RESERVED.includes(vn)) {
+            err(
+                'variable.reservedName',
+                p,
+                `'${vn}' is a link param, so a variable may not take it`
+            );
         }
         const sb = v.setBy,
             writers = getWriters(v);
