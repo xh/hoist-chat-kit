@@ -554,7 +554,21 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             );
             return;
         }
-        const fields = joinFields(join, primary, secondary);
+        const fields = joinFields(join, primary, secondary),
+            keyed = fields.some(it => it.mode === 'keyed'),
+            reduces = fields.some(it => it.reduce);
+        for (const [pf, sf] of Object.entries(join.on ?? {})) {
+            const own = primary.fields[pf],
+                other = secondary.fields[sf];
+            // Keyed values show on the rows that pin a dimension, and a reduce groups by them.
+            if ((keyed && own && !own.isDimension) || (reduces && other && !other.isDimension)) {
+                err(
+                    'join.keyNotDimension',
+                    `${p}/on/${pf}`,
+                    `'${own?.isDimension ? sf : pf}' is not a dimension, so the join cannot key on it`
+                );
+            }
+        }
         fields.forEach(jf => {
             const at = `${p}/fields/${join.fields.indexOf(jf.field)}`,
                 agg = jf.def.aggregator as PlainObject | string;

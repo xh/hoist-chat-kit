@@ -1,4 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
+import {isString, pick} from 'lodash';
 import {wait} from '@xh/hoist/promise';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -204,6 +205,17 @@ describe('joins', () => {
             ]);
         });
 
+        it('refuses a join on a field that is not a dimension', () => {
+            expect(
+                codes(
+                    blueprint([
+                        ...good,
+                        {source: 'funds', on: {mktVal: 'nav'}, fields: ['manager']}
+                    ])
+                )
+            ).toContainEqual(['join.keyNotDimension', '/sources/positions/joins/2/on/mktVal']);
+        });
+
         it('refuses a reduced field with no aggregator, or a last with no order field', () => {
             expect(
                 codes(
@@ -277,7 +289,18 @@ describe('joins', () => {
                     update: BlueprintDataUpdate = {replace: ROWS[dataset]}
                 ) => {
                     await vi.waitFor(() => expect(subs[dataset]).toBeTruthy());
-                    subs[dataset].push(update);
+                    // As a server does, it sends only the fields asked for.
+                    const fields = [
+                            'id',
+                            ...subs[dataset].req.fields.map(it => (isString(it) ? it : it.name))
+                        ],
+                        only = (rows: PlainObject[]) => rows?.map(it => pick(it, fields));
+                    subs[dataset].push({
+                        ...update,
+                        replace: only(update.replace),
+                        add: only(update.add),
+                        update: only(update.update)
+                    });
                     await wait();
                 }
             };
@@ -395,6 +418,36 @@ describe('joins', () => {
             expect(funds.req.fields).not.toContain('manager');
         });
 
+        it('matches no row on a null key', async () => {
+            const {dataProvider, leaf} = open([fundJoin], ['fundNav']);
+            await dataProvider.send('positions', {
+                replace: [
+                    ...ROWS.positions,
+                    {id: 'n1', fund: null, symbol: 'X', sector: 'Tech', mktVal: 1}
+                ]
+            });
+            await dataProvider.send('funds', {
+                replace: [...ROWS.funds, {id: 'N', fund: null, nav: 999, manager: 'Nobody'}]
+            });
+            await vi.waitFor(() => expect(leaf('a1').fundNav).toBe(100));
+            expect(leaf('n1').fundNav).toBeNull();
+        });
+
+        it('reduces a joined source once per change of it', async () => {
+            const {dataProvider, leaf, model} = open(
+                [{source: 'prices', on: {symbol: 'symbol'}, fields: ['volume']}],
+                ['volume'],
+                ['symbol']
+            );
+            await dataProvider.send('prices');
+            const prices = model.getSource('prices'),
+                spy = vi.spyOn(prices.cube, 'createView');
+            await dataProvider.send('positions');
+            await dataProvider.send('positions', {update: [{...ROWS.positions[0], mktVal: 11}]});
+            await vi.waitFor(() => expect(leaf('a1').volume).toBe(3));
+            expect(spy.mock.calls.length).toBeLessThanOrEqual(1);
+        });
+
         it('follows a tick from either side, a new key from the primary included', async () => {
             const {dataProvider, leaf} = open([fundJoin], ['fundNav']);
             await dataProvider.send('positions');
@@ -438,6 +491,33 @@ describe('joins', () => {
                     update: [{id: 'B', fund: 'B', nav: 200, manager: 'Ann'}]
                 });
                 await vi.waitFor(() => expect(leaf('b1')?.manager).toBe('Ann'));
+            });
+
+            it('asks for the keys in order, so an unchanged set never reloads', async () => {
+                const {dataProvider} = open([fundJoin], ['mktVal'], ['sector'], ANN);
+                await dataProvider.send('funds', {
+                    replace: [
+                        {id: 'B', fund: 'B', nav: 200, manager: 'Ann'},
+                        {id: 'A', fund: 'A', nav: 100, manager: 'Ann'}
+                    ]
+                });
+                await vi.waitFor(() => expect(dataProvider.subs.positions).toBeTruthy());
+                expect(dataProvider.subs.positions.req.filter).toMatchObject({value: ['A', 'B']});
+            });
+
+            it('says why the source waits, while its joined source cannot load', async () => {
+                const {model, positions} = open([fundJoin], ['mktVal'], ['sector'], ANN);
+                model.blueprint.variables.other = {type: 'localDate', setBy: 'prompt'};
+                model.setBlueprint({
+                    ...model.blueprint,
+                    sources: {
+                        ...model.blueprint.sources,
+                        funds: {dataset: 'funds', params: {asOf: {$var: 'other'}}}
+                    }
+                });
+                await wait();
+                expect(model.getSource('positions').joinWait).toBe('Waiting for funds');
+                expect(positions).toBeTruthy();
             });
 
             it('filters in the browser alone, past its cap of keys', async () => {

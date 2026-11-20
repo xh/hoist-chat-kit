@@ -295,6 +295,22 @@ export class BlueprintSource extends HoistBase {
     }
 
     /**
+     * Why the source waits for a joined source, as a user reads it, or null: a filter on joined
+     * fields needs the joined source's rows first.
+     */
+    get joinWait(): string {
+        if (this.filterPlan.pushdown !== 'waiting') return null;
+        return this.joins
+            .map(it => this.context.getSource(it.join.source))
+            .filter(it => it && !it.hasLoaded)
+            .map(it =>
+                it.lastError
+                    ? `${it.name} failed to load, so this cannot load`
+                    : `Waiting for ${it.name}`
+            )[0];
+    }
+
+    /**
      * The source filter, split for joins: clauses on the source's own fields go to the server,
      * and clauses on joined fields run in the browser, on rows with their joined values. Each
      * joined clause also goes to the server as the keys its joined source matches, once that has
@@ -344,7 +360,7 @@ export class BlueprintSource extends HoistBase {
                 continue;
             }
             Object.keys(spec.join.on).forEach((field, i) =>
-                pushdown.push({field, op: '=', value: uniq(keys.map(k => k[i]))})
+                pushdown.push({field, op: '=', value: sortBy(uniq(keys.map(k => k[i])))})
             );
         }
         return {server, browser, pushdown};
@@ -382,7 +398,12 @@ export class BlueprintSource extends HoistBase {
                 .filter(join => join.source === this.name)
                 .flatMap(join => {
                     const primary = this.context.getSource(name),
-                        demanded = primary?.demandedNames ?? [],
+                        // A joined field only the source filter names is still fetched, as the
+                        // filter runs on it in the browser and pushes down by it.
+                        demanded = [
+                            ...(primary?.demandedNames ?? []),
+                            ...filterFieldsOf(this.context.resolveFilter(decl.filter))
+                        ],
                         used = joinFields(join, catalog.getDataset(decl.dataset), own).filter(it =>
                             demanded.includes(it.name)
                         );
@@ -561,6 +582,8 @@ export class BlueprintSource extends HoistBase {
             if (!isEmpty(this.joins)) {
                 if (replace) {
                     this.rawRows.clear();
+                    this.keyIndex.clear();
+                    this.joins.forEach(it => this.flushedValues.set(it.join, this.joinValues(it)));
                     const test = this.browserTest;
                     replace = this.withJoins(replace).filter(it => !test || test(it));
                 } else if (add || update || remove) {
@@ -657,11 +680,48 @@ export class BlueprintSource extends HoistBase {
             this.rawRows.set(String(row.id), row);
             const ret = {...row};
             this.joins.forEach((spec, idx) => {
-                const values = maps[idx].get(keyOf(row, Object.keys(spec.join.on)));
+                const key = keyOf(row, Object.keys(spec.join.on)),
+                    values = key == null ? null : maps[idx].get(key);
+                if (key != null) this.indexRow(spec.join, key, String(row.id));
                 spec.fields.forEach(f => (ret[f.name] = values?.[f.field] ?? null));
             });
             return ret;
         });
+    }
+
+    // The IDs of the rows with each key of each join, which may hold IDs whose key since changed.
+    private readonly keyIndex = new Map<JoinDecl, Map<string, Set<string>>>();
+
+    // The values of each join that the rows last took in full, on a load or a flush.
+    private readonly flushedValues = new Map<JoinDecl, Map<string, PlainObject>>();
+
+    private indexRow(join: JoinDecl, key: string, id: string) {
+        if (!this.keyIndex.has(join)) this.keyIndex.set(join, new Map());
+        const byKey = this.keyIndex.get(join);
+        if (!byKey.has(key)) byKey.set(key, new Set());
+        byKey.get(key).add(id);
+    }
+
+    /** The rows whose joined values changed since the rows last took them in full. */
+    private rowsToRejoin(): PlainObject[] {
+        const ids = new Set<string>();
+        this.joins.forEach(spec => {
+            const next = this.joinValues(spec),
+                prev = this.flushedValues.get(spec.join);
+            this.flushedValues.set(spec.join, next);
+            if (!prev) {
+                this.rawRows.forEach((_, id) => ids.add(id));
+                return;
+            }
+            const byKey = this.keyIndex.get(spec.join);
+            new Set([...next.keys(), ...prev.keys()]).forEach(key => {
+                const same = spec.fields.every(f =>
+                    isEqual(next.get(key)?.[f.field] ?? null, prev.get(key)?.[f.field] ?? null)
+                );
+                if (!same) byKey?.get(key)?.forEach(id => ids.add(id));
+            });
+        });
+        return [...ids].map(id => this.rawRows.get(id)).filter(Boolean);
     }
 
     /** Write a joined source's current values onto every row they change, once per tick. */
@@ -673,7 +733,7 @@ export class BlueprintSource extends HoistBase {
             if (this.isDestroyed || !this.rawRows.size) return;
             const {store} = this.cube,
                 names = this.joins.flatMap(it => it.fields.map(f => f.name)),
-                {add, update, remove} = this.diffJoined(this.withJoins([...this.rawRows.values()])),
+                {add, update, remove} = this.diffJoined(this.withJoins(this.rowsToRejoin())),
                 changed = update.filter(it => {
                     const data = store.getById(it.id)?.data;
                     return names.some(n => !isEqual(data?.[n] ?? null, it[n]));
@@ -713,6 +773,12 @@ export class BlueprintSource extends HoistBase {
      * A joined source's values by key, from its rows as they stand: each row's own, or each key's
      * reduced by the field's aggregator. In unique mode, the first row of a key wins.
      */
+    // Each join's values, as last built, with the joined source and its data they came from.
+    private readonly joinCache = new Map<
+        JoinDecl,
+        {secondary: BlueprintSource; at: number; values: Map<string, PlainObject>}
+    >();
+
     private joinValues({
         join,
         fields
@@ -720,10 +786,14 @@ export class BlueprintSource extends HoistBase {
         join: JoinDecl;
         fields: JoinField[];
     }): Map<string, PlainObject> {
+        const secondary = this.context.getSource(join.source),
+            at = secondary?.cube.store.lastUpdated,
+            cached = this.joinCache.get(join);
+        if (!secondary) return new Map();
+        if (cached?.secondary === secondary && cached.at === at) return cached.values;
         const ret = new Map<string, PlainObject>(),
-            secondary = this.context.getSource(join.source),
             onFields = Object.values(join.on ?? {});
-        if (!secondary) return ret;
+        this.joinCache.set(join, {secondary, at, values: ret});
         if (fields.some(it => it.reduce)) {
             const view = secondary.cube.createView({
                 query: {dimensions: onFields, includeRoot: false}
@@ -732,7 +802,7 @@ export class BlueprintSource extends HoistBase {
                 rows?.forEach(row => {
                     const at = [...path, row.cubeLabelValue];
                     if (at.length < onFields.length) walk(row.children, at);
-                    else ret.set(JSON.stringify(at), row);
+                    else if (!at.some(it => it == null)) ret.set(JSON.stringify(at), row);
                 });
             walk(view.result.rows, []);
             view.destroy();
@@ -741,6 +811,7 @@ export class BlueprintSource extends HoistBase {
         let duplicates = 0;
         secondary.cube.store.records.forEach(rec => {
             const key = keyOf(rec.data, onFields);
+            if (key == null) return;
             if (ret.has(key)) duplicates++;
             else ret.set(key, rec.data);
         });
@@ -821,9 +892,11 @@ function filterFieldsOf(filter: PlainObject): string[] {
     return isString(filter?.field) ? [filter.field] : [];
 }
 
-// A join's key for a row, as its values of the fields given, in order.
+// A join's key for a row, as its values of the fields given, in order. Null if any is null, as a
+// left join matches no row on a null key.
 function keyOf(row: PlainObject, fields: string[]): string {
-    return JSON.stringify(fields.map(it => row?.[it] ?? null));
+    const values = fields.map(it => row?.[it] ?? null);
+    return values.some(it => it == null) ? null : JSON.stringify(values);
 }
 
 // The fields an aggregator reads beside its own, such as a weight or an order field.
