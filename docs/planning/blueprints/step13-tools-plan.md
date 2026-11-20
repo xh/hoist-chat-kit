@@ -41,19 +41,24 @@
 | 14 | A toolbar with one child never overflows into its menu | Kit |
 | 15 | Larger click targets on the toolbar's selects | Kit |
 | 16 | The editors follow Toolbox's styling (John: the old Inspector was "pretty bad") | Kit |
+| 23 | A tileFrame shows how many tiles fit, and warns past it | Kit |
+| 24 | A propertyTable's fields use the grid's column picker | Kit |
 | 17 | Inspector tab groups, as John chooses | Toolbox |
 | 18 | A calmer blueprint header: status and Design/Run stay, while Reload, Save as new and Share move into a menu | Toolbox |
 | 19 | The Registry gets the Data Catalog's card treatment, as John asked: "switch everything to that" | Toolbox |
 | 20 | Dataset cards show the key ("grain: fund") and the datasets each can join | Toolbox |
 | 21 | Registry cards render each widget's example live | Toolbox |
+| 25 | The library list gains an owner column and a search | Toolbox |
+| 26 | The Inspector is resizable, and keeps its size | Toolbox |
 | 22 | Dashboard toolbar views menu, as John chooses | Kit |
 
 ## Order
 
 1. Quick fixes: items 6, 7, 8, 14 and 15. No decisions are needed.
-2. Ease of use: items 2 to 5, 9, 10 and 13.
+2. Ease of use: items 2 to 5, 9, 10, 13, 23 and 24.
 3. After John's choices: drag (1), the grid inspector (11), preset badges (12), the toolbar
    menu (22) and the Toolbox layout (17 and 18).
-4. Toolbox cards and styling: items 16, 19, 20 and 21.
+4. Styling and Toolbox: items 16, 19, 20, 21, 25 and 26. The Data Catalog cards are done
+   (Toolbox `152fa0f8`, `f3175c9a`).
 
 `blueprints-tb` checks each batch in the browser, as in earlier steps. Kit items come with specs.
