@@ -16,6 +16,7 @@ import {dashCanvasWidget, DashCanvasWidgetModel} from '../DashCanvasWidget';
 import {groupingChooserWidget, GroupingChooserWidgetModel} from '../GroupingChooserWidget';
 import {markdownWidget, MarkdownWidgetModel} from '../MarkdownWidget';
 import {panelWidget, PanelWidgetModel} from '../PanelWidget';
+import {propertyTableWidget, PropertyTableWidgetModel} from '../PropertyTableWidget';
 import {separatorWidget, SeparatorWidgetModel} from '../SeparatorWidget';
 import {spacerWidget, SpacerWidgetModel} from '../SpacerWidget';
 import {statCardWidget, StatCardWidgetModel} from '../StatCardWidget';
@@ -55,6 +56,7 @@ const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> =
     groupingChooser: {model: GroupingChooserWidgetModel, component: groupingChooserWidget},
     markdown: {model: MarkdownWidgetModel, component: markdownWidget},
     panel: {model: PanelWidgetModel, component: panelWidget},
+    propertyTable: {model: PropertyTableWidgetModel, component: propertyTableWidget},
     separator: {model: SeparatorWidgetModel, component: separatorWidget},
     spacer: {model: SpacerWidgetModel, component: spacerWidget},
     statCard: {model: StatCardWidgetModel, component: statCardWidget},

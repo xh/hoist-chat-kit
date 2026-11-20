@@ -59,7 +59,8 @@ describe('BlueprintDesignModel', () => {
         'switchInput',
         'slider',
         'filterChooser',
-        'treemap'
+        'treemap',
+        'propertyTable'
     ])('adds a %s that starts valid, on the first free place of the root canvas', component => {
         const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
             result = design.addWidget(component);

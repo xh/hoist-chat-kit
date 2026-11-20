@@ -10,6 +10,7 @@ export * from './GroupingChooserWidget';
 export * from './InputWidgets';
 export * from './MarkdownWidget';
 export * from './PanelWidget';
+export * from './PropertyTableWidget';
 export * from './SeparatorWidget';
 export * from './SpacerWidget';
 export * from './StatCardWidget';

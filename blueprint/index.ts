@@ -25,6 +25,7 @@ export type {
     DateRangePickerWidgetConfig,
     FilterChooserWidgetConfig,
     NumberInputWidgetConfig,
+    PropertyTableWidgetConfig,
     SelectWidgetConfig,
     SliderWidgetConfig,
     SwitchInputWidgetConfig,

@@ -713,6 +713,13 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         }
         if (cfg.x) need(cfg.x, `${p}/x`);
         if (isArray(cfg.y)) cfg.y.forEach((y: string, i: number) => need(y, `${p}/y/${i}`));
+        if (isArray(cfg.fields)) {
+            cfg.fields.forEach((it: unknown, i: number) =>
+                isString(it)
+                    ? need(it, `${p}/fields/${i}`)
+                    : need((it as PlainObject)?.field, `${p}/fields/${i}/field`)
+            );
+        }
         ['field', 'deltaField', 'value', 'heat', 'trend'].forEach(key => {
             if (isString(cfg[key])) need(cfg[key], `${p}/${key}`);
         });

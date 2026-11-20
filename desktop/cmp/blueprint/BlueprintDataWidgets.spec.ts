@@ -12,6 +12,7 @@ import {
 import type {Blueprint, BlueprintDataProvider, BlueprintDataUpdate} from '../../../blueprint';
 import {BlueprintModel, FakeBlueprintDataProvider} from '../../../blueprint';
 import {ChartWidgetModel} from './ChartWidget';
+import {PropertyTableWidgetModel} from './PropertyTableWidget';
 import {TreemapWidgetModel} from './TreemapWidget';
 import {CubeGridWidgetModel} from './CubeGridWidget';
 import {statCardWidget, StatCardWidgetModel} from './StatCardWidget';
@@ -154,6 +155,57 @@ describe('blueprint data widgets', () => {
                 statCardWidget({model: widget(StatCardWidgetModel, open(), 'headlinePnlDay')})
             );
             expect(container.querySelector('.xh-stat-card')).toBeTruthy();
+        });
+    });
+
+    describe('propertyTable', () => {
+        const withTable = (config: object) => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.elements.props = {
+                component: 'propertyTable',
+                config: {source: 'positions', ...config}
+            };
+            bp.elements.dashboard.children.push({id: 'props', x: 0, y: 14, w: 4, h: 4});
+            return bp;
+        };
+
+        it('shows the totals of the rows its filter leaves, each field labeled and formatted', async () => {
+            const table = widget(
+                PropertyTableWidgetModel,
+                open(
+                    withTable({
+                        fields: ['mktVal', {field: 'pnlDay', label: 'Today'}],
+                        filter: {field: 'sector', op: '=', value: 'Energy'}
+                    })
+                ),
+                'props'
+            );
+            await vi.waitFor(() => expect(text(table.entries[1]?.value)).toMatch(/^\(1\)/));
+            expect(table.entries.map(it => it.label)).toEqual(['Market Value', 'Today']);
+            expect(text(table.entries[1].value)).toMatch(/^\(1\)/);
+        });
+
+        it("shows one row's own values, where its filter leaves one", async () => {
+            const table = widget(
+                PropertyTableWidgetModel,
+                open(
+                    withTable({
+                        fields: ['strategy', 'trader', 'beta'],
+                        filter: {field: 'strategy', op: '=', value: 'Global Macro'}
+                    })
+                ),
+                'props'
+            );
+            await vi.waitFor(() => expect(text(table.entries[0]?.value)).toBe('Global Macro'));
+            expect(text(table.entries[1].value)).toBe('Fred Corn');
+        });
+
+        it('refuses a field its source lacks', () => {
+            expect(
+                open()
+                    .validate(withTable({fields: ['mktVal', {field: 'nope'}]}))
+                    .map(it => [it.code, it.path])
+            ).toContainEqual(['field.unknown', '/elements/props/config/fields/1/field']);
         });
     });
 

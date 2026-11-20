@@ -578,6 +578,43 @@ const CHART_SCHEMA = {
     }
 } as const satisfies BlueprintSchema;
 
+const PROPERTY_TABLE_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['source', 'fields'],
+    properties: {
+        source: {type: 'string', 'x-source': true},
+        title: {type: 'string', maxLength: 100, 'x-binding': true},
+        fields: {
+            type: 'array',
+            minItems: 1,
+            maxItems: 30,
+            items: {
+                anyOf: [
+                    {type: 'string', 'x-field': 'any'},
+                    {
+                        type: 'object',
+                        additionalProperties: false,
+                        required: ['field'],
+                        properties: {
+                            field: {type: 'string', 'x-field': 'any'},
+                            label: {type: 'string', maxLength: 60},
+                            format: {'x-format': true, anyOf: [{type: 'string'}, {type: 'object'}]},
+                            renderer: {
+                                'x-renderer': true,
+                                anyOf: [{type: 'string'}, {type: 'object'}]
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        filter: {'x-filter': true, 'x-binding': true, type: 'object'},
+        columns: {type: 'integer', minimum: 1, maximum: 4, default: 1},
+        labelSide: {enum: ['left', 'top'], default: 'left'}
+    }
+} as const satisfies BlueprintSchema;
+
 const TREEMAP_SCHEMA = {
     type: 'object',
     additionalProperties: false,
@@ -822,6 +859,11 @@ export type CubeGridWidgetConfig = FromExtendedSchema<
 
 /** The config of a `chart` widget, with bindings resolved. */
 export type ChartWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof CHART_SCHEMA>;
+
+export type PropertyTableWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof PROPERTY_TABLE_SCHEMA
+>;
 
 export type TreemapWidgetConfig = FromExtendedSchema<
     BlueprintSchemaExtension,
@@ -1300,6 +1342,26 @@ const chart: WidgetSpec = {
     }
 };
 
+const propertyTable: WidgetSpec = {
+    name: 'propertyTable',
+    version: 1,
+    label: 'Properties',
+    terms: ['properties', 'details', 'key values', 'facts', 'summary table'],
+    guidance:
+        "A list of labeled values: the totals of the rows its filter leaves, or one row's own values where its filter leaves one, such as the details of a fund or a position. Each field may take a label, a format and a renderer.",
+    category: 'data',
+    config: PROPERTY_TABLE_SCHEMA,
+    size: {default: {w: 4, h: 4}, min: {w: 2, h: 2}},
+    example: {
+        component: 'propertyTable',
+        config: {
+            source: 'positions',
+            fields: ['mktVal', {field: 'pnlDay', label: 'Today'}],
+            filter: {field: 'fund', op: '=', value: {$var: 'fund'}}
+        }
+    }
+};
+
 const treemap: WidgetSpec = {
     name: 'treemap',
     version: 1,
@@ -1499,6 +1561,7 @@ const WIDGET_SPECS: WidgetSpec[] = [
     chart,
     tileFrame,
     statCard,
+    propertyTable,
     treemap,
     groupingChooser,
     buttonGroup,
@@ -1533,6 +1596,13 @@ const SOURCE_DEMANDS: Record<string, (config: PlainObject) => WidgetDemand> = {
     }),
     statCard: cfg => ({
         fields: fieldNames([cfg.field, cfg.deltaField, cfg.trend]),
+        groupBy: []
+    }),
+    propertyTable: cfg => ({
+        fields: fieldNames([
+            ...castArray(cfg.fields ?? []).map(it => (isString(it) ? it : it?.field)),
+            ...filterFields(cfg.filter)
+        ]),
         groupBy: []
     }),
     treemap: cfg => ({
