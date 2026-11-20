@@ -562,6 +562,22 @@ describe('blueprint desktop widgets', () => {
         expect(model.history).toEqual([]);
     });
 
+    it('writes a fractional width from the grid as whole pixels', async () => {
+        const model = open(loadBlueprint('p1-one-grid.json')),
+            grid = widget(CubeGridWidgetModel, model, 'posGrid'),
+            gridModel = grid.cubeGridModel.innerGridModel;
+        await columnsApplied(grid);
+        await vi.waitFor(() => expect(gridModel.store.count).toBeGreaterThan(0));
+        await wait(100);
+        const {version} = model;
+        gridModel.noteColumnManuallySized('mktVal', 156.67);
+        await vi.waitFor(() => expect(model.version).toBe(version + 1));
+        expect(model.blueprint.elements.posGrid.config.columnState).toEqual([
+            {field: 'mktVal', width: 157},
+            'pnlDay'
+        ]);
+    });
+
     it("turns a user's resize into an edit of columnState, leaving the tree column out", async () => {
         const model = open(loadBlueprint('p1-one-grid.json')),
             grid = widget(CubeGridWidgetModel, model, 'posGrid'),

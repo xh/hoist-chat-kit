@@ -415,7 +415,10 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                             pick(prev, 'pinned')
                         );
                     } else {
-                        if (it.manuallySized && it.width != null) entry.width = it.width;
+                        // ag-Grid reports fractional widths, and columnState holds whole pixels.
+                        if (it.manuallySized && it.width != null) {
+                            entry.width = Math.round(it.width);
+                        }
                         if (it.pinned) entry.pinned = it.pinned;
                     }
                     return entry;
