@@ -1,0 +1,23 @@
+.xh-blueprint-widget-palette {
+  display: flex;
+  flex-direction: column;
+  gap: var(--xh-spacing);
+  padding: var(--xh-spacing);
+  overflow-y: auto;
+
+  &__group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  &__category {
+    margin-bottom: var(--xh-spacing-half);
+    font-size: var(--xh-font-size-small);
+    color: var(--xh-text-color-muted);
+  }
+
+  &__message {
+    color: var(--xh-intent-danger-text-color);
+  }
+}

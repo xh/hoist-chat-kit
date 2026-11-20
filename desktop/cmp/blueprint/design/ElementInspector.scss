@@ -144,4 +144,9 @@
     font-style: italic;
     color: var(--xh-text-color-muted);
   }
+
+  &__tab {
+    align-items: center;
+    gap: var(--xh-spacing-half);
+  }
 }

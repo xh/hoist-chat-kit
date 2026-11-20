@@ -182,6 +182,18 @@ export class BlueprintDesignModel extends HoistModel {
         ]);
     }
 
+    /** Set the title an element has in its container, such as a tab's, as one edit. */
+    setChildTitle(id: string, title: string): BlueprintEditResult {
+        const parent = parentOf(this.blueprintModel.blueprint?.elements, id);
+        if (!parent) return refused(`'${id}' is not in a container.`);
+        const children = this.blueprintModel.blueprint.elements[parent].children,
+            index = children.findIndex(it => it.id === id),
+            {id: _id, ...placement} = children[index];
+        return this.edit(`Retitle ${id}`, [
+            {op: 'moveElement', id, parent, child: {...placement, title}, index}
+        ]);
+    }
+
     /** Rename an element, variable or source, and every reference to it, as one edit. */
     renameId(kind: 'element' | 'variable' | 'source', from: string, to: string) {
         const wasSelected = this.selection?.kind === kind && this.selection.id === from,

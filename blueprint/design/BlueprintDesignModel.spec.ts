@@ -119,6 +119,25 @@ describe('BlueprintDesignModel', () => {
         ]);
     });
 
+    it('retitles and reorders a tab, each as one edit', () => {
+        const {model, design} = open(loadBlueprint('p3-morning-report.json')),
+            tabs = () => model.blueprint.elements.tabs.children,
+            [first, second] = tabs();
+        design.setChildTitle(second.id, 'Book');
+        expect(tabs()[1]).toEqual({...second, title: 'Book'});
+        expect(model.history.at(-1).description).toBe(`Retitle ${second.id}`);
+
+        design.moveElement(second.id, 'tabs', {index: 0});
+        expect(
+            tabs()
+                .map(it => it.id)
+                .slice(0, 2)
+        ).toEqual([second.id, first.id]);
+        model.undo();
+        model.undo();
+        expect(tabs()[1]).toEqual(second);
+    });
+
     describe('removing an element', () => {
         it('removes everything inside it, and what names it, in one edit that undoes', () => {
             const {model, design} = open(loadBlueprint('p3-morning-report.json')),

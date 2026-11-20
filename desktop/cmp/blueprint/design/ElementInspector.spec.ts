@@ -1,7 +1,8 @@
 import {render} from '@testing-library/react';
+import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
-import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     BlueprintDesignModel,
     BlueprintModel,
@@ -256,6 +257,45 @@ describe('ElementInspector', () => {
                     .find(it => it.firstElementChild?.textContent === 'Confirm')
                     .querySelector('input');
             expect([confirm.checked, confirm.disabled]).toEqual([true, true]);
+        });
+    });
+
+    describe('removing, and tabs', () => {
+        it('removes the element and what is inside it in one edit, once the user confirms', async () => {
+            const {model, inspector} = open('p3-morning-report.json', 'positions'),
+                confirm = vi.spyOn(XH, 'confirm').mockResolvedValueOnce(false);
+            onTestFinished(() => confirm.mockRestore());
+
+            await inspector.removeAsync();
+            expect(model.blueprint.elements).toHaveProperty('positions');
+            expect(confirm.mock.calls[0][0].message).toMatch(
+                /Remove positions, and the 4 elements in it\? Variable grouping goes too\./
+            );
+
+            confirm.mockResolvedValueOnce(true);
+            await inspector.removeAsync();
+            expect(model.blueprint.elements).not.toHaveProperty('positions');
+            expect(model.history.at(-1).description).toBe('Remove Dashboard');
+        });
+
+        it("lists a tab container's tabs, to retitle, reorder, add and remove", async () => {
+            const {model, inspector} = open('p3-morning-report.json', 'tabs'),
+                ids = () => model.blueprint.elements.tabs.children.map(it => it.id),
+                [first, second] = ids();
+            expect(inspector.tabs.map(it => it.id)).toEqual(ids());
+
+            inspector.retitle(second, 'Book');
+            expect(inspector.tabs[1].title).toBe('Book');
+            inspector.moveTab(second, 0);
+            expect(ids().slice(0, 2)).toEqual([second, first]);
+            inspector.addTab();
+            expect(model.blueprint.elements[ids().at(-1)].component).toBe('dashCanvas');
+            expect(inspector.designModel.selectedElementId).toBe('tabs');
+        });
+
+        it('draws no tabs for an element whose children have no titles', () => {
+            const {inspector} = open('p2-linked-dashboard.json', 'dashboard');
+            expect(inspector.tabs).toBeNull();
         });
     });
 
