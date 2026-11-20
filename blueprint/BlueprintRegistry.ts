@@ -219,6 +219,11 @@ export interface RendererContext {
     record?: PlainObject;
     /** Format a value with the field's format. */
     formatValue: (value: unknown) => ReactNode;
+    /**
+     * The largest absolute value of the field among the rows beside this one, for a renderer that
+     * scales, such as a bar. Absent where there are no rows to compare, as in a stat card.
+     */
+    columnMax?: () => number;
 }
 
 export interface BlueprintRegistryConfig {

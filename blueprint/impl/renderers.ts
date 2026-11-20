@@ -40,9 +40,15 @@ export interface FieldDisplay {
 export function fieldDisplay(
     field: FieldDef,
     overrides: {formats?: FormatLike[]; renderer?: RendererLike},
-    ctx: {catalog: DataCatalog; blueprint: Blueprint; registry: BlueprintRegistry}
+    ctx: {
+        catalog: DataCatalog;
+        blueprint: Blueprint;
+        registry: BlueprintRegistry;
+        /** The largest absolute value of the field among its rows. See `RendererContext`. */
+        columnMax?: () => number;
+    }
 ): FieldDisplay {
-    const {catalog, blueprint, registry} = ctx,
+    const {catalog, blueprint, registry, columnMax} = ctx,
         format = resolveFormat(field, overrides.formats ?? [], {catalog, blueprint}),
         fmt = (v: unknown) => formatValue(v, field, format, catalog),
         resolved = resolveRenderer(field, overrides.renderer, registry),
@@ -52,7 +58,8 @@ export function fieldDisplay(
             format,
             isAggregate,
             record,
-            formatValue: fmt
+            formatValue: fmt,
+            ...(columnMax ? {columnMax} : {})
         });
 
     return {

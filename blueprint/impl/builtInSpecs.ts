@@ -42,9 +42,11 @@ export const BUILT_IN_RESOLVERS: ResolverSpec[] = BUILT_IN_RESOLVER_INFO.map(it 
 // Renderers
 //------------------
 const RENDER: Record<string, RendererSpec['render']> = {
-    bar: (value, {config, formatValue}) => {
+    bar: (value, {config, formatValue, isAggregate, columnMax}) => {
         if (value == null) return null;
-        const max = (config.max as number) || 1,
+        // A group's total outweighs its rows, so a bar sized beside them would not compare.
+        if (isAggregate && !config.max) return formatValue(value);
+        const max = (config.max as number) || columnMax?.() || 1,
             pct = Math.min(100, (Math.abs(value as number) / Math.abs(max)) * 100);
         return div({
             className: 'xh-blueprint-bar',

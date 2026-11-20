@@ -254,6 +254,23 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
         return this.cubeGridModel?.innerGridModel;
     }
 
+    // The largest absolute value of a field among the grid's leaf rows, kept until its data change.
+    private columnMax(field: string): number {
+        const store = this.gridModel?.store;
+        if (!store) return null;
+        if (this.maxes.at !== store.lastUpdated) this.maxes = {at: store.lastUpdated, of: {}};
+        this.maxes.of[field] ??= store.allRecords.reduce(
+            (max, it) =>
+                it.data.cubeRowType === 'leaf'
+                    ? Math.max(max, Math.abs(Number(it.data[field]) || 0))
+                    : max,
+            0
+        );
+        return this.maxes.of[field] || null;
+    }
+
+    private maxes: {at: number; of: Record<string, number>} = {at: null, of: {}};
+
     private buildColumns(): ColumnSpec[] {
         const {blueprintModel, source} = this,
             {catalog, blueprint, registry} = blueprintModel;
@@ -264,7 +281,12 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                     column = this.columnConfig(field),
                     shown = source.displayOf(field, toDisplayLayer(column)),
                     label = column.headerName ?? source.fieldLabel(field),
-                    display = fieldDisplay(def, shown, {catalog, blueprint, registry}),
+                    display = fieldDisplay(def, shown, {
+                        catalog,
+                        blueprint,
+                        registry,
+                        columnMax: () => this.columnMax(field)
+                    }),
                     isNum = def.type === 'number' || def.type === 'int',
                     isAggregate = (record: StoreRecord) => record?.data.cubeRowType !== 'leaf';
                 return {

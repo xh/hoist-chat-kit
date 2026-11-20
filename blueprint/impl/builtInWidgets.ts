@@ -1125,7 +1125,7 @@ export const BUILT_IN_RENDERER_INFO: Omit<RendererSpec, 'render' | 'exportValue'
             types: ['number', 'int']
         },
         config: {
-            max: 'number, the value that fills the bar'
+            max: 'number, the value that fills the bar. Default the largest in its column'
         }
     },
     {
