@@ -32,6 +32,7 @@ export type {
     TextInputWidgetConfig,
     ToolbarWidgetConfig,
     GroupingChooserWidgetConfig,
+    HeatmapWidgetConfig,
     MarkdownWidgetConfig,
     PanelWidgetConfig,
     SeparatorWidgetConfig,

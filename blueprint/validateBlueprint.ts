@@ -711,7 +711,10 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 if (f !== TREE_COLUMN) need(f, `${p}/columns/${f}`);
             });
         }
-        if (cfg.x) need(cfg.x, `${p}/x`);
+        // A heatmap's axes group its rows, so each is a dimension.
+        const axisRole = el.component === 'heatmap' ? 'dimension' : undefined;
+        if (cfg.x) need(cfg.x, `${p}/x`, axisRole);
+        if (isString(cfg.y)) need(cfg.y, `${p}/y`, axisRole);
         if (isArray(cfg.y)) cfg.y.forEach((y: string, i: number) => need(y, `${p}/y/${i}`));
         if (isArray(cfg.fields)) {
             cfg.fields.forEach((it: unknown, i: number) =>

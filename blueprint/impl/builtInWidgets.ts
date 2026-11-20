@@ -615,6 +615,25 @@ const PROPERTY_TABLE_SCHEMA = {
     }
 } as const satisfies BlueprintSchema;
 
+const HEATMAP_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['source', 'x', 'y', 'value'],
+    properties: {
+        source: {type: 'string', 'x-source': true},
+        title: {type: 'string', maxLength: 100, 'x-binding': true},
+        x: {type: 'string', 'x-field': 'dimension', description: 'The dimension across.'},
+        y: {type: 'string', 'x-field': 'dimension', description: 'The dimension down.'},
+        value: {type: 'string', 'x-field': 'measure', description: 'Colors each cell.'},
+        colorMode: {
+            enum: ['diverging', 'sequential'],
+            default: 'diverging',
+            description: 'diverging colors below zero red and above green, as for P&L.'
+        },
+        filter: {'x-filter': true, 'x-binding': true, type: 'object'}
+    }
+} as const satisfies BlueprintSchema;
+
 const TREEMAP_SCHEMA = {
     type: 'object',
     additionalProperties: false,
@@ -863,6 +882,11 @@ export type ChartWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typ
 export type PropertyTableWidgetConfig = FromExtendedSchema<
     BlueprintSchemaExtension,
     typeof PROPERTY_TABLE_SCHEMA
+>;
+
+export type HeatmapWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof HEATMAP_SCHEMA
 >;
 
 export type TreemapWidgetConfig = FromExtendedSchema<
@@ -1362,6 +1386,31 @@ const propertyTable: WidgetSpec = {
     }
 };
 
+const heatmap: WidgetSpec = {
+    name: 'heatmap',
+    version: 1,
+    label: 'Heatmap',
+    terms: ['heatmap', 'heat map', 'matrix', 'grid of colors'],
+    guidance:
+        'A grid of cells, one per pair of x and y values, each colored by the total of value over its rows, such as P&L by sector and strategy. Its selection is an output: a filter of the cell clicked.',
+    category: 'data',
+    config: HEATMAP_SCHEMA,
+    outputs: [
+        {
+            name: 'selection',
+            type: 'filter',
+            folds: true,
+            description:
+                'The cell clicked, as a filter of its x and y values. A second click clears it.'
+        }
+    ],
+    size: {default: {w: 6, h: 6}, min: {w: 3, h: 3}},
+    example: {
+        component: 'heatmap',
+        config: {source: 'positions', x: 'sector', y: 'strategy', value: 'pnlDay'}
+    }
+};
+
 const treemap: WidgetSpec = {
     name: 'treemap',
     version: 1,
@@ -1562,6 +1611,7 @@ const WIDGET_SPECS: WidgetSpec[] = [
     tileFrame,
     statCard,
     propertyTable,
+    heatmap,
     treemap,
     groupingChooser,
     buttonGroup,
@@ -1604,6 +1654,10 @@ const SOURCE_DEMANDS: Record<string, (config: PlainObject) => WidgetDemand> = {
             ...filterFields(cfg.filter)
         ]),
         groupBy: []
+    }),
+    heatmap: cfg => ({
+        fields: fieldNames([cfg.x, cfg.y, cfg.value, ...filterFields(cfg.filter)]),
+        groupBy: compact([cfg.x, cfg.y])
     }),
     treemap: cfg => ({
         fields: fieldNames([

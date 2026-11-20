@@ -12,6 +12,7 @@ import {
 import type {Blueprint, BlueprintDataProvider, BlueprintDataUpdate} from '../../../blueprint';
 import {BlueprintModel, FakeBlueprintDataProvider} from '../../../blueprint';
 import {ChartWidgetModel} from './ChartWidget';
+import {HeatmapWidgetModel} from './HeatmapWidget';
 import {PropertyTableWidgetModel} from './PropertyTableWidget';
 import {TreemapWidgetModel} from './TreemapWidget';
 import {CubeGridWidgetModel} from './CubeGridWidget';
@@ -303,6 +304,62 @@ describe('blueprint data widgets', () => {
                     .validate(bp)
                     .map(it => it.code)
             ).toContain('statCard.noField');
+        });
+    });
+
+    describe('heatmap', () => {
+        const withHeatmap = (config: object = {}) => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.elements.heat = {
+                component: 'heatmap',
+                config: {
+                    source: 'positions',
+                    x: 'sector',
+                    y: 'strategy',
+                    value: 'pnlDay',
+                    ...config
+                }
+            };
+            bp.elements.dashboard.children.push({id: 'heat', x: 0, y: 14, w: 6, h: 4});
+            bp.variables.picked = {type: 'filter', setBy: {element: 'heat', output: 'selection'}};
+            return bp;
+        };
+
+        it('draws a cell per pair of its dimensions, colored by its value', async () => {
+            const heat = widget(HeatmapWidgetModel, open(withHeatmap()), 'heat');
+            await vi.waitFor(() => expect(heat.chartModel.series[0]?.data.length).toBe(2));
+            const config = heat.chartModel.highchartsConfig;
+            expect(config.chart.type).toBe('heatmap');
+            expect(config.xAxis.categories).toEqual(['Energy', 'Technology']);
+            expect(config.yAxis.categories).toEqual(['Credit', 'Global Macro']);
+            expect(sortBy(heat.chartModel.series[0].data, ['x', 'y'])).toEqual([
+                expect.objectContaining({x: 0, y: 0, value: -1}),
+                expect.objectContaining({x: 1, y: 1, value: 5})
+            ]);
+        });
+
+        it('publishes the cell clicked as its selection, and clears it on a second click', async () => {
+            const model = open(withHeatmap()),
+                heat = widget(HeatmapWidgetModel, model, 'heat');
+            await vi.waitFor(() => expect(heat.chartModel.series[0]?.data.length).toBe(2));
+            heat.selectCell(0, 0);
+            expect(model.getVariable('picked').value).toEqual({
+                op: 'AND',
+                filters: [
+                    {field: 'sector', op: '=', value: 'Energy'},
+                    {field: 'strategy', op: '=', value: 'Credit'}
+                ]
+            });
+            heat.selectCell(0, 0);
+            expect(model.getVariable('picked').value).toBeNull();
+        });
+
+        it('refuses an x or y that is not a dimension', () => {
+            expect(
+                open()
+                    .validate(withHeatmap({y: 'mktVal'}))
+                    .map(it => [it.code, it.path])
+            ).toContainEqual(['field.notDimension', '/elements/heat/config/y']);
         });
     });
 

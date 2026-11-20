@@ -13,6 +13,7 @@ import {calloutWidget, CalloutWidgetModel} from '../CalloutWidget';
 import {chartWidget, ChartWidgetModel} from '../ChartWidget';
 import {cubeGridWidget, CubeGridWidgetModel} from '../CubeGridWidget';
 import {dashCanvasWidget, DashCanvasWidgetModel} from '../DashCanvasWidget';
+import {heatmapWidget, HeatmapWidgetModel} from '../HeatmapWidget';
 import {groupingChooserWidget, GroupingChooserWidgetModel} from '../GroupingChooserWidget';
 import {markdownWidget, MarkdownWidgetModel} from '../MarkdownWidget';
 import {panelWidget, PanelWidgetModel} from '../PanelWidget';
@@ -54,6 +55,7 @@ const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> =
     cubeGrid: {model: CubeGridWidgetModel, component: cubeGridWidget},
     dashCanvas: {model: DashCanvasWidgetModel, component: dashCanvasWidget},
     groupingChooser: {model: GroupingChooserWidgetModel, component: groupingChooserWidget},
+    heatmap: {model: HeatmapWidgetModel, component: heatmapWidget},
     markdown: {model: MarkdownWidgetModel, component: markdownWidget},
     panel: {model: PanelWidgetModel, component: panelWidget},
     propertyTable: {model: PropertyTableWidgetModel, component: propertyTableWidget},

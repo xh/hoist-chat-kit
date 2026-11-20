@@ -7,6 +7,7 @@ export * from './ChartWidget';
 export * from './CubeGridWidget';
 export * from './DashCanvasWidget';
 export * from './GroupingChooserWidget';
+export * from './HeatmapWidget';
 export * from './InputWidgets';
 export * from './MarkdownWidget';
 export * from './PanelWidget';
