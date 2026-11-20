@@ -561,7 +561,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         }
         if (cfg.x) need(cfg.x, `${p}/x`);
         if (isArray(cfg.y)) cfg.y.forEach((y: string, i: number) => need(y, `${p}/y/${i}`));
-        ['field', 'deltaField'].forEach(key => {
+        ['field', 'deltaField', 'value', 'heat'].forEach(key => {
             if (isString(cfg[key])) need(cfg[key], `${p}/${key}`);
         });
         castArray(cfg.sortBy ?? []).forEach((sb, i) => {

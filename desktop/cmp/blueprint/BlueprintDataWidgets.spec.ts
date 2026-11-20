@@ -1,3 +1,4 @@
+import {sortBy} from 'lodash';
 import {render} from '@testing-library/react';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
@@ -11,6 +12,7 @@ import {
 import type {Blueprint, BlueprintDataProvider, BlueprintDataUpdate} from '../../../blueprint';
 import {BlueprintModel, FakeBlueprintDataProvider} from '../../../blueprint';
 import {ChartWidgetModel} from './ChartWidget';
+import {TreemapWidgetModel} from './TreemapWidget';
 import {CubeGridWidgetModel} from './CubeGridWidget';
 import {statCardWidget, StatCardWidgetModel} from './StatCardWidget';
 
@@ -208,6 +210,64 @@ describe('blueprint data widgets', () => {
         });
     });
 
+    describe('treemap', () => {
+        const withTreemap = (config: object = {}) => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.elements.map = {
+                component: 'treemap',
+                config: {
+                    source: 'positions',
+                    groupBy: ['sector'],
+                    value: 'mktVal',
+                    heat: 'pnlDay',
+                    ...config
+                }
+            };
+            bp.elements.dashboard.children.push({id: 'map', x: 0, y: 14, w: 6, h: 4});
+            bp.variables.picked = {type: 'filter', setBy: {element: 'map', output: 'selection'}};
+            return bp;
+        };
+
+        it('draws a node per group, sized by its value and colored by its heat', async () => {
+            const map = widget(TreemapWidgetModel, open(withTreemap()), 'map');
+            await vi.waitFor(() => expect(map.store.rootRecords).toHaveLength(2));
+            expect(
+                sortBy(
+                    map.store.rootRecords.map(it => [it.data.cubeLabel, it.data.mktVal]),
+                    0
+                )
+            ).toEqual([
+                ['Energy', 50],
+                ['Technology', 300]
+            ]);
+            expect(map.treeMapModel).toMatchObject({
+                valueField: 'mktVal',
+                heatField: 'pnlDay',
+                colorMode: 'linear'
+            });
+        });
+
+        it("publishes the node clicked as its selection, a filter of the node's group path", async () => {
+            const model = open(withTreemap({groupBy: ['sector', 'strategy'], maxDepth: 2})),
+                map = widget(TreemapWidgetModel, model, 'map'),
+                picked = () => model.getVariable('picked').value;
+            await vi.waitFor(() => expect(map.store.rootRecords).toHaveLength(2));
+            const energy = map.store.rootRecords.find(it => it.data.cubeLabel === 'Energy'),
+                [credit] = energy.children;
+
+            map.select(credit);
+            expect(picked()).toEqual({
+                op: 'AND',
+                filters: [
+                    {field: 'sector', op: '=', value: 'Energy'},
+                    {field: 'strategy', op: '=', value: 'Credit'}
+                ]
+            });
+            map.select(credit);
+            expect(picked()).toBeNull();
+        });
+    });
+
     describe('chart', () => {
         it('groups by a dimension x, with a series per y', async () => {
             const chart = widget(ChartWidgetModel, open(), 'sectorChart');
@@ -228,6 +288,45 @@ describe('blueprint data widgets', () => {
             const {xAxis, yAxis} = chart.chartModel.highchartsConfig;
             expect(xAxis.title.text).toBe('Sector');
             expect(yAxis.title.text).toBe('USD');
+        });
+
+        it('merges its highchartsConfig over the config it builds', async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.elements.sectorChart.config.highchartsConfig = {
+                title: {text: 'Sector P&L'},
+                legend: {enabled: false}
+            };
+            const chart = widget(ChartWidgetModel, open(bp), 'sectorChart');
+            await vi.waitFor(() => expect(chart.chartModel.series[0]?.data).toHaveLength(2));
+            const config = chart.chartModel.highchartsConfig;
+            expect(config.title.text).toBe('Sector P&L');
+            expect(config.legend.enabled).toBe(false);
+            expect(config.xAxis.categories).toEqual(['Energy', 'Technology']);
+        });
+
+        it('publishes the point clicked as its selection, and clears it on a second click', async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.variables.picked = {
+                type: 'filter',
+                setBy: {element: 'sectorChart', output: 'selection'}
+            };
+            Object.assign(bp.elements.sectorChart.config, {groupBy: 'strategy'});
+            const model = open(bp),
+                chart = widget(ChartWidgetModel, model, 'sectorChart'),
+                picked = () => model.getVariable('picked').value;
+            await vi.waitFor(() => expect(chart.chartModel.series.length).toBeGreaterThan(0));
+            const series = chart.chartModel.series.findIndex(it => it.name === 'Credit');
+
+            chart.selectPoint(series, 0);
+            expect(picked()).toEqual({
+                op: 'AND',
+                filters: [
+                    {field: 'sector', op: '=', value: 'Energy'},
+                    {field: 'strategy', op: '=', value: 'Credit'}
+                ]
+            });
+            chart.selectPoint(series, 0);
+            expect(picked()).toBeNull();
         });
 
         it('follows a selection through its bound filter, with no reload', async () => {

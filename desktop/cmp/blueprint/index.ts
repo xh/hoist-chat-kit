@@ -16,4 +16,5 @@ export * from './StatCardWidget';
 export * from './TabContainerWidget';
 export * from './TileFrameWidget';
 export * from './ToolbarWidget';
+export * from './TreemapWidget';
 export * from './design';

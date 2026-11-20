@@ -1,6 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
 import type {FromExtendedSchema} from 'json-schema-to-ts';
 import {castArray, compact, isEmpty, isString, mapValues, mergeWith, uniq} from 'lodash';
+import type {BlueprintIssue} from '../Blueprint';
 import type {BlueprintSchema, BlueprintSchemaExtension} from '../BlueprintSchema';
 import type {
     ActionSpec,
@@ -483,6 +484,18 @@ const CUBE_GRID_SCHEMA = {
     }
 } as const satisfies BlueprintSchema;
 
+// The top-level Highcharts options a chart's `highchartsConfig` may set.
+const HIGHCHARTS_KEYS = [
+    'title',
+    'subtitle',
+    'legend',
+    'tooltip',
+    'xAxis',
+    'yAxis',
+    'plotOptions',
+    'chart'
+];
+
 const CHART_SCHEMA = {
     type: 'object',
     additionalProperties: false,
@@ -546,7 +559,44 @@ const CHART_SCHEMA = {
             type: 'integer',
             minimum: 1,
             maximum: 100
+        },
+        highchartsConfig: {
+            type: 'object',
+            description: `Highcharts options merged over the chart's own: ${HIGHCHARTS_KEYS.join(', ')}. No markup, functions, events or series data.`
         }
+    }
+} as const satisfies BlueprintSchema;
+
+const TREEMAP_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['source', 'groupBy', 'value'],
+    properties: {
+        source: {type: 'string', 'x-source': true},
+        title: {type: 'string', maxLength: 100, 'x-binding': true},
+        groupBy: {
+            type: 'array',
+            items: {type: 'string'},
+            minItems: 1,
+            maxItems: 4,
+            'x-field': 'dimension',
+            'x-binding': true,
+            description: 'The dimensions that nest the nodes, outermost first.'
+        },
+        value: {type: 'string', 'x-field': 'measure', description: 'Sizes each node.'},
+        heat: {
+            type: 'string',
+            'x-field': 'measure',
+            description: 'Colors each node: green above zero, red below. Default value.'
+        },
+        colorMode: {enum: ['linear', 'wash', 'none'], default: 'linear'},
+        maxDepth: {
+            type: 'integer',
+            minimum: 1,
+            maximum: 4,
+            description: 'How many levels of groupBy to draw. Default all.'
+        },
+        filter: {'x-filter': true, 'x-binding': true, type: 'object'}
     }
 } as const satisfies BlueprintSchema;
 
@@ -755,6 +805,11 @@ export type CubeGridWidgetConfig = FromExtendedSchema<
 
 /** The config of a `chart` widget, with bindings resolved. */
 export type ChartWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof CHART_SCHEMA>;
+
+export type TreemapWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof TREEMAP_SCHEMA
+>;
 
 export type StatCardWidgetConfig = FromExtendedSchema<
     BlueprintSchemaExtension,
@@ -1193,6 +1248,15 @@ const chart: WidgetSpec = {
         'A Hoist chart. If x is a dimension, the chart aggregates its source by x. If x is a date or time field, it plots rows as they are, for a time series. Name it with its title, not a text element beside it.',
     category: 'data',
     config: CHART_SCHEMA,
+    outputs: [
+        {
+            name: 'selection',
+            type: 'filter',
+            folds: true,
+            description:
+                'The point clicked, as a filter of its x value, and of its groupBy value if any. Only a chart whose x is a dimension has one. A second click clears it.'
+        }
+    ],
     presetPaths: ['/type'],
     size: {
         default: {
@@ -1211,6 +1275,37 @@ const chart: WidgetSpec = {
             type: 'column',
             x: 'region',
             y: ['pnlDay']
+        }
+    }
+};
+
+const treemap: WidgetSpec = {
+    name: 'treemap',
+    version: 1,
+    label: 'Treemap',
+    terms: ['treemap', 'heat map of positions', 'map', 'boxes by size'],
+    guidance:
+        'Nested boxes, one per group of groupBy, each sized by value and colored by heat. Use it to show where exposure or P&L sits, such as positions by sector and symbol. Its selection is an output: a filter of the node clicked.',
+    category: 'data',
+    config: TREEMAP_SCHEMA,
+    presetPaths: ['/groupBy', '/colorMode'],
+    outputs: [
+        {
+            name: 'selection',
+            type: 'filter',
+            folds: true,
+            description:
+                'The node clicked, as a filter of its group path. A second click clears it.'
+        }
+    ],
+    size: {default: {w: 6, h: 6}, min: {w: 3, h: 3}},
+    example: {
+        component: 'treemap',
+        config: {
+            source: 'positions',
+            groupBy: ['sector', 'symbol'],
+            value: 'mktVal',
+            heat: 'pnlDay'
         }
     }
 };
@@ -1383,6 +1478,7 @@ const WIDGET_SPECS: WidgetSpec[] = [
     chart,
     tileFrame,
     statCard,
+    treemap,
     groupingChooser,
     buttonGroup,
     buttonGroupInput
@@ -1417,6 +1513,15 @@ const SOURCE_DEMANDS: Record<string, (config: PlainObject) => WidgetDemand> = {
     statCard: cfg => ({
         fields: fieldNames([cfg.field, cfg.deltaField]),
         groupBy: []
+    }),
+    treemap: cfg => ({
+        fields: fieldNames([
+            ...castArray(cfg.groupBy ?? []),
+            cfg.value,
+            cfg.heat,
+            ...filterFields(cfg.filter)
+        ]),
+        groupBy: castArray(cfg.groupBy ?? [])
     })
 };
 
@@ -1456,8 +1561,72 @@ function filterFields(filter: unknown): string[] {
 //------------------
 // Widget checks
 //------------------
+// Highcharts sanitizes text, but still allows links and styles in labels and format templates, so
+// no string may hold markup. renderTo would draw into another element of the page.
+const HIGHCHARTS_REFUSED = ['renderTo', 'useHTML', 'events', 'series', 'data'],
+    HIGHCHARTS_MAX_LENGTH = 20000,
+    HIGHCHARTS_MAX_DEPTH = 10;
+
+function checkHighchartsConfig(config: PlainObject): BlueprintIssue[] {
+    const ret: BlueprintIssue[] = [],
+        fail = (path: string, message: string) =>
+            ret.push({
+                code: 'chart.highchartsConfig',
+                severity: 'error',
+                path: `/highchartsConfig${path}`,
+                message
+            });
+    if (
+        JSON.stringify(config).length > HIGHCHARTS_MAX_LENGTH ||
+        depthOf(config) > HIGHCHARTS_MAX_DEPTH
+    ) {
+        fail(
+            '',
+            `is past its cap of ${HIGHCHARTS_MAX_LENGTH} characters and ${HIGHCHARTS_MAX_DEPTH} levels`
+        );
+        return ret;
+    }
+    const walk = (value: unknown, path: string, top: string) => {
+        if (isString(value) && value.includes('<')) {
+            fail(path, 'holds markup, which a chart may not show');
+        } else if (Array.isArray(value)) {
+            value.forEach((it, idx) => walk(it, `${path}/${idx}`, top));
+        } else if (value && typeof value === 'object') {
+            Object.entries(value).forEach(([key, it]) => {
+                const at = `${path}/${key}`;
+                // plotOptions.series holds options for every series, not series of its own.
+                if (HIGHCHARTS_REFUSED.includes(key) && at !== '/plotOptions/series') {
+                    fail(at, `'${key}' may not be set`);
+                } else if (key === 'categories' && (top === 'xAxis' || top === 'yAxis')) {
+                    fail(at, "an axis's categories come from the chart's data");
+                } else if (key === 'keys' && top === 'plotOptions') {
+                    fail(at, "keys would remap the chart's data");
+                } else {
+                    walk(it, at, top);
+                }
+            });
+        }
+    };
+    Object.entries(config).forEach(([key, value]) => {
+        if (HIGHCHARTS_KEYS.includes(key)) {
+            walk(value, `/${key}`, key);
+        } else {
+            fail(
+                `/${key}`,
+                `'${key}' is not an option a blueprint may set: use ${HIGHCHARTS_KEYS.join(', ')}`
+            );
+        }
+    });
+    return ret;
+}
+
+function depthOf(value: unknown): number {
+    if (!value || typeof value !== 'object') return 0;
+    return 1 + Math.max(0, ...Object.values(value).map(depthOf));
+}
 
 const VALIDATORS: Record<string, WidgetSpec['validate']> = {
+    chart: cfg => (cfg.highchartsConfig ? checkHighchartsConfig(cfg.highchartsConfig) : []),
     separator: (cfg, {blueprint, id}) => {
         const elements = blueprint.elements ?? {};
         if (!cfg.label || elements[parentOf(elements, id)]?.component !== 'toolbar') return [];

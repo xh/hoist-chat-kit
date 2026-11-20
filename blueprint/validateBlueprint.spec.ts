@@ -813,6 +813,69 @@ describe('validateBlueprint', () => {
         });
     });
 
+    describe("a chart's highchartsConfig", () => {
+        const chartWith = (highchartsConfig: object) => {
+            const bp = p2();
+            bp.elements.sectorChart.config.highchartsConfig = highchartsConfig;
+            return bp;
+        };
+
+        it('takes the options of its allowlist, with Highcharts format templates', () => {
+            expect(
+                codes(
+                    chartWith({
+                        title: {text: 'P&L by sector'},
+                        legend: {enabled: false},
+                        tooltip: {pointFormat: '{series.name}: {point.y}'},
+                        yAxis: [{min: 0}, {opposite: true}],
+                        plotOptions: {column: {borderRadius: 2}},
+                        chart: {spacingTop: 4}
+                    })
+                )
+            ).toEqual([]);
+        });
+
+        it('refuses other keys, references into the page, markup, and remapping of its data', () => {
+            const at = '/elements/sectorChart/config/highchartsConfig';
+            expect(
+                validate(
+                    chartWith({
+                        credits: {enabled: false},
+                        chart: {renderTo: 'other'},
+                        title: {text: '<b>Bold</b>'},
+                        tooltip: {useHTML: true},
+                        plotOptions: {series: {events: {}, keys: ['y']}},
+                        xAxis: {categories: ['a']},
+                        yAxis: [{categories: ['b']}],
+                        legend: {series: []}
+                    })
+                ).map(it => [it.code, it.path])
+            ).toEqual(
+                [
+                    '/credits',
+                    '/chart/renderTo',
+                    '/title/text',
+                    '/tooltip/useHTML',
+                    '/plotOptions/series/events',
+                    '/plotOptions/series/keys',
+                    '/xAxis/categories',
+                    '/yAxis/0/categories',
+                    '/legend/series'
+                ].map(it => ['chart.highchartsConfig', `${at}${it}`])
+            );
+        });
+
+        it('refuses a config past its size or depth cap', () => {
+            let deep: any = {};
+            const root = deep;
+            for (let i = 0; i < 12; i++) deep = deep.a = {};
+            expect(codes(chartWith({chart: root}))).toEqual(['chart.highchartsConfig']);
+            expect(codes(chartWith({title: {text: 'x'.repeat(20001)}}))).toEqual([
+                'chart.highchartsConfig'
+            ]);
+        });
+    });
+
     it('refuses a widget whose schema uses JSON Schema the validator lacks', () => {
         const spec = {
             name: 'acme.bad',

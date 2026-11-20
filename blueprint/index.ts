@@ -37,7 +37,8 @@ export type {
     SpacerWidgetConfig,
     StatCardWidgetConfig,
     TabContainerWidgetConfig,
-    TileFrameWidgetConfig
+    TileFrameWidgetConfig,
+    TreemapWidgetConfig
 } from './impl/builtInWidgets';
 export type * from './BlueprintSchema';
 export * from './degradeAnswer';

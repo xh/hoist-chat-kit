@@ -22,6 +22,7 @@ import {statCardWidget, StatCardWidgetModel} from '../StatCardWidget';
 import {tabContainerWidget, TabContainerWidgetModel} from '../TabContainerWidget';
 import {tileFrameWidget, TileFrameWidgetModel} from '../TileFrameWidget';
 import {toolbarWidget, ToolbarWidgetModel} from '../ToolbarWidget';
+import {treemapWidget, TreemapWidgetModel} from '../TreemapWidget';
 import {
     dateInputWidget,
     DateInputWidgetModel,
@@ -60,6 +61,7 @@ const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> =
     tabContainer: {model: TabContainerWidgetModel, component: tabContainerWidget},
     tileFrame: {model: TileFrameWidgetModel, component: tileFrameWidget},
     toolbar: {model: ToolbarWidgetModel, component: toolbarWidget},
+    treemap: {model: TreemapWidgetModel, component: treemapWidget},
     select: {model: SelectWidgetModel, component: selectWidget},
     dateInput: {model: DateInputWidgetModel, component: dateInputWidget},
     dateRangePicker: {model: DateRangePickerWidgetModel, component: dateRangePickerWidget},

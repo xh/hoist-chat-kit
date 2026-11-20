@@ -3,6 +3,7 @@ import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {Cube, FilterSpec, View} from '@xh/hoist/data';
 import {observableRef} from '@xh/hoist/mobx';
 import {LocalDate} from '@xh/hoist/utils/datetime';
+import {mergeDeep} from '@xh/hoist/utils/js';
 import {castArray, compact, isArray, isEqual, isFinite, orderBy, uniq} from 'lodash';
 import {
     BlueprintWidgetModel,
@@ -48,9 +49,6 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
         );
     }
 
-    //------------------
-    // Implementation
-    //------------------
     private setCube(cube: Cube) {
         this.registerView(null);
         this.view?.destroy();
@@ -82,6 +80,36 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
             : {dimensions: [], filter, includeRoot: true, includeLeaves: true};
     }
 
+    /**
+     * Publish a point of a chart whose x is a dimension as the `selection` output: a filter of its
+     * x value, and its series' `groupBy` value. Selecting it again clears it.
+     */
+    selectPoint(seriesIndex: number, index: number) {
+        const {x, groupBy} = this.resolvedConfig,
+            keys = this.pointKeys;
+        if (!keys || index >= keys.x.length) return;
+        const clauses = compact([
+                {field: x, op: '=', value: keys.x[index]},
+                groupBy && keys.series
+                    ? {field: groupBy, op: '=', value: keys.series[seriesIndex]}
+                    : null
+            ]),
+            filter = clauses.length > 1 ? {op: 'AND', filters: clauses} : clauses[0];
+        this.selection = isEqual(filter, this.selection) ? null : filter;
+        this.setOutput('selection', this.selection);
+    }
+
+    //------------------
+    // Implementation
+    //------------------
+    private selection: PlainObject = null;
+
+    // The x value of each category, and the groupBy value of each series, of a grouped chart.
+    private pointKeys: {x: unknown[]; series: unknown[]} = null;
+
+    private readonly onPointClick = (e: any) =>
+        this.selectPoint(e.point.series.index, e.point.index);
+
     private updateChart() {
         const props = this.view && this.source ? this.buildProps() : null,
             {chartModel} = this;
@@ -89,7 +117,12 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
             chartModel.setSeries([]);
             return;
         }
-        const config = this.withFractionAxis(toHighchartsConfig(props), props);
+        const config = mergeDeep(
+            {},
+            this.withFractionAxis(toHighchartsConfig(props), props),
+            {plotOptions: {series: {point: {events: {click: this.onPointClick}}}}},
+            this.resolvedConfig.highchartsConfig ?? {}
+        );
         if (!isEqual(config, chartModel.highchartsConfig)) chartModel.setHighchartsConfig(config);
         chartModel.setSeries(toSeries(props, false));
     }
@@ -136,6 +169,7 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
             },
             base = {type: cfg.type ?? 'column', stacking: cfg.stacking, yAxis};
 
+        this.pointKeys = null;
         if (!this.isGrouped) {
             const leaves = orderBy(this.view.result.rows[0]?.children ?? [], cfg.x);
             return {
@@ -159,10 +193,15 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
         }
         if (cfg.top) rows = rows.slice(0, cfg.top);
         const categories = rows.map(it => String(it.cubeLabel));
+        this.pointKeys = {x: rows.map(it => it.cubeLabelValue), series: null};
 
         if (cfg.groupBy && ys.length) {
             const [y] = ys,
-                values = uniq(rows.flatMap(r => (r.children ?? []).map(c => String(c.cubeLabel))));
+                children = rows.flatMap(r => r.children ?? []),
+                values = uniq(children.map(c => String(c.cubeLabel)));
+            this.pointKeys.series = values.map(
+                v => children.find(c => String(c.cubeLabel) === v)?.cubeLabelValue
+            );
             return {
                 ...base,
                 xAxis: {categories, title: xTitle},
