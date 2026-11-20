@@ -34,7 +34,7 @@ const scenarios = SCENARIOS.filter(s => !scenarioIds || scenarioIds.includes(s.i
 
 const apiKey = process.env.XH_ANTHROPIC_API_KEY;
 if (!apiKey) throw new Error('Set XH_ANTHROPIC_API_KEY');
-const client = new Anthropic({apiKey});
+const client = new Anthropic({apiKey, maxRetries: 6});
 
 const system: Anthropic.Beta.BetaTextBlockParam[] = [{type: 'text', text: SYSTEM_PROMPT, cache_control: {type: 'ephemeral'}}];
 const tools = TOOLS as Anthropic.Beta.BetaTool[];
