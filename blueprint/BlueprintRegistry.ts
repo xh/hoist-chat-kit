@@ -82,9 +82,10 @@ export interface WidgetSpec {
      */
     demand?: (config: PlainObject) => Record<string, WidgetDemand>;
     /**
-     * The Highcharts modules the widget needs, such as `heatmap` or `highcharts-more`, or a
+     * The Highcharts series modules the widget needs, such as `heatmap` or `highcharts-more`, or a
      * function of its config that gives them. Where the app has not loaded one, the widget draws
-     * a notice in its place.
+     * a notice in its place. A module counts as loaded once its series type is, so a module with
+     * no series type of its own, such as `exporting`, cannot be listed.
      */
     modules?: string[] | ((config: PlainObject) => string[]);
     /** The widget's model class. Default the platform's built-in model, or `BlueprintWidgetModel`. */
