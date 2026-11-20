@@ -178,7 +178,9 @@ describe('BlueprintDesignModel', () => {
 
         it('removes a variable nothing reads, and refuses one a widget reads', () => {
             const {model, design} = open(loadBlueprint('p3-morning-report.json'));
-            expect(errors(design.removeVariable('grouping')).length).toBeGreaterThan(0);
+            expect(errors(design.removeVariable('grouping'))).toMatchObject([
+                {message: 'posGrid uses grouping. Change it first.'}
+            ]);
             expect(model.blueprint.variables).toHaveProperty('grouping');
             design.addVariable();
             expect(errors(design.removeVariable('variable1'))).toEqual([]);

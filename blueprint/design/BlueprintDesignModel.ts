@@ -233,8 +233,18 @@ export class BlueprintDesignModel extends HoistModel {
         return this.updateEntry('variables', 'Variable', name, changes);
     }
 
-    /** Remove a variable, as one edit. Refused while anything reads it. */
+    /** Remove a variable, as one edit. Refused while anything reads it, naming what does. */
     removeVariable(name: string): BlueprintEditResult {
+        const readers = this.readersOf(name);
+        if (readers.length) {
+            const list =
+                readers.length > 1
+                    ? `${readers.slice(0, -1).join(', ')} and ${readers.at(-1)}`
+                    : readers[0];
+            return refused(
+                `${list} ${readers.length > 1 ? 'use' : 'uses'} ${name}. Change ${readers.length > 1 ? 'them' : 'it'} first.`
+            );
+        }
         return this.removeEntry('variables', 'variable', name, [
             ...this.releaseOps(path => variableOfPath(path) === name)
         ]);
@@ -622,6 +632,23 @@ export class BlueprintDesignModel extends HoistModel {
     }
 
     // True if anything outside the removed elements reads the variable.
+    // The elements, sources, other variables and preset groups that bind a variable.
+    private readersOf(name: string): string[] {
+        const bp = this.blueprintModel.blueprint ?? {},
+            binding = `{"$var":${JSON.stringify(name)}}`,
+            binds = (o: unknown) => JSON.stringify(o ?? null).includes(binding);
+        const entries: [string, unknown][] = [
+            ...Object.entries(bp.elements ?? {}),
+            ...Object.entries(bp.sources ?? {}),
+            ...Object.entries(bp.variables ?? {}).filter(([n]) => n !== name),
+            ...Object.entries(bp.presets ?? {}).map(([group, it]): [string, unknown] => [
+                `presets ${group}`,
+                it.items
+            ])
+        ];
+        return entries.filter(([, it]) => binds(it)).map(([id]) => id);
+    }
+
     private isRead(name: string, gone: Set<string>): boolean {
         const bp = this.blueprintModel.blueprint ?? {},
             others = {

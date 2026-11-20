@@ -703,7 +703,7 @@ function actionEditor(
                         ...params.map(param =>
                             propertyRow({
                                 key: param.key,
-                                node: {...param, bindable: true},
+                                node: {...param, bindable: param.kind !== 'variable'},
                                 value: step[param.key],
                                 commit: v =>
                                     replace(
