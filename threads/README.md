@@ -404,12 +404,14 @@ new ChatThreadsModel({
 ```
 
 The model calls it once for each thread the user starts on this page, as soon as the backend has
-the thread. `text` is the user's latest message at that moment. That is their first message,
-unless an earlier turn failed before it reached the backend. The first reply streams as usual and
-never waits for the title. A conversation of the app's own that leaves out `isSaved` counts as
-saved when its first turn ends, so the model calls it then. Such a conversation that changes its
-thread id while idle counts as holding a thread the backend has, so it is not titled. Report
-`isSaved` false for a thread the user clears into a new one.
+the thread: when the first reply records its run id from `RUN_STARTED`, or starts to stream,
+whichever comes first. A backend that plans before it answers gets the call at the start of the
+run, not at its first content. `text` is the user's latest message at that moment. That is their
+first message, unless an earlier turn failed before it reached the backend. The first reply
+streams as usual and never waits for the title. A conversation of the app's own that leaves out
+`isSaved` counts as saved when its first turn ends, so the model calls it then. Such a
+conversation that changes its thread id while idle counts as holding a thread the backend has, so
+it is not titled. Report `isSaved` false for a thread the user clears into a new one.
 
 The model saves the title through the store's `renameThreadAsync`, which this option requires,
 and the list and the workspace header show it at once. With a store that cannot rename, title
@@ -522,11 +524,12 @@ A thread can instead have its own path, as a child route with the id in its path
 route: {name: 'default.chat', param: 'threadId', threadRoute: 'default.chat.thread'}
 ```
 
-A new thread stays out of the route until the backend has it: until its first reply starts to
-stream, a turn ends whose run started, or the store lists it. A turn that fails before any
-response, or that the user stops before its run starts, leaves the thread out. The route stays on
-its base path until then, so a reload or a bookmark before the first send opens a new chat. A
-thread that adopts the backend's id goes into the route under that id.
+A new thread stays out of the route until the backend has it: until its first reply records its
+run id from `RUN_STARTED` or starts to stream, a turn ends whose run started, or the store lists
+it. A turn that fails before any response, or that the user stops before its run starts, leaves
+the thread out. The route stays on its base path until then, so a reload or a bookmark before the
+first send opens a new chat. A thread that adopts the backend's id goes into the route under that
+id.
 
 A deep link to a thread that the store reports missing, with a 404, sets `isThreadNotFound`, and
 the thread blocks sends, so that a send never recreates a deleted id. The workspace then shows
@@ -648,7 +651,7 @@ conversation that leaves out `isAwaitingUser` and `endedEarly` never shows those
 | `store` | `ChatThreadStore` | Adapter to the backend. Required. |
 | `createChatModel` | `({threadId, isNew, seed}) => ChatModel` | Builds the chat for a thread. Must pass `threadId` to the `ChatModel`. `isNew` is false for a thread whose history is about to load. A new thread may start with a greeting in `initialMessages`. The model applies `seed` itself. Requires the store's `loadMessagesAsync`. Give this or `createConversation`. |
 | `createConversation` | `({threadId, isNew, seed}) => ChatConversation` | Builds a conversation of the app's own for a thread, over a chat that runs on another library. Must take `threadId`. Give this or `createChatModel`. |
-| `titleThreadAsync` | `({threadId, text}) => Promise<string>` | Writes a title for a thread started on this page, which the model saves through the store's `renameThreadAsync`. Requires it. Called once, when the backend first has the thread. Default none. See [Title new threads](#title-new-threads). |
+| `titleThreadAsync` | `({threadId, text}) => Promise<string>` | Writes a title for a thread started on this page, which the model saves through the store's `renameThreadAsync`. Requires it. Called once, as soon as the backend has the thread: when the first reply records its run id or starts to stream. Default none. See [Title new threads](#title-new-threads). |
 | `route` | `{name, param, threadRoute?}` | Route whose parameter holds the selected thread id. `threadRoute` names a child route that holds the thread in its path. Default none. |
 | `statusRefreshMs` | `number` | Milliseconds between checks on a turn that runs on the server, or null to check only on Refresh Status. Default `ChatKit.defaults.statusRefreshMs`, 5,000. See [A turn running on the server](#a-turn-running-on-the-server). |
 | `statusRefreshTimeoutMs` | `number` | Milliseconds after which the model stops those checks and offers Refresh Status. Default `ChatKit.defaults.statusRefreshTimeoutMs`, 30 minutes. |
