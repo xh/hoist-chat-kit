@@ -330,6 +330,17 @@ describe('input widgets', () => {
             return {model, ...render(blueprintView({model}))};
         }
 
+        it('never puts its only child in an overflow menu', () => {
+            show(
+                {
+                    bar: {component: 'toolbar', config: {}, children: [{id: 'flag'}]},
+                    flag: {component: 'switchInput', config: {label: 'Live'}}
+                },
+                {live: {type: 'bool', setBy: {element: 'flag'}}}
+            );
+            expect(screen.getByText('Live')).toBeTruthy();
+        });
+
         it('lays out its inputs in a row, with a toolbar separator and a filler', () => {
             const {container} = show(
                 {
@@ -362,12 +373,18 @@ describe('input widgets', () => {
         it('scrolls what does not fit into a menu, and gives a filter chooser a fixed width', () => {
             const {model} = show(
                 {
-                    bar: {component: 'toolbar', config: {}, children: [{id: 'chooser'}]},
-                    chooser: {component: 'filterChooser', config: {source: 'positions'}}
+                    bar: {
+                        component: 'toolbar',
+                        config: {},
+                        children: [{id: 'chooser'}, {id: 'flag'}]
+                    },
+                    chooser: {component: 'filterChooser', config: {source: 'positions'}},
+                    flag: {component: 'switchInput', config: {label: 'Live'}}
                 },
                 {
                     asOf: {type: 'localDate', default: {value: '2026-03-02'}},
-                    f: {type: 'filter', setBy: {element: 'chooser'}}
+                    f: {type: 'filter', setBy: {element: 'chooser'}},
+                    live: {type: 'bool', setBy: {element: 'flag'}}
                 },
                 {positions: {dataset: 'positions', params: {asOf: {$var: 'asOf'}}}}
             );

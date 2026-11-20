@@ -13,7 +13,9 @@ export const [ToolbarWidget, toolbarWidget] = hoistCmp.withFactory({
         return toolbar({
             className,
             vertical: !!model.resolvedConfig.vertical,
-            enableOverflowMenu: model.resolvedConfig.overflowMenu ?? true,
+            // A lone child has nothing to share the row with, so a menu would only hide it.
+            enableOverflowMenu:
+                model.children.length > 1 && (model.resolvedConfig.overflowMenu ?? true),
             children: model.children.map(it => model.renderElement(it.id))
         });
     }

@@ -256,7 +256,8 @@ const TOOLBAR_SCHEMA = {
         overflowMenu: {
             type: 'boolean',
             default: true,
-            description: 'True to put the children that do not fit in a menu at its end.'
+            description:
+                'True to put the children that do not fit in a menu at its end. A lone child never goes in one.'
         }
     }
 } as const satisfies BlueprintSchema;
