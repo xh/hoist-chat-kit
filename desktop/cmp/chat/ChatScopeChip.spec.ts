@@ -32,7 +32,7 @@ describe('ChatScopeChip', () => {
         expect(chip('All documents').textContent).toBe('All documents');
     });
 
-    it('records the checked items in the run options, with the count on the chip', () => {
+    it('records the checked items in the run options, with the count on the chip', async () => {
         const chatModel = createModel();
         render(chatScopeChip({...docChip(), model: chatModel}));
 
@@ -42,7 +42,8 @@ describe('ChatScopeChip', () => {
 
         expect(chatModel.runOptions).toEqual({documentIds: ['d1', 'd3']});
         expect(chip('2 of 3').textContent).toBe('Documents2');
-        expect(chip('2 of 3').getAttribute('title')).toBe('Policy manual, Credit memo');
+        fireEvent.pointerEnter(chip('2 of 3'));
+        expect((await screen.findByRole('tooltip')).textContent).toBe('Policy manual, Credit memo');
     });
 
     it('gives each item its full name as a tooltip, as a long one truncates', () => {

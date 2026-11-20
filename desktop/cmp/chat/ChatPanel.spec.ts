@@ -1,4 +1,4 @@
-import {act, fireEvent, render, screen} from '@testing-library/react';
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {span} from '@xh/hoist/cmp/layout';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, beforeEach, describe, expect, it, onTestFinished, vi} from 'vitest';
@@ -41,16 +41,17 @@ describe('ChatPanel', () => {
         const chatModel = createModel(),
             pill = chatComposerPill({text: 'Model', menuItems: [{text: 'Fast'}]}),
             placement = () => document.querySelector('.xh-chat-composer-pill__popover').classList;
+        stubPillLayout();
         renderPanel(chatModel, {composerProps: {bottomItems: pill}});
 
         const button = () => screen.getByRole('button', {name: 'Model'});
         fireEvent.click(button());
-        expect(placement()).toContain('xh-popover__content-wrapper--bottom');
+        await waitFor(() => expect(placement()).toContain('xh-popover__content-wrapper--bottom'));
         fireEvent.click(button());
 
         await act(() => chatModel.sendAsync('Hi'));
         fireEvent.click(button());
-        expect(placement()).toContain('xh-popover__content-wrapper--top');
+        await waitFor(() => expect(placement()).toContain('xh-popover__content-wrapper--top'));
     });
 
     it("shows the app's own header content above the heading of the empty state", () => {
@@ -243,6 +244,20 @@ describe('ChatPanel', () => {
 //------------------
 // Helpers
 //------------------
+/**
+ * A viewport, with the pill's popover target in the middle of it. The popover takes the side the
+ * pill asks for only where it fits, and with no layout in jsdom it fits nowhere.
+ */
+function stubPillLayout() {
+    vi.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+    vi.spyOn(Element.prototype, 'clientHeight', 'get').mockReturnValue(800);
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function () {
+        return this.classList.contains('xh-popover__target-wrapper')
+            ? new DOMRect(400, 400, 80, 24)
+            : new DOMRect(0, 0, 0, 0);
+    });
+}
+
 class NoopResizeObserver {
     observe() {}
     unobserve() {}
