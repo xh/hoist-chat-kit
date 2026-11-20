@@ -52,9 +52,9 @@
     }
   }
 
-  // Scoped under the row to outrank Blueprint's `bp6-inline` and `bp6-align-left` rules, whatever
+  // Scoped under the row to outrank the `xh-control--inline` and `--align-left` rules, whatever
   // the order.
-  &__option &__check.bp6-control {
+  &__option &__check.xh-control {
     align-items: center;
     display: flex;
     flex: 1 1 auto;
@@ -62,7 +62,7 @@
     min-width: 0;
     padding: 5px 0 5px 10px;
 
-    .bp6-control-indicator {
+    .xh-control__indicator {
       flex: none;
       margin: 0 8px 0 0;
     }
@@ -116,7 +116,7 @@
     min-height: 28px;
     padding: 0 4px 0 10px;
 
-    .xh-button.bp6-button {
+    .xh-button.xh-button {
       font-size: var(--xh-chat-meta-font-size);
       min-height: 24px;
     }
