@@ -145,11 +145,11 @@ export class BlueprintDocumentModel extends HoistModel {
         }
         const stale = await this.staleIssueAsync();
         if (stale) return [stale];
-        const {publish, issues} = await repository.publishAsync(document.id, {
+        const {publish, draftVersion, issues} = await repository.publishAsync(document.id, {
             base: this.document.version,
             note
         });
-        if (publish) this.published(publish);
+        if (publish) this.published(publish, draftVersion);
         return issues;
     }
 
@@ -184,6 +184,7 @@ export class BlueprintDocumentModel extends HoistModel {
     async updateAccessAsync(spec: BlueprintAccessSpec) {
         throwIf(!this.canShare, 'You may not share this blueprint.');
         await this.repository.updateAccessAsync(this.document.id, spec);
+        this.shared(spec);
     }
 
     //------------------
@@ -210,10 +211,20 @@ export class BlueprintDocumentModel extends HoistModel {
     }
 
     @action
-    private published(publish: BlueprintPublish) {
-        this.document = {...this.document, publishedVersion: publish.version, pendingRenames: []};
+    private published(publish: BlueprintPublish, draftVersion: number) {
+        this.document = {
+            ...this.document,
+            publishedVersion: publish.version,
+            pendingRenames: [],
+            ...(draftVersion != null ? {version: draftVersion, draftVersion} : {})
+        };
         this.openRenames = [];
         this.renamesFrom = this.blueprintModel.history.length;
+    }
+
+    @action
+    private shared(sharing: BlueprintAccessSpec) {
+        this.document = {...this.document, sharing};
     }
 
     @action

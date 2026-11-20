@@ -17,18 +17,21 @@ describe('InMemoryBlueprintRepository', () => {
         expect(opened.blueprint.elements.posGrid.config.title).not.toBe('Changed');
     });
 
-    it('numbers publishes in order, each unchanged by later saves', async () => {
+    it('numbers publishes in order, each unchanged by later saves, and bumps the draft', async () => {
         const repository = new InMemoryBlueprintRepository(),
             {id, blueprint} = await create(repository);
-        expect((await repository.publishAsync(id, {base: 1})).publish.version).toBe(1);
+        expect(await repository.publishAsync(id, {base: 1})).toMatchObject({
+            publish: {version: 1},
+            draftVersion: 2
+        });
         blueprint.elements.posGrid.config.title = 'Second';
-        await repository.saveDraftAsync(id, {blueprint, base: 1, renames: []});
-        expect((await repository.publishAsync(id, {base: 2})).publish.version).toBe(2);
+        await repository.saveDraftAsync(id, {blueprint, base: 2, renames: []});
+        expect((await repository.publishAsync(id, {base: 3})).publish.version).toBe(2);
 
         const first = await repository.openAsync(id, {as: 'publish', version: 1});
         expect(first.blueprint.elements.posGrid.config.title).not.toBe('Second');
         expect((await repository.listAsync())[0]).toMatchObject({
-            draftVersion: 2,
+            draftVersion: 4,
             publishedVersion: 2
         });
     });

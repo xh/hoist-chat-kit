@@ -62,7 +62,8 @@ export interface BlueprintRepository {
     /**
      * Publish the draft as the next number, with the renames the draft holds, which it then
      * clears. Refused with `edit.staleBase` if the draft is no longer at `base`. A publish never
-     * changes, and publishing leaves the draft as it is.
+     * changes. Publishing leaves the draft's content as it is, but increments its version, so a
+     * save based on the version before, which would bring back the renames, is stale.
      */
     publishAsync(id: string, opts: {base: number; note?: string}): Promise<BlueprintPublishResult>;
 
@@ -91,13 +92,16 @@ export interface BlueprintRepository {
     savePersonalizationAsync(p: BlueprintPersonalization): Promise<void>;
 
     /**
-     * Set who may write and who may read a blueprint, by the user or role names the repository
-     * knows. Optional: the library offers sharing only when a repository implements it.
+     * Set who may write and who may read a blueprint. Optional: the library offers sharing only
+     * when a repository implements it.
      */
     updateAccessAsync?(id: string, spec: BlueprintAccessSpec): Promise<void>;
 }
 
-/** Who may write and who may read a blueprint. Writers may also read. */
+/**
+ * Who may write and who may read a blueprint. Writers may also read. Each name is a grantee in the
+ * repository's own form, such as a username or a role.
+ */
 export interface BlueprintAccessSpec {
     writers: string[];
     readers: string[];
@@ -124,6 +128,8 @@ export interface BlueprintSummary {
     updatedBy?: string;
     /** The blueprint and version a copy came from. */
     copiedFrom?: {id: string; version: number; as: 'draft' | 'publish'};
+    /** Who the blueprint is shared with, only for a user who may manage its access. */
+    sharing?: BlueprintAccessSpec;
 }
 
 /** One version of a blueprint, opened. */
@@ -174,6 +180,8 @@ export interface BlueprintSaveResult {
 export interface BlueprintPublishResult {
     /** The new publish, if it applied. */
     publish?: BlueprintPublish;
+    /** The draft's new version, if the publish applied. */
+    draftVersion?: number;
     issues: BlueprintIssue[];
 }
 

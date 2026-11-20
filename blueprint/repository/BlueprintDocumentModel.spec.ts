@@ -107,6 +107,25 @@ describe('BlueprintDocumentModel', () => {
         ).toBe('Second');
     });
 
+    it('bumps the draft version on publish, so a draft opened before it saves as stale', async () => {
+        const {repository, id} = await created(),
+            publisher = session(repository),
+            other = session(repository);
+        await publisher.doc.openAsync(id, {as: 'draft'});
+        await other.doc.openAsync(id, {as: 'draft'});
+        publisher.blueprintModel.applyEdit({
+            ops: [{op: 'renameId', kind: 'element', from: 'posGrid', to: 'positionsGrid'}]
+        });
+        expect(await publisher.doc.publishAsync()).toEqual([]);
+        expect(publisher.doc.document).toMatchObject({version: 3, draftVersion: 3});
+
+        title(other.blueprintModel, 'Stale');
+        expect(errors(await other.doc.saveDraftAsync())).toEqual(['edit.staleBase']);
+        title(publisher.blueprintModel, 'Current');
+        expect(await publisher.doc.saveDraftAsync()).toEqual([]);
+        expect((await repository.openAsync(id, {as: 'draft'})).pendingRenames).toEqual([]);
+    });
+
     it('opens only the latest publish for a reader, who may copy it but not delete', async () => {
         const {repository, grant, id} = await created();
         await repository.publishAsync(id, {base: 1});
@@ -177,8 +196,10 @@ describe('BlueprintDocumentModel', () => {
             {doc} = session(repository);
         await doc.openAsync(id, {as: 'draft'});
         expect(doc.canShare).toBe(true);
-        await doc.updateAccessAsync({writers: ['ann'], readers: ['traders']});
-        expect(repository.sharingOf(id)).toEqual({writers: ['ann'], readers: ['traders']});
+        const sharing = {writers: ['ann'], readers: ['role:TRADER']};
+        await doc.updateAccessAsync(sharing);
+        expect(doc.document.sharing).toEqual(sharing);
+        expect((await repository.listAsync())[0].sharing).toEqual(sharing);
 
         Object.assign(repository, {updateAccessAsync: undefined});
         expect(doc.canShare).toBe(false);
@@ -186,6 +207,7 @@ describe('BlueprintDocumentModel', () => {
         await repository.publishAsync(id, {base: 1});
         await doc.openAsync(id);
         expect(doc.canShare).toBe(false);
+        expect(doc.document).not.toHaveProperty('sharing');
     });
 
     it.each([true, false])(

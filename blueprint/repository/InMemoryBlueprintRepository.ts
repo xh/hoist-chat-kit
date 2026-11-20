@@ -137,8 +137,9 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
         };
         item.publishes.push({info, blueprint: clone(item.draft)});
         item.pendingRenames = [];
+        item.draftVersion++;
         item.updated = info.published;
-        return {publish: clone(info), issues: []};
+        return {publish: clone(info), draftVersion: item.draftVersion, issues: []};
     }
 
     async listPublishesAsync(id: string): Promise<BlueprintPublish[]> {
@@ -187,11 +188,6 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
         item.sharing = clone(spec);
     }
 
-    /** Who a blueprint is shared with, as last set. */
-    sharingOf(id: string): BlueprintAccessSpec {
-        return clone(this.items.get(id)?.sharing ?? null);
-    }
-
     //------------------
     // Implementation
     //------------------
@@ -209,7 +205,8 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
             ...this.accessOf(item.id),
             updated: item.updated,
             updatedBy: item.updatedBy,
-            ...(item.copiedFrom ? {copiedFrom: item.copiedFrom} : {})
+            ...(item.copiedFrom ? {copiedFrom: item.copiedFrom} : {}),
+            ...(item.sharing && this.isWriter(item.id) ? {sharing: item.sharing} : {})
         };
     }
 }
