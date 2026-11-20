@@ -254,16 +254,15 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
         return this.cubeGridModel?.innerGridModel;
     }
 
-    // The largest absolute value of a field among the grid's leaf rows, kept until its data change.
+    // The largest absolute value of a field among the grid's rows that are not group rows, kept
+    // until its data change.
     private columnMax(field: string): number {
         const store = this.gridModel?.store;
         if (!store) return null;
         if (this.maxes.at !== store.lastUpdated) this.maxes = {at: store.lastUpdated, of: {}};
         this.maxes.of[field] ??= store.allRecords.reduce(
             (max, it) =>
-                it.data.cubeRowType === 'leaf'
-                    ? Math.max(max, Math.abs(Number(it.data[field]) || 0))
-                    : max,
+                isGroupRow(it) ? max : Math.max(max, Math.abs(Number(it.data[field]) || 0)),
             0
         );
         return this.maxes.of[field] || null;
@@ -288,7 +287,7 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                         columnMax: () => this.columnMax(field)
                     }),
                     isNum = def.type === 'number' || def.type === 'int',
-                    isAggregate = (record: StoreRecord) => record?.data.cubeRowType !== 'leaf';
+                    isAggregate = (record: StoreRecord) => isGroupRow(record);
                 return {
                     field: {name: field, type: def.type as any, displayName: label},
                     displayName: label,
@@ -513,4 +512,10 @@ function toQuery(dimensions: string[]) {
 
 function toGridSort(sortBy: unknown): string[] {
     return castArray(sortBy ?? []).map(it => String(it).replace(/^group\b/, LABEL_COL));
+}
+
+// A row that sums the rows shown under it, or the summary row. A row of the deepest level shown is
+// not, though a Cube may have aggregated it, as a grid without leaf rows shows.
+function isGroupRow(record: StoreRecord): boolean {
+    return !!record && (record.isSummary || record.allChildren.length > 0);
 }

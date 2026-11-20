@@ -341,6 +341,36 @@ describe('blueprint data widgets', () => {
         expect(String(yAxis.labels.formatter.call({value: 0.5}))).toBe('50%');
     });
 
+    it('draws bars on the rows of the deepest level shown, scaled to the largest of them', async () => {
+        const bp = loadBlueprint('p2-linked-dashboard.json');
+        bp.elements.posGrid.config.columns = {mktVal: {renderer: 'bar'}};
+        bp.elements.posGrid.config.columnState = ['mktVal'];
+        const grid = widget(CubeGridWidgetModel, open(bp), 'posGrid'),
+            gridModel = grid.cubeGridModel.innerGridModel;
+        await vi.waitFor(() => expect(gridModel.store.count).toBeGreaterThan(0));
+
+        const col = gridModel.getColumn('mktVal'),
+            records = gridModel.store.allRecords,
+            deepest = records.filter(it => !it.allChildren.length),
+            groups = records.filter(it => it.allChildren.length),
+            widthOf = (record: any) => {
+                const cell = col.renderer(record.data.mktVal, {
+                        record,
+                        column: col,
+                        gridModel
+                    } as any),
+                    fill = render(cell as ReactElement).container.querySelector(
+                        '.xh-blueprint-bar__fill'
+                    ) as HTMLElement;
+                return fill?.style.width ?? null;
+            },
+            widths = deepest.map(widthOf);
+        expect(deepest.length).toBeGreaterThan(1);
+        expect(widths).toContain('100%');
+        expect(widths.some(it => it !== '100%')).toBe(true);
+        groups.forEach(it => expect(widthOf(it)).toBeNull());
+    });
+
     it('draws a cell with the renderer its field names, as a badge for an order direction', async () => {
         const grid = widget(CubeGridWidgetModel, open(), 'ordersGrid'),
             gridModel = grid.cubeGridModel.innerGridModel;
