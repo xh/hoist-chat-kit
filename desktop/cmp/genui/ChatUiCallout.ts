@@ -50,6 +50,7 @@ export function chatUiCalloutSpec(
 
     return {
         name,
+        kitComponent: 'callout',
         description,
         props: {
             type: 'object',

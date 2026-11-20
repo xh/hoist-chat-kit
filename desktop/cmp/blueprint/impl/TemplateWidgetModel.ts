@@ -45,9 +45,21 @@ export class TemplateWidgetModel<
     }
 
     /** The props for `chatMarkdown` that render a markdown template from the config. */
-    markdownProps(text: string): Pick<ChatMarkdownProps, 'content' | 'markdownPlugins'> {
+    markdownProps(
+        text: string
+    ): Pick<ChatMarkdownProps, 'content' | 'markdownPlugins' | 'isStreaming'> {
         const {content, values} = markdownTemplate(text, ref => this.refValue(ref));
-        return {content, markdownPlugins: {rehype: [[rehypeTemplateValues, {values}]]}};
+        return {
+            content,
+            markdownPlugins: {rehype: [[rehypeTemplateValues, {values}]]},
+            isStreaming: this.isStreaming
+        };
+    }
+
+    // A chat answer's host says which of its elements are still arriving.
+    private get isStreaming(): boolean {
+        const host = this.blueprintModel.hostContext as {isPartial?: (id: string) => boolean};
+        return !!host?.isPartial?.(this.id);
     }
 
     override destroy() {

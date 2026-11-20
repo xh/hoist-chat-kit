@@ -74,7 +74,7 @@ export const [PanelWidget, panelWidget] = hoistCmp.withFactory({
     className: 'xh-blueprint-panel',
     model: uses(PanelWidgetModel),
     render({model, className}) {
-        const {title, icon, style, compactHeader} = model.resolvedConfig,
+        const {title, icon, style, compactHeader, intent} = model.resolvedConfig,
             content = model.children.filter(it => !it.slot),
             slot = (name: string) => {
                 const ref = model.children.find(it => it.slot === name);
@@ -90,6 +90,7 @@ export const [PanelWidget, panelWidget] = hoistCmp.withFactory({
             ? card({
                   ...props,
                   model: model.cardModel,
+                  intent: intent && intent !== 'none' ? intent : null,
                   flex: 'auto',
                   children: [
                       slot('tbar'),

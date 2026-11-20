@@ -26,6 +26,7 @@ export function chatUiTextSpec(
 
     return {
         name,
+        kitComponent: 'text',
         description,
         props: {
             type: 'object',

@@ -34,6 +34,7 @@ export function chatUiStackSpec(
 
     return {
         name,
+        kitComponent: 'stack',
         description,
         props: {
             type: 'object',

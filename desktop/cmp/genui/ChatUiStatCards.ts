@@ -83,6 +83,7 @@ export function chatUiStatCardsSpec(
 
     return {
         name,
+        kitComponent: 'statCards',
         toolName: name === NAME ? 'show_stat_cards' : null,
         description,
         props: {

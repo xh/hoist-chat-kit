@@ -1340,7 +1340,8 @@ export class ChatUiCatalog {
                 partId,
                 blueprint: toAnswerBlueprint(this.repairDocument(doc), {
                     partialIds: [],
-                    isValid: (name, props) => isEmpty(this.validate(name, props))
+                    isValid: (name, props) => isEmpty(this.validate(name, props)),
+                    kitComponentOf: name => this.getComponent(name)?.kitComponent ?? null
                 })
             });
         return (message?.parts ?? []).flatMap((part): ChatUiAnswerOf[] => {
@@ -1407,8 +1408,10 @@ export class ChatUiCatalog {
             writingIds = idsWhere(it => it?.isPartial === true),
             translated = toAnswerBlueprint(doc, {
                 partialIds,
-                isValid: (name, props, isPartial) =>
-                    isEmpty(this.validate(name, props, {isPartial}))
+                isValid: (name, props, isPartial, id) =>
+                    isEmpty(this.validate(name, props, {isPartial})) &&
+                    isEmpty(getOwn(context.elementErrors, id)),
+                kitComponentOf: name => this.getComponent(name)?.kitComponent ?? null
             });
         // The translation drops each streaming element's last item, as its spec does.
         return this.renderAnswerBlueprint(translated, context, {

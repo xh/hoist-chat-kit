@@ -165,6 +165,7 @@ function createInlineSpec(opts: ChatUiChartSpecOptions): ChatUiComponentSpec<Cha
 
     return {
         name,
+        kitComponent: 'chart',
         description,
         props: {
             type: 'object',

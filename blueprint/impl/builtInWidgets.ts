@@ -74,6 +74,11 @@ const PANEL_SCHEMA = {
             default: 'plain',
             description: 'plain draws a panel with a header. card draws a bordered group.'
         },
+        intent: {
+            type: 'string',
+            enum: ['none', 'primary', 'success', 'warning', 'danger'],
+            description: "Colors a card style panel's border and title."
+        },
         collapsible: {type: 'boolean', default: false},
         collapsed: {type: 'boolean', default: false},
         compactHeader: {type: 'boolean', default: false},
@@ -123,8 +128,9 @@ const CALLOUT_SCHEMA = {
         source: MARKDOWN_SCHEMA.properties.source,
         intent: {
             type: 'string',
-            enum: ['primary', 'success', 'warning', 'danger'],
-            default: 'primary'
+            enum: ['primary', 'success', 'warning', 'danger', 'none'],
+            default: 'primary',
+            description: 'none is neutral, with no icon.'
         },
         title: {type: 'string', maxLength: 200, 'x-template': true},
         text: MARKDOWN_SCHEMA.properties.text
@@ -974,6 +980,7 @@ const tabContainer: WidgetSpec = {
 const panel: WidgetSpec = {
     name: 'panel',
     version: 1,
+    rendersPartial: true,
     label: 'Panel',
     terms: ['panel', 'section', 'group', 'card'],
     guidance:
@@ -1006,6 +1013,7 @@ const panel: WidgetSpec = {
 const box: WidgetSpec = {
     name: 'box',
     version: 1,
+    rendersPartial: true,
     label: 'Box',
     terms: ['row', 'column', 'side by side', 'stack', 'layout'],
     guidance:
@@ -1065,6 +1073,7 @@ const TEMPLATE_GUIDANCE =
 const markdown: WidgetSpec = {
     name: 'markdown',
     version: 1,
+    rendersPartial: true,
     label: 'Text',
     terms: ['text', 'markdown', 'note', 'commentary', 'heading', 'summary'],
     guidance: `Markdown text, such as a heading, a note or a summary with live figures. ${TEMPLATE_GUIDANCE}`,
@@ -1080,6 +1089,7 @@ const markdown: WidgetSpec = {
 const callout: WidgetSpec = {
     name: 'callout',
     version: 1,
+    rendersPartial: true,
     label: 'Callout',
     terms: ['callout', 'alert', 'warning', 'note', 'highlight'],
     guidance: `A note set off by an icon and a tinted background, for a caveat, a warning or a key takeaway. intent sets its color. Its title and text are templates. ${TEMPLATE_GUIDANCE}`,

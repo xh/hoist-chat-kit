@@ -202,6 +202,7 @@ function createInlineSpec(opts: ChatUiGridSpecOptions): ChatUiComponentSpec<Chat
 
     return {
         name,
+        kitComponent: 'grid',
         description,
         props: {
             type: 'object',

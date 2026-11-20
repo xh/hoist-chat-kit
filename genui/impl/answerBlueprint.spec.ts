@@ -367,6 +367,115 @@ describe('toAnswerBlueprint', () => {
         });
     });
 
+    describe('content and layout', () => {
+        const translate = (elements: object, root = 'top', partialIds: string[] = []) =>
+            toAnswerBlueprint({root, elements} as any, {
+                partialIds,
+                isValid: (name, props, isPartial) =>
+                    catalog.validate(name, props, {isPartial}).length === 0
+            });
+
+        it('translates text, callout, section and stack into the dashboard widgets', () => {
+            const bp = translate({
+                top: {
+                    component: 'stack',
+                    props: {direction: 'row', gap: 'small'},
+                    children: ['note', 'warn', 'sec']
+                },
+                note: {component: 'text', props: {text: 'Use {braces} freely'}},
+                warn: {
+                    component: 'callout',
+                    props: {intent: 'warning', title: 'Heads {up}', text: 'Stale'}
+                },
+                sec: {
+                    component: 'section',
+                    props: {title: 'More', intent: 'primary', collapsible: true, collapsed: true},
+                    children: ['inner']
+                },
+                inner: {component: 'text', props: {text: 'x'}}
+            });
+            expect(bp.elements.top).toEqual({
+                component: 'box',
+                config: {direction: 'row', gap: 4, fill: false},
+                children: [{id: 'note'}, {id: 'warn'}, {id: 'sec'}]
+            });
+            expect(bp.elements.note).toEqual({
+                component: 'markdown',
+                config: {text: 'Use {{braces}} freely'}
+            });
+            expect(bp.elements.warn).toEqual({
+                component: 'callout',
+                config: {intent: 'warning', title: 'Heads {{up}}', text: 'Stale'}
+            });
+            expect(bp.elements.sec).toEqual({
+                component: 'panel',
+                config: {
+                    style: 'card',
+                    title: 'More',
+                    intent: 'primary',
+                    collapsible: true,
+                    collapsed: true
+                },
+                children: [{id: 'inner'}]
+            });
+            expect(degradeAnswer(bp, ctx)).toEqual(bp);
+        });
+
+        it('frames a titled stack in a card panel around its box', () => {
+            const bp = translate({
+                top: {component: 'stack', props: {title: 'Both'}, children: ['a']},
+                a: {component: 'text', props: {text: 'A'}}
+            });
+            expect(bp.elements.top).toEqual({
+                component: 'panel',
+                config: {style: 'card', title: 'Both'},
+                children: [{id: 'top-box'}]
+            });
+            expect(bp.elements['top-box']).toEqual({
+                component: 'box',
+                config: {direction: 'column', gap: 8, fill: false},
+                children: [{id: 'a'}]
+            });
+            expect(degradeAnswer(bp, ctx)).toEqual(bp);
+        });
+
+        it('translates text still streaming, as markdown that renders partial text', () => {
+            const bp = translate({top: {component: 'text', props: {text: 'Half **wr'}}}, 'top', [
+                'top'
+            ]);
+            expect(bp.elements.top.component).toBe('markdown');
+            expect(degradeAnswer(bp, {...ctx, partialIds: ['top']})).toEqual(bp);
+        });
+
+        it("translates the kit's own components, whatever their names, and no others", () => {
+            const doc = {
+                    root: 'top',
+                    elements: {
+                        top: {component: 'column', props: {}, children: ['mine']},
+                        mine: {component: 'stack', props: {}}
+                    }
+                } as any,
+                bp = toAnswerBlueprint(doc, {
+                    isValid: () => true,
+                    kitComponentOf: name => (name === 'column' ? 'stack' : null)
+                });
+            expect(bp.elements.top.component).toBe('box');
+            expect(bp.elements.mine.component).toBe('stack');
+        });
+
+        it('keeps a chat input on its bridge, and its card, as decision 135 has it', () => {
+            const bp = translate({
+                top: {component: 'textInput', props: {label: 'Name'}},
+                c: {
+                    component: 'card',
+                    props: {title: 'Acme', fields: [{label: 'Rating', value: 'A+'}]}
+                }
+            });
+            expect(bp.elements.top.component).toBe('chatUiTextInput');
+            expect(bp.elements.c.component).toBe('card');
+        });
+    });
+
     it('turns children and named slots into child references', () => {
         const bp = toAnswerBlueprint({
             root: 'top',

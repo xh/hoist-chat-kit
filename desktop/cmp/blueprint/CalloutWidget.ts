@@ -15,7 +15,7 @@ export const [CalloutWidget, calloutWidget] = hoistCmp.withFactory({
         const {intent = 'primary', title, text} = model.resolvedConfig;
         return callout({
             className,
-            intent,
+            intent: intent === 'none' ? null : intent,
             title: title ? model.fillText(title) : null,
             children: chatMarkdown(model.markdownProps(text))
         });

@@ -41,6 +41,7 @@ export function chatUiSectionSpec(
 
     return {
         name,
+        kitComponent: 'section',
         description,
         props: {
             type: 'object',

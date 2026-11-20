@@ -44,6 +44,13 @@ export interface ChatUiComponentSpec<P = PlainObject> {
      */
     name: string;
 
+    /**
+     * Which of chat kit's own components this is, whatever its name, so an answer can translate
+     * it into a dashboard widget. Set by the kit's spec factories.
+     * @internal
+     */
+    kitComponent?: string;
+
     /** Name of the component's tool, in place of `show_<name>`. */
     toolName?: string;
 

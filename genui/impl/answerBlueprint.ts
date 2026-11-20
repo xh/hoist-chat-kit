@@ -6,9 +6,11 @@ import {
     isEmpty,
     isFinite,
     isPlainObject,
+    isNil,
     isString,
     mapKeys,
     omit,
+    omitBy,
     pick
 } from 'lodash';
 import type {Blueprint, BlueprintElement, ChildRef, SourceDecl} from '../../blueprint';
@@ -23,6 +25,10 @@ import {CHILD_REF_PROPS, toWidgetName} from './specWidgets';
  * becomes its bridged widget, as `chart` becomes `chatUiChart`. Leaves what it cannot read for
  * `degradeAnswer()` to report, so a document with problems still translates.
  *
+ * Text, a callout, a section and a stack whose props pass the catalog become the dashboard's
+ * `markdown`, `callout`, `panel` and `box`, so an answer holds the widgets a host does. A chat
+ * input stays on its bridge, as its state lives in the chat.
+ *
  * Stat cards and an inline grid whose props pass the catalog become a `tileFrame` of `statCard`s or
  * a `cubeGrid` over an inline source, so that their data lives in a source. While one streams, its
  * last card, row or point, which may be cut short, waits, so that no part-written value reaches a
@@ -33,19 +39,19 @@ export function toAnswerBlueprint(
     opts: ToAnswerBlueprintOptions = {}
 ): Blueprint {
     if (!isPlainObject(doc)) return doc as unknown as Blueprint;
-    const {partialIds = [], isValid = () => false} = opts,
+    const {partialIds = [], isValid = () => false, kitComponentOf = (it: string) => it} = opts,
         sources: Record<string, SourceDecl> = {},
         elements = isPlainObject(doc.elements)
             ? Object.fromEntries(
                   Object.entries(doc.elements).flatMap(([docId, el]) => {
                       const id = toAnswerId(docId),
                           isPartial = partialIds.includes(id),
-                          translate = getOwn(TRANSLATORS, el?.component),
+                          translate = getOwn(TRANSLATORS, kitComponentOf(el?.component)),
                           translated =
-                              translate && isValid(el.component, el.props ?? {}, isPartial)
-                                  ? translate(id, el.props, isPartial)
+                              translate && isValid(el.component, el.props ?? {}, isPartial, docId)
+                                  ? translate(id, el.props ?? {}, isPartial, el)
                                   : null;
-                      if (translated) sources[id] = translated.source;
+                      if (translated?.source) sources[id] = translated.source;
                       return [
                           [id, translated?.element ?? toElement(el)],
                           ...Object.entries(translated?.children ?? {})
@@ -63,8 +69,16 @@ export function toAnswerBlueprint(
 export interface ToAnswerBlueprintOptions {
     /** Elements still streaming, by answer ID. */
     partialIds?: string[];
-    /** True if a component's props pass the catalog's checks, as complete or as still arriving. */
-    isValid?: (component: string, props: PlainObject, isPartial: boolean) => boolean;
+    /**
+     * True if an element's props pass the catalog's checks, as complete or as still arriving, and
+     * nothing else found a problem with it, by its ID in the document.
+     */
+    isValid?: (component: string, props: PlainObject, isPartial: boolean, id: string) => boolean;
+    /**
+     * Which of chat kit's own components a component is, if any - see `kitComponent`. Only those
+     * translate into dashboard widgets. Default the component's name.
+     */
+    kitComponentOf?: (component: string) => string;
 }
 
 /** The props of an element that a program's state holds, beside an answer's blueprint. */
@@ -136,10 +150,10 @@ export function fromAnswerId(id: string): string {
 
 const FORBIDDEN_IDS = ['__proto__', 'prototype', 'constructor'];
 
-/** A chat component as an element over a source, with any elements it holds. */
+/** A chat component as an element, with the source it reads and the elements it holds, if any. */
 type Translation = {
     element: BlueprintElement;
-    source: SourceDecl;
+    source?: SourceDecl;
     children?: Record<string, BlueprintElement>;
 };
 
@@ -338,13 +352,72 @@ export function toFieldFormat(format: string, decimals: number, isCompact: boole
     }
 }
 
+// Text in a markdown template, where a brace would start a reference.
+const asTemplate = (text: unknown) => (isString(text) ? text.replace(/[{}]/g, '$&$&') : text);
+
+const GAPS: Record<string, number> = {none: 0, small: 4, medium: 8, large: 16};
+
+function toMarkdown(id: string, props: PlainObject): Translation {
+    return {element: {component: 'markdown', config: {text: asTemplate(props.text)}}};
+}
+
+function toCallout(id: string, props: PlainObject): Translation {
+    const {intent, title, text} = props;
+    return {
+        element: {
+            component: 'callout',
+            config: omitBy({intent, title: asTemplate(title), text: asTemplate(text)}, isNil)
+        }
+    };
+}
+
+function toPanel(id: string, props: PlainObject, _: boolean, el: ChatUiElement): Translation {
+    const {title, intent, collapsible, collapsed} = props,
+        {children} = toElement(el);
+    return {
+        element: {
+            component: 'panel',
+            config: omitBy({style: 'card', title, intent, collapsible, collapsed}, isNil),
+            ...(children ? {children} : {})
+        }
+    };
+}
+
+// A titled stack draws a frame, as a card panel around its box.
+function toBox(id: string, props: PlainObject, _: boolean, el: ChatUiElement): Translation {
+    const {children} = toElement(el),
+        box: BlueprintElement = {
+            component: 'box',
+            config: {
+                direction: props.direction ?? 'column',
+                gap: GAPS[props.gap] ?? GAPS.medium,
+                fill: false
+            },
+            ...(children ? {children} : {})
+        };
+    if (!props.title) return {element: box};
+    const boxId = `${id}-box`;
+    return {
+        element: {
+            component: 'panel',
+            config: {style: 'card', title: props.title},
+            children: [{id: boxId}]
+        },
+        children: {[boxId]: box}
+    };
+}
+
 const TRANSLATORS: Record<
     string,
-    (id: string, props: PlainObject, isPartial: boolean) => Translation
+    (id: string, props: PlainObject, isPartial: boolean, el: ChatUiElement) => Translation
 > = {
     statCards: toStatCards,
     grid: toCubeGrid,
-    chart: toChart
+    chart: toChart,
+    text: toMarkdown,
+    callout: toCallout,
+    section: toPanel,
+    stack: toBox
 };
 
 function ids(value: unknown): string[] {
