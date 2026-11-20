@@ -274,6 +274,11 @@
   &__data {
     min-width: 0;
 
+    // A renderer's component that renders nothing leaves the part empty. It takes no gap.
+    &:empty {
+      display: none;
+    }
+
     &--unrendered {
       display: flex;
       flex-direction: column;

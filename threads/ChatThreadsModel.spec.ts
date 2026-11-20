@@ -911,6 +911,40 @@ describe('ChatThreadsModel', () => {
             expect(titles.fn).toHaveBeenCalledExactlyOnceWith({threadId: 'srv-9', text: 'Hello'});
         });
 
+        it('asks once the backend has started the run, before the reply has content', async () => {
+            let release: () => void;
+            const gate = new Promise<void>(resolve => (release = resolve)),
+                titles = new TitleGate(),
+                {model, store} = setup({
+                    titleThreadAsync: titles.fn,
+                    respond: async function* () {
+                        yield runStarted('srv-9');
+                        await gate;
+                        yield* textEvents('Hi there.');
+                    }
+                });
+            await model.loadAsync();
+            store.saveThread({id: 'srv-9'});
+            const chatModel = model.newThread(),
+                done = chatModel.sendAsync('What is the tallest mountain?');
+
+            await vi.waitFor(() => expect(chatModel.threadId).toBe('srv-9'));
+            expect(chatModel.status).toBe('submitted');
+            expect(titles.fn).toHaveBeenCalledExactlyOnceWith({
+                threadId: 'srv-9',
+                text: 'What is the tallest mountain?'
+            });
+
+            await titles.resolve('Tallest mountain');
+            expect(model.selectedSummary.title).toBe('Tallest mountain');
+            expect(renameCalls(store)).toEqual([['srv-9', 'Tallest mountain']]);
+            expect(chatModel.status).toBe('submitted');
+
+            release();
+            await done;
+            expect(titles.fn).toHaveBeenCalledOnce();
+        });
+
         it('does not ask for a thread opened from the list', async () => {
             const titles = new TitleGate(),
                 {model} = setup({titleThreadAsync: titles.fn});
