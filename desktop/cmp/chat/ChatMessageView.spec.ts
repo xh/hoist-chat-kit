@@ -519,13 +519,16 @@ describe('ChatMessageView', () => {
             await act(() => fireEvent.click(screen.getByRole('button', {name: 'Bad response'})));
             expect(submitAsync).not.toHaveBeenCalled();
 
-            const send = screen.getByRole('button', {name: 'Send Feedback'}) as HTMLButtonElement;
-            expect(send.disabled).toBe(true);
+            const send = () =>
+                screen.getByRole('button', {name: 'Send Feedback'}) as HTMLButtonElement;
+            expect(send().disabled).toBe(true);
 
+            // Send drops its tooltip once there is a comment, and Hoist renders it anew without one.
             fireEvent.change(screen.getByRole('textbox', {name: 'What went wrong?'}), {
                 target: {value: 'Wrong section.'}
             });
-            await act(() => fireEvent.click(send));
+            expect(send().disabled).toBe(false);
+            await act(() => fireEvent.click(send()));
 
             expect(submitAsync).toHaveBeenCalledOnce();
             expect(submitAsync).toHaveBeenCalledWith(
