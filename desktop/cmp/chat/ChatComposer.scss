@@ -91,7 +91,7 @@
 
   // The text area sits borderless inside the box, which draws the border and focus ring. It
   // grows from one line, and scrolls past `maxRows` or the max height, whichever comes first.
-  &__box textarea.xh-chat-composer__input.bp6-input {
+  &__box textarea.xh-chat-composer__input.xh-text-area {
     background: transparent;
     border: none;
     border-radius: 0;

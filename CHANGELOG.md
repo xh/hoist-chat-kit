@@ -26,6 +26,10 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * The kit's components now take child elements as `children`, as Hoist 91's element factories do.
   The docs and examples use `children` too. The legacy `item` and `items` keys still work in Hoist
   91.
+* The kit's styles now target Hoist 91's `xh-*` class names, such as `xh-button__text` and
+  `xh-control__indicator`, in place of Blueprint's `bp6-*` ones, and it imports `popover`, `tooltip`
+  and `dialog` from Hoist rather than `@xh/hoist/kit/blueprint`. Rename `bp6-*` classes in app CSS
+  that overrides the kit with Hoist's v91 codemod, `codemod-bp6-classes.mjs`.
 
 ### 🎁 New Features
 

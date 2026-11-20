@@ -1,9 +1,9 @@
 // A small chip in the composer: icon, words, count and chevron, at meta size. The pill is a minimal
 // Hoist button. Hoist sets a minimal button's padding and font size under `.xh-app`, and again
-// under `.xh-app.xh-dark.bp6-dark`, so the pill's rule takes the dark selector and the minimal
+// under `.xh-app.xh-dark.xh-dark`, so the pill's rule takes the dark selector and the minimal
 // class to win in both themes - as the `hoist-button` mixin does for a component's buttons.
-:is(.xh-app, .xh-app.xh-dark.bp6-dark)
-  .xh-chat-composer-pill.xh-button.bp6-button.xh-button--minimal {
+:is(.xh-app, .xh-app.xh-dark.xh-dark)
+  .xh-chat-composer-pill.xh-button.xh-button.xh-button--minimal {
   // Hoist colors buttons through its `--xh-button-*` variables, with selectors that outrank
   // component styles in the dark theme - so set the variables, not the colors.
   --xh-button-text-color: var(--xh-chat-text-color);
@@ -34,7 +34,7 @@
     color: var(--xh-chat-meta-text-color);
   }
 
-  .bp6-button-text {
+  .xh-button__text {
     min-width: 0;
   }
 
@@ -99,7 +99,7 @@
   }
 
   // Compact - icon and count only. The words stay in the accessible name and the tooltip.
-  .xh-chat--compact & .bp6-button-text .xh-chat-composer-pill__text {
+  .xh-chat--compact & .xh-button__text .xh-chat-composer-pill__text {
     display: none;
   }
 }

@@ -45,12 +45,12 @@ describe('ChatPanel', () => {
 
         const button = () => screen.getByRole('button', {name: 'Model'});
         fireEvent.click(button());
-        expect(placement()).toContain('bp6-popover-placement-bottom');
+        expect(placement()).toContain('xh-popover__content-wrapper--bottom');
         fireEvent.click(button());
 
         await act(() => chatModel.sendAsync('Hi'));
         fireEvent.click(button());
-        expect(placement()).toContain('bp6-popover-placement-top');
+        expect(placement()).toContain('xh-popover__content-wrapper--top');
     });
 
     it("shows the app's own header content above the heading of the empty state", () => {

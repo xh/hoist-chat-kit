@@ -144,7 +144,7 @@
   }
 
   // A row's text as a link looks no different: the row is the control. Two classes, to beat
-  // Blueprint's dark-theme anchor rule, `.bp6-dark a`.
+  // Hoist's dark-theme anchor rule, `.xh-dark a`.
   & &__link {
     color: inherit;
     text-decoration: none;
