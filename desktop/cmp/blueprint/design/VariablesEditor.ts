@@ -172,6 +172,12 @@ export class VariableEditorModel extends ConfigEditorModel {
         }));
     }
 
+    /** The value a literal default starts at: the variable's first option, or none. */
+    startValue(): unknown {
+        const options = this.values?.options as {values?: unknown[]};
+        return options?.values?.[0] ?? null;
+    }
+
     add() {
         this.designModel.addVariable();
     }
@@ -411,7 +417,7 @@ function defaultEditor(impl: VariableEditorModel) {
                         it === 'none'
                             ? undefined
                             : it === 'value'
-                              ? {value: impl.newValue(valueNode.schema) ?? null, ...personalizable}
+                              ? {value: impl.startValue(), ...personalizable}
                               : {resolver: impl.resolverOptions[0]?.value, ...personalizable}
                     )
             }),

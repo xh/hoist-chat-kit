@@ -107,6 +107,13 @@ describe('VariablesEditor', () => {
         expect(editor.valueSchema('string[]')).toEqual({type: 'array', items: {type: 'string'}});
     });
 
+    it("starts a literal default at the variable's first option, or with no value", () => {
+        const {design, editor} = open('symbol');
+        expect(editor.startValue()).toBeNull();
+        design.setVariableDecl('symbol', 'options', {values: ['AAPL', 'MSFT']});
+        expect(editor.startValue()).toBe('AAPL');
+    });
+
     it('shows a default that presets control, and badges it with the active preset', () => {
         const {design, editor} = open('fund');
         design.addPresetGroup('/variables/fund/default');

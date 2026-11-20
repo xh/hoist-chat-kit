@@ -365,6 +365,8 @@ describe('ElementInspector', () => {
         expect(row('Stripe rows').querySelector('input').checked).toBe(true);
         expect(row('Show hover').querySelector('input').checked).toBe(false);
         expect(row('Tree style').textContent).toContain('Default (highlights)');
+        expect(row('Sizing mode').textContent).toContain('Default');
+        expect(row('Sizing mode').textContent).not.toContain('Select');
         expect(model.blueprint).toBe(before);
     });
 

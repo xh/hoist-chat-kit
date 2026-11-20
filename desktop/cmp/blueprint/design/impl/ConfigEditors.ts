@@ -110,7 +110,9 @@ function editorFor(
 ): ReactElement {
     const disabled = ctx.impl.readOnly || !!ctx.locked,
         optional = (v: unknown) => (v == null || v === '' ? undefined : v),
-        placeholder = node.default !== undefined ? `Default (${node.default})` : undefined;
+        placeholder = node.default !== undefined ? `Default (${node.default})` : undefined,
+        // An optional choice with no default in its schema takes one the widget decides.
+        choicePlaceholder = placeholder ?? (node.required ? undefined : 'Default');
     if (node.bindable) return bindableEditor(node, value, commit, ctx);
     if (isVarBinding(value) && node.kind !== 'json') {
         return div({className: `${CLS}__binding`, children: `Bound to variable ${value.$var}`});
@@ -149,7 +151,7 @@ function editorFor(
                 value: value ?? null,
                 options: node.options as any[],
                 enableClear: !node.required,
-                placeholder,
+                placeholder: choicePlaceholder,
                 disabled,
                 width: '100%',
                 onCommit: v => commit(optional(v))
