@@ -1,10 +1,18 @@
 import {HoistBase, type LoadSpec, managed, type PlainObject, XH} from '@xh/hoist/core';
 import type {CubeFieldSpec, FilterSpec} from '@xh/hoist/data';
-import {Cube, type View, WeightedAverageAggregator} from '@xh/hoist/data';
+import {
+    Cube,
+    FirstAggregator,
+    KeyedAggregator,
+    LastAggregator,
+    type View,
+    WeightedAverageAggregator
+} from '@xh/hoist/data';
 import {action, computed, observable, observableRef, runInAction} from '@xh/hoist/mobx';
 import {wait} from '@xh/hoist/promise';
 import {
     castArray,
+    compact,
     isArray,
     isEmpty,
     isEqual,
@@ -23,6 +31,7 @@ import {
     type FieldOverride,
     fieldInstances,
     isFieldInstance,
+    type JoinDecl,
     type SourceDecl
 } from './Blueprint';
 import type {
@@ -40,6 +49,7 @@ import {
     resolveFormat,
     type ResolvedFieldDisplay
 } from './impl/formats';
+import {joinFields, type JoinField} from './impl/joins';
 import {getOwn} from './impl/pointer';
 import {getWriters} from './validateBlueprint';
 
@@ -55,6 +65,7 @@ export interface BlueprintSourceContext {
     readonly artifactProvider: BlueprintArtifactProvider;
     resolve(value: unknown): any;
     resolveFilter(filter: unknown): FilterSpec;
+    getSource(name: string): BlueprintSource;
 }
 
 /**
@@ -64,8 +75,11 @@ export interface BlueprintSourceContext {
  */
 export class BlueprintSource extends HoistBase {
     readonly name: string;
-    /** The fields of the source: its dataset's fields, plus its field instances. */
+    /** The fields of the source: its dataset's fields, its field instances and its joined fields. */
     readonly fields: Record<string, FieldDef>;
+
+    /** Each join of the source, with the fields it brings and their modes. */
+    readonly joins: {join: JoinDecl; fields: JoinField[]}[] = [];
 
     /** The parts of its declaration the source's Cube was built for - see {@link cubeKey}. */
     readonly builtFor: PlainObject;
@@ -113,7 +127,7 @@ export class BlueprintSource extends HoistBase {
         // An inline source holds its rows from the start, and takes new ones in place.
         this.hasLoaded = !!decl.inline;
         this.cube = new Cube({
-            fields: Object.values(this.fields).map(toCubeField),
+            fields: Object.values(this.fields).map(it => this.toCubeField(it)),
             data: decl.inline ? withRowIds(decl.inline.rows) : [],
             // An inline row's own id may repeat, so each takes one of its own.
             ...(decl.inline ? {idSpec: INLINE_ROW_ID} : {})
@@ -146,6 +160,16 @@ export class BlueprintSource extends HoistBase {
                 run: sets => this.loadMissingSets(sets),
                 equals: 'structural'
             });
+            // A joined source's change, or its replacement, reaches this source's rows.
+            this.joins.forEach(spec =>
+                this.addReaction({
+                    track: () => {
+                        const secondary = this.context.getSource(spec.join.source);
+                        return [secondary, secondary?.cube.store.lastUpdated];
+                    },
+                    run: () => this.flushJoins()
+                })
+            );
         }
     }
 
@@ -189,6 +213,7 @@ export class BlueprintSource extends HoistBase {
             instances = fieldInstances(decl);
         if (!isEmpty(instances)) ret.fields = instances;
         if (decl.inline) ret.inline = {fields: decl.inline.fields};
+        if (!isEmpty(decl.joins)) ret.joins = decl.joins;
         return ret;
     }
 
@@ -267,12 +292,47 @@ export class BlueprintSource extends HoistBase {
     /** The names of every field the source's widgets need, with weight fields, sorted. */
     @computed
     private get requestedFields(): string[] {
-        const names = uniq([
-                ...this.getDemands().flatMap(it => it.fields),
-                ...this.getBindingFields()
+        const joined = this.joins.flatMap(it => it.fields.map(f => f.name)),
+            names = uniq([
+                ...this.demandedNames.filter(it => !joined.includes(it)),
+                ...this.joins.flatMap(it => Object.keys(it.join.on ?? {})),
+                ...this.joinDemand
             ]).filter(it => this.fields[it]),
             weights = names.map(it => weightFieldOf(this.fields[it])).filter(Boolean);
         return uniq([...names, ...weights]).sort();
+    }
+
+    /** The names of the fields the source's widgets and bindings read, joined fields included. */
+    @computed
+    get demandedNames(): string[] {
+        return uniq([...this.getDemands().flatMap(it => it.fields), ...this.getBindingFields()]);
+    }
+
+    /**
+     * What the sources that join this one need of it: the joined fields their widgets read, by
+     * this source's names, its `on` fields, and the fields its reduce aggregators read.
+     */
+    @computed
+    private get joinDemand(): string[] {
+        const {blueprint, catalog} = this.context,
+            own = catalog.getDataset(this.decl.dataset);
+        return Object.entries(blueprint?.sources ?? {}).flatMap(([name, decl]) =>
+            castArray(decl.joins ?? [])
+                .filter(join => join.source === this.name)
+                .flatMap(join => {
+                    const primary = this.context.getSource(name),
+                        demanded = primary?.demandedNames ?? [],
+                        used = joinFields(join, catalog.getDataset(decl.dataset), own).filter(it =>
+                            demanded.includes(it.name)
+                        );
+                    if (!used.length) return [];
+                    return [
+                        ...Object.values(join.on ?? {}),
+                        ...used.map(it => it.field),
+                        ...used.flatMap(it => (it.reduce ? aggregatorFields(it.def) : []))
+                    ];
+                })
+        );
     }
 
     override destroy() {
@@ -437,6 +497,13 @@ export class BlueprintSource extends HoistBase {
         aggregates
     }: BlueprintDataUpdate) {
         try {
+            if (!isEmpty(this.joins)) {
+                if (replace) this.rawRows.clear();
+                remove?.forEach(id => this.rawRows.delete(id));
+                [replace, add, update] = [replace, add, update].map(rows =>
+                    rows ? this.withJoins(rows) : rows
+                );
+            }
             if (replace) {
                 await this.cube.loadDataAsync(replace, {}, aggregates ?? null);
                 runInAction(() => {
@@ -506,6 +573,109 @@ export class BlueprintSource extends HoistBase {
         return getOwn(this.decl.fields, name) ?? null;
     }
 
+    //------------------
+    // Joins
+    //------------------
+    // The rows as their provider sent them, by ID, for a source that joins others.
+    private readonly rawRows = new Map<string, PlainObject>();
+    private flushPending = false;
+
+    /**
+     * Rows as their provider sent them, with each join's fields set from its source's values as
+     * they stand, null where nothing matches.
+     */
+    private withJoins(rows: PlainObject[]): PlainObject[] {
+        const maps = this.joins.map(it => this.joinValues(it));
+        return rows.map(row => {
+            this.rawRows.set(String(row.id), row);
+            const ret = {...row};
+            this.joins.forEach((spec, idx) => {
+                const values = maps[idx].get(keyOf(row, Object.keys(spec.join.on)));
+                spec.fields.forEach(f => (ret[f.name] = values?.[f.field] ?? null));
+            });
+            return ret;
+        });
+    }
+
+    /** Write a joined source's current values onto every row they change, once per tick. */
+    private flushJoins() {
+        if (this.flushPending) return;
+        this.flushPending = true;
+        wait().then(() => {
+            this.flushPending = false;
+            if (this.isDestroyed || !this.rawRows.size) return;
+            const {store} = this.cube,
+                names = this.joins.flatMap(it => it.fields.map(f => f.name)),
+                update = this.withJoins([...this.rawRows.values()]).filter(it => {
+                    const data = store.getById(it.id)?.data;
+                    return data && names.some(n => !isEqual(data[n] ?? null, it[n]));
+                });
+            if (update.length) this.cube.updateDataAsync({update}).catch(e => this.fail(e));
+        });
+    }
+
+    /**
+     * A joined source's values by key, from its rows as they stand: each row's own, or each key's
+     * reduced by the field's aggregator. In unique mode, the first row of a key wins.
+     */
+    private joinValues({
+        join,
+        fields
+    }: {
+        join: JoinDecl;
+        fields: JoinField[];
+    }): Map<string, PlainObject> {
+        const ret = new Map<string, PlainObject>(),
+            secondary = this.context.getSource(join.source),
+            onFields = Object.values(join.on ?? {});
+        if (!secondary) return ret;
+        if (fields.some(it => it.reduce)) {
+            const view = secondary.cube.createView({
+                query: {dimensions: onFields, includeRoot: false}
+            });
+            const walk = (rows: PlainObject[], path: unknown[]) =>
+                rows?.forEach(row => {
+                    const at = [...path, row.cubeLabelValue];
+                    if (at.length < onFields.length) walk(row.children, at);
+                    else ret.set(JSON.stringify(at), row);
+                });
+            walk(view.result.rows, []);
+            view.destroy();
+            return ret;
+        }
+        let duplicates = 0;
+        secondary.cube.store.records.forEach(rec => {
+            const key = keyOf(rec.data, onFields);
+            if (ret.has(key)) duplicates++;
+            else ret.set(key, rec.data);
+        });
+        if (duplicates) {
+            this.logWarn(
+                `join.duplicateKey: ${duplicates} rows of '${join.source}' repeat a key of the join, so the first of each wins`
+            );
+        }
+        return ret;
+    }
+
+    // A joined measure from a coarser source shows only where a row pins the join's key.
+    private toCubeField(f: FieldDef): CubeFieldSpec {
+        const ret = toCubeField(f),
+            spec = this.joins.find(it =>
+                it.fields.some(jf => jf.name === f.name && jf.mode === 'keyed')
+            );
+        if (!spec) return ret;
+        const root = ROOT_AGGREGATORS.includes(f.aggregator as string)
+            ? (f.aggregator as any)
+            : undefined;
+        return {
+            ...ret,
+            aggregator: new KeyedAggregator({
+                keyFields: Object.keys(spec.join.on),
+                rootAggregator: root
+            })
+        };
+    }
+
     private buildFields(): Record<string, FieldDef> {
         const {initialDecl: decl, context} = this;
         // Inline values are computed literals, so a row that holds one rolls up to it.
@@ -523,11 +693,34 @@ export class BlueprintSource extends HoistBase {
             const base = ds.fields[inst.field];
             if (base) ret[name] = {...base, name};
         });
+        castArray(decl.joins ?? []).forEach(join => {
+            const secondary = context.catalog.getDataset(
+                    context.blueprint?.sources?.[join.source]?.dataset
+                ),
+                fields = joinFields(join, ds, secondary).filter(it => !ret[it.name]);
+            if (!fields.length) return;
+            this.joins.push({join, fields});
+            fields.forEach(it => (ret[it.name] = it.def));
+        });
         return ret;
     }
 }
 
 const INLINE_ROW_ID = 'xhInlineRowId';
+
+// The catalog aggregators a keyed field's root can apply once per key.
+const ROOT_AGGREGATORS = ['SUM', 'AVG', 'MIN', 'MAX', 'UNIQUE'];
+
+// A join's key for a row, as its values of the fields given, in order.
+function keyOf(row: PlainObject, fields: string[]): string {
+    return JSON.stringify(fields.map(it => row?.[it] ?? null));
+}
+
+// The fields an aggregator reads beside its own, such as a weight or an order field.
+function aggregatorFields(f: FieldDef): string[] {
+    const agg = f.aggregator as PlainObject;
+    return isPlainObject(agg) ? compact([agg.weightField, agg.orderField]) : [];
+}
 
 function withRowIds(rows: PlainObject[]): PlainObject[] {
     return (rows ?? []).map((it, idx) => ({...it, [INLINE_ROW_ID]: idx}));
@@ -561,9 +754,12 @@ function toAggregator(f: FieldDef): CubeFieldSpec['aggregator'] {
     if (isString(agg)) return agg as CubeFieldSpec['aggregator'];
     if (isPlainObject(agg)) {
         const {type: aggType, weightField, absolute} = agg as PlainObject;
-        return aggType === 'weightedAverage'
-            ? new WeightedAverageAggregator(weightField, {absolute})
-            : null;
+        const {orderField} = agg as PlainObject;
+        if (aggType === 'weightedAverage')
+            return new WeightedAverageAggregator(weightField, {absolute});
+        if (aggType === 'last' && orderField) return new LastAggregator({orderField});
+        if (aggType === 'first' && orderField) return new FirstAggregator({orderField});
+        return null;
     }
     if (isDimension) return null;
     return type === 'number' || type === 'int' ? null : 'UNIQUE';

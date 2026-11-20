@@ -1,5 +1,10 @@
-import {describe, expect, it} from 'vitest';
+import type {PlainObject} from '@xh/hoist/core';
+import {wait} from '@xh/hoist/promise';
+import {initTestAppAsync} from '@xh/hoist/test-support';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import type {Blueprint, JoinDecl} from './Blueprint';
+import type {BlueprintDataRequest, BlueprintDataUpdate} from './BlueprintDataProvider';
+import {BlueprintModel} from './BlueprintModel';
 import {BlueprintRegistry} from './BlueprintRegistry';
 import {DataCatalog} from './DataCatalog';
 import {joinFields} from './impl/joins';
@@ -224,6 +229,182 @@ describe('joins', () => {
             expect(
                 validateBlueprint(bp, {catalog, registry}).map(it => [it.code, it.severity])
             ).toContainEqual(['join.paramMismatch', 'warning']);
+        });
+    });
+
+    describe('at runtime', () => {
+        beforeAll(async () => {
+            await initTestAppAsync();
+        });
+
+        const ROWS: Record<string, PlainObject[]> = {
+            positions: [
+                {id: 'a1', fund: 'A', symbol: 'X', sector: 'Tech', mktVal: 10},
+                {id: 'a2', fund: 'A', symbol: 'Y', sector: 'Energy', mktVal: 20},
+                {id: 'b1', fund: 'B', symbol: 'X', sector: 'Tech', mktVal: 30},
+                {id: 'c1', fund: 'C', symbol: 'Z', sector: 'Tech', mktVal: 40}
+            ],
+            funds: [
+                {id: 'A', fund: 'A', nav: 100, manager: 'Ann'},
+                {id: 'B', fund: 'B', nav: 200, manager: 'Bob'}
+            ],
+            instruments: [
+                {id: 'X', symbol: 'X', issuer: 'Xco'},
+                {id: 'Y', symbol: 'Y', issuer: 'Yco'}
+            ],
+            prices: [
+                {id: 'X1', symbol: 'X', day: '2026-03-01', close: 9, volume: 1},
+                {id: 'X2', symbol: 'X', day: '2026-03-02', close: 11, volume: 2},
+                {id: 'Y1', symbol: 'Y', day: '2026-03-02', close: 5, volume: 4}
+            ]
+        };
+
+        /** A provider that records each request, and pushes a dataset's rows when asked. */
+        function provider() {
+            const subs: Record<
+                string,
+                {req: BlueprintDataRequest; push: (u: BlueprintDataUpdate) => void}
+            > = {};
+            return {
+                subs,
+                loadAsync: async () => ({rows: []}),
+                subscribe(req: BlueprintDataRequest, push: (u: BlueprintDataUpdate) => void) {
+                    subs[req.dataset] = {req, push};
+                    return () => {};
+                },
+                send: async (
+                    dataset: string,
+                    update: BlueprintDataUpdate = {replace: ROWS[dataset]}
+                ) => {
+                    await vi.waitFor(() => expect(subs[dataset]).toBeTruthy());
+                    subs[dataset].push(update);
+                    await wait();
+                }
+            };
+        }
+
+        function open(joins: JoinDecl[], columns: string[], groupBy: string[] = ['sector']) {
+            const dataProvider = provider(),
+                model = new BlueprintModel({
+                    blueprint: {
+                        schema: {blueprint: 1},
+                        variables: {
+                            asOf: {
+                                type: 'localDate',
+                                setBy: 'prompt',
+                                default: {value: '2026-03-02'}
+                            }
+                        },
+                        sources: {
+                            positions: {
+                                dataset: 'positions',
+                                params: {asOf: {$var: 'asOf'}},
+                                joins
+                            },
+                            funds: {dataset: 'funds', params: {asOf: {$var: 'asOf'}}},
+                            instruments: {dataset: 'instruments'},
+                            prices: {dataset: 'prices', params: {asOf: {$var: 'asOf'}}}
+                        },
+                        root: 'grid',
+                        elements: {
+                            grid: {
+                                component: 'cubeGrid',
+                                config: {source: 'positions', groupBy, columnState: columns}
+                            }
+                        }
+                    },
+                    catalog,
+                    registry,
+                    dataProvider
+                });
+            onTestFinished(() => model.destroy());
+            const positions = model.getSource('positions'),
+                view = (dimensions: string[], filter: PlainObject = null) => {
+                    const ret = positions.cube.createView({
+                        query: {dimensions, filter: filter as any, includeRoot: true}
+                    });
+                    onTestFinished(() => ret.destroy());
+                    return ret.result.rows[0];
+                },
+                leaf = (id: string) => positions.cube.store.getById(id)?.data;
+            return {model, dataProvider, positions, view, leaf};
+        }
+
+        const fundJoin: JoinDecl = {
+            source: 'funds',
+            on: {fund: 'fund'},
+            fields: ['nav', 'manager'],
+            as: {nav: 'fundNav'}
+        };
+
+        it('copies a joined dimension onto each row, so the primary groups by it', async () => {
+            const {dataProvider, view, leaf} = open(
+                [{source: 'instruments', on: {symbol: 'symbol'}, fields: ['issuer']}],
+                ['mktVal'],
+                ['issuer']
+            );
+            await dataProvider.send('positions');
+            await dataProvider.send('instruments');
+            await vi.waitFor(() => expect(leaf('a1').issuer).toBe('Xco'));
+            expect(leaf('c1').issuer).toBeNull();
+            const byIssuer = view(['issuer']).children.map(it => [String(it.cubeLabel), it.mktVal]);
+            expect(Object.fromEntries(byIssuer)).toEqual({Xco: 40, Yco: 20, null: 40});
+        });
+
+        it('shows a coarser measure on the rows that pin its key, and totals it once per key at the root', async () => {
+            const {dataProvider, view} = open([fundJoin], ['fundNav']);
+            await dataProvider.send('positions');
+            await dataProvider.send('funds');
+            await vi.waitFor(() => expect(view([]).fundNav).toBe(300));
+            const byFund = view(['fund']).children;
+            expect(Object.fromEntries(byFund.map(it => [it.cubeLabel, it.fundNav]))).toEqual({
+                A: 100,
+                B: 200,
+                C: null
+            });
+            expect(view(['sector']).children.every(it => it.fundNav == null)).toBe(true);
+            expect(view([], {field: 'sector', op: '=', value: 'Energy'}).fundNav).toBe(100);
+        });
+
+        it("reduces a finer secondary to the key, by each field's aggregator, before it joins", async () => {
+            const {dataProvider, leaf} = open(
+                [{source: 'prices', on: {symbol: 'symbol'}, fields: ['close', 'volume']}],
+                ['close', 'volume'],
+                ['symbol']
+            );
+            await dataProvider.send('positions');
+            await dataProvider.send('prices');
+            await vi.waitFor(() => expect(leaf('a1').close).toBe(11));
+            expect(leaf('a1').volume).toBe(3);
+            expect(leaf('a2')).toMatchObject({close: 5, volume: 4});
+        });
+
+        it('asks the secondary for the joined fields widgets show, and the primary for its key', async () => {
+            const {dataProvider} = open([fundJoin], ['mktVal', 'fundNav']);
+            await vi.waitFor(() => expect(dataProvider.subs.funds).toBeTruthy());
+            const {positions, funds} = dataProvider.subs;
+            expect(positions.req.fields).toEqual(expect.arrayContaining(['fund', 'mktVal']));
+            expect(positions.req.fields).not.toContain('fundNav');
+            expect(funds.req.fields).toEqual(expect.arrayContaining(['fund', 'nav']));
+            expect(funds.req.fields).not.toContain('manager');
+        });
+
+        it('follows a tick from either side, a new key from the primary included', async () => {
+            const {dataProvider, leaf} = open([fundJoin], ['fundNav']);
+            await dataProvider.send('positions');
+            await dataProvider.send('funds');
+            await vi.waitFor(() => expect(leaf('a1').fundNav).toBe(100));
+
+            await dataProvider.send('funds', {
+                update: [{id: 'A', fund: 'A', nav: 150, manager: 'Ann'}]
+            });
+            await vi.waitFor(() => expect(leaf('a1').fundNav).toBe(150));
+            expect(leaf('a2').fundNav).toBe(150);
+
+            await dataProvider.send('positions', {
+                add: [{id: 'b2', fund: 'B', symbol: 'Y', sector: 'Energy', mktVal: 5}]
+            });
+            await vi.waitFor(() => expect(leaf('b2')?.fundNav).toBe(200));
         });
     });
 });
