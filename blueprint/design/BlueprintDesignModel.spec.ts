@@ -60,6 +60,33 @@ describe('BlueprintDesignModel', () => {
         expect(model.history.at(-1)).toMatchObject({author: 'user'});
     });
 
+    it('starts widgets with configs that show data: distinct values, fields used once, totals', () => {
+        const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+            config = (component: string) => {
+                const {id} = design.addWidget(component);
+                return model.blueprint.elements[id].config;
+            },
+            fields = portfolioCatalog.getDataset('positions').fields,
+            totals = (name: string) =>
+                ![null, undefined, 'UNIQUE'].includes(fields[name]?.aggregator as string);
+
+        const toggle = config('buttonGroupInput');
+        expect(new Set(toggle.options.map(it => it.value)).size).toBe(toggle.options.length);
+
+        const grid = config('cubeGrid');
+        expect(grid.columnState.length).toBeGreaterThan(0);
+        grid.columnState.forEach(it => {
+            expect(grid.groupBy).not.toContain(it);
+            expect(totals(it)).toBe(true);
+        });
+
+        const chart = config('chart');
+        expect(chart.groupBy).not.toBe(chart.x);
+        expect(totals(chart.y[0])).toBe(true);
+
+        expect(totals(config('statCardStrip').cards[0].field)).toBe(true);
+    });
+
     it('places a widget where it fits, and names it after its widget', () => {
         const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
             first = design.addWidget('chart'),
