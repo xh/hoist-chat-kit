@@ -15,7 +15,15 @@ import {
 } from '../../../../blueprint';
 import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
-import {CLS, type Option, propertyRow, type RowProps} from './impl/ConfigEditors';
+import {
+    CLS,
+    issueRows,
+    labelled,
+    nodeOf,
+    type Option,
+    propertyRow,
+    type RowProps
+} from './impl/ConfigEditors';
 
 export interface VariablesEditorProps extends HoistProps {
     designModel: BlueprintDesignModel;
@@ -163,25 +171,6 @@ export class VariableEditorModel extends ConfigEditorModel {
         }));
     }
 
-    /** The schema of a literal value of a variable type, for its default and its options. */
-    valueSchema(type: string): PlainObject {
-        if (type?.endsWith('[]'))
-            return {type: 'array', items: this.valueSchema(type.slice(0, -2))};
-        const base = this.designModel.blueprintModel.registry.variableTypes[type]?.matches ?? type;
-        switch (base) {
-            case 'number':
-                return {type: 'number'};
-            case 'int':
-                return {type: 'integer'};
-            case 'bool':
-                return {type: 'boolean'};
-            case 'filter':
-                return {};
-            default:
-                return {type: 'string'};
-        }
-    }
-
     add() {
         this.designModel.addVariable();
     }
@@ -274,7 +263,7 @@ const variablesBody = hoistCmp.factory<VariableEditorModel>({
                         })
                     ]
                 }),
-                ...issues(impl, VARIABLE_KEY),
+                ...issueRows(impl, VARIABLE_KEY),
                 ...(name ? declaration(impl) : [placeholder('Select a variable to edit it.')])
             ]
         });
@@ -549,30 +538,6 @@ function resolverCallEditor(
             )
         ]
     });
-}
-
-function labelled(label: string, editor: unknown, rowIssues: {message: string}[] = []) {
-    return div({
-        key: label,
-        className: `${CLS}__row`,
-        items: [
-            div({className: `${CLS}__label`, item: label}),
-            editor as any,
-            ...rowIssues.map((it, idx) =>
-                div({key: idx, className: `${CLS}__issue`, item: it.message})
-            )
-        ]
-    });
-}
-
-function issues(impl: VariableEditorModel, key: string) {
-    return impl
-        .issuesFor(key)
-        .map((it, idx) => div({key: idx, className: `${CLS}__issue`, item: it.message}));
-}
-
-function nodeOf(key: string, schema: PlainObject): EditorNode {
-    return toEditorSpec({type: 'object', properties: {[key]: schema}})[0];
 }
 
 // An argument a resolver takes, whose type its spec does not give: text, a number, or a variable.

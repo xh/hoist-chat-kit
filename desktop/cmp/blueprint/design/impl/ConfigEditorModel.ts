@@ -183,6 +183,25 @@ export abstract class ConfigEditorModel extends HoistModel {
         return !!this.actionSpec(type)?.sideEffects;
     }
 
+    /** The schema of a literal value of a variable or parameter type. */
+    valueSchema(type: string): PlainObject {
+        if (type?.endsWith('[]'))
+            return {type: 'array', items: this.valueSchema(type.slice(0, -2))};
+        const base = this.designModel.blueprintModel.registry.variableTypes[type]?.matches ?? type;
+        switch (base) {
+            case 'number':
+                return {type: 'number'};
+            case 'int':
+                return {type: 'integer'};
+            case 'bool':
+                return {type: 'boolean'};
+            case 'filter':
+                return {};
+            default:
+                return {type: 'string'};
+        }
+    }
+
     /** A step's description, as its tooltip and any confirmation show it, or null. */
     describeStep(step: PlainObject): string {
         try {

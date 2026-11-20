@@ -1,0 +1,104 @@
+import {render} from '@testing-library/react';
+import {initTestAppAsync} from '@xh/hoist/test-support';
+import type {ReactElement} from 'react';
+import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {
+    BlueprintDesignModel,
+    BlueprintModel,
+    FakeBlueprintDataProvider
+} from '../../../../blueprint';
+import {
+    loadBlueprint,
+    portfolioCatalog,
+    scenarioRegistry
+} from '../../../../test/blueprintFixtures';
+import {sourcesEditor, SourceEditorModel} from './SourcesEditor';
+
+/**
+ * A designer adds, renames and removes a blueprint's sources, and declares each: its dataset, its
+ * parameters bound to variables, its filter, how its fields show, and instances of its
+ * parameterized fields. Each change is one edit.
+ */
+describe('SourcesEditor', () => {
+    beforeAll(async () => {
+        await initTestAppAsync();
+    });
+
+    function open(select = 'positions') {
+        const model = new BlueprintModel({
+                blueprint: loadBlueprint('p3-morning-report.json'),
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
+                mode: 'design',
+                access: 'write'
+            }),
+            design = new BlueprintDesignModel({blueprintModel: model}),
+            editor = new SourceEditorModel(design);
+        if (select) design.select({kind: 'source', id: select});
+        onTestFinished(() => {
+            editor.destroy();
+            design.destroy();
+            model.destroy();
+        });
+        return {model, design, editor};
+    }
+
+    it('adds a source over the first dataset it can bind, and renames and removes it', () => {
+        const {model, editor} = open(null);
+        editor.add();
+        expect(editor.name).toBe('positions1');
+        editor.rename('book');
+        expect(model.blueprint.sources).toHaveProperty('book');
+        editor.remove();
+        expect(model.blueprint.sources).not.toHaveProperty('book');
+    });
+
+    it('offers, for each parameter, the variables of its type', () => {
+        const {editor} = open();
+        expect(editor.paramVariables('localDate')).toEqual(
+            expect.arrayContaining(['asOf', 'priceStart', 'yearStart'])
+        );
+        expect(editor.paramVariables('fund')).toEqual(['fund']);
+    });
+
+    it('changes the dataset with its required parameters bound again, in one edit', () => {
+        const {model, editor} = open();
+        editor.setDataset('orders');
+        expect(model.blueprint.sources.positions.dataset).toBe('positions');
+        expect(editor.issuesFor('dataset').length).toBeGreaterThan(0);
+
+        editor.add();
+        editor.setDataset('orders');
+        expect(model.blueprint.sources.positions1).toEqual({
+            dataset: 'orders',
+            params: {asOf: {$var: 'asOf'}}
+        });
+        expect(model.history.at(-1).description).toMatch(/^Source positions1: /);
+    });
+
+    it("offers a dataset's parameterized fields for instances", () => {
+        const {editor} = open();
+        const fields = editor.parameterizedFields.map(it => it.value),
+            count = () =>
+                Object.values(editor.values.fields ?? {}).filter(
+                    it => (it as any).field === fields[0]
+                ).length,
+            before = count();
+        expect(fields.length).toBeGreaterThan(0);
+        editor.addInstance(fields[0]);
+        expect(count()).toBe(before + 1);
+    });
+
+    it('draws the declaration of the selected source', () => {
+        const {design} = open(),
+            {container} = render(sourcesEditor({designModel: design}) as ReactElement),
+            labels = [...container.querySelectorAll('.xh-blueprint-element-inspector__label')].map(
+                it => it.textContent
+            );
+        expect(labels).toEqual(
+            expect.arrayContaining(['Name', 'Dataset', 'Parameters', 'Filter', 'Fields'])
+        );
+        expect(container.textContent).not.toContain('No model found');
+    });
+});

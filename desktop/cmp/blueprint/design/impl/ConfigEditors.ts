@@ -748,6 +748,33 @@ function jsonEditor(value: unknown, commit: (value: unknown) => void, ctx: Edito
     });
 }
 
+/** A row of a label, an editor, and the issues under them. */
+export function labelled(label: string, editor: unknown, rowIssues: {message: string}[] = []) {
+    return div({
+        key: label,
+        className: `${CLS}__row`,
+        items: [
+            div({className: `${CLS}__label`, item: label}),
+            editor as any,
+            ...rowIssues.map((it, idx) =>
+                div({key: idx, className: `${CLS}__issue`, item: it.message})
+            )
+        ]
+    });
+}
+
+/** The issues at a key, each as a row. */
+export function issueRows(impl: ConfigEditorModel, key: string) {
+    return impl
+        .issuesFor(key)
+        .map((it, idx) => div({key: idx, className: `${CLS}__issue`, item: it.message}));
+}
+
+/** The editor node of one property with the schema given. */
+export function nodeOf(key: string, schema: PlainObject): EditorNode {
+    return toEditorSpec({type: 'object', properties: {[key]: schema}})[0];
+}
+
 // The options, plus any current value they lack, so a select still shows it.
 function withCurrent(options: Option[], value: unknown): Option[] {
     const missing = castArray(value ?? []).filter(

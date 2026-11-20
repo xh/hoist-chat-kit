@@ -6,6 +6,7 @@ import type {BlueprintElement, BlueprintOp, ChildRef} from '../Blueprint';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
 import type {WidgetSpec} from '../BlueprintRegistry';
 import {getAt, getOwn} from '../impl/pointer';
+import {variableTypeMatches} from '../validateBlueprint';
 import {starterConfig} from './starterConfig';
 
 /** What a designer has selected: an element, a variable, a source or a preset group. */
@@ -217,23 +218,59 @@ export class BlueprintDesignModel extends HoistModel {
      * edit, such as `setBy` with the `compute` it needs.
      */
     updateVariableDecl(name: string, changes: PlainObject): BlueprintEditResult {
-        const decl = getOwn(this.blueprintModel.blueprint?.variables, name);
-        if (!decl) return refused(`There is no variable '${name}'.`);
-        const ops: BlueprintOp[] = Object.entries(changes)
-            .filter(([key, value]) => value !== undefined || Object.hasOwn(decl, key))
-            .map(([key, value]) => {
-                const path = `/variables/${name}/${key}`;
-                return value === undefined ? {op: 'remove', path} : {op: 'set', path, value};
-            });
-        return this.edit(`Variable ${name}: ${Object.keys(changes).join(', ')}`, ops);
+        return this.updateEntry('variables', 'Variable', name, changes);
     }
 
     /** Remove a variable, as one edit. Refused while anything reads it. */
     removeVariable(name: string): BlueprintEditResult {
-        if (!getOwn(this.blueprintModel.blueprint?.variables, name)) {
-            return refused(`There is no variable '${name}'.`);
-        }
-        return this.edit(`Remove variable ${name}`, [{op: 'remove', path: `/variables/${name}`}]);
+        return this.removeEntry('variables', 'variable', name);
+    }
+
+    /**
+     * Add a source over a dataset, named for it, with each required parameter bound to the first
+     * variable of its type, and select it. Refused if a required parameter has no such variable.
+     */
+    addSource(dataset: string): BlueprintEditResult & {id?: string} {
+        const bound = this.boundParams(dataset);
+        if ('refusal' in bound) return bound.refusal;
+        const taken = this.blueprintModel.blueprint?.sources ?? {};
+        let n = 1;
+        while (Object.hasOwn(taken, `${dataset}${n}`)) n++;
+        const id = `${dataset}${n}`,
+            value = {dataset, ...bound.params},
+            ret = this.edit(`Add source ${id}`, [{op: 'set', path: `/sources/${id}`, value}]);
+        if (!ret.issues.some(isError)) this.select({kind: 'source', id});
+        return {...ret, id};
+    }
+
+    /**
+     * Point a source at another dataset, in one edit, with its required parameters bound again as
+     * {@link addSource} binds them. Its filter and fields, which name the old dataset's fields, go.
+     */
+    changeSourceDataset(name: string, dataset: string): BlueprintEditResult {
+        const bound = this.boundParams(dataset);
+        if ('refusal' in bound) return bound.refusal;
+        return this.updateSourceDecl(name, {
+            dataset,
+            params: bound.params.params,
+            filter: undefined,
+            fields: undefined
+        });
+    }
+
+    /** Set one key of a source's declaration, or remove it with `undefined`, as one edit. */
+    setSourceDecl(name: string, key: string, value: unknown): BlueprintEditResult {
+        return this.updateSourceDecl(name, {[key]: value});
+    }
+
+    /** Set keys of a source's declaration together, removing each given as `undefined`. */
+    updateSourceDecl(name: string, changes: PlainObject): BlueprintEditResult {
+        return this.updateEntry('sources', 'Source', name, changes);
+    }
+
+    /** Remove a source, as one edit. Refused while a widget reads it. */
+    removeSource(name: string): BlueprintEditResult {
+        return this.removeEntry('sources', 'source', name);
     }
 
     /** Rename an element, variable or source, and every reference to it, as one edit. */
@@ -262,6 +299,54 @@ export class BlueprintDesignModel extends HoistModel {
     //------------------
     // Implementation
     //------------------
+    // Each required parameter of a dataset bound to the first variable of its type.
+    private boundParams(
+        dataset: string
+    ): {params: {params?: PlainObject}} | {refusal: BlueprintEditResult} {
+        const {blueprint, catalogs, registry} = this.blueprintModel,
+            ds = catalogs.map(it => it.getDataset(dataset)).find(Boolean);
+        if (!ds) return {refusal: refused(`There is no dataset '${dataset}'.`)};
+        const variables = blueprint?.variables ?? {},
+            params: PlainObject = {};
+        for (const [pn, pd] of Object.entries(ds.params ?? {})) {
+            if (!pd.required) continue;
+            const bound = Object.keys(variables).find(it =>
+                variableTypeMatches(registry, variables[it].type, pd.type)
+            );
+            if (!bound) return {refusal: refused(`Add a ${pd.type} variable for ${pn} first.`)};
+            params[pn] = {$var: bound};
+        }
+        return {params: Object.keys(params).length ? {params} : {}};
+    }
+
+    private updateEntry(
+        coll: 'variables' | 'sources',
+        noun: string,
+        name: string,
+        changes: PlainObject
+    ): BlueprintEditResult {
+        const decl = getOwn<PlainObject>(this.blueprintModel.blueprint?.[coll], name);
+        if (!decl) return refused(`There is no ${noun.toLowerCase()} '${name}'.`);
+        const ops: BlueprintOp[] = Object.entries(changes)
+            .filter(([key, value]) => value !== undefined || Object.hasOwn(decl, key))
+            .map(([key, value]) => {
+                const path = `/${coll}/${name}/${key}`;
+                return value === undefined ? {op: 'remove', path} : {op: 'set', path, value};
+            });
+        return this.edit(`${noun} ${name}: ${Object.keys(changes).join(', ')}`, ops);
+    }
+
+    private removeEntry(
+        coll: 'variables' | 'sources',
+        noun: string,
+        name: string
+    ): BlueprintEditResult {
+        if (!getOwn<PlainObject>(this.blueprintModel.blueprint?.[coll], name)) {
+            return refused(`There is no ${noun} '${name}'.`);
+        }
+        return this.edit(`Remove ${noun} ${name}`, [{op: 'remove', path: `/${coll}/${name}`}]);
+    }
+
     private edit(description: string, ops: BlueprintOp[]): BlueprintEditResult {
         const {blueprintModel} = this;
         return blueprintModel.applyEdit({

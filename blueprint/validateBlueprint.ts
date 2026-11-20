@@ -35,6 +35,15 @@ export const BUILT_IN_VARIABLE_TYPES = [
     'filter'
 ];
 
+/** True if a variable of one type can stand for a value of another: the same, or an app type of it. */
+export function variableTypeMatches(
+    registry: Pick<BlueprintRegistry, 'variableTypes'>,
+    varType: string,
+    want: string
+): boolean {
+    return varType === want || registry.variableTypes[varType]?.matches === want;
+}
+
 /**
  * Check a blueprint as a whole: its structure, each element's config against its widget's
  * schema, variables and their writers, sources and their parameters, the fields each widget
@@ -51,7 +60,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         warn = (code: string, path: string, message: string) =>
             issues.push({code, severity: 'warning', path, message}),
         typeMatches = (varType: string, want: string) =>
-            varType === want || registry.variableTypes[varType]?.matches === want;
+            variableTypeMatches(registry, varType, want);
 
     if (!isPlainObject(bp)) {
         err('structure.notObject', '', 'a blueprint is a JSON object');
@@ -643,8 +652,11 @@ export function isSettableFromOutside(decl: PlainObject): boolean {
 const MAX_HOST_INLINE_ROWS = 50;
 const TREE_COLUMN = 'group';
 
-// How a source shows one of its fields, an instance or an override. Display only.
-const FIELD_OVERRIDE_SCHEMA = {
+/**
+ * How a source shows one of its fields, an instance or an override. Display only.
+ * @internal
+ */
+export const FIELD_OVERRIDE_SCHEMA = {
     type: 'object',
     additionalProperties: false,
     properties: {

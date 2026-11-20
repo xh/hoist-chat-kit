@@ -176,6 +176,45 @@ describe('BlueprintDesignModel', () => {
         });
     });
 
+    describe('sources', () => {
+        it('adds a dataset source with its required parameters bound, and selects it', () => {
+            const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+                {id, issues} = design.addSource('positions');
+            expect(errors({issues})).toEqual([]);
+            expect(id).toBe('positions1');
+            expect(model.blueprint.sources.positions1).toEqual({
+                dataset: 'positions',
+                params: {asOf: {$var: 'asOf'}}
+            });
+            expect(design.selection).toEqual({kind: 'source', id: 'positions1'});
+            expect(model.history.at(-1).description).toBe('Add source positions1');
+        });
+
+        it('refuses a source whose required parameter no variable can take', () => {
+            const {design} = open(undefined),
+                result = design.addSource('positions');
+            expect(errors(result)).toMatchObject([
+                {message: expect.stringMatching(/Add a localDate variable for asOf first/)}
+            ]);
+        });
+
+        it('sets keys of a declaration together, and removes a source nothing reads', () => {
+            const {model, design} = open(loadBlueprint('p2-linked-dashboard.json'));
+            design.addSource('positions');
+            expect(
+                errors(
+                    design.updateSourceDecl('positions1', {
+                        fields: {mktVal: {label: 'Value'}}
+                    })
+                )
+            ).toEqual([]);
+            expect(model.blueprint.sources.positions1.fields).toEqual({mktVal: {label: 'Value'}});
+            expect(errors(design.removeSource('positions'))).not.toEqual([]);
+            expect(errors(design.removeSource('positions1'))).toEqual([]);
+            expect(model.blueprint.sources).not.toHaveProperty('positions1');
+        });
+    });
+
     describe('removing an element', () => {
         it('removes everything inside it, and what names it, in one edit that undoes', () => {
             const {model, design} = open(loadBlueprint('p3-morning-report.json')),
