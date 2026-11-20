@@ -118,6 +118,45 @@ describe('field display', () => {
             );
         });
 
+        it('applies to a field instance, which takes the same display settings', () => {
+            const bp = loadBlueprint('p3-morning-report.json');
+            Object.assign(bp.sources.positions.fields.retYtd, {
+                description: 'Return since the start of the year.',
+                align: 'center',
+                format: {precision: 1}
+            });
+            expect(
+                validateBlueprint(bp, {
+                    catalog: portfolioCatalog,
+                    registry: scenarioRegistry(),
+                    artifacts: ARTIFACTS
+                })
+            ).toEqual([]);
+            const model = new BlueprintModel({
+                blueprint: bp,
+                catalog: portfolioCatalog,
+                registry: scenarioRegistry(),
+                dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
+                mode: 'design',
+                access: 'write'
+            });
+            onTestFinished(() => model.destroy());
+            expect(model.getSource('positions').displayOf('retYtd')).toMatchObject({
+                description: 'Return since the start of the year.',
+                align: 'center',
+                formats: [{precision: 1}]
+            });
+
+            (bp.sources.positions.fields.retYtd as any).aggregator = 'MAX';
+            expect(
+                validateBlueprint(bp, {
+                    catalog: portfolioCatalog,
+                    registry: scenarioRegistry(),
+                    artifacts: ARTIFACTS
+                }).map(it => [it.code, it.path])
+            ).toEqual([['source.badOverride', '/sources/positions/fields/retYtd/aggregator']]);
+        });
+
         it('counts as a use of its field', () => {
             expect(
                 fieldUsages(withOverride({label: 'Value'}), portfolioCatalog).positions.mktVal.map(

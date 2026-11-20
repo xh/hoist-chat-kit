@@ -554,7 +554,7 @@ describe('validateBlueprint', () => {
             expect(validate(bp).filter(it => it.severity === 'error')).toEqual([]);
             (bp.sources.positions.fields.shockDown10 as any).label = 10;
             expect(validate(bp)).toMatchObject([
-                {code: 'schema.invalid', path: '/sources/positions/fields/shockDown10/label'}
+                {code: 'source.badOverride', path: '/sources/positions/fields/shockDown10/label'}
             ]);
         });
 

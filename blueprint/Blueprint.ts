@@ -85,7 +85,8 @@ export interface SourceDecl {
     inline?: {fields: PlainObject[]; rows: PlainObject[]};
 }
 
-export interface FieldInstance {
+/** A parameterized field with its parameters set. It takes the display settings of an override. */
+export interface FieldInstance extends FieldOverride {
     field: string;
     params?: PlainObject;
     /** The instance's label. Default the field's label and its parameter values. */
@@ -93,7 +94,7 @@ export interface FieldInstance {
 }
 
 /**
- * How every widget over a source shows one of its dataset's fields, over the catalog's defaults.
+ * How every widget over a source shows one of its fields, over the catalog's defaults.
  * Display only: it changes no data.
  */
 export interface FieldOverride {

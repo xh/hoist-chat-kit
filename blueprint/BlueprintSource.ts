@@ -218,7 +218,7 @@ export class BlueprintSource extends HoistBase {
      * each layer given, such as a widget's own entry for it.
      */
     displayOf(name: string, ...layers: FieldDisplayLayer[]): ResolvedFieldDisplay {
-        return resolveFieldDisplay(this.fields[name], this.overrideOf(name), ...layers);
+        return resolveFieldDisplay(this.fields[name], this.entryOf(name), ...layers);
     }
 
     /** Load the source again, as on a refresh. */
@@ -492,9 +492,9 @@ export class BlueprintSource extends HoistBase {
         return isFieldInstance(entry) ? entry : null;
     }
 
-    private overrideOf(name: string): FieldOverride {
-        const entry = getOwn(this.decl.fields, name);
-        return entry && !isFieldInstance(entry) ? entry : null;
+    // An instance or an override: both take display settings.
+    private entryOf(name: string): FieldOverride {
+        return getOwn(this.decl.fields, name) ?? null;
     }
 
     private buildFields(): Record<string, FieldDef> {

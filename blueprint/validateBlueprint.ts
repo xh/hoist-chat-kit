@@ -1,5 +1,5 @@
 import type {PlainObject} from '@xh/hoist/core';
-import {castArray, isArray, isPlainObject, isString} from 'lodash';
+import {castArray, isArray, isPlainObject, isString, omit} from 'lodash';
 import {type Blueprint, type BlueprintIssue, isFieldInstance} from './Blueprint';
 import type {BlueprintRegistry} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
@@ -321,9 +321,9 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     );
                     continue;
                 }
-                if (inst?.label != null && !isString(inst.label)) {
-                    err('schema.invalid', `${p}/fields/${iname}/label`, 'a label is text');
-                }
+                checkConfig(omit(inst, 'field', 'params'), FIELD_OVERRIDE_SCHEMA).forEach(it =>
+                    err('source.badOverride', `${p}/fields/${iname}${it.path}`, it.message)
+                );
                 const base = ds.fields[inst.field];
                 if (!base?.params) {
                     err(
@@ -643,7 +643,7 @@ export function isSettableFromOutside(decl: PlainObject): boolean {
 const MAX_HOST_INLINE_ROWS = 50;
 const TREE_COLUMN = 'group';
 
-// How a source shows one of its dataset's fields. Display only.
+// How a source shows one of its fields, an instance or an override. Display only.
 const FIELD_OVERRIDE_SCHEMA = {
     type: 'object',
     additionalProperties: false,
