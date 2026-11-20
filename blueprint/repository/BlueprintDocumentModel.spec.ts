@@ -391,6 +391,22 @@ describe('BlueprintDocumentModel', () => {
         expect(doc.canShare).toBe(false);
     });
 
+    it('shares only in the modes its repository supports, and with everyone only if allowed', async () => {
+        const {repository, id} = await created(),
+            {doc} = session(repository);
+        await doc.openAsync(id, {as: 'draft'});
+        expect(doc.canShareGlobally).toBe(false);
+        await expect(doc.updateAccessAsync({writers: [], readers: ['*']})).rejects.toThrow(
+            /everyone/
+        );
+
+        Object.assign(repository, {sharingModes: ['everyone']});
+        expect(doc.sharingModes).toEqual(['everyone']);
+        await expect(doc.updateAccessAsync({writers: ['ann'], readers: []})).rejects.toThrow(
+            /users/
+        );
+    });
+
     it.each([true, false])(
         'refuses a save based on a stale draft, with enforcesBase %s',
         async enforcesBase => {

@@ -33,6 +33,12 @@ export interface BlueprintRepository {
      */
     readonly enforcesBase: boolean;
 
+    /**
+     * The grantees `updateAccessAsync` takes: users, roles, and everyone. Default all three, for a
+     * repository that shares.
+     */
+    readonly sharingModes?: BlueprintSharingMode[];
+
     /** The blueprints the signed-in user may read. The app filters them further as it needs. */
     listAsync(): Promise<BlueprintSummary[]>;
 
@@ -105,8 +111,9 @@ export interface BlueprintRepository {
 }
 
 /**
- * Who may write and who may read a blueprint. Writers may also read. Each name is a grantee in the
- * repository's own form, such as a username or a role.
+ * Who may write and who may read a blueprint. Writers may also read. Each grantee is a username,
+ * `role:<ROLE>` for a role, or `*` for everyone, which only readers may hold. A repository takes
+ * the forms its `sharingModes` name.
  */
 export interface BlueprintAccessSpec {
     writers: string[];
@@ -140,6 +147,8 @@ export interface BlueprintSummary {
     canPublish: boolean;
     /** True if the signed-in user may change who the blueprint is shared with. Default false. */
     canShare?: boolean;
+    /** True if the signed-in user may also make it readable by everyone. Default false. */
+    canShareGlobally?: boolean;
     /** Epoch millis of the last save or publish. */
     updated: number;
     updatedBy?: string;
@@ -200,6 +209,23 @@ export interface BlueprintPublishResult {
     /** The draft's new version, if the publish applied. */
     draftVersion?: number;
     issues: BlueprintIssue[];
+}
+
+/** A form of grantee: a username, a `role:<ROLE>`, or `*` for everyone. */
+export type BlueprintSharingMode = 'users' | 'roles' | 'everyone';
+
+/** The form of a grantee. */
+export function sharingModeOf(grantee: string): BlueprintSharingMode {
+    if (grantee === '*') return 'everyone';
+    return grantee.startsWith('role:') ? 'roles' : 'users';
+}
+
+/**
+ * True if everyone may read a blueprint, from its sharing, which a summary holds only for a user
+ * who may share it.
+ */
+export function isGlobal(summary: BlueprintSummary): boolean {
+    return summary?.sharing?.readers?.includes('*') ?? false;
 }
 
 /** The issue a repository returns for a save or publish based on a draft version no longer current. */

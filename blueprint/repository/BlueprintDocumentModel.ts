@@ -13,6 +13,8 @@ import {
     type BlueprintRecord,
     type BlueprintRename,
     type BlueprintRepository,
+    type BlueprintSharingMode,
+    sharingModeOf,
     staleBaseIssue
 } from './BlueprintRepository';
 
@@ -237,9 +239,32 @@ export class BlueprintDocumentModel extends HoistModel {
         return this.document?.canShare === true && !!this.repository.updateAccessAsync;
     }
 
-    /** Set who may write and who may read the blueprint open. */
+    /** True if the user may also make the blueprint open readable by everyone. */
+    get canShareGlobally(): boolean {
+        return this.canShare && this.document.canShareGlobally === true;
+    }
+
+    /** The grantees the repository takes. See `BlueprintRepository.sharingModes`. */
+    get sharingModes(): BlueprintSharingMode[] {
+        return this.repository.sharingModes ?? ['users', 'roles', 'everyone'];
+    }
+
+    /**
+     * Set who may write and who may read the blueprint open. Refused for a grantee in a form the
+     * repository does not take, and for everyone unless the user may share globally.
+     */
     async updateAccessAsync(spec: BlueprintAccessSpec) {
         throwIf(!this.canShare, 'You may not share this blueprint.');
+        const modes = this.sharingModes;
+        [...spec.writers, ...spec.readers].forEach(it => {
+            const mode = sharingModeOf(it);
+            throwIf(!modes.includes(mode), `This repository does not share with ${mode}.`);
+        });
+        throwIf(spec.writers.includes('*'), 'Everyone may read a blueprint, but not write it.');
+        throwIf(
+            spec.readers.includes('*') && !this.canShareGlobally,
+            'You may not share this blueprint with everyone.'
+        );
         await this.repository.updateAccessAsync(this.document.id, spec);
         this.shared(spec);
     }

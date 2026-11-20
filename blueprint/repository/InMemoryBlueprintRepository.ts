@@ -9,6 +9,7 @@ import {
     type BlueprintRecord,
     type BlueprintRename,
     type BlueprintSaveResult,
+    type BlueprintSharingMode,
     type BlueprintRepository,
     type BlueprintSummary,
     staleBaseIssue
@@ -25,6 +26,8 @@ import {
  */
 export class InMemoryBlueprintRepository implements BlueprintRepository {
     readonly enforcesBase: boolean;
+    readonly sharingModes: BlueprintSharingMode[] = ['users', 'roles', 'everyone'];
+    private readonly canShareGlobally: boolean;
     private readonly userId: string;
     private readonly accessOf: (id: string) => Grant;
     private readonly canCreate: boolean;
@@ -41,12 +44,15 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
             accessOf?: (id: string) => Grant;
             /** True if the user may create blueprints. Default false. */
             canCreate?: boolean;
+            /** True if a user who may share a blueprint may share it with everyone. Default false. */
+            canShareGlobally?: boolean;
         } = {}
     ) {
         this.enforcesBase = config.enforcesBase ?? true;
         this.userId = config.userId ?? 'user';
         this.accessOf = config.accessOf ?? (() => ({access: 'read', canPublish: false}));
         this.canCreate = config.canCreate ?? false;
+        this.canShareGlobally = config.canShareGlobally ?? false;
     }
 
     async canCreateAsync(): Promise<boolean> {
@@ -187,15 +193,18 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
         const item = this.items.get(id);
         if (!item || !this.accessOf(id).canShare)
             throw new Error('You may not share this blueprint.');
+        if (spec.readers.includes('*') && !this.canShareGlobally) {
+            throw new Error('You may not share this blueprint with everyone.');
+        }
         item.sharing = clone(spec);
     }
 
     //------------------
     // Implementation
     //------------------
-    private grantOf(id: string): Grant {
+    private grantOf(id: string): Grant & {canShareGlobally: boolean} {
         const {access, canPublish, canShare = false} = this.accessOf(id);
-        return {access, canPublish, canShare};
+        return {access, canPublish, canShare, canShareGlobally: canShare && this.canShareGlobally};
     }
 
     // A source a copy records must be open to the user, as the version it names. Refused as

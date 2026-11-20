@@ -11,6 +11,7 @@ import type {
     BlueprintRename,
     BlueprintRepository,
     BlueprintSaveResult,
+    BlueprintSharingMode,
     BlueprintSummary
 } from './BlueprintRepository';
 
@@ -26,6 +27,7 @@ import type {
  */
 export class HoistCoreBlueprintRepository implements BlueprintRepository {
     readonly enforcesBase = true;
+    readonly sharingModes: BlueprintSharingMode[] = ['users', 'roles', 'everyone'];
     private readonly baseUrl: string;
 
     constructor(config: {/** Default `xhBlueprint`. */ baseUrl?: string} = {}) {

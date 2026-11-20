@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {loadBlueprint} from '../../test/blueprintFixtures';
+import {isGlobal} from './BlueprintRepository';
 import {InMemoryBlueprintRepository} from './InMemoryBlueprintRepository';
 
 describe('InMemoryBlueprintRepository', () => {
@@ -78,6 +79,25 @@ describe('InMemoryBlueprintRepository', () => {
                 copiedFrom: {id: 'gone', version: 1, as: 'publish'}
             })
         ).rejects.toMatchObject({httpStatus: 404});
+    });
+
+    it('shares with users, roles and everyone, and with everyone only where its config allows', async () => {
+        const make = (canShareGlobally: boolean) =>
+                new InMemoryBlueprintRepository({...OWNER, canShareGlobally}),
+            closed = make(false),
+            {id} = await create(closed);
+        expect(closed.sharingModes).toEqual(['users', 'roles', 'everyone']);
+        expect((await closed.listAsync())[0].canShareGlobally).toBe(false);
+        await closed.updateAccessAsync(id, {writers: ['ann'], readers: ['role:TRADER']});
+        await expect(closed.updateAccessAsync(id, {writers: [], readers: ['*']})).rejects.toThrow(
+            /everyone/
+        );
+
+        const open = make(true),
+            other = await create(open);
+        expect((await open.listAsync())[0].canShareGlobally).toBe(true);
+        await open.updateAccessAsync(other.id, {writers: [], readers: ['*']});
+        expect(isGlobal((await open.listAsync())[0])).toBe(true);
     });
 
     it('opens no publish of a blueprint never published', async () => {
