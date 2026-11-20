@@ -1216,4 +1216,4 @@ export function fitsProp(value: unknown, prop: PlainObject): boolean {
 }
 
 // An amount, a percent, a decimal or a number with thousands separators: a figure from the data.
-const LITERAL_FIGURE = /[$€£¥]\s?\d|\d[\d,]*\.\d|\b\d{1,3}(,\d{3})+\b|\d\s?%/;
+const LITERAL_FIGURE = /[$€£¥]\s?\d|\d\.\d|\b\d{1,3}(,\d{3})+\b|\d\s?%/;
