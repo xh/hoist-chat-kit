@@ -284,7 +284,8 @@ function editorFor(
     ctx: EditorContext
 ): ReactElement {
     const disabled = ctx.impl.readOnly,
-        optional = (v: unknown) => (v == null || v === '' ? undefined : v);
+        optional = (v: unknown) => (v == null || v === '' ? undefined : v),
+        placeholder = node.default !== undefined ? `Default (${node.default})` : undefined;
     if (node.bindable) return bindableEditor(node, value, commit, ctx);
     if (isVarBinding(value) && node.kind !== 'json') {
         return div({className: `${CLS}__binding`, item: `Bound to variable ${value.$var}`});
@@ -293,6 +294,7 @@ function editorFor(
         case 'text':
             return (node.multiline ? textArea : textInput)({
                 value: (value as string) ?? null,
+                placeholder,
                 disabled,
                 width: '100%',
                 onCommit: v => commit(optional(v))
@@ -303,6 +305,7 @@ function editorFor(
                 min: node.min,
                 max: node.max,
                 precision: node.integer ? 0 : 4,
+                placeholder,
                 disabled,
                 width: '100%',
                 onCommit: v => commit(optional(v))
@@ -310,13 +313,18 @@ function editorFor(
         case 'boolean':
             return div({
                 className: `${CLS}__switch`,
-                item: switchInput({value: !!value, disabled, onCommit: v => commit(v)})
+                item: switchInput({
+                    value: !!(value ?? node.default),
+                    disabled,
+                    onCommit: v => commit(v)
+                })
             });
         case 'choice':
             return select({
                 value: value ?? null,
                 options: node.options as any[],
                 enableClear: !node.required,
+                placeholder,
                 disabled,
                 width: '100%',
                 onCommit: v => commit(optional(v))

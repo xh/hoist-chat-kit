@@ -235,7 +235,8 @@ const CUBE_GRID_SCHEMA = {
             maximum: 6
         },
         summaryRow: {
-            type: 'boolean'
+            type: 'boolean',
+            default: false
         },
         treeStyle: {
             enum: [
@@ -246,24 +247,29 @@ const CUBE_GRID_SCHEMA = {
                 'colorsAndBorders',
                 'none'
             ],
+            default: 'highlights',
             description:
-                'How group rows stand out: highlighted, colored, set off by borders, or both. Default highlights.'
+                'How group rows stand out: highlighted, colored, set off by borders, or both.'
         },
         stripeRows: {
             type: 'boolean',
-            description: 'Alternate the background of rows. Default on.'
+            default: true,
+            description: 'Alternate the background of rows.'
         },
         rowBorders: {
             type: 'boolean',
-            description: 'Draw a border between rows. Default on.'
+            default: true,
+            description: 'Draw a border between rows.'
         },
         cellBorders: {
             type: 'boolean',
-            description: 'Draw a border between cells. Default off.'
+            default: false,
+            description: 'Draw a border between cells.'
         },
         showHover: {
             type: 'boolean',
-            description: 'Highlight the row under the pointer. Default off.'
+            default: false,
+            description: 'Highlight the row under the pointer.'
         },
         sizingMode: {
             enum: ['tiny', 'compact', 'standard', 'large'],
@@ -271,16 +277,19 @@ const CUBE_GRID_SCHEMA = {
         },
         showGroupRowCounts: {
             type: 'boolean',
-            description: 'Show the count of rows in each group row. Default on.'
+            default: true,
+            description: 'Show the count of rows in each group row.'
         },
         hideHeaders: {
             type: 'boolean',
-            description: 'Hide the row of column headers. Default off.'
+            default: false,
+            description: 'Hide the row of column headers.'
         },
         emptyText: {
             type: 'string',
             maxLength: 200,
-            description: 'Text to show when the grid has no rows. Default "No data".'
+            default: 'No data',
+            description: 'Text to show when the grid has no rows.'
         },
         groupRowHeight: {
             type: 'integer',

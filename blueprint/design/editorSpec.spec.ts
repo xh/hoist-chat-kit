@@ -23,6 +23,13 @@ describe('toEditorSpec', () => {
         expect(byKey(nodes).type).toMatchObject({kind: 'choice', required: true});
     });
 
+    it("carries a property's default, for an editor to show while it is unset", () => {
+        const grid = byKey(toEditorSpec(configOf('cubeGrid')));
+        expect(grid.stripeRows.default).toBe(true);
+        expect(grid.treeStyle.default).toBe('highlights');
+        expect(grid.title.default).toBeUndefined();
+    });
+
     it('names the annotated kinds, before their plain type', () => {
         const chart = byKey(toEditorSpec(configOf('chart')));
         expect(chart.source.kind).toBe('source');

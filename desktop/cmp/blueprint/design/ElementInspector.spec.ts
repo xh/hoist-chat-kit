@@ -187,6 +187,20 @@ describe('ElementInspector', () => {
         });
     });
 
+    it('shows an unset property at its default, without writing it', () => {
+        const {model, design} = open(),
+            before = model.blueprint,
+            {container} = render(elementInspector({designModel: design}) as ReactElement),
+            row = (label: string) =>
+                [...container.querySelectorAll('.xh-blueprint-element-inspector__row')].find(
+                    it => it.firstElementChild?.textContent === label
+                );
+        expect(row('Stripe rows').querySelector('input').checked).toBe(true);
+        expect(row('Show hover').querySelector('input').checked).toBe(false);
+        expect(row('Tree style').textContent).toContain('Default (highlights)');
+        expect(model.blueprint).toBe(before);
+    });
+
     it('draws a labelled editor per property', () => {
         const {design} = open(),
             {container} = render(elementInspector({designModel: design}) as ReactElement),

@@ -38,6 +38,8 @@ export interface EditorBase {
     required: boolean;
     /** True if the value may be a variable binding, `{"$var": name}`, in place of a literal. */
     bindable: boolean;
+    /** The value the widget takes while the property is unset, from the schema's `default`. */
+    default?: unknown;
     /** The schema the node comes from, for a value an editor starts with. */
     schema: PlainObject;
 }
@@ -65,6 +67,7 @@ function toNode(schema: PlainObject, key: string, required: boolean): EditorNode
         ...(schema.description ? {description: schema.description} : {}),
         required,
         bindable: !!schema['x-binding'],
+        ...(schema.default !== undefined ? {default: schema.default} : {}),
         schema
     };
     if (schema['x-source']) return {...base, kind: 'source'};

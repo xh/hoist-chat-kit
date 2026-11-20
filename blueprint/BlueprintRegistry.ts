@@ -16,7 +16,10 @@ import {BUILT_IN_ACTIONS, BUILT_IN_WIDGETS} from './impl/builtInWidgets';
  * A widget a blueprint can configure. The config schema uses chat kit's JSON Schema subset, plus
  * annotations that the validator reads: `x-binding` marks a value that accepts `{"$var": name}`,
  * `x-source` a source name, `x-field` a field of the widget's source (`"dimension"`, `"measure"` or
- * `"any"`), and `x-filter`, `x-format`, `x-renderer` and `x-action` a value of that form.
+ * `"any"`), and `x-filter`, `x-format`, `x-renderer` and `x-action` a value of that form. A
+ * property's `default` is the value the widget takes while the config leaves it unset. The
+ * validator ignores it, design mode shows it, and the widget applies it - see
+ * `BlueprintWidgetModel.configDefault()`. State a default there, not in the description.
  */
 export interface WidgetSpec {
     /** Registry key, the Hoist factory name of the component it renders, such as `cubeGrid`. */

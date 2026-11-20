@@ -54,11 +54,11 @@ describe('BlueprintRegistry presentations', () => {
         const grid = describeGrid(registry);
         expect(grid.guidance).toContain('It ignores stripeRows, nope.');
         expect(grid.config.properties.stripeRows.description).toBe(
-            'Alternate the background of rows. Default on. The card presentation ignores it.'
+            'Alternate the background of rows. The card presentation ignores it.'
         );
         expect(grid.config.properties.nope).toBeUndefined();
         expect(describeGrid(new BlueprintRegistry()).config.properties.stripeRows.description).toBe(
-            'Alternate the background of rows. Default on.'
+            'Alternate the background of rows.'
         );
     });
 

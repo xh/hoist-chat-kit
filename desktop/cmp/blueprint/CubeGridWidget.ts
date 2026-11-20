@@ -1,6 +1,6 @@
 import {AgGrid} from '@xh/hoist/cmp/ag-grid';
 import {CubeGridModel, cubeGrid} from '@xh/hoist/cmp/cubegrid';
-import {type ColumnSpec, type ColumnState, GridModel} from '@xh/hoist/cmp/grid';
+import type {ColumnSpec, ColumnState} from '@xh/hoist/cmp/grid';
 import {hoistCmp, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {FilterSpec, StoreRecord} from '@xh/hoist/data';
 import {action, observable, observableRef, when} from '@xh/hoist/mobx';
@@ -59,7 +59,6 @@ function toDisplayLayer(column: PlainObject): FieldDisplayLayer {
 }
 
 // CubeGridModel's own defaults, over GridModel's, for a style an edit clears.
-const CUBE_GRID_DEFAULTS = {emptyText: 'No data', stripeRows: true, rowBorders: true};
 
 export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConfig> {
     @managed @observableRef accessor cubeGridModel: CubeGridModel = null;
@@ -235,14 +234,14 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
         const {gridModel} = this;
         if (!gridModel) return;
         const cfg = this.resolvedConfig,
-            defaults = GridModel.defaults;
-        gridModel.treeStyle = cfg.treeStyle ?? defaults.treeStyle;
-        gridModel.emptyText = cfg.emptyText ?? CUBE_GRID_DEFAULTS.emptyText;
-        gridModel.setStripeRows(cfg.stripeRows ?? CUBE_GRID_DEFAULTS.stripeRows);
-        gridModel.setRowBorders(cfg.rowBorders ?? CUBE_GRID_DEFAULTS.rowBorders);
-        gridModel.setCellBorders(cfg.cellBorders ?? defaults.cellBorders);
-        gridModel.setShowHover(cfg.showHover ?? defaults.showHover);
-        gridModel.setHideHeaders(cfg.hideHeaders ?? false);
+            style = <K extends keyof typeof cfg>(key: K) => cfg[key] ?? this.configDefault(key);
+        gridModel.treeStyle = style('treeStyle');
+        gridModel.emptyText = style('emptyText');
+        gridModel.setStripeRows(style('stripeRows'));
+        gridModel.setRowBorders(style('rowBorders'));
+        gridModel.setCellBorders(style('cellBorders'));
+        gridModel.setShowHover(style('showHover'));
+        gridModel.setHideHeaders(style('hideHeaders'));
         if (cfg.sizingMode != null) gridModel.setSizingMode(cfg.sizingMode);
     }
 

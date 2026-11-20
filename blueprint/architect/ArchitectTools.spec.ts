@@ -91,9 +91,11 @@ describe('Architect tools', () => {
             'none'
         ]);
         expect(properties.sizingMode.enum).toEqual(['tiny', 'compact', 'standard', 'large']);
-        expect(properties.stripeRows.description).toBe(
-            'Alternate the background of rows. Default on.'
-        );
+        expect(properties.stripeRows).toMatchObject({
+            description: 'Alternate the background of rows.',
+            default: true
+        });
+        expect(properties.treeStyle.default).toBe('highlights');
         expect(cubeGrid.guidance).toMatch(/Keep the grid's default style unless the user asks/);
     });
 

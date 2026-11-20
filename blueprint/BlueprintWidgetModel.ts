@@ -99,6 +99,12 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
         this.removeView = view ? this.source?.addView(view, () => this.shownFields) : null;
     }
 
+    /** The `default` its widget's config schema gives a property, for a config that leaves it unset. */
+    configDefault(key: string): any {
+        const spec = this.blueprintModel.registry.widgets[this.element?.component];
+        return (spec?.config as PlainObject)?.properties?.[key]?.default;
+    }
+
     /** The fields of its source that the widget shows, from its demand. */
     get shownFields(): string[] {
         const spec = this.blueprintModel.registry.widgets[this.element?.component];
