@@ -24,7 +24,7 @@ import {getOwn, getAt as valueAt, setAt} from './impl/pointer';
 import {validateBlueprint} from './validateBlueprint';
 import type {BlueprintAccess, BlueprintMode} from './Blueprint';
 import {checkEditAllowed} from './impl/access';
-import {checkVariableValue} from './impl/variableValues';
+import {boundPeriodCalendar, checkVariableValue} from './impl/variableValues';
 
 export interface BlueprintModelConfig {
     /** The blueprint to open. Default none. Throws if it has errors. */
@@ -536,7 +536,10 @@ export class BlueprintModel extends HoistModel {
         const spec = this.registry.resolvers[call?.resolver];
         if (!spec) return null;
         try {
-            return spec.resolve(this.resolve(call.args ?? {}), {registry: this.registry}) ?? null;
+            const args = this.resolve(call.args ?? {}),
+                calendar = boundPeriodCalendar(call.args, this.blueprint?.variables);
+            if (calendar && args.calendar == null) args.calendar = calendar;
+            return spec.resolve(args, {registry: this.registry}) ?? null;
         } catch (e) {
             this.logError(`Resolver '${call.resolver}' failed`, e);
             return null;

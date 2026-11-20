@@ -38,6 +38,22 @@ export function checkVariableValue(
     return null;
 }
 
+/**
+ * The `calendar` that a `period` variable bound to one of a resolver call's args declares, or null.
+ * A call that names no calendar counts in it.
+ */
+export function boundPeriodCalendar(
+    args: Record<string, unknown>,
+    variables: Record<string, VariableDecl>
+): string {
+    for (const arg of Object.values(args ?? {})) {
+        const name = isPlainObject(arg) ? (arg as {$var?: string}).$var : null,
+            decl = name && Object.hasOwn(variables ?? {}, name) ? variables[name] : null;
+        if (decl?.type === 'period' && decl.calendar) return decl.calendar;
+    }
+    return null;
+}
+
 //------------------
 // Implementation
 //------------------

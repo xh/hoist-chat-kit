@@ -791,6 +791,26 @@ describe('validateBlueprint', () => {
             expect(check({default: {value: '0D'}})).toEqual(['variable.badValue']);
             expect(check({calendar: 'lunar'})).toEqual(['variable.badCalendar']);
         });
+
+        it("warns of a resolver's calendar that differs from its period variable's", () => {
+            const bp = withVariable({type: 'period', default: {value: '3M'}, calendar: 'calendar'}),
+                start = (calendar?: string) => ({
+                    type: 'localDate',
+                    setBy: 'resolver',
+                    compute: {
+                        resolver: 'periodStart',
+                        args: {
+                            asOf: {$var: 'asOf'},
+                            period: {$var: 'when'},
+                            ...(calendar ? {calendar} : {})
+                        }
+                    }
+                });
+            bp.variables.start = start() as any;
+            expect(codes(bp)).toEqual([]);
+            bp.variables.start = start('business') as any;
+            expect(codes(bp)).toEqual(['resolver.calendarMismatch']);
+        });
     });
 
     it('refuses a widget whose schema uses JSON Schema the validator lacks', () => {

@@ -1,5 +1,7 @@
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it} from 'vitest';
+import {portfolioCatalog} from '../../test/blueprintFixtures';
+import {BlueprintModel} from '../BlueprintModel';
 import {BlueprintRegistry} from '../BlueprintRegistry';
 
 /**
@@ -47,6 +49,30 @@ describe('time resolvers', () => {
         expect(run('periodStart', {asOf: '2026-03-16', period: '5D', calendar: 'calendar'})).toBe(
             '2026-03-11'
         );
+    });
+
+    it("counts in a bound period variable's calendar, unless the call names one", () => {
+        const model = new BlueprintModel({
+            blueprint: {
+                schema: {blueprint: 1},
+                variables: {
+                    window: {type: 'period', default: {value: '5D'}, calendar: 'calendar'}
+                },
+                root: 'note',
+                elements: {note: {component: 'markdown', config: {text: 'x'}}}
+            },
+            catalog: portfolioCatalog,
+            registry,
+            dataProvider: null
+        });
+        const call = (args: object) =>
+            model.runResolver({
+                resolver: 'periodStart',
+                args: {asOf: '2026-03-16', period: {$var: 'window'}, ...args}
+            });
+        expect(call({})).toBe('2026-03-11');
+        expect(call({calendar: 'business'})).toBe('2026-03-09');
+        model.destroy();
     });
 
     it('gives null for a range or period it cannot read', () => {

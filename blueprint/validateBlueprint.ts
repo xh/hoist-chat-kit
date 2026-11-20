@@ -6,7 +6,7 @@ import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter} from './impl/configSchema';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
 import {parseTemplate, templateRefs} from './impl/template';
-import {checkVariableValue, matchesType} from './impl/variableValues';
+import {boundPeriodCalendar, checkVariableValue, matchesType} from './impl/variableValues';
 
 export interface ValidateBlueprintContext {
     catalog: Pick<DataCatalog, 'getDataset'>;
@@ -225,9 +225,18 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 'compute needs setBy "resolver"'
             );
         }
-        for (const r of [v.compute, v.default].filter(Boolean)) {
+        for (const [key, r] of Object.entries({compute: v.compute, default: v.default})) {
+            if (!r) continue;
             if (r.resolver && !registry.resolvers[r.resolver]) {
                 err('variable.unknownResolver', p, `unknown resolver '${r.resolver}'`);
+            }
+            const declared = boundPeriodCalendar(r.args, variables);
+            if (declared && r.args?.calendar != null && r.args.calendar !== declared) {
+                warn(
+                    'resolver.calendarMismatch',
+                    `${p}/${key}/args/calendar`,
+                    `the calendar is '${r.args.calendar}', but its period variable counts in '${declared}'`
+                );
             }
         }
         if (v.default && !('value' in v.default) && !v.default.resolver) {
