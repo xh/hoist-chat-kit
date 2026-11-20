@@ -58,6 +58,19 @@ describe('ElementInspector', () => {
         expect(model.blueprint.elements.posGrid.config.title).toBe('Positions');
     });
 
+    it('badges a property that presets control with its group and active preset', () => {
+        const {model, design, inspector} = open();
+        expect(inspector.badgeFor('columnState')).toBe('Preset: Columns › P&L view');
+        expect(inspector.badgeFor('title')).toBeNull();
+        model.setPreset('posViews', 'risk');
+        expect(inspector.badgeFor('columnState')).toBe('Preset: Columns › Risk view');
+
+        const {container} = render(elementInspector({designModel: design}) as ReactElement);
+        expect(container.querySelector('.xh-blueprint-element-inspector__badge')?.textContent).toBe(
+            'Preset: Columns › Risk view'
+        );
+    });
+
     it('shows and edits the active preset for a path that presets control', () => {
         const {model, inspector} = open();
         expect(inspector.values.columnState).toEqual(['mktVal', 'pnlDay', 'pnlMtd', 'pnlYtd']);

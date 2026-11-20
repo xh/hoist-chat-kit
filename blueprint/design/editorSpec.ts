@@ -154,7 +154,11 @@ function isSimple(node: EditorNode): boolean {
     return ['text', 'number', 'boolean', 'choice', 'stringList'].includes(node.kind);
 }
 
-function labelOf(key: string): string {
+/**
+ * A property's label from its key, as `sortBy` reads "Sort by".
+ * @internal
+ */
+export function labelOf(key: string): string {
     const words = key.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
     return words.charAt(0).toUpperCase() + words.slice(1);
 }

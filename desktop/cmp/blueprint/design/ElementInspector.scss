@@ -149,4 +149,13 @@
     align-items: center;
     gap: var(--xh-spacing-half);
   }
+
+  &__badge {
+    align-self: flex-start;
+    padding: 0 var(--xh-spacing-half);
+    border-radius: var(--xh-border-radius);
+    font-size: var(--xh-font-size-small);
+    color: var(--xh-intent-primary);
+    background-color: var(--xh-intent-primary-trans1);
+  }
 }

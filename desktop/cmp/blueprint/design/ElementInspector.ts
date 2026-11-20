@@ -158,6 +158,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                         commit: v => impl.commit(node.key, v),
                         ctx: {impl, key: node.key},
                         issues: impl.issuesFor(node.key),
+                        badge: impl.badgeFor(node.key),
                         key: `${node.key}:${impl.resets[node.key] ?? 0}`
                     })
                 )

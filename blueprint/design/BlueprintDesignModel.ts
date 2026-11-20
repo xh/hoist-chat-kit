@@ -1,12 +1,13 @@
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
-import {castArray, isPlainObject} from 'lodash';
-import type {BlueprintElement, BlueprintOp, ChildRef} from '../Blueprint';
+import {castArray, cloneDeep, isEmpty, isPlainObject, mapValues} from 'lodash';
+import type {BlueprintElement, BlueprintOp, ChildRef, PresetGroup} from '../Blueprint';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
 import type {WidgetSpec} from '../BlueprintRegistry';
-import {getAt, getOwn} from '../impl/pointer';
+import {decodePointer, getAt, getOwn, setAt} from '../impl/pointer';
 import {variableTypeMatches} from '../validateBlueprint';
+import {labelOf} from './editorSpec';
 import {starterConfig} from './starterConfig';
 
 /** What a designer has selected: an element, a variable, a source or a preset group. */
@@ -197,10 +198,7 @@ export class BlueprintDesignModel extends HoistModel {
 
     /** Add a variable the user sets, a string by default, with a name of its own, and select it. */
     addVariable(type: string = 'string'): BlueprintEditResult & {id?: string} {
-        const taken = this.blueprintModel.blueprint?.variables ?? {};
-        let n = 1;
-        while (Object.hasOwn(taken, `variable${n}`)) n++;
-        const id = `variable${n}`,
+        const id = freeKey(this.blueprintModel.blueprint?.variables, 'variable'),
             ret = this.edit(`Add variable ${id}`, [
                 {op: 'set', path: `/variables/${id}`, value: {type, setBy: 'prompt'}}
             ]);
@@ -233,10 +231,7 @@ export class BlueprintDesignModel extends HoistModel {
     addSource(dataset: string): BlueprintEditResult & {id?: string} {
         const bound = this.boundParams(dataset);
         if ('refusal' in bound) return bound.refusal;
-        const taken = this.blueprintModel.blueprint?.sources ?? {};
-        let n = 1;
-        while (Object.hasOwn(taken, `${dataset}${n}`)) n++;
-        const id = `${dataset}${n}`,
+        const id = freeKey(this.blueprintModel.blueprint?.sources, dataset),
             value = {dataset, ...bound.params},
             ret = this.edit(`Add source ${id}`, [{op: 'set', path: `/sources/${id}`, value}]);
         if (!ret.issues.some(isError)) this.select({kind: 'source', id});
@@ -271,6 +266,142 @@ export class BlueprintDesignModel extends HoistModel {
     /** Remove a source, as one edit. Refused while a widget reads it. */
     removeSource(name: string): BlueprintEditResult {
         return this.removeEntry('sources', 'source', name);
+    }
+
+    /**
+     * Make a group of presets that controls a preset path of an element's config, with one preset
+     * of its current value, which leaves the config. Then select the group.
+     */
+    addPresetGroup(path: string): BlueprintEditResult & {id?: string} {
+        const {blueprint} = this.blueprintModel,
+            value = getAt(blueprint, path);
+        if (value === undefined)
+            return refused('Set a value first: the first preset starts from it.');
+        if (this.blueprintModel.getPresetControl(path)) {
+            return refused('A preset group already controls it.');
+        }
+        const id = freeKey(blueprint?.presets, 'group'),
+            key = decodePointer(path).at(-1),
+            group: PresetGroup = {
+                label: labelOf(key),
+                controls: [{path}],
+                default: 'preset1',
+                items: {preset1: {label: 'Preset 1', set: withAt({}, path, value)}}
+            },
+            ret = this.edit(`Add presets for ${key}`, [
+                {op: 'remove', path},
+                {op: 'set', path: `/presets/${id}`, value: group}
+            ]);
+        if (!ret.issues.some(isError)) this.select({kind: 'preset', id});
+        return {...ret, id};
+    }
+
+    /** Set or remove one key of a preset group, such as its label or default, as one edit. */
+    setPresetGroupDecl(group: string, key: string, value: unknown): BlueprintEditResult {
+        return this.updateEntry('presets', 'Presets', group, {[key]: value});
+    }
+
+    /** Add a path a group controls: every preset takes its current value, which leaves the config. */
+    addPresetControl(group: string, path: string): BlueprintEditResult {
+        const g = getOwn(this.blueprintModel.blueprint?.presets, group);
+        if (!g) return refused(`There is no preset group '${group}'.`);
+        if (this.blueprintModel.getPresetControl(path)) {
+            return refused('A preset group already controls it.');
+        }
+        const value = getAt(this.blueprintModel.blueprint, path);
+        if (value === undefined) return refused('Set a value first: each preset starts from it.');
+        return this.edit(`Presets ${group}: control ${decodePointer(path).at(-1)}`, [
+            {op: 'remove', path},
+            {op: 'set', path: `/presets/${group}/controls`, value: [...g.controls, {path}]},
+            {
+                op: 'set',
+                path: `/presets/${group}/items`,
+                value: mapValues(g.items, it => ({...it, set: withAt(it.set, path, value)}))
+            }
+        ]);
+    }
+
+    /**
+     * Stop a group controlling a path, which returns to the config at the active preset's value.
+     * A group's last path takes the group with it.
+     */
+    removePresetControl(group: string, path: string): BlueprintEditResult {
+        const g = getOwn(this.blueprintModel.blueprint?.presets, group);
+        if (!g?.controls.some(it => it.path === path)) {
+            return refused(`Preset group '${group}' does not control ${path}.`);
+        }
+        if (g.controls.length === 1) return this.removePresetGroup(group);
+        const active = g.items[this.blueprintModel.getActivePreset(group)];
+        return this.edit(`Presets ${group}: release ${decodePointer(path).at(-1)}`, [
+            {
+                op: 'set',
+                path: `/presets/${group}/controls`,
+                value: g.controls.filter(it => it.path !== path)
+            },
+            {
+                op: 'set',
+                path: `/presets/${group}/items`,
+                value: mapValues(g.items, it => ({...it, set: withoutAt(it.set, path)}))
+            },
+            {op: 'set', path, value: getAt(active?.set, path)}
+        ]);
+    }
+
+    /** Remove a group, its paths returning to the config at the active preset's values. */
+    removePresetGroup(group: string): BlueprintEditResult {
+        const g = getOwn(this.blueprintModel.blueprint?.presets, group);
+        if (!g) return refused(`There is no preset group '${group}'.`);
+        const active = g.items?.[this.blueprintModel.getActivePreset(group)];
+        return this.edit(`Remove presets ${group}`, [
+            ...g.controls
+                .map(({path}) => ({path, value: getAt(active?.set, path)}))
+                .filter(it => it.value !== undefined)
+                .map(({path, value}): BlueprintOp => ({op: 'set', path, value})),
+            {op: 'remove', path: `/presets/${group}`}
+        ]);
+    }
+
+    /** Add a copy of a preset, as one edit. */
+    duplicatePreset(group: string, item: string): BlueprintEditResult & {id?: string} {
+        const g = getOwn(this.blueprintModel.blueprint?.presets, group),
+            source = getOwn(g?.items, item);
+        if (!source) return refused(`There is no preset '${item}' in '${group}'.`);
+        const id = freeKey(g.items, 'preset');
+        return {
+            ...this.edit(`Presets ${group}: copy ${item}`, [
+                {
+                    op: 'set',
+                    path: `/presets/${group}/items/${id}`,
+                    value: {...source, label: `${source.label ?? item} copy`}
+                }
+            ]),
+            id
+        };
+    }
+
+    /** Set the name users see for a preset, or remove it with `undefined`, as one edit. */
+    setPresetLabel(group: string, item: string, label: string): BlueprintEditResult {
+        if (!getOwn(getOwn(this.blueprintModel.blueprint?.presets, group)?.items, item)) {
+            return refused(`There is no preset '${item}' in '${group}'.`);
+        }
+        const path = `/presets/${group}/items/${item}/label`;
+        return this.edit(`Presets ${group}: label ${item}`, [
+            label ? {op: 'set', path, value: label} : {op: 'remove', path}
+        ]);
+    }
+
+    /** Remove a preset, as one edit. A group keeps at least one, and a default. */
+    removePreset(group: string, item: string): BlueprintEditResult {
+        const g = getOwn(this.blueprintModel.blueprint?.presets, group);
+        if (!getOwn(g?.items, item)) return refused(`There is no preset '${item}' in '${group}'.`);
+        const others = Object.keys(g.items).filter(it => it !== item);
+        if (!others.length) return refused('A group keeps one preset. Remove the group instead.');
+        return this.edit(`Presets ${group}: remove ${item}`, [
+            {op: 'remove', path: `/presets/${group}/items/${item}`},
+            ...(g.default === item
+                ? [{op: 'set', path: `/presets/${group}/default`, value: others[0]} as BlueprintOp]
+                : [])
+        ]);
     }
 
     /** Rename an element, variable or source, and every reference to it, as one edit. */
@@ -320,7 +451,7 @@ export class BlueprintDesignModel extends HoistModel {
     }
 
     private updateEntry(
-        coll: 'variables' | 'sources',
+        coll: 'variables' | 'sources' | 'presets',
         noun: string,
         name: string,
         changes: PlainObject
@@ -473,4 +604,37 @@ function firstFreePlace(
         }
     }
     return {x: 0, y: bottom};
+}
+
+// The first key of the form prefix1, prefix2... that an object does not hold.
+function freeKey(taken: PlainObject, prefix: string): string {
+    let n = 1;
+    while (Object.hasOwn(taken ?? {}, `${prefix}${n}`)) n++;
+    return `${prefix}${n}`;
+}
+
+// A copy of an object with a value at a path, as a preset's set holds it.
+function withAt(o: PlainObject, path: string, value: unknown): PlainObject {
+    const ret = cloneDeep(o ?? {});
+    setAt(ret, path, value);
+    return ret;
+}
+
+// A copy of an object without the value at a path, and without the objects it leaves empty.
+function withoutAt(o: PlainObject, path: string): PlainObject {
+    const ret = cloneDeep(o ?? {}),
+        segs = decodePointer(path),
+        prune = (obj: PlainObject, i: number) => {
+            const seg = segs[i];
+            if (!isPlainObject(obj?.[seg])) return;
+            if (i === segs.length - 2) {
+                delete obj[seg][segs.at(-1)];
+            } else {
+                prune(obj[seg], i + 1);
+            }
+            if (isEmpty(obj[seg])) delete obj[seg];
+        };
+    if (segs.length === 1) delete ret[segs[0]];
+    else prune(ret, 0);
+    return ret;
 }

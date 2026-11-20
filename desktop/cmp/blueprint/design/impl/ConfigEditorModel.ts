@@ -86,6 +86,19 @@ export abstract class ConfigEditorModel extends HoistModel {
         return node.required ? this.newValue(node.schema) : undefined;
     }
 
+    /**
+     * A badge for a property that presets control, naming the group and the active preset, which
+     * an edit of it changes. Null for any other property.
+     */
+    badgeFor(key: string): string {
+        const {blueprintModel} = this.designModel,
+            control = blueprintModel.getPresetControl(this.pathOf(key));
+        if (!control) return null;
+        const group = blueprintModel.blueprint.presets[control.group],
+            item = group.items?.[control.item];
+        return `Preset: ${group.label ?? control.group} › ${item?.label ?? control.item}`;
+    }
+
     /** The blueprint's sources, for an `x-source` property. */
     get sourceOptions(): Option[] {
         const sources = this.designModel.blueprintModel.blueprint?.sources ?? {};

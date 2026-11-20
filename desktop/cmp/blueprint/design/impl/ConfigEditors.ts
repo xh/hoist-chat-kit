@@ -72,6 +72,8 @@ export interface EditorContext {
 }
 
 export interface RowProps {
+    /** A note beside the label, such as the preset an edit changes. */
+    badge?: string;
     node: EditorNode;
     value: unknown;
     commit: (value: unknown) => void;
@@ -81,7 +83,7 @@ export interface RowProps {
 }
 
 /** A property's label, its editor, and its issues. */
-export function propertyRow({node, value, commit, ctx, issues = [], key}: RowProps) {
+export function propertyRow({node, value, commit, ctx, issues = [], key, badge}: RowProps) {
     return div({
         key,
         className: `${CLS}__row`,
@@ -91,6 +93,7 @@ export function propertyRow({node, value, commit, ctx, issues = [], key}: RowPro
                 title: node.description,
                 item: node.required ? `${node.label} *` : node.label
             }),
+            badge ? div({className: `${CLS}__badge`, item: badge}) : null,
             editorFor(node, value, commit, ctx),
             ...issues.map((it, idx) =>
                 div({key: idx, className: `${CLS}__issue`, item: it.message})

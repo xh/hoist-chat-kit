@@ -215,6 +215,73 @@ describe('BlueprintDesignModel', () => {
         });
     });
 
+    describe('presets', () => {
+        const SORT = '/elements/posGrid/config/sortBy',
+            COLUMNS = '/elements/posGrid/config/columnState';
+
+        it("makes a group from an element's preset path, with one preset of its value", () => {
+            const {model, design} = open(loadBlueprint('p3-morning-report.json')),
+                {id, issues} = design.addPresetGroup(SORT);
+            expect(errors({issues})).toEqual([]);
+            expect(id).toBe('group1');
+            expect(model.blueprint.elements.posGrid.config).not.toHaveProperty('sortBy');
+            expect(model.blueprint.presets.group1).toEqual({
+                label: 'Sort by',
+                controls: [{path: SORT}],
+                default: 'preset1',
+                items: {
+                    preset1: {
+                        label: 'Preset 1',
+                        set: {elements: {posGrid: {config: {sortBy: 'pnlDay|desc'}}}}
+                    }
+                }
+            });
+            expect(design.selection).toEqual({kind: 'preset', id: 'group1'});
+        });
+
+        it('adds a control to every preset of a group, and gives it back to the config', () => {
+            const {model, design} = open(loadBlueprint('p3-morning-report.json'));
+            expect(errors(design.addPresetControl('posViews', SORT))).toEqual([]);
+            const {items} = model.blueprint.presets.posViews;
+            Object.values(items).forEach(it =>
+                expect(it.set.elements.posGrid.config.sortBy).toBe('pnlDay|desc')
+            );
+
+            model.setPreset('posViews', 'risk');
+            expect(errors(design.removePresetControl('posViews', COLUMNS))).toEqual([]);
+            expect(model.blueprint.elements.posGrid.config.columnState).toEqual(
+                items.risk.set.elements.posGrid.config.columnState
+            );
+            Object.values(model.blueprint.presets.posViews.items).forEach(it =>
+                expect(it.set.elements.posGrid.config).not.toHaveProperty('columnState')
+            );
+        });
+
+        it('duplicates, relabels and removes a preset, keeping a default', () => {
+            const {model, design} = open(loadBlueprint('p3-morning-report.json')),
+                group = () => model.blueprint.presets.posViews;
+            const {id} = design.duplicatePreset('posViews', 'pnl');
+            expect(id).toBe('preset1');
+            expect(group().items.preset1).toEqual({...group().items.pnl, label: 'P&L view copy'});
+            design.setPresetLabel('posViews', 'preset1', 'Mine');
+            expect(group().items.preset1.label).toBe('Mine');
+
+            expect(errors(design.removePreset('posViews', 'pnl'))).toEqual([]);
+            expect(group().default).toBe('risk');
+            design.removePreset('posViews', 'preset1');
+            expect(errors(design.removePreset('posViews', 'risk')).length).toBeGreaterThan(0);
+        });
+
+        it('removes a group, giving its paths back to the config at the active preset', () => {
+            const {model, design} = open(loadBlueprint('p3-morning-report.json'));
+            model.setPreset('posViews', 'risk');
+            const risk = model.blueprint.presets.posViews.items.risk.set.elements.posGrid.config;
+            expect(errors(design.removePresetGroup('posViews'))).toEqual([]);
+            expect(model.blueprint.presets ?? {}).not.toHaveProperty('posViews');
+            expect(model.blueprint.elements.posGrid.config.columnState).toEqual(risk.columnState);
+        });
+    });
+
     describe('removing an element', () => {
         it('removes everything inside it, and what names it, in one edit that undoes', () => {
             const {model, design} = open(loadBlueprint('p3-morning-report.json')),
