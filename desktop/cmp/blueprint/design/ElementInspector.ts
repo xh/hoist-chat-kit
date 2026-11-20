@@ -308,7 +308,10 @@ function editorFor(
                 onCommit: v => commit(optional(v))
             });
         case 'boolean':
-            return switchInput({value: !!value, disabled, onCommit: v => commit(v)});
+            return div({
+                className: `${CLS}__switch`,
+                item: switchInput({value: !!value, disabled, onCommit: v => commit(v)})
+            });
         case 'choice':
             return select({
                 value: value ?? null,

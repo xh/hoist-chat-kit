@@ -112,4 +112,15 @@
     flex: 1 1 auto;
     min-width: 0;
   }
+
+  // As tall as an input, so a switch lines up with the inputs beside it.
+  &__switch {
+    display: flex;
+    align-items: center;
+    min-height: var(--xh-input-height);
+
+    .bp6-switch {
+      margin: 0;
+    }
+  }
 }

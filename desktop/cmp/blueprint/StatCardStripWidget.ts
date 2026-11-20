@@ -139,8 +139,12 @@ export const [StatCardStripWidget, statCardStripWidget] = hoistCmp.withFactory({
     className: 'xh-blueprint-stat-cards',
     model: uses(StatCardStripWidgetModel),
     render({model, className}) {
+        // Cards that wrap to more rows than the cell holds scroll, rather than clip.
         return statCardStrip({
             className,
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
             children: model.cards.map(({key, title, value, subValue, detail, intent}) =>
                 statCard({key, title, value, subValue, detail, intent})
             )
