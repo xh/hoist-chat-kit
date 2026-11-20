@@ -364,6 +364,26 @@ export const SCENARIOS: Scenario[] = [
         ]
     },
     {
+        id: 'P11o',
+        title: "P11 in its original words, before step 12's rewording",
+        host: 'p2-linked-dashboard.json',
+        mode: 'run',
+        context: 'Mode: run. The user has write access. A chat is open beside the host blueprint below, which the user is looking at. Its asOf is today, 2026-11-19.',
+        steps: [{prompt: 'How is Oak Mount doing today?'}, {prompt: 'Put those numbers and the note on my dashboard.'}],
+        checks: [
+            ['answers with stat cards', o => o.segments.some(s => segmentWidgets(s, 'statCard').length)],
+            ['answers with a callout', o => o.segments.some(s => segmentWidgets(s, 'callout').length)],
+            ['the host gains a fundSummary source whose fund binds a variable for Oak Mount', o => sourcesOf(o.blueprint, 'fundSummary').some(([, s]) => o.blueprint.variables?.[varOf(s.params?.fund)!]?.default?.value === 'Oak Mount')],
+            ['stat cards over that source, at least two', o => cfg(o.blueprint, 'statCard', c => dataset(o.blueprint, c) === 'fundSummary').length >= 2],
+            ['a callout whose text holds no number of its own', o => {
+                const notes = cfg(o.blueprint, 'callout');
+                return notes.length && notes.every(c => !/\d/.test(literalText(c.text)));
+            }],
+            ['no artifact or inline source in the host', o => noChatSources(o.blueprint)],
+            ['asks for design mode before it edits', askedFirst]
+        ]
+    },
+    {
         id: 'W4',
         title: "One city's day on two axes",
         context: BUILD,

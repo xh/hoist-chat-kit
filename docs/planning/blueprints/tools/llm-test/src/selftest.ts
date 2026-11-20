@@ -74,6 +74,7 @@ const expected_: Record<string, any> = {
     P10: {blueprint: applied['p10-edit.json applied to p3'].result, segments: [], replies: ['']},
     P11: {blueprint: applied['p11-edit.json applied to p2'].result, segments: [loadBlueprint('p11-answer.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']},
     W4: {blueprint: loadBlueprint('w4-day-two-axes.json'), segments: [], replies: ['']},
+    P11o: {blueprint: applied['p11-edit.json applied to p2'].result, segments: [loadBlueprint('p11-answer.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']},
     W3b: {blueprint: w3b.result, segments: [loadBlueprint('w3-segment-1.json'), loadBlueprint('w3-segment-2.json')], replies: [''], calls: ['query_dataset', 'show_ui', 'request_design_mode', 'read_answer', 'edit_blueprint']}
 };
 let oracleFailed = 0;
