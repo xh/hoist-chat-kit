@@ -127,6 +127,8 @@ describe('input widgets', () => {
                 {component: 'slider', config: {min: 0, max: 10, step: 1}}
             ),
             slider = widget(SliderWidgetModel, model);
+        // Five labels across its range, however fine its step.
+        expect(slider.inputProps.labelStepSize).toBe(2.5);
         slider.inputProps.onChange(6);
         expect(slider.inputProps.value).toBe(6);
         expect(valueOf(model)).toBe(2);
@@ -218,12 +220,12 @@ describe('input widgets', () => {
     });
 
     describe('toolbar', () => {
-        function show(elements: Record<string, BlueprintElement>, variables = {}) {
+        function show(elements: Record<string, BlueprintElement>, variables = {}, sources = {}) {
             const model = new BlueprintModel({
-                blueprint: {schema: {blueprint: 1}, variables, root: 'bar', elements},
+                blueprint: {schema: {blueprint: 1}, variables, sources, root: 'bar', elements},
                 catalog: portfolioCatalog,
                 registry: scenarioRegistry(),
-                dataProvider: null,
+                dataProvider: new FakeBlueprintDataProvider({catalog: portfolioCatalog}),
                 mode: 'run'
             });
             onTestFinished(() => model.destroy());
@@ -235,7 +237,7 @@ describe('input widgets', () => {
                 {
                     bar: {
                         component: 'toolbar',
-                        config: {},
+                        config: {overflowMenu: false},
                         children: [{id: 'region'}, {id: 'rule'}, {id: 'gap'}, {id: 'flag'}]
                     },
                     region: {component: 'select', config: {label: 'Region'}},
@@ -259,6 +261,28 @@ describe('input widgets', () => {
             expect(screen.getByText('Live')).toBeTruthy();
         });
 
+        it('scrolls what does not fit into a menu, and gives a filter chooser a fixed width', () => {
+            const {model} = show(
+                {
+                    bar: {component: 'toolbar', config: {}, children: [{id: 'chooser'}]},
+                    chooser: {component: 'filterChooser', config: {source: 'positions'}}
+                },
+                {
+                    asOf: {type: 'localDate', default: {value: '2026-03-02'}},
+                    f: {type: 'filter', setBy: {element: 'chooser'}}
+                },
+                {positions: {dataset: 'positions', params: {asOf: {$var: 'asOf'}}}}
+            );
+            expect(document.querySelector('.xh-toolbar--overflow')).toBeTruthy();
+            const chooser = new FilterChooserWidgetModel({
+                blueprintModel: model,
+                id: 'chooser',
+                renderElement: () => null
+            });
+            onTestFinished(() => chooser.destroy());
+            expect(chooser.inputProps).toMatchObject({width: 250, flex: 'none'});
+        });
+
         it('refuses a widget that is not an input, separator or spacer', () => {
             expect(() =>
                 show({
@@ -277,13 +301,33 @@ describe('input widgets', () => {
                     config: {title: 'Page'},
                     children: [{id: 'top', slot: 'tbar'}, {id: 'body'}]
                 },
-                top: {component: 'toolbar', config: {}, children: [{id: 'flag'}]},
+                top: {
+                    component: 'toolbar',
+                    config: {overflowMenu: false},
+                    children: [{id: 'flag'}]
+                },
                 flag: {component: 'switchInput', config: {label: 'Live'}},
                 body: {component: 'markdown', config: {text: 'Body'}}
             });
             const tbar = document.querySelector('.xh-panel .xh-toolbar');
             expect(tbar?.textContent).toContain('Live');
             expect(screen.getByText('Body')).toBeTruthy();
+
+            // A card holds its bars around a body that fills the rest.
+            const {container} = show({
+                bar: {
+                    component: 'panel',
+                    config: {style: 'card'},
+                    children: [{id: 'top', slot: 'tbar'}, {id: 'body'}]
+                },
+                top: {component: 'toolbar', config: {}, children: []},
+                body: {component: 'markdown', config: {text: 'Card body'}}
+            });
+            const content = container.querySelector('.xh-card__content');
+            expect(content.querySelector(':scope > .xh-toolbar')).toBeTruthy();
+            expect(content.querySelector(':scope > .xh-blueprint-panel__body')?.textContent).toBe(
+                'Card body'
+            );
 
             expect(() =>
                 show({

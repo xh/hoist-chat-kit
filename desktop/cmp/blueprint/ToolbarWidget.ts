@@ -13,6 +13,7 @@ export const [ToolbarWidget, toolbarWidget] = hoistCmp.withFactory({
         return toolbar({
             className,
             vertical: !!model.resolvedConfig.vertical,
+            enableOverflowMenu: model.resolvedConfig.overflowMenu ?? true,
             children: model.children.map(it => model.renderElement(it.id))
         });
     }

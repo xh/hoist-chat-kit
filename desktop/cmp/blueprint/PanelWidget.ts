@@ -1,4 +1,5 @@
 import {card, CardModel} from '@xh/hoist/cmp/card';
+import {vframe} from '@xh/hoist/cmp/layout';
 import {hoistCmp, uses, XH} from '@xh/hoist/core';
 import {panel, PanelModel} from '@xh/hoist/desktop/cmp/panel';
 import {Icon} from '@xh/hoist/icon';
@@ -90,7 +91,11 @@ export const [PanelWidget, panelWidget] = hoistCmp.withFactory({
                   ...props,
                   model: model.cardModel,
                   flex: 'auto',
-                  children: [slot('tbar'), body, slot('bbar')]
+                  children: [
+                      slot('tbar'),
+                      vframe({className: 'xh-blueprint-panel__body', children: body}),
+                      slot('bbar')
+                  ]
               })
             : panel({
                   ...props,

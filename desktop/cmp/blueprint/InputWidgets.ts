@@ -148,6 +148,7 @@ export class SliderWidgetModel extends InputWidgetModel<SliderWidgetConfig> {
             min,
             max,
             stepSize: step,
+            labelStepSize: (max - min) / 4,
             value: this.draft ?? (this.value as number) ?? min,
             onChange: action((value: number) => (this.draft = value))
         };
@@ -197,8 +198,10 @@ export class FilterChooserWidgetModel extends InputWidgetModel<FilterChooserWidg
         );
     }
 
+    // In a toolbar it takes a fixed width, so a spacer can push it to the end.
     get inputProps(): PlainObject {
-        return {model: this.chooserModel, flex: 1};
+        const inToolbar = this.parentElement?.component === 'toolbar';
+        return {model: this.chooserModel, ...(inToolbar ? {width: 250, flex: 'none'} : {flex: 1})};
     }
 
     //------------------
@@ -289,7 +292,9 @@ export const [FilterChooserWidget, filterChooserWidget] = hoistCmp.withFactory({
     model: uses(FilterChooserWidgetModel),
     render: ({model, className}) =>
         model.chooserModel
-            ? labeled(model, className, filterChooser(model.inputProps), {flex: 1})
+            ? labeled(model, className, filterChooser(model.inputProps), {
+                  flex: model.inputProps.flex
+              })
             : null
 });
 

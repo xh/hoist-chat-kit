@@ -205,7 +205,14 @@ const FILTER_CHOOSER_SCHEMA = {
 const TOOLBAR_SCHEMA = {
     type: 'object',
     additionalProperties: false,
-    properties: {vertical: {type: 'boolean', default: false}}
+    properties: {
+        vertical: {type: 'boolean', default: false},
+        overflowMenu: {
+            type: 'boolean',
+            default: true,
+            description: 'True to put the children that do not fit in a menu at its end.'
+        }
+    }
 } as const satisfies BlueprintSchema;
 
 const SEPARATOR_SCHEMA = {
