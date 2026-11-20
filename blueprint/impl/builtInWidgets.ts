@@ -843,7 +843,7 @@ const box: WidgetSpec = {
     label: 'Box',
     terms: ['row', 'column', 'side by side', 'stack', 'layout'],
     guidance:
-        'Arranges its children in a row or a column, with no chrome. Each child reference may give flex, a share of the room left, or a fixed width or height in pixels. A child with neither takes an equal share. Use a separator to divide children, and a spacer to push them apart.',
+        'Arranges its children in a row or a column, with no chrome. Each child reference may give flex, a share of the room left, or a fixed width or height in pixels. A child with neither takes an equal share. Use a separator to divide children, and a spacer to push them apart. Keep align stretch for grids and charts: they have no size of their own, so another align leaves them no room across the box.',
     category: 'layout',
     config: BOX_SCHEMA,
     children: {

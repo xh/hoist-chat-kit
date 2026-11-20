@@ -23,6 +23,11 @@
   }
 }
 
+// In a box, a child runs along the box's direction, so a vertical separator spans a row.
+.xh-blueprint-box__item > .xh-blueprint-view__design-element {
+  flex-direction: inherit;
+}
+
 .xh-blueprint-bar {
   position: relative;
   width: 100%;

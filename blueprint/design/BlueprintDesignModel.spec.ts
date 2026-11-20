@@ -132,6 +132,20 @@ describe('BlueprintDesignModel', () => {
         expect(elements[rule]).toEqual({component: 'separator', config: {}});
     });
 
+    it('adds beside the selected widget in a box, right after it', () => {
+        const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
+            row = design.addWidget('box', 'dashboard').id;
+        ['markdown', 'callout'].forEach(it => design.addWidget(it, row));
+        const [first, last] = model.blueprint.elements[row].children.map(it => it.id);
+        design.select({kind: 'element', id: first});
+        const rule = design.addWidget('separator').id;
+        expect(model.blueprint.elements[row].children.map(it => it.id)).toEqual([
+            first,
+            rule,
+            last
+        ]);
+    });
+
     it('makes the first widget of an empty blueprint its root', () => {
         const {model, design} = open(undefined),
             result = design.addWidget('dashCanvas');

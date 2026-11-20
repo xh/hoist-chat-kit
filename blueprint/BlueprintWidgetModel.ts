@@ -78,7 +78,7 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
      *
      * @returns true if the edit applied.
      */
-    applyUserEdit(ops: BlueprintOp[]): boolean {
+    applyUserEdit(ops: BlueprintOp[], description?: string): boolean {
         const {blueprintModel} = this;
         if (blueprintModel.mode === 'run') {
             ops.forEach(
@@ -86,7 +86,7 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
             );
             return true;
         }
-        const {issues} = blueprintModel.applyEdit({author: 'user', ops}),
+        const {issues} = blueprintModel.applyEdit({author: 'user', ops, description}),
             error = issues.find(it => it.severity === 'error');
         if (error) XH.dangerToast(error.message);
         return !error;
@@ -99,7 +99,10 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
     setConfig(path: string, value: unknown): boolean {
         // In design mode, a path that presets control changes the active preset.
         const target = this.blueprintModel.writePathFor(`/elements/${this.id}/config${path}`);
-        return this.applyUserEdit([{op: 'set', path: target, value}]);
+        return this.applyUserEdit(
+            [{op: 'set', path: target, value}],
+            `${this.id}: ${path.slice(1)}`
+        );
     }
 
     /**

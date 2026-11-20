@@ -67,8 +67,10 @@ export class BlueprintDesignModel extends HoistModel {
 
     /**
      * Add a widget of the registry, with a config it can start with - see `starterConfig()`. It
-     * goes into `parentId`, else the selected container, else the root. On a canvas, it takes the first free place at its default size, and in tabs, a tab
-     * titled by its label. The first element of an empty blueprint becomes its root.
+     * goes into `parentId`, else the selected container, else right after the selected element in
+     * its container, else the root. On a canvas, it takes the first free place at its default size,
+     * and in tabs, a tab titled by its label. The first element of an empty blueprint becomes its
+     * root.
      *
      * @returns the edit's result, with the new element's ID.
      */
@@ -86,10 +88,18 @@ export class BlueprintDesignModel extends HoistModel {
             if (blueprint?.root) return refused('Select a container to add the widget to.');
             return {...this.edit(`Add ${spec.label}`, [{op: 'addElement', id, element}]), id};
         }
-        const child = this.placeChild(parent, spec);
+        const child = this.placeChild(parent, spec),
+            index = parentId ? null : this.indexAfterSelected(parent);
         return {
             ...this.edit(`Add ${spec.label}`, [
-                {op: 'addElement', id, element, parent, ...(child ? {child} : {})}
+                {
+                    op: 'addElement',
+                    id,
+                    element,
+                    parent,
+                    ...(child ? {child} : {}),
+                    ...(index != null ? {index} : {})
+                }
             ]),
             id
         };
@@ -605,6 +615,13 @@ export class BlueprintDesignModel extends HoistModel {
         const parent = selected ? parentOf(blueprint?.elements, selected) : null;
         if (parent) return parent;
         return blueprint?.root && isContainer(blueprint.root) ? blueprint.root : null;
+    }
+
+    // The place right after the selected element among its parent's children, or null.
+    private indexAfterSelected(parentId: string): number {
+        const children = getOwn(this.blueprintModel.blueprint?.elements, parentId)?.children ?? [],
+            idx = children.findIndex(it => it.id === this.selectedElementId);
+        return idx >= 0 ? idx + 1 : null;
     }
 
     // A child reference for a container: a free place on a canvas, or a title in tabs.

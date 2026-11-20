@@ -60,6 +60,15 @@ describe('BlueprintWidgetModel', () => {
         expect(grid.resolvedConfig.groupBy).toEqual(['sector']);
     });
 
+    it("describes a user's change in design mode by its element and config key", () => {
+        const model = open(),
+            grid = widget(model, 'posGrid');
+        model.setAccess('write');
+        model.setMode('design');
+        expect(grid.setConfig('/sortBy', 'mktVal|desc')).toBe(true);
+        expect(model.history.at(-1).description).toBe('posGrid: sortBy');
+    });
+
     it('has no value variable when no variable names its element', () => {
         const model = open(),
             grid = widget(model, 'posGrid');
