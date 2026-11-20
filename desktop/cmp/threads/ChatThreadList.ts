@@ -445,12 +445,9 @@ function rowActions(
                 ...rowMenuProps,
                 menuItems: () => moreMenuItems(impl, thread),
                 popoverProps: {
-                    ...rowMenuProps?.popoverProps,
                     // Clear of the button, so that the menu does not cover the next row.
-                    modifiers: {
-                        offset: {enabled: true, options: {offset: [0, 4]}},
-                        ...rowMenuProps?.popoverProps?.modifiers
-                    },
+                    offset: {mainAxis: 4},
+                    ...rowMenuProps?.popoverProps,
                     onOpening: node => {
                         rowMenuProps?.popoverProps?.onOpening?.(node);
                         impl.setMenuThreadId(thread.id);

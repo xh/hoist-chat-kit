@@ -111,7 +111,7 @@ describe('ChatComposer', () => {
         expect(input().getAttribute('placeholder')).toBe('Ask away');
     });
 
-    it('disables Send while a send blocker gives a reason, and states the reason', () => {
+    it('disables Send while a send blocker gives a reason, and states the reason', async () => {
         const chatModel = createModel({sendBlocker: () => 'Choose a document first.'});
         renderComposer(chatModel);
         typeDraft(chatModel, 'Summarize it');
@@ -120,14 +120,14 @@ describe('ChatComposer', () => {
             reason = document.getElementById(send.getAttribute('aria-describedby')),
             wrapper = send.parentElement;
         expect(send.hasAttribute('disabled')).toBe(true);
-        expect(send.getAttribute('title')).toBe('Choose a document first.');
         expect(reason.textContent).toBe('Choose a document first.');
         // A disabled button cannot take focus, so its wrapper carries the reason to the keyboard.
         expect(wrapper.tabIndex).toBe(0);
         expect(wrapper.getAttribute('aria-describedby')).toBe(reason.id);
+        expect(await hoverTooltip(send)).toBe('Choose a document first.');
     });
 
-    it('disables Send while offline, and keeps the draft', () => {
+    it('disables Send while offline, and keeps the draft', async () => {
         const chatModel = createModel();
         renderComposer(chatModel);
         act(() => typeDraft(chatModel, 'Hello'));
@@ -135,8 +135,8 @@ describe('ChatComposer', () => {
         act(() => window.dispatchEvent(new Event('offline')));
         const send = screen.getByRole('button', {name: 'Send'});
         expect(send.hasAttribute('disabled')).toBe(true);
-        expect(send.getAttribute('title')).toBe("You're offline");
         expect(input().value).toBe('Hello');
+        expect(await hoverTooltip(send)).toBe("You're offline");
 
         act(() => window.dispatchEvent(new Event('online')));
         expect(screen.getByRole('button', {name: 'Send'}).hasAttribute('disabled')).toBe(false);
@@ -392,4 +392,10 @@ function field(): HTMLElement {
 
 function typeDraft(chatModel: ChatModel, text: string) {
     chatModel.composerModel.text = text;
+}
+
+/** The text of the tooltip that opens as the pointer rests on a button, disabled or not. */
+async function hoverTooltip(button: HTMLElement): Promise<string> {
+    fireEvent.pointerEnter(button);
+    return (await screen.findByRole('tooltip')).textContent;
 }

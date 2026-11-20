@@ -26,6 +26,10 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * The kit's components now take child elements as `children`, as Hoist 91's element factories do.
   The docs and examples use `children` too. The legacy `item` and `items` keys still work in Hoist
   91.
+* The kit now runs on Hoist 91 without Blueprint. Its popovers, tooltips and the expanded table and
+  chart dialog use Hoist's own `Popover`, `Tooltip` and `Dialog`. `ChatThreadListProps.rowMenuProps`
+  takes Hoist's `PopoverProps` in its `popoverProps` - set `offset` in place of Popper.js
+  `modifiers`.
 
 ### 🎁 New Features
 
