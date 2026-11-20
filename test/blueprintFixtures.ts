@@ -17,7 +17,7 @@ export const portfolioCatalog = new DataCatalog(portfolioJson as DataCatalogJson
     weatherCatalog = new DataCatalog(weatherJson as DataCatalogJson);
 
 /** The artifacts the scenario answers name, with the dataset behind each. */
-export const ARTIFACTS = {art_7f2: 'positions', art_9c4: 'weather'};
+export const ARTIFACTS = {art_7f2: 'positions', art_9c4: 'weather', art_3b8: 'fundSummary'};
 
 /** A registry with the built-ins, plus the app entries the scenarios use, from `registry.json`. */
 export function scenarioRegistry(): BlueprintRegistry {
