@@ -35,6 +35,8 @@ Enforced by:
 | A value the user names stays as given, as a constant, and the reply offers to make it a prompt. An input the user does not name, such as an as-of date or a fund, is a prompted variable. | W2: Opus fixed "New York and London" as constants. We chose to keep what the user asked and offer the prompt | Prompt |
 | A required dataset parameter the user did not mention still needs a variable, usually a prompt with a resolver default. | P1: Sonnet added an as-of prompt defaulting to the previous business day without being asked | Validator, for required parameters |
 | Use a resolver for a moving date, such as `previousBusinessDay` or `yearStart`. A fixed date freezes the blueprint. | Design: a pinned chat answer keeps "last quarter" only through a resolver | Prompt |
+| Join a coarser measure, such as a fund's NAV, onto the rows it describes rather than show it apart. It shows on rows that pin its key and totals once per key. | P8: Sonnet kept NAV in a separate grid in 2 of 3 runs, saying a join would repeat it per position | Prompt |
+| Never write a figure or date read from the data into a markdown or callout element. Read it with `{source.field}`, and put analysis in the reply. | P11: Opus wrote day P&L figures and a date into a dashboard callout in 2 of 3 runs | Prompt |
 
 ### Ambiguity and limits
 
