@@ -963,14 +963,16 @@ describe('validateBlueprint', () => {
                         },
                         credits: {enabled: true, href: 'https://evil.example', text: 'Source'},
                         plotOptions: {series: {point: {url: 'https://evil.example'}}},
-                        title: {style: {background: '\\75 rl(https://evil.example/x.png)'}}
+                        title: {style: {background: '\\75 rl(https://evil.example/x.png)'}},
+                        legend: {itemStyle: {background: '\\75 rl(https://evil.example/x.png)'}}
                     })
                 ).map(it => [it.code, it.path])
             ).toEqual([
                 ['chart.highchartsConfig', `${at}/exporting`],
                 ['chart.highchartsConfig', `${at}/credits`],
                 ['chart.highchartsConfig', `${at}/plotOptions/series/point/url`],
-                ['chart.highchartsConfig', `${at}/title/style/background`]
+                ['chart.highchartsConfig', `${at}/title/style/background`],
+                ['chart.highchartsConfig', `${at}/legend/itemStyle/background`]
             ]);
         });
 

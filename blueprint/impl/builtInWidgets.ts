@@ -1881,7 +1881,7 @@ export function checkHighchartsConfig(config: PlainObject): BlueprintIssue[] {
             fail(path, 'holds markup, which a chart may not show');
         } else if (isString(value) && /url\s*\(/i.test(value)) {
             fail(path, 'loads from a URL, which a chart may not');
-        } else if (isString(value) && value.includes('\\') && path.includes('/style/')) {
+        } else if (isString(value) && value.includes('\\') && /\/[a-z]*style\//i.test(path)) {
             // A CSS escape could spell url( past the check above.
             fail(path, 'holds a backslash, which a style may not');
         } else if (value && typeof value === 'object' && '$var' in value) {
