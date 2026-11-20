@@ -62,6 +62,23 @@ describe('BlueprintRegistry presentations', () => {
         );
     });
 
+    it('refuses an action param that both names a variable and takes a binding', () => {
+        const registry = new BlueprintRegistry(),
+            params = (prop: object) => ({type: 'object', properties: {target: prop}});
+        expect(() =>
+            registry.addActions({
+                name: 'pick',
+                params: params({type: 'string', 'x-variable': true, 'x-binding': true})
+            })
+        ).toThrow(/x-variable/);
+        expect(() =>
+            registry.addActions({
+                name: 'pick',
+                params: params({type: 'string', 'x-variable': true})
+            })
+        ).not.toThrow();
+    });
+
     it('refuses a presentation for an unknown widget, or one named panel', () => {
         const registry = new BlueprintRegistry();
         expect(() => registry.addPresentation('nope', card)).toThrow();

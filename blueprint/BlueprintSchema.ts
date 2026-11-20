@@ -4,7 +4,8 @@ import type {ExtendedJSONSchema} from 'json-schema-to-ts';
  * Annotations a widget's config schema can carry, which the validator reads and JSON Schema
  * ignores. `x-binding` marks a value that accepts `{"$var": name}`, `x-source` a source name,
  * `x-field` a field of the widget's source, and `x-filter`, `x-format`, `x-renderer` and `x-action`
- * a value of that form.
+ * a value of that form. On an action's param, `x-variable` marks the name of a variable the action
+ * may set, which is never a binding.
  */
 export type BlueprintSchemaExtension = {
     'x-binding'?: boolean;
@@ -14,6 +15,7 @@ export type BlueprintSchemaExtension = {
     'x-format'?: boolean;
     'x-renderer'?: boolean;
     'x-action'?: boolean;
+    'x-variable'?: boolean;
 };
 
 /**

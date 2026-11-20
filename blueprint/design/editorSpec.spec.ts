@@ -30,6 +30,14 @@ describe('toEditorSpec', () => {
         expect(grid.title.default).toBeUndefined();
     });
 
+    it('makes a param that names a variable a variable picker, never a binding', () => {
+        const [node] = toEditorSpec({
+            type: 'object',
+            properties: {variable: {type: 'string', 'x-variable': true}}
+        });
+        expect(node).toMatchObject({kind: 'variable', bindable: false});
+    });
+
     it('names the annotated kinds, before their plain type', () => {
         const chart = byKey(toEditorSpec(configOf('chart')));
         expect(chart.source.kind).toBe('source');

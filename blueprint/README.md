@@ -250,8 +250,9 @@ preset. Design mode needs write access, and a chat answer has none.
 `toEditorSpec(schema)` turns a widget's config schema into a tree of `EditorNode`s, one per
 property. The registry's annotations pick an editor: a source select for `x-source`, a field
 picker or a `GroupingChooser` for `x-field`, a `FilterChooser` for `x-filter`, and pickers for
-`x-format`, `x-renderer` and `x-action`. A property marked `x-binding` can take a variable in
-place of a value. A shape with no editor falls back to JSON, so every value stays editable. The
+`x-format`, `x-renderer` and `x-action`, and a select of the variables an action may set for an
+action param marked `x-variable`. A property marked `x-binding` can take a variable in place of a
+value. A shape with no editor falls back to JSON, so every value stays editable. The
 inspector draws these nodes, so a new widget gets an editor from its schema alone.
 
 ### Give a config property a default
@@ -368,7 +369,8 @@ reads the same function, so a panel and the Architect agree.
   action declares a parameter schema, and the runner checks its parameters before it runs. Give
   an action with side effects `sideEffects: true`, so that it always asks the user to confirm.
   Give an action for chat answers only `allowedIn: ['answers']`, so the validator refuses it in a
-  dashboard.
+  dashboard. Mark a param that names a variable to set with `x-variable`, as `setVariable` does:
+  the validator checks the name, and the editor offers only the variables an action may set.
 - **Data.** Implement `BlueprintDataProvider` over the app's services. Add
   `loadAggregatesAsync()` when the server can roll up groups the browser cannot.
 - **Storage.** Implement `BlueprintRepository` over another store. See

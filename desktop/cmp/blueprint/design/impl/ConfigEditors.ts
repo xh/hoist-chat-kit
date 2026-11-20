@@ -154,6 +154,15 @@ function editorFor(
                 width: '100%',
                 onCommit: v => commit(optional(v))
             });
+        case 'variable':
+            return select({
+                value: value ?? null,
+                options: withCurrent(ctx.impl.settableVariables, value),
+                enableClear: !node.required,
+                disabled,
+                width: '100%',
+                onCommit: v => commit(optional(v))
+            });
         case 'source':
             return select({
                 value: value ?? null,

@@ -534,26 +534,31 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     err('action.unknownParam', `${p}${path}/${k}`, `${o.type} takes no '${k}'`);
                 }
             }
-            if (o.type === 'setVariable' || o.type === 'resetVariable') {
-                if (!variables[o.variable]) {
+            // A param marked x-variable names a variable the action may set.
+            for (const [k, schema] of Object.entries<PlainObject>(spec.params.properties ?? {})) {
+                if (!schema?.['x-variable'] || !Object.hasOwn(o, k)) continue;
+                const name = o[k];
+                if (!isString(name) || !variables[name]) {
                     err(
                         'variable.unknown',
-                        `${p}${path}/variable`,
-                        `unknown variable '${o.variable}'`
+                        `${p}${path}/${k}`,
+                        `unknown variable '${isString(name) ? name : JSON.stringify(name)}'. Name a variable, not a binding.`
                     );
-                } else if (!settableFromOutside.has(o.variable)) {
+                } else if (!settableFromOutside.has(name)) {
                     err(
                         'action.cannotSet',
-                        `${p}${path}/variable`,
-                        `an action cannot set '${o.variable}'. Give it setBy "action", "prompt" or a widget without an output.`
+                        `${p}${path}/${k}`,
+                        `an action cannot set '${name}'. Give it setBy "action", "prompt" or a widget without an output.`
                     );
-                } else if (
-                    o.type === 'setVariable' &&
-                    variables[o.variable].type === 'filter' &&
-                    checkFilter(o.value).length
-                ) {
-                    err('filter.invalid', `${p}${path}/value`, 'the value is not a filter');
                 }
+            }
+            if (
+                o.type === 'setVariable' &&
+                settableFromOutside.has(o.variable) &&
+                variables[o.variable].type === 'filter' &&
+                checkFilter(o.value).length
+            ) {
+                err('filter.invalid', `${p}${path}/value`, 'the value is not a filter');
             }
         });
     }

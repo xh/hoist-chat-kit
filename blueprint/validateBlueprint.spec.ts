@@ -428,6 +428,31 @@ describe('validateBlueprint', () => {
             expect(check(true)).toEqual([]);
         });
 
+        it('checks a param marked x-variable as the name of a variable an action may set', () => {
+            const reg = scenarioRegistry();
+            reg.addActions({
+                name: 'pick',
+                params: {
+                    type: 'object',
+                    required: ['target'],
+                    properties: {target: {type: 'string', 'x-variable': true}}
+                }
+            });
+            const codes = (target: unknown) => {
+                const bp = loadBlueprint('p3-morning-report.json');
+                bp.elements.pnlButtons.config.buttons[0].action = {type: 'pick', target};
+                return validateBlueprint(bp, {
+                    catalog: portfolioCatalog,
+                    registry: reg,
+                    artifacts: ARTIFACTS
+                }).map(it => it.code);
+            };
+            expect(codes('pnlFilter')).toEqual([]);
+            expect(codes('nope')).toContain('variable.unknown');
+            expect(codes('selection')).toContain('action.cannotSet');
+            expect(codes({$var: 'pnlFilter'})).toContain('variable.unknown');
+        });
+
         it('refuses an action with side effects in a chat answer', () => {
             const bp = loadBlueprint('p3-morning-report.json'),
                 issues = validateBlueprint(bp, {

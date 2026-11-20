@@ -1017,6 +1017,7 @@ export const BUILT_IN_ACTIONS: ActionSpec[] = [
             properties: {
                 variable: {
                     type: 'string',
+                    'x-variable': true,
                     description:
                         'A variable whose setBy is prompt, an element without an output, or action.'
                 },
@@ -1031,7 +1032,11 @@ export const BUILT_IN_ACTIONS: ActionSpec[] = [
             type: 'object',
             required: ['variable'],
             properties: {
-                variable: {type: 'string', description: 'As for setVariable. Restores its default.'}
+                variable: {
+                    type: 'string',
+                    'x-variable': true,
+                    description: 'As for setVariable. Restores its default.'
+                }
             }
         },
         describe: ({variable}) => `Reset ${variable}`

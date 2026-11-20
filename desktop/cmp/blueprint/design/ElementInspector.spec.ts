@@ -257,6 +257,16 @@ describe('ElementInspector', () => {
             expect(inspector.defaultActionType).toBe('refresh');
         });
 
+        it('starts a step that sets a variable with the first variable an action may set', () => {
+            const {inspector} = open();
+            expect(inspector.settableVariables.map(it => it.value)).toContain('pnlFilter');
+            expect(inspector.settableVariables.map(it => it.value)).not.toContain('selection');
+            expect(inspector.stepStart('setVariable')).toEqual({
+                type: 'setVariable',
+                variable: inspector.settableVariables[0].value
+            });
+        });
+
         it('locks confirm on for an action that changes data', () => {
             const {inspector} = open();
             expect(inspector.confirmLocked('publishToPmPack')).toBe(true);

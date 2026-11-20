@@ -156,7 +156,8 @@ export interface ActionSpec {
     name: string;
     /**
      * An object schema for the action's parameters, which sit beside its `type`. Each step's
-     * values are checked against it, once resolved, before any step of a list runs.
+     * values are checked against it, once resolved, before any step of a list runs. Mark a param
+     * that names a variable to set with `x-variable`, which excludes `x-binding`.
      */
     params: PlainObject;
     guidance?: string;
@@ -329,7 +330,12 @@ export class BlueprintRegistry {
     addActions(...specs: (ActionSpec | ActionSpec[])[]) {
         specs.flat().forEach(spec => {
             const {params} = spec ?? ({} as ActionSpec),
-                problems = isPlainObject(params) ? findSchemaProblems(params) : [];
+                problems = isPlainObject(params) ? findSchemaProblems(params) : [],
+                // A param that names a variable takes the name, never a binding to one.
+                both = Object.entries<PlainObject>(params?.properties ?? {})
+                    .filter(([, it]) => it?.['x-variable'] && it['x-binding'])
+                    .map(([key]) => `${key} has both x-variable and x-binding`);
+            problems.push(...both);
             throwIf(
                 !isPlainObject(params) ||
                     (params as PlainObject).type !== 'object' ||

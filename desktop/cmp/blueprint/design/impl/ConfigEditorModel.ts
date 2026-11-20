@@ -3,6 +3,7 @@ import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import type {FieldType} from '@xh/hoist/data';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {isEmpty, isString, pickBy, sortBy, uniq} from 'lodash';
+import {isSettableFromOutside} from '../../../../../blueprint';
 import type {
     ActionSpec,
     BlueprintDesignModel,
@@ -97,6 +98,13 @@ export abstract class ConfigEditorModel extends HoistModel {
         const group = blueprintModel.blueprint.presets[control.group],
             item = group.items?.[control.item];
         return `Preset: ${group.label ?? control.group} › ${item?.label ?? control.item}`;
+    }
+
+    /** The variables an action may set, for an `x-variable` param. */
+    get settableVariables(): Option[] {
+        return Object.entries(this.designModel.blueprintModel.blueprint?.variables ?? {})
+            .filter(([, decl]) => isSettableFromOutside(decl))
+            .map(([name]) => ({value: name, label: name}));
     }
 
     /** The blueprint's sources, for an `x-source` property. */
@@ -206,14 +214,20 @@ export abstract class ConfigEditorModel extends HoistModel {
 
     /**
      * A step of an action type to start from: each required parameter bound to a variable that
-     * fits it, the one of the same name first, and no others. A parameter no variable fits stays
-     * unset, for the validator to name.
+     * fits it, the one of the same name first, and no others. A parameter that names a variable
+     * takes the first the action may set. A parameter no variable fits stays unset, for the
+     * validator to name.
      */
     stepStart(type: string): PlainObject {
         const params: PlainObject = this.actionSpec(type)?.params ?? {},
             props: PlainObject = params.properties ?? {},
             ret: PlainObject = {type};
         for (const key of (params.required as string[]) ?? []) {
+            if (props[key]?.['x-variable']) {
+                const first = this.settableVariables[0]?.value;
+                if (first) ret[key] = first;
+                continue;
+            }
             const fitting = this.variablesFor({schema: props[key] ?? {}} as EditorNode),
                 variable = fitting.includes(key) ? key : fitting[0];
             if (variable) ret[key] = {$var: variable};
