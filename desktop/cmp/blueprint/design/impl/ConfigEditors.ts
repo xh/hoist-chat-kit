@@ -632,10 +632,6 @@ function actionEditor(
         commitSteps = (list: PlainObject[]) => commit(joinSteps(list)),
         replace = (i: number, step: PlainObject) =>
             commitSteps(steps.map((it, j) => (j === i ? step : it))),
-        startOf = (type: string): PlainObject => ({
-            type,
-            ...((impl.newValue(impl.actionSpec(type)?.params ?? {}) as PlainObject) ?? {})
-        }),
         moved = (from: number, to: number) => {
             const ret = [...steps];
             ret.splice(to, 0, ...ret.splice(from, 1));
@@ -663,7 +659,7 @@ function actionEditor(
                                     onCommit: (type: string) =>
                                         type !== step.type &&
                                         replace(i, {
-                                            ...startOf(type),
+                                            ...impl.stepStart(type),
                                             ...(step.confirm ? {confirm: true} : {})
                                         })
                                 }),
@@ -725,8 +721,8 @@ function actionEditor(
                 icon: Icon.add(),
                 text: steps.length ? 'Add a step' : 'Add an action',
                 minimal: true,
-                disabled: disabled || steps.length >= MAX_STEPS || !impl.actionOptions.length,
-                onClick: () => commitSteps([...steps, startOf(impl.actionOptions[0].value)])
+                disabled: disabled || steps.length >= MAX_STEPS || !impl.defaultActionType,
+                onClick: () => commitSteps([...steps, impl.stepStart(impl.defaultActionType)])
             })
         ]
     });

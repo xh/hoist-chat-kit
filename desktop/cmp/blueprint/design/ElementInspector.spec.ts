@@ -235,6 +235,28 @@ describe('ElementInspector', () => {
             expect(inspector.actionOptions.map(it => it.value)).not.toContain('send');
         });
 
+        it('starts a step with no placeholders: required params bound to fitting variables', () => {
+            const {model, inspector} = open();
+            model.registry.addActions({
+                name: 'publishDated',
+                params: {
+                    type: 'object',
+                    required: ['asOf', 'note'],
+                    properties: {
+                        asOf: {type: 'string', format: 'date'},
+                        note: {type: 'string'},
+                        extra: {type: 'string'}
+                    }
+                }
+            });
+            expect(inspector.stepStart('publishDated')).toEqual({
+                type: 'publishDated',
+                asOf: {$var: 'asOf'},
+                note: {$var: 'fund'}
+            });
+            expect(inspector.defaultActionType).toBe('refresh');
+        });
+
         it('locks confirm on for an action that changes data', () => {
             const {inspector} = open();
             expect(inspector.confirmLocked('publishToPmPack')).toBe(true);

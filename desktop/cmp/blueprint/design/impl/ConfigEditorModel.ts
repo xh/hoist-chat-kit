@@ -2,7 +2,7 @@ import type {FilterChooserFieldSpecConfig} from '@xh/hoist/cmp/filter';
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import type {FieldType} from '@xh/hoist/data';
 import {action, observableRef} from '@xh/hoist/mobx';
-import {isString, pickBy, sortBy, uniq} from 'lodash';
+import {isEmpty, isString, pickBy, sortBy, uniq} from 'lodash';
 import type {
     ActionSpec,
     BlueprintDesignModel,
@@ -194,6 +194,33 @@ export abstract class ConfigEditorModel extends HoistModel {
         return this.designModel.blueprintModel.registry.actions[type] ?? null;
     }
 
+    /** The type a new step starts as: the first a dashboard may use that needs no parameters. */
+    get defaultActionType(): string {
+        const options = this.actionOptions;
+        return (
+            options.find(it => isEmpty(this.actionSpec(it.value)?.params?.required))?.value ??
+            options[0]?.value ??
+            null
+        );
+    }
+
+    /**
+     * A step of an action type to start from: each required parameter bound to a variable that
+     * fits it, the one of the same name first, and no others. A parameter no variable fits stays
+     * unset, for the validator to name.
+     */
+    stepStart(type: string): PlainObject {
+        const params: PlainObject = this.actionSpec(type)?.params ?? {},
+            props: PlainObject = params.properties ?? {},
+            ret: PlainObject = {type};
+        for (const key of (params.required as string[]) ?? []) {
+            const fitting = this.variablesFor({schema: props[key] ?? {}} as EditorNode),
+                variable = fitting.includes(key) ? key : fitting[0];
+            if (variable) ret[key] = {$var: variable};
+        }
+        return ret;
+    }
+
     /** True if an action type always asks the user to confirm, as one that changes data does. */
     confirmLocked(type: string): boolean {
         return !!this.actionSpec(type)?.sideEffects;
@@ -254,6 +281,8 @@ function walkStrings(value: unknown, fn: (s: string) => void) {
 // The variable type a schema takes: a filter, a plain type, or a list of strings.
 function variableTypeOf(schema: PlainObject): string {
     if (schema['x-filter']) return 'filter';
+    if (schema.type === 'string' && schema.format === 'date') return 'localDate';
+    if (schema.type === 'string' && schema.format === 'date-time') return 'date';
     if (schema.type === 'array') return schema.items?.type === 'string' ? 'string[]' : null;
     return (
         {string: 'string', number: 'number', integer: 'int', boolean: 'bool'}[schema.type] ?? null
