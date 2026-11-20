@@ -1,4 +1,4 @@
-import {isArray, isBoolean, isEqual, isFinite, isInteger, isString} from 'lodash';
+import {isArray, isBoolean, isEqual, isFinite, isInteger, isPlainObject, isString} from 'lodash';
 import type {VariableDecl} from '../Blueprint';
 import type {BlueprintRegistry} from '../BlueprintRegistry';
 import {checkFilter} from './configSchema';
@@ -12,7 +12,8 @@ export function checkVariableValue(
     name: string,
     decl: VariableDecl,
     value: unknown,
-    registry: Pick<BlueprintRegistry, 'variableTypes'>
+    registry: Pick<BlueprintRegistry, 'variableTypes'> &
+        Partial<Pick<BlueprintRegistry, 'dateRangePresets'>>
 ): string {
     if (value == null) return null;
     const type = String(decl.type ?? ''),
@@ -25,6 +26,10 @@ export function checkVariableValue(
     for (const item of items as unknown[]) {
         if (!matchesType(item, base))
             return `'${name}' takes a ${type}, not ${JSON.stringify(item)}`;
+        const token = base === 'dateRange' ? presetToken(item) : null;
+        if (token && registry.dateRangePresets && !registry.dateRangePresets[token]) {
+            return `'${name}' names no date range preset '${token}'`;
+        }
         const options = (decl.options as any)?.values;
         if (isArray(options) && !options.some(it => isEqual(it, item))) {
             return `'${name}' takes one of ${options.join(', ')}, not ${JSON.stringify(item)}`;
@@ -53,8 +58,28 @@ export function matchesType(value: unknown, type: string): boolean {
             return isFinite(value);
         case 'filter':
             return checkFilter(value).length === 0;
+        case 'dateRange':
+            return (
+                isString(value) ||
+                (isPlainObject(value) && DATE_RANGE_KINDS.includes((value as {kind?: string}).kind))
+            );
+        case 'period':
+            return isString(value) && PERIOD.test(value);
         default:
             // An app type that matches no field type, such as a portfolio, takes any JSON value.
             return true;
     }
+}
+
+// A date range is Hoist's `DateRangeSelection`, which `parseDateRangeSelection()` reads in full.
+const DATE_RANGE_KINDS = ['preset', 'relative', 'month', 'quarter', 'year', 'custom'];
+
+// As Hoist's `parsePeriod()` reads one, with a count from 1 to 999.
+const PERIOD = /^\+?[1-9]\d{0,2}[DWMQY]$/;
+
+/** The preset a date range names, as a token or a preset selection, or null. */
+function presetToken(value: unknown): string {
+    if (isString(value)) return value;
+    const v = value as {kind?: string; token?: string};
+    return v?.kind === 'preset' ? v.token : null;
 }

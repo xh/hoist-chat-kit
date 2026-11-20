@@ -22,6 +22,7 @@ export type {
     CubeGridWidgetConfig,
     DashCanvasWidgetConfig,
     DateInputWidgetConfig,
+    DateRangePickerWidgetConfig,
     FilterChooserWidgetConfig,
     NumberInputWidgetConfig,
     SelectWidgetConfig,

@@ -6,7 +6,7 @@ import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter} from './impl/configSchema';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
 import {parseTemplate, templateRefs} from './impl/template';
-import {matchesType} from './impl/variableValues';
+import {checkVariableValue, matchesType} from './impl/variableValues';
 
 export interface ValidateBlueprintContext {
     catalog: Pick<DataCatalog, 'getDataset'>;
@@ -33,7 +33,9 @@ export const BUILT_IN_VARIABLE_TYPES = [
     'bool',
     'date',
     'localDate',
-    'filter'
+    'filter',
+    'dateRange',
+    'period'
 ];
 
 /** True if a variable of one type can stand for a value of another: the same, or an app type of it. */
@@ -234,6 +236,16 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 `${p}/default`,
                 'a default is {"value": ...} or {"resolver": ..., "args": ...}'
             );
+        } else if (
+            v.default &&
+            'value' in v.default &&
+            ['dateRange', 'period'].includes(baseType)
+        ) {
+            const problem = checkVariableValue(vn, v, v.default.value, registry);
+            if (problem) err('variable.badValue', `${p}/default/value`, problem);
+        }
+        if (v.calendar != null && !['business', 'calendar'].includes(v.calendar)) {
+            err('variable.badCalendar', `${p}/calendar`, "calendar is 'business' or 'calendar'");
         }
         if (isSettableFromOutside(v)) settableFromOutside.add(vn);
         for (const [i, w] of writers.entries()) {

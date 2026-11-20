@@ -25,6 +25,8 @@ import {toolbarWidget, ToolbarWidgetModel} from '../ToolbarWidget';
 import {
     dateInputWidget,
     DateInputWidgetModel,
+    dateRangePickerWidget,
+    DateRangePickerWidgetModel,
     filterChooserWidget,
     FilterChooserWidgetModel,
     numberInputWidget,
@@ -60,6 +62,7 @@ const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> =
     toolbar: {model: ToolbarWidgetModel, component: toolbarWidget},
     select: {model: SelectWidgetModel, component: selectWidget},
     dateInput: {model: DateInputWidgetModel, component: dateInputWidget},
+    dateRangePicker: {model: DateRangePickerWidgetModel, component: dateRangePickerWidget},
     numberInput: {model: NumberInputWidgetModel, component: numberInputWidget},
     textInput: {model: TextInputWidgetModel, component: textInputWidget},
     switchInput: {model: SwitchInputWidgetModel, component: switchInputWidget},

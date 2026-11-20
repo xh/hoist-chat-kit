@@ -757,6 +757,42 @@ describe('validateBlueprint', () => {
         expect(codes(bp)).toEqual(['variable.typeMismatch']);
     });
 
+    describe('time types', () => {
+        const withVariable = (decl: object): Blueprint => {
+            const bp = p2();
+            bp.variables.when = {setBy: 'prompt', ...decl} as any;
+            return bp;
+        };
+
+        it("takes a date range of Hoist's presets or the app's, and refuses an unknown preset", () => {
+            const reg = scenarioRegistry();
+            reg.addDateRangePresets({
+                token: 'acme.fiscalYtd',
+                label: 'FYTD',
+                resolve: ctx => ({start: ctx.anchorDate.startOfYear(), end: ctx.anchorDate})
+            });
+            const check = (value: unknown) =>
+                validateBlueprint(withVariable({type: 'dateRange', default: {value}}), {
+                    catalog: portfolioCatalog,
+                    registry: reg
+                }).map(it => it.code);
+            expect(check('mtd')).toEqual([]);
+            expect(check({kind: 'preset', token: 'acme.fiscalYtd', offset: -1})).toEqual([]);
+            expect(check({kind: 'relative', count: 3, unit: 'months'})).toEqual([]);
+            expect(check('fiscalYtd')).toEqual(['variable.badValue']);
+            expect(check({kind: 'era'})).toEqual(['variable.badValue']);
+        });
+
+        it('takes a period as a count and a unit, back or forward, with its calendar', () => {
+            const check = (decl: object) => codes(withVariable({type: 'period', ...decl}));
+            expect(check({default: {value: '3M'}})).toEqual([]);
+            expect(check({default: {value: '+5D'}, calendar: 'calendar'})).toEqual([]);
+            expect(check({default: {value: '3m'}})).toEqual(['variable.badValue']);
+            expect(check({default: {value: '0D'}})).toEqual(['variable.badValue']);
+            expect(check({calendar: 'lunar'})).toEqual(['variable.badCalendar']);
+        });
+    });
+
     it('refuses a widget whose schema uses JSON Schema the validator lacks', () => {
         const spec = {
             name: 'acme.bad',

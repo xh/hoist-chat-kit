@@ -79,18 +79,21 @@ export class VariableEditorModel extends ConfigEditorModel {
             properties: {
                 type: {enum: this.typeOptions},
                 label: {type: 'string', maxLength: 100},
-                description: {type: 'string', maxLength: 500}
+                description: {type: 'string', maxLength: 500},
+                ...(this.values?.type === 'period'
+                    ? {calendar: {enum: ['business', 'calendar'], default: 'business'}}
+                    : {})
             }
         });
     }
 
-    /** The built-in types, the app's types, and a list of each but `filter`. */
+    /** The built-in types, the app's types, and a list of each but `filter` and the time types. */
     get typeOptions(): string[] {
         const types = [
             ...BUILT_IN_VARIABLE_TYPES,
             ...Object.keys(this.designModel.blueprintModel.registry.variableTypes)
         ];
-        return [...types, ...types.filter(it => it !== 'filter').map(it => `${it}[]`)];
+        return [...types, ...types.filter(it => !NO_LISTS.includes(it)).map(it => `${it}[]`)];
     }
 
     /** Each widget value and output a variable can be set by. */
@@ -391,6 +394,9 @@ function setByEditor(impl: VariableEditorModel) {
         ]
     });
 }
+
+// Types a variable holds one value of: a filter combines, and a range or period is one span.
+const NO_LISTS = ['filter', 'dateRange', 'period'];
 
 // A default of a literal value, or a resolver's, which a user may personalize.
 function defaultEditor(impl: VariableEditorModel) {

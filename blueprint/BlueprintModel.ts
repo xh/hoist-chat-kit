@@ -536,7 +536,7 @@ export class BlueprintModel extends HoistModel {
         const spec = this.registry.resolvers[call?.resolver];
         if (!spec) return null;
         try {
-            return spec.resolve(this.resolve(call.args ?? {})) ?? null;
+            return spec.resolve(this.resolve(call.args ?? {}), {registry: this.registry}) ?? null;
         } catch (e) {
             this.logError(`Resolver '${call.resolver}' failed`, e);
             return null;

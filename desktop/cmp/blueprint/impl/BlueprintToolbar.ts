@@ -1,11 +1,13 @@
 import {filler, fragment, label} from '@xh/hoist/cmp/layout';
-import {hoistCmp, type HoistProps} from '@xh/hoist/core';
+import {hoistCmp, HoistModel, type HoistProps, managed, useLocalModel, XH} from '@xh/hoist/core';
+import {dateRangePicker} from '@xh/hoist/desktop/cmp/daterange';
 import {dateInput, numberInput, select, switchInput, textInput} from '@xh/hoist/desktop/cmp/input';
 import {toolbar} from '@xh/hoist/desktop/cmp/toolbar';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {isEmpty} from 'lodash';
 import type {ReactNode} from 'react';
 import type {BlueprintModel, BlueprintVariable} from '../../../../blueprint';
+import {DateRangeBinding} from './DateRangeBinding';
 
 interface BlueprintToolbarProps extends HoistProps {
     blueprintModel: BlueprintModel;
@@ -73,6 +75,24 @@ function promptInput(
         });
     }
     switch (type) {
+        case 'dateRange':
+            return dateRangePrompt({key: v.name, variable: v, blueprintModel: model});
+        case 'period':
+            return textInput({
+                ...common,
+                value: v.value as string,
+                placeholder: '3M',
+                onCommit: (value: string) => {
+                    try {
+                        set(value || null);
+                    } catch (e) {
+                        XH.dangerToast(
+                            `${value} is not a period. Write a count and D, W, M, Q or Y, such as 3M.`
+                        );
+                    }
+                },
+                width: 70
+            });
         case 'localDate':
             return dateInput({
                 ...common,
@@ -101,5 +121,34 @@ function promptInput(
             return switchInput({...common, value: !!v.value, onChange: set});
         default:
             return textInput({...common, value: v.value as string, onCommit: set, width: 160});
+    }
+}
+
+interface DateRangePromptProps extends HoistProps {
+    variable: BlueprintVariable;
+    blueprintModel: BlueprintModel;
+}
+
+/** A picker for a prompted `dateRange` variable, which keeps no state of its own. */
+const dateRangePrompt = hoistCmp.factory<DateRangePromptProps>({
+    displayName: 'BlueprintDateRangePrompt',
+    model: false,
+    render({variable, blueprintModel}) {
+        const impl = useLocalModel(() => new DateRangePromptModel(variable, blueprintModel));
+        return dateRangePicker({model: impl.binding.pickerModel});
+    }
+});
+
+class DateRangePromptModel extends HoistModel {
+    @managed readonly binding: DateRangeBinding;
+
+    constructor(variable: BlueprintVariable, blueprintModel: BlueprintModel) {
+        super();
+        this.binding = new DateRangeBinding({
+            registry: blueprintModel.registry,
+            presets: null,
+            getValue: () => variable.value,
+            setValue: value => blueprintModel.setVariable(variable.name, value)
+        });
     }
 }

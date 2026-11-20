@@ -15,6 +15,7 @@ import {portfolioCatalog, scenarioRegistry} from '../../../test/blueprintFixture
 import {blueprintView} from './BlueprintView';
 import {
     DateInputWidgetModel,
+    DateRangePickerWidgetModel,
     FilterChooserWidgetModel,
     NumberInputWidgetModel,
     SelectWidgetModel,
@@ -159,6 +160,52 @@ describe('input widgets', () => {
             op: '=',
             value: 'EU'
         });
+    });
+
+    it('picks a date range among the presets it offers, and sets its variable', async () => {
+        const model = open(
+                {type: 'dateRange', default: {value: 'mtd'}},
+                {component: 'dateRangePicker', config: {presets: ['mtd', 'ytd']}}
+            ),
+            picker = widget(DateRangePickerWidgetModel, model);
+        expect(picker.pickerModel.value).toEqual({kind: 'preset', token: 'mtd'});
+        expect(picker.pickerModel.presets.map(it => it.token)).toEqual(['mtd', 'ytd']);
+
+        picker.pickerModel.setValue('ytd');
+        await wait();
+        expect(valueOf(model)).toEqual({kind: 'preset', token: 'ytd'});
+
+        model.setVariable('v', {kind: 'relative', count: 3, unit: 'months'});
+        await wait();
+        expect(picker.pickerModel.value).toMatchObject({kind: 'relative', count: 3});
+        expect(() => model.setVariable('v', 'nope')).toThrow();
+    });
+
+    it('prompts for a date range with a picker, and for a period as text', async () => {
+        const model = new BlueprintModel({
+            blueprint: {
+                schema: {blueprint: 1},
+                variables: {
+                    range: {type: 'dateRange', label: 'Range', setBy: 'prompt'},
+                    window: {type: 'period', label: 'Window', setBy: 'prompt'}
+                },
+                root: 'note',
+                elements: {note: {component: 'markdown', config: {text: 'x'}}}
+            },
+            catalog: portfolioCatalog,
+            registry: scenarioRegistry(),
+            dataProvider: null,
+            mode: 'run'
+        });
+        onTestFinished(() => model.destroy());
+        const {container} = render(blueprintView({model}));
+        expect(
+            container.querySelector('.xh-blueprint-view__toolbar .xh-date-range-picker')
+        ).toBeTruthy();
+        expect(screen.getByText('Window')).toBeTruthy();
+        expect(() => model.setVariable('window', '3m')).toThrow();
+        model.setVariable('window', '3M');
+        expect(model.getVariable('window').value).toBe('3M');
     });
 
     it('draws its label beside its input', () => {

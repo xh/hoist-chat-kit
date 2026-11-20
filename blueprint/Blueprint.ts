@@ -51,6 +51,8 @@ export interface VariableDecl {
     /** The resolver that computes the value, for `setBy: "resolver"`. */
     compute?: ResolverCall;
     options?: VariableOptions;
+    /** For a `period`: count business days (the default) or calendar days. */
+    calendar?: 'business' | 'calendar';
 }
 
 export type VariableSetBy = 'prompt' | 'resolver' | 'action' | ElementWriter | ElementWriter[];

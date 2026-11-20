@@ -254,6 +254,13 @@ export abstract class ConfigEditorModel extends HoistModel {
                 return {type: 'boolean'};
             case 'filter':
                 return {};
+            case 'dateRange':
+                return {
+                    type: 'string',
+                    enum: Object.keys(this.designModel.blueprintModel.registry.dateRangePresets)
+                };
+            case 'period':
+                return {type: 'string', pattern: PERIOD_PATTERN};
             default:
                 return {type: 'string'};
         }
@@ -308,3 +315,6 @@ function visibleOptions(specs: Record<string, {name: string; reserved?: boolean}
         .filter(it => !it.reserved)
         .map(it => ({value: it.name, label: it.name}));
 }
+
+// A period, such as 3M or +5D, as `parsePeriod()` reads one.
+const PERIOD_PATTERN = '^\\+?[1-9]\\d{0,2}[DWMQY]$';

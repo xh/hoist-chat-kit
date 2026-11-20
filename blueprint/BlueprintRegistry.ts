@@ -1,3 +1,4 @@
+import {type DateRangePreset, dateRangePresets} from '@xh/hoist/cmp/daterange';
 import type {ElementFactory, PlainObject} from '@xh/hoist/core';
 import {throwIf} from '@xh/hoist/utils/js';
 import {castArray, isEmpty, isPlainObject} from 'lodash';
@@ -162,7 +163,12 @@ export interface ResolverSpec {
     guidance?: string;
     app?: boolean;
     /** Compute the value from resolved arguments. */
-    resolve: (args: PlainObject) => unknown;
+    resolve: (args: PlainObject, context: ResolverContext) => unknown;
+}
+
+/** What a resolver can read beyond its arguments. */
+export interface ResolverContext {
+    registry: BlueprintRegistry;
 }
 
 /** A type of action that a widget's action prop can run. */
@@ -243,6 +249,8 @@ export interface RendererContext {
 
 export interface BlueprintRegistryConfig {
     widgets?: WidgetSpec[];
+    /** Presets a `dateRange` variable may name, beyond Hoist's own. */
+    dateRangePresets?: DateRangePreset[];
     variableTypes?: VariableTypeSpec[];
     resolvers?: ResolverSpec[];
     actions?: ActionSpec[];
@@ -261,6 +269,8 @@ export class BlueprintRegistry {
     readonly resolvers: Record<string, ResolverSpec> = toLookup({});
     readonly actions: Record<string, ActionSpec> = toLookup({});
     readonly renderers: Record<string, RendererSpec> = toLookup({});
+    /** The presets a `dateRange` variable may name, by token: Hoist's own, then the app's. */
+    readonly dateRangePresets: Record<string, DateRangePreset> = toLookup({...dateRangePresets});
 
     // True while adding entries that keep bare names: the built-ins, and an XH library's own.
     private trusted = false;
@@ -277,6 +287,7 @@ export class BlueprintRegistry {
         this.addActions(config.actions ?? []);
         this.addRenderers(config.renderers ?? []);
         this.addVariableTypes(config.variableTypes ?? []);
+        this.addDateRangePresets(config.dateRangePresets ?? []);
     }
 
     /**
@@ -398,6 +409,14 @@ export class BlueprintRegistry {
 
     addRenderers(...specs: (RendererSpec | RendererSpec[])[]) {
         this.add('renderer', this.renderers, specs);
+    }
+
+    /** Add presets a `dateRange` variable may name, each under a dotted token. */
+    addDateRangePresets(...presets: (DateRangePreset | DateRangePreset[])[]) {
+        presets.flat().forEach(it => {
+            this.checkName('date range preset', it?.token);
+            this.dateRangePresets[it.token] = it;
+        });
     }
 
     //------------------

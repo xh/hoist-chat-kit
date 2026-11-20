@@ -144,6 +144,21 @@ const DATE_INPUT_SCHEMA = {
     properties: {label: LABEL}
 } as const satisfies BlueprintSchema;
 
+const DATE_RANGE_PICKER_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+        label: LABEL,
+        presets: {
+            type: 'array',
+            items: {type: 'string'},
+            maxItems: 20,
+            description:
+                "The preset tokens to offer, such as mtd and ytd. Default Hoist's usual set."
+        }
+    }
+} as const satisfies BlueprintSchema;
+
 const NUMBER_INPUT_SCHEMA = {
     type: 'object',
     additionalProperties: false,
@@ -673,6 +688,11 @@ export type DateInputWidgetConfig = FromExtendedSchema<
     typeof DATE_INPUT_SCHEMA
 >;
 
+export type DateRangePickerWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof DATE_RANGE_PICKER_SCHEMA
+>;
+
 export type NumberInputWidgetConfig = FromExtendedSchema<
     BlueprintSchemaExtension,
     typeof NUMBER_INPUT_SCHEMA
@@ -1036,6 +1056,16 @@ const dateInput = inputSpec({
     value: {type: 'localDate'}
 });
 
+const dateRangePicker = inputSpec({
+    name: 'dateRangePicker',
+    label: 'Date range',
+    terms: ['date range', 'period', 'MTD', 'YTD', 'from to', 'between dates'],
+    guidance:
+        'A picker for a dateRange variable: a preset such as mtd or ytd, a lookback, a month, quarter or year, or custom dates. Bind its variable to a source through the rangeStart and rangeEnd resolvers.',
+    config: DATE_RANGE_PICKER_SCHEMA,
+    value: {type: 'dateRange'}
+});
+
 const numberInput = inputSpec({
     name: 'numberInput',
     label: 'Number',
@@ -1336,6 +1366,7 @@ const WIDGET_SPECS: WidgetSpec[] = [
     toolbar,
     select,
     dateInput,
+    dateRangePicker,
     numberInput,
     textInput,
     switchInput,
@@ -1603,6 +1634,39 @@ export const BUILT_IN_RESOLVER_INFO: Omit<ResolverSpec, 'resolve'>[] = [
         args: {
             from: 'localDate'
         }
+    },
+    {
+        name: 'rangeStart',
+        returns: 'localDate',
+        args: {range: 'dateRange', asOf: 'localDate, optional. Default today.'},
+        guidance: "The first day of a date range as of a date, such as a source's start param."
+    },
+    {
+        name: 'rangeEnd',
+        returns: 'localDate',
+        args: {range: 'dateRange', asOf: 'localDate, optional. Default today.'},
+        guidance: 'The last day of a date range as of a date.'
+    },
+    {
+        name: 'periodStart',
+        returns: 'localDate',
+        args: {
+            asOf: 'localDate',
+            period: 'period, such as 3M',
+            calendar: "'business' (default) or 'calendar'"
+        },
+        guidance:
+            'The date one period before asOf, on a business day at or before it: where a return over the period starts.'
+    },
+    {
+        name: 'periodEnd',
+        returns: 'localDate',
+        args: {
+            asOf: 'localDate',
+            period: 'period, such as +3M',
+            calendar: "'business' (default) or 'calendar'"
+        },
+        guidance: 'The date one period after asOf, on a business day at or after it.'
     }
 ];
 

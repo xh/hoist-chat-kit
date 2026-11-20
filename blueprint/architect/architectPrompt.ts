@@ -70,6 +70,7 @@ Elements:
 - An element has exactly one parent, and every element except the root must be placed.
 - Lay out with a box: a row or column of children, with no chrome. Title or group children with a panel. Divide them with a separator, and push them apart with a spacer. Set headline numbers as statCard elements in a tileFrame. A container shows its emptyText while it has no children.
 - An input widget, such as select, dateInput or filterChooser, shows and sets the variable whose setBy names it: {"setBy": {"element": "<input id>"}}. Gather inputs in a toolbar, or put the toolbar in a panel's tbar slot: {"id": "<toolbar id>", "slot": "tbar"}.
+- For a span of dates, use a dateRange variable, such as "mtd" or {"kind": "relative", "count": 3, "unit": "months"}, set by a dateRangePicker or a prompt. Bind a source's start and end params to rangeStart and rangeEnd resolvers over it and asOf. For a lookback such as a 3M return, use a period variable ("3M", or "+3M" forward) with periodStart or periodEnd. Periods count business days unless calendar is "calendar".
 - Write a report's prose in markdown and callout elements. Their text shows live values: {variable}, and {source.field} for a field's total over a source.
 
 Sources:

@@ -1,6 +1,8 @@
+import type {DateRangePickerModel} from '@xh/hoist/cmp/daterange';
 import {FilterChooserModel} from '@xh/hoist/cmp/filter';
 import {box, hbox, label} from '@xh/hoist/cmp/layout';
 import {hoistCmp, managed, type PlainObject, uses, XH} from '@xh/hoist/core';
+import {dateRangePicker} from '@xh/hoist/desktop/cmp/daterange';
 import {filterChooser} from '@xh/hoist/desktop/cmp/filter';
 import {
     dateInput,
@@ -19,6 +21,7 @@ import {
     type BlueprintWidgetConfig,
     BlueprintWidgetModel,
     type DateInputWidgetConfig,
+    type DateRangePickerWidgetConfig,
     type FilterChooserWidgetConfig,
     type NumberInputWidgetConfig,
     type SelectWidgetConfig,
@@ -26,6 +29,7 @@ import {
     type SwitchInputWidgetConfig,
     type TextInputWidgetConfig
 } from '../../../blueprint';
+import {DateRangeBinding} from './impl/DateRangeBinding';
 
 /**
  * A widget that shows and sets the variable whose `setBy` names its element, through a Hoist input.
@@ -69,6 +73,37 @@ export class DateInputWidgetModel extends InputWidgetModel<DateInputWidgetConfig
             width: 130,
             onCommit: (date: LocalDate) => this.commit(date?.isoString ?? null)
         };
+    }
+}
+
+/** The `dateRangePicker` widget, for a `dateRange` variable. Keeps no persisted state. */
+export class DateRangePickerWidgetModel extends InputWidgetModel<DateRangePickerWidgetConfig> {
+    @managed @observableRef accessor binding: DateRangeBinding = null;
+
+    constructor(config: BlueprintWidgetConfig) {
+        super(config);
+        this.addReaction({
+            track: () => this.resolvedConfig.presets,
+            run: presets => {
+                XH.safeDestroy(this.binding);
+                this.binding = new DateRangeBinding({
+                    registry: this.blueprintModel.registry,
+                    presets,
+                    getValue: () => this.value,
+                    setValue: value => this.commit(value)
+                });
+            },
+            equals: 'structural',
+            fireImmediately: true
+        });
+    }
+
+    get pickerModel(): DateRangePickerModel {
+        return this.binding?.pickerModel;
+    }
+
+    get inputProps(): PlainObject {
+        return {model: this.pickerModel};
     }
 }
 
@@ -201,6 +236,14 @@ export const [DateInputWidget, dateInputWidget] = hoistCmp.withFactory({
     className: 'xh-blueprint-date-input',
     model: uses(DateInputWidgetModel),
     render: ({model, className}) => labeled(model, className, dateInput(model.inputProps))
+});
+
+export const [DateRangePickerWidget, dateRangePickerWidget] = hoistCmp.withFactory({
+    displayName: 'DateRangePickerWidget',
+    className: 'xh-blueprint-date-range-picker',
+    model: uses(DateRangePickerWidgetModel),
+    render: ({model, className}) =>
+        model.pickerModel ? labeled(model, className, dateRangePicker(model.inputProps)) : null
 });
 
 export const [NumberInputWidget, numberInputWidget] = hoistCmp.withFactory({

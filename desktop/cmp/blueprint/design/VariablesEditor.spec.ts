@@ -67,19 +67,34 @@ describe('VariablesEditor', () => {
         expect(editor.issuesFor('').length).toBeGreaterThan(0);
     });
 
-    it('offers the built-in types, the app types, and lists of each but filter', () => {
+    it('offers the built-in types, the app types, and lists of each but filter and time', () => {
         const {editor} = open();
         expect(editor.typeOptions).toEqual(
             expect.arrayContaining([
                 'string',
                 'localDate',
                 'filter',
+                'dateRange',
+                'period',
                 'toolbox.fund',
                 'string[]',
                 'toolbox.fund[]'
             ])
         );
-        expect(editor.typeOptions).not.toContain('filter[]');
+        ['filter[]', 'dateRange[]', 'period[]'].forEach(it =>
+            expect(editor.typeOptions).not.toContain(it)
+        );
+    });
+
+    it("picks a date range's preset, and a period's text and calendar", () => {
+        const {editor} = open();
+        expect(editor.valueSchema('dateRange').enum).toEqual(
+            expect.arrayContaining(['mtd', 'ytd', 'prevMonth'])
+        );
+        expect(editor.valueSchema('period')).toMatchObject({
+            type: 'string',
+            pattern: expect.any(String)
+        });
     });
 
     it('offers each widget value and output a variable can be set by', () => {

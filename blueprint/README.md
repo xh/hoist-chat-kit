@@ -378,6 +378,8 @@ clash with a built-in. `BlueprintRegistry` refuses an undotted app name.
   Give an action for chat answers only `allowedIn: ['answers']`, so the validator refuses it in a
   dashboard. Mark a param that names a variable to set with `x-variable`, as `setVariable` does:
   the validator checks the name, and the editor offers only the variables an action may set.
+- **Date range presets.** A `dateRange` variable names Hoist's presets, such as `mtd`. Register
+  the app's own with `dateRangePresets`, each under a dotted token, and the validator accepts it.
 - **Data.** Implement `BlueprintDataProvider` over the app's services. Add
   `loadAggregatesAsync()` when the server can roll up groups the browser cannot.
 - **Storage.** Implement `BlueprintRepository` over another store. See

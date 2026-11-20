@@ -1,8 +1,16 @@
 import {badge} from '@xh/hoist/cmp/badge';
 import type {PlainObject} from '@xh/hoist/core';
 import {div, span} from '@xh/hoist/cmp/layout';
+import {
+    dateRangeContext,
+    type LocalDateRange,
+    parseDateRangeSelection,
+    parsePeriod,
+    resolveDateRange,
+    shiftByPeriod
+} from '@xh/hoist/cmp/daterange';
 import {LocalDate} from '@xh/hoist/utils/datetime';
-import type {RendererSpec, ResolverSpec} from '../BlueprintRegistry';
+import type {BlueprintRegistry, RendererSpec, ResolverSpec} from '../BlueprintRegistry';
 import {BUILT_IN_RENDERER_INFO, BUILT_IN_RESOLVER_INFO} from './builtInWidgets';
 
 //------------------
@@ -31,8 +39,28 @@ const RESOLVE: Record<string, ResolverSpec['resolve']> = {
                 ?.startOfQuarter()
                 .add(3 * (offset ?? 0), 'months')
         ),
-    yearStart: ({from}) => iso(date(from)?.startOfYear())
+    yearStart: ({from}) => iso(date(from)?.startOfYear()),
+    rangeStart: (args, {registry}) => iso(rangeOf(args, registry)?.start),
+    rangeEnd: (args, {registry}) => iso(rangeOf(args, registry)?.end),
+    periodStart: args => shift(args, false),
+    periodEnd: args => shift(args, true)
 };
+
+function rangeOf({range, asOf}: PlainObject, registry: BlueprintRegistry): LocalDateRange {
+    const presets = registry.dateRangePresets,
+        selection = parseDateRangeSelection(range, presets);
+    if (!selection) return null;
+    const anchorDate = date(asOf) ?? LocalDate.currentAppDay();
+    return resolveDateRange(selection, dateRangeContext({anchorDate, presets})).current;
+}
+
+// A period shifts back from a period start, and forward to a period end, whatever its sign.
+function shift({asOf, period, calendar}: PlainObject, forward: boolean): string {
+    const from = date(asOf),
+        parsed = parsePeriod(period);
+    if (!from || !parsed) return null;
+    return iso(shiftByPeriod(from, {...parsed, forward}, {calendar: calendar ?? 'business'}));
+}
 
 export const BUILT_IN_RESOLVERS: ResolverSpec[] = BUILT_IN_RESOLVER_INFO.map(it => ({
     ...it,
