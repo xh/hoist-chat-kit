@@ -225,6 +225,16 @@ describe('ElementInspector', () => {
             ]);
         });
 
+        it('leaves out actions for chat answers only', () => {
+            const {model, inspector} = open();
+            model.registry.addActions({
+                name: 'send',
+                params: {type: 'object'},
+                allowedIn: ['answers']
+            });
+            expect(inspector.actionOptions.map(it => it.value)).not.toContain('send');
+        });
+
         it('locks confirm on for an action that changes data', () => {
             const {inspector} = open();
             expect(inspector.confirmLocked('publishToPmPack')).toBe(true);

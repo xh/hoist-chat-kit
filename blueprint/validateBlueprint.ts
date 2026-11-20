@@ -510,6 +510,14 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 );
                 return;
             }
+            const where = isAnswer ? 'answers' : 'dashboards';
+            if (spec.allowedIn && !spec.allowedIn.includes(where)) {
+                err(
+                    'action.notAllowedHere',
+                    `${p}${path}/type`,
+                    `${o.type} is for ${spec.allowedIn.join(' and ')} only, not ${where}`
+                );
+            }
             if (spec.sideEffects && isAnswer) {
                 err(
                     'action.notInAnswer',

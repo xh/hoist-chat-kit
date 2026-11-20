@@ -1,8 +1,9 @@
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import {action, observableRef} from '@xh/hoist/mobx';
 import {throwIf} from '@xh/hoist/utils/js';
-import {castArray, cloneDeep, isEmpty, isPlainObject, mapValues} from 'lodash';
+import {castArray, cloneDeep, isEmpty, isPlainObject, mapValues, uniq} from 'lodash';
 import type {BlueprintElement, BlueprintOp, ChildRef, PresetGroup} from '../Blueprint';
+import {applyOps} from '../applyOps';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
 import type {WidgetSpec} from '../BlueprintRegistry';
 import {decodePointer, getAt, getOwn, setAt} from '../impl/pointer';
@@ -97,8 +98,13 @@ export class BlueprintDesignModel extends HoistModel {
      * paths that name them. {@link removeElement} removes them all in one edit.
      */
     describeRemoval(id: string): BlueprintRemoval {
+        return this.describeRemovalOf([id]);
+    }
+
+    // What removing elements together takes with them, as describeRemoval() describes one.
+    private describeRemovalOf(ids: string[]): BlueprintRemoval {
         const blueprint = this.blueprintModel.blueprint ?? {},
-            elements = this.subtree(id),
+            elements = uniq(ids.flatMap(id => this.subtree(id))),
             gone = new Set(elements),
             removedVariables: string[] = [],
             unboundVariables: string[] = [];
@@ -125,10 +131,35 @@ export class BlueprintDesignModel extends HoistModel {
      * groups stop controlling their paths. See {@link describeRemoval}.
      */
     removeElement(id: string): BlueprintEditResult {
-        const blueprint = this.blueprintModel.blueprint ?? {},
-            spec = this.elementSpec(id);
+        const spec = this.elementSpec(id);
         if (!spec) return refused(`There is no element '${id}'.`);
-        const removal = this.describeRemoval(id),
+        return this.edit(`Remove ${spec.label}`, this.removalOps([id]));
+    }
+
+    /**
+     * The widgets that changing a source's dataset would break, as they name fields the new
+     * dataset lacks. {@link changeSourceDataset} can remove them in the same edit.
+     */
+    describeDatasetChange(name: string, dataset: string): {breaks: string[]} {
+        const bound = this.boundParams(dataset);
+        if ('refusal' in bound) return {breaks: []};
+        const {result} = applyOps(
+            this.blueprintModel.blueprint,
+            this.datasetOps(name, dataset, bound.params)
+        );
+        if (!result) return {breaks: []};
+        const breaks = this.blueprintModel
+            .validate(result)
+            .filter(isError)
+            .map(it => elementOfPath(it.path))
+            .filter(Boolean);
+        return {breaks: uniq(breaks)};
+    }
+
+    // The operations that remove elements and their subtrees together, with what names them.
+    private removalOps(ids: string[]): BlueprintOp[] {
+        const blueprint = this.blueprintModel.blueprint ?? {},
+            removal = this.describeRemovalOf(ids),
             gone = new Set(removal.elements),
             ops: BlueprintOp[] = [...removal.elements]
                 .reverse()
@@ -172,7 +203,7 @@ export class BlueprintDesignModel extends HoistModel {
                     });
             });
         });
-        return this.edit(`Remove ${spec.label}`, ops);
+        return ops;
     }
 
     /** Move an element to another container, or to another place in its own, as one edit. */
@@ -242,15 +273,25 @@ export class BlueprintDesignModel extends HoistModel {
      * Point a source at another dataset, in one edit, with its required parameters bound again as
      * {@link addSource} binds them. Its filter and fields, which name the old dataset's fields, go.
      */
-    changeSourceDataset(name: string, dataset: string): BlueprintEditResult {
+    changeSourceDataset(
+        name: string,
+        dataset: string,
+        opts: {
+            /** True to remove, in the same edit, the widgets the change would break. */
+            removeBreaking?: boolean;
+        } = {}
+    ): BlueprintEditResult {
         const bound = this.boundParams(dataset);
         if ('refusal' in bound) return bound.refusal;
-        return this.updateSourceDecl(name, {
-            dataset,
-            params: bound.params.params,
-            filter: undefined,
-            fields: undefined
-        });
+        if (!getOwn(this.blueprintModel.blueprint?.sources, name)) {
+            return refused(`There is no source '${name}'.`);
+        }
+        const breaks = opts.removeBreaking ? this.describeDatasetChange(name, dataset).breaks : [],
+            removals = breaks.length ? this.removalOps(breaks) : [];
+        return this.edit(`Source ${name}: dataset`, [
+            ...removals,
+            ...this.datasetOps(name, dataset, bound.params)
+        ]);
     }
 
     /** Set one key of a source's declaration, or remove it with `undefined`, as one edit. */
@@ -331,7 +372,8 @@ export class BlueprintDesignModel extends HoistModel {
             return refused(`Preset group '${group}' does not control ${path}.`);
         }
         if (g.controls.length === 1) return this.removePresetGroup(group);
-        const active = g.items[this.blueprintModel.getActivePreset(group)];
+        const active = g.items[this.blueprintModel.getActivePreset(group)],
+            value = getAt(active?.set, path);
         return this.edit(`Presets ${group}: release ${decodePointer(path).at(-1)}`, [
             {
                 op: 'set',
@@ -343,7 +385,7 @@ export class BlueprintDesignModel extends HoistModel {
                 path: `/presets/${group}/items`,
                 value: mapValues(g.items, it => ({...it, set: withoutAt(it.set, path)}))
             },
-            {op: 'set', path, value: getAt(active?.set, path)}
+            ...(value !== undefined ? [{op: 'set', path, value} as BlueprintOp] : [])
         ]);
     }
 
@@ -430,6 +472,23 @@ export class BlueprintDesignModel extends HoistModel {
     //------------------
     // Implementation
     //------------------
+    // The operations that point a source at a dataset, dropping what names the old one's fields.
+    private datasetOps(
+        name: string,
+        dataset: string,
+        params: {params?: PlainObject}
+    ): BlueprintOp[] {
+        const decl = getOwn(this.blueprintModel.blueprint?.sources, name) ?? {},
+            path = (key: string) => `/sources/${name}/${key}`;
+        return [
+            {op: 'set', path: path('dataset'), value: dataset},
+            params.params ? {op: 'set', path: path('params'), value: params.params} : null,
+            ...['filter', 'fields', ...(params.params ? [] : ['params'])]
+                .filter(key => Object.hasOwn(decl, key))
+                .map(key => ({op: 'remove', path: path(key)}))
+        ].filter(Boolean) as BlueprintOp[];
+    }
+
     // Each required parameter of a dataset bound to the first variable of its type.
     private boundParams(
         dataset: string

@@ -152,10 +152,10 @@ const presetsBody = hoistCmp.factory<PresetsEditorModel>({
         const {name, readOnly: disabled} = impl;
         return div({
             className,
-            items: [
+            children: [
                 hbox({
                     className: `${CLS}__header`,
-                    items: [
+                    children: [
                         select({
                             value: name,
                             options: impl.groupOptions,
@@ -183,7 +183,7 @@ const presetsBody = hoistCmp.factory<PresetsEditorModel>({
                     onCommit: (path: string) => path && impl.addGroup(path)
                 }),
                 ...impl.issues.map((it, idx) =>
-                    div({key: idx, className: `${CLS}__issue`, item: it.message})
+                    div({key: idx, className: `${CLS}__issue`, children: it.message})
                 ),
                 ...(name ? group(impl) : [placeholder('Select a group of presets to edit it.')])
             ]
@@ -209,13 +209,13 @@ function group(impl: PresetsEditorModel) {
             'Controls',
             div({
                 className: `${CLS}__list`,
-                items: [
+                children: [
                     ...impl.controls.map(it =>
                         hbox({
                             key: it.value,
                             className: `${CLS}__tab`,
-                            items: [
-                                box({flex: 1, item: it.label}),
+                            children: [
+                                box({flex: 1, children: it.label}),
                                 button({
                                     icon: Icon.x(),
                                     title: 'Stop controlling it, keeping the active value',
@@ -253,11 +253,11 @@ function group(impl: PresetsEditorModel) {
             'Presets',
             div({
                 className: `${CLS}__list`,
-                items: items.map(it =>
+                children: items.map(it =>
                     hbox({
                         key: `${it.id}:${it.label}`,
                         className: `${CLS}__tab`,
-                        items: [
+                        children: [
                             button({
                                 icon: it.isActive ? Icon.checkCircle() : Icon.circle(),
                                 title: it.isActive
@@ -274,7 +274,7 @@ function group(impl: PresetsEditorModel) {
                                     label !== it.label && impl.relabel(it.id, label)
                             }),
                             buttonGroup({
-                                items: [
+                                children: [
                                     button({
                                         icon: Icon.copy(),
                                         title: 'Copy',

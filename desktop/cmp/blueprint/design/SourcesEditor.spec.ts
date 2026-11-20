@@ -1,7 +1,8 @@
 import {render} from '@testing-library/react';
+import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
-import {beforeAll, describe, expect, it, onTestFinished} from 'vitest';
+import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {
     BlueprintDesignModel,
     BlueprintModel,
@@ -62,14 +63,24 @@ describe('SourcesEditor', () => {
         expect(editor.paramVariables('fund')).toEqual(['fund']);
     });
 
-    it('changes the dataset with its required parameters bound again, in one edit', () => {
-        const {model, editor} = open();
-        editor.setDataset('orders');
+    it('changes the dataset with its required parameters bound again, in one edit', async () => {
+        const {model, editor} = open(),
+            confirm = vi.spyOn(XH, 'confirm').mockResolvedValueOnce(false);
+        onTestFinished(() => confirm.mockRestore());
+
+        await editor.setDatasetAsync('orders');
         expect(model.blueprint.sources.positions.dataset).toBe('positions');
-        expect(editor.issuesFor('dataset').length).toBeGreaterThan(0);
+        expect(confirm.mock.calls[0][0].message).toMatch(/posGrid/);
+        expect(editor.issuesFor('dataset')[0].message).toMatch(/Change or remove .*posGrid/);
+
+        confirm.mockResolvedValueOnce(true);
+        await editor.setDatasetAsync('orders');
+        expect(model.blueprint.sources.positions.dataset).toBe('orders');
+        expect(model.blueprint.elements).not.toHaveProperty('posGrid');
+        model.undo();
 
         editor.add();
-        editor.setDataset('orders');
+        await editor.setDatasetAsync('orders');
         expect(model.blueprint.sources.positions1).toEqual({
             dataset: 'orders',
             params: {asOf: {$var: 'asOf'}}

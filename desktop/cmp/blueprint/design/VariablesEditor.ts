@@ -234,10 +234,10 @@ const variablesBody = hoistCmp.factory<VariableEditorModel>({
         const {name, readOnly: disabled} = impl;
         return div({
             className,
-            items: [
+            children: [
                 hbox({
                     className: `${CLS}__header`,
-                    items: [
+                    children: [
                         select({
                             value: name,
                             options: impl.variableOptions,
@@ -317,7 +317,7 @@ function setByEditor(impl: VariableEditorModel) {
             impl.commit('setBy', list.length === 1 ? list[0] : list);
     return div({
         className: `${CLS}__list`,
-        items: [
+        children: [
             select({
                 value: kind,
                 options: SET_BY_OPTIONS,
@@ -329,7 +329,7 @@ function setByEditor(impl: VariableEditorModel) {
                 hbox({
                     key: `${i}:${writerKey(writer)}`,
                     className: `${CLS}__tab`,
-                    items: [
+                    children: [
                         select({
                             value: writerKey(writer),
                             options: withOption(impl.writerOptions, writer),
@@ -389,7 +389,7 @@ function defaultEditor(impl: VariableEditorModel) {
         valueNode = nodeOf('value', impl.valueSchema(impl.values.type));
     return div({
         className: `${CLS}__list`,
-        items: [
+        children: [
             select({
                 value: kind,
                 options: [
@@ -451,7 +451,7 @@ function optionsEditor(impl: VariableEditorModel) {
         listNode = nodeOf('values', {type: 'array', items: impl.valueSchema(impl.values.type)});
     return div({
         className: `${CLS}__list`,
-        items: [
+        children: [
             select({
                 value: kind,
                 options: [
@@ -483,7 +483,7 @@ function optionsEditor(impl: VariableEditorModel) {
             kind === 'dataset'
                 ? hbox({
                       className: `${CLS}__tab`,
-                      items: [
+                      children: [
                           select({
                               value: options.dataset,
                               options: impl.datasetOptions,
@@ -516,7 +516,7 @@ function resolverCallEditor(
     const args = call?.args ?? {};
     return div({
         className: `${CLS}__group`,
-        items: [
+        children: [
             select({
                 value: call?.resolver ?? null,
                 options: impl.resolverOptions,

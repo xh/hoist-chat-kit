@@ -162,6 +162,11 @@ export interface ActionSpec {
     guidance?: string;
     /** True if the action changes data. It always asks the user to confirm. */
     sideEffects?: boolean;
+    /**
+     * The blueprints that may use the action: dashboards, chat answers, or both. The validator
+     * refuses it anywhere else, whatever registry holds it. Default both.
+     */
+    allowedIn?: ('dashboards' | 'answers')[];
     app?: boolean;
     /**
      * The action's description, built from its resolved parameters, shown as its tooltip and in

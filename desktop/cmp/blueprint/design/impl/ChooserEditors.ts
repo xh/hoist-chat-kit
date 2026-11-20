@@ -91,13 +91,13 @@ export const filterEditor = hoistCmp.factory<FilterEditorModel>({
             {bound, literal} = splitClauses(value);
         return div({
             className: `${CLS}__filter`,
-            items: [
+            children: [
                 ...bound.map((clause, idx) =>
                     hbox({
                         key: idx,
                         className: `${CLS}__chip-row`,
-                        items: [
-                            div({className: `${CLS}__chip`, item: describe(clause, labelOf)}),
+                        children: [
+                            div({className: `${CLS}__chip`, children: describe(clause, labelOf)}),
                             button({
                                 icon: Icon.x(),
                                 title: 'Remove',

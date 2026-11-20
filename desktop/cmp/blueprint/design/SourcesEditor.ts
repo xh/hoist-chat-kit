@@ -1,5 +1,5 @@
 import {div, filler, hbox, placeholder} from '@xh/hoist/cmp/layout';
-import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses} from '@xh/hoist/core';
+import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses, XH} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
@@ -14,7 +14,15 @@ import {
 } from '../../../../blueprint';
 import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
-import {CLS, issueRows, labelled, nodeOf, type Option, propertyRow} from './impl/ConfigEditors';
+import {
+    CLS,
+    issueRows,
+    labelled,
+    listOf,
+    nodeOf,
+    type Option,
+    propertyRow
+} from './impl/ConfigEditors';
 
 export interface SourcesEditorProps extends HoistProps {
     designModel: BlueprintDesignModel;
@@ -105,9 +113,35 @@ export class SourceEditorModel extends ConfigEditorModel {
         this.refuseOn(SOURCE_KEY, this.designModel.removeSource(this.name));
     }
 
-    setDataset(dataset: string) {
+    /**
+     * Point the source at another dataset. If that breaks widgets that name the old dataset's
+     * fields, offer to remove them in the same edit, or say which to change first.
+     */
+    async setDatasetAsync(dataset: string) {
+        const {name, designModel} = this;
         if (dataset === this.values.dataset) return;
-        this.refuseOn('dataset', this.designModel.changeSourceDataset(this.name, dataset));
+        const {breaks} = designModel.describeDatasetChange(name, dataset);
+        if (!breaks.length) {
+            this.refuseOn('dataset', designModel.changeSourceDataset(name, dataset));
+            return;
+        }
+        const list = listOf(breaks),
+            ok = await XH.confirm({
+                title: 'Change dataset',
+                message: `${list} read fields that ${dataset} lacks. Remove ${breaks.length > 1 ? 'them' : 'it'} with the change?`,
+                confirmProps: {text: 'Remove and change', intent: 'danger'}
+            });
+        if (ok) {
+            this.refuseOn(
+                'dataset',
+                designModel.changeSourceDataset(name, dataset, {removeBreaking: true})
+            );
+        } else {
+            this.refuse(
+                'dataset',
+                `Change or remove ${list} first: they read fields that ${dataset} lacks.`
+            );
+        }
     }
 
     /** Add an instance of a parameterized field, named for it, with parameters to start from. */
@@ -167,10 +201,10 @@ const sourcesBody = hoistCmp.factory<SourceEditorModel>({
         const {name, readOnly: disabled} = impl;
         return div({
             className,
-            items: [
+            children: [
                 hbox({
                     className: `${CLS}__header`,
-                    items: [
+                    children: [
                         select({
                             value: name,
                             options: impl.sourceOptions,
@@ -231,7 +265,7 @@ function declaration(impl: SourceEditorModel) {
                 options: impl.datasetOptions,
                 disabled,
                 width: '100%',
-                onCommit: (it: string) => impl.setDataset(it)
+                onCommit: (it: string) => impl.setDatasetAsync(it)
             }),
             impl.issuesFor('dataset')
         ),
@@ -239,7 +273,7 @@ function declaration(impl: SourceEditorModel) {
             'Parameters',
             div({
                 className: `${CLS}__group`,
-                items: impl.params.map(([pn, pd]) =>
+                children: impl.params.map(([pn, pd]) =>
                     labelled(
                         pd.required ? `${pn} *` : pn,
                         select({
@@ -293,16 +327,16 @@ function instancesEditor(
             commitFields({...overrides, ...instances, [name]: inst});
     return div({
         className: `${CLS}__list`,
-        items: [
+        children: [
             ...Object.entries(instances).map(([name, inst]) =>
                 div({
                     key: name,
                     className: `${CLS}__item`,
-                    items: [
+                    children: [
                         hbox({
                             className: `${CLS}__item-header`,
-                            items: [
-                                div({className: `${CLS}__item-label`, item: name}),
+                            children: [
+                                div({className: `${CLS}__item-label`, children: name}),
                                 button({
                                     icon: Icon.delete(),
                                     title: 'Remove',

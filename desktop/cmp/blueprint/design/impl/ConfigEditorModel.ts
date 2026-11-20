@@ -2,7 +2,7 @@ import type {FilterChooserFieldSpecConfig} from '@xh/hoist/cmp/filter';
 import {HoistModel, type PlainObject} from '@xh/hoist/core';
 import type {FieldType} from '@xh/hoist/data';
 import {action, observableRef} from '@xh/hoist/mobx';
-import {isString, sortBy, uniq} from 'lodash';
+import {isString, pickBy, sortBy, uniq} from 'lodash';
 import type {
     ActionSpec,
     BlueprintDesignModel,
@@ -182,9 +182,12 @@ export abstract class ConfigEditorModel extends HoistModel {
         return this.designModel.blueprintModel.registry.renderers[name]?.config ?? null;
     }
 
-    /** The registry's action types. */
+    /** The registry's action types that a dashboard may use. */
     get actionOptions(): Option[] {
-        return visibleOptions(this.designModel.blueprintModel.registry.actions);
+        const {actions} = this.designModel.blueprintModel.registry;
+        return visibleOptions(
+            pickBy(actions, it => !it.allowedIn || it.allowedIn.includes('dashboards'))
+        );
     }
 
     actionSpec(type: string): ActionSpec {

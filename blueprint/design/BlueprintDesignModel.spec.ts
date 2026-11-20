@@ -198,6 +198,22 @@ describe('BlueprintDesignModel', () => {
             ]);
         });
 
+        it('names the widgets a dataset change would break, and can remove them in the same edit', () => {
+            const {model, design} = open(loadBlueprint('p3-morning-report.json')),
+                {breaks} = design.describeDatasetChange('positions', 'orders');
+            expect(breaks).toEqual(expect.arrayContaining(['posGrid']));
+            expect(errors(design.changeSourceDataset('positions', 'orders'))).not.toEqual([]);
+
+            const result = design.changeSourceDataset('positions', 'orders', {
+                removeBreaking: true
+            });
+            expect(errors(result)).toEqual([]);
+            expect(model.blueprint.sources.positions.dataset).toBe('orders');
+            breaks.forEach(it => expect(model.blueprint.elements).not.toHaveProperty(it));
+            model.undo();
+            expect(model.blueprint.sources.positions.dataset).toBe('positions');
+        });
+
         it('sets keys of a declaration together, and removes a source nothing reads', () => {
             const {model, design} = open(loadBlueprint('p2-linked-dashboard.json'));
             design.addSource('positions');

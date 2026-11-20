@@ -11,7 +11,7 @@ import {
 } from '../../../../blueprint';
 import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
-import {CLS, propertyRow} from './impl/ConfigEditors';
+import {CLS, listOf, propertyRow} from './impl/ConfigEditors';
 
 export interface ElementInspectorProps extends HoistProps {
     designModel: BlueprintDesignModel;
@@ -129,12 +129,12 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
         if (!impl.elementId) return placeholder('Select an element to edit its config.');
         return div({
             className,
-            items: [
+            children: [
                 hbox({
                     className: `${CLS}__header`,
-                    items: [
+                    children: [
                         impl.elementId,
-                        div({className: `${CLS}__widget`, item: impl.label}),
+                        div({className: `${CLS}__widget`, children: impl.label}),
                         filler(),
                         button({
                             icon: Icon.delete(),
@@ -148,7 +148,7 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                 ...impl
                     .issuesFor(ELEMENT_KEY)
                     .map((it, idx) =>
-                        div({key: idx, className: `${CLS}__issue`, item: it.message})
+                        div({key: idx, className: `${CLS}__issue`, children: it.message})
                     ),
                 impl.tabs ? tabsEditor(impl) : null,
                 ...impl.nodes.map(node =>
@@ -172,16 +172,16 @@ function tabsEditor(impl: ElementInspectorModel) {
     const {tabs, readOnly: disabled} = impl;
     return div({
         className: `${CLS}__row`,
-        items: [
-            div({className: `${CLS}__label`, item: 'Tabs'}),
+        children: [
+            div({className: `${CLS}__label`, children: 'Tabs'}),
             div({
                 className: `${CLS}__list`,
-                items: [
+                children: [
                     ...tabs.map((tab, i) =>
                         hbox({
                             key: `${tab.id}:${tab.title}`,
                             className: `${CLS}__tab`,
-                            items: [
+                            children: [
                                 textInput({
                                     value: tab.title,
                                     disabled,
@@ -190,7 +190,7 @@ function tabsEditor(impl: ElementInspectorModel) {
                                         title && title !== tab.title && impl.retitle(tab.id, title)
                                 }),
                                 buttonGroup({
-                                    items: [
+                                    children: [
                                         button({
                                             icon: Icon.arrowUp(),
                                             title: 'Move up',
@@ -239,8 +239,6 @@ function tabsEditor(impl: ElementInspectorModel) {
 // What removing an element takes with it, for the user to confirm.
 function removalMessage(id: string, removal: BlueprintRemoval): string {
     const inside = removal.elements.length - 1,
-        list = (names: string[]) =>
-            names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0],
         sentences = [
             inside
                 ? `Remove ${id}, and the ${inside} element${inside > 1 ? 's' : ''} in it?`
@@ -249,11 +247,11 @@ function removalMessage(id: string, removal: BlueprintRemoval): string {
     const {removedVariables: gone, unboundVariables: unbound, presetPaths} = removal;
     if (gone.length)
         sentences.push(
-            `Variable${gone.length > 1 ? 's' : ''} ${list(gone)} ${gone.length > 1 ? 'go' : 'goes'} too.`
+            `Variable${gone.length > 1 ? 's' : ''} ${listOf(gone)} ${gone.length > 1 ? 'go' : 'goes'} too.`
         );
     if (unbound.length) {
         sentences.push(
-            `${list(unbound)} ${unbound.length > 1 ? 'lose a writer' : 'loses a writer'}, and keep${unbound.length > 1 ? '' : 's'} its other writers or its default.`
+            `${listOf(unbound)} ${unbound.length > 1 ? 'lose a writer' : 'loses a writer'}, and keep${unbound.length > 1 ? '' : 's'} its other writers or its default.`
         );
     }
     if (presetPaths.length) {

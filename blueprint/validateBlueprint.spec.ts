@@ -391,6 +391,24 @@ describe('validateBlueprint', () => {
             ]);
         });
 
+        it('refuses an action type where its allowedIn does not reach, whatever registry holds it', () => {
+            const reg = scenarioRegistry();
+            reg.addActions({name: 'send', params: {type: 'object'}, allowedIn: ['answers']});
+            const bp = loadBlueprint('p3-morning-report.json');
+            bp.elements.pnlButtons.config.buttons[0].action = {type: 'send'};
+            const check = (isAnswer: boolean) =>
+                validateBlueprint(bp, {
+                    catalog: portfolioCatalog,
+                    registry: reg,
+                    artifacts: ARTIFACTS,
+                    isAnswer
+                }).filter(it => it.code === 'action.notAllowedHere');
+            expect(check(false)).toMatchObject([
+                {path: '/elements/pnlButtons/config/buttons/0/action/type'}
+            ]);
+            expect(check(true)).toEqual([]);
+        });
+
         it('refuses an action with side effects in a chat answer', () => {
             const bp = loadBlueprint('p3-morning-report.json'),
                 issues = validateBlueprint(bp, {

@@ -87,16 +87,16 @@ export function propertyRow({node, value, commit, ctx, issues = [], key, badge}:
     return div({
         key,
         className: `${CLS}__row`,
-        items: [
+        children: [
             div({
                 className: `${CLS}__label`,
                 title: node.description,
-                item: node.required ? `${node.label} *` : node.label
+                children: node.required ? `${node.label} *` : node.label
             }),
-            badge ? div({className: `${CLS}__badge`, item: badge}) : null,
+            badge ? div({className: `${CLS}__badge`, children: badge}) : null,
             editorFor(node, value, commit, ctx),
             ...issues.map((it, idx) =>
-                div({key: idx, className: `${CLS}__issue`, item: it.message})
+                div({key: idx, className: `${CLS}__issue`, children: it.message})
             )
         ]
     });
@@ -113,7 +113,7 @@ function editorFor(
         placeholder = node.default !== undefined ? `Default (${node.default})` : undefined;
     if (node.bindable) return bindableEditor(node, value, commit, ctx);
     if (isVarBinding(value) && node.kind !== 'json') {
-        return div({className: `${CLS}__binding`, item: `Bound to variable ${value.$var}`});
+        return div({className: `${CLS}__binding`, children: `Bound to variable ${value.$var}`});
     }
     switch (node.kind) {
         case 'text':
@@ -138,7 +138,7 @@ function editorFor(
         case 'boolean':
             return div({
                 className: `${CLS}__switch`,
-                item: switchInput({
+                children: switchInput({
                     value: !!(value ?? node.default),
                     disabled,
                     onCommit: v => commit(v)
@@ -205,7 +205,7 @@ function editorFor(
             const obj = (value ?? {}) as PlainObject;
             return div({
                 className: `${CLS}__group`,
-                items: node.children.map(child =>
+                children: node.children.map(child =>
                     propertyRow({
                         key: child.key,
                         node: child,
@@ -242,13 +242,13 @@ function editorFor(
                 variant = node.options[at];
             return div({
                 className: `${CLS}__one-of`,
-                items: [
+                children: [
                     buttonGroupInput({
                         value: at,
                         disabled,
                         onCommit: (i: number) =>
                             i !== at && commit(ctx.impl.newValue(node.options[i].schema)),
-                        items: node.options.map((it, i) =>
+                        children: node.options.map((it, i) =>
                             button({key: i, value: i, text: variantLabel(it)})
                         )
                     }),
@@ -280,7 +280,7 @@ function bindableEditor(
         bound = isVarBinding(value) ? value.$var : null;
     return hbox({
         className: `${CLS}__bindable`,
-        items: [
+        children: [
             bound != null
                 ? select({
                       className: `${CLS}__bound`,
@@ -292,7 +292,7 @@ function bindableEditor(
                   })
                 : div({
                       className: `${CLS}__value`,
-                      item: editorFor({...node, bindable: false}, value, commit, ctx)
+                      children: editorFor({...node, bindable: false}, value, commit, ctx)
                   }),
             button({
                 icon: bound != null ? Icon.unlink() : Icon.link(),
@@ -322,18 +322,18 @@ function listEditor(
             commit(isEmpty(list) && !node.required ? undefined : list);
     return div({
         className: `${CLS}__list`,
-        items: [
+        children: [
             ...items.map((item, i) =>
                 div({
                     key: i,
                     className: `${CLS}__item`,
-                    items: [
+                    children: [
                         hbox({
                             className: `${CLS}__item-header`,
-                            items: [
-                                div({className: `${CLS}__item-label`, item: `${i + 1}`}),
+                            children: [
+                                div({className: `${CLS}__item-label`, children: `${i + 1}`}),
                                 buttonGroup({
-                                    items: [
+                                    children: [
                                         button({
                                             icon: Icon.arrowUp(),
                                             title: 'Move up',
@@ -392,15 +392,15 @@ function mapEditor(
         };
     return div({
         className: `${CLS}__list`,
-        items: [
+        children: [
             ...entries.map(([key, val]) =>
                 div({
                     key,
                     className: `${CLS}__item`,
-                    items: [
+                    children: [
                         hbox({
                             className: `${CLS}__item-header`,
-                            items: [
+                            children: [
                                 mapKeyLabel(key, node.keyRole ? ctx.impl.fieldLabel(key) : key),
                                 button({
                                     icon: Icon.delete(),
@@ -459,15 +459,15 @@ function fieldListEditor(
         };
     return div({
         className: `${CLS}__list`,
-        items: [
+        children: [
             ...entries.map((entry, i) =>
                 div({
                     key: `${i}:${entry.field}`,
                     className: `${CLS}__column`,
-                    items: [
+                    children: [
                         hbox({
                             className: `${CLS}__item-header`,
-                            items: [
+                            children: [
                                 select({
                                     value: entry.field,
                                     options,
@@ -479,7 +479,7 @@ function fieldListEditor(
                                         )
                                 }),
                                 buttonGroup({
-                                    items: [
+                                    children: [
                                         button({
                                             icon: Icon.arrowUp(),
                                             title: 'Move up',
@@ -505,7 +505,7 @@ function fieldListEditor(
                         }),
                         div({
                             className: `${CLS}__settings`,
-                            items: node.settings.map(setting =>
+                            children: node.settings.map(setting =>
                                 propertyRow({
                                     key: setting.key,
                                     node: setting,
@@ -543,7 +543,7 @@ function fieldListEditor(
 function mapKeyLabel(key: string, label: string) {
     return div({
         className: `${CLS}__item-label`,
-        items: label === key ? [key] : [label, span({className: `${CLS}__key`, item: key})]
+        children: label === key ? [key] : [label, span({className: `${CLS}__key`, children: key})]
     });
 }
 
@@ -552,7 +552,7 @@ function formatEditor(value: unknown, commit: (value: unknown) => void, ctx: Edi
     const {name, options} = splitNamed(value);
     return div({
         className: `${CLS}__format`,
-        items: [
+        children: [
             select({
                 value: name,
                 options: withCurrent(ctx.impl.formatOptions, name),
@@ -573,7 +573,7 @@ function rendererEditor(value: unknown, commit: (value: unknown) => void, ctx: E
         schema = name ? ctx.impl.rendererConfig(name) : null;
     return div({
         className: `${CLS}__renderer`,
-        items: [
+        children: [
             select({
                 value: name,
                 options: withCurrent(ctx.impl.rendererOptions, name),
@@ -605,7 +605,7 @@ function optionsGroup(
 ) {
     return div({
         className: `${CLS}__group`,
-        items: nodes.map(node =>
+        children: nodes.map(node =>
             propertyRow({
                 key: node.key,
                 node,
@@ -643,7 +643,7 @@ function actionEditor(
         };
     return div({
         className: `${CLS}__list`,
-        items: [
+        children: [
             ...steps.map((step, i) => {
                 const spec = impl.actionSpec(step.type),
                     locked = impl.confirmLocked(step.type),
@@ -651,10 +651,10 @@ function actionEditor(
                 return div({
                     key: i,
                     className: `${CLS}__step`,
-                    items: [
+                    children: [
                         hbox({
                             className: `${CLS}__item-header`,
-                            items: [
+                            children: [
                                 select({
                                     value: step.type,
                                     options: withCurrent(impl.actionOptions, step.type),
@@ -668,7 +668,7 @@ function actionEditor(
                                         })
                                 }),
                                 buttonGroup({
-                                    items: [
+                                    children: [
                                         button({
                                             icon: Icon.arrowUp(),
                                             title: 'Move up',
@@ -693,7 +693,7 @@ function actionEditor(
                                 })
                             ]
                         }),
-                        div({className: `${CLS}__description`, item: impl.describeStep(step)}),
+                        div({className: `${CLS}__description`, children: impl.describeStep(step)}),
                         // An action's values are literals or variables.
                         ...params.map(param =>
                             propertyRow({
@@ -756,11 +756,11 @@ export function labelled(label: string, editor: unknown, rowIssues: {message: st
     return div({
         key: label,
         className: `${CLS}__row`,
-        items: [
-            div({className: `${CLS}__label`, item: label}),
+        children: [
+            div({className: `${CLS}__label`, children: label}),
             editor as any,
             ...rowIssues.map((it, idx) =>
-                div({key: idx, className: `${CLS}__issue`, item: it.message})
+                div({key: idx, className: `${CLS}__issue`, children: it.message})
             )
         ]
     });
@@ -770,12 +770,17 @@ export function labelled(label: string, editor: unknown, rowIssues: {message: st
 export function issueRows(impl: ConfigEditorModel, key: string) {
     return impl
         .issuesFor(key)
-        .map((it, idx) => div({key: idx, className: `${CLS}__issue`, item: it.message}));
+        .map((it, idx) => div({key: idx, className: `${CLS}__issue`, children: it.message}));
 }
 
 /** The editor node of one property with the schema given. */
 export function nodeOf(key: string, schema: PlainObject): EditorNode {
     return toEditorSpec({type: 'object', properties: {[key]: schema}})[0];
+}
+
+/** Names as a list in prose: "a", "a and b", or "a, b and c". */
+export function listOf(names: string[]): string {
+    return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : names[0];
 }
 
 // The options, plus any current value they lack, so a select still shows it.

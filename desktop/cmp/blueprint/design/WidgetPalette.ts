@@ -22,13 +22,13 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
         const impl = useLocalModel(() => new WidgetPaletteModel(designModel));
         return div({
             className,
-            items: [
+            children: [
                 ...impl.groups.map(({category, widgets}) =>
                     div({
                         key: category,
                         className: `${CLS}__group`,
-                        items: [
-                            div({className: `${CLS}__category`, item: upperFirst(category)}),
+                        children: [
+                            div({className: `${CLS}__category`, children: upperFirst(category)}),
                             ...widgets.map(it =>
                                 button({
                                     key: it.name,
@@ -42,7 +42,7 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
                         ]
                     })
                 ),
-                impl.message ? div({className: `${CLS}__message`, item: impl.message}) : null
+                impl.message ? div({className: `${CLS}__message`, children: impl.message}) : null
             ]
         });
     }
