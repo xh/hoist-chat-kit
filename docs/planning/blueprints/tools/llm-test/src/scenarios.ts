@@ -364,10 +364,8 @@ export const SCENARIOS: Scenario[] = [
             // By its param or its filter, over whichever dataset the answer read.
             ['the host gains a source whose fund binds a variable for Oak Mount', o => oakSources(o.blueprint).length],
             ['stat cards over that source, at least two', o => cfg(o.blueprint, 'statCard', c => oakSources(o.blueprint).includes(c.source)).length >= 2],
-            ['a callout whose text holds no number of its own', o => {
-                const notes = cfg(o.blueprint, 'callout');
-                return notes.length && notes.every(c => !/\d/.test(literalText(c.text)));
-            }],
+            ['adds a callout', o => cfg(o.blueprint, 'callout').length],
+            ['no callout text holds a number of its own', o => cfg(o.blueprint, 'callout').every(c => !/\d/.test(literalText(c.text)))],
             ['no artifact or inline source in the host', o => noChatSources(o.blueprint)],
             ['asks for design mode before it edits', askedFirst]
         ]
@@ -385,10 +383,8 @@ export const SCENARIOS: Scenario[] = [
             // By its param or its filter, over whichever dataset the answer read.
             ['the host gains a source whose fund binds a variable for Oak Mount', o => oakSources(o.blueprint).length],
             ['stat cards over that source, at least two', o => cfg(o.blueprint, 'statCard', c => oakSources(o.blueprint).includes(c.source)).length >= 2],
-            ['a callout whose text holds no number of its own', o => {
-                const notes = cfg(o.blueprint, 'callout');
-                return notes.length && notes.every(c => !/\d/.test(literalText(c.text)));
-            }],
+            ['adds a callout', o => cfg(o.blueprint, 'callout').length],
+            ['no callout text holds a number of its own', o => cfg(o.blueprint, 'callout').every(c => !/\d/.test(literalText(c.text)))],
             ['no artifact or inline source in the host', o => noChatSources(o.blueprint)],
             ['asks for design mode before it edits', askedFirst]
         ]
