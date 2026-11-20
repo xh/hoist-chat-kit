@@ -26,9 +26,12 @@ detailed, step-by-step upgrade instructions with before/after code examples.
 * The kit's components now take child elements as `children`, as Hoist 91's element factories do.
   The docs and examples use `children` too. The legacy `item` and `items` keys still work in Hoist
   91.
+* The kit now runs on Hoist 91 without Blueprint. Its popovers, tooltips and the expanded table and
+  chart dialog use Hoist's own `Popover`, `Tooltip` and `Dialog`. `ChatThreadListProps.rowMenuProps`
+  takes Hoist's `PopoverProps` in its `popoverProps` - set `offset` in place of Popper.js
+  `modifiers`.
 * The kit's styles now target Hoist 91's `xh-*` class names, such as `xh-button__text` and
-  `xh-control__indicator`, in place of Blueprint's `bp6-*` ones, and it imports `popover`, `tooltip`
-  and `dialog` from Hoist rather than `@xh/hoist/kit/blueprint`. Rename `bp6-*` classes in app CSS
+  `xh-control__indicator`, in place of Blueprint's `bp6-*` ones. Rename `bp6-*` classes in app CSS
   that overrides the kit with Hoist's v91 codemod, `codemod-bp6-classes.mjs`.
 
 ### 🎁 New Features

@@ -1,11 +1,11 @@
 import type {ReactElement, ReactNode} from 'react';
 import {useContext, useEffect, useRef, useState} from 'react';
 import {span} from '@xh/hoist/cmp/layout';
+import {popover} from '@xh/hoist/cmp/popover';
 import {hoistCmp, type HoistProps, type MenuItemLike} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {menu} from '@xh/hoist/desktop/cmp/menu';
 import {Icon} from '@xh/hoist/icon';
-import {popover} from '@xh/hoist/cmp/popover';
 import classNames from 'classnames';
 import '../../../styles/vars.scss';
 import './ChatComposerPill.scss';
