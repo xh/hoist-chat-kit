@@ -65,7 +65,7 @@ describe('SourcesEditor', () => {
             ]);
             editor.setJoin(0, {fields: ['close', 'volume'], as: {close: 'lastClose'}});
             expect(editor.joinModes(0)).toEqual([
-                {name: 'lastClose', field: 'close', mode: 'row', reduce: true},
+                {name: 'lastClose', field: 'close', mode: 'keyed', reduce: true},
                 {name: 'volume', field: 'volume', mode: 'keyed', reduce: true}
             ]);
             expect(editor.joinFieldOptions(0).map(it => it.value)).toContain('high');
