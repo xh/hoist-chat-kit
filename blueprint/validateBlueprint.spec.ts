@@ -262,7 +262,7 @@ describe('validateBlueprint', () => {
 
         it('refuses a binding where the schema does not mark x-binding', () => {
             const bp = p2();
-            bp.elements.posGrid.config.expandLevel = {$var: 'asOf'};
+            bp.elements.posGrid.config.groupRowHeight = {$var: 'asOf'};
             expect(codes(bp)).toEqual(['schema.invalid']);
         });
 
@@ -857,6 +857,26 @@ describe('validateBlueprint', () => {
             }
         };
         expect(codes(bp)).toEqual([]);
+    });
+
+    it("binds a grid's style and a chart's type to variables of their types", () => {
+        const bp = p2();
+        bp.variables.totals = {type: 'bool', setBy: 'prompt', default: {value: true}};
+        bp.variables.depth = {type: 'int', setBy: 'prompt', default: {value: 1}};
+        bp.variables.kind = {
+            type: 'string',
+            setBy: 'prompt',
+            options: {values: ['bar', 'column']},
+            default: {value: 'bar'}
+        };
+        Object.assign(bp.elements.posGrid.config, {
+            summaryRow: {$var: 'totals'},
+            expandLevel: {$var: 'depth'}
+        });
+        bp.elements.sectorChart.config.type = {$var: 'kind'};
+        expect(codes(bp)).toEqual([]);
+        bp.elements.posGrid.config.stripeRows = {$var: 'depth'};
+        expect(codes(bp)).toContain('binding.typeMismatch');
     });
 
     describe("a chart's highchartsConfig", () => {

@@ -700,6 +700,15 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             };
         const props: PlainObject = registry.widgets[el.component]?.config?.properties ?? {};
         Object.entries(props).forEach(([key, prop]) => {
+            const bound = isPlainObject(cfg[key]) ? variables[cfg[key].$var] : null,
+                want = prop?.['x-binding'] && bound ? bindingTypesOf(prop) : null;
+            if (want && !want.some(it => typeMatches(bound.type, it))) {
+                err(
+                    'binding.typeMismatch',
+                    `${p}/${key}`,
+                    `${key} takes a ${want.join(' or ')}, but '${cfg[key].$var}' is a ${bound.type}`
+                );
+            }
             if (prop?.['x-template'] && isString(cfg[key])) {
                 checkTemplate(cfg[key], `${p}/${key}`, cfg.source);
             }
@@ -1066,6 +1075,28 @@ function describeAccepts(container: WidgetSpec): string {
 
 function joinAnd(items: string[]): string {
     return items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}` : items[0];
+}
+
+/**
+ * The variable types a bound property takes, from its schema, or null where its schema says
+ * nothing a variable type matches, as for an object.
+ */
+function bindingTypesOf(schema: PlainObject): string[] {
+    if (schema.enum) return ['string'];
+    switch (schema.type) {
+        case 'boolean':
+            return ['bool'];
+        case 'integer':
+            return ['int', 'number'];
+        case 'number':
+            return ['number', 'int'];
+        case 'string':
+            return ['string', 'localDate'];
+        case 'array':
+            return schema.items?.type === 'string' ? ['string[]'] : null;
+        default:
+            return null;
+    }
 }
 
 /** A panel draws a toolbar, and only a toolbar, in each of its tbar and bbar slots. */

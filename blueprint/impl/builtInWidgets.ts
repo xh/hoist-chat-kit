@@ -439,15 +439,18 @@ const CUBE_GRID_SCHEMA = {
             type: 'object'
         },
         expandLevel: {
+            'x-binding': true,
             type: 'integer',
             minimum: 0,
             maximum: 6
         },
         summaryRow: {
+            'x-binding': true,
             type: 'boolean',
             default: false
         },
         treeStyle: {
+            'x-binding': true,
             enum: [
                 'highlights',
                 'colors',
@@ -461,35 +464,42 @@ const CUBE_GRID_SCHEMA = {
                 'How group rows stand out: highlighted, colored, set off by borders, or both.'
         },
         stripeRows: {
+            'x-binding': true,
             type: 'boolean',
             default: true,
             description: 'Alternate the background of rows.'
         },
         rowBorders: {
+            'x-binding': true,
             type: 'boolean',
             default: true,
             description: 'Draw a border between rows.'
         },
         cellBorders: {
+            'x-binding': true,
             type: 'boolean',
             default: false,
             description: 'Draw a border between cells.'
         },
         showHover: {
+            'x-binding': true,
             type: 'boolean',
             default: false,
             description: 'Highlight the row under the pointer.'
         },
         sizingMode: {
+            'x-binding': true,
             enum: ['tiny', 'compact', 'standard', 'large'],
             description: "The size of the grid's text and rows. Default the app's sizing mode."
         },
         showGroupRowCounts: {
+            'x-binding': true,
             type: 'boolean',
             default: true,
             description: 'Show the count of rows in each group row.'
         },
         hideHeaders: {
+            'x-binding': true,
             type: 'boolean',
             default: false,
             description: 'Hide the row of column headers.'
@@ -537,6 +547,7 @@ const CHART_SCHEMA = {
             'x-binding': true
         },
         type: {
+            'x-binding': true,
             enum: [
                 'line',
                 'spline',
@@ -597,6 +608,7 @@ const CHART_SCHEMA = {
             description: 'A dimension that splits the first y into one series per value.'
         },
         stacking: {
+            'x-binding': true,
             enum: ['normal', 'percent']
         },
         filter: {
