@@ -1,4 +1,5 @@
-import {span} from '@xh/hoist/cmp/layout';
+import {fragment, span} from '@xh/hoist/cmp/layout';
+import {sparkline} from '@xh/hoist/cmp/sparkline';
 import {statCard} from '@xh/hoist/cmp/statcard';
 import {hoistCmp, type Intent, managed, type PlainObject, uses} from '@xh/hoist/core';
 import type {Cube, View} from '@xh/hoist/data';
@@ -21,8 +22,8 @@ export interface StatCardContent {
     value: ReactNode;
     /** The change, with an arrow in color, said in words to a screen reader. */
     subValue?: ReactNode;
-    /** What the change compares against. */
-    detail?: string;
+    /** What the change compares against, and any trend. */
+    detail?: ReactNode;
     intent?: Intent;
 }
 
@@ -55,7 +56,8 @@ export class StatCardWidgetModel extends BlueprintWidgetModel<StatCardWidgetConf
         if (!def) {
             return {
                 title: config.label ?? 'Count',
-                value: fmtNumber(rows.length, {precision: 0})
+                value: fmtNumber(rows.length, {precision: 0}),
+                detail: this.withTrend(null)
             };
         }
         const rollUp = (name: string) =>
@@ -88,7 +90,7 @@ export class StatCardWidgetModel extends BlueprintWidgetModel<StatCardWidgetConf
                       config.invert
                   )
                 : null,
-            detail: config.deltaLabel ?? null,
+            detail: this.withTrend(config.deltaLabel ?? null),
             intent: config.intent && config.intent !== 'none' ? config.intent : null
         };
     }
@@ -96,6 +98,15 @@ export class StatCardWidgetModel extends BlueprintWidgetModel<StatCardWidgetConf
     //------------------
     // Implementation
     //------------------
+    // A series rolls up to nothing, so a trend draws from a source of one row only.
+    private withTrend(detail: ReactNode): ReactNode {
+        const {trend} = this.resolvedConfig,
+            records = trend ? this.source?.cube.store.records : null,
+            data = records?.length === 1 ? records[0].data[trend] : null;
+        if (!Array.isArray(data)) return detail;
+        return fragment(detail, sparkline({data, colorBy: 'trend', width: '100%'}));
+    }
+
     private setCube(cube: Cube) {
         this.registerView(null);
         this.view?.destroy();

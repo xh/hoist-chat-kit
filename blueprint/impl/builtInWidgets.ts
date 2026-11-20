@@ -630,7 +630,13 @@ const STAT_CARD_SCHEMA = {
         deltaFormat: FORMAT_PROP,
         deltaLabel: {type: 'string', maxLength: 40},
         invert: {type: 'boolean'},
-        intent: {enum: ['none', 'primary', 'success', 'warning', 'danger']}
+        intent: {enum: ['none', 'primary', 'success', 'warning', 'danger']},
+        trend: {
+            type: 'string',
+            'x-field': 'any',
+            description:
+                'A series field to draw as a sparkline under the figure, where the source has one row.'
+        }
     }
 } as const satisfies BlueprintSchema;
 
@@ -1526,7 +1532,7 @@ const SOURCE_DEMANDS: Record<string, (config: PlainObject) => WidgetDemand> = {
         groupBy: compact([cfg.x, cfg.groupBy])
     }),
     statCard: cfg => ({
-        fields: fieldNames([cfg.field, cfg.deltaField]),
+        fields: fieldNames([cfg.field, cfg.deltaField, cfg.trend]),
         groupBy: []
     }),
     treemap: cfg => ({
@@ -1886,5 +1892,15 @@ export const BUILT_IN_RENDERER_INFO: Omit<RendererSpec, 'render' | 'exportValue'
             types: ['number', 'int']
         },
         config: {}
+    },
+    {
+        name: 'sparkline',
+        appliesTo: {types: ['number[]']},
+        config: {
+            type: "'line' (default), 'area' or 'bar'",
+            colorBy: "'intent' (default), 'trend' for up or down overall, or 'sign' for each point"
+        },
+        guidance:
+            "Draws a series as a small line, on its column's scale. A series field draws as one by default."
     }
 ];

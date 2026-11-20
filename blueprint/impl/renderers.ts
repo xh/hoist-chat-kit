@@ -19,7 +19,10 @@ export function resolveRenderer(
     widgetRenderer: RendererLike,
     registry: BlueprintRegistry
 ): {spec: RendererSpec; config: PlainObject} {
-    const ref = (widgetRenderer ?? field.renderer) as RendererLike;
+    // A series has no text form, so it draws as a sparkline unless told otherwise.
+    const ref = (widgetRenderer ??
+        field.renderer ??
+        (field.type === 'number[]' ? 'sparkline' : null)) as RendererLike;
     if (!ref) return null;
     const name = isString(ref) ? ref : isPlainObject(ref) ? ref.name : null,
         spec = registry.renderers[name];
@@ -46,9 +49,11 @@ export function fieldDisplay(
         registry: BlueprintRegistry;
         /** The largest absolute value of the field among its rows. See `RendererContext`. */
         columnMax?: () => number;
+        /** The field's range among its rows. See `RendererContext`. */
+        columnRange?: () => {min: number; max: number};
     }
 ): FieldDisplay {
-    const {catalog, blueprint, registry, columnMax} = ctx,
+    const {catalog, blueprint, registry, columnMax, columnRange} = ctx,
         format = resolveFormat(field, overrides.formats ?? [], {catalog, blueprint}),
         fmt = (v: unknown) => formatValue(v, field, format, catalog),
         resolved = resolveRenderer(field, overrides.renderer, registry),
@@ -59,7 +64,8 @@ export function fieldDisplay(
             isAggregate,
             record,
             formatValue: fmt,
-            ...(columnMax ? {columnMax} : {})
+            ...(columnMax ? {columnMax} : {}),
+            ...(columnRange ? {columnRange} : {})
         });
 
     return {

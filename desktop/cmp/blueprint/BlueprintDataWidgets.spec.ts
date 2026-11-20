@@ -34,7 +34,8 @@ describe('blueprint data widgets', () => {
                 mktVal: 100,
                 pnlDay: 1,
                 grossExposure: 100,
-                netExposure: 100
+                netExposure: 100,
+                pnlHistory: [1, 2]
             },
             {
                 id: 'b',
@@ -44,7 +45,8 @@ describe('blueprint data widgets', () => {
                 mktVal: -50,
                 pnlDay: -2,
                 grossExposure: 50,
-                netExposure: -50
+                netExposure: -50,
+                pnlHistory: [-3, 4]
             },
             {
                 id: 'c',
@@ -54,7 +56,8 @@ describe('blueprint data widgets', () => {
                 mktVal: 300,
                 pnlDay: 5,
                 grossExposure: 300,
-                netExposure: 300
+                netExposure: 300,
+                pnlHistory: [5, 6]
             }
         ],
         ORDERS = [
@@ -151,6 +154,47 @@ describe('blueprint data widgets', () => {
                 statCardWidget({model: widget(StatCardWidgetModel, open(), 'headlinePnlDay')})
             );
             expect(container.querySelector('.xh-stat-card')).toBeTruthy();
+        });
+    });
+
+    describe('series', () => {
+        it('draws a series column as sparklines on one scale, with no sort or export', async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            Object.assign(bp.elements.posGrid.config, {
+                groupBy: [],
+                columnState: ['mktVal', 'pnlHistory']
+            });
+            const grid = widget(CubeGridWidgetModel, open(bp), 'posGrid'),
+                gm = () => grid.cubeGridModel.innerGridModel;
+            await vi.waitFor(() => expect(gm().store.allRecords.length).toBe(3));
+            const column = gm().getColumn('pnlHistory'),
+                leaf = gm().store.allRecords.find(it => it.data.pnlHistory),
+                el = column.renderer(leaf.data.pnlHistory, {record: leaf} as any) as any;
+            expect(column.sortable).toBe(false);
+            expect(column.excludeFromExport).toBe(true);
+            expect(el.props).toMatchObject({min: -3, max: 6});
+        });
+
+        it("draws a stat card's trend under its figure, from its source's one row", async () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.sources.fund = {
+                inline: {
+                    fields: [
+                        {name: 'pnl', type: 'number'},
+                        {name: 'hist', type: 'number[]', kind: 'pnl'}
+                    ],
+                    rows: [{pnl: 5, hist: [1, 3, 2]}]
+                }
+            } as any;
+            bp.elements.headlinePnlDay.config = {source: 'fund', field: 'pnl', trend: 'hist'};
+            const card = widget(StatCardWidgetModel, open(bp), 'headlinePnlDay');
+            await vi.waitFor(() =>
+                expect(
+                    render(card.card.detail as unknown as ReactElement).container.querySelector(
+                        '.xh-sparkline'
+                    )
+                ).toBeTruthy()
+            );
         });
     });
 

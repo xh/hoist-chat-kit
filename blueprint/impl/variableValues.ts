@@ -74,6 +74,8 @@ export function matchesType(value: unknown, type: string): boolean {
             return isFinite(value);
         case 'filter':
             return checkFilter(value).length === 0;
+        case 'number[]':
+            return isArray(value) && value.every(it => it == null || isFinite(it));
         case 'dateRange':
             return (
                 isString(value) ||

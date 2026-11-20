@@ -347,6 +347,10 @@ function makeRow(ds: DatasetDef, r: () => number, i: number, params: PlainObject
             row[f.name] = ctx[f.name];
         } else if (POOLS[f.name]) {
             row[f.name] = pick(r, POOLS[f.name]);
+        } else if (f.type === 'number[]') {
+            // A walk of 30 points, as a daily series over six weeks.
+            let v = 100 * r();
+            row[f.name] = Array.from({length: 30}, () => (v += normal(r) * 5));
         } else {
             row[f.name] = f.type === 'string' ? `${f.name}-${i % 7}` : Math.round(1000 * r());
         }

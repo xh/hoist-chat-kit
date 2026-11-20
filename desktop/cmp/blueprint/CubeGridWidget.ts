@@ -6,7 +6,17 @@ import type {FilterSpec, StoreRecord} from '@xh/hoist/data';
 import {action, observable, observableRef, when} from '@xh/hoist/mobx';
 import {useEffect, useRef} from 'react';
 import {wait} from '@xh/hoist/promise';
-import {castArray, isEmpty, isEqual, isString, omitBy, pick, sortBy, without} from 'lodash';
+import {
+    castArray,
+    isEmpty,
+    isEqual,
+    isFinite,
+    isString,
+    omitBy,
+    pick,
+    sortBy,
+    without
+} from 'lodash';
 import {
     BlueprintWidgetModel,
     type BlueprintWidgetConfig,
@@ -270,6 +280,32 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
 
     private maxes: {at: number; of: Record<string, number>} = {at: null, of: {}};
 
+    // The lowest and highest values of a field among the rows that are not group rows, across
+    // every point of a series, kept until its data change.
+    private columnRange(field: string): {min: number; max: number} {
+        const store = this.gridModel?.store;
+        if (!store) return null;
+        if (this.ranges.at !== store.lastUpdated) this.ranges = {at: store.lastUpdated, of: {}};
+        if (!(field in this.ranges.of)) {
+            const values = store.allRecords
+                .filter(it => !isGroupRow(it))
+                .flatMap(it => castArray(it.data[field] ?? []))
+                .filter(isFinite) as number[];
+            this.ranges.of[field] = values.length
+                ? {
+                      min: values.reduce((a, b) => Math.min(a, b)),
+                      max: values.reduce((a, b) => Math.max(a, b))
+                  }
+                : null;
+        }
+        return this.ranges.of[field];
+    }
+
+    private ranges: {at: number; of: Record<string, {min: number; max: number}>} = {
+        at: null,
+        of: {}
+    };
+
     private buildColumns(): ColumnSpec[] {
         const {blueprintModel, source} = this,
             {catalog, blueprint, registry} = blueprintModel;
@@ -284,12 +320,20 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                         catalog,
                         blueprint,
                         registry,
-                        columnMax: () => this.columnMax(field)
+                        columnMax: () => this.columnMax(field),
+                        columnRange: () => this.columnRange(field)
                     }),
                     isNum = def.type === 'number' || def.type === 'int',
+                    // A series has no value to sort by or export.
+                    isSeries = def.type === 'number[]',
                     isAggregate = (record: StoreRecord) => isGroupRow(record);
                 return {
-                    field: {name: field, type: def.type as any, displayName: label},
+                    field: {
+                        name: field,
+                        type: (isSeries ? 'auto' : def.type) as any,
+                        displayName: label
+                    },
+                    ...(isSeries ? {sortable: false, excludeFromExport: true} : {}),
                     displayName: label,
                     headerName: label,
                     ...(shown.description ? {headerTooltip: shown.description} : {}),

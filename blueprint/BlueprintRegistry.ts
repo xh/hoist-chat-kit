@@ -245,6 +245,11 @@ export interface RendererContext {
      * scales, such as a bar. Absent where there are no rows to compare, as in a stat card.
      */
     columnMax?: () => number;
+    /**
+     * The lowest and highest values of the field among the rows beside this one, across every
+     * point of a series field, so a sparkline shares its column's scale.
+     */
+    columnRange?: () => {min: number; max: number};
 }
 
 export interface BlueprintRegistryConfig {

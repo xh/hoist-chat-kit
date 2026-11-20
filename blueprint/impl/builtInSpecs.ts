@@ -9,6 +9,7 @@ import {
     resolveDateRange,
     shiftByPeriod
 } from '@xh/hoist/cmp/daterange';
+import {sparkline, type SparklineColorBy, type SparklineType} from '@xh/hoist/cmp/sparkline';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import type {BlueprintRegistry, RendererSpec, ResolverSpec} from '../BlueprintRegistry';
 import {BUILT_IN_RENDERER_INFO, BUILT_IN_RESOLVER_INFO} from './builtInWidgets';
@@ -91,6 +92,16 @@ const RENDER: Record<string, RendererSpec['render']> = {
         return badge({
             children: formatValue(value),
             intent: intent && intent !== 'none' ? intent : null
+        });
+    },
+    sparkline: (value, {config, isAggregate, columnRange}) => {
+        if (isAggregate || !Array.isArray(value)) return null;
+        return sparkline({
+            data: value as number[],
+            type: (config.type as SparklineType) ?? 'line',
+            colorBy: (config.colorBy as SparklineColorBy) ?? 'intent',
+            width: '100%',
+            ...(columnRange?.() ?? {})
         });
     },
     delta: (value, {formatValue}) => {

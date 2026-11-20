@@ -850,7 +850,8 @@ function toCubeField(f: FieldDef): CubeFieldSpec {
     return {
         name,
         displayName: label,
-        type: type as any,
+        // A series keeps its array as it is.
+        type: (type === 'number[]' ? 'auto' : type) as any,
         isDimension: !!isDimension,
         parentDimension,
         isLeafDimension,
@@ -872,7 +873,7 @@ function toAggregator(f: FieldDef): CubeFieldSpec['aggregator'] {
         return null;
     }
     if (isDimension) return null;
-    return type === 'number' || type === 'int' ? null : 'UNIQUE';
+    return ['number', 'int', 'number[]'].includes(type) ? null : 'UNIQUE';
 }
 
 /** The names of the variables a filter binds, at any depth. */
