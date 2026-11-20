@@ -861,6 +861,139 @@ describe('ChatModel', () => {
         });
     });
 
+    describe('allowing a tool for the conversation', () => {
+        const allowable = (execute = vi.fn(() => 'ok')) => ({
+            name: 'tweak',
+            execute,
+            needsApproval: true,
+            canAllowForConversation: true
+        });
+
+        it('runs later calls of an allowed tool with no approval', async () => {
+            const execute = vi.fn(() => 'ok'),
+                model = createModel({
+                    transport: scripted([
+                        toolCallEvents('tweak', {}, {toolCallId: 'c1'}),
+                        textEvents('Done.'),
+                        toolCallEvents('tweak', {}, {toolCallId: 'c2'}),
+                        textEvents('Done again.')
+                    ]),
+                    tools: [allowable(execute)]
+                });
+            await model.sendAsync('Tweak it');
+
+            await model.approveToolCallAsync('c1', null, {forConversation: true});
+            expect(model.allowedTools).toEqual(['tweak']);
+
+            await model.sendAsync('Tweak it again');
+            expect(toolCall(model, 'c2').state).toBe('output-available');
+            expect(model.isAwaitingUser).toBe(false);
+            expect(execute).toHaveBeenCalledTimes(2);
+        });
+
+        it('allows the waiting calls of the same tool in the step', async () => {
+            const transport = scripted([
+                    [
+                        toolCallEvents('tweak', {id: 1}, {toolCallId: 'c1'}),
+                        toolCallEvents('tweak', {id: 2}, {toolCallId: 'c2'}),
+                        toolCallEvents('remove', {}, {toolCallId: 'c3'})
+                    ],
+                    textEvents('Done.')
+                ]),
+                model = createModel({
+                    transport,
+                    tools: [allowable(), {name: 'remove', execute: () => 'ok', needsApproval: true}]
+                });
+            await model.sendAsync('Tweak both and remove');
+
+            await model.approveToolCallAsync('c1', null, {forConversation: true});
+
+            expect(toolCall(model, 'c2').state).toBe('input-available');
+            expect(model.pendingApprovals.map(it => it.id)).toEqual(['c3']);
+            expect(transport.requests).toHaveLength(1);
+        });
+
+        it('approves only the one call of a tool that does not opt in', async () => {
+            const model = createModel({
+                transport: scripted([
+                    toolCallEvents('remove', {}, {toolCallId: 'c1'}),
+                    textEvents('Done.'),
+                    toolCallEvents('remove', {}, {toolCallId: 'c2'})
+                ]),
+                tools: [{name: 'remove', execute: () => 'ok', needsApproval: true}]
+            });
+            await model.sendAsync('Remove it');
+
+            await model.approveToolCallAsync('c1', null, {forConversation: true});
+            expect(toolCall(model, 'c1').state).toBe('output-available');
+            expect(model.allowedTools).toEqual([]);
+
+            await model.sendAsync('Remove another');
+            expect(model.pendingApprovals.map(it => it.id)).toEqual(['c2']);
+        });
+
+        it('asks again once the app resets the allowed tools', async () => {
+            const model = createModel({
+                transport: scripted([
+                    toolCallEvents('tweak', {}, {toolCallId: 'c1'}),
+                    textEvents('Done.'),
+                    toolCallEvents('tweak', {}, {toolCallId: 'c2'})
+                ]),
+                tools: [allowable()]
+            });
+            await model.sendAsync('Tweak it');
+            await model.approveToolCallAsync('c1', null, {forConversation: true});
+
+            model.resetAllowedTools();
+            expect(model.allowedTools).toEqual([]);
+
+            await model.sendAsync('Tweak it again');
+            expect(model.pendingApprovals.map(it => it.id)).toEqual(['c2']);
+        });
+
+        it('forgets the allowed tools when the conversation is cleared or loaded', async () => {
+            const model = createModel({
+                transport: scripted([
+                    toolCallEvents('tweak', {}, {toolCallId: 'c1'}),
+                    textEvents('Done.'),
+                    toolCallEvents('tweak', {}, {toolCallId: 'c2'}),
+                    textEvents('Done.')
+                ]),
+                tools: [allowable()]
+            });
+            await model.sendAsync('Tweak it');
+            await model.approveToolCallAsync('c1', null, {forConversation: true});
+
+            model.clear();
+            expect(model.allowedTools).toEqual([]);
+
+            await model.sendAsync('Tweak it');
+            await model.approveToolCallAsync('c2', null, {forConversation: true});
+            expect(model.allowedTools).toEqual(['tweak']);
+
+            model.loadMessages([]);
+            expect(model.allowedTools).toEqual([]);
+        });
+
+        it('keeps the allowed tools when the same thread reloads', async () => {
+            const model = createModel({
+                transport: scripted([
+                    toolCallEvents('tweak', {}, {toolCallId: 'c1'}),
+                    textEvents('Done.')
+                ]),
+                tools: [allowable()]
+            });
+            await model.sendAsync('Tweak it');
+            await model.approveToolCallAsync('c1', null, {forConversation: true});
+
+            model.loadMessages(model.getMessageSpecs(), model.threadId);
+            expect(model.allowedTools).toEqual(['tweak']);
+
+            model.loadMessages(model.getMessageSpecs(), 'other-thread');
+            expect(model.allowedTools).toEqual([]);
+        });
+    });
+
     describe('getMessage', () => {
         it('returns a message by id, as it now is, or null', async () => {
             const model = createModel([textEvents('Hello there.')]);

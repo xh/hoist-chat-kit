@@ -154,6 +154,7 @@ still in force, with their amendments. Do not read the whole file.
 | [D132](#d132-a-spec-takes-the-name-of-the-hoist-component-it-renders) | A spec takes the name of the Hoist component it renders | Accepted |
 | [D133](#d133-a-chat-answer-checks-urls-as-a-blueprint-does-and-keeps-calltool) | A chat answer checks URLs as a blueprint does, and keeps callTool | Accepted |
 | [D134](#d134-the-architect-reads-a-chat-answer-to-add-it-to-its-host) | The Architect reads a chat answer to add it to its host | Accepted |
+| [D135](#d135-a-tool-opts-in-to-being-allowed-for-the-conversation) | A tool opts in to being allowed for the conversation | Accepted |
 
 ## D1. A standalone package that follows Hoist's own conventions
 
@@ -2466,8 +2467,8 @@ before the request.
 **Why.** An app asked for model-written titles. It could build them from `isNew` and
 `showThreadTitle()`, but each app would rebuild the same parts: when the backend first has the
 thread, which only the kit tracks for a `ChatModel`, a rename made while the title was on its way,
-and a single call per thread. The title starts while the first reply streams, so a long run does
-not delay it.
+and a single call per thread. The title starts once the first reply records its run id or starts
+to stream, so a long run does not delay it, nor does a backend that plans before it answers.
 
 **Alternatives.** Call it when the first turn ends. Simpler, but a long agent run would show the
 provisional title for its whole length. Let the app's function save the title, and only show it.
@@ -3058,3 +3059,24 @@ its context.
 **Alternatives.** Keep a registry of rendered answers. It would hold an OpenUI program's current
 state, but only for answers on screen, and it couples the tool to rendering. Return the program's
 current state through lang-core's runtime. That reads the runtime's internals.
+
+## D135. A tool opts in to being allowed for the conversation
+
+**Status.** Accepted.
+
+**Decision.** `ChatToolSpec.canAllowForConversation` lets the user allow a tool for the rest of
+the conversation, from its approval card. It is off by default. `ChatModel.allowedTools` holds the
+choice, `resetAllowedTools()` forgets it, and clearing the chat or loading another thread empties
+it. A reload of the same thread keeps it. Allowing a tool also approves its other calls that wait
+in the same step. Server approvals, through interrupts, still ask call by call.
+
+**Why.** An app asked for it, so that frequent changes that are easy to undo need no click each
+time. The kit cannot tell such a tool from one that places an order. An app that adds approval
+today expects every call to ask, and a tool that asks only for some inputs, such as orders over a
+limit, would lose that check for the rest of the conversation after one click. So the app opts
+each tool in. A server agent decides its own approvals, and the chat cannot answer its interrupts
+on the user's behalf.
+
+**Alternatives.** On by default, with a setting to keep a tool asking. Less setup for an app with
+many tools, but every existing approval would gain the choice at once. Persist the choice with the
+thread. A reloaded conversation would then run calls the user may no longer remember allowing.

@@ -112,6 +112,25 @@ describe('ChatThreadsModel route binding', () => {
         expect(navigate.mock.calls.map(it => it[1]?.threadId)).not.toContain(localId);
     });
 
+    it('puts a new thread in the route once the backend starts its run, before any content', async () => {
+        await navigateAsync('default.chat');
+        let release: () => void;
+        const gate = new Promise<void>(resolve => (release = resolve)),
+            model = createModel(async function* () {
+                yield runStarted('srv-1');
+                await gate;
+                yield* textEvents('Hi there.');
+            }),
+            chatModel = model.newThread(),
+            sent = chatModel.sendAsync('Hello');
+
+        await vi.waitFor(() => expect(XH.routerState.params.threadId).toBe('srv-1'));
+        expect(chatModel.status).toBe('submitted');
+
+        release();
+        await sent;
+    });
+
     it('keeps a new thread out of the route after a turn that never reached the backend', async () => {
         await navigateAsync('default.chat');
         vi.spyOn(XH, 'handleException').mockImplementation(() => {});
@@ -159,6 +178,22 @@ describe('ChatThreadsModel route binding', () => {
         model.chatModel.loadMessages([{role: 'assistant', content: 'Ask me anything.'}]);
 
         await vi.waitFor(() => expect(XH.routerState.params.threadId).toBeUndefined());
+    });
+
+    it('keeps a new thread out of the route when a greeting loads after a failed first turn', async () => {
+        await navigateAsync('default.chat');
+        vi.spyOn(XH, 'handleException').mockImplementation(() => {});
+        const model = createModel(() => {
+                throw new Error('Network down.');
+            }),
+            chatModel = model.newThread();
+        await chatModel.sendAsync('Hello');
+        expect(chatModel.status).toBe('error');
+
+        chatModel.loadMessages([{role: 'assistant', content: 'Ask me anything.'}]);
+
+        await wait(50);
+        expect(XH.routerState.params.threadId).toBeUndefined();
     });
 
     it("puts an app conversation's new thread in the route under the id it adopts", async () => {
