@@ -1,10 +1,10 @@
 .xh-blueprint-view {
   &__toolbar label {
-    margin-left: var(--xh-pad-px);
+    margin-left: var(--xh-spacing);
   }
 
   &__missing {
-    padding: var(--xh-pad-px);
+    padding: var(--xh-spacing);
     color: var(--xh-text-color-muted);
   }
 

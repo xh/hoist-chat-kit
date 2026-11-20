@@ -34,6 +34,7 @@ export {
     type ResolvedFieldDisplay
 } from './impl/formats';
 export * from './design/BlueprintDesignModel';
+export * from './design/editorSpec';
 export * from './store/BlueprintStore';
 export * from './store/BlueprintDocumentModel';
 export * from './store/InMemoryBlueprintStore';

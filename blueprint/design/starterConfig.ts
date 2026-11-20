@@ -16,17 +16,21 @@ export function starterConfig(
     spec: WidgetSpec,
     ctx: {blueprint: Blueprint; catalog: DataCatalog}
 ): PlainObject {
-    const {blueprint, catalog} = ctx,
-        [source, decl] =
-            Object.entries(blueprint?.sources ?? {}).find(
-                ([, it]) => it?.dataset && catalog.getDataset(it.dataset)
-            ) ?? [],
-        fields = decl
-            ? Object.values(catalog.getDataset(decl.dataset).fields).filter(it => !it.params)
-            : [],
-        state = {missingSource: false, used: new Set<string>()},
-        ret = fill(spec.config ?? {}, '', {source, fields, state, suffix: ''}) as PlainObject;
-    return state.missingSource ? null : (ret ?? {});
+    const fillCtx = fillContext(ctx),
+        ret = fill(spec.config ?? {}, '', fillCtx) as PlainObject;
+    return fillCtx.state.missingSource ? null : (ret ?? {});
+}
+
+/**
+ * A value a part of a config can start with, such as a new item of a list, filled as
+ * {@link starterConfig} fills a config. Its fields come from the source named, else the
+ * blueprint's first dataset source.
+ */
+export function starterValue(
+    schema: PlainObject,
+    ctx: {blueprint: Blueprint; catalog: DataCatalog; source?: string}
+): unknown {
+    return fill(schema ?? {}, '', fillContext(ctx));
 }
 
 //------------------
@@ -38,6 +42,22 @@ interface FillContext {
     state: {missingSource: boolean; used: Set<string>};
     // Numbers the texts of a list's items, so each item differs.
     suffix: string;
+}
+
+function fillContext(ctx: {
+    blueprint: Blueprint;
+    catalog: DataCatalog;
+    source?: string;
+}): FillContext {
+    const {blueprint, catalog} = ctx,
+        sources = Object.entries(blueprint?.sources ?? {}).filter(
+            ([, it]) => it?.dataset && catalog.getDataset(it.dataset)
+        ),
+        [source, decl] = sources.find(([name]) => name === ctx.source) ?? sources[0] ?? [],
+        fields = decl
+            ? Object.values(catalog.getDataset(decl.dataset).fields).filter(it => !it.params)
+            : [];
+    return {source, fields, state: {missingSource: false, used: new Set()}, suffix: ''};
 }
 
 function fill(schema: PlainObject, key: string, ctx: FillContext): unknown {

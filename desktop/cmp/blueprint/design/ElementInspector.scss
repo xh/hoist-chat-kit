@@ -1,0 +1,63 @@
+.xh-blueprint-element-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--xh-spacing);
+  padding: var(--xh-spacing);
+  overflow-y: auto;
+
+  &__header {
+    display: flex;
+    gap: var(--xh-spacing-half);
+    align-items: baseline;
+    font-weight: bold;
+  }
+
+  &__widget {
+    font-weight: normal;
+    color: var(--xh-text-color-muted);
+  }
+
+  &__row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-spacing-half);
+  }
+
+  &__label {
+    font-size: var(--xh-font-size-small);
+    color: var(--xh-text-color-muted);
+  }
+
+  &__issue {
+    font-size: var(--xh-font-size-small);
+    color: var(--xh-intent-danger-text-color);
+  }
+
+  &__binding {
+    font-style: italic;
+  }
+
+  &__group,
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-spacing-half);
+    padding-left: var(--xh-spacing);
+    border-left: var(--xh-border-solid);
+  }
+
+  &__item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--xh-spacing-half);
+  }
+
+  &__item-header {
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__item-label {
+    font-weight: bold;
+  }
+}
