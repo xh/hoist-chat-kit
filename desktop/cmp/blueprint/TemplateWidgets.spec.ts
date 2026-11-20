@@ -58,7 +58,8 @@ describe('template widgets', () => {
                         type: 'string',
                         setBy: 'prompt',
                         default: {value: '[Log in](https://evil.example)'}
-                    }
+                    },
+                    picked: {type: 'string', setBy: 'prompt'}
                 },
                 sources: {
                     positions: {dataset: 'positions', params: {asOf: {$var: 'asOf'}}},
@@ -127,6 +128,23 @@ describe('template widgets', () => {
             ])
         ).toEqual([['XH', 'https://xh.io']]);
         expect(textOf(container)).toBe('Note: [Log in](https://evil.example) XH');
+    });
+
+    it('renders nothing for a template whose every reference is empty', () => {
+        const {container} = show({
+            component: 'markdown',
+            config: {text: '**{picked}** in {picked}'}
+        });
+        expect(textOf(container) ?? '').toBe('');
+        expect(container.querySelector('strong')).toBeNull();
+    });
+
+    it('keeps the text of a template with any reference filled', () => {
+        const {container} = show({
+            component: 'markdown',
+            config: {text: '{fund}: {picked}'}
+        });
+        expect(textOf(container)).toBe('Oak *Mount*: ');
     });
 
     it('draws a callout with its intent and title over its text', async () => {

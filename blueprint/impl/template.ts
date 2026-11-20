@@ -104,11 +104,17 @@ export function readsInTemplates(
     return false;
 }
 
-/** A template with each reference replaced by its value, as plain text. */
+/** A template with each reference replaced by its value, as plain text. Empty if every value is. */
 export function fillTemplate(text: string, valueOf: (ref: TemplateRef) => string): string {
-    return parseTemplate(text ?? '')
-        .parts.map(it => (typeof it === 'string' ? it : valueOf(it)))
-        .join('');
+    const values: string[] = [],
+        ret = parseTemplate(text ?? '')
+            .parts.map(it => {
+                if (typeof it === 'string') return it;
+                values.push(valueOf(it));
+                return values.at(-1);
+            })
+            .join('');
+    return allEmpty(values) ? '' : ret;
 }
 
 /**
@@ -125,7 +131,12 @@ export function markdownTemplate(
             values.push(valueOf(ref));
             return `${VALUE_START}${values.length - 1}${VALUE_END}`;
         });
-    return {content, values};
+    return allEmpty(values) ? {content: '', values: []} : {content, values};
+}
+
+// A template that reads values, all of them empty, shows nothing rather than its bare literals.
+function allEmpty(values: string[]): boolean {
+    return values.length > 0 && values.every(it => it === '');
 }
 
 /** A token that `markdownTemplate()` writes, with the index of its value. */
