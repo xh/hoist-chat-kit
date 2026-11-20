@@ -1013,6 +1013,7 @@ const CHILD_ID_SCHEMA = {
 
 const dashCanvas: WidgetSpec = {
     name: 'dashCanvas',
+    summary: "A 12-column grid of widgets placed by x, y, w and h. A dashboard's usual root.",
     version: 1,
     label: 'Dashboard',
     terms: ['dashboard', 'canvas', 'page', 'layout'],
@@ -1075,6 +1076,7 @@ const dashCanvas: WidgetSpec = {
 
 const tabContainer: WidgetSpec = {
     name: 'tabContainer',
+    summary: 'Shows one child at a time, under a row of tabs.',
     version: 1,
     label: 'Tabs',
     terms: ['tabs', 'tab', 'pages'],
@@ -1130,6 +1132,7 @@ const tabContainer: WidgetSpec = {
 
 const dashContainer: WidgetSpec = {
     name: 'dashContainer',
+    summary: 'Views a user drags into tabs, stacks, rows and columns, and resizes.',
     version: 1,
     label: 'Dash container',
     terms: ['dock', 'golden layout', 'stacks', 'rearrange', 'tabs and splits'],
@@ -1166,6 +1169,7 @@ const dashContainer: WidgetSpec = {
 
 const panel: WidgetSpec = {
     name: 'panel',
+    summary: 'A titled section or bordered card that stacks its children, with optional toolbars.',
     version: 1,
     rendersPartial: true,
     label: 'Panel',
@@ -1199,6 +1203,7 @@ const panel: WidgetSpec = {
 
 const box: WidgetSpec = {
     name: 'box',
+    summary: 'A row or column of children, with no chrome.',
     version: 1,
     rendersPartial: true,
     label: 'Box',
@@ -1230,6 +1235,7 @@ const box: WidgetSpec = {
 
 const separator: WidgetSpec = {
     name: 'separator',
+    summary: 'A rule between siblings, with an optional label.',
     version: 1,
     label: 'Separator',
     terms: ['separator', 'divider', 'rule', 'line'],
@@ -1243,6 +1249,7 @@ const separator: WidgetSpec = {
 
 const spacer: WidgetSpec = {
     name: 'spacer',
+    summary: 'Empty room that pushes its siblings apart.',
     version: 1,
     label: 'Spacer',
     terms: ['spacer', 'gap', 'filler'],
@@ -1259,6 +1266,7 @@ const TEMPLATE_GUIDANCE =
 
 const markdown: WidgetSpec = {
     name: 'markdown',
+    summary: 'Markdown text, with live {variable} and {source.field} values.',
     version: 1,
     rendersPartial: true,
     label: 'Text',
@@ -1275,6 +1283,7 @@ const markdown: WidgetSpec = {
 
 const callout: WidgetSpec = {
     name: 'callout',
+    summary: 'A tinted note with an icon, for a caveat, a warning or a takeaway.',
     version: 1,
     rendersPartial: true,
     label: 'Callout',
@@ -1292,7 +1301,7 @@ const callout: WidgetSpec = {
 const INPUT_SIZE = {default: {w: 3, h: 1}, min: {w: 2, h: 1}};
 
 const inputSpec = (
-    spec: Pick<WidgetSpec, 'name' | 'label' | 'terms' | 'guidance' | 'config' | 'value'>
+    spec: Pick<WidgetSpec, 'name' | 'label' | 'terms' | 'guidance' | 'summary' | 'config' | 'value'>
 ): WidgetSpec => ({
     version: 1,
     category: 'input',
@@ -1304,6 +1313,7 @@ const inputSpec = (
 
 const select = inputSpec({
     name: 'select',
+    summary: "A dropdown that picks one or several of a variable's options.",
     label: 'Select',
     terms: ['select', 'dropdown', 'picker', 'choose'],
     guidance: "A dropdown of its variable's options list. A string[] variable picks several.",
@@ -1313,6 +1323,7 @@ const select = inputSpec({
 
 const dateInput = inputSpec({
     name: 'dateInput',
+    summary: 'A date picker for a localDate variable.',
     label: 'Date',
     terms: ['date', 'as of', 'calendar'],
     guidance: 'A date picker for a localDate variable.',
@@ -1322,6 +1333,7 @@ const dateInput = inputSpec({
 
 const dateRangePicker = inputSpec({
     name: 'dateRangePicker',
+    summary: 'Picks a dateRange: a preset such as mtd, a lookback, or custom dates.',
     label: 'Date range',
     terms: ['date range', 'period', 'MTD', 'YTD', 'from to', 'between dates'],
     guidance:
@@ -1332,6 +1344,7 @@ const dateRangePicker = inputSpec({
 
 const numberInput = inputSpec({
     name: 'numberInput',
+    summary: 'A number field for a number variable.',
     label: 'Number',
     terms: ['number', 'amount', 'threshold', 'limit'],
     guidance: 'A number field, within min and max.',
@@ -1341,6 +1354,7 @@ const numberInput = inputSpec({
 
 const textInput = inputSpec({
     name: 'textInput',
+    summary: 'A one-line text field for a string variable.',
     label: 'Text',
     terms: ['text', 'search', 'name'],
     guidance: 'A one-line text field.',
@@ -1350,6 +1364,7 @@ const textInput = inputSpec({
 
 const switchInput = inputSpec({
     name: 'switchInput',
+    summary: 'An on/off switch for a bool variable.',
     label: 'Switch',
     terms: ['switch', 'toggle', 'on off', 'checkbox'],
     guidance: 'An on/off switch for a bool variable.',
@@ -1359,6 +1374,7 @@ const switchInput = inputSpec({
 
 const slider = inputSpec({
     name: 'slider',
+    summary: 'A slider that sets a number variable when released.',
     label: 'Slider',
     terms: ['slider', 'range', 'scale'],
     guidance: 'A slider from min to max, by step. It sets its variable when the user lets go.',
@@ -1368,6 +1384,7 @@ const slider = inputSpec({
 
 const filterChooser = inputSpec({
     name: 'filterChooser',
+    summary: "Builds a filter from the values of its source's dimensions.",
     label: 'Filter',
     terms: ['filter', 'search', 'narrow'],
     guidance:
@@ -1378,6 +1395,7 @@ const filterChooser = inputSpec({
 
 const toolbar: WidgetSpec = {
     name: 'toolbar',
+    summary: "A row of inputs, on its own or in a panel's tbar or bbar.",
     version: 1,
     label: 'Toolbar',
     terms: ['toolbar', 'controls', 'bar', 'filters'],
@@ -1395,6 +1413,7 @@ const toolbar: WidgetSpec = {
 
 const cubeGrid: WidgetSpec = {
     name: 'cubeGrid',
+    summary: 'The grid: flat, or a tree grouped by groupBy. Its selection is an output.',
     version: 1,
     label: 'Grid',
     terms: ['grid', 'table', 'pivot', 'list of positions', 'blotter'],
@@ -1443,6 +1462,7 @@ const cubeGrid: WidgetSpec = {
 
 const chart: WidgetSpec = {
     name: 'chart',
+    summary: 'A Hoist chart, grouped by a dimension x, or a time series.',
     version: 1,
     label: 'Chart',
     terms: ['chart', 'graph', 'plot', 'trend', 'bar chart', 'line chart'],
@@ -1485,6 +1505,7 @@ const chart: WidgetSpec = {
 
 const propertyTable: WidgetSpec = {
     name: 'propertyTable',
+    summary: "Labeled values: the totals of some rows, or one row's own values.",
     version: 1,
     label: 'Properties',
     terms: ['properties', 'details', 'key values', 'facts', 'summary table'],
@@ -1505,6 +1526,7 @@ const propertyTable: WidgetSpec = {
 
 const heatmap: WidgetSpec = {
     name: 'heatmap',
+    summary: 'Cells colored by a value over two dimensions. Its selection is an output.',
     version: 1,
     label: 'Heatmap',
     terms: ['heatmap', 'heat map', 'matrix', 'grid of colors'],
@@ -1531,6 +1553,7 @@ const heatmap: WidgetSpec = {
 
 const treemap: WidgetSpec = {
     name: 'treemap',
+    summary: 'Nested boxes sized by a value and colored by heat. Its selection is an output.',
     version: 1,
     label: 'Treemap',
     terms: ['treemap', 'heat map of positions', 'map', 'boxes by size'],
@@ -1564,6 +1587,7 @@ const treemap: WidgetSpec = {
 
 const statCard: WidgetSpec = {
     name: 'statCard',
+    summary: 'One headline number over a source, with an optional change and trend.',
     version: 1,
     label: 'Stat card',
     terms: ['stat card', 'KPI', 'headline number', 'metric', 'tile', 'figure'],
@@ -1577,6 +1601,7 @@ const statCard: WidgetSpec = {
 
 const tileFrame: WidgetSpec = {
     name: 'tileFrame',
+    summary: 'Equal tiles that wrap, such as a row of stat cards.',
     version: 1,
     label: 'Tiles',
     terms: ['tiles', 'stat cards', 'KPIs', 'headline numbers'],
@@ -1595,6 +1620,7 @@ const tileFrame: WidgetSpec = {
 
 const groupingChooser: WidgetSpec = {
     name: 'groupingChooser',
+    summary: 'Lets a user choose the dimensions a grid groups by.',
     version: 1,
     label: 'Grouping chooser',
     terms: ['group by chooser', 'grouping picker', 'let users group'],
@@ -1621,6 +1647,7 @@ const groupingChooser: WidgetSpec = {
 
 const buttonGroup: WidgetSpec = {
     name: 'buttonGroup',
+    summary: 'A row of buttons, each running an action.',
     version: 1,
     label: 'Buttons',
     terms: ['buttons', 'button', 'action'],
@@ -1650,6 +1677,7 @@ const buttonGroup: WidgetSpec = {
 
 const buttonGroupInput: WidgetSpec = {
     name: 'buttonGroupInput',
+    summary: 'A segmented control that picks one option of a string variable.',
     version: 1,
     label: 'Toggle',
     terms: ['toggle', 'segmented control', 'switch between'],

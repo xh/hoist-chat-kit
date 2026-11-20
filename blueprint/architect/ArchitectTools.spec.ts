@@ -69,10 +69,18 @@ describe('Architect tools', () => {
         expect(() => run('describe_catalog', {dataset: 'nope'}, model)).toThrow(/unknown dataset/);
     });
 
-    it('lists registry entries in a line each, or gives full specs by name', () => {
+    it('lists registry entries in a line each, or gives full specs by name or category', () => {
         const model = open(),
-            list = run('describe_registry', {kind: 'widget'}, model);
-        expect(list.find(it => it.name === 'cubeGrid').label).toBe('Grid');
+            list = run('describe_registry', {kind: 'widget'}, model),
+            grid = list.find(it => it.name === 'cubeGrid');
+        expect(grid).toMatchObject({label: 'Grid', category: 'data'});
+        expect(grid.summary).toMatch(/grid/i);
+        expect(grid.guidance).toBeUndefined();
+
+        const inputs = run('describe_registry', {kind: 'widget', category: 'input'}, model);
+        expect(Object.keys(inputs)).toContain('select');
+        expect(Object.keys(inputs)).not.toContain('cubeGrid');
+        expect(inputs.select.guidance).toBeTruthy();
 
         const specs = JSON.parse(
             JSON.stringify(run('describe_registry', {kind: 'widget', names: ['cubeGrid']}, model))
@@ -370,7 +378,8 @@ describe('Architect tools', () => {
         const model = open(),
             prompt = architectPrompt(model);
         expect(prompt).toMatch(/- positions \(Portfolio\): Positions\./);
-        expect(prompt).toMatch(/- cubeGrid: Grid\./);
+        expect(prompt).toMatch(/^Data:\n(- .*\n)*- cubeGrid \(Grid\): The grid/m);
+        expect(prompt).not.toMatch(/Keep the grid's default style unless the user asks/);
         expect(prompt).not.toMatch(/show_ui/);
         expect(prompt).toMatch(
             /call request_design_mode.*Offer a user without write access a copy/

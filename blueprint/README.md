@@ -368,7 +368,9 @@ An app names each entry it registers with a dotted prefix, such as `acme.fund`, 
 clash with a built-in. `BlueprintRegistry` refuses an undotted app name.
 
 - **Widgets.** Register a `WidgetSpec` with a config schema, guidance for the Architect, and a
-  desktop component. Its `category` places it in the palette. A container's `children.accepts`
+  desktop component. The Architect's prompt lists each widget by its `category` with its
+  one-line `summary`, and reads the full `guidance` on demand. Its `category` also places it in
+  the palette. A container's `children.accepts`
   lists the categories and widgets it takes as children, and the validator refuses any other.
   `modules` names the Highcharts modules a widget needs, such as `heatmap`. The app loads them,
   and a widget whose module is missing draws a notice in its place.

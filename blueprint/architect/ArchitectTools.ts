@@ -11,6 +11,7 @@ import {checkFilter} from '../impl/configSchema';
 import {fieldUsages} from '../usages';
 import {getAt, getOwn} from '../impl/pointer';
 import {queryRows} from '../impl/queryRows';
+import {summaryOf} from './architectPrompt';
 
 /**
  * What the Architect's tools work on: a blueprint, the edits that change it, and the catalogs and
@@ -173,13 +174,14 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
     {
         name: 'describe_registry',
         description:
-            "Describe what the app provides in code. kind is widget, variableType, resolver, action or renderer. With names, returns each full spec, including a widget's config schema, outputs, value, preset paths, sizes and example. Without names, lists every entry in one line. Where chat answers have entries of their own, each entry says where it is allowed: dashboards, answers or both.",
+            "Describe what the app provides in code. kind is widget, variableType, resolver, action or renderer. With names, or a widget category, returns each full spec, including a widget's guidance, config schema, outputs, value, preset paths, sizes and example. With neither, lists every entry in one line. Where chat answers have entries of their own, each entry says where it is allowed: dashboards, answers or both.",
         parameters: {
             type: 'object',
             required: ['kind'],
             properties: {
                 kind: {enum: ['widget', 'variableType', 'resolver', 'action', 'renderer']},
-                names: {type: 'array', items: {type: 'string'}}
+                names: {type: 'array', items: {type: 'string'}},
+                category: {enum: ['container', 'layout', 'content', 'data', 'input', 'action']}
             }
         },
         run: (input, {registry}, ctx) => {
@@ -202,19 +204,23 @@ export const ARCHITECT_TOOLS: ArchitectToolSpec[] = [
                               ]
                           }
                         : {};
-            if (!input.names?.length) {
+            const names: string[] = input.category
+                ? Object.keys(pickBy(entries, it => it.category === input.category))
+                : input.names;
+            if (!names?.length) {
                 return Object.entries(entries).map(([name, e]) => ({
                     name,
                     label: e.label,
                     category: e.category,
-                    guidance: e.guidance,
+                    // A widget's guidance is long, so its list line gives its summary.
+                    ...(e.config ? {summary: summaryOf(e)} : {guidance: e.guidance}),
                     returns: e.returns,
                     ...where(name)
                 }));
             }
             // Functions, such as a widget's model or a resolver's code, drop out as JSON.
             return Object.fromEntries(
-                input.names.map((n: string) => {
+                names.map((n: string) => {
                     const entry = getOwn(entries, n);
                     return [n, entry ? {...entry, ...where(n)} : `unknown ${input.kind} '${n}'`];
                 })

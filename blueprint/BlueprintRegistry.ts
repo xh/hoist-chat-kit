@@ -41,6 +41,11 @@ export interface WidgetSpec {
     description?: string;
     /** For the LLM: when to choose it, and over what. */
     guidance: string;
+    /**
+     * For the LLM's index of widgets: what it is, in one line of at most 15 words. Default the
+     * first sentence of `guidance`.
+     */
+    summary?: string;
     category: WidgetCategory;
     config: PlainObject;
     example?: PlainObject;

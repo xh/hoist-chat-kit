@@ -43,14 +43,34 @@ function index(
                 return `- ${d.name} (${cat.json.label}): ${d.label}. ${d.guidance ?? d.description ?? ''} Params: ${params}.`;
             })
         ),
-        widgets = Object.entries(registry.widgets)
-            .filter(([, w]) => !w.reserved)
-            .map(([n, w]) => `- ${n}: ${w.label}${w.app ? ' (app)' : ''}. ${w.guidance}`);
+        widgets = Object.entries(registry.widgets).filter(([, w]) => !w.reserved),
+        byCategory = Object.entries(CATEGORY_LABELS)
+            .map(([category, label]) => {
+                const lines = widgets
+                    .filter(([, w]) => (w.category ?? 'content') === category)
+                    .map(([n, w]) => `- ${n} (${w.label}${w.app ? ', app' : ''}): ${summaryOf(w)}`);
+                return lines.length ? `${label}:\n${lines.join('\n')}` : null;
+            })
+            .filter(Boolean);
     return [
         `Datasets:\n${datasets.join('\n')}`,
-        `Widgets:\n${widgets.join('\n')}`,
+        `Widgets, by category. describe_registry gives each one's guidance and config, by name or by category.\n\n${byCategory.join('\n\n')}`,
         `Resolvers: ${Object.keys(registry.resolvers).join(', ')}. Actions: ${Object.keys(registry.actions).join(', ')}. App variable types: ${Object.keys(registry.variableTypes).join(', ')}.`
     ].join('\n\n');
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+    container: 'Containers',
+    layout: 'Layout',
+    content: 'Content',
+    data: 'Data',
+    input: 'Inputs',
+    action: 'Actions'
+};
+
+/** A widget's one line for the Architect's index: its summary, else its guidance's first sentence. */
+export function summaryOf(w: {summary?: string; guidance?: string}): string {
+    return w.summary ?? (w.guidance ?? '').match(/^.*?\.(\s|$)/)?.[0].trim() ?? '';
 }
 
 const FORMAT = `# The blueprint format
