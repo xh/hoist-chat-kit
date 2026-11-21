@@ -2937,7 +2937,7 @@ thread loads. Each load would call the tools of every old program, with no user 
 
 **Status.** Accepted.
 
-**Decision.** `/desktop/cmp/genui/` adds specs for a form, a button and eight inputs. Each input
+**Decision.** `/desktop/cmp/genui/` adds specs for a form, a button and ten inputs. Each input
 renders its Hoist input in a `FormField`, over a `FormModel` of one field. Its `value` is a state
 prop, per D126, and the model's `rules` run as Hoist rules. The form renders Hoist's `FormFieldSet`.
 Each input inside it registers its field with the form, which it finds through Hoist's model
