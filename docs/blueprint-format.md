@@ -47,7 +47,8 @@ issues.
 | `root` | The ID of the top element |
 | `elements` | Every element by ID: its widget, its config, and for a container, its child references |
 
-Every object in a blueprint refuses keys it does not know (`structure.unknownKey`). An ID uses
+Every object in a blueprint refuses keys it does not know (`structure.unknownKey`), except below
+the top level of a chart's `highchartsConfig`. An ID uses
 only letters, digits, `_` and `-`, and is never `__proto__`, `prototype` or `constructor`.
 
 ## Lay Out Elements
@@ -186,12 +187,13 @@ without the server joining them:
 "positions": {
     "dataset": "positions",
     "params": {"asOf": {"$var": "asOf"}},
-    "joins": [{"source": "fundSummary", "on": ["fund"], "fields": ["nav"]}]
+    "joins": [{"source": "fundSummary", "on": {"fund": "fund"}, "fields": ["nav"]}]
 }
 ```
 
-A join is a left join on the fields in `on`. Each catalog dataset declares its `key`, and the two
-keys set the grain of each joined field:
+A join is a left join. `on` maps each field of this source to the joined source's field it
+matches, and `as` renames a joined field whose name this source already has. Each catalog dataset
+declares its `key`, and the two keys set the grain of each joined field:
 
 - **The same grain.** Values copy onto the primary's rows, and roll up as usual.
 - **A coarser grain**, such as a fund's NAV on positions. The value shows on each group that pins
@@ -232,7 +234,7 @@ A format is an object of Hoist's own format options. It holds no functions.
 
 | Group | Options |
 |-------|---------|
-| Number | `precision` (0 to 6, `auto`, or `null` for full), `zeroPad`, `ledger`, `forceLedgerAlign`, `withPlusSign`, `withSignGlyph`, `withCommas`, `colorSpec`, `prefix`, `label`, `strictZero`, `zeroDisplay`, `nullDisplay`, `tooltip` |
+| Number | `precision` (0 to 12, `auto`, or `null` for full), `zeroPad`, `ledger`, `forceLedgerAlign`, `withPlusSign`, `withSignGlyph`, `withCommas`, `colorSpec`, `prefix`, `label`, `strictZero`, `zeroDisplay`, `nullDisplay`, `tooltip` |
 | Scale | `scale`: `none`, `thousands`, `millions`, `billions`, or `auto` for a compact form such as `$48.5B` |
 | Date | `date`: `date`, `dateTime`, `time` or `compact`, with an optional `pattern` |
 
@@ -344,8 +346,8 @@ applies, and the edit returns its issues. One edit is one undo step and one hist
 
 - A path is a JSON Pointer from the root, such as `/elements/posGrid/config/groupBy`.
 - A path never holds an array index. Replace the whole array.
-- `base` is the version the edit was written against. An edit still applies if nothing it
-  touches changed since.
+- `base` is the version the edit was written against. An edit on an older version is refused
+  (`edit.staleBase`): read the blueprint again and rewrite the edit.
 
 ## Read Validation Issues
 

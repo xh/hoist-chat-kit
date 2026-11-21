@@ -35,7 +35,8 @@ A blueprint configures registered entries, and nothing else:
   `x-binding`, and the validator checks the variable's type against it. A value in a variable or
   a source never becomes an element or an action.
 - **Every key is known.** Every object refuses keys it does not know, and every value passes its
-  schema, before any widget sees it. An ID is never `__proto__`, `prototype` or `constructor`.
+  schema, before any widget sees it. A chart's `highchartsConfig` is the one exception below its
+  top level, with its own guards. An ID is never `__proto__`, `prototype` or `constructor`.
 - **Bounded size.** Inline sources hold at most 50 rows outside an answer, a `dashContainer`
   layout at most 20,000 characters, and a chart's `highchartsConfig` at most 20,000 characters
   and 10 levels.
@@ -60,11 +61,13 @@ validator allows only `title`, `subtitle`, `legend`, `tooltip`, `xAxis`, `yAxis`
 
 - Text that holds `<`, text that loads from a URL with `url(`, and a backslash in a style.
 - The options `renderTo`, `useHTML`, `events`, `series`, `data`, `plotBackgroundImage`, `href`,
-  `url`, `libURL` and `src`.
+  `url`, `libURL` and `src`. `plotOptions.series` stays allowed, as it holds options for every
+  series.
 - An axis's `categories`, and `keys` under `plotOptions`, which would remap the chart's data.
 - Any binding, which would reach the chart unchecked.
 
-Each refusal is `chart.highchartsConfig`, at the path of the refused value.
+Each refusal is `chart.highchartsConfig`, at the path of the refused value. A binding also shows
+as `schema.invalid`, from the config's schema check.
 
 ## What an Action Can Do
 

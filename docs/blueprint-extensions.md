@@ -149,7 +149,7 @@ The model extends `BlueprintWidgetModel`, and the component is a `hoistCmp` that
 ```typescript
 import {hoistCmp, managed, uses} from '@xh/hoist/core';
 import {div} from '@xh/hoist/cmp/layout';
-import type {View} from '@xh/hoist/data';
+import type {Cube, View} from '@xh/hoist/data';
 import {computed, observableRef} from '@xh/hoist/mobx';
 import {BlueprintWidgetModel, type BlueprintWidgetConfig} from '@xh/hoist-chat-kit/blueprint';
 
@@ -167,7 +167,7 @@ export class HeadlineWidgetModel extends BlueprintWidgetModel {
         return this.view?.result.rows[0]?.[this.resolvedConfig.field] ?? null;
     }
 
-    private setCube(cube) {
+    private setCube(cube: Cube) {
         this.registerView(null);
         this.view?.destroy();
         this.view = cube
@@ -180,7 +180,7 @@ export class HeadlineWidgetModel extends BlueprintWidgetModel {
 export const headlineWidget = hoistCmp.factory({
     model: uses(HeadlineWidgetModel),
     render({model}) {
-        return div({className: 'acme-headline', item: String(model.total ?? '')});
+        return div({className: 'acme-headline', children: String(model.total ?? '')});
     }
 });
 ```
@@ -215,7 +215,7 @@ A variable type is a dotted name for a kind of value, such as `acme.fund`:
 | `matches` | The field type its values match, such as `string`, so it binds wherever that type fits |
 | `guidance` | For the Architect: what the values mean, and where they come from |
 | `input` | The prompt input, in place of the built-in one for `matches`. It shows `value` and calls `onCommit` |
-| `urlCodec` | The text form of a value in a link, for a type whose `matches` has none, such as a portfolio. Without it, a link cannot set the type. `parse` reads untrusted text, and returns null for text it cannot read |
+| `urlCodec` | The text form of a value in a link, for a type whose `matches` has none, such as a portfolio. Without it, a link cannot set the type. `parse` reads untrusted text, and throws or returns null for text it cannot read |
 
 ## Add a Resolver
 
