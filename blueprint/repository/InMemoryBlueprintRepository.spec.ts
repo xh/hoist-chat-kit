@@ -48,6 +48,12 @@ describe('InMemoryBlueprintRepository', () => {
         });
     });
 
+    it('names the user who created a blueprint as its owner, whoever saves it after', async () => {
+        const creator = new InMemoryBlueprintRepository({...OWNER, userId: 'ann'}),
+            {id} = await create(creator);
+        expect((await creator.listAsync()).find(it => it.id === id).owner).toBe('ann');
+    });
+
     it('records where a new blueprint was copied from, when given', async () => {
         const repository = new InMemoryBlueprintRepository(OWNER),
             source = await create(repository),

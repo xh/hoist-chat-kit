@@ -137,6 +137,11 @@ export interface BlueprintSummary {
     id: string;
     name: string;
     description?: string;
+    /**
+     * The username of the user who created the blueprint, or the name an app gives the blueprints
+     * it seeds, such as `toolbox`. Absent where the store records no owner.
+     */
+    owner?: string;
     /** The draft's version: a counter of its saves, which a save's `base` names. */
     draftVersion: number;
     /** The number of the latest publish, or null if there is none. */

@@ -12,7 +12,14 @@ describe('HoistCoreBlueprintRepository', () => {
     });
 
     const repository = new HoistCoreBlueprintRepository(),
-        record = {id: 'bp1', name: 'Positions', access: 'write', canPublish: true, version: 2};
+        record = {
+            id: 'bp1',
+            name: 'Positions',
+            owner: 'admin',
+            access: 'write',
+            canPublish: true,
+            version: 2
+        };
 
     it('checks a stale base on the server', () => {
         expect(repository.enforcesBase).toBe(true);

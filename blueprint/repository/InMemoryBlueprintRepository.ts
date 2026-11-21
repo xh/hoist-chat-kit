@@ -99,6 +99,7 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
             draftVersion: 1,
             pendingRenames: [],
             publishes: [],
+            owner: this.userId,
             updated: Date.now(),
             updatedBy: this.userId,
             ...(spec.copiedFrom ? {copiedFrom: clone(spec.copiedFrom)} : {})
@@ -231,6 +232,7 @@ export class InMemoryBlueprintRepository implements BlueprintRepository {
             id: item.id,
             name: item.name,
             ...(item.description ? {description: item.description} : {}),
+            ...(item.owner ? {owner: item.owner} : {}),
             draftVersion: item.draftVersion,
             publishedVersion: item.publishes.at(-1)?.info.version ?? null,
             ...this.grantOf(item.id),
@@ -256,6 +258,7 @@ interface Item {
     draftVersion: number;
     pendingRenames: BlueprintRename[];
     publishes: {info: BlueprintPublish; blueprint: Blueprint}[];
+    owner?: string;
     updated: number;
     updatedBy: string;
     copiedFrom?: BlueprintSummary['copiedFrom'];
