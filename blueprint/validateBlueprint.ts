@@ -377,6 +377,8 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
 
     // Sources.
     const sourceFields: Record<string, Record<string, FieldDef>> = toLookup({});
+    // Each source's joined values that show only where a row pins the join's key.
+    const keyedFields: Record<string, Set<string>> = toLookup({});
     for (const [sn, s] of Object.entries(sources)) {
         const p = `/sources/${sn}`;
         if (s.dataset) {
@@ -674,6 +676,7 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
         sourceFields[sn] ??= toLookup({});
         fields.forEach(jf => {
             if (!primary.fields[jf.name]) sourceFields[sn][jf.name] = jf.def;
+            if (jf.mode === 'keyed') (keyedFields[sn] ??= new Set()).add(jf.name);
         });
     }
 
@@ -867,18 +870,17 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 walk(rule?.when, (o, path) => {
                     if (!isPlainObject(o) || !('field' in o) || !('op' in o)) return;
                     need(o.field, `${ruleAt}/when${path}/field`);
-                    const f = fields?.[o.field];
-                    // A number with no aggregator shows blank on a group row.
-                    if (
-                        rule.rows === 'groups' &&
-                        f &&
-                        ['number', 'int'].includes(f.type) &&
-                        f.aggregator == null
-                    ) {
+                    const f = fields?.[o.field],
+                        // A number with no aggregator shows blank on a group row, and a keyed
+                        // value on one that does not pin its key.
+                        blank =
+                            (f && ['number', 'int'].includes(f.type) && f.aggregator == null) ||
+                            keyedFields[cfg.source]?.has(o.field);
+                    if (rule.rows === 'groups' && blank) {
                         warn(
                             'style.foldsNothing',
                             `${ruleAt}/when`,
-                            `'${o.field}' shows blank on group rows, so a groups rule on it never matches`
+                            `'${o.field}' shows blank on group rows, or on those that miss its join's key, so a groups rule on it may never match`
                         );
                     }
                 });

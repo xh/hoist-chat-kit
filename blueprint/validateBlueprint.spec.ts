@@ -905,6 +905,20 @@ describe('validateBlueprint', () => {
             ]);
             expect(warnings(grid('leaves'))).toEqual([]);
         });
+
+        it('warns of a group rule over a keyed joined value, blank where a group misses its key', () => {
+            const bp = loadBlueprint('p8-joined-positions.json');
+            bp.elements.posGrid.config.rowStyles = [
+                {
+                    when: {field: 'nav', op: '>', value: 1e9},
+                    style: {color: 'success'},
+                    rows: 'groups'
+                }
+            ];
+            expect(validate(bp).map(it => [it.code, it.path])).toEqual([
+                ['style.foldsNothing', '/elements/posGrid/config/rowStyles/0/when']
+            ]);
+        });
     });
 
     it('warns of a separator label in a toolbar, which cannot show one', () => {

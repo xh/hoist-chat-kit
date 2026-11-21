@@ -14,6 +14,7 @@ import {
     isFinite,
     isString,
     mapValues,
+    omit,
     omitBy,
     pick,
     sortBy,
@@ -106,7 +107,11 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
             {
                 track: () => [
                     this.resolvedConfig.columnState,
-                    this.resolvedConfig.columns,
+                    // A column's rules apply as it draws, so only gaining or losing them rebuilds.
+                    mapValues(this.resolvedConfig.columns ?? {}, it => ({
+                        ...omit(it, 'styles'),
+                        hasStyles: !isEmpty(it?.styles)
+                    })),
                     this.isFlat,
                     this.blueprintModel.blueprint?.formats,
                     this.source?.decl.fields,
@@ -324,6 +329,13 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
         return this.compileRules(this.element?.config?.rowStyles);
     }
 
+    @computed
+    private get cellRules(): Record<string, StyleRule[]> {
+        return mapValues(this.element?.config?.columns ?? {}, (it: PlainObject) =>
+            this.compileRules(it?.styles)
+        );
+    }
+
     // Each rule's filter resolved and parsed once, and its style as CSS. A filter that resolves to
     // none, as when every bound value is null, matches nothing.
     private compileRules(rules: unknown): StyleRule[] {
@@ -359,7 +371,7 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                     // A series has no value to sort by or export.
                     isSeries = def.type === 'number[]',
                     isAggregate = (record: StoreRecord) => isGroupRow(record),
-                    rules = this.compileRules(
+                    hasStyles = !isEmpty(
                         getOwn<PlainObject>(this.element?.config?.columns, field)?.styles
                     );
                 return {
@@ -377,8 +389,8 @@ export class CubeGridWidgetModel extends BlueprintWidgetModel<CubeGridWidgetConf
                     absSort: isNum,
                     align: shown.align ?? (isNum ? 'right' : null),
                     ...pick(column, COLUMN_KEYS),
-                    ...(rules.length
-                        ? {cellStyle: (v, {record}) => applyRules(rules, record)}
+                    ...(hasStyles
+                        ? {cellStyle: (v, {record}) => applyRules(this.cellRules[field], record)}
                         : {}),
                     renderer: (v, {record}) => display.render(v, record?.data, isAggregate(record)),
                     exportValue: (v, {record}) =>
@@ -605,7 +617,7 @@ interface StyleRule {
 // The CSS of every rule a row matches, in order, a later match winning property by property. A
 // leaf tests its own values, and a group row its totals.
 function applyRules(rules: StyleRule[], record: StoreRecord): PlainObject {
-    if (!record || !rules.length) return {};
+    if (!record || !rules?.length) return {};
     const isGroup = isGroupRow(record);
     return rules.reduce((ret, {test, css, rows}) => {
         if (!test || (rows === 'leaves' && isGroup) || (rows === 'groups' && !isGroup)) return ret;

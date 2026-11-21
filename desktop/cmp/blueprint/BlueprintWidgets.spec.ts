@@ -169,7 +169,7 @@ describe('blueprint desktop widgets', () => {
                         });
                     },
                     row = (label: string) => (gridModel.rowStyle as any)(record(label));
-                return {model, cell, row};
+                return {model, grid, cell, row};
             }
 
             it('styles a cell by its rules in order, a later match winning property by property', async () => {
@@ -184,10 +184,13 @@ describe('blueprint desktop widgets', () => {
             });
 
             it('moves a style with a bound threshold, with no reload', async () => {
-                const {model, cell} = await openStyled();
+                const {model, cell, grid} = await openStyled(),
+                    rebuilds = vi.spyOn(grid as any, 'buildColumns');
                 model.setVariable('lossLimit', -5);
                 await vi.waitFor(() => expect(cell('Energy')).toEqual({}));
                 expect(cell('SHEL')).toEqual({color: '#aa0000'});
+                // The columns stay as they are: a cell's style reads its rules as it draws.
+                expect(rebuilds).not.toHaveBeenCalled();
             });
 
             it('styles rows by its row rules, on the rows they name', async () => {
