@@ -23,7 +23,7 @@ export function withMoreNote(element: ReactElement, hidden: number): ReactElemen
         className: 'xh-chat-ui-more',
         children: [
             element,
-            div({className: 'xh-chat-ui-more__note', item: `${hidden} more not shown`})
+            div({className: 'xh-chat-ui-more__note', children: `${hidden} more not shown`})
         ]
     });
 }
