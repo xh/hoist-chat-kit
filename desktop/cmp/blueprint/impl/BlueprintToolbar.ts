@@ -1,4 +1,4 @@
-import {filler, fragment, label} from '@xh/hoist/cmp/layout';
+import {fragment, label} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, managed, useLocalModel, XH} from '@xh/hoist/core';
 import {dateRangePicker} from '@xh/hoist/desktop/cmp/daterange';
 import {dateInput, numberInput, select, switchInput, textInput} from '@xh/hoist/desktop/cmp/input';
@@ -14,39 +14,21 @@ interface BlueprintToolbarProps extends HoistProps {
 }
 
 /**
- * The blueprint's toolbar: an input for each prompted variable, then a switch for each preset
- * group. Hidden when there are neither.
+ * The blueprint's toolbar: an input for each prompted variable. Hidden when there are none. A
+ * preset group shows through a `presetSelector` widget instead.
  */
 export const blueprintToolbar = hoistCmp.factory<BlueprintToolbarProps>({
     displayName: 'BlueprintToolbar',
     model: false,
     render({blueprintModel: model}) {
-        const prompts = model.variables.filter(it => it.decl.setBy === 'prompt'),
-            presets = Object.entries(model.blueprint?.presets ?? {});
-        if (isEmpty(prompts) && isEmpty(presets)) return null;
+        const prompts = model.variables.filter(it => it.decl.setBy === 'prompt');
+        if (isEmpty(prompts)) return null;
         return toolbar({
             className: 'xh-blueprint-view__toolbar',
-            children: [
-                ...prompts.flatMap(it => [
-                    label(it.decl.label ?? it.name),
-                    promptInput(it, model, value => model.setVariable(it.name, value))
-                ]),
-                filler(),
-                ...presets.flatMap(([name, group]) => [
-                    label(group.label ?? name),
-                    select({
-                        key: `preset-${name}`,
-                        options: Object.entries(group.items ?? {}).map(([value, item]) => ({
-                            value,
-                            label: item.label ?? value
-                        })),
-                        value: model.getActivePreset(name),
-                        onChange: item => model.setPreset(name, item),
-                        enableFilter: false,
-                        width: 160
-                    })
-                ])
-            ]
+            children: prompts.flatMap(it => [
+                label(it.decl.label ?? it.name),
+                promptInput(it, model, value => model.setVariable(it.name, value))
+            ])
         });
     }
 });

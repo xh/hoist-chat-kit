@@ -44,6 +44,22 @@ describe('PresetsEditor', () => {
         return {model, design, editor};
     }
 
+    it('adds a selector for the group beside the widget it controls, until it has one', () => {
+        const {model, design, editor} = open();
+        design.removeElement('posViewsSelector');
+        expect(editor.hasSelector).toBe(false);
+
+        editor.addSelector();
+        const [id, el] = Object.entries(model.blueprint.elements).find(
+            ([, it]) => it.component === 'presetSelector'
+        );
+        expect(el.config).toEqual({group: 'posViews', display: 'toggle'});
+        const siblings = model.blueprint.elements.positions.children.map(it => it.id);
+        expect(siblings.indexOf(id)).toBe(siblings.indexOf('posGrid') + 1);
+        expect(editor.hasSelector).toBe(true);
+        expect(model.issues.map(it => it.code)).not.toContain('preset.noSelector');
+    });
+
     it("offers each widget's preset paths, and each variable's default, that no group controls yet", () => {
         const {editor} = open(),
             paths = editor.candidatePaths.map(it => it.value);

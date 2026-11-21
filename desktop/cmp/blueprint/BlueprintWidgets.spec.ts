@@ -954,19 +954,17 @@ describe('blueprint desktop widgets', () => {
     it('replaces a blueprint with charts with another, without a widget outliving its source', async () => {
         const model = open(loadBlueprint('p3-morning-report.json'));
         render(blueprintView({model}));
-        expect(await screen.findByText('Columns')).toBeTruthy();
+        expect(await screen.findByText('As of')).toBeTruthy();
         model.setBlueprint(loadBlueprint('p1-one-grid.json'));
         await wait();
         expect(model.blueprint.root).toBe('posGrid');
     });
 
-    it('renders a switch for each preset group, which switches the active preset', async () => {
+    it('leaves preset groups out of its toolbar, for a presetSelector to show', async () => {
         const model = open(loadBlueprint('p3-morning-report.json'));
         render(blueprintView({model}));
-        expect(await screen.findByText('Columns')).toBeTruthy();
-        expect(await screen.findByText('P&L view')).toBeTruthy();
-        model.setPreset('posViews', 'risk');
-        expect(await screen.findByText('Risk view')).toBeTruthy();
+        expect(await screen.findByText('As of')).toBeTruthy();
+        expect(screen.queryByText('Columns')).toBeNull();
     });
 
     it("renders an app variable type's own prompt input", async () => {

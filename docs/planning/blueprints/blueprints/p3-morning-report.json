@@ -8,6 +8,7 @@
             "chart": 1,
             "groupingChooser": 1,
             "buttonGroup": 1,
+            "presetSelector": 1,
             "cubeGrid": 1
         },
         "variableTypes": {"fund": 1},
@@ -130,10 +131,12 @@
             "children": [
                 {"id": "groupChooser", "x": 0, "y": 0, "w": 4, "h": 1},
                 {"id": "pnlButtons", "x": 4, "y": 0, "w": 4, "h": 1},
+                {"id": "posViewsSelector", "x": 8, "y": 0, "w": 4, "h": 1},
                 {"id": "posGrid", "x": 0, "y": 1, "w": 8, "h": 9},
                 {"id": "priceChart", "x": 8, "y": 1, "w": 4, "h": 9}
             ]
         },
+        "posViewsSelector": {"component": "presetSelector", "config": {"group": "posViews", "display": "segmented", "label": "Columns"}},
         "groupChooser": {"component": "groupingChooser", "config": {"dimensions": ["fund", "strategy", "trader", "sector", "region", "symbol"]}},
         "pnlButtons": {
             "component": "buttonGroup",

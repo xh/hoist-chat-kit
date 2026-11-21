@@ -365,7 +365,7 @@ describe('ElementInspector', () => {
             await inspector.removeAsync();
             expect(model.blueprint.elements).toHaveProperty('positions');
             expect(confirm.mock.calls[0][0].message).toMatch(
-                /Remove positions, and the 4 elements in it\? Variable grouping goes too\./
+                /Remove positions, and the 5 elements in it\? Variable grouping goes too\./
             );
 
             confirm.mockResolvedValueOnce(true);

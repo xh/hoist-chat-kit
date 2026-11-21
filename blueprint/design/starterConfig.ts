@@ -16,12 +16,14 @@ import type {DataCatalog, FieldDef} from '../DataCatalog';
  */
 export function starterConfig(
     spec: WidgetSpec,
-    ctx: {blueprint: Blueprint; catalog: DataCatalog}
+    ctx: {blueprint: Blueprint; catalog: DataCatalog},
+    /** Values the config starts with in place of what the schema fills. */
+    overrides: PlainObject = {}
 ): PlainObject | string {
     const fillCtx = fillContext(ctx),
-        ret = fill(spec.config ?? {}, '', fillCtx) as PlainObject;
+        ret = {...(fill(spec.config ?? {}, '', fillCtx) as PlainObject), ...overrides};
     if (fillCtx.state.missingSource) return null;
-    return spec.starter ? spec.starter(ret ?? {}, ctx) : (ret ?? {});
+    return spec.starter ? spec.starter(ret, ctx) : ret;
 }
 
 /**

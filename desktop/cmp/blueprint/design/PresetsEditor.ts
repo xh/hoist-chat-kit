@@ -122,6 +122,18 @@ export class PresetsEditorModel extends HoistModel {
         this.done(this.designModel.setPresetGroupDecl(this.name, 'default', item || undefined));
     }
 
+    /** True if a presetSelector shows the selected group. */
+    get hasSelector(): boolean {
+        return Object.values(this.designModel.blueprintModel.blueprint?.elements ?? {}).some(
+            it => it.component === 'presetSelector' && it.config?.group === this.name
+        );
+    }
+
+    /** Add a selector for the group, beside the widget it controls. */
+    addSelector() {
+        this.done(this.designModel.addPresetSelector(this.name));
+    }
+
     addControl(path: string) {
         this.done(this.designModel.addPresetControl(this.name, path));
     }
@@ -199,6 +211,21 @@ const presetsBody = hoistCmp.factory<PresetsEditorModel>({
 function group(impl: PresetsEditorModel) {
     const {readOnly: disabled, items} = impl;
     return [
+        impl.hasSelector
+            ? null
+            : labelled(
+                  'Selector',
+                  button({
+                      icon: Icon.add(),
+                      text: 'Add selector',
+                      minimal: true,
+                      disabled,
+                      onClick: () => impl.addSelector()
+                  }),
+                  [],
+                  null,
+                  'No selector shows the group yet, so it stays at its default.'
+              ),
         labelled(
             'Label',
             textInput({

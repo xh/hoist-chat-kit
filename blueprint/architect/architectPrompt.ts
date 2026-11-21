@@ -121,7 +121,7 @@ Actions sit on props a widget declares, such as a button's action: {"type": "set
 
 Formats: a field's kind sets its default format. A grid sets a column's format in its columns: "columns": {"mktVal": {"format": {"scale": "millions", "precision": 1}}}. columnState holds only order, width, hidden and pinned. A format is a named format, an object of Hoist number options (precision, scale, ledger, colorSpec, label...), or {"name": "pnl", ...changes}. Redefine a named format for this blueprint with "formats": {"pnl": {...}}, which changes every field whose kind uses it.
 
-Presets: named groups, such as one per grid, each shown as its own switch: "presets": {"gridViews": {"label": "Columns", "controls": [{"path": "/elements/grid/config/columnState"}], "default": "a", "items": {"a": {"label": "...", "set": {"elements": {"grid": {"config": {"columnState": [...]}}}}}}}}. A controlled path must be a preset path of its widget, must leave the element's config, belongs to one group, and every preset in the group sets it.`;
+Presets: named groups, such as one per grid. A presetSelector widget shows a group and switches it: add one beside the widget the group controls, as a group with no selector stays at its default. A group: "presets": {"gridViews": {"label": "Columns", "controls": [{"path": "/elements/grid/config/columnState"}], "default": "a", "items": {"a": {"label": "...", "set": {"elements": {"grid": {"config": {"columnState": [...]}}}}}}}}. A controlled path must be a preset path of its widget, must leave the element's config, belongs to one group, and every preset in the group sets it.`;
 
 const EDITING = `# Editing
 

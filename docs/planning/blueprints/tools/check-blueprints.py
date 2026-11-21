@@ -14,7 +14,7 @@ for c in cats.values():
 # Spec-level registries used by the scenarios.
 WIDGETS = {
     'dashCanvas': {}, 'tabContainer': {}, 'dashContainer': {}, 'panel': {}, 'box': {}, 'separator': {}, 'spacer': {}, 'markdown': {}, 'callout': {}, 'toolbar': {}, 'select': {'value': True}, 'dateInput': {'value': True}, 'dateRangePicker': {'value': True}, 'numberInput': {'value': True}, 'textInput': {'value': True}, 'switchInput': {'value': True}, 'slider': {'value': True}, 'filterChooser': {'value': True}, 'cubeGrid': {'outputs': {'selection', 'selected'}}, 'chart': {'outputs': {'selection'}}, 'treemap': {'outputs': {'selection'}}, 'propertyTable': {}, 'heatmap': {'outputs': {'selection'}},
-    'tileFrame': {}, 'statCard': {}, 'groupingChooser': {'value': True}, 'buttonGroup': {}, 'buttonGroupInput': {'value': True},
+    'tileFrame': {}, 'statCard': {}, 'groupingChooser': {'value': True}, 'buttonGroup': {}, 'buttonGroupInput': {'value': True}, 'presetSelector': {},
     'toolbox.portfolioBuilder': {'value': True}
 }
 ACTIONS = {'setVariable', 'resetVariable', 'refresh', 'navigate', 'openUrl', 'toolbox.publishToPmPack'}

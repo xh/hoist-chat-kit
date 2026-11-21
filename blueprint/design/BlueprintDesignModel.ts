@@ -84,23 +84,37 @@ export class BlueprintDesignModel extends HoistModel {
      *
      * @returns the edit's result, with the new element's ID.
      */
-    addWidget(component: string, parentId?: string): BlueprintEditResult & {id?: string} {
+    addWidget(
+        component: string,
+        parentId?: string,
+        opts: {
+            /** Values the config starts with, over its starter's. */
+            config?: PlainObject;
+            /** An element to add the widget right after, in its container. */
+            after?: string;
+        } = {}
+    ): BlueprintEditResult & {id?: string} {
         const {blueprint} = this.blueprintModel,
             spec = this.widgetSpec(component);
         if (!spec) return refused(`There is no widget '${component}'.`);
         const {catalog} = this.blueprintModel,
-            config = starterConfig(spec, {blueprint, catalog});
+            config = starterConfig(spec, {blueprint, catalog}, opts.config);
         if (!config) return refused(`Add a source for the ${spec.label} to read first.`);
         if (typeof config === 'string') return refused(config);
         const id = this.newId(component),
             element: BlueprintElement = {component, config},
-            parent = parentId ?? this.defaultParent();
+            afterParent = opts.after ? parentOf(blueprint?.elements, opts.after) : null,
+            parent = parentId ?? afterParent ?? this.defaultParent();
         if (!parent) {
             if (blueprint?.root) return refused('Select a container to add the widget to.');
             return {...this.edit(`Add ${spec.label}`, [{op: 'addElement', id, element}]), id};
         }
         const child = this.placeChild(parent, spec),
-            index = parentId ? null : this.indexAfterSelected(parent);
+            index = afterParent
+                ? this.indexAfter(parent, opts.after)
+                : parentId
+                  ? null
+                  : this.indexAfter(parent, this.selectedElementId);
         return {
             ...this.edit(`Add ${spec.label}`, [
                 {
@@ -201,14 +215,23 @@ export class BlueprintDesignModel extends HoistModel {
                 unboundVariables.push(name);
             }
         });
-        const presetPaths = Object.values(blueprint.presets ?? {})
-            .flatMap(it => it.controls ?? [])
-            .map(it => it.path)
-            .filter(
-                path =>
-                    gone.has(elementOfPath(path)) || removedVariables.includes(variableOfPath(path))
-            );
-        return {elements, removedVariables, unboundVariables, presetPaths};
+        const isReleased = (path: string) =>
+                gone.has(elementOfPath(path)) || removedVariables.includes(variableOfPath(path)),
+            presetPaths = Object.values(blueprint.presets ?? {})
+                .flatMap(it => it.controls ?? [])
+                .map(it => it.path)
+                .filter(isReleased),
+            // A group left controlling nothing goes, and its selectors with it.
+            emptied = Object.entries(blueprint.presets ?? {})
+                .filter(([, it]) => (it.controls ?? []).every(c => isReleased(c.path)))
+                .map(([name]) => name),
+            selectors = this.selectorsOf(emptied).filter(it => !gone.has(it));
+        return {
+            elements: [...elements, ...selectors],
+            removedVariables,
+            unboundVariables,
+            presetPaths
+        };
     }
 
     /**
@@ -511,6 +534,7 @@ export class BlueprintDesignModel extends HoistModel {
         if (!g) return refused(`There is no preset group '${group}'.`);
         const active = g.items?.[this.blueprintModel.getActivePreset(group)];
         return this.edit(`Remove presets ${group}`, [
+            ...this.selectorsOf([group]).map((id): BlueprintOp => ({op: 'removeElement', id})),
             ...g.controls
                 .map(({path}) => ({path, value: getAt(active?.set, path)}))
                 .filter(it => it.value !== undefined)
@@ -607,6 +631,15 @@ export class BlueprintDesignModel extends HoistModel {
 
     // The operations that stop preset groups controlling the paths given, dropping their values,
     // and a group left with none.
+    // The presetSelector elements that show any of these groups.
+    private selectorsOf(groups: string[]): string[] {
+        return Object.entries(this.blueprintModel.blueprint?.elements ?? {})
+            .filter(
+                ([, el]) => el.component === 'presetSelector' && groups.includes(el.config?.group)
+            )
+            .map(([id]) => id);
+    }
+
     private releaseOps(isReleased: (path: string) => boolean): BlueprintOp[] {
         const ops: BlueprintOp[] = [];
         Object.entries(this.blueprintModel.blueprint?.presets ?? {}).forEach(([group, def]) => {
@@ -750,11 +783,26 @@ export class BlueprintDesignModel extends HoistModel {
         return blueprint?.root && isContainer(blueprint.root) ? blueprint.root : null;
     }
 
-    // The place right after the selected element among its parent's children, or null.
-    private indexAfterSelected(parentId: string): number {
+    // The place right after an element among its parent's children, or null.
+    private indexAfter(parentId: string, id: string): number {
         const children = getOwn(this.blueprintModel.blueprint?.elements, parentId)?.children ?? [],
-            idx = children.findIndex(it => it.id === this.selectedElementId);
+            idx = children.findIndex(it => it.id === id);
         return idx >= 0 ? idx + 1 : null;
+    }
+
+    /**
+     * Add a presetSelector for a group, right after the element its first path controls, or as
+     * {@link addWidget} places one when that is a variable's default.
+     */
+    addPresetSelector(group: string): BlueprintEditResult & {id?: string} {
+        const g = getOwn(this.blueprintModel.blueprint?.presets, group);
+        if (!g) return refused(`There is no preset group '${group}'.`);
+        const controlled = g.controls?.map(it => elementOfPath(it.path)).find(Boolean),
+            after = controlled && parentOf(this.blueprintModel.blueprint.elements, controlled);
+        return this.addWidget('presetSelector', null, {
+            config: {group},
+            ...(after ? {after: controlled} : {})
+        });
     }
 
     // A child reference for a container: a free place on a canvas, or a title in tabs.

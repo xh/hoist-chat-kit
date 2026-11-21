@@ -41,7 +41,7 @@
             "id": "priceRangePicker",
             "element": {"component": "dateRangePicker", "config": {}},
             "parent": "positions",
-            "child": {"x": 8, "y": 0, "w": 4, "h": 1}
+            "child": {"x": 8, "y": 10, "w": 4, "h": 1}
         }
     ]
 }

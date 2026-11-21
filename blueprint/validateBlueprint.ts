@@ -889,7 +889,19 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
 
     // Presets: named groups, each controlling its own paths.
     const owner: Record<string, string> = toLookup({});
+    const selected = new Set(
+        Object.values(elements)
+            .filter(it => it?.component === 'presetSelector')
+            .map(it => it.config?.group)
+    );
     for (const [gname, pre] of Object.entries<any>(bp.presets ?? {})) {
+        if (!isAnswer && !selected.has(gname)) {
+            warn(
+                'preset.noSelector',
+                `/presets/${gname}`,
+                'no presetSelector shows the group, so it stays at its default. Add one beside the widget it controls.'
+            );
+        }
         const gp = `/presets/${gname}`;
         if (!isPlainObject(pre) || !isArray(pre.controls)) {
             err(

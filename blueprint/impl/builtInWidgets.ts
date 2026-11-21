@@ -1756,7 +1756,10 @@ const presetSelector: WidgetSpec = {
                     .filter(it => it.component === 'presetSelector')
                     .map(it => it.config?.group)
             ),
-            [group, decl] = groups.find(([name]) => !taken.has(name)) ?? groups[0],
+            [group, decl] =
+                groups.find(([name]) => name === config.group) ??
+                groups.find(([name]) => !taken.has(name)) ??
+                groups[0],
             count = Object.keys(decl.items ?? {}).length;
         return {
             ...config,

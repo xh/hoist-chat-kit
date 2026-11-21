@@ -350,6 +350,8 @@ describe('validateBlueprint', () => {
                 controls: [{path: '/variables/symbol/default'}],
                 items: {apple: {set: {variables: {symbol: {default: {value: 'AAPL'}}}}}}
             };
+            bp.elements.tickerViews = {component: 'presetSelector', config: {group: 'tickers'}};
+            bp.elements.positions.children.push({id: 'tickerViews', x: 0, y: 10, w: 3, h: 1});
             expect(codes()).toEqual([]);
 
             bp.variables.symbol.default = {value: 'IBM'};
@@ -888,6 +890,14 @@ describe('validateBlueprint', () => {
                 items: {a: {set: {elements: {map: {config: {groupBy: ['sector']}}}}}}
             }
         };
+        bp.elements.mapViews = {component: 'presetSelector', config: {group: 'views'}};
+        (bp.elements.dashboard.children as PlainObject[]).push({
+            id: 'mapViews',
+            x: 6,
+            y: 14,
+            w: 3,
+            h: 1
+        });
         expect(codes(bp)).toEqual([]);
     });
 
@@ -925,6 +935,17 @@ describe('validateBlueprint', () => {
         expect(validate(bp).map(it => [it.code, it.path])).toEqual([
             ['binding.outOfRange', '/elements/posGrid/config/expandLevel'],
             ['binding.outOfRange', '/elements/sectorChart/config/type']
+        ]);
+    });
+
+    it('warns of a preset group with no selector, which stays at its default', () => {
+        const bp = loadBlueprint('p3-morning-report.json');
+        delete bp.elements.posViewsSelector;
+        bp.elements.positions.children = bp.elements.positions.children.filter(
+            it => it.id !== 'posViewsSelector'
+        );
+        expect(validate(bp).map(it => [it.code, it.path])).toEqual([
+            ['preset.noSelector', '/presets/posViews']
         ]);
     });
 

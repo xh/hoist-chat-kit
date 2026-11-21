@@ -343,7 +343,11 @@ describe('BlueprintLink', () => {
 // Test data
 //------------------
 const BLUEPRINT: Blueprint = {
-    schema: {blueprint: 1, widgets: {cubeGrid: 1}, resolvers: {today: 1}},
+    schema: {
+        blueprint: 1,
+        widgets: {box: 1, cubeGrid: 1, presetSelector: 1},
+        resolvers: {today: 1}
+    },
     variables: {
         asOf: {type: 'localDate', label: 'As of', setBy: 'prompt', default: {value: '2026-11-20'}},
         fund: {type: 'toolbox.fund', label: 'Fund', setBy: 'prompt'},
@@ -374,8 +378,14 @@ const BLUEPRINT: Blueprint = {
     sources: {
         positions: {dataset: 'positions', params: {asOf: {$var: 'asOf'}, fund: {$var: 'fund'}}}
     },
-    root: 'posGrid',
+    root: 'page',
     elements: {
+        page: {
+            component: 'box',
+            config: {direction: 'column'},
+            children: [{id: 'views'}, {id: 'posGrid'}]
+        },
+        views: {component: 'presetSelector', config: {group: 'view'}},
         posGrid: {
             component: 'cubeGrid',
             config: {source: 'positions', groupBy: ['sector']}

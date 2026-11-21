@@ -24,8 +24,8 @@ describe('presetSelector', () => {
             config: {group: 'posViews', display: 'select'}
         };
         bp.elements.positions.children.push(
-            {id: 'viewsA', x: 8, y: 0, w: 2, h: 1},
-            {id: 'viewsB', x: 10, y: 0, w: 2, h: 1}
+            {id: 'viewsA', x: 0, y: 10, w: 2, h: 1},
+            {id: 'viewsB', x: 2, y: 10, w: 2, h: 1}
         );
         return bp;
     }
