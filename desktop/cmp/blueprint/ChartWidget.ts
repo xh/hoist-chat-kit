@@ -4,14 +4,24 @@ import type {Cube, FilterSpec, View} from '@xh/hoist/data';
 import {observableRef} from '@xh/hoist/mobx';
 import {LocalDate} from '@xh/hoist/utils/datetime';
 import {mergeDeep} from '@xh/hoist/utils/js';
-import {castArray, compact, escape, isArray, isEqual, isFinite, orderBy, uniq} from 'lodash';
-import type {ReactNode} from 'react';
+import {
+    castArray,
+    compact,
+    escape,
+    isArray,
+    isEqual,
+    isFinite,
+    isString,
+    orderBy,
+    uniq
+} from 'lodash';
 import {
     BlueprintWidgetModel,
     type BlueprintWidgetConfig,
     type ChartWidgetConfig
 } from '../../../blueprint';
 import {checkHighchartsConfig} from '../../../blueprint/impl/builtInWidgets';
+import {resolveFormat} from '../../../blueprint/impl/formats';
 import {fmtChatUiNumber} from '../genui/ChatUiFormat';
 import {
     type ChatUiChartLayoutProps,
@@ -121,26 +131,26 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
         }
         const config = mergeDeep(
             {},
-            this.withSecondAxis(this.withFractionAxis(toHighchartsConfig(props), props)),
+            this.withSecondAxis(
+                this.withPrimaryUnit(this.withFractionAxis(toHighchartsConfig(props), props))
+            ),
             {plotOptions: {series: {point: {events: {click: this.onPointClick}}}}},
             this.checkedHighchartsConfig
         );
         if (!isEqual(config, chartModel.highchartsConfig)) chartModel.setHighchartsConfig(config);
         // The series of y2 follow those of y, on the second axis.
-        const firstY2 = castArray(this.resolvedConfig.y ?? []).filter(
-            it => this.source.fields[it]
-        ).length;
-        const fmtY2 = this.y2Format,
-            y2Tooltip = {
-                // The series name reaches Highcharts escaped - see `toSeries()`.
-                pointFormatter: function (this: any) {
-                    const name = this.series?.name ? `${this.series.name}: ` : '';
-                    return `<span style="color:${this.color}">●</span> ${name}<b>${fmtY2(this.y)}</b><br/>`;
-                }
-            };
+        const firstY2 = this.primary.length;
+        const primaryTooltip = this.unitOf(this.primary[0])
+                ? seriesTooltip(this.formatOf(this.primary[0]))
+                : null,
+            y2Tooltip = this.hasY2 ? seriesTooltip(this.formatOf(this.y2[0])) : null;
         chartModel.setSeries(
             toSeries(props, false).map((it, idx) =>
-                this.hasY2 && idx >= firstY2 ? {...it, yAxis: 1, tooltip: y2Tooltip} : it
+                this.hasY2 && idx >= firstY2
+                    ? {...it, yAxis: 1, tooltip: y2Tooltip}
+                    : primaryTooltip
+                      ? {...it, tooltip: primaryTooltip}
+                      : it
             )
         );
     }
@@ -159,10 +169,48 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
         return castArray(this.resolvedConfig.y2 ?? []).filter(it => this.source?.fields[it]);
     }
 
-    // Values of y2, formatted as its first field is.
-    private get y2Format(): (value: number, opts?: {compact?: boolean}) => ReactNode {
-        const format = this.isFraction(this.y2[0]) ? 'percent' : 'number';
-        return (value, opts = {}) => fmtChatUiNumber(value, format, null, {asHtml: true, ...opts});
+    private get primary(): string[] {
+        return castArray(this.resolvedConfig.y ?? []).filter(it => this.source?.fields[it]);
+    }
+
+    // Values of a field, formatted as a number or a percent, with its unit.
+    private formatOf(field: string): (value: number, opts?: {compact?: boolean}) => string {
+        const format = this.isFraction(field) ? 'percent' : 'number',
+            unit = this.unitOf(field);
+        return (value, opts = {}) => {
+            const text = String(fmtChatUiNumber(value, format, null, {asHtml: true, ...opts}));
+            return value == null || !unit ? text : `${text}${unit}`;
+        };
+    }
+
+    // A field's label from its format, such as a unit its source's params choose, escaped.
+    private unitOf(field: string): string {
+        const def = this.source?.fields[field];
+        if (!def) return '';
+        const {catalog, blueprint} = this.blueprintModel,
+            {label} = resolveFormat(def, this.source.displayOf(field).formats, {
+                catalog,
+                blueprint
+            });
+        return isString(label) ? escape(label) : '';
+    }
+
+    // The primary axis's labels with its first field's unit, where it has one.
+    private withPrimaryUnit(config: PlainObject): PlainObject {
+        const [first] = this.primary;
+        if (!this.unitOf(first)) return config;
+        const fmt = this.formatOf(first);
+        return {
+            ...config,
+            yAxis: {
+                ...config.yAxis,
+                labels: {
+                    formatter: function (this: any) {
+                        return fmt(this.value, {compact: true});
+                    }
+                }
+            }
+        };
     }
 
     private get hasY2(): boolean {
@@ -174,7 +222,7 @@ export class ChartWidgetModel extends BlueprintWidgetModel<ChartWidgetConfig> {
         if (!this.hasY2) return config;
         const [first] = this.y2,
             {y2Title} = this.resolvedConfig,
-            fmtY2 = this.y2Format,
+            fmtY2 = this.formatOf(first),
             title = y2Title ?? (this.y2.length === 1 ? this.source.fieldLabel(first) : null);
         // Its own labels, as the primary's would format and clamp y2 as a fraction of y.
         return {
@@ -307,4 +355,15 @@ function toTimestamp(value: unknown): number | string {
     if (value instanceof Date) return value.getTime();
     if (LocalDate.isLocalDate(value)) return (value as LocalDate).timestamp;
     return value as number | string;
+}
+
+// A series' tooltip line, with its values formatted as its field's.
+function seriesTooltip(fmt: (value: number) => string): PlainObject {
+    return {
+        // The series name reaches Highcharts escaped - see `toSeries()`.
+        pointFormatter: function (this: any) {
+            const name = this.series?.name ? `${this.series.name}: ` : '';
+            return `<span style="color:${this.color}">●</span> ${name}<b>${fmt(this.y)}</b><br/>`;
+        }
+    };
 }

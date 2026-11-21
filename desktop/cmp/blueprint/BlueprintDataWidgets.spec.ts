@@ -10,7 +10,7 @@ import {
     weatherCatalog
 } from '../../../test/blueprintFixtures';
 import type {Blueprint, BlueprintDataProvider, BlueprintDataUpdate} from '../../../blueprint';
-import {BlueprintModel, FakeBlueprintDataProvider} from '../../../blueprint';
+import {BlueprintModel, DataCatalog, FakeBlueprintDataProvider} from '../../../blueprint';
 import {ChartWidgetModel} from './ChartWidget';
 import {GaugeWidgetModel} from './GaugeWidget';
 import {HeatmapWidgetModel} from './HeatmapWidget';
@@ -670,6 +670,52 @@ describe('blueprint data widgets', () => {
                 series: {name: 'Market Value'}
             });
             expect(tip).not.toContain('%');
+        });
+
+        it("labels its axis and tooltips with a unit its source's params choose", async () => {
+            const catalog = new DataCatalog({
+                    formats: {
+                        speed: {
+                            precision: 0,
+                            label: {param: 'units', values: {imperial: ' mph', metric: ' m/s'}}
+                        }
+                    },
+                    kinds: {speed: {base: 'number', format: 'speed', aggregator: 'AVG'}},
+                    datasets: {
+                        wind: {
+                            params: {units: {type: 'string'}},
+                            fields: [
+                                {name: 'city', type: 'string', isDimension: true},
+                                {name: 'windSpeed', type: 'number', kind: 'speed'}
+                            ]
+                        }
+                    }
+                }),
+                model = new BlueprintModel({
+                    blueprint: {
+                        variables: {units: {type: 'string', default: {value: 'metric'}}},
+                        sources: {w: {dataset: 'wind', params: {units: {$var: 'units'}}}},
+                        root: 'c',
+                        elements: {
+                            c: {
+                                component: 'chart',
+                                config: {source: 'w', type: 'column', x: 'city', y: ['windSpeed']}
+                            }
+                        }
+                    },
+                    catalog,
+                    registry: scenarioRegistry(),
+                    dataProvider: new FakeBlueprintDataProvider({catalog})
+                });
+            onTestFinished(() => model.destroy());
+            const chart = widget(ChartWidgetModel, model, 'c');
+            await vi.waitFor(() => expect(chart.chartModel.series).toHaveLength(1));
+            const {yAxis} = chart.chartModel.highchartsConfig,
+                [series] = chart.chartModel.series;
+            expect(yAxis.labels.formatter.call({value: 12})).toBe('12 m/s');
+            expect(
+                series.tooltip.pointFormatter.call({y: 12, color: '#000', series: {name: 'Wind'}})
+            ).toContain('<b>12 m/s</b>');
         });
 
         it('refuses y2 beside a groupBy, which splits its first y only', () => {
