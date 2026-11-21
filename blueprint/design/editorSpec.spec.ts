@@ -96,4 +96,12 @@ describe('toEditorSpec', () => {
             (fields as Extract<EditorNode, {kind: 'fieldList'}>).settings.map(it => it.key)
         ).toEqual(['label', 'format', 'renderer']);
     });
+
+    it("names a value's unit in its label", () => {
+        const [node] = toEditorSpec({
+            type: 'object',
+            properties: {minTileWidth: {type: 'integer', 'x-unit': 'px'}}
+        });
+        expect(node.label).toMatch(/\(px\)$/);
+    });
 });

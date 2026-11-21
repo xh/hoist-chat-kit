@@ -785,10 +785,34 @@ const TILE_FRAME_SCHEMA = {
     additionalProperties: false,
     properties: {
         title: {type: 'string', maxLength: 100, 'x-binding': true},
-        minTileWidth: {type: 'integer', minimum: 20, maximum: 2000},
-        maxTileWidth: {type: 'integer', minimum: 20, maximum: 2000},
-        minTileHeight: {type: 'integer', minimum: 20, maximum: 2000},
-        maxTileHeight: {type: 'integer', minimum: 20, maximum: 2000},
+        minTileWidth: {
+            type: 'integer',
+            minimum: 20,
+            maximum: 2000,
+            'x-unit': 'px',
+            description: 'The narrowest a tile gets. More tiles wrap to a new row.'
+        },
+        maxTileWidth: {
+            type: 'integer',
+            minimum: 20,
+            maximum: 2000,
+            'x-unit': 'px',
+            description: 'The widest a tile gets, however few there are.'
+        },
+        minTileHeight: {
+            type: 'integer',
+            minimum: 20,
+            maximum: 2000,
+            'x-unit': 'px',
+            description: 'The shortest a tile gets.'
+        },
+        maxTileHeight: {
+            type: 'integer',
+            minimum: 20,
+            maximum: 2000,
+            'x-unit': 'px',
+            description: 'The tallest a tile gets.'
+        },
         desiredRatio: {
             type: 'number',
             minimum: 0.1,
@@ -796,7 +820,7 @@ const TILE_FRAME_SCHEMA = {
             default: 1,
             description: 'Tile width over height.'
         },
-        spacing: {type: 'integer', minimum: 0, maximum: 64, default: 0},
+        spacing: {type: 'integer', minimum: 0, maximum: 64, default: 0, 'x-unit': 'px'},
         emptyText: EMPTY_TEXT
     }
 } as const satisfies BlueprintSchema;
@@ -1231,9 +1255,14 @@ const box: WidgetSpec = {
             required: ['id'],
             properties: {
                 id: {type: 'string'},
-                flex: {type: 'number', minimum: 0, maximum: 12},
-                width: {type: 'integer', minimum: 1, maximum: 4000},
-                height: {type: 'integer', minimum: 1, maximum: 4000}
+                flex: {
+                    type: 'number',
+                    minimum: 0,
+                    maximum: 12,
+                    description: 'A share of the room left. A child with no size takes 1.'
+                },
+                width: {type: 'integer', minimum: 1, maximum: 4000, 'x-unit': 'px'},
+                height: {type: 'integer', minimum: 1, maximum: 4000, 'x-unit': 'px'}
             }
         }
     },
@@ -2049,6 +2078,15 @@ const VALIDATORS: Record<string, WidgetSpec['validate']> = {
             }
         ];
     },
+    tileFrame: cfg =>
+        (['Width', 'Height'] as const)
+            .filter(it => cfg[`minTile${it}`] > cfg[`maxTile${it}`])
+            .map(it => ({
+                code: 'tileFrame.minOverMax',
+                severity: 'warning' as const,
+                path: `/minTile${it}`,
+                message: `minTile${it} is over maxTile${it}, so the tiles cannot meet both`
+            })),
     separator: (cfg, {blueprint, id}) => {
         const elements = blueprint.elements ?? {};
         if (!cfg.label || elements[parentOf(elements, id)]?.component !== 'toolbar') return [];

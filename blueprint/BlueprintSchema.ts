@@ -20,6 +20,8 @@ export type BlueprintSchemaExtension = {
     'x-variable'?: boolean;
     'x-template'?: boolean;
     'x-starter'?: false;
+    /** The unit a number is in, such as `px`, which an editor shows beside it. */
+    'x-unit'?: string;
 };
 
 /**

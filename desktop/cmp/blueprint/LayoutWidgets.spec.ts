@@ -41,6 +41,26 @@ describe('layout and container widgets', () => {
         config: {emptyText: text}
     });
 
+    it("warns of a tileFrame's minimum tile size over its maximum", () => {
+        const issues = validateBlueprint(
+            {
+                schema: {blueprint: 1},
+                root: 'tiles',
+                elements: {
+                    tiles: {
+                        component: 'tileFrame',
+                        config: {minTileWidth: 300, maxTileWidth: 200, minTileHeight: 50},
+                        children: []
+                    }
+                }
+            },
+            {catalog: portfolioCatalog, registry: scenarioRegistry()}
+        );
+        expect(issues.map(it => [it.code, it.path])).toEqual([
+            ['tileFrame.minOverMax', '/elements/tiles/config/minTileWidth']
+        ]);
+    });
+
     describe('box', () => {
         it('lays out its children along its direction, sizing each by its reference', () => {
             const {container} = show('row', {

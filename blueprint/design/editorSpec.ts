@@ -65,7 +65,7 @@ export function toEditorSpec(schema: PlainObject): EditorNode[] {
 function toNode(schema: PlainObject, key: string, required: boolean): EditorNode {
     const base: EditorBase = {
         key,
-        label: key ? labelOf(key) : null,
+        label: key ? labelOf(key) + (schema['x-unit'] ? ` (${schema['x-unit']})` : '') : null,
         ...(schema.description ? {description: schema.description} : {}),
         required,
         bindable: !!schema['x-binding'] && !schema['x-variable'],
