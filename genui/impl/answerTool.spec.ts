@@ -95,6 +95,16 @@ describe('show_ui with answer blueprints', () => {
         expect(line('cubeGrid')).not.toContain('Config:');
     });
 
+    it("names each widget's slot lists, in users' words", () => {
+        const line = (name: string) =>
+            setup()
+                .catalog.documentTool.description.split('\n')
+                .find(it => it.startsWith(`- ${name}:`));
+        expect(line('panel')).toMatch(/ Slots: tbar \(A toolbar along the top/);
+        expect(line('panel')).toMatch(/headerItems \(Inputs in the panel's header/);
+        expect(line('dashCanvas')).toMatch(/Each child reference may hold: headerItems \(/);
+    });
+
     it('lists the values of a short enum beside its key', () => {
         const line = setup()
             .catalog.documentTool.description.split('\n')

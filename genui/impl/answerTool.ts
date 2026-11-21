@@ -1,6 +1,12 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {isArray, isPlainObject, isString} from 'lodash';
-import type {Blueprint, BlueprintIssue, BlueprintRegistry} from '../../blueprint';
+import type {
+    Blueprint,
+    BlueprintIssue,
+    BlueprintRegistry,
+    SlotSpec,
+    WidgetSpec
+} from '../../blueprint';
 import type {ChatToolSpec} from '../../core';
 // From its own module, not the barrel, so the Node harness can load this file.
 import {validateBlueprint, type ValidateBlueprintContext} from '../../blueprint/validateBlueprint';
@@ -54,8 +60,9 @@ export function answerToolDescription(registry: BlueprintRegistry): string {
         'Show UI in your reply: one answer blueprint. Widgets that interact go in one answer.',
         '',
         '`elements` holds each element by id: its `component`, its `config`, and for a container ' +
-            'its `children`, as `{"id": ...}` references. `root` is the id of the top element, and ' +
-            'every other element is the child of exactly one container.',
+            'its `children`, as `{"id": ...}` references, and any slot lists its widget names, such ' +
+            "as a panel's `tbar`. `root` is the id of the top element, and every other element " +
+            'sits in exactly one slot list of one container.',
         '',
         'A widget that shows data names a source in `config.source`. A source holds rows inline, ' +
             'reads a result a tool produced as `{"artifact": id}`, or reads a dataset. Values you ' +
@@ -64,7 +71,8 @@ export function answerToolDescription(registry: BlueprintRegistry): string {
         '',
         'Widgets:',
         ...widgetNames(registry).map(
-            it => `- ${it}: ${widgets[it].label}. ${widgets[it].guidance}${configKeys(widgets[it])}`
+            it =>
+                `- ${it}: ${widgets[it].label}. ${widgets[it].guidance}${configKeys(widgets[it])}${slotKeys(widgets[it])}`
         )
     ].join('\n');
 }
@@ -147,6 +155,20 @@ function configKeys(widget: {config?: PlainObject}): string {
         return required.includes(it) ? `${named} (required)` : named;
     });
     return ` Config: ${listed.join(', ')}.`;
+}
+
+// A container's slot lists beside children, and those its child references hold, each described.
+function slotKeys(widget: WidgetSpec): string {
+    const list = (slots: Record<string, SlotSpec>) =>
+            Object.entries(slots ?? {})
+                .map(([name, it]) => `${name} (${it.description.replace(/\.$/, '')})`)
+                .join(', '),
+        own = list(widget.slots),
+        nested = list(widget.children?.slots);
+    return [
+        own ? ` Slots: ${own}.` : '',
+        nested ? ` Each child reference may hold: ${nested}.` : ''
+    ].join('');
 }
 
 const MAX_LISTED_KEYS = 8,
