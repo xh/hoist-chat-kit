@@ -159,7 +159,10 @@ export interface PresentationSpec {
     /** When to use it, for the Architect. */
     guidance: string;
     component: ElementFactory;
-    /** Config keys it does not draw, such as a grid's styles in a card. Default none. */
+    /**
+     * Config keys it does not draw, such as a grid's styles in a card. A dotted path reaches a
+     * nested key, and `*` matches any key, as `columns.*.styles` does. Default none.
+     */
     ignores?: string[];
 }
 

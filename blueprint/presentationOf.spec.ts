@@ -25,7 +25,7 @@ describe('presentationOf', () => {
                         label: 'Card',
                         guidance: 'A flat preview.',
                         component: (() => null) as any,
-                        ignores: ['groupBy', 'treeStyle']
+                        ignores: ['groupBy', 'treeStyle', 'columns.*.styles']
                     }
                 }
             ]
@@ -75,9 +75,21 @@ describe('presentationOf', () => {
     });
 
     it('draws as its panel a widget that sets a key the default presentation ignores', () => {
-        const model = open({grouped: {groupBy: ['sector']}, styled: {treeStyle: 'colors'}});
+        const model = open({
+            grouped: {groupBy: ['sector']},
+            styled: {treeStyle: 'colors'},
+            cellStyled: {
+                columns: {
+                    v: {styles: [{when: {field: 'v', op: '<', value: 0}, style: {color: 'danger'}}]}
+                }
+            },
+            renamed: {columns: {v: {headerName: 'Value'}}}
+        });
         expect(model.presentationOf('grouped')).toBe('panel');
         expect(model.presentationOf('styled')).toBe('panel');
+        // A path with * ignores the key under any entry: a column's styles, here.
+        expect(model.presentationOf('cellStyled')).toBe('panel');
+        expect(model.presentationOf('renamed')).toBe('card');
     });
 
     it('keeps a presentation the config names, and the panel with no default', () => {

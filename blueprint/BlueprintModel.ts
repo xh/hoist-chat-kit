@@ -121,7 +121,7 @@ export class BlueprintModel extends HoistModel {
             it => it.name === this.defaultPresentation
         );
         if (!drawn) return 'panel';
-        return drawn.ignores?.some(it => isSet(config[it])) ? 'panel' : drawn.name;
+        return drawn.ignores?.some(it => isSetAt(config, it.split('.'))) ? 'panel' : drawn.name;
     }
 
     get mode(): BlueprintMode {
@@ -727,6 +727,15 @@ function hasErrors(issues: BlueprintIssue[]): boolean {
 // A config value that asks for something: not absent, and not an empty list.
 function isSet(value: unknown): boolean {
     return value != null && !(Array.isArray(value) && value.length === 0);
+}
+
+// True if a config sets the value at a path of keys, where `*` matches any key.
+function isSetAt(value: unknown, path: string[]): boolean {
+    if (!path.length) return isSet(value);
+    if (value == null || typeof value !== 'object') return false;
+    const [key, ...rest] = path,
+        values = key === '*' ? Object.values(value) : [getOwn(value as PlainObject, key)];
+    return values.some(it => isSetAt(it, rest));
 }
 
 // An edit as undo and redo keep it, with the blueprint from before and after it.

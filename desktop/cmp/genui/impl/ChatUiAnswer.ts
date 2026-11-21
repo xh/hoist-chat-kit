@@ -277,7 +277,8 @@ ChatUiCatalog.answerPresentations.push({
             'filter',
             'expandLevel',
             'summaryRow',
-            'rowStyles'
+            'rowStyles',
+            'columns.*.styles'
         ]
     }
 });
