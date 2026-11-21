@@ -58,7 +58,7 @@ Key features:
   a message as the user's next turn, and its tooltip shows what the click does.
 - **One card frame** - every card shares a 28 px header strip, a footer for counts, and the same
   loading, failed and empty states. `.xh-chat--compact` narrows them for a docked chat.
-- **Forms and inputs** - a form, a button and eight inputs put Hoist's `FormField`, inputs and
+- **Forms and inputs** - a form, a button and nine inputs put Hoist's `FormField`, inputs and
   `Button` to work. Each input holds a value that the user changes, validates it with Hoist
   rules, and can bind it to the state of its document.
 
@@ -525,6 +525,7 @@ const catalog = new ChatUiCatalog({
 | `chatUiCheckboxSpec` | `checkbox` | `Checkbox` | True or false |
 | `chatUiSwitchSpec` | `switch` | `SwitchInput` | True or false |
 | `chatUiSegmentedControlSpec` | `segmentedControl` | `SegmentedControl` | One choice |
+| `chatUiSliderSpec` | `slider` | `Slider` | A number, or a low and a high value with `range` |
 
 The model writes a form as a document, or as the program of a text format:
 
@@ -550,15 +551,26 @@ The model writes a form as a document, or as the program of a text format:
   [Run programs with state](../../../genui/openui/README.md#run-programs-with-state).
 
 A text or number input writes its value when the user leaves it or presses Enter, as Hoist
-commits it. A select, a checkbox, a switch and a segmented control write on each change. Each
+commits it. A select, a checkbox, a switch and a segmented control write on each change. A slider
+writes once the user stops moving a handle for a quarter of a second, so that a drag makes one
+write. A press or a click anywhere writes it at once, so that a button reads the value shown. Each
 input shows only a value of its own type, whatever the state holds.
+
+**A slider** always shows a value, so it takes no rules. A value that is missing or outside the
+range shows at the nearest end, and a form sends the value that the slider shows. A range written
+backwards draws the right way round. `min` and `max` are from -1e12 to 1e12. Hoist's `Slider`
+adjusts any other scale it cannot draw, and renders a range of no width disabled. With `range` it
+has two handles, and its value is a list of the low and the high value. `format` sets how the
+slider shows its values, as a [number format](#number-formats). A large value shows in a compact
+form, such as `$150M`, so that the label at each end fits. Hoist's `Slider` has no compact size,
+so a slider looks the same in a compact chat.
 
 **Rules** are an object, such as `{required: true, email: true}`. They run as Hoist rules, and
 their messages show under the input:
 
 | Rule | Inputs | Hoist rule |
 |------|--------|------------|
-| `required` | All but the checkbox and the switch | `required` |
+| `required` | All but the checkbox, the switch and the slider | `required` |
 | `email` | Text input | `validEmail` |
 | `minLength`, `maxLength` | Text input, text area | `lengthIs` |
 | `min`, `max` | Number input | `numberIs` |
@@ -571,8 +583,8 @@ worst validation problem on show.
 **Sizing** follows Hoist: the container sets the width. The form fills the reply, and a field in
 it fills the form, or its share of a row. Put fields in a row stack to use a wide form, or set a
 `max-width` on `.xh-chat-ui-form`. Outside a form, a field is at most 360 px wide. A segmented
-control keeps the width of its options, and a row that cannot hold it wraps. A button keeps the
-size of its label. In a row, it sits at the bottom, level with the input of a field beside it.
+control keeps the width of its options, and a slider keeps the 190 px its track needs. A row that
+cannot hold either wraps. A button keeps the size of its label. In a row, it sits at the bottom, level with the input of a field beside it.
 
 **The button** runs one typed action. With no action, it sends its label as the user's next
 message. Inside a form, a click first validates every field, and shows each message. If all are
@@ -585,8 +597,8 @@ email: ann@example.com, region: EMEA
 ```
 
 The tooltip of the button shows the message and the values before the click, and the sent message
-shows them after it. A select with `multi` sends its choices as one text, joined with commas. An
-empty field sends nothing.
+shows them after it. A select with `multi` sends its choices as one text, joined with commas. A
+slider with `range` sends its two values the same way. An empty field sends nothing.
 
 A `send` holds at most 8 values of at most 100 characters each, so that the user can read all of
 it. The form keeps to that:
@@ -735,6 +747,7 @@ a model to bind a `$variable`.
 | `dateInput` | `name`, `label`, `rules`, `value` |
 | `checkbox`, `switch` | `name`, `label`, `value` |
 | `segmentedControl` | `name`, `options`, `label`, `rules`, `value` |
+| `slider` | `name`, `min`, `max`, `label`, `step`, `format`, `range`, `value` |
 
 An option is a value, or an object with a `value` and a `label`. `name` is the key of the field
 among the values a form sends, so it must be unique in its form. See `ChatUiInput.ts` for the

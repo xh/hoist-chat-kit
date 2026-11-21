@@ -77,6 +77,9 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   maximum with an optional target. It formats the figure over each bar, and shows its first
   `maxItems` bars with a count of the rest. Hoist's `ProgressBar` has no compact size, so the bars
   look the same in a compact chat. It is not standalone.
+* Added `chatUiSliderSpec()`, a number in a range over Hoist's `Slider`. A slider with `range`
+  holds a low and a high value. It writes its value once the user stops moving a handle, so a drag
+  makes one write. `chatUiInputSpecs()` returns it.
 * Added `ChatModel.streamingMessageId`, the id of the reply in progress. It changes only as a turn
   starts or ends, so a renderer that reads it does not re-render as the reply streams.
 * Enhanced Copy and the announcement of a finished reply to read UI in the reply's text as words,

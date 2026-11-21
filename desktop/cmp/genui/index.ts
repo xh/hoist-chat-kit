@@ -18,6 +18,7 @@ export * from './ChatUiPropertyTable';
 export * from './ChatUiSection';
 export * from './ChatUiSegmentedControl';
 export * from './ChatUiSelect';
+export * from './ChatUiSlider';
 export * from './ChatUiStack';
 export * from './ChatUiStatCards';
 export * from './ChatUiSwitch';

@@ -6,6 +6,7 @@ import {chatUiFormSpec} from './ChatUiForm';
 import {chatUiNumberInputSpec} from './ChatUiNumberInput';
 import {chatUiSegmentedControlSpec} from './ChatUiSegmentedControl';
 import {chatUiSelectSpec} from './ChatUiSelect';
+import {chatUiSliderSpec} from './ChatUiSlider';
 import {chatUiSwitchSpec} from './ChatUiSwitch';
 import {chatUiTextAreaSpec} from './ChatUiTextArea';
 import {chatUiTextInputSpec} from './ChatUiTextInput';
@@ -86,6 +87,7 @@ export function chatUiInputSpecs(): ChatUiComponentSpec<any>[] {
         chatUiDateInputSpec(),
         chatUiCheckboxSpec(),
         chatUiSwitchSpec(),
-        chatUiSegmentedControlSpec()
+        chatUiSegmentedControlSpec(),
+        chatUiSliderSpec()
     ];
 }

@@ -25,3 +25,9 @@
 .xh-chat-ui-stack.xh-hbox > .xh-chat-ui-field.xh-form-field--segmented-control {
   min-width: min-content;
 }
+
+// In a row of a stack, a slider keeps the least width of its track, 150px in Blueprint, and the
+// 20px that Hoist's Slider pads each end with for its labels. A row that cannot hold it wraps.
+.xh-chat-ui-stack.xh-hbox > .xh-chat-ui-field.xh-form-field--slider {
+  min-width: 190px;
+}
