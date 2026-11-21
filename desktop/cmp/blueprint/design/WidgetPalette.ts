@@ -2,8 +2,9 @@ import {div} from '@xh/hoist/cmp/layout';
 import {hoistCmp, HoistModel, type HoistProps, useLocalModel} from '@xh/hoist/core';
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {action, observable} from '@xh/hoist/mobx';
-import {groupBy, upperFirst} from 'lodash';
+import {groupBy, isString, upperFirst} from 'lodash';
 import type {BlueprintDesignModel} from '../../../../blueprint';
+import {getOwn} from '../../../../blueprint/impl/pointer';
 import './WidgetPalette.scss';
 
 export interface WidgetPaletteProps extends HoistProps {
@@ -23,6 +24,9 @@ export const [WidgetPalette, widgetPalette] = hoistCmp.withFactory<WidgetPalette
         return div({
             className,
             children: [
+                impl.target && !impl.readOnly
+                    ? div({className: `${CLS}__target`, children: impl.target})
+                    : null,
                 ...impl.groups.map(({category, widgets}) =>
                     div({
                         key: category,
@@ -71,6 +75,21 @@ export class WidgetPaletteModel extends HoistModel {
                 title: it.guidance?.split('. ')[0] ?? null
             }))
         }));
+    }
+
+    /** Where a click adds a widget, as a designer reads it. */
+    get target(): string {
+        const {designModel} = this,
+            target = designModel.addTarget,
+            {blueprint} = designModel.blueprintModel;
+        if (!target) return blueprint?.root ? null : 'Adds as the root';
+        const nameOf = (id: string) => {
+            const title = getOwn(blueprint.elements, id)?.config?.title;
+            return isString(title) && title ? title : id;
+        };
+        return target.after
+            ? `Adds after ${nameOf(target.after)}, in ${nameOf(target.parent)}`
+            : `Adds into ${nameOf(target.parent)}`;
     }
 
     get readOnly(): boolean {

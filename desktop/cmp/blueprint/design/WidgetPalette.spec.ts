@@ -59,6 +59,16 @@ describe('WidgetPalette', () => {
         expect(model.blueprint.elements[design.selectedElementId].component).toBe('chart');
     });
 
+    it('says where a click adds a widget', () => {
+        const {design, palette} = open(loadBlueprint('p3-morning-report.json'));
+        expect(palette.target).toBe('Adds into tabs');
+        design.select({kind: 'element', id: 'overview'});
+        expect(palette.target).toBe('Adds into overview');
+        design.select({kind: 'element', id: 'sectorChart'});
+        expect(palette.target).toBe('Adds after Day P&L by Sector, in overview');
+        expect(open(undefined).palette.target).toBe('Adds as the root');
+    });
+
     it('says why a widget was not added', () => {
         const {palette} = open(undefined);
         palette.add('dashCanvas');

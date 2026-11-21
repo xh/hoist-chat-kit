@@ -106,6 +106,17 @@ export class BlueprintDesignModel extends HoistModel {
     }
 
     /**
+     * Where {@link addWidget} would put a widget now: the container, and the element it would
+     * follow there, if any. Null for a new root.
+     */
+    get addTarget(): {parent: string; after: string} {
+        const parent = this.defaultParent();
+        if (!parent) return null;
+        const selected = this.selectedElementId;
+        return {parent, after: selected && selected !== parent ? selected : null};
+    }
+
+    /**
      * What removing an element takes with it: the elements inside it, and the variables and preset
      * paths that name them. {@link removeElement} removes them all in one edit.
      */

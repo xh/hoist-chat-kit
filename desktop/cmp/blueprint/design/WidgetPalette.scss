@@ -17,6 +17,11 @@
     color: var(--xh-text-color-muted);
   }
 
+  &__target {
+    font-size: var(--xh-font-size-small);
+    color: var(--xh-text-color-muted);
+  }
+
   &__message {
     color: var(--xh-intent-danger-text-color);
   }
