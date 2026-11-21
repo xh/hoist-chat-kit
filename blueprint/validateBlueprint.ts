@@ -756,6 +756,9 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                     );
                 }
             }
+            if (prop?.['x-preset'] && isString(cfg[key]) && !getOwn(bp.presets, cfg[key])) {
+                err('preset.unknownGroup', `${p}/${key}`, `unknown preset group '${cfg[key]}'`);
+            }
             if (prop?.['x-template'] && isString(cfg[key])) {
                 checkTemplate(cfg[key], `${p}/${key}`, cfg.source);
             }

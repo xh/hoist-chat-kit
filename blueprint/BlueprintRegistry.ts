@@ -99,6 +99,11 @@ export interface WidgetSpec {
     component?: ElementFactory;
     /** Checks the schema cannot express. Paths are inside the widget's config. */
     validate?: (config: PlainObject, ctx: WidgetValidateContext) => BlueprintIssue[];
+    /**
+     * Adjust the config a new widget starts with, from the blueprint, or say why it cannot start
+     * yet. Applied after the schema fills it.
+     */
+    starter?: (config: PlainObject, ctx: {blueprint: Blueprint}) => PlainObject | string;
 }
 
 /** What a widget's own checks can read beyond its config. */

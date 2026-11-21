@@ -18,6 +18,8 @@ export type BlueprintSchemaExtension = {
     'x-renderer'?: boolean;
     'x-action'?: boolean;
     'x-variable'?: boolean;
+    /** Names a preset group of the blueprint, which the validator checks. */
+    'x-preset'?: boolean;
     'x-template'?: boolean;
     'x-starter'?: false;
     /** The unit a number is in, such as `px`, which an editor shows beside it. */

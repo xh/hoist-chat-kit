@@ -10,15 +10,18 @@ import type {DataCatalog, FieldDef} from '../DataCatalog';
  * first of the source's fields with the role the schema asks for that the config does not use yet,
  * with measures that total first, and measures first for a list of any fields, such as columns.
  * An enum takes its first value, an action refreshes the data, a number its default, and a text
- * its first example, else the key's name, numbered in a list. Null if the widget needs a source and the blueprint has none.
+ * its first example, else the key's name, numbered in a list. The widget's `starter` then adjusts
+ * it. Null if the widget needs a source and the blueprint has none, or the reason a starter gives
+ * that the widget cannot start yet.
  */
 export function starterConfig(
     spec: WidgetSpec,
     ctx: {blueprint: Blueprint; catalog: DataCatalog}
-): PlainObject {
+): PlainObject | string {
     const fillCtx = fillContext(ctx),
         ret = fill(spec.config ?? {}, '', fillCtx) as PlainObject;
-    return fillCtx.state.missingSource ? null : (ret ?? {});
+    if (fillCtx.state.missingSource) return null;
+    return spec.starter ? spec.starter(ret ?? {}, ctx) : (ret ?? {});
 }
 
 /**

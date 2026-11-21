@@ -20,6 +20,7 @@ export type EditorNode = EditorBase &
         | {kind: 'oneOf'; options: EditorNode[]}
         | {kind: 'source'}
         | {kind: 'variable'}
+        | {kind: 'preset'}
         | {kind: 'field'; role: FieldRole; multiple: boolean}
         | {kind: 'filter'}
         | {kind: 'format'}
@@ -73,6 +74,7 @@ function toNode(schema: PlainObject, key: string, required: boolean): EditorNode
         schema
     };
     if (schema['x-variable']) return {...base, kind: 'variable'};
+    if (schema['x-preset']) return {...base, kind: 'preset'};
     if (schema['x-source']) return {...base, kind: 'source'};
     if (schema['x-filter']) return {...base, kind: 'filter'};
     if (schema['x-format']) return {...base, kind: 'format'};

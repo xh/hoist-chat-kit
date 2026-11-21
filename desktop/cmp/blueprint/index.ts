@@ -2,6 +2,7 @@ export * from './BlueprintLinkButton';
 export * from './BlueprintView';
 export * from './BoxWidget';
 export * from './ButtonGroupInputWidget';
+export * from './PresetSelectorWidget';
 export * from './ButtonGroupWidget';
 export * from './CalloutWidget';
 export * from './ChartWidget';

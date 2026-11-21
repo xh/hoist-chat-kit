@@ -8,6 +8,7 @@ import {
 } from '../../../../blueprint';
 import {boxWidget, BoxWidgetModel} from '../BoxWidget';
 import {buttonGroupInputWidget, ButtonGroupInputWidgetModel} from '../ButtonGroupInputWidget';
+import {presetSelectorWidget, PresetSelectorWidgetModel} from '../PresetSelectorWidget';
 import {buttonGroupWidget, ButtonGroupWidgetModel} from '../ButtonGroupWidget';
 import {calloutWidget, CalloutWidgetModel} from '../CalloutWidget';
 import {chartWidget, ChartWidgetModel} from '../ChartWidget';
@@ -51,6 +52,7 @@ const DESKTOP_WIDGETS: Record<string, Pick<WidgetSpec, 'model' | 'component'>> =
     box: {model: BoxWidgetModel, component: boxWidget},
     buttonGroup: {model: ButtonGroupWidgetModel, component: buttonGroupWidget},
     buttonGroupInput: {model: ButtonGroupInputWidgetModel, component: buttonGroupInputWidget},
+    presetSelector: {model: PresetSelectorWidgetModel, component: presetSelectorWidget},
     callout: {model: CalloutWidgetModel, component: calloutWidget},
     chart: {model: ChartWidgetModel, component: chartWidget},
     cubeGrid: {model: CubeGridWidgetModel, component: cubeGridWidget},

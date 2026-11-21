@@ -104,4 +104,9 @@ describe('toEditorSpec', () => {
         });
         expect(node.label).toMatch(/\(px\)$/);
     });
+
+    it("picks a preset selector's group from the blueprint's groups", () => {
+        const spec = BUILT_IN_WIDGETS.find(it => it.name === 'presetSelector');
+        expect(toEditorSpec(spec.config).find(it => it.key === 'group').kind).toBe('preset');
+    });
 });

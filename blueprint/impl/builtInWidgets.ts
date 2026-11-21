@@ -825,6 +825,21 @@ const TILE_FRAME_SCHEMA = {
     }
 } as const satisfies BlueprintSchema;
 
+const PRESET_SELECTOR_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['group'],
+    properties: {
+        group: {type: 'string', 'x-preset': true, description: 'The preset group it switches.'},
+        display: {
+            enum: ['segmented', 'buttonGroup', 'select', 'toggle'],
+            default: 'segmented',
+            description: 'How it draws. A toggle switches between exactly two presets.'
+        },
+        label: LABEL
+    }
+} as const satisfies BlueprintSchema;
+
 const GROUPING_CHOOSER_SCHEMA = {
     type: 'object',
     additionalProperties: false,
@@ -1032,6 +1047,11 @@ export type ButtonGroupWidgetConfig = FromExtendedSchema<
 >;
 
 /** The config of a `buttonGroupInput` widget, with bindings resolved. */
+export type PresetSelectorWidgetConfig = FromExtendedSchema<
+    BlueprintSchemaExtension,
+    typeof PRESET_SELECTOR_SCHEMA
+>;
+
 export type ButtonGroupInputWidgetConfig = FromExtendedSchema<
     BlueprintSchemaExtension,
     typeof BUTTON_GROUP_INPUT_SCHEMA
@@ -1716,6 +1736,37 @@ const buttonGroup: WidgetSpec = {
     }
 };
 
+const presetSelector: WidgetSpec = {
+    name: 'presetSelector',
+    summary: "Shows a preset group's presets and switches between them.",
+    version: 1,
+    label: 'Preset selector',
+    terms: ['preset', 'view switcher', 'saved views', 'layouts'],
+    guidance:
+        "Shows a preset group's presets and switches the active one, such as a grid's P&L and Risk views. Put it beside the widget its group controls: in that widget's header on a canvas or in a panel. A group with no selector stays at its default. display toggle switches between exactly two presets.",
+    category: 'input',
+    config: PRESET_SELECTOR_SCHEMA,
+    size: {default: {w: 3, h: 1}, min: {w: 2, h: 1}},
+    // A group with no selector yet first, drawn to suit how many presets it has.
+    starter: (config, {blueprint}) => {
+        const groups = Object.entries(blueprint?.presets ?? {});
+        if (!groups.length) return 'Add a preset group first, in the Presets tab.';
+        const taken = new Set(
+                Object.values(blueprint.elements ?? {})
+                    .filter(it => it.component === 'presetSelector')
+                    .map(it => it.config?.group)
+            ),
+            [group, decl] = groups.find(([name]) => !taken.has(name)) ?? groups[0],
+            count = Object.keys(decl.items ?? {}).length;
+        return {
+            ...config,
+            group,
+            display: count === 2 ? 'toggle' : count <= 4 ? 'segmented' : 'select'
+        };
+    },
+    example: {component: 'presetSelector', config: {group: 'gridViews', display: 'segmented'}}
+};
+
 const buttonGroupInput: WidgetSpec = {
     name: 'buttonGroupInput',
     summary: 'A segmented control that picks one option of a string variable.',
@@ -1805,7 +1856,8 @@ const WIDGET_SPECS: WidgetSpec[] = [
     treemap,
     groupingChooser,
     buttonGroup,
-    buttonGroupInput
+    buttonGroupInput,
+    presetSelector
 ];
 
 //------------------
@@ -2087,6 +2139,18 @@ const VALIDATORS: Record<string, WidgetSpec['validate']> = {
                 path: `/minTile${it}`,
                 message: `minTile${it} is over maxTile${it}, so the tiles cannot meet both`
             })),
+    presetSelector: (cfg, {blueprint}) => {
+        const items = blueprint.presets?.[cfg.group]?.items;
+        if (cfg.display !== 'toggle' || !items || Object.keys(items).length === 2) return [];
+        return [
+            {
+                code: 'presetSelector.toggleNeedsTwo',
+                severity: 'error',
+                path: '/display',
+                message: `a toggle switches between two presets, and '${cfg.group}' has ${Object.keys(items).length}`
+            }
+        ];
+    },
     separator: (cfg, {blueprint, id}) => {
         const elements = blueprint.elements ?? {};
         if (!cfg.label || elements[parentOf(elements, id)]?.component !== 'toolbar') return [];

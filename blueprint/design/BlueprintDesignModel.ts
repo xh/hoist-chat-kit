@@ -91,6 +91,7 @@ export class BlueprintDesignModel extends HoistModel {
         const {catalog} = this.blueprintModel,
             config = starterConfig(spec, {blueprint, catalog});
         if (!config) return refused(`Add a source for the ${spec.label} to read first.`);
+        if (typeof config === 'string') return refused(config);
         const id = this.newId(component),
             element: BlueprintElement = {component, config},
             parent = parentId ?? this.defaultParent();
@@ -672,7 +673,7 @@ export class BlueprintDesignModel extends HoistModel {
     needsSource(component: string): boolean {
         const spec = this.widgetSpec(component),
             {blueprint, catalog} = this.blueprintModel;
-        return !!spec && !starterConfig(spec, {blueprint, catalog});
+        return !!spec && starterConfig(spec, {blueprint, catalog}) === null;
     }
 
     private updateEntry(

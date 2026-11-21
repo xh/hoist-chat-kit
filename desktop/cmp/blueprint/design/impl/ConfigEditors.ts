@@ -167,6 +167,19 @@ function editorFor(
                 width: '100%',
                 onCommit: v => commit(optional(v))
             });
+        case 'preset':
+            return select({
+                value: value ?? null,
+                options: withCurrent(
+                    Object.keys(ctx.impl.designModel.blueprintModel.blueprint?.presets ?? {}).map(
+                        it => ({value: it, label: it})
+                    ),
+                    value
+                ),
+                disabled,
+                width: '100%',
+                onCommit: v => commit(optional(v))
+            });
         case 'variable':
             return select({
                 value: value ?? null,

@@ -18,6 +18,7 @@ export type {
     BoxWidgetConfig,
     ButtonGroupWidgetConfig,
     ButtonGroupInputWidgetConfig,
+    PresetSelectorWidgetConfig,
     CalloutWidgetConfig,
     ChartWidgetConfig,
     CubeGridWidgetConfig,
