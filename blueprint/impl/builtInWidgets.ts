@@ -1482,6 +1482,28 @@ const cubeGrid: WidgetSpec = {
         "The one grid widget. Grouped into a tree with groupBy, or flat without it. Use it for positions, orders and any tabular data. Its selection is an output: a filter of the selected row's group path, or one field's value. A grid with groupBy is a tree: its dimensions become parent rows. treeStyle styles that tree, so a grid without groupBy shows no tree style. Keep the grid's default style unless the user asks for one, or it's a preview. Rename or align a column in columns, and rename a field across the whole blueprint on its source. Name it with its title, not a text element beside it.",
     category: 'data',
     config: CUBE_GRID_SCHEMA,
+    sections: [
+        {
+            label: 'Data',
+            keys: ['groupBy', 'sortBy', 'filter', 'expandLevel', 'summaryRow', 'showGroupRowCounts']
+        },
+        {label: 'Columns', keys: ['columnState', 'columns']},
+        {
+            label: 'Style',
+            keys: [
+                'treeStyle',
+                'stripeRows',
+                'rowBorders',
+                'cellBorders',
+                'showHover',
+                'sizingMode',
+                'hideHeaders',
+                'groupRowHeight',
+                'emptyText'
+            ],
+            collapsed: true
+        }
+    ],
     presetPaths: ['/columnState', '/sortBy'],
     outputs: [
         {

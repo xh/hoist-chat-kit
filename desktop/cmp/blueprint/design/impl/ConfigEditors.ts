@@ -527,6 +527,15 @@ function fieldListEditor(
                                 buttonGroup({
                                     children: [
                                         button({
+                                            icon: impl.isItemOpen(ctx.key, i)
+                                                ? Icon.chevronUp()
+                                                : Icon.chevronDown(),
+                                            text: settingsCount(entry) || null,
+                                            title: 'Settings',
+                                            minimal: true,
+                                            onClick: () => impl.toggleItem(ctx.key, i)
+                                        }),
+                                        button({
                                             icon: Icon.arrowUp(),
                                             title: 'Move up',
                                             disabled: disabled || i === 0,
@@ -549,27 +558,29 @@ function fieldListEditor(
                                 })
                             ]
                         }),
-                        div({
-                            className: `${CLS}__settings`,
-                            children: node.settings.map(setting =>
-                                propertyRow({
-                                    key: setting.key,
-                                    node: setting,
-                                    value: entry[setting.key],
-                                    commit: v =>
-                                        commitList(
-                                            entries.map((it, j) =>
-                                                j !== i
-                                                    ? it
-                                                    : v === undefined
-                                                      ? omit(it, setting.key)
-                                                      : {...it, [setting.key]: v}
-                                            )
-                                        ),
-                                    ctx
-                                })
-                            )
-                        })
+                        impl.isItemOpen(ctx.key, i)
+                            ? div({
+                                  className: `${CLS}__settings`,
+                                  children: node.settings.map(setting =>
+                                      propertyRow({
+                                          key: setting.key,
+                                          node: setting,
+                                          value: entry[setting.key],
+                                          commit: v =>
+                                              commitList(
+                                                  entries.map((it, j) =>
+                                                      j !== i
+                                                          ? it
+                                                          : v === undefined
+                                                            ? omit(it, setting.key)
+                                                            : {...it, [setting.key]: v}
+                                                  )
+                                              ),
+                                          ctx
+                                      })
+                                  )
+                              })
+                            : null
                     ]
                 })
             ),
@@ -583,6 +594,11 @@ function fieldListEditor(
             })
         ]
     });
+}
+
+// How many settings a field list entry sets beside its field, as its drawer button shows.
+function settingsCount(entry: PlainObject): number {
+    return Object.keys(entry).filter(it => it !== 'field').length;
 }
 
 // A map entry's key, by its field label where it names a field, with the key itself beside.

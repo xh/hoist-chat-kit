@@ -26,6 +26,13 @@
     text-transform: uppercase;
   }
 
+  &__section--toggle {
+    display: flex;
+    gap: var(--xh-spacing-half);
+    align-items: center;
+    cursor: pointer;
+  }
+
   &__hint {
     margin-top: calc(var(--xh-spacing-half) * -1);
     font-size: var(--xh-font-size-small);

@@ -26,6 +26,18 @@ export abstract class ConfigEditorModel extends HoistModel {
     /** A counter per property, bumped on refusal, so its editors start again from the values. */
     @observableRef accessor resets: Record<string, number> = {};
 
+    /** The item of each list whose settings are open, by the list's key. One at a time. */
+    @observableRef accessor openItems: Record<string, number> = {};
+
+    isItemOpen(key: string, index: number): boolean {
+        return this.openItems[key] === index;
+    }
+
+    @action
+    toggleItem(key: string, index: number) {
+        this.openItems = {...this.openItems, [key]: this.isItemOpen(key, index) ? null : index};
+    }
+
     constructor(readonly designModel: BlueprintDesignModel) {
         super();
     }

@@ -3,6 +3,7 @@ import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses, XH} fr
 import {button, buttonGroup} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
+import {action, observableRef} from '@xh/hoist/mobx';
 import {isEqual} from 'lodash';
 import {
     type BlueprintDesignModel,
@@ -50,6 +51,37 @@ export class ElementInspectorModel extends ConfigEditorModel {
 
     get label(): string {
         return this.widgetSpec?.label ?? this.element?.component;
+    }
+
+    /** Sections toggled from how they start, by label. */
+    @observableRef accessor toggled: Record<string, boolean> = {};
+
+    /**
+     * The element's editors in sections: the keys no section of its widget lists, untitled, then
+     * each section in order, folded or not.
+     */
+    get sections(): {label: string; nodes: EditorNode[]; collapsed: boolean}[] {
+        const {nodes} = this,
+            sections = this.widgetSpec?.sections ?? [],
+            listed = new Set(sections.flatMap(it => it.keys)),
+            ret = [
+                {
+                    label: null as string,
+                    nodes: nodes.filter(it => !listed.has(it.key)),
+                    collapsed: false
+                }
+            ];
+        sections.forEach(({label, keys, collapsed = false}) => {
+            const inSection = nodes.filter(it => keys.includes(it.key));
+            if (!inSection.length) return;
+            ret.push({label, nodes: inSection, collapsed: collapsed !== !!this.toggled[label]});
+        });
+        return ret.filter(it => it.nodes.length);
+    }
+
+    @action
+    toggleSection(label: string) {
+        this.toggled = {...this.toggled, [label]: !this.toggled[label]};
     }
 
     /** The element's editors, from its widget's config schema. */
@@ -267,17 +299,30 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                 impl.placementNodes.length
                     ? div({className: `${CLS}__section`, children: 'Config'})
                     : null,
-                ...impl.nodes.map(node =>
-                    propertyRow({
-                        node,
-                        value: impl.values[node.key],
-                        commit: v => impl.commit(node.key, v),
-                        ctx: {impl, key: node.key},
-                        issues: impl.issuesFor(node.key),
-                        badge: impl.badgeFor(node.key),
-                        key: `${node.key}:${impl.resets[node.key] ?? 0}`
-                    })
-                )
+                ...impl.sections.flatMap(section => [
+                    section.label
+                        ? div({
+                              key: `section:${section.label}`,
+                              className: `${CLS}__section ${CLS}__section--toggle`,
+                              onClick: () => impl.toggleSection(section.label),
+                              children: [
+                                  section.collapsed ? Icon.chevronRight() : Icon.chevronDown(),
+                                  section.label
+                              ]
+                          })
+                        : null,
+                    ...(section.collapsed ? [] : section.nodes).map(node =>
+                        propertyRow({
+                            node,
+                            value: impl.values[node.key],
+                            commit: v => impl.commit(node.key, v),
+                            ctx: {impl, key: node.key},
+                            issues: impl.issuesFor(node.key),
+                            badge: impl.badgeFor(node.key),
+                            key: `${node.key}:${impl.resets[node.key] ?? 0}`
+                        })
+                    )
+                ])
             ]
         });
     }

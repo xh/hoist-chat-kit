@@ -1,4 +1,4 @@
-import {render} from '@testing-library/react';
+import {fireEvent, render, screen} from '@testing-library/react';
 import {XH} from '@xh/hoist/core';
 import {initTestAppAsync} from '@xh/hoist/test-support';
 import type {ReactElement} from 'react';
@@ -56,6 +56,31 @@ describe('ElementInspector', () => {
         expect(model.blueprint.elements.posGrid.config).not.toHaveProperty('title');
         model.undo();
         expect(model.blueprint.elements.posGrid.config.title).toBe('Positions');
+    });
+
+    it("groups a grid's properties in sections, its style folded until opened", () => {
+        const {inspector} = open('p3-morning-report.json', 'posGrid'),
+            sections = () => inspector.sections.map(it => [it.label, it.collapsed]);
+        expect(sections()).toEqual([
+            [null, false],
+            ['Data', false],
+            ['Columns', false],
+            ['Style', true]
+        ]);
+        expect(inspector.sections[3].nodes.map(it => it.key)).toContain('treeStyle');
+        expect(inspector.sections[0].nodes.map(it => it.key)).toEqual(['source', 'title']);
+        inspector.toggleSection('Style');
+        expect(inspector.sections[3].collapsed).toBe(false);
+    });
+
+    it('opens one column of a field list at a time, in a drawer', () => {
+        const {inspector} = open('p3-morning-report.json', 'posGrid');
+        expect(inspector.isItemOpen('columnState', 1)).toBe(false);
+        inspector.toggleItem('columnState', 1);
+        expect(inspector.isItemOpen('columnState', 1)).toBe(true);
+        inspector.toggleItem('columnState', 2);
+        expect(inspector.isItemOpen('columnState', 1)).toBe(false);
+        expect(inspector.isItemOpen('columnState', 2)).toBe(true);
     });
 
     it("opens a property's preset group from its badge, for the host to show", () => {
@@ -423,6 +448,8 @@ describe('ElementInspector', () => {
                 [...container.querySelectorAll('.xh-blueprint-element-inspector__row')].find(
                     it => it.firstElementChild?.textContent === label
                 );
+        expect(row('Stripe rows')).toBeUndefined();
+        fireEvent.click(screen.getByText('Style'));
         expect(row('Stripe rows').querySelector('input').checked).toBe(true);
         expect(row('Show hover').querySelector('input').checked).toBe(false);
         expect(row('Tree style').textContent).toContain('Default (highlights)');
@@ -437,7 +464,7 @@ describe('ElementInspector', () => {
             labels = [...container.querySelectorAll('.xh-blueprint-element-inspector__label')].map(
                 it => it.textContent
             );
-        expect(labels).toEqual(expect.arrayContaining(['Source *', 'Title', 'Sizing mode']));
+        expect(labels).toEqual(expect.arrayContaining(['Source *', 'Title', 'Group by']));
         expect(container.textContent).not.toContain('No model found');
     });
 });
