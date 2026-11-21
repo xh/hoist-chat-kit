@@ -60,6 +60,16 @@ describe('VariablesEditor', () => {
         expect(editor.name).toBeNull();
     });
 
+    it('keeps the arguments a newly picked resolver takes too', () => {
+        const {editor} = open('priceStart'),
+            call = {resolver: 'dateOffset', args: {from: {$var: 'asOf'}, months: -3}};
+        expect(editor.withResolver(call, 'yearStart')).toEqual({
+            resolver: 'yearStart',
+            args: {from: {$var: 'asOf'}}
+        });
+        expect(editor.withResolver(call, 'today')).toEqual({resolver: 'today'});
+    });
+
     it('keeps a variable that something reads, and says why', () => {
         const {model, editor} = open('grouping');
         editor.remove();

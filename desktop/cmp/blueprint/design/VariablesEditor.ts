@@ -3,7 +3,7 @@ import {hoistCmp, type HoistProps, type PlainObject, useLocalModel, uses} from '
 import {button} from '@xh/hoist/desktop/cmp/button';
 import {select, textInput} from '@xh/hoist/desktop/cmp/input';
 import {Icon} from '@xh/hoist/icon';
-import {castArray, isEmpty, isString, omit} from 'lodash';
+import {castArray, isEmpty, isString, omit, pick} from 'lodash';
 import {
     BUILT_IN_VARIABLE_TYPES,
     type BlueprintDesignModel,
@@ -157,6 +157,12 @@ export class VariableEditorModel extends ConfigEditorModel {
     /** Each argument a resolver takes, with its description. */
     resolverArgs(name: string): Record<string, string> {
         return this.designModel.blueprintModel.registry.resolvers[name]?.args ?? {};
+    }
+
+    /** A call switched to another resolver, keeping the arguments that one takes too. */
+    withResolver(call: ResolverCall, resolver: string): ResolverCall {
+        const args = pick(call?.args ?? {}, Object.keys(this.resolverArgs(resolver)));
+        return {resolver, ...(isEmpty(args) ? {} : {args})};
     }
 
     sourceFieldOptions(name: string): Option[] {
@@ -532,7 +538,8 @@ function resolverCallEditor(
                 options: impl.resolverOptions,
                 disabled: impl.readOnly,
                 width: '100%',
-                onCommit: (resolver: string) => resolver !== call?.resolver && commit({resolver})
+                onCommit: (resolver: string) =>
+                    resolver !== call?.resolver && commit(impl.withResolver(call, resolver))
             }),
             ...Object.entries(impl.resolverArgs(call?.resolver)).map(([arg, description]) =>
                 propertyRow({
