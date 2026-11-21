@@ -415,6 +415,18 @@ export const SCENARIOS: Scenario[] = [
         ]
     },
     {
+        id: 'P13',
+        title: 'Exposure against a limit',
+        host: 'p2-linked-dashboard.json',
+        context: 'Mode: design. The user has write access. They are editing the host blueprint below.',
+        steps: [{prompt: "Our gross limit is 2 billion. Put something on the dashboard that shows how close we're getting to it."}],
+        checks: [
+            ['a gauge of gross exposure over positions', o => cfg(o.blueprint, 'gauge', c => c.value === 'grossExposure' && dataset(o.blueprint, c) === 'positions').length],
+            ['its max is the 2 billion limit', o => cfg(o.blueprint, 'gauge', c => c.max === 2e9).length],
+            ['no new source', o => Object.keys(o.blueprint.sources ?? {}).length === 2]
+        ]
+    },
+    {
         id: 'W4',
         title: "One city's day on two axes",
         context: BUILD,

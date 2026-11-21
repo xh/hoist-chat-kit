@@ -1,0 +1,22 @@
+{
+    "base": 12,
+    "description": "Add a gauge of gross exposure against its 2 billion limit",
+    "ops": [
+        {
+            "op": "addElement",
+            "id": "grossLimit",
+            "element": {
+                "component": "gauge",
+                "config": {
+                    "source": "positions",
+                    "title": "Gross Exposure vs Limit",
+                    "value": "grossExposure",
+                    "max": 2000000000,
+                    "stops": [{"at": 0.7, "color": "#55bf3b"}, {"at": 0.9, "color": "#dddf0d"}, {"at": 1, "color": "#df5353"}]
+                }
+            },
+            "parent": "dashboard",
+            "child": {"x": 0, "y": 14, "w": 3, "h": 4}
+        }
+    ]
+}
