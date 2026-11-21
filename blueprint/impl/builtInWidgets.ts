@@ -1618,6 +1618,7 @@ const cubeGrid: WidgetSpec = {
         {
             label: 'Style',
             keys: [
+                'rowStyles',
                 'treeStyle',
                 'stripeRows',
                 'rowBorders',
