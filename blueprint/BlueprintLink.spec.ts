@@ -5,7 +5,7 @@ import {initTestAppAsync} from '@xh/hoist/test-support';
 import {beforeAll, describe, expect, it, onTestFinished, vi} from 'vitest';
 import {portfolioCatalog, scenarioRegistry} from '../test/blueprintFixtures';
 import type {Blueprint} from './Blueprint';
-import {blueprintLinkParams, parseBlueprintLink} from './BlueprintLink';
+import {blueprintLinkParams, blueprintLinkUrl, parseBlueprintLink} from './BlueprintLink';
 import {BlueprintModel} from './BlueprintModel';
 import type {BlueprintRegistry} from './BlueprintRegistry';
 import {FakeBlueprintDataProvider} from './FakeBlueprintDataProvider';
@@ -276,6 +276,26 @@ describe('BlueprintLink', () => {
             expect(blueprintLinkParams(doc)).toEqual({id, version: '1'});
             await doc.openAsync(id, {as: 'publish'});
             expect(blueprintLinkParams(doc)).toEqual({id});
+        });
+    });
+
+    describe('blueprintLinkUrl', () => {
+        it("builds an absolute URL on the app's route, with the id in its path", async () => {
+            XH.routerModel.addRoutes([{name: 'linkSpec', path: '/linkSpec/:id'}]);
+            const {doc, model, id} = await openDocument('write');
+            await doc.openAsync(id, {as: 'publish'});
+            model.setVariable('symbols', ['A&B', 'C']);
+            model.setVariable('top', 3);
+
+            expect(blueprintLinkUrl(doc, 'linkSpec')).toBe(
+                `${window.location.origin}/linkSpec/${id}?top=3&symbols=A%26B&symbols=C`
+            );
+        });
+
+        it('is null for a route the app does not have', async () => {
+            const {doc, id} = await openDocument('write');
+            await doc.openAsync(id, {as: 'publish'});
+            expect(blueprintLinkUrl(doc, 'noSuchRoute')).toBeNull();
         });
     });
 

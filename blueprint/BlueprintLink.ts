@@ -1,5 +1,5 @@
 import {parsePeriod} from '@xh/hoist/cmp/daterange';
-import type {PlainObject} from '@xh/hoist/core';
+import {type PlainObject, XH} from '@xh/hoist/core';
 import {isArray, isEqual, isFinite, isPlainObject, isString} from 'lodash';
 import type {Blueprint, VariableDecl} from './Blueprint';
 import type {BlueprintRegistry} from './BlueprintRegistry';
@@ -111,8 +111,24 @@ export function blueprintLinkParams(
     return ret;
 }
 
-/** A link's params as a query string, without its leading `?`. A param of `''` is a flag. */
-export function toLinkQuery(params: Record<string, string | string[]>): string {
+/**
+ * A link to the blueprint a document model has open, as it is now, as an absolute URL on the app's
+ * route, whose `id` path param takes the blueprint's id. Null if nothing is open, or if the app has
+ * no route of that name, for which the router's `buildUrl` would throw.
+ */
+export function blueprintLinkUrl(doc: BlueprintDocumentModel, route: string): string {
+    const params = blueprintLinkParams(doc);
+    if (!params || !XH.hasRoute(route)) return null;
+    const {id, ...rest} = params,
+        query = toLinkQuery(rest);
+    return `${window.location.origin}${XH.router.buildUrl(route, {id})}${query ? `?${query}` : ''}`;
+}
+
+//------------------
+// Implementation
+//------------------
+// A link's params as a query string, without its leading `?`. A param of `''` is a flag.
+function toLinkQuery(params: Record<string, string | string[]>): string {
     return Object.entries(params)
         .flatMap(([name, value]) =>
             (isArray(value) ? value : [value]).map(it =>
@@ -124,9 +140,6 @@ export function toLinkQuery(params: Record<string, string | string[]>): string {
         .join('&');
 }
 
-//------------------
-// Implementation
-//------------------
 const MAX_VALUE_LENGTH = 1000,
     MAX_LIST_LENGTH = 100,
     MAX_PARAMS_LENGTH = 8000;
