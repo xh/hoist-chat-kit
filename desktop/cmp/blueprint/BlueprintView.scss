@@ -60,6 +60,18 @@
   gap: var(--xh-spacing);
 }
 
+// A box's child may shrink below its content, so a toolbar in it overflows to its menu rather than
+// hold the box open.
+.xh-blueprint-box__item {
+  min-width: 0;
+  min-height: 0;
+
+  > * {
+    min-width: 0;
+    min-height: 0;
+  }
+}
+
 // In a box, a child runs along the box's direction, so a vertical separator spans a row.
 .xh-blueprint-box__item > .xh-blueprint-view__design-element {
   flex-direction: inherit;

@@ -86,7 +86,7 @@ export const [PanelWidget, panelWidget] = hoistCmp.withFactory({
                     [only] = refs;
                 return refs.length === 1 && model.componentOf(only.id) === 'toolbar'
                     ? items[0]
-                    : toolbar({children: items});
+                    : toolbar({children: items, enableOverflowMenu: refs.length > 1});
             },
             headerItems = model.slotRefs('headerItems').map(it => model.renderElement(it.id)),
             props = {
