@@ -1962,6 +1962,9 @@ function depthOf(value: unknown): number {
     return 1 + Math.max(0, ...Object.values(value).map(depthOf));
 }
 
+// Widgets that take the size their container gives them, and have none of their own.
+const SIZELESS_WIDGETS = ['cubeGrid', 'chart', 'heatmap', 'treemap'];
+
 const VALIDATORS: Record<string, WidgetSpec['validate']> = {
     chart: cfg => [
         ...(cfg.highchartsConfig ? checkHighchartsConfig(cfg.highchartsConfig) : []),
@@ -2027,6 +2030,21 @@ const VALIDATORS: Record<string, WidgetSpec['validate']> = {
                 severity: 'error',
                 path: '/groupBy',
                 message: 'a treemap needs groupBy, in its config or from a preset group'
+            }
+        ];
+    },
+    box: (cfg, {blueprint, id}) => {
+        const elements = blueprint.elements ?? {},
+            sizeless = (elements[id]?.children ?? []).filter(it =>
+                SIZELESS_WIDGETS.includes(elements[it.id]?.component)
+            );
+        if (!cfg.align || cfg.align === 'stretch' || !sizeless.length) return [];
+        return [
+            {
+                code: 'box.alignCollapses',
+                severity: 'warning',
+                path: '/align',
+                message: `${sizeless.map(it => it.id).join(', ')} has no size of its own, so align ${cfg.align} leaves it no room across the box. Keep stretch.`
             }
         ];
     },

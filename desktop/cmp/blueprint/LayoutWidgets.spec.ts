@@ -63,6 +63,36 @@ describe('layout and container widgets', () => {
             expect(items[2].style.flex).toMatch(/^1/);
         });
 
+        it('warns at align when another align leaves a grid or chart no room across it', () => {
+            const check = (align: string) =>
+                validateBlueprint(
+                    {
+                        schema: {blueprint: 1},
+                        root: 'row',
+                        variables: {
+                            asOf: {
+                                type: 'localDate',
+                                setBy: 'prompt',
+                                default: {value: '2026-03-02'}
+                            }
+                        },
+                        sources: {
+                            positions: {dataset: 'positions', params: {asOf: {$var: 'asOf'}}}
+                        },
+                        elements: {
+                            row: {component: 'box', config: {align}, children: [{id: 'grid'}]},
+                            grid: {
+                                component: 'cubeGrid',
+                                config: {source: 'positions', columnState: ['mktVal']}
+                            }
+                        }
+                    },
+                    {catalog: portfolioCatalog, registry: scenarioRegistry()}
+                ).map(it => [it.code, it.path]);
+            expect(check('center')).toEqual([['box.alignCollapses', '/elements/row/config/align']]);
+            expect(check('stretch')).toEqual([]);
+        });
+
         it('fills its parent as a frame by default, or sizes to its content as a box', () => {
             const filled = show('col', {
                     col: {component: 'box', config: {}, children: [{id: 'a'}]},
