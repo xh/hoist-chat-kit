@@ -13,6 +13,7 @@ export * from './ChatUiFrame';
 export * from './ChatUiGrid';
 export * from './ChatUiInput';
 export * from './ChatUiNumberInput';
+export * from './ChatUiRadioInput';
 export * from './ChatUiProgressBars';
 export * from './ChatUiPropertyTable';
 export * from './ChatUiSection';

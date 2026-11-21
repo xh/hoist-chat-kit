@@ -53,6 +53,7 @@ describe('built-in form components', () => {
                 'checkbox',
                 'switch',
                 'segmentedControl',
+                'radioInput',
                 'slider'
             ]);
         });
@@ -77,6 +78,11 @@ describe('built-in form components', () => {
                 'Slider(name: string, min: number, max: number, label?: string, step?: number, ' +
                     'format?: "number" | "percent" | "currency" | "none", range?: boolean, ' +
                     'value?: $binding<number | number[]>)'
+            );
+            expect(signature('RadioInput')).toBe(
+                'RadioInput(name: string, options: (string | number | ' +
+                    '{value: string | number; label?: string})[], label?: string, ' +
+                    'rules?: {required?: boolean}, value?: $binding<string | number>)'
             );
             expect(signature('Button')).toBe(
                 'Button(label: string, action?: @ToAssistant | @Set | @Reset, ' +
@@ -216,6 +222,66 @@ describe('built-in form components', () => {
             expect(values.get('top')).toBe('week');
         });
 
+        it('picks a choice of a radio input, and keeps the type of its value', () => {
+            const {values} = renderBound(
+                {
+                    top: {
+                        component: 'radioInput',
+                        props: {
+                            name: 'term',
+                            label: 'Term',
+                            // A second choice with the text of an earlier one is left out.
+                            options: [{value: 1, label: 'One year'}, 3, 'none', '1']
+                        }
+                    }
+                },
+                {top: 1}
+            );
+            const radio = (name: string) => screen.getByRole<HTMLInputElement>('radio', {name});
+            expect(screen.getAllByRole('radio')).toHaveLength(3);
+            expect(radio('One year').checked).toBe(true);
+
+            fireEvent.click(radio('3'));
+            expect(values.get('top')).toBe(3);
+            expect(radio('3').checked).toBe(true);
+
+            fireEvent.click(radio('none'));
+            expect(values.get('top')).toBe('none');
+
+            // A value that is not a choice selects none, and stays in the state.
+            act(() => values.set('top', 'other'));
+            expect(screen.getAllByRole<HTMLInputElement>('radio').some(it => it.checked)).toBe(
+                false
+            );
+        });
+
+        it('requires a choice of a radio input with the required rule', async () => {
+            const chatModel = createChatModel(),
+                {container} = renderDocument(
+                    {
+                        root: 'form',
+                        elements: {
+                            form: {component: 'form', props: {}, children: ['plan', 'go']},
+                            plan: {
+                                component: 'radioInput',
+                                props: {
+                                    name: 'plan',
+                                    label: 'Plan',
+                                    options: ['basic', 'pro'],
+                                    rules: {required: true}
+                                }
+                            },
+                            go: {component: 'button', props: {label: 'Submit'}}
+                        }
+                    },
+                    chatModel
+                );
+
+            await clickAsync(screen.getByRole('button', {name: 'Submit'}));
+            expect(chatModel.messages).toHaveLength(0);
+            expect(container.textContent).toContain('Plan is required.');
+        });
+
         it('moves a slider by its step, and shows a value the state sets', async () => {
             const {values} = renderBound(
                 {
@@ -321,6 +387,22 @@ describe('built-in form components', () => {
         });
 
         describe('a default that streams in before the props that check it', () => {
+            it('selects the default of a radio input once its choice arrives', () => {
+                const view = streamed('radioInput'),
+                    props = {name: 'plan', options: ['basic', 'pro'], value: 'pro'},
+                    {rerender} = render(view(props, true)),
+                    checked = () =>
+                        screen
+                            .getAllByRole<HTMLInputElement>('radio')
+                            .filter(it => it.checked)
+                            .map(it => it.value);
+                // The last choice may be cut short, so it is left out while the props stream.
+                expect(checked()).toEqual([]);
+
+                rerender(view(props, false));
+                expect(checked()).toEqual(['pro']);
+            });
+
             it('shows the default of a slider once its range takes it in', () => {
                 const view = streamed('slider'),
                     {rerender} = render(view({name: 'level', min: 0, value: 150}, true)),
@@ -602,18 +684,26 @@ describe('built-in form components', () => {
             });
         });
 
-        it('sends what a slider shows, with a range as one text', async () => {
+        it('sends what a slider and a radio input show, with a range as one text', async () => {
             const chatModel = createChatModel();
             renderDocument(
                 {
                     root: 'form',
                     elements: {
-                        form: {component: 'form', props: {}, children: ['level', 'price', 'go']},
+                        form: {
+                            component: 'form',
+                            props: {},
+                            children: ['level', 'price', 'plan', 'go']
+                        },
                         // No value: the slider shows its least value, and sends it.
                         level: {component: 'slider', props: {name: 'level', min: 1, max: 5}},
                         price: {
                             component: 'slider',
                             props: {name: 'price', min: 0, max: 100, range: true, value: [20, 80]}
+                        },
+                        plan: {
+                            component: 'radioInput',
+                            props: {name: 'plan', options: ['basic', 'pro'], value: 'basic'}
                         },
                         go: {component: 'button', props: {label: 'Submit'}}
                     }
@@ -621,9 +711,14 @@ describe('built-in form components', () => {
                 chatModel
             );
 
+            fireEvent.click(screen.getByRole('radio', {name: 'pro'}));
             await clickAsync(screen.getByRole('button', {name: 'Submit'}));
 
-            expect(chatModel.messages[0].metadata.context).toEqual({level: 1, price: '20, 80'});
+            expect(chatModel.messages[0].metadata.context).toEqual({
+                level: 1,
+                price: '20, 80',
+                plan: 'pro'
+            });
         });
 
         it('sends the value a slider shows before its write to the state', async () => {

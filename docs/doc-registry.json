@@ -715,6 +715,7 @@
         "chatUiCheckboxSpec",
         "chatUiSwitchSpec",
         "chatUiSegmentedControlSpec",
+        "chatUiRadioInputSpec",
         "chatUiSliderSpec",
         "ChatUiForm",
         "ChatUiButton",

@@ -58,7 +58,7 @@ Key features:
   a message as the user's next turn, and its tooltip shows what the click does.
 - **One card frame** - every card shares a 28 px header strip, a footer for counts, and the same
   loading, failed and empty states. `.xh-chat--compact` narrows them for a docked chat.
-- **Forms and inputs** - a form, a button and nine inputs put Hoist's `FormField`, inputs and
+- **Forms and inputs** - a form, a button and ten inputs put Hoist's `FormField`, inputs and
   `Button` to work. Each input holds a value that the user changes, validates it with Hoist
   rules, and can bind it to the state of its document.
 
@@ -525,6 +525,7 @@ const catalog = new ChatUiCatalog({
 | `chatUiCheckboxSpec` | `checkbox` | `Checkbox` | True or false |
 | `chatUiSwitchSpec` | `switch` | `SwitchInput` | True or false |
 | `chatUiSegmentedControlSpec` | `segmentedControl` | `SegmentedControl` | One choice |
+| `chatUiRadioInputSpec` | `radioInput` | `RadioInput` | One choice |
 | `chatUiSliderSpec` | `slider` | `Slider` | A number, or a low and a high value with `range` |
 
 The model writes a form as a document, or as the program of a text format:
@@ -551,10 +552,11 @@ The model writes a form as a document, or as the program of a text format:
   [Run programs with state](../../../genui/openui/README.md#run-programs-with-state).
 
 A text or number input writes its value when the user leaves it or presses Enter, as Hoist
-commits it. A select, a checkbox, a switch and a segmented control write on each change. A slider
-writes once the user stops moving a handle for a quarter of a second, so that a drag makes one
-write. A press or a click anywhere writes it at once, so that a button reads the value shown. Each
-input shows only a value of its own type, whatever the state holds.
+commits it. A select, a checkbox, a switch, a segmented control and a radio input write on each
+change. A slider writes once the user stops moving a handle for a quarter of a second, so that a
+drag makes one write. A press or a click anywhere writes it at once, so that a button reads the
+value shown. Each input shows only a value of its own type, whatever the state holds. A radio
+input shows none selected for a value that is not among its choices.
 
 **A slider** always shows a value, so it takes no rules. A value that is missing or outside the
 range shows at the nearest end, and a form sends the value that the slider shows. A range written
@@ -676,6 +678,7 @@ and `description`, the text that tells the model when to use the component.
 | `chatUiButtonSpec` | `actionTypes` | `ChatUiActionType[]` | Kinds of action the model may put on the button. Default `['send', 'state']`. |
 | `chatUiSelectSpec` | `maxOptions` | `number` | Most choices. Default 50. |
 | `chatUiSegmentedControlSpec` | `maxOptions` | `number` | Most choices. Default 6. |
+| `chatUiRadioInputSpec` | `maxOptions` | `number` | Most choices. Default 8. |
 | `chatUiFormSpec` and the other inputs | - | - | No options beyond `name` and `description`. |
 | `chatUiTabsSpec` | `maxTabs` | `number` | Most tabs. Default 6. |
 | `chatUiSectionSpec` | - | - | No options beyond `name` and `description`. |
@@ -746,7 +749,7 @@ a model to bind a `$variable`.
 | `select` | `name`, `options`, `label`, `placeholder`, `multi`, `rules`, `value` |
 | `dateInput` | `name`, `label`, `rules`, `value` |
 | `checkbox`, `switch` | `name`, `label`, `value` |
-| `segmentedControl` | `name`, `options`, `label`, `rules`, `value` |
+| `segmentedControl`, `radioInput` | `name`, `options`, `label`, `rules`, `value` |
 | `slider` | `name`, `min`, `max`, `label`, `step`, `format`, `range`, `value` |
 
 An option is a value, or an object with a `value` and a `label`. `name` is the key of the field

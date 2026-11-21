@@ -77,6 +77,8 @@ detailed, step-by-step upgrade instructions with before/after code examples.
   maximum with an optional target. It formats the figure over each bar, and shows its first
   `maxItems` bars with a count of the rest. Hoist's `ProgressBar` has no compact size, so the bars
   look the same in a compact chat. It is not standalone.
+* Added `chatUiRadioInputSpec()`, a list of choices with one selected over Hoist's `RadioInput`.
+  It keeps the type of each value, number or text. `chatUiInputSpecs()` returns it.
 * Added `chatUiSliderSpec()`, a number in a range over Hoist's `Slider`. A slider with `range`
   holds a low and a high value. It writes its value once the user stops moving a handle, so a drag
   makes one write. `chatUiInputSpecs()` returns it.

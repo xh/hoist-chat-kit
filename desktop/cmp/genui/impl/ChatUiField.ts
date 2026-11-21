@@ -130,8 +130,9 @@ export class ChatUiFieldModel extends HoistModel implements ChatUiFormField {
             },
             {
                 // The state changed, as on a reset or a write from another input. Or a prop that
-                // checks the value changed, such as the range of a slider, as it streams in after
-                // the value. That applies the value again, but only until the user acts.
+                // checks the value changed, such as the range of a slider or the choices of a
+                // radio input, as they stream in after the value. That applies the value again,
+                // but only until the user acts.
                 track: () => {
                     const {value} = this.props;
                     return [value, this.toInput(value)];

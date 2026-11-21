@@ -69,9 +69,10 @@ export function toRequiredRules(rules: ChatUiInputRules): RuleLike[] {
 }
 
 /**
- * The options of a select or a segmented control, each with a value and a label. Takes a bare
- * value as an option that shows it. While the props stream, the last option may be cut short, so
- * it is left out. An option with no value, or a value already listed, is left out too.
+ * The options of a select, a segmented control or a radio input, each with a value and a label.
+ * Takes a bare value as an option that shows it. While the props stream, the last option may be
+ * cut short, so it is left out. An option with no value, or a value already listed, is left out
+ * too.
  * @internal
  */
 export function toOptions(
