@@ -17,6 +17,15 @@
     color: var(--xh-text-color-muted);
   }
 
+  &__section {
+    padding-top: var(--xh-spacing-half);
+    border-top: var(--xh-border-solid);
+    font-size: var(--xh-font-size-small);
+    font-weight: bold;
+    color: var(--xh-text-color-muted);
+    text-transform: uppercase;
+  }
+
   &__row {
     display: flex;
     flex-direction: column;

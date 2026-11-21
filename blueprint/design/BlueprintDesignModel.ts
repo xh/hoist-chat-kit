@@ -8,6 +8,7 @@ import {
     isEqual,
     isPlainObject,
     mapValues,
+    pickBy,
     startCase,
     uniq
 } from 'lodash';
@@ -281,14 +282,25 @@ export class BlueprintDesignModel extends HoistModel {
 
     /** Set the title an element has in its container, such as a tab's, as one edit. */
     setChildTitle(id: string, title: string): BlueprintEditResult {
+        return this.setChildPlacement(id, {title}, `Retitle ${this.elementSpec(id)?.label ?? id}`);
+    }
+
+    /**
+     * Change where an element sits in its container, such as its size on a canvas or its flex in
+     * a box, as one edit. A key given as `undefined` is removed.
+     */
+    setChildPlacement(
+        id: string,
+        changes: PlainObject,
+        description = `${id}: placement`
+    ): BlueprintEditResult {
         const parent = parentOf(this.blueprintModel.blueprint?.elements, id);
         if (!parent) return refused(`'${id}' is not in a container.`);
         const children = this.blueprintModel.blueprint.elements[parent].children,
             index = children.findIndex(it => it.id === id),
-            {id: _id, ...placement} = children[index];
-        return this.edit(`Retitle ${this.elementSpec(id)?.label ?? id}`, [
-            {op: 'moveElement', id, parent, child: {...placement, title}, index}
-        ]);
+            {id: _id, ...placement} = children[index],
+            child = pickBy({...placement, ...changes}, it => it !== undefined);
+        return this.edit(description, [{op: 'moveElement', id, parent, child, index}]);
     }
 
     /** Add a variable the user sets, a string by default, with a name of its own, and select it. */

@@ -10,6 +10,7 @@ import {
     type EditorNode,
     toEditorSpec
 } from '../../../../blueprint';
+import {parentOf} from '../../../../blueprint/impl/elements';
 import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
 import {CLS, listOf, propertyRow} from './impl/ConfigEditors';
@@ -113,6 +114,37 @@ export class ElementInspectorModel extends ConfigEditorModel {
         if (errors.length) this.refuseWith(SETS_KEY, errors);
     }
 
+    /** Editors for where the element sits in its container, from the container's child schema. */
+    get placementNodes(): EditorNode[] {
+        const schema = this.parentSpec?.children?.schema;
+        return schema ? toEditorSpec(schema).filter(it => it.key !== 'id') : [];
+    }
+
+    /** The element's child reference in its container, without its ID. */
+    get placementValues(): PlainObject {
+        const {elements} = this.designModel.blueprintModel.blueprint ?? {},
+            ref = elements?.[this.parentId]?.children?.find(it => it.id === this.elementId);
+        if (!ref) return {};
+        const {id: _id, ...ret} = ref;
+        return ret;
+    }
+
+    commitPlacement(key: string, value: unknown) {
+        const {issues} = this.designModel.setChildPlacement(this.elementId, {[key]: value}),
+            errors = issues.filter(it => it.severity === 'error');
+        if (errors.length) this.refuseWith(placementKey(key), errors);
+    }
+
+    private get parentId(): string {
+        return parentOf(this.designModel.blueprintModel.blueprint?.elements, this.elementId);
+    }
+
+    private get parentSpec() {
+        const component =
+            this.designModel.blueprintModel.blueprint?.elements?.[this.parentId]?.component;
+        return component ? this.designModel.blueprintModel.registry.widgets[component] : null;
+    }
+
     /** The tabs of a container whose children take titles, or null for any other element. */
     get tabs(): {id: string; title: string}[] {
         const required: string[] = this.widgetSpec?.children?.schema?.required ?? [];
@@ -159,6 +191,9 @@ export class ElementInspectorModel extends ConfigEditorModel {
 // The key a refusal of the element itself, such as its removal, goes under.
 const ELEMENT_KEY = '';
 
+// The key a placement property's refusals go under, apart from the config's own.
+const placementKey = (key: string) => `$placement.${key}`;
+
 // The key the Sets row's refusals go under.
 const SETS_KEY = '$sets';
 
@@ -195,6 +230,22 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                     ),
                 impl.tabs ? tabsEditor(impl) : null,
                 impl.setsOptions ? setsEditor(impl) : null,
+                impl.placementNodes.length
+                    ? div({className: `${CLS}__section`, children: 'Placement'})
+                    : null,
+                ...impl.placementNodes.map(node =>
+                    propertyRow({
+                        node,
+                        value: impl.placementValues[node.key],
+                        commit: v => impl.commitPlacement(node.key, v),
+                        ctx: {impl, key: placementKey(node.key)},
+                        issues: impl.issuesFor(placementKey(node.key)),
+                        key: `placement:${node.key}:${impl.resets[placementKey(node.key)] ?? 0}`
+                    })
+                ),
+                impl.placementNodes.length
+                    ? div({className: `${CLS}__section`, children: 'Config'})
+                    : null,
                 ...impl.nodes.map(node =>
                     propertyRow({
                         node,

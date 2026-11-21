@@ -58,6 +58,22 @@ describe('ElementInspector', () => {
         expect(model.blueprint.elements.posGrid.config.title).toBe('Positions');
     });
 
+    it("edits where an element sits in its container, from the container's child schema", () => {
+        const {model, inspector} = open('p3-morning-report.json', 'posGrid');
+        expect(inspector.placementNodes.map(it => it.key)).toEqual(['x', 'y', 'w', 'h']);
+        expect(inspector.placementValues).toMatchObject({x: 0, y: 1, w: 8, h: 9});
+
+        inspector.commitPlacement('w', 6);
+        expect(model.blueprint.elements.positions.children.find(it => it.id === 'posGrid')).toEqual(
+            {id: 'posGrid', x: 0, y: 1, w: 6, h: 9}
+        );
+        expect(model.history.at(-1).description).toMatch(/posGrid: placement/);
+
+        inspector.commitPlacement('h', undefined);
+        expect(inspector.issuesFor('$placement.h')[0].message).toMatch(/required/);
+        expect(inspector.placementValues.h).toBe(9);
+    });
+
     it('picks the variable an input sets, or makes a new one named for it', () => {
         const {model, design, inspector} = open();
         expect(inspector.setsOptions).toBeNull();
