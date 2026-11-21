@@ -187,6 +187,11 @@ describe('VariablesEditor', () => {
             expect.arrayContaining(['Name', 'Type *', 'Label', 'Set by', 'Compute', 'Default'])
         );
         expect(container.textContent).not.toContain('No model found');
+        expect(
+            [...container.querySelectorAll('.xh-blueprint-element-inspector__hint')].map(
+                it => it.textContent
+            )
+        ).toContain('Who changes the value: no one, the user, a resolver, an action, or widgets.');
     });
 
     it('draws a date picker for a date default', () => {

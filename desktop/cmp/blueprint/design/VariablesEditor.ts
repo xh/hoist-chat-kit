@@ -304,21 +304,36 @@ function declaration(impl: VariableEditorModel) {
                 issues: impl.issuesFor(node.key)
             })
         ),
-        labelled('Set by', setByEditor(impl), impl.issuesFor('setBy')),
+        labelled(
+            'Set by',
+            setByEditor(impl),
+            impl.issuesFor('setBy'),
+            null,
+            'Who changes the value: no one, the user, a resolver, an action, or widgets.'
+        ),
         impl.setByKind === 'resolver'
             ? labelled(
                   'Compute',
                   resolverCallEditor(decl.compute, it => impl.commit('compute', it), impl, ctx),
-                  impl.issuesFor('compute')
+                  impl.issuesFor('compute'),
+                  null,
+                  'The resolver that computes the value whenever its inputs change.'
               )
             : null,
         labelled(
             'Default',
             defaultEditor(impl),
             impl.issuesFor('default'),
-            impl.badgeFor('default')
+            impl.badgeFor('default'),
+            "The value it starts with: a literal, or a resolver's."
         ),
-        labelled('Options', optionsEditor(impl), impl.issuesFor('options'))
+        labelled(
+            'Options',
+            optionsEditor(impl),
+            impl.issuesFor('options'),
+            null,
+            "The values a user may pick: a list, or a source field's values."
+        )
     ];
 }
 

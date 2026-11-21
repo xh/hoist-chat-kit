@@ -154,5 +154,10 @@ describe('SourcesEditor', () => {
             expect.arrayContaining(['Name', 'Dataset', 'Parameters', 'Filter', 'Fields'])
         );
         expect(container.textContent).not.toContain('No model found');
+        expect(
+            [...container.querySelectorAll('.xh-blueprint-element-inspector__hint')].map(
+                it => it.textContent
+            )
+        ).toContain('Fields from another source, matched on shared keys.');
     });
 });

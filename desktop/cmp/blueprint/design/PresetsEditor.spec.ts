@@ -86,5 +86,10 @@ describe('PresetsEditor', () => {
             );
         expect(labels).toEqual(expect.arrayContaining(['Label', 'Controls', 'Default', 'Presets']));
         expect(container.textContent).not.toContain('No model found');
+        expect(
+            [...container.querySelectorAll('.xh-blueprint-element-inspector__hint')].map(
+                it => it.textContent
+            )
+        ).toContain('The preset a user starts on.');
     });
 });

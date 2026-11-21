@@ -26,6 +26,12 @@
     text-transform: uppercase;
   }
 
+  &__hint {
+    margin-top: calc(var(--xh-spacing-half) * -1);
+    font-size: var(--xh-font-size-small);
+    color: var(--xh-text-color-muted);
+  }
+
   &__row {
     display: flex;
     flex-direction: column;

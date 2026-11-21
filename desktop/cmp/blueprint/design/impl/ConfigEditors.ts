@@ -784,13 +784,15 @@ export function labelled(
     label: string,
     editor: unknown,
     rowIssues: {message: string}[] = [],
-    badge: string = null
+    badge: string = null,
+    hint: string = null
 ) {
     return div({
         key: label,
         className: `${CLS}__row`,
         children: [
             div({className: `${CLS}__label`, children: label}),
+            hint ? div({className: `${CLS}__hint`, children: hint}) : null,
             badge ? div({className: `${CLS}__badge`, children: badge}) : null,
             editor as any,
             ...rowIssues.map((it, idx) =>

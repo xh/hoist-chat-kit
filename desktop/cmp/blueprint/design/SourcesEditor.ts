@@ -358,7 +358,9 @@ function declaration(impl: SourceEditorModel) {
                 width: '100%',
                 onCommit: (it: string) => impl.setDatasetAsync(it)
             }),
-            impl.issuesFor('dataset')
+            impl.issuesFor('dataset'),
+            null,
+            'The Data Catalog dataset the source requests.'
         ),
         labelled(
             'Parameters',
@@ -384,7 +386,9 @@ function declaration(impl: SourceEditorModel) {
                     )
                 )
             }),
-            impl.issuesFor('params')
+            impl.issuesFor('params'),
+            null,
+            'The variable each parameter takes. A starred one is required.'
         ),
         propertyRow({
             key: `filter:${impl.resets.filter ?? 0}`,
@@ -402,8 +406,20 @@ function declaration(impl: SourceEditorModel) {
             ctx: {impl, key: 'fields'},
             issues: impl.issuesFor('fields')
         }),
-        labelled('Field instances', instancesEditor(impl, instances, overrides, commitFields)),
-        labelled('Joins', joinsEditor(impl), impl.issuesFor('joins'))
+        labelled(
+            'Field instances',
+            instancesEditor(impl, instances, overrides, commitFields),
+            [],
+            null,
+            'A parameterized field, such as a return over a window, with its parameters bound.'
+        ),
+        labelled(
+            'Joins',
+            joinsEditor(impl),
+            impl.issuesFor('joins'),
+            null,
+            'Fields from another source, matched on shared keys.'
+        )
     ];
 }
 

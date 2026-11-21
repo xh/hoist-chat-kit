@@ -240,7 +240,10 @@ function group(impl: PresetsEditorModel) {
                         onCommit: (path: string) => path && impl.addControl(path)
                     })
                 ]
-            })
+            }),
+            [],
+            null,
+            "The paths the group's presets set. Each leaves the config."
         ),
         labelled(
             'Default',
@@ -252,7 +255,10 @@ function group(impl: PresetsEditorModel) {
                 disabled,
                 width: '100%',
                 onCommit: (it: string) => impl.setDefault(it)
-            })
+            }),
+            [],
+            null,
+            'The preset a user starts on.'
         ),
         labelled(
             'Presets',
