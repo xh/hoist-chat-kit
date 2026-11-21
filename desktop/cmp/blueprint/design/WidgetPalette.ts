@@ -124,9 +124,12 @@ export class WidgetPaletteModel extends HoistModel {
             const title = getOwn(blueprint.elements, id)?.config?.title;
             return isString(title) && title ? title : id;
         };
+        const where = target.slot
+            ? `${nameOf(target.of ?? target.parent)} ${target.slot}`
+            : nameOf(target.parent);
         return target.after
-            ? `Adds after ${nameOf(target.after)}, in ${nameOf(target.parent)}`
-            : `Adds into ${nameOf(target.parent)}`;
+            ? `Adds after ${nameOf(target.after)}, in ${where}`
+            : `Adds into ${where}`;
     }
 
     labelOf(component: string): string {

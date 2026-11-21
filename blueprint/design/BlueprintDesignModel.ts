@@ -16,7 +16,7 @@ import type {BlueprintElement, BlueprintOp, ChildRef, PresetGroup} from '../Blue
 import {applyOps} from '../applyOps';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
 import type {WidgetSpec} from '../BlueprintRegistry';
-import {parentOf} from '../impl/elements';
+import {childIds, locate, parentOf, slotLists} from '../impl/elements';
 import {readsInTemplates} from '../impl/template';
 import {decodePointer, getAt, getOwn, setAt} from '../impl/pointer';
 import {variableTypeMatches} from '../validateBlueprint';
@@ -30,6 +30,16 @@ export interface BlueprintSelection {
 }
 
 /** What removing an element takes with it, for the user to confirm. */
+/** Where a widget goes: a container, its slot, and the element it follows there, if any. */
+export interface AddPlace {
+    parent: string;
+    /** Default `children`. */
+    slot?: string;
+    /** The child of the parent whose reference holds the slot, such as a canvas cell. */
+    of?: string;
+    after?: string;
+}
+
 export interface BlueprintRemoval {
     /** The element and every element inside it, the element first. */
     elements: string[];
@@ -96,6 +106,10 @@ export class BlueprintDesignModel extends HoistModel {
             child?: PlainObject;
             /** The container's other children, placed again in the same edit, as a drop leaves them. */
             siblings?: PlainObject[];
+            /** The slot of `parentId` to add into. Default `children`. */
+            slot?: string;
+            /** The child of `parentId` whose reference holds the slot, such as a canvas cell. */
+            of?: string;
         } = {}
     ): BlueprintEditResult & {id?: string} {
         const {blueprint} = this.blueprintModel,
@@ -107,18 +121,18 @@ export class BlueprintDesignModel extends HoistModel {
         if (typeof config === 'string') return refused(config);
         const id = this.newId(component),
             element: BlueprintElement = {component, config},
-            afterParent = opts.after ? parentOf(blueprint?.elements, opts.after) : null,
-            parent = parentId ?? afterParent ?? this.defaultParent();
-        if (!parent) {
+            place: AddPlace = parentId
+                ? {parent: parentId, slot: opts.slot, of: opts.of}
+                : opts.after
+                  ? this.placeAfter(opts.after)
+                  : this.addTarget;
+        if (!place) {
             if (blueprint?.root) return refused('Select a container to add the widget to.');
             return {...this.edit(`Add ${spec.label}`, [{op: 'addElement', id, element}]), id};
         }
-        const child = opts.child ?? this.placeChild(parent, spec),
-            index = afterParent
-                ? this.indexAfter(parent, opts.after)
-                : parentId
-                  ? null
-                  : this.indexAfter(parent, this.selectedElementId);
+        const {parent, slot = 'children', of, after} = place,
+            child = opts.child ?? (slot === 'children' ? this.placeChild(parent, spec) : null),
+            index = after ? this.indexAfter(place, after) : null;
         return {
             ...this.edit(`Add ${spec.label}`, [
                 ...(opts.siblings ? [this.replaceSiblingsOp(parent, opts.siblings)] : []),
@@ -128,7 +142,9 @@ export class BlueprintDesignModel extends HoistModel {
                     element,
                     parent,
                     ...(child ? {child} : {}),
-                    ...(index != null ? {index} : {})
+                    ...(index != null ? {index} : {}),
+                    ...(slot !== 'children' ? {slot} : {}),
+                    ...(of ? {of} : {})
                 }
             ]),
             id
@@ -188,11 +204,15 @@ export class BlueprintDesignModel extends HoistModel {
      * Where {@link addWidget} would put a widget now: the container, and the element it would
      * follow there, if any. Null for a new root.
      */
-    get addTarget(): {parent: string; after: string} {
-        const parent = this.defaultParent();
-        if (!parent) return null;
-        const selected = this.selectedElementId;
-        return {parent, after: selected && selected !== parent ? selected : null};
+    get addTarget(): AddPlace {
+        const {blueprint} = this.blueprintModel,
+            selected = this.selectedElementId,
+            isContainer = (id: string) => !!this.elementSpec(id)?.children;
+        if (selected && isContainer(selected)) return {parent: selected, after: null};
+        if (selected && locate(blueprint?.elements, selected)) return this.placeAfter(selected);
+        return blueprint?.root && isContainer(blueprint.root)
+            ? {parent: blueprint.root, after: null}
+            : null;
     }
 
     /**
@@ -322,22 +342,27 @@ export class BlueprintDesignModel extends HoistModel {
         if (this.subtree(id).includes(targetId)) {
             return refused(`${id} cannot move inside itself.`);
         }
-        const parent = where === 'into' ? targetId : parentOf(elements, targetId);
-        if (!parent || !this.elementSpec(parent)?.children) {
+        const target: AddPlace = where === 'into' ? {parent: targetId} : this.placeAfter(targetId);
+        if (!target || !this.elementSpec(target.parent)?.children) {
             return refused(`${where === 'into' ? targetId : 'Its container'} holds no elements.`);
         }
-        const siblings = (elements[parent].children ?? []).filter(it => it.id !== id),
+        const {parent, slot = 'children', of} = target,
+            list = slotLists(elements[parent]).find(it => it.slot === slot && it.of === of),
+            siblings = (list?.refs ?? []).filter(it => it.id !== id),
             at = siblings.findIndex(it => it.id === targetId),
             index = where === 'into' ? null : where === 'before' ? at : at + 1,
-            sameParent = parentOf(elements, id) === parent,
-            child = sameParent ? null : this.placeChild(parent, spec);
+            from = locate(elements, id),
+            sameSlot = from?.parent === parent && from.slot === slot && from.of === of,
+            child = sameSlot || slot !== 'children' ? null : this.placeChild(parent, spec);
         return this.edit(`Move ${spec.label}`, [
             {
                 op: 'moveElement',
                 id,
                 parent,
                 ...(child ? {child} : {}),
-                ...(index != null ? {index} : {})
+                ...(index != null ? {index} : {}),
+                ...(slot !== 'children' ? {slot} : {}),
+                ...(of ? {of} : {})
             }
         ]);
     }
@@ -810,15 +835,16 @@ export class BlueprintDesignModel extends HoistModel {
         return el ? this.widgetSpec(el.component) : null;
     }
 
-    // The selected element if it can hold children, else its container, else the root.
-    private defaultParent(): string {
-        const {blueprint} = this.blueprintModel,
-            isContainer = (id: string) => !!this.elementSpec(id)?.children,
-            selected = this.selectedElementId;
-        if (selected && isContainer(selected)) return selected;
-        const parent = selected ? parentOf(blueprint?.elements, selected) : null;
-        if (parent) return parent;
-        return blueprint?.root && isContainer(blueprint.root) ? blueprint.root : null;
+    // The place right after an element, in the slot list that holds it.
+    private placeAfter(id: string): AddPlace {
+        const at = locate(this.blueprintModel.blueprint?.elements, id);
+        if (!at) return null;
+        return {
+            parent: at.parent,
+            ...(at.slot !== 'children' ? {slot: at.slot} : {}),
+            ...(at.of ? {of: at.of} : {}),
+            after: id
+        };
     }
 
     // An op that places a container's children again, keeping each reference's other keys.
@@ -831,10 +857,11 @@ export class BlueprintDesignModel extends HoistModel {
         };
     }
 
-    // The place right after an element among its parent's children, or null.
-    private indexAfter(parentId: string, id: string): number {
-        const children = getOwn(this.blueprintModel.blueprint?.elements, parentId)?.children ?? [],
-            idx = children.findIndex(it => it.id === id);
+    // The index right after an element in a place's slot list, or null.
+    private indexAfter({parent, slot = 'children', of}: AddPlace, id: string): number {
+        const el = getOwn(this.blueprintModel.blueprint?.elements, parent),
+            list = slotLists(el).find(it => it.slot === slot && it.of === of),
+            idx = list?.refs.findIndex(it => it.id === id) ?? -1;
         return idx >= 0 ? idx + 1 : null;
     }
 
@@ -845,12 +872,22 @@ export class BlueprintDesignModel extends HoistModel {
     addPresetSelector(group: string): BlueprintEditResult & {id?: string} {
         const g = getOwn(this.blueprintModel.blueprint?.presets, group);
         if (!g) return refused(`There is no preset group '${group}'.`);
-        const controlled = g.controls?.map(it => elementOfPath(it.path)).find(Boolean),
-            after = controlled && parentOf(this.blueprintModel.blueprint.elements, controlled);
-        return this.addWidget('presetSelector', null, {
-            config: {group},
-            ...(after ? {after: controlled} : {})
-        });
+        const {elements} = this.blueprintModel.blueprint,
+            controlled = g.controls?.map(it => elementOfPath(it.path)).find(Boolean),
+            at = controlled ? locate(elements, controlled) : null,
+            parentWidget = at ? elements[at.parent]?.component : null,
+            config = {group};
+        if (at?.slot === 'children' && parentWidget === 'dashCanvas') {
+            return this.addWidget('presetSelector', at.parent, {
+                config,
+                slot: 'headerItems',
+                of: controlled
+            });
+        }
+        if (at?.slot === 'children' && parentWidget === 'panel') {
+            return this.addWidget('presetSelector', at.parent, {config, slot: 'headerItems'});
+        }
+        return this.addWidget('presetSelector', null, {config, ...(at ? {after: controlled} : {})});
     }
 
     // A child reference for a container: a free place on a canvas, or a title in tabs.
@@ -876,7 +913,7 @@ export class BlueprintDesignModel extends HoistModel {
     private subtree(id: string): string[] {
         const el = getOwn(this.blueprintModel.blueprint?.elements, id);
         if (!el) return [];
-        return [id, ...(el.children ?? []).flatMap(it => this.subtree(it.id))];
+        return [id, ...childIds(el).flatMap(it => this.subtree(it))];
     }
 
     // True if anything outside the removed elements reads the variable.

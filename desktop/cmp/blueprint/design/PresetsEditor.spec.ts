@@ -44,7 +44,7 @@ describe('PresetsEditor', () => {
         return {model, design, editor};
     }
 
-    it('adds a selector for the group beside the widget it controls, until it has one', () => {
+    it('adds a selector for the group in the header of the widget it controls, until it has one', () => {
         const {model, design, editor} = open();
         design.removeElement('posViewsSelector');
         expect(editor.hasSelector).toBe(false);
@@ -54,8 +54,8 @@ describe('PresetsEditor', () => {
             ([, it]) => it.component === 'presetSelector'
         );
         expect(el.config).toEqual({group: 'posViews', display: 'toggle'});
-        const siblings = model.blueprint.elements.positions.children.map(it => it.id);
-        expect(siblings.indexOf(id)).toBe(siblings.indexOf('posGrid') + 1);
+        const cell = model.blueprint.elements.positions.children.find(it => it.id === 'posGrid');
+        expect(cell.headerItems).toEqual([{id}]);
         expect(editor.hasSelector).toBe(true);
         expect(model.issues.map(it => it.code)).not.toContain('preset.noSelector');
     });

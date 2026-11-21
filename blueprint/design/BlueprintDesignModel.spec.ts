@@ -183,6 +183,58 @@ describe('BlueprintDesignModel', () => {
         );
     });
 
+    describe('slots', () => {
+        const withPanel = () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.elements.page = {
+                component: 'panel',
+                config: {title: 'Page'},
+                children: [{id: 'ordersGrid'}]
+            };
+            bp.elements.dashboard.children = bp.elements.dashboard.children.map(it =>
+                it.id === 'ordersGrid' ? {...it, id: 'page'} : it
+            );
+            return bp;
+        };
+
+        it('adds into a named slot, and after an element in the slot that holds it', () => {
+            const {model, design} = open(withPanel()),
+                {id: rule} = design.addWidget('separator', 'page', {slot: 'bbar'});
+            expect(model.blueprint.elements.page.bbar).toEqual([{id: rule}]);
+            design.select({kind: 'element', id: rule});
+            expect(design.addTarget).toEqual({parent: 'page', slot: 'bbar', after: rule});
+            const {id: next} = design.addWidget('spacer');
+            expect((model.blueprint.elements.page.bbar as any[]).map(it => it.id)).toEqual([
+                rule,
+                next
+            ]);
+        });
+
+        it('moves beside an element into the slot that holds it, and removes what a slot holds with its parent', () => {
+            const {model, design} = open(withPanel()),
+                {id: bar} = design.addWidget('toolbar', 'page', {slot: 'tbar'}),
+                {id: other} = design.addWidget('separator', 'page');
+            expect(design.moveTo(other, bar, 'after').issues).toEqual([]);
+            expect((model.blueprint.elements.page.tbar as any[]).map(it => it.id)).toEqual([
+                bar,
+                other
+            ]);
+            expect(design.describeRemoval('page').elements).toEqual(
+                expect.arrayContaining(['page', 'ordersGrid', bar, other])
+            );
+        });
+
+        it("adds a group's selector to the header of the widget it controls, on a canvas or in a panel", () => {
+            const {model, design} = open(loadBlueprint('p3-morning-report.json'));
+            design.removeElement('posViewsSelector');
+            const {id} = design.addPresetSelector('posViews');
+            const cell = model.blueprint.elements.positions.children.find(
+                it => it.id === 'posGrid'
+            );
+            expect(cell.headerItems).toEqual([{id}]);
+        });
+    });
+
     it('places a widget where it fits, and names it after its widget', () => {
         const {model, design} = open(loadBlueprint('p2-linked-dashboard.json')),
             first = design.addWidget('chart'),
