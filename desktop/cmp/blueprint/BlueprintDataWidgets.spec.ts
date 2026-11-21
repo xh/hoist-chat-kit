@@ -12,6 +12,7 @@ import {
 import type {Blueprint, BlueprintDataProvider, BlueprintDataUpdate} from '../../../blueprint';
 import {BlueprintModel, FakeBlueprintDataProvider} from '../../../blueprint';
 import {ChartWidgetModel} from './ChartWidget';
+import {GaugeWidgetModel} from './GaugeWidget';
 import {HeatmapWidgetModel} from './HeatmapWidget';
 import {propertyTableWidget, PropertyTableWidgetModel} from './PropertyTableWidget';
 import {TreemapWidgetModel} from './TreemapWidget';
@@ -398,6 +399,61 @@ describe('blueprint data widgets', () => {
                     .validate(bp)
                     .map(it => it.code)
             ).toContain('statCard.noField');
+        });
+    });
+
+    describe('gauge', () => {
+        const withGauge = (config: object = {}) => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.elements.gauge = {
+                component: 'gauge',
+                config: {source: 'positions', value: 'mktVal', min: 0, max: 1000, ...config}
+            };
+            bp.elements.dashboard.children.push({id: 'gauge', x: 0, y: 14, w: 3, h: 4});
+            return bp;
+        };
+
+        it("draws its measure's total on a solid gauge, from min to max, colored by its stops", async () => {
+            const gauge = widget(
+                GaugeWidgetModel,
+                open(
+                    withGauge({
+                        title: 'Gross <b>exposure</b>',
+                        stops: [
+                            {at: 0.5, color: '#55bf3b'},
+                            {at: 0.9, color: '#df5353'}
+                        ]
+                    })
+                ),
+                'gauge'
+            );
+            await vi.waitFor(() => expect(gauge.chartModel.series[0]?.data).toEqual([350]));
+            const {chart, title, yAxis} = gauge.chartModel.highchartsConfig;
+            expect(chart.type).toBe('solidgauge');
+            expect(title.text).toBe('Gross &lt;b&gt;exposure&lt;/b&gt;');
+            expect(yAxis).toMatchObject({
+                min: 0,
+                max: 1000,
+                stops: [
+                    [0.5, '#55bf3b'],
+                    [0.9, '#df5353']
+                ]
+            });
+            const label = gauge.chartModel.series[0].dataLabels.formatter.call({y: 350});
+            expect(label).not.toContain('<');
+        });
+
+        it('refuses a min that is not under its max, and a stop color that is not hex', () => {
+            const codes = (config: object) =>
+                open()
+                    .validate(withGauge(config))
+                    .map(it => [it.code, it.path]);
+            expect(codes({min: 10, max: 10})).toEqual([
+                ['gauge.minNotUnderMax', '/elements/gauge/config/min']
+            ]);
+            expect(codes({stops: [{at: 0.5, color: 'url(x)'}]})).toEqual([
+                ['schema.invalid', '/elements/gauge/config/stops/0/color']
+            ]);
         });
     });
 

@@ -781,6 +781,46 @@ const STAT_CARD_SCHEMA = {
     }
 } as const satisfies BlueprintSchema;
 
+const GAUGE_SCHEMA = {
+    type: 'object',
+    additionalProperties: false,
+    required: ['source', 'value'],
+    properties: {
+        source: {type: 'string', 'x-source': true},
+        title: {type: 'string', maxLength: 100, 'x-binding': true},
+        value: {type: 'string', 'x-field': 'measure', description: 'The total the needle shows.'},
+        min: {type: 'number', default: 0, description: 'The start of the arc.'},
+        max: {type: 'number', default: 100, description: 'The end of the arc.'},
+        stops: {
+            type: 'array',
+            maxItems: 6,
+            'x-starter': false,
+            description:
+                'Colors the arc by how far along it the value sits, such as green to 0.7 and red from 0.9. Default one color.',
+            items: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['at', 'color'],
+                properties: {
+                    at: {
+                        type: 'number',
+                        minimum: 0,
+                        maximum: 1,
+                        description: 'From 0, at min, to 1, at max.'
+                    },
+                    color: {
+                        type: 'string',
+                        pattern: '^#[0-9a-fA-F]{6}$',
+                        description: 'A hex color, such as #55bf3b.'
+                    }
+                }
+            }
+        },
+        format: FORMAT_PROP,
+        filter: {'x-filter': true, 'x-binding': true, type: 'object'}
+    }
+} as const satisfies BlueprintSchema;
+
 const TILE_FRAME_SCHEMA = {
     type: 'object',
     additionalProperties: false,
@@ -1029,6 +1069,8 @@ export type StatCardWidgetConfig = FromExtendedSchema<
     BlueprintSchemaExtension,
     typeof STAT_CARD_SCHEMA
 >;
+
+export type GaugeWidgetConfig = FromExtendedSchema<BlueprintSchemaExtension, typeof GAUGE_SCHEMA>;
 
 export type TileFrameWidgetConfig = FromExtendedSchema<
     BlueprintSchemaExtension,
@@ -1702,6 +1744,34 @@ const statCard: WidgetSpec = {
     example: {component: 'statCard', config: {source: 'positions', field: 'mktVal'}}
 };
 
+const gauge: WidgetSpec = {
+    name: 'gauge',
+    summary: 'One number on an arc from min to max, such as usage against a limit.',
+    version: 1,
+    label: 'Gauge',
+    terms: ['gauge', 'dial', 'speedometer', 'meter', 'against a limit', 'utilization'],
+    guidance:
+        "One number, the total of value over the source, on an arc from min to max. Use it where the number means most against a range, such as gross exposure against its limit or a fund's cash as a share of NAV. Otherwise use a statCard. stops color the arc by how far along it the value sits. Set max to the limit, never a guess.",
+    category: 'data',
+    config: GAUGE_SCHEMA,
+    modules: ['highcharts-more', 'solid-gauge'],
+    size: {default: {w: 3, h: 4}, min: {w: 2, h: 3}},
+    example: {
+        component: 'gauge',
+        config: {
+            source: 'positions',
+            title: 'Gross exposure',
+            value: 'mktVal',
+            max: 1000000000,
+            stops: [
+                {at: 0.7, color: '#55bf3b'},
+                {at: 0.9, color: '#dddf0d'},
+                {at: 1, color: '#df5353'}
+            ]
+        }
+    }
+};
+
 const tileFrame: WidgetSpec = {
     name: 'tileFrame',
     summary: 'Equal tiles that wrap, such as a row of stat cards.',
@@ -1899,6 +1969,7 @@ const WIDGET_SPECS: WidgetSpec[] = [
     propertyTable,
     heatmap,
     treemap,
+    gauge,
     groupingChooser,
     buttonGroup,
     buttonGroupInput,
@@ -1944,6 +2015,10 @@ const SOURCE_DEMANDS: Record<string, (config: PlainObject) => WidgetDemand> = {
             ...castArray(cfg.fields ?? []).map(it => (isString(it) ? it : it?.field)),
             ...filterFields(cfg.filter)
         ]),
+        groupBy: []
+    }),
+    gauge: cfg => ({
+        fields: fieldNames([cfg.value, ...filterFields(cfg.filter)]),
         groupBy: []
     }),
     heatmap: cfg => ({
@@ -2090,7 +2165,7 @@ function depthOf(value: unknown): number {
 }
 
 // Widgets that take the size their container gives them, and have none of their own.
-const SIZELESS_WIDGETS = ['cubeGrid', 'chart', 'heatmap', 'treemap'];
+const SIZELESS_WIDGETS = ['cubeGrid', 'chart', 'heatmap', 'treemap', 'gauge'];
 
 const VALIDATORS: Record<string, WidgetSpec['validate']> = {
     chart: cfg => [
@@ -2208,6 +2283,17 @@ const VALIDATORS: Record<string, WidgetSpec['validate']> = {
             }
         ];
     },
+    gauge: cfg =>
+        (cfg.min ?? 0) < (cfg.max ?? 100)
+            ? []
+            : [
+                  {
+                      code: 'gauge.minNotUnderMax',
+                      severity: 'error',
+                      path: '/min',
+                      message: 'min must be under max, or the gauge has no arc'
+                  }
+              ],
     statCard: cfg =>
         cfg.field || cfg.agg === 'count'
             ? []

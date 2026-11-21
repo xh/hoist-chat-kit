@@ -16,4 +16,7 @@ function isLoaded(module: string): boolean {
     return !!(Highcharts as PlainObject)?.seriesTypes?.[type];
 }
 
-const SERIES_TYPE_OF: Record<string, string> = {'highcharts-more': 'waterfall'};
+const SERIES_TYPE_OF: Record<string, string> = {
+    'highcharts-more': 'waterfall',
+    'solid-gauge': 'solidgauge'
+};

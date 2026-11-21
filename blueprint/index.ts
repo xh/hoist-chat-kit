@@ -35,6 +35,7 @@ export type {
     TextInputWidgetConfig,
     ToolbarWidgetConfig,
     GroupingChooserWidgetConfig,
+    GaugeWidgetConfig,
     HeatmapWidgetConfig,
     MarkdownWidgetConfig,
     PanelWidgetConfig,

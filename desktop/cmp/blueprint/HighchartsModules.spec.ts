@@ -66,6 +66,14 @@ describe('Highcharts modules', () => {
         expect(show(treemap)).toContain("needs Highcharts' treemap module");
     });
 
+    it('asks for the modules a solid gauge needs', () => {
+        const gauge = {
+            component: 'gauge',
+            config: {source: 'positions', value: 'mktVal', max: 100}
+        };
+        expect(show(gauge)).toContain("needs Highcharts' highcharts-more and solid-gauge modules");
+    });
+
     it("asks for a chart's module by its type", () => {
         const chart = (type: string) => ({
             component: 'chart',
