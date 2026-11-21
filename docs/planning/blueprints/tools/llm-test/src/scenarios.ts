@@ -1,4 +1,5 @@
 import {Blueprint, loadBlueprint} from './load.ts';
+import type {LibraryItem} from './tools.ts';
 
 export interface Step {
     prompt: string;
@@ -22,6 +23,8 @@ export interface Scenario {
     host?: string;
     /** The user's mode as the run starts. Default design. */
     mode?: 'run' | 'design';
+    /** The user's library of published blueprints, for list_blueprints. Default none. */
+    library?: LibraryItem[];
     context: string;
     steps: Step[];
     checks: [string, (o: Outcome) => unknown][];
@@ -467,6 +470,21 @@ export const SCENARIOS: Scenario[] = [
             ['a row rule for Energy', o => (o.blueprint.elements?.posGrid?.config?.rowStyles ?? []).some((r: any) => JSON.stringify(r.when ?? {}).includes('"Energy"'))],
             ['no hex color', o => !/#[0-9a-fA-F]{6}/.test(JSON.stringify(o.blueprint.elements?.posGrid?.config ?? {}))],
             ['no binding in a style', o => !/"style":\{[^}]*\$var/.test(JSON.stringify(o.blueprint.elements?.posGrid?.config ?? {}))]
+        ]
+    },
+    {
+        id: 'P16',
+        title: 'Drill into a symbol from a grid row',
+        host: 'p2-linked-dashboard.json',
+        library: [{id: 'symbol-detail', name: 'Symbol detail', description: "One symbol's price, P&L and holdings.", blueprint: loadBlueprint('d1-symbol-detail.json')}],
+        context: 'Mode: design. The user has write access. They are editing the host blueprint below.',
+        steps: [{prompt: "When I click a position, open the symbol's detail."}],
+        checks: [
+            ['the grid gets an openBlueprint row action', o => (o.blueprint.elements?.posGrid?.config?.rowActions ?? []).some((a: any) => a.action?.type === 'openBlueprint')],
+            ['it opens symbol-detail', o => JSON.stringify(o.blueprint.elements?.posGrid?.config?.rowActions ?? []).includes('"blueprint":"symbol-detail"')],
+            ["it passes the row's symbol", o => JSON.stringify(o.blueprint.elements?.posGrid?.config?.rowActions ?? []).includes('"symbol":{"$row":"symbol"}')],
+            ['it passes the as-of date', o => JSON.stringify(o.blueprint.elements?.posGrid?.config?.rowActions ?? []).includes('"asOf":{"$var":"asOf"}')],
+            ['it looked the target up', o => o.calls.includes('list_blueprints')]
         ]
     },
     {

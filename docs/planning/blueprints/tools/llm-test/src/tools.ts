@@ -37,6 +37,35 @@ export interface Stats {
 
 const json = (o: unknown) => JSON.stringify(o);
 
+/** A blueprint of the user's library, published once, by its stable id. */
+export interface LibraryItem {
+    id: string;
+    name: string;
+    description?: string;
+    blueprint: Blueprint;
+}
+
+// The two calls of a BlueprintRepository that list_blueprints makes, over published fixtures. The
+// kit's InMemoryBlueprintRepository numbers its own ids, and a scenario names a stable one.
+class LibraryRepository {
+    readonly type = 'harness.dashboard';
+
+    constructor(private readonly items: LibraryItem[]) {}
+
+    async listAsync() {
+        return this.items.map(it => this.summaryOf(it));
+    }
+
+    async openAsync(id: string) {
+        const it = this.items.find(i => i.id === id);
+        return it ? {...this.summaryOf(it), blueprint: clone(it.blueprint), kind: 'publish', version: 1, pendingRenames: []} : null;
+    }
+
+    private summaryOf({id, name, description}: LibraryItem) {
+        return {id, type: this.type, name, ...(description ? {description} : {}), draftVersion: 2, publishedVersion: 1, access: 'read', canPublish: false, updated: 0};
+    }
+}
+
 /** The state one scenario run works on: a target for the library's Architect tools, plus show_ui. */
 export class Session implements ArchitectTarget {
     blueprint: Blueprint;
@@ -58,9 +87,13 @@ export class Session implements ArchitectTarget {
     readonly access = 'write' as const;
     readonly stats: Stats = {toolCalls: {}, edits: 0, editsRejected: 0, issueCodes: {}, segments: 0, segmentsRejected: 0};
 
-    constructor(host: Blueprint | null, mode: 'run' | 'design' = 'design') {
+    // The user's library, for list_blueprints and openBlueprint: published blueprints of the type.
+    readonly drillInRepository: any;
+
+    constructor(host: Blueprint | null, mode: 'run' | 'design' = 'design', library: LibraryItem[] = []) {
         this.blueprint = host ? clone(host) : {elements: {}};
         this.mode = mode;
+        this.drillInRepository = new LibraryRepository(library);
     }
 
     setMode(mode: 'run' | 'design') {
@@ -183,3 +216,4 @@ export const TOOLS: Anthropic.Tool[] = [
 
 /** The date the harness resolves `today` to, which the scenarios' contexts give the model. */
 export const HARNESS_TODAY = '2026-11-19';
+

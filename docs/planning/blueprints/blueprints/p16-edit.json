@@ -1,0 +1,16 @@
+{
+    "base": 12,
+    "description": "Open a position's symbol detail from the positions grid",
+    "ops": [
+        {
+            "op": "set",
+            "path": "/elements/posGrid/config/rowActions",
+            "value": [
+                {
+                    "label": "Open symbol detail",
+                    "action": {"type": "openBlueprint", "blueprint": "symbol-detail", "variables": {"symbol": {"$row": "symbol"}, "asOf": {"$var": "asOf"}}}
+                }
+            ]
+        }
+    ]
+}

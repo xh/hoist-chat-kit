@@ -67,7 +67,7 @@ function addUsage(u: Usage, model: string, usage: any) {
 }
 
 async function runScenario(model: string, s: Scenario) {
-    const session = new Session(s.host ? loadBlueprint(s.host) : null, s.mode),
+    const session = new Session(s.host ? loadBlueprint(s.host) : null, s.mode, s.library),
         messages: Anthropic.Beta.BetaMessageParam[] = [],
         usage: Usage = {input: 0, cacheWrite: 0, cacheRead: 0, output: 0, cost: 0},
         replies: string[] = [],
