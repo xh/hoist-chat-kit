@@ -1,6 +1,14 @@
 import {describe, expect, it} from 'vitest';
 import type {BlueprintElement} from '../Blueprint';
-import {childIds, insertRef, locate, parentOf, removeRef, slotLists} from './elements';
+import {
+    childIds,
+    insertRef,
+    locate,
+    parentOf,
+    removeRef,
+    slotLists,
+    upgradeSlots
+} from './elements';
 
 /**
  * An element holds its children in slot lists: `children`, and others a widget names, such as a
@@ -62,5 +70,29 @@ describe('element slots', () => {
         const page = structuredClone(elements.page);
         insertRef(page, {id: 'foot'}, {slot: 'bbar'});
         expect(page.bbar).toEqual([{id: 'foot'}]);
+    });
+
+    it("moves a child reference's old slot marker into the slot list it names", () => {
+        const old = {
+                root: 'page',
+                elements: {
+                    page: {
+                        component: 'panel',
+                        children: [
+                            {id: 'body'},
+                            {id: 'top', slot: 'tbar'},
+                            {id: 'foot', slot: 'bbar'}
+                        ]
+                    }
+                }
+            },
+            upgraded = upgradeSlots(old as any);
+        expect(upgraded.elements.page).toEqual({
+            component: 'panel',
+            children: [{id: 'body'}],
+            tbar: [{id: 'top'}],
+            bbar: [{id: 'foot'}]
+        });
+        expect(upgradeSlots(upgraded)).toBe(upgraded);
     });
 });

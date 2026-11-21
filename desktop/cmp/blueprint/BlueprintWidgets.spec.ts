@@ -767,6 +767,34 @@ describe('blueprint desktop widgets', () => {
             expect(model.version).toBe(1);
         });
 
+        it("draws a cell's header items in its header, and keeps them through a move", () => {
+            const bp = loadBlueprint('p2-linked-dashboard.json');
+            bp.variables.region = {
+                type: 'string',
+                options: {values: ['EU']},
+                setBy: {element: 'regionPick'}
+            };
+            bp.elements.regionPick = {component: 'select', config: {}};
+            (bp.elements.dashboard.children.find(it => it.id === 'posGrid') as any).headerItems = [
+                {id: 'regionPick'}
+            ];
+            const model = open(bp),
+                canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),
+                view = () => canvas.canvasModel.viewModels.find(it => it.viewSpec.id === 'posGrid');
+            expect(view().viewSpec.hidePanelHeader).toBe(false);
+            expect(view().headerItems).toHaveLength(1);
+
+            canvas.canvasModel.loadState(
+                canvas.canvasModel.state.map(it =>
+                    it.viewSpecId === 'posGrid' ? {...it, layout: {...it.layout, y: 20}} : it
+                )
+            );
+            const cell = model.blueprint.elements.dashboard.children.find(
+                it => it.id === 'posGrid'
+            );
+            expect(cell).toMatchObject({y: 20, headerItems: [{id: 'regionPick'}]});
+        });
+
         it('takes a widget dragged from the palette only in design mode, sized as it starts', () => {
             const model = open(loadBlueprint('p2-linked-dashboard.json')),
                 canvas = widget(DashCanvasWidgetModel, model, 'dashboard'),

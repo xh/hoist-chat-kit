@@ -1,7 +1,7 @@
 import type {PlainObject} from '@xh/hoist/core';
 import {cloneDeep, isArray, isEmpty, isPlainObject, isString} from 'lodash';
-import type {Blueprint, BlueprintIssue, BlueprintOp} from './Blueprint';
-import {parentOf} from './impl/elements';
+import type {Blueprint, BlueprintIssue, BlueprintOp, ChildRef} from './Blueprint';
+import {childIds, insertRef, locate, parentOf, removeRef} from './impl/elements';
 import {renameTemplateRefs} from './impl/template';
 import {getOwn, isForbiddenKey, parsePointer, PointerError} from './impl/pointer';
 
@@ -89,7 +89,7 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
             }
             bp.elements[op.id] = cloneDeep(op.element);
             if (op.parent) {
-                placeChild(bp, op.parent, op.id, op.child, op.index);
+                placeChild(bp, op.parent, op.id, op.child, op.index, op.slot, op.of);
             } else if (!bp.root) {
                 bp.root = op.id;
             } else {
@@ -102,32 +102,32 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
         case 'removeElement': {
             const el = ownElement(bp, op.id);
             if (!el) throw new OpError(`element '${op.id}' does not exist`);
-            if (el.children?.length) {
+            if (childIds(el).length) {
                 throw new OpError(
                     `element '${op.id}' still has children. Remove or move them first.`
                 );
             }
             const p = parentOf(bp.elements, op.id);
-            if (p) bp.elements[p].children = bp.elements[p].children.filter(c => c.id !== op.id);
+            if (p) removeRef(bp.elements[p], op.id);
             if (bp.root === op.id) delete bp.root;
             delete bp.elements[op.id];
             return bp;
         }
         case 'moveElement': {
             if (!ownElement(bp, op.id)) throw new OpError(`element '${op.id}' does not exist`);
-            const p = parentOf(bp.elements, op.id);
-            let old: PlainObject = {};
-            if (p) {
-                old = bp.elements[p].children.find(c => c.id === op.id);
-                bp.elements[p].children = bp.elements[p].children.filter(c => c.id !== op.id);
-            }
-            const {id: _id, ...placement} = old;
+            const from = locate(bp.elements, op.id),
+                old: PlainObject = from ? removeRef(bp.elements[from.parent], op.id) : {},
+                {id: _id, ...placement} = old,
+                slot = op.slot ?? 'children',
+                sameSlot = from?.parent === op.parent && from.slot === slot && from.of === op.of;
             placeChild(
                 bp,
                 op.parent,
                 op.id,
-                op.child ?? (p === op.parent ? placement : {}),
-                op.index
+                op.child ?? (sameSlot ? placement : {}),
+                op.index,
+                slot,
+                op.of
             );
             return bp;
         }
@@ -157,9 +157,9 @@ function applyOp(bp: Blueprint, op: any): Blueprint {
 const OP_KEYS: Record<string, string[]> = {
     set: ['op', 'path', 'value'],
     remove: ['op', 'path'],
-    addElement: ['op', 'id', 'element', 'parent', 'child', 'index'],
+    addElement: ['op', 'id', 'element', 'parent', 'child', 'index', 'slot', 'of'],
     removeElement: ['op', 'id'],
-    moveElement: ['op', 'id', 'parent', 'child', 'index'],
+    moveElement: ['op', 'id', 'parent', 'child', 'index', 'slot', 'of'],
     renameId: ['op', 'kind', 'from', 'to']
 };
 
@@ -211,23 +211,31 @@ function removePath(doc: PlainObject, path: string) {
     delete parent[last];
 }
 
-function placeChild(bp: Blueprint, parent: string, id: string, child: PlainObject, index: number) {
+function placeChild(
+    bp: Blueprint,
+    parent: string,
+    id: string,
+    child: PlainObject,
+    index: number,
+    slot = 'children',
+    of: string = null
+) {
     const p = ownElement(bp, parent);
     if (!p) throw new OpError(`parent '${parent}' does not exist`);
-    p.children ??= [];
+    if (of && !p.children?.some(it => it.id === of)) {
+        throw new OpError(`'${of}' is not a child of '${parent}'`);
+    }
     const ref = {...(child ?? {}), id},
-        listed = p.children.findIndex(it => it.id === id);
+        holder: PlainObject = of ? p.children.find(it => it.id === of) : p,
+        refs: PlainObject[] = holder[slot] ?? [],
+        listed = refs.findIndex(it => it.id === id);
     // A parent added with its children listed already holds a place for this one: take it.
     if (listed >= 0 && index == null) {
-        p.children[listed] = {...p.children[listed], ...ref};
+        refs[listed] = {...refs[listed], ...ref};
         return;
     }
-    if (listed >= 0) p.children.splice(listed, 1);
-    if (index == null || index >= p.children.length) {
-        p.children.push(ref);
-    } else {
-        p.children.splice(Math.max(0, index), 0, ref);
-    }
+    if (listed >= 0) refs.splice(listed, 1);
+    insertRef(p, ref as ChildRef, {slot, ...(of ? {of} : {}), index});
 }
 
 /** Rename every reference to an ID, including paths that name it. */

@@ -64,9 +64,19 @@ export interface WidgetSpec {
     value?: {type: string | string[]};
     /**
      * For a container, the schema of its child references, and the widgets it accepts as
-     * children: those of any category listed, plus any widget named. Default any widget.
+     * children: those of any category listed, plus any widget named. Default any widget. `slots`
+     * names the slot lists a child reference can hold, such as a canvas cell's `headerItems`.
      */
-    children?: {schema: PlainObject; accepts?: {categories?: WidgetCategory[]; widgets?: string[]}};
+    children?: {
+        schema: PlainObject;
+        accepts?: SlotAccepts;
+        slots?: Record<string, SlotSpec>;
+    };
+    /**
+     * The slot lists the element holds beside `children`, each named for the prop of its component
+     * it fills, such as a panel's `tbar`.
+     */
+    slots?: Record<string, SlotSpec>;
     size?: {default: WidgetSize; min?: WidgetSize; max?: WidgetSize};
     /** True for a widget the app provides. */
     app?: boolean;
@@ -109,6 +119,23 @@ export interface WidgetSpec {
      * yet. Applied after the schema fills it.
      */
     starter?: (config: PlainObject, ctx: {blueprint: Blueprint}) => PlainObject | string;
+}
+
+/** The widgets a slot takes: those of any category listed, plus any widget named. Default any. */
+export interface SlotAccepts {
+    categories?: WidgetCategory[];
+    widgets?: string[];
+}
+
+/** A named slot list, which holds child references in an order of its own. */
+export interface SlotSpec {
+    /** What goes in it, in users' words, such as "the toolbar under the panel". */
+    description: string;
+    /** The words users use for it, such as "footer". */
+    terms?: string[];
+    accepts?: SlotAccepts;
+    /** The most references it holds. Default any. */
+    maxItems?: number;
 }
 
 /** What a widget's own checks can read beyond its config. */

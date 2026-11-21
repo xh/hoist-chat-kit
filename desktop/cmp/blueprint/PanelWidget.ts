@@ -2,6 +2,7 @@ import {card, CardModel} from '@xh/hoist/cmp/card';
 import {vframe} from '@xh/hoist/cmp/layout';
 import {hoistCmp, uses, XH} from '@xh/hoist/core';
 import {panel, PanelModel} from '@xh/hoist/desktop/cmp/panel';
+import {toolbar} from '@xh/hoist/desktop/cmp/toolbar';
 import {Icon} from '@xh/hoist/icon';
 import {observableRef} from '@xh/hoist/mobx';
 import {
@@ -13,8 +14,9 @@ import {emptyContent, layoutChildren} from './impl/layout';
 
 /**
  * The `panel` widget: a Hoist `Panel`, or a `Card` for its card style, over its children in a
- * column, with a toolbar child in its `tbar` or `bbar` slot. Its collapsed state follows `collapsed` in its config, and a user's collapse writes it
- * back, so it stays transient in run mode.
+ * column. Its `tbar` and `bbar` slots fill the panel's toolbars, and `headerItems` its header.
+ * Its collapsed state follows `collapsed` in its config, and a user's collapse writes it back, so
+ * it stays transient in run mode.
  */
 export class PanelWidgetModel extends BlueprintWidgetModel<PanelWidgetConfig> {
     @observableRef accessor panelModel: PanelModel = null;
@@ -75,11 +77,18 @@ export const [PanelWidget, panelWidget] = hoistCmp.withFactory({
     model: uses(PanelWidgetModel),
     render({model, className}) {
         const {title, icon, style, compactHeader, intent} = model.resolvedConfig,
-            content = model.children.filter(it => !it.slot),
+            content = model.children,
+            // A slot of one toolbar draws it. Of other items, Hoist draws a toolbar around them.
             slot = (name: string) => {
-                const ref = model.children.find(it => it.slot === name);
-                return ref ? model.renderElement(ref.id) : null;
+                const refs = model.slotRefs(name);
+                if (!refs.length) return null;
+                const items = refs.map(it => model.renderElement(it.id)),
+                    [only] = refs;
+                return refs.length === 1 && model.componentOf(only.id) === 'toolbar'
+                    ? items[0]
+                    : toolbar({children: items});
             },
+            headerItems = model.slotRefs('headerItems').map(it => model.renderElement(it.id)),
             props = {
                 className,
                 title: title || null,
@@ -102,6 +111,7 @@ export const [PanelWidget, panelWidget] = hoistCmp.withFactory({
                   ...props,
                   model: model.panelModel,
                   compactHeader,
+                  headerItems,
                   tbar: slot('tbar'),
                   bbar: slot('bbar'),
                   children: body

@@ -7,6 +7,7 @@ import type {
     ActionSpec,
     RendererSpec,
     ResolverSpec,
+    SlotAccepts,
     WidgetDemand,
     WidgetSpec
 } from '../BlueprintRegistry';
@@ -1067,6 +1068,12 @@ const CHILD_ID_SCHEMA = {
     properties: {id: {type: 'string'}}
 } as const satisfies BlueprintSchema;
 
+// A panel's toolbar slot takes a toolbar, or inputs, buttons, separators and spacers it draws in one.
+const TOOLBAR_SLOT_ACCEPTS: SlotAccepts = {
+    categories: ['input', 'action'],
+    widgets: ['toolbar', 'separator', 'spacer']
+};
+
 const dashCanvas: WidgetSpec = {
     name: 'dashCanvas',
     summary: "A 12-column grid of widgets placed by x, y, w and h. A dashboard's usual root.",
@@ -1102,6 +1109,14 @@ const dashCanvas: WidgetSpec = {
                     type: 'integer',
                     minimum: 1
                 }
+            }
+        },
+        slots: {
+            headerItems: {
+                description:
+                    "Inputs in the cell's header, beside the widget's title, such as a preset selector.",
+                terms: ['header', 'title bar', 'cell header'],
+                accepts: {categories: ['input']}
             }
         }
     },
@@ -1231,22 +1246,27 @@ const panel: WidgetSpec = {
     label: 'Panel',
     terms: ['panel', 'section', 'group', 'card'],
     guidance:
-        'A titled section that stacks its children top to bottom. style card draws a bordered group in place of a header. Use it to title a group of widgets, or to let a user collapse one. Each child takes an equal share of its height. Put a row box inside it to place children side by side. A child reference with slot tbar or bbar draws a toolbar above or below the content.',
+        'A titled section that stacks its children top to bottom. style card draws a bordered group in place of a header. Use it to title a group of widgets, or to let a user collapse one. Each child takes an equal share of its height. Put a row box inside it to place children side by side. Its tbar and bbar slots draw toolbars above and below the content, and headerItems puts inputs in its header.',
     category: 'container',
     config: PANEL_SCHEMA,
     presetPaths: ['/collapsed'],
-    children: {
-        schema: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['id'],
-            properties: {
-                id: {type: 'string'},
-                slot: {
-                    enum: ['tbar', 'bbar'],
-                    description: 'Draws the child, a toolbar, above or below the content.'
-                }
-            }
+    children: {schema: CHILD_ID_SCHEMA},
+    slots: {
+        tbar: {
+            description: 'A toolbar along the top of the panel, above its content.',
+            terms: ['top toolbar', 'toolbar above'],
+            accepts: TOOLBAR_SLOT_ACCEPTS
+        },
+        bbar: {
+            description: 'A toolbar along the bottom of the panel, under its content.',
+            terms: ['bottom toolbar', 'footer', 'toolbar below'],
+            accepts: TOOLBAR_SLOT_ACCEPTS
+        },
+        headerItems: {
+            description:
+                "Inputs in the panel's header, beside its title, such as a preset selector.",
+            terms: ['header', 'title bar'],
+            accepts: {categories: ['input']}
         }
     },
     size: {default: {w: 6, h: 6}, min: {w: 2, h: 2}},

@@ -172,9 +172,21 @@ export type BlueprintOp =
           parent?: string;
           child?: PlainObject;
           index?: number;
+          /** The parent's slot list to add into. Default `children`. */
+          slot?: string;
+          /** The child of the parent whose reference holds the slot, such as a canvas cell. */
+          of?: string;
       }
     | {op: 'removeElement'; id: string}
-    | {op: 'moveElement'; id: string; parent: string; child?: PlainObject; index?: number}
+    | {
+          op: 'moveElement';
+          id: string;
+          parent: string;
+          child?: PlainObject;
+          index?: number;
+          slot?: string;
+          of?: string;
+      }
     | {op: 'renameId'; kind: 'element' | 'variable' | 'source'; from: string; to: string};
 
 /** A list of operations that apply as one, or not at all. */

@@ -25,6 +25,7 @@ import {
     describeAction,
     runActionsAsync
 } from './impl/actions';
+import {upgradeSlots} from './impl/elements';
 import {resolveBindings, resolveFilter} from './impl/bindings';
 import {getOwn, getAt as valueAt, setAt} from './impl/pointer';
 import {validateBlueprint} from './validateBlueprint';
@@ -232,7 +233,8 @@ export class BlueprintModel extends HoistModel {
      * @returns every issue found, errors and warnings.
      */
     @action
-    setBlueprint(bp: Blueprint): BlueprintIssue[] {
+    setBlueprint(blueprint: Blueprint): BlueprintIssue[] {
+        const bp = upgradeSlots(blueprint);
         if (isEqual(bp, this.blueprint)) return this.issues;
         const issues = this.validate(bp);
         if (!hasErrors(issues)) {

@@ -6,6 +6,7 @@ import {
     type DashCanvasViewModel,
     type DashCanvasViewSpec
 } from '@xh/hoist/desktop/cmp/dash';
+import {runInAction} from '@xh/hoist/mobx';
 import {isEqual, pick, sortBy} from 'lodash';
 import {
     BlueprintWidgetModel,
@@ -127,13 +128,15 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
     // Implementation
     //------------------
     /**
-     * Doc to model: specs for the current children, then their placement and titles. A view keeps
-     * the spec it was created with, so a child that gains or loses its title, and with it its
-     * header, gets a new view. The widget models live outside the canvas, so they survive that.
+     * Doc to model: specs for the current children, then their placement, titles and header items.
+     * A view keeps the spec it was created with, so a child that gains or loses its header, from
+     * its title or its header items, gets a new view. The widget models live outside the canvas,
+     * so they survive that.
      */
     private loadChildren() {
         const {canvasModel, children, titles} = this,
-            hasHeader = (id: string) => titles[id] != null,
+            hasHeader = (id: string) =>
+                titles[id] != null || this.slotRefs('headerItems', id).length > 0,
             headerChanged = canvasModel.viewModels.some(
                 it => !it.viewSpec.hidePanelHeader !== hasHeader(it.viewSpec.id)
             );
@@ -149,8 +152,16 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
             titlesMatch = canvasModel.viewModels.every(
                 it => titles[it.viewSpec.id] == null || it.title === titles[it.viewSpec.id]
             );
-        if (titlesMatch && isEqual(toPlacement(canvasModel.state), toPlacement(state))) return;
-        canvasModel.loadState(state);
+        if (!titlesMatch || !isEqual(toPlacement(canvasModel.state), toPlacement(state))) {
+            canvasModel.loadState(state);
+        }
+        runInAction(() =>
+            canvasModel.viewModels.forEach(vm => {
+                vm.headerItems = this.slotRefs('headerItems', vm.viewSpec.id).map(it =>
+                    this.renderElement(it.id)
+                );
+            })
+        );
     }
 
     /** Model to doc: a drag or resize becomes one edit, with children in reading order. */
@@ -160,8 +171,13 @@ export class DashCanvasWidgetModel extends BlueprintWidgetModel<DashCanvasWidget
         if (state.some(it => it.viewSpecId === DROP_VIEW_ID)) return;
         if (state.length !== children.length) return;
         if (isEqual(toPlacement(state), toPlacement(fromChildren(children)))) return;
+        // A cell keeps its other keys, such as its header items.
         const next = sortBy(
-            state.map(it => ({id: it.viewSpecId, ...pick(it.layout, 'x', 'y', 'w', 'h')})),
+            state.map(it => ({
+                ...children.find(ref => ref.id === it.viewSpecId),
+                id: it.viewSpecId,
+                ...pick(it.layout, 'x', 'y', 'w', 'h')
+            })),
             ['y', 'x']
         );
         const ok = this.applyUserEdit([

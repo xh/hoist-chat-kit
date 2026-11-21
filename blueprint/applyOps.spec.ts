@@ -110,6 +110,95 @@ describe('applyOps', () => {
         expect(apply([{op: 'patch', path: '/root'}]).issue.message).toMatch(/unknown op 'patch'/);
     });
 
+    describe('slots', () => {
+        const page = () =>
+            applyOps({}, [
+                {op: 'addElement', id: 'page', element: {component: 'panel', children: []}},
+                {
+                    op: 'addElement',
+                    id: 'canvas',
+                    element: {component: 'dashCanvas'},
+                    parent: 'page'
+                },
+                {
+                    op: 'addElement',
+                    id: 'grid',
+                    element: {component: 'cubeGrid'},
+                    parent: 'canvas',
+                    child: {x: 0, y: 0, w: 6, h: 4}
+                }
+            ]).result;
+
+        it('adds into a named slot of a parent, or of one of its child references', () => {
+            const {result} = applyOps(page(), [
+                {
+                    op: 'addElement',
+                    id: 'bar',
+                    element: {component: 'toolbar'},
+                    parent: 'page',
+                    slot: 'bbar'
+                },
+                {
+                    op: 'addElement',
+                    id: 'views',
+                    element: {component: 'presetSelector'},
+                    parent: 'canvas',
+                    slot: 'headerItems',
+                    of: 'grid'
+                }
+            ]);
+            expect(result.elements.page.bbar).toEqual([{id: 'bar'}]);
+            expect(result.elements.canvas.children[0].headerItems).toEqual([{id: 'views'}]);
+        });
+
+        it('moves between slots, and removes from any, dropping an emptied one', () => {
+            let {result} = applyOps(page(), [
+                {
+                    op: 'addElement',
+                    id: 'bar',
+                    element: {component: 'toolbar'},
+                    parent: 'page',
+                    slot: 'tbar'
+                },
+                {op: 'moveElement', id: 'bar', parent: 'page', slot: 'bbar'}
+            ]);
+            expect(result.elements.page).not.toHaveProperty('tbar');
+            expect(result.elements.page.bbar).toEqual([{id: 'bar'}]);
+            ({result} = applyOps(result, [{op: 'removeElement', id: 'bar'}]));
+            expect(result.elements.page).not.toHaveProperty('bbar');
+        });
+
+        it('refuses to remove an element that holds children in any slot', () => {
+            const {issue} = applyOps(page(), [
+                {
+                    op: 'addElement',
+                    id: 'views',
+                    element: {component: 'presetSelector'},
+                    parent: 'canvas',
+                    slot: 'headerItems',
+                    of: 'grid'
+                },
+                {op: 'removeElement', id: 'canvas'}
+            ]);
+            expect(issue.message).toMatch(/still has children/);
+        });
+
+        it('renames an element in whichever slot holds it', () => {
+            const {result} = applyOps(page(), [
+                {
+                    op: 'addElement',
+                    id: 'views',
+                    element: {component: 'presetSelector'},
+                    parent: 'canvas',
+                    slot: 'headerItems',
+                    of: 'grid'
+                },
+                {op: 'renameId', kind: 'element', from: 'views', to: 'gridViews'}
+            ]);
+            expect(result.elements.canvas.children[0].headerItems).toEqual([{id: 'gridViews'}]);
+        });
+    });
+
     describe('addElement', () => {
         it('makes the first element of an empty blueprint its root', () => {
             const {result} = applyOps({}, [

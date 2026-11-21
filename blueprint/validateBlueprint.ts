@@ -8,10 +8,11 @@ import {
     type VariableDecl
 } from './Blueprint';
 import {BLUEPRINT_LINK_RESERVED} from './impl/linkParams';
-import type {BlueprintRegistry, WidgetSpec} from './BlueprintRegistry';
+import type {BlueprintRegistry, SlotAccepts, SlotSpec, WidgetSpec} from './BlueprintRegistry';
 import type {DataCatalog, FieldDef} from './DataCatalog';
 import {checkConfig, checkFilter} from './impl/configSchema';
 import {joinFields} from './impl/joins';
+import {slotLists} from './impl/elements';
 import {decodePointer, getOwn, isForbiddenKey, toLookup} from './impl/pointer';
 import {parseTemplate, templateRefs} from './impl/template';
 import {
@@ -136,13 +137,13 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
     }
     const parent: Record<string, string> = toLookup({});
     for (const [id, el] of Object.entries(elements)) {
-        const p = `/elements/${id}`;
+        const p = `/elements/${id}`,
+            spec = registry.widgets[el.component];
         for (const k of Object.keys(el)) {
-            if (!ELEMENT_KEYS.includes(k)) {
+            if (!ELEMENT_KEYS.includes(k) && !(spec && getOwn(spec.slots, k))) {
                 err('structure.unknownKey', `${p}/${k}`, `unknown element key '${k}'`);
             }
         }
-        const spec = registry.widgets[el.component];
         if (!spec) {
             err(
                 'element.unknownComponent',
@@ -168,7 +169,6 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
             err('element.notContainer', `${p}/children`, `${el.component} takes no children`);
         }
         if (el.component === 'dashCanvas') checkCanvasLayout(el, p, err);
-        if (el.component === 'panel') checkPanelSlots(el, elements, p, err);
         if (el.component === 'dateRangePicker' && registry.dateRangePresets) {
             castArray(el.config?.presets ?? []).forEach((token: string, i: number) => {
                 if (!registry.dateRangePresets[token]) {
@@ -180,35 +180,52 @@ export function validateBlueprint(bp: Blueprint, ctx: ValidateBlueprintContext):
                 }
             });
         }
-        for (const [i, ch] of (el.children ?? []).entries()) {
-            if (spec.children) {
-                for (const e of checkConfig(ch, spec.children.schema)) {
-                    err('schema.invalid', `${p}/children/${i}${e.path}`, e.message);
-                }
+        const cellSlots = spec.children?.slots ?? {};
+        for (const {slot, of, refs} of slotLists(el)) {
+            const ci = of ? el.children.findIndex((it: PlainObject) => it.id === of) : -1,
+                at = of ? `${p}/children/${ci}/${slot}` : `${p}/${slot}`,
+                slotSpec: SlotSpec = of
+                    ? getOwn(cellSlots, slot)
+                    : slot === 'children'
+                      ? null
+                      : getOwn(spec.slots, slot);
+            if (of && !slotSpec) continue; // The child reference's schema names the key.
+            if (slot === 'children' && !spec.children) continue;
+            if (slotSpec?.maxItems != null && refs.length > slotSpec.maxItems) {
+                err('slot.full', at, `${slot} holds at most ${slotSpec.maxItems}`);
             }
-            if (!elements[ch.id]) {
-                err(
-                    'structure.unknownChild',
-                    `${p}/children/${i}/id`,
-                    `child '${ch.id}' is not an element`
-                );
-            } else if (ch.id === bp.root) {
-                err('structure.rootIsChild', `${p}/children/${i}/id`, `'${ch.id}' is the root`);
-            } else if (parent[ch.id]) {
-                err(
-                    'structure.twoParents',
-                    `${p}/children/${i}/id`,
-                    `'${ch.id}' is already a child of '${parent[ch.id]}'`
-                );
-            } else {
-                parent[ch.id] = id;
-                const childSpec = registry.widgets[elements[ch.id].component];
-                if (childSpec && !accepts(spec, childSpec)) {
+            for (const [i, ch] of refs.entries()) {
+                const schema = slot === 'children' ? spec.children.schema : SLOT_REF_SCHEMA;
+                // A cell's own slot lists are checked as slots, not as its placement.
+                const placement = slot === 'children' ? omit(ch, Object.keys(cellSlots)) : ch;
+                for (const e of checkConfig(placement, schema)) {
+                    err('schema.invalid', `${at}/${i}${e.path}`, e.message);
+                }
+                if (!elements[ch.id]) {
                     err(
-                        'element.notAccepted',
-                        `${p}/children/${i}/id`,
-                        `${el.component} cannot hold '${ch.id}', a ${childSpec.name}. It takes ${describeAccepts(spec)}.`
+                        'structure.unknownChild',
+                        `${at}/${i}/id`,
+                        `child '${ch.id}' is not an element`
                     );
+                } else if (ch.id === bp.root) {
+                    err('structure.rootIsChild', `${at}/${i}/id`, `'${ch.id}' is the root`);
+                } else if (parent[ch.id]) {
+                    err(
+                        'structure.twoParents',
+                        `${at}/${i}/id`,
+                        `'${ch.id}' is already a child of '${parent[ch.id]}'`
+                    );
+                } else {
+                    parent[ch.id] = id;
+                    const childSpec = registry.widgets[elements[ch.id].component],
+                        rule = slotSpec ? slotSpec.accepts : spec.children.accepts;
+                    if (childSpec && !accepts(rule, childSpec)) {
+                        err(
+                            'element.notAccepted',
+                            `${at}/${i}/id`,
+                            `${el.component} cannot hold '${ch.id}', a ${childSpec.name}, in ${slot}. It takes ${describeAccepts(rule)}.`
+                        );
+                    }
                 }
             }
         }
@@ -1039,6 +1056,13 @@ export const FIELD_OVERRIDE_SCHEMA = {
 
 const TOP_LEVEL_KEYS = ['schema', 'formats', 'variables', 'sources', 'presets', 'root', 'elements'],
     ELEMENT_KEYS = ['component', 'config', 'children', 'personalizable'],
+    // A reference in a slot other than children holds the child's ID alone.
+    SLOT_REF_SCHEMA = {
+        type: 'object',
+        additionalProperties: false,
+        required: ['id'],
+        properties: {id: {type: 'string'}}
+    },
     PRESET_GROUP_KEYS = ['label', 'controls', 'default', 'items'];
 
 /**
@@ -1122,15 +1146,15 @@ function checkResolverCycles(
     Object.keys(variables).forEach(it => visit(it, []));
 }
 
-function accepts(container: WidgetSpec, child: WidgetSpec): boolean {
-    const {categories, widgets} = container.children?.accepts ?? {};
+function accepts(rule: SlotAccepts, child: WidgetSpec): boolean {
+    const {categories, widgets} = rule ?? {};
     if (!categories && !widgets) return true;
     return !!categories?.includes(child.category) || !!widgets?.includes(child.name);
 }
 
 // Such as "input widgets, separator and spacer".
-function describeAccepts(container: WidgetSpec): string {
-    const {categories = [], widgets = []} = container.children.accepts,
+function describeAccepts(rule: SlotAccepts): string {
+    const {categories = [], widgets = []} = rule ?? {},
         items = [...(categories.length ? [`${joinAnd(categories)} widgets`] : []), ...widgets];
     return joinAnd(items);
 }
@@ -1159,27 +1183,6 @@ function bindingTypesOf(schema: PlainObject): string[] {
         default:
             return null;
     }
-}
-
-/** A panel draws a toolbar, and only a toolbar, in each of its tbar and bbar slots. */
-function checkPanelSlots(
-    el: PlainObject,
-    elements: Record<string, any>,
-    path: string,
-    err: (code: string, path: string, message: string) => void
-) {
-    const seen = new Set<string>();
-    (el.children ?? []).forEach((ch: PlainObject, i: number) => {
-        if (!ch.slot) return;
-        const at = `${path}/children/${i}`,
-            child = elements[ch.id];
-        if (child && child.component !== 'toolbar') {
-            err('panel.slotNotToolbar', at, `only a toolbar can go in ${ch.slot}`);
-        } else if (seen.has(ch.slot)) {
-            err('panel.slotTaken', at, `${ch.slot} already holds a toolbar`);
-        }
-        seen.add(ch.slot);
-    });
 }
 
 /** A canvas places children freely, so they must not overlap or pass the last column. */

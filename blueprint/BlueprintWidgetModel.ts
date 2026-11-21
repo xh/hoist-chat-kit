@@ -47,6 +47,17 @@ export class BlueprintWidgetModel<C extends PlainObject = PlainObject> extends H
         return this.element?.children ?? [];
     }
 
+    /** The widget of another element, by its ID. */
+    componentOf(id: string): string {
+        return this.blueprintModel.effective?.elements?.[id]?.component ?? null;
+    }
+
+    /** The references in one of the element's slot lists, or in one of a child reference's. */
+    slotRefs(slot: string, of?: string): ChildRef[] {
+        const holder = of ? this.children.find(it => it.id === of) : this.element;
+        return ((holder as PlainObject)?.[slot] as ChildRef[]) ?? [];
+    }
+
     /** The container that holds the element, or null for the root. */
     get parentElement(): BlueprintElement {
         const elements = this.blueprintModel.effective?.elements;

@@ -428,26 +428,39 @@ describe('input widgets', () => {
             );
         });
 
-        it("draws in a panel's top or bottom bar, and only a toolbar may", () => {
+        it("draws a toolbar, or inputs, in a panel's top or bottom bar, and inputs in its header", () => {
             show(
                 {
                     bar: {
                         component: 'panel',
                         config: {title: 'Page'},
-                        children: [{id: 'top', slot: 'tbar'}, {id: 'body'}]
-                    },
+                        children: [{id: 'body'}],
+                        tbar: [{id: 'top'}],
+                        bbar: [{id: 'flag'}],
+                        headerItems: [{id: 'pick'}]
+                    } as any,
                     top: {
                         component: 'toolbar',
                         config: {overflowMenu: false},
-                        children: [{id: 'flag'}]
+                        children: [{id: 'auto'}]
                     },
+                    auto: {component: 'switchInput', config: {label: 'Auto'}},
                     flag: {component: 'switchInput', config: {label: 'Live'}},
+                    pick: {component: 'select', config: {}},
                     body: {component: 'markdown', config: {text: 'Body'}}
                 },
-                {live: {type: 'bool', setBy: {element: 'flag'}}}
+                {
+                    live: {type: 'bool', setBy: {element: 'flag'}},
+                    autoOn: {type: 'bool', setBy: {element: 'auto'}},
+                    region: {type: 'string', options: {values: ['EU']}, setBy: {element: 'pick'}}
+                }
             );
-            const tbar = document.querySelector('.xh-panel .xh-toolbar');
-            expect(tbar?.textContent).toContain('Live');
+            const bars = [...document.querySelectorAll('.xh-panel .xh-toolbar')].map(
+                it => it.textContent
+            );
+            expect(bars).toEqual(expect.arrayContaining([expect.stringContaining('Auto')]));
+            expect(bars).toEqual(expect.arrayContaining([expect.stringContaining('Live')]));
+            expect(document.querySelector('.xh-panel-header .xh-select')).toBeTruthy();
             expect(screen.getByText('Body')).toBeTruthy();
 
             // A card holds its bars around a body that fills the rest.
@@ -455,8 +468,9 @@ describe('input widgets', () => {
                 bar: {
                     component: 'panel',
                     config: {style: 'card'},
-                    children: [{id: 'top', slot: 'tbar'}, {id: 'body'}]
-                },
+                    children: [{id: 'body'}],
+                    tbar: [{id: 'top'}]
+                } as any,
                 top: {component: 'toolbar', config: {}, children: []},
                 body: {component: 'markdown', config: {text: 'Card body'}}
             });
@@ -468,10 +482,23 @@ describe('input widgets', () => {
 
             expect(() =>
                 show({
-                    bar: {component: 'panel', config: {}, children: [{id: 'top', slot: 'tbar'}]},
+                    bar: {component: 'panel', config: {}, children: [], tbar: [{id: 'top'}]} as any,
                     top: {component: 'markdown', config: {text: 'x'}}
                 })
-            ).toThrow(/only a toolbar/);
+            ).toThrow(/panel cannot hold 'top', a markdown, in tbar/);
+        });
+
+        it('reads a toolbar written with the old slot marker as in its slot list', () => {
+            show({
+                bar: {
+                    component: 'panel',
+                    config: {title: 'Page'},
+                    children: [{id: 'top', slot: 'tbar'}, {id: 'body'}]
+                },
+                top: {component: 'toolbar', config: {}, children: []},
+                body: {component: 'markdown', config: {text: 'Body'}}
+            });
+            expect(document.querySelector('.xh-panel .xh-toolbar')).toBeTruthy();
         });
     });
 });

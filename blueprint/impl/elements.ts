@@ -85,6 +85,29 @@ export function insertRef(
     else refs.splice(Math.max(0, index), 0, ref);
 }
 
+/**
+ * A blueprint with each child reference that marks a slot, `{id, slot: 'tbar'}` as blueprints wrote
+ * it before slot lists, moved into the list it names. The same blueprint if it has none.
+ */
+export function upgradeSlots<T extends {elements?: Record<string, BlueprintElement>}>(bp: T): T {
+    const marked = Object.values(bp?.elements ?? {}).some(el =>
+        el.children?.some(it => typeof it.slot === 'string')
+    );
+    if (!marked) return bp;
+    const elements = Object.fromEntries(
+        Object.entries(bp.elements).map(([id, el]) => {
+            if (!el.children?.some(it => typeof it.slot === 'string')) return [id, el];
+            const ret: PlainObject = {...el, children: []};
+            el.children.forEach(({slot, ...ref}) => {
+                const list = typeof slot === 'string' && slot !== 'default' ? slot : 'children';
+                (ret[list] ??= []).push(ref);
+            });
+            return [id, ret as BlueprintElement];
+        })
+    );
+    return {...bp, elements};
+}
+
 //------------------
 // Implementation
 //------------------
