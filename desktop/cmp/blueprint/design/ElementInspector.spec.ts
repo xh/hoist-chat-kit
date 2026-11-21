@@ -103,6 +103,22 @@ describe('ElementInspector', () => {
         expect(inspector.issuesFor('$id')[0].message).toMatch(/priceChart/);
     });
 
+    it("moves an element between its container's slots that take it", () => {
+        const {model, inspector} = open('p3-morning-report.json', 'posViewsSelector');
+        expect(inspector.slot).toBe('children');
+        expect(inspector.slotOptions.map(it => it.value)).toEqual(
+            expect.arrayContaining(['children', 'headerItems:posGrid', 'headerItems:priceChart'])
+        );
+        inspector.moveToSlot('headerItems:posGrid');
+        const cell = model.blueprint.elements.positions.children.find(it => it.id === 'posGrid');
+        expect(cell.headerItems).toEqual([{id: 'posViewsSelector'}]);
+        expect(inspector.slot).toBe('headerItems:posGrid');
+        expect(inspector.placementNodes).toEqual([]);
+
+        inspector.moveToSlot('children');
+        expect(inspector.placementValues).toMatchObject({w: expect.any(Number)});
+    });
+
     it("edits where an element sits in its container, from the container's child schema", () => {
         const {model, inspector} = open('p3-morning-report.json', 'posGrid');
         expect(inspector.placementNodes.map(it => it.key)).toEqual(['x', 'y', 'w', 'h']);

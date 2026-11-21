@@ -17,6 +17,7 @@ import {applyOps} from '../applyOps';
 import type {BlueprintEditResult, BlueprintModel} from '../BlueprintModel';
 import type {WidgetSpec} from '../BlueprintRegistry';
 import {childIds, locate, parentOf, slotLists} from '../impl/elements';
+import type {SlotAccepts} from '../BlueprintRegistry';
 import {readsInTemplates} from '../impl/template';
 import {decodePointer, getAt, getOwn, setAt} from '../impl/pointer';
 import {variableTypeMatches} from '../validateBlueprint';
@@ -361,6 +362,54 @@ export class BlueprintDesignModel extends HoistModel {
                 parent,
                 ...(child ? {child} : {}),
                 ...(index != null ? {index} : {}),
+                ...(slot !== 'children' ? {slot} : {}),
+                ...(of ? {of} : {})
+            }
+        ]);
+    }
+
+    /**
+     * The slots of an element's container that take it: `children`, the container's other slots,
+     * and its child references' slots, such as each canvas cell's header.
+     */
+    slotsFor(id: string): {slot: string; of?: string}[] {
+        const {elements} = this.blueprintModel.blueprint ?? {},
+            parent = parentOf(elements, id),
+            spec = this.elementSpec(id),
+            parentSpec = parent ? this.elementSpec(parent) : null;
+        if (!spec || !parentSpec?.children) return [];
+        const takes = (rule: SlotAccepts) =>
+                !rule ||
+                (!rule.categories && !rule.widgets) ||
+                !!rule.categories?.includes(spec.category) ||
+                !!rule.widgets?.includes(spec.name),
+            ret: {slot: string; of?: string}[] = [];
+        if (takes(parentSpec.children.accepts)) ret.push({slot: 'children'});
+        Object.entries(parentSpec.slots ?? {}).forEach(([slot, it]) => {
+            if (takes(it.accepts)) ret.push({slot});
+        });
+        Object.entries(parentSpec.children.slots ?? {}).forEach(([slot, it]) => {
+            if (!takes(it.accepts)) return;
+            (elements[parent].children ?? [])
+                .filter(ref => ref.id !== id)
+                .forEach(ref => ret.push({slot, of: ref.id}));
+        });
+        return ret;
+    }
+
+    /** Move an element to another slot of its container, at its end, as one edit. */
+    moveToSlot(id: string, slot: string, of?: string): BlueprintEditResult {
+        const {elements} = this.blueprintModel.blueprint ?? {},
+            parent = parentOf(elements, id),
+            spec = this.elementSpec(id);
+        if (!parent || !spec) return refused(`'${id}' is not in a container.`);
+        const child = slot === 'children' ? this.placeChild(parent, spec) : null;
+        return this.edit(`Move ${spec.label} to ${of ? `${of} ` : ''}${slot}`, [
+            {
+                op: 'moveElement',
+                id,
+                parent,
+                ...(child ? {child} : {}),
                 ...(slot !== 'children' ? {slot} : {}),
                 ...(of ? {of} : {})
             }

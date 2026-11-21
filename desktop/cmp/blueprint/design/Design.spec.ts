@@ -60,6 +60,17 @@ describe('design mode selection', () => {
         await vi.waitFor(() => expect(gridModel.selectedId).toBe('sectorChart'));
     });
 
+    it('lists what each slot holds under its parent, naming the slot', () => {
+        const {design} = open('p3-morning-report.json');
+        design.removeElement('posViewsSelector');
+        const {id} = design.addPresetSelector('posViews'),
+            outline = new ElementOutlineModel(design);
+        onTestFinished(() => outline.destroy());
+        const row = outline.gridModel.store.getById(id);
+        expect(row.parent.id).toBe('positions');
+        expect(row.data.widget).toBe('Preset selector · posGrid header');
+    });
+
     it('moves an element dropped on another, into it or beside it by where the drop falls', () => {
         const {design, model} = open('p3-morning-report.json'),
             outline = new ElementOutlineModel(design);

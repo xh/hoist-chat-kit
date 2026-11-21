@@ -11,7 +11,7 @@ import {
     type EditorNode,
     toEditorSpec
 } from '../../../../blueprint';
-import {parentOf} from '../../../../blueprint/impl/elements';
+import {locate, parentOf} from '../../../../blueprint/impl/elements';
 import './ElementInspector.scss';
 import {ConfigEditorModel} from './impl/ConfigEditorModel';
 import {CLS, listOf, propertyRow} from './impl/ConfigEditors';
@@ -152,10 +152,38 @@ export class ElementInspectorModel extends ConfigEditorModel {
         if (errors.length) this.refuseWith(SETS_KEY, errors);
     }
 
-    /** Editors for where the element sits in its container, from the container's child schema. */
+    /**
+     * Editors for where the element sits in its container, from the container's child schema.
+     * None in a slot other than `children`, which holds no placement.
+     */
     get placementNodes(): EditorNode[] {
         const schema = this.parentSpec?.children?.schema;
-        return schema ? toEditorSpec(schema).filter(it => it.key !== 'id') : [];
+        if (!schema || this.slot !== 'children') return [];
+        return toEditorSpec(schema).filter(
+            it => it.key !== 'id' && !this.parentSpec.children.slots?.[it.key]
+        );
+    }
+
+    /** The slot that holds the element, as `slot` or `slot:of` for a child reference's slot. */
+    get slot(): string {
+        const at = locate(this.designModel.blueprintModel.blueprint?.elements, this.elementId);
+        return at ? slotValue(at.slot, at.of) : null;
+    }
+
+    /** The slots of the element's container that take it, as {@link slot} names them. */
+    get slotOptions(): {value: string; label: string}[] {
+        return this.designModel.slotsFor(this.elementId).map(({slot, of}) => ({
+            value: slotValue(slot, of),
+            label: of ? `${of} ${slot}` : slot
+        }));
+    }
+
+    /** Move the element to another slot of its container, as {@link slot} names it. */
+    moveToSlot(value: string) {
+        const [slot, of] = value.split(':'),
+            {issues} = this.designModel.moveToSlot(this.elementId, slot, of),
+            errors = issues.filter(it => it.severity === 'error');
+        if (errors.length) this.refuseWith(placementKey('slot'), errors);
     }
 
     /** The element's child reference in its container, without its ID. */
@@ -237,6 +265,9 @@ export class ElementInspectorModel extends ConfigEditorModel {
 // The key a refusal of the element itself, such as its removal, goes under.
 const ELEMENT_KEY = '';
 
+// A slot as the inspector's slot picker names it.
+const slotValue = (slot: string, of?: string) => (of ? `${slot}:${of}` : slot);
+
 // The key a placement property's refusals go under, apart from the config's own.
 const placementKey = (key: string) => `$placement.${key}`;
 
@@ -283,9 +314,10 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
                 ),
                 impl.tabs ? tabsEditor(impl) : null,
                 impl.setsOptions ? setsEditor(impl) : null,
-                impl.placementNodes.length
+                impl.placementNodes.length || impl.slotOptions.length > 1
                     ? div({className: `${CLS}__section`, children: 'Placement'})
                     : null,
+                impl.slotOptions.length > 1 ? slotEditor(impl) : null,
                 ...impl.placementNodes.map(node =>
                     propertyRow({
                         node,
@@ -327,6 +359,26 @@ const inspectorBody = hoistCmp.factory<ElementInspectorModel>({
         });
     }
 });
+
+// The slot of its container that holds the element.
+function slotEditor(impl: ElementInspectorModel) {
+    return div({
+        className: `${CLS}__row`,
+        children: [
+            div({className: `${CLS}__label`, children: 'Slot'}),
+            select({
+                value: impl.slot,
+                options: impl.slotOptions,
+                disabled: impl.readOnly,
+                width: '100%',
+                onCommit: (it: string) => it && it !== impl.slot && impl.moveToSlot(it)
+            }),
+            ...impl
+                .issuesFor(placementKey('slot'))
+                .map((it, idx) => div({key: idx, className: `${CLS}__issue`, children: it.message}))
+        ]
+    });
+}
 
 // The variable an input shows and sets.
 function setsEditor(impl: ElementInspectorModel) {

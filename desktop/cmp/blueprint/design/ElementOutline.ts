@@ -11,6 +11,7 @@ import {
 import {observable, runInAction} from '@xh/hoist/mobx';
 import type React from 'react';
 import type {BlueprintDesignModel} from '../../../../blueprint';
+import {slotLists} from '../../../../blueprint/impl/elements';
 import './ElementOutline.scss';
 
 export interface ElementOutlineProps extends HoistProps {
@@ -158,15 +159,18 @@ export class ElementOutlineModel extends HoistModel {
             {blueprint, registry} = blueprintModel,
             elements = blueprint?.elements ?? {},
             placed = new Set<string>(),
-            toRow = (id: string): PlainObject => {
+            toRow = (id: string, slot = 'children', of: string = null): PlainObject => {
                 placed.add(id);
-                const el = elements[id];
+                const el = elements[id],
+                    label = registry.widgets[el.component]?.label ?? el.component;
                 return {
                     id,
-                    widget: registry.widgets[el.component]?.label ?? el.component,
-                    children: (el.children ?? [])
-                        .filter(it => Object.hasOwn(elements, it.id) && !placed.has(it.id))
-                        .map(it => toRow(it.id))
+                    widget: slot === 'children' ? label : `${label} · ${slotName(slot, of)}`,
+                    children: slotLists(el).flatMap(list =>
+                        list.refs
+                            .filter(it => Object.hasOwn(elements, it.id) && !placed.has(it.id))
+                            .map(it => toRow(it.id, list.slot, list.of))
+                    )
                 };
             },
             roots =
@@ -178,3 +182,8 @@ export class ElementOutlineModel extends HoistModel {
 }
 
 const ROW = 'xh-blueprint-element-outline__row';
+
+// A slot as the outline names it: a cell's header by the cell, any other by its key.
+function slotName(slot: string, of: string): string {
+    return of ? `${of} ${slot === 'headerItems' ? 'header' : slot}` : slot;
+}
